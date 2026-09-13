@@ -1,0 +1,413 @@
+{
+  "events": [
+    {
+      "id": "chest_a",
+      "cell": {
+        "x": 9,
+        "y": 22
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "打开了宝箱！"
+            },
+            {
+              "op": "give_item",
+              "item_id": "potion_hp_small",
+              "qty": 2
+            },
+            {
+              "op": "give_gold",
+              "amount": 20
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "空的宝箱。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "switch",
+      "cell": {
+        "x": 14,
+        "y": 18
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "按下了墙上的开关。某处似乎有了反应。"
+            },
+            {
+              "op": "set_switch",
+              "id": "demo_door_open",
+              "value": true
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "开关已经按下了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "door",
+      "cell": {
+        "x": 15,
+        "y": 8
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "门关着。也许要先打开某个开关。"
+            }
+          ]
+        },
+        {
+          "when": {
+            "switch": "demo_door_open"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "门开了。"
+            },
+            {
+              "op": "transfer",
+              "to_pack": "res://street_map",
+              "to_cell": {
+                "x": 41,
+                "y": 23
+              },
+              "facing": 4,
+              "message": "推门而出"
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pc",
+      "cell": {
+        "x": 8,
+        "y": 11
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "桌上的电脑亮了一下，吐出一张便签。"
+            },
+            {
+              "op": "give_item",
+              "item_id": "rusty_coin",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "电脑已经关机了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mat_touch",
+      "cell": {
+        "x": 16,
+        "y": 12
+      },
+      "trigger": "player_touch",
+      "through": true,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "message",
+              "text": "脚下的地毯有点松软。"
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": []
+        }
+      ]
+    },
+    {
+      "id": "herb_a",
+      "cell": {
+        "x": 10,
+        "y": 22
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "采到了药草"
+            },
+            {
+              "op": "give_item",
+              "item_id": "wild_herb",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "herb_b",
+      "cell": {
+        "x": 8,
+        "y": 22
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "采到了药草"
+            },
+            {
+              "op": "give_item",
+              "item_id": "wild_herb",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "herb_c",
+      "cell": {
+        "x": 11,
+        "y": 21
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "采到了药草"
+            },
+            {
+              "op": "give_item",
+              "item_id": "wild_herb",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "herb_d",
+      "cell": {
+        "x": 7,
+        "y": 21
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "采到了药草"
+            },
+            {
+              "op": "give_item",
+              "item_id": "wild_herb",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "herb_e",
+      "cell": {
+        "x": 12,
+        "y": 22
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "commands": [
+            {
+              "op": "text",
+              "text": "采到了药草"
+            },
+            {
+              "op": "give_item",
+              "item_id": "wild_herb",
+              "qty": 1
+            },
+            {
+              "op": "set_self_switch",
+              "letter": "A",
+              "value": true
+            }
+          ]
+        },
+        {
+          "when": {
+            "self_switch": "A"
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

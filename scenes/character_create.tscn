@@ -1,0 +1,330 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/character_create.gd" id="1"]
+
+[node name="CharacterCreate" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.07, 0.08, 0.11, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 44
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 44
+theme_override_constants/margin_bottom = 36
+
+[node name="Outer" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Margin/Outer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "创建角色"
+horizontal_alignment = 1
+
+[node name="MainHBox" type="HBoxContainer" parent="Margin/Outer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="BasicCard" type="PanelContainer" parent="Margin/Outer/MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+
+[node name="BasicPad" type="MarginContainer" parent="Margin/Outer/MainHBox/BasicCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 2
+
+[node name="Form" type="VBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="BasicHeader" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "基本"
+
+[node name="NameLabel" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "角色名"
+
+[node name="NewName" type="LineEdit" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+placeholder_text = "输入角色名"
+
+[node name="ClassGenderRow" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ClassCol" type="VBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="ClassLabel" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/ClassCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "职业"
+
+[node name="ClassOption" type="OptionButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/ClassCol"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GenderCol" type="VBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="GenderLabel" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/GenderCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "性别"
+
+[node name="GenderOption" type="OptionButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/GenderCol"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AppearanceHeader" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "外观配色"
+
+[node name="PaletteBox" type="VBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SkinRow" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SkinOn" type="CheckButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/SkinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+text = "肤色"
+
+[node name="SkinColor" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/SkinRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+focus_mode = 0
+text = ""
+
+[node name="HairRow" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HairOn" type="CheckButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/HairRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+text = "发色"
+
+[node name="HairColor" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/HairRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+focus_mode = 0
+text = ""
+
+[node name="ClothRow" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ClothOn" type="CheckButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/ClothRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = false
+text = "服装"
+
+[node name="ClothColor" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/ClothRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+focus_mode = 0
+text = ""
+
+[node name="RandomButton" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "随机配色"
+
+[node name="FormSpacer" type="Control" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Status" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+text = ""
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CreateButton" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "创建"
+
+[node name="BackButton" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "返回选角"
+
+[node name="FaceCard" type="PanelContainer" parent="Margin/Outer/MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.2
+
+[node name="FacePad" type="MarginContainer" parent="Margin/Outer/MainHBox/FaceCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 2
+
+[node name="FaceCol" type="VBoxContainer" parent="Margin/Outer/MainHBox/FaceCard/FacePad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="FaceHeader" type="Label" parent="Margin/Outer/MainHBox/FaceCard/FacePad/FaceCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "捏脸"
+
+[node name="Slots" type="ScrollContainer" parent="Margin/Outer/MainHBox/FaceCard/FacePad/FaceCol"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SlotList" type="VBoxContainer" parent="Margin/Outer/MainHBox/FaceCard/FacePad/FaceCol/Slots"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="PreviewCard" type="PanelContainer" parent="Margin/Outer/MainHBox"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.95
+
+[node name="PreviewPad" type="MarginContainer" parent="Margin/Outer/MainHBox/PreviewCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 2
+
+[node name="PreviewCol" type="VBoxContainer" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="PreviewHeader" type="Label" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "预览"
+horizontal_alignment = 1
+
+[node name="PortraitFrame" type="PanelContainer" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol"]
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="PortraitPad" type="MarginContainer" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol/PortraitFrame"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Portrait" type="TextureRect" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol/PortraitFrame/PortraitPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(168, 168)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+expand_mode = 1
+stretch_mode = 5
+texture_filter = 1
+
+[node name="PreviewLabel" type="Label" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "走动预览"
+horizontal_alignment = 1
+
+[node name="PreviewHost" type="Control" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 280)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
+
+[node name="Preview" type="AnimatedSprite2D" parent="Margin/Outer/MainHBox/PreviewCard/PreviewPad/PreviewCol/PreviewHost"]
+unique_name_in_owner = true
+texture_filter = 1
+scale = Vector2(3, 3)
+
+[node name="PalettePopup" type="PopupPanel" parent="."]
+unique_name_in_owner = true
+
+[node name="PopupGrid" type="GridContainer" parent="PalettePopup"]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 14
+theme_override_constants/h_separation = 3
+theme_override_constants/v_separation = 3

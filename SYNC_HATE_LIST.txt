@@ -1,0 +1,14 @@
+# Sync note — multi-player hate list (2026-09-07)
+
+Extract `/workspace/rmmo_combat_sync.tar.gz` over Luna project root.
+
+## What changed
+- Replaced per-mob `threat{}` dict with explicit **`hate_list: Array[{id,threat,threat_mod}]`** + **`victim_id`**.
+- New API: `add_hate`, `get_hate_list`, `select_victim` (110% sticky), `clear_hate`, `set_actor_threat_mod`, `add_hate_heal` (0.5x stub).
+- `add_threat` kept as thin wrapper → `add_hate(..., 1.0)`.
+- Damage uses session character id string when set (else `"player"`) × actor `threat_mod`.
+- Chase AI calls `select_victim` each tick / after damage (tank + DPS party ready).
+- Tests: sticky + tank A mod 2.0 holds vs B until ≥110% applied hate.
+
+## Files
+See SYNC_ACCEPTANCE.txt (same tarball set; combat_stats / combat_engine / mock_server / tests / docs updated).

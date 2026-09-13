@@ -1,0 +1,39 @@
+# Godot 4 cache
+.godot/
+.import/
+
+# Art / audio — track code and JSON only
+assets/
+**/*.png
+**/*.gif
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.ogg
+**/*.wav
+**/*.mp3
+**/*.import
+
+# Exports / local junk
+export.cfg
+*.apk
+*.aab
+*.ipa
+*.exe
+*.zip
+*.rmpack
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Scratch
+*.tmp
+*.log
+._*
+*.user
+*.translation
+radar_atlas_demo.png
+_box_sync.zip
+._write_test.txt

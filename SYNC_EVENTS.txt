@@ -1,0 +1,13 @@
+MV-inspired map events (v1) synced.
+- demo_map/events.json + pack.json events_file
+- scripts/net/combat/event_runtime.gd
+- MockServer try_interact / try_move player_touch / try_event_choice / transfer
+- Client map_transfer action + dialogue option → request_event_choice
+- tools/test_events.gd (headless PASS)
+
+How to smoke in-game (demo login):
+1. chest_a (9,22): interact → loot + gold; again → 空的宝箱
+2. switch (14,18): interact → sets demo_door_open
+3. door (15,8): after switch → 门开了 + transfer to street_map 41,23
+4. pc (8,11): rusty_coin once; again → 关机
+5. mat_touch (16,12): step on → system message once

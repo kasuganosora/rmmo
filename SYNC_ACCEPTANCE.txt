@@ -1,0 +1,24 @@
+# Sync list (acceptance + hate list) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+# See also SYNC_HATE_LIST.txt
+
+rmmo/ITEM_DESIGN_RESEARCH.md
+rmmo/ACCEPTANCE.md
+rmmo/COMBAT.md
+rmmo/MOB_SYSTEM_REVIEW.md
+rmmo/SYNC_ACCEPTANCE.txt
+rmmo/data/combat/items.json
+rmmo/data/combat/loot_tables.json
+rmmo/scripts/net/combat/data/items.json
+rmmo/scripts/net/combat/data/loot_tables.json
+rmmo/scripts/net/combat/inventory.gd
+rmmo/scripts/net/combat/item_catalog.gd
+rmmo/scripts/net/combat/loot_catalog.gd
+rmmo/scripts/net/combat/mob_ai.gd
+rmmo/scripts/net/combat/combat_stats.gd
+rmmo/scripts/net/combat/combat_engine.gd
+rmmo/scripts/net/mock_server.gd
+rmmo/scripts/game/world.gd
+rmmo/tools/test_acceptance_batch.gd
+rmmo/tools/test_mob_ai.gd
+rmmo/SYNC_HATE_LIST.txt

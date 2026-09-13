@@ -1,0 +1,13 @@
+{
+  "shops": {
+    "starter_goods": {
+      "title": "杂货商人",
+      "items": [
+        {"item_id": "potion_hp_small", "buy_price": 10},
+        {"item_id": "potion_mp_small", "buy_price": 10},
+        {"item_id": "leather_cap"},
+        {"item_id": "wooden_sword"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+# Sync list (authority cleanup: server owns all actor movement) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+# Date: 2026-09-07
+
+rmmo/AUTHORITY.md
+rmmo/COMBAT.md
+rmmo/ACCEPTANCE.md
+rmmo/SYNC_AUTHORITY.txt
+rmmo/scripts/net/mock_server.gd
+rmmo/scripts/game/npc_actor.gd
+rmmo/scripts/game/player.gd
+rmmo/demo_map/npcs.json
+rmmo/tools/test_authority.gd

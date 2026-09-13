@@ -1,0 +1,22 @@
+# Sync list (skills fixed window + tabs + fill-width grid + scroll) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+# Date: 2026-09-07
+
+rmmo/ACCEPTANCE.md
+rmmo/SYNC_SKILLS_UI.txt
+rmmo/data/combat/skills.json
+rmmo/scripts/net/combat/data/skills.json
+rmmo/scripts/net/combat/skill_catalog.gd
+rmmo/scripts/net/combat/combat_engine.gd
+rmmo/scripts/ui/game_hud.gd
+rmmo/scripts/ui/skill_slot.gd
+
+# Skills UX
+# - 技能 window: fixed size (HudDrag.resizable=false); no edge resize
+# - Tab bar: 物理 / 魔法 / 被动 (category filter); switching rebuilds grid
+# - No chrome labels ("服务器" etc.)
+# - ScrollContainer fills window body; grid alone (5 cols × 8 rows)
+# - Cell size fills content width / 5 (square); total grid height > scroll viewport → vertical scrollbar
+# - Letter-avatar = first char of skill name; drag-to-hotbar {kind:skill}
+# - Active → try_use_skill via world/MockServer; passive → "被动，无需施放" (server also rejects cast)
+# - Stub passives: tough_skin (passive_def), keen_eye (passive_atk)

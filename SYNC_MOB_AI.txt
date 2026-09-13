@@ -1,0 +1,16 @@
+# Sync list (mob AI: home leash + dead-mob respawn) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+
+rmmo/scripts/net/combat/mob_ai.gd
+rmmo/scripts/net/combat/combat_stats.gd
+rmmo/scripts/net/combat/combat_engine.gd
+rmmo/scripts/net/mock_server.gd
+rmmo/scripts/game/world.gd
+rmmo/scripts/game/npc_actor.gd
+rmmo/scripts/map/tilemap_pack.gd
+rmmo/street_map/npcs.json
+rmmo/demo_map/npcs.json
+rmmo/COMBAT.md
+rmmo/MOB_SYSTEM_REVIEW.md
+rmmo/tools/test_mob_ai.gd
+rmmo/SYNC_MOB_AI.txt

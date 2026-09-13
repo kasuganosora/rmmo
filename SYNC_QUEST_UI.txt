@@ -1,0 +1,24 @@
+# Sync list (quest fixed list window + external side drawer + tabs + MockServer journal) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+# Date: 2026-09-07
+
+rmmo/ACCEPTANCE.md
+rmmo/AUTHORITY.md
+rmmo/SYNC_QUEST_UI.txt
+rmmo/data/combat/quests.json
+rmmo/scripts/net/combat/data/quests.json
+rmmo/scripts/net/combat/quest_journal.gd
+rmmo/scripts/net/mock_server.gd
+rmmo/scripts/game/world.gd
+rmmo/scripts/ui/game_hud.gd
+rmmo/tools/test_quest_journal.gd
+
+# Quest UX
+# - 任务 window: fixed-size LIST only (HudDrag.resizable=false); tabs 正在进行 / 已完成
+# - Clicking a row slides EXTERNAL side drawer out to the right of the list panel (HUD sibling)
+# - Drawer follows quest window position; close (X / re-click row) slides away; list stays
+# - Filter: in_progress|ready vs completed from MockServer quest_journal
+# - Row labels: 进行中 / 可交付 / 已完成; sample completed quests included
+# - No internal horizontal list|drawer split; no L2Mock.quests_for authority
+# - MockServer quest_journal loads quests.json; grant_starter on enter_world; spawn.quests + quest_update
+# - Client apply_quest_snapshot only; try_abandon_quest stub unused in v1 UI

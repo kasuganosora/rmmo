@@ -1,0 +1,340 @@
+extends Control
+## L2-style circular radar: prebaked 0.5x atlas via GPU region + circle shader.
+## Walking only updates region uniforms — no Image crop/mask/update on the walk path.
+
+@export var fixed_north: bool = true
+@export var show_party_stubs: bool = false
+@export var show_monster_stubs: bool = false
+@export var view_radius_tiles: float = 11.0
+@export var sample_size: int = 128
+## World pixels per radar pixel; must match MapField.RADAR_ATLAS_SCALE (0.5).
+@export var world_scale: float = 0.5
+
+const RadarCircleShader = preload("res://scripts/ui/radar_circle.gdshader")
+
+var _yaw: float = PI * 0.5
+var _target_angle: float = -1.0
+var _party_angles: Array = [2.1, 4.0]
+
+var _map_field: Node2D = null
+var _center_world: Vector2 = Vector2.ZERO
+var _last_sample_origin: Vector2i = Vector2i(2147483647, 2147483647)
+var _last_diam_px: int = -1
+var _map_id: String = ""
+var _pending_size_redraw: bool = false
+## [{ "world": Vector2, "hostile": bool }, ...]
+var _entity_blips: Array = []
+var _entity_blips_src: Array = []
+
+var _terrain: ColorRect = null
+var _terrain_mat: ShaderMaterial = null
+var _atlas_tex: Texture2D = null
+var _atlas_scale: float = 0.5
+var _atlas_w: int = 0
+var _atlas_h: int = 0
+
+
+func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ensure_terrain()
+	queue_redraw()
+
+
+func _ensure_terrain() -> void:
+	if _terrain != null and is_instance_valid(_terrain):
+		return
+	_terrain = ColorRect.new()
+	_terrain.name = "Terrain"
+	_terrain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_terrain.show_behind_parent = true
+	_terrain.color = Color(1, 1, 1, 1)
+	_terrain_mat = ShaderMaterial.new()
+	_terrain_mat.shader = RadarCircleShader
+	_terrain.material = _terrain_mat
+	add_child(_terrain)
+	_terrain.visible = false
+
+
+func bind_map_field(field: Node2D, map_id: String = "") -> void:
+	_map_field = field
+	_map_id = map_id
+	_last_sample_origin = Vector2i(2147483647, 2147483647)
+	_entity_blips_src = []
+	_pull_atlas_from_field()
+	_sync_terrain_region(true)
+	queue_redraw()
+
+
+func set_yaw(radians: float) -> void:
+	_yaw = radians
+	queue_redraw()
+
+
+func set_target_angle(radians: float) -> void:
+	_target_angle = radians
+	queue_redraw()
+
+
+func clear_target_angle() -> void:
+	_target_angle = -1.0
+	queue_redraw()
+
+
+func set_party_angles(angles: Array) -> void:
+	_party_angles = angles.duplicate()
+	queue_redraw()
+
+
+## Accept blips: each item { "world": Vector2, "hostile": bool } or { "cell": ..., "hostile": bool }.
+func set_entity_blips(blips: Array) -> void:
+	# World returns a cached Array while NPC cells are stable; skip rebuild/redraw.
+	if blips == _entity_blips_src:
+		return
+	_entity_blips_src = blips
+	_entity_blips.clear()
+	if blips.is_empty():
+		queue_redraw()
+		return
+	for item in blips:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = item
+		var world: Vector2 = Vector2.ZERO
+		var has_world := false
+		if d.has("world") and typeof(d["world"]) == TYPE_VECTOR2:
+			world = d["world"]
+			has_world = true
+		elif d.has("cell"):
+			var cell_v: Variant = d["cell"]
+			var cell := Vector2i.ZERO
+			var ok_cell := false
+			if typeof(cell_v) == TYPE_VECTOR2I:
+				cell = cell_v
+				ok_cell = true
+			elif typeof(cell_v) == TYPE_DICTIONARY:
+				cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
+				ok_cell = true
+			if ok_cell and _map_field != null and _map_field.has_method("cell_to_world"):
+				world = _map_field.cell_to_world(cell)
+				has_world = true
+		if not has_world:
+			continue
+		_entity_blips.append({
+			"world": world,
+			"hostile": bool(d.get("hostile", false)),
+		})
+	queue_redraw()
+
+
+## Push player world center + facing; scrolls atlas window via shader uniforms only.
+func update_view(center_world: Vector2, facing_radians: float) -> void:
+	_center_world = center_world
+	_yaw = facing_radians
+	_sync_terrain_region(false)
+	queue_redraw()
+
+
+func hint_text() -> String:
+	if _map_field == null:
+		return _map_id if _map_id != "" else "map"
+	var cell: Vector2i = Vector2i.ZERO
+	if _map_field.has_method("world_to_cell"):
+		cell = _map_field.world_to_cell(_center_world)
+	elif "tile_size" in _map_field:
+		var ts: float = float(_map_field.tile_size)
+		cell = Vector2i(int(floor(_center_world.x / ts)), int(floor(_center_world.y / ts)))
+	var mid := _map_id
+	if mid.is_empty() and "pack_path" in _map_field:
+		mid = str(_map_field.pack_path).get_file()
+	if mid.is_empty():
+		mid = "map"
+	return "%s\n(%d, %d)" % [mid, cell.x, cell.y]
+
+
+## Odd display diameter (~92% of control). World coverage = diam / world_scale.
+func _diam_px_from_size() -> int:
+	var m: float = minf(size.x, size.y)
+	var d: int = int(round(m * 0.92))
+	if d < 8:
+		return 0
+	if (d & 1) == 0:
+		d -= 1
+	return maxi(d, 9)
+
+
+func _pull_atlas_from_field() -> void:
+	_atlas_tex = null
+	_atlas_w = 0
+	_atlas_h = 0
+	_atlas_scale = world_scale if world_scale > 0.001 else 0.5
+	if _map_field == null:
+		return
+	if _map_field.has_method("get_radar_atlas_scale"):
+		var sc: float = float(_map_field.get_radar_atlas_scale())
+		if sc > 0.001:
+			_atlas_scale = sc
+			# Keep blip/world_scale aligned with the prebaked atlas (0.5x).
+			world_scale = sc
+	if _map_field.has_method("get_radar_atlas_texture"):
+		_atlas_tex = _map_field.get_radar_atlas_texture()
+	if _atlas_tex != null:
+		_atlas_w = _atlas_tex.get_width()
+		_atlas_h = _atlas_tex.get_height()
+
+
+func _sync_terrain_region(force: bool) -> void:
+	_ensure_terrain()
+	if _atlas_tex == null:
+		_pull_atlas_from_field()
+	var diam: int = _diam_px_from_size()
+	if diam <= 0 or _atlas_tex == null or _atlas_w <= 0:
+		_terrain.visible = false
+		if diam <= 0 and not _pending_size_redraw:
+			_pending_size_redraw = true
+			call_deferred("queue_redraw")
+		return
+	_pending_size_redraw = false
+
+	var sc: float = _atlas_scale
+	if sc <= 0.001:
+		sc = 0.5
+	var acx: int = int(floor(_center_world.x * sc))
+	var acy: int = int(floor(_center_world.y * sc))
+	var half: int = diam >> 1
+	var origin := Vector2i(acx - half, acy - half)
+	if not force and origin == _last_sample_origin and diam == _last_diam_px and _terrain.visible:
+		return
+	_last_sample_origin = origin
+	_last_diam_px = diam
+
+	var c := size * 0.5
+	var r := float(diam) * 0.5
+	_terrain.position = Vector2(floor(c.x - r), floor(c.y - r))
+	_terrain.size = Vector2(diam, diam)
+	_terrain.visible = true
+
+	if _terrain_mat != null:
+		_terrain_mat.set_shader_parameter("atlas_tex", _atlas_tex)
+		_terrain_mat.set_shader_parameter("atlas_pixel_size", Vector2(_atlas_w, _atlas_h))
+		_terrain_mat.set_shader_parameter("region_origin_px", Vector2(origin))
+		_terrain_mat.set_shader_parameter("region_side_px", float(diam))
+		_terrain_mat.set_shader_parameter("fill_color", Color(0.08, 0.10, 0.09, 1.0))
+
+
+func _draw() -> void:
+	var diam: int = _diam_px_from_size()
+	if diam <= 0:
+		if not _pending_size_redraw:
+			_pending_size_redraw = true
+			call_deferred("queue_redraw")
+		return
+
+	# Size may become valid only after layout; sync GPU window if diam changed.
+	if _map_field != null and (diam != _last_diam_px or not _terrain.visible):
+		_sync_terrain_region(true)
+
+	var c := size * 0.5
+	var r := float(diam) * 0.5
+
+	# Outer rim only — inner rings caused concentric moiré over scrolling terrain.
+	draw_arc(c, r, 0.0, TAU, 64, Color(0.55, 0.55, 0.5, 0.9), 2.0, true)
+
+	var north := -PI * 0.5
+	if not fixed_north:
+		north -= _yaw
+	_draw_marker(c + Vector2(cos(north), sin(north)) * (r - 10.0), "N", Color(0.95, 0.9, 0.55))
+
+	# NPC / entity blips (same scale as terrain sample: world_scale px per world unit).
+	var blip_scale: float = world_scale
+	if blip_scale <= 0.001:
+		blip_scale = 0.5
+	var r2: float = r * r
+	var rim_r: float = maxf(r - 2.0, 1.0)
+	var rim_blips: Array = []
+	for blip in _entity_blips:
+		if typeof(blip) != TYPE_DICTIONARY:
+			continue
+		var bw: Vector2 = blip.get("world", Vector2.ZERO)
+		var offset: Vector2 = (bw - _center_world) * blip_scale
+		var hostile := bool(blip.get("hostile", false))
+		if offset.length_squared() <= r2:
+			var col := Color(0.9, 0.2, 0.2) if hostile else Color(0.25, 0.85, 0.35)
+			draw_circle(c + offset, 3.0, col)
+		else:
+			var dir := offset.normalized()
+			if dir.length_squared() < 0.0001:
+				continue
+			rim_blips.append({ "pos": dir * rim_r, "hostile": hostile })
+	for merged in _merge_rim_blips(rim_blips, 10.0, rim_r):
+		var mcol := Color(0.9, 0.2, 0.2) if bool(merged.get("hostile", false)) else Color(0.25, 0.85, 0.35)
+		draw_circle(c + merged["pos"], 3.5, mcol)
+
+	# Gold self arrow: tip points along facing (screen +y down).
+	var yaw := _yaw
+	if not fixed_north:
+		yaw = 0.0
+	var tip := c + Vector2(cos(yaw), sin(yaw)) * 10.0
+	var left := c + Vector2(cos(yaw + 2.45), sin(yaw + 2.45)) * 7.0
+	var right := c + Vector2(cos(yaw - 2.45), sin(yaw - 2.45)) * 7.0
+	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.95, 0.78, 0.2))
+
+	if _target_angle >= 0.0:
+		var ta := _target_angle
+		if not fixed_north:
+			ta -= _yaw
+		var tp := c + Vector2(cos(ta), sin(ta)) * (r * 0.72)
+		draw_circle(tp, 4.0, Color(0.9, 0.2, 0.2))
+
+	if show_party_stubs:
+		for ang in _party_angles:
+			var a := float(ang)
+			if not fixed_north:
+				a -= _yaw
+			var pp := c + Vector2(cos(a), sin(a)) * (r * 0.55)
+			draw_circle(pp, 3.0, Color(0.25, 0.85, 0.35))
+	if show_monster_stubs:
+		draw_circle(c + Vector2(18, -22), 2.5, Color(0.85, 0.55, 0.2))
+		draw_circle(c + Vector2(-26, 12), 2.5, Color(0.85, 0.55, 0.2))
+
+
+## Greedy-cluster rim blips within merge_dist; average pos, re-project onto circle. Hostile wins.
+func _merge_rim_blips(rim_blips: Array, merge_dist: float, rim_r: float) -> Array:
+	var result: Array = []
+	var n: int = rim_blips.size()
+	if n == 0:
+		return result
+	var claimed := PackedByteArray()
+	claimed.resize(n)
+	var merge_dist2: float = merge_dist * merge_dist
+	for i in range(n):
+		if claimed[i] != 0:
+			continue
+		claimed[i] = 1
+		var seed: Dictionary = rim_blips[i]
+		var seed_pos: Vector2 = seed.get("pos", Vector2.ZERO)
+		var sum: Vector2 = seed_pos
+		var count: int = 1
+		var hostile := bool(seed.get("hostile", false))
+		for j in range(i + 1, n):
+			if claimed[j] != 0:
+				continue
+			var other: Dictionary = rim_blips[j]
+			var op: Vector2 = other.get("pos", Vector2.ZERO)
+			if seed_pos.distance_squared_to(op) <= merge_dist2:
+				claimed[j] = 1
+				sum += op
+				count += 1
+				if bool(other.get("hostile", false)):
+					hostile = true
+		var avg: Vector2 = sum / float(count)
+		var dir := avg.normalized()
+		if dir.length_squared() < 0.0001:
+			dir = seed_pos.normalized()
+		if dir.length_squared() < 0.0001:
+			continue
+		result.append({ "pos": dir * rim_r, "hostile": hostile })
+	return result
+
+
+func _draw_marker(pos: Vector2, text: String, col: Color) -> void:
+	draw_string(ThemeDB.fallback_font, pos + Vector2(-4, 4), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)

@@ -1,0 +1,344 @@
+{
+  "npcs": [
+    {
+      "id": "actor_rest",
+      "name": "休息中的少女",
+      "cell": {
+        "x": 15,
+        "y": 10
+      },
+      "charset": "actor03_0001",
+      "index": 4,
+      "direction": 2,
+      "through": false,
+      "interact_text": "有什么事吗？村里最近不安宁，我这里有委托可以交给你。",
+      "kind": "normal",
+      "wander": true,
+      "wander_radius": 2
+    },
+    {
+      "id": "vendor_demo",
+      "name": "杂货商人",
+      "cell": {
+        "x": 13,
+        "y": 10
+      },
+      "charset": "actor03_0001",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "需要补给吗？顺便，我这还有清剿和采集的委托。",
+      "kind": "normal",
+      "shop_id": "starter_goods",
+      "wander": false,
+      "wander_radius": 0
+    },
+    {
+      "id": "slime",
+      "name": "史莱姆",
+      "cell": {
+        "x": 17,
+        "y": 12
+      },
+      "charset": "retira_slime",
+      "index": 4,
+      "direction": 8,
+      "through": false,
+      "interact_text": "软乎乎的史莱姆在轻轻晃动。",
+      "hostile": true,
+      "aggressive": false,
+      "wander_radius": 2,
+      "group_id": 0,
+      "kind": "monster"
+    },
+    {
+      "id": "etnr_a",
+      "name": "奇怪摆设",
+      "cell": {
+        "x": 4,
+        "y": 14
+      },
+      "charset": "$ETNR_Other2-1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "看起来是某种奇怪的摆设。",
+      "kind": "object"
+    },
+    {
+      "id": "etnr_b",
+      "name": "奇怪摆设",
+      "cell": {
+        "x": 4,
+        "y": 13
+      },
+      "charset": "$ETNR_Other2-1",
+      "index": 0,
+      "direction": 6,
+      "through": false,
+      "interact_text": "另一侧的摆设也散发着微光。",
+      "kind": "object"
+    },
+    {
+      "id": "tv",
+      "name": "电视",
+      "cell": {
+        "x": 11,
+        "y": 10
+      },
+      "charset": "$Eternaler_TV02",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "电视开着，画面有点花。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "flame",
+      "name": "火苗",
+      "cell": {
+        "x": 12,
+        "y": 15
+      },
+      "charset": "!Flame3",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "火苗轻轻跳动。",
+      "kind": "object"
+    },
+    {
+      "id": "pc",
+      "name": "电脑",
+      "cell": {
+        "x": 8,
+        "y": 11
+      },
+      "charset": "patisserie_event",
+      "index": 3,
+      "direction": 8,
+      "through": false,
+      "interact_text": "桌上的电脑。摸了摸，现在什么也没发生。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "chest_a",
+      "name": "宝箱",
+      "cell": {
+        "x": 9,
+        "y": 22
+      },
+      "charset": "!SF_Chest",
+      "index": 6,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一个宝箱。现在打不开。",
+      "kind": "object"
+    },
+    {
+      "id": "chest_b",
+      "name": "宝箱",
+      "cell": {
+        "x": 14,
+        "y": 28
+      },
+      "charset": "!SF_Chest",
+      "index": 6,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一个宝箱。现在打不开。",
+      "kind": "object"
+    },
+    {
+      "id": "chest_c",
+      "name": "宝箱",
+      "cell": {
+        "x": 15,
+        "y": 28
+      },
+      "charset": "!SF_Chest",
+      "index": 6,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一个宝箱。现在打不开。",
+      "kind": "object"
+    },
+    {
+      "id": "chest_d",
+      "name": "宝箱",
+      "cell": {
+        "x": 4,
+        "y": 18
+      },
+      "charset": "!SF_Chest",
+      "index": 3,
+      "direction": 2,
+      "through": false,
+      "interact_text": "角落里的宝箱。锁着。",
+      "kind": "object"
+    },
+    {
+      "id": "switch",
+      "name": "开关",
+      "cell": {
+        "x": 14,
+        "y": 18
+      },
+      "charset": "!Switch1",
+      "index": 4,
+      "direction": 2,
+      "through": false,
+      "interact_text": "墙上的开关。现在最好别乱按。",
+      "kind": "object"
+    },
+    {
+      "id": "door",
+      "name": "门",
+      "cell": {
+        "x": 15,
+        "y": 8
+      },
+      "charset": "!kurochan_door2",
+      "index": 1,
+      "direction": 2,
+      "through": false,
+      "interact_text": "门关着。",
+      "kind": "object"
+    },
+    {
+      "id": "crystal",
+      "name": "水晶",
+      "cell": {
+        "x": 12,
+        "y": 18
+      },
+      "charset": "!patisserie_crystal",
+      "index": 7,
+      "direction": 6,
+      "through": false,
+      "interact_text": "水晶散发着柔和的微光。",
+      "kind": "object"
+    },
+    {
+      "id": "clutter",
+      "name": "杂物",
+      "cell": {
+        "x": 9,
+        "y": 15
+      },
+      "charset": "!_clutter",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "桌上堆着一些杂物。",
+      "kind": "object"
+    },
+    {
+      "id": "komono_a",
+      "name": "摆件",
+      "cell": {
+        "x": 10,
+        "y": 15
+      },
+      "charset": "custom_komono",
+      "index": 4,
+      "direction": 2,
+      "through": false,
+      "interact_text": "房间里的小摆件。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "item_shelf",
+      "name": "架子",
+      "cell": {
+        "x": 17,
+        "y": 10
+      },
+      "charset": "custom_item1",
+      "index": 2,
+      "direction": 8,
+      "through": false,
+      "interact_text": "架子上摆着些东西。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "herb_a",
+      "name": "药草",
+      "cell": {
+        "x": 10,
+        "y": 22
+      },
+      "charset": "custom_item1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一丛野生药草。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "herb_b",
+      "name": "药草",
+      "cell": {
+        "x": 8,
+        "y": 22
+      },
+      "charset": "custom_item1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一丛野生药草。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "herb_c",
+      "name": "药草",
+      "cell": {
+        "x": 11,
+        "y": 21
+      },
+      "charset": "custom_item1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一丛野生药草。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "herb_d",
+      "name": "药草",
+      "cell": {
+        "x": 7,
+        "y": 21
+      },
+      "charset": "custom_item1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一丛野生药草。",
+      "radar": false,
+      "kind": "object"
+    },
+    {
+      "id": "herb_e",
+      "name": "药草",
+      "cell": {
+        "x": 12,
+        "y": 22
+      },
+      "charset": "custom_item1",
+      "index": 0,
+      "direction": 2,
+      "through": false,
+      "interact_text": "一丛野生药草。",
+      "radar": false,
+      "kind": "object"
+    }
+  ]
+}

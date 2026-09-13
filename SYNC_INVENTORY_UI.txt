@@ -1,0 +1,17 @@
+# Sync list (inventory fixed window + fill-width grid + scroll) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+# Date: 2026-09-07
+
+rmmo/ACCEPTANCE.md
+rmmo/SYNC_INVENTORY_UI.txt
+rmmo/scripts/ui/game_hud.gd
+rmmo/scripts/ui/hud_draggable.gd
+rmmo/scripts/ui/inv_slot.gd
+rmmo/scripts/ui/hotbar_slot.gd
+
+# Inventory UX
+# - 背包 window: fixed size (HudDrag.resizable=false); no edge resize
+# - No chrome labels under title / above bottom ("背包（服务器）", hint text removed)
+# - ScrollContainer fills window body; grid alone (5 cols × 10 rows = 50 slots)
+# - Cell size fills content width / 5 (square); total grid height > scroll viewport → vertical scrollbar
+# - Server soft cap still 20 stacks; extra UI cells empty; letter-avatar + qty + drag-to-hotbar unchanged

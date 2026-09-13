@@ -1,0 +1,214 @@
+{
+  "items": [
+    {
+      "id": "potion_hp_small",
+      "name": "小型生命药水",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 40,
+      "cooldown": 1.0,
+      "sell_price": 5,
+      "icon_index": 32,
+      "icon": "potion_hp_small"
+    },
+    {
+      "id": "potion_mp_small",
+      "name": "小型魔法药水",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_mp",
+      "effect": "heal_mp",
+      "amount": 25,
+      "cooldown": 1.0,
+      "sell_price": 5,
+      "icon_index": 33,
+      "icon": "potion_mp_small"
+    },
+    {
+      "id": "slime_jelly",
+      "name": "史莱姆凝胶",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 2,
+      "icon_index": 176,
+      "icon": "slime_jelly"
+    },
+    {
+      "id": "wild_herb",
+      "name": "野生药草",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 1,
+      "icon_index": 177,
+      "icon": "wild_herb"
+    },
+    {
+      "id": "monster_fang",
+      "name": "怪物尖牙",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 3,
+      "icon_index": 178,
+      "icon": "monster_fang"
+    },
+    {
+      "id": "torn_cloth",
+      "name": "破布",
+      "type": "misc",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 1,
+      "icon_index": 179,
+      "icon": "torn_cloth"
+    },
+    {
+      "id": "rusty_coin",
+      "name": "锈蚀铜币",
+      "type": "misc",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 1,
+      "icon_index": 180,
+      "icon": "rusty_coin"
+    },
+    {
+      "id": "wooden_sword",
+      "name": "木剑",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "weapon_main",
+      "bonuses": {
+        "p_atk": 3
+      },
+      "sell_price": 12,
+      "icon_index": 97,
+      "icon": "wooden_sword"
+    },
+    {
+      "id": "leather_cap",
+      "name": "皮帽",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "head",
+      "bonuses": {
+        "p_def": 1
+      },
+      "sell_price": 8,
+      "icon_index": 128,
+      "icon": "leather_cap"
+    },
+    {
+      "id": "leather_vest",
+      "name": "皮背心",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "chest",
+      "bonuses": {
+        "p_def": 2
+      },
+      "sell_price": 15,
+      "icon_index": 129,
+      "icon": "leather_vest"
+    },
+    {
+      "id": "leather_gloves",
+      "name": "皮手套",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "hands",
+      "bonuses": {
+        "p_def": 1
+      },
+      "sell_price": 7,
+      "icon_index": 130,
+      "icon": "leather_gloves"
+    },
+    {
+      "id": "leather_pants",
+      "name": "皮裤",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "legs",
+      "bonuses": {
+        "p_def": 1
+      },
+      "sell_price": 10,
+      "icon_index": 131,
+      "icon": "leather_pants"
+    },
+    {
+      "id": "leather_boots",
+      "name": "皮靴",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "feet",
+      "bonuses": {
+        "p_def": 1
+      },
+      "sell_price": 9,
+      "icon_index": 132,
+      "icon": "leather_boots"
+    },
+    {
+      "id": "copper_ring",
+      "name": "铜戒",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "ring",
+      "bonuses": {
+        "p_atk": 1
+      },
+      "sell_price": 6,
+      "icon_index": 144,
+      "icon": "copper_ring"
+    },
+    {
+      "id": "copper_earring",
+      "name": "铜耳环",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "earring",
+      "bonuses": {
+        "m_def": 1
+      },
+      "sell_price": 6,
+      "icon_index": 145,
+      "icon": "copper_earring"
+    },
+    {
+      "id": "bone_necklace",
+      "name": "骨项链",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "necklace",
+      "bonuses": {
+        "m_atk": 1,
+        "p_def": 1
+      },
+      "sell_price": 11,
+      "icon_index": 146,
+      "icon": "bone_necklace"
+    }
+  ]
+}

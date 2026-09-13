@@ -1,0 +1,21 @@
+# Sync list (combat leftovers pass) — extract over Luna project root
+# Tarball: /workspace/rmmo_combat_sync.tar.gz
+
+rmmo/scripts/net/mock_server.gd
+rmmo/scripts/net/combat/combat_engine.gd
+rmmo/scripts/net/combat/combat_stats.gd
+rmmo/scripts/net/combat/skill_catalog.gd
+rmmo/scripts/net/combat/item_catalog.gd
+rmmo/scripts/game/world.gd
+rmmo/scripts/game/player.gd
+rmmo/scripts/ui/game_hud.gd
+rmmo/COMBAT.md
+rmmo/REVIEW.md
+rmmo/tools/test_combat_layers.gd
+
+# Unchanged data mirrors (included for completeness)
+rmmo/scripts/net/combat/data/skills.json
+rmmo/scripts/net/combat/data/items.json
+rmmo/data/combat/skills.json
+rmmo/data/combat/items.json
+rmmo/scripts/net/combat/inventory.gd

@@ -1,0 +1,1 @@
+demo_map home interior\n30x36 sheets 8\n
