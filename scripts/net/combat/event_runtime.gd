@@ -525,6 +525,7 @@ func _cmd_take_gold(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 
 func _cmd_transfer(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 	var to_pack := str(cmd.get("to_pack", "")).strip_edges()
+	var to_map := str(cmd.get("to_map", cmd.get("to_map_id", ""))).strip_edges()
 	var to_cell_v: Variant = cmd.get("to_cell", {})
 	var to_cell: Dictionary = to_cell_v if typeof(to_cell_v) == TYPE_DICTIONARY else {}
 	var facing := int(cmd.get("facing", 2))
@@ -536,12 +537,12 @@ func _cmd_transfer(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 			"type": "map_transfer",
 			"ok": true,
 			"pack_path": to_pack,
-			"map_id": str(cmd.get("to_map_id", "")),
+			"map_id": to_map,
 			"cell": {"x": int(to_cell.get("x", 0)), "y": int(to_cell.get("y", 0))},
 			"facing": facing,
 			"message": message,
 		}]
-	var result: Dictionary = (cb as Callable).call(to_pack, to_cell, facing, message, str(cmd.get("to_map_id", "")))
+	var result: Dictionary = (cb as Callable).call(to_pack, to_cell, facing, message, to_map)
 	if typeof(result) != TYPE_DICTIONARY or not bool(result.get("ok", false)):
 		return [{"type": "system_message", "text": "无法传送。"}]
 	# Same shape as try_transfer + action type for client.

@@ -16,15 +16,34 @@ func setup(p_chunk: Vector2i, origin: Vector2) -> void:
 	z_as_relative = true
 
 
+func clear_visuals() -> void:
+	for spr in [_below, _ground, _upper, _roof, _fx]:
+		if spr != null:
+			spr.texture = null
+			spr.visible = false
+
+
 func apply_bucket(bucket: String, img: Image, z_index: int, additive: bool = false) -> void:
 	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
+		_hide_bucket(bucket)
 		return
 	var used: Rect2i = img.get_used_rect()
 	if used.size.x <= 0 or used.size.y <= 0:
+		_hide_bucket(bucket)
 		return
 	var spr := _ensure_sprite(bucket, z_index, additive)
-	spr.texture = ImageTexture.create_from_image(img)
+	var tex: Texture2D = spr.texture
+	if tex is ImageTexture and tex.get_width() == img.get_width() and tex.get_height() == img.get_height():
+		(tex as ImageTexture).update(img)
+	else:
+		spr.texture = ImageTexture.create_from_image(img)
 	spr.visible = true
+
+
+func _hide_bucket(bucket: String) -> void:
+	var spr: Sprite2D = get_node_or_null(bucket) as Sprite2D
+	if spr != null:
+		spr.visible = false
 
 
 func set_roof_visible(on: bool) -> void:

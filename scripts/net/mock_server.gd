@@ -180,8 +180,18 @@ func poll_combat_tick() -> Array:
 	return out
 
 
-func _load_pack(pack_path: String) -> bool:
-	var pack = TilemapPack.load_pack(pack_path)
+func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Vector2i(-1, -1)) -> bool:
+	if not _load_pack(pack_path, map_id):
+		return false
+	if cell.x >= 0 and cell.y >= 0:
+		respawn_cell = cell
+		last_safe_cell = cell
+		set_player_cell(cell.x, cell.y)
+	return true
+
+
+func _load_pack(pack_path: String, map_id: String = "") -> bool:
+	var pack = TilemapPack.load_pack(pack_path, map_id)
 	if pack == null or pack.collision == null:
 		push_error("MockServer: failed to load pack collision at %s" % pack_path)
 		return false
@@ -603,6 +613,9 @@ func try_transfer(from_x: int, from_y: int) -> Dictionary:
 	if warp.is_empty():
 		return {"ok": false}
 	var to_pack: String = str(warp.get("to_pack", "")).strip_edges()
+	var to_map_local: String = str(warp.get("to_map", warp.get("to_map_id", ""))).strip_edges()
+	if to_pack.is_empty():
+		to_pack = map_pack_path
 	if to_pack.is_empty():
 		return {"ok": false}
 	var to_cell_v: Variant = warp.get("to_cell", {})
@@ -613,8 +626,8 @@ func try_transfer(from_x: int, from_y: int) -> Dictionary:
 	var ty: int = int(to_cell.get("y", 0))
 	var facing: int = int(warp.get("facing", 2))
 	var message: String = str(warp.get("message", ""))
-	var to_map_id: String = str(warp.get("to_map_id", ""))
-	if not _load_pack(to_pack):
+	var to_map_id: String = to_map_local
+	if not _load_pack(to_pack, to_map_id):
 		# Reload previous pack if destination failed.
 		_load_pack(map_pack_path if map_pack_path != "" else DEMO_PACK_PATH)
 		return {"ok": false}
@@ -766,11 +779,13 @@ func _event_perform_transfer(
 ) -> Dictionary:
 	to_pack = str(to_pack).strip_edges()
 	if to_pack.is_empty():
+		to_pack = map_pack_path
+	if to_pack.is_empty():
 		return {"ok": false}
 	var tx: int = int(to_cell.get("x", 0))
 	var ty: int = int(to_cell.get("y", 0))
 	var prev_path := map_pack_path
-	if not _load_pack(to_pack):
+	if not _load_pack(to_pack, to_map_id):
 		_load_pack(prev_path if prev_path != "" else DEMO_PACK_PATH)
 		return {"ok": false}
 	if to_map_id.strip_edges().is_empty():

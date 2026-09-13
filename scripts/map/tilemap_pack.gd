@@ -83,6 +83,12 @@ func _load() -> bool:
 	width = int(map_data.get("width", 0))
 	height = int(map_data.get("height", 0))
 	data = _to_int32_array(map_data.get("data", []))
+	var bin_path := "%s/%s" % [pack_dir, map_rel.get_basename() + ".data.bin"]
+	if FileAccess.file_exists(bin_path):
+		data = _load_data_bin(bin_path, width * height * 6)
+	var need: int = width * height * 6
+	if need > 0 and data.size() < need:
+		data.resize(need)
 	flags = _to_int32_array(tileset_data.get("flags", []))
 	tileset_names = PackedStringArray()
 	var names_v: Variant = tileset_data.get("tilesetNames", [])
@@ -106,13 +112,23 @@ func _load() -> bool:
 	if col.has_method("set_ext"):
 		col.set_ext(ext)
 	collision = col
-	warps = _parse_warps(pack_data.get("warps", []))
+	var map_dir := map_rel.get_base_dir()
+	var map_warps_path := "%s/warps.json" % pack_dir
+	if map_dir != "" and map_dir != ".":
+		map_warps_path = "%s/%s/warps.json" % [pack_dir, map_dir]
+	var wrd: Dictionary = {}
+	if FileAccess.file_exists(map_warps_path) or FileAccess.file_exists(ProjectSettings.globalize_path(map_warps_path)):
+		wrd = _read_json(map_warps_path)
+	if typeof(wrd) == TYPE_DICTIONARY and typeof(wrd.get("warps")) == TYPE_ARRAY:
+		warps = _parse_warps(wrd.get("warps", []))
+	else:
+		warps = _parse_warps(pack_data.get("warps", []))
 	charset_root = str(pack_data.get("charset_root", "")).strip_edges()
 	npcs = _load_npcs(pack_data)
 	events = _load_events(pack_data)
 	if collision != null and collision.has_method("apply_npc_blocks"):
 		collision.apply_npc_blocks(npcs)
-	return width > 0 and height > 0 and data.size() > 0
+	return width > 0 and height > 0
 
 
 func _is_nested_pack(pack_data: Dictionary) -> bool:
@@ -260,10 +276,12 @@ static func _parse_warps(v: Variant) -> Array:
 			continue
 		var from_c: Dictionary = from_v
 		var to_c: Dictionary = to_v
+		var to_map := str(w.get("to_map", w.get("to_map_id", "")))
 		out.append({
 			"from_cell": {"x": int(from_c.get("x", 0)), "y": int(from_c.get("y", 0))},
 			"to_pack": str(w.get("to_pack", "")),
-			"to_map_id": str(w.get("to_map_id", "")),
+			"to_map": to_map,
+			"to_map_id": to_map,
 			"to_cell": {"x": int(to_c.get("x", 0)), "y": int(to_c.get("y", 0))},
 			"facing": int(w.get("facing", 2)),
 			"message": str(w.get("message", "")),
@@ -321,6 +339,23 @@ func _pack_tile_exists(path: String) -> bool:
 		return true
 	var abs_path := ProjectSettings.globalize_path(path)
 	return abs_path != path and FileAccess.file_exists(abs_path)
+
+
+func _load_data_bin(path: String, need: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if need > 0:
+		out.resize(need)
+		out.fill(0)
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return out
+	var n := int(f.get_32())
+	var count := mini(n, need)
+	for i in range(count):
+		if f.eof_reached():
+			break
+		out[i] = f.get_32()
+	return out
 
 
 func _load_tilesheet_via_asset_manager(sheet_name: String) -> Image:

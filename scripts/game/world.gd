@@ -83,6 +83,18 @@ func _ready() -> void:
 	elif map_field != null and map_field.collision != null and map_field.collision.has_method("find_spawn_near"):
 		cell = map_field.collision.find_spawn_near()
 
+	var sv = Net.server()
+	if sv != null and sv.has_method("load_world_pack"):
+		var cur := str(sv.get("map_pack_path")).rstrip("/").replace("\\", "/")
+		var want := str(spawn.get("pack_path", "")).rstrip("/").replace("\\", "/")
+		if map_field != null:
+			want = str(map_field.pack_path).rstrip("/").replace("\\", "/")
+		var want_map := str(spawn.get("map_id", "")).strip_edges()
+		if want != "" and (cur != want or (want_map != "" and str(sv.get("map_pack_id")) != want_map)):
+			sv.load_world_pack(want, want_map, cell)
+		elif sv.has_method("set_player_cell"):
+			sv.set_player_cell(cell.x, cell.y)
+
 	if player.has_method("place_at_cell"):
 		player.place_at_cell(cell, map_field)
 	else:

@@ -51,6 +51,12 @@ var edit_mode: bool = false
 var edit_doc: RefCounted = null
 var show_grid: bool = false
 var edit_map_id: String = ""
+var edit_start_cell: Vector2i = Vector2i(-1, -1)
+var edit_show_passage: bool = false
+var edit_hover_cell: Vector2i = Vector2i(-1, -1)
+var edit_rect_a: Vector2i = Vector2i(-1, -1)
+var edit_rect_b: Vector2i = Vector2i(-1, -1)
+var _edit_overlay: Node2D
 
 
 func _ready() -> void:
@@ -145,8 +151,10 @@ func _rebuild_internal_sync() -> void:
 	if not edit_mode:
 		_bake_radar_mv_only(false, Callable())
 	_stream_ready = true
+	_apply_edit_doc_size()
 	_obs_cell = _spawn_cell_from_session() if not edit_mode else Vector2i(grid_width / 2, grid_height / 2)
-	_rebuild_chunks_around(_obs_cell, true)
+	_rebuild_chunks_around(_obs_cell, not edit_mode)
+	_ensure_edit_overlay()
 
 
 func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
@@ -204,7 +212,9 @@ func _paint_cell(
 	var t2: int = _src_tile(col, x, y, 2)
 	var t3: int = _src_tile(col, x, y, 3)
 	# Outdoor void filler -> keep pure black (match Void / clear color).
-	if _is_void_filler_cell(col, x, y, void_id):
+	# In the editor, collision still mirrors the last saved pack (often all-zero
+	# on a new map). Skipping here would discard live edit_doc paints.
+	if edit_doc == null and _is_void_filler_cell(col, x, y, void_id):
 		return
 	# Pack layer 4 holds corner-shadow bits (0..15); layer 5 is region id.
 	# MV: shadowBits = readMapData(z=4) only — never treat z3 tileIds as shadows.
@@ -572,13 +582,15 @@ func _spawn_cell_from_session() -> Vector2i:
 func _process(_delta: float) -> void:
 	if not _stream_ready or pack == null:
 		return
-	if not edit_mode:
-		_update_observer_from_camera()
+	_update_observer_from_camera()
 	_refresh_chunk_set()
 	if not _chunk_queue.is_empty():
-		_bake_next_chunk()
-	if edit_mode and show_grid:
-		queue_redraw()
+		var n := 0
+		var cap := 12 if edit_mode else 1
+		while not _chunk_queue.is_empty() and n < cap:
+			_bake_next_chunk()
+			n += 1
+	_ensure_edit_overlay()
 
 
 func _src_tile(col, x: int, y: int, z: int) -> int:
@@ -600,12 +612,13 @@ func rebuild_dirty_cells(cells: Array) -> void:
 		if seen.has(key):
 			continue
 		seen[key] = true
-		if _chunks.has(key):
-			var node: Node = _chunks[key]
-			_chunks.erase(key)
-			if node != null and is_instance_valid(node):
-				node.queue_free()
-		_chunk_queue.append(ch)
+		var queued := false
+		for q in _chunk_queue:
+			if _chunk_key(q) == key:
+				queued = true
+				break
+		if not queued:
+			_chunk_queue.append(ch)
 
 
 func set_edit_camera_cell(cell: Vector2i) -> void:
@@ -613,15 +626,65 @@ func set_edit_camera_cell(cell: Vector2i) -> void:
 	_refresh_chunk_set()
 
 
-func _draw() -> void:
-	if not edit_mode or not show_grid or tile_size <= 0:
+func _apply_edit_doc_size() -> void:
+	if edit_doc == null:
 		return
-	var ts := float(tile_size)
-	var col := Color(1, 1, 1, 0.12)
-	for x in range(grid_width + 1):
-		draw_line(Vector2(x * ts, 0), Vector2(x * ts, grid_height * ts), col, 1.0)
-	for y in range(grid_height + 1):
-		draw_line(Vector2(0, y * ts), Vector2(grid_width * ts, y * ts), col, 1.0)
+	grid_width = int(edit_doc.width)
+	grid_height = int(edit_doc.height)
+	tile_size = maxi(int(edit_doc.tile_size), 1)
+
+
+func set_edit_flags(flags: PackedInt32Array) -> void:
+	if pack != null:
+		pack.flags = flags
+		if pack.collision != null:
+			pack.collision.flags = flags
+
+
+func edit_cell_passable(x: int, y: int) -> int:
+	## 0 walk, 1 block, 2 force-pass, 3 force-block.
+	if x < 0 or y < 0 or x >= grid_width or y >= grid_height or edit_doc == null:
+		return 1
+	var meta := 0
+	if edit_doc.has_method("ext_tile"):
+		meta = int(edit_doc.ext_tile("meta", x, y))
+	if (meta & MapExt.META_FORCE_BLOCK) != 0:
+		return 3
+	if (meta & MapExt.META_FORCE_PASS) != 0:
+		return 2
+	var t0: int = int(edit_doc.tile(x, y, 0))
+	var t1: int = int(edit_doc.tile(x, y, 1))
+	var t2: int = int(edit_doc.tile(x, y, 2))
+	var t3: int = int(edit_doc.tile(x, y, 3))
+	if t0 == 0 and t1 == 0 and t2 == 0 and t3 == 0:
+		return 1
+	var flags: PackedInt32Array = pack.flags if pack != null else PackedInt32Array()
+	for z in [3, 2, 1, 0]:
+		var t: int = int(edit_doc.tile(x, y, z))
+		if t <= 0:
+			continue
+		var f: int = int(flags[t]) if t < flags.size() else 0
+		if (f & 0x10) != 0:
+			continue
+		if (f & 0x0F) == 0x0F:
+			return 1
+		return 0
+	return 1
+
+
+func _ensure_edit_overlay() -> void:
+	if not edit_mode:
+		if _edit_overlay != null and is_instance_valid(_edit_overlay):
+			_edit_overlay.visible = false
+		return
+	if _edit_overlay == null or not is_instance_valid(_edit_overlay):
+		_edit_overlay = preload("res://scripts/map/map_edit_overlay.gd").new()
+		_edit_overlay.name = "EditOverlay"
+		_edit_overlay.z_as_relative = false
+		_edit_overlay.z_index = 4096
+		add_child(_edit_overlay)
+	_edit_overlay.visible = true
+	move_child(_edit_overlay, get_child_count() - 1)
 
 
 func set_observer(cell: Vector2i, facing: int = 2) -> void:
@@ -667,9 +730,13 @@ func _wanted_chunks(center_cell: Vector2i, facing: int) -> Dictionary:
 	if grid_width <= 0 or tile_size <= 0:
 		return out
 	var vis := get_viewport().get_visible_rect().size if get_viewport() else Vector2(1280, 720)
+	var z := 1.0
+	var cam := get_viewport().get_camera_2d() if get_viewport() else null
+	if cam != null:
+		z = maxf(cam.zoom.x, 0.05)
 	var half_cells := Vector2i(
-		int(ceil(vis.x / float(tile_size) * 0.5)) + CHUNK_CELLS,
-		int(ceil(vis.y / float(tile_size) * 0.5)) + CHUNK_CELLS
+		int(ceil(vis.x / (float(tile_size) * z) * 0.5)) + CHUNK_CELLS,
+		int(ceil(vis.y / (float(tile_size) * z) * 0.5)) + CHUNK_CELLS
 	)
 	var min_c := cell_to_chunk(center_cell - half_cells)
 	var max_c := cell_to_chunk(center_cell + half_cells)
@@ -769,8 +836,6 @@ func _bake_next_chunk() -> void:
 		add_child(_chunk_root)
 	var c: Vector2i = _chunk_queue.pop_front()
 	var key := _chunk_key(c)
-	if _chunks.has(key):
-		return
 	var x0 := c.x * CHUNK_CELLS
 	var y0 := c.y * CHUNK_CELLS
 	if x0 >= grid_width or y0 >= grid_height:
@@ -802,9 +867,14 @@ func _bake_next_chunk() -> void:
 			var dy := y * ts
 			_paint_cell(ground, upper, col, sheets, flags, void_id, gx, gy, dx, dy)
 			_paint_ext_cell(below, ground, upper, roof, fx, col, sheets, flags, gx, gy, dx, dy)
-	var node: Node2D = MapChunk.new()
-	node.setup(c, Vector2(x0 * ts, y0 * ts))
-	_chunk_root.add_child(node)
+	var node: Node2D = _chunks.get(key) as Node2D
+	if node == null or not is_instance_valid(node):
+		node = MapChunk.new()
+		node.setup(c, Vector2(x0 * ts, y0 * ts))
+		_chunk_root.add_child(node)
+		_chunks[key] = node
+	if node.has_method("clear_visuals"):
+		node.clear_visuals()
 	node.apply_bucket("Below", below, -20)
 	node.apply_bucket("Ground", ground, 0)
 	node.apply_bucket("Upper", upper, 10)
@@ -812,7 +882,7 @@ func _bake_next_chunk() -> void:
 	node.apply_bucket("Fx", fx, 16, true)
 	if node.has_method("set_roof_visible"):
 		node.set_roof_visible(not _roof_hidden)
-	_chunks[key] = node
+	_ensure_edit_overlay()
 
 
 func _paint_ext_cell(

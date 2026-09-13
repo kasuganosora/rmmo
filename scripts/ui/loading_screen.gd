@@ -60,6 +60,19 @@ func _run_transfer() -> void:
 
 	bar.value = 8
 	await get_tree().create_timer(0.06).timeout
+	var pack_path: String = _resolve_spawn_pack_path(spawn)
+	var cell_v: Variant = spawn.get("cell", {})
+	var spawn_cell := Vector2i(-1, -1)
+	if typeof(cell_v) == TYPE_DICTIONARY:
+		spawn_cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
+	var sv = Net.server()
+	if sv != null and sv.has_method("load_world_pack"):
+		if not bool(sv.load_world_pack(pack_path, map_id, spawn_cell)):
+			_gate_error = "无法加载地图碰撞：%s" % pack_path
+			status_label.text = _gate_error
+			bar.value = 0
+			_show_transfer_fail_actions()
+			return
 	var ok: bool = await _bake_spawn_map()
 	if not ok:
 		status_label.text = _gate_error if _gate_error != "" else "地图资源加载失败"

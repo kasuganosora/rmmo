@@ -174,7 +174,7 @@ func _detect_void_tile_id() -> int:
 			best_n = n
 			best_id = int(k)
 	var border_thresh: int = maxi(4, (width + height) / 2)
-	if best_n >= border_thresh:
+	if best_n >= border_thresh and not _tile_is_common_ground(best_id):
 		return best_id
 
 	# Street-like maps: empty columns at the edge, void filler strip just inside.
@@ -213,9 +213,22 @@ func _detect_void_tile_id() -> int:
 			second_n = n2
 	var adj_thresh: int = maxi(4, (width + height) / 4)
 	# Require a clear winner so road tiles that merely touch empty are not picked.
-	if best_n >= adj_thresh and best_n >= second_n * 2:
+	if best_n >= adj_thresh and best_n >= second_n * 2 and not _tile_is_common_ground(best_id):
 		return best_id
 	return 0
+
+
+func _tile_is_common_ground(tid: int) -> bool:
+	## Don't treat the map's actual floor as outdoor void padding.
+	if tid <= 0 or width <= 0 or height <= 0:
+		return false
+	var n := 0
+	var total: int = width * height
+	for y in range(height):
+		for x in range(width):
+			if tile_id(x, y, 0) == tid:
+				n += 1
+	return n * 5 >= total
 
 
 func check_passage(x: int, y: int, bit: int) -> bool:

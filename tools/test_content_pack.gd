@@ -35,8 +35,10 @@ func _run() -> void:
 	var f := FileAccess.open(fpath, FileAccess.READ)
 	if f:
 		raw = JSON.parse_string(f.get_as_text())
+	var bin_path := root + "/maps/Map001/map.data.bin"
+	var has_bin := FileAccess.file_exists(bin_path) or FileAccess.file_exists(ProjectSettings.globalize_path(bin_path))
 	var data: Array = raw.get("data", [])
-	failed += _expect(data.size() == 8 * 8 * 6, "map.json is w*h*6")
+	failed += _expect(has_bin or data.size() == 8 * 8 * 6, "map data stored (bin or json)")
 	var zip_path := "user://content/packs/unit_test_pack.rmpack"
 	failed += _expect(PackZip.export_zip(root, zip_path), "export zip")
 	var dest := "user://content/packs/unit_test_pack_imp"
