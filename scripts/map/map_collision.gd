@@ -19,6 +19,10 @@ var ext: RefCounted = null
 
 ## Native path graph: directed edges from tile passage; occupancy = disabled points.
 var _astar: AStar2D = null
+## Sparse continent: only ingested 16×16 buffers live in RAM.
+var streaming: bool = false
+var chunk_cells: int = 16
+var _stream_chunks: Dictionary = {} ## "cx,cy" -> PackedInt32Array
 
 
 func setup(p_width: int, p_height: int, p_data: PackedInt32Array, p_flags: PackedInt32Array) -> void:
@@ -28,8 +32,48 @@ func setup(p_width: int, p_height: int, p_data: PackedInt32Array, p_flags: Packe
 	flags = p_flags
 	extra_blocked.clear()
 	_astar = null
+	streaming = false
+	_stream_chunks.clear()
 	void_tile_id = _detect_void_tile_id()
 	ext = null
+
+
+func setup_streaming(p_width: int, p_height: int, p_flags: PackedInt32Array, p_chunk_cells: int = 16) -> void:
+	width = p_width
+	height = p_height
+	data = PackedInt32Array()
+	flags = p_flags
+	extra_blocked.clear()
+	_astar = null
+	streaming = true
+	chunk_cells = maxi(p_chunk_cells, 1)
+	_stream_chunks.clear()
+	void_tile_id = 0
+	ext = null
+
+
+func ingest_stream_chunk(cx: int, cy: int, buf: PackedInt32Array) -> void:
+	_stream_chunks["%d,%d" % [cx, cy]] = buf
+	_astar = null
+
+
+func drop_stream_chunk(cx: int, cy: int) -> void:
+	_stream_chunks.erase("%d,%d" % [cx, cy])
+	_astar = null
+
+
+func has_stream_chunk(cx: int, cy: int) -> bool:
+	return _stream_chunks.has("%d,%d" % [cx, cy])
+
+
+func stream_chunk_keys() -> Array:
+	return _stream_chunks.keys()
+
+
+func path_search_budget() -> int:
+	if streaming:
+		return maxi(_stream_chunks.size() * chunk_cells * chunk_cells * 4, 2048)
+	return mini(width * height * 4, 200000)
 
 
 func set_ext(p_ext: RefCounted) -> void:
@@ -56,6 +100,8 @@ func set_extra_blocked(x: int, y: int, blocked: bool = true) -> void:
 
 
 func is_extra_blocked(x: int, y: int) -> bool:
+	if extra_blocked.is_empty():
+		return false
 	return extra_blocked.has("%d,%d" % [x, y])
 
 
@@ -85,10 +131,27 @@ func tile_id(x: int, y: int, z: int) -> int:
 		if ext != null and ext.has_method("tile_z"):
 			return int(ext.tile_z(z, x, y))
 		return 0
+	if streaming:
+		return _stream_tile(x, y, z)
 	var idx: int = (z * height + y) * width + x
 	if idx < 0 or idx >= data.size():
 		return 0
 	return int(data[idx])
+
+
+func _stream_tile(x: int, y: int, z: int) -> int:
+	var cc: int = chunk_cells
+	var cx: int = int(floor(float(x) / float(cc)))
+	var cy: int = int(floor(float(y) / float(cc)))
+	var buf: PackedInt32Array = _stream_chunks.get("%d,%d" % [cx, cy], PackedInt32Array())
+	if buf.is_empty():
+		return 0
+	var lx: int = x - cx * cc
+	var ly: int = y - cy * cc
+	var idx: int = (z * cc + ly) * cc + lx
+	if idx < 0 or idx >= buf.size():
+		return 0
+	return int(buf[idx])
 
 
 func ext_tile(id: String, x: int, y: int) -> int:
@@ -103,6 +166,10 @@ func meta_at(x: int, y: int) -> int:
 
 func settings_at(x: int, y: int) -> int:
 	return ext_tile("settings", x, y)
+
+
+func no_dash_at(x: int, y: int) -> bool:
+	return (meta_at(x, y) & MapExt.META_NO_DASH) != 0
 
 
 func layered_tiles(x: int, y: int) -> Array[int]:
@@ -237,6 +304,11 @@ func check_passage(x: int, y: int, bit: int) -> bool:
 	# Void filler / empty ground: never landable (MV empty returns false; filler matches paint).
 	if is_void_cell(x, y):
 		return false
+	return _passage_bit(x, y, bit)
+
+
+## Passage flags / ext meta only (caller already rejected void / OOB).
+func _passage_bit(x: int, y: int, bit: int) -> bool:
 	var meta: int = meta_at(x, y)
 	if (meta & MapExt.META_FORCE_BLOCK) != 0:
 		return false
@@ -266,40 +338,73 @@ func _ext_water_blocks(x: int, y: int, meta: int) -> bool:
 
 
 func is_passable(x: int, y: int, d: int) -> bool:
+	if TileId.is_diagonal(d):
+		var hv: Vector2i = TileId.split_diag(d)
+		return is_passable(x, y, hv.x) and is_passable(x, y, hv.y)
+	if not TileId.is_cardinal(d):
+		return false
 	var bit: int = (1 << (int(d / 2) - 1)) & 0x0f
 	return check_passage(x, y, bit)
 
 
+func _is_passable_bit(x: int, y: int, d: int) -> bool:
+	var bit: int = (1 << (int(d / 2) - 1)) & 0x0f
+	return _passage_bit(x, y, bit)
+
+
 func can_pass(x: int, y: int, d: int) -> bool:
+	if TileId.is_diagonal(d):
+		return _can_pass_diagonal(x, y, d, true)
+	return _can_pass_cardinal(x, y, d, true)
+
+
+## Tile-only passage (ignores extra_blocked). Used to build the static edge graph.
+func can_pass_tiles(x: int, y: int, d: int) -> bool:
+	if TileId.is_diagonal(d):
+		return _can_pass_diagonal(x, y, d, false)
+	return _can_pass_cardinal(x, y, d, false)
+
+
+func _can_pass_cardinal(x: int, y: int, d: int, check_extra: bool) -> bool:
 	var delta: Vector2i = TileId.dir_delta(d)
 	var x2: int = x + delta.x
 	var y2: int = y + delta.y
 	if not is_valid(x2, y2):
 		return false
-	if is_extra_blocked(x2, y2):
+	if check_extra and is_extra_blocked(x2, y2):
 		return false
 	# Never enter void (empty or filler). Allow escaping an already-void cell onto ground.
 	if is_void_cell(x2, y2):
 		return false
 	var rev: int = TileId.reverse_dir(d)
 	if is_void_cell(x, y):
-		return is_passable(x2, y2, rev)
-	return is_passable(x, y, d) and is_passable(x2, y2, rev)
+		return _is_passable_bit(x2, y2, rev)
+	return _is_passable_bit(x, y, d) and _is_passable_bit(x2, y2, rev)
 
 
-## Tile-only passage (ignores extra_blocked). Used to build the static edge graph.
-func can_pass_tiles(x: int, y: int, d: int) -> bool:
+## No corner-cut: both L-paths around the corner must be open.
+func _can_pass_diagonal(x: int, y: int, d: int, check_extra: bool) -> bool:
 	var delta: Vector2i = TileId.dir_delta(d)
 	var x2: int = x + delta.x
 	var y2: int = y + delta.y
 	if not is_valid(x2, y2):
 		return false
+	if check_extra and is_extra_blocked(x2, y2):
+		return false
 	if is_void_cell(x2, y2):
 		return false
-	var rev: int = TileId.reverse_dir(d)
-	if is_void_cell(x, y):
-		return is_passable(x2, y2, rev)
-	return is_passable(x, y, d) and is_passable(x2, y2, rev)
+	var hv: Vector2i = TileId.split_diag(d)
+	if hv.x == 0:
+		return false
+	if not _can_pass_cardinal(x, y, hv.x, check_extra):
+		return false
+	if not _can_pass_cardinal(x, y, hv.y, check_extra):
+		return false
+	if not _can_pass_cardinal(x + delta.x, y, hv.y, check_extra):
+		return false
+	if not _can_pass_cardinal(x, y + delta.y, hv.x, check_extra):
+		return false
+	return true
 
 
 func is_landable(x: int, y: int) -> bool:
@@ -348,6 +453,8 @@ func _parse_extra_key(key: Variant) -> Vector2i:
 
 
 func ensure_path_graph() -> AStar2D:
+	if streaming:
+		return null
 	if _astar != null:
 		return _astar
 	_rebuild_path_graph()
@@ -364,7 +471,7 @@ func _rebuild_path_graph() -> void:
 	for y in range(height):
 		for x in range(width):
 			var from_id: int = _cell_id(x, y)
-			for d in [2, 4, 6, 8]:
+			for d in TileId.DIRS4:
 				if not can_pass_tiles(x, y, d):
 					continue
 				var delta: Vector2i = TileId.dir_delta(d)
@@ -372,6 +479,29 @@ func _rebuild_path_graph() -> void:
 				# Directed edge (RPG Maker one-way walls).
 				if not _astar.are_points_connected(from_id, to_id, false):
 					_astar.connect_points(from_id, to_id, false)
+	# Diagonal edges from both L-paths already in the cardinal graph (no corner-cut).
+	for y in range(height):
+		for x in range(width):
+			var from_id: int = _cell_id(x, y)
+			for d in [1, 3, 7, 9]:
+				var delta: Vector2i = TileId.dir_delta(d)
+				var x2: int = x + delta.x
+				var y2: int = y + delta.y
+				if not is_valid(x2, y2):
+					continue
+				var dest_id: int = _cell_id(x2, y2)
+				var horz_id: int = _cell_id(x + delta.x, y)
+				var vert_id: int = _cell_id(x, y + delta.y)
+				if not _astar.are_points_connected(from_id, horz_id, false):
+					continue
+				if not _astar.are_points_connected(from_id, vert_id, false):
+					continue
+				if not _astar.are_points_connected(horz_id, dest_id, false):
+					continue
+				if not _astar.are_points_connected(vert_id, dest_id, false):
+					continue
+				if not _astar.are_points_connected(from_id, dest_id, false):
+					_astar.connect_points(from_id, dest_id, false)
 	for key in extra_blocked.keys():
 		var cell := _parse_extra_key(key)
 		if is_valid(cell.x, cell.y):
@@ -379,7 +509,7 @@ func _rebuild_path_graph() -> void:
 
 
 ## Waypoints after start to goal (excludes start). Empty if none.
-## Temporarily allows pathing from an occupied start cell (player standing there).
+## Heap A* (8-dir, occupancy-aware including diagonal corner cells).
 func find_astar_path(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	var empty: Array[Vector2i] = []
 	if not is_valid(start.x, start.y) or not is_valid(goal.x, goal.y):
@@ -389,28 +519,14 @@ func find_astar_path(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	# Goals in void / empty padding are never standable.
 	if is_void_cell(goal.x, goal.y):
 		return empty
-	var astar: AStar2D = ensure_path_graph()
-	if astar == null:
+	var GridPath = load("res://scripts/map/grid_path.gd")
+	return GridPath._find_path_heap(self, start, goal)
+
+
+## One search to any of `goals` (excludes start). `anchor` is the original click for heuristic.
+func find_astar_path_any(start: Vector2i, goals: Array[Vector2i], anchor: Vector2i = Vector2i.ZERO) -> Array[Vector2i]:
+	var empty: Array[Vector2i] = []
+	if goals.is_empty() or not is_valid(start.x, start.y):
 		return empty
-	var sid: int = _cell_id(start.x, start.y)
-	var gid: int = _cell_id(goal.x, goal.y)
-	if not astar.has_point(sid) or not astar.has_point(gid):
-		return empty
-	if astar.is_point_disabled(gid):
-		return empty
-	var start_was_disabled: bool = astar.is_point_disabled(sid)
-	if start_was_disabled:
-		astar.set_point_disabled(sid, false)
-	var ids: PackedInt64Array = astar.get_id_path(sid, gid)
-	if start_was_disabled:
-		astar.set_point_disabled(sid, true)
-	if ids.is_empty():
-		return empty
-	var path: Array[Vector2i] = []
-	# Skip start (index 0); convert point ids back to cells.
-	for i in range(1, ids.size()):
-		var id: int = int(ids[i])
-		var x: int = id % width
-		var y: int = int(id / width)
-		path.append(Vector2i(x, y))
-	return path
+	var GridPath = load("res://scripts/map/grid_path.gd")
+	return GridPath._find_path_heap_any(self, start, goals, anchor)

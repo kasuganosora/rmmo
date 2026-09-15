@@ -58,7 +58,7 @@ func _run() -> void:
 		if str(a.get("npc_id", "")) != "actor_rest":
 			continue
 		moved = true
-		facing_ok = int(a.get("facing", 0)) in [2, 4, 6, 8]
+		facing_ok = int(a.get("facing", 0)) in [1, 2, 3, 4, 6, 7, 8, 9]
 		break
 	failed += _expect(moved, "friendly idle emits npc_move")
 	failed += _expect(facing_ok, "npc_move has facing")

@@ -1,5 +1,5 @@
 extends Control
-## L2-style circular radar: prebaked 0.5x atlas via GPU region + circle shader.
+## L2-style circular radar: 1px/cell atlas via GPU region + circle shader.
 ## Walking only updates region uniforms — no Image crop/mask/update on the walk path.
 
 @export var fixed_north: bool = true
@@ -7,7 +7,7 @@ extends Control
 @export var show_monster_stubs: bool = false
 @export var view_radius_tiles: float = 11.0
 @export var sample_size: int = 128
-## World pixels per radar pixel; must match MapField.RADAR_ATLAS_SCALE (0.5).
+## Display pixels per world pixel (derived from atlas + view_radius).
 @export var world_scale: float = 0.5
 
 const RadarCircleShader = preload("res://scripts/ui/radar_circle.gdshader")
@@ -173,13 +173,18 @@ func _pull_atlas_from_field() -> void:
 		var sc: float = float(_map_field.get_radar_atlas_scale())
 		if sc > 0.001:
 			_atlas_scale = sc
-			# Keep blip/world_scale aligned with the prebaked atlas (0.5x).
-			world_scale = sc
 	if _map_field.has_method("get_radar_atlas_texture"):
 		_atlas_tex = _map_field.get_radar_atlas_texture()
 	if _atlas_tex != null:
 		_atlas_w = _atlas_tex.get_width()
 		_atlas_h = _atlas_tex.get_height()
+
+
+func _radar_world_side() -> float:
+	var ts := 48.0
+	if _map_field != null and "tile_size" in _map_field:
+		ts = float(maxi(int(_map_field.tile_size), 1))
+	return maxf(view_radius_tiles, 1.0) * 2.0 * ts
 
 
 func _sync_terrain_region(force: bool) -> void:
@@ -198,14 +203,19 @@ func _sync_terrain_region(force: bool) -> void:
 	var sc: float = _atlas_scale
 	if sc <= 0.001:
 		sc = 0.5
-	var acx: int = int(floor(_center_world.x * sc))
-	var acy: int = int(floor(_center_world.y * sc))
-	var half: int = diam >> 1
-	var origin := Vector2i(acx - half, acy - half)
+	var world_side: float = _radar_world_side()
+	var atlas_side: float = maxf(world_side * sc, 1.0)
+	var origin_cell := Vector2i.ZERO
+	if _map_field != null and _map_field.has_method("get_radar_origin_cell"):
+		origin_cell = _map_field.get_radar_origin_cell()
+	var acx: float = _center_world.x * sc - float(origin_cell.x)
+	var acy: float = _center_world.y * sc - float(origin_cell.y)
+	var origin := Vector2i(int(floor(acx - atlas_side * 0.5)), int(floor(acy - atlas_side * 0.5)))
 	if not force and origin == _last_sample_origin and diam == _last_diam_px and _terrain.visible:
 		return
 	_last_sample_origin = origin
 	_last_diam_px = diam
+	world_scale = float(diam) / world_side
 
 	var c := size * 0.5
 	var r := float(diam) * 0.5
@@ -217,7 +227,7 @@ func _sync_terrain_region(force: bool) -> void:
 		_terrain_mat.set_shader_parameter("atlas_tex", _atlas_tex)
 		_terrain_mat.set_shader_parameter("atlas_pixel_size", Vector2(_atlas_w, _atlas_h))
 		_terrain_mat.set_shader_parameter("region_origin_px", Vector2(origin))
-		_terrain_mat.set_shader_parameter("region_side_px", float(diam))
+		_terrain_mat.set_shader_parameter("region_side_px", atlas_side)
 		_terrain_mat.set_shader_parameter("fill_color", Color(0.08, 0.10, 0.09, 1.0))
 
 

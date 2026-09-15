@@ -56,6 +56,13 @@ func _run() -> void:
 	if pal._tex and pal._tex.texture:
 		var tex: Texture2D = pal._tex.texture
 		failed += _expect(tex.get_width() == 384 and tex.get_height() == 1536, "A atlas 8x32 tiles")
+	failed += _expect(pal._pass_layer != null, "passage overlay exists")
+	failed += _expect(not pal.show_passage, "passage mode off by default")
+	failed += _expect(not pal._pass_layer.visible, "passage overlay hidden in map paint")
+	pal.set_show_passage(true)
+	failed += _expect(bool(pal._pass_layer.visible), "passage overlay shown")
+	pal.set_show_passage(false)
+	failed += _expect(not pal._pass_layer.visible, "set_show_passage(false) hides overlay")
 	pal.free()
 	if failed == 0:
 		print("ALL PASS")

@@ -24,6 +24,45 @@ const PASS_X := 1
 const PASS_STAR := 2
 
 
+## Slot 0–8 = A1 A2 A3 A4 A5 B C D E. x inclusive, y exclusive.
+static func slot_range(slot: int) -> Vector2i:
+	match slot:
+		0:
+			return Vector2i(TILE_ID_A1, TILE_ID_A2)
+		1:
+			return Vector2i(TILE_ID_A2, TILE_ID_A3)
+		2:
+			return Vector2i(TILE_ID_A3, TILE_ID_A4)
+		3:
+			return Vector2i(TILE_ID_A4, TILE_ID_MAX)
+		4:
+			return Vector2i(TILE_ID_A5, TILE_ID_A1)
+		5:
+			return Vector2i(TILE_ID_B, TILE_ID_C)
+		6:
+			return Vector2i(TILE_ID_C, TILE_ID_D)
+		7:
+			return Vector2i(TILE_ID_D, TILE_ID_E)
+		8:
+			return Vector2i(TILE_ID_E, TILE_ID_A5)
+		_:
+			return Vector2i(0, 0)
+
+
+static func slot_tab(slot: int) -> String:
+	match slot:
+		5:
+			return "B"
+		6:
+			return "C"
+		7:
+			return "D"
+		8:
+			return "E"
+		_:
+			return "A"
+
+
 static func is_visible(tile_id: int) -> bool:
 	return tile_id > 0 and tile_id < TILE_ID_MAX
 
@@ -42,6 +81,30 @@ static func autotile_shape(tile_id: int) -> int:
 
 static func is_tile_a1(tile_id: int) -> bool:
 	return tile_id >= TILE_ID_A1 and tile_id < TILE_ID_A2
+
+
+## RTP Outside A2: dirt-with-grass-tufts (17), plain sand (24), dark sand (32)
+## share a beige fill. Treat as one terrain so tufts only appear against grass.
+static func a2_terrain_group(kind: int) -> int:
+	if kind == 17 or kind == 24 or kind == 32:
+		return 1
+	return 0
+
+
+static func a2_floors_connect(kind_a: int, kind_b: int) -> bool:
+	if kind_a == kind_b:
+		return true
+	var ga: int = a2_terrain_group(kind_a)
+	return ga != 0 and ga == a2_terrain_group(kind_b)
+
+
+## MV A1: water surfaces (kind 0/1 and even kinds) and waterfalls (odd kinds >= 5).
+## Kinds 2 and 3 are the first pair's 4th column — static floor autotiles.
+static func is_animated_a1(tile_id: int) -> bool:
+	if not is_tile_a1(tile_id):
+		return false
+	var kind: int = autotile_kind(tile_id)
+	return kind != 2 and kind != 3
 
 
 static func is_tile_a2(tile_id: int) -> bool:
@@ -206,37 +269,109 @@ static func waterfall_shape(left: bool, right: bool) -> int:
 	return index
 
 
+## Numpad 8-way (5 = stay). Cardinals 2/4/6/8, diagonals 1/3/7/9.
+const DIRS4: Array[int] = [2, 4, 6, 8]
+const DIRS8: Array[int] = [1, 2, 3, 4, 6, 7, 8, 9]
+
+
+static func is_dir(d: int) -> bool:
+	return d >= 1 and d <= 9 and d != 5
+
+
+static func is_cardinal(d: int) -> bool:
+	return d == 2 or d == 4 or d == 6 or d == 8
+
+
+static func is_diagonal(d: int) -> bool:
+	return d == 1 or d == 3 or d == 7 or d == 9
+
+
+## Split a diagonal into (horz, vert) cardinals. Cardinal/invalid → ZERO.
+static func split_diag(d: int) -> Vector2i:
+	match d:
+		1:
+			return Vector2i(4, 2)
+		3:
+			return Vector2i(6, 2)
+		7:
+			return Vector2i(4, 8)
+		9:
+			return Vector2i(6, 8)
+		_:
+			return Vector2i.ZERO
+
+
+## Sprite / vision cone: map 8-way onto 2/4/6/8.
+static func cardinal_facing(d: int) -> int:
+	match d:
+		4:
+			return 4
+		6:
+			return 6
+		7, 8, 9:
+			return 8
+		_:
+			return 2
+
+
 static func reverse_dir(d: int) -> int:
 	match d:
+		1:
+			return 9
 		2:
 			return 8
+		3:
+			return 7
 		4:
 			return 6
 		6:
 			return 4
+		7:
+			return 3
 		8:
 			return 2
+		9:
+			return 1
 		_:
 			return 0
 
 
 static func dir_delta(d: int) -> Vector2i:
 	match d:
+		1:
+			return Vector2i(-1, 1)
 		2:
 			return Vector2i(0, 1)
+		3:
+			return Vector2i(1, 1)
 		4:
 			return Vector2i(-1, 0)
 		6:
 			return Vector2i(1, 0)
+		7:
+			return Vector2i(-1, -1)
 		8:
 			return Vector2i(0, -1)
+		9:
+			return Vector2i(1, -1)
 		_:
 			return Vector2i.ZERO
 
 
 static func dir_from_vec(v: Vector2) -> int:
-	if absf(v.x) > absf(v.y):
+	var ax: float = absf(v.x)
+	var ay: float = absf(v.y)
+	if ax <= 0.0001 and ay <= 0.0001:
+		return 0
+	# Both axes pressed (keyboard / exact grid step) → diagonal.
+	if ax > 0.0001 and ay > 0.0001 and ax >= ay * 0.4 and ay >= ax * 0.4:
+		if v.x < 0.0 and v.y > 0.0:
+			return 1
+		if v.x > 0.0 and v.y > 0.0:
+			return 3
+		if v.x < 0.0 and v.y < 0.0:
+			return 7
+		return 9
+	if ax > ay:
 		return 6 if v.x > 0.0 else 4
-	if absf(v.y) > 0.0:
-		return 2 if v.y > 0.0 else 8
-	return 0
+	return 2 if v.y > 0.0 else 8

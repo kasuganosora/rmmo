@@ -3,6 +3,7 @@ extends RefCounted
 
 const MapCollision = preload("res://scripts/map/map_collision.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
+const MapChunkStore = preload("res://scripts/map/map_chunk_store.gd")
 
 var pack_dir: String = ""
 var tile_size: int = 48
@@ -27,6 +28,14 @@ var charset_root: String = ""
 var ext: RefCounted = null
 ## Nested content pack: which map id to load (empty = start_map / flat map.json).
 var load_map_id: String = ""
+var bgm: String = ""
+var light_preset: int = 0
+var light_fx_color: Color = Color(1, 1, 1, 1)
+var environment: String = MapExt.ENV_OUTDOOR
+var streaming: bool = false
+var chunk_map_dir: String = ""
+var chunk_dir: String = ""
+var overview_path: String = ""
 
 
 static func load_pack(p_pack_dir: String, p_map_id: String = "") -> RefCounted:
@@ -82,13 +91,24 @@ func _load() -> bool:
 
 	width = int(map_data.get("width", 0))
 	height = int(map_data.get("height", 0))
-	data = _to_int32_array(map_data.get("data", []))
-	var bin_path := "%s/%s" % [pack_dir, map_rel.get_basename() + ".data.bin"]
-	if FileAccess.file_exists(bin_path):
-		data = _load_data_bin(bin_path, width * height * 6)
-	var need: int = width * height * 6
-	if need > 0 and data.size() < need:
-		data.resize(need)
+	var map_abs_dir := "%s/%s" % [pack_dir, map_rel.get_base_dir()]
+	if map_rel.get_base_dir() == "" or map_rel.get_base_dir() == ".":
+		map_abs_dir = pack_dir
+	chunk_map_dir = map_abs_dir
+	chunk_dir = MapChunkStore.chunks_dir(map_abs_dir)
+	overview_path = MapChunkStore.overview_path(map_abs_dir)
+	var chunks_on_disk := DirAccess.dir_exists_absolute(chunk_dir) or DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(chunk_dir))
+	streaming = str(map_data.get("dataEncoding", "")) == "chunks" or chunks_on_disk
+	if streaming:
+		data = PackedInt32Array()
+	else:
+		data = _to_int32_array(map_data.get("data", []))
+		var bin_path := "%s/%s" % [pack_dir, map_rel.get_basename() + ".data.bin"]
+		if FileAccess.file_exists(bin_path):
+			data = _load_data_bin(bin_path, width * height * 6)
+		var need: int = width * height * 6
+		if need > 0 and data.size() < need:
+			data.resize(need)
 	flags = _to_int32_array(tileset_data.get("flags", []))
 	tileset_names = PackedStringArray()
 	var names_v: Variant = tileset_data.get("tilesetNames", [])
@@ -108,7 +128,10 @@ func _load() -> bool:
 	var ext_rel := MapExt.ext_path_for(map_rel)
 	ext = MapExt.load_file("%s/%s" % [pack_dir, ext_rel], width, height)
 	var col = MapCollision.new()
-	col.setup(width, height, data, flags)
+	if streaming:
+		col.setup_streaming(width, height, flags, int(map_data.get("chunkCells", MapChunkStore.CHUNK_CELLS)))
+	else:
+		col.setup(width, height, data, flags)
 	if col.has_method("set_ext"):
 		col.set_ext(ext)
 	collision = col
@@ -124,11 +147,28 @@ func _load() -> bool:
 	else:
 		warps = _parse_warps(pack_data.get("warps", []))
 	charset_root = str(pack_data.get("charset_root", "")).strip_edges()
+	bgm = str(map_data.get("bgm", "")).strip_edges()
+	light_preset = int(map_data.get("light_preset", 0))
+	if map_data.has("environment"):
+		environment = MapExt.normalize_environment(map_data.get("environment"))
+	elif map_data.has("indoor"):
+		environment = MapExt.normalize_environment(map_data.get("indoor"))
+	else:
+		environment = MapExt.ENV_OUTDOOR
+	if ext != null and "light_color" in ext:
+		light_fx_color = ext.light_color
 	npcs = _load_npcs(pack_data)
 	events = _load_events(pack_data)
 	if collision != null and collision.has_method("apply_npc_blocks"):
 		collision.apply_npc_blocks(npcs)
+		collision.apply_npc_blocks(_event_block_entries())
 	return width > 0 and height > 0
+
+
+func load_chunk_data(cx: int, cy: int) -> PackedInt32Array:
+	if chunk_map_dir == "":
+		return PackedInt32Array()
+	return MapChunkStore.load_chunk(chunk_map_dir, cx, cy)
 
 
 func _is_nested_pack(pack_data: Dictionary) -> bool:
@@ -216,6 +256,18 @@ static func _parse_npcs(v: Variant) -> Array:
 			entry["respawn_sec"] = float(n.get("respawn_sec"))
 		out.append(entry)
 	return out
+
+func _event_block_entries() -> Array:
+	var out: Array = []
+	for item in events:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var e: Dictionary = item
+		if bool(e.get("through", true)):
+			continue
+		out.append(e)
+	return out
+
 
 func _load_events(pack_data: Dictionary) -> Array:
 	var raw: Variant = pack_data.get("events", null)

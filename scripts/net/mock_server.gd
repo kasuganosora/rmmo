@@ -21,6 +21,8 @@ const LootCatalog = preload("res://scripts/net/combat/loot_catalog.gd")
 const QuestJournal = preload("res://scripts/net/combat/quest_journal.gd")
 const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
 const EventRuntime = preload("res://scripts/net/combat/event_runtime.gd")
+const MapExt = preload("res://scripts/map/map_ext.gd")
+const Weather = preload("res://scripts/map/weather.gd")
 
 const DEMO_PACK_PATH := "res://demo_map"
 
@@ -41,6 +43,7 @@ var _session_character_id: String = ""
 
 ## Authoritative map collision for the currently loaded pack
 var map_collision: RefCounted = null
+var _map_pack: RefCounted = null
 var map_tile_size: int = 48
 var map_pack_id: String = "demo_map"
 var map_pack_path: String = DEMO_PACK_PATH
@@ -89,6 +92,12 @@ var _ground_bags: Dictionary = {}
 var _bag_seq: int = 0
 ## Currently open loot UI session (bag_id). Empty = no open window. Close keeps the bag.
 var _open_loot_bag_id: String = ""
+var map_environment: String = MapExt.ENV_OUTDOOR
+var weather_kind: String = "clear"
+var weather_intensity: float = 0.0
+var weather_auto: bool = true
+var _weather_left: float = 40.0
+var _weather_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -123,6 +132,7 @@ func _init_combat_layers() -> void:
 
 
 func _process(delta: float) -> void:
+	_tick_weather(delta)
 	if combat_engine == null or combat_stats == null:
 		return
 	if player_cell.x <= -9990:
@@ -180,6 +190,67 @@ func poll_combat_tick() -> Array:
 	return out
 
 
+func get_weather() -> Dictionary:
+	return {
+		"kind": weather_kind,
+		"intensity": weather_intensity,
+		"indoor": _map_indoor(),
+		"environment": map_environment,
+	}
+
+
+func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) -> Dictionary:
+	if _map_indoor():
+		kind = "clear"
+		intensity = 0.0
+	weather_kind = Weather.normalize(kind)
+	weather_intensity = 0.0 if weather_kind == "clear" else clampf(intensity, 0.0, 1.0)
+	_weather_left = maxf(duration, 0.0)
+	var act := _weather_action()
+	_pending_tick_actions.append(act)
+	return act
+
+
+func _map_indoor() -> bool:
+	return MapExt.normalize_environment(map_environment) == MapExt.ENV_INDOOR
+
+
+func _weather_action() -> Dictionary:
+	return {"type": "weather", "kind": weather_kind, "intensity": weather_intensity}
+
+
+func _reset_weather_for_map() -> void:
+	_weather_rng.seed = 17041 + int(map_pack_id.hash())
+	if _map_indoor():
+		weather_kind = "clear"
+		weather_intensity = 0.0
+		_weather_left = 99999.0
+	else:
+		weather_kind = "clear"
+		weather_intensity = 0.0
+		var dur: Vector2 = Weather.duration_range()
+		_weather_left = _weather_rng.randf_range(dur.x, dur.y)
+
+
+func _tick_weather(delta: float) -> void:
+	if not weather_auto:
+		return
+	if _map_indoor():
+		if weather_kind != "clear" or weather_intensity > 0.001:
+			set_weather("clear", 0.0, 99999.0)
+		return
+	_weather_left -= delta
+	if _weather_left > 0.0:
+		return
+	var cycle: Array = Weather.cycle_list()
+	if cycle.is_empty():
+		cycle = ["clear"]
+	var nxt := str(cycle[_weather_rng.randi() % cycle.size()])
+	var inten := 0.0 if Weather.normalize(nxt) == "clear" else _weather_rng.randf_range(0.55, 1.0)
+	var dur2: Vector2 = Weather.duration_range()
+	set_weather(nxt, inten, _weather_rng.randf_range(dur2.x, dur2.y))
+
+
 func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Vector2i(-1, -1)) -> bool:
 	if not _load_pack(pack_path, map_id):
 		return false
@@ -187,6 +258,7 @@ func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Ve
 		respawn_cell = cell
 		last_safe_cell = cell
 		set_player_cell(cell.x, cell.y)
+	_collect_autorun()
 	return true
 
 
@@ -196,9 +268,9 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 		push_error("MockServer: failed to load pack collision at %s" % pack_path)
 		return false
 	map_collision = pack.collision
-	# Build AStar graph once on load so the first click-to-move is hitch-free.
-	if map_collision != null and map_collision.has_method("ensure_path_graph"):
-		map_collision.ensure_path_graph()
+	_map_pack = pack
+	if map_collision != null and bool(map_collision.get("streaming")):
+		_ingest_stream_around(respawn_cell if respawn_cell.x >= 0 else Vector2i.ZERO)
 	map_tile_size = pack.tile_size
 	map_pack_path = pack_path.rstrip("/")
 	map_pack_id = str(pack.map_id) if str(pack.map_id) != "" else pack_path.get_file()
@@ -213,6 +285,7 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 	map_content_id = str(pack_meta.get("content_id", "")).strip_edges()
 	map_content_version = str(pack_meta.get("version", "")).strip_edges()
 	map_warps = pack.warps.duplicate(true) if pack.warps != null else []
+	map_environment = MapExt.normalize_environment(pack.environment) if "environment" in pack else MapExt.ENV_OUTDOOR
 	# Map events for this pack (keep session switches; reload defs only).
 	if event_runtime == null:
 		event_runtime = EventRuntime.new()
@@ -237,6 +310,7 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 	_pending_tick_actions.clear()
 	_combat_tick_acc = 0.0
 	_ai_tick_acc = 0.0
+	_reset_weather_for_map()
 	return true
 
 
@@ -358,6 +432,8 @@ func enter_world(character_id: int) -> void:
 	if event_runtime != null:
 		# Keep event defs from _load_pack; wipe switches for the new character session.
 		event_runtime.clear_session()
+	_pending_tick_actions.clear()
+	_collect_autorun()
 	# Party shell: fresh session, no persistence.
 	_party_clear()
 	_party_poll_pending = false
@@ -428,7 +504,7 @@ func register_npc(
 	if npc_id.is_empty() or combat_stats == null:
 		return
 	combat_stats.set_npc_cell(npc_id, x, y)
-	if facing not in [2, 4, 6, 8]:
+	if not TileId.is_dir(facing):
 		facing = 2
 	var leash_r: int = MobAI.DEFAULT_LEASH_RADIUS
 	var respawn_s: float = MobAI.DEFAULT_RESPAWN_SEC
@@ -447,7 +523,7 @@ func register_npc(
 			hostile = bool(spawn_data.get("hostile", hostile))
 		if spawn_data.has("direction"):
 			var fd: int = int(spawn_data.get("direction", facing))
-			if fd in [2, 4, 6, 8]:
+			if TileId.is_dir(fd):
 				facing = fd
 	var home_cell := Vector2i(x, y)
 	if home_override.x > -9990:
@@ -511,9 +587,28 @@ func register_npc(
 
 ## Authoritative grid step. dir in {2,4,6,8}. Returns {ok, x, y, facing}.
 ## Rejects (with resync coords) when from ≠ authoritative player_cell.
+func _ingest_stream_around(cell: Vector2i) -> void:
+	if map_collision == null or not bool(map_collision.get("streaming")):
+		return
+	if _map_pack == null or not _map_pack.has_method("load_chunk_data"):
+		return
+	var cc := 16
+	if "chunk_cells" in map_collision:
+		cc = maxi(int(map_collision.chunk_cells), 1)
+	var oc := Vector2i(int(floor(float(cell.x) / float(cc))), int(floor(float(cell.y) / float(cc))))
+	for cy in range(oc.y - 2, oc.y + 3):
+		for cx in range(oc.x - 2, oc.x + 3):
+			if cx < 0 or cy < 0:
+				continue
+			if map_collision.has_method("has_stream_chunk") and map_collision.has_stream_chunk(cx, cy):
+				continue
+			map_collision.ingest_stream_chunk(cx, cy, _map_pack.load_chunk_data(cx, cy))
+
+
 func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 	if map_collision == null:
 		return {"ok": false, "x": from_x, "y": from_y}
+	_ingest_stream_around(Vector2i(from_x, from_y))
 	if combat_stats != null and not combat_stats.player_alive():
 		return {"ok": false, "x": player_cell.x, "y": player_cell.y}
 	# Anti-desync / spoof: client from must match server occupancy.
@@ -527,7 +622,7 @@ func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 			}
 		from_x = player_cell.x
 		from_y = player_cell.y
-	if dir not in [2, 4, 6, 8]:
+	if not TileId.is_dir(dir):
 		return {"ok": false, "x": from_x, "y": from_y}
 	if not map_collision.can_pass(from_x, from_y, dir):
 		return {"ok": false, "x": from_x, "y": from_y}
@@ -542,6 +637,8 @@ func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 	set_player_cell(nx, ny)
 	_maybe_mark_safe_cell(nx, ny)
 	var out := {"ok": true, "x": nx, "y": ny, "facing": dir}
+	if map_collision.has_method("no_dash_at") and map_collision.no_dash_at(nx, ny):
+		out["no_dash"] = true
 	var all_actions: Array = []
 	if not interrupt_actions.is_empty():
 		all_actions.append_array(interrupt_actions)
@@ -561,15 +658,20 @@ func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
 	if map_collision == null:
 		return {"ok": false, "x": from_x, "y": from_y}
-	if dir not in [2, 4, 6, 8]:
+	if not TileId.is_dir(dir):
 		return {"ok": false, "x": from_x, "y": from_y}
 	var delta: Vector2i = TileId.dir_delta(dir)
 	var nx: int = from_x + delta.x
 	var ny: int = from_y + delta.y
-	# Mutual block with player (also mirrored via extra_blocked when set_player_cell used).
-	if nx == player_cell.x and ny == player_cell.y:
-		return {"ok": false, "x": from_x, "y": from_y}
-	if not map_collision.can_pass(from_x, from_y, dir):
+	var onto_player := player_cell.x > -9990 and nx == player_cell.x and ny == player_cell.y
+	var touch_ev: Dictionary = {}
+	if onto_player:
+		touch_ev = _event_touch_event(npc_id, from_x, from_y)
+		if touch_ev.is_empty():
+			return {"ok": false, "x": from_x, "y": from_y}
+		if map_collision.has_method("can_pass_tiles") and not map_collision.can_pass_tiles(from_x, from_y, dir):
+			return {"ok": false, "x": from_x, "y": from_y}
+	elif not map_collision.can_pass(from_x, from_y, dir):
 		return {"ok": false, "x": from_x, "y": from_y}
 	map_collision.set_extra_blocked(from_x, from_y, false)
 	map_collision.set_extra_blocked(nx, ny, true)
@@ -580,7 +682,14 @@ func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Diction
 			var ai: Dictionary = combat_stats.npc_ai[nid]
 			ai["facing"] = dir
 			combat_stats.npc_ai[nid] = ai
-	return {"ok": true, "x": nx, "y": ny, "npc_id": npc_id, "facing": dir}
+	var out := {"ok": true, "x": nx, "y": ny, "npc_id": npc_id, "facing": dir}
+	if not touch_ev.is_empty() and event_runtime != null:
+		var ctx := _event_server_ctx(str(touch_ev.get("name", touch_ev.get("id", ""))))
+		var touch_actions: Array = event_runtime.run_event(str(touch_ev.get("id", "")), ctx)
+		if not touch_actions.is_empty():
+			out["actions"] = touch_actions
+			_pending_tick_actions.append_array(touch_actions)
+	return out
 
 
 
@@ -690,9 +799,14 @@ func try_interact(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 			var nc: Vector2i = combat_stats.get_npc_cell(npc_id)
 			if nc.x > -9990:
 				ev = event_runtime.get_event_at_cell(nc.x, nc.y)
-		if not ev.is_empty() and str(ev.get("trigger", "action")) == "action":
+		if not ev.is_empty():
 			var ctx := _event_server_ctx(str(meta.get("name", ev.get("name", npc_id))))
-			actions = event_runtime.run_event(str(ev.get("id", npc_id)), ctx)
+			var page: Dictionary = event_runtime.select_page_with_ctx(ev, ctx)
+			var trig := str(ev.get("trigger", "action"))
+			if event_runtime.has_method("page_trigger"):
+				trig = str(event_runtime.page_trigger(ev, page))
+			if trig == "action":
+				actions = event_runtime.run_event(str(ev.get("id", npc_id)), ctx)
 			if not actions.is_empty():
 				actions.append_array(_quest_note_talk_actions(npc_id))
 				return {"ok": true, "actions": actions}
@@ -766,6 +880,7 @@ func _event_server_ctx(npc_name: String = "") -> Dictionary:
 		"transfer_cb": Callable(self, "_event_perform_transfer"),
 		"item_name_cb": Callable(self, "item_display_name"),
 		"quest_item_cb": Callable(self, "_quest_note_item_actions"),
+		"weather_cb": Callable(self, "set_weather"),
 	}
 
 
@@ -822,6 +937,20 @@ func _event_perform_transfer(
 	return out
 
 
+## Fire matching autorun pages once after a play pack/map load.
+func collect_autorun() -> Array:
+	return _collect_autorun()
+
+
+func _collect_autorun() -> Array:
+	if event_runtime == null or not event_runtime.has_method("collect_autorun"):
+		return []
+	var acts: Array = event_runtime.collect_autorun(_event_server_ctx())
+	if not acts.is_empty():
+		_pending_tick_actions.append_array(acts)
+	return acts
+
+
 ## After a successful step, fire player_touch events on the landing cell (once per page/self-switch).
 func _try_player_touch_events(x: int, y: int) -> Array:
 	if event_runtime == null:
@@ -829,10 +958,33 @@ func _try_player_touch_events(x: int, y: int) -> Array:
 	var ev: Dictionary = event_runtime.get_event_at_cell(x, y)
 	if ev.is_empty():
 		return []
-	if str(ev.get("trigger", "")) != "player_touch":
-		return []
 	var ctx := _event_server_ctx(str(ev.get("name", ev.get("id", ""))))
+	var page: Dictionary = event_runtime.select_page_with_ctx(ev, ctx) if event_runtime.has_method("select_page_with_ctx") else {}
+	var trig := str(ev.get("trigger", ""))
+	if event_runtime.has_method("page_trigger"):
+		trig = str(event_runtime.page_trigger(ev, page))
+	if trig != "player_touch":
+		return []
 	return event_runtime.run_event(str(ev.get("id", "")), ctx)
+
+
+## Event whose selected page is event_touch (does not run commands).
+func _event_touch_event(npc_id: String, from_x: int, from_y: int) -> Dictionary:
+	if event_runtime == null:
+		return {}
+	var ev: Dictionary = event_runtime.get_event(npc_id)
+	if ev.is_empty():
+		ev = event_runtime.get_event_at_cell(from_x, from_y)
+	if ev.is_empty():
+		return {}
+	var ctx := _event_server_ctx(str(ev.get("name", ev.get("id", ""))))
+	var page: Dictionary = event_runtime.select_page_with_ctx(ev, ctx) if event_runtime.has_method("select_page_with_ctx") else {}
+	var trig := str(ev.get("trigger", ""))
+	if event_runtime.has_method("page_trigger"):
+		trig = str(event_runtime.page_trigger(ev, page))
+	if trig != "event_touch":
+		return {}
+	return ev
 
 
 ## Client dialogue option → quest_* / shop_open / MV event choices.
@@ -2106,7 +2258,7 @@ func _mob_ai_idle_wander_step(npc_id: String, dt: float) -> Array:
 
 func _mob_ai_chase_step(npc_id: String, ai: Dictionary, cell: Vector2i, facing: int, px: int, py: int) -> Array:
 	var actions: Array = []
-	var man: int = absi(cell.x - px) + absi(cell.y - py)
+	var man: int = maxi(absi(cell.x - px), absi(cell.y - py))
 	if man <= 1:
 		var face: int = MobAI.facing_toward(cell, player_cell)
 		if face != facing:
@@ -2287,14 +2439,14 @@ func _roll_and_grant_loot(npc_id: String, death_cell: Variant = null) -> Array:
 	return actions
 
 
-## True when NPC cell is registered and within manhattan range_cells.
+## True when NPC cell is registered and within Chebyshev range_cells (8-dir).
 func _require_npc_adjacent(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
 	if combat_stats == null:
 		return false
 	var cell: Vector2i = combat_stats.get_npc_cell(npc_id)
 	if cell.x <= -9990:
 		return false
-	var dist: int = absi(cell.x - player_x) + absi(cell.y - player_y)
+	var dist: int = maxi(absi(cell.x - player_x), absi(cell.y - player_y))
 	return dist <= range_cells
 
 
@@ -2515,7 +2667,7 @@ func _respawn_npc_from_template(npc_id: String) -> Dictionary:
 		if map_collision.has_method("set_extra_blocked"):
 			map_collision.set_extra_blocked(spawn_cell.x, spawn_cell.y, true)
 	var facing: int = int(tmpl.get("direction", 2))
-	if facing not in [2, 4, 6, 8]:
+	if not TileId.is_dir(facing):
 		facing = 2
 	var aggressive: bool = bool(tmpl.get("aggressive", false))
 	var wander_r: int = maxi(int(tmpl.get("wander_radius", 0)), 0)

@@ -9,6 +9,8 @@ static var _tables_loaded: bool = false
 static var _floor_table: Array = []
 static var _wall_table: Array = []
 static var _waterfall_table: Array = []
+static var _color_cache: Dictionary = {}
+static var _sample_tmp: Image = null
 
 
 static func ensure_tables() -> void:
@@ -27,6 +29,52 @@ static func ensure_tables() -> void:
 	_floor_table = d.get("FLOOR", [])
 	_wall_table = d.get("WALL", [])
 	_waterfall_table = d.get("WATERFALL", [])
+
+
+static func sample_color(tile_id: int, sheets: Array, flags: PackedInt32Array = PackedInt32Array()) -> Color:
+	if not TileId.is_visible(tile_id):
+		return Color(0, 0, 0, 0)
+	ensure_tables()
+	## A2 edge shapes mix dirt seams; sample the filled face for minimap.
+	var sample_id: int = tile_id
+	if TileId.is_tile_a2(tile_id):
+		sample_id = TileId.make_autotile_id(TileId.autotile_kind(tile_id), 47)
+	if _color_cache.has(sample_id):
+		return _color_cache[sample_id]
+	## Always blit at native 48px. Sampling at 4px treats the sheet as 4px tiles and
+	## reads autotile corners (dirt seams) instead of grass / water / brick faces.
+	const PX := 48
+	if _sample_tmp == null or _sample_tmp.get_width() != PX:
+		_sample_tmp = Image.create(PX, PX, false, Image.FORMAT_RGBA8)
+	_sample_tmp.fill(Color(0, 0, 0, 0))
+	blit_tile(_sample_tmp, sample_id, 0, 0, sheets, PX, PX, flags, 0)
+	var col := _average_opaque(_sample_tmp, 12, 12, 36, 36)
+	if col.a < 0.2:
+		col = _average_opaque(_sample_tmp, 0, 0, PX, PX)
+	_color_cache[sample_id] = col
+	return col
+
+
+static func _average_opaque(img: Image, x0: int, y0: int, x1: int, y1: int) -> Color:
+	if img == null:
+		return Color(0, 0, 0, 0)
+	var r := 0.0
+	var g := 0.0
+	var b := 0.0
+	var n := 0
+	var step := 2
+	for y in range(y0, y1, step):
+		for x in range(x0, x1, step):
+			var c: Color = img.get_pixel(x, y)
+			if c.a < 0.2:
+				continue
+			r += c.r
+			g += c.g
+			b += c.b
+			n += 1
+	if n <= 0:
+		return Color(0, 0, 0, 0)
+	return Color(r / float(n), g / float(n), b / float(n), 1)
 
 
 static func blit_tile(
@@ -83,7 +131,19 @@ static func _sheet(sheets: Array, set_number: int) -> Image:
 	var v: Variant = sheets[set_number]
 	if v == null:
 		return null
-	return v as Image
+	return _ensure_rgba8(v as Image)
+
+
+static func _ensure_rgba8(img: Image) -> Image:
+	if img == null:
+		return null
+	if img.get_format() == Image.FORMAT_RGBA8:
+		return img
+	if img.is_compressed():
+		img.decompress()
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	return img
 
 
 static func _blit_normal(

@@ -182,7 +182,7 @@ func _in_range(npc_id: String, player_x: int, player_y: int, range_cells: int) -
 	if cell.x <= -9990:
 		# Cell unknown: do not trust client — reject until register_npc / try_npc_move.
 		return false
-	var dist: int = absi(cell.x - player_x) + absi(cell.y - player_y)
+	var dist: int = maxi(absi(cell.x - player_x), absi(cell.y - player_y))
 	return dist <= range_cells
 
 

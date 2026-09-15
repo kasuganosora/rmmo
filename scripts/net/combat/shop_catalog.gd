@@ -121,6 +121,12 @@ func shop_title(shop_id: String) -> String:
 	return str((_shops[shop_id] as Dictionary).get("title", shop_id))
 
 
+func all_ids() -> Array:
+	var ids: Array = _shops.keys()
+	ids.sort()
+	return ids
+
+
 func _default_buy_price(item_id: String) -> int:
 	var sell: int = _sell_price(item_id)
 	if sell > 0:

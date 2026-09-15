@@ -219,7 +219,7 @@ func ensure_npc_ai(
 	if home.x <= -9990:
 		home = Vector2i(-9999, -9999)
 	var ai := {
-		"facing": facing if facing in [2, 4, 6, 8] else 2,
+		"facing": facing if facing in [1, 2, 3, 4, 6, 7, 8, 9] else 2,
 		"aggressive": aggressive,
 		"enraged": false,
 		"chase_target": "",
@@ -248,7 +248,7 @@ func get_npc_ai(npc_id: String) -> Dictionary:
 
 
 func set_npc_facing(npc_id: String, facing: int) -> void:
-	if facing not in [2, 4, 6, 8]:
+	if facing not in [1, 2, 3, 4, 6, 7, 8, 9]:
 		return
 	var ai: Dictionary = ensure_npc_ai(npc_id, facing, false)
 	ai["facing"] = facing

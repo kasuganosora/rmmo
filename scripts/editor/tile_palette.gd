@@ -8,6 +8,7 @@ const Rtp = preload("res://scripts/editor/rtp.gd")
 signal tile_selected(tile_id: int)
 signal tileset_changed(tileset_id: String)
 signal flags_changed(tileset_id: String, flags: PackedInt32Array)
+signal stamp_changed(width: int, height: int, tiles: PackedInt32Array)
 
 var tileset_id: String = "outside"
 var tileset: Dictionary = {}
@@ -28,6 +29,12 @@ var _flags: PackedInt32Array = PackedInt32Array()
 var _view_mode: String = "" ## "A" composed atlas, else raw sheet B/C/D/E
 var show_passage: bool = false
 var pass_brush: int = TileId.PASS_O
+var stamp_w: int = 1
+var stamp_h: int = 1
+var stamp_tiles: PackedInt32Array = PackedInt32Array()
+var _drag_a: Vector2i = Vector2i(-1, -1)
+var _drag_b: Vector2i = Vector2i(-1, -1)
+var _dragging: bool = false
 var _pass_layer: Control
 var _btn_o: Button
 var _btn_x: Button
@@ -75,7 +82,7 @@ func _ready() -> void:
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
 	add_child(_scroll)
 	_host = Control.new()
 	_host.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -94,6 +101,7 @@ func _ready() -> void:
 	_host.add_child(_hi)
 	_pass_layer = preload("res://scripts/editor/passage_marks.gd").new()
 	_pass_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pass_layer.visible = false
 	_host.add_child(_pass_layer)
 	_sync_tab_buttons()
 
@@ -111,10 +119,28 @@ func _pass_btn(parent: Node, text: String, cb: Callable) -> Button:
 
 func set_show_passage(on: bool) -> void:
 	show_passage = on
-	if _pass_layer:
-		_pass_layer.visible = on
 	_rebuild_passage_marks()
 	_sync_pass_buttons()
+
+
+func select_slot(slot: int) -> void:
+	var t := TileId.slot_tab(slot)
+	if t != tab:
+		_on_tab(t)
+	else:
+		_rebuild_view()
+	if _scroll:
+		var row := 0
+		match slot:
+			1:
+				row = 2
+			2:
+				row = 6
+			3:
+				row = 10
+			4:
+				row = 16
+		_scroll.scroll_vertical = row * tile_px
 
 
 func set_catalog(tilesets: Dictionary, current_id: String = "") -> void:
@@ -148,6 +174,12 @@ func set_catalog(tilesets: Dictionary, current_id: String = "") -> void:
 
 func select_tile(id: int) -> void:
 	selected_id = id
+	_clear_stamp()
+	stamp_tiles = PackedInt32Array([id])
+	var cell := _cell_for_id(id)
+	if cell.x >= 0:
+		_drag_a = cell
+		_drag_b = cell
 	var next_tab := _tab_for_id(id)
 	if next_tab != tab:
 		tab = next_tab
@@ -155,7 +187,10 @@ func select_tile(id: int) -> void:
 		_rebuild_view()
 	else:
 		_move_highlight()
-	_info.text = "图块 %d" % selected_id
+	if TileId.is_autotile(selected_id) and not TileId.is_tile_a5(selected_id):
+		_info.text = "自动元件 %d · 相同地面会拼接" % selected_id
+	else:
+		_info.text = "图块 %d" % selected_id
 
 
 func current_tileset_id() -> String:
@@ -190,6 +225,7 @@ func _on_tab(t: String) -> void:
 		_sync_tab_buttons()
 		return
 	tab = t
+	_clear_stamp()
 	_sync_tab_buttons()
 	_rebuild_view()
 
@@ -222,17 +258,27 @@ func _load_sheet(am, sheet_name: String) -> Image:
 			if am.has_method("load_image"):
 				var via = am.load_image(cref)
 				if via != null:
-					return via as Image
+					return _sheet_rgba(via as Image)
 			var img := Image.new()
 			if img.load(resolved) == OK:
-				return img
+				return _sheet_rgba(img)
 	var root := Rtp.content_root()
 	var fallback := "%s/assets/tilesheet/%s.png" % [root, sheet_name]
 	if FileAccess.file_exists(fallback):
 		var img2 := Image.new()
 		if img2.load(fallback) == OK:
-			return img2
+			return _sheet_rgba(img2)
 	return null
+
+
+func _sheet_rgba(img: Image) -> Image:
+	if img == null:
+		return null
+	if img.is_compressed():
+		img.decompress()
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	return img
 
 
 func _rebuild_view() -> void:
@@ -292,45 +338,107 @@ func _preview_id(id: int) -> int:
 		return id
 	var kind := TileId.autotile_kind(id)
 	var base: int = TileId.TILE_ID_A1 + kind * 48
-	if TileId.is_waterfall(base):
+	if TileId.is_waterfall_kind(kind):
 		return base
-	var filled: int = base + 47
-	if filled >= TileId.TILE_ID_MAX:
+	if TileId.is_wall_autotile(base):
 		return base
-	return filled
+	# Isolated floor (shape 46) shows edge art so dirt-with-tufts ≠ plain sand.
+	var isolated: int = base + 46
+	if isolated >= TileId.TILE_ID_MAX:
+		return base
+	return isolated
 
 
 func _on_view_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if not _dragging:
+			var hc := _cell_at(mm.position)
+			if hc.x >= 0 and _info:
+				var hid: int = _id_at_cell(hc.x, hc.y)
+				var TileLabels = load("res://scripts/editor/tile_labels.gd")
+				_info.text = "指向 %s  @ %d,%d" % [str(TileLabels.info_line(hid)), hc.x, hc.y]
+		if _dragging and (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			var c := _cell_at(mm.position)
+			if c.x >= 0:
+				_drag_b = c
+				_move_highlight()
+		return
+	if event is InputEventPanGesture and _scroll:
+		var pg := event as InputEventPanGesture
+		_scroll.scroll_horizontal = int(_scroll.scroll_horizontal + pg.delta.x)
+		_scroll.scroll_vertical = int(_scroll.scroll_vertical + pg.delta.y)
+		return
 	if not (event is InputEventMouseButton):
 		return
 	var mb := event as InputEventMouseButton
-	if not mb.pressed:
+	if mb.pressed and _scroll and (
+		mb.button_index == MOUSE_BUTTON_WHEEL_LEFT
+		or mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT
+		or ((mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN) and mb.shift_pressed)
+	):
+		var step := float(maxi(tile_px, 24))
+		var toward_right := mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN
+		_scroll.scroll_horizontal = int(_scroll.scroll_horizontal + (step if toward_right else -step))
 		return
-	if mb.button_index != MOUSE_BUTTON_LEFT and mb.button_index != MOUSE_BUTTON_RIGHT:
-		return
-	if mb.button_index == MOUSE_BUTTON_RIGHT:
+	if mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+		_dragging = false
 		selected_id = 0
+		_clear_stamp()
 		tile_selected.emit(0)
+		stamp_changed.emit(1, 1, PackedInt32Array([0]))
 		_move_highlight()
 		_info.text = "图块 0（空）"
 		return
-	var id := _id_at(mb.position)
-	if id < 0:
+	if mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	selected_id = id
-	if show_passage:
-		_write_flag(id, TileId.with_passage_kind(_flag_of(id), pass_brush))
-	_move_highlight()
-	_sync_pass_buttons()
-	_info.text = "图块 %d" % selected_id
-	tile_selected.emit(selected_id)
+	if mb.pressed:
+		var c0 := _cell_at(mb.position)
+		if c0.x < 0:
+			return
+		_dragging = true
+		_drag_a = c0
+		_drag_b = c0
+		_commit_stamp(false)
+		return
+	if _dragging:
+		_dragging = false
+		var c1 := _cell_at(mb.position)
+		if c1.x >= 0:
+			_drag_b = c1
+		_commit_stamp(true)
 
 
-func _id_at(pos: Vector2) -> int:
+func _cell_at(pos: Vector2) -> Vector2i:
 	var col := int(floor(pos.x / float(tile_px)))
 	var row := int(floor(pos.y / float(tile_px)))
 	if col < 0 or row < 0:
+		return Vector2i(-1, -1)
+	var max_c := 8
+	var max_r := 32
+	if tab != "A":
+		var si := _sheet_index_for_tab(tab)
+		var sheet = sheets[si] if si >= 0 and si < sheets.size() else null
+		if sheet == null:
+			return Vector2i(-1, -1)
+		max_c = int(sheet.get_width() / tile_px)
+		max_r = int(sheet.get_height() / tile_px)
+	else:
+		max_c = 8
+		max_r = 32
+	if col >= max_c or row >= max_r:
+		return Vector2i(-1, -1)
+	return Vector2i(col, row)
+
+
+func _id_at(pos: Vector2) -> int:
+	var c := _cell_at(pos)
+	if c.x < 0:
 		return -1
+	return _id_at_cell(c.x, c.y)
+
+
+func _id_at_cell(col: int, row: int) -> int:
 	if tab == "A":
 		if col > 7 or row > 31:
 			return -1
@@ -342,19 +450,86 @@ func _id_at(pos: Vector2) -> int:
 		return -1
 	var max_c := int(sheet.get_width() / tile_px)
 	var max_r := int(sheet.get_height() / tile_px)
-	if col >= max_c or row >= max_r:
+	if col < 0 or row < 0 or col >= max_c or row >= max_r:
 		return -1
 	return sheet_cell_to_id(col, row, base)
 
 
+func _clear_stamp() -> void:
+	stamp_w = 1
+	stamp_h = 1
+	stamp_tiles = PackedInt32Array()
+	_drag_a = Vector2i(-1, -1)
+	_drag_b = Vector2i(-1, -1)
+
+
+func _commit_stamp(emit_now: bool) -> void:
+	if _drag_a.x < 0 or _drag_b.x < 0:
+		return
+	var x0 := mini(_drag_a.x, _drag_b.x)
+	var x1 := maxi(_drag_a.x, _drag_b.x)
+	var y0 := mini(_drag_a.y, _drag_b.y)
+	var y1 := maxi(_drag_a.y, _drag_b.y)
+	var w := mini(x1 - x0 + 1, 8)
+	var h := mini(y1 - y0 + 1, 8)
+	x1 = x0 + w - 1
+	y1 = y0 + h - 1
+	var tiles := PackedInt32Array()
+	tiles.resize(w * h)
+	var i := 0
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
+			tiles[i] = _id_at_cell(x, y)
+			i += 1
+	# A1–A4 are one autotile per cell. Dragging two kinds (sand + grass-on-sand)
+	# used to stamp vertical grass stripes into a sand field.
+	var origin_id: int = _id_at_cell(_drag_a.x, _drag_a.y)
+	if tab == "A" and TileId.is_autotile(origin_id) and not TileId.is_tile_a5(origin_id):
+		w = 1
+		h = 1
+		tiles = PackedInt32Array([origin_id])
+		_drag_b = _drag_a
+	stamp_w = w
+	stamp_h = h
+	stamp_tiles = tiles
+	selected_id = int(tiles[0]) if tiles.size() > 0 else 0
+	if show_passage and w == 1 and h == 1:
+		_write_flag(selected_id, TileId.with_passage_kind(_flag_of(selected_id), pass_brush))
+	_move_highlight()
+	_sync_pass_buttons()
+	if _info:
+		var TileLabels = load("res://scripts/editor/tile_labels.gd")
+		var lab: String = str(TileLabels.info_line(selected_id))
+		if w > 1 or h > 1:
+			_info.text = "%s · %d×%d 图章" % [lab, w, h]
+		elif TileId.is_autotile(selected_id) and not TileId.is_tile_a5(selected_id):
+			_info.text = "%s · 相同地面会拼接" % lab
+		else:
+			_info.text = lab
+	if emit_now:
+		tile_selected.emit(selected_id)
+		stamp_changed.emit(w, h, tiles)
+
+
 func _move_highlight() -> void:
+	if _hi == null:
+		return
+	if _drag_a.x >= 0 and _drag_b.x >= 0:
+		var x0 := mini(_drag_a.x, _drag_b.x)
+		var y0 := mini(_drag_a.y, _drag_b.y)
+		var w := mini(absi(_drag_b.x - _drag_a.x) + 1, 8)
+		var h := mini(absi(_drag_b.y - _drag_a.y) + 1, 8)
+		_hi.visible = true
+		_hi.position = Vector2(x0 * tile_px, y0 * tile_px)
+		_hi.size = Vector2(w * tile_px, h * tile_px)
+		return
 	var cell := _cell_for_id(selected_id)
 	if cell.x < 0:
 		_hi.visible = false
 		return
 	_hi.visible = true
 	_hi.position = Vector2(cell.x * tile_px, cell.y * tile_px)
-	_hi.size = Vector2(tile_px, tile_px)
+	_hi.size = Vector2(tile_px * stamp_w, tile_px * stamp_h)
 
 
 func _cell_for_id(id: int) -> Vector2i:
@@ -533,10 +708,7 @@ func _sync_pass_buttons() -> void:
 func _rebuild_passage_marks() -> void:
 	if _pass_layer == null:
 		return
-	if not show_passage:
-		_pass_layer.visible = false
-		return
-	_pass_layer.visible = true
+	_pass_layer.visible = show_passage
 	var cols := 8
 	var rows := 1
 	if tab == "A":

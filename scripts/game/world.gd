@@ -3,6 +3,11 @@ const Net = preload("res://scripts/net/net.gd")
 const NpcActor = preload("res://scripts/game/npc_actor.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 const AoiDriver = preload("res://scripts/asset/aoi_driver.gd")
+const MapSfx = preload("res://scripts/map/map_sfx.gd")
+const MapExt = preload("res://scripts/map/map_ext.gd")
+const Weather = preload("res://scripts/map/weather.gd")
+const EventCommands = preload("res://scripts/editor/event_commands.gd")
+const TileId = preload("res://scripts/map/tile_id.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -27,12 +32,25 @@ var _player_ctx_menu: PopupMenu = null
 ## Brief input lock after death/respawn (seconds remaining).
 var _respawn_lock_left: float = 0.0
 
-var _map_modulate: CanvasModulate
+var _map_modulate: CanvasModulate = null
 var _bgs_player: AudioStreamPlayer
+var _bgm_player: AudioStreamPlayer
+var _se_player: AudioStreamPlayer
+var _foot_player: AudioStreamPlayer
 var _last_light_preset: int = -1
 var _last_sound_preset: int = -1
+var _last_foot_kind: int = 0
+## Remaining event-batch wait (seconds) + deferred actions after a wait op.
+var _event_wait_left: float = 0.0
+var _deferred_event_actions: Array = []
+var _deferred_event_npc = null
+## Types consumed from the last immediate batch (test seam / wait split).
+var last_applied_action_types: Array = []
 var _light_presets: Dictionary = {}
 var _sound_presets: Dictionary = {}
+var _weather_kind: String = "clear"
+var _weather_intensity: float = 0.0
+var _last_weather_kind: String = ""
 
 ## Actor AOI preload rings (cells, Chebyshev). P2c — not map chunks.
 @export var aoi_view_radius_cells: int = 14
@@ -43,6 +61,7 @@ var _aoi: RefCounted = null
 
 
 func _ready() -> void:
+	_pin_hud_canvas()
 	var spawn: Dictionary = Net.session().spawn_data.duplicate(true)
 	var ch: Dictionary = Net.session().active_character()
 	if ch.is_empty():
@@ -127,6 +146,8 @@ func _ready() -> void:
 	_spawn_npcs_from_pack()
 	_init_aoi_driver()
 	_load_map_presets()
+	_play_map_bgm()
+	_pull_server_weather()
 	_sync_map_observer()
 	call_deferred("_bind_hud", ch, spawn)
 
@@ -296,6 +317,34 @@ func _spawn_npcs_from_pack() -> void:
 		ProjectSettings.set_setting(CharsetSheet.SETTING_ROOT, CharsetSheet.DEFAULT_DEV_ROOT)
 
 	var list: Array = pack.npcs if pack.get("npcs") != null else []
+	var occupied: Dictionary = {}
+	for item0 in list:
+		if typeof(item0) != TYPE_DICTIONARY:
+			continue
+		var c0: Variant = item0.get("cell", {})
+		if typeof(c0) == TYPE_DICTIONARY:
+			occupied["%d,%d" % [int(c0.get("x", 0)), int(c0.get("y", 0))]] = true
+	var evs: Array = pack.events if pack.get("events") != null else []
+	var rt = null
+	var srv0 = Net.server()
+	if srv0 != null and "event_runtime" in srv0:
+		rt = srv0.event_runtime
+	for ev_v in evs:
+		if typeof(ev_v) != TYPE_DICTIONARY:
+			continue
+		var ev: Dictionary = ev_v
+		var ec: Variant = ev.get("cell", {})
+		if typeof(ec) != TYPE_DICTIONARY:
+			continue
+		var ekey := "%d,%d" % [int(ec.get("x", 0)), int(ec.get("y", 0))]
+		if occupied.has(ekey):
+			continue
+		var page: Dictionary = {}
+		if rt != null and rt.has_method("select_page"):
+			page = rt.select_page(ev)
+		var ev_actor: Dictionary = EventCommands.event_actor_data(ev, page)
+		list.append(ev_actor)
+		occupied[ekey] = true
 	if list.is_empty():
 		return
 	var layer := _ensure_npc_layer()
@@ -303,11 +352,11 @@ func _spawn_npcs_from_pack() -> void:
 	for item in list:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
-		var actor = NpcActor.new()
-		layer.add_child(actor)
-		actor.setup(item, map_field, pack_dir)
+		var npc_n = NpcActor.new()
+		layer.add_child(npc_n)
+		npc_n.setup(item, map_field, pack_dir)
 		# Charset stream: AOI driver enqueues by ring; NpcActor may show placeholder
-		_npcs.append(actor)
+		_npcs.append(npc_n)
 	# Sync occupancy onto MockServer collision (authoritative move checks).
 	var srv = Net.server()
 	if srv != null and srv.map_collision != null and srv.map_collision.has_method("apply_npc_blocks"):
@@ -441,19 +490,9 @@ func _find_remote_at(cell: Vector2i):
 
 
 func _find_adjacent_npc(from_cell: Vector2i, prefer_dir: int = 0):
-	# Prefer the cell the player faces.
-	if prefer_dir in [2, 4, 6, 8]:
-		var delta := Vector2i.ZERO
-		match prefer_dir:
-			2:
-				delta = Vector2i(0, 1)
-			4:
-				delta = Vector2i(-1, 0)
-			6:
-				delta = Vector2i(1, 0)
-			8:
-				delta = Vector2i(0, -1)
-		var faced = _find_npc_at(from_cell + delta)
+	# Prefer the cell the player faces (8-way).
+	if TileId.is_dir(prefer_dir):
+		var faced = _find_npc_at(from_cell + TileId.dir_delta(prefer_dir))
 		if faced != null:
 			return faced
 	for n in _npcs:
@@ -462,15 +501,46 @@ func _find_adjacent_npc(from_cell: Vector2i, prefer_dir: int = 0):
 	return null
 
 
+func tick_event_wait(delta: float) -> void:
+	if _event_wait_left <= 0.0:
+		return
+	_event_wait_left -= delta
+	if _event_wait_left > 0.0:
+		return
+	var rest: Array = _deferred_event_actions
+	var n = _deferred_event_npc
+	_deferred_event_actions = []
+	_deferred_event_npc = null
+	_event_wait_left = 0.0
+	if not rest.is_empty():
+		_apply_server_actions(rest, n)
+
+
 func _apply_server_actions(actions: Array, npc = null) -> void:
 	## Execute MockServer/GameServer action opcodes. Chat opens only via show_npc_dialogue.
+	## A wait action parks the rest of this batch until tick_event_wait elapses.
 	if hud == null:
 		hud = get_node_or_null("CanvasLayer/GameHud")
-	for item in actions:
+	last_applied_action_types = []
+	var i := 0
+	while i < actions.size():
+		var item: Variant = actions[i]
+		i += 1
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 		var action: Dictionary = item
-		match str(action.get("type", "")):
+		var atype := str(action.get("type", ""))
+		if atype == "wait":
+			var dur := maxf(float(action.get("duration", 0.0)), 0.0)
+			if dur > 0.0:
+				last_applied_action_types.append("wait")
+				_event_wait_left = dur
+				_deferred_event_actions = actions.slice(i)
+				_deferred_event_npc = npc
+				return
+			continue
+		last_applied_action_types.append(atype)
+		match atype:
 			"show_npc_dialogue":
 				var display_name := str(action.get("npc_name", "")).strip_edges()
 				if display_name == "" and npc != null:
@@ -480,7 +550,12 @@ func _apply_server_actions(actions: Array, npc = null) -> void:
 				var options_v: Variant = action.get("options", [])
 				var options: Array = options_v if typeof(options_v) == TYPE_ARRAY else []
 				if hud != null and hud.has_method("show_npc_dialogue"):
-					hud.show_npc_dialogue(display_name, body, options)
+					var face := {
+						"id": str(action.get("face", "")).strip_edges(),
+						"index": int(action.get("face_index", 0)),
+						"pack_dir": str(map_field.pack.pack_dir) if map_field != null and map_field.pack != null else "",
+					}
+					hud.show_npc_dialogue(display_name, body, options, face)
 			"damage":
 				_apply_damage_action(action, npc)
 			"heal":
@@ -513,6 +588,10 @@ func _apply_server_actions(actions: Array, npc = null) -> void:
 				_apply_respawn(action)
 			"npc_move":
 				_apply_npc_move(action)
+			"event_graphic":
+				_apply_event_graphic(action)
+			"play_audio":
+				_play_pack_audio(str(action.get("channel", "se")), str(action.get("id", "")))
 			"npc_reset":
 				_apply_npc_reset(action)
 			"loot_drop":
@@ -570,6 +649,8 @@ func _apply_server_actions(actions: Array, npc = null) -> void:
 				var msg := str(action.get("text", "")).strip_edges()
 				if msg != "" and hud != null and hud.has_method("append_system"):
 					hud.append_system(msg)
+			"weather":
+				_apply_weather_action(action)
 
 
 func _apply_npc_move(action: Dictionary) -> void:
@@ -954,6 +1035,7 @@ func _on_player_path_cancelled() -> void:
 
 func _on_player_arrived_cell(cell: Vector2i, path_complete: bool) -> void:
 	_sync_map_observer()
+	_play_footstep()
 	if _pending_engage_npc_id.is_empty():
 		return
 	if player != null and player.input_locked:
@@ -977,14 +1059,27 @@ func _on_player_arrived_cell(cell: Vector2i, path_complete: bool) -> void:
 func _load_map_presets() -> void:
 	_light_presets = _read_preset_file("res://data/map/light_presets.json")
 	_sound_presets = _read_preset_file("res://data/map/sound_presets.json")
-	if _map_modulate == null:
-		_map_modulate = CanvasModulate.new()
-		_map_modulate.name = "MapLight"
-		add_child(_map_modulate)
+	_pin_hud_canvas()
+	# Day/night tints World canvas items (map, actors). Do not use CanvasModulate —
+	# it multiplies every canvas in the viewport, including the HUD.
 	if _bgs_player == null:
 		_bgs_player = AudioStreamPlayer.new()
 		_bgs_player.name = "MapBgs"
 		add_child(_bgs_player)
+	if _bgm_player == null:
+		_bgm_player = AudioStreamPlayer.new()
+		_bgm_player.name = "MapBgm"
+		add_child(_bgm_player)
+	if _se_player == null:
+		_se_player = AudioStreamPlayer.new()
+		_se_player.name = "MapSe"
+		_se_player.volume_db = -4.0
+		add_child(_se_player)
+	if _foot_player == null:
+		_foot_player = AudioStreamPlayer.new()
+		_foot_player.name = "Footstep"
+		_foot_player.volume_db = -8.0
+		add_child(_foot_player)
 
 
 func _read_preset_file(path: String) -> Dictionary:
@@ -1023,6 +1118,9 @@ func _apply_cell_settings(cell: Vector2i) -> void:
 	var packed: int = int(col.settings_at(cell.x, cell.y))
 	var light_id: int = packed & 0xff
 	var sound_id: int = (packed >> 8) & 0xff
+	_last_foot_kind = (packed >> 16) & 0xff
+	if packed == 0 and map_field != null and map_field.pack != null and "light_preset" in map_field.pack:
+		light_id = int(map_field.pack.light_preset)
 	if light_id != _last_light_preset:
 		_last_light_preset = light_id
 		_apply_light_preset(light_id)
@@ -1032,20 +1130,50 @@ func _apply_cell_settings(cell: Vector2i) -> void:
 
 
 func _apply_light_preset(id: int) -> void:
-	if _map_modulate == null:
-		return
-	var key := str(id)
-	var p: Dictionary = _light_presets.get(key, _light_presets.get(id, {}))
-	if typeof(p) != TYPE_DICTIONARY or p.is_empty():
+	_last_light_preset = id
+	_apply_atmosphere()
+
+
+func _apply_weather_action(action: Dictionary) -> void:
+	_weather_kind = str(action.get("kind", "clear"))
+	_weather_intensity = clampf(float(action.get("intensity", 0.0)), 0.0, 1.0)
+	_apply_atmosphere()
+
+
+func _pull_server_weather() -> void:
+	var srv = Net.server()
+	if srv != null and srv.has_method("get_weather"):
+		var snap: Dictionary = srv.get_weather()
+		_weather_kind = str(snap.get("kind", "clear"))
+		_weather_intensity = clampf(float(snap.get("intensity", 0.0)), 0.0, 1.0)
+	_apply_atmosphere()
+
+
+func _pin_hud_canvas() -> void:
+	var cl := get_node_or_null("CanvasLayer") as CanvasLayer
+	if cl:
+		cl.layer = Weather.CANVAS_HUD
+
+
+func _apply_world_light(c: Color) -> void:
+	## Tint map + actors only. HUD lives on a higher CanvasLayer and must stay readable.
+	modulate = Color(c.r, c.g, c.b, 1.0)
+	if _map_modulate != null and is_instance_valid(_map_modulate):
 		_map_modulate.color = Color(1, 1, 1, 1)
+
+
+func _apply_atmosphere() -> void:
+	var light_id: int = _last_light_preset if _last_light_preset >= 0 else 0
+	if map_field != null and map_field.has_method("set_atmosphere"):
+		var atm: Dictionary = map_field.set_atmosphere(light_id, _weather_kind, _weather_intensity)
+		_apply_world_light(atm.get("modulate", MapExt.light_modulate(light_id)))
+		var vis := str(atm.get("kind", "clear"))
+		if vis != _last_weather_kind:
+			_last_weather_kind = vis
+			if vis != "clear" and hud != null and hud.has_method("append_system"):
+				hud.append_system("天气：%s" % str(atm.get("label", vis)))
 		return
-	var c: Variant = p.get("color", [1, 1, 1])
-	var col := Color(1, 1, 1, 1)
-	if typeof(c) == TYPE_ARRAY and (c as Array).size() >= 3:
-		col = Color(float(c[0]), float(c[1]), float(c[2]), 1.0)
-	var energy := float(p.get("energy", 1.0))
-	col = Color(col.r * energy, col.g * energy, col.b * energy, 1.0)
-	_map_modulate.color = col
+	_apply_world_light(MapExt.light_modulate(light_id))
 
 
 func _apply_sound_preset(id: int) -> void:
@@ -1053,18 +1181,137 @@ func _apply_sound_preset(id: int) -> void:
 		return
 	if id <= 0:
 		_bgs_player.stop()
+		_bgs_player.stream = null
 		return
-	var p: Dictionary = _sound_presets.get(str(id), {})
+	var p: Dictionary = _sound_presets.get(str(id), _sound_presets.get(id, {}))
 	if typeof(p) != TYPE_DICTIONARY or p.is_empty():
 		return
+	var stream: AudioStream = null
 	var stream_path := str(p.get("stream", "")).strip_edges()
-	if stream_path == "" or not ResourceLoader.exists(stream_path):
+	if stream_path != "" and ResourceLoader.exists(stream_path):
+		var res: Resource = load(stream_path)
+		if res is AudioStream:
+			stream = res
+	if stream == null:
+		var kind := str(p.get("kind", "")).strip_edges()
+		if kind != "":
+			stream = MapSfx.ambient(kind)
+	if stream == null:
 		return
-	var res: Resource = load(stream_path)
-	if res is AudioStream:
-		_bgs_player.stream = res
-		_bgs_player.volume_db = float(p.get("volume_db", 0.0))
-		_bgs_player.play()
+	_bgs_player.stream = stream
+	_bgs_player.volume_db = float(p.get("volume_db", 0.0))
+	_bgs_player.play()
+
+
+func _apply_event_graphic(action: Dictionary) -> void:
+	var eid := str(action.get("event_id", "")).strip_edges()
+	if eid == "":
+		return
+	var npc = _find_npc_by_id(eid)
+	if npc == null or not npc.has_method("apply_graphic"):
+		return
+	var pack_dir := ""
+	if map_field != null and map_field.pack != null:
+		pack_dir = str(map_field.pack.pack_dir)
+	npc.apply_graphic(
+		str(action.get("charset", "")),
+		int(action.get("index", 0)),
+		int(action.get("direction", 2)),
+		pack_dir
+	)
+
+
+func _play_map_bgm() -> void:
+	_load_map_presets()
+	var id := ""
+	if map_field != null and map_field.pack != null and "bgm" in map_field.pack:
+		id = str(map_field.pack.bgm).strip_edges()
+	if id == "":
+		if _bgm_player != null:
+			_bgm_player.stop()
+			_bgm_player.stream = null
+		return
+	_play_pack_audio("bgm", id)
+
+
+func _play_pack_audio(channel: String, id: String) -> void:
+	id = id.strip_edges()
+	channel = channel.strip_edges().to_lower()
+	if id == "":
+		return
+	_load_map_presets()
+	var stream: AudioStream = _load_pack_audio_stream(channel, id)
+	if stream == null:
+		return
+	var player: AudioStreamPlayer = _se_player
+	match channel:
+		"bgm":
+			player = _bgm_player
+		"bgs":
+			player = _bgs_player
+		"me":
+			player = _se_player
+		_:
+			player = _se_player
+	if player == null:
+		return
+	player.stream = stream
+	if channel == "bgm" or channel == "bgs":
+		if stream is AudioStreamOggVorbis:
+			(stream as AudioStreamOggVorbis).loop = true
+		elif stream is AudioStreamWAV:
+			(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+	player.play()
+
+
+func _load_pack_audio_stream(channel: String, id: String) -> AudioStream:
+	var folder := "audio/se"
+	match channel:
+		"bgm":
+			folder = "audio/bgm"
+		"bgs":
+			folder = "audio/bgs"
+		"me":
+			folder = "audio/me"
+		_:
+			folder = "audio/se"
+	var roots: PackedStringArray = PackedStringArray()
+	if map_field != null and map_field.pack != null:
+		roots.append("%s/assets/%s" % [str(map_field.pack.pack_dir), folder])
+		roots.append("%s/assets/audio" % str(map_field.pack.pack_dir))
+	var am: Node = get_node_or_null("/root/AssetManager") if is_inside_tree() else null
+	if am != null and am.has_method("content_root"):
+		roots.append("%s/assets/%s" % [str(am.content_root()), folder])
+	for root in roots:
+		for ext in ["ogg", "wav", "mp3"]:
+			var p := "%s/%s.%s" % [root, id, ext]
+			var abs_p := p
+			if p.begins_with("res://") or p.begins_with("user://"):
+				abs_p = ProjectSettings.globalize_path(p)
+			if FileAccess.file_exists(p) or FileAccess.file_exists(abs_p):
+				var use_p := p if FileAccess.file_exists(p) else abs_p
+				var st: AudioStream = _audio_from_file(use_p, ext)
+				if st != null:
+					return st
+	return null
+
+
+func _audio_from_file(path: String, ext: String) -> AudioStream:
+	if ext == "ogg":
+		return AudioStreamOggVorbis.load_from_file(path)
+	if ResourceLoader.exists(path):
+		var res: Resource = load(path)
+		if res is AudioStream:
+			return res
+	return null
+
+
+func _play_footstep() -> void:
+	if _foot_player == null:
+		return
+	_foot_player.stream = MapSfx.footstep(_last_foot_kind)
+	_foot_player.pitch_scale = randf_range(0.92, 1.08)
+	_foot_player.play()
 
 
 func _apply_respawn(action: Dictionary) -> void:
@@ -1164,6 +1411,7 @@ func _refresh_aoi(force: bool = false) -> void:
 
 
 func _process(delta: float) -> void:
+	tick_event_wait(delta)
 	_tick_ground_hover()
 	_tick_remote_aoi()
 	if _respawn_lock_left > 0.0:

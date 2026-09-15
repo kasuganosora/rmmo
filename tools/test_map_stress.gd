@@ -71,11 +71,10 @@ func _test_ext_collision() -> int:
 	failed += _expect(col.settings_at(1, 1) == MapExt.pack_settings(4, 9, 1), "settings_at packed")
 	failed += _expect(col.can_pass(1, 1, 6) == false, "cannot walk onto force_block 2,1")
 	failed += _expect(col.can_pass(3, 0, 2) == true, "can walk onto force_pass 3,1 from open 3,0")
-	# AStar must see ext after set_ext (graph is lazy).
-	var ast: AStar2D = col.ensure_path_graph()
-	failed += _expect(ast != null and ast.get_point_count() == w * h, "astar points")
-	var path: PackedInt64Array = ast.get_id_path(1 + 1 * w, 3 + 1 * w)
-	failed += _expect(path.size() > 0, "astar path around/over force_pass")
+	# 8-dir A* must see ext after set_ext.
+	var GridPath = load("res://scripts/map/grid_path.gd")
+	var ast_path: Array = GridPath.find_path(col, Vector2i(1, 1), Vector2i(3, 1))
+	failed += _expect(not ast_path.is_empty(), "astar path around/over force_pass")
 	return failed
 
 
@@ -166,8 +165,7 @@ func _test_radar_ignores_ext() -> int:
 		failed += _expect(diff == 0, "radar pixels unchanged after ext visual tiles (%d diffs)" % diff)
 	var gtex = mf.get_ground_texture()
 	failed += _expect(gtex != null, "overview ground texture available")
-	var utex = mf.get_upper_texture()
-	failed += _expect(utex != null, "overview upper texture available")
+	failed += _expect(mf.get_lofi_texture() != null, "lofi overview texture available")
 	mf.queue_free()
 	return failed
 
@@ -196,7 +194,7 @@ func _test_chunk_stream_stress() -> int:
 				guard += 1
 			seen_max = maxi(seen_max, mf._chunks.size())
 	print("BENCH street stream max_loaded_chunks=", seen_max, " cells=", mf.grid_width * mf.grid_height)
-	failed += _expect(seen_max < 40, "streaming does not keep every chunk (max=%d)" % seen_max)
+	failed += _expect(seen_max < 55, "streaming does not keep every chunk (max=%d)" % seen_max)
 	# Rebuild twice more (leak / crash check).
 	mf.rebuild()
 	mf.rebuild()

@@ -1,7 +1,7 @@
 extends RefCounted
 ## RPG Maker MV–inspired map event runtime (MockServer-authoritative subset).
-## Triggers v1: action / action_button, player_touch.
-## Skipped (stub): event_touch, autorun, parallel; battles, move routes, pictures, BGM, common events.
+## Triggers: action / player_touch / event_touch / autorun.
+## Skipped (stub): parallel; battles, move routes, pictures, common events.
 
 ## Global switches: id -> bool (session-wide).
 var switches: Dictionary = {}
@@ -98,19 +98,12 @@ func _register_event(raw: Dictionary) -> void:
 	if eid.is_empty():
 		return
 	ev["id"] = eid
-	# Normalize trigger aliases.
-	var trig := str(ev.get("trigger", "action")).strip_edges().to_lower()
-	match trig:
-		"action_button", "action", "interact":
-			trig = "action"
-		"player_touch", "touch":
-			trig = "player_touch"
-		"event_touch", "autorun", "parallel":
-			# v1 stub — keep tag but never auto-fire.
-			pass
-		_:
-			trig = "action"
-	ev["trigger"] = trig
+	ev["trigger"] = normalize_trigger(str(ev.get("trigger", "action")))
+	var pages_norm_v: Variant = ev.get("pages", [])
+	if typeof(pages_norm_v) == TYPE_ARRAY:
+		for pv in pages_norm_v:
+			if typeof(pv) == TYPE_DICTIONARY and str(pv.get("trigger", "")).strip_edges() != "":
+				pv["trigger"] = normalize_trigger(str(pv.get("trigger", "")))
 	ev["through"] = bool(ev.get("through", false))
 	# Normalize cell.
 	var cell_v: Variant = ev.get("cell", null)
@@ -147,6 +140,62 @@ func get_event_at_cell(x: int, y: int) -> Dictionary:
 
 func has_event(event_id: String) -> bool:
 	return events_by_id.has(event_id.strip_edges())
+
+
+func normalize_trigger(trig: String) -> String:
+	match trig.strip_edges().to_lower():
+		"action_button", "action", "interact":
+			return "action"
+		"player_touch", "touch":
+			return "player_touch"
+		"event_touch", "eventtouch":
+			return "event_touch"
+		"autorun", "auto":
+			return "autorun"
+		"parallel":
+			return "parallel"
+		_:
+			return "action"
+
+
+## Page trigger, falling back to the event-level trigger when the page omits one.
+func page_trigger(event: Dictionary, page: Dictionary = {}) -> String:
+	var trig := ""
+	if not page.is_empty():
+		trig = str(page.get("trigger", "")).strip_edges()
+	if trig == "":
+		trig = str(event.get("trigger", "action")).strip_edges()
+	return normalize_trigger(trig)
+
+
+## One finite pass: run each currently matching autorun page once. Does not loop
+## if a page stays autorun, and does not pick up events that become autorun
+## mid-pass. Caller may collect again after a page change.
+func collect_autorun(server_ctx: Dictionary = {}) -> Array:
+	var matching: Array = []
+	for eid_v in events_by_id.keys():
+		var eid := str(eid_v)
+		var ev: Dictionary = get_event(eid)
+		if ev.is_empty():
+			continue
+		var page: Dictionary = select_page_with_ctx(ev, server_ctx)
+		if page.is_empty():
+			continue
+		if page_trigger(ev, page) == "autorun":
+			matching.append(eid)
+	var actions: Array = []
+	var ran: Dictionary = {}
+	for eid2 in matching:
+		var id2 := str(eid2)
+		if ran.has(id2):
+			continue
+		ran[id2] = true
+		var ev2: Dictionary = get_event(id2)
+		var page2: Dictionary = select_page_with_ctx(ev2, server_ctx)
+		if page2.is_empty() or page_trigger(ev2, page2) != "autorun":
+			continue
+		actions.append_array(run_event(id2, server_ctx))
+	return actions
 
 
 func get_switch(id: String) -> bool:
@@ -299,13 +348,15 @@ func _run_commands(event_id: String, commands: Array, server_ctx: Dictionary) ->
 		match op:
 			"text", "show_text", "show_npc_dialogue":
 				var body := str(cmd.get("text", cmd.get("body", "")))
-				actions.append({
+				var talk := {
 					"type": "show_npc_dialogue",
 					"npc_id": event_id,
 					"npc_name": str(cmd.get("npc_name", npc_name)),
 					"body": body,
 					"options": [],
-				})
+				}
+				_attach_face(talk, cmd)
+				actions.append(talk)
 			"choices", "choice", "show_choices":
 				var body := str(cmd.get("text", cmd.get("body", "")))
 				var opts_v: Variant = cmd.get("options", cmd.get("choices", []))
@@ -342,14 +393,16 @@ func _run_commands(event_id: String, commands: Array, server_ctx: Dictionary) ->
 					"npc_name": npc_name,
 					"server_ctx": server_ctx.duplicate(false),
 				}
-				actions.append({
+				var talk := {
 					"type": "show_npc_dialogue",
 					"npc_id": event_id,
 					"npc_name": npc_name,
 					"body": body,
 					"options": opt_actions,
 					"event_choice": true,
-				})
+				}
+				_attach_face(talk, cmd)
+				actions.append(talk)
 				# Stop page until client picks an option.
 				return actions
 			"message", "system", "system_message":
@@ -373,6 +426,33 @@ func _run_commands(event_id: String, commands: Array, server_ctx: Dictionary) ->
 				var letter := str(cmd.get("letter", cmd.get("self_switch", "A")))
 				var sval := bool(cmd.get("value", true))
 				set_self_switch(event_id, letter, sval)
+				actions.append(_graphic_action(event_id))
+			"play_bgm":
+				actions.append(_audio_action("bgm", cmd))
+			"play_bgs":
+				actions.append(_audio_action("bgs", cmd))
+			"play_me":
+				actions.append(_audio_action("me", cmd))
+			"play_se", "se":
+				actions.append(_audio_action("se", cmd))
+			"weather":
+				var wkind := str(cmd.get("kind", cmd.get("weather", "clear")))
+				var wint := clampf(float(cmd.get("intensity", 0.75)), 0.0, 1.0)
+				var wdur := maxf(float(cmd.get("duration", 60.0)), 0.0)
+				var wcb: Variant = server_ctx.get("weather_cb", null)
+				if wcb is Callable:
+					var wact: Variant = wcb.call(wkind, wint, wdur)
+					if typeof(wact) == TYPE_DICTIONARY:
+						actions.append(wact)
+					else:
+						actions.append({"type": "weather", "kind": wkind, "intensity": wint})
+				else:
+					actions.append({"type": "weather", "kind": wkind, "intensity": wint})
+			"wait":
+				actions.append({
+					"type": "wait",
+					"duration": _wait_duration(cmd),
+				})
 			"transfer":
 				actions.append_array(_cmd_transfer(cmd, server_ctx))
 				# Transfer ends the page (map will unload).
@@ -426,6 +506,47 @@ func try_event_choice(option_id: String, option_index: int = -1) -> Array:
 	if not ctx.has("npc_name"):
 		ctx["npc_name"] = str(pending.get("npc_name", eid))
 	return _run_commands(eid, cmds_v, ctx)
+
+
+func _attach_face(action: Dictionary, cmd: Dictionary) -> void:
+	var face := str(cmd.get("face", cmd.get("faceName", ""))).strip_edges()
+	if face == "":
+		return
+	action["face"] = face
+	action["face_index"] = int(cmd.get("face_index", cmd.get("faceIndex", 0)))
+
+
+func _wait_duration(cmd: Dictionary) -> float:
+	var dur := float(cmd.get("duration", cmd.get("seconds", cmd.get("sec", 0))))
+	if dur <= 0.0:
+		var frames := int(cmd.get("frames", 0))
+		if frames > 0:
+			dur = float(frames) / 60.0
+	if dur <= 0.0:
+		dur = 0.5
+	return dur
+
+
+func _audio_action(channel: String, cmd: Dictionary) -> Dictionary:
+	return {
+		"type": "play_audio",
+		"channel": channel,
+		"id": str(cmd.get("id", cmd.get("name", cmd.get("file", "")))).strip_edges(),
+	}
+
+
+func _graphic_action(event_id: String) -> Dictionary:
+	var ev: Dictionary = get_event(event_id)
+	var page: Dictionary = select_page(ev)
+	var g_v: Variant = page.get("graphic", {})
+	var g: Dictionary = g_v if typeof(g_v) == TYPE_DICTIONARY else {}
+	return {
+		"type": "event_graphic",
+		"event_id": event_id,
+		"charset": str(g.get("charset", g.get("characterName", ""))).strip_edges(),
+		"index": int(g.get("index", g.get("characterIndex", 0))),
+		"direction": int(g.get("direction", 2)),
+	}
 
 
 func _inventory_update_action(inv) -> Dictionary:

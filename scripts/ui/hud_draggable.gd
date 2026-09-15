@@ -131,7 +131,7 @@ func _cursor_for_edge(edge: int) -> Control.CursorShape:
 			return Control.CURSOR_ARROW
 
 func _canvas_mouse() -> Vector2:
-	## CanvasItem space (1280×720), not window pixels — event.global_position
+	## CanvasItem space (project viewport), not window pixels — event.global_position
 	## mismatches under canvas_items stretch and makes the panel jitter.
 	return get_global_mouse_position()
 

@@ -11,6 +11,7 @@ const GridPath = preload("res://scripts/map/grid_path.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
 
 @export var step_duration: float = 0.16
+@export var run_duration: float = 0.09
 
 @onready var anim: AnimatedSprite2D = %Anim
 
@@ -176,7 +177,7 @@ func _advance_path_step() -> void:
 		return
 	var next: Vector2i = _move_path[0]
 	var delta := next - cell
-	if absi(delta.x) + absi(delta.y) != 1:
+	if maxi(absi(delta.x), absi(delta.y)) != 1:
 		# Path desync — abort.
 		clear_move_path()
 		_play_idle()
@@ -201,7 +202,7 @@ func _try_step(d: int) -> void:
 			cell = Vector2i(rx, ry)
 			if map_field != null and map_field.has_method("cell_to_world"):
 				global_position = map_field.cell_to_world(cell)
-			if int(result.get("facing", 0)) in [2, 4, 6, 8]:
+			if TileId.is_dir(int(result.get("facing", 0))):
 				_set_facing_from_dir(int(result.get("facing")))
 			snap_camera()
 		clear_move_path()
@@ -211,7 +212,7 @@ func _try_step(d: int) -> void:
 	var ny: int = int(result.get("y", cell.y))
 	cell = Vector2i(nx, ny)
 	# Prefer server-authored facing from try_move.
-	if int(result.get("facing", 0)) in [2, 4, 6, 8]:
+	if TileId.is_dir(int(result.get("facing", 0))):
 		_set_facing_from_dir(int(result.get("facing")))
 	var target: Vector2 = global_position
 	if map_field != null and map_field.has_method("cell_to_world"):
@@ -221,9 +222,12 @@ func _try_step(d: int) -> void:
 		target = Vector2(float(nx) * ts + ts * 0.5, float(ny) * ts + ts * 0.5)
 	moving = true
 	_play_walk()
+	var dur := step_duration
+	if _sprinting() and not bool(result.get("no_dash", false)):
+		dur = run_duration
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_LINEAR)
-	tw.tween_property(self, "global_position", target, step_duration)
+	tw.tween_property(self, "global_position", target, dur)
 	tw.finished.connect(_on_step_finished, CONNECT_ONE_SHOT)
 
 
@@ -268,14 +272,14 @@ func set_facing_dir(d: int) -> void:
 
 func _set_facing_from_dir(d: int) -> void:
 	match d:
-		2:
-			_facing = "front"
 		4:
 			_facing = "left"
 		6:
 			_facing = "right"
-		8:
+		7, 8, 9:
 			_facing = "back"
+		_:
+			_facing = "front"
 
 
 func _play_walk() -> void:
@@ -292,6 +296,10 @@ func _play_idle() -> void:
 	var idle := "idle_%s" % _facing
 	if anim.sprite_frames.has_animation(idle) and anim.animation != idle:
 		anim.play(idle)
+
+
+func _sprinting() -> bool:
+	return Input.is_physical_key_pressed(KEY_SHIFT)
 
 
 func get_facing() -> String:

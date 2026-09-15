@@ -25,14 +25,22 @@ const AI_RETURN_HOME := "return_home"
 
 static func forward_vec(facing: int) -> Vector2:
 	match facing:
+		1:
+			return Vector2(-1, 1)
 		2:
 			return Vector2(0, 1)
+		3:
+			return Vector2(1, 1)
 		4:
 			return Vector2(-1, 0)
 		6:
 			return Vector2(1, 0)
+		7:
+			return Vector2(-1, -1)
 		8:
 			return Vector2(0, -1)
+		9:
+			return Vector2(1, -1)
 		_:
 			return Vector2(0, 1)
 
@@ -118,15 +126,18 @@ static func has_line_of_sight(collision, from: Vector2i, to: Vector2i) -> bool:
 		var c: Vector2i = cells[i]
 		if cell_blocks_sight(collision, c.x, c.y):
 			return false
-	# Cardinal edge checks between consecutive cells (Bresenham may step diagonally).
+	# Edge checks between consecutive cells (Bresenham may step diagonally).
 	for i in range(cells.size() - 1):
 		var a: Vector2i = cells[i]
 		var b: Vector2i = cells[i + 1]
 		var step := Vector2i(b.x - a.x, b.y - a.y)
-		if absi(step.x) + absi(step.y) == 1:
-			var d: int = _dir_from_step(a, b)
-			if d == 0:
-				continue
+		var cheb: int = maxi(absi(step.x), absi(step.y))
+		if cheb != 1:
+			continue
+		var d: int = _dir_from_step(a, b)
+		if d == 0:
+			continue
+		if TileId.is_cardinal(d):
 			if collision.has_method("can_pass_tiles"):
 				if not bool(collision.can_pass_tiles(a.x, a.y, d)):
 					return false
@@ -137,9 +148,8 @@ static func has_line_of_sight(collision, from: Vector2i, to: Vector2i) -> bool:
 					if collision.has_method("is_extra_blocked") and bool(collision.is_extra_blocked(b.x, b.y)):
 						continue
 					return false
-		elif absi(step.x) == 1 and absi(step.y) == 1:
-			# Diagonal Bresenham step: both orthogonal corners must not fully block,
-			# and at least one cardinal path around the corner must be open.
+		else:
+			# Diagonal Bresenham step: both orthogonal corners must not fully block.
 			var c1 := Vector2i(a.x + step.x, a.y)
 			var c2 := Vector2i(a.x, a.y + step.y)
 			if cell_blocks_sight(collision, c1.x, c1.y) and cell_blocks_sight(collision, c2.x, c2.y):
@@ -202,7 +212,7 @@ static func next_step_dir(collision, from: Vector2i, goal: Vector2i, allow_onto_
 		return 0
 	if from == goal:
 		return 0
-	var man: int = absi(from.x - goal.x) + absi(from.y - goal.y)
+	var man: int = maxi(absi(from.x - goal.x), absi(from.y - goal.y))
 	if man <= 1 and not allow_onto_goal:
 		return 0
 	# Temporarily free goal occupancy so A* can aim at / past the goal cell when blocked.
@@ -221,11 +231,11 @@ static func next_step_dir(collision, from: Vector2i, goal: Vector2i, allow_onto_
 		if next == goal and not allow_onto_goal:
 			return 0
 		return _dir_from_step(from, next)
-	# Greedy fallback: try cardinals that reduce Euclidean distance.
+	# Greedy fallback: try 8-way that reduce Euclidean distance.
 	var best_dir := 0
 	var best_dist := INF
 	var base := Vector2(float(from.x), float(from.y)).distance_to(Vector2(float(goal.x), float(goal.y)))
-	for d in [2, 4, 6, 8]:
+	for d in TileId.DIRS8:
 		if not collision.can_pass(from.x, from.y, d):
 			continue
 		var delta: Vector2i = TileId.dir_delta(d)
@@ -256,7 +266,7 @@ static func next_idle_wander_dir(collision, from: Vector2i, home: Vector2i, wand
 		return 0
 	if home.x <= -9990:
 		return 0
-	var dirs: Array[int] = [2, 4, 6, 8]
+	var dirs: Array[int] = TileId.DIRS8.duplicate()
 	dirs.shuffle()
 	for d in dirs:
 		if not collision.can_pass(from.x, from.y, d):
@@ -270,14 +280,4 @@ static func next_idle_wander_dir(collision, from: Vector2i, home: Vector2i, wand
 
 
 static func _dir_from_step(from: Vector2i, to: Vector2i) -> int:
-	var dx: int = to.x - from.x
-	var dy: int = to.y - from.y
-	if dx == 1 and dy == 0:
-		return 6
-	if dx == -1 and dy == 0:
-		return 4
-	if dx == 0 and dy == 1:
-		return 2
-	if dx == 0 and dy == -1:
-		return 8
-	return facing_toward(from, to)
+	return TileId.dir_from_vec(Vector2(to - from))

@@ -95,6 +95,22 @@ func setup(data: Dictionary, map_field: Node2D, pack_dir: String = "") -> void:
 	_refresh_nameplate()
 
 
+func apply_graphic(p_charset: String, p_index: int, p_dir: int, pack_dir: String = "") -> void:
+	charset = p_charset.strip_edges()
+	char_index = p_index
+	direction = p_dir if p_dir in [1, 2, 3, 4, 6, 7, 8, 9] else 2
+	_facing = CharsetSheet.facing_from_dir(direction)
+	_ensure_anim()
+	if charset == "":
+		_anim.visible = false
+		return
+	_anim.visible = true
+	_anim.sprite_frames = CharsetSheet.build_sprite_frames(charset, char_index, pack_dir)
+	if not _sprite_frames_ready(_anim.sprite_frames):
+		_on_charset_missing()
+	_play_idle()
+
+
 
 
 func _sprite_frames_ready(frames: SpriteFrames) -> bool:
@@ -355,7 +371,7 @@ func _play_walk() -> void:
 
 ## Apply authoritative npc_move from MockServer (does not call try_npc_move).
 func apply_server_move(nx: int, ny: int, facing: int = -1) -> void:
-	if facing in [2, 4, 6, 8]:
+	if facing in [1, 2, 3, 4, 6, 7, 8, 9]:
 		direction = facing
 		_facing = CharsetSheet.facing_from_dir(facing)
 	var next := Vector2i(nx, ny)
@@ -394,7 +410,7 @@ func try_interact(player_cell: Vector2i) -> String:
 
 
 func is_adjacent_to(other: Vector2i) -> bool:
-	return absi(other.x - cell.x) + absi(other.y - cell.y) == 1
+	return maxi(absi(other.x - cell.x), absi(other.y - cell.y)) == 1
 
 
 func contains_cell(c: Vector2i) -> bool:

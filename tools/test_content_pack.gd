@@ -18,10 +18,11 @@ func _run() -> void:
 	failed += _expect(pack.set_parent("Map002", "Map001"), "parent set")
 	failed += _expect(not pack.set_parent("Map001", "Map002"), "reject cycle")
 	var doc = pack.get_map("Map001")
+	var grass0: int = int(doc.tile(2, 2, 0))
 	doc.set_tile(2, 2, 0, 1536)
 	failed += _expect(int(doc.tile(2, 2, 0)) == 1536, "set tile z0")
 	doc.undo()
-	failed += _expect(int(doc.tile(2, 2, 0)) == 0, "undo tile")
+	failed += _expect(int(doc.tile(2, 2, 0)) == grass0, "undo tile")
 	doc.redo()
 	failed += _expect(int(doc.tile(2, 2, 0)) == 1536, "redo tile")
 	var root: String = "user://content/packs/unit_test_pack"

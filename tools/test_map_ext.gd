@@ -35,12 +35,16 @@ func _run() -> void:
 		"layers": [
 			{"id": "meta", "encoding": "sparse", "cells": [[1, 1, MapExt.META_FORCE_PASS]]},
 			{"id": "settings", "encoding": "sparse", "cells": [[1, 1, MapExt.pack_settings(1, 2, 0)]]},
+			{"id": "light", "encoding": "sparse", "cells": [], "color": [1.0, 0.5, 0.2, 0.8]},
 		],
 	}, 4, 4)
 	failed += _expect(tmp.valid, "sparse ingest ok")
 	failed += _expect(tmp.meta_at(1, 1) == MapExt.META_FORCE_PASS, "sparse meta cell")
 	failed += _expect(tmp.settings_at(1, 1) != 0, "sparse settings cell")
 	failed += _expect(tmp.tile("meta", 0, 0) == 0, "empty sparse cell is 0")
+	failed += _expect(tmp.light_color.is_equal_approx(Color(1.0, 0.5, 0.2, 0.8)), "light layer custom color")
+	var parsed: Color = MapExt.parse_color([0.2, 0.4, 0.6, 1.0])
+	failed += _expect(parsed.is_equal_approx(Color(0.2, 0.4, 0.6, 1.0)), "parse_color array")
 
 	var pack = TilemapPack.load_pack("res://demo_map")
 	failed += _expect(pack != null and pack.width == 30, "demo pack loads")

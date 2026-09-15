@@ -13,7 +13,8 @@ func _run() -> void:
 	var pack = ContentPack.new()
 	pack.new_blank("unit_paint_pack", "paint", 16, 16)
 	var doc = pack.get_map("Map001")
-	failed += _expect(int(doc.tile(3, 4, 0)) == 0, "blank cell starts empty")
+	var TileId = load("res://scripts/map/tile_id.gd")
+	failed += _expect(TileId.autotile_kind(int(doc.tile(3, 4, 0))) == 16, "blank map starts as grass")
 	doc.set_tile(3, 4, 0, 2816)
 	failed += _expect(int(doc.tile(3, 4, 0)) == 2816, "edit_doc stores A2 grass")
 	failed += _expect(pack.save_dir(), "save paint pack")
@@ -26,6 +27,8 @@ func _run() -> void:
 	field.pack_path = pack.root
 	field.edit_map_id = "Map001"
 	field.rebuild()
+	while not field._chunk_queue.is_empty():
+		field._bake_next_chunk()
 	failed += _expect(bool(field._stream_ready), "field stream ready")
 	failed += _expect(not field._chunks.is_empty(), "chunks exist after rebuild")
 	var painted := _chunk_has_pixels(field)

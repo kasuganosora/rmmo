@@ -43,6 +43,7 @@ shape = SubResource("RectangleShape2D_body")
 position_smoothing_enabled = true
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 20
 
 [node name="GameHud" parent="CanvasLayer" instance=ExtResource("3")]
 unique_name_in_owner = true

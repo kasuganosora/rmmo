@@ -3,6 +3,8 @@ extends RefCounted
 
 const MapDocument = preload("res://scripts/editor/map_document.gd")
 const Rtp = preload("res://scripts/editor/rtp.gd")
+const TileId = preload("res://scripts/map/tile_id.gd")
+const PaintTools = preload("res://scripts/editor/paint_tools.gd")
 
 const FORMAT := "content_pack_v1"
 const USER_PACKS := "user://content/packs"
@@ -17,6 +19,7 @@ var map_tree: Array = []
 var tilesets: Dictionary = {} ## id -> {flags, tilesetNames}
 var maps: Dictionary = {} ## id -> MapDocument
 var dirty: bool = false
+var stamps: Dictionary = {}
 
 
 static func user_packs_root() -> String:
@@ -89,6 +92,7 @@ func new_blank(p_id: String, p_name: String, w: int = 20, h: int = 15) -> void:
 	var doc: RefCounted = MapDocument.new()
 	doc.setup_blank("Map001", "地图1", w, h, tile_size)
 	doc.tileset_id = ts_id
+	_fill_starter_ground(doc)
 	maps = {"Map001": doc}
 	dirty = true
 
@@ -103,6 +107,7 @@ func load_dir(dir: String) -> bool:
 	pack_name = str(pack.get("name", pack_id))
 	tile_size = int(pack.get("tile_size", 48))
 	start_map = str(pack.get("start_map", "Map001"))
+	stamps = pack.get("stamps", {}) if typeof(pack.get("stamps")) == TYPE_DICTIONARY else {}
 	var tree_v: Variant = pack.get("map_tree", [])
 	maps.clear()
 	tilesets.clear()
@@ -266,6 +271,44 @@ func set_tileset_slot(ts_id: String, slot: int, sheet_name: String) -> bool:
 	return true
 
 
+## PNG has no passage; fill this slot's tile-id range. kind -1 = A3/A4 × else ○.
+func init_slot_passage(ts_id: String, slot: int, kind: int = -1) -> bool:
+	if not tilesets.has(ts_id) or slot < 0 or slot > 8:
+		return false
+	if kind < 0:
+		kind = TileId.PASS_X if slot == 2 or slot == 3 else TileId.PASS_O
+	var r: Vector2i = TileId.slot_range(slot)
+	if r.y <= r.x:
+		return false
+	var ts: Dictionary = tilesets[ts_id]
+	var fv: Variant = ts.get("flags", [])
+	var flags: PackedInt32Array = PackedInt32Array()
+	if typeof(fv) == TYPE_ARRAY:
+		flags.resize((fv as Array).size())
+		for i in range(flags.size()):
+			flags[i] = int((fv as Array)[i])
+	elif typeof(fv) == TYPE_PACKED_INT32_ARRAY:
+		flags = fv
+	if flags.size() < TileId.TILE_ID_MAX:
+		var old := flags.size()
+		flags.resize(TileId.TILE_ID_MAX)
+		for i in range(old, TileId.TILE_ID_MAX):
+			flags[i] = 0
+	var flag := TileId.with_passage_kind(0, kind)
+	var lo := maxi(r.x, 1)
+	for id in range(lo, r.y):
+		if id < flags.size():
+			flags[id] = flag
+	var arr: Array = []
+	arr.resize(flags.size())
+	for i2 in range(flags.size()):
+		arr[i2] = int(flags[i2])
+	ts["flags"] = arr
+	tilesets[ts_id] = ts
+	dirty = true
+	return true
+
+
 func adopt_as_user_pack(new_id: String, new_name: String = "") -> bool:
 	## After load_dir(res://demo_map), write a nested copy under user:// without touching the source.
 	pack_id = _slug(new_id)
@@ -302,17 +345,54 @@ func save_dir(dir: String = "") -> bool:
 		"start_map": start_map,
 		"map_tree": map_tree,
 		"deps": [],
+		"stamps": stamps,
 	}
 	if not _write_json("%s/pack.json" % root, pack_obj):
 		return false
+	var keep_ts: Dictionary = {}
 	for ts_id in tilesets.keys():
-		_write_json("%s/tilesets/%s.json" % [root, str(ts_id)], tilesets[ts_id])
+		var tid := str(ts_id)
+		keep_ts[tid] = true
+		_write_json("%s/tilesets/%s.json" % [root, tid], tilesets[ts_id])
+	_prune_tileset_files(keep_ts)
 	for mid in maps.keys():
 		var doc: RefCounted = maps[mid]
 		var mdir := "%s/maps/%s" % [root, mid]
 		if not doc.save_dir(mdir):
 			return false
+		if doc.has_method("bake_world_map"):
+			doc.bake_world_map(_sheets_for(doc), _flags_for(doc), mdir)
 	dirty = false
+	return true
+
+
+func map_dir_for(id: String) -> String:
+	if root.is_empty():
+		return ""
+	if is_legacy_flat():
+		return root
+	return "%s/maps/%s" % [root, id]
+
+
+func reload_map(id: String) -> bool:
+	var d: RefCounted = maps.get(id)
+	if d == null:
+		return false
+	var mdir := map_dir_for(id)
+	if mdir == "" or not d.has_method("load_dir"):
+		return false
+	if not d.load_dir(mdir):
+		return false
+	for item in map_tree:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		if str(item.get("id", "")) != id:
+			continue
+		d.display_name = str(item.get("name", d.display_name))
+		d.parent_id = str(item.get("parent", ""))
+		d.tileset_id = str(item.get("tileset", d.tileset_id))
+		break
+	d.dirty = false
 	return true
 
 
@@ -346,15 +426,18 @@ func add_map(id: String, name: String, parent: String = "", w: int = 20, h: int 
 	if id.is_empty() or maps.has(id):
 		return false
 	var doc: RefCounted = MapDocument.new()
-	doc.setup_blank(id, name, w, h, tile_size)
+	doc.setup_blank(id, name, MapDocument.clamp_side(w), MapDocument.clamp_side(h), tile_size)
 	doc.parent_id = parent
 	maps[id] = doc
 	var ts_id := tileset
 	if ts_id == "" or not tilesets.has(ts_id):
 		ts_id = Rtp.default_tileset_id() if tilesets.has(Rtp.default_tileset_id()) else (str(tilesets.keys()[0]) if not tilesets.is_empty() else "default")
 	doc.tileset_id = ts_id
+	_fill_starter_ground(doc)
 	map_tree.append({"id": id, "name": name, "parent": parent, "tileset": ts_id})
 	dirty = true
+	if root != "":
+		doc.save_dir("%s/maps/%s" % [root, id])
 	return true
 
 
@@ -424,6 +507,122 @@ func set_map_tileset(map_id: String, ts_id: String) -> bool:
 	return false
 
 
+func tileset_label(ts_id: String) -> String:
+	if tilesets.has(ts_id):
+		var raw := str(tilesets[ts_id].get("name", "")).strip_edges()
+		if raw != "" and raw.to_lower() != ts_id.to_lower():
+			return raw
+	return Rtp.display_name(ts_id)
+
+
+func next_tileset_id() -> String:
+	var n := 1
+	while tilesets.has("ts_%d" % n):
+		n += 1
+	return "ts_%d" % n
+
+
+func create_tileset(p_id: String = "", p_name: String = "") -> String:
+	var tid := _slug(p_id)
+	if tid == "" or tid == "map" or tilesets.has(tid):
+		tid = next_tileset_id()
+	var label := p_name.strip_edges()
+	if label == "":
+		label = "图块套 %d" % (tilesets.size() + 1)
+	var ts := {
+		"id": tilesets.size() + 1,
+		"name": label,
+		"mode": 1,
+		"note": "",
+		"tilesetNames": ["", "", "", "", "", "", "", "", ""],
+		"flags": [],
+	}
+	tilesets[tid] = ts
+	for slot in range(9):
+		init_slot_passage(tid, slot)
+	dirty = true
+	return tid
+
+
+func duplicate_tileset(src_id: String, p_id: String = "", p_name: String = "") -> String:
+	src_id = src_id.strip_edges()
+	if not tilesets.has(src_id):
+		return ""
+	var tid := _slug(p_id)
+	if tid == "" or tid == "map" or tilesets.has(tid):
+		tid = next_tileset_id()
+	var src: Dictionary = tilesets[src_id]
+	var copy: Dictionary = src.duplicate(true)
+	var label := p_name.strip_edges()
+	if label == "":
+		label = "%s 复制" % tileset_label(src_id)
+	copy["name"] = label
+	copy["id"] = tilesets.size() + 1
+	tilesets[tid] = copy
+	dirty = true
+	return tid
+
+
+func rename_tileset(ts_id: String, new_name: String) -> bool:
+	if not tilesets.has(ts_id):
+		return false
+	var label := new_name.strip_edges()
+	if label == "":
+		return false
+	tilesets[ts_id]["name"] = label
+	dirty = true
+	return true
+
+
+func delete_tileset(ts_id: String) -> bool:
+	ts_id = ts_id.strip_edges()
+	if not tilesets.has(ts_id) or tilesets.size() <= 1:
+		return false
+	var fallback := ""
+	for k in tilesets.keys():
+		if str(k) != ts_id:
+			fallback = str(k)
+			break
+	if fallback == "":
+		return false
+	for mid in maps.keys():
+		var doc: RefCounted = maps[mid]
+		if doc != null and str(doc.tileset_id) == ts_id:
+			set_map_tileset(str(mid), fallback)
+	tilesets.erase(ts_id)
+	dirty = true
+	return true
+
+
+func maps_using_tileset(ts_id: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for mid in maps.keys():
+		var doc: RefCounted = maps[mid]
+		if doc != null and str(doc.tileset_id) == ts_id:
+			out.append(str(mid))
+	return out
+
+
+func _prune_tileset_files(keep: Dictionary) -> void:
+	if root.is_empty():
+		return
+	var tdir := "%s/tilesets" % root
+	var abs_t := _abs(tdir)
+	if not DirAccess.dir_exists_absolute(abs_t):
+		return
+	var da := DirAccess.open(abs_t)
+	if da == null:
+		return
+	da.list_dir_begin()
+	var fn := da.get_next()
+	while fn != "":
+		if not da.current_is_dir() and fn.ends_with(".json"):
+			var tid := fn.get_basename()
+			if not keep.has(tid):
+				DirAccess.remove_absolute("%s/%s" % [abs_t, fn])
+		fn = da.get_next()
+
+
 func rename_map(id: String, new_name: String) -> void:
 	for item in map_tree:
 		if typeof(item) == TYPE_DICTIONARY and str(item.get("id", "")) == id:
@@ -463,6 +662,63 @@ func _load_tilesets_dir() -> void:
 			tilesets["default"] = legacy
 		else:
 			tilesets["default"] = _default_tileset()
+
+
+func _fill_starter_ground(doc: RefCounted) -> void:
+	if doc == null or not doc.has_method("set_tile"):
+		return
+	var grass: int = TileId.make_autotile_id(16, 0)
+	var fw: int = int(doc.width)
+	var fh: int = int(doc.height)
+	if doc.has_method("uses_chunks") and bool(doc.uses_chunks()):
+		fw = mini(32, fw)
+		fh = mini(32, fh)
+	for y in range(fh):
+		for x in range(fw):
+			doc.set_tile(x, y, 0, grass, false)
+	var p = PaintTools.new()
+	p.layer_z = 0
+	p.refresh_all_floor_autotiles(doc)
+
+
+func _flags_for(doc: RefCounted) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if doc == null:
+		return out
+	var ts: Dictionary = tilesets.get(str(doc.tileset_id), {})
+	var fv: Variant = ts.get("flags", [])
+	if typeof(fv) != TYPE_ARRAY:
+		return out
+	var arr: Array = fv
+	out.resize(arr.size())
+	for i in range(arr.size()):
+		out[i] = int(arr[i])
+	return out
+
+
+func _sheets_for(doc: RefCounted) -> Array:
+	var sheets: Array = []
+	sheets.resize(9)
+	if doc == null or root == "":
+		return sheets
+	var ts: Dictionary = tilesets.get(str(doc.tileset_id), {})
+	var names_v: Variant = ts.get("tilesetNames", [])
+	if typeof(names_v) != TYPE_ARRAY:
+		return sheets
+	var names: Array = names_v
+	for i in range(mini(9, names.size())):
+		var name := str(names[i]).strip_edges()
+		if name == "":
+			continue
+		var path := "%s/assets/tilesheet/%s" % [root, name]
+		if not FileAccess.file_exists(path):
+			path = "%s/assets/tilesheet/%s.png" % [root, name.get_basename()]
+		if not FileAccess.file_exists(path) and not FileAccess.file_exists(ProjectSettings.globalize_path(path)):
+			continue
+		var img := Image.new()
+		if img.load(path) == OK:
+			sheets[i] = img
+	return sheets
 
 
 func _default_tileset() -> Dictionary:

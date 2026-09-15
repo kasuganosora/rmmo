@@ -11,6 +11,7 @@ const EquipSlot = preload("res://scripts/ui/equip_slot.gd")
 const Equipment = preload("res://scripts/net/combat/equipment.gd")
 const HotbarSlot = preload("res://scripts/ui/hotbar_slot.gd")
 const SkillSlot = preload("res://scripts/ui/skill_slot.gd")
+const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 
 @onready var name_label: Label = %NameLabel
 @onready var level_label: Label = %LevelLabel
@@ -75,6 +76,7 @@ var _npc_chat: PanelContainer = null
 var _npc_chat_name: Label = null
 var _npc_chat_body: RichTextLabel = null
 var _npc_chat_options: VBoxContainer = null
+var _npc_chat_face: TextureRect = null
 ## World node for combat hotbar intents (request_use_skill / request_use_item).
 var _world_combat: Node = null
 ## Last server inventory snapshot [{id, qty}, ...].
@@ -677,13 +679,14 @@ func append_system(msg: String) -> void:
 	_push_chat("system", "系统", msg)
 
 
-func show_npc_dialogue(npc_name: String, body: String, options: Array = []) -> void:
+func show_npc_dialogue(npc_name: String, body: String, options: Array = [], face: Dictionary = {}) -> void:
 	## Open Lineage2-ish NPC Chat panel. options: Array of String or {label, id}.
 	_ensure_npc_chat()
 	var title_name := npc_name.strip_edges()
 	if title_name == "":
 		title_name = "NPC"
 	_npc_chat_name.text = title_name
+	_apply_dialogue_face(face)
 	var body_text := body.strip_edges()
 	if body_text == "":
 		body_text = "helloworld"
@@ -816,6 +819,15 @@ func _ensure_npc_chat() -> void:
 	name_l.add_theme_color_override("font_color", Color(1, 1, 1))
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(name_l)
+	var face_tex := TextureRect.new()
+	face_tex.name = "Face"
+	face_tex.visible = false
+	face_tex.custom_minimum_size = Vector2(96, 96)
+	face_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face_tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	face_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(face_tex)
 	var sep2 := HSeparator.new()
 	sep2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sep_sb2 := StyleBoxFlat.new()
@@ -854,6 +866,20 @@ func _ensure_npc_chat() -> void:
 	_npc_chat_name = name_l
 	_npc_chat_body = body_rtl
 	_npc_chat_options = opts
+	_npc_chat_face = face_tex
+
+
+func _apply_dialogue_face(face: Dictionary) -> void:
+	if _npc_chat_face == null:
+		return
+	var fid := str(face.get("id", face.get("face", ""))).strip_edges()
+	if fid == "":
+		_npc_chat_face.texture = null
+		_npc_chat_face.visible = false
+		return
+	var tex: Texture2D = CharsetSheet.make_face_texture(fid, int(face.get("index", 0)), str(face.get("pack_dir", "")))
+	_npc_chat_face.texture = tex
+	_npc_chat_face.visible = tex != null
 
 
 func _place_npc_chat() -> void:
@@ -4177,14 +4203,14 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	host.custom_minimum_size = Vector2.ZERO
-	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.mouse_filter = Control.MOUSE_FILTER_STOP
 	host.clip_contents = true
 	mount.add_child(host)
 
 	var overview := Control.new()
 	overview.set_script(MapOverview)
 	overview.name = "MapOverview"
-	overview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overview.mouse_filter = Control.MOUSE_FILTER_STOP
 	overview.custom_minimum_size = Vector2.ZERO
 	overview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overview.size_flags_horizontal = Control.SIZE_EXPAND_FILL

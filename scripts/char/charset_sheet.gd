@@ -224,7 +224,7 @@ static func facing_from_dir(d: int) -> String:
 			return "left"
 		6:
 			return "right"
-		8:
+		7, 8, 9:
 			return "back"
 		_:
 			return "front"
@@ -244,13 +244,91 @@ static func dir_from_facing(facing: String) -> int:
 
 static func reverse_dir(d: int) -> int:
 	match d:
+		1:
+			return 9
 		2:
 			return 8
+		3:
+			return 7
 		4:
 			return 6
 		6:
 			return 4
+		7:
+			return 3
 		8:
 			return 2
+		9:
+			return 1
 		_:
 			return 2
+
+
+static func blit_idle_frame(
+	dest: Image,
+	dest_rect: Rect2i,
+	charset: String,
+	index: int,
+	direction: int,
+	pack_dir: String = ""
+) -> bool:
+	if dest == null or dest_rect.size.x <= 0 or dest_rect.size.y <= 0:
+		return false
+	charset = charset.strip_edges()
+	if charset == "":
+		return false
+	var path: String = resolve_sheet_path(charset, pack_dir)
+	var img: Image = load_image(path)
+	if img == null:
+		return false
+	var src: Rect2i = atlas_rect(img, charset, index, direction, 1)
+	if src.size.x <= 0 or src.size.y <= 0:
+		return false
+	var frame: Image = img.get_region(src)
+	if frame == null:
+		return false
+	if frame.get_width() != dest_rect.size.x or frame.get_height() != dest_rect.size.y:
+		frame.resize(maxi(dest_rect.size.x, 1), maxi(dest_rect.size.y, 1), Image.INTERPOLATE_NEAREST)
+	dest.blend_rect(frame, Rect2i(Vector2i.ZERO, dest_rect.size), dest_rect.position)
+	return true
+
+
+static func resolve_face_path(face_id: String, pack_dir: String = "") -> String:
+	face_id = face_id.strip_edges()
+	if face_id == "":
+		return ""
+	var file_name := "%s.png" % face_id
+	if pack_dir != "":
+		var pack_abs := ProjectSettings.globalize_path(pack_dir).rstrip("/").rstrip("\\")
+		for sub in ["assets/faces", "faces", "img/faces"]:
+			var local := "%s/%s/%s" % [pack_abs, sub, file_name]
+			if FileAccess.file_exists(local):
+				return local
+			var alt := local.replace("/", "\\")
+			if FileAccess.file_exists(alt):
+				return alt
+	var am: Node = _asset_manager()
+	if am != null and am.has_method("path"):
+		var cref := "content://faces/%s" % face_id
+		var am_path := str(am.path(cref))
+		if am_path != "" and FileAccess.file_exists(am_path):
+			return am_path
+	return ""
+
+
+static func make_face_texture(face_id: String, index: int, pack_dir: String = "") -> Texture2D:
+	var path := resolve_face_path(face_id, pack_dir)
+	if path == "":
+		return null
+	var img: Image = load_image(path)
+	if img == null:
+		return null
+	var cols := 4
+	var rows := 2
+	var fw := maxi(int(img.get_width() / cols), 1)
+	var fh := maxi(int(img.get_height() / rows), 1)
+	var i := clampi(index, 0, cols * rows - 1)
+	var at := AtlasTexture.new()
+	at.atlas = ImageTexture.create_from_image(img)
+	at.region = Rect2(float((i % cols) * fw), float(int(i / cols) * fh), float(fw), float(fh))
+	return at
