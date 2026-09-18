@@ -1,14 +1,18 @@
 extends RefCounted
 ## 编辑器用例编排（应用层）：开包/新建/保存/选择/切换/删除/重命名/复制/试玩/导入导出。
 ## 所有方法为静态，接收组合根 ctrl: ContentEditor；状态字段经 ctrl.pack/doc/current_map_id/paint
-## （委托到 ctrl.session）读写，UI/画布类辅助方法经 ctrl._method() 回调组合根。
-##
-## 方法间互相调用统一用 EditorSession.method(ctrl, ...)（本脚本为静态上下文，需显式类名）。
+## （委托到本实例的 pack/doc/current_map_id/paint）读写，UI/画布类辅助方法经 ctrl._method() 回调组合根。
 
 const ContentPack = preload("res://scripts/editor/domain/content_pack.gd")
 const Rtp = preload("res://scripts/editor/infrastructure/rtp.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const PackZip = preload("res://scripts/editor/infrastructure/pack_zip.gd")
+
+## 会话状态袋。ContentEditor 通过委托属性（ctrl.pack/doc/current_map_id/paint）读写本实例字段。
+var pack: RefCounted = null
+var doc: RefCounted = null
+var current_map_id: String = ""
+var paint: RefCounted = null
 
 
 static func open_or_create_default(ctrl: ContentEditor) -> void:
