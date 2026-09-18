@@ -1,18 +1,11 @@
-import re, io
+import re, io, glob
 
-AA = "d:/code/rmmo/scripts/game/application/action_apply.gd"
 WORLD = "d:/code/rmmo/scripts/game/world.gd"
+APP_DIR = "d:/code/rmmo/scripts/game/application/*.gd"
 
-aa = io.open(AA, "r", encoding="utf-8").read()
 world = io.open(WORLD, "r", encoding="utf-8").read()
-
-# distinct ctrl.<word> immediate members (skip chained ctrl.hud.x handled separately)
-ctrl_words = set(re.findall(r"ctrl\.([A-Za-z_]\w*)", aa))
-
-# world.gd declared names: func / static func / var / const / signal / @onready var
 decl = set(re.findall(r"(?:func|static func|var|const|signal|@onready var)\s+([A-Za-z_]\w*)", world))
 
-# builtin Node/Node2D/Object members allowed on ctrl (World extends Node2D)
 builtin = {
     "get_node_or_null", "create_tween", "add_child", "queue_free", "get_node",
     "has_method", "has_signal", "remove_child", "get_parent", "get_tree",
@@ -21,11 +14,12 @@ builtin = {
     "position", "visible", "name", "z_index", "is_instance_valid",
 }
 
-missing = sorted(w for w in ctrl_words if w not in decl and w not in builtin)
-print("DISTINCT ctrl.<word> count:", len(ctrl_words))
-print("WORLD declared names count:", len(decl))
-print("MISSING (ctrl.X not found in World):")
-for m in missing:
-    print("  ", m)
-if not missing:
-    print("  (none)")
+bad_total = 0
+for path in sorted(glob.glob(APP_DIR)):
+    src = io.open(path, "r", encoding="utf-8").read()
+    words = set(re.findall(r"ctrl\.([A-Za-z_]\w*)", src))
+    missing = sorted(w for w in words if w not in decl and w not in builtin)
+    print("%-46s ctrl.<word>=%d  MISSING=%s" % (path.split("/")[-1], len(words), missing or "none"))
+    bad_total += len(missing)
+
+print("TOTAL MISSING:", bad_total)

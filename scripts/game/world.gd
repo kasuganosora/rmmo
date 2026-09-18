@@ -18,6 +18,7 @@ const CombatCamera = preload("res://scripts/game/combat_camera.gd")
 const CombatLogScript = preload("res://scripts/game/combat_log.gd")
 const RadarPoi = preload("res://scripts/ui/radar_poi.gd")
 const ActionApply = preload("res://scripts/game/application/action_apply.gd")
+const RequestAdapter = preload("res://scripts/game/application/request_adapter.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
 
 @onready var player: CharacterBody2D = %Player
@@ -1533,79 +1534,15 @@ func inspect_remote(player_id: String) -> Dictionary:
 
 
 func request_party_invite_respond(invite_id: String, accept: bool) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_invite_respond"):
-		return
-	var result: Dictionary = srv.try_party_invite_respond(invite_id, accept)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_invite_respond(self, invite_id, accept)
 func request_respawn(where: String = "town") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_respawn"):
-		return
-	var result: Dictionary = srv.try_respawn(where)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_respawn(self, where)
 func request_recall() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_recall"):
-		return
-	var result: Dictionary = srv.try_recall()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_recall(self, )
 func request_sit(on: Variant = null) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_sit"):
-		return
-	var want := true
-	if typeof(on) == TYPE_BOOL:
-		want = bool(on)
-	elif "sitting" in srv:
-		want = not bool(srv.sitting)
-	if want:
-		stop_follow()
-		_auto_attack = false
-		_clear_pending_engage()
-	var result: Dictionary = srv.try_sit(want)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_sit(self, on)
 func request_map_move(cell: Vector2i, label: String = "") -> void:
-	if player == null or player.input_locked:
-		return
-	if not player.has_method("click_move_to"):
-		return
-	stop_follow()
-	_auto_attack = false
-	_clear_pending_engage()
-	var ok: bool = bool(player.click_move_to(cell))
-	if hud != null and hud.has_method("append_system"):
-		var tag := str(label).strip_edges()
-		if tag.is_empty():
-			tag = _map_poi_label_at(cell)
-		if ok:
-			if tag != "":
-				hud.append_system("前往：%s" % tag)
-			else:
-				hud.append_system("前往 (%d, %d)" % [cell.x, cell.y])
-		else:
-			if tag != "":
-				hud.append_system("无法到达：%s" % tag)
-			else:
-				hud.append_system("无法到达 (%d, %d)" % [cell.x, cell.y])
-
-
+	RequestAdapter.request_map_move(self, cell, label)
 ## POI display name at cell (radar/big-map markers), or "".
 func _map_poi_label_at(cell: Vector2i) -> String:
 	var markers: Array = get_radar_poi_markers() if has_method("get_radar_poi_markers") else []
@@ -2261,104 +2198,25 @@ func _apply_exp_gain(action: Dictionary) -> void:
 func _apply_level_up(action: Dictionary) -> void:
 	ActionApply.apply_level_up(self, action)
 func request_event_choice(option_id: String = "", option_index: int = -1) -> void:
-	## Dialogue option → quest_* / shop_open / MV event choice.
-	var srv = Net.server()
-	if srv == null:
-		return
-	var result: Dictionary = {}
-	if srv.has_method("try_dialogue_choice"):
-		result = srv.try_dialogue_choice(option_id, option_index)
-	elif srv.has_method("try_event_choice"):
-		result = srv.try_event_choice(option_id, option_index)
-	else:
-		return
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v, null)
-
-
+	RequestAdapter.request_event_choice(self, option_id, option_index)
 func _apply_open_shop(action: Dictionary) -> void:
 	ActionApply.apply_open_shop(self, action)
 func request_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_shop_buy"):
-		return
-	var result: Dictionary = srv.try_shop_buy(shop_id, item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_shop_buy(self, shop_id, item_id, qty)
 func request_shop_buyback(index: int, qty: int = -1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_shop_buyback"):
-		return
-	var result: Dictionary = srv.try_shop_buyback(index, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_shop_buyback(self, index, qty)
 func request_shop_close() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_shop_close"):
-		return
-	var result: Dictionary = srv.try_shop_close()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_shop_close(self, )
 func request_inventory_split(item_id: String, qty: int) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_inventory_split"):
-		return
-	var result: Dictionary = srv.try_inventory_split(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_inventory_split(self, item_id, qty)
 func request_inventory_sort() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_inventory_sort"):
-		return
-	var result: Dictionary = srv.try_inventory_sort()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_inventory_sort(self, )
 func request_inventory_lock(item_id: String, on: bool) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_inventory_lock"):
-		return
-	var result: Dictionary = srv.try_inventory_lock(item_id, on)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_inventory_lock(self, item_id, on)
 func request_shop_sell(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_shop_sell"):
-		return
-	var result: Dictionary = srv.try_shop_sell(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_shop_sell(self, item_id, qty)
 func request_shop_sell_junk() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_shop_sell_junk"):
-		return
-	var result: Dictionary = srv.try_shop_sell_junk()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_shop_sell_junk(self, )
 func _apply_ground_spawn(action: Dictionary) -> void:
 	ActionApply.apply_ground_spawn(self, action)
 func _apply_ground_update(action: Dictionary) -> void:
@@ -2594,201 +2452,43 @@ func _apply_loot_update(action: Dictionary) -> void:
 func _apply_loot_close(_action: Dictionary) -> void:
 	ActionApply.apply_loot_close(self, _action)
 func request_open_ground_bag(bag_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_open_ground_bag"):
-		return
-	var result: Dictionary = srv.try_open_ground_bag(bag_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_open_ground_bag(self, bag_id)
 func request_drop_item(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_drop_item"):
-		return
-	var result: Dictionary = srv.try_drop_item(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_drop_item(self, item_id, qty)
 func request_drop_equipped(slot: String) -> void:
-	if player == null or player.input_locked:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_drop_equipped"):
-		return
-	var result: Dictionary = srv.try_drop_equipped(slot)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_drop_equipped(self, slot)
 func request_loot_take(item_id: String, qty: int = -1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_loot_take"):
-		return
-	var result: Dictionary = srv.try_loot_take(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_loot_take(self, item_id, qty)
 func request_loot_take_all() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_loot_take_all"):
-		return
-	var result: Dictionary = srv.try_loot_take_all()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_loot_take_all(self, )
 func request_loot_close() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_loot_close"):
-		return
-	var result: Dictionary = srv.try_loot_close()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
-
+	RequestAdapter.request_loot_close(self, )
 func request_loot_roll(choice: String, roll_id: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_loot_roll"):
-		return
-	var result: Dictionary = srv.try_loot_roll(choice, roll_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_loot_roll(self, choice, roll_id)
 func request_turn_in_quest(quest_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_turn_in_quest"):
-		return
-	var result: Dictionary = srv.try_turn_in_quest(quest_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_turn_in_quest(self, quest_id)
 func request_accept_quest(quest_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_accept_quest"):
-		return
-	var result: Dictionary = srv.try_accept_quest(quest_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_accept_quest(self, quest_id)
 func request_abandon_quest(quest_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_abandon_quest"):
-		return
-	var result: Dictionary = srv.try_abandon_quest(quest_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_abandon_quest(self, quest_id)
 func request_cancel_status(status_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_cancel_status"):
-		return
-	var result: Dictionary = srv.try_cancel_status(status_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_cancel_status(self, status_id)
 func request_party_debug_fill() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_debug_fill"):
-		return
-	var result: Dictionary = srv.try_party_debug_fill()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_debug_fill(self, )
 func request_party_create() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_create"):
-		return
-	var result: Dictionary = srv.try_party_create()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_create(self, )
 func request_party_invite(target: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_invite"):
-		return
-	var result: Dictionary = srv.try_party_invite(target)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_invite(self, target)
 func request_party_leave() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_leave"):
-		return
-	var result: Dictionary = srv.try_party_leave()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_leave(self, )
 func request_party_kick(member_id: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_kick"):
-		return
-	var result: Dictionary = srv.try_party_kick(member_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_kick(self, member_id)
 func request_party_set_target(npc_id: String, display_name: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_set_target"):
-		return
-	if not srv.has_method("in_party") or not srv.in_party():
-		return
-	var result: Dictionary = srv.try_party_set_target(npc_id, display_name)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_set_target(self, npc_id, display_name)
 func request_party_clear_target() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_clear_target"):
-		return
-	var result: Dictionary = srv.try_party_clear_target()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_party_clear_target(self, )
 func request_party_set_loot_mode(mode: String) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_set_loot_mode"):
-		return
-	var result: Dictionary = srv.try_party_set_loot_mode(mode)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
-
+	RequestAdapter.request_party_set_loot_mode(self, mode)
 func _clear_remote_selection() -> void:
 	if _selected_remote_id.is_empty():
 		return
@@ -3117,179 +2817,39 @@ func _remove_pet_marker() -> void:
 func _apply_pet_move(action: Dictionary) -> void:
 	ActionApply.apply_pet_move(self, action)
 func request_chat(channel: String, text: String, whisper_to: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_chat"):
-		return
-	var result: Dictionary = srv.try_chat(channel, text, whisper_to)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_chat(self, channel, text, whisper_to)
 func request_remote_debug_spawn(display_name: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_remote_debug_spawn"):
-		return
-	var result: Dictionary = srv.try_remote_debug_spawn(display_name)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_remote_debug_spawn(self, display_name)
 func request_trade_open(partner_name: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_open"):
-		return
-	var result: Dictionary = srv.try_trade_open(partner_name)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_open(self, partner_name)
 func request_trade_cancel() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_cancel"):
-		return
-	var result: Dictionary = srv.try_trade_cancel()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_cancel(self, )
 func request_trade_put_item(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_put_item"):
-		return
-	var result: Dictionary = srv.try_trade_put_item(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_put_item(self, item_id, qty)
 func request_trade_take_item(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_take_item"):
-		return
-	var result: Dictionary = srv.try_trade_take_item(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_take_item(self, item_id, qty)
 func request_trade_set_gold(amount: int) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_set_gold"):
-		return
-	var result: Dictionary = srv.try_trade_set_gold(amount)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_set_gold(self, amount)
 func request_trade_ready(ready: bool = true) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_ready"):
-		return
-	var result: Dictionary = srv.try_trade_ready(ready)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_trade_ready(self, ready)
 func request_trade_confirm() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_trade_confirm"):
-		return
-	var result: Dictionary = srv.try_trade_confirm()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
-
+	RequestAdapter.request_trade_confirm(self, )
 func request_duel_challenge(target_id_or_name: String = "") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_duel_challenge"):
-		return
-	var result: Dictionary = srv.try_duel_challenge(target_id_or_name)
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_duel_challenge(self, target_id_or_name)
 func request_duel_accept() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_duel_accept"):
-		return
-	var result: Dictionary = srv.try_duel_accept()
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_duel_accept(self, )
 func request_duel_decline() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_duel_decline"):
-		return
-	var result: Dictionary = srv.try_duel_decline()
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_duel_decline(self, )
 func request_duel_forfeit() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_duel_forfeit"):
-		return
-	var result: Dictionary = srv.try_duel_forfeit()
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_duel_forfeit(self, )
 func request_craft(recipe_id: String, qty: int = 1) -> void:
-	recipe_id = str(recipe_id).strip_edges()
-	qty = int(qty)
-	if recipe_id.is_empty() or qty <= 0:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_craft"):
-		return
-	var result: Dictionary = srv.try_craft(recipe_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_craft(self, recipe_id, qty)
 func request_emote(emote_id: String) -> void:
-	emote_id = str(emote_id).strip_edges()
-	if emote_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_emote"):
-		return
-	var result: Dictionary = srv.try_emote(emote_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_emote(self, emote_id)
 func request_dungeon_enter() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_dungeon_enter"):
-		return
-	var result: Dictionary = srv.try_dungeon_enter()
-	_apply_dungeon_server_result(result)
-
-
+	RequestAdapter.request_dungeon_enter(self, )
 func request_dungeon_exit() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_dungeon_exit"):
-		return
-	var result: Dictionary = srv.try_dungeon_exit()
-	_apply_dungeon_server_result(result)
-
-
+	RequestAdapter.request_dungeon_exit(self, )
 func _apply_dungeon_server_result(result: Dictionary) -> void:
 	if typeof(result) != TYPE_DICTIONARY:
 		return
@@ -3315,356 +2875,61 @@ func _apply_dungeon_server_result(result: Dictionary) -> void:
 
 
 func request_pet_summon(pet_id: String = "default") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_pet_summon"):
-		return
-	var result: Dictionary = srv.try_pet_summon(pet_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_pet_summon(self, pet_id)
 func request_pet_dismiss() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_pet_dismiss"):
-		return
-	var result: Dictionary = srv.try_pet_dismiss()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_pet_dismiss(self, )
 func request_warehouse_open() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_warehouse_open"):
-		return
-	var result: Dictionary = srv.try_warehouse_open()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_warehouse_open(self, )
 func request_warehouse_deposit(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_warehouse_deposit"):
-		return
-	var result: Dictionary = srv.try_warehouse_deposit(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_warehouse_deposit(self, item_id, qty)
 func request_warehouse_withdraw(item_id: String, qty: int = 1) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_warehouse_withdraw"):
-		return
-	var result: Dictionary = srv.try_warehouse_withdraw(item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_warehouse_withdraw(self, item_id, qty)
 func request_warehouse_deposit_gold(amount: int) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_warehouse_deposit_gold"):
-		return
-	var result: Dictionary = srv.try_warehouse_deposit_gold(amount)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_warehouse_deposit_gold(self, amount)
 func request_warehouse_withdraw_gold(amount: int) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_warehouse_withdraw_gold"):
-		return
-	var result: Dictionary = srv.try_warehouse_withdraw_gold(amount)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_warehouse_withdraw_gold(self, amount)
 func request_friend_add(name_or_id: String) -> void:
-	name_or_id = str(name_or_id).strip_edges()
-	if name_or_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_friend_add"):
-		return
-	var result: Dictionary = srv.try_friend_add(name_or_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_friend_add(self, name_or_id)
 func request_friend_remove(friend_id: String) -> void:
-	friend_id = str(friend_id).strip_edges()
-	if friend_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_friend_remove"):
-		return
-	var result: Dictionary = srv.try_friend_remove(friend_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
-
+	RequestAdapter.request_friend_remove(self, friend_id)
 func request_guild_create(guild_name: String) -> void:
-	guild_name = str(guild_name).strip_edges()
-	if guild_name.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_create"):
-		return
-	var result: Dictionary = srv.try_guild_create(guild_name)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_create(self, guild_name)
 func request_guild_invite(target: String) -> void:
-	target = str(target).strip_edges()
-	if target.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_invite"):
-		return
-	var result: Dictionary = srv.try_guild_invite(target)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_invite(self, target)
 func request_guild_kick(member_id: String) -> void:
-	member_id = str(member_id).strip_edges()
-	if member_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_kick"):
-		return
-	var result: Dictionary = srv.try_guild_kick(member_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_kick(self, member_id)
 func request_guild_leave() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_leave"):
-		return
-	var result: Dictionary = srv.try_guild_leave()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_leave(self, )
 func request_guild_disband() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_disband"):
-		return
-	var result: Dictionary = srv.try_guild_disband()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_disband(self, )
 func request_guild_invite_respond(invite_id: String, accept: bool) -> void:
-	invite_id = str(invite_id).strip_edges()
-	if invite_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_guild_invite_respond"):
-		return
-	var result: Dictionary = srv.try_guild_invite_respond(invite_id, accept)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_guild_invite_respond(self, invite_id, accept)
 func request_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> void:
-	to = str(to).strip_edges()
-	if to.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_mail_send"):
-		return
-	var result: Dictionary = srv.try_mail_send(to, subject, body, gold, item_id, qty)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_mail_send(self, to, subject, body, gold, item_id, qty)
 func request_mail_read(mail_id: String) -> void:
-	mail_id = str(mail_id).strip_edges()
-	if mail_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_mail_read"):
-		return
-	var result: Dictionary = srv.try_mail_read(mail_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_mail_read(self, mail_id)
 func request_mail_claim(mail_id: String) -> void:
-	mail_id = str(mail_id).strip_edges()
-	if mail_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_mail_claim"):
-		return
-	var result: Dictionary = srv.try_mail_claim(mail_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_mail_claim(self, mail_id)
 func request_mail_delete(mail_id: String) -> void:
-	mail_id = str(mail_id).strip_edges()
-	if mail_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_mail_delete"):
-		return
-	var result: Dictionary = srv.try_mail_delete(mail_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
+	RequestAdapter.request_mail_delete(self, mail_id)
 func request_auction_list(item_id: String, qty: int = 1, price_gold: int = 1) -> void:
-	item_id = str(item_id).strip_edges()
-	if item_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_auction_list"):
-		return
-	var result: Dictionary = srv.try_auction_list(item_id, qty, price_gold)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_auction_list(self, item_id, qty, price_gold)
 func request_auction_buy(listing_id: String) -> void:
-	listing_id = str(listing_id).strip_edges()
-	if listing_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_auction_buy"):
-		return
-	var result: Dictionary = srv.try_auction_buy(listing_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_auction_buy(self, listing_id)
 func request_auction_cancel(listing_id: String) -> void:
-	listing_id = str(listing_id).strip_edges()
-	if listing_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_auction_cancel"):
-		return
-	var result: Dictionary = srv.try_auction_cancel(listing_id)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		_apply_server_actions(actions_v)
-
-
+	RequestAdapter.request_auction_cancel(self, listing_id)
 func request_learn_skill(skill_id: String) -> void:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_learn_skill"):
-		return
-	var result: Dictionary = srv.try_learn_skill(skill_id)
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_learn_skill(self, skill_id)
 func _apply_attr_update(action: Dictionary) -> void:
 	ActionApply.apply_attr_update(self, action)
 func _apply_skill_book_update(action: Dictionary) -> void:
 	ActionApply.apply_skill_book_update(self, action)
 func request_skill_respec() -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_skill_respec"):
-		return
-	var result: Dictionary = srv.try_skill_respec()
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		_apply_server_actions(acts_v)
-
-
+	RequestAdapter.request_skill_respec(self, )
 func _apply_skill_respec(action: Dictionary) -> void:
 	ActionApply.apply_skill_respec(self, action)
 func request_use_skill(skill_id: String, ground: Vector2i = Vector2i(-9999, -9999)) -> void:
-	if player == null or player.input_locked:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_use_skill"):
-		return
-	skill_id = skill_id.strip_edges()
-	var def: Dictionary = {}
-	if srv.has_method("skill_def"):
-		def = srv.skill_def(skill_id)
-	var tmode := str(def.get("target_mode", "")).strip_edges().to_lower()
-	if tmode.is_empty() and bool(def.get("requires_target", false)):
-		tmode = "unit"
-	if tmode.is_empty():
-		tmode = "none"
-	var target_id := ""
-	var npc = null
-	if not _selected_npc_id.is_empty():
-		npc = _find_npc_by_id(_selected_npc_id)
-		if npc != null and ("hostile" in npc and bool(npc.hostile)):
-			target_id = _selected_npc_id
-		else:
-			npc = null
-	if target_id.is_empty() and tmode != "ground":
-		var facing_dir: int = 2
-		if player.has_method("get_facing"):
-			facing_dir = CharsetSheet.dir_from_facing(str(player.get_facing()))
-		npc = _find_adjacent_npc(player.cell, facing_dir)
-		if npc != null and ("hostile" in npc and bool(npc.hostile)):
-			target_id = str(npc.npc_id) if "npc_id" in npc else ""
-	# Duel shell: selected remote opponent is a valid skill/attack target.
-	if target_id.is_empty() and not _selected_remote_id.is_empty():
-		var duel_srv = Net.server()
-		if duel_srv != null and duel_srv.has_method("in_duel") and duel_srv.in_duel():
-			var dsnap: Dictionary = duel_srv.snapshot_duel() if duel_srv.has_method("snapshot_duel") else {}
-			if str(dsnap.get("opponent_id", "")) == _selected_remote_id:
-				target_id = _selected_remote_id
-	if tmode == "ground" and ground.x <= -9990:
-		if npc != null and "cell" in npc:
-			ground = npc.cell
-		elif target_id.is_empty():
-			begin_skill_aim(skill_id)
-			return
-	var chase_rng: int = _skill_chase_range(def)
-	if chase_rng > 0 and npc != null and player != null:
-		var pcell: Vector2i = player.cell
-		if not _player_in_skill_range(npc, chase_rng, pcell):
-			_set_pending_engage(npc, skill_id, chase_rng)
-			if not _path_to_npc_range(npc, chase_rng):
-				_clear_pending_engage()
-				if hud != null and hud.has_method("append_system"):
-					hud.append_system("无法到达施法距离")
-			return
-		_face_toward_cell(_npc_target_cell(npc))
-	cancel_skill_aim()
-	var gx: int = ground.x
-	var gy: int = ground.y
-	var result: Dictionary = srv.try_use_skill(skill_id, target_id, player.cell.x, player.cell.y, gx, gy)
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, npc)
-
-
+	RequestAdapter.request_use_skill(self, skill_id, ground)
 func is_skill_aiming() -> bool:
 	return not _skill_aim_id.is_empty()
 
@@ -3747,41 +3012,11 @@ func _apply_skill_fx(action: Dictionary) -> void:
 func _apply_skill_anim(action: Dictionary) -> void:
 	ActionApply.apply_skill_anim(self, action)
 func request_use_item(item_id: String) -> void:
-	if player == null or player.input_locked:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_use_item"):
-		return
-	var result: Dictionary = srv.try_use_item(item_id)
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, null)
-
-
+	RequestAdapter.request_use_item(self, item_id)
 func request_equip_item(item_id: String, slot: String = "") -> void:
-	if player == null or player.input_locked:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_equip_item"):
-		return
-	var result: Dictionary = srv.try_equip_item(item_id, slot)
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, null)
-
-
+	RequestAdapter.request_equip_item(self, item_id, slot)
 func request_unequip_item(slot: String) -> void:
-	if player == null or player.input_locked:
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_unequip_item"):
-		return
-	var result: Dictionary = srv.try_unequip_item(slot)
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, null)
-
-
+	RequestAdapter.request_unequip_item(self, slot)
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		if bool(Net.session().get("editor_return")):
