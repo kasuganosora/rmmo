@@ -19,6 +19,7 @@ const EditorMcp = preload("res://scripts/editor/adapters/editor_mcp.gd")
 const MapMinimap = preload("res://scripts/editor/interface/map_minimap.gd")
 const MapShapes = preload("res://scripts/editor/domain/map_shapes.gd")
 const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
+const EditorMenus = preload("res://scripts/editor/interface/editor_menus.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -323,9 +324,9 @@ func _build_ui() -> void:
 	ms.content_margin_top = 0
 	ms.content_margin_bottom = 0
 	menu_wrap.add_theme_stylebox_override("panel", ms)
-	menu_wrap.add_child(_build_menu_bar())
+	menu_wrap.add_child(EditorMenus.build_menu_bar(self))
 	root.add_child(menu_wrap)
-	root.add_child(_build_toolbar())
+	root.add_child(EditorMenus.build_toolbar(self))
 	var mid := HBoxContainer.new()
 	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mid.add_theme_constant_override("separation", 4)
@@ -531,138 +532,6 @@ func _build_ui() -> void:
 	_file_dlg.file_selected.connect(_on_file)
 	add_child(_file_dlg)
 
-
-func _build_menu_bar() -> MenuBar:
-	var bar := MenuBar.new()
-	bar.flat = true
-	bar.switch_on_hover = true
-	_add_popup(bar, "文件", [
-		["新建内容包", MENU_FILE_NEW],
-		["打开包…", MENU_FILE_OPEN],
-		["保存\tCtrl+S", MENU_FILE_SAVE],
-		["另存为…", MENU_FILE_SAVE_AS],
-		["打开工程 demo_map（副本）", MENU_FILE_OPEN_DEMO],
-		[],
-		["导入 .rmpack…", MENU_FILE_IMPORT],
-		["导出 .rmpack…", MENU_FILE_EXPORT],
-		[],
-		["返回", MENU_FILE_LEAVE],
-	])
-	_add_popup(bar, "编辑", [
-		["撤销\tCtrl+Z", MENU_EDIT_UNDO],
-		["重做\tCtrl+Y", MENU_EDIT_REDO],
-		[],
-		["复制图块\tCtrl+C", MENU_EDIT_COPY],
-		["剪切图块\tCtrl+X", MENU_EDIT_CUT],
-		["粘贴图块\tCtrl+V", MENU_EDIT_PASTE],
-		["旋转选区剪贴板", 27],
-		["水平翻转剪贴板", 28],
-		["替换当前图块…", 29],
-		["撤销历史…", 71],
-		["复制实体", 25],
-		["粘贴实体", 26],
-	])
-	_add_popup(bar, "地图", [
-		["地图设置…", MENU_MAP_SETTINGS],
-		["重命名\tF2", 34],
-		["新建子地图", MENU_MAP_ADD],
-		["复制地图\tCtrl+D", 35],
-		["删除当前地图", MENU_MAP_DEL],
-		[],
-		["实体编辑…", MENU_ENTITY],
-		["在此格放置宝箱事件", MENU_MAP_CHEST],
-		[],
-		["参考图…", 37],
-		["清除参考图", 38],
-		["添加书签", 39],
-	])
-	_add_popup(bar, "素材", [
-		["素材库…", MENU_ASSET_LIB],
-		["图块套…", MENU_ASSET_TILESET],
-		[],
-		["导入图块 PNG…", MENU_ASSET_TILE],
-		["导入行走图 PNG…", MENU_ASSET_CHAR],
-		["导入音频…", MENU_ASSET_AUDIO],
-	])
-	_add_popup(bar, "游戏", [
-		["试玩\tF5", MENU_GAME_PLAY],
-		["从光标试玩\tShift+F5", MENU_GAME_PLAY_CURSOR],
-	])
-	_mcp_popup = PopupMenu.new()
-	_mcp_popup.name = "工具"
-	_mcp_popup.add_check_item("启用 MCP 服务", MENU_MCP_TOGGLE)
-	_mcp_popup.id_pressed.connect(_on_menu)
-	bar.add_child(_mcp_popup)
-	return bar
-
-
-func _build_toolbar() -> Control:
-	var wrap := PanelContainer.new()
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0.10, 0.11, 0.14, 1)
-	st.content_margin_left = 8
-	st.content_margin_right = 8
-	st.content_margin_top = 4
-	st.content_margin_bottom = 4
-	wrap.add_theme_stylebox_override("panel", st)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	wrap.add_child(row)
-	_mode_map_btn = _tb_toggle(row, "地图", true, func(): _set_mode(0))
-	_mode_evt_btn = _tb_toggle(row, "事件", false, func(): _set_mode(1))
-	_pass_btn = _tb_toggle(row, "通行", false, func(): _set_mode(2))
-	row.add_child(_vsep())
-	_tool_btns.clear()
-	_tool_btns[PaintTools.Tool.PENCIL] = _tb_toggle(row, "铅笔", true, func(): _set_tool(PaintTools.Tool.PENCIL))
-	_tool_btns[PaintTools.Tool.RECT] = _tb_toggle(row, "矩形", false, func(): _set_tool(PaintTools.Tool.RECT))
-	_tool_btns[PaintTools.Tool.FILL] = _tb_toggle(row, "填充", false, func(): _set_tool(PaintTools.Tool.FILL))
-	_tool_btns[PaintTools.Tool.EYEDROP] = _tb_toggle(row, "吸管", false, func(): _set_tool(PaintTools.Tool.EYEDROP))
-	_tool_btns[PaintTools.Tool.ERASE] = _tb_toggle(row, "橡皮", false, func(): _set_tool(PaintTools.Tool.ERASE))
-	_tool_btns[PaintTools.Tool.SELECT] = _tb_toggle(row, "选区", false, func(): _set_tool(PaintTools.Tool.SELECT))
-	_tool_btns[PaintTools.Tool.LINE] = _tb_toggle(row, "线", false, func(): _set_tool(PaintTools.Tool.LINE))
-	_tool_btns[PaintTools.Tool.POLYLINE] = _tb_toggle(row, "折线", false, func(): _set_tool(PaintTools.Tool.POLYLINE))
-	_tool_btns[PaintTools.Tool.ELLIPSE] = _tb_toggle(row, "椭圆", false, func(): _set_tool(PaintTools.Tool.ELLIPSE))
-	_tool_btns[PaintTools.Tool.RING] = _tb_toggle(row, "圆环", false, func(): _set_tool(PaintTools.Tool.RING))
-	row.add_child(_vsep())
-	_start_btn = _tb_toggle(row, "起始点", false, _toggle_start_tool)
-	_pass_overlay_btn = _tb_toggle(row, "叠通行", false, _toggle_pass_overlay)
-	row.add_child(_vsep())
-	_tb_btn(row, "−", func(): _set_zoom(_zoom / 1.25))
-	_zoom_lbl = Label.new()
-	_zoom_lbl.text = "100%"
-	_zoom_lbl.custom_minimum_size = Vector2(48, 0)
-	_zoom_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(_zoom_lbl)
-	_tb_btn(row, "+", func(): _set_zoom(_zoom * 1.25))
-	_tb_btn(row, "适应", _zoom_fit)
-	row.add_child(_vsep())
-	_add_lbl(row, "光照")
-	_light_bar = OptionButton.new()
-	_light_bar.focus_mode = Control.FOCUS_NONE
-	_light_bar.custom_minimum_size = Vector2(110, 0)
-	_fill_preset_opt(_light_bar, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
-	_light_bar.item_selected.connect(func(_i): _on_toolbar_light())
-	row.add_child(_light_bar)
-	_add_lbl(row, "天气")
-	_weather_bar = OptionButton.new()
-	_weather_bar.focus_mode = Control.FOCUS_NONE
-	_weather_bar.custom_minimum_size = Vector2(88, 0)
-	_weather_bar.tooltip_text = "预览天气（与光照叠乘，不写入地图）"
-	for wrow in [["晴", "clear"], ["雨", "rain"], ["雷暴", "storm"], ["雪", "snow"], ["雾", "fog"]]:
-		_weather_bar.add_item(str(wrow[0]))
-		_weather_bar.set_item_metadata(_weather_bar.item_count - 1, str(wrow[1]))
-	_weather_bar.item_selected.connect(func(_i): _on_toolbar_weather())
-	row.add_child(_weather_bar)
-	_add_lbl(row, "光效")
-	_fx_color_bar = ColorPickerButton.new()
-	_fx_color_bar.focus_mode = Control.FOCUS_NONE
-	_fx_color_bar.custom_minimum_size = Vector2(36, 24)
-	_fx_color_bar.edit_alpha = true
-	_fx_color_bar.color = Color(1, 1, 1, 1)
-	_fx_color_bar.tooltip_text = "光效颜色（加色层，与地图光照无关）"
-	_fx_color_bar.color_changed.connect(_on_fx_color_changed)
-	row.add_child(_fx_color_bar)
-	return wrap
 
 
 func _vsep() -> Control:
