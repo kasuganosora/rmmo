@@ -20,6 +20,7 @@ const MapMinimap = preload("res://scripts/editor/interface/map_minimap.gd")
 const MapShapes = preload("res://scripts/editor/domain/map_shapes.gd")
 const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
 const EditorMenus = preload("res://scripts/editor/interface/editor_menus.gd")
+const EditorDialogs = preload("res://scripts/editor/interface/editor_dialogs.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -376,7 +377,7 @@ func _build_ui() -> void:
 	_map_ctx.add_item("删除", CTX_DEL)
 	_map_ctx.id_pressed.connect(_on_map_ctx)
 	add_child(_map_ctx)
-	_build_map_settings_dialog()
+	EditorDialogs.build_map_settings_dialog(self)
 	_del_dlg = ConfirmationDialog.new()
 	_del_dlg.title = "删除地图"
 	_del_dlg.ok_button_text = "删除"
@@ -414,9 +415,9 @@ func _build_ui() -> void:
 	_saveas_dlg.add_child(_saveas_edit)
 	_saveas_dlg.confirmed.connect(_confirm_save_as)
 	add_child(_saveas_dlg)
-	_build_asset_window()
-	_build_entity_window()
-	_build_tileset_window()
+	EditorDialogs.build_asset_window(self)
+	EditorDialogs.build_entity_window(self)
+	EditorDialogs.build_tileset_window(self)
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -866,35 +867,6 @@ func _on_reparent(src: String, parent: String) -> void:
 		_status.text = "无法移动（环路？）"
 
 
-func _build_asset_window() -> void:
-	var rm = ResourceManager.new()
-	rm.visible = false
-	_asset_win = rm
-	rm.assets_changed.connect(_on_assets_changed)
-	rm.tileset_slot_assigned.connect(_on_rm_slot)
-	add_child(rm)
-
-
-func _build_entity_window() -> void:
-	_entity_win = Window.new()
-	_entity_win.title = "实体编辑"
-	_entity_win.size = Vector2i(460, 680)
-	_entity_win.visible = false
-	_entity_win.close_requested.connect(func(): _entity_win.hide())
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	_entity_win.add_child(margin)
-	_inspector = EntityInspector.new()
-	_inspector.changed.connect(_on_entity_changed)
-	if _inspector.has_signal("jump_requested"):
-		_inspector.jump_requested.connect(_on_entity_jump)
-	margin.add_child(_inspector)
-	add_child(_entity_win)
-
 
 func _popup_win(win: Window) -> void:
 	if win == null:
@@ -907,14 +879,6 @@ func _open_asset_win() -> void:
 		_asset_win.bind_pack(pack)
 	_popup_win(_asset_win)
 
-
-func _build_tileset_window() -> void:
-	var tm = TilesetManager.new()
-	tm.visible = false
-	_tileset_win = tm
-	tm.catalog_changed.connect(_on_tileset_catalog)
-	tm.apply_requested.connect(_on_tileset_apply)
-	add_child(tm)
 
 
 func _open_tileset_win() -> void:
@@ -1115,94 +1079,6 @@ func _set_start_map(mid: String) -> void:
 	_refresh_tree()
 	_status.text = "起始地图 → %s" % mid
 
-
-func _build_map_settings_dialog() -> void:
-	_set_dlg = ConfirmationDialog.new()
-	_set_dlg.title = "地图设置"
-	_set_dlg.min_size = Vector2i(380, 360)
-	_set_dlg.ok_button_text = "确定"
-	_set_dlg.cancel_button_text = "取消"
-	_set_dlg.confirmed.connect(_apply_map_settings)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	_set_dlg.add_child(v)
-	_add_lbl(v, "显示名")
-	_set_name = LineEdit.new()
-	v.add_child(_set_name)
-	var size_row := HBoxContainer.new()
-	size_row.add_theme_constant_override("separation", 8)
-	v.add_child(size_row)
-	_add_lbl(size_row, "宽")
-	_set_w = SpinBox.new()
-	_set_w.min_value = 1
-	_set_w.max_value = mini(MapDocument.MAX_SIDE, 10000)
-	_set_w.value = 25
-	size_row.add_child(_set_w)
-	_add_lbl(size_row, "高")
-	_set_h = SpinBox.new()
-	_set_h.min_value = 1
-	_set_h.max_value = mini(MapDocument.MAX_SIDE, 10000)
-	_set_h.value = 20
-	size_row.add_child(_set_h)
-	_add_lbl(v, "图块套")
-	_set_ts = OptionButton.new()
-	v.add_child(_set_ts)
-	_set_start = CheckBox.new()
-	_set_start.text = "设为起始地图"
-	v.add_child(_set_start)
-	var far_row := HBoxContainer.new()
-	v.add_child(far_row)
-	_add_lbl(far_row, "远景滚动")
-	_set_far_sx = SpinBox.new()
-	_set_far_sx.min_value = -8
-	_set_far_sx.max_value = 8
-	_set_far_sx.step = 0.05
-	_set_far_sx.allow_greater = true
-	_set_far_sx.allow_lesser = true
-	far_row.add_child(_set_far_sx)
-	_set_far_sy = SpinBox.new()
-	_set_far_sy.min_value = -8
-	_set_far_sy.max_value = 8
-	_set_far_sy.step = 0.05
-	_set_far_sy.allow_greater = true
-	_set_far_sy.allow_lesser = true
-	far_row.add_child(_set_far_sy)
-	_set_water = CheckBox.new()
-	_set_water.text = "水面可走"
-	v.add_child(_set_water)
-	var env_row := HBoxContainer.new()
-	v.add_child(env_row)
-	_add_lbl(env_row, "环境")
-	_set_env = OptionButton.new()
-	_set_env.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_set_env.add_item("室外", 0)
-	_set_env.set_item_metadata(0, MapExt.ENV_OUTDOOR)
-	_set_env.add_item("室内", 1)
-	_set_env.set_item_metadata(1, MapExt.ENV_INDOOR)
-	_set_env.tooltip_text = "整张地图室内/室外，供天气系统使用（与格子「室内」标记不同）"
-	env_row.add_child(_set_env)
-	var bgm_row := HBoxContainer.new()
-	v.add_child(bgm_row)
-	_add_lbl(bgm_row, "BGM")
-	_set_bgm = OptionButton.new()
-	_set_bgm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bgm_row.add_child(_set_bgm)
-	var light_row := HBoxContainer.new()
-	v.add_child(light_row)
-	_add_lbl(light_row, "光照")
-	_set_light = OptionButton.new()
-	_set_light.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_fill_preset_opt(_set_light, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
-	light_row.add_child(_set_light)
-	var fx_row := HBoxContainer.new()
-	v.add_child(fx_row)
-	_add_lbl(fx_row, "光效颜色")
-	_set_fx_color = ColorPickerButton.new()
-	_set_fx_color.custom_minimum_size = Vector2(48, 24)
-	_set_fx_color.edit_alpha = true
-	_set_fx_color.color = Color(1, 1, 1, 1)
-	fx_row.add_child(_set_fx_color)
-	add_child(_set_dlg)
 
 
 func _open_map_settings(mid: String) -> void:
