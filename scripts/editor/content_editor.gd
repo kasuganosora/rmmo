@@ -23,6 +23,7 @@ const EditorMenus = preload("res://scripts/editor/interface/editor_menus.gd")
 const EditorDialogs = preload("res://scripts/editor/interface/editor_dialogs.gd")
 const EditorSpecPanel = preload("res://scripts/editor/interface/editor_spec_panel.gd")
 const EditorCanvas = preload("res://scripts/editor/interface/editor_canvas.gd")
+const EditorAtmosphere = preload("res://scripts/editor/interface/editor_atmosphere.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -1276,62 +1277,11 @@ func _sync_shadow_brush() -> void:
 
 
 func _fill_preset_opt(opt: OptionButton, path: String, fallback: PackedStringArray) -> void:
-	opt.clear()
-	var names: Dictionary = {}
-	if FileAccess.file_exists(path):
-		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-		if typeof(raw) == TYPE_DICTIONARY:
-			var presets: Variant = (raw as Dictionary).get("presets", raw)
-			if typeof(presets) == TYPE_DICTIONARY:
-				for k in (presets as Dictionary).keys():
-					var id := int(str(k))
-					var def: Variant = (presets as Dictionary)[k]
-					var label := str(k)
-					if typeof(def) == TYPE_DICTIONARY:
-						var n := str(def.get("name", ""))
-						if n != "":
-							label = n
-					names[id] = label
-	if names.is_empty():
-		for i in range(fallback.size()):
-			opt.add_item(str(fallback[i]), i)
-		return
-	var ids: Array = names.keys()
-	ids.sort()
-	for id in ids:
-		opt.add_item("%s · %s" % [str(id), str(names[id])], int(id))
-
-
+	EditorAtmosphere.fill_preset_opt(self, opt, path, fallback)
 func _fill_bgm_opt(current: String) -> void:
-	if _set_bgm == null:
-		return
-	_set_bgm.clear()
-	_set_bgm.add_item("（无）")
-	_set_bgm.set_item_metadata(0, "")
-	var pick := 0
-	if pack != null and pack.has_method("list_assets"):
-		for it in pack.list_assets("audio/bgm"):
-			if typeof(it) != TYPE_DICTIONARY:
-				continue
-			var aid := str(it.get("id", ""))
-			_set_bgm.add_item(aid)
-			_set_bgm.set_item_metadata(_set_bgm.item_count - 1, aid)
-			if aid == current:
-				pick = _set_bgm.item_count - 1
-	if current != "" and pick == 0:
-		_set_bgm.add_item(current)
-		_set_bgm.set_item_metadata(_set_bgm.item_count - 1, current)
-		pick = _set_bgm.item_count - 1
-	_set_bgm.select(pick)
-
-
+	EditorAtmosphere.fill_bgm_opt(self, current)
 func _set_far_scroll(x: float, y: float) -> void:
-	if doc == null:
-		return
-	doc.far_scroll = Vector2(x, y)
-	doc.dirty = true
-
-
+	EditorAtmosphere.set_far_scroll(self, x, y)
 func _on_layer_tree() -> void:
 	var it := _layer_tree.get_selected() if _layer_tree else null
 	if it == null:
@@ -2226,104 +2176,23 @@ func _spec_eyedrop(cell: Vector2i) -> void:
 
 
 func _on_toolbar_light() -> void:
-	if _light_syncing or doc == null or _light_bar == null:
-		return
-	doc.light_preset = int(_light_bar.get_item_id(_light_bar.selected)) if _light_bar.item_count > 0 else 0
-	doc.dirty = true
-	if pack:
-		pack.dirty = true
-	_apply_editor_light()
-	if _set_light:
-		_light_syncing = true
-		_select_opt_id(_set_light, int(doc.light_preset))
-		_light_syncing = false
-	if _status:
-		_status.text = "地图光照：%s（未写入磁盘，Ctrl+S 保存）" % _light_bar.get_item_text(_light_bar.selected)
-
-
+	EditorAtmosphere.on_toolbar_light(self)
 func _sync_light_controls() -> void:
-	if doc == null:
-		return
-	_light_syncing = true
-	var id := int(doc.light_preset) if "light_preset" in doc else 0
-	_select_opt_id(_light_bar, id)
-	_select_opt_id(_set_light, id)
-	_light_syncing = false
-
-
+	EditorAtmosphere.sync_light_controls(self)
 func _apply_editor_light() -> void:
-	_apply_editor_atmosphere()
-
-
+	EditorAtmosphere.apply_editor_light(self)
 func _on_toolbar_weather() -> void:
-	if _weather_bar == null:
-		return
-	var idx := _weather_bar.selected
-	_preview_weather = "clear"
-	if idx >= 0:
-		_preview_weather = str(_weather_bar.get_item_metadata(idx))
-	_apply_editor_atmosphere()
-	if map_field and map_field.has_method("map_is_indoor") and map_field.map_is_indoor() and _preview_weather != "clear":
-		_status.text = "室内地图不出天气（昼夜光仍在）"
-	elif _status:
-		_status.text = "预览天气：%s（不写入地图）" % _weather_bar.get_item_text(_weather_bar.selected)
-
-
+	EditorAtmosphere.on_toolbar_weather(self)
 func _apply_editor_atmosphere() -> void:
-	var id := 0
-	if doc != null and "light_preset" in doc:
-		id = int(doc.light_preset)
-	var inten := 0.0 if _preview_weather == "clear" else _preview_weather_i
-	if map_field != null and map_field.has_method("set_atmosphere"):
-		var atm: Dictionary = map_field.set_atmosphere(id, _preview_weather, inten)
-		if _editor_modulate:
-			_editor_modulate.color = atm.get("modulate", MapExt.light_modulate(id))
-		return
-	if _editor_modulate:
-		_editor_modulate.color = MapExt.light_modulate(id)
-
-
+	EditorAtmosphere.apply_editor_atmosphere(self)
 func _on_fx_color_changed(c: Color) -> void:
-	if _fx_syncing or doc == null:
-		return
-	doc.light_fx_color = c
-	doc.dirty = true
-	if pack:
-		pack.dirty = true
-	_sync_fx_color_controls()
-	_apply_editor_fx_color()
-	if _status:
-		_status.text = "光效颜色已改（未写入磁盘，Ctrl+S 保存）"
-
-
+	EditorAtmosphere.on_fx_color_changed(self, c)
 func _sync_fx_color_controls() -> void:
-	if doc == null:
-		return
-	var c: Color = doc.light_fx_color if "light_fx_color" in doc else Color(1, 1, 1, 1)
-	_fx_syncing = true
-	if _fx_color_bar:
-		_fx_color_bar.color = c
-	if _fx_color:
-		_fx_color.color = c
-	if _set_fx_color:
-		_set_fx_color.color = c
-	_fx_syncing = false
-
-
+	EditorAtmosphere.sync_fx_color_controls(self)
 func _apply_editor_fx_color() -> void:
-	if map_field != null and map_field.has_method("apply_light_fx_color"):
-		map_field.apply_light_fx_color()
-
-
+	EditorAtmosphere.apply_editor_fx_color(self)
 func _select_opt_id(opt: OptionButton, id: int) -> void:
-	if opt == null:
-		return
-	for i in range(opt.item_count):
-		if opt.get_item_id(i) == id:
-			opt.select(i)
-			return
-
-
+	EditorAtmosphere.select_opt_id(self, opt, id)
 func _paint_passage(cell: Vector2i, right: bool) -> void:
 	if doc == null or cell.x < 0 or cell.y < 0 or cell.x >= doc.width or cell.y >= doc.height:
 		return
