@@ -21,6 +21,7 @@ const MapShapes = preload("res://scripts/editor/domain/map_shapes.gd")
 const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
 const EditorMenus = preload("res://scripts/editor/interface/editor_menus.gd")
 const EditorDialogs = preload("res://scripts/editor/interface/editor_dialogs.gd")
+const EditorSpecPanel = preload("res://scripts/editor/interface/editor_spec_panel.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -492,7 +493,7 @@ func _build_ui() -> void:
 	)
 	alpha_row.add_child(us)
 	_fill_layer_tree()
-	_build_spec_panel(right)
+	EditorSpecPanel.build_spec_panel(self, right)
 	_sync_spec_panel(_spec_kind, "")
 	_add_lbl(right, "工具")
 	_tool_opt = OptionButton.new()
@@ -1261,131 +1262,6 @@ func _fill_layer_tree() -> void:
 	if first:
 		first.select(1)
 
-
-func _build_spec_panel(parent: Node) -> void:
-	_spec_box = VBoxContainer.new()
-	_spec_box.add_theme_constant_override("separation", 4)
-	parent.add_child(_spec_box)
-	_spec_hint = Label.new()
-	_spec_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_spec_box.add_child(_spec_hint)
-	_meta_box = HBoxContainer.new()
-	_meta_box.add_theme_constant_override("separation", 4)
-	_spec_box.add_child(_meta_box)
-	_spec_bit_btn(_meta_box, "室内", MapExt.META_INDOOR)
-	_spec_bit_btn(_meta_box, "水面", MapExt.META_WATER)
-	_spec_bit_btn(_meta_box, "禁冲刺", MapExt.META_NO_DASH)
-	_spec_bit_btn(_meta_box, "强制阻挡", MapExt.META_FORCE_BLOCK)
-	_spec_bit_btn(_meta_box, "强制通行", MapExt.META_FORCE_PASS)
-	_shadow_box = HBoxContainer.new()
-	_shadow_box.add_theme_constant_override("separation", 4)
-	_spec_box.add_child(_shadow_box)
-	_spec_shadow_btn(_shadow_box, "↖", 1)
-	_spec_shadow_btn(_shadow_box, "↗", 2)
-	_spec_shadow_btn(_shadow_box, "↙", 4)
-	_spec_shadow_btn(_shadow_box, "↘", 8)
-	var rrow := HBoxContainer.new()
-	rrow.name = "RegionRow"
-	_spec_box.add_child(rrow)
-	_add_lbl(rrow, "区域号")
-	_region_spin = SpinBox.new()
-	_region_spin.min_value = 0
-	_region_spin.max_value = 255
-	_region_spin.value = 1
-	rrow.add_child(_region_spin)
-	var srow := VBoxContainer.new()
-	srow.name = "SettingsRow"
-	_spec_box.add_child(srow)
-	var lr := HBoxContainer.new()
-	srow.add_child(lr)
-	_add_lbl(lr, "光照")
-	_light_opt = OptionButton.new()
-	_light_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_fill_preset_opt(_light_opt, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
-	lr.add_child(_light_opt)
-	var sr := HBoxContainer.new()
-	srow.add_child(sr)
-	_add_lbl(sr, "环境音")
-	_sound_opt = OptionButton.new()
-	_sound_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_fill_preset_opt(_sound_opt, "res://data/map/sound_presets.json", ["无"])
-	sr.add_child(_sound_opt)
-	var fr := HBoxContainer.new()
-	srow.add_child(fr)
-	_add_lbl(fr, "脚步")
-	_foot_opt = OptionButton.new()
-	_foot_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for pair in [["草地", 0], ["石板", 1], ["浅水", 2], ["木板", 3]]:
-		_foot_opt.add_item(str(pair[0]), int(pair[1]))
-	fr.add_child(_foot_opt)
-	var frow := HBoxContainer.new()
-	frow.name = "FarRow"
-	_spec_box.add_child(frow)
-	_add_lbl(frow, "远景滚动")
-	_far_sx = SpinBox.new()
-	_far_sx.min_value = -8
-	_far_sx.max_value = 8
-	_far_sx.step = 0.05
-	_far_sx.allow_greater = true
-	_far_sx.allow_lesser = true
-	_far_sx.value_changed.connect(func(v): _set_far_scroll(v, _far_sy.value if _far_sy else 0.0))
-	frow.add_child(_far_sx)
-	_far_sy = SpinBox.new()
-	_far_sy.min_value = -8
-	_far_sy.max_value = 8
-	_far_sy.step = 0.05
-	_far_sy.allow_greater = true
-	_far_sy.allow_lesser = true
-	_far_sy.value_changed.connect(func(v): _set_far_scroll(_far_sx.value if _far_sx else 0.0, v))
-	frow.add_child(_far_sy)
-	var fxrow := HBoxContainer.new()
-	fxrow.name = "LightFxRow"
-	_spec_box.add_child(fxrow)
-	_add_lbl(fxrow, "光效颜色")
-	_fx_color = ColorPickerButton.new()
-	_fx_color.custom_minimum_size = Vector2(48, 24)
-	_fx_color.edit_alpha = true
-	_fx_color.color = Color(1, 1, 1, 1)
-	_fx_color.color_changed.connect(_on_fx_color_changed)
-	fxrow.add_child(_fx_color)
-	_water_thru = CheckBox.new()
-	_water_thru.text = "水面可走"
-	_water_thru.toggled.connect(func(on):
-		if doc:
-			doc.water_through = on
-			doc.dirty = true
-	)
-	_spec_box.add_child(_water_thru)
-	_spec_box.visible = false
-
-
-func _spec_bit_btn(parent: Node, text: String, bit: int) -> void:
-	var b := Button.new()
-	b.text = text
-	b.toggle_mode = true
-	b.focus_mode = Control.FOCUS_NONE
-	b.set_meta("bit", bit)
-	b.pressed.connect(func():
-		_spec_meta_bit = bit
-		for c in _meta_box.get_children():
-			if c is Button:
-				c.set_pressed_no_signal(int(c.get_meta("bit", 0)) == bit)
-	)
-	parent.add_child(b)
-	if bit == MapExt.META_INDOOR:
-		b.set_pressed_no_signal(true)
-		_spec_meta_bit = bit
-
-
-func _spec_shadow_btn(parent: Node, text: String, bit: int) -> void:
-	var b := Button.new()
-	b.text = text
-	b.toggle_mode = true
-	b.focus_mode = Control.FOCUS_NONE
-	b.set_meta("bit", bit)
-	b.set_pressed_no_signal(true)
-	b.pressed.connect(_sync_shadow_brush)
-	parent.add_child(b)
 
 
 func _sync_shadow_brush() -> void:
