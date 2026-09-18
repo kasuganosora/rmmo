@@ -17,6 +17,7 @@ const CameraShake = preload("res://scripts/game/camera_shake.gd")
 const CombatCamera = preload("res://scripts/game/combat_camera.gd")
 const CombatLogScript = preload("res://scripts/game/combat_log.gd")
 const RadarPoi = preload("res://scripts/ui/radar_poi.gd")
+const ActionApply = preload("res://scripts/game/application/action_apply.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
 
 @onready var player: CharacterBody2D = %Player
@@ -897,467 +898,13 @@ func tick_event_wait(delta: float) -> void:
 
 
 func _apply_server_actions(actions: Array, npc = null) -> void:
-	## Execute MockServer/GameServer action opcodes. Chat opens only via show_npc_dialogue.
-	## A wait action parks the rest of this batch until tick_event_wait elapses.
-	if hud == null:
-		hud = get_node_or_null("CanvasLayer/GameHud")
-	last_applied_action_types = []
-	var i := 0
-	while i < actions.size():
-		var item: Variant = actions[i]
-		i += 1
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var action: Dictionary = item
-		var atype := str(action.get("type", ""))
-		if atype == "wait":
-			var dur := maxf(float(action.get("duration", 0.0)), 0.0)
-			if dur > 0.0:
-				last_applied_action_types.append("wait")
-				_event_wait_left = dur
-				_deferred_event_actions = actions.slice(i)
-				_deferred_event_npc = npc
-				return
-			continue
-		last_applied_action_types.append(atype)
-		match atype:
-			"show_npc_dialogue":
-				var display_name := str(action.get("npc_name", "")).strip_edges()
-				if display_name == "" and npc != null:
-					if "npc_name" in npc and str(npc.npc_name).strip_edges() != "":
-						display_name = str(npc.npc_name)
-				var body := str(action.get("body", ""))
-				var options_v: Variant = action.get("options", [])
-				var options: Array = options_v if typeof(options_v) == TYPE_ARRAY else []
-				if hud != null and hud.has_method("show_npc_dialogue"):
-					var face := {
-						"id": str(action.get("face", "")).strip_edges(),
-						"index": int(action.get("face_index", 0)),
-						"pack_dir": str(map_field.pack.pack_dir) if map_field != null and map_field.pack != null else "",
-					}
-					hud.show_npc_dialogue(display_name, body, options, face)
-			"damage":
-				_apply_damage_action(action, npc)
-			"heal":
-				_apply_heal_action(action)
-			"miss":
-				_apply_miss_action(action)
-			"set_stat":
-				_apply_set_stat(action)
-			"skill_cd":
-				_apply_skill_cd(action)
-			"status_update":
-				_apply_status_update(action)
-			"inventory_update":
-				_apply_inventory_update(action)
-			"equipment_update":
-				_apply_equipment_update(action)
-			"quest_update":
-				_apply_quest_update(action)
-			"kill_npc":
-				_apply_kill_npc(str(action.get("npc_id", "")), npc)
-			"spawn_npc":
-				_apply_spawn_npc(action)
-			"gather_update":
-				_apply_gather_update(action)
-				if action.has("gather_level") and hud != null and hud.has_method("apply_gather_update"):
-					hud.apply_gather_update(action)
-			"fish_update":
-				_apply_fish_update(action)
-			"player_died":
-				_clear_pending_engage()
-				stop_follow()
-				_auto_attack = false
-				if player != null:
-					player.input_locked = true
-					if player.has_method("clear_move_path"):
-						player.clear_move_path()
-				if hud != null and hud.has_method("clear_target"):
-					hud.clear_target()
-				if hud != null and hud.has_method("show_death_dialog"):
-					hud.show_death_dialog()
-			"respawn":
-				_apply_respawn(action)
-			"recall":
-				_apply_recall(action)
-			"player_move":
-				_apply_player_move(action)
-			"sit":
-				_apply_sit(action)
-			"npc_move":
-				_apply_npc_move(action)
-			"event_graphic":
-				_apply_event_graphic(action)
-			"play_audio":
-				_play_pack_audio(str(action.get("channel", "se")), str(action.get("id", "")))
-			"npc_reset":
-				_apply_npc_reset(action)
-			"loot_drop":
-				pass  # informational; ground bags + loot UI driven separately
-			"ground_spawn":
-				_apply_ground_spawn(action)
-			"ground_update":
-				_apply_ground_update(action)
-			"ground_despawn":
-				_apply_ground_despawn(action)
-			"loot_open":
-				_apply_loot_open(action)
-			"loot_update":
-				_apply_loot_update(action)
-			"loot_close":
-				_apply_loot_close(action)
-			"loot_roll_start":
-				if hud != null and hud.has_method("show_loot_roll"):
-					hud.show_loot_roll(action)
-			"loot_roll_choice":
-				if hud != null and hud.has_method("apply_loot_roll_choice"):
-					hud.apply_loot_roll_choice(action)
-			"loot_roll_resolve":
-				if hud != null and hud.has_method("hide_loot_roll"):
-					hud.hide_loot_roll(action)
-			"exp_gain":
-				_apply_exp_gain(action)
-			"level_up":
-				_apply_level_up(action)
-			"open_shop":
-				_apply_open_shop(action)
-			"map_transfer":
-				# Event `transfer` op — same path as warp try_transfer.
-				if bool(action.get("ok", true)):
-					_on_transfer_requested(action)
-			"cast_start":
-				var npc_caster := str(action.get("npc_id", "")).strip_edges()
-				if npc_caster.is_empty():
-					var c0 := str(action.get("caster", "")).strip_edges()
-					if c0 != "" and c0 != "player":
-						npc_caster = c0
-				var ckind := str(action.get("anim", "cast")).strip_edges()
-				if ckind.is_empty():
-					ckind = "cast"
-				if npc_caster.is_empty():
-					if hud != null and hud.has_method("apply_cast_start"):
-						hud.apply_cast_start(action)
-					_apply_skill_anim({
-						"actor": "player",
-						"kind": ckind,
-						"skill_id": str(action.get("skill_id", "")),
-					})
-				else:
-					# NPC cast: combat action / anim only (no player cast HUD).
-					_apply_skill_anim({
-						"actor": npc_caster,
-						"kind": ckind,
-						"skill_id": str(action.get("skill_id", "")),
-					})
-			"cast_update":
-				var npc_cu := str(action.get("npc_id", "")).strip_edges()
-				if npc_cu.is_empty():
-					var c1 := str(action.get("caster", "")).strip_edges()
-					if c1 != "" and c1 != "player":
-						npc_cu = c1
-				if npc_cu.is_empty() and hud != null and hud.has_method("apply_cast_update"):
-					hud.apply_cast_update(action)
-			"cast_end":
-				var npc_ce := str(action.get("npc_id", "")).strip_edges()
-				if npc_ce.is_empty():
-					var c2 := str(action.get("caster", "")).strip_edges()
-					if c2 != "" and c2 != "player":
-						npc_ce = c2
-				if npc_ce.is_empty() and hud != null and hud.has_method("apply_cast_end"):
-					hud.apply_cast_end(action)
-			"skill_fx":
-				_apply_skill_fx(action)
-			"skill_anim":
-				_apply_skill_anim(action)
-			"skill_book_update":
-				_apply_skill_book_update(action)
-			"attr_update":
-				_apply_attr_update(action)
-			"skill_respec":
-				_apply_skill_respec(action)
-			"party_update":
-				if hud != null and hud.has_method("apply_party_update"):
-					hud.apply_party_update(action)
-			"party_invite":
-				if hud != null and hud.has_method("apply_party_invite"):
-					hud.apply_party_invite(action)
-			"trade_update":
-				if hud != null and hud.has_method("apply_trade_update"):
-					hud.apply_trade_update(action)
-			"duel_update":
-				if hud != null and hud.has_method("apply_duel_update"):
-					hud.apply_duel_update(action)
-			"safe_zone":
-				if hud != null and hud.has_method("apply_safe_zone"):
-					hud.apply_safe_zone(action)
-			"dungeon_update":
-				if hud != null and hud.has_method("apply_dungeon_update"):
-					hud.apply_dungeon_update(action)
-			"rested_update":
-				if hud != null and hud.has_method("apply_rested_update"):
-					hud.apply_rested_update(action)
-				elif hud != null and hud.has_method("apply_combat_stats"):
-					hud.apply_combat_stats({
-						"rested_exp": int(action.get("rested_exp", 0)),
-						"rested_exp_max": int(action.get("rested_exp_max", 0)),
-					})
-			"craft_update":
-				if hud != null and hud.has_method("apply_craft_update"):
-					hud.apply_craft_update(action)
-			"threat_update":
-				_apply_threat_update(action)
-			"dps_update":
-				if hud != null and hud.has_method("apply_dps_update"):
-					hud.apply_dps_update(action)
-			"warehouse_update":
-				if hud != null and hud.has_method("apply_warehouse_update"):
-					hud.apply_warehouse_update(action)
-			"friends_update":
-				if hud != null and hud.has_method("apply_friends_update"):
-					hud.apply_friends_update(action)
-			"map_pins_update":
-				_radar_blips_ready = false
-				if hud != null and hud.has_method("apply_map_pins_update"):
-					hud.apply_map_pins_update(action)
-				else:
-					_sync_map_pins_from_server(action.get("map_pins", {}))
-			"guild_update":
-				if hud != null and hud.has_method("apply_guild_update"):
-					hud.apply_guild_update(action)
-			"guild_invite":
-				if hud != null and hud.has_method("apply_guild_invite"):
-					hud.apply_guild_invite(action)
-			"mail_update":
-				if hud != null and hud.has_method("apply_mail_update"):
-					hud.apply_mail_update(action)
-			"auction_update":
-				if hud != null and hud.has_method("apply_auction_update"):
-					hud.apply_auction_update(action)
-			"title_update":
-				if hud != null and hud.has_method("apply_title_update"):
-					hud.apply_title_update(action)
-			"achievement_update":
-				if hud != null and hud.has_method("apply_achievement_update"):
-					hud.apply_achievement_update(action)
-			"shop_buyback":
-				if hud != null and hud.has_method("apply_shop_buyback"):
-					hud.apply_shop_buyback(action.get("buyback", []))
-				if action.has("gold") and hud != null:
-					hud._server_gold = int(action.get("gold", hud._server_gold))
-			"trade_close":
-				if hud != null and hud.has_method("hide_trade"):
-					hud.hide_trade()
-			"remote_spawn":
-				var rp_v: Variant = action.get("player", {})
-				if typeof(rp_v) == TYPE_DICTIONARY:
-					_upsert_remote_marker(rp_v)
-			"remote_despawn":
-				_remove_remote_marker(str(action.get("player_id", "")))
-			"remote_move":
-				_apply_remote_move(action)
-			"pet_spawn":
-				var pet_s: Variant = action.get("pet", {})
-				if typeof(pet_s) != TYPE_DICTIONARY:
-					pet_s = {
-						"active": true,
-						"id": str(action.get("id", "")),
-						"name": str(action.get("name", "")),
-						"cell": {"x": int(action.get("x", 0)), "y": int(action.get("y", 0))},
-						"look_id": str(action.get("look_id", "1")),
-						"facing": int(action.get("facing", 2)),
-					}
-				_upsert_pet_marker(pet_s)
-			"pet_despawn":
-				_remove_pet_marker()
-			"pet_move":
-				_apply_pet_move(action)
-			"chat_message":
-				if hud != null and hud.has_method("apply_chat_message"):
-					hud.apply_chat_message(action)
-			"emote":
-				_apply_emote(action)
-			"system_message":
-				var msg := str(action.get("text", "")).strip_edges()
-				if msg != "" and hud != null and hud.has_method("append_system"):
-					hud.append_system(msg)
-			"weather":
-				_apply_weather_action(action)
-
-
+	ActionApply.apply_server_actions(self, actions, npc)
 func _apply_npc_move(action: Dictionary) -> void:
-	var npc_id := str(action.get("npc_id", "")).strip_edges()
-	if npc_id.is_empty():
-		return
-	var target = _find_npc_by_id(npc_id)
-	if target == null:
-		return
-	var nx: int = int(action.get("x", target.cell.x if "cell" in target else 0))
-	var ny: int = int(action.get("y", target.cell.y if "cell" in target else 0))
-	var facing: int = int(action.get("facing", 2))
-	if target.has_method("apply_server_move"):
-		target.apply_server_move(nx, ny, facing)
-	else:
-		if "cell" in target:
-			target.cell = Vector2i(nx, ny)
-		if target.has_method("face_dir"):
-			target.face_dir(facing)
-		if target.has_method("_place"):
-			target._place()
-	# Keep radar cache fresh when cells move.
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_npc_move(self, action)
 func _apply_npc_reset(action: Dictionary) -> void:
-	## Evade / return-home: restore client NPC HP bar to full.
-	var npc_id := str(action.get("npc_id", "")).strip_edges()
-	if npc_id.is_empty():
-		return
-	var target = _find_npc_by_id(npc_id)
-	if target == null:
-		return
-	var hp: int = int(action.get("hp", 0))
-	var hp_max: int = int(action.get("hp_max", 0))
-	if "hp" in target:
-		target.hp = hp
-	if "hp_max" in target:
-		target.hp_max = hp_max
-	if target.has_method("apply_combat_display"):
-		target.apply_combat_display({"hp": hp, "hp_max": hp_max})
-	elif target.has_method("_refresh_nameplate"):
-		target._refresh_nameplate()
-	if npc_id == _selected_npc_id:
-		var display_name := npc_id
-		if "npc_name" in target and str(target.npc_name).strip_edges() != "":
-			display_name = str(target.npc_name)
-		var ratio: float = 1.0 if hp_max <= 0 else float(hp) / float(hp_max)
-		_push_target_hud(target, display_name, ratio)
-
-
+	ActionApply.apply_npc_reset(self, action)
 func _apply_damage_action(action: Dictionary, npc = null) -> void:
-	var target := str(action.get("target", "npc"))
-	var amount: int = int(action.get("amount", 0))
-	var hp: int = int(action.get("hp", 0))
-	var hp_max: int = int(action.get("hp_max", 0))
-	var id := str(action.get("id", ""))
-	var is_miss := bool(action.get("miss", false)) or str(action.get("result", "")).strip_edges().to_lower() == "miss" or (amount <= 0 and bool(action.get("show_miss", false)))
-	var is_crit := bool(action.get("crit", false)) or bool(action.get("critical", false))
-	if target == "player":
-		if hud != null and hud.has_method("apply_combat_stats"):
-			hud.apply_combat_stats({
-				"hp": hp,
-				"hp_max": hp_max,
-				"mp": int(action.get("mp", -1)),
-				"mp_max": int(action.get("mp_max", -1)),
-			})
-		if is_miss:
-			_spawn_combat_floater(
-				player.global_position if player != null else Vector2.ZERO,
-				CombatFloater.text_for("miss"), Color(), "miss", "player", false
-			)
-			if hud != null:
-				if hud.has_method("append_combat_typed"):
-					hud.append_combat_typed("miss", CombatLogScript.line_miss())
-				elif hud.has_method("append_combat"):
-					hud.append_combat(CombatLogScript.line_miss())
-				elif hud.has_method("append_system"):
-					hud.append_system(CombatLogScript.line_miss())
-			return
-		if hud != null and amount > 0:
-			var line_in := CombatLogScript.line_damage_in(amount, is_crit)
-			if hud.has_method("append_combat_typed"):
-				hud.append_combat_typed("damage", line_in)
-			elif hud.has_method("append_combat"):
-				hud.append_combat(line_in)
-			elif hud.has_method("append_system"):
-				hud.append_system(line_in)
-		if amount > 0:
-			if player != null and player.has_method("flash_hurt"):
-				player.flash_hurt()
-			var ppos := player.global_position if player != null else Vector2.ZERO
-			_spawn_combat_floater(ppos, CombatFloater.text_for("damage", amount, is_crit), Color(), "damage", "player", is_crit)
-			if is_crit:
-				_trigger_crit_shake()
-		return
-	if target == "remote":
-		var mk = _remote_markers.get(id, null) if id != "" else null
-		var rname := id
-		if mk != null and is_instance_valid(mk):
-			rname = str(mk.get_meta("display_name", id))
-			if is_miss:
-				_spawn_combat_floater(mk.global_position, CombatFloater.text_for("miss"), Color(), "miss", "remote:%s" % id, false)
-			elif amount > 0:
-				_spawn_combat_floater(mk.global_position, CombatFloater.text_for("damage_out", amount, is_crit), Color(), "damage_out", "remote:%s" % id, is_crit)
-		if is_miss:
-			if hud != null:
-				if hud.has_method("append_combat_typed"):
-					hud.append_combat_typed("miss", CombatLogScript.line_miss())
-				elif hud.has_method("append_combat"):
-					hud.append_combat(CombatLogScript.line_miss())
-				elif hud.has_method("append_system"):
-					hud.append_system(CombatLogScript.line_miss())
-			return
-		if hud != null and amount > 0:
-			var line_r := CombatLogScript.line_damage_out(rname, amount, is_crit)
-			if hud.has_method("append_combat_typed"):
-				hud.append_combat_typed("damage", line_r)
-			elif hud.has_method("append_combat"):
-				hud.append_combat(line_r)
-			elif hud.has_method("append_system"):
-				hud.append_system(line_r)
-		if amount > 0 and is_crit:
-			_trigger_crit_shake()
-		return
-	var display_name := "敌人"
-	var target_npc = npc
-	if target_npc == null or ("npc_id" in target_npc and str(target_npc.npc_id) != id):
-		target_npc = _find_npc_by_id(id)
-	if target_npc != null:
-		if "npc_name" in target_npc and str(target_npc.npc_name).strip_edges() != "":
-			display_name = str(target_npc.npc_name)
-		if "hp" in target_npc:
-			target_npc.hp = hp
-		if "hp_max" in target_npc:
-			target_npc.hp_max = hp_max
-		if id == _selected_npc_id or _selected_npc_id.is_empty():
-			# Keep target frame in sync while fighting this mob.
-			if _selected_npc_id.is_empty() or id == _selected_npc_id:
-				_selected_npc_id = id
-				if target_npc.has_method("set_selected"):
-					target_npc.set_selected(true)
-			var ratio: float = 1.0 if hp_max <= 0 else float(hp) / float(hp_max)
-			_push_target_hud(target_npc, display_name, ratio)
-	if is_miss:
-		var mpos := Vector2.ZERO
-		if target_npc != null:
-			mpos = target_npc.global_position
-		_spawn_combat_floater(mpos, CombatFloater.text_for("miss"), Color(), "miss", "npc:%s" % id, false)
-		if hud != null:
-			if hud.has_method("append_combat_typed"):
-				hud.append_combat_typed("miss", CombatLogScript.line_miss())
-			elif hud.has_method("append_combat"):
-				hud.append_combat(CombatLogScript.line_miss())
-			elif hud.has_method("append_system"):
-				hud.append_system(CombatLogScript.line_miss())
-		return
-	if hud != null and amount > 0:
-		var line_n := CombatLogScript.line_damage_out(display_name, amount, is_crit)
-		if hud.has_method("append_combat_typed"):
-			hud.append_combat_typed("damage", line_n)
-		elif hud.has_method("append_combat"):
-			hud.append_combat(line_n)
-		elif hud.has_method("append_system"):
-			hud.append_system(line_n)
-	if amount > 0:
-		if target_npc != null and target_npc.has_method("flash_hurt"):
-			target_npc.flash_hurt()
-		var npos := Vector2.ZERO
-		if target_npc != null:
-			npos = target_npc.global_position
-		_spawn_combat_floater(npos, CombatFloater.text_for("damage_out", amount, is_crit), Color(), "damage_out", "npc:%s" % id, is_crit)
-		if is_crit:
-			_trigger_crit_shake()
-
-
+	ActionApply.apply_damage_action(self, action, npc)
 func _connect_game_settings() -> void:
 	var gs := GameSettingsScript.get_i()
 	if gs == null:
@@ -1460,34 +1007,7 @@ func _spawn_combat_floater(
 
 
 func _apply_miss_action(action: Dictionary) -> void:
-	## Gray 「未命中」 over the intended target (player / npc / remote).
-	var target := str(action.get("target", "npc")).strip_edges()
-	var id := str(action.get("id", action.get("npc_id", ""))).strip_edges()
-	var pos := Vector2.ZERO
-	var key := "default"
-	if target == "player":
-		pos = player.global_position if player != null else Vector2.ZERO
-		key = "player"
-	elif target == "remote":
-		var mk = _remote_markers.get(id, null) if id != "" else null
-		if mk != null and is_instance_valid(mk):
-			pos = mk.global_position
-		key = "remote:%s" % id
-	else:
-		var npc = _find_npc_by_id(id) if id != "" else null
-		if npc != null and is_instance_valid(npc):
-			pos = npc.global_position
-		key = "npc:%s" % (id if id != "" else "unknown")
-	_spawn_combat_floater(pos, CombatFloater.text_for("miss"), Color(), "miss", key, false)
-	if hud != null:
-		if hud.has_method("append_combat_typed"):
-			hud.append_combat_typed("miss", CombatLogScript.line_miss())
-		elif hud.has_method("append_combat"):
-			hud.append_combat(CombatLogScript.line_miss())
-		elif hud.has_method("append_system"):
-			hud.append_system(CombatLogScript.line_miss())
-
-
+	ActionApply.apply_miss_action(self, action)
 func _resolve_emote_host(actor_id: String) -> Node2D:
 	## Local player, remote marker, or NPC — whichever matches actor_id.
 	actor_id = str(actor_id).strip_edges()
@@ -1509,327 +1029,29 @@ func _resolve_emote_host(actor_id: String) -> Node2D:
 
 
 func _apply_emote(action: Dictionary) -> void:
-	## Floating text bubble above actor for duration_sec, then queue_free.
-	var text := str(action.get("text", "")).strip_edges()
-	if text.is_empty():
-		return
-	var actor_id := str(action.get("actor_id", "")).strip_edges()
-	var duration := maxf(float(action.get("duration_sec", 2.0)), 0.1)
-	var host := _resolve_emote_host(actor_id)
-	if host == null or not is_instance_valid(host):
-		return
-	var old = host.get_node_or_null("EmoteBubble")
-	if old != null and is_instance_valid(old):
-		old.queue_free()
-	var lab := Label.new()
-	lab.name = "EmoteBubble"
-	lab.text = text
-	lab.z_index = 90
-	lab.z_as_relative = false
-	lab.add_theme_font_size_override("font_size", 14)
-	lab.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
-	lab.add_theme_constant_override("outline_size", 4)
-	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Rough center-above-head offset; Label is Control so parent Node2D works in Godot 4.
-	lab.position = Vector2(-40, -72)
-	host.add_child(lab)
-	var tw := create_tween()
-	tw.tween_interval(duration)
-	tw.tween_callback(func():
-		if is_instance_valid(lab):
-			lab.queue_free()
-	)
-
-
+	ActionApply.apply_emote(self, action)
 func _apply_heal_action(action: Dictionary) -> void:
-	var target := str(action.get("target", "player"))
-	if target != "player":
-		return
-	if hud != null and hud.has_method("apply_combat_stats"):
-		hud.apply_combat_stats({
-			"hp": int(action.get("hp", -1)),
-			"hp_max": int(action.get("hp_max", -1)),
-			"mp": int(action.get("mp", -1)),
-			"mp_max": int(action.get("mp_max", -1)),
-		})
-	var amount: int = int(action.get("amount", 0))
-	var mp_gain: int = int(action.get("mp_gain", 0))
-	if hud != null:
-		if amount > 0:
-			var line_h := CombatLogScript.line_heal(amount)
-			if hud.has_method("append_combat_typed"):
-				hud.append_combat_typed("heal", line_h)
-			elif hud.has_method("append_combat"):
-				hud.append_combat(line_h)
-			elif hud.has_method("append_system"):
-				hud.append_system(line_h)
-		elif mp_gain > 0:
-			var line_mp := CombatLogScript.line_mp(mp_gain)
-			if hud.has_method("append_combat_typed"):
-				hud.append_combat_typed("heal", line_mp)
-			elif hud.has_method("append_combat"):
-				hud.append_combat(line_mp)
-			elif hud.has_method("append_system"):
-				hud.append_system(line_mp)
-	if amount > 0:
-		var ppos := player.global_position if player != null else Vector2.ZERO
-		_spawn_combat_floater(ppos, CombatFloater.text_for("heal", amount), Color(), "heal", "player", false)
-
-
+	ActionApply.apply_heal_action(self, action)
 func _apply_set_stat(action: Dictionary) -> void:
-	if str(action.get("target", "player")) == "npc":
-		var nid := str(action.get("id", "")).strip_edges()
-		var actor = _find_npc_by_id(nid)
-		if actor != null and actor.has_method("apply_combat_display"):
-			actor.apply_combat_display({
-				"hp": int(action.get("hp", -1)),
-				"hp_max": int(action.get("hp_max", -1)),
-				"mp": int(action.get("mp", -1)),
-				"mp_max": int(action.get("mp_max", -1)),
-			})
-		elif actor != null:
-			if "hp" in actor and action.has("hp"):
-				actor.hp = int(action.get("hp", 0))
-			if "hp_max" in actor and action.has("hp_max"):
-				actor.hp_max = int(action.get("hp_max", 0))
-			if "mp" in actor and action.has("mp"):
-				actor.mp = int(action.get("mp", 0))
-			if "mp_max" in actor and action.has("mp_max"):
-				actor.mp_max = int(action.get("mp_max", 0))
-			if actor.has_method("_refresh_nameplate"):
-				actor._refresh_nameplate()
-		if nid == _selected_npc_id and actor != null:
-			var display_name := nid
-			if "npc_name" in actor and str(actor.npc_name).strip_edges() != "":
-				display_name = str(actor.npc_name)
-			var hp_max: int = int(action.get("hp_max", actor.hp_max if "hp_max" in actor else 0))
-			var hp: int = int(action.get("hp", actor.hp if "hp" in actor else 0))
-			var ratio: float = 1.0 if hp_max <= 0 else float(hp) / float(hp_max)
-			var thr := {}
-			if action.has("threat_you"):
-				thr = {
-					"threat_you": bool(action.get("threat_you", false)),
-					"threat_rank": int(action.get("threat_rank", 0)),
-					"threat_pct": float(action.get("threat_pct", 0.0)),
-					"victim_id": str(action.get("victim_id", "")),
-				}
-			_push_target_hud(actor, display_name, ratio, thr)
-		return
-	if str(action.get("target", "player")) != "player":
-		return
-	if hud != null and hud.has_method("apply_combat_stats"):
-		var st := {
-			"hp": int(action.get("hp", -1)),
-			"hp_max": int(action.get("hp_max", -1)),
-			"mp": int(action.get("mp", -1)),
-			"mp_max": int(action.get("mp_max", -1)),
-		}
-		if action.has("level"):
-			st["level"] = int(action.get("level", 1))
-		if action.has("exp"):
-			st["exp"] = int(action.get("exp", 0))
-		if action.has("exp_to_next"):
-			st["exp_to_next"] = int(action.get("exp_to_next", 0))
-		if action.has("atk"):
-			st["atk"] = int(action.get("atk", 0))
-		if action.has("def"):
-			st["def"] = int(action.get("def", 0))
-		if action.has("attr_points"):
-			st["attr_points"] = int(action.get("attr_points", 0))
-		if action.has("attrs"):
-			st["attrs"] = action.get("attrs", {})
-		if action.has("rested_exp"):
-			st["rested_exp"] = int(action.get("rested_exp", 0))
-		if action.has("rested_exp_max"):
-			st["rested_exp_max"] = int(action.get("rested_exp_max", 0))
-		hud.apply_combat_stats(st)
-
-
+	ActionApply.apply_set_stat(self, action)
 func _apply_skill_cd(action: Dictionary) -> void:
-	if hud != null and hud.has_method("note_skill_cooldown"):
-		hud.note_skill_cooldown(
-			str(action.get("skill_id", "")),
-			float(action.get("remaining", 0.0)),
-			float(action.get("cooldown", 0.0))
-		)
-
-
+	ActionApply.apply_skill_cd(self, action)
 func _apply_status_update(action: Dictionary) -> void:
-	var statuses_v: Variant = action.get("statuses", [])
-	var statuses: Array = statuses_v if typeof(statuses_v) == TYPE_ARRAY else []
-	var target := str(action.get("target", "player"))
-	if target == "player":
-		if hud != null and hud.has_method("apply_status_chips"):
-			hud.apply_status_chips(statuses)
-		return
-	# Optional: show selected-target statuses when matching selection.
-	var nid := str(action.get("id", "")).strip_edges()
-	if nid != "" and nid == _selected_npc_id and hud != null and hud.has_method("apply_target_status_chips"):
-		hud.apply_target_status_chips(statuses)
-
-
+	ActionApply.apply_status_update(self, action)
 func _apply_inventory_update(action: Dictionary) -> void:
-	var items_v: Variant = action.get("items", [])
-	var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-	var gold_v: int = int(action.get("gold", -1))
-	if hud != null and hud.has_method("apply_inventory_snapshot"):
-		hud.apply_inventory_snapshot(items, gold_v)
-
-
+	ActionApply.apply_inventory_update(self, action)
 func _apply_equipment_update(action: Dictionary) -> void:
-	var eq_v: Variant = action.get("equipment", [])
-	var eq: Array = eq_v if typeof(eq_v) == TYPE_ARRAY else []
-	var bon_v: Variant = action.get("bonuses", {})
-	var bons: Dictionary = bon_v if typeof(bon_v) == TYPE_DICTIONARY else {}
-	if hud != null and hud.has_method("apply_equipment_snapshot"):
-		hud.apply_equipment_snapshot(eq, bons)
-	_refresh_player_gear_look(eq)
-
-
+	ActionApply.apply_equipment_update(self, action)
 func _apply_quest_update(action: Dictionary) -> void:
-	var quests_v: Variant = action.get("quests", [])
-	var quests: Array = quests_v if typeof(quests_v) == TYPE_ARRAY else []
-	if hud != null and hud.has_method("apply_quest_snapshot"):
-		hud.apply_quest_snapshot(quests)
-	if hud != null and hud.has_method("apply_daily_board"):
-		hud.apply_daily_board(action)
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_quest_update(self, action)
 func _apply_kill_npc(npc_id: String, npc = null) -> void:
-	npc_id = npc_id.strip_edges()
-	if npc_id == _selected_npc_id:
-		_clear_npc_selection()
-	var target = npc
-	if target == null or ("npc_id" in target and str(target.npc_id) != npc_id):
-		target = _find_npc_by_id(npc_id)
-	if target == null:
-		return
-	var kill_name := "敌人"
-	if "npc_name" in target and str(target.npc_name).strip_edges() != "":
-		kill_name = str(target.npc_name)
-	if hud != null:
-		var line_k := CombatLogScript.line_kill(kill_name)
-		if hud.has_method("append_combat_typed"):
-			hud.append_combat_typed("kill", line_k)
-		elif hud.has_method("append_combat"):
-			hud.append_combat(line_k)
-		elif hud.has_method("append_system"):
-			hud.append_system(line_k)
-	var cell: Vector2i = target.cell if "cell" in target else Vector2i.ZERO
-	# Clear occupancy so the cell is walkable again.
-	var srv = Net.server()
-	if srv != null and srv.map_collision != null and srv.map_collision.has_method("set_extra_blocked"):
-		srv.map_collision.set_extra_blocked(cell.x, cell.y, false)
-	_npcs.erase(target)
-	var am_kill: Node = _asset_mgr
-	if am_kill != null and am_kill.has_method("clear_actor_refs") and npc_id != "":
-		am_kill.clear_actor_refs(npc_id)
-		if am_kill.has_method("note_actor_ring"):
-			am_kill.note_actor_ring(npc_id, "COLD")
-	if is_instance_valid(target):
-		target.queue_free()
-	if hud != null and hud.has_method("clear_target"):
-		hud.clear_target()
-
-
-
+	ActionApply.apply_kill_npc(self, npc_id, npc)
 func _apply_spawn_npc(action: Dictionary) -> void:
-	## Server timed respawn / pack-like recreate. `action.npc` mirrors npcs.json entry.
-	var npc_v: Variant = action.get("npc", action)
-	if typeof(npc_v) != TYPE_DICTIONARY:
-		return
-	var data: Dictionary = npc_v
-	var nid := str(data.get("id", "")).strip_edges()
-	if nid.is_empty():
-		return
-	# Replace stale client actor if any.
-	var existing = _find_npc_by_id(nid)
-	if existing != null:
-		_apply_kill_npc(nid, existing)
-	var layer := _ensure_npc_layer()
-	var pack_dir := ""
-	if map_field != null and map_field.pack != null:
-		pack_dir = str(map_field.pack.pack_dir)
-	var actor = NpcActor.new()
-	layer.add_child(actor)
-	actor.setup(data, map_field, pack_dir)
-	_npcs.append(actor)
-	_refresh_aoi(true)
-	# Occupancy: server already blocked; ensure client-shared collision matches.
-	var cell_v: Variant = data.get("cell", {})
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		var cd: Dictionary = cell_v
-		var cx: int = int(cd.get("x", 0))
-		var cy: int = int(cd.get("y", 0))
-		var srv = Net.server()
-		if srv != null and srv.map_collision != null and srv.map_collision.has_method("set_extra_blocked"):
-			srv.map_collision.set_extra_blocked(cx, cy, true)
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_spawn_npc(self, action)
 func _apply_gather_update(action: Dictionary) -> void:
-	## Hide depleted gather props; restore on respawn. No new art.
-	var nid := str(action.get("node_id", "")).strip_edges()
-	if nid.is_empty():
-		return
-	var actor = _find_npc_by_id(nid)
-	if actor == null:
-		return
-	var depleted := bool(action.get("depleted", false))
-	actor.visible = not depleted
-	if depleted:
-		actor.set_meta("gather_depleted", true)
-		if "npc_name" in actor:
-			var base := str(action.get("name", actor.npc_name)).strip_edges()
-			if base.is_empty():
-				base = nid
-			actor.npc_name = "%s（已采空）" % base
-			if actor.has_method("_refresh_nameplate"):
-				actor._refresh_nameplate()
-	else:
-		if actor.has_meta("gather_depleted"):
-			actor.remove_meta("gather_depleted")
-		var nm := str(action.get("name", "")).strip_edges()
-		if nm != "" and "npc_name" in actor:
-			actor.npc_name = nm
-		if actor.has_method("_refresh_nameplate"):
-			actor._refresh_nameplate()
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_gather_update(self, action)
 func _apply_fish_update(action: Dictionary) -> void:
-	## Hide depleted fishing spots; restore on respawn. No new art.
-	var sid := str(action.get("spot_id", action.get("node_id", ""))).strip_edges()
-	if sid.is_empty():
-		return
-	var actor = _find_npc_by_id(sid)
-	if actor == null:
-		return
-	var depleted := bool(action.get("depleted", false))
-	actor.visible = not depleted
-	if depleted:
-		actor.set_meta("fish_depleted", true)
-		if "npc_name" in actor:
-			var base := str(action.get("name", actor.npc_name)).strip_edges()
-			if base.is_empty():
-				base = sid
-			actor.npc_name = "%s（暂无鱼）" % base
-			if actor.has_method("_refresh_nameplate"):
-				actor._refresh_nameplate()
-	else:
-		if actor.has_meta("fish_depleted"):
-			actor.remove_meta("fish_depleted")
-		var nm := str(action.get("name", "")).strip_edges()
-		if nm != "" and "npc_name" in actor:
-			actor.npc_name = nm
-		if actor.has_method("_refresh_nameplate"):
-			actor._refresh_nameplate()
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_fish_update(self, action)
 func _find_npc_by_id(npc_id: String):
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty():
@@ -1918,19 +1140,7 @@ func _fetch_threat_snapshot(npc_id: String) -> Dictionary:
 
 
 func _apply_threat_update(action: Dictionary) -> void:
-	var nid := str(action.get("npc_id", action.get("id", ""))).strip_edges()
-	if nid.is_empty():
-		return
-	# Only refresh HUD when this is the selected target.
-	if nid != _selected_npc_id:
-		return
-	var npc = _find_npc_by_id(nid)
-	if npc == null or not _npc_shows_target_hp(npc):
-		return
-	if hud != null and hud.has_method("apply_threat_chip"):
-		hud.apply_threat_chip(true, bool(action.get("threat_you", false)))
-
-
+	ActionApply.apply_threat_update(self, action)
 func _select_npc(npc) -> void:
 	if npc == null:
 		clear_target_selection()
@@ -2772,11 +1982,7 @@ func _apply_light_preset(id: int) -> void:
 
 
 func _apply_weather_action(action: Dictionary) -> void:
-	_weather_kind = str(action.get("kind", "clear"))
-	_weather_intensity = clampf(float(action.get("intensity", 0.0)), 0.0, 1.0)
-	_apply_atmosphere()
-
-
+	ActionApply.apply_weather_action(self, action)
 func _pull_server_weather() -> void:
 	var srv = Net.server()
 	if srv != null and srv.has_method("get_weather"):
@@ -2849,23 +2055,7 @@ func _apply_sound_preset(id: int) -> void:
 
 
 func _apply_event_graphic(action: Dictionary) -> void:
-	var eid := str(action.get("event_id", "")).strip_edges()
-	if eid == "":
-		return
-	var npc = _find_npc_by_id(eid)
-	if npc == null or not npc.has_method("apply_graphic"):
-		return
-	var pack_dir := ""
-	if map_field != null and map_field.pack != null:
-		pack_dir = str(map_field.pack.pack_dir)
-	npc.apply_graphic(
-		str(action.get("charset", "")),
-		int(action.get("index", 0)),
-		int(action.get("direction", 2)),
-		pack_dir
-	)
-
-
+	ActionApply.apply_event_graphic(self, action)
 func _play_map_bgm() -> void:
 	_load_map_presets()
 	var id := ""
@@ -2961,92 +2151,13 @@ func _play_footstep() -> void:
 
 
 func _apply_player_move(action: Dictionary) -> void:
-	var cell := Vector2i(int(action.get("x", -9999)), int(action.get("y", -9999)))
-	var cell_v: Variant = action.get("cell", {})
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", cell.x)), int(cell_v.get("y", cell.y)))
-	elif typeof(cell_v) == TYPE_VECTOR2I:
-		cell = cell_v
-	if cell.x <= -9990 or player == null:
-		return
-	if player.has_method("clear_move_path"):
-		player.clear_move_path()
-	var facing := int(action.get("facing", -1))
-	if player.has_method("place_at_cell"):
-		# place_at_cell signatures vary; prefer cell-only then set facing.
-		player.place_at_cell(cell, map_field)
-	else:
-		player.cell = cell
-	if facing >= 0 and "facing" in player:
-		player.facing = facing
-	if player.has_method("snap_camera"):
-		player.snap_camera()
-	_sync_map_observer()
-
-
+	ActionApply.apply_player_move(self, action)
 func _apply_recall(action: Dictionary) -> void:
-	var cell_v: Variant = action.get("cell", {})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	elif typeof(cell_v) == TYPE_VECTOR2I:
-		cell = cell_v
-	if player == null:
-		return
-	_clear_pending_engage()
-	stop_follow()
-	_auto_attack = false
-	if player.has_method("set_sitting"):
-		player.set_sitting(false)
-	if player.has_method("clear_move_path"):
-		player.clear_move_path()
-	if player.has_method("place_at_cell"):
-		player.place_at_cell(cell, map_field)
-	else:
-		player.cell = cell
-	if player.has_method("snap_camera"):
-		player.snap_camera()
-	_sync_map_observer()
-
-
+	ActionApply.apply_recall(self, action)
 func _apply_sit(action: Dictionary) -> void:
-	var on := bool(action.get("on", false))
-	if player != null and player.has_method("set_sitting"):
-		player.set_sitting(on)
-
-
+	ActionApply.apply_sit(self, action)
 func _apply_respawn(action: Dictionary) -> void:
-	_clear_pending_engage()
-	var cell_v: Variant = action.get("cell", {})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	if player != null:
-		if player.has_method("set_sitting"):
-			player.set_sitting(false)
-		if player.has_method("clear_move_path"):
-			player.clear_move_path()
-		if player.has_method("place_at_cell"):
-			player.place_at_cell(cell, map_field)
-		else:
-			player.cell = cell
-		if player.has_method("snap_camera"):
-			player.snap_camera()
-		player.input_locked = true
-	if hud != null and hud.has_method("hide_death_dialog"):
-		hud.hide_death_dialog()
-	_respawn_lock_left = float(action.get("input_lock_sec", 1.2))
-	if hud != null and hud.has_method("apply_combat_stats"):
-		hud.apply_combat_stats({
-			"hp": int(action.get("hp", -1)),
-			"hp_max": int(action.get("hp_max", -1)),
-			"mp": int(action.get("mp", -1)),
-			"mp_max": int(action.get("mp_max", -1)),
-		})
-	if hud != null and hud.has_method("clear_target"):
-		hud.clear_target()
-
-
+	ActionApply.apply_respawn(self, action)
 func _engage_npc(npc) -> bool:
 	## Hostile -> MockServer.try_attack; friendly/script -> try_interact.
 	if npc == null:
@@ -3146,45 +2257,9 @@ func _process(delta: float) -> void:
 
 ## Hotbar / UI: use skill against current adjacent hostile (or self-heal).
 func _apply_exp_gain(action: Dictionary) -> void:
-	if hud != null and hud.has_method("apply_combat_stats"):
-		var st := {
-			"level": int(action.get("level", -1)),
-			"exp": int(action.get("exp", -1)),
-			"exp_to_next": int(action.get("exp_to_next", -1)),
-		}
-		if action.has("rested_exp"):
-			st["rested_exp"] = int(action.get("rested_exp", 0))
-		if action.has("rested_exp_max"):
-			st["rested_exp_max"] = int(action.get("rested_exp_max", 0))
-		hud.apply_combat_stats(st)
-	# Thin 「经验 +N」 float (coalesces if many gains same frame via HUD).
-	var amt: int = int(action.get("amount", 0))
-	if amt > 0 and hud != null and hud.has_method("show_exp_gain_float"):
-		hud.show_exp_gain_float(amt)
-
-
+	ActionApply.apply_exp_gain(self, action)
 func _apply_level_up(action: Dictionary) -> void:
-	var combat_v: Variant = action.get("combat", {})
-	var combat: Dictionary = combat_v if typeof(combat_v) == TYPE_DICTIONARY else {}
-	var lv: int = int(action.get("level", combat.get("level", 1)))
-	var sp_gained: int = int(action.get("skill_points_gained", action.get("sp_gained", 0)))
-	if hud != null:
-		if hud.has_method("apply_level_up"):
-			hud.apply_level_up(lv, combat, sp_gained)
-		elif hud.has_method("show_level_up_toast"):
-			hud.show_level_up_toast(lv, sp_gained)
-			if hud.has_method("apply_combat_stats"):
-				if combat.is_empty():
-					hud.apply_combat_stats({"level": lv})
-				else:
-					hud.apply_combat_stats(combat)
-		elif hud.has_method("apply_combat_stats"):
-			if combat.is_empty():
-				hud.apply_combat_stats({"level": lv})
-			else:
-				hud.apply_combat_stats(combat)
-
-
+	ActionApply.apply_level_up(self, action)
 func request_event_choice(option_id: String = "", option_index: int = -1) -> void:
 	## Dialogue option → quest_* / shop_open / MV event choice.
 	var srv = Net.server()
@@ -3203,22 +2278,7 @@ func request_event_choice(option_id: String = "", option_index: int = -1) -> voi
 
 
 func _apply_open_shop(action: Dictionary) -> void:
-	if hud != null and hud.has_method("show_shop"):
-		var listings_v: Variant = action.get("listings", [])
-		var listings: Array = listings_v if typeof(listings_v) == TYPE_ARRAY else []
-		hud.show_shop(
-			str(action.get("shop_id", "")),
-			str(action.get("title", "商店")),
-			listings,
-			int(action.get("gold", 0)),
-			int(action.get("vendor_rep", 0))
-		)
-		if hud.has_method("apply_shop_buyback"):
-			var bb: Variant = action.get("buyback", [])
-			if typeof(bb) == TYPE_ARRAY:
-				hud.apply_shop_buyback(bb)
-
-
+	ActionApply.apply_open_shop(self, action)
 func request_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> void:
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_shop_buy"):
@@ -3300,28 +2360,11 @@ func request_shop_sell_junk() -> void:
 
 
 func _apply_ground_spawn(action: Dictionary) -> void:
-	var bag_v: Variant = action.get("bag", {})
-	if typeof(bag_v) == TYPE_DICTIONARY:
-		_upsert_ground_marker(bag_v)
-
-
+	ActionApply.apply_ground_spawn(self, action)
 func _apply_ground_update(action: Dictionary) -> void:
-	var bag_v: Variant = action.get("bag", {})
-	if typeof(bag_v) == TYPE_DICTIONARY:
-		_upsert_ground_marker(bag_v)
-
-
+	ActionApply.apply_ground_update(self, action)
 func _apply_ground_despawn(action: Dictionary) -> void:
-	var bag_id := str(action.get("bag_id", "")).strip_edges()
-	if bag_id.is_empty():
-		return
-	if _ground_markers.has(bag_id):
-		var n = _ground_markers[bag_id]
-		_ground_markers.erase(bag_id)
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-
-
+	ActionApply.apply_ground_despawn(self, action)
 func _upsert_ground_marker(bag: Dictionary) -> void:
 	var bag_id := str(bag.get("id", "")).strip_edges()
 	if bag_id.is_empty():
@@ -3545,28 +2588,11 @@ func _find_ground_bag_at(cell: Vector2i) -> String:
 
 
 func _apply_loot_open(action: Dictionary) -> void:
-	if hud != null and hud.has_method("show_loot"):
-		var items_v: Variant = action.get("items", [])
-		var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-		hud.show_loot(
-			str(action.get("session_id", action.get("bag_id", ""))),
-			str(action.get("npc_id", "")),
-			items
-		)
-
-
+	ActionApply.apply_loot_open(self, action)
 func _apply_loot_update(action: Dictionary) -> void:
-	if hud != null and hud.has_method("refresh_loot"):
-		var items_v: Variant = action.get("items", [])
-		var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-		hud.refresh_loot(str(action.get("session_id", action.get("bag_id", ""))), items)
-
-
+	ActionApply.apply_loot_update(self, action)
 func _apply_loot_close(_action: Dictionary) -> void:
-	if hud != null and hud.has_method("hide_loot"):
-		hud.hide_loot()
-
-
+	ActionApply.apply_loot_close(self, _action)
 func request_open_ground_bag(bag_id: String) -> void:
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_open_ground_bag"):
@@ -3929,44 +2955,7 @@ func _tick_remote_aoi() -> void:
 
 
 func _apply_remote_move(action: Dictionary) -> void:
-	var pid := str(action.get("player_id", "")).strip_edges()
-	if pid.is_empty() or not _remote_markers.has(pid):
-		return
-	var marker = _remote_markers[pid]
-	if marker == null or not is_instance_valid(marker):
-		return
-	var cell := Vector2i(int(action.get("x", 0)), int(action.get("y", 0)))
-	marker.set_meta("cell", cell)
-	var facing: int = int(action.get("facing", 2))
-	marker.set_meta("facing", facing)
-	if map_field != null and map_field.has_method("cell_to_world"):
-		var wp: Vector2 = map_field.cell_to_world(cell)
-		marker.global_position = Vector2(wp.x, wp.y - float(map_field.tile_size) * 0.2)
-	else:
-		marker.position = Vector2(cell.x * 48 + 24, cell.y * 48 + 24)
-	var anim := marker.get_node_or_null("Anim") as AnimatedSprite2D
-	if anim != null and anim.sprite_frames != null:
-		var walk := "walk_front"
-		match facing:
-			4:
-				walk = "walk_left"
-			6:
-				walk = "walk_right"
-			8:
-				walk = "walk_back"
-			1, 2, 3:
-				walk = "walk_front"
-			7:
-				walk = "walk_left"
-			9:
-				walk = "walk_right"
-			_:
-				walk = "walk_front"
-		if anim.sprite_frames.has_animation(walk):
-			anim.play(walk)
-	_radar_blips_ready = false
-
-
+	ActionApply.apply_remote_move(self, action)
 func _ensure_remote_layer() -> Node2D:
 	var layer := get_node_or_null("RemotePlayerLayer") as Node2D
 	if layer != null and is_instance_valid(layer):
@@ -4126,33 +3115,7 @@ func _remove_pet_marker() -> void:
 
 
 func _apply_pet_move(action: Dictionary) -> void:
-	if _pet_marker == null or not is_instance_valid(_pet_marker):
-		return
-	var cell := Vector2i(int(action.get("x", 0)), int(action.get("y", 0)))
-	_pet_marker.set_meta("cell", cell)
-	var facing: int = int(action.get("facing", 2))
-	_pet_marker.set_meta("facing", facing)
-	if map_field != null and map_field.has_method("cell_to_world"):
-		var wp: Vector2 = map_field.cell_to_world(cell)
-		_pet_marker.global_position = Vector2(wp.x, wp.y - float(map_field.tile_size) * 0.2)
-	else:
-		_pet_marker.position = Vector2(cell.x * 48 + 24, cell.y * 48 + 24)
-	var anim := _pet_marker.get_node_or_null("Anim") as AnimatedSprite2D
-	if anim != null and anim.sprite_frames != null:
-		var walk := "walk_front"
-		match facing:
-			4:
-				walk = "walk_left"
-			6:
-				walk = "walk_right"
-			8:
-				walk = "walk_back"
-			_:
-				walk = "walk_front"
-		if anim.sprite_frames.has_animation(walk):
-			anim.play(walk)
-
-
+	ActionApply.apply_pet_move(self, action)
 func request_chat(channel: String, text: String, whisper_to: String = "") -> void:
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_chat"):
@@ -4624,28 +3587,9 @@ func request_learn_skill(skill_id: String) -> void:
 
 
 func _apply_attr_update(action: Dictionary) -> void:
-	if hud == null:
-		return
-	var st: Dictionary = {}
-	if action.has("attr_points"):
-		st["attr_points"] = int(action.get("attr_points", 0))
-	if action.has("attrs"):
-		st["attrs"] = action.get("attrs", {})
-	var combat_v: Variant = action.get("combat", {})
-	if typeof(combat_v) == TYPE_DICTIONARY and not (combat_v as Dictionary).is_empty():
-		for k in (combat_v as Dictionary).keys():
-			st[str(k)] = (combat_v as Dictionary)[k]
-	if hud.has_method("apply_attr_update"):
-		hud.apply_attr_update(action)
-	elif hud.has_method("apply_combat_stats") and not st.is_empty():
-		hud.apply_combat_stats(st)
-
-
+	ActionApply.apply_attr_update(self, action)
 func _apply_skill_book_update(action: Dictionary) -> void:
-	if hud != null and hud.has_method("apply_skill_book"):
-		hud.apply_skill_book(action)
-
-
+	ActionApply.apply_skill_book_update(self, action)
 func request_skill_respec() -> void:
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_skill_respec"):
@@ -4657,10 +3601,7 @@ func request_skill_respec() -> void:
 
 
 func _apply_skill_respec(action: Dictionary) -> void:
-	if hud != null and hud.has_method("apply_skill_respec"):
-		hud.apply_skill_respec(action)
-
-
+	ActionApply.apply_skill_respec(self, action)
 func request_use_skill(skill_id: String, ground: Vector2i = Vector2i(-9999, -9999)) -> void:
 	if player == null or player.input_locked:
 		return
@@ -4802,73 +3743,9 @@ func _update_skill_aim_preview() -> void:
 
 
 func _apply_skill_fx(action: Dictionary) -> void:
-	_ensure_skill_fx()
-	var cell_v: Variant = action.get("cell", {})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var world_pos := Vector2.ZERO
-	if map_field != null and map_field.has_method("cell_to_world"):
-		world_pos = map_field.cell_to_world(cell)
-		var ts := 48.0
-		if "tile_size" in map_field:
-			ts = float(map_field.tile_size)
-		world_pos.y -= ts * 0.5
-	else:
-		world_pos = Vector2(float(cell.x) * 48.0 + 24.0, float(cell.y) * 48.0 + 24.0)
-	var radius: int = int(action.get("radius", 0))
-	var ts2 := 48.0
-	if map_field != null and "tile_size" in map_field:
-		ts2 = float(map_field.tile_size)
-	var rpx: float = maxf(ts2 * float(maxi(radius, 1)), ts2)
-	var effect := str(action.get("effect", ""))
-	var sid := str(action.get("skill_id", ""))
-	var anim := str(action.get("anim", "")).strip_edges()
-	if anim == "strike" or anim == "dash" or anim == "spin" or anim == "cast":
-		if effect == "aoe_damage" or radius > 0:
-			_skill_fx.play_impact("flame", world_pos, rpx)
-			_skill_fx.play_ring(world_pos, rpx)
-		elif effect == "damage" or effect == "damage_and_status":
-			_skill_fx.play_impact("bolt" if anim == "dash" else "flame", world_pos, 28.0)
-		return
-	if effect == "damage" or effect == "damage_and_status" or sid == "arcane_bolt" or sid == "poison_dart" or sid == "channel_beam":
-		var from_pos := world_pos
-		if player != null:
-			from_pos = player.global_position
-		var actor := str(action.get("actor", "player"))
-		if actor != "player":
-			var n = _find_npc_by_id(actor)
-			if n != null:
-				from_pos = n.global_position
-		_skill_fx.play_bolt(from_pos, world_pos, "bolt")
-	else:
-		_skill_fx.play_impact("flame", world_pos, rpx)
-		if radius > 0:
-			_skill_fx.play_ring(world_pos, rpx)
-
-
+	ActionApply.apply_skill_fx(self, action)
 func _apply_skill_anim(action: Dictionary) -> void:
-	_ensure_skill_fx()
-	var kind := str(action.get("kind", "cast")).strip_edges()
-	var actor := str(action.get("actor", "player"))
-	var node: Node2D = null
-	var facing := "front"
-	if actor == "player" or actor.is_empty():
-		node = player
-		if player != null and player.has_method("get_facing"):
-			facing = str(player.get_facing())
-		elif player != null and "_facing" in player:
-			facing = str(player._facing)
-	else:
-		node = _find_npc_by_id(actor)
-	if node == null:
-		return
-	if _skill_fx.has_method("play_action"):
-		_skill_fx.play_action(kind, node, facing)
-	else:
-		_skill_fx.flash_actor(node)
-
-
+	ActionApply.apply_skill_anim(self, action)
 func request_use_item(item_id: String) -> void:
 	if player == null or player.input_locked:
 		return
