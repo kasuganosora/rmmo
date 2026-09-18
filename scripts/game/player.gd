@@ -9,6 +9,9 @@ const TileId = preload("res://scripts/map/tile_id.gd")
 const Net = preload("res://scripts/net/net.gd")
 const GridPath = preload("res://scripts/map/grid_path.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
+const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
+const Customization = preload("res://scripts/char/customization.gd")
+const HurtFlash = preload("res://scripts/game/hurt_flash.gd")
 
 @export var step_duration: float = 0.16
 @export var run_duration: float = 0.09
@@ -22,11 +25,14 @@ var _facing: String = "front"
 var cell: Vector2i = Vector2i.ZERO
 var moving: bool = false
 var input_locked: bool = false
+var sitting: bool = false
 var map_field: Node2D = null
 
 ## Click-to-move waypoints (cells to visit; excludes current).
 var _move_path: Array[Vector2i] = []
 var _dest_marker: Polygon2D = null
+var _weapon_spr: Sprite2D = null
+var _hurt_flash = HurtFlash.new()
 
 
 func setup(p_look_id: String, p_gender: String = LookCatalog.GENDER_FEMALE, p_customization: Dictionary = {}) -> void:
@@ -55,6 +61,136 @@ func setup(p_look_id: String, p_gender: String = LookCatalog.GENDER_FEMALE, p_cu
 	anim.offset = Vector2(0, -32)  # half of 64px frame; feet on cell bottom
 	anim.play("idle_front")
 	z_index = 5
+
+
+## Incoming-damage feedback. World calls this only for target == "player".
+func flash_hurt() -> void:
+	if anim == null:
+		anim = get_node_or_null("%Anim") as AnimatedSprite2D
+	_hurt_flash.trigger(anim)
+
+
+func is_hurt_flashing() -> bool:
+	return _hurt_flash.is_active()
+
+
+func apply_gear_look(ch: Dictionary, equipment: Array, catalog = null) -> void:
+	if anim == null:
+		anim = get_node_or_null("%Anim") as AnimatedSprite2D
+	if anim == null:
+		return
+	var PaperdollLook = load("res://scripts/char/paperdoll_look.gd")
+	var gender := LookCatalog.normalize_gender(str(ch.get("gender", gender)))
+	var cust_d: Dictionary = {}
+	var raw: Variant = ch.get("customization", {})
+	if typeof(raw) == TYPE_DICTIONARY:
+		cust_d = raw
+	var cust = Customization.from_dict(cust_d) if not cust_d.is_empty() else null
+	var parts: Dictionary = {}
+	var colors: Dictionary = {}
+	if cust != null:
+		parts = cust.part_ids.duplicate()
+		colors = cust.colors()
+	if parts.is_empty():
+		parts = MV.default_parts(gender)
+	if PaperdollLook != null and PaperdollLook.has_method("equipment_to_mv_parts"):
+		var overlay: Dictionary = PaperdollLook.equipment_to_mv_parts(gender, equipment, catalog)
+		parts = MV.apply_equipment(parts, overlay)
+	parts = MV.validate_parts(gender, parts)
+	var frames: SpriteFrames = MV.compose_frames(gender, parts, colors)
+	if frames == null:
+		return
+	var facing := _facing
+	anim.sprite_frames = frames
+	anim.scale = Vector2(1.35, 1.35)
+	anim.centered = true
+	anim.offset = Vector2(0, -32)
+	var idle := "idle_%s" % facing
+	if anim.sprite_frames.has_animation(idle):
+		anim.play(idle)
+	else:
+		anim.play("idle_front")
+	_sync_weapon_overlay(equipment)
+
+
+func _sync_weapon_overlay(equipment: Array) -> void:
+	var item_id := ""
+	for it in equipment:
+		if typeof(it) != TYPE_DICTIONARY:
+			continue
+		var sid := str(it.get("slot", "")).strip_edges()
+		var iid := str(it.get("item_id", it.get("id", ""))).strip_edges()
+		if sid == "weapon_main" and iid != "":
+			item_id = iid
+			break
+	if item_id.is_empty():
+		if _weapon_spr != null:
+			_weapon_spr.visible = false
+		return
+	var tex := _load_equip_tex(item_id)
+	if tex == null:
+		if _weapon_spr != null:
+			_weapon_spr.visible = false
+		return
+	if _weapon_spr == null or not is_instance_valid(_weapon_spr):
+		_weapon_spr = Sprite2D.new()
+		_weapon_spr.name = "WeaponOverlay"
+		_weapon_spr.centered = true
+		_weapon_spr.z_index = 6
+		add_child(_weapon_spr)
+	_weapon_spr.texture = tex
+	_weapon_spr.visible = true
+	_place_weapon_overlay()
+
+
+func _place_weapon_overlay() -> void:
+	if _weapon_spr == null:
+		return
+	var tw: float = float(_weapon_spr.texture.get_width()) if _weapon_spr.texture else 64.0
+	var sc: float = 28.0 / maxf(tw, 1.0)
+	_weapon_spr.scale = Vector2(sc, sc)
+	match _facing:
+		"left":
+			_weapon_spr.position = Vector2(-11, -26)
+			_weapon_spr.flip_h = true
+			_weapon_spr.rotation = -0.35
+			_weapon_spr.z_index = 6
+		"right":
+			_weapon_spr.position = Vector2(11, -26)
+			_weapon_spr.flip_h = false
+			_weapon_spr.rotation = 0.35
+			_weapon_spr.z_index = 6
+		"back":
+			_weapon_spr.position = Vector2(-7, -30)
+			_weapon_spr.flip_h = false
+			_weapon_spr.rotation = -0.2
+			_weapon_spr.z_index = 4
+		_:
+			_weapon_spr.position = Vector2(8, -22)
+			_weapon_spr.flip_h = false
+			_weapon_spr.rotation = 0.45
+			_weapon_spr.z_index = 6
+
+
+func _load_equip_tex(item_id: String) -> Texture2D:
+	var path := "res://assets/fx/equip_%s.png" % item_id.strip_edges()
+	if ResourceLoader.exists(path):
+		var res: Resource = load(path)
+		if res is Texture2D:
+			return res
+	if FileAccess.file_exists(path):
+		var img := Image.new()
+		if img.load(path) == OK:
+			return ImageTexture.create_from_image(img)
+	return null
+
+
+func apply_camera_zoom(z: float) -> void:
+	var cam := get_node_or_null("Camera2D") as Camera2D
+	if cam == null:
+		return
+	z = clampf(z, 0.6, 2.0)
+	cam.zoom = Vector2(z, z)
 
 
 func place_at_cell(p_cell: Vector2i, field: Node2D = null) -> void:
@@ -94,6 +230,13 @@ func _reenable_camera_smoothing() -> void:
 	cam.set_meta("_snap_pending", false)
 	cam.position_smoothing_enabled = bool(cam.get_meta("_want_smooth", true))
 	cam.reset_smoothing()
+
+
+func set_sitting(on: bool) -> void:
+	sitting = on
+	if on:
+		clear_move_path()
+		_play_idle()
 
 
 func clear_move_path() -> void:
@@ -142,7 +285,8 @@ func click_move_to(target: Vector2i) -> bool:
 	return true
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	_hurt_flash.tick(delta)
 	if input_locked:
 		return
 	var dir_vec := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -225,6 +369,13 @@ func _try_step(d: int) -> void:
 	var dur := step_duration
 	if _sprinting() and not bool(result.get("no_dash", false)):
 		dur = run_duration
+	var mul := float(result.get("move_speed_mul", 1.0))
+	if mul < 0.25:
+		mul = 0.25
+	elif mul > 3.0:
+		mul = 3.0
+	if mul != 1.0:
+		dur = dur / mul
 	var tw := create_tween()
 	tw.set_trans(Tween.TRANS_LINEAR)
 	tw.tween_property(self, "global_position", target, dur)
@@ -280,6 +431,7 @@ func _set_facing_from_dir(d: int) -> void:
 			_facing = "back"
 		_:
 			_facing = "front"
+	_place_weapon_overlay()
 
 
 func _play_walk() -> void:
@@ -298,7 +450,23 @@ func _play_idle() -> void:
 		anim.play(idle)
 
 
+
+
+## Effective step tween duration after move_speed_mul (for tests / tooling).
+func step_duration_with_mul(base_duration: float, move_speed_mul: float = 1.0) -> float:
+	var mul := float(move_speed_mul)
+	if mul < 0.25:
+		mul = 0.25
+	elif mul > 3.0:
+		mul = 3.0
+	if mul == 0.0:
+		mul = 1.0
+	return float(base_duration) / mul
+
+
 func _sprinting() -> bool:
+	if GameSettingsScript.flag("always_run", false):
+		return true
 	return Input.is_physical_key_pressed(KEY_SHIFT)
 
 

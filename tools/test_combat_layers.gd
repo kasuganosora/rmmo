@@ -21,6 +21,16 @@ func _init() -> void:
 	bag.grant_starter()
 	var engine = CombatEngine.new()
 	engine.setup(stats, skills, items, bag)
+	engine.combat_randf = func() -> float: return 0.5  # force hit, no crit
+
+	# Skill-book gate: learn non-starters used by this suite.
+	stats.ensure_skill_book()
+	if stats.skill_book.list_known().is_empty():
+		stats.skill_book.grant_starters(skills)
+	stats.skill_book.grant_skill_points(99)
+	for _sid in ["heal_light", "tough_skin"]:
+		if not stats.skill_book.is_known(_sid):
+			stats.skill_book.try_learn(_sid, skills, 99)
 
 	failed += _expect(skills.has_skill("power_strike"), "skill power_strike loaded")
 	failed += _expect(items.has_item("potion_hp_small"), "item potion loaded")

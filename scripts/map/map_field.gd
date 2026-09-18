@@ -361,6 +361,8 @@ func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
 	_emit_progress(progress, 0.05)
 	if do_yield:
 		await get_tree().process_frame
+		if not is_instance_valid(self):
+			return
 	pack = TilemapPack.load_pack(_resolve_pack_path(pack_path), _resolved_map_id())
 	if pack == null or pack.width <= 0:
 		push_error("MapField: failed to load pack at %s" % pack_path)
@@ -376,10 +378,14 @@ func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
 	_emit_progress(progress, 0.12)
 	if do_yield:
 		await get_tree().process_frame
+		if not is_instance_valid(self):
+			return
 	_bake_lofi_overview()
 	_emit_progress(progress, 0.88)
 	if do_yield:
 		await get_tree().process_frame
+		if not is_instance_valid(self):
+			return
 	_stream_ready = true
 	_obs_cell = _spawn_cell_from_session()
 	_rebuild_chunks_around(_obs_cell, not do_yield)
@@ -388,6 +394,8 @@ func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
 			_bake_next_chunk()
 			_emit_progress(progress, 0.88 + 0.12 * (1.0 - float(_chunk_queue.size()) / 8.0))
 			await get_tree().process_frame
+			if not is_instance_valid(self):
+				return
 		_publish_lofi_atlas()
 	_emit_progress(progress, 1.0)
 
@@ -678,15 +686,22 @@ func ensure_world_map() -> void:
 	if _wm_complete and _lofi_image != null and _lofi_image.get_width() > 8:
 		return
 	_alloc_world_map_canvas()
-	_fill_world_map_queue()
+	# Do not clear/rebuild an in-flight JIT queue on every pan kick.
+	if _wm_jit_q.is_empty() and not _wm_complete:
+		_fill_world_map_queue()
 
 
 func world_map_step(n: int = 4) -> bool:
-	if _wm_complete or _wm_jit_q.is_empty():
-		if _wm_jit_q.is_empty() and _uses_radar_window() and _lofi_image != null:
+	if _wm_complete:
+		return true
+	if _wm_jit_q.is_empty():
+		# Already drained (or never queued) — finalize once, never re-commit every pan kick.
+		if _uses_radar_window() and _lofi_image != null:
 			_wm_complete = true
 			_commit_world_map_tex()
 			_try_save_world_map()
+		else:
+			_wm_complete = true
 		return _wm_complete
 	n = maxi(n, 1)
 	var sheets: Array = pack.sheets if pack else []
@@ -696,10 +711,13 @@ func world_map_step(n: int = 4) -> bool:
 		var ch: Vector2i = _wm_jit_q.pop_front()
 		_stamp_world_chunk(ch.x, ch.y, _world_chunk_buf(ch.x, ch.y), sheets, flags)
 		did += 1
-	_commit_world_map_tex()
+	# Commit when batch done or queue drained; avoid uploading full overview every pan.
 	if _wm_jit_q.is_empty():
 		_wm_complete = true
+		_commit_world_map_tex()
 		_try_save_world_map()
+	elif did > 0 and (_wm_jit_q.size() % 16 == 0):
+		_commit_world_map_tex()
 	return _wm_complete
 
 
@@ -730,14 +748,17 @@ func _alloc_world_map_canvas() -> void:
 	_wm_step = maxi(int(m.get("step", 1)), 1)
 	var iw: int = int(m.get("w", 1))
 	var ih: int = int(m.get("h", 1))
-	if _lofi_image != null and _lofi_image.get_width() == iw and _lofi_image.get_height() == ih and _wm_complete:
-		return
-	var keep: Image = null
 	if _lofi_image != null and _lofi_image.get_width() == iw and _lofi_image.get_height() == ih:
-		keep = _lofi_image
-	var img := keep if keep != null else Image.create(iw, ih, false, Image.FORMAT_RGBA8)
-	if keep == null:
-		img.fill(Color(0.04, 0.05, 0.05, 1))
+		if _wm_bytes.is_empty():
+			_wm_bytes = _lofi_image.get_data()
+		if _wm_complete:
+			return
+		# Canvas already sized for this map — keep baking into it.
+		_ground_image = _lofi_image
+		_ensure_lofi_sprite()
+		return
+	var img := Image.create(iw, ih, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.04, 0.05, 0.05, 1))
 	_lofi_image = img
 	_ground_image = img
 	_wm_bytes = img.get_data()
@@ -1318,6 +1339,15 @@ func set_atmosphere(light_id: int, kind: String, intensity: float) -> Dictionary
 		_weather_fx.apply(atm)
 	_sync_weather_eaves()
 	return atm
+
+
+func weather_display_modulate() -> Color:
+	if _weather_fx != null and is_instance_valid(_weather_fx) and _weather_fx.has_method("display_modulate"):
+		return _weather_fx.display_modulate()
+	var c: Variant = last_atmosphere.get("modulate", Color.WHITE)
+	if typeof(c) == TYPE_COLOR:
+		return c
+	return Color.WHITE
 
 
 func _ensure_weather_fx() -> void:

@@ -1,7 +1,10 @@
 extends RefCounted
+
+const TileId = preload("res://scripts/map/tile_id.gd")
 ## RPG Maker MV–inspired map event runtime (MockServer-authoritative subset).
 ## Triggers: action / player_touch / event_touch / autorun.
-## Skipped (stub): parallel; battles, move routes, pictures, common events.
+## Commands include thin move_route (turn/move/wait; server-authoritative).
+## Skipped (stub): parallel; battles, pictures, common events, full MV route editor.
 
 ## Global switches: id -> bool (session-wide).
 var switches: Dictionary = {}
@@ -459,10 +462,14 @@ func _run_commands(event_id: String, commands: Array, server_ctx: Dictionary) ->
 				return actions
 			"open_shop":
 				actions.append_array(_cmd_open_shop(cmd, server_ctx))
+			"inn_rest", "rest_inn":
+				actions.append_array(_cmd_inn_rest(cmd, server_ctx))
+			"move_route", "set_move_route":
+				actions.append_array(_cmd_move_route(event_id, cmd, server_ctx))
 			"end", "stop", "exit":
 				return actions
 			_:
-				# Unknown / skipped MV ops (battle, move_route, picture, tint, bgm, …).
+				# Unknown / skipped MV ops (battle, picture, tint, common event, …).
 				pass
 	return actions
 
@@ -693,6 +700,14 @@ func _cmd_open_shop(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 		return []
 	if shop_catalog.has_method("has_shop") and not shop_catalog.has_shop(shop_id):
 		return [{"type": "system_message", "text": "商店不存在。"}]
+	# Prefer MockServer open path (discounted listings + vendor_rep).
+	var cb: Variant = server_ctx.get("open_shop_cb", null)
+	if cb is Callable:
+		var result: Variant = cb.call(shop_id)
+		if typeof(result) == TYPE_DICTIONARY:
+			var acts_v: Variant = (result as Dictionary).get("actions", [])
+			if typeof(acts_v) == TYPE_ARRAY:
+				return acts_v
 	var gold_v: int = inv.get_gold() if inv != null and inv.has_method("get_gold") else 0
 	return [{
 		"type": "open_shop",
@@ -700,4 +715,246 @@ func _cmd_open_shop(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 		"title": shop_catalog.shop_title(shop_id) if shop_catalog.has_method("shop_title") else shop_id,
 		"listings": shop_catalog.build_listings(shop_id) if shop_catalog.has_method("build_listings") else [],
 		"gold": gold_v,
+		"vendor_rep": 0,
 	}]
+
+
+func _cmd_inn_rest(cmd: Dictionary, server_ctx: Dictionary) -> Array:
+	var cost := int(cmd.get("cost", cmd.get("gold", cmd.get("amount", 25))))
+	if cost < 0:
+		cost = 25
+	var cb: Variant = server_ctx.get("inn_rest_cb", null)
+	if cb is Callable:
+		var result: Variant = cb.call(cost)
+		if typeof(result) == TYPE_DICTIONARY:
+			var acts_v: Variant = (result as Dictionary).get("actions", [])
+			if typeof(acts_v) == TYPE_ARRAY:
+				return acts_v
+			return []
+		if typeof(result) == TYPE_ARRAY:
+			return result
+	return [{"type": "system_message", "text": "无法休息。"}]
+
+
+## Update event occupancy cell (events_by_id + events_by_cell). Used by move_route.
+func update_event_cell(event_id: String, x: int, y: int) -> void:
+	event_id = event_id.strip_edges()
+	if event_id.is_empty() or not events_by_id.has(event_id):
+		return
+	var ev: Dictionary = events_by_id[event_id]
+	var old_v: Variant = ev.get("cell", null)
+	if typeof(old_v) == TYPE_DICTIONARY:
+		var oc: Dictionary = old_v
+		var old_key := "%d,%d" % [int(oc.get("x", 0)), int(oc.get("y", 0))]
+		if str(events_by_cell.get(old_key, "")) == event_id:
+			events_by_cell.erase(old_key)
+	ev["cell"] = {"x": x, "y": y}
+	var new_key := "%d,%d" % [x, y]
+	events_by_cell[new_key] = event_id
+
+
+## Thin MV move_route:
+## {
+##   "op": "move_route",
+##   "target": "self" | "<npc_or_event_id>",
+##   "route": [{"code":"move_down"|"move_left"|"move_right"|"move_up"|"turn_up"|...|"wait", "repeat":1}],
+##   "wait": true,       # MV wait-for-completion; thin shell always runs sync
+##   "skippable": false  # true = skip blocked step; false = stop route cleanly
+## }
+## Emits npc_move (and wait) actions the client already understands via _apply_npc_move.
+func _cmd_move_route(event_id: String, cmd: Dictionary, server_ctx: Dictionary) -> Array:
+	var target := str(cmd.get("target", "self")).strip_edges()
+	if target == "" or target.to_lower() in ["self", "this", "event"]:
+		target = event_id
+	var route_v: Variant = cmd.get("route", cmd.get("list", cmd.get("steps", [])))
+	if typeof(route_v) != TYPE_ARRAY:
+		return []
+	var route: Array = route_v
+	if route.is_empty():
+		return []
+	var skippable := bool(cmd.get("skippable", false))
+	var cell := _route_resolve_cell(target, server_ctx)
+	var facing := _route_resolve_facing(target, server_ctx)
+	var out: Array = []
+	for raw_step in route:
+		var steps: Array = _route_expand_step(raw_step)
+		for step in steps:
+			if typeof(step) != TYPE_DICTIONARY:
+				continue
+			var code := str(step.get("code", step.get("op", ""))).strip_edges().to_lower()
+			if code == "" or code == "wait":
+				var wait_src: Dictionary = step if code == "wait" else {"duration": 0.2}
+				out.append({
+					"type": "wait",
+					"duration": _route_wait_duration(wait_src),
+				})
+				continue
+			var turn_dir := _route_turn_dir(code)
+			if turn_dir > 0:
+				facing = turn_dir
+				_route_apply_face(target, facing, server_ctx)
+				out.append(_route_npc_move_action(target, cell.x, cell.y, facing))
+				continue
+			var move_dir := _route_move_dir(code)
+			if move_dir <= 0:
+				continue
+			var moved: Dictionary = _route_try_step(target, cell.x, cell.y, move_dir, server_ctx)
+			if not bool(moved.get("ok", false)):
+				if skippable:
+					continue
+				# Stop cleanly on blocked tile — do not crash.
+				return out
+			cell = Vector2i(int(moved.get("x", cell.x)), int(moved.get("y", cell.y)))
+			facing = int(moved.get("facing", move_dir))
+			if not TileId.is_dir(facing):
+				facing = move_dir
+			out.append(_route_npc_move_action(target, cell.x, cell.y, facing))
+			var extra_v: Variant = moved.get("actions", [])
+			if typeof(extra_v) == TYPE_ARRAY and not (extra_v as Array).is_empty():
+				out.append_array(extra_v)
+	return out
+
+
+func _route_expand_step(raw: Variant) -> Array:
+	## One route entry → N identical step dicts (honours repeat).
+	if typeof(raw) == TYPE_STRING:
+		raw = {"code": str(raw)}
+	if typeof(raw) != TYPE_DICTIONARY:
+		return []
+	var step: Dictionary = raw
+	var n := maxi(int(step.get("repeat", step.get("count", 1))), 1)
+	n = mini(n, 32)
+	var out: Array = []
+	for _i in range(n):
+		out.append(step)
+	return out
+
+
+func _route_wait_duration(step: Dictionary) -> float:
+	var dur := float(step.get("duration", step.get("seconds", step.get("sec", 0))))
+	if dur <= 0.0:
+		var frames := int(step.get("frames", 0))
+		if frames > 0:
+			dur = float(frames) / 60.0
+	if dur <= 0.0:
+		dur = 0.2
+	return dur
+
+
+func _route_move_dir(code: String) -> int:
+	match code:
+		"move_down", "down", "move_2", "2":
+			return 2
+		"move_left", "left", "move_4", "4":
+			return 4
+		"move_right", "right", "move_6", "6":
+			return 6
+		"move_up", "up", "move_8", "8":
+			return 8
+		_:
+			return 0
+
+
+func _route_turn_dir(code: String) -> int:
+	match code:
+		"turn_down", "face_down", "turn_2":
+			return 2
+		"turn_left", "face_left", "turn_4":
+			return 4
+		"turn_right", "face_right", "turn_6":
+			return 6
+		"turn_up", "face_up", "turn_8":
+			return 8
+		_:
+			return 0
+
+
+func _route_resolve_cell(target_id: String, server_ctx: Dictionary) -> Vector2i:
+	var cb: Variant = server_ctx.get("npc_cell_cb", null)
+	if typeof(cb) == TYPE_CALLABLE:
+		var v: Variant = (cb as Callable).call(target_id)
+		if typeof(v) == TYPE_VECTOR2I:
+			return v
+		if typeof(v) == TYPE_DICTIONARY:
+			return Vector2i(int(v.get("x", 0)), int(v.get("y", 0)))
+	var ev: Dictionary = get_event(target_id)
+	if not ev.is_empty():
+		var c_v: Variant = ev.get("cell", {})
+		if typeof(c_v) == TYPE_DICTIONARY:
+			return Vector2i(int(c_v.get("x", 0)), int(c_v.get("y", 0)))
+	return Vector2i.ZERO
+
+
+func _route_resolve_facing(target_id: String, server_ctx: Dictionary) -> int:
+	var cb: Variant = server_ctx.get("npc_facing_cb", null)
+	if typeof(cb) == TYPE_CALLABLE:
+		var v: Variant = (cb as Callable).call(target_id)
+		var f := int(v)
+		if f in [2, 4, 6, 8]:
+			return f
+	var ev: Dictionary = get_event(target_id)
+	if not ev.is_empty():
+		var page: Dictionary = select_page(ev)
+		var g_v: Variant = page.get("graphic", {})
+		if typeof(g_v) == TYPE_DICTIONARY:
+			var d := int(g_v.get("direction", 2))
+			if d in [2, 4, 6, 8]:
+				return d
+	return 2
+
+
+func _route_apply_face(target_id: String, facing: int, server_ctx: Dictionary) -> void:
+	var cb: Variant = server_ctx.get("npc_face_cb", null)
+	if typeof(cb) == TYPE_CALLABLE:
+		(cb as Callable).call(target_id, facing)
+
+
+func _route_try_step(
+	target_id: String, from_x: int, from_y: int, dir: int, server_ctx: Dictionary
+) -> Dictionary:
+	var cb: Variant = server_ctx.get("npc_step_cb", null)
+	if typeof(cb) == TYPE_CALLABLE:
+		var r: Variant = (cb as Callable).call(target_id, from_x, from_y, dir)
+		if typeof(r) == TYPE_DICTIONARY:
+			if bool(r.get("ok", false)) and has_event(target_id):
+				update_event_cell(target_id, int(r.get("x", from_x)), int(r.get("y", from_y)))
+			return r
+		return {"ok": false, "x": from_x, "y": from_y}
+	var col = server_ctx.get("collision", null)
+	if col != null and col.has_method("can_pass"):
+		if not bool(col.can_pass(from_x, from_y, dir)):
+			return {"ok": false, "x": from_x, "y": from_y}
+	elif col != null and col.has_method("is_blocked"):
+		var delta: Vector2i = TileId.dir_delta(dir)
+		var nx2: int = from_x + delta.x
+		var ny2: int = from_y + delta.y
+		if bool(col.is_blocked(nx2, ny2)):
+			return {"ok": false, "x": from_x, "y": from_y}
+	var delta2: Vector2i = TileId.dir_delta(dir)
+	var nx: int = from_x + delta2.x
+	var ny: int = from_y + delta2.y
+	var pc_v: Variant = server_ctx.get("player_cell", null)
+	if typeof(pc_v) == TYPE_VECTOR2I:
+		var pc: Vector2i = pc_v
+		if nx == pc.x and ny == pc.y:
+			return {"ok": false, "x": from_x, "y": from_y}
+	elif typeof(pc_v) == TYPE_DICTIONARY:
+		if nx == int(pc_v.get("x", -9999)) and ny == int(pc_v.get("y", -9999)):
+			return {"ok": false, "x": from_x, "y": from_y}
+	if has_event(target_id):
+		update_event_cell(target_id, nx, ny)
+	if col != null and col.has_method("set_extra_blocked"):
+		col.set_extra_blocked(from_x, from_y, false)
+		col.set_extra_blocked(nx, ny, true)
+	return {"ok": true, "x": nx, "y": ny, "facing": dir, "npc_id": target_id}
+
+
+func _route_npc_move_action(npc_id: String, x: int, y: int, facing: int) -> Dictionary:
+	return {
+		"type": "npc_move",
+		"npc_id": npc_id,
+		"x": x,
+		"y": y,
+		"facing": facing,
+	}
+

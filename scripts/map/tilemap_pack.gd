@@ -247,6 +247,13 @@ static func _parse_npcs(v: Variant) -> Array:
 			var sid := str(n.get("shop_id", "")).strip_edges()
 			if sid != "":
 				entry["shop_id"] = sid
+		# Inn rest flag (MockServer try_interact → rest confirm → try_inn_rest).
+		if n.has("inn_rest") and bool(n.get("inn_rest")):
+			entry["inn_rest"] = true
+			entry["inn_cost"] = maxi(int(n.get("inn_cost", 25)), 0)
+		elif n.has("inn_cost"):
+			entry["inn_rest"] = true
+			entry["inn_cost"] = maxi(int(n.get("inn_cost", 25)), 0)
 		# Inline MV event shortcut (EventRuntime merges by id).
 		if n.has("event") and typeof(n.get("event")) == TYPE_DICTIONARY:
 			entry["event"] = (n.get("event") as Dictionary).duplicate(true)
@@ -254,6 +261,30 @@ static func _parse_npcs(v: Variant) -> Array:
 			entry["leash_radius"] = int(n.get("leash_radius"))
 		if n.has("respawn_sec"):
 			entry["respawn_sec"] = float(n.get("respawn_sec"))
+		# World-boss / elite combat overrides (MockServer register_npc).
+		if n.has("hp_max"):
+			entry["hp_max"] = maxi(int(n.get("hp_max", 1)), 1)
+		if n.has("atk"):
+			entry["atk"] = maxi(int(n.get("atk", 0)), 0)
+		if n.has("def"):
+			entry["def"] = maxi(int(n.get("def", 0)), 0)
+		if n.has("world_boss") and bool(n.get("world_boss")):
+			entry["world_boss"] = true
+		elif n.has("is_boss") and bool(n.get("is_boss")):
+			entry["world_boss"] = true
+			entry["is_boss"] = true
+		if n.has("boss_bonus_gold"):
+			entry["boss_bonus_gold"] = maxi(int(n.get("boss_bonus_gold", 0)), 0)
+		if n.has("boss_bonus_exp"):
+			entry["boss_bonus_exp"] = maxi(int(n.get("boss_bonus_exp", 0)), 0)
+		if n.has("skills") and typeof(n.get("skills")) == TYPE_ARRAY:
+			var sl: Array = []
+			for sid_v in n.get("skills"):
+				var sid := str(sid_v).strip_edges()
+				if sid != "":
+					sl.append(sid)
+			if not sl.is_empty():
+				entry["skills"] = sl
 		out.append(entry)
 	return out
 

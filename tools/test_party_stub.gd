@@ -85,15 +85,20 @@ func _run() -> void:
 			still = true
 	failed += _expect(not still, "kicked member gone")
 
-	# invite by name spawns stub
+	# invite by name is pending, then stub accepts
 	var inv: Dictionary = srv.try_party_invite("测试盟友")
 	failed += _expect(bool(inv.get("ok", false)), "invite ok")
-	var inv_mems: Array = _first_action(inv, "party_update").get("party", {}).get("members", [])
+	var pending: Array = srv.snapshot_party().get("pending_invites", [])
+	failed += _expect(pending.size() >= 1, "invite pending")
+	if srv._party_invites.size() > 0:
+		srv._party_invites[0]["ready_at"] = 0
+	var resolved: Array = srv._tick_party_invites()
+	failed += _expect(resolved.size() >= 1, "invite resolved")
 	var found_name := false
-	for m3 in inv_mems:
+	for m3 in srv.snapshot_party().get("members", []):
 		if typeof(m3) == TYPE_DICTIONARY and str(m3.get("name", "")) == "测试盟友":
 			found_name = true
-	failed += _expect(found_name, "invite name present")
+	failed += _expect(found_name, "invite name present after accept")
 
 	# leave dissolves
 	var leave: Dictionary = srv.try_party_leave()

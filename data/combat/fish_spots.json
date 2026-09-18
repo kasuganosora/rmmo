@@ -1,0 +1,51 @@
+{
+  "spots": [
+    {
+      "id": "fish_pond_a",
+      "name": "小水塘",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 18,
+        "y": 12
+      },
+      "yields": [
+        {
+          "item_id": "fish_small",
+          "qty": 1,
+          "weight": 0.85
+        },
+        {
+          "item_id": "fish_shiny",
+          "qty": 1,
+          "weight": 0.15
+        }
+      ],
+      "cast_sec": 0.8,
+      "respawn_sec": 18
+    },
+    {
+      "id": "fish_pond_b",
+      "name": "浅水洼",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 18,
+        "y": 27
+      },
+      "yields": [
+        {
+          "item_id": "fish_small",
+          "qty": 1,
+          "weight": 0.7
+        },
+        {
+          "item_id": "fish_shiny",
+          "qty": 1,
+          "weight": 0.3
+        }
+      ],
+      "cast_sec": 1.0,
+      "respawn_sec": 22,
+      "gather_level": 2
+    }
+  ]
+}

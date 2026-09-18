@@ -46,6 +46,13 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 	else:
 		out["icon"] = icon_id
 		out["icon_ref"] = "content://icon/%s" % icon_id
+	out["starter"] = bool(out.get("starter", false))
+	out["learn_level"] = maxi(int(out.get("learn_level", 1)), 1)
+	out["sp_cost"] = maxi(int(out.get("sp_cost", 0 if out["starter"] else 1)), 0)
+	if str(out.get("id", "")).strip_edges() == "basic_attack":
+		out["starter"] = true
+		out["learn_level"] = 1
+		out["sp_cost"] = 0
 	return out
 
 
@@ -87,6 +94,15 @@ func has_skill(skill_id: String) -> bool:
 	return _by_id.has(skill_id.strip_edges())
 
 
+## Runtime inject for tests / pack overrides. Does not persist.
+func register_skill(def: Dictionary) -> String:
+	var sid := str(def.get("id", "")).strip_edges()
+	if sid.is_empty():
+		return ""
+	_by_id[sid] = _normalize_def(def)
+	return sid
+
+
 func all_ids() -> Array:
 	return _by_id.keys()
 
@@ -98,6 +114,25 @@ func list_all() -> Array:
 	var out: Array = []
 	for sid in ids:
 		out.append(get_skill(str(sid)))
+	return out
+
+
+
+func is_starter(skill_id: String) -> bool:
+	var def := get_skill(skill_id)
+	if def.is_empty():
+		return skill_id.strip_edges() == "basic_attack"
+	return bool(def.get("starter", false))
+
+
+func starter_ids() -> Array:
+	var out: Array = []
+	for sid in all_ids():
+		if is_starter(str(sid)):
+			out.append(str(sid))
+	if "basic_attack" not in out:
+		out.append("basic_attack")
+	out.sort()
 	return out
 
 
@@ -113,6 +148,9 @@ func _load_builtin_fallback() -> void:
 			"effect": "damage",
 			"power": 1.0,
 			"requires_target": true,
+			"starter": true,
+			"learn_level": 1,
+			"sp_cost": 0,
 		},
 		"power_strike": {
 			"id": "power_strike",
@@ -124,6 +162,9 @@ func _load_builtin_fallback() -> void:
 			"effect": "damage",
 			"power": 1.8,
 			"requires_target": true,
+			"starter": true,
+			"learn_level": 1,
+			"sp_cost": 0,
 		},
 		"heal_light": {
 			"id": "heal_light",
@@ -172,7 +213,8 @@ func _load_builtin_fallback() -> void:
 			"aoe_radius": 2,
 			"aoe_shape": "circle",
 			"max_targets": 8,
-			"requires_target": true,
+			"requires_target": false,
+			"target_mode": "ground",
 			"cast_time": 1.5,
 			"interrupt_on_move": true,
 		},
@@ -262,6 +304,179 @@ func _load_builtin_fallback() -> void:
 			"requires_target": true,
 			"channel_time": 2.0,
 			"interrupt_on_move": true,
+		},
+		"mana_shield": {
+			"id": "mana_shield",
+			"name": "法力护盾",
+			"category": "magic",
+			"mp_cost": 12,
+			"cooldown": 20.0,
+			"range": 0,
+			"effect": "apply_status",
+			"requires_target": false,
+			"status": {
+				"id": "mana_shield",
+				"name": "法力护盾",
+				"kind": "buff",
+				"duration": 30.0,
+				"tick_interval": 0,
+				"absorb_ratio": 0.5,
+				"absorb_max": 0,
+				"hp_per_mp": 2,
+			},
+		},
+		"stealth": {
+			"id": "stealth",
+			"name": "潜行",
+			"category": "physical",
+			"mp_cost": 10,
+			"cooldown": 15.0,
+			"range": 0,
+			"effect": "apply_status",
+			"requires_target": false,
+			"status": {
+				"id": "stealth",
+				"name": "潜行",
+				"kind": "buff",
+				"duration": 8.0,
+				"tick_interval": 0,
+			},
+		},
+		"taunt": {
+			"id": "taunt",
+			"name": "嘲讽",
+			"category": "physical",
+			"mp_cost": 6,
+			"cooldown": 8.0,
+			"range": 4,
+			"effect": "taunt",
+			"hate_amount": 1000,
+			"requires_target": true,
+		},
+		"interrupt": {
+			"id": "interrupt",
+			"name": "打断",
+			"category": "magic",
+			"mp_cost": 8,
+			"cooldown": 10.0,
+			"range": 4,
+			"effect": "interrupt",
+			"power": 0.35,
+			"requires_target": true,
+			"status": {
+				"id": "silence",
+				"name": "沉默",
+				"kind": "debuff",
+				"duration": 3.0,
+				"tick_interval": 0,
+			},
+		},
+		"mark": {
+			"id": "mark",
+			"name": "标记",
+			"category": "magic",
+			"mp_cost": 8,
+			"cooldown": 10.0,
+			"range": 5,
+			"effect": "mark",
+			"requires_target": true,
+			"status": {
+				"id": "mark",
+				"name": "标记",
+				"kind": "debuff",
+				"duration": 12.0,
+				"tick_interval": 0,
+				"stack_max": 1,
+				"def_mul": 0.85,
+			},
+		},
+		"revive": {
+			"id": "revive",
+			"name": "复活",
+			"category": "magic",
+			"mp_cost": 25,
+			"cooldown": 30.0,
+			"range": 4,
+			"effect": "revive",
+			"heal_pct": 0.3,
+			"requires_target": true,
+		},
+		"charge": {
+			"id": "charge",
+			"name": "冲锋",
+			"category": "physical",
+			"mp_cost": 12,
+			"cooldown": 12.0,
+			"range": 6,
+			"min_range": 2,
+			"effect": "charge",
+			"power": 1.2,
+			"requires_target": true,
+			"status": {
+				"id": "root",
+				"name": "定身",
+				"kind": "debuff",
+				"duration": 0.75,
+				"tick_interval": 0,
+				"move_speed_mul": 0.0,
+			},
+		},
+		"battle_shout": {
+			"id": "battle_shout",
+			"name": "战吼",
+			"category": "physical",
+			"mp_cost": 10,
+			"cooldown": 20.0,
+			"range": 0,
+			"effect": "apply_status",
+			"requires_target": false,
+			"party_share": true,
+			"party_duration": 15.0,
+			"status": {
+				"id": "battle_shout",
+				"name": "战吼",
+				"kind": "buff",
+				"duration": 15.0,
+				"tick_interval": 0,
+				"stack_max": 1,
+				"atk_add": 3,
+			},
+			"learn_level": 3,
+			"sp_cost": 1,
+		},
+		"execute": {
+			"id": "execute",
+			"name": "斩杀",
+			"category": "physical",
+			"mp_cost": 15,
+			"cooldown": 15.0,
+			"range": 2,
+			"effect": "execute",
+			"power": 2.0,
+			"hp_threshold": 0.3,
+			"requires_target": true,
+			"learn_level": 1,
+			"sp_cost": 1,
+		},
+		"mount": {
+			"id": "mount",
+			"name": "骑乘",
+			"category": "physical",
+			"mp_cost": 0,
+			"cooldown": 2.0,
+			"range": 0,
+			"effect": "mount",
+			"requires_target": false,
+			"status": {
+				"id": "mounted",
+				"name": "骑乘",
+				"kind": "buff",
+				"duration": 999999.0,
+				"tick_interval": 0,
+				"move_speed_mul": 1.45,
+			},
+			"learn_level": 1,
+			"sp_cost": 1,
 		},
 	}
 	# Normalize icon fields on builtin defs.

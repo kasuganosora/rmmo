@@ -159,7 +159,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
-mouse_filter = 2
+mouse_filter = 0
 
 [node name="MinimapLabel" type="Label" parent="MinimapPanel/MinimapMarg/MinimapVBox"]
 unique_name_in_owner = true
@@ -261,12 +261,12 @@ alignment = 1
 [node name="MenuPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 0
-offset_right = 420.0
-offset_bottom = 56.0
+offset_right = 56.0
+offset_bottom = 52.0
 script = ExtResource("2")
 screen_margin = 4.0
-min_size = Vector2(280, 40)
-default_size = Vector2(420, 44)
+min_size = Vector2(52, 48)
+default_size = Vector2(52, 48)
 initial_dock = "bottom_right"
 
 [node name="MenuMarg" type="MarginContainer" parent="MenuPanel"]

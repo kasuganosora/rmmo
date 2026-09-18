@@ -1,6 +1,7 @@
 extends PanelContainer
 const IconPreview = preload("res://scripts/ui/icon_preview.gd")
-## Paperdoll equipment cell: StyleBox + letter-avatar like InvSlot.
+const L2Style = preload("res://scripts/ui/l2_style.gd")
+## Paperdoll equipment cell: L2 slot chrome + letter-avatar like InvSlot.
 ## Drop {kind:"item", item_id} to equip; drag filled slot to world to drop;
 ## left/right click filled → unequip to bag (no right-click drop).
 
@@ -13,12 +14,15 @@ var display_name: String = ""
 var hint_label: String = ""
 var icon_index: int = -1
 var icon_ref: String = ""
+var durability: int = -1
+var durability_max: int = -1
 
 var _avatar_label: Label
 var _icon_rect: TextureRect
 var _hint_label: Label
-var _empty_sb: StyleBoxFlat
-var _filled_sb: StyleBoxFlat
+var _dur_label: Label
+var _empty_sb: StyleBox
+var _filled_sb: StyleBox
 
 
 func _ready() -> void:
@@ -30,13 +34,15 @@ func _ready() -> void:
 	_apply_visual()
 
 
-func setup(p_slot_id: String, p_item_id: String = "", p_display_name: String = "", p_hint: String = "", p_icon_index: int = -1, p_icon_ref: String = "") -> void:
+func setup(p_slot_id: String, p_item_id: String = "", p_display_name: String = "", p_hint: String = "", p_icon_index: int = -1, p_icon_ref: String = "", p_durability: int = -1, p_durability_max: int = -1) -> void:
 	slot_id = p_slot_id.strip_edges()
 	item_id = p_item_id.strip_edges()
 	display_name = p_display_name.strip_edges()
 	hint_label = p_hint.strip_edges()
 	icon_index = p_icon_index
 	icon_ref = p_icon_ref.strip_edges()
+	durability = int(p_durability)
+	durability_max = int(p_durability_max)
 	if display_name.is_empty() and not item_id.is_empty():
 		display_name = item_id
 	_ensure_styles()
@@ -54,11 +60,13 @@ func set_icon_ref(ref: String) -> void:
 	_apply_icon_visual()
 
 
-func set_item(p_item_id: String, p_display_name: String = "", p_icon_index: int = -1, p_icon_ref: String = "") -> void:
+func set_item(p_item_id: String, p_display_name: String = "", p_icon_index: int = -1, p_icon_ref: String = "", p_durability: int = -1, p_durability_max: int = -1) -> void:
 	item_id = p_item_id.strip_edges()
 	display_name = p_display_name.strip_edges()
 	icon_index = p_icon_index
 	icon_ref = p_icon_ref.strip_edges()
+	durability = int(p_durability)
+	durability_max = int(p_durability_max)
 	if display_name.is_empty() and not item_id.is_empty():
 		display_name = item_id
 	_apply_visual()
@@ -69,35 +77,24 @@ func clear_item() -> void:
 	display_name = ""
 	icon_index = -1
 	icon_ref = ""
+	durability = -1
+	durability_max = -1
 	_apply_visual()
 
 
 func _ensure_styles() -> void:
 	if _empty_sb == null:
-		_empty_sb = StyleBoxFlat.new()
-		_empty_sb.bg_color = Color(0.06, 0.06, 0.08, 0.98)
-		_empty_sb.border_color = Color(0.20, 0.20, 0.24, 0.95)
-		_empty_sb.set_border_width_all(1)
-		_empty_sb.set_corner_radius_all(3)
-		_empty_sb.content_margin_left = 3
-		_empty_sb.content_margin_right = 3
-		_empty_sb.content_margin_top = 3
-		_empty_sb.content_margin_bottom = 3
+		_empty_sb = L2Style.slot_box(false)
 	if _filled_sb == null:
-		_filled_sb = StyleBoxFlat.new()
-		# L2-like: warmer inner + bright gold border when occupied.
-		_filled_sb.bg_color = Color(0.12, 0.28, 0.26, 0.98)
-		_filled_sb.border_color = Color(0.95, 0.82, 0.28, 1.0)
-		_filled_sb.set_border_width_all(2)
-		_filled_sb.set_corner_radius_all(3)
-		_filled_sb.content_margin_left = 3
-		_filled_sb.content_margin_right = 3
-		_filled_sb.content_margin_top = 3
-		_filled_sb.content_margin_bottom = 3
+		_filled_sb = L2Style.slot_box(true)
 
 
 func _ensure_children() -> void:
-	if _avatar_label != null and is_instance_valid(_avatar_label) and _icon_rect != null and is_instance_valid(_icon_rect):
+	if (
+		_avatar_label != null and is_instance_valid(_avatar_label)
+		and _icon_rect != null and is_instance_valid(_icon_rect)
+		and _dur_label != null and is_instance_valid(_dur_label)
+	):
 		return
 	var root := Control.new()
 	root.name = "Inner"
@@ -128,10 +125,22 @@ func _ensure_children() -> void:
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_hint_label.add_theme_font_size_override("font_size", 10)
-	_hint_label.add_theme_color_override("font_color", Color(0.45, 0.45, 0.52, 0.95))
+	_hint_label.add_theme_color_override("font_color", Color(0.78, 0.68, 0.42, 0.95))
 	_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(_hint_label)
+	_dur_label = Label.new()
+	_dur_label.name = "Dur"
+	_dur_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_dur_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_dur_label.add_theme_font_size_override("font_size", 9)
+	_dur_label.add_theme_color_override("font_color", Color(0.85, 0.92, 0.70, 0.95))
+	_dur_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dur_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_dur_label.offset_right = -2
+	_dur_label.offset_bottom = -1
+	_dur_label.visible = false
+	root.add_child(_dur_label)
 
 
 func _apply_visual() -> void:
@@ -141,7 +150,26 @@ func _apply_visual() -> void:
 	add_theme_stylebox_override("panel", _filled_sb if occupied else _empty_sb)
 	if occupied:
 		_hint_label.text = ""
-		tooltip_text = "%s\n%s · %s\n点击卸下" % [display_name, item_id, slot_id]
+		var tip := "%s\n%s · %s" % [display_name, item_id, slot_id]
+		if durability_max > 0:
+			tip += "\n耐久 %d/%d" % [maxi(durability, 0), durability_max]
+			if durability <= 0:
+				tip += "（损坏）"
+		tip += "\n点击卸下"
+		tooltip_text = tip
+		if _dur_label != null:
+			if durability_max > 0:
+				_dur_label.text = str(maxi(durability, 0))
+				_dur_label.visible = true
+				if durability <= 0:
+					_dur_label.add_theme_color_override("font_color", Color(0.95, 0.45, 0.40, 0.95))
+				elif durability * 2 <= durability_max:
+					_dur_label.add_theme_color_override("font_color", Color(0.95, 0.80, 0.40, 0.95))
+				else:
+					_dur_label.add_theme_color_override("font_color", Color(0.85, 0.92, 0.70, 0.95))
+			else:
+				_dur_label.text = ""
+				_dur_label.visible = false
 		_apply_icon_visual()
 	else:
 		_avatar_label.text = ""
@@ -151,6 +179,9 @@ func _apply_visual() -> void:
 			_icon_rect.visible = false
 		_hint_label.text = hint_label
 		tooltip_text = hint_label if not hint_label.is_empty() else slot_id
+		if _dur_label != null:
+			_dur_label.text = ""
+			_dur_label.visible = false
 
 
 

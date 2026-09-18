@@ -1,9 +1,12 @@
 extends PanelContainer
 const IconPreview = preload("res://scripts/ui/icon_preview.gd")
-## One bag grid cell: StyleBoxFlat + letter-avatar (first grapheme) + qty badge.
+const L2Style = preload("res://scripts/ui/l2_style.gd")
+## One bag grid cell: L2 slot chrome + letter-avatar + qty badge.
 ## Drag source for hotbar / ground drop ({kind:"item", item_id}).
 
 signal activated(item_id: String)
+signal split_requested(item_id: String, qty: int)
+signal lock_toggled(item_id: String)
 
 var item_id: String = ""
 var qty: int = 0
@@ -19,9 +22,9 @@ var disabled: bool = false
 var _avatar_label: Label
 var _icon_rect: TextureRect
 var _qty_label: Label
-var _empty_sb: StyleBoxFlat
-var _filled_sb: StyleBoxFlat
-var _disabled_sb: StyleBoxFlat
+var _empty_sb: StyleBox
+var _filled_sb: StyleBox
+var _disabled_sb: StyleBox
 
 
 func _ready() -> void:
@@ -85,35 +88,11 @@ func set_disabled(p_disabled: bool) -> void:
 
 func _ensure_styles() -> void:
 	if _empty_sb == null:
-		_empty_sb = StyleBoxFlat.new()
-		_empty_sb.bg_color = Color(0.08, 0.08, 0.10, 0.92)
-		_empty_sb.border_color = Color(0.22, 0.22, 0.26, 0.9)
-		_empty_sb.set_border_width_all(1)
-		_empty_sb.set_corner_radius_all(3)
-		_empty_sb.content_margin_left = 3
-		_empty_sb.content_margin_right = 3
-		_empty_sb.content_margin_top = 3
-		_empty_sb.content_margin_bottom = 3
+		_empty_sb = L2Style.slot_box(false)
 	if _filled_sb == null:
-		_filled_sb = StyleBoxFlat.new()
-		_filled_sb.bg_color = Color(0.16, 0.15, 0.14, 0.95)
-		_filled_sb.border_color = Color(0.55, 0.45, 0.28, 0.85)
-		_filled_sb.set_border_width_all(1)
-		_filled_sb.set_corner_radius_all(3)
-		_filled_sb.content_margin_left = 3
-		_filled_sb.content_margin_right = 3
-		_filled_sb.content_margin_top = 3
-		_filled_sb.content_margin_bottom = 3
+		_filled_sb = L2Style.slot_box(true)
 	if _disabled_sb == null:
-		_disabled_sb = StyleBoxFlat.new()
-		_disabled_sb.bg_color = Color(0.05, 0.05, 0.06, 0.7)
-		_disabled_sb.border_color = Color(0.12, 0.12, 0.14, 0.75)
-		_disabled_sb.set_border_width_all(1)
-		_disabled_sb.set_corner_radius_all(3)
-		_disabled_sb.content_margin_left = 3
-		_disabled_sb.content_margin_right = 3
-		_disabled_sb.content_margin_top = 3
-		_disabled_sb.content_margin_bottom = 3
+		_disabled_sb = L2Style.slot_box(false)
 
 
 func _ensure_children() -> void:
@@ -167,6 +146,7 @@ func _apply_visual() -> void:
 	_ensure_children()
 	if disabled:
 		add_theme_stylebox_override("panel", _disabled_sb)
+		modulate = Color(0.45, 0.42, 0.38, 1)
 		_avatar_label.text = ""
 		_avatar_label.visible = true
 		if _icon_rect != null:
@@ -176,11 +156,16 @@ func _apply_visual() -> void:
 		tooltip_text = "未解锁栏位"
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
 		return
+	modulate = Color(1, 1, 1, 1)
 	var occupied := not item_id.is_empty() and qty > 0
 	add_theme_stylebox_override("panel", _filled_sb if occupied else _empty_sb)
 	if occupied:
 		_qty_label.text = str(qty) if qty > 1 else ""
-		tooltip_text = "%s\n%s" % [display_name, item_id]
+		if bool(get_meta("locked", false)):
+			tooltip_text = "%s\n%s\n已锁定（右键解锁）" % [display_name, item_id]
+			modulate = Color(0.85, 0.78, 0.55, 1)
+		else:
+			tooltip_text = "%s\n%s\nCtrl+点击拆分 · 右键锁定" % [display_name, item_id]
 		_apply_icon_visual()
 	else:
 		_avatar_label.text = ""
@@ -256,7 +241,15 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and mb.double_click:
-			if not item_id.is_empty() and qty > 0:
+		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			if not item_id.is_empty() and qty > 0 and mb.ctrl_pressed and qty > 1:
+				split_requested.emit(item_id, qty)
+				accept_event()
+				return
+			if mb.double_click and not item_id.is_empty() and qty > 0:
 				activated.emit(item_id)
+				accept_event()
+		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+			if not item_id.is_empty() and qty > 0:
+				lock_toggled.emit(item_id)
 				accept_event()

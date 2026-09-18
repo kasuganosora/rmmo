@@ -19,6 +19,7 @@ const OPS := [
 	{"id": "set_switch", "label": "开关"},
 	{"id": "set_self_switch", "label": "独立开关"},
 	{"id": "open_shop", "label": "商店"},
+	{"id": "inn_rest", "label": "旅店休息"},
 	{"id": "transfer", "label": "传送"},
 	{"id": "choices", "label": "选项"},
 	{"id": "wait", "label": "等待"},
@@ -27,6 +28,7 @@ const OPS := [
 	{"id": "play_me", "label": "播放 ME"},
 	{"id": "play_se", "label": "播放 SE"},
 	{"id": "weather", "label": "天气"},
+	{"id": "move_route", "label": "移动路径"},
 ]
 
 
@@ -108,6 +110,8 @@ static func default_command(op: String) -> Dictionary:
 			return {"op": "set_self_switch", "letter": "A", "value": true}
 		"open_shop":
 			return {"op": "open_shop", "shop_id": "starter_goods"}
+		"inn_rest", "rest_inn":
+			return {"op": "inn_rest", "cost": 25}
 		"transfer":
 			return {"op": "transfer", "to_map": "Map002", "to_cell": {"x": 1, "y": 1}}
 		"choices", "choice", "show_choices":
@@ -131,6 +135,17 @@ static func default_command(op: String) -> Dictionary:
 			return {"op": "wait", "duration": 0.5}
 		"weather":
 			return {"op": "weather", "kind": "rain", "intensity": 0.8, "duration": 60.0}
+		"move_route", "set_move_route":
+			return {
+				"op": "move_route",
+				"target": "self",
+				"wait": true,
+				"skippable": false,
+				"route": [
+					{"code": "move_right", "repeat": 1},
+					{"code": "turn_down"},
+				],
+			}
 		_:
 			return {"op": op.strip_edges().to_lower()}
 
@@ -158,6 +173,8 @@ static func summarize(cmd: Dictionary) -> String:
 			return "独立开关 %s = %s" % [str(cmd.get("letter", cmd.get("self_switch", "A"))), "开" if bool(cmd.get("value", true)) else "关"]
 		"open_shop":
 			return "商店：%s" % str(cmd.get("shop_id", cmd.get("id", "")))
+		"inn_rest", "rest_inn":
+			return "旅店休息：%dG" % int(cmd.get("cost", cmd.get("gold", cmd.get("amount", 25))))
 		"transfer":
 			var cell: Variant = cmd.get("to_cell", {})
 			var cx := 0
@@ -178,6 +195,13 @@ static func summarize(cmd: Dictionary) -> String:
 			return "SE：%s" % str(cmd.get("id", cmd.get("name", "")))
 		"wait":
 			return "等待：%s 秒" % str(_wait_duration(cmd))
+		"move_route", "set_move_route":
+			var route_v: Variant = cmd.get("route", cmd.get("list", []))
+			var n := 0
+			if typeof(route_v) == TYPE_ARRAY:
+				n = (route_v as Array).size()
+			var tgt := str(cmd.get("target", "self")).strip_edges()
+			return "移动路径：%s ×%d" % [tgt if tgt != "" else "self", n]
 		"end", "stop", "exit":
 			return "结束"
 		_:

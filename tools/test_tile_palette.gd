@@ -72,6 +72,15 @@ func _run() -> void:
 		quit(1)
 
 
+
+
+
+func _runtime_root() -> String:
+	for cand in ["/workspace/rmmo_runtime", "D:/code/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return "/workspace/rmmo_runtime"
+
 func _expect(cond: bool, label: String) -> int:
 	if cond:
 		print("PASS ", label)

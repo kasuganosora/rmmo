@@ -11,9 +11,11 @@ Status: **P2c actor AOI rings implemented** (2026-09-09). Autoload + Gate + stre
 | `ResourceLoader.load` expects imported assets | Must `Image.load` / JSON from disk or HTTP |
 | Project tree pollution | Charsets already forbidden under project (苍蓝星 rule) |
 
-**Rule:** Game shell (Godot project) ships code + UI chrome only. All world content (maps, tilesheets, charsets, looks, item icons later) is **content packs** under a runtime content root, addressed by **content IDs**, never by `res://assets/...` long-term.
+**Rule:** Game shell (Godot project) ships code + UI chrome only. All world content (maps, tilesheets, charsets, looks, item icons, map packs) is **external** under the runtime content root (`rmmo/content_root`, e.g. `D:/code/rmmo_runtime`). Packs are **never** stored in `res://` and are **never** baked into the Godot PCK. Address them by content IDs (`content://map_pack/default`), not project paths.
 
-Today already partial: `charset_sheet.gd` uses `Image.load` from `D:/code/rmmo_runtime/characters`; tilemap packs still often live under `res://demo_map` for convenience — migrate toward runtime content root.
+First-party default pack: `content://map_pack/default` → `{content_root}/packs/map_pack/default/<version>/`.
+
+Legacy `res://demo_map` / `bath_map` / `street_map` remain only as old playtest maps until they are washed into external packs.
 
 ## Goals
 

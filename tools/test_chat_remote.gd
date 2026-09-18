@@ -35,7 +35,7 @@ func _run() -> void:
 
 	var wh: Dictionary = srv.try_chat("whisper", "密信测试", "旅人甲")
 	failed += _expect(bool(wh.get("ok", false)), "whisper ok")
-	failed += _expect(_count(wh, "chat_message") >= 2, "whisper self+reply")
+	failed += _expect(_count(wh, "chat_message") == 1, "whisper self only (no stub reply)")
 
 	var miss: Dictionary = srv.try_chat("whisper", "x", "不存在的人")
 	failed += _expect(not bool(miss.get("ok", true)), "whisper miss fails")

@@ -10,8 +10,12 @@
       "effect": "damage",
       "power": 1.0,
       "requires_target": true,
+      "anim": "strike",
       "icon_index": 76,
-      "icon": "basic_attack"
+      "icon": "basic_attack",
+      "starter": true,
+      "learn_level": 1,
+      "sp_cost": 0
     },
     {
       "id": "power_strike",
@@ -23,8 +27,12 @@
       "effect": "damage",
       "power": 1.8,
       "requires_target": true,
+      "anim": "strike",
       "icon_index": 77,
-      "icon": "power_strike"
+      "icon": "power_strike",
+      "starter": true,
+      "learn_level": 1,
+      "sp_cost": 0
     },
     {
       "id": "heal_light",
@@ -38,8 +46,12 @@
       "requires_target": false,
       "cast_time": 1.2,
       "interrupt_on_move": true,
+      "anim": "cast",
       "icon_index": 72,
-      "icon": "heal_light"
+      "icon": "heal_light",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
     },
     {
       "id": "tough_skin",
@@ -52,7 +64,10 @@
       "def_bonus": 5,
       "requires_target": false,
       "icon_index": 80,
-      "icon": "tough_skin"
+      "icon": "tough_skin",
+      "starter": false,
+      "learn_level": 2,
+      "sp_cost": 1
     },
     {
       "id": "keen_eye",
@@ -65,7 +80,10 @@
       "atk_bonus": 2,
       "requires_target": false,
       "icon_index": 81,
-      "icon": "keen_eye"
+      "icon": "keen_eye",
+      "starter": false,
+      "learn_level": 2,
+      "sp_cost": 1
     },
     {
       "id": "flame_burst",
@@ -79,11 +97,16 @@
       "aoe_radius": 2,
       "aoe_shape": "circle",
       "max_targets": 8,
-      "requires_target": true,
+      "requires_target": false,
+      "target_mode": "ground",
       "cast_time": 1.5,
       "interrupt_on_move": true,
+      "anim": "cast",
       "icon_index": 64,
-      "icon": "flame_burst"
+      "icon": "flame_burst",
+      "starter": false,
+      "learn_level": 5,
+      "sp_cost": 2
     },
     {
       "id": "poison_dart",
@@ -97,6 +120,7 @@
       "requires_target": true,
       "cast_time": 0.6,
       "interrupt_on_move": true,
+      "anim": "dash",
       "status": {
         "id": "poison",
         "name": "中毒",
@@ -107,7 +131,10 @@
         "def_mul": 0.9
       },
       "icon_index": 65,
-      "icon": "poison_dart"
+      "icon": "poison_dart",
+      "starter": false,
+      "learn_level": 3,
+      "sp_cost": 1
     },
     {
       "id": "battle_cry",
@@ -118,6 +145,7 @@
       "range": 0,
       "effect": "apply_status",
       "requires_target": false,
+      "anim": "spin",
       "status": {
         "id": "battle_cry",
         "name": "战斗怒吼",
@@ -127,7 +155,10 @@
         "atk_mul": 1.35
       },
       "icon_index": 66,
-      "icon": "battle_cry"
+      "icon": "battle_cry",
+      "starter": false,
+      "learn_level": 4,
+      "sp_cost": 1
     },
     {
       "id": "regen_mist",
@@ -150,7 +181,10 @@
         "tick_hp": 5
       },
       "icon_index": 67,
-      "icon": "regen_mist"
+      "icon": "regen_mist",
+      "starter": false,
+      "learn_level": 3,
+      "sp_cost": 1
     },
     {
       "id": "arcane_bolt",
@@ -165,7 +199,10 @@
       "cast_time": 1.8,
       "interrupt_on_move": true,
       "icon_index": 68,
-      "icon": "arcane_bolt"
+      "icon": "arcane_bolt",
+      "starter": false,
+      "learn_level": 6,
+      "sp_cost": 2
     },
     {
       "id": "channel_beam",
@@ -180,7 +217,228 @@
       "channel_time": 2.0,
       "interrupt_on_move": true,
       "icon_index": 69,
-      "icon": "channel_beam"
+      "icon": "channel_beam",
+      "starter": false,
+      "learn_level": 8,
+      "sp_cost": 2
+    },
+    {
+      "id": "mana_shield",
+      "name": "法力护盾",
+      "category": "magic",
+      "mp_cost": 12,
+      "cooldown": 20.0,
+      "range": 0,
+      "effect": "apply_status",
+      "requires_target": false,
+      "status": {
+        "id": "mana_shield",
+        "name": "法力护盾",
+        "kind": "buff",
+        "duration": 30.0,
+        "tick_interval": 0,
+        "absorb_ratio": 0.5,
+        "absorb_max": 0,
+        "hp_per_mp": 2
+      },
+      "icon_index": 70,
+      "icon": "mana_shield",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "stealth",
+      "name": "潜行",
+      "category": "physical",
+      "mp_cost": 10,
+      "cooldown": 15.0,
+      "range": 0,
+      "effect": "apply_status",
+      "requires_target": false,
+      "status": {
+        "id": "stealth",
+        "name": "潜行",
+        "kind": "buff",
+        "duration": 8.0,
+        "tick_interval": 0
+      },
+      "icon_index": 71,
+      "icon": "stealth",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "taunt",
+      "name": "嘲讽",
+      "category": "physical",
+      "mp_cost": 6,
+      "cooldown": 8.0,
+      "range": 4,
+      "effect": "taunt",
+      "hate_amount": 1000,
+      "requires_target": true,
+      "icon_index": 79,
+      "icon": "taunt",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "interrupt",
+      "name": "打断",
+      "category": "magic",
+      "mp_cost": 8,
+      "cooldown": 10.0,
+      "range": 4,
+      "effect": "interrupt",
+      "power": 0.35,
+      "requires_target": true,
+      "status": {
+        "id": "silence",
+        "name": "沉默",
+        "kind": "debuff",
+        "duration": 3.0,
+        "tick_interval": 0
+      },
+      "icon_index": 73,
+      "icon": "interrupt",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "mark",
+      "name": "标记",
+      "category": "magic",
+      "mp_cost": 8,
+      "cooldown": 10.0,
+      "range": 5,
+      "effect": "mark",
+      "requires_target": true,
+      "status": {
+        "id": "mark",
+        "name": "标记",
+        "kind": "debuff",
+        "duration": 12.0,
+        "tick_interval": 0,
+        "stack_max": 1,
+        "def_mul": 0.85
+      },
+      "icon_index": 74,
+      "icon": "mark",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "revive",
+      "name": "复活",
+      "category": "magic",
+      "mp_cost": 25,
+      "cooldown": 30.0,
+      "range": 4,
+      "effect": "revive",
+      "heal_pct": 0.3,
+      "requires_target": true,
+      "icon_index": 75,
+      "icon": "revive",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "charge",
+      "name": "冲锋",
+      "category": "physical",
+      "mp_cost": 12,
+      "cooldown": 12.0,
+      "range": 6,
+      "min_range": 2,
+      "effect": "charge",
+      "power": 1.2,
+      "requires_target": true,
+      "status": {
+        "id": "root",
+        "name": "定身",
+        "kind": "debuff",
+        "duration": 0.75,
+        "tick_interval": 0,
+        "move_speed_mul": 0.0
+      },
+      "icon_index": 76,
+      "icon": "charge",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "battle_shout",
+      "name": "战吼",
+      "category": "physical",
+      "mp_cost": 10,
+      "cooldown": 20.0,
+      "range": 0,
+      "effect": "apply_status",
+      "requires_target": false,
+      "party_share": true,
+      "party_duration": 15.0,
+      "status": {
+        "id": "battle_shout",
+        "name": "战吼",
+        "kind": "buff",
+        "duration": 15.0,
+        "tick_interval": 0,
+        "stack_max": 1,
+        "atk_add": 3
+      },
+      "icon_index": 66,
+      "icon": "battle_shout",
+      "starter": false,
+      "learn_level": 3,
+      "sp_cost": 1,
+      "anim": "spin"
+    },
+    {
+      "id": "execute",
+      "name": "斩杀",
+      "category": "physical",
+      "mp_cost": 15,
+      "cooldown": 15.0,
+      "range": 2,
+      "effect": "execute",
+      "power": 2.0,
+      "hp_threshold": 0.3,
+      "requires_target": true,
+      "icon_index": 78,
+      "icon": "execute",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
+    },
+    {
+      "id": "mount",
+      "name": "骑乘",
+      "category": "physical",
+      "mp_cost": 0,
+      "cooldown": 2.0,
+      "range": 0,
+      "effect": "mount",
+      "requires_target": false,
+      "status": {
+        "id": "mounted",
+        "name": "骑乘",
+        "kind": "buff",
+        "duration": 999999.0,
+        "tick_interval": 0,
+        "move_speed_mul": 1.45
+      },
+      "icon_index": 72,
+      "icon": "mount",
+      "starter": false,
+      "learn_level": 1,
+      "sp_cost": 1
     }
   ]
 }

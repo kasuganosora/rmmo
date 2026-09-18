@@ -6,26 +6,71 @@ const SkillCatalog = preload("res://scripts/net/combat/skill_catalog.gd")
 const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
 const Inventory = preload("res://scripts/net/combat/inventory.gd")
 const CastState = preload("res://scripts/net/combat/cast_state.gd")
+const GridPath = preload("res://scripts/map/grid_path.gd")
 
 var stats: RefCounted = null
 var skills: RefCounted = null
 var items: RefCounted = null
+var _repair_kit_msg: String = ""
 var bag: RefCounted = null
+## Optional Equipment (paperdoll bonuses folded into effective atk/def).
+var gear = null
 ## Cast / channel runtime (spend MP+CD at start; interrupt wastes MP).
 var cast = CastState.new()
+## Per-NPC cast / channel (npc_id -> CastState). Hostile skills with cast_time > 0.
+var npc_casts: Dictionary = {}
 ## Optional: Callable(npc_id) -> bool for "is hostile" when not in stats yet.
 var hostile_lookup: Callable = Callable()
+## Last known player grid cell (NPC skill footprint vs player).
+var player_cell_hint: Vector2i = Vector2i(-9999, -9999)
+## Optional MapCollision for charge path checks (MockServer wires this).
+var map_collision = null
+## Optional test override: Callable() -> float in [0,1). Used for hit then crit rolls.
+var combat_randf: Callable = Callable()
+
+## Personal DPS meter session window (player → NPC damage only).
+## Keys: active, total_damage, fight_start, last_hit_time. Clock via _dps_clock.
+var _dps_fight: Dictionary = {
+	"active": false,
+	"total_damage": 0,
+	"fight_start": 0.0,
+	"last_hit_time": 0.0,
+}
+var _dps_clock: float = 0.0
+## Last emitted snapshot kept after fight ends until next hit.
+var _dps_last_snap: Dictionary = {
+	"dps": 0.0,
+	"total": 0,
+	"elapsed": 0.0,
+	"active": false,
+}
+const DPS_IDLE_TIMEOUT := 6.0
+
+const HIT_CHANCE_BASE := 0.90
+const HIT_CHANCE_MIN := 0.50
+const HIT_CHANCE_MAX := 0.99
+const HIT_LEVEL_STEP := 0.02
+const CRIT_CHANCE_BASE := 0.08
+const CRIT_DAMAGE_MULT := 1.5
 
 
-func setup(p_stats, p_skills, p_items, p_bag) -> void:
+func setup(p_stats, p_skills, p_items, p_bag, p_gear = null) -> void:
 	stats = p_stats
 	skills = p_skills
 	items = p_items
 	bag = p_bag
+	gear = p_gear
 	if cast == null:
 		cast = CastState.new()
 	else:
 		cast.clear()
+	# Match MockServer boot: bare setups get starters so known-gate is usable.
+	if stats != null and skills != null:
+		if stats.has_method("ensure_skill_book"):
+			stats.ensure_skill_book()
+		if stats.skill_book != null and stats.skill_book.has_method("list_known"):
+			if stats.skill_book.list_known().is_empty() and stats.skill_book.has_method("grant_starters"):
+				stats.skill_book.grant_starters(skills)
 
 
 func _player_stat_actions() -> Array:
@@ -42,8 +87,69 @@ func _player_stat_actions() -> Array:
 	]
 
 
-func _damage_npc(npc_id: String, amount: int, actions: Array) -> void:
+func _combat_randf() -> float:
+	if combat_randf.is_valid():
+		return clampf(float(combat_randf.call()), 0.0, 0.999999)
+	return randf()
+
+
+func _attacker_level(attacker_id: String) -> int:
+	if attacker_id == "" or attacker_id == "player":
+		if stats != null and typeof(stats.player) == TYPE_DICTIONARY:
+			return maxi(1, int(stats.player.get("level", 1)))
+		return 1
+	if stats != null and stats.npcs.has(attacker_id):
+		return maxi(1, int(stats.npcs[attacker_id].get("level", 1)))
+	return 1
+
+
+func _defender_level_npc(npc_id: String) -> int:
+	if stats != null and stats.npcs.has(npc_id):
+		return maxi(1, int(stats.npcs[npc_id].get("level", 1)))
+	return 1
+
+
+func _hit_chance(attacker_level: int, defender_level: int) -> float:
+	var diff: int = maxi(attacker_level, 1) - maxi(defender_level, 1)
+	return clampf(HIT_CHANCE_BASE + float(diff) * HIT_LEVEL_STEP, HIT_CHANCE_MIN, HIT_CHANCE_MAX)
+
+
+func _crit_chance(_attacker_level: int = 1) -> float:
+	return CRIT_CHANCE_BASE
+
+
+## Returns true if the hit landed (damage applied). False on miss (no HP change).
+
+func _npc_is_ally(st: Dictionary) -> bool:
+	if bool(st.get("ally", false)):
+		return true
+	var kind := str(st.get("kind", "")).strip_edges().to_lower()
+	if kind in ["ally", "friendly", "companion", "party"]:
+		return true
+	var faction := str(st.get("faction", "")).strip_edges().to_lower()
+	if faction in ["ally", "friendly", "player", "party", "town"]:
+		return true
+	# Non-hostile NPCs marked friendly via hostile=false + ally_eligible.
+	if bool(st.get("ally_eligible", false)):
+		return true
+	return false
+
+
+func _damage_npc(npc_id: String, amount: int, actions: Array, roll_accuracy: bool = true, attacker_id: String = "player", weapon_wear: bool = false) -> bool:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty():
+		return false
 	var st: Dictionary = stats.ensure_npc(npc_id)
+	var crit := false
+	if roll_accuracy:
+		var chance: float = _hit_chance(_attacker_level(attacker_id), _defender_level_npc(npc_id))
+		if _combat_randf() >= chance:
+			actions.append({"type": "miss", "target": "npc", "id": npc_id})
+			actions.append({"type": "system_message", "text": "未命中。"})
+			return false
+		if _combat_randf() < _crit_chance(_attacker_level(attacker_id)):
+			crit = true
+			amount = maxi(1, int(round(float(amount) * CRIT_DAMAGE_MULT)))
 	var def: int = _effective_def_npc(npc_id)
 	var dealt: int = maxi(1, amount - def)
 	var hp: int = maxi(0, int(st.get("hp", 0)) - dealt)
@@ -74,14 +180,22 @@ func _damage_npc(npc_id: String, amount: int, actions: Array) -> void:
 			stats.begin_chase(npc_id)
 		elif stats.has_method("enrage_npc"):
 			stats.enrage_npc(npc_id)
-	actions.append({
+	var dmg_act := {
 		"type": "damage",
 		"target": "npc",
 		"id": npc_id,
 		"amount": dealt,
 		"hp": hp,
 		"hp_max": hp_max,
-	})
+	}
+	if crit:
+		dmg_act["crit"] = true
+	actions.append(dmg_act)
+	# Personal DPS: player (or session actor) damage to NPC.
+	if _dps_attacker_is_player(attacker_id):
+		var dps_act: Dictionary = note_dps_hit(dealt)
+		if not dps_act.is_empty():
+			actions.append(dps_act)
 	if hp <= 0:
 		var death_cell := {"x": 0, "y": 0}
 		var has_death_cell := false
@@ -90,22 +204,97 @@ func _damage_npc(npc_id: String, amount: int, actions: Array) -> void:
 			if dc.x > -9990:
 				death_cell = {"x": dc.x, "y": dc.y}
 				has_death_cell = true
-		stats.remove_npc(npc_id)
-		var kill_act := {"type": "kill_npc", "npc_id": npc_id}
-		if has_death_cell:
-			kill_act["cell"] = death_cell
-		actions.append(kill_act)
-		actions.append({"type": "system_message", "text": "击败了敌人。"})
+		# Ally / revive-eligible: keep corpse (hp=0, awaiting_respawn) so revive works post-combat.
+		var is_ally := _npc_is_ally(st)
+		if is_ally:
+			st["hp"] = 0
+			st["awaiting_respawn"] = true
+			stats.npcs[npc_id] = st
+			var down_act := {"type": "ally_downed", "npc_id": npc_id, "hp": 0}
+			if has_death_cell:
+				down_act["cell"] = death_cell
+			actions.append(down_act)
+		else:
+			stats.remove_npc(npc_id)
+			var kill_act := {"type": "kill_npc", "npc_id": npc_id}
+			if has_death_cell:
+				kill_act["cell"] = death_cell
+			actions.append(kill_act)
+			actions.append({"type": "system_message", "text": "击败了敌人。"})
+	if weapon_wear:
+		_apply_weapon_hit_wear(actions)
+	return true
 
 
-func _damage_player(amount: int, actions: Array, source: String = "") -> void:
+## −1 main-hand weapon durability on successful damaging hit; break+remove at 0.
+func _apply_weapon_hit_wear(actions: Array) -> void:
+	if gear == null or not gear.has_method("wear_weapon"):
+		return
+	var wr: Dictionary = gear.wear_weapon(1, "weapon_main")
+	if not bool(wr.get("ok", false)):
+		return
+	actions.append({
+		"type": "equipment_update",
+		"equipment": gear.snapshot() if gear.has_method("snapshot") else [],
+		"bonuses": gear.total_bonuses() if gear.has_method("total_bonuses") else {},
+	})
+	if bool(wr.get("broken", false)):
+		actions.append({"type": "system_message", "text": "武器已损坏。"})
+
+
+## Returns true if the hit landed. False on miss (no HP change).
+func _damage_player(amount: int, actions: Array, source: String = "", roll_accuracy: bool = true) -> bool:
 	var p: Dictionary = stats.player
+	var crit := false
+	if roll_accuracy:
+		var atk_lv: int = _attacker_level(source if source != "" else "npc")
+		var def_lv: int = maxi(1, int(p.get("level", 1)))
+		var chance: float = _hit_chance(atk_lv, def_lv)
+		if _combat_randf() >= chance:
+			var miss_act := {"type": "miss", "target": "player", "id": "player"}
+			if source != "":
+				miss_act["source"] = source
+			actions.append(miss_act)
+			actions.append({"type": "system_message", "text": "未命中。"})
+			return false
+		if _combat_randf() < _crit_chance(atk_lv):
+			crit = true
+			amount = maxi(1, int(round(float(amount) * CRIT_DAMAGE_MULT)))
 	var def: int = _effective_def_player()
 	var dealt: int = maxi(1, amount - def)
+	var absorbed := 0
+	var mp_drain := 0
+	# Mana shield: absorb portion of incoming damage as MP (1 MP per hp_per_mp HP).
+	if stats.statuses != null and stats.statuses.has_status("player", "mana_shield"):
+		var shield: Dictionary = stats.statuses.get_status("player", "mana_shield")
+		var ratio: float = float(shield.get("absorb_ratio", 0.5))
+		if ratio <= 0.0:
+			ratio = 0.5
+		var amax: int = int(shield.get("absorb_max", 0))
+		var hp_per_mp: int = int(shield.get("hp_per_mp", 2))
+		if hp_per_mp <= 0:
+			hp_per_mp = 2
+		var want: int = int(floor(float(dealt) * ratio + 1e-6))
+		if amax > 0:
+			want = mini(want, amax)
+		want = clampi(want, 0, dealt)
+		var mp_now: int = int(p.get("mp", 0))
+		if want > 0 and mp_now > 0:
+			var max_by_mp: int = mp_now * hp_per_mp
+			var raw_abs: int = mini(want, max_by_mp)
+			# Exact chunks: 1 MP per hp_per_mp HP absorbed.
+			mp_drain = mini(mp_now, raw_abs / hp_per_mp)
+			absorbed = mp_drain * hp_per_mp
+			if absorbed > 0:
+				dealt -= absorbed
+				p["mp"] = mp_now - mp_drain
 	var hp: int = maxi(0, int(p.get("hp", 0)) - dealt)
 	var hp_max: int = int(p.get("hp_max", 1))
 	p["hp"] = hp
 	stats.player = p
+	# Taking damage cancels stealth / mount (even if fully absorbed by mana shield).
+	break_stealth(actions)
+	break_mount(actions)
 	var act := {
 		"type": "damage",
 		"target": "player",
@@ -113,15 +302,23 @@ func _damage_player(amount: int, actions: Array, source: String = "") -> void:
 		"amount": dealt,
 		"hp": hp,
 		"hp_max": hp_max,
+		"mp": int(p.get("mp", 0)),
+		"mp_max": int(p.get("mp_max", 0)),
 	}
+	if absorbed > 0:
+		act["absorbed"] = absorbed
+		act["mp_drain"] = mp_drain
 	if source != "":
 		act["source"] = source
+	if crit:
+		act["crit"] = true
 	actions.append(act)
 	if hp <= 0:
 		if stats.statuses != null:
 			stats.statuses.clear_all_on_death("player")
 		actions.append({"type": "player_died"})
 		actions.append({"type": "system_message", "text": "你被击败了……"})
+	return true
 
 
 func _heal_player(amount: int, actions: Array) -> void:
@@ -175,6 +372,59 @@ func _spend_mp(cost: int) -> bool:
 	return true
 
 
+func _spend_npc_mp(npc_id: String, cost: int) -> bool:
+	if cost <= 0:
+		return true
+	if stats == null or not stats.npcs.has(npc_id):
+		return false
+	var st: Dictionary = stats.npcs[npc_id]
+	var mp: int = int(st.get("mp", 0))
+	if mp < cost:
+		return false
+	st["mp"] = mp - cost
+	stats.npcs[npc_id] = st
+	return true
+
+
+func _npc_stat_actions(npc_id: String) -> Array:
+	if stats == null or not stats.npcs.has(npc_id):
+		return []
+	var st: Dictionary = stats.npcs[npc_id]
+	var act := {
+		"type": "set_stat",
+		"target": "npc",
+		"id": npc_id,
+		"hp": int(st.get("hp", 0)),
+		"hp_max": int(st.get("hp_max", 0)),
+		"mp": int(st.get("mp", 0)),
+		"mp_max": int(st.get("mp_max", 0)),
+	}
+	# Piggyback threat / aggro for selected-target HUD.
+	if stats.has_method("snapshot_threat"):
+		var thr: Dictionary = stats.snapshot_threat(npc_id)
+		act["threat_you"] = bool(thr.get("threat_you", false))
+		act["threat_rank"] = int(thr.get("threat_rank", 0))
+		act["threat_pct"] = float(thr.get("threat_pct", 0.0))
+		act["victim_id"] = str(thr.get("victim_id", ""))
+	return [act]
+
+
+## Dedicated threat_update action from hate_list / victim_id (empty if no AI).
+func _threat_update_action(npc_id: String) -> Dictionary:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.has_method("snapshot_threat"):
+		return {}
+	var thr: Dictionary = stats.snapshot_threat(npc_id)
+	return {
+		"type": "threat_update",
+		"npc_id": npc_id,
+		"threat_you": bool(thr.get("threat_you", false)),
+		"threat_rank": int(thr.get("threat_rank", 0)),
+		"threat_pct": float(thr.get("threat_pct", 0.0)),
+		"victim_id": str(thr.get("victim_id", "")),
+	}
+
+
 func _in_range(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
 	if range_cells <= 0:
 		return true
@@ -202,6 +452,8 @@ func _maybe_counter(npc_id: String, player_x: int, player_y: int, actions: Array
 
 func _effective_atk_player() -> int:
 	var base: int = int(stats.player.get("atk", 10))
+	base += _gear_bonus("p_atk") + _gear_bonus("atk")
+	base += _passive_bonus("atk")
 	if stats.statuses != null:
 		return int(stats.statuses.effective_atk(base, "player"))
 	return maxi(1, base)
@@ -209,9 +461,46 @@ func _effective_atk_player() -> int:
 
 func _effective_def_player() -> int:
 	var base: int = int(stats.player.get("def", 0))
+	base += _gear_bonus("p_def") + _gear_bonus("def")
+	base += _passive_bonus("def")
 	if stats.statuses != null:
 		return int(stats.statuses.effective_def(base, "player"))
 	return maxi(0, base)
+
+
+func _gear_bonus(stat_key: String) -> int:
+	if gear == null or not gear.has_method("total_bonuses"):
+		return 0
+	var b: Dictionary = gear.total_bonuses()
+	return int(b.get(stat_key, 0))
+
+
+## Catalog passives only apply when the skill is in the player's known set.
+func _passive_bonus(stat: String) -> int:
+	if skills == null or not skills.has_method("list_all"):
+		return 0
+	var book = null
+	if stats != null and "skill_book" in stats and stats.skill_book != null:
+		book = stats.skill_book
+	var n := 0
+	for d_v in skills.list_all():
+		if typeof(d_v) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = d_v
+		var sid := str(d.get("id", "")).strip_edges()
+		if sid.is_empty():
+			continue
+		if book != null and book.has_method("is_known") and not book.is_known(sid):
+			continue
+		var cat := str(d.get("category", "")).strip_edges()
+		var eff := str(d.get("effect", "")).strip_edges()
+		if cat != "passive" and not eff.begins_with("passive"):
+			continue
+		if stat == "atk":
+			n += int(d.get("atk_bonus", 0))
+		elif stat == "def":
+			n += int(d.get("def_bonus", 0))
+	return n
 
 
 func _effective_atk_npc(npc_id: String) -> int:
@@ -236,8 +525,206 @@ func _chebyshev(a: Vector2i, b: Vector2i) -> int:
 	return maxi(absi(a.x - b.x), absi(a.y - b.y))
 
 
-## Living hostile NPCs within Chebyshev radius of center, nearest first, capped.
-func _collect_aoe_hostiles(center: Vector2i, radius: int, max_targets: int) -> Array:
+func skill_target_mode(def: Dictionary) -> String:
+	var m := str(def.get("target_mode", "")).strip_edges().to_lower()
+	if m == "ground" or m == "unit" or m == "none" or m == "self":
+		if m == "self":
+			return "none"
+		return m
+	if bool(def.get("requires_target", false)):
+		return "unit"
+	return "none"
+
+
+func _dir_delta(d: int) -> Vector2i:
+	match d:
+		1:
+			return Vector2i(-1, 1)
+		2:
+			return Vector2i(0, 1)
+		3:
+			return Vector2i(1, 1)
+		4:
+			return Vector2i(-1, 0)
+		6:
+			return Vector2i(1, 0)
+		7:
+			return Vector2i(-1, -1)
+		8:
+			return Vector2i(0, -1)
+		9:
+			return Vector2i(1, -1)
+		_:
+			return Vector2i(0, 1)
+
+
+func facing_toward(from: Vector2i, to: Vector2i) -> int:
+	var dx: int = to.x - from.x
+	var dy: int = to.y - from.y
+	if dx == 0 and dy == 0:
+		return 2
+	var sx := 0
+	if dx > 0:
+		sx = 1
+	elif dx < 0:
+		sx = -1
+	var sy := 0
+	if dy > 0:
+		sy = 1
+	elif dy < 0:
+		sy = -1
+	if sx == -1 and sy == 1:
+		return 1
+	if sx == 0 and sy == 1:
+		return 2
+	if sx == 1 and sy == 1:
+		return 3
+	if sx == -1 and sy == 0:
+		return 4
+	if sx == 1 and sy == 0:
+		return 6
+	if sx == -1 and sy == -1:
+		return 7
+	if sx == 0 and sy == -1:
+		return 8
+	return 9
+
+
+func cell_in_aoe(center: Vector2i, cell: Vector2i, radius: int, shape: String, facing: int = 2) -> bool:
+	radius = maxi(radius, 0)
+	var dx: int = cell.x - center.x
+	var dy: int = cell.y - center.y
+	var cheb: int = maxi(absi(dx), absi(dy))
+	shape = shape.strip_edges().to_lower()
+	match shape:
+		"cross", "plus":
+			return (dx == 0 or dy == 0) and cheb <= radius
+		"line":
+			var step: Vector2i = _dir_delta(facing)
+			var p := center
+			for i in range(radius + 1):
+				if p == cell:
+					return true
+				p += step
+			return false
+		"cone":
+			if cheb > radius:
+				return false
+			if cheb == 0:
+				return true
+			var fwd: Vector2i = _dir_delta(facing)
+			var f := Vector2(float(fwd.x), float(fwd.y))
+			if f.length_squared() < 0.0001:
+				return true
+			f = f.normalized()
+			var to := Vector2(float(dx), float(dy)).normalized()
+			return f.dot(to) >= cos(deg_to_rad(60.0))
+		_:
+			return cheb <= radius
+
+
+func aoe_cells(center: Vector2i, radius: int, shape: String, facing: int = 2) -> Array:
+	var out: Array = []
+	radius = maxi(radius, 0)
+	for y in range(center.y - radius, center.y + radius + 1):
+		for x in range(center.x - radius, center.x + radius + 1):
+			var c := Vector2i(x, y)
+			if cell_in_aoe(center, c, radius, shape, facing):
+				out.append(c)
+	return out
+
+
+func _cell_in_range(from: Vector2i, to: Vector2i, range_cells: int) -> bool:
+	if range_cells <= 0:
+		return true
+	return _chebyshev(from, to) <= range_cells
+
+
+func _resolve_ground_cell(
+	def: Dictionary,
+	target_npc_id: String,
+	player_x: int,
+	player_y: int,
+	ground_x: int,
+	ground_y: int
+) -> Vector2i:
+	var mode := skill_target_mode(def)
+	if mode == "ground":
+		if ground_x > -9990 and ground_y > -9990:
+			return Vector2i(ground_x, ground_y)
+		if not target_npc_id.is_empty():
+			var tc: Vector2i = stats.get_npc_cell(target_npc_id)
+			if tc.x > -9990:
+				return tc
+		return Vector2i(-9999, -9999)
+	if bool(def.get("requires_target", false)) and not target_npc_id.is_empty():
+		var uc: Vector2i = stats.get_npc_cell(target_npc_id)
+		if uc.x > -9990:
+			return uc
+	return Vector2i(player_x, player_y)
+
+
+func _append_skill_fx(
+	actions: Array,
+	def: Dictionary,
+	skill_id: String,
+	caster: String,
+	center: Vector2i,
+	hits: Array
+) -> void:
+	var shape := str(def.get("aoe_shape", "circle"))
+	var radius: int = int(def.get("aoe_radius", 0))
+	var effect := str(def.get("effect", ""))
+	actions.append({
+		"type": "skill_fx",
+		"skill_id": skill_id,
+		"effect": effect,
+		"shape": shape,
+		"radius": radius,
+		"cell": {"x": center.x, "y": center.y},
+		"actor": caster,
+		"hits": hits.duplicate(),
+		"anim": skill_anim_kind(def, skill_id),
+	})
+	actions.append({
+		"type": "skill_anim",
+		"actor": caster,
+		"kind": skill_anim_kind(def, skill_id),
+		"skill_id": skill_id,
+	})
+
+
+func skill_anim_kind(def: Dictionary, skill_id: String = "") -> String:
+	var a := str(def.get("anim", "")).strip_edges().to_lower()
+	if a == "strike" or a == "cast" or a == "dash" or a == "spin":
+		return a
+	var sid := skill_id.strip_edges()
+	if sid.is_empty():
+		sid = str(def.get("id", "")).strip_edges()
+	match sid:
+		"basic_attack", "power_strike", "execute":
+			return "strike"
+		"poison_dart":
+			return "dash"
+		"charge":
+			return "dash"
+		"battle_cry", "battle_shout":
+			return "spin"
+		_:
+			var effect := str(def.get("effect", ""))
+			if effect == "damage" or effect == "damage_and_status":
+				return "strike"
+			return "cast"
+
+
+## Living hostile NPCs within AoE of center, nearest first, capped.
+func _collect_aoe_hostiles(
+	center: Vector2i,
+	radius: int,
+	max_targets: int,
+	shape: String = "circle",
+	facing: int = 2
+) -> Array:
 	radius = maxi(radius, 0)
 	max_targets = maxi(max_targets, 1)
 	var scored: Array = []
@@ -251,10 +738,9 @@ func _collect_aoe_hostiles(center: Vector2i, radius: int, max_targets: int) -> A
 		var cell: Vector2i = stats.get_npc_cell(npc_id)
 		if cell.x <= -9990:
 			continue
-		var dist: int = _chebyshev(center, cell)
-		if dist > radius:
+		if not cell_in_aoe(center, cell, radius, shape, facing):
 			continue
-		scored.append({"id": npc_id, "dist": dist})
+		scored.append({"id": npc_id, "dist": _chebyshev(center, cell)})
 	scored.sort_custom(func(a, b): return int(a.get("dist", 0)) < int(b.get("dist", 0)))
 	var out: Array = []
 	for i in range(mini(scored.size(), max_targets)):
@@ -263,11 +749,107 @@ func _collect_aoe_hostiles(center: Vector2i, radius: int, max_targets: int) -> A
 
 
 func _apply_status_to(target_key: String, status_def: Dictionary, source_id: String, actions: Array) -> void:
+	## Re-apply same id → refresh duration (stack_max default 1); optional stack_max>1 stacks.
 	if status_def.is_empty() or stats.statuses == null:
 		return
 	var dur: float = float(status_def.get("duration", 5.0))
 	stats.statuses.apply_status(target_key, status_def, dur, source_id)
 	actions.append(stats.statuses.status_update_action(target_key))
+	# Stealth applied on player: drop current aggro / return home.
+	if target_key == "player" and str(status_def.get("id", "")).strip_edges() == "stealth":
+		_break_all_player_chases()
+
+
+func player_has_stealth() -> bool:
+	return stats != null and stats.statuses != null and stats.statuses.has_status("player", "stealth")
+
+
+## Clear stealth buff if present; append status_update. Used when attacking / taking damage.
+func break_stealth(actions: Array) -> bool:
+	if not player_has_stealth():
+		return false
+	stats.statuses.clear_status("player", "stealth")
+	actions.append(stats.statuses.status_update_action("player"))
+	return true
+
+
+func player_is_mounted() -> bool:
+	return stats != null and stats.statuses != null and stats.statuses.has_status("player", "mounted")
+
+
+## Thin combat gate: active DPS fight or any NPC chasing / hating the player.
+func player_in_combat() -> bool:
+	if bool(_dps_fight.get("active", false)):
+		return true
+	if stats == null:
+		return false
+	var actor := "player"
+	if "player_actor_id" in stats:
+		var aid := str(stats.player_actor_id).strip_edges()
+		if aid != "":
+			actor = aid
+	if typeof(stats.npc_ai) == TYPE_DICTIONARY:
+		for nid_v in stats.npc_ai.keys():
+			var nid := str(nid_v)
+			var ai: Dictionary = stats.npc_ai[nid]
+			var chase := str(ai.get("chase_target", "")).strip_edges()
+			if chase == "player" or chase == actor or (chase != "" and str(ai.get("ai_state", "")) == "chase"):
+				return true
+			if stats.has_method("get_hate_list"):
+				for e in stats.get_hate_list(nid, false):
+					if typeof(e) != TYPE_DICTIONARY:
+						continue
+					var hid := str((e as Dictionary).get("id", "")).strip_edges()
+					if hid == "player" or hid == actor:
+						return true
+	return false
+
+
+## Clear mounted buff; append status_update + 「已下马。」. Used on combat / damage / attack.
+func break_mount(actions: Array) -> bool:
+	if not player_is_mounted():
+		return false
+	stats.statuses.clear_status("player", "mounted")
+	actions.append(stats.statuses.status_update_action("player"))
+	actions.append({"type": "system_message", "text": "已下马。"})
+	return true
+
+
+func _apply_mount_toggle(def: Dictionary, actions: Array) -> void:
+	if player_is_mounted():
+		break_mount(actions)
+		return
+	if player_in_combat():
+		actions.append({"type": "system_message", "text": "战斗中无法骑乘。"})
+		return
+	var status_def: Dictionary = _status_def_from_skill(def)
+	if status_def.is_empty():
+		status_def = {
+			"id": "mounted",
+			"name": "骑乘",
+			"kind": "buff",
+			"duration": 999999.0,
+			"tick_interval": 0,
+			"move_speed_mul": 1.45,
+		}
+	if not status_def.has("move_speed_mul"):
+		status_def["move_speed_mul"] = 1.45
+	_apply_status_to("player", status_def, "player", actions)
+	actions.append({"type": "system_message", "text": "已骑乘。"})
+
+
+func _break_all_player_chases() -> void:
+	if stats == null or not stats.has_method("clear_chase"):
+		return
+	var ids: Array = stats.npc_ai.keys() if typeof(stats.npc_ai) == TYPE_DICTIONARY else []
+	for nid_v in ids:
+		var nid := str(nid_v)
+		if not stats.npc_ai.has(nid):
+			continue
+		var ai: Dictionary = stats.npc_ai[nid]
+		var chasing := str(ai.get("chase_target", "")) != "" or str(ai.get("ai_state", "")) == "chase"
+		if chasing:
+			stats.clear_chase(nid)
 
 
 func _status_def_from_skill(def: Dictionary) -> Dictionary:
@@ -299,9 +881,14 @@ func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 	# Mirror basic_attack skill CD so hotbar shares timing.
 	stats.set_skill_cooldown("basic_attack", cd)
 	var actions: Array = []
+	break_stealth(actions)
+	break_mount(actions)
 	var atk: int = _effective_atk_player()
-	_damage_npc(npc_id, atk, actions)
+	_damage_npc(npc_id, atk, actions, true, "player", true)
 	_maybe_counter(npc_id, player_x, player_y, actions)
+	var thr_act: Dictionary = _threat_update_action(npc_id)
+	if not thr_act.is_empty():
+		actions.append(thr_act)
 	actions.append_array(_player_stat_actions())
 	actions.append({
 		"type": "skill_cd",
@@ -344,6 +931,8 @@ func tick_cast(delta: float) -> Array:
 	var target_id := str(snap.get("target_id", ""))
 	var px: int = int(snap.get("player_x", 0))
 	var py: int = int(snap.get("player_y", 0))
+	var gx: int = int(snap.get("ground_x", -9999))
+	var gy: int = int(snap.get("ground_y", -9999))
 	var def_v: Variant = snap.get("def", {})
 	var def: Dictionary = def_v if typeof(def_v) == TYPE_DICTIONARY else {}
 	var mode := str(snap.get("mode", "cast"))
@@ -362,8 +951,37 @@ func tick_cast(delta: float) -> Array:
 		return actions
 	# Re-validate target at finish (move interrupt should have fired if moved).
 	var needs_target: bool = bool(def.get("requires_target", false))
+	var tmode := skill_target_mode(def)
 	var range_cells: int = int(def.get("range", 1))
-	if needs_target:
+	if tmode == "ground":
+		var gcell: Vector2i = _resolve_ground_cell(def, target_id, px, py, gx, gy)
+		if gcell.x <= -9990:
+			actions.append({
+				"type": "cast_end",
+				"skill_id": skill_id,
+				"name": sname,
+				"mode": mode,
+				"ok": false,
+				"cancelled": false,
+			})
+			actions.append({"type": "system_message", "text": "需要选择地点。"})
+			actions.append_array(_player_stat_actions())
+			return actions
+		if not _cell_in_range(Vector2i(px, py), gcell, range_cells):
+			actions.append({
+				"type": "cast_end",
+				"skill_id": skill_id,
+				"name": sname,
+				"mode": mode,
+				"ok": false,
+				"cancelled": false,
+			})
+			actions.append({"type": "system_message", "text": "地点太远。"})
+			actions.append_array(_player_stat_actions())
+			return actions
+		gx = gcell.x
+		gy = gcell.y
+	elif needs_target:
 		if target_id.is_empty() or not stats.npcs.has(target_id) or int(stats.npcs[target_id].get("hp", 0)) <= 0:
 			actions.append({
 				"type": "cast_end",
@@ -389,7 +1007,7 @@ func tick_cast(delta: float) -> Array:
 			actions.append_array(_player_stat_actions())
 			return actions
 	var resolve_actions: Array = []
-	_resolve_skill_effect(def, skill_id, target_id, px, py, resolve_actions)
+	_resolve_skill_effect(def, skill_id, target_id, px, py, resolve_actions, gx, gy, "player")
 	actions.append_array(resolve_actions)
 	actions.append({
 		"type": "cast_end",
@@ -402,11 +1020,32 @@ func tick_cast(delta: float) -> Array:
 	return actions
 
 
-func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, player_y: int) -> Dictionary:
+func try_use_skill(
+	skill_id: String,
+	target_npc_id: String,
+	player_x: int,
+	player_y: int,
+	ground_x: int = -9999,
+	ground_y: int = -9999
+) -> Dictionary:
 	skill_id = skill_id.strip_edges()
 	target_npc_id = target_npc_id.strip_edges()
-	if skill_id.is_empty() or not stats.player_alive():
+	if skill_id.is_empty():
 		return {"ok": false, "actions": []}
+	if not stats.player_alive():
+		return {"ok": false, "actions": [{"type": "system_message", "text": "你已经倒下了。"}]}
+	# Must know the skill (starters included). basic_attack is always known via SkillBook.
+	if stats != null and stats.skill_book != null and stats.skill_book.has_method("is_known"):
+		if not stats.skill_book.is_known(skill_id):
+			var sname := skill_id
+			if skills != null:
+				var ud: Dictionary = skills.get_skill(skill_id)
+				if not ud.is_empty():
+					sname = str(ud.get("name", skill_id))
+			return {
+				"ok": false,
+				"actions": [{"type": "system_message", "text": "尚未学会【%s】。" % sname}],
+			}
 	# basic_attack delegates to try_attack.
 	if skill_id == "basic_attack":
 		return try_attack(target_npc_id, player_x, player_y)
@@ -423,6 +1062,11 @@ func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, playe
 			cat = "passive"
 	if cat == "passive":
 		return {"ok": false, "actions": [{"type": "system_message", "text": "被动，无需施放"}]}
+	# Mount toggle: block mounting while in combat (dismount always allowed).
+	var eff_gate := str(def.get("effect", "")).strip_edges()
+	if skill_id == "mount" or eff_gate == "mount":
+		if not player_is_mounted() and player_in_combat():
+			return {"ok": false, "actions": [{"type": "system_message", "text": "战斗中无法骑乘。"}]}
 	if not stats.is_skill_ready(skill_id):
 		var rem: float = stats.skill_cd_remaining(skill_id)
 		return {
@@ -436,15 +1080,74 @@ func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, playe
 	if int(stats.player.get("mp", 0)) < mp_cost:
 		return {"ok": false, "actions": [{"type": "system_message", "text": "MP 不足。"}]}
 	var needs_target: bool = bool(def.get("requires_target", false))
+	var tmode := skill_target_mode(def)
 	var range_cells: int = int(def.get("range", 1))
-	if needs_target:
+	var gcell: Vector2i = _resolve_ground_cell(def, target_npc_id, player_x, player_y, ground_x, ground_y)
+	if tmode == "ground":
+		if gcell.x <= -9990:
+			return {"ok": false, "reason": "need_ground", "actions": [{"type": "system_message", "text": "需要选择地点。"}]}
+		if not _cell_in_range(Vector2i(player_x, player_y), gcell, range_cells):
+			return {"ok": false, "actions": [{"type": "system_message", "text": "地点太远。"}]}
+		ground_x = gcell.x
+		ground_y = gcell.y
+	elif needs_target:
 		if target_npc_id.is_empty():
 			return {"ok": false, "actions": [{"type": "system_message", "text": "需要目标。"}]}
-		if not _in_range(target_npc_id, player_x, player_y, range_cells):
-			return {"ok": false, "actions": [{"type": "system_message", "text": "目标太远。"}]}
-		stats.ensure_npc(target_npc_id, true)
-		if not stats.npcs.has(target_npc_id) or int(stats.npcs[target_npc_id].get("hp", 0)) <= 0:
-			return {"ok": false, "actions": []}
+		var eff_chk := str(def.get("effect", "")).strip_edges()
+		if eff_chk == "revive":
+			# Dead ally only — do not auto-spawn a living NPC via ensure_npc.
+			if target_npc_id == "player" or (
+				"player_actor_id" in stats and target_npc_id == str(stats.player_actor_id).strip_edges()
+			):
+				return {"ok": false, "actions": [{"type": "system_message", "text": "无法自我复活。"}]}
+			if not stats.npcs.has(target_npc_id):
+				return {"ok": false, "actions": [{"type": "system_message", "text": "只能复活队友。"}]}
+			if not _in_range(target_npc_id, player_x, player_y, range_cells):
+				return {"ok": false, "actions": [{"type": "system_message", "text": "目标太远。"}]}
+			var rst: Dictionary = stats.npcs[target_npc_id]
+			if not bool(rst.get("ally", false)):
+				return {"ok": false, "actions": [{"type": "system_message", "text": "只能复活队友。"}]}
+			var deadish := int(rst.get("hp", 0)) <= 0 or bool(rst.get("awaiting_respawn", false))
+			if not deadish:
+				return {"ok": false, "actions": [{"type": "system_message", "text": "目标未死亡。"}]}
+		else:
+			if not _in_range(target_npc_id, player_x, player_y, range_cells):
+				return {"ok": false, "actions": [{"type": "system_message", "text": "目标太远。"}]}
+			stats.ensure_npc(target_npc_id, true)
+			if not stats.npcs.has(target_npc_id) or int(stats.npcs[target_npc_id].get("hp", 0)) <= 0:
+				return {"ok": false, "actions": [{"type": "system_message", "text": "目标已死亡或不存在。"}]}
+			# Taunt / interrupt / mark require a living hostile target.
+			if eff_chk == "taunt":
+				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
+					return {"ok": false, "actions": [{"type": "system_message", "text": "只能嘲讽敌对目标。"}]}
+			elif eff_chk == "interrupt":
+				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
+					return {"ok": false, "actions": [{"type": "system_message", "text": "只能打断敌对目标。"}]}
+			elif eff_chk == "mark":
+				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
+					return {"ok": false, "actions": [{"type": "system_message", "text": "只能标记敌对目标。"}]}
+			elif eff_chk == "charge":
+				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
+					return {"ok": false, "actions": [{"type": "system_message", "text": "只能冲锋敌对目标。"}]}
+				var min_r: int = int(def.get("min_range", 0))
+				if min_r > 0:
+					var tcell: Vector2i = stats.get_npc_cell(target_npc_id)
+					var cdist: int = maxi(absi(tcell.x - player_x), absi(tcell.y - player_y))
+					if cdist < min_r:
+						return {"ok": false, "actions": [{"type": "system_message", "text": "目标太近，无法冲锋。"}]}
+				var path_err := _charge_path_error(target_npc_id, player_x, player_y)
+				if path_err != "":
+					return {"ok": false, "actions": [{"type": "system_message", "text": path_err}]}
+			elif eff_chk == "execute":
+				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
+					return {"ok": false, "actions": [{"type": "system_message", "text": "只能斩杀敌对目标。"}]}
+				var ehp: int = int(stats.npcs[target_npc_id].get("hp", 0))
+				var emax: int = maxi(1, int(stats.npcs[target_npc_id].get("hp_max", 1)))
+				var thr: float = float(def.get("hp_threshold", 0.3))
+				if thr <= 0.0:
+					thr = 0.3
+				if float(ehp) / float(emax) > thr:
+					return {"ok": false, "actions": [{"type": "system_message", "text": "目标生命过高。"}]}
 	# Cast / channel: validate at start, lock CD + spend MP at start (interrupt wastes MP).
 	var cast_time: float = float(def.get("cast_time", 0.0))
 	var channel_time: float = float(def.get("channel_time", 0.0))
@@ -460,7 +1163,7 @@ func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, playe
 		var interrupt_on_move: bool = bool(def.get("interrupt_on_move", true))
 		var sname := str(def.get("name", skill_id))
 		var start_act: Dictionary = cast.begin(
-			skill_id, sname, mode, duration, target_npc_id, player_x, player_y, def, interrupt_on_move
+			skill_id, sname, mode, duration, target_npc_id, player_x, player_y, def, interrupt_on_move, ground_x, ground_y
 		)
 		var actions: Array = [start_act]
 		actions.append_array(_player_stat_actions())
@@ -478,7 +1181,7 @@ func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, playe
 	var cd_i: float = float(def.get("cooldown", 1.0))
 	stats.set_skill_cooldown(skill_id, cd_i)
 	var actions_i: Array = []
-	_resolve_skill_effect(def, skill_id, target_npc_id, player_x, player_y, actions_i)
+	_resolve_skill_effect(def, skill_id, target_npc_id, player_x, player_y, actions_i, ground_x, ground_y, "player")
 	actions_i.append({
 		"type": "skill_cd",
 		"skill_id": skill_id,
@@ -488,6 +1191,488 @@ func try_use_skill(skill_id: String, target_npc_id: String, player_x: int, playe
 	return {"ok": true, "actions": actions_i}
 
 
+## NPC skill. cast_time > 0 starts casting (resolve on tick / cancel via interrupt).
+func try_npc_skill(
+	npc_id: String,
+	skill_id: String,
+	npc_x: int,
+	npc_y: int,
+	ground_x: int = -9999,
+	ground_y: int = -9999
+) -> Dictionary:
+	npc_id = npc_id.strip_edges()
+	skill_id = skill_id.strip_edges()
+	if npc_id.is_empty() or skill_id.is_empty() or stats == null or skills == null:
+		return {"ok": false, "actions": []}
+	if not stats.npcs.has(npc_id) or int(stats.npcs[npc_id].get("hp", 0)) <= 0:
+		return {"ok": false, "actions": []}
+	if not stats.player_alive():
+		return {"ok": false, "actions": []}
+	# Silence debuff blocks NPC skill use (interrupt fantasy).
+	if stats.statuses != null and stats.statuses.has_status(npc_id, "silence"):
+		return {"ok": false, "reason": "silence", "actions": []}
+	if is_npc_casting(npc_id):
+		return {"ok": false, "reason": "busy", "actions": []}
+	var def: Dictionary = skills.get_skill(skill_id)
+	if def.is_empty():
+		return {"ok": false, "actions": []}
+	var cat := str(def.get("category", "")).strip_edges()
+	if cat == "passive" or str(def.get("effect", "")).begins_with("passive"):
+		return {"ok": false, "actions": []}
+	var range_cells: int = int(def.get("range", 1))
+	var gcell: Vector2i = Vector2i(ground_x, ground_y)
+	if gcell.x <= -9990:
+		gcell = Vector2i(npc_x, npc_y)
+	if not _cell_in_range(Vector2i(npc_x, npc_y), gcell, range_cells):
+		return {"ok": false, "reason": "range", "actions": []}
+	var mp_cost: int = int(def.get("mp_cost", 0))
+	if not _spend_npc_mp(npc_id, mp_cost):
+		return {"ok": false, "reason": "mp", "actions": []}
+	var actions: Array = []
+	actions.append_array(_npc_stat_actions(npc_id))
+	var cast_time: float = float(def.get("cast_time", 0.0))
+	if cast_time > 0.0:
+		var cs = CastState.new()
+		var sname := str(def.get("name", skill_id)).strip_edges()
+		if sname.is_empty():
+			sname = skill_id
+		var start_act: Dictionary = cs.begin(
+			skill_id, sname, "cast", cast_time, "", npc_x, npc_y, def, false, gcell.x, gcell.y
+		)
+		start_act["npc_id"] = npc_id
+		start_act["caster"] = npc_id
+		npc_casts[npc_id] = cs
+		actions.append(start_act)
+		return {"ok": true, "casting": true, "actions": actions}
+	_resolve_skill_effect(def, skill_id, "", npc_x, npc_y, actions, gcell.x, gcell.y, npc_id)
+	return {"ok": true, "actions": actions}
+
+
+func is_npc_casting(npc_id: String) -> bool:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or not npc_casts.has(npc_id):
+		return false
+	var cs = npc_casts[npc_id]
+	return cs != null and cs.is_busy()
+
+
+## Cancel NPC cast. Returns cast_end actions (no player 「施法被打断」 msg).
+func cancel_npc_cast(npc_id: String, reason: String = "interrupt") -> Array:
+	npc_id = npc_id.strip_edges()
+	var actions: Array = []
+	if npc_id.is_empty() or not npc_casts.has(npc_id):
+		return actions
+	var cs = npc_casts[npc_id]
+	npc_casts.erase(npc_id)
+	if cs == null or not cs.is_busy():
+		if cs != null:
+			cs.clear()
+		return actions
+	var snap: Dictionary = cs.snapshot()
+	cs.clear()
+	var sid := str(snap.get("skill_id", ""))
+	var sname := str(snap.get("name", sid))
+	var mode := str(snap.get("mode", "cast"))
+	actions.append({
+		"type": "cast_end",
+		"skill_id": sid,
+		"name": sname,
+		"mode": mode,
+		"ok": false,
+		"cancelled": true,
+		"reason": reason,
+		"npc_id": npc_id,
+		"caster": npc_id,
+	})
+	return actions
+
+
+func clear_npc_cast(npc_id: String) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty():
+		return
+	if npc_casts.has(npc_id):
+		var cs = npc_casts[npc_id]
+		if cs != null:
+			cs.clear()
+		npc_casts.erase(npc_id)
+
+
+## Advance all NPC casts; on finish resolves skill. Returns action list.
+func tick_npc_casts(delta: float) -> Array:
+	var actions: Array = []
+	if npc_casts.is_empty():
+		return actions
+	var done: Array = []
+	var ids: Array = npc_casts.keys()
+	for nid_v in ids:
+		var npc_id := str(nid_v)
+		var cs = npc_casts[npc_id]
+		if cs == null or not cs.is_busy():
+			done.append(npc_id)
+			continue
+		if stats == null or not stats.npcs.has(npc_id) or int(stats.npcs[npc_id].get("hp", 0)) <= 0:
+			actions.append_array(cancel_npc_cast(npc_id, "dead"))
+			continue
+		var tick_r: Dictionary = cs.tick(delta)
+		for a in tick_r.get("actions", []):
+			if typeof(a) == TYPE_DICTIONARY:
+				a["npc_id"] = npc_id
+				a["caster"] = npc_id
+				actions.append(a)
+		if not bool(tick_r.get("finished", false)):
+			continue
+		var snap: Dictionary = cs.snapshot()
+		cs.clear()
+		done.append(npc_id)
+		var skill_id := str(snap.get("skill_id", ""))
+		var px: int = int(snap.get("player_x", 0))
+		var py: int = int(snap.get("player_y", 0))
+		var gx: int = int(snap.get("ground_x", -9999))
+		var gy: int = int(snap.get("ground_y", -9999))
+		var def_v: Variant = snap.get("def", {})
+		var def: Dictionary = def_v if typeof(def_v) == TYPE_DICTIONARY else {}
+		var mode := str(snap.get("mode", "cast"))
+		var sname := str(snap.get("name", skill_id))
+		if def.is_empty() and skills != null:
+			def = skills.get_skill(skill_id)
+		if def.is_empty() or not stats.player_alive():
+			actions.append({
+				"type": "cast_end",
+				"skill_id": skill_id,
+				"name": sname,
+				"mode": mode,
+				"ok": false,
+				"cancelled": false,
+				"npc_id": npc_id,
+				"caster": npc_id,
+			})
+			continue
+		# Refresh caster cell if still tracked.
+		if stats.has_method("get_npc_cell"):
+			var cell: Vector2i = stats.get_npc_cell(npc_id)
+			if cell.x > -9990:
+				px = cell.x
+				py = cell.y
+		_resolve_skill_effect(def, skill_id, "", px, py, actions, gx, gy, npc_id)
+		actions.append({
+			"type": "cast_end",
+			"skill_id": skill_id,
+			"name": sname,
+			"mode": mode,
+			"ok": true,
+			"cancelled": false,
+			"npc_id": npc_id,
+			"caster": npc_id,
+		})
+		actions.append_array(_npc_stat_actions(npc_id))
+	for nid2 in done:
+		npc_casts.erase(str(nid2))
+	return actions
+
+
+## Force victim / top hate onto the player via a large add_hate spike.
+func _apply_taunt(npc_id: String, def: Dictionary, actions: Array) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return
+	var st: Dictionary = stats.npcs[npc_id]
+	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+		return
+	var actor_id := "player"
+	if "player_actor_id" in stats:
+		var aid := str(stats.player_actor_id).strip_edges()
+		if aid != "":
+			actor_id = aid
+	var base_spike: float = float(def.get("hate_amount", 1000.0))
+	if base_spike <= 0.0:
+		base_spike = 1000.0
+	# Beat sticky victim hysteresis (THREAT_SWITCH_RATIO 1.10): ensure we outrank current top.
+	var top_other := 0.0
+	if stats.has_method("get_hate_list"):
+		for e in stats.get_hate_list(npc_id, false):
+			if typeof(e) != TYPE_DICTIONARY:
+				continue
+			var eid := str((e as Dictionary).get("id", ""))
+			if eid == actor_id:
+				continue
+			top_other = maxf(top_other, float((e as Dictionary).get("threat", 0.0)))
+	var my_hate := 0.0
+	if stats.has_method("get_threat"):
+		my_hate = float(stats.get_threat(npc_id, actor_id))
+	var switch_ratio := 1.10
+	if "THREAT_SWITCH_RATIO" in stats:
+		switch_ratio = float(stats.THREAT_SWITCH_RATIO)
+	var need: float = top_other * switch_ratio - my_hate + 1.0
+	var spike: float = maxf(base_spike, need)
+	if stats.has_method("add_hate"):
+		stats.add_hate(npc_id, actor_id, spike, 1.0)
+	elif stats.has_method("add_threat"):
+		stats.add_threat(npc_id, actor_id, spike)
+	# Force victim onto player even if sticky edge cases remain.
+	if stats.npc_ai.has(npc_id):
+		var ai: Dictionary = stats.npc_ai[npc_id]
+		ai["victim_id"] = actor_id
+		ai["chase_target"] = actor_id
+		stats.npc_ai[npc_id] = ai
+	if stats.has_method("begin_chase"):
+		stats.begin_chase(npc_id, actor_id)
+	var thr_act: Dictionary = _threat_update_action(npc_id)
+	if not thr_act.is_empty():
+		actions.append(thr_act)
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	actions.append({"type": "system_message", "text": "嘲讽了%s" % nm})
+
+
+## Tiny damage + silence debuff on hostile (interrupt skill fantasy).
+## If the NPC is casting, cancel the cast first (msg 「打断了{名}的施法！」).
+func _apply_interrupt(npc_id: String, def: Dictionary, actions: Array) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return
+	var st: Dictionary = stats.npcs[npc_id]
+	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+		return
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	var interrupted_cast := is_npc_casting(npc_id)
+	if interrupted_cast:
+		actions.append_array(cancel_npc_cast(npc_id, "interrupt"))
+		actions.append({"type": "system_message", "text": "打断了%s的施法！" % nm})
+	var power: float = float(def.get("power", 0.35))
+	if power <= 0.0:
+		power = 0.35
+	var amount: int = maxi(1, int(round(float(_effective_atk_player()) * power)))
+	_damage_npc(npc_id, amount, actions, true, "player", true)
+	var status_def: Dictionary = _status_def_from_skill(def)
+	if status_def.is_empty():
+		status_def = {
+			"id": "silence",
+			"name": "沉默",
+			"kind": "debuff",
+			"duration": 3.0,
+			"tick_interval": 0,
+		}
+	if stats.npcs.has(npc_id) and int(stats.npcs[npc_id].get("hp", 0)) > 0:
+		_apply_status_to(npc_id, status_def, "player", actions)
+	# When a cast was canceled, keep one clear interrupt line (skip silence toast).
+	if not interrupted_cast:
+		actions.append({"type": "system_message", "text": "打断：沉默了%s！" % nm})
+
+
+## Apply mark debuff (def_mul) on hostile — increases damage taken.
+func _apply_mark(npc_id: String, def: Dictionary, actions: Array) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return
+	var st: Dictionary = stats.npcs[npc_id]
+	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+		return
+	var status_def: Dictionary = _status_def_from_skill(def)
+	if status_def.is_empty():
+		status_def = {
+			"id": "mark",
+			"name": "标记",
+			"kind": "debuff",
+			"duration": 12.0,
+			"tick_interval": 0,
+			"def_mul": 0.85,
+		}
+	if not status_def.has("def_mul"):
+		status_def["def_mul"] = 0.85
+	_apply_status_to(npc_id, status_def, "player", actions)
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	actions.append({"type": "system_message", "text": "标记了%s！" % nm})
+
+
+## Revive a dead ally NPC (~30% max HP); keeps death cell.
+func _apply_revive(npc_id: String, def: Dictionary, actions: Array) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return
+	var st: Dictionary = stats.npcs[npc_id]
+	if not bool(st.get("ally", false)):
+		return
+	var deadish := int(st.get("hp", 0)) <= 0 or bool(st.get("awaiting_respawn", false))
+	if not deadish:
+		return
+	var hp_max: int = maxi(1, int(st.get("hp_max", 1)))
+	var pct: float = float(def.get("heal_pct", 0.3))
+	if pct <= 0.0:
+		pct = 0.3
+	var new_hp: int = maxi(1, int(round(float(hp_max) * pct)))
+	st["hp"] = new_hp
+	st["awaiting_respawn"] = false
+	stats.npcs[npc_id] = st
+	if stats.statuses != null:
+		stats.statuses.clear_all_on_death(npc_id)
+	# Clear AI dead/respawn wait if present so ally can act again.
+	if stats.npc_ai.has(npc_id):
+		var ai: Dictionary = stats.npc_ai[npc_id]
+		ai["ai_state"] = "idle"
+		ai["chase_target"] = ""
+		ai["victim_id"] = ""
+		ai["respawn_acc"] = 0.0
+		stats.npc_ai[npc_id] = ai
+	actions.append_array(_npc_stat_actions(npc_id))
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	actions.append({"type": "system_message", "text": "复活了%s！" % nm})
+	actions.append({
+		"type": "ally_revived",
+		"id": npc_id,
+		"hp": new_hp,
+		"hp_max": hp_max,
+	})
+
+
+
+## Adjacent landing cell for charge (Chebyshev), preferring the side toward the caster.
+func _charge_dest_cell(npc_id: String, player_x: int, player_y: int) -> Vector2i:
+	var tcell: Vector2i = stats.get_npc_cell(npc_id)
+	if tcell.x <= -9990:
+		return Vector2i(-9999, -9999)
+	var from := Vector2i(player_x, player_y)
+	if _chebyshev(from, tcell) <= 1:
+		return from
+	# Step from target toward caster by 1 Chebyshev cell.
+	var dx: int = clampi(from.x - tcell.x, -1, 1)
+	var dy: int = clampi(from.y - tcell.y, -1, 1)
+	var dest := Vector2i(tcell.x + dx, tcell.y + dy)
+	if map_collision != null:
+		# Prefer landable adjacent cells closest to caster.
+		var best := Vector2i(-9999, -9999)
+		var best_d := 999999
+		for oy in range(-1, 2):
+			for ox in range(-1, 2):
+				if ox == 0 and oy == 0:
+					continue
+				var c := Vector2i(tcell.x + ox, tcell.y + oy)
+				if map_collision.has_method("is_landable") and not bool(map_collision.is_landable(c.x, c.y)):
+					continue
+				if map_collision.has_method("is_extra_blocked") and bool(map_collision.is_extra_blocked(c.x, c.y)):
+					# Occupied by other units — skip unless it is our current cell.
+					if c != from:
+						continue
+				var d: int = _chebyshev(from, c)
+				if d < best_d:
+					best_d = d
+					best = c
+		if best.x > -9990:
+			return best
+	return dest
+
+
+## Empty string if charge path OK; Chinese reason if blocked / no landing.
+func _charge_path_error(npc_id: String, player_x: int, player_y: int) -> String:
+	var from := Vector2i(player_x, player_y)
+	var dest: Vector2i = _charge_dest_cell(npc_id, player_x, player_y)
+	if dest.x <= -9990:
+		return "冲锋路径被阻挡。"
+	if dest == from:
+		return ""
+	if map_collision == null:
+		return ""
+	# Temporarily free player occupancy so pathing can leave the start cell.
+	var had_block := false
+	if map_collision.has_method("is_extra_blocked"):
+		had_block = bool(map_collision.is_extra_blocked(from.x, from.y))
+	if had_block and map_collision.has_method("set_extra_blocked"):
+		map_collision.set_extra_blocked(from.x, from.y, false)
+	var path: Array[Vector2i] = GridPath.find_path(map_collision, from, dest)
+	if path.is_empty():
+		path = GridPath.find_path_near(map_collision, from, dest, 1)
+	if had_block and map_collision.has_method("set_extra_blocked"):
+		map_collision.set_extra_blocked(from.x, from.y, true)
+	if path.is_empty() and dest != from:
+		return "冲锋路径被阻挡。"
+	return ""
+
+
+## Dash adjacent to hostile, light physical hit, brief root.
+func _apply_charge(npc_id: String, def: Dictionary, player_x: int, player_y: int, actions: Array) -> Vector2i:
+	npc_id = npc_id.strip_edges()
+	var from := Vector2i(player_x, player_y)
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return from
+	var st: Dictionary = stats.npcs[npc_id]
+	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+		return from
+	# Re-validate landing occupancy at apply time (path may have changed since cast start).
+	var path_err := _charge_path_error(npc_id, player_x, player_y)
+	if path_err != "":
+		actions.append({"type": "system_message", "text": path_err})
+		return from
+	var dest: Vector2i = _charge_dest_cell(npc_id, player_x, player_y)
+	if dest.x <= -9990:
+		dest = from
+	if dest != from:
+		player_cell_hint = dest
+		var face: int = facing_toward(from, dest)
+		actions.append({
+			"type": "player_move",
+			"x": dest.x,
+			"y": dest.y,
+			"cell": {"x": dest.x, "y": dest.y},
+			"facing": face,
+			"kind": "charge",
+		})
+	var power: float = float(def.get("power", 1.2))
+	if power <= 0.0:
+		power = 1.2
+	var amount: int = maxi(1, int(round(float(_effective_atk_player()) * power)))
+	var hit := _damage_npc(npc_id, amount, actions, true, "player", true)
+	var status_def: Dictionary = _status_def_from_skill(def)
+	if status_def.is_empty():
+		status_def = {
+			"id": "root",
+			"name": "定身",
+			"kind": "debuff",
+			"duration": 0.75,
+			"tick_interval": 0,
+			"move_speed_mul": 0.0,
+		}
+	if not status_def.has("move_speed_mul"):
+		status_def["move_speed_mul"] = 0.0
+	if hit and stats.npcs.has(npc_id) and int(stats.npcs[npc_id].get("hp", 0)) > 0:
+		_apply_status_to(npc_id, status_def, "player", actions)
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	if hit:
+		actions.append({"type": "system_message", "text": "冲锋了%s！" % nm})
+		_maybe_counter(npc_id, dest.x, dest.y, actions)
+	return dest
+
+
+
+## Finisher: high physical damage on low-HP hostile (HP ≤ threshold).
+func _apply_execute(npc_id: String, def: Dictionary, player_x: int, player_y: int, actions: Array) -> void:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or stats == null or not stats.npcs.has(npc_id):
+		return
+	var st: Dictionary = stats.npcs[npc_id]
+	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+		return
+	var power: float = float(def.get("power", 2.0))
+	if power <= 0.0:
+		power = 2.0
+	var amount: int = maxi(1, int(round(float(_effective_atk_player()) * power)))
+	var hit := _damage_npc(npc_id, amount, actions, true, "player", true)
+	var nm := str(st.get("name", "")).strip_edges()
+	if nm.is_empty():
+		nm = npc_id
+	if hit:
+		actions.append({"type": "system_message", "text": "斩杀了%s！" % nm})
+		_maybe_counter(npc_id, player_x, player_y, actions)
+
+
 ## Apply skill damage/heal/status/aoe after validation + MP/CD already handled.
 func _resolve_skill_effect(
 	def: Dictionary,
@@ -495,65 +1680,165 @@ func _resolve_skill_effect(
 	target_npc_id: String,
 	player_x: int,
 	player_y: int,
-	actions: Array
+	actions: Array,
+	ground_x: int = -9999,
+	ground_y: int = -9999,
+	caster: String = "player"
 ) -> void:
 	var effect := str(def.get("effect", "damage"))
 	var aoe_radius: int = int(def.get("aoe_radius", 0))
 	var max_targets: int = int(def.get("max_targets", 8))
 	var needs_target: bool = bool(def.get("requires_target", false))
+	var tmode := skill_target_mode(def)
 	var status_def: Dictionary = _status_def_from_skill(def)
 	var power: float = float(def.get("power", 1.0))
-	var atk: int = _effective_atk_player()
+	var from_player := caster == "player" or caster.is_empty()
+	var atk: int = _effective_atk_player() if from_player else _effective_atk_npc(caster)
 	var amount: int = maxi(1, int(round(float(atk) * power)))
-	match effect:
-		"damage":
-			_damage_npc(target_npc_id, amount, actions)
-			_maybe_counter(target_npc_id, player_x, player_y, actions)
-		"damage_and_status":
-			_damage_npc(target_npc_id, amount, actions)
-			if stats.npcs.has(target_npc_id) and int(stats.npcs[target_npc_id].get("hp", 0)) > 0:
-				_apply_status_to(target_npc_id, status_def, "player", actions)
-			_maybe_counter(target_npc_id, player_x, player_y, actions)
-		"aoe_damage":
-			var center := Vector2i(player_x, player_y)
-			if needs_target:
-				center = stats.get_npc_cell(target_npc_id)
-				if center.x <= -9990:
-					center = Vector2i(player_x, player_y)
-			var radius: int = aoe_radius
-			if radius <= 0:
-				radius = 0
-			var hits: Array = _collect_aoe_hostiles(center, radius, max_targets)
-			# Ensure primary target is included when requires_target.
-			if needs_target and not target_npc_id.is_empty() and stats.npcs.has(target_npc_id):
-				if target_npc_id not in hits:
-					hits.push_front(target_npc_id)
-					while hits.size() > max_targets:
-						hits.pop_back()
-			if hits.is_empty() and needs_target and not target_npc_id.is_empty():
-				hits = [target_npc_id]
-			for hid_v in hits:
-				var hid := str(hid_v)
-				if not stats.npcs.has(hid) or int(stats.npcs[hid].get("hp", 0)) <= 0:
-					continue
-				_damage_npc(hid, amount, actions)
-				if not status_def.is_empty() and stats.npcs.has(hid) and int(stats.npcs[hid].get("hp", 0)) > 0:
-					_apply_status_to(hid, status_def, "player", actions)
-			if needs_target and not target_npc_id.is_empty():
+	var shape := str(def.get("aoe_shape", "circle"))
+	var center: Vector2i = _resolve_ground_cell(def, target_npc_id, player_x, player_y, ground_x, ground_y)
+	if center.x <= -9990:
+		center = Vector2i(player_x, player_y)
+	var facing: int = facing_toward(Vector2i(player_x, player_y), center)
+	var hits: Array = []
+	if from_player:
+		# Damaging / taunt skills cancel stealth + mount; self-buffs / heals do not.
+		if effect in ["damage", "damage_and_status", "aoe_damage", "taunt", "interrupt", "mark", "charge", "execute"]:
+			break_stealth(actions)
+			break_mount(actions)
+		match effect:
+			"damage":
+				if _damage_npc(target_npc_id, amount, actions, true, "player", true):
+					hits.append(target_npc_id)
 				_maybe_counter(target_npc_id, player_x, player_y, actions)
+			"damage_and_status":
+				if _damage_npc(target_npc_id, amount, actions, true, "player", true):
+					hits.append(target_npc_id)
+					if stats.npcs.has(target_npc_id) and int(stats.npcs[target_npc_id].get("hp", 0)) > 0:
+						_apply_status_to(target_npc_id, status_def, "player", actions)
+				_maybe_counter(target_npc_id, player_x, player_y, actions)
+			"aoe_damage":
+				if tmode != "ground" and needs_target:
+					var tc: Vector2i = stats.get_npc_cell(target_npc_id)
+					if tc.x > -9990:
+						center = tc
+				var radius: int = aoe_radius
+				if radius <= 0:
+					radius = 0
+				hits = _collect_aoe_hostiles(center, radius, max_targets, shape, facing)
+				if needs_target and not target_npc_id.is_empty() and stats.npcs.has(target_npc_id):
+					if target_npc_id not in hits:
+						hits.push_front(target_npc_id)
+						while hits.size() > max_targets:
+							hits.pop_back()
+				if hits.is_empty() and needs_target and not target_npc_id.is_empty():
+					hits = [target_npc_id]
+				var landed: Array = []
+				var wear_first := true  # AoE: weapon wear once per cast, not per hit.
+				for hid_v in hits:
+					var hid := str(hid_v)
+					if not stats.npcs.has(hid) or int(stats.npcs[hid].get("hp", 0)) <= 0:
+						continue
+					var do_wear := wear_first
+					wear_first = false
+					if _damage_npc(hid, amount, actions, true, "player", do_wear):
+						landed.append(hid)
+						if not status_def.is_empty() and stats.npcs.has(hid) and int(stats.npcs[hid].get("hp", 0)) > 0:
+							_apply_status_to(hid, status_def, "player", actions)
+				hits = landed
+				if needs_target and not target_npc_id.is_empty():
+					_maybe_counter(target_npc_id, player_x, player_y, actions)
+			"apply_status":
+				if needs_target:
+					_apply_status_to(target_npc_id, status_def, "player", actions)
+					hits.append(target_npc_id)
+				else:
+					_apply_status_to("player", status_def, "player", actions)
+			"heal":
+				var heal_amt: int = int(def.get("heal_amount", 20))
+				_heal_player(heal_amt, actions)
+			"taunt":
+				_apply_taunt(target_npc_id, def, actions)
+				hits.append(target_npc_id)
+			"interrupt":
+				_apply_interrupt(target_npc_id, def, actions)
+				hits.append(target_npc_id)
+				_maybe_counter(target_npc_id, player_x, player_y, actions)
+			"mark":
+				_apply_mark(target_npc_id, def, actions)
+				hits.append(target_npc_id)
+			"charge":
+				var landed: Vector2i = _apply_charge(target_npc_id, def, player_x, player_y, actions)
+				player_x = landed.x
+				player_y = landed.y
+				hits.append(target_npc_id)
+			"execute":
+				_apply_execute(target_npc_id, def, player_x, player_y, actions)
+				hits.append(target_npc_id)
+			"revive":
+				_apply_revive(target_npc_id, def, actions)
+				hits.append(target_npc_id)
+			"mount":
+				_apply_mount_toggle(def, actions)
+			"recall", "teleport_home":
+				actions.append({"type": "recall"})
+			_:
+				actions.append({"type": "system_message", "text": "技能效果未实现：%s" % effect})
+		_append_skill_fx(actions, def, skill_id, "player", center, hits)
+		actions.append_array(_player_stat_actions())
+		var sname := str(def.get("name", skill_id))
+		if effect == "taunt":
+			# Message already appended in _apply_taunt («嘲讽了{名}»).
+			pass
+		elif effect == "interrupt":
+			# Message already appended in _apply_interrupt («打断：沉默了{名}！»).
+			pass
+		elif effect == "mark":
+			# Message already appended in _apply_mark («标记了{名}！»).
+			pass
+		elif effect == "charge":
+			# Message already appended in _apply_charge («冲锋了{名}！»).
+			pass
+		elif effect == "execute":
+			# Message already appended in _apply_execute («斩杀了{名}！»).
+			pass
+		elif effect == "revive":
+			# Message already appended in _apply_revive («复活了{名}！»).
+			pass
+		elif effect == "mount" or skill_id == "mount":
+			# Messages in _apply_mount_toggle / break_mount.
+			pass
+		elif skill_id == "battle_shout" or sname == "战吼":
+			actions.append({"type": "system_message", "text": "战吼响起！"})
+		else:
+			actions.append({"type": "system_message", "text": "使用了【%s】。" % sname})
+		return
+	# NPC caster: damage/status the player if they sit in the skill footprint.
+	var player_cell := player_cell_hint
+	if player_cell.x <= -9990:
+		player_cell = Vector2i(ground_x, ground_y)
+	var hit_player := false
+	match effect:
+		"damage", "damage_and_status":
+			hit_player = true
+		"aoe_damage":
+			hit_player = cell_in_aoe(center, player_cell, aoe_radius, shape, facing)
 		"apply_status":
-			if needs_target:
-				_apply_status_to(target_npc_id, status_def, "player", actions)
-			else:
-				_apply_status_to("player", status_def, "player", actions)
-		"heal":
-			var heal_amt: int = int(def.get("heal_amount", 20))
-			_heal_player(heal_amt, actions)
+			hit_player = true
 		_:
-			actions.append({"type": "system_message", "text": "技能效果未实现：%s" % effect})
+			hit_player = false
+	if hit_player and stats.player_alive():
+		if effect == "apply_status":
+			_apply_status_to("player", status_def, caster, actions)
+			hits.append("player")
+		elif _damage_player(amount, actions, caster):
+			hits.append("player")
+			if effect == "damage_and_status" or (effect == "aoe_damage" and not status_def.is_empty()):
+				_apply_status_to("player", status_def, caster, actions)
+	_append_skill_fx(actions, def, skill_id, caster, center, hits)
 	actions.append_array(_player_stat_actions())
-	var sname := str(def.get("name", skill_id))
-	actions.append({"type": "system_message", "text": "使用了【%s】。" % sname})
+	var nsname := str(def.get("name", skill_id))
+	actions.append({"type": "system_message", "text": "【%s】使用了【%s】。" % [caster, nsname]})
 
 
 func try_use_item(item_id: String) -> Dictionary:
@@ -564,31 +1849,58 @@ func try_use_item(item_id: String) -> Dictionary:
 	if def.is_empty():
 		return {"ok": false, "actions": [{"type": "system_message", "text": "未知物品。"}]}
 	# Equipment is equipped via MockServer.try_equip_item, not consumed here.
-	if str(def.get("type", "")).strip_edges() == "equipment" or not bool(def.get("consumable", false)):
-		var ue := str(def.get("use_effect", def.get("effect", ""))).strip_edges()
-		if str(def.get("type", "")).strip_edges() == "equipment" or ue.is_empty():
-			return {"ok": false, "actions": [{"type": "system_message", "text": "无法直接使用该物品。"}]}
+	var type_s := str(def.get("type", "")).strip_edges()
+	var ue0 := str(def.get("use_effect", def.get("effect", ""))).strip_edges()
+	if type_s == "equipment":
+		return {"ok": false, "actions": [{"type": "system_message", "text": "无法直接使用该物品。"}]}
+	if not bool(def.get("consumable", false)) and not _is_item_effect(ue0):
+		return {"ok": false, "actions": [{"type": "system_message", "text": "无法直接使用该物品。"}]}
 	if not bag.has_item(item_id, 1):
 		return {"ok": false, "actions": [{"type": "system_message", "text": "背包中没有该物品。"}]}
 	if not stats.is_item_ready(item_id):
 		return {"ok": false, "actions": [{"type": "system_message", "text": "物品冷却中。"}]}
+	# Prefer use_effect (item_template); fall back to legacy effect.
+	var effect := str(def.get("use_effect", "")).strip_edges()
+	if effect.is_empty():
+		effect = str(def.get("effect", "")).strip_edges()
+	# Out-of-combat-only consumables (e.g. bandage) fail before consume.
+	if bool(def.get("out_of_combat_only", false)) and player_in_combat():
+		var fail_msg := str(def.get("combat_fail_msg", "战斗中无法使用。")).strip_edges()
+		if fail_msg.is_empty():
+			fail_msg = "战斗中无法使用。"
+		return {
+			"ok": false,
+			"reason": "in_combat",
+			"actions": [{"type": "system_message", "text": fail_msg}],
+		}
+	# Fail before consume: MP potions when already full.
+	if effect == "heal_mp":
+		var mp_now: int = int(stats.player.get("mp", 0))
+		var mp_cap: int = int(stats.player.get("mp_max", 1))
+		if mp_now >= mp_cap:
+			return {
+				"ok": false,
+				"reason": "mp_full",
+				"actions": [{"type": "system_message", "text": "魔力已满。"}],
+			}
+	# Fail before consume: repair kit needs damaged equip and/or bag tools.
+	if effect == "repair_equip":
+		var need_eq: bool = gear != null and gear.has_method("needs_repair") and bool(gear.needs_repair())
+		var need_tool: bool = bag != null and bag.has_method("tools_need_repair") and bool(bag.tools_need_repair())
+		if not need_eq and not need_tool:
+			return {
+				"ok": false,
+				"reason": "nothing_to_repair",
+				"actions": [{"type": "system_message", "text": "没有需要修理的装备。"}],
+			}
 	if not bag.consume(item_id, 1):
 		return {"ok": false, "actions": [{"type": "system_message", "text": "背包中没有该物品。"}]}
 	var cd: float = float(def.get("cooldown", 1.0))
 	stats.set_item_cooldown(item_id, cd)
 	var actions: Array = []
-	# Prefer use_effect (item_template); fall back to legacy effect.
-	var effect := str(def.get("use_effect", "")).strip_edges()
-	if effect.is_empty():
-		effect = str(def.get("effect", "")).strip_edges()
-	var amount: int = int(def.get("amount", 0))
-	match effect:
-		"heal_hp":
-			_heal_player(amount, actions)
-		"heal_mp":
-			_restore_mp(amount, actions)
-		_:
-			actions.append({"type": "system_message", "text": "物品效果未实现：%s" % effect})
+	var resolved := _resolve_item_effect(def, effect, actions)
+	if not resolved:
+		actions.append({"type": "system_message", "text": "物品效果未实现：%s" % effect})
 	actions.append({
 		"type": "inventory_update",
 		"items": bag.snapshot(),
@@ -596,12 +1908,189 @@ func try_use_item(item_id: String) -> Dictionary:
 	})
 	actions.append_array(_player_stat_actions())
 	var iname := str(def.get("name", item_id))
-	actions.append({"type": "system_message", "text": "使用了【%s】。" % iname})
+	if effect == "repair_equip" and resolved:
+		var rmsg := _repair_kit_msg if not _repair_kit_msg.is_empty() else "使用修理工具包，修复了装备。"
+		actions.append({"type": "system_message", "text": rmsg})
+		_repair_kit_msg = ""
+	elif effect != "repair_equip":
+		actions.append({"type": "system_message", "text": "使用了【%s】。" % iname})
 	return {"ok": true, "actions": actions}
 
 
+func _is_item_effect(effect: String) -> bool:
+	match effect:
+		"heal_hp", "heal_mp", "apply_status", "clear_status", "cleanse", "recall", "teleport_home", "repair_equip", "party_summon":
+			return true
+		_:
+			return false
+
+
+## Returns false when the effect name is unknown (caller may emit unimplemented).
+func _resolve_item_effect(def: Dictionary, effect: String, actions: Array) -> bool:
+	var amount: int = int(def.get("amount", 0))
+	match effect:
+		"heal_hp":
+			_heal_player(amount, actions)
+			var amount_mp: int = int(def.get("amount_mp", 0))
+			if amount_mp > 0:
+				_restore_mp(amount_mp, actions)
+			var st_hp: Dictionary = _status_def_from_skill(def)
+			if not st_hp.is_empty():
+				_apply_status_to("player", st_hp, "player", actions)
+			return true
+		"heal_mp":
+			_restore_mp(amount, actions)
+			var st_mp: Dictionary = _status_def_from_skill(def)
+			if not st_mp.is_empty():
+				_apply_status_to("player", st_mp, "player", actions)
+			return true
+		"apply_status":
+			var st: Dictionary = _status_def_from_skill(def)
+			if not st.is_empty():
+				_apply_status_to("player", st, "player", actions)
+			return true
+		"clear_status":
+			var sid := str(def.get("status_id", "")).strip_edges()
+			if sid.is_empty():
+				var nested: Dictionary = _status_def_from_skill(def)
+				sid = str(nested.get("id", "")).strip_edges()
+			if stats.statuses != null and sid != "":
+				stats.statuses.clear_status("player", sid)
+				actions.append(stats.statuses.status_update_action("player"))
+			return true
+		"cleanse":
+			if stats.statuses != null:
+				stats.statuses.clear_harmful("player")
+				actions.append(stats.statuses.status_update_action("player"))
+			return true
+		"recall", "teleport_home":
+			actions.append({"type": "recall"})
+			return true
+		"repair_equip":
+			var frac := float(def.get("repair_fraction", 0.3))
+			var did_eq := false
+			var did_tool := false
+			if gear != null and gear.has_method("apply_kit_repair") and gear.has_method("needs_repair") and bool(gear.needs_repair()):
+				var rr: Dictionary = gear.apply_kit_repair(frac)
+				if bool(rr.get("ok", false)):
+					did_eq = true
+					actions.append({
+						"type": "equipment_update",
+						"equipment": gear.snapshot() if gear.has_method("snapshot") else [],
+						"bonuses": gear.total_bonuses() if gear.has_method("total_bonuses") else {},
+					})
+			if bag != null and bag.has_method("apply_kit_repair_tools") and bag.has_method("tools_need_repair") and bool(bag.tools_need_repair()):
+				var tr: Dictionary = bag.apply_kit_repair_tools(frac)
+				if bool(tr.get("ok", false)):
+					did_tool = true
+			if not did_eq and not did_tool:
+				return false
+			# Stash message kind for use_item Chinese line.
+			if did_eq and did_tool:
+				_repair_kit_msg = "使用修理工具包，修复了装备与工具。"
+			elif did_tool:
+				_repair_kit_msg = "使用修理工具包，修复了工具。"
+			else:
+				_repair_kit_msg = "使用修理工具包，修复了装备。"
+			return true
+		_:
+			return false
+
+
 ## Periodic tick: status DoT/HoT then adjacent hostile counter.
+
+## --- Personal DPS meter (session fight window) ---
+
+func _dps_attacker_is_player(attacker_id: String) -> bool:
+	var aid := attacker_id.strip_edges()
+	if aid == "" or aid == "player":
+		return true
+	if stats != null and "player_actor_id" in stats:
+		var sid := str(stats.player_actor_id).strip_edges()
+		if sid != "" and aid == sid:
+			return true
+	return false
+
+
+func reset_dps_fight() -> void:
+	_dps_fight = {
+		"active": false,
+		"total_damage": 0,
+		"fight_start": 0.0,
+		"last_hit_time": 0.0,
+	}
+	_dps_last_snap = {"dps": 0.0, "total": 0, "elapsed": 0.0, "active": false}
+
+
+func snapshot_dps() -> Dictionary:
+	var s: Dictionary = _dps_last_snap.duplicate(true)
+	s["type"] = "dps_update"
+	# Live window while active.
+	if bool(_dps_fight.get("active", false)):
+		var elapsed: float = maxf(0.0, _dps_clock - float(_dps_fight.get("fight_start", 0.0)))
+		var total: int = int(_dps_fight.get("total_damage", 0))
+		var dps: float = float(total) / maxf(1.0, elapsed)
+		s = {"type": "dps_update", "dps": dps, "total": total, "elapsed": elapsed, "active": true}
+	return s
+
+
+func _dps_update_action(active: bool) -> Dictionary:
+	var total: int = int(_dps_fight.get("total_damage", 0))
+	var start: float = float(_dps_fight.get("fight_start", 0.0))
+	var last: float = float(_dps_fight.get("last_hit_time", start))
+	var end_t: float = last if not active else _dps_clock
+	var elapsed: float = maxf(0.0, end_t - start)
+	var dps: float = float(total) / maxf(1.0, elapsed)
+	var act := {
+		"type": "dps_update",
+		"dps": dps,
+		"total": total,
+		"elapsed": elapsed,
+		"active": active,
+	}
+	_dps_last_snap = {
+		"dps": dps,
+		"total": total,
+		"elapsed": elapsed,
+		"active": active,
+	}
+	return act
+
+
+## Record player → NPC damage. Returns dps_update action (always when dealt > 0).
+func note_dps_hit(dealt: int) -> Dictionary:
+	dealt = maxi(0, int(dealt))
+	if dealt <= 0:
+		return {}
+	var now: float = _dps_clock
+	if not bool(_dps_fight.get("active", false)):
+		_dps_fight["active"] = true
+		_dps_fight["total_damage"] = 0
+		_dps_fight["fight_start"] = now
+	_dps_fight["total_damage"] = int(_dps_fight.get("total_damage", 0)) + dealt
+	_dps_fight["last_hit_time"] = now
+	_dps_fight["active"] = true
+	return _dps_update_action(true)
+
+
+## Advance DPS clock; finalize fight after IDLE_TIMEOUT with no hits.
+## Returns array of actions (0–1 dps_update with active=false).
+func tick_dps(delta: float) -> Array:
+	_dps_clock += maxf(0.0, float(delta))
+	if not bool(_dps_fight.get("active", false)):
+		return []
+	var last: float = float(_dps_fight.get("last_hit_time", 0.0))
+	if _dps_clock - last < DPS_IDLE_TIMEOUT:
+		return []
+	# Finalize: keep last snapshot values, mark inactive.
+	var act: Dictionary = _dps_update_action(false)
+	_dps_fight["active"] = false
+	# Keep totals in _dps_fight until next hit resets them in note_dps_hit.
+	return [act]
+
+
 func tick(player_x: int, player_y: int, delta: float) -> Dictionary:
+	player_cell_hint = Vector2i(player_x, player_y)
 	# Lightweight: every ~1.5s of accumulated time handled by MockServer.
 	var actions: Array = []
 	if stats.statuses != null:
@@ -616,6 +2105,11 @@ func tick(player_x: int, player_y: int, delta: float) -> Dictionary:
 		var st: Dictionary = stats.npcs[npc_id]
 		if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
 			continue
+		# Leash reset: returning mobs must not counter-attack.
+		if stats.npc_ai.has(str(npc_id)):
+			var ai_ret: Dictionary = stats.npc_ai[str(npc_id)]
+			if str(ai_ret.get("ai_state", "")) == "return_home":
+				continue
 		if not _in_range(str(npc_id), player_x, player_y, 1):
 			continue
 		_damage_player(_effective_atk_npc(str(npc_id)), actions, str(npc_id))

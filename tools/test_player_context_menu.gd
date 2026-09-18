@@ -42,6 +42,10 @@ func _run() -> void:
 		failed += _expect(PCM.label_for(PCM.Action.INVITE) == "邀请组队", "invite label")
 		failed += _expect(PCM.label_for(PCM.Action.TRADE) == "交易", "trade label")
 		failed += _expect(PCM.label_for(PCM.Action.WHISPER) == "密语", "whisper label")
+		failed += _expect(PCM.Action.ADD_FRIEND == 6, "add_friend id=6")
+		failed += _expect(PCM.label_for(PCM.Action.ADD_FRIEND) == "加为好友", "add_friend label")
+		failed += _expect(PCM.Action.DUEL == 7, "duel id=7")
+		failed += _expect(PCM.label_for(PCM.Action.DUEL) == "决斗", "duel label")
 		var defs: Array = PCM.item_defs()
 		failed += _expect(defs.size() >= 4, "menu has >=4 items")
 		var texts := {}
@@ -59,11 +63,16 @@ func _run() -> void:
 	failed += _expect(rname == "旅人甲", "remote name 旅人甲")
 	failed += _expect(not rid.is_empty(), "remote id set")
 
-	# Invite by display name → member name matches
+	# Invite by display name → pending then stub/remote accepts on tick
 	var inv: Dictionary = srv.try_party_invite("旅人甲")
 	failed += _expect(bool(inv.get("ok", false)), "invite by name ok")
 	failed += _expect(_has(inv, "party_update"), "invite party_update")
-	var mems: Array = _first(inv, "party_update").get("party", {}).get("members", [])
+	# Force pending invite ready (shell auto-accept).
+	if srv._party_invites.size() > 0:
+		srv._party_invites[0]["ready_at"] = 0
+	var resolved: Array = srv._tick_party_invites()
+	failed += _expect(resolved.size() >= 1, "invite resolved")
+	var mems: Array = srv.snapshot_party().get("members", [])
 	var found := false
 	var found_id := ""
 	for m in mems:
@@ -77,7 +86,10 @@ func _run() -> void:
 	srv.try_party_leave()
 	var inv2: Dictionary = srv.try_party_invite(rid)
 	failed += _expect(bool(inv2.get("ok", false)), "invite by id ok")
-	var mems2: Array = _first(inv2, "party_update").get("party", {}).get("members", [])
+	if srv._party_invites.size() > 0:
+		srv._party_invites[0]["ready_at"] = 0
+	srv._tick_party_invites()
+	var mems2: Array = srv.snapshot_party().get("members", [])
 	var found2 := false
 	for m2 in mems2:
 		if typeof(m2) == TYPE_DICTIONARY and str(m2.get("name", "")) == "旅人甲":

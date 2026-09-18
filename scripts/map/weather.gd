@@ -8,6 +8,7 @@ const KINDS := ["clear", "rain", "storm", "snow", "fog"]
 ## Viewport stack: world (0) < atmosphere (weather + day/night veil) < HUD.
 const CANVAS_ATMOSPHERE := 5
 const CANVAS_HUD := 20
+const TRANSITION_SEC := 5.0
 
 static var _cache: Dictionary = {}
 
@@ -51,6 +52,70 @@ static func duration_range() -> Vector2:
 	if typeof(v) == TYPE_ARRAY and (v as Array).size() >= 2:
 		return Vector2(float(v[0]), float(v[1]))
 	return Vector2(45, 80)
+
+
+static func transition_sec() -> float:
+	_ensure()
+	var v: Variant = _cache.get("transition_sec", TRANSITION_SEC)
+	return maxf(float(v), 0.4)
+
+
+static func mix_weight(t: float) -> float:
+	t = clampf(t, 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
+static func _as_color(v: Variant, fallback: Color = Color.WHITE) -> Color:
+	if typeof(v) == TYPE_COLOR:
+		return v
+	if typeof(v) == TYPE_ARRAY and (v as Array).size() >= 3:
+		var a: Array = v
+		return Color(float(a[0]), float(a[1]), float(a[2]), 1.0)
+	return fallback
+
+
+static func particle_weight(atm: Dictionary, kind: String) -> float:
+	var k := str(atm.get("kind", "")).strip_edges()
+	var p := str(atm.get("particles", "")).strip_edges()
+	var amt := maxf(float(atm.get("particle_amount", 0.0)), 0.0)
+	match kind:
+		"rain":
+			return amt if p == "rain" and k != "storm" else 0.0
+		"storm":
+			return amt if k == "storm" else 0.0
+		"snow":
+			return amt if p == "snow" else 0.0
+		"fog":
+			return maxf(float(atm.get("fog", 0.0)), 0.0)
+		_:
+			return 0.0
+
+
+static func blend(from_atm: Dictionary, to_atm: Dictionary, t: float) -> Dictionary:
+	if from_atm.is_empty():
+		return to_atm.duplicate(true)
+	if to_atm.is_empty():
+		return from_atm.duplicate(true)
+	t = mix_weight(t)
+	var ma := _as_color(from_atm.get("modulate", Color.WHITE))
+	var mb := _as_color(to_atm.get("modulate", Color.WHITE))
+	var fca := _as_color(from_atm.get("fog_color", ma), ma)
+	var fcb := _as_color(to_atm.get("fog_color", mb), mb)
+	var pick: Dictionary = to_atm if t >= 0.5 else from_atm
+	var out: Dictionary = pick.duplicate(true)
+	out["modulate"] = ma.lerp(mb, t)
+	out["fog"] = lerpf(float(from_atm.get("fog", 0.0)), float(to_atm.get("fog", 0.0)), t)
+	out["fog_color"] = fca.lerp(fcb, t)
+	out["intensity"] = lerpf(float(from_atm.get("intensity", 0.0)), float(to_atm.get("intensity", 0.0)), t)
+	out["rain_weight"] = lerpf(particle_weight(from_atm, "rain"), particle_weight(to_atm, "rain"), t)
+	out["storm_weight"] = lerpf(particle_weight(from_atm, "storm"), particle_weight(to_atm, "storm"), t)
+	out["snow_weight"] = lerpf(particle_weight(from_atm, "snow"), particle_weight(to_atm, "snow"), t)
+	out["fog_weight"] = lerpf(particle_weight(from_atm, "fog"), particle_weight(to_atm, "fog"), t)
+	out["sfx_from"] = str(from_atm.get("sfx", ""))
+	out["sfx_to"] = str(to_atm.get("sfx", ""))
+	out["sfx_t"] = t
+	out["lightning"] = bool(to_atm.get("lightning", false)) and t > 0.4
+	return out
 
 
 static func compose(light_id: int, kind: String, intensity: float, map_indoor: bool) -> Dictionary:

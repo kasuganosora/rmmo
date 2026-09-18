@@ -103,6 +103,7 @@ func _run() -> void:
 	bag.grant_starter()
 	var engine = CombatEngine.new()
 	engine.setup(stats, skills, items, bag)
+	engine.combat_randf = func() -> float: return 0.5  # force hit, no crit
 	stats.ensure_npc("hitme", true, false)
 	stats.ensure_npc_ai("hitme", 2, false, Vector2i(1, 0), 2)
 	stats.set_npc_cell("hitme", 1, 0)

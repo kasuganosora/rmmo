@@ -3,7 +3,7 @@ extends SceneTree
 func _init() -> void:
 	var CharsetSheet = load("res://scripts/char/charset_sheet.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
-	ProjectSettings.set_setting("rmmo/charset_root", "D:/code/rmmo_runtime/characters")
+	ProjectSettings.set_setting("rmmo/charset_root", _runtime_root() + "/characters")
 	var root: String = CharsetSheet.charset_root()
 	print("charset_root=", root)
 	var path: String = CharsetSheet.resolve_sheet_path("actor03_0001")
@@ -23,3 +23,11 @@ func _init() -> void:
 	if pack.npcs.size() > 0:
 		print("first npc=", pack.npcs[0])
 	quit(0)
+
+
+
+func _runtime_root() -> String:
+	for cand in ["/workspace/rmmo_runtime", "D:/code/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return "/workspace/rmmo_runtime"

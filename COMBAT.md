@@ -36,7 +36,8 @@ data/combat/                        # Mirror of JSON for future GameServer share
 
 ## Action opcodes (client apply)
 
-- `damage` — target `npc` or `player` (`amount`, `hp`, `hp_max`)
+- `damage` — target `npc` or `player` (`amount`, `hp`, `hp_max`; optional `crit:true`)
+- `miss` — target `npc` or `player` (`id`); no HP change. Hit≈90% ±2%/level diff; crit≈8% ×1.5 via `combat_randf`
 - `heal` — player HP/MP restore
 - `set_stat` — sync player HP/MP bars
 - `kill_npc` — remove actor + clear occupancy
@@ -86,11 +87,14 @@ States (`npc_ai.ai_state`): **`idle`** | **`chase`** | **`return_home`**.
 - In vision while chasing → reset lose-sight timer.
 - **Home leash:** while chasing, if **Chebyshev**(current cell, `home_cell`) > `leash_radius` → abandon (`clear_chase`) same as lose-sight.
   - Default **`leash_radius` = 12** cells (Chebyshev). Override per NPC in `npcs.json` (`leash_radius`). `<0` disables.
+- **No valid target:** while chasing, if player is outside engage range (Chebyshev ≤ `max(leash_radius, 15)`) for **≥ 5 s** (`no_target_sec` / `NO_VALID_TARGET_SEC`) → same abandon.
 - **After abandon (`clear_chase` / evade):** clear chase + **hate list** / victim; **passive** clears `enraged`;
   **restore NPC to full HP**; emit **`npc_reset`** so the client HP bar resets; enter **`return_home`**
   and step toward `home_cell` (emit `npc_move`) until arrived → **`idle`**. Does **not** freeze in place.
+- **While `return_home`:** no vision re-aggro, no ambient counter-attack, no chase skills — walk home first.
+  If path is blocked for **`RETURN_STUCK_TICKS` (8)** AI steps → **teleport** snap to `home_cell` (`npc_move` + `teleport:true`) and idle.
 - **Idle:** if `wander_radius > 0`, occasionally step to a random landable neighbor that stays within Chebyshev radius of `home_cell` (interval ≈ `IDLE_WANDER_INTERVAL_SEC` 2.2s); if `0`, face idle / no move.
-- Return-home / idle can be interrupted by vision aggro (aggressive or still-enraged).
+- After arriving home (`idle`), vision aggro may resume (aggressive or still-enraged).
 
 ### Pack / group_id
 

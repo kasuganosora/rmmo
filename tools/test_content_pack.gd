@@ -55,6 +55,19 @@ func _run() -> void:
 	# Legacy flat still loads
 	var demo = TilemapPack.load_pack("res://demo_map")
 	failed += _expect(demo != null and demo.width == 30, "legacy demo_map still loads")
+	var am: Node = Engine.get_main_loop().root.get_node_or_null("AssetManager")
+	failed += _expect(am != null, "AssetManager for default pack")
+	if am != null and am.has_method("resolve_map_pack_path"):
+		var rp: String = str(am.resolve_map_pack_path("default"))
+		failed += _expect(rp.find("res://") < 0, "default pack is external")
+		failed += _expect(rp.find("map_pack") >= 0 or rp.find("default") >= 0, "resolve id default")
+		failed += _expect(FileAccess.file_exists("%s/pack.json" % rp) or FileAccess.file_exists(rp.replace("\\", "/") + "/pack.json"), "external pack.json")
+		var ground := "%s/assets/tilesheet/Ground.png" % rp
+		failed += _expect(FileAccess.file_exists(ground) or FileAccess.file_exists(ground.replace("\\", "/")), "external Ground sheet")
+		var defp = TilemapPack.load_pack(rp, "Map001")
+		failed += _expect(defp != null and int(defp.width) >= 20, "default pack Map001 loads")
+		var cref: String = str(am.resolve_map_pack_path("content://map_pack/default"))
+		failed += _expect(cref.find("default") >= 0, "resolve content://map_pack/default")
 	if failed == 0:
 		print("ALL PASS")
 		quit(0)

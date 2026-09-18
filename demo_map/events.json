@@ -3,8 +3,8 @@
     {
       "id": "chest_a",
       "cell": {
-        "x": 9,
-        "y": 22
+        "x": 6,
+        "y": 23
       },
       "trigger": "action",
       "through": false,
@@ -48,7 +48,7 @@
     {
       "id": "switch",
       "cell": {
-        "x": 14,
+        "x": 11,
         "y": 18
       },
       "trigger": "action",
@@ -136,7 +136,7 @@
       "id": "pc",
       "cell": {
         "x": 8,
-        "y": 11
+        "y": 10
       },
       "trigger": "action",
       "through": false,
@@ -176,8 +176,8 @@
     {
       "id": "mat_touch",
       "cell": {
-        "x": 16,
-        "y": 12
+        "x": 8,
+        "y": 13
       },
       "trigger": "player_touch",
       "through": true,
@@ -207,8 +207,8 @@
     {
       "id": "herb_a",
       "cell": {
-        "x": 10,
-        "y": 22
+        "x": 6,
+        "y": 27
       },
       "trigger": "action",
       "through": false,
@@ -248,8 +248,8 @@
     {
       "id": "herb_b",
       "cell": {
-        "x": 8,
-        "y": 22
+        "x": 4,
+        "y": 26
       },
       "trigger": "action",
       "through": false,
@@ -289,8 +289,8 @@
     {
       "id": "herb_c",
       "cell": {
-        "x": 11,
-        "y": 21
+        "x": 8,
+        "y": 28
       },
       "trigger": "action",
       "through": false,
@@ -330,8 +330,8 @@
     {
       "id": "herb_d",
       "cell": {
-        "x": 7,
-        "y": 21
+        "x": 10,
+        "y": 28
       },
       "trigger": "action",
       "through": false,
@@ -371,8 +371,8 @@
     {
       "id": "herb_e",
       "cell": {
-        "x": 12,
-        "y": 22
+        "x": 10,
+        "y": 24
       },
       "trigger": "action",
       "through": false,
@@ -404,6 +404,62 @@
             {
               "op": "text",
               "text": "这里的药草已经采过了。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mover_demo",
+      "name": "巡逻木桩",
+      "cell": {
+        "x": 19,
+        "y": 24
+      },
+      "trigger": "action",
+      "through": false,
+      "pages": [
+        {
+          "when": {},
+          "graphic": {
+            "charset": "",
+            "index": 0,
+            "direction": 2
+          },
+          "commands": [
+            {
+              "op": "text",
+              "text": "木桩晃了晃，开始挪动……"
+            },
+            {
+              "op": "move_route",
+              "target": "self",
+              "wait": true,
+              "skippable": false,
+              "route": [
+                {
+                  "code": "move_right",
+                  "repeat": 2
+                },
+                {
+                  "code": "turn_down"
+                },
+                {
+                  "code": "wait",
+                  "duration": 0.2
+                },
+                {
+                  "code": "move_left",
+                  "repeat": 2
+                },
+                {
+                  "code": "turn_up"
+                }
+              ]
+            },
+            {
+              "op": "message",
+              "text": "木桩回到了原处。"
             }
           ]
         }

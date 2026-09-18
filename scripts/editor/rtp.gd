@@ -74,6 +74,8 @@ static func _content_root() -> String:
 			return r.rstrip("/").rstrip("\\")
 	if DirAccess.dir_exists_absolute("D:/code/rmmo_runtime"):
 		return "D:/code/rmmo_runtime"
+	if DirAccess.dir_exists_absolute("/workspace/rmmo_runtime"):
+		return "/workspace/rmmo_runtime"
 	return ProjectSettings.globalize_path("user://content")
 
 

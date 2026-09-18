@@ -131,6 +131,7 @@ func _run() -> void:
 	srv.combat_stats.set_npc_cell("slime", 1, 0)
 	srv.set_player_cell(0, 0)
 	srv.combat_stats.attack_ready_at = 0.0
+	srv.combat_randf = func() -> float: return 0.5  # force hit, no crit
 	var atk: Dictionary = srv.try_attack("slime", 0, 0)
 	# May or may not kill depending on damage; force finalize with kill if needed
 	if not _has_type(atk.get("actions", []), "kill_npc"):

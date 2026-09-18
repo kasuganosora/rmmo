@@ -145,7 +145,20 @@ const TINTED_CACHE_MAX := 160
 
 
 static func root_path() -> String:
-	return ProjectSettings.get_setting("rmmo/mv_generator_root", DEFAULT_ROOT)
+	var configured := str(ProjectSettings.get_setting("rmmo/mv_generator_root", "")).strip_edges()
+	if configured != "" and DirAccess.dir_exists_absolute(configured):
+		return configured
+	if DirAccess.dir_exists_absolute(DEFAULT_ROOT):
+		return DEFAULT_ROOT
+	# Box / Linux fallbacks (no Steam Generator install).
+	for cand in [
+		"/workspace/rmmo_runtime/Generator",
+		"/workspace/rmmo_runtime/mv_generator",
+		"/workspace/rmmo_runtime/mv_img/Generator",
+	]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return configured if configured != "" else DEFAULT_ROOT
 
 
 static func _regex() -> RegEx:

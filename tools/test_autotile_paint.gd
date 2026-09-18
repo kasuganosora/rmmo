@@ -107,7 +107,7 @@ func _run() -> void:
 	failed += _expect(TileId.autotile_shape(d17) == 24, "dirt strip right-edge only (against grass)")
 	failed += _expect(TileId.autotile_shape(d24) == 0, "sand interior next to dirt")
 	var TileBlit = load("res://scripts/map/tile_blit.gd")
-	var a2_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A2.png"
+	var a2_path := _runtime_root() + "/assets/tilesheet/Outside_A2.png"
 	if FileAccess.file_exists(a2_path):
 		var a2: Image = Image.load_from_file(a2_path)
 		var sheets: Array = [null, a2]
@@ -156,9 +156,9 @@ func _run() -> void:
 	failed += _expect(_paint_blob_interior(paint, MapDocument, TileId, 88) == 0, "A4 wall 3x3 interior 0")
 	failed += _expect(TileId.is_wall_autotile(TileId.make_autotile_id(88, 0)), "A4 kind 88 is wall")
 
-	var a1_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A1.png"
-	var a3_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A3.png"
-	var a4_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A4.png"
+	var a1_path := _runtime_root() + "/assets/tilesheet/Outside_A1.png"
+	var a3_path := _runtime_root() + "/assets/tilesheet/Outside_A3.png"
+	var a4_path := _runtime_root() + "/assets/tilesheet/Outside_A4.png"
 	if FileAccess.file_exists(a1_path) and FileAccess.file_exists(a2_path) and FileAccess.file_exists(a3_path) and FileAccess.file_exists(a4_path):
 		var sheets_all: Array = [
 			Image.load_from_file(a1_path),
@@ -193,7 +193,7 @@ func _run() -> void:
 
 	# Table-flag A2 (Inside RTP kind 23): paint + hanging edge blit.
 	var inside_flags_path := "res://data/rtp/inside.json"
-	var inside_a2_path := "D:/code/rmmo_runtime/assets/tilesheet/Inside_A2.png"
+	var inside_a2_path := _runtime_root() + "/assets/tilesheet/Inside_A2.png"
 	if FileAccess.file_exists(inside_flags_path) and FileAccess.file_exists(inside_a2_path):
 		var ff := FileAccess.open(inside_flags_path, FileAccess.READ)
 		var parsed_f: Variant = JSON.parse_string(ff.get_as_text())
@@ -340,6 +340,15 @@ func _chunk_has_pixels(field: Node2D) -> bool:
 			return true
 	return false
 
+
+
+
+
+func _runtime_root() -> String:
+	for cand in ["/workspace/rmmo_runtime", "D:/code/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return "/workspace/rmmo_runtime"
 
 func _expect(cond: bool, label: String) -> int:
 	if cond:

@@ -4,6 +4,9 @@ extends Node2D
 ## Nameplates: kind monster|normal only; object/event never. Selection foot ring on click.
 
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
+const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
+const NameplateUtil = preload("res://scripts/game/nameplate_util.gd")
+const HurtFlash = preload("res://scripts/game/hurt_flash.gd")
 
 signal interacted(npc: Node2D)
 
@@ -22,12 +25,17 @@ var aggressive: bool = false
 ## Optional combat display (MockServer is authoritative).
 var hp: int = 0
 var hp_max: int = 0
+var mp: int = 0
+var mp_max: int = 0
 var level: int = 1
 ## null = default visibility; bool = explicit radar override
 var radar_opt: Variant = null
 ## Display kind: monster | normal | object (object/event never get nameplates).
 var kind: String = "object"
 var interact_text: String = ""
+## Soft service flags from pack (radar POI + dialogue).
+var inn_rest: bool = false
+var blacksmith: bool = false
 ## Client selection highlight (world click / engage).
 var selected: bool = false
 
@@ -44,7 +52,24 @@ var _title_lbl: Label = null
 var _info_lbl: Label = null
 var _hp_bg: ColorRect = null
 var _hp_fg: ColorRect = null
+var _mp_bg: ColorRect = null
+var _mp_fg: ColorRect = null
 var _select_ring: Line2D = null
+var _hurt_flash = HurtFlash.new()
+
+
+## Outgoing-hit feedback when this NPC takes damage. World calls only on real hits (not miss).
+func flash_hurt() -> void:
+	_ensure_anim()
+	_hurt_flash.trigger(_anim)
+
+
+func is_hurt_flashing() -> bool:
+	return _hurt_flash.is_active()
+
+
+func _process(delta: float) -> void:
+	_hurt_flash.tick(delta)
 
 
 func setup(data: Dictionary, map_field: Node2D, pack_dir: String = "") -> void:
@@ -66,6 +91,8 @@ func setup(data: Dictionary, map_field: Node2D, pack_dir: String = "") -> void:
 	else:
 		radar_opt = null
 	interact_text = str(data.get("interact_text", ""))
+	inn_rest = bool(data.get("inn_rest", false))
+	blacksmith = bool(data.get("blacksmith", data.get("repair", false)))
 	kind = _resolve_kind(data)
 	_map_field = map_field
 	_facing = CharsetSheet.facing_from_dir(direction)
@@ -144,10 +171,14 @@ func _on_charset_missing() -> void:
 func apply_combat_display(st: Dictionary) -> void:
 	if st.is_empty():
 		return
-	if st.has("hp"):
+	if st.has("hp") and int(st.get("hp", -1)) >= 0:
 		hp = int(st.get("hp", hp))
-	if st.has("hp_max"):
+	if st.has("hp_max") and int(st.get("hp_max", -1)) >= 0:
 		hp_max = int(st.get("hp_max", hp_max))
+	if st.has("mp") and int(st.get("mp", -1)) >= 0:
+		mp = int(st.get("mp", mp))
+	if st.has("mp_max") and int(st.get("mp_max", -1)) >= 0:
+		mp_max = int(st.get("mp_max", mp_max))
 	if st.has("level"):
 		level = maxi(int(st.get("level", level)), 1)
 	elif level <= 0:
@@ -188,7 +219,30 @@ func _resolve_kind(data: Dictionary) -> String:
 
 
 func shows_nameplate() -> bool:
-	return kind == "monster" or kind == "normal"
+	if kind != "monster" and kind != "normal":
+		return false
+	if not GameSettingsScript.flag("show_npc_names", true):
+		return false
+	return true
+
+
+func _nameplate_max_dist() -> int:
+	var gs := GameSettingsScript.get_i()
+	if gs == null:
+		return 12
+	return NameplateUtil.clamp_distance(int(gs.nameplate_distance))
+
+
+func _local_player_cell() -> Vector2i:
+	var n: Node = get_parent()
+	while n != null:
+		if "player" in n:
+			var p = n.player
+			if p != null and is_instance_valid(p) and "cell" in p:
+				return p.cell
+		n = n.get_parent()
+	# Unknown player → treat as adjacent so plates still show.
+	return cell
 
 
 func _ensure_anim() -> void:
@@ -206,6 +260,10 @@ func _ensure_nameplate() -> void:
 		_info_lbl = _plate.get_node_or_null("Info") as Label
 		_hp_bg = _plate.get_node_or_null("HpBg") as ColorRect
 		_hp_fg = _plate.get_node_or_null("HpFg") as ColorRect
+		_mp_bg = _plate.get_node_or_null("MpBg") as ColorRect
+		_mp_fg = _plate.get_node_or_null("MpFg") as ColorRect
+		if _mp_bg == null:
+			_make_mp_bars()
 		return
 	_plate = Node2D.new()
 	_plate.name = "Nameplate"
@@ -250,6 +308,26 @@ func _ensure_nameplate() -> void:
 	_hp_fg.position = Vector2(-24, 30)
 	_hp_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_plate.add_child(_hp_fg)
+	_make_mp_bars()
+
+
+func _make_mp_bars() -> void:
+	if _plate == null or _mp_bg != null:
+		return
+	_mp_bg = ColorRect.new()
+	_mp_bg.name = "MpBg"
+	_mp_bg.color = Color(0.08, 0.1, 0.16, 0.75)
+	_mp_bg.size = Vector2(48, 3)
+	_mp_bg.position = Vector2(-24, 35)
+	_mp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plate.add_child(_mp_bg)
+	_mp_fg = ColorRect.new()
+	_mp_fg.name = "MpFg"
+	_mp_fg.color = Color(0.3, 0.5, 0.95, 0.95)
+	_mp_fg.size = Vector2(48, 3)
+	_mp_fg.position = Vector2(-24, 35)
+	_mp_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_plate.add_child(_mp_fg)
 
 
 func _ensure_select_ring() -> void:
@@ -284,6 +362,11 @@ func _refresh_nameplate() -> void:
 
 	# monster + normal show plates; object/event never (too dense).
 	var show_plate := shows_nameplate()
+	if show_plate:
+		var max_d := _nameplate_max_dist()
+		var dist := NameplateUtil.chebyshev(_local_player_cell(), cell)
+		if not NameplateUtil.should_show(dist, max_d, selected):
+			show_plate = false
 	_plate.visible = show_plate
 	if not show_plate:
 		return
@@ -305,6 +388,8 @@ func _refresh_nameplate() -> void:
 	_info_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9, 1.0))
 
 	var show_hp := (kind == "monster" or hostile) and hp_max > 0
+	if not GameSettingsScript.flag("show_hp_bars", true):
+		show_hp = false
 	_hp_bg.visible = show_hp
 	_hp_fg.visible = show_hp
 	# Tuck HP bar up when no info line (normal NPCs: title only).
@@ -320,6 +405,18 @@ func _refresh_nameplate() -> void:
 			_hp_fg.color = Color(0.95, 0.75, 0.25, 0.95)
 		else:
 			_hp_fg.color = Color(0.9, 0.25, 0.22, 0.95)
+	var show_mp := show_hp and mp_max > 0
+	if _mp_bg == null:
+		_make_mp_bars()
+	if _mp_bg != null:
+		_mp_bg.visible = show_mp
+		_mp_fg.visible = show_mp
+	if show_mp and _mp_fg != null:
+		var mp_y: float = _hp_bg.position.y + 5.0
+		_mp_bg.position = Vector2(-24, mp_y)
+		_mp_fg.position = Vector2(-24, mp_y)
+		var mr := clampf(float(mp) / float(maxi(mp_max, 1)), 0.0, 1.0)
+		_mp_fg.size = Vector2(48.0 * mr, 3.0)
 
 	if _select_ring != null:
 		_select_ring.default_color = Color(1.0, 0.35, 0.25, 0.95) if hostile else Color(1.0, 0.82, 0.2, 0.95)

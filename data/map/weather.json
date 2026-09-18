@@ -1,5 +1,6 @@
 {
 	"duration_sec": [45, 80],
+	"transition_sec": 5,
 	"cycle": ["clear", "clear", "rain", "fog", "clear", "snow", "storm"],
 	"kinds": {
 		"clear": {

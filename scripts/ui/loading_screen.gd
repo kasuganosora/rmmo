@@ -22,12 +22,21 @@ func _asset_manager() -> Node:
 	return get_node_or_null("/root/AssetManager")
 
 
+func _exit_tree() -> void:
+	## Drop the enter_world_ready subscription so a stale (freed) loading screen
+	## never receives the signal after the scene is swapped away.
+	if Net.server() != null and Net.server().enter_world_ready.is_connected(_on_enter_ready):
+		Net.server().enter_world_ready.disconnect(_on_enter_ready)
+
+
 func _run_enter() -> void:
 	var ch: Dictionary = Net.session().selected_character
 	status_label.text = "正在进入世界：%s…" % str(ch.get("name", ""))
 	Net.server().enter_world_ready.connect(_on_enter_ready)
 	bar.value = 5
 	await get_tree().create_timer(0.15).timeout
+	if not is_instance_valid(self):
+		return
 	bar.value = 8
 	Net.server().enter_world(int(Net.session().selected_character.get("id", -1)))
 
@@ -43,10 +52,14 @@ func _run_transfer() -> void:
 	status_label.text = "清理上一张地图状态…"
 	bar.value = 3
 	await get_tree().create_timer(0.08).timeout
+	if not is_instance_valid(self):
+		return
 	if bags_cleared:
 		status_label.text = "地面掉落已留在旧图 · 准备进入新图"
 		bar.value = 6
 		await get_tree().create_timer(0.1).timeout
+		if not is_instance_valid(self):
+			return
 
 	if message != "":
 		if message.begins_with("进入"):
@@ -60,6 +73,8 @@ func _run_transfer() -> void:
 
 	bar.value = 8
 	await get_tree().create_timer(0.06).timeout
+	if not is_instance_valid(self):
+		return
 	var pack_path: String = _resolve_spawn_pack_path(spawn)
 	var cell_v: Variant = spawn.get("cell", {})
 	var spawn_cell := Vector2i(-1, -1)
@@ -74,6 +89,8 @@ func _run_transfer() -> void:
 			_show_transfer_fail_actions()
 			return
 	var ok: bool = await _bake_spawn_map()
+	if not is_instance_valid(self):
+		return
 	if not ok:
 		status_label.text = _gate_error if _gate_error != "" else "地图资源加载失败"
 		bar.value = 0
@@ -82,6 +99,8 @@ func _run_transfer() -> void:
 	status_label.text = "即将进入…"
 	bar.value = 100
 	await get_tree().create_timer(0.12).timeout
+	if not is_instance_valid(self):
+		return
 	Net.session().loading_mode = ""
 	Net.session().go_world()
 
@@ -109,9 +128,13 @@ func _show_transfer_fail_actions() -> void:
 
 
 func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
+	if not is_instance_valid(self):
+		return
 	if not ok:
 		status_label.text = message
 		await get_tree().create_timer(1.2).timeout
+		if not is_instance_valid(self):
+			return
 		Net.session().loading_mode = ""
 		Net.session().go_character_select()
 		return
@@ -122,15 +145,21 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 	status_label.text = message if message.strip_edges() != "" else "正在准备地图…"
 	bar.value = 10
 	var bake_ok: bool = await _bake_spawn_map()
+	if not is_instance_valid(self):
+		return
 	if not bake_ok:
 		status_label.text = _gate_error if _gate_error != "" else "资源加载失败，返回角色选择…"
 		await get_tree().create_timer(1.4).timeout
+		if not is_instance_valid(self):
+			return
 		Net.session().loading_mode = ""
 		Net.session().go_character_select()
 		return
 	bar.value = 100
 	Net.session().loading_mode = ""
 	await get_tree().create_timer(0.12).timeout
+	if not is_instance_valid(self):
+		return
 	Net.session().go_world()
 
 
@@ -233,6 +262,8 @@ func _bake_spawn_map() -> bool:
 	var progress := func(v: float) -> void:
 		bar.value = 35.0 + clampf(v, 0.0, 1.0) * 60.0
 	await mf.rebuild_async(progress)
+	if not is_instance_valid(self):
+		return false
 	if mf.pack == null:
 		_gate_error = "地图烘焙失败：%s" % pack_path
 		mf.queue_free()
@@ -246,5 +277,7 @@ func _bake_spawn_map() -> bool:
 		]
 	mf.queue_free()
 	await get_tree().process_frame
+	if not is_instance_valid(self):
+		return false
 	bar.value = 95
 	return true

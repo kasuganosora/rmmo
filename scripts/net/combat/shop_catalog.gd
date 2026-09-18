@@ -159,6 +159,8 @@ func _load_builtin_fallback() -> void:
 				{"item_id": "potion_mp_small", "buy_price": 10},
 				{"item_id": "leather_cap"},
 				{"item_id": "wooden_sword"},
+				{"item_id": "scroll_town", "buy_price": 30},
+				{"item_id": "tool_pickaxe", "buy_price": 16},
 			],
 		},
 	}

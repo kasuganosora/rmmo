@@ -11,3 +11,7 @@ How to smoke in-game (demo login):
 3. door (15,8): after switch → 门开了 + transfer to street_map 41,23
 4. pc (8,11): rusty_coin once; again → 关机
 5. mat_touch (16,12): step on → system message once
+move_route (thin) on EventRuntime + MockServer.
+- op: move_route target self|id; route codes move_*/turn_*/wait; wait+skippable flags
+- emits npc_move / wait; collision via try_npc_move; demo mover_demo @20,14
+- tools/test_move_route.gd PASS

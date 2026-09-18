@@ -116,7 +116,8 @@
           "cur": 0,
           "max": 5,
           "item": "wild_herb",
-          "gather": "wild_herb"
+          "gather": "wild_herb",
+          "gather_item": "wild_herb"
         }
       ],
       "rewards": "经验 30 · 红药水×2",
@@ -129,6 +130,31 @@
             "qty": 2
           }
         ]
+      }
+    },
+    {
+      "id": "pond_fishing",
+      "title": "池边垂钓",
+      "category": "side",
+      "giver": "vendor_demo",
+      "turn_in_npc": "vendor_demo",
+      "offer_text": "水塘里好像有鱼，帮我钓三条回来好吗？",
+      "accept_text": "好，我去钓几条。",
+      "complete_text": "鲜鱼不错，谢了！",
+      "desc": "在水塘边钓到鱼，交给商人。",
+      "objectives": [
+        {
+          "text": "钓到鱼",
+          "cur": 0,
+          "max": 3,
+          "fish_catch": "any"
+        }
+      ],
+      "rewards": "经验 35 · 铜币×15",
+      "reward": {
+        "exp": 35,
+        "gold": 15,
+        "items": []
       }
     },
     {
@@ -182,6 +208,59 @@
       "reward": {
         "exp": 40,
         "gold": 10,
+        "items": []
+      }
+    },
+    {
+      "id": "daily_slime",
+      "title": "日常：清剿史莱姆",
+      "category": "daily",
+      "giver": "",
+      "turn_in_npc": "actor_rest",
+      "offer_text": "今日委托：清理附近的史莱姆。",
+      "accept_text": "好，我去击败史莱姆。",
+      "complete_text": "辛苦了，这是今日报酬。",
+      "desc": "击败 5 只史莱姆（日常，每日可接一次）。",
+      "objectives": [
+        {
+          "text": "击败史莱姆",
+          "cur": 0,
+          "max": 5,
+          "kill": "slime",
+          "kill_contains": "slime"
+        }
+      ],
+      "rewards": "经验 40 · 铜币×25",
+      "reward": {
+        "exp": 40,
+        "gold": 25,
+        "items": []
+      }
+    },
+    {
+      "id": "daily_herb",
+      "title": "日常：采集药草",
+      "category": "daily",
+      "giver": "",
+      "turn_in_npc": "vendor_demo",
+      "offer_text": "今日委托：采集野生药草。",
+      "accept_text": "好，我去采药草。",
+      "complete_text": "药草够用了，谢谢。",
+      "desc": "采集 3 株野生药草（日常，每日可接一次）。",
+      "objectives": [
+        {
+          "text": "采集野生药草",
+          "cur": 0,
+          "max": 3,
+          "item": "wild_herb",
+          "gather": "wild_herb",
+          "gather_item": "wild_herb"
+        }
+      ],
+      "rewards": "经验 25 · 铜币×15",
+      "reward": {
+        "exp": 25,
+        "gold": 15,
         "items": []
       }
     }

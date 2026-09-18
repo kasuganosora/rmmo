@@ -21,6 +21,15 @@ func _run() -> void:
 		quit(1)
 
 
+
+
+
+func _runtime_root() -> String:
+	for cand in ["/workspace/rmmo_runtime", "D:/code/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return "/workspace/rmmo_runtime"
+
 func _expect(cond: bool, label: String) -> int:
 	if cond:
 		print("PASS ", label)
@@ -114,7 +123,7 @@ func _test_lofi_samples_real_tile_colors() -> int:
 	print("sample A1 sea ", sea)
 	failed += _expect(sea.a > 0.5, "sea sample opaque")
 	failed += _expect(sea.b >= sea.r * 0.85, "sea is not a dirt-corner sample")
-	var a2_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A2.png"
+	var a2_path := _runtime_root() + "/assets/tilesheet/Outside_A2.png"
 	failed += _expect(FileAccess.file_exists(a2_path), "RTP Outside_A2")
 	if FileAccess.file_exists(a2_path):
 		var a2_img: Image = Image.load_from_file(a2_path)

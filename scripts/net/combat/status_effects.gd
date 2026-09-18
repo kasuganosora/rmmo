@@ -18,7 +18,8 @@ func apply_status(target_key: String, def: Dictionary, duration: float = -1.0, s
 		dur = float(def.get("duration", 5.0))
 	dur = maxf(dur, 0.0)
 	var list: Array = _list_mut(target_key)
-	# v1: same id refreshes duration (+ mods).
+	var stack_max: int = maxi(1, int(def.get("stack_max", 1)))
+	# Same id: refresh duration to max; stack_max>1 increments stacks (else stay 1).
 	for i in range(list.size()):
 		var ex: Variant = list[i]
 		if typeof(ex) != TYPE_DICTIONARY:
@@ -26,24 +27,37 @@ func apply_status(target_key: String, def: Dictionary, duration: float = -1.0, s
 		if str((ex as Dictionary).get("id", "")) != sid:
 			continue
 		var refreshed: Dictionary = ex
+		var cur_stacks: int = maxi(1, int(refreshed.get("stacks", 1)))
 		_fill_from_def(refreshed, def, dur, source_id)
+		refreshed["stack_max"] = stack_max
+		if stack_max > 1:
+			refreshed["stacks"] = mini(cur_stacks + 1, stack_max)
+		else:
+			refreshed["stacks"] = 1
 		list[i] = refreshed
 		_by_target[target_key] = list
 		return refreshed.duplicate(true)
+	var initial_stacks: int = clampi(maxi(1, int(def.get("stacks", 1))), 1, stack_max)
 	var inst := {
 		"id": sid,
 		"name": str(def.get("name", sid)),
 		"kind": _normalize_kind(str(def.get("kind", "buff"))),
 		"target": target_key,
 		"remaining_sec": dur,
+		"duration_max": dur,
 		"tick_interval": maxf(float(def.get("tick_interval", 0.0)), 0.0),
 		"tick_acc": 0.0,
-		"stacks": 1,
+		"stacks": initial_stacks,
+		"stack_max": stack_max,
 		"tick_hp": int(def.get("tick_hp", 0)),
 		"atk_mul": float(def.get("atk_mul", 1.0)),
 		"def_mul": float(def.get("def_mul", 1.0)),
 		"atk_add": float(def.get("atk_add", 0.0)),
 		"def_add": float(def.get("def_add", 0.0)),
+		"move_speed_mul": float(def.get("move_speed_mul", 1.0)),
+		"absorb_ratio": float(def.get("absorb_ratio", 0.0)),
+		"absorb_max": int(def.get("absorb_max", 0)),
+		"hp_per_mp": maxi(int(def.get("hp_per_mp", 0)), 0),
 		"source_id": source_id.strip_edges(),
 	}
 	# Nested mods dict (optional) overlays flat fields.
@@ -60,6 +74,14 @@ func apply_status(target_key: String, def: Dictionary, duration: float = -1.0, s
 			inst["def_add"] = float(mods.get("def_add", 0.0))
 		if mods.has("tick_hp"):
 			inst["tick_hp"] = int(mods.get("tick_hp", 0))
+		if mods.has("move_speed_mul"):
+			inst["move_speed_mul"] = float(mods.get("move_speed_mul", 1.0))
+		if mods.has("absorb_ratio"):
+			inst["absorb_ratio"] = float(mods.get("absorb_ratio", 0.0))
+		if mods.has("absorb_max"):
+			inst["absorb_max"] = int(mods.get("absorb_max", 0))
+		if mods.has("hp_per_mp"):
+			inst["hp_per_mp"] = maxi(int(mods.get("hp_per_mp", 0)), 0)
 	list.append(inst)
 	_by_target[target_key] = list
 	return inst.duplicate(true)
@@ -69,13 +91,19 @@ func _fill_from_def(inst: Dictionary, def: Dictionary, dur: float, source_id: St
 	inst["name"] = str(def.get("name", inst.get("name", "")))
 	inst["kind"] = _normalize_kind(str(def.get("kind", inst.get("kind", "buff"))))
 	inst["remaining_sec"] = dur
+	inst["duration_max"] = dur
 	inst["tick_interval"] = maxf(float(def.get("tick_interval", inst.get("tick_interval", 0.0))), 0.0)
-	inst["tick_acc"] = 0.0
+	# Preserve tick_acc on refresh so DoT/HoT cadence continues.
+	# (New applies still start at 0 via apply_status initial dict.)
 	inst["tick_hp"] = int(def.get("tick_hp", inst.get("tick_hp", 0)))
 	inst["atk_mul"] = float(def.get("atk_mul", inst.get("atk_mul", 1.0)))
 	inst["def_mul"] = float(def.get("def_mul", inst.get("def_mul", 1.0)))
 	inst["atk_add"] = float(def.get("atk_add", inst.get("atk_add", 0.0)))
 	inst["def_add"] = float(def.get("def_add", inst.get("def_add", 0.0)))
+	inst["move_speed_mul"] = float(def.get("move_speed_mul", inst.get("move_speed_mul", 1.0)))
+	inst["absorb_ratio"] = float(def.get("absorb_ratio", inst.get("absorb_ratio", 0.0)))
+	inst["absorb_max"] = int(def.get("absorb_max", inst.get("absorb_max", 0)))
+	inst["hp_per_mp"] = maxi(int(def.get("hp_per_mp", inst.get("hp_per_mp", 0))), 0)
 	if source_id.strip_edges() != "":
 		inst["source_id"] = source_id.strip_edges()
 	var mods_v: Variant = def.get("mods", {})
@@ -91,6 +119,14 @@ func _fill_from_def(inst: Dictionary, def: Dictionary, dur: float, source_id: St
 			inst["def_add"] = float(mods.get("def_add", 0.0))
 		if mods.has("tick_hp"):
 			inst["tick_hp"] = int(mods.get("tick_hp", 0))
+		if mods.has("move_speed_mul"):
+			inst["move_speed_mul"] = float(mods.get("move_speed_mul", 1.0))
+		if mods.has("absorb_ratio"):
+			inst["absorb_ratio"] = float(mods.get("absorb_ratio", 0.0))
+		if mods.has("absorb_max"):
+			inst["absorb_max"] = int(mods.get("absorb_max", 0))
+		if mods.has("hp_per_mp"):
+			inst["hp_per_mp"] = maxi(int(mods.get("hp_per_mp", 0)), 0)
 
 
 func clear_status(target_key: String, status_id: String) -> void:
@@ -170,12 +206,17 @@ func snapshot_statuses(target_key: String) -> Array:
 			"name": str(d.get("name", "")),
 			"kind": str(d.get("kind", "")),
 			"remaining_sec": float(d.get("remaining_sec", 0.0)),
+			"duration_max": float(d.get("duration_max", d.get("remaining_sec", 0.0))),
 			"stacks": int(d.get("stacks", 1)),
 			"tick_hp": int(d.get("tick_hp", 0)),
 			"atk_mul": float(d.get("atk_mul", 1.0)),
 			"def_mul": float(d.get("def_mul", 1.0)),
 			"atk_add": float(d.get("atk_add", 0.0)),
 			"def_add": float(d.get("def_add", 0.0)),
+			"move_speed_mul": float(d.get("move_speed_mul", 1.0)),
+			"absorb_ratio": float(d.get("absorb_ratio", 0.0)),
+			"absorb_max": int(d.get("absorb_max", 0)),
+			"hp_per_mp": int(d.get("hp_per_mp", 0)),
 		})
 	return out
 
@@ -188,23 +229,52 @@ func has_status(target_key: String, status_id: String) -> bool:
 	return false
 
 
+## Full runtime instance (incl. absorb fields) or {}.
+func get_status(target_key: String, status_id: String) -> Dictionary:
+	target_key = target_key.strip_edges()
+	status_id = status_id.strip_edges()
+	if target_key.is_empty() or status_id.is_empty() or not _by_target.has(target_key):
+		return {}
+	for ex in _by_target[target_key]:
+		if typeof(ex) != TYPE_DICTIONARY:
+			continue
+		if str((ex as Dictionary).get("id", "")) == status_id:
+			return (ex as Dictionary).duplicate(true)
+	return {}
+
+
 func get_mods(target_key: String) -> Dictionary:
 	var atk_mul := 1.0
 	var def_mul := 1.0
 	var atk_add := 0.0
 	var def_add := 0.0
+	var move_speed_mul := 1.0
 	for s in snapshot_statuses(target_key):
 		atk_mul *= float(s.get("atk_mul", 1.0))
 		def_mul *= float(s.get("def_mul", 1.0))
 		atk_add += float(s.get("atk_add", 0.0))
 		def_add += float(s.get("def_add", 0.0))
+		move_speed_mul *= float(s.get("move_speed_mul", 1.0))
 	return {
 		"atk_mul": atk_mul,
 		"def_mul": def_mul,
 		"atk_add": atk_add,
 		"def_add": def_add,
+		"move_speed_mul": move_speed_mul,
 	}
 
+
+
+
+## Combined move speed multiplier from statuses (1.0 = normal).
+func move_speed_mul(target_key: String) -> float:
+	var m: Dictionary = get_mods(target_key)
+	var v: float = float(m.get("move_speed_mul", 1.0))
+	if v < 0.25:
+		return 0.25
+	if v > 3.0:
+		return 3.0
+	return v
 
 func effective_atk(base: int, target_key: String) -> int:
 	var m: Dictionary = get_mods(target_key)
@@ -245,7 +315,8 @@ func tick_statuses(delta: float, stats) -> Array:
 				var acc: float = float(st.get("tick_acc", 0.0)) + delta
 				while acc >= interval and rem + (acc - interval) > -0.0001:
 					acc -= interval
-					var tick_actions: Array = _apply_tick_hp(target_key, tick_hp, stats)
+					var stacks_n: int = maxi(1, int(st.get("stacks", 1)))
+					var tick_actions: Array = _apply_tick_hp(target_key, tick_hp * stacks_n, stats)
 					if not tick_actions.is_empty():
 						actions.append_array(tick_actions)
 						dirty[target_key] = true

@@ -1,0 +1,46 @@
+{
+  "titles": [
+    {
+      "id": "newbie_slayer",
+      "name": "初出茅庐",
+      "desc": "击杀 1 只怪物",
+      "require": { "kills": 1 }
+    },
+    {
+      "id": "hunter",
+      "name": "猎手",
+      "desc": "击杀 10 只怪物",
+      "require": { "kills": 10 }
+    },
+    {
+      "id": "slayer",
+      "name": "屠戮者",
+      "desc": "击杀 50 只怪物",
+      "require": { "kills": 50 }
+    },
+    {
+      "id": "crafter",
+      "name": "巧手",
+      "desc": "成功制作 1 次",
+      "require": { "crafts": 1 }
+    },
+    {
+      "id": "artisan",
+      "name": "工匠",
+      "desc": "成功制作 10 次",
+      "require": { "crafts": 10 }
+    },
+    {
+      "id": "fallen",
+      "name": "屡败屡战",
+      "desc": "死亡 1 次",
+      "require": { "deaths": 1 }
+    },
+    {
+      "id": "undying",
+      "name": "百折不挠",
+      "desc": "死亡 5 次",
+      "require": { "deaths": 5 }
+    }
+  ]
+}

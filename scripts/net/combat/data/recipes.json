@@ -1,0 +1,160 @@
+{
+  "recipes": [
+    {
+      "id": "craft_hp_potion",
+      "name": "调制小型生命药水",
+      "ingredients": [
+        {
+          "id": "wild_herb",
+          "qty": 2
+        }
+      ],
+      "output": {
+        "id": "potion_hp_small",
+        "qty": 1
+      },
+      "gold_cost": 2,
+      "learn_level": 1,
+      "craft_level": 1
+    },
+    {
+      "id": "craft_mp_potion",
+      "name": "调制小型魔法药水",
+      "ingredients": [
+        {
+          "id": "wild_herb",
+          "qty": 1
+        },
+        {
+          "id": "slime_jelly",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "potion_mp_small",
+        "qty": 1
+      },
+      "gold_cost": 2,
+      "learn_level": 1,
+      "craft_level": 1
+    },
+    {
+      "id": "craft_leather_cap",
+      "name": "缝制皮帽",
+      "ingredients": [
+        {
+          "id": "torn_cloth",
+          "qty": 3
+        },
+        {
+          "id": "monster_fang",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "leather_cap",
+        "qty": 1
+      },
+      "gold_cost": 5,
+      "learn_level": 1,
+      "craft_level": 2
+    },
+    {
+      "id": "craft_leather_gloves",
+      "name": "缝制皮手套",
+      "ingredients": [
+        {
+          "id": "torn_cloth",
+          "qty": 2
+        },
+        {
+          "id": "slime_jelly",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "leather_gloves",
+        "qty": 1
+      },
+      "gold_cost": 4,
+      "learn_level": 1,
+      "craft_level": 1
+    },
+    {
+      "id": "craft_copper_ring",
+      "name": "熔铸铜戒",
+      "ingredients": [
+        {
+          "id": "rusty_coin",
+          "qty": 5
+        },
+        {
+          "id": "monster_fang",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "copper_ring",
+        "qty": 1
+      },
+      "gold_cost": 8,
+      "learn_level": 2,
+      "craft_level": 2
+    },
+    {
+      "id": "cook_grilled_fish",
+      "name": "烤制小鱼",
+      "ingredients": [
+        {
+          "id": "fish_small",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "food_grilled_fish",
+        "qty": 1
+      },
+      "gold_cost": 1,
+      "learn_level": 1,
+      "craft_level": 1
+    },
+    {
+      "id": "cook_herb_soup",
+      "name": "熬制药草汤",
+      "ingredients": [
+        {
+          "id": "wild_herb",
+          "qty": 1
+        },
+        {
+          "id": "fish_small",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "food_herb_soup",
+        "qty": 1
+      },
+      "gold_cost": 2,
+      "learn_level": 1,
+      "craft_level": 1
+    },
+    {
+      "id": "cook_fish_feast",
+      "name": "烧烤闪光鱼宴",
+      "ingredients": [
+        {
+          "id": "fish_shiny",
+          "qty": 1
+        }
+      ],
+      "output": {
+        "id": "food_fish_feast",
+        "qty": 1
+      },
+      "gold_cost": 3,
+      "learn_level": 1,
+      "craft_level": 1
+    }
+  ]
+}

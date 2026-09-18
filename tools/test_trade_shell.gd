@@ -53,17 +53,16 @@ func _run() -> void:
 	var snap2: Dictionary = srv.snapshot_trade()
 	failed += _expect(bool(snap2.get("my_ready", false)), "my ready")
 	failed += _expect(bool(snap2.get("their_ready", false)), "their ready")
-	failed += _expect(int(snap2.get("their_gold", 0)) == 15, "stub gold")
+	failed += _expect(int(snap2.get("their_gold", 0)) == 0, "no stub gold")
 	var their: Array = snap2.get("their_items", [])
-	failed += _expect(their.size() >= 1, "stub item")
+	failed += _expect(their.is_empty(), "no stub item")
 
 	var conf: Dictionary = srv.try_trade_confirm()
 	failed += _expect(bool(conf.get("ok", false)), "confirm ok")
 	failed += _expect(not srv.in_trade(), "closed after confirm")
 	failed += _expect(_has(conf, "trade_close"), "trade_close")
 	failed += _expect(srv.inventory.get_qty("potion_hp_small") == hp0 - 2, "gave away 2 hp pots")
-	failed += _expect(srv.inventory.get_qty("potion_mp_small") >= 1, "got mp pot")
-	failed += _expect(srv.inventory.get_gold() == gold0 - 10 + 15, "gold net +5")
+	failed += _expect(srv.inventory.get_gold() == gold0 - 10, "gold spent 10")
 
 	# cancel refunds
 	srv.try_trade_open("")

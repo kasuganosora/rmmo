@@ -22,6 +22,16 @@ func _init() -> void:
 	bag.grant_starter()
 	var engine = CombatEngine.new()
 	engine.setup(stats, skills, items, bag)
+	engine.combat_randf = func() -> float: return 0.5  # force hit, no crit
+
+	# Skill-book gate: learn non-starters used by this suite.
+	stats.ensure_skill_book()
+	if stats.skill_book.list_known().is_empty():
+		stats.skill_book.grant_starters(skills)
+	stats.skill_book.grant_skill_points(99)
+	for _sid in ["flame_burst", "poison_dart", "battle_cry", "regen_mist", "power_strike"]:
+		if not stats.skill_book.is_known(_sid):
+			stats.skill_book.try_learn(_sid, skills, 99)
 
 	failed += _expect(skills.has_skill("flame_burst"), "flame_burst loaded")
 	failed += _expect(skills.has_skill("poison_dart"), "poison_dart loaded")
@@ -92,7 +102,7 @@ func _init() -> void:
 		if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "damage" and str(a.get("target", "")) == "npc":
 			dealt = int(a.get("amount", 0))
 			break
-	failed += _expect(dealt == buffed, "damage uses buffed atk (%d)" % dealt)
+	failed += _expect(dealt == engine._effective_atk_player(), "damage uses buffed+passive atk (%d)" % dealt)
 
 	# --- AoE hits >= 2 adjacent NPCs ---
 	stats.statuses.clear_everything()

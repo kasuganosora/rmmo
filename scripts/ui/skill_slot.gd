@@ -13,6 +13,9 @@ var category: String = ""
 var slot_index: int = -1
 var icon_index: int = -1
 var icon_ref: String = ""
+## False = not yet learned (gray / lock overlay).
+var known: bool = true
+var _lock_label: Label
 ## Alias so HUD can match by bound_id like hotbar.
 var bound_id: String:
 	get:
@@ -52,6 +55,11 @@ func setup(p_skill_id: String, p_display_name: String, p_category: String = "", 
 func set_icon_index(p_index: int) -> void:
 	icon_index = p_index
 	_apply_icon_visual()
+
+
+func set_known(p_known: bool) -> void:
+	known = p_known
+	_apply_visual()
 
 
 func set_icon_ref(ref: String) -> void:
@@ -135,6 +143,25 @@ func _ensure_children() -> void:
 	_ensure_cd()
 
 
+func _ensure_lock_label() -> void:
+	_ensure_children()
+	if _lock_label != null and is_instance_valid(_lock_label):
+		return
+	_lock_label = Label.new()
+	_lock_label.name = "Lock"
+	_lock_label.text = "锁"
+	_lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_lock_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_lock_label.add_theme_font_size_override("font_size", 10)
+	_lock_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	_lock_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lock_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lock_label.offset_right = -2
+	_lock_label.offset_bottom = -1
+	_lock_label.z_index = 6
+	add_child(_lock_label)
+
+
 func _ensure_cd() -> void:
 	if _cd != null and is_instance_valid(_cd):
 		return
@@ -182,8 +209,15 @@ func _apply_visual() -> void:
 		var tip := "%s\n%s" % [display_name, skill_id]
 		if category == "passive":
 			tip += "\n（被动）"
+		if not known:
+			tip += "\n（未学会）"
+			modulate = Color(0.45, 0.45, 0.5, 0.95)
+		else:
+			modulate = Color(1, 1, 1, 1)
 		tooltip_text = tip
 		_apply_icon_visual()
+		_ensure_lock_label()
+		_lock_label.visible = not known
 	else:
 		add_theme_stylebox_override("panel", _empty_sb)
 		_avatar_label.text = ""
@@ -192,6 +226,9 @@ func _apply_visual() -> void:
 			_icon_rect.texture = null
 			_icon_rect.visible = false
 		tooltip_text = ""
+		modulate = Color(1, 1, 1, 1)
+		if _lock_label != null:
+			_lock_label.visible = false
 
 
 

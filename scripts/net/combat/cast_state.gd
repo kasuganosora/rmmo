@@ -32,7 +32,9 @@ func begin(
 	player_x: int,
 	player_y: int,
 	skill_def: Dictionary,
-	interrupt_on_move: bool = true
+	interrupt_on_move: bool = true,
+	ground_x: int = -9999,
+	ground_y: int = -9999
 ) -> Dictionary:
 	mode = mode.strip_edges()
 	if mode != "channel":
@@ -46,6 +48,8 @@ func begin(
 		"duration": duration,
 		"player_x": player_x,
 		"player_y": player_y,
+		"ground_x": ground_x,
+		"ground_y": ground_y,
 		"name": skill_name,
 		"interrupted": false,
 		"interrupt_on_move": interrupt_on_move,
@@ -59,6 +63,9 @@ func begin(
 		"mode": mode,
 		"elapsed": 0.0,
 		"fraction": 0.0,
+		"cell": {"x": ground_x, "y": ground_y},
+		"target_id": state["target_id"],
+		"anim": str(skill_def.get("anim", "")),
 	}
 
 

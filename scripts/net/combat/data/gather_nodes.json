@@ -1,0 +1,112 @@
+{
+  "nodes": [
+    {
+      "id": "herb_a",
+      "name": "野生药草",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 6,
+        "y": 27
+      },
+      "yields": [
+        {
+          "item_id": "wild_herb",
+          "qty": 1,
+          "weight": 1.0
+        }
+      ],
+      "respawn_sec": 20
+    },
+    {
+      "id": "herb_b",
+      "name": "野生药草",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 4,
+        "y": 26
+      },
+      "yields": [
+        {
+          "item_id": "wild_herb",
+          "qty": 1,
+          "weight": 0.7
+        },
+        {
+          "item_id": "slime_jelly",
+          "qty": 1,
+          "weight": 0.3
+        }
+      ],
+      "respawn_sec": 25
+    },
+    {
+      "id": "herb_c",
+      "name": "药草丛",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 8,
+        "y": 28
+      },
+      "yields": [
+        {
+          "item_id": "torn_cloth",
+          "qty": 1,
+          "weight": 0.35
+        },
+        {
+          "item_id": "monster_fang",
+          "qty": 1,
+          "weight": 0.35
+        },
+        {
+          "item_id": "rusty_coin",
+          "qty": 2,
+          "weight": 0.3
+        }
+      ],
+      "respawn_sec": 30
+    },
+    {
+      "id": "ore_a",
+      "name": "铁矿脉",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 18,
+        "y": 25
+      },
+      "yields": [
+        {
+          "item_id": "iron_ore",
+          "qty": 1,
+          "weight": 1.0
+        }
+      ],
+      "respawn_sec": 35,
+      "tool": "tool_pickaxe"
+    },
+    {
+      "id": "ore_b",
+      "name": "铁矿脉",
+      "map_id": "demo_map",
+      "cell": {
+        "x": 23,
+        "y": 25
+      },
+      "yields": [
+        {
+          "item_id": "iron_ore",
+          "qty": 1,
+          "weight": 0.85
+        },
+        {
+          "item_id": "iron_ore",
+          "qty": 2,
+          "weight": 0.15
+        }
+      ],
+      "respawn_sec": 40,
+      "tool": "tool_pickaxe",
+      "gather_level": 2
+    }
+  ]
+}

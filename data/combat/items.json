@@ -29,6 +29,52 @@
       "icon": "potion_mp_small"
     },
     {
+      "id": "potion_cleanse",
+      "name": "净化药水",
+      "desc": "清除身上的有害状态（中毒、沉默等），保留增益。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "cleanse",
+      "effect": "cleanse",
+      "cooldown": 3.0,
+      "sell_price": 8,
+      "icon_index": 34,
+      "icon": "potion_cleanse"
+    },
+    {
+      "id": "bandage",
+      "name": "绷带",
+      "desc": "脱战时包扎伤口，恢复 40 点生命。战斗中无法使用。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 40,
+      "cooldown": 8.0,
+      "sell_price": 2,
+      "icon_index": 32,
+      "icon": "potion_hp_small",
+      "out_of_combat_only": true,
+      "combat_fail_msg": "战斗中无法包扎。"
+    },
+    {
+      "id": "mana_potion",
+      "name": "魔力药水",
+      "desc": "恢复 50 点魔力。战斗内外均可使用。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_mp",
+      "effect": "heal_mp",
+      "amount": 50,
+      "cooldown": 6.0,
+      "sell_price": 3,
+      "icon_index": 33,
+      "icon": "potion_mp_small"
+    },
+    {
       "id": "slime_jelly",
       "name": "史莱姆凝胶",
       "type": "material",
@@ -90,12 +136,47 @@
       "stack_max": 1,
       "consumable": false,
       "equip_slot": "weapon_main",
+      "durability_max": 100,
       "bonuses": {
         "p_atk": 3
       },
       "sell_price": 12,
       "icon_index": 97,
-      "icon": "wooden_sword"
+      "icon": "wooden_sword",
+      "bind": "equip",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "great_club",
+      "name": "大木棒",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "weapon_main",
+      "hand": "both",
+      "bonuses": {
+        "p_atk": 6
+      },
+      "sell_price": 20,
+      "icon_index": 98,
+      "icon": "great_club",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "wood_shield",
+      "name": "木盾",
+      "type": "equipment",
+      "stack_max": 1,
+      "consumable": false,
+      "equip_slot": "weapon_off",
+      "hand": "off",
+      "bonuses": {
+        "p_def": 2
+      },
+      "sell_price": 14,
+      "icon_index": 99,
+      "icon": "wood_shield",
+      "rarity": "common"
     },
     {
       "id": "leather_cap",
@@ -109,7 +190,9 @@
       },
       "sell_price": 8,
       "icon_index": 128,
-      "icon": "leather_cap"
+      "icon": "leather_cap",
+      "bind": "equip",
+      "rarity": "uncommon"
     },
     {
       "id": "leather_vest",
@@ -123,7 +206,9 @@
       },
       "sell_price": 15,
       "icon_index": 129,
-      "icon": "leather_vest"
+      "icon": "leather_vest",
+      "bind": "equip",
+      "rarity": "uncommon"
     },
     {
       "id": "leather_gloves",
@@ -137,7 +222,8 @@
       },
       "sell_price": 7,
       "icon_index": 130,
-      "icon": "leather_gloves"
+      "icon": "leather_gloves",
+      "rarity": "uncommon"
     },
     {
       "id": "leather_pants",
@@ -151,7 +237,8 @@
       },
       "sell_price": 10,
       "icon_index": 131,
-      "icon": "leather_pants"
+      "icon": "leather_pants",
+      "rarity": "uncommon"
     },
     {
       "id": "leather_boots",
@@ -165,7 +252,8 @@
       },
       "sell_price": 9,
       "icon_index": 132,
-      "icon": "leather_boots"
+      "icon": "leather_boots",
+      "rarity": "uncommon"
     },
     {
       "id": "copper_ring",
@@ -208,7 +296,269 @@
       },
       "sell_price": 11,
       "icon_index": 146,
-      "icon": "bone_necklace"
+      "icon": "bone_necklace",
+      "bind": "pickup",
+      "rarity": "epic"
+    },
+    {
+      "id": "pet_whistle",
+      "name": "宠物哨",
+      "type": "misc",
+      "stack_max": 1,
+      "consumable": false,
+      "use_effect": "summon_pet",
+      "effect": "summon_pet",
+      "cooldown": 1.0,
+      "sell_price": 10,
+      "icon_index": 180,
+      "icon": "pet_whistle"
+    },
+    {
+      "id": "fish_small",
+      "name": "小鱼",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 3,
+      "icon_index": 181,
+      "icon": "fish_small"
+    },
+    {
+      "id": "fish_shiny",
+      "name": "闪光鱼",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 12,
+      "icon_index": 182,
+      "icon": "fish_shiny",
+      "rarity": "rare"
+    },
+    {
+      "id": "food_grilled_fish",
+      "name": "烤鱼",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 35,
+      "cooldown": 1.0,
+      "sell_price": 6,
+      "icon_index": 183,
+      "icon": "food_grilled_fish",
+      "status": {
+        "id": "well_fed",
+        "name": "吃饱了",
+        "kind": "buff",
+        "duration": 60.0,
+        "tick_interval": 0,
+        "stack_max": 1,
+        "atk_add": 3
+      }
+    },
+    {
+      "id": "food_herb_soup",
+      "name": "药草汤",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 25,
+      "amount_mp": 15,
+      "cooldown": 1.0,
+      "sell_price": 8,
+      "icon_index": 184,
+      "icon": "food_herb_soup",
+      "status": {
+        "id": "herb_warmth",
+        "name": "草药暖身",
+        "kind": "hot",
+        "duration": 45.0,
+        "tick_interval": 1.0,
+        "tick_hp": 2
+      }
+    },
+    {
+      "id": "food_fish_feast",
+      "name": "闪光烤鱼宴",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 80,
+      "cooldown": 1.0,
+      "sell_price": 20,
+      "icon_index": 185,
+      "icon": "food_fish_feast",
+      "status": {
+        "id": "feast",
+        "name": "盛宴",
+        "kind": "buff",
+        "duration": 90.0,
+        "tick_interval": 0,
+        "atk_add": 5,
+        "def_add": 3
+      },
+      "rarity": "rare"
+    },
+    {
+      "id": "food_party_ration",
+      "name": "队伍干粮",
+      "desc": "廉价干粮。组队同图使用时延长吃饱增益并鼓舞全员士气（壳端仅本地增益）。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "heal_hp",
+      "effect": "heal_hp",
+      "amount": 20,
+      "cooldown": 1.0,
+      "sell_price": 3,
+      "icon_index": 183,
+      "icon": "food_grilled_fish",
+      "party_share": true,
+      "party_duration": 90.0,
+      "status": {
+        "id": "well_fed",
+        "name": "吃饱了",
+        "kind": "buff",
+        "duration": 45.0,
+        "tick_interval": 0,
+        "stack_max": 1,
+        "atk_add": 2
+      }
+    },
+    {
+      "id": "scroll_town",
+      "name": "回城卷轴",
+      "desc": "使用后传送回城镇安全点，消耗一张。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "recall",
+      "effect": "recall",
+      "cooldown": 1.0,
+      "sell_price": 15,
+      "icon_index": 186,
+      "icon": "scroll_town"
+    },
+    {
+      "id": "repair_kit",
+      "name": "修理工具包",
+      "desc": "使用后修复所有已装备部位各 30% 耐久（向上取整），无需铁匠。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "repair_equip",
+      "effect": "repair_equip",
+      "repair_fraction": 0.3,
+      "cooldown": 2.0,
+      "sell_price": 8,
+      "icon_index": 189,
+      "icon": "repair_kit"
+    },
+    {
+      "id": "enhance_stone",
+      "name": "强化石",
+      "desc": "铁匠强化装备消耗。每次强化消耗 1 枚，成功至多 +5。",
+      "type": "consumable",
+      "stack_max": 99,
+      "consumable": true,
+      "use_effect": "",
+      "sell_price": 5,
+      "icon_index": 190,
+      "icon": "enhance_stone",
+      "rarity": "rare"
+    },
+    {
+      "id": "bait_worm",
+      "name": "蚯蚓饵",
+      "desc": "普通鱼饵。钓鱼时消耗，略微提高闪光鱼概率。",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": true,
+      "use_effect": "",
+      "sell_price": 1,
+      "icon_index": 187,
+      "icon": "bait_worm"
+    },
+    {
+      "id": "bait_shiny",
+      "name": "闪光饵",
+      "desc": "稀有鱼饵。钓鱼时消耗，明显提高闪光鱼概率。",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": true,
+      "use_effect": "",
+      "sell_price": 5,
+      "icon_index": 188,
+      "icon": "bait_shiny"
+    },
+    {
+      "id": "tool_pickaxe",
+      "name": "矿工镐",
+      "desc": "开采矿石用的镐。采集时需要持有；每次成功消耗 1 点耐久，耐久归零时损坏。",
+      "type": "misc",
+      "stack_max": 1,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 8,
+      "durability_max": 40,
+      "icon_index": 190,
+      "icon": "tool_pickaxe"
+    },
+    {
+      "id": "iron_ore",
+      "name": "铁矿石",
+      "type": "material",
+      "stack_max": 99,
+      "consumable": false,
+      "use_effect": "",
+      "sell_price": 3,
+      "icon_index": 191,
+      "icon": "iron_ore"
+    },
+    {
+      "id": "boots_swift",
+      "name": "疾风靴油",
+      "desc": "涂抹靴底，60 秒内加快移动。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "apply_status",
+      "effect": "apply_status",
+      "cooldown": 1.0,
+      "sell_price": 8,
+      "icon_index": 192,
+      "icon": "boots_swift",
+      "rarity": "uncommon",
+      "status": {
+        "id": "swift_oil",
+        "name": "疾风",
+        "kind": "buff",
+        "duration": 60.0,
+        "tick_interval": 0,
+        "move_speed_mul": 1.35
+      }
+    },
+    {
+      "id": "party_summon",
+      "name": "集结石",
+      "desc": "向同图队友发出集结。消耗一枚；队友接受后传送至你身边空格。",
+      "type": "consumable",
+      "stack_max": 20,
+      "consumable": true,
+      "use_effect": "party_summon",
+      "effect": "party_summon",
+      "cooldown": 60.0,
+      "sell_price": 20,
+      "icon_index": 186,
+      "icon": "scroll_town",
+      "rarity": "uncommon"
     }
   ]
 }

@@ -2,6 +2,7 @@ extends RefCounted
 ## Authoritative HP/MP/ATK etc. for player and NPCs (MockServer / future GameServer).
 
 const StatusEffects = preload("res://scripts/net/combat/status_effects.gd")
+const SkillBook = preload("res://scripts/net/combat/skill_book.gd")
 
 const DEFAULT_PLAYER := {
 	"hp": 100,
@@ -50,6 +51,24 @@ var player_actor_id: String = DEFAULT_PLAYER_ID
 var actor_threat_mods: Dictionary = {}
 ## Buff / debuff / DoT / HoT runtime (see status_effects.gd).
 var statuses = StatusEffects.new()
+## Known skills + SP (session). Reset with starters via MockServer.
+var skill_book = SkillBook.new()
+
+## Primary attribute keys (Chinese UI: 力量/敏捷/体质/智力).
+const ATTR_KEYS := ["str", "agi", "vit", "intel"]
+## Unspent attribute points granted per level-up.
+const ATTR_POINTS_PER_LEVEL := 5
+## Derived combat bonuses from allocated attrs.
+const ATTR_ATK_PER_STR := 1
+const ATTR_DEF_PER_AGI := 1
+const ATTR_HP_PER_VIT := 5
+const ATTR_MP_PER_INTEL := 3
+
+## Rested EXP: hard ceiling; effective max is min(HARD_CAP, exp_to_next).
+## Documented choice: min(500, exp_to_next) — one bar-worth of bonus, never above 500.
+const RESTED_EXP_HARD_CAP := 500
+## Sit tick gain while sitting in a safe zone (MockServer 1.0s sit tick).
+const RESTED_EXP_PER_TICK := 5
 
 
 func reset_player(level: int = 1) -> void:
@@ -58,6 +77,7 @@ func reset_player(level: int = 1) -> void:
 		"level": lv,
 		"exp": 0,
 		"exp_to_next": exp_to_next_for(lv),
+		"rested_exp": 0,
 		"hp": 80 + lv * 20,
 		"hp_max": 80 + lv * 20,
 		"mp": 40 + lv * 15,
@@ -66,6 +86,8 @@ func reset_player(level: int = 1) -> void:
 		"def": 3 + lv,
 		"atk_speed": 0.8,
 		"threat_mod": float(actor_threat_mods.get(player_actor_id, 1.0)),
+		"attr_points": 0,
+		"attrs": {"str": 0, "agi": 0, "vit": 0, "intel": 0},
 	}
 	skill_ready_at.clear()
 	item_ready_at.clear()
@@ -85,18 +107,62 @@ static func kill_exp_for_npc_level(npc_level: int) -> int:
 	return maxi(5, maxi(npc_level, 1) * 8 + 10)
 
 
+## Ensure attrs / attr_points exist on player (migration-safe).
+func ensure_attrs() -> void:
+	if player.is_empty():
+		reset_player(1)
+		return
+	if typeof(player.get("attrs", null)) != TYPE_DICTIONARY:
+		player["attrs"] = {"str": 0, "agi": 0, "vit": 0, "intel": 0}
+	else:
+		var a: Dictionary = player["attrs"]
+		for k in ATTR_KEYS:
+			a[k] = maxi(int(a.get(k, 0)), 0)
+		player["attrs"] = a
+	player["attr_points"] = maxi(int(player.get("attr_points", 0)), 0)
+
+
+## Snapshot of primary attrs + unspent points.
+func snapshot_attrs() -> Dictionary:
+	ensure_attrs()
+	return {
+		"attr_points": int(player.get("attr_points", 0)),
+		"attrs": (player["attrs"] as Dictionary).duplicate(true),
+	}
+
+
+## Add attr-derived bonuses onto current level baseline scalars (in-place).
+## Call only after setting level baseline (apply_level_stats / recompute).
+func _apply_attr_bonuses() -> void:
+	ensure_attrs()
+	var a: Dictionary = player["attrs"]
+	var str_v: int = int(a.get("str", 0))
+	var agi_v: int = int(a.get("agi", 0))
+	var vit_v: int = int(a.get("vit", 0))
+	var intel_v: int = int(a.get("intel", 0))
+	player["atk"] = int(player.get("atk", 0)) + str_v * ATTR_ATK_PER_STR
+	player["def"] = int(player.get("def", 0)) + agi_v * ATTR_DEF_PER_AGI
+	player["hp_max"] = int(player.get("hp_max", 0)) + vit_v * ATTR_HP_PER_VIT
+	player["mp_max"] = int(player.get("mp_max", 0)) + intel_v * ATTR_MP_PER_INTEL
+
+
 ## Recalc combat scalars from current player.level; heal to full when heal=true.
+## Preserves allocated attrs; re-applies attr bonuses after level baseline.
+## Alias note: "apply_level_curve" in design docs == this function.
 func apply_level_stats(heal: bool = true) -> void:
 	if player.is_empty():
 		reset_player(1)
 		return
+	ensure_attrs()
 	var lv: int = maxi(int(player.get("level", 1)), 1)
 	player["level"] = lv
 	player["exp_to_next"] = exp_to_next_for(lv)
+	# Level baseline (attrs re-applied below — do not wipe attrs).
 	player["hp_max"] = 80 + lv * 20
 	player["mp_max"] = 40 + lv * 15
 	player["atk"] = 10 + lv * 3
 	player["def"] = 3 + lv
+	_apply_attr_bonuses()
 	if heal:
 		player["hp"] = int(player["hp_max"])
 		player["mp"] = int(player["mp_max"])
@@ -104,6 +170,11 @@ func apply_level_stats(heal: bool = true) -> void:
 		player["hp"] = mini(int(player.get("hp", 0)), int(player["hp_max"]))
 		player["mp"] = mini(int(player.get("mp", 0)), int(player["mp_max"]))
 	player["threat_mod"] = float(actor_threat_mods.get(player_actor_id, 1.0))
+
+
+## Alias for design / callers expecting apply_level_curve.
+func apply_level_curve(heal: bool = true) -> void:
+	apply_level_stats(heal)
 
 
 ## Add EXP; level up while exp >= exp_to_next. Returns summary for MockServer actions.
@@ -131,6 +202,9 @@ func grant_exp(amount: int) -> Dictionary:
 	player["exp"] = exp_v
 	player["exp_to_next"] = need
 	if not levels_gained.is_empty():
+		ensure_attrs()
+		# Grant unspent attr points per level (attrs themselves preserved).
+		player["attr_points"] = int(player.get("attr_points", 0)) + int(levels_gained.size()) * ATTR_POINTS_PER_LEVEL
 		apply_level_stats(true)
 	else:
 		# Keep combat scalars in sync without healing.
@@ -154,6 +228,22 @@ func clear_npcs() -> void:
 		statuses.clear_non_player()
 
 
+static func npc_mp_max_for(level: int, hp_max: int = 30) -> int:
+	return maxi(20, 16 + maxi(level, 1) * 8 + maxi(hp_max, 0) / 6)
+
+
+func _fill_npc_mp(st: Dictionary) -> void:
+	if not st.has("level"):
+		st["level"] = 1
+	var hp_max: int = int(st.get("hp_max", 30))
+	if not st.has("mp_max") or int(st.get("mp_max", 0)) <= 0:
+		st["mp_max"] = npc_mp_max_for(int(st.get("level", 1)), hp_max)
+	if not st.has("mp"):
+		st["mp"] = int(st["mp_max"])
+	else:
+		st["mp"] = clampi(int(st.get("mp", 0)), 0, int(st.get("mp_max", 0)))
+
+
 func ensure_npc(npc_id: String, hostile: bool = true, aggressive: bool = false) -> Dictionary:
 	if npcs.has(npc_id):
 		var existing: Variant = npcs[npc_id]
@@ -162,12 +252,17 @@ func ensure_npc(npc_id: String, hostile: bool = true, aggressive: bool = false) 
 			var ex: Dictionary = existing
 			if not ex.has("level"):
 				ex["level"] = 1 + absi(hash(npc_id + ":lv")) % 8
+			_fill_npc_mp(ex)
+			npcs[npc_id] = ex
 			return ex
 	var hp_max: int = 30 + absi(hash(npc_id)) % 21
 	var level: int = 1 + absi(hash(npc_id + ":lv")) % 8
+	var mp_max: int = npc_mp_max_for(level, hp_max)
 	var st := {
 		"hp": hp_max,
 		"hp_max": hp_max,
+		"mp": mp_max,
+		"mp_max": mp_max,
 		"atk": 6 + absi(hash(npc_id)) % 5,
 		"def": 1 + absi(hash(npc_id)) % 3,
 		"level": level,
@@ -224,6 +319,9 @@ func ensure_npc_ai(
 		"enraged": false,
 		"chase_target": "",
 		"lose_sight_sec": 0.0,
+		"no_target_sec": 0.0,
+		"return_stuck_ticks": 0,
+		"return_best_dist": 99999,
 		"seen_target": false,
 		"home_cell": home,
 		"wander_radius": maxi(wander_radius, 0),
@@ -337,6 +435,9 @@ func clear_chase(npc_id: String) -> void:
 	var ai: Dictionary = npc_ai[npc_id]
 	ai["chase_target"] = ""
 	ai["lose_sight_sec"] = 0.0
+	ai["no_target_sec"] = 0.0
+	ai["return_stuck_ticks"] = 0
+	ai["return_best_dist"] = 99999
 	ai["seen_target"] = false
 	ai["idle_wander_acc"] = 0.0
 	ai["hate_list"] = []
@@ -573,6 +674,55 @@ func select_victim(npc_id: String) -> String:
 	return str(ai["victim_id"])
 
 
+## Player-relative threat snapshot for HUD (uses hate_list + victim_id; no second system).
+## {npc_id, threat_you, threat_rank, threat_pct, victim_id}
+func snapshot_threat(npc_id: String) -> Dictionary:
+	npc_id = npc_id.strip_edges()
+	var empty := {
+		"npc_id": npc_id,
+		"threat_you": false,
+		"threat_rank": 0,
+		"threat_pct": 0.0,
+		"victim_id": "",
+	}
+	if npc_id.is_empty() or not npc_ai.has(npc_id):
+		return empty
+	var ai: Dictionary = npc_ai[npc_id]
+	_migrate_hate_fields(ai)
+	npc_ai[npc_id] = ai
+	var vid := str(ai.get("victim_id", "")).strip_edges()
+	var you := player_actor_id.strip_edges()
+	if you.is_empty():
+		you = DEFAULT_PLAYER_ID
+	var threat_you := (not vid.is_empty()) and vid == you
+	var hate: Array = get_hate_list(npc_id, true)
+	var your_threat := 0.0
+	var top_threat := 0.0
+	var rank := 0
+	var i := 0
+	for e in hate:
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		i += 1
+		var eid := str((e as Dictionary).get("id", "")).strip_edges()
+		var t: float = float((e as Dictionary).get("threat", 0.0))
+		if i == 1:
+			top_threat = t
+		if eid == you:
+			your_threat = t
+			rank = i
+	var pct := 0.0
+	if top_threat > 0.0 and your_threat > 0.0:
+		pct = (your_threat / top_threat) * 100.0
+	return {
+		"npc_id": npc_id,
+		"threat_you": threat_you,
+		"threat_rank": rank,
+		"threat_pct": pct,
+		"victim_id": vid,
+	}
+
+
 func set_npc_cell(npc_id: String, x: int, y: int) -> void:
 	npc_cells[npc_id] = Vector2i(x, y)
 
@@ -652,5 +802,309 @@ func set_attack_cooldown(cd_sec: float) -> void:
 	attack_ready_at = now_sec() + maxf(cd_sec, 0.0)
 
 
+func ensure_skill_book():
+	if skill_book == null:
+		skill_book = SkillBook.new()
+	return skill_book
+
+
+func snapshot_skill_book() -> Dictionary:
+	ensure_skill_book()
+	return skill_book.snapshot()
+
+
+## Spend unspent attr_points into one primary attr. Recomputes derived combat.
+## {ok, reason, message, attr_points, attrs, combat}
+func try_allocate_attr(stat_key: String, amount: int = 1) -> Dictionary:
+	stat_key = stat_key.strip_edges()
+	amount = maxi(amount, 0)
+	ensure_attrs()
+	var out := {
+		"ok": false,
+		"reason": "fail",
+		"message": "无法分配属性点。",
+		"attr_points": int(player.get("attr_points", 0)),
+		"attrs": (player["attrs"] as Dictionary).duplicate(true),
+		"combat": snapshot_player_stats(),
+	}
+	if amount <= 0:
+		out["reason"] = "bad_amount"
+		out["message"] = "分配数量无效。"
+		return out
+	if not player_alive():
+		out["reason"] = "dead"
+		out["message"] = "你已经倒下了。"
+		return out
+	if stat_key not in ATTR_KEYS:
+		out["reason"] = "bad_key"
+		out["message"] = "无效的属性。"
+		return out
+	var pts: int = int(player.get("attr_points", 0))
+	if pts < amount:
+		out["reason"] = "no_points"
+		out["message"] = "属性点不足（需要 %d，当前 %d）。" % [amount, pts]
+		return out
+	var a: Dictionary = player["attrs"]
+	a[stat_key] = int(a.get(stat_key, 0)) + amount
+	player["attrs"] = a
+	player["attr_points"] = pts - amount
+	# Re-apply level baseline + attrs (preserve current hp ratio via clamp, no full heal).
+	apply_level_stats(false)
+	out["ok"] = true
+	out["reason"] = "ok"
+	out["message"] = "已分配 %d 点到%s。" % [amount, attr_label_zh(stat_key)]
+	out["attr_points"] = int(player.get("attr_points", 0))
+	out["attrs"] = (player["attrs"] as Dictionary).duplicate(true)
+	out["combat"] = snapshot_player_stats()
+	return out
+
+
+## Chinese label for attr key.
+static func attr_label_zh(stat_key: String) -> String:
+	match stat_key.strip_edges():
+		"str":
+			return "力量"
+		"agi":
+			return "敏捷"
+		"vit":
+			return "体质"
+		"intel":
+			return "智力"
+		_:
+			return stat_key
+
+
+## Refund all allocated attrs into attr_points (caller pays gold). Does not touch gold.
+## {ok, reason, message, refunded, attr_points, attrs, combat}
+func try_attr_respec_refund() -> Dictionary:
+	ensure_attrs()
+	var out := {
+		"ok": false,
+		"reason": "fail",
+		"message": "无法重置属性。",
+		"refunded": 0,
+		"attr_points": int(player.get("attr_points", 0)),
+		"attrs": (player["attrs"] as Dictionary).duplicate(true),
+		"combat": snapshot_player_stats(),
+	}
+	if not player_alive():
+		out["reason"] = "dead"
+		out["message"] = "你已经倒下了。"
+		return out
+	var a: Dictionary = player["attrs"]
+	var refund := 0
+	for k in ATTR_KEYS:
+		refund += int(a.get(k, 0))
+	if refund <= 0:
+		out["reason"] = "nothing"
+		out["message"] = "没有可重置的属性点。"
+		return out
+	player["attrs"] = {"str": 0, "agi": 0, "vit": 0, "intel": 0}
+	player["attr_points"] = int(player.get("attr_points", 0)) + refund
+	apply_level_stats(false)
+	out["ok"] = true
+	out["reason"] = "ok"
+	out["refunded"] = refund
+	out["message"] = "已重置属性，返还属性点 %d。" % refund
+	out["attr_points"] = int(player.get("attr_points", 0))
+	out["attrs"] = (player["attrs"] as Dictionary).duplicate(true)
+	out["combat"] = snapshot_player_stats()
+	return out
+
+
+## Effective rested pool ceiling: min(500, exp_to_next).
+func rested_exp_max() -> int:
+	if player.is_empty():
+		return RESTED_EXP_HARD_CAP
+	var need: int = int(player.get("exp_to_next", 0))
+	if need <= 0:
+		need = exp_to_next_for(maxi(int(player.get("level", 1)), 1))
+	return mini(RESTED_EXP_HARD_CAP, maxi(need, 1))
+
+
+## Migration-safe rested_exp clamp to current max.
+func ensure_rested() -> void:
+	if player.is_empty():
+		reset_player(1)
+		return
+	var cur: int = maxi(int(player.get("rested_exp", 0)), 0)
+	player["rested_exp"] = mini(cur, rested_exp_max())
+
+
+func get_rested_exp() -> int:
+	ensure_rested()
+	return int(player.get("rested_exp", 0))
+
+
+## Add to rested pool (clamped). Returns {added, rested_exp, rested_exp_max, was_empty, hit_cap}.
+func add_rested_exp(amount: int) -> Dictionary:
+	ensure_rested()
+	amount = maxi(amount, 0)
+	var before: int = int(player.get("rested_exp", 0))
+	var cap: int = rested_exp_max()
+	var after: int = mini(before + amount, cap)
+	player["rested_exp"] = after
+	return {
+		"added": after - before,
+		"rested_exp": after,
+		"rested_exp_max": cap,
+		"was_empty": before <= 0,
+		"hit_cap": after >= cap and before < cap,
+	}
+
+
+## Spend rested against a kill grant: bonus = min(pool, base_amount). Returns bonus.
+func spend_rested_for_kill(base_amount: int) -> int:
+	ensure_rested()
+	base_amount = maxi(base_amount, 0)
+	if base_amount <= 0:
+		return 0
+	var pool: int = int(player.get("rested_exp", 0))
+	if pool <= 0:
+		return 0
+	var bonus: int = mini(pool, base_amount)
+	player["rested_exp"] = pool - bonus
+	return bonus
+
+
 func snapshot_player_stats() -> Dictionary:
-	return player.duplicate(true)
+	ensure_attrs()
+	ensure_rested()
+	var snap: Dictionary = player.duplicate(true)
+	snap["rested_exp"] = int(player.get("rested_exp", 0))
+	snap["rested_exp_max"] = rested_exp_max()
+	return snap
+
+
+## --- Title / achievement thin shell (session counters + unlocks) ---
+
+## kills / crafts / deaths (and future keys).
+var title_counters: Dictionary = {"kills": 0, "crafts": 0, "deaths": 0}
+## Unlocked title ids (strings).
+var unlocked_titles: Array = []
+## Currently equipped title id (empty = none).
+var active_title: String = ""
+
+
+func reset_titles() -> void:
+	title_counters = {"kills": 0, "crafts": 0, "deaths": 0}
+	unlocked_titles.clear()
+	active_title = ""
+
+
+func snapshot_titles() -> Dictionary:
+	return {
+		"counters": title_counters.duplicate(true),
+		"unlocked_titles": unlocked_titles.duplicate(),
+		"active_title": active_title,
+		"kills": int(title_counters.get("kills", 0)),
+		"crafts": int(title_counters.get("crafts", 0)),
+		"deaths": int(title_counters.get("deaths", 0)),
+	}
+
+
+## Increment a counter. Returns new value.
+func bump_title_counter(key: String, amount: int = 1) -> int:
+	key = key.strip_edges()
+	if key.is_empty() or amount == 0:
+		return int(title_counters.get(key, 0)) if not key.is_empty() else 0
+	var cur: int = int(title_counters.get(key, 0))
+	cur = maxi(cur + amount, 0)
+	title_counters[key] = cur
+	return cur
+
+
+func is_title_unlocked(title_id: String) -> bool:
+	title_id = title_id.strip_edges()
+	if title_id.is_empty():
+		return false
+	for u in unlocked_titles:
+		if str(u) == title_id:
+			return true
+	return false
+
+
+## Grant unlock if not already present. Returns true if newly unlocked.
+func unlock_title(title_id: String) -> bool:
+	title_id = title_id.strip_edges()
+	if title_id.is_empty() or is_title_unlocked(title_id):
+		return false
+	unlocked_titles.append(title_id)
+	return true
+
+
+## Equip unlocked title, or unequip when title_id empty. Returns {ok, reason}.
+func try_title_equip(title_id: String) -> Dictionary:
+	title_id = title_id.strip_edges()
+	if title_id.is_empty():
+		active_title = ""
+		return {"ok": true, "reason": "unequipped"}
+	if not is_title_unlocked(title_id):
+		return {"ok": false, "reason": "locked"}
+	active_title = title_id
+	return {"ok": true, "reason": "equipped"}
+
+
+## --- Achievement thin shell (session counters + unlocks; separate from titles) ---
+
+## kills / gathers / level / party (and future keys).
+var achievement_counters: Dictionary = {"kills": 0, "gathers": 0, "level": 1, "party": 0}
+## Unlocked achievement ids (strings).
+var unlocked_achievements: Array = []
+
+
+func reset_achievements() -> void:
+	achievement_counters = {"kills": 0, "gathers": 0, "level": 1, "party": 0}
+	unlocked_achievements.clear()
+
+
+func snapshot_achievements() -> Dictionary:
+	return {
+		"counters": achievement_counters.duplicate(true),
+		"unlocked_achievements": unlocked_achievements.duplicate(),
+		"kills": int(achievement_counters.get("kills", 0)),
+		"gathers": int(achievement_counters.get("gathers", 0)),
+		"level": int(achievement_counters.get("level", 1)),
+		"party": int(achievement_counters.get("party", 0)),
+	}
+
+
+## Increment a counter. Returns new value.
+func bump_achievement_counter(key: String, amount: int = 1) -> int:
+	key = key.strip_edges()
+	if key.is_empty() or amount == 0:
+		return int(achievement_counters.get(key, 0)) if not key.is_empty() else 0
+	var cur: int = int(achievement_counters.get(key, 0))
+	cur = maxi(cur + amount, 0)
+	achievement_counters[key] = cur
+	return cur
+
+
+## Set counter to at least value (for level sync). Returns new value.
+func set_achievement_counter_at_least(key: String, value: int) -> int:
+	key = key.strip_edges()
+	if key.is_empty():
+		return 0
+	var cur: int = int(achievement_counters.get(key, 0))
+	var nxt: int = maxi(cur, maxi(value, 0))
+	achievement_counters[key] = nxt
+	return nxt
+
+
+func is_achievement_unlocked(ach_id: String) -> bool:
+	ach_id = ach_id.strip_edges()
+	if ach_id.is_empty():
+		return false
+	for u in unlocked_achievements:
+		if str(u) == ach_id:
+			return true
+	return false
+
+
+## Grant unlock if not already present. Returns true if newly unlocked.
+func unlock_achievement(ach_id: String) -> bool:
+	ach_id = ach_id.strip_edges()
+	if ach_id.is_empty() or is_achievement_unlocked(ach_id):
+		return false
+	unlocked_achievements.append(ach_id)
+	return true

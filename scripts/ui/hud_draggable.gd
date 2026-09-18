@@ -1,5 +1,6 @@
 extends PanelContainer
 ## Drag (title strip or anywhere); resize from edges/corners; snap on release.
+signal layout_changed
 
 @export var snap_distance: float = 24.0
 @export var screen_margin: float = 4.0
@@ -155,6 +156,18 @@ func _end_pointer_capture() -> void:
 	_snap_to_edges()
 	mouse_default_cursor_shape = Control.CURSOR_ARROW
 	set_process_input(false)
+	layout_changed.emit()
+
+
+func _is_hud_locked() -> bool:
+	var ml := Engine.get_main_loop()
+	if ml == null:
+		return false
+	var r: Window = ml.root
+	if r == null:
+		return false
+	var gs := r.get_node_or_null("GameSettings")
+	return gs != null and bool(gs.get("hud_locked"))
 
 
 func _notification(what: int) -> void:
@@ -165,6 +178,8 @@ func _notification(what: int) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if _is_hud_locked():
+		return
 	if event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		if _dragging or _resizing:

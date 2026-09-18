@@ -2,10 +2,17 @@ extends Control
 ## World map: prebaked overview if present, otherwise JIT chunk bake.
 ## Drag pans; newly visible chunks stream in.
 
+signal cell_clicked(cell: Vector2i)
+signal cell_pinned(cell: Vector2i)
+
+const RadarPoi = preload("res://scripts/ui/radar_poi.gd")
+
 const CHUNK := 16
 const ZOOM_MIN_CELLS := 32.0
 const STREAM_PER_FRAME := 4
 const STREAM_TEX_MAX := 48
+const DRAG_THRESH := 6.0
+const POI_HIT_PX := 14.0
 
 var _map_field: Node2D = null
 var _player: Node2D = null
@@ -19,10 +26,77 @@ var _last_pos: Vector2 = Vector2(1.0e9, 1.0e9)
 var _pan_cell: Vector2 = Vector2.ZERO
 var _cells_across: float = 0.0
 var _dragging: bool = false
+var _did_drag: bool = false
+var _press_pos: Vector2 = Vector2.ZERO
 var _drag_last: Vector2 = Vector2.ZERO
 var _chunk_tex: Dictionary = {}
 var _stream_q: Array[Vector2i] = []
 var _stream_seen: Dictionary = {}
+var _pin_cell: Vector2i = Vector2i(-9999, -9999)
+## [{kind,id,name,cell,label,color,...}] from RadarPoi.build_markers
+var _poi_markers: Array = []
+var _show_poi_legend: bool = true
+## Set on click when a POI was hit; consumed by HUD for 「前往：…」.
+var _pending_nav_label: String = ""
+
+
+
+## Headless/test helper: same markers radar uses (RadarPoi.build_markers — no color fork).
+static func poi_markers_from_sample(sample: Dictionary) -> Array:
+	return RadarPoi.build_markers(sample)
+
+
+func set_poi_markers(markers: Array) -> void:
+	_poi_markers = markers.duplicate()
+	queue_redraw()
+
+
+func set_show_poi_legend(on: bool) -> void:
+	_show_poi_legend = on
+	queue_redraw()
+
+
+func poi_marker_count() -> int:
+	return _poi_markers.size()
+
+
+## Nearest POI marker within hit_px of local screen pos, or {}.
+func pick_poi_at(local: Vector2, hit_px: float = POI_HIT_PX) -> Dictionary:
+	return RadarPoi.pick_marker_at(
+		_poi_markers,
+		local,
+		func(cell: Vector2i) -> Vector2:
+			return _cell_to_screen(Vector2(cell) + Vector2(0.5, 0.5)),
+		hit_px
+	)
+
+
+## Click resolve: POI cell wins over underlying empty cell (marker priority).
+func resolve_nav_cell(local: Vector2, hit_px: float = POI_HIT_PX) -> Vector2i:
+	return RadarPoi.resolve_nav_cell(
+		_poi_markers,
+		local,
+		func(cell: Vector2i) -> Vector2:
+			return _cell_to_screen(Vector2(cell) + Vector2(0.5, 0.5)),
+		local_to_cell(local),
+		hit_px
+	)
+
+
+## Label for 「前往：…」 when click hits a POI; else "".
+func resolve_nav_label(local: Vector2, hit_px: float = POI_HIT_PX) -> String:
+	var hit: Dictionary = pick_poi_at(local, hit_px)
+	if hit.is_empty():
+		return ""
+	return RadarPoi.marker_nav_label(hit)
+
+
+
+## Pop last click's POI label (empty if empty-cell click).
+func consume_nav_label() -> String:
+	var s := _pending_nav_label
+	_pending_nav_label = ""
+	return s
 
 
 func _ready() -> void:
@@ -55,6 +129,8 @@ func bind(map_field: Node2D, player: Node2D, map_id: String = "") -> void:
 	_chunk_tex.clear()
 	_stream_q.clear()
 	_stream_seen.clear()
+	_poi_markers = []
+	_pending_nav_label = ""
 	_cells_across = 0.0
 	var cell := _player_cell()
 	_pan_cell = Vector2(cell)
@@ -177,12 +253,52 @@ func _view_cell_rect() -> Rect2:
 	return Rect2(_pan_cell - half, _view_cells())
 
 
+func set_pin_cell(cell: Vector2i) -> void:
+	_pin_cell = cell
+	queue_redraw()
+
+
+func local_to_cell(local: Vector2) -> Vector2i:
+	var vr := _view_cell_rect()
+	var u := clampf(local.x / maxf(size.x, 1.0), 0.0, 1.0)
+	var v := clampf(local.y / maxf(size.y, 1.0), 0.0, 1.0)
+	return Vector2i(
+		int(floor(vr.position.x + vr.size.x * u)),
+		int(floor(vr.position.y + vr.size.y * v))
+	)
+
+
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
-			_dragging = mb.pressed
-			_drag_last = mb.position
+			if mb.pressed:
+				_dragging = false
+				_did_drag = false
+				_press_pos = mb.position
+				_drag_last = mb.position
+			else:
+				if _did_drag:
+					_dragging = false
+				else:
+					# POI markers take priority over the empty cell under the cursor.
+					var poi_hit: Dictionary = pick_poi_at(mb.position)
+					var cell: Vector2i
+					if poi_hit.is_empty():
+						cell = local_to_cell(mb.position)
+						_pending_nav_label = ""
+					else:
+						cell = RadarPoi.marker_cell(poi_hit)
+						_pending_nav_label = RadarPoi.marker_nav_label(poi_hit)
+					if mb.shift_pressed:
+						cell_pinned.emit(cell)
+					else:
+						cell_clicked.emit(cell)
+				_dragging = false
+				_did_drag = false
+			accept_event()
+		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+			cell_pinned.emit(resolve_nav_cell(mb.position))
 			accept_event()
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
 			_zoom_at(mb.position, 1.0 / 1.2)
@@ -190,8 +306,15 @@ func _on_gui_input(event: InputEvent) -> void:
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
 			_zoom_at(mb.position, 1.2)
 			accept_event()
-	elif event is InputEventMouseMotion and _dragging:
+	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
+		if (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
+			return
+		if not _did_drag and mm.position.distance_to(_press_pos) >= DRAG_THRESH:
+			_did_drag = true
+			_dragging = true
+		if not _dragging:
+			return
 		var vc := _view_cells()
 		var dx: float = (mm.position.x - _drag_last.x) / maxf(size.x, 1.0) * vc.x
 		var dy: float = (mm.position.y - _drag_last.y) / maxf(size.y, 1.0) * vc.y
@@ -358,7 +481,10 @@ func _draw() -> void:
 			p = float(_map_field.world_map_progress())
 		draw_rect(Rect2(8, size.y - 18, (size.x - 16) * p, 6), Color(0.95, 0.78, 0.2, 0.85), true)
 
+	_draw_poi_markers()
+
 	if _player == null:
+		_draw_poi_legend()
 		return
 	var pcell := Vector2(_player_cell()) + Vector2(0.5, 0.5)
 	var pos := _cell_to_screen(pcell)
@@ -370,3 +496,72 @@ func _draw() -> void:
 	var right := pos + Vector2(cos(yaw - 2.45), sin(yaw - 2.45)) * 7.0
 	draw_circle(pos, 3.0, Color(0.15, 0.12, 0.05, 0.85))
 	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.95, 0.78, 0.2))
+	if _pin_cell.x > -9990:
+		var pin_pos := _cell_to_screen(Vector2(_pin_cell) + Vector2(0.5, 0.5))
+		draw_circle(pin_pos, 5.0, Color(0.2, 0.9, 0.95, 0.95))
+		draw_arc(pin_pos, 8.0, 0.0, TAU, 16, Color(0.85, 0.95, 1.0, 0.9), 1.5, true)
+	_draw_poi_legend()
+
+
+func _draw_poi_markers() -> void:
+	if _poi_markers.is_empty():
+		return
+	var vr := _view_cell_rect()
+	for m in _poi_markers:
+		if typeof(m) != TYPE_DICTIONARY:
+			continue
+		var cell_v: Variant = m.get("cell", Vector2i.ZERO)
+		var cell := Vector2i.ZERO
+		if typeof(cell_v) == TYPE_VECTOR2I:
+			cell = cell_v
+		elif typeof(cell_v) == TYPE_DICTIONARY:
+			cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
+		else:
+			continue
+		# Skip off-view markers (cheap cull).
+		if cell.x < int(floor(vr.position.x)) - 1 or cell.y < int(floor(vr.position.y)) - 1:
+			continue
+		if cell.x > int(ceil(vr.position.x + vr.size.x)) + 1 or cell.y > int(ceil(vr.position.y + vr.size.y)) + 1:
+			continue
+		var kind := str(m.get("kind", "")).strip_edges()
+		var col := RadarPoi.color_for_kind(kind)
+		var cv: Variant = m.get("color", null)
+		if typeof(cv) == TYPE_COLOR:
+			col = cv
+		var pos := _cell_to_screen(Vector2(cell) + Vector2(0.5, 0.5))
+		var r := 4.0
+		if kind == RadarPoi.KIND_PIN:
+			r = 5.0
+			draw_circle(pos, r, col)
+			draw_arc(pos, 7.0, 0.0, TAU, 16, Color(1.0, 1.0, 1.0, 0.85), 1.5, true)
+			var pname := str(m.get("name", "")).strip_edges()
+			if pname.is_empty():
+				pname = RadarPoi.label_for_kind(kind)
+			draw_string(
+				ThemeDB.fallback_font,
+				pos + Vector2(7.0, -4.0),
+				pname,
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				11,
+				Color(1.0, 0.95, 1.0, 0.95)
+			)
+		else:
+			draw_circle(pos, r, col)
+			draw_arc(pos, 5.5, 0.0, TAU, 12, Color(0, 0, 0, 0.55), 1.0, true)
+
+
+func _draw_poi_legend() -> void:
+	if not _show_poi_legend or _poi_markers.is_empty():
+		return
+	var font := ThemeDB.fallback_font
+	var x0 := 10.0
+	var y0 := 14.0
+	draw_string(font, Vector2(x0, y0), "标记", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.9, 0.88, 0.7, 0.95))
+	y0 += 4.0
+	for row in RadarPoi.legend():
+		y0 += 14.0
+		var col: Color = row.get("color", Color.WHITE)
+		var label := str(row.get("label", ""))
+		draw_circle(Vector2(x0 + 5.0, y0 - 4.0), 3.5, col)
+		draw_string(font, Vector2(x0 + 14.0, y0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.85, 0.85, 0.82, 0.9))

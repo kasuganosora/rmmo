@@ -9,6 +9,8 @@ extends Node
 const ContentRef = preload("res://scripts/asset/content_ref.gd")
 const PlaceholderTex = preload("res://scripts/asset/placeholder_tex.gd")
 
+const DEFAULT_PACK_ID := "default"
+
 ## Writable content root (user://content by default).
 @export var content_root_override: String = ""
 
@@ -83,7 +85,7 @@ func content_root() -> String:
 		return content_root_override.strip_edges().rstrip("/").rstrip("\\")
 	if ProjectSettings.has_setting("rmmo/content_root"):
 		var v := str(ProjectSettings.get_setting("rmmo/content_root", "")).strip_edges()
-		if v != "":
+		if v != "" and DirAccess.dir_exists_absolute(v):
 			return v.rstrip("/").rstrip("\\")
 	# Luna / playtest fallbacks when ProjectSettings unset (苍蓝星: external runtime, not res://).
 	var win_rt := "D:/code/rmmo_runtime"
@@ -101,7 +103,7 @@ func content_root() -> String:
 func mv_img_root() -> String:
 	if ProjectSettings.has_setting("rmmo/mv_img_root"):
 		var v := str(ProjectSettings.get_setting("rmmo/mv_img_root", "")).strip_edges()
-		if v != "":
+		if v != "" and DirAccess.dir_exists_absolute(v):
 			return v.rstrip("/").rstrip("\\")
 	var junction := "%s/mv_img" % content_root()
 	if DirAccess.dir_exists_absolute(junction):
@@ -805,10 +807,25 @@ func make_letter_sprite_frames(text: String, size: int = 48) -> SpriteFrames:
 # --- map pack helpers -------------------------------------------------------
 
 ## Resolve res:// packs, content ids, absolute dirs → usable pack directory path.
+func default_map_pack_path() -> String:
+	var v := str(ProjectSettings.get_setting("rmmo/default_pack", DEFAULT_PACK_ID)).strip_edges()
+	if v.is_empty() or v.begins_with("res://"):
+		v = DEFAULT_PACK_ID
+	if _pack_json_exists(v):
+		return v
+	var from_id := _resolve_map_pack_dir(v, "")
+	if _pack_json_exists(from_id):
+		return from_id
+	from_id = _resolve_map_pack_dir(DEFAULT_PACK_ID, "")
+	if _pack_json_exists(from_id):
+		return from_id
+	return from_id
+
+
 func resolve_map_pack_path(pack_path_or_id: String) -> String:
 	var s := pack_path_or_id.strip_edges()
 	if s.is_empty():
-		return "res://demo_map"
+		return default_map_pack_path()
 	if s.begins_with("content:") or s.begins_with(ContentRef.SCHEME):
 		var cr = ContentRef.parse(s)
 		if cr.is_valid() and cr.kind == "map_pack":
@@ -1039,11 +1056,21 @@ func _existing_file(p: String) -> String:
 
 func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
 	var root := content_root()
-	var base := "%s/packs/map_pack/%s" % [root, pack_id]
-	if version != "":
-		var vdir := "%s/%s" % [base, version]
-		if _pack_json_exists(vdir):
-			return vdir
+	# Candidate roots: CDN-style map_pack/, flat packs/, and editor user:// packs.
+	var bases: Array[String] = [
+		"%s/packs/map_pack/%s" % [root, pack_id],
+		"%s/packs/%s" % [root, pack_id],
+		ProjectSettings.globalize_path("user://content/packs/%s" % pack_id),
+	]
+	for base0 in bases:
+		var base: String = str(base0)
+		if version != "":
+			var vdir := "%s/%s" % [base, version]
+			if _pack_json_exists(vdir):
+				return vdir
+		if _pack_json_exists(base):
+			return base
+	var base := bases[0]
 	if DirAccess.dir_exists_absolute(base):
 		var d := DirAccess.open(base)
 		if d:
@@ -1055,7 +1082,7 @@ func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
 					if _pack_json_exists(cand):
 						return cand
 				name = d.get_next()
-	# Legacy project packs (folder names + content_id aliases)
+	# Legacy playtest maps still on disk as res:// — not shipped as the default pack.
 	var aliases: Array[String] = [
 		"res://%s" % pack_id,
 		"res://%s_map" % pack_id,
@@ -1117,6 +1144,9 @@ func _resolve_system_asset_path(asset_id: String) -> String:
 ## Resolve slot icon: prefer MV icon_index, else standalone content://icon/{id}.
 ## Returns ImageTexture or null (caller keeps letter avatar).
 func resolve_slot_icon_texture(icon_index: int = -1, icon_id_or_ref: String = "") -> ImageTexture:
+	var local := _try_local_icon(icon_id_or_ref)
+	if local != null:
+		return local
 	if icon_index >= 0:
 		var tex := load_mv_icon_texture(icon_index)
 		if tex != null:
@@ -1130,6 +1160,32 @@ func resolve_slot_icon_texture(icon_index: int = -1, icon_id_or_ref: String = ""
 	if img == null:
 		return null
 	return ImageTexture.create_from_image(img)
+
+
+func _try_local_icon(icon_id_or_ref: String) -> ImageTexture:
+	var id := icon_id_or_ref.strip_edges()
+	if id.is_empty():
+		return null
+	if id.begins_with("content://icon/"):
+		id = id.substr("content://icon/".length())
+	id = id.trim_suffix(".png")
+	var paths := [
+		"res://assets/icons/%s.png" % id,
+		"res://assets/fx/icon_%s.png" % id,
+	]
+	for path in paths:
+		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
+			continue
+		if ResourceLoader.exists(path):
+			var res: Resource = load(path)
+			if res is Texture2D:
+				var img0: Image = (res as Texture2D).get_image()
+				if img0 != null:
+					return ImageTexture.create_from_image(img0)
+		var img := Image.new()
+		if img.load(path) == OK:
+			return ImageTexture.create_from_image(img)
+	return null
 
 
 ## Shared drag preview: TextureRect when atlas/file resolves, else letter Label.
@@ -1182,7 +1238,8 @@ func _prefer_res_if_project(abs_or_res: String) -> String:
 	var project_res := ProjectSettings.globalize_path("res://").rstrip("/").rstrip("\\")
 	var norm := abs_or_res.replace("\\", "/")
 	var proj := project_res.replace("\\", "/")
-	if norm.begins_with(proj):
+	# Require a directory boundary so D:/code/rmmo_runtime is not treated as res://.
+	if norm == proj or norm.begins_with(proj + "/"):
 		var rel := norm.substr(proj.length()).lstrip("/")
 		return "res://%s" % rel
 	return abs_or_res

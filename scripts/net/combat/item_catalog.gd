@@ -1,6 +1,6 @@
 extends RefCounted
 ## Item definitions loaded from JSON (shared path with future GameServer).
-## Template fields: id, name, type, stack_max, use_effect, sell_price (+ legacy consumable/effect).
+## Template fields: id, name, type, rarity, stack_max, use_effect, sell_price (+ legacy consumable/effect).
 
 const DATA_PATHS: Array[String] = [
 	"res://scripts/net/combat/data/items.json",
@@ -68,8 +68,15 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 		out["effect"] = ue  # keep both in sync for try_use_item
 	if not out.has("name") or str(out.get("name", "")).strip_edges() == "":
 		out["name"] = iid
+	# Rarity: common|uncommon|rare|epic (default common).
+	var rar := str(out.get("rarity", "")).strip_edges().to_lower()
+	if rar not in ["common", "uncommon", "rare", "epic"]:
+		rar = "common"
+	out["rarity"] = rar
 	if not out.has("consumable"):
-		out["consumable"] = str(out.get("type", "")) == "consumable" or ue in ["heal_hp", "heal_mp"]
+		out["consumable"] = str(out.get("type", "")) == "consumable" or ue in [
+			"heal_hp", "heal_mp", "apply_status", "clear_status", "cleanse", "recall", "teleport_home", "repair_equip", "party_summon"
+		]
 	# Icons: MV atlas index (primary) + optional standalone file id.
 	if not out.has("icon_index"):
 		out["icon_index"] = -1
@@ -94,6 +101,15 @@ func get_item(item_id: String) -> Dictionary:
 
 func has_item(item_id: String) -> bool:
 	return _by_id.has(item_id.strip_edges())
+
+
+## Runtime inject for tests / pack overrides. Does not persist.
+func register_item(def: Dictionary) -> String:
+	var iid := str(def.get("id", "")).strip_edges()
+	if iid.is_empty():
+		return ""
+	_by_id[iid] = _normalize_def(def)
+	return iid
 
 
 func all_ids() -> Array:
@@ -164,6 +180,58 @@ func _load_builtin_fallback() -> void:
 			"amount": 25,
 			"cooldown": 1.0,
 			"sell_price": 5,
+		},
+		{
+			"id": "scroll_town",
+			"name": "回城卷轴",
+			"desc": "使用后传送回城镇安全点，消耗一张。",
+			"type": "consumable",
+			"stack_max": 20,
+			"consumable": true,
+			"use_effect": "recall",
+			"effect": "recall",
+			"cooldown": 1.0,
+			"sell_price": 15,
+		},
+		{
+			"id": "bait_worm",
+			"name": "蚯蚓饵",
+			"desc": "普通鱼饵。钓鱼时消耗，略微提高闪光鱼概率。",
+			"type": "material",
+			"stack_max": 99,
+			"consumable": true,
+			"use_effect": "",
+			"sell_price": 1,
+		},
+		{
+			"id": "bait_shiny",
+			"name": "闪光饵",
+			"desc": "稀有鱼饵。钓鱼时消耗，明显提高闪光鱼概率。",
+			"type": "material",
+			"stack_max": 99,
+			"consumable": true,
+			"use_effect": "",
+			"sell_price": 5,
+		},
+		{
+			"id": "tool_pickaxe",
+			"name": "矿工镐",
+			"desc": "开采矿石用的镐。采集时需要持有；每次成功消耗 1 点耐久，耐久归零时损坏。",
+			"type": "misc",
+			"stack_max": 1,
+			"consumable": false,
+			"use_effect": "",
+			"sell_price": 8,
+			"durability_max": 40,
+		},
+		{
+			"id": "iron_ore",
+			"name": "铁矿石",
+			"type": "material",
+			"stack_max": 99,
+			"consumable": false,
+			"use_effect": "",
+			"sell_price": 3,
 		},
 	]:
 		_by_id[str(d["id"])] = _normalize_def(d)

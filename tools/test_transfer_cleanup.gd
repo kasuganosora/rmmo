@@ -61,7 +61,11 @@ func _run() -> void:
 		failed += _expect(bool(ev.get("bags_cleared", false)), "bags_cleared flag")
 		failed += _expect((ev.get("ground_bags", ["x"]) as Array).is_empty(), "result ground_bags empty")
 		failed += _expect(srv.ground_bag_count() == 0, "server bags empty after transfer")
-		failed += _expect(srv.snapshot_remote_players().is_empty(), "remotes cleared after transfer")
+		var names2: Array = []
+		for rp2 in srv.snapshot_remote_players():
+			if typeof(rp2) == TYPE_DICTIONARY:
+				names2.append(str(rp2.get("name", "")))
+		failed += _expect(not names2.has("过图测试员"), "prior remote cleared after event transfer")
 		failed += _expect(_has_type(ev, "loot_close"), "loot_close action")
 		failed += _expect(_has_type(ev, "system_message"), "cleanup system_message")
 	else:
@@ -70,7 +74,12 @@ func _run() -> void:
 		failed += _expect(bool(tr.get("ok", false)), "try_transfer ok")
 		failed += _expect(bool(tr.get("bags_cleared", false)), "bags_cleared flag")
 		failed += _expect(srv.ground_bag_count() == 0, "bags empty")
-		failed += _expect(srv.snapshot_remote_players().is_empty(), "remotes empty")
+		# Prior-map debug remotes cleared; destination may auto-spawn shell remotes.
+		var names: Array = []
+		for rp in srv.snapshot_remote_players():
+			if typeof(rp) == TYPE_DICTIONARY:
+				names.append(str(rp.get("name", "")))
+		failed += _expect(not names.has("过图测试员"), "prior debug remote cleared")
 		failed += _expect(_has_type(tr, "system_message"), "system tip")
 
 	if failed == 0:

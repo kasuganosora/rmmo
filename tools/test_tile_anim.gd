@@ -24,7 +24,7 @@ func _run() -> void:
 
 	var pack = ContentPack.new()
 	pack.new_blank("unit_tile_anim", "anim", 16, 16)
-	var a1_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A1.png"
+	var a1_path := _runtime_root() + "/assets/tilesheet/Outside_A1.png"
 	failed += _expect(FileAccess.file_exists(a1_path), "runtime Outside_A1")
 	var a1: Image = Image.load_from_file(a1_path)
 	failed += _expect(a1 != null and a1.get_width() > 0, "Outside_A1 sheet")
@@ -125,7 +125,7 @@ func _bench_walk_anim_ticks() -> int:
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("unit_tile_anim_walk", "walk", 32, 32)
-	var a1_path := "D:/code/rmmo_runtime/assets/tilesheet/Outside_A1.png"
+	var a1_path := _runtime_root() + "/assets/tilesheet/Outside_A1.png"
 	if not FileAccess.file_exists(a1_path):
 		print("SKIP walk-anim bench (no Outside_A1)")
 		return 0
@@ -218,6 +218,15 @@ func _px_hash(img: Image) -> int:
 			h = (h * 16777619) ^ int(c.b * 255.0)
 	return h
 
+
+
+
+
+func _runtime_root() -> String:
+	for cand in ["/workspace/rmmo_runtime", "D:/code/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return "/workspace/rmmo_runtime"
 
 func _expect(cond: bool, label: String) -> int:
 	if cond:

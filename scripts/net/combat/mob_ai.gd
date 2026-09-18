@@ -10,6 +10,12 @@ const VISION_RANGE_CELLS := 6.0
 ## Full cone 120° → half-angle 60°.
 const VISION_HALF_ANGLE_DEG := 60.0
 const LOSE_SIGHT_SEC := 5.0
+## While chasing: no engageable target within engage range for this long → clear_chase / return_home.
+const NO_VALID_TARGET_SEC := 5.0
+## Engage radius fallback when leash_radius disabled (<0): Chebyshev cells from NPC to target.
+const DEFAULT_ENGAGE_RANGE := 15
+## Return-home: after this many blocked/failed steps, teleport snap to home_cell.
+const RETURN_STUCK_TICKS := 8
 ## Home leash: Chebyshev cells from home_cell; chase beyond this → clear_chase / return_home.
 ## Configurable per-NPC via npcs.json `leash_radius` (default 12).
 const DEFAULT_LEASH_RADIUS := 12
@@ -203,6 +209,20 @@ static func beyond_leash(cell: Vector2i, home: Vector2i, leash_radius: int) -> b
 	if leash_radius < 0:
 		return false
 	return chebyshev(cell, home) > maxi(leash_radius, 0)
+
+
+## True when chase target cell is within engage range of NPC (Chebyshev).
+## engage_range usually max(leash_radius, DEFAULT_ENGAGE_RANGE); <0 → DEFAULT_ENGAGE_RANGE.
+static func target_in_engage_range(npc_cell: Vector2i, target_cell: Vector2i, engage_range: int) -> bool:
+	if npc_cell.x <= -9990 or target_cell.x <= -9990:
+		return false
+	var r: int = engage_range if engage_range >= 0 else DEFAULT_ENGAGE_RANGE
+	return chebyshev(npc_cell, target_cell) <= maxi(r, 0)
+
+
+## True when AI is mid leash-reset (must not attack / re-aggro until home).
+static func is_returning(ai: Dictionary) -> bool:
+	return str(ai.get("ai_state", "")) == AI_RETURN_HOME
 
 
 ## One A* / greedy step toward goal. allow_onto_goal: true for return-home (step onto home).

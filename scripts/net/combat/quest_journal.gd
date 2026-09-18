@@ -14,6 +14,10 @@ var _catalog: Dictionary = {}
 var _order: Array = []
 ## id -> { objectives: [{text,cur,max,...}, ...], status: "in_progress"|"ready"|"completed" }
 var _accepted: Dictionary = {}
+## Injected YYYY-MM-DD for tests; empty = use Time.get_date_dict_from_system().
+var _daily_date: String = ""
+## date -> { quest_id: true } for completed dailies that day.
+var _daily_log: Dictionary = {}
 
 
 func load_catalog() -> void:
@@ -65,17 +69,31 @@ func grant_starter() -> void:
 
 
 func accept_quest(quest_id: String) -> bool:
+	return bool(try_accept_quest(quest_id).get("ok", false))
+
+
+## Accept with daily gate. Returns {ok, quest_id, already?, reason?, message?}.
+func try_accept_quest(quest_id: String) -> Dictionary:
 	quest_id = quest_id.strip_edges()
 	if quest_id.is_empty() or not _catalog.has(quest_id):
-		return false
-	if _accepted.has(quest_id):
-		return true
+		return {"ok": false, "reason": "unknown", "quest_id": quest_id, "message": "无法接取该任务。"}
+	var cat := _category_of(quest_id)
+	if cat == "daily":
+		if _is_daily_done_today(quest_id) or _accepted.has(quest_id):
+			return {
+				"ok": false,
+				"reason": "daily_claimed",
+				"quest_id": quest_id,
+				"message": "今日已领取该日常。",
+			}
+	elif _accepted.has(quest_id):
+		return {"ok": true, "quest_id": quest_id, "already": true}
 	var def: Dictionary = (_catalog[quest_id] as Dictionary).duplicate(true)
 	var objs: Array = _copy_objectives(def.get("objectives", []))
 	var status := _derive_status(objs)
 	_accepted[quest_id] = {"objectives": objs, "status": status}
 	_order.append(quest_id)
-	return true
+	return {"ok": true, "quest_id": quest_id, "already": false}
 
 
 ## Mark quest completed (sticky; objectives filled). Used for sample 已完成 entries.
@@ -208,9 +226,9 @@ func note_item_gain(item_id: String, qty: int = 1) -> bool:
 			if typeof(o_v) != TYPE_DICTIONARY:
 				continue
 			var o: Dictionary = o_v
-			var want := str(o.get("item", o.get("item_id", o.get("gather", "")))).strip_edges()
+			var want := str(o.get("item", o.get("item_id", o.get("gather", o.get("gather_item", ""))))).strip_edges()
 			if want.is_empty():
-				want = str(o.get("gather", "")).strip_edges()
+				want = str(o.get("gather", o.get("gather_item", ""))).strip_edges()
 			if want.is_empty() or want != item_id:
 				continue
 			var cur: int = int(o.get("cur", 0))
@@ -284,8 +302,53 @@ func note_reach(map_id: String, content_id: String = "", pack_path: String = "")
 
 
 ## Gather progress: treat gather_id as item id (falls through to note_item_gain).
+## Matches objectives with item / item_id / gather / gather_item == gather_id.
 func note_gather(gather_id: String, qty: int = 1) -> bool:
 	return note_item_gain(gather_id, qty)
+
+
+## Progress fish_catch / fish objectives on a successful catch.
+## qty = number of catches (usually 1). item_id optional: if objective.fish_catch/fish
+## is a specific item id, only that yield matches; "any"/"*"/empty matches any catch.
+func note_fish(item_id: String = "", qty: int = 1) -> bool:
+	item_id = item_id.strip_edges()
+	qty = maxi(qty, 0)
+	if qty <= 0:
+		return false
+	var changed := false
+	for qid_v in _order:
+		var qid := str(qid_v)
+		if not _accepted.has(qid):
+			continue
+		var live: Dictionary = _accepted[qid]
+		var status := str(live.get("status", ""))
+		if status == "completed" or status == "complete":
+			continue
+		var objs_v: Variant = live.get("objectives", [])
+		if typeof(objs_v) != TYPE_ARRAY:
+			continue
+		var objs: Array = objs_v
+		var q_changed := false
+		for i in range(objs.size()):
+			var o_v: Variant = objs[i]
+			if typeof(o_v) != TYPE_DICTIONARY:
+				continue
+			var o: Dictionary = o_v
+			if not _objective_matches_fish(o, item_id):
+				continue
+			var cur: int = int(o.get("cur", 0))
+			var mx: int = maxi(int(o.get("max", 1)), 1)
+			if cur >= mx:
+				continue
+			o["cur"] = mini(cur + qty, mx)
+			objs[i] = o
+			q_changed = true
+		if q_changed:
+			live["objectives"] = objs
+			live["status"] = _derive_status(objs)
+			_accepted[qid] = live
+			changed = true
+	return changed
 
 
 ## Turn in a ready quest. Returns {ok, quest_id, reward:{exp,gold,items}, reason?}.
@@ -307,8 +370,14 @@ func try_turn_in(quest_id: String) -> Dictionary:
 		return {"ok": false, "reason": "already_completed", "quest_id": quest_id}
 	if status != "ready":
 		return {"ok": false, "reason": "not_ready", "quest_id": quest_id, "status": status}
-	mark_completed(quest_id)
 	var reward: Dictionary = _reward_for(quest_id)
+	var cat := _category_of(quest_id)
+	if cat == "daily":
+		_mark_daily_done(quest_id)
+		_accepted.erase(quest_id)
+		_order.erase(quest_id)
+		return {"ok": true, "quest_id": quest_id, "reward": reward, "daily": true}
+	mark_completed(quest_id)
 	return {"ok": true, "quest_id": quest_id, "reward": reward}
 
 
@@ -365,6 +434,8 @@ func list_offers_for_npc(npc_id: String) -> Array:
 	for qid_v in _catalog.keys():
 		var qid := str(qid_v)
 		if is_accepted(qid):
+			continue
+		if _category_of(qid) == "daily":
 			continue
 		if get_giver(qid) != npc_id:
 			continue
@@ -438,6 +509,97 @@ func snapshot() -> Array:
 		if not entry.is_empty():
 			out.append(entry)
 	return out
+
+
+func get_daily_date() -> String:
+	return _today_ymd()
+
+
+## Test helper: inject YYYY-MM-DD ("" = system clock).
+func force_daily_date(ymd: String) -> void:
+	_daily_date = str(ymd).strip_edges()
+
+
+func clear_daily_log() -> void:
+	_daily_log.clear()
+
+
+## Board rows: [{id,title,desc,rewards,reward,state,category}, ...]
+## state: available | accepted | done_today
+func try_daily_board_list() -> Array:
+	var out: Array = []
+	for qid_v in _catalog.keys():
+		var qid := str(qid_v)
+		if _category_of(qid) != "daily":
+			continue
+		var def: Dictionary = get_catalog_entry(qid)
+		if def.is_empty():
+			continue
+		var state := "available"
+		if _accepted.has(qid):
+			state = "accepted"
+		elif _is_daily_done_today(qid):
+			state = "done_today"
+		out.append({
+			"id": qid,
+			"title": str(def.get("title", qid)),
+			"desc": str(def.get("desc", "")),
+			"rewards": str(def.get("rewards", "")),
+			"reward": _reward_for(qid),
+			"category": "daily",
+			"state": state,
+			"giver": str(def.get("giver", "")),
+			"turn_in_npc": str(def.get("turn_in_npc", def.get("giver", ""))),
+		})
+	# Stable order by id
+	out.sort_custom(func(a, b): return str(a.get("id", "")) < str(b.get("id", "")))
+	return out
+
+
+## Companion to snapshot(): daily_date + board states.
+func snapshot_daily() -> Dictionary:
+	return {
+		"daily_date": _today_ymd(),
+		"daily": try_daily_board_list(),
+	}
+
+
+func _category_of(quest_id: String) -> String:
+	quest_id = quest_id.strip_edges()
+	if not _catalog.has(quest_id):
+		return ""
+	return str((_catalog[quest_id] as Dictionary).get("category", "")).strip_edges()
+
+
+func _today_ymd() -> String:
+	if not _daily_date.is_empty():
+		return _daily_date
+	var d: Dictionary = Time.get_date_dict_from_system()
+	return "%04d-%02d-%02d" % [int(d.get("year", 0)), int(d.get("month", 0)), int(d.get("day", 0))]
+
+
+func _is_daily_done_today(quest_id: String) -> bool:
+	quest_id = quest_id.strip_edges()
+	var today := _today_ymd()
+	if today.is_empty() or quest_id.is_empty():
+		return false
+	var day_v: Variant = _daily_log.get(today, {})
+	if typeof(day_v) != TYPE_DICTIONARY:
+		return false
+	return bool((day_v as Dictionary).get(quest_id, false))
+
+
+func _mark_daily_done(quest_id: String) -> void:
+	quest_id = quest_id.strip_edges()
+	var today := _today_ymd()
+	if today.is_empty() or quest_id.is_empty():
+		return
+	var day: Dictionary = {}
+	var day_v: Variant = _daily_log.get(today, {})
+	if typeof(day_v) == TYPE_DICTIONARY:
+		day = (day_v as Dictionary).duplicate(true)
+	day[quest_id] = true
+	_daily_log[today] = day
 
 
 func _reward_for(quest_id: String) -> Dictionary:
@@ -543,6 +705,24 @@ func _objective_matches_reach(o: Dictionary, provided: Array, pack_path: String 
 	return false
 
 
+func _objective_matches_fish(o: Dictionary, item_id: String) -> bool:
+	var raw := ""
+	if o.has("fish_catch"):
+		raw = str(o.get("fish_catch", "")).strip_edges()
+	elif o.has("fish"):
+		raw = str(o.get("fish", "")).strip_edges()
+	else:
+		return false
+	# any / * / empty / "1" / "true" → any successful catch
+	var low := raw.to_lower()
+	if low == "" or low == "any" or low == "*" or low == "1" or low == "true" or low == "yes":
+		return true
+	# Specific yield item id
+	if item_id != "" and raw == item_id:
+		return true
+	return false
+
+
 func _merge_entry(quest_id: String) -> Dictionary:
 	if not _catalog.has(quest_id) or not _accepted.has(quest_id):
 		return {}
@@ -590,7 +770,7 @@ func _copy_objectives(raw: Variant) -> Array:
 			"cur": int(d.get("cur", 0)),
 			"max": maxi(int(d.get("max", 1)), 1),
 		}
-		for key in ["kill", "kill_prefix", "kill_contains", "talk", "talk_prefix", "item", "item_id", "gather", "reach", "map", "map_id", "content_id"]:
+		for key in ["kill", "kill_prefix", "kill_contains", "talk", "talk_prefix", "item", "item_id", "gather", "gather_item", "fish", "fish_catch", "reach", "map", "map_id", "content_id"]:
 			if d.has(key) and str(d.get(key, "")).strip_edges() != "":
 				entry[key] = str(d.get(key, "")).strip_edges()
 		out.append(entry)
