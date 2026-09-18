@@ -70,14 +70,23 @@ A →（校验+提交）→ B1 menus →（校验+提交）→ B2 dialogs →（
 | B4 canvas → `interface/editor_canvas.gd` | `d065e5f` | ✅ |
 | B5 atmosphere → `interface/editor_atmosphere.gd` | `5100333` | ✅ |
 | B6 minimap bridge → `interface/editor_minimap_bridge.gd` | `88243db` | ✅ |
+| 阶段 C：会话态聚合 `application/editor_session.gd`（pack/doc/current_map_id/paint 改为委托属性） | `8fa98ff` | ✅ |
 
 **结果**：`content_editor.gd` 由 3184 行降至 2475 行；所有纯 UI 搭建/相机/光天气/小地图逻辑已外移到
 `scripts/editor/interface/` 下的独立服务类（组合根保留同名 1 行委托，保证既有的外置构建器调用与信号连接零改动）。
 每个提交均通过 `D:\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --script tools/_validate_editor.gd`
 （强制编译编辑器整张 preload 依赖图）校验。
 
-## 待办：阶段 C（需评审，高风险）
+## 待办：阶段 C 余下部分（用例方法迁入，高风险，需运行时验证）
 
-`application/editor_session.gd` 接管 `pack` / `doc` / `current_map_id` / `paint` 会话态聚合，
-涉及 ~150 处 `pack.`/`doc.` 引用重绑，会改变共享态所有权。建议用户在引擎内验证编辑器可正常运行后，
-再决定何时执行阶段 C。
+状态聚合已完成：`session` 已是 `pack`/`doc`/`current_map_id`/`paint` 的单一数据源，组合根通过委托属性暴露，
+现有 `pack.`/`doc.`/`paint.` 引用（含 6 个 interface 模块里的 `ctrl.pack` 等）零改动、零级联。
+
+剩下的是把开包/新建/保存/选择/切换/删除/重命名/复制/试玩/导入导出等**用例编排方法**
+（`_save`、`_new_pack`、`_do_select_map`、`_confirm_switch_save`、`_add_child_map`、`_del_map`、
+`_set_start_map`、`_open_map_settings`/`_apply_map_settings`、`_dup_map`、`_open_rename`/`_apply_rename` 等）
+迁入 `application/editor_session.gd`（改为 `static func(ctrl, ...)`，组合根保留同名 1 行委托）。
+
+该步骤约 150 处引用重绑、方法间互相调用密集；由于委托属性已就位，迁入方法里用 `ctrl.pack`/`ctrl.doc`/
+`ctrl.paint` 仍可正确解析（漏写 `ctrl.` 前缀会触发“未定义标识符”被解析校验捕获），但解析校验无法覆盖
+调用顺序/取值等逻辑错误。建议在引擎内**逐用例验证**后再逐方法推进，避免一次性大 diff 引入难定位的运行时问题。
