@@ -1,4 +1,5 @@
 extends Control
+class_name ContentEditor
 ## In-game content pack editor (maps tree, paint, assets, zip).
 
 const ContentPack = preload("res://scripts/editor/domain/content_pack.gd")
@@ -699,194 +700,59 @@ func _add_lbl(parent: Node, text: String) -> void:
 
 
 func _open_or_create_default() -> void:
-	var path := ContentPack.pack_dir_for(Rtp.DEFAULT_PACK_ID)
-	pack = ContentPack.new()
-	if pack.load_dir(path):
-		if pack.dirty:
-			pack.save_dir()
-		_select_map(pack.start_map)
-		_status.text = "已打开默认包 · %s" % pack.root
-		return
-	pack.new_blank(Rtp.DEFAULT_PACK_ID, "默认内容包", 25, 20)
-	pack.save_dir()
-	_select_map(pack.start_map)
-	_status.text = "已创建默认包（MV 室外图块）· %s" % pack.root
+	EditorSession.open_or_create_default(self)
 
 
 func _new_pack() -> void:
-	current_map_id = ""
-	pack = ContentPack.new()
-	var pid := "pack_%d" % int(Time.get_unix_time_from_system())
-	pack.new_blank(pid, "新内容包", 25, 20)
-	pack.save_dir()
-	_select_map(pack.start_map)
-	_status.text = "已新建 %s" % pack.root
+	EditorSession.new_pack(self)
 
 
 func _save() -> void:
-	if pack == null:
-		return
-	if pack.save_dir():
-		_status.text = "已保存 %s" % pack.root
-	else:
-		_status.text = "保存失败"
+	EditorSession.save(self)
 
 
 func _leave() -> void:
-	_restore_window_scale()
-	var sess = get_node_or_null("/root/GameSession")
-	if sess and sess.get("editor_return"):
-		sess.editor_return = false
-		sess.go_world()
-	elif sess:
-		sess.go_character_select()
-	else:
-		get_tree().change_scene_to_file("res://scenes/login.tscn")
+	EditorSession.leave(self)
 
 
 func _playtest(from_cursor: bool = false) -> void:
-	if pack == null:
-		return
-	pack.save_dir()
-	var sess = get_node_or_null("/root/GameSession")
-	if sess == null:
-		_status.text = "无会话"
-		return
-	sess.editor_return = true
-	sess.editor_pack_root = pack.root
-	sess.editor_map_id = current_map_id
-	var ch: Dictionary = sess.active_character() if sess.has_method("active_character") else {}
-	if ch.is_empty():
-		ch = {"name": "编辑器", "look_id": "1", "gender": "female", "level": 1, "class_id": "adventurer"}
-	var sc: Vector2i = doc.start_cell if doc else Vector2i(2, 2)
-	if from_cursor:
-		sc = _cursor
-		if doc:
-			sc = Vector2i(clampi(sc.x, 0, doc.width - 1), clampi(sc.y, 0, doc.height - 1))
-	sess.spawn_data = {
-		"pack_path": pack.root,
-		"map_id": current_map_id,
-		"cell": {"x": sc.x, "y": sc.y},
-		"character": ch,
-		"content_id": pack.pack_id,
-	}
-	sess.loading_mode = "transfer"
-	sess.go_loading()
+	EditorSession.playtest(self, from_cursor)
 
 
 func _select_map(id: String) -> void:
-	if id == current_map_id:
-		return
-	if current_map_id != "" and pack != null and pack.has_method("map_is_dirty") and pack.map_is_dirty(current_map_id):
-		_pending_switch = id
-		_unsaved_dlg.popup_centered()
-		return
-	_do_select_map(id)
+	EditorSession.select_map(self, id)
 
 
 func _do_select_map(id: String) -> void:
-	if id != current_map_id:
-		_cam_ready = false
-	current_map_id = id
-	doc = pack.get_map(id)
-	_fix_autotiles()
-	_refresh_tree()
-	_sync_palette()
-	_reload_assets()
-	_reload_field()
-	_sync_light_controls()
-	_apply_editor_light()
-	_sync_fx_color_controls()
-	_apply_editor_fx_color()
-	if _inspector:
-		if _inspector.has_method("bind_pack"):
-			_inspector.bind_pack(pack)
-		_inspector.load_cell(doc, _cursor)
+	EditorSession.do_select_map(self, id)
 
 
 func _confirm_switch_save() -> void:
-	_save()
-	var nid := _pending_switch
-	_pending_switch = ""
-	if nid != "":
-		_do_select_map(nid)
+	EditorSession.confirm_switch_save(self)
 
 
 func _unsaved_action(action: String) -> void:
-	if action != "discard":
-		return
-	_unsaved_dlg.hide()
-	var nid := _pending_switch
-	_pending_switch = ""
-	if pack and current_map_id != "" and pack.has_method("reload_map"):
-		if not pack.reload_map(current_map_id):
-			if doc:
-				doc.dirty = false
-	elif doc:
-		doc.dirty = false
-	if nid != "":
-		_do_select_map(nid)
+	EditorSession.unsaved_action(self, action)
 
 
 func _open_pack_dialog() -> void:
-	_open_list.clear()
-	var packs: Array = ContentPack.list_user_packs()
-	for p in packs:
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		_open_list.add_item("%s  (%s)" % [str(p.get("name", "")), str(p.get("id", ""))])
-		_open_list.set_item_metadata(_open_list.item_count - 1, str(p.get("root", "")))
-	_open_dlg.popup_centered()
+	EditorSession.open_pack_dialog(self)
 
 
 func _confirm_open_pack() -> void:
-	var idx := _open_list.get_selected_items()
-	if idx.is_empty():
-		return
-	var root_path := str(_open_list.get_item_metadata(idx[0]))
-	current_map_id = ""
-	pack = ContentPack.new()
-	if pack.load_dir(root_path):
-		_do_select_map(pack.start_map)
-		_status.text = "已打开 %s" % pack.pack_id
-	else:
-		_status.text = "无法打开 %s" % root_path
+	EditorSession.confirm_open_pack(self)
 
 
 func _confirm_save_as() -> void:
-	if pack == null:
-		return
-	var nid := _saveas_edit.text.strip_edges()
-	if nid == "":
-		return
-	if pack.save_as(nid):
-		_status.text = "已另存为 %s" % pack.pack_id
-	else:
-		_status.text = "另存为失败"
+	EditorSession.confirm_save_as(self)
 
 
 func _open_demo_copy() -> void:
-	current_map_id = ""
-	pack = ContentPack.new()
-	if not pack.load_dir("res://demo_map"):
-		_status.text = "无法读取 res://demo_map"
-		return
-	var nid := "demo_copy_%d" % int(Time.get_unix_time_from_system())
-	if pack.adopt_as_user_pack(nid, "demo_map 副本"):
-		_do_select_map(pack.start_map)
-		_status.text = "已复制 demo_map → %s" % pack.root
-	else:
-		_status.text = "无法保存 user 副本"
+	EditorSession.open_demo_copy(self)
 
 
 func _on_reparent(src: String, parent: String) -> void:
-	if pack == null:
-		return
-	if pack.set_parent(src, parent):
-		_refresh_tree()
-		_status.text = "已将 %s 移到 %s 下" % [src, parent]
-	else:
-		_status.text = "无法移动（环路？）"
+	EditorSession.on_reparent(self, src, parent)
 
 
 
@@ -943,18 +809,17 @@ func _on_rm_slot(slot: int, sheet: String) -> void:
 		return
 	var ts_id := str(doc.tileset_id)
 	if pack.set_tileset_slot(ts_id, slot, sheet):
-		_finish_sheet_assign(slot, sheet)
+		EditorSession.finish_sheet_assign(self, slot, sheet)
 
 
 func _on_assets_changed() -> void:
 	if pack:
 		pack.dirty = true
-	_reload_assets()
+	EditorSession.reload_assets(self)
 
 
 func _reload_assets() -> void:
-	if _asset_win and _asset_win.has_method("bind_pack") and _asset_win.visible:
-		_asset_win.bind_pack(pack)
+	EditorSession.reload_assets(self)
 
 
 func _on_entity_changed() -> void:
@@ -1054,159 +919,36 @@ func _on_map_ctx(id: int) -> void:
 
 
 func _add_child_map() -> void:
-	if pack == null:
-		return
-	var nid: String = pack.next_map_id() if pack.has_method("next_map_id") else ("Map%03d" % (pack.maps.size() + 1))
-	var ts := ""
-	if doc:
-		ts = str(doc.tileset_id)
-	pack.add_map(nid, "新地图", current_map_id, 20, 15, ts)
-	_select_map(nid)
+	EditorSession.add_child_map(self)
 
 
 func _del_map() -> void:
-	_ask_del_map(current_map_id)
+	EditorSession.del_map(self)
 
 
 func _ask_del_map(mid: String) -> void:
-	if pack == null or mid == "":
-		return
-	if pack.maps.size() <= 1:
-		_status.text = "至少留一张地图"
-		return
-	_ctx_map_id = mid
-	var d = pack.get_map(mid)
-	var label := str(d.display_name) if d else mid
-	_del_dlg.dialog_text = "确定删除地图「%s」？子地图会提升到上一级。" % label
-	_del_dlg.popup_centered()
+	EditorSession.ask_del_map(self, mid)
 
 
 func _confirm_del_map() -> void:
-	var mid := _ctx_map_id if _ctx_map_id != "" else current_map_id
-	if pack == null or not pack.maps.has(mid):
-		return
-	if pack.maps.size() <= 1:
-		_status.text = "至少留一张地图"
-		return
-	pack.remove_map(mid)
-	_select_map(pack.start_map)
-	_status.text = "已删除 %s" % mid
+	EditorSession.confirm_del_map(self)
 
 
 func _set_start_map(mid: String) -> void:
-	if pack == null or not pack.maps.has(mid):
-		return
-	pack.start_map = mid
-	pack.dirty = true
-	_refresh_tree()
-	_status.text = "起始地图 → %s" % mid
+	EditorSession.set_start_map(self, mid)
 
 
 
 func _open_map_settings(mid: String) -> void:
-	if pack == null or mid == "":
-		return
-	if mid != current_map_id:
-		_select_map(mid)
-	if doc == null:
-		return
-	_ctx_map_id = mid
-	_set_name.text = str(doc.display_name)
-	_set_w.value = doc.width
-	_set_h.value = doc.height
-	_set_start.button_pressed = pack.start_map == mid
-	if _set_far_sx:
-		_set_far_sx.value = doc.far_scroll.x
-	if _set_far_sy:
-		_set_far_sy.value = doc.far_scroll.y
-	if _set_water:
-		_set_water.button_pressed = doc.water_through
-	if _set_env:
-		var env := MapExt.ENV_OUTDOOR
-		if "environment" in doc:
-			env = MapExt.normalize_environment(doc.environment)
-		_set_env.select(1 if env == MapExt.ENV_INDOOR else 0)
-	_fill_bgm_opt(str(doc.bgm) if "bgm" in doc else "")
-	_fill_preset_opt(_set_light, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
-	_select_opt_id(_set_light, int(doc.light_preset) if "light_preset" in doc else 0)
-	if _set_fx_color:
-		_set_fx_color.color = doc.light_fx_color if "light_fx_color" in doc else Color(1, 1, 1, 1)
-	_set_ts.clear()
-	var keys: Array = pack.tilesets.keys()
-	keys.sort()
-	var i := 0
-	for k in keys:
-		var sid := str(k)
-		var label: String = pack.tileset_label(sid) if pack.has_method("tileset_label") else Rtp.display_name(sid)
-		_set_ts.add_item(label, i)
-		_set_ts.set_item_metadata(i, sid)
-		if sid == str(doc.tileset_id):
-			_set_ts.select(i)
-		i += 1
-	_set_dlg.popup_centered()
+	EditorSession.open_map_settings(self, mid)
 
 
 func _apply_map_settings() -> void:
-	if pack == null or doc == null:
-		return
-	var mid := current_map_id
-	var new_name := _set_name.text.strip_edges()
-	if new_name == "":
-		new_name = mid
-	pack.rename_map(mid, new_name)
-	var ts_id := str(_set_ts.get_item_metadata(_set_ts.selected)) if _set_ts.item_count > 0 else ""
-	if ts_id != "":
-		pack.set_map_tileset(mid, ts_id)
-	var nw := int(_set_w.value)
-	var nh := int(_set_h.value)
-	if _set_far_sx and _set_far_sy:
-		doc.far_scroll = Vector2(_set_far_sx.value, _set_far_sy.value)
-		doc.dirty = true
-	if _set_water:
-		doc.water_through = _set_water.button_pressed
-		doc.dirty = true
-	if _set_env:
-		var env_id := MapExt.ENV_OUTDOOR
-		if _set_env.selected >= 0:
-			env_id = MapExt.normalize_environment(_set_env.get_item_metadata(_set_env.selected))
-		doc.environment = env_id
-		doc.dirty = true
-	if _set_bgm and "bgm" in doc:
-		var bgm_id := ""
-		if _set_bgm.selected >= 0:
-			bgm_id = str(_set_bgm.get_item_metadata(_set_bgm.selected))
-		doc.bgm = bgm_id
-		doc.dirty = true
-	if _set_light and "light_preset" in doc:
-		doc.light_preset = int(_set_light.get_item_id(_set_light.selected)) if _set_light.item_count > 0 else 0
-		doc.dirty = true
-		_sync_light_controls()
-		_apply_editor_light()
-	if _set_fx_color and "light_fx_color" in doc:
-		doc.light_fx_color = _set_fx_color.color
-		doc.dirty = true
-		_sync_fx_color_controls()
-		_apply_editor_fx_color()
-	if nw != int(doc.width) or nh != int(doc.height):
-		doc.resize(nw, nh)
-		var sc: Vector2i = doc.start_cell
-		doc.start_cell = Vector2i(clampi(sc.x, 0, doc.width - 1), clampi(sc.y, 0, doc.height - 1))
-	if _set_start.button_pressed:
-		pack.start_map = mid
-		pack.dirty = true
-	pack.dirty = true
-	_refresh_tree()
-	_sync_palette()
-	_reload_field()
-	_status.text = "已更新地图设置 · %s %dx%d（未写入磁盘，Ctrl+S 保存）" % [new_name, doc.width, doc.height]
+	EditorSession.apply_map_settings(self)
 
 
 func _fix_autotiles() -> void:
-	if paint == null or doc == null or not paint.has_method("refresh_all_floor_autotiles"):
-		return
-	var n: int = int(paint.refresh_all_floor_autotiles(doc))
-	if n > 0:
-		doc.dirty = true
+	EditorSession.fix_autotiles(self)
 
 
 func _reload_field() -> void:
@@ -1615,31 +1357,7 @@ func _pick_file(save: bool) -> void:
 
 
 func _on_file(path: String) -> void:
-	match _file_mode:
-		"export":
-			if PackZip.export_zip(pack.root, path):
-				_status.text = "已导出 %s" % path
-			else:
-				_status.text = "导出失败"
-		"import":
-			var dest := "%s/imp_%d" % [ContentPack.USER_PACKS, int(Time.get_unix_time_from_system())]
-			var res: Dictionary = PackZip.import_zip(path, dest)
-			if bool(res.get("ok", false)):
-				current_map_id = ""
-				pack = ContentPack.new()
-				if pack.load_dir(str(res.get("root", dest))):
-					_select_map(pack.start_map)
-					_status.text = "已导入 %s" % pack.pack_id
-				else:
-					_status.text = "导入后无法加载"
-			else:
-				_status.text = str(res.get("error", "导入失败"))
-		"tilesheet", "charset", "audio":
-			_import_asset(path, _file_mode)
-		"reference":
-			if map_field and map_field.has_method("set_reference_image"):
-				map_field.set_reference_image(path, 0.35)
-			_status.text = "参考图 %s" % path.get_file()
+	EditorSession.on_file(self, path)
 
 
 func _add_chest_event() -> void:
@@ -1661,57 +1379,11 @@ func _add_chest_event() -> void:
 
 
 func _import_asset(src: String, kind: String) -> void:
-	if pack == null:
-		return
-	if pack.root.is_empty():
-		pack.save_dir()
-	var id := ""
-	if pack.has_method("import_asset_file"):
-		id = pack.import_asset_file(src, kind)
-	if id == "":
-		_status.text = "导入失败"
-		return
-	_status.text = "已导入 %s → %s" % [kind, id]
-	_reload_assets()
-	if kind != "tilesheet":
-		return
-	var ts_id := str(doc.tileset_id) if doc else ""
-	if ts_id == "" or not pack.tilesets.has(ts_id):
-		ts_id = "outside" if pack.tilesets.has("outside") else (str(pack.tilesets.keys()[0]) if not pack.tilesets.is_empty() else "")
-	if ts_id == "":
-		return
-	var ts: Dictionary = pack.tilesets[ts_id]
-	var names: Variant = ts.get("tilesetNames", [])
-	if typeof(names) != TYPE_ARRAY:
-		return
-	var arr: Array = names
-	while arr.size() < 9:
-		arr.append("")
-	var slot := 4
-	for s in range(9):
-		if str(arr[s]).strip_edges() == "":
-			slot = s
-			break
-	arr[slot] = id
-	ts["tilesetNames"] = arr
-	pack.tilesets[ts_id] = ts
-	pack.dirty = true
-	_finish_sheet_assign(slot, id)
+	EditorSession.import_asset(self, src, kind)
 
 
 func _finish_sheet_assign(slot: int, sheet: String) -> void:
-	var ts_id := str(doc.tileset_id) if doc else ""
-	if ts_id != "" and pack.has_method("init_slot_passage"):
-		pack.init_slot_passage(ts_id, slot)
-	_sync_palette()
-	_reload_field()
-	if _palette and _palette.has_method("select_slot"):
-		_palette.select_slot(slot)
-	_set_mode(2)
-	var names: PackedStringArray = ["A1", "A2", "A3", "A4", "A5", "B", "C", "D", "E"]
-	var lbl: String = names[slot] if slot >= 0 and slot < names.size() else str(slot)
-	var hint := "× 阻挡" if slot == 2 or slot == 3 else "○ 可走"
-	_status.text = "已编入 %s ← %s（默认%s）。点图块改 ○/×/★" % [lbl, sheet, hint]
+	EditorSession.finish_sheet_assign(self, slot, sheet)
 
 
 func _sync_palette() -> void:
@@ -1941,35 +1613,15 @@ func _select_all() -> void:
 
 
 func _dup_map(mid: String) -> void:
-	if pack == null or not pack.has_method("duplicate_map"):
-		return
-	var nid: String = pack.duplicate_map(mid)
-	if nid == "":
-		_status.text = "复制失败"
-		return
-	_select_map(nid)
-	_status.text = "已复制为 %s" % nid
+	EditorSession.dup_map(self, mid)
 
 
 func _open_rename(mid: String) -> void:
-	if pack == null or mid == "":
-		return
-	_ctx_map_id = mid
-	var d = pack.get_map(mid)
-	_rename_edit.text = str(d.display_name) if d else mid
-	_rename_dlg.popup_centered()
-	_rename_edit.grab_focus()
-	_rename_edit.select_all()
+	EditorSession.open_rename(self, mid)
 
 
 func _apply_rename() -> void:
-	var mid := _ctx_map_id if _ctx_map_id != "" else current_map_id
-	var nm := _rename_edit.text.strip_edges()
-	if nm == "" or pack == null:
-		return
-	pack.rename_map(mid, nm)
-	_refresh_tree()
-	_status.text = "已重命名为 %s" % nm
+	EditorSession.apply_rename(self)
 
 
 func _passage_rect(a: Vector2i, b: Vector2i, right: bool) -> void:
