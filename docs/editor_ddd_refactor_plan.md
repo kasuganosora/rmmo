@@ -56,3 +56,28 @@ D:\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --script d:/code
 A →（校验+提交）→ B1 menus →（校验+提交）→ B2 dialogs →（校验+提交）→ B3 spec_panel
 →（校验+提交）→ B4 canvas →（校验+提交）→ B5 atmosphere →（校验+提交）→ B6 minimap_bridge。
 每个提交都保证 `_validate_editor.gd` 通过，可随时 `git bisect` 回退。
+
+---
+
+## 进度（已实现）
+
+| 步骤 | 提交 | 状态 |
+|------|------|------|
+| 阶段 A：模块归入 DDD 层目录 | `f4dcce4` | ✅ |
+| B1 menus/toolbar → `interface/editor_menus.gd` | `7d0e59a` | ✅ |
+| B2 dialogs → `interface/editor_dialogs.gd` | `feac160` | ✅ |
+| B3 spec panel → `interface/editor_spec_panel.gd` | `a0fe6f8` | ✅ |
+| B4 canvas → `interface/editor_canvas.gd` | `d065e5f` | ✅ |
+| B5 atmosphere → `interface/editor_atmosphere.gd` | `5100333` | ✅ |
+| B6 minimap bridge → `interface/editor_minimap_bridge.gd` | `88243db` | ✅ |
+
+**结果**：`content_editor.gd` 由 3184 行降至 2475 行；所有纯 UI 搭建/相机/光天气/小地图逻辑已外移到
+`scripts/editor/interface/` 下的独立服务类（组合根保留同名 1 行委托，保证既有的外置构建器调用与信号连接零改动）。
+每个提交均通过 `D:\tools\godot\Godot_v4.7.2-stable_win64_console.exe --headless --script tools/_validate_editor.gd`
+（强制编译编辑器整张 preload 依赖图）校验。
+
+## 待办：阶段 C（需评审，高风险）
+
+`application/editor_session.gd` 接管 `pack` / `doc` / `current_map_id` / `paint` 会话态聚合，
+涉及 ~150 处 `pack.`/`doc.` 引用重绑，会改变共享态所有权。建议用户在引擎内验证编辑器可正常运行后，
+再决定何时执行阶段 C。

@@ -25,11 +25,29 @@ const EditorSpecPanel = preload("res://scripts/editor/interface/editor_spec_pane
 const EditorCanvas = preload("res://scripts/editor/interface/editor_canvas.gd")
 const EditorAtmosphere = preload("res://scripts/editor/interface/editor_atmosphere.gd")
 const EditorMinimapBridge = preload("res://scripts/editor/interface/editor_minimap_bridge.gd")
+const EditorSession = preload("res://scripts/editor/application/editor_session.gd")
 
-var pack: RefCounted
-var doc: RefCounted
-var current_map_id: String = ""
-var paint: RefCounted
+var session := EditorSession.new()
+var pack: RefCounted:
+	get:
+		return session.pack
+	set(v):
+		session.pack = v
+var doc: RefCounted:
+	get:
+		return session.doc
+	set(v):
+		session.doc = v
+var current_map_id: String:
+	get:
+		return session.current_map_id
+	set(v):
+		session.current_map_id = v
+var paint: RefCounted:
+	get:
+		return session.paint
+	set(v):
+		session.paint = v
 var map_field: Node2D
 var _vp: SubViewport
 var _vpc: SubViewportContainer
