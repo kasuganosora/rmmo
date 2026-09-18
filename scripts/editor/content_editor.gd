@@ -24,6 +24,7 @@ const EditorDialogs = preload("res://scripts/editor/interface/editor_dialogs.gd"
 const EditorSpecPanel = preload("res://scripts/editor/interface/editor_spec_panel.gd")
 const EditorCanvas = preload("res://scripts/editor/interface/editor_canvas.gd")
 const EditorAtmosphere = preload("res://scripts/editor/interface/editor_atmosphere.gd")
+const EditorMinimapBridge = preload("res://scripts/editor/interface/editor_minimap_bridge.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -2350,48 +2351,13 @@ func _map_status_line() -> String:
 func _update_edit_observer() -> void:
 	EditorCanvas.update_edit_observer(self)
 func _rebuild_minimap() -> void:
-	if _minimap == null or map_field == null or doc == null:
-		return
-	if _palette != null and _palette.sheets.size() > 0 and map_field.pack != null:
-		map_field.pack.sheets = _palette.sheets
-		if _palette._flags.size() > 0:
-			map_field.pack.flags = _palette._flags
-	_minimap.rebuild(map_field, doc)
-	_sync_minimap_view()
-
-
+	EditorMinimapBridge.rebuild_minimap(self)
 func _schedule_minimap(cells: Array = []) -> void:
-	if _minimap == null:
-		return
-	if cells.size() > 0 and cells.size() <= 80 and _minimap.has_method("patch_cells"):
-		_minimap.patch_cells(map_field, cells)
-		_sync_minimap_view()
-		return
-	if _minimap_timer:
-		_minimap_timer.start()
-
-
+	EditorMinimapBridge.schedule_minimap(self, cells)
 func _sync_minimap_view() -> void:
-	if _minimap == null or _cam == null or _vp == null:
-		return
-	var z := maxf(_zoom, 0.05)
-	var view := Vector2(float(_vp.size.x) / z, float(_vp.size.y) / z)
-	_minimap.set_view_world(Rect2(_cam.position - view * 0.5, view))
-	if map_field != null and map_field.has_method("current_chunk_rect") and _minimap.has_method("set_chunk_world"):
-		var cr: Rect2i = map_field.current_chunk_rect()
-		var ts := float(maxi(int(doc.tile_size) if doc else 48, 1))
-		_minimap.set_chunk_world(Rect2(Vector2(cr.position) * ts, Vector2(cr.size) * ts))
-
-
+	EditorMinimapBridge.sync_minimap_view(self)
 func _on_minimap_jump(world: Vector2) -> void:
-	if _cam == null:
-		return
-	_cam.position = world
-	_clamp_camera()
-	_sync_scrollbars()
-	_update_edit_observer()
-
-
+	EditorMinimapBridge.on_minimap_jump(self, world)
 func _toggle_pass_overlay() -> void:
 	if map_field == null:
 		return
@@ -2502,37 +2468,8 @@ func _clear_reference() -> void:
 
 
 func _add_bookmark_here() -> void:
-	if doc == null:
-		return
-	if not ("bookmarks" in doc):
-		doc.bookmarks = []
-	var name := "点%d" % (doc.bookmarks.size() + 1)
-	doc.bookmarks.append({"name": name, "x": _cursor.x, "y": _cursor.y})
-	doc.dirty = true
-	_refresh_bookmarks()
-	_status.text = "书签 %s @ %d,%d" % [name, _cursor.x, _cursor.y]
-
-
+	EditorMinimapBridge.add_bookmark_here(self)
 func _refresh_bookmarks() -> void:
-	if _bm_opt == null:
-		return
-	_bm_opt.clear()
-	_bm_opt.add_item("书签")
-	if doc == null or not ("bookmarks" in doc):
-		return
-	for bm in doc.bookmarks:
-		if typeof(bm) == TYPE_DICTIONARY:
-			_bm_opt.add_item("%s (%d,%d)" % [str(bm.get("name", "")), int(bm.get("x", 0)), int(bm.get("y", 0))])
-
-
+	EditorMinimapBridge.refresh_bookmarks(self)
 func _on_bookmark_sel(idx: int) -> void:
-	if idx <= 0 or doc == null or not ("bookmarks" in doc):
-		return
-	var bm: Dictionary = doc.bookmarks[idx - 1] if idx - 1 < doc.bookmarks.size() else {}
-	if bm.is_empty():
-		return
-	_cursor = Vector2i(int(bm.get("x", 0)), int(bm.get("y", 0)))
-	if _cam and doc:
-		_cam.position = Vector2((float(_cursor.x) + 0.5) * float(doc.tile_size), (float(_cursor.y) + 0.5) * float(doc.tile_size))
-		_clamp_camera()
-		_sync_scrollbars()
+	EditorMinimapBridge.on_bookmark_sel(self, idx)
