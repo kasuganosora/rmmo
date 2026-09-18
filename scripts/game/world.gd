@@ -19,6 +19,7 @@ const CombatLogScript = preload("res://scripts/game/combat_log.gd")
 const RadarPoi = preload("res://scripts/ui/radar_poi.gd")
 const ActionApply = preload("res://scripts/game/application/action_apply.gd")
 const RequestAdapter = preload("res://scripts/game/application/request_adapter.gd")
+const Targeting = preload("res://scripts/game/application/targeting.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
 
 @onready var player: CharacterBody2D = %Player
@@ -1054,232 +1055,46 @@ func _apply_gather_update(action: Dictionary) -> void:
 func _apply_fish_update(action: Dictionary) -> void:
 	ActionApply.apply_fish_update(self, action)
 func _find_npc_by_id(npc_id: String):
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty():
-		return null
-	for n in _npcs:
-		if n != null and is_instance_valid(n) and "npc_id" in n and str(n.npc_id) == npc_id:
-			return n
-	return null
-
-
+	return Targeting._find_npc_by_id(self, npc_id)
 func _sync_npc_combat_display() -> void:
-	## Pull MockServer combat_stats onto actors for nameplates (render-only).
-	var srv = Net.server()
-	if srv == null or srv.get("combat_stats") == null:
-		return
-	var stats = srv.combat_stats
-	if stats == null or not ("npcs" in stats):
-		return
-	for actor in _npcs:
-		if actor == null or not is_instance_valid(actor):
-			continue
-		var nid := str(actor.npc_id) if "npc_id" in actor else ""
-		if nid.is_empty() or not stats.npcs.has(nid):
-			continue
-		var st_v: Variant = stats.npcs[nid]
-		if typeof(st_v) != TYPE_DICTIONARY:
-			continue
-		if actor.has_method("apply_combat_display"):
-			actor.apply_combat_display(st_v)
-
-
+	Targeting._sync_npc_combat_display(self)
 func _clear_npc_selection() -> void:
-	if _selected_npc_id.is_empty():
-		return
-	var prev = _find_npc_by_id(_selected_npc_id)
-	if prev != null and prev.has_method("set_selected"):
-		prev.set_selected(false)
-	_selected_npc_id = ""
-
-
+	Targeting._clear_npc_selection(self)
 func clear_target_selection() -> void:
-	## HUD × / explicit clear: drop foot ring + top target frame.
-	_clear_npc_selection()
-	_clear_remote_selection()
-	if hud != null and hud.has_method("clear_target"):
-		hud.clear_target()
-
-
+	Targeting.clear_target_selection(self)
 func _npc_shows_target_hp(npc) -> bool:
-	## Only monsters get the red HP bar in the top target frame.
-	if npc == null:
-		return false
-	if "kind" in npc and str(npc.kind) == "monster":
-		return true
-	if "hostile" in npc and bool(npc.hostile):
-		return true
-	return false
-
-
+	return Targeting._npc_shows_target_hp(self, npc)
 func _push_target_hud(npc, display_name: String, ratio: float, threat_snap: Dictionary = {}) -> void:
-	if hud == null or not hud.has_method("show_target"):
-		return
-	var world_pos: Variant = npc.global_position if npc else null
-	var mp_ratio := -1.0
-	if npc != null and "mp_max" in npc and int(npc.mp_max) > 0:
-		mp_ratio = clampf(float(npc.mp) / float(maxi(int(npc.mp_max), 1)), 0.0, 1.0)
-	var show_threat := _npc_shows_target_hp(npc)  # hostile / monster only
-	var threat_you := false
-	if show_threat:
-		if threat_snap.is_empty():
-			threat_snap = _fetch_threat_snapshot(str(npc.npc_id) if npc != null and "npc_id" in npc else "")
-		threat_you = bool(threat_snap.get("threat_you", false))
-	hud.show_target(display_name, ratio, world_pos, _npc_shows_target_hp(npc), mp_ratio, show_threat, threat_you)
-
-
+	Targeting._push_target_hud(self, npc, display_name, ratio, threat_snap)
 func _fetch_threat_snapshot(npc_id: String) -> Dictionary:
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty():
-		return {}
-	var srv = Net.server()
-	if srv != null and srv.has_method("snapshot_threat"):
-		var s: Variant = srv.snapshot_threat(npc_id)
-		if typeof(s) == TYPE_DICTIONARY:
-			return s
-	return {}
-
-
+	return Targeting._fetch_threat_snapshot(self, npc_id)
 func _apply_threat_update(action: Dictionary) -> void:
 	ActionApply.apply_threat_update(self, action)
 func _select_npc(npc) -> void:
-	if npc == null:
-		clear_target_selection()
-		return
-	var nid := str(npc.npc_id).strip_edges() if "npc_id" in npc else ""
-	if nid.is_empty():
-		return
-	_clear_remote_selection()
-	if _selected_npc_id != nid:
-		_clear_npc_selection()
-		_selected_npc_id = nid
-		if npc.has_method("set_selected"):
-			npc.set_selected(true)
-	# Refresh HUD target frame from actor display fields.
-	var display_name := nid
-	if "npc_name" in npc and str(npc.npc_name).strip_edges() != "":
-		display_name = str(npc.npc_name)
-	var ratio := 1.0
-	if "hp_max" in npc and int(npc.hp_max) > 0:
-		ratio = clampf(float(npc.hp) / float(npc.hp_max), 0.0, 1.0)
-	_push_target_hud(npc, display_name, ratio)
-	# Shell: selecting a target while grouped marks party shared assist target.
-	request_party_set_target(nid, display_name)
-
-
+	Targeting._select_npc(self, npc)
 func _clear_pending_engage() -> void:
-	_pending_engage_npc_id = ""
-	_pending_skill_id = ""
-	_pending_skill_range = 1
-
-
+	Targeting._clear_pending_engage(self)
 func _set_pending_engage(npc, skill_id: String = "", range_cells: int = 1) -> void:
-	if npc == null or not ("npc_id" in npc):
-		_clear_pending_engage()
-		return
-	_pending_engage_npc_id = str(npc.npc_id).strip_edges()
-	_pending_skill_id = skill_id.strip_edges()
-	_pending_skill_range = maxi(range_cells, 1)
-
-
+	Targeting._set_pending_engage(self, npc, skill_id, range_cells)
 func _player_beside_npc(npc, pcell: Vector2i) -> bool:
-	if npc == null:
-		return false
-	if npc.has_method("is_adjacent_to") and npc.is_adjacent_to(pcell):
-		return true
-	if npc.has_method("contains_cell") and npc.contains_cell(pcell):
-		return true
-	return false
-
-
+	return Targeting._player_beside_npc(self, npc, pcell)
 func _cheb(a: Vector2i, b: Vector2i) -> int:
-	return maxi(absi(a.x - b.x), absi(a.y - b.y))
-
-
+	return Targeting._cheb(self, a, b)
 func _nameplate_max_dist() -> int:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return 12
-	return NameplateUtil.clamp_distance(int(gs.nameplate_distance))
-
-
+	return Targeting._nameplate_max_dist(self)
 func _refresh_npc_nameplates() -> void:
-	for npc in _npcs:
-		if npc != null and is_instance_valid(npc) and npc.has_method("_refresh_nameplate"):
-			npc._refresh_nameplate()
-
-
+	Targeting._refresh_npc_nameplates(self)
 func _refresh_remote_nameplates() -> void:
-	var show_p := GameSettingsScript.flag("show_player_names", true)
-	var max_d := _nameplate_max_dist()
-	var pc: Vector2i = player.cell if player != null and "cell" in player else Vector2i.ZERO
-	for rid in _remote_markers.keys():
-		var mk = _remote_markers[rid]
-		if mk == null or not is_instance_valid(mk):
-			continue
-		var lab := mk.get_node_or_null("Name") as Label
-		if lab == null:
-			continue
-		var cv: Variant = mk.get_meta("cell", Vector2i.ZERO)
-		var cell := Vector2i.ZERO
-		if typeof(cv) == TYPE_VECTOR2I:
-			cell = cv
-		elif typeof(cv) == TYPE_DICTIONARY:
-			cell = Vector2i(int(cv.get("x", 0)), int(cv.get("y", 0)))
-		var dist := NameplateUtil.chebyshev(pc, cell)
-		var is_sel := str(rid) == _selected_remote_id
-		lab.visible = show_p and NameplateUtil.should_show(dist, max_d, is_sel)
-
-
+	Targeting._refresh_remote_nameplates(self)
 func _tick_nameplate_distance(delta: float) -> void:
-	# Refresh NPC plates ~4 Hz; remotes update every frame in _tick_remote_aoi.
-	_nameplate_tick_acc += delta
-	if _nameplate_tick_acc < 0.25:
-		return
-	_nameplate_tick_acc = 0.0
-	_refresh_npc_nameplates()
-
-
+	Targeting._tick_nameplate_distance(self, delta)
 ## Stand at the far edge of `range_cells` from target, stepping from `from`.
 func _approach_cell(from: Vector2i, target: Vector2i, range_cells: int) -> Vector2i:
-	range_cells = maxi(range_cells, 1)
-	var dist: int = _cheb(from, target)
-	if dist <= range_cells:
-		return from
-	var steps: int = dist - range_cells
-	var x: int = from.x
-	var y: int = from.y
-	for i in range(steps):
-		var tdx: int = target.x - x
-		var tdy: int = target.y - y
-		if tdx == 0 and tdy == 0:
-			break
-		if tdx > 0:
-			x += 1
-		elif tdx < 0:
-			x -= 1
-		if tdy > 0:
-			y += 1
-		elif tdy < 0:
-			y -= 1
-	return Vector2i(x, y)
-
-
+	return Targeting._approach_cell(self, from, target, range_cells)
 func _face_toward_cell(to: Vector2i) -> void:
-	if player == null or not player.has_method("set_facing_dir"):
-		return
-	var pcell: Vector2i = player.cell
-	var d: int = TileId.dir_from_vec(Vector2(float(to.x - pcell.x), float(to.y - pcell.y)))
-	if d != 0:
-		player.set_facing_dir(d)
-
-
+	Targeting._face_toward_cell(self, to)
 func _npc_target_cell(npc) -> Vector2i:
-	if npc != null and "cell" in npc:
-		return npc.cell
-	return Vector2i(-9999, -9999)
-
-
+	return Targeting._npc_target_cell(self, npc)
 func _player_in_skill_range(npc, range_cells: int, pcell: Vector2i) -> bool:
 	if npc == null:
 		return false
@@ -1538,7 +1353,7 @@ func request_party_invite_respond(invite_id: String, accept: bool) -> void:
 func request_respawn(where: String = "town") -> void:
 	RequestAdapter.request_respawn(self, where)
 func request_recall() -> void:
-	RequestAdapter.request_recall(self, )
+	RequestAdapter.request_recall(self)
 func request_sit(on: Variant = null) -> void:
 	RequestAdapter.request_sit(self, on)
 func request_map_move(cell: Vector2i, label: String = "") -> void:
@@ -2206,17 +2021,17 @@ func request_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> void:
 func request_shop_buyback(index: int, qty: int = -1) -> void:
 	RequestAdapter.request_shop_buyback(self, index, qty)
 func request_shop_close() -> void:
-	RequestAdapter.request_shop_close(self, )
+	RequestAdapter.request_shop_close(self)
 func request_inventory_split(item_id: String, qty: int) -> void:
 	RequestAdapter.request_inventory_split(self, item_id, qty)
 func request_inventory_sort() -> void:
-	RequestAdapter.request_inventory_sort(self, )
+	RequestAdapter.request_inventory_sort(self)
 func request_inventory_lock(item_id: String, on: bool) -> void:
 	RequestAdapter.request_inventory_lock(self, item_id, on)
 func request_shop_sell(item_id: String, qty: int = 1) -> void:
 	RequestAdapter.request_shop_sell(self, item_id, qty)
 func request_shop_sell_junk() -> void:
-	RequestAdapter.request_shop_sell_junk(self, )
+	RequestAdapter.request_shop_sell_junk(self)
 func _apply_ground_spawn(action: Dictionary) -> void:
 	ActionApply.apply_ground_spawn(self, action)
 func _apply_ground_update(action: Dictionary) -> void:
@@ -2460,9 +2275,9 @@ func request_drop_equipped(slot: String) -> void:
 func request_loot_take(item_id: String, qty: int = -1) -> void:
 	RequestAdapter.request_loot_take(self, item_id, qty)
 func request_loot_take_all() -> void:
-	RequestAdapter.request_loot_take_all(self, )
+	RequestAdapter.request_loot_take_all(self)
 func request_loot_close() -> void:
-	RequestAdapter.request_loot_close(self, )
+	RequestAdapter.request_loot_close(self)
 func request_loot_roll(choice: String, roll_id: String = "") -> void:
 	RequestAdapter.request_loot_roll(self, choice, roll_id)
 func request_turn_in_quest(quest_id: String) -> void:
@@ -2474,19 +2289,19 @@ func request_abandon_quest(quest_id: String) -> void:
 func request_cancel_status(status_id: String) -> void:
 	RequestAdapter.request_cancel_status(self, status_id)
 func request_party_debug_fill() -> void:
-	RequestAdapter.request_party_debug_fill(self, )
+	RequestAdapter.request_party_debug_fill(self)
 func request_party_create() -> void:
-	RequestAdapter.request_party_create(self, )
+	RequestAdapter.request_party_create(self)
 func request_party_invite(target: String = "") -> void:
 	RequestAdapter.request_party_invite(self, target)
 func request_party_leave() -> void:
-	RequestAdapter.request_party_leave(self, )
+	RequestAdapter.request_party_leave(self)
 func request_party_kick(member_id: String) -> void:
 	RequestAdapter.request_party_kick(self, member_id)
 func request_party_set_target(npc_id: String, display_name: String = "") -> void:
 	RequestAdapter.request_party_set_target(self, npc_id, display_name)
 func request_party_clear_target() -> void:
-	RequestAdapter.request_party_clear_target(self, )
+	RequestAdapter.request_party_clear_target(self)
 func request_party_set_loot_mode(mode: String) -> void:
 	RequestAdapter.request_party_set_loot_mode(self, mode)
 func _clear_remote_selection() -> void:
@@ -2823,7 +2638,7 @@ func request_remote_debug_spawn(display_name: String = "") -> void:
 func request_trade_open(partner_name: String = "") -> void:
 	RequestAdapter.request_trade_open(self, partner_name)
 func request_trade_cancel() -> void:
-	RequestAdapter.request_trade_cancel(self, )
+	RequestAdapter.request_trade_cancel(self)
 func request_trade_put_item(item_id: String, qty: int = 1) -> void:
 	RequestAdapter.request_trade_put_item(self, item_id, qty)
 func request_trade_take_item(item_id: String, qty: int = 1) -> void:
@@ -2833,23 +2648,23 @@ func request_trade_set_gold(amount: int) -> void:
 func request_trade_ready(ready: bool = true) -> void:
 	RequestAdapter.request_trade_ready(self, ready)
 func request_trade_confirm() -> void:
-	RequestAdapter.request_trade_confirm(self, )
+	RequestAdapter.request_trade_confirm(self)
 func request_duel_challenge(target_id_or_name: String = "") -> void:
 	RequestAdapter.request_duel_challenge(self, target_id_or_name)
 func request_duel_accept() -> void:
-	RequestAdapter.request_duel_accept(self, )
+	RequestAdapter.request_duel_accept(self)
 func request_duel_decline() -> void:
-	RequestAdapter.request_duel_decline(self, )
+	RequestAdapter.request_duel_decline(self)
 func request_duel_forfeit() -> void:
-	RequestAdapter.request_duel_forfeit(self, )
+	RequestAdapter.request_duel_forfeit(self)
 func request_craft(recipe_id: String, qty: int = 1) -> void:
 	RequestAdapter.request_craft(self, recipe_id, qty)
 func request_emote(emote_id: String) -> void:
 	RequestAdapter.request_emote(self, emote_id)
 func request_dungeon_enter() -> void:
-	RequestAdapter.request_dungeon_enter(self, )
+	RequestAdapter.request_dungeon_enter(self)
 func request_dungeon_exit() -> void:
-	RequestAdapter.request_dungeon_exit(self, )
+	RequestAdapter.request_dungeon_exit(self)
 func _apply_dungeon_server_result(result: Dictionary) -> void:
 	if typeof(result) != TYPE_DICTIONARY:
 		return
@@ -2877,9 +2692,9 @@ func _apply_dungeon_server_result(result: Dictionary) -> void:
 func request_pet_summon(pet_id: String = "default") -> void:
 	RequestAdapter.request_pet_summon(self, pet_id)
 func request_pet_dismiss() -> void:
-	RequestAdapter.request_pet_dismiss(self, )
+	RequestAdapter.request_pet_dismiss(self)
 func request_warehouse_open() -> void:
-	RequestAdapter.request_warehouse_open(self, )
+	RequestAdapter.request_warehouse_open(self)
 func request_warehouse_deposit(item_id: String, qty: int = 1) -> void:
 	RequestAdapter.request_warehouse_deposit(self, item_id, qty)
 func request_warehouse_withdraw(item_id: String, qty: int = 1) -> void:
@@ -2899,9 +2714,9 @@ func request_guild_invite(target: String) -> void:
 func request_guild_kick(member_id: String) -> void:
 	RequestAdapter.request_guild_kick(self, member_id)
 func request_guild_leave() -> void:
-	RequestAdapter.request_guild_leave(self, )
+	RequestAdapter.request_guild_leave(self)
 func request_guild_disband() -> void:
-	RequestAdapter.request_guild_disband(self, )
+	RequestAdapter.request_guild_disband(self)
 func request_guild_invite_respond(invite_id: String, accept: bool) -> void:
 	RequestAdapter.request_guild_invite_respond(self, invite_id, accept)
 func request_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> void:
@@ -2925,7 +2740,7 @@ func _apply_attr_update(action: Dictionary) -> void:
 func _apply_skill_book_update(action: Dictionary) -> void:
 	ActionApply.apply_skill_book_update(self, action)
 func request_skill_respec() -> void:
-	RequestAdapter.request_skill_respec(self, )
+	RequestAdapter.request_skill_respec(self)
 func _apply_skill_respec(action: Dictionary) -> void:
 	ActionApply.apply_skill_respec(self, action)
 func request_use_skill(skill_id: String, ground: Vector2i = Vector2i(-9999, -9999)) -> void:
