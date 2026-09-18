@@ -22,6 +22,7 @@ const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
 const EditorMenus = preload("res://scripts/editor/interface/editor_menus.gd")
 const EditorDialogs = preload("res://scripts/editor/interface/editor_dialogs.gd")
 const EditorSpecPanel = preload("res://scripts/editor/interface/editor_spec_panel.gd")
+const EditorCanvas = preload("res://scripts/editor/interface/editor_canvas.gd")
 
 var pack: RefCounted
 var doc: RefCounted
@@ -1620,29 +1621,9 @@ func _on_canvas_input(event: InputEvent) -> void:
 
 
 func _sync_vp_size() -> void:
-	if _vpc == null or _vp == null:
-		return
-	var s := Vector2i(maxi(1, int(_vpc.size.x)), maxi(1, int(_vpc.size.y)))
-	if _vp.size != s:
-		_vp.size = s
-	_sync_scrollbars()
-	_update_edit_observer()
-
-
+	EditorCanvas.sync_vp_size(self)
 func _mouse_cell(pos: Vector2) -> Vector2i:
-	if map_field == null or _vp == null:
-		return Vector2i.ZERO
-	var vp_pos := pos
-	if _vpc != null and _vpc.size.x > 0.5 and _vpc.size.y > 0.5:
-		vp_pos = Vector2(
-			pos.x * float(_vp.size.x) / _vpc.size.x,
-			pos.y * float(_vp.size.y) / _vpc.size.y
-		)
-	var xform: Transform2D = _vp.get_canvas_transform()
-	var world: Vector2 = xform.affine_inverse() * vp_pos
-	return map_field.world_to_cell(world)
-
-
+	return EditorCanvas.mouse_cell(self, pos)
 func _refresh_dirty(cells: Array) -> void:
 	if map_field and map_field.has_method("rebuild_dirty_cells"):
 		map_field.rebuild_dirty_cells(cells)
@@ -2402,16 +2383,7 @@ func _on_win_resize() -> void:
 
 
 func _fit_layout() -> void:
-	var win := get_tree().root
-	if win:
-		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
-		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	size = get_viewport_rect().size
-	_sync_vp_size()
-	_sync_scrollbars()
-
-
+	EditorCanvas.fit_layout(self)
 func _set_mode(mode: int) -> void:
 	_mode = mode
 	_placing_start = false
@@ -2485,136 +2457,29 @@ func _set_start_cell(cell: Vector2i) -> void:
 
 
 func _set_zoom(z: float) -> void:
-	_zoom = clampf(z, 0.25, 4.0)
-	if _cam:
-		_cam.zoom = Vector2(_zoom, _zoom)
-	if _zoom_lbl:
-		_zoom_lbl.text = "%d%%" % int(round(_zoom * 100.0))
-	_clamp_camera()
-	_sync_scrollbars()
-	_update_edit_observer()
-
-
+	EditorCanvas.set_zoom(self, z)
 func _zoom_at(local_pos: Vector2, z: float) -> void:
-	var before := _mouse_world(local_pos)
-	_set_zoom(z)
-	var after := _mouse_world(local_pos)
-	if _cam:
-		_cam.position += before - after
-		_clamp_camera()
-		_sync_scrollbars()
-
-
+	EditorCanvas.zoom_at(self, local_pos, z)
 func _zoom_fit() -> void:
-	if doc == null or _vp == null:
-		return
-	var mw := float(doc.width * doc.tile_size)
-	var mh := float(doc.height * doc.tile_size)
-	if mw <= 1.0 or mh <= 1.0:
-		return
-	var zx := float(_vp.size.x) / mw
-	var zy := float(_vp.size.y) / mh
-	_set_zoom(minf(zx, zy))
-	_cam.position = Vector2(mw * 0.5, mh * 0.5)
-	_sync_scrollbars()
-
-
+	EditorCanvas.zoom_fit(self)
 func _mouse_world(pos: Vector2) -> Vector2:
-	if _vp == null:
-		return Vector2.ZERO
-	var vp_pos := pos
-	if _vpc != null and _vpc.size.x > 0.5 and _vpc.size.y > 0.5:
-		vp_pos = Vector2(pos.x * float(_vp.size.x) / _vpc.size.x, pos.y * float(_vp.size.y) / _vpc.size.y)
-	return _vp.get_canvas_transform().affine_inverse() * vp_pos
-
-
+	return EditorCanvas.mouse_world(self, pos)
 func _clamp_camera() -> void:
-	if _cam == null or _vp == null or doc == null:
-		return
-	var z := maxf(_zoom, 0.05)
-	var view_w := float(_vp.size.x) / z
-	var view_h := float(_vp.size.y) / z
-	var map_w := float(doc.width * doc.tile_size)
-	var map_h := float(doc.height * doc.tile_size)
-	var min_x := view_w * 0.5
-	var max_x := maxf(min_x, map_w - view_w * 0.5)
-	var min_y := view_h * 0.5
-	var max_y := maxf(min_y, map_h - view_h * 0.5)
-	_cam.position.x = clampf(_cam.position.x, min_x, max_x)
-	_cam.position.y = clampf(_cam.position.y, min_y, max_y)
-
-
+	EditorCanvas.clamp_camera(self)
 func _sync_scrollbars() -> void:
-	if _syncing_scroll or _cam == null or _vp == null or doc == null or _hscroll == null:
-		return
-	_syncing_scroll = true
-	var z := maxf(_zoom, 0.05)
-	var view_w := maxf(float(_vp.size.x) / z, 1.0)
-	var view_h := maxf(float(_vp.size.y) / z, 1.0)
-	var map_w := float(maxi(doc.width, 1) * doc.tile_size)
-	var map_h := float(maxi(doc.height, 1) * doc.tile_size)
-	_hscroll.min_value = 0
-	_hscroll.max_value = maxf(map_w, view_w)
-	_hscroll.page = view_w
-	_vscroll.min_value = 0
-	_vscroll.max_value = maxf(map_h, view_h)
-	_vscroll.page = view_h
-	_hscroll.value = _cam.position.x - view_w * 0.5
-	_vscroll.value = _cam.position.y - view_h * 0.5
-	_syncing_scroll = false
-	_sync_minimap_view()
-
-
+	EditorCanvas.sync_scrollbars(self)
 func _canvas_wheel_scroll(horizontal: bool, toward_positive: bool) -> void:
-	var bar: ScrollBar = _hscroll if horizontal else _vscroll
-	if bar == null:
-		return
-	var delta := bar.page * 0.12
-	bar.value += delta if toward_positive else -delta
-
-
+	EditorCanvas.canvas_wheel_scroll(self, horizontal, toward_positive)
 func _canvas_pan_pixels(delta: Vector2) -> void:
-	if _hscroll and absf(delta.x) > 0.01:
-		_hscroll.value += delta.x
-	if _vscroll and absf(delta.y) > 0.01:
-		_vscroll.value += delta.y
-
-
+	EditorCanvas.canvas_pan_pixels(self, delta)
 func _on_hscroll(v: float) -> void:
-	if _syncing_scroll or _cam == null or _vp == null:
-		return
-	var z := maxf(_zoom, 0.05)
-	_cam.position.x = v + float(_vp.size.x) / z * 0.5
-	_update_edit_observer()
-
-
+	EditorCanvas.on_hscroll(self, v)
 func _on_vscroll(v: float) -> void:
-	if _syncing_scroll or _cam == null or _vp == null:
-		return
-	var z := maxf(_zoom, 0.05)
-	_cam.position.y = v + float(_vp.size.y) / z * 0.5
-	_update_edit_observer()
-
-
+	EditorCanvas.on_vscroll(self, v)
 func _map_status_line() -> String:
-	if doc == null or pack == null:
-		return ""
-	var chunk_s := ""
-	if map_field != null and map_field.has_method("current_chunk"):
-		var ch: Vector2i = map_field.current_chunk()
-		chunk_s = " · chunk %d,%d" % [ch.x, ch.y]
-	return "%s · %dx%d%s · %s" % [doc.display_name, doc.width, doc.height, chunk_s, pack.root]
-
-
+	return EditorCanvas.map_status_line(self)
 func _update_edit_observer() -> void:
-	if map_field == null or _cam == null:
-		return
-	map_field.set_edit_camera_cell(map_field.world_to_cell(_cam.position))
-	_sync_minimap_view()
-	if _status and doc and pack:
-		_status.text = _map_status_line()
-
-
+	EditorCanvas.update_edit_observer(self)
 func _rebuild_minimap() -> void:
 	if _minimap == null or map_field == null or doc == null:
 		return
