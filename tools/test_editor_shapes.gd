@@ -8,13 +8,13 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var MapShapes = load("res://scripts/editor/map_shapes.gd")
-	var TileLabels = load("res://scripts/editor/tile_labels.gd")
+	var MapShapes = load("res://scripts/editor/domain/map_shapes.gd")
+	var TileLabels = load("res://scripts/editor/domain/tile_labels.gd")
 	var TileId = load("res://scripts/map/tile_id.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var Editor = load("res://scripts/editor/content_editor.gd")
-	var EditorMcp = load("res://scripts/editor/editor_mcp.gd")
+	var EditorMcp = load("res://scripts/editor/adapters/editor_mcp.gd")
 
 	var line: Array = MapShapes.line_cells(Vector2i(0, 0), Vector2i(4, 0))
 	failed += _expect(line.size() == 5, "line 5 cells")

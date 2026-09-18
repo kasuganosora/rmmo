@@ -10,7 +10,7 @@ func _run() -> void:
 	var failed := 0
 	var Weather = load("res://scripts/map/weather.gd")
 	var MapExt = load("res://scripts/map/map_ext.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var MockServer = load("res://scripts/net/mock_server.gd")
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")

@@ -1,7 +1,7 @@
 extends VBoxContainer
 ## Place/edit map events (pages + EventRuntime commands), NPCs, and warps.
 
-const EventCommands = preload("res://scripts/editor/event_commands.gd")
+const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
 const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
 

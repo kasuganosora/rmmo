@@ -45,7 +45,7 @@ func _test_chunk_store_roundtrip() -> int:
 
 func _test_continent_pack() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
 	var Store = load("res://scripts/map/map_chunk_store.gd")
@@ -167,7 +167,7 @@ func _test_continent_pack() -> int:
 	ovui.queue_free()
 
 	var Editor = load("res://scripts/editor/content_editor.gd")
-	var EditorMcp = load("res://scripts/editor/editor_mcp.gd")
+	var EditorMcp = load("res://scripts/editor/adapters/editor_mcp.gd")
 	var ed = Editor.new()
 	ed.pack = pack2
 	ed.doc = doc2

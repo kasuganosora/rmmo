@@ -1,10 +1,10 @@
 extends RefCounted
 ## Content pack: map tree + tilesets + per-map documents + pack-local assets.
 
-const MapDocument = preload("res://scripts/editor/map_document.gd")
-const Rtp = preload("res://scripts/editor/rtp.gd")
+const MapDocument = preload("res://scripts/editor/domain/map_document.gd")
+const Rtp = preload("res://scripts/editor/infrastructure/rtp.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")
-const PaintTools = preload("res://scripts/editor/paint_tools.gd")
+const PaintTools = preload("res://scripts/editor/domain/paint_tools.gd")
 
 const FORMAT := "content_pack_v1"
 const USER_PACKS := "user://content/packs"

@@ -8,7 +8,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("unit_paint_pack", "paint", 16, 16)

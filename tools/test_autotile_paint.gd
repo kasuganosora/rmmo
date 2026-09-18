@@ -9,8 +9,8 @@ func _init() -> void:
 func _run() -> void:
 	var failed := 0
 	var TileId = load("res://scripts/map/tile_id.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
-	var MapDocument = load("res://scripts/editor/map_document.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
+	var MapDocument = load("res://scripts/editor/domain/map_document.gd")
 	failed += _expect(TileId.floor_shape(false, false, false, false, false, false, false, false) == 0, "surrounded floor shape 0")
 	failed += _expect(TileId.floor_shape(true, true, true, true, true, true, true, true) == 46, "isolated floor shape 46")
 	failed += _expect(TileId.wall_shape(false, false, false, false) == 0, "wall surrounded 0")
@@ -235,7 +235,7 @@ func _run() -> void:
 		failed += _expect(lip > 4, "table edge hangs into cell below")
 
 	# A-tab: drag across two autotile kinds stays one autotile (no sand/grass stamp).
-	var TilePalette = load("res://scripts/editor/tile_palette.gd")
+	var TilePalette = load("res://scripts/editor/interface/tile_palette.gd")
 	var pal = TilePalette.new()
 	pal.tab = "A"
 	var a3_prev: int = pal._preview_id(TileId.TILE_ID_A3)
@@ -257,7 +257,7 @@ func _run() -> void:
 	failed += _expect(not pal2._pass_layer.visible, "set_show_passage(false) hides overlay")
 	pal2.free()
 
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("unit_autotile_vis", "at", 16, 16)

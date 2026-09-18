@@ -3,7 +3,7 @@ extends VBoxContainer
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const TileBlit = preload("res://scripts/map/tile_blit.gd")
-const Rtp = preload("res://scripts/editor/rtp.gd")
+const Rtp = preload("res://scripts/editor/infrastructure/rtp.gd")
 
 signal tile_selected(tile_id: int)
 signal tileset_changed(tileset_id: String)
@@ -356,7 +356,7 @@ func _on_view_input(event: InputEvent) -> void:
 			var hc := _cell_at(mm.position)
 			if hc.x >= 0 and _info:
 				var hid: int = _id_at_cell(hc.x, hc.y)
-				var TileLabels = load("res://scripts/editor/tile_labels.gd")
+				var TileLabels = load("res://scripts/editor/domain/tile_labels.gd")
 				_info.text = "指向 %s  @ %d,%d" % [str(TileLabels.info_line(hid)), hc.x, hc.y]
 		if _dragging and (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 			var c := _cell_at(mm.position)
@@ -498,7 +498,7 @@ func _commit_stamp(emit_now: bool) -> void:
 	_move_highlight()
 	_sync_pass_buttons()
 	if _info:
-		var TileLabels = load("res://scripts/editor/tile_labels.gd")
+		var TileLabels = load("res://scripts/editor/domain/tile_labels.gd")
 		var lab: String = str(TileLabels.info_line(selected_id))
 		if w > 1 or h > 1:
 			_info.text = "%s · %d×%d 图章" % [lab, w, h]

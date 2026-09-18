@@ -23,7 +23,7 @@ var extra: RefCounted = null
 
 func _extra() -> RefCounted:
 	if extra == null:
-		extra = load("res://scripts/editor/editor_mcp_ops.gd").new()
+		extra = load("res://scripts/editor/adapters/editor_mcp_ops.gd").new()
 	extra.mcp = self
 	return extra
 
@@ -502,7 +502,7 @@ func call_tool(name: String, args: Dictionary) -> Dictionary:
 			var kind := str(args.get("kind", "charset"))
 			return _ok({"kind": kind, "items": _extra().list_assets_merged(kind)})
 		"list_switches":
-			var EventCommands = load("res://scripts/editor/event_commands.gd")
+			var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
 			return _ok({"switches": EventCommands.collect_switch_ids(editor.pack)})
 		"save":
 			if editor.has_method("_save"):
@@ -633,7 +633,7 @@ func _place_event(args: Dictionary) -> Dictionary:
 	var doc = _doc()
 	if doc == null:
 		return _err("no map")
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
 	var c := _cell(args)
 	doc.remove_entity_at(c)
 	var text := str(args.get("text", "……"))
@@ -930,7 +930,7 @@ func _blit_preview_entities(img: Image, x0: int, y0: int, cw: int, ch: int, ts: 
 	if img == null or doc == null:
 		return out
 	var CharsetSheet = load("res://scripts/char/charset_sheet.gd")
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
 	var pack_dir := ""
 	if editor.pack:
 		pack_dir = str(editor.pack.root)

@@ -8,11 +8,11 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
-	var TilePalette = load("res://scripts/editor/tile_palette.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
+	var TilePalette = load("res://scripts/editor/interface/tile_palette.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")
 	var Inventory = load("res://scripts/net/combat/inventory.gd")
 	var ItemCatalog = load("res://scripts/net/combat/item_catalog.gd")

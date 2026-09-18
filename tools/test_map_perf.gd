@@ -40,7 +40,7 @@ func _expect(cond: bool, label: String) -> int:
 
 func _test_size_cap() -> int:
 	var failed := 0
-	var MapDocument = load("res://scripts/editor/map_document.gd")
+	var MapDocument = load("res://scripts/editor/domain/map_document.gd")
 	failed += _expect(int(MapDocument.MAX_SIDE) >= 10000, "MAX_SIDE allows 10000")
 	failed += _expect(int(MapDocument.clamp_side(10000)) == 10000, "10000 allowed")
 	failed += _expect(int(MapDocument.clamp_side(0)) == 1, "0 clamps to 1")
@@ -59,7 +59,7 @@ func _test_size_cap() -> int:
 
 func _test_town_lofi_and_chunk_cap() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("perf_town", "城镇性能", 96, 96)
@@ -195,7 +195,7 @@ func _test_town_lofi_matches_hd() -> int:
 func _test_editor_preview_lofi() -> int:
 	## Editor only bakes the camera chunk in HD; minimap/preview must still look like grass.
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	if not pack.load_dir("user://content/packs/default"):

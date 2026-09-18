@@ -9,7 +9,7 @@ func _init() -> void:
 func _run() -> void:
 	var failed := 0
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
 
 	# --- Schema / editor helpers ---

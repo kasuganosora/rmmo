@@ -4,13 +4,13 @@ extends RefCounted
 const TileId = preload("res://scripts/map/tile_id.gd")
 const TileBlit = preload("res://scripts/map/tile_blit.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
-const PaintTools = preload("res://scripts/editor/paint_tools.gd")
-const TilePalette = preload("res://scripts/editor/tile_palette.gd")
-const Rtp = preload("res://scripts/editor/rtp.gd")
-const EventCommands = preload("res://scripts/editor/event_commands.gd")
+const PaintTools = preload("res://scripts/editor/domain/paint_tools.gd")
+const TilePalette = preload("res://scripts/editor/interface/tile_palette.gd")
+const Rtp = preload("res://scripts/editor/infrastructure/rtp.gd")
+const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
-const MapShapes = preload("res://scripts/editor/map_shapes.gd")
-const TileLabels = preload("res://scripts/editor/tile_labels.gd")
+const MapShapes = preload("res://scripts/editor/domain/map_shapes.gd")
+const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
 
 const PAINT_CELLS_MAX := 16384
 const TILES_RECT_MAX := 80

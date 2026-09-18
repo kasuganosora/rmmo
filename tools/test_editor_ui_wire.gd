@@ -9,7 +9,7 @@ func _init() -> void:
 func _run() -> void:
 	var failed := 0
 	var Editor = load("res://scripts/editor/content_editor.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
 	var ed = Editor.new()
 	root.add_child(ed)
 	for _i in range(8):

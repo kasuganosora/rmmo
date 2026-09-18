@@ -8,8 +8,8 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
-	var PackZip = load("res://scripts/editor/pack_zip.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
+	var PackZip = load("res://scripts/editor/infrastructure/pack_zip.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")
 	var root := "user://content/packs/plan_test_pack"

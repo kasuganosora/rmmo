@@ -8,7 +8,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
 	var MockServer = load("res://scripts/net/mock_server.gd")
 	var root := "user://content/packs/plan_walk_pack"

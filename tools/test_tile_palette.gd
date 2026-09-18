@@ -8,10 +8,10 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var TilePalette = load("res://scripts/editor/tile_palette.gd")
+	var TilePalette = load("res://scripts/editor/interface/tile_palette.gd")
 	var TileId = load("res://scripts/map/tile_id.gd")
-	var Rtp = load("res://scripts/editor/rtp.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var Rtp = load("res://scripts/editor/infrastructure/rtp.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	failed += _expect(TilePalette.a_cell_to_id(0, 0) == TileId.TILE_ID_A1, "A tab (0,0) is A1")
 	failed += _expect(TilePalette.a_cell_to_id(0, 2) == TileId.TILE_ID_A2, "A tab (0,2) is A2")
 	failed += _expect(TilePalette.a_cell_to_id(0, 6) == TileId.TILE_ID_A3, "A tab (0,6) is A3")

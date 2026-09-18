@@ -2,7 +2,7 @@ extends RefCounted
 ## One map inside a content pack: MV 6-slot data + ext layers + events/npcs.
 
 const MapExt = preload("res://scripts/map/map_ext.gd")
-const EventCommands = preload("res://scripts/editor/event_commands.gd")
+const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 const MapChunkStore = preload("res://scripts/map/map_chunk_store.gd")
 
 var map_id: String = "Map001"

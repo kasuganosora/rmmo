@@ -10,10 +10,10 @@ func _run() -> void:
 	var failed := 0
 	var TileId = load("res://scripts/map/tile_id.gd")
 	var MapExt = load("res://scripts/map/map_ext.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
-	var EditorMcp = load("res://scripts/editor/editor_mcp.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
+	var EditorMcp = load("res://scripts/editor/adapters/editor_mcp.gd")
 	var Editor = load("res://scripts/editor/content_editor.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
 
 	var pack = ContentPack.new()
 	pack.new_blank("ed_ops_pack", "Ops测试", 24, 24)

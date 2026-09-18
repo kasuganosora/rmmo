@@ -10,7 +10,7 @@ func _run() -> void:
 	var failed := 0
 	var TileId = load("res://scripts/map/tile_id.gd")
 	var TileBlit = load("res://scripts/map/tile_blit.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 
 	failed += _expect(TileId.is_animated_a1(TileId.TILE_ID_A1), "kind 0 sea animates")
@@ -121,7 +121,7 @@ func _bench_walk_anim_ticks() -> int:
 	## about every 3 walk steps at 0.16s/step × 0.5s anim).
 	var failed := 0
 	var TileId = load("res://scripts/map/tile_id.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("unit_tile_anim_walk", "walk", 32, 32)

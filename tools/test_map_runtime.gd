@@ -11,7 +11,7 @@ func _run() -> void:
 	var MapExt = load("res://scripts/map/map_ext.gd")
 	var MapSfx = load("res://scripts/map/map_sfx.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MockServer = load("res://scripts/net/mock_server.gd")
 
 	var packed: int = MapExt.pack_settings(2, 3, 1)
@@ -40,7 +40,7 @@ func _run() -> void:
 	failed += _expect(int(amb.format) == AudioStreamWAV.FORMAT_16_BITS, "ambient signed 16-bit")
 	failed += _expect(absi(MapSfx.sample_s16(amb, 0)) < 8000, "ambient not unsigned-8 blast")
 
-	var MapDocument = load("res://scripts/editor/map_document.gd")
+	var MapDocument = load("res://scripts/editor/domain/map_document.gd")
 	var field: Node2D = MapField.new()
 	field.edit_mode = true
 	var edoc = MapDocument.new()

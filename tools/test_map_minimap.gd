@@ -8,9 +8,9 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
-	var MapMinimap = load("res://scripts/editor/map_minimap.gd")
+	var MapMinimap = load("res://scripts/editor/interface/map_minimap.gd")
 	var TileId = load("res://scripts/map/tile_id.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("mini_pack", "缩略图", 24, 16)

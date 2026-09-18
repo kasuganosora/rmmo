@@ -8,14 +8,14 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapExt = load("res://scripts/map/map_ext.gd")
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")
-	var EditorMcp = load("res://scripts/editor/editor_mcp.gd")
+	var EditorMcp = load("res://scripts/editor/adapters/editor_mcp.gd")
 	var Editor = load("res://scripts/editor/content_editor.gd")
-	var Inspector = load("res://scripts/editor/entity_inspector.gd")
+	var Inspector = load("res://scripts/editor/interface/entity_inspector.gd")
 
 	var pack = ContentPack.new()
 	pack.new_blank("ed_mcp_pack", "MCP测试", 16, 16)

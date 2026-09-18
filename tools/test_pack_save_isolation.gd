@@ -8,8 +8,8 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
-	var PackZip = load("res://scripts/editor/pack_zip.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
+	var PackZip = load("res://scripts/editor/infrastructure/pack_zip.gd")
 	ProjectSettings.set_setting("rmmo/map_editor_dev", false)
 	var demo_json := "res://demo_map/pack.json"
 	var before := FileAccess.get_modified_time(demo_json)

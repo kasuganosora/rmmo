@@ -36,7 +36,7 @@ func _drain(field: Node2D) -> void:
 
 func _test_town_loads_all() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("prefetch_town", "环形", 96, 96)
@@ -59,7 +59,7 @@ func _test_town_loads_all() -> int:
 
 func _test_town_walk_95_to_60() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("prefetch_walk", "走", 96, 96)
@@ -92,7 +92,7 @@ func _test_town_walk_95_to_60() -> int:
 
 func _test_large_face_prefetch() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("prefetch_big", "大", 512, 512)

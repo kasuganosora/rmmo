@@ -97,7 +97,7 @@ func _func_path_budget() -> int:
 
 func _stress_paint_and_jit() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var Store = load("res://scripts/map/map_chunk_store.gd")
 	var pack = ContentPack.new()
@@ -164,7 +164,7 @@ func _stress_paint_and_jit() -> int:
 
 func _stress_sample_cache() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("cache_pack", "缓存", 512, 512)
@@ -200,7 +200,7 @@ func _stress_sample_cache() -> int:
 
 func _stress_pan_stream() -> int:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
 	var MapOverview = load("res://scripts/ui/map_overview.gd")
 	var pack = ContentPack.new()
@@ -243,7 +243,7 @@ func _stress_town_1500() -> int:
 	var failed := 0
 	var Store = load("res://scripts/map/map_chunk_store.gd")
 	var MapField = load("res://scripts/map/map_field.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var counts: Vector2i = Store.chunk_counts(1500, 1500)
 	failed += _expect(counts.x * counts.y >= 8000, "1500 map has ~8k chunks")
 	var dir := "user://content/packs/_town1500/maps/Map001"

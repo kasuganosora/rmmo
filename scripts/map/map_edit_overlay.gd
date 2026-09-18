@@ -2,7 +2,7 @@ extends Node2D
 ## Grid + start marker drawn above map chunks.
 
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
-const EventCommands = preload("res://scripts/editor/event_commands.gd")
+const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 
 var _gfx_cache: Dictionary = {}
 

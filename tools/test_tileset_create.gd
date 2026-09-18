@@ -8,7 +8,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var TileId = load("res://scripts/map/tile_id.gd")
 	var pack = ContentPack.new()
 	pack.new_blank("unit_tileset", "tileset", 8, 8)

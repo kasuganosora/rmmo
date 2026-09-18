@@ -8,9 +8,9 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed := 0
-	var EventCommands = load("res://scripts/editor/event_commands.gd")
-	var ContentPack = load("res://scripts/editor/content_pack.gd")
-	var PaintTools = load("res://scripts/editor/paint_tools.gd")
+	var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
+	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
+	var PaintTools = load("res://scripts/editor/domain/paint_tools.gd")
 	var EventRuntime = load("res://scripts/net/combat/event_runtime.gd")
 	var Inventory = load("res://scripts/net/combat/inventory.gd")
 	var ItemCatalog = load("res://scripts/net/combat/item_catalog.gd")
@@ -169,7 +169,7 @@ func _run() -> void:
 	failed += _expect(EventCommands.page_when_label(item_page).find("物品") >= 0, "item when label")
 
 	# --- inspector trigger labels + pack round-trip ---
-	var Inspector = load("res://scripts/editor/entity_inspector.gd")
+	var Inspector = load("res://scripts/editor/interface/entity_inspector.gd")
 	var ins = Inspector.new()
 	root.add_child(ins)
 	var trig_labels: PackedStringArray = PackedStringArray()
