@@ -58,6 +58,8 @@ const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
 const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+const CombatModule = preload("res://scripts/net/server/combat_module.gd")
+var _combat_module_logic: CombatModule = CombatModule.new(self)
 const WorldModule = preload("res://scripts/net/server/world_module.gd")
 var _world_module_logic: WorldModule = WorldModule.new(self)
 var _movement_module_logic: MovementModule = MovementModule.new(self)
@@ -296,69 +298,7 @@ func _ready() -> void:
 
 
 func _init_combat_layers() -> void:
-	combat_stats = CombatStats.new()
-	skill_catalog = SkillCatalog.new()
-	skill_catalog.load_catalog()
-	item_catalog = ItemCatalog.new()
-	item_catalog.load_catalog()
-	recipe_catalog = RecipeCatalog.new()
-	recipe_catalog.load_catalog()
-	gather_catalog = GatherCatalog.new()
-	gather_catalog.load_catalog()
-	_gather_state.clear()
-	_gather_nodes.clear()
-	fish_catalog = FishCatalog.new()
-	fish_catalog.load_catalog()
-	_fish_state.clear()
-	_fish_spots.clear()
-	_fish_busy_until = 0.0
-	title_catalog = TitleCatalog.new()
-	title_catalog.load_catalog()
-	achievement_catalog = AchievementCatalog.new()
-	achievement_catalog.load_catalog()
-	safe_zone_catalog = SafeZoneCatalog.new()
-	safe_zone_catalog.load_catalog()
-	_safe_zone_known = false
-	_safe_zone_inside = false
-	loot_catalog = LootCatalog.new()
-	loot_catalog.load_catalog()
-	inventory = Inventory.new()
-	inventory.set_catalog(item_catalog)
-	inventory.grant_starter()
-	warehouse = Warehouse.new()
-	warehouse.set_catalog(item_catalog)
-	warehouse.clear()
-	friend_list = FriendList.new()
-	friend_list.clear()
-	guild = Guild.new()
-	guild.clear()
-	_guild_invites.clear()
-	mailbox = Mailbox.new()
-	mailbox.clear()
-	auction = Auction.new()
-	auction.clear()
-	_auction_seed_npc_stubs()
-	_mail_welcome_sent = false
-	_attendance_last_ymd = ""
-	equipment = Equipment.new()
-	equipment.set_catalog(item_catalog)
-	equipment.clear()
-	quest_journal = QuestJournal.new()
-	quest_journal.load_catalog()
-	quest_journal.grant_starter()
-	shop_catalog = ShopCatalog.new()
-	shop_catalog.set_catalog(item_catalog)
-	shop_catalog.load_catalog()
-	event_runtime = EventRuntime.new()
-	combat_engine = CombatEngine.new()
-	combat_engine.setup(combat_stats, skill_catalog, item_catalog, inventory, equipment)
-	combat_engine.combat_randf = _combat_randf_override
-	combat_stats.reset_player(1)
-	combat_stats.reset_titles()
-	combat_stats.reset_achievements()
-	_reset_skill_book()
-
-
+	_combat_module_logic._init_combat_layers()
 func _process(delta: float) -> void:
 	_tick_weather(delta)
 	if combat_engine == null or combat_stats == null:
@@ -429,30 +369,7 @@ var _pending_tick_actions: Array = []
 
 ## Client drains ambient combat actions (counter-attack ticks).
 func poll_combat_tick() -> Array:
-	var invite_acts: Array = _tick_party_invites()
-	if not invite_acts.is_empty():
-		_pending_tick_actions.append_array(invite_acts)
-	var loot_roll_acts: Array = _tick_loot_rolls()
-	if not loot_roll_acts.is_empty():
-		_pending_tick_actions.append_array(loot_roll_acts)
-	var duel_acts: Array = _tick_duel()
-	if not duel_acts.is_empty():
-		_pending_tick_actions.append_array(duel_acts)
-	# Keep party self HP fresh while grouped (shell: no net peers).
-	if in_party():
-		if _party_refresh_self_member() or _party_poll_pending:
-			_pending_tick_actions.append(_party_update_action())
-			_party_poll_pending = false
-	elif _party_poll_pending:
-		_pending_tick_actions.append(_party_update_action())
-		_party_poll_pending = false
-	if _pending_tick_actions.is_empty():
-		return []
-	var out: Array = _pending_tick_actions.duplicate(true)
-	_pending_tick_actions.clear()
-	return out
-
-
+	return _combat_module_logic.poll_combat_tick()
 func get_weather() -> Dictionary:
 	return _world_module_logic.get_weather()
 func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) -> Dictionary:
@@ -505,18 +422,7 @@ func player_in_safe_zone() -> bool:
 	return _world_module_logic.player_in_safe_zone()
 ## Threat / aggro snapshot for current player vs npc (hate_list + victim_id).
 func snapshot_threat(npc_id: String) -> Dictionary:
-	npc_id = str(npc_id).strip_edges()
-	if combat_stats == null or not combat_stats.has_method("snapshot_threat"):
-		return {
-			"npc_id": npc_id,
-			"threat_you": false,
-			"threat_rank": 0,
-			"threat_pct": 0.0,
-			"victim_id": "",
-		}
-	return combat_stats.snapshot_threat(npc_id)
-
-
+	return _combat_module_logic.snapshot_threat(npc_id)
 func snapshot_safe_zone() -> Dictionary:
 	return _world_module_logic.snapshot_safe_zone()
 func _safe_zone_action(inside: bool) -> Dictionary:
@@ -762,24 +668,7 @@ func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dict
 	return _quest_module_logic.try_dialogue_choice(option_id, option_index)
 ## Authoritative basic attack. Delegates to combat_engine.
 func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
-	if player_cell.x > -9990:
-		player_x = player_cell.x
-		player_y = player_cell.y
-	if player_in_safe_zone() and _target_is_remote_player(npc_id):
-		return _safe_zone_block_pvp_result()
-	var duel_hit: Dictionary = _try_duel_attack_target(npc_id, player_x, player_y)
-	if not duel_hit.is_empty():
-		return duel_hit
-	if combat_engine == null:
-		return {"ok": false, "actions": []}
-	var result: Dictionary = combat_engine.try_attack(npc_id, player_x, player_y)
-	if bool(result.get("ok", false)):
-		_player_combat_target_id = str(npc_id).strip_edges()
-	_combat_stand_if_needed(result)
-	return _finalize_combat_result(result)
-
-
-
+	return _combat_module_logic.try_attack(npc_id, player_x, player_y)
 ## Apply authoritative player_move actions from combat (e.g. charge).
 func _apply_player_move_actions(result: Dictionary) -> void:
 	_movement_module_logic._apply_player_move_actions(result)
@@ -793,211 +682,28 @@ func _npc_is_rooted(npc_id: String) -> bool:
 	return false
 
 
-func try_use_skill(	skill_id: String,
-	target_npc_id: String = "",
-	player_x: int = -9999,
-	player_y: int = -9999,
-	ground_x: int = -9999,
-	ground_y: int = -9999
-) -> Dictionary:
-	if player_cell.x > -9990:
-		player_x = player_cell.x
-		player_y = player_cell.y
-	elif player_x <= -9990:
-		player_x = player_cell.x
-		player_y = player_cell.y
-	if player_in_safe_zone() and _target_is_remote_player(target_npc_id):
-		return _safe_zone_block_pvp_result()
-	var revive_skill: Dictionary = _try_revive_skill(skill_id, target_npc_id, player_x, player_y)
-	if not revive_skill.is_empty():
-		# Skip _finalize_combat_result: it forces ok=true when caster is already dead.
-		_combat_stand_if_needed(revive_skill)
-		return revive_skill
-	# Mount while dead: skip finalize (it would force ok=true on dead caster).
-	if skill_id.strip_edges() == "mount":
-		if awaiting_respawn or combat_stats == null or not combat_stats.player_alive():
-			return {"ok": false, "actions": [{"type": "system_message", "text": "你已经倒下了。"}]}
-	var duel_skill: Dictionary = _try_duel_skill_target(skill_id, target_npc_id, player_x, player_y)
-	if not duel_skill.is_empty():
-		return duel_skill
-	if combat_engine == null:
-		return {"ok": false, "actions": []}
-	combat_engine.map_collision = map_collision
-	var result: Dictionary = combat_engine.try_use_skill(
-		skill_id, target_npc_id, player_x, player_y, ground_x, ground_y
-	)
-	_apply_player_move_actions(result)
-	_bind_recall_actions(result)
-	_combat_stand_if_needed(result)
-	_maybe_party_skill_share(skill_id, result)
-	return _finalize_combat_result(result)
-
-
+func try_use_skill( skill_id: String, target_npc_id: String = "", player_x: int = -9999, player_y: int = -9999, ground_x: int = -9999, ground_y: int = -9999 ) -> Dictionary:
+	return _combat_module_logic.try_use_skill(skill_id, target_npc_id, player_x, player_y, ground_x, ground_y)
 func skill_def(skill_id: String) -> Dictionary:
-	if skill_catalog == null:
-		return {}
-	return skill_catalog.get_skill(skill_id)
-
-
+	return _combat_module_logic.skill_def(skill_id)
 func _patch_npc_cast_skill_names(actions: Array) -> void:
-	## Replace 【npc_id】 with display name in NPC cast resolve system messages.
-	for a in actions:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str(a.get("type", "")) != "system_message":
-			continue
-		var caster := str(a.get("caster", a.get("npc_id", ""))).strip_edges()
-		if caster.is_empty():
-			# Infer from message prefix if needed — also scan known npc ids in text.
-			pass
-		var txt := str(a.get("text", ""))
-		var nid := str(a.get("npc_id", "")).strip_edges()
-		if nid.is_empty():
-			nid = caster
-		if nid.is_empty():
-			continue
-		var nm := nid
-		if npc_meta.has(nid):
-			var nms := str((npc_meta[nid] as Dictionary).get("name", "")).strip_edges()
-			if nms != "":
-				nm = nms
-		elif combat_stats != null and combat_stats.npcs.has(nid):
-			var nms2 := str(combat_stats.npcs[nid].get("name", "")).strip_edges()
-			if nms2 != "":
-				nm = nms2
-		if nm != nid:
-			a["text"] = txt.replace("【%s】" % nid, "【%s】" % nm)
-
-
+	_combat_module_logic._patch_npc_cast_skill_names(actions)
 func try_npc_skill(npc_id: String, skill_id: String, ground_x: int = -9999, ground_y: int = -9999) -> Dictionary:
-	if combat_engine == null or combat_stats == null:
-		return {"ok": false, "actions": []}
-	npc_id = npc_id.strip_edges()
-	var cell: Vector2i = combat_stats.get_npc_cell(npc_id)
-	if cell.x <= -9990:
-		return {"ok": false, "actions": []}
-	if ground_x <= -9990:
-		ground_x = player_cell.x
-		ground_y = player_cell.y
-	combat_engine.player_cell_hint = player_cell
-	var result: Dictionary = combat_engine.try_npc_skill(
-		npc_id, skill_id, cell.x, cell.y, ground_x, ground_y
-	)
-	var nm := npc_id
-	if npc_meta.has(npc_id):
-		var nms := str((npc_meta[npc_id] as Dictionary).get("name", "")).strip_edges()
-		if nms != "":
-			nm = nms
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) == TYPE_ARRAY:
-		for a in acts_v:
-			if typeof(a) != TYPE_DICTIONARY:
-				continue
-			if str(a.get("type", "")) != "system_message":
-				continue
-			var txt := str(a.get("text", ""))
-			a["text"] = txt.replace("【%s】" % npc_id, "【%s】" % nm)
-	return _finalize_combat_result(result)
-
-
+	return _combat_module_logic.try_npc_skill(npc_id, skill_id, ground_x, ground_y)
 func try_set_auto_potion(hp_on: bool, hp_pct: int, mp_on: bool, mp_pct: int) -> void:
-	auto_potion_hp = bool(hp_on)
-	auto_potion_hp_pct = clampi(int(hp_pct), 1, 90)
-	auto_potion_mp = bool(mp_on)
-	auto_potion_mp_pct = clampi(int(mp_pct), 1, 90)
-
-
+	_combat_module_logic.try_set_auto_potion(hp_on, hp_pct, mp_on, mp_pct)
 func try_set_pet_assist(on: bool) -> void:
 	_pet_module_logic.try_set_pet_assist(on)
 ## Client / tests: lock combat target for pet assist (hostile npc id).
 func try_set_combat_target(npc_id: String = "") -> void:
-	_player_combat_target_id = str(npc_id).strip_edges()
-
-
+	_combat_module_logic.try_set_combat_target(npc_id)
 ## Rate-limited auto HP/MP potion use. Failures stay silent (optional 10s empty msg).
 func _tick_auto_potion(delta: float) -> void:
-	_auto_potion_acc += delta
-	if _auto_potion_acc < AUTO_POTION_INTERVAL:
-		return
-	_auto_potion_acc = 0.0
-	if combat_stats == null or inventory == null:
-		return
-	if awaiting_respawn or not combat_stats.player_alive():
-		return
-	if combat_engine != null and combat_engine.has_method("is_casting") and combat_engine.is_casting():
-		return
-	var used := false
-	if auto_potion_hp:
-		var hp: int = int(combat_stats.player.get("hp", 0))
-		var hp_max: int = maxi(1, int(combat_stats.player.get("hp_max", 1)))
-		var hp_pct: int = int(floor(100.0 * float(hp) / float(hp_max)))
-		if hp_pct <= auto_potion_hp_pct:
-			var iid := _best_auto_potion("heal_hp")
-			if iid.is_empty():
-				_maybe_auto_potion_msg("背包中没有生命药水。")
-			elif combat_stats.is_item_ready(iid):
-				var r: Dictionary = try_use_item(iid)
-				if bool(r.get("ok", false)):
-					var acts_v: Variant = r.get("actions", [])
-					if typeof(acts_v) == TYPE_ARRAY and not (acts_v as Array).is_empty():
-						_pending_tick_actions.append_array(acts_v)
-					used = true
-	if used:
-		return
-	if auto_potion_mp:
-		var mp: int = int(combat_stats.player.get("mp", 0))
-		var mp_max: int = maxi(1, int(combat_stats.player.get("mp_max", 1)))
-		var mp_pct: int = int(floor(100.0 * float(mp) / float(mp_max)))
-		if mp_pct <= auto_potion_mp_pct:
-			var mid := _best_auto_potion("heal_mp")
-			if mid.is_empty():
-				_maybe_auto_potion_msg("背包中没有魔法药水。")
-			elif combat_stats.is_item_ready(mid):
-				var r2: Dictionary = try_use_item(mid)
-				if bool(r2.get("ok", false)):
-					var acts2: Variant = r2.get("actions", [])
-					if typeof(acts2) == TYPE_ARRAY and not (acts2 as Array).is_empty():
-						_pending_tick_actions.append_array(acts2)
-
-
+	_combat_module_logic._tick_auto_potion(delta)
 func _best_auto_potion(effect: String) -> String:
-	effect = effect.strip_edges()
-	if inventory == null or item_catalog == null or effect.is_empty():
-		return ""
-	var best_id := ""
-	var best_amt := -1
-	for row in inventory.snapshot():
-		if typeof(row) != TYPE_DICTIONARY:
-			continue
-		var iid := str(row.get("id", "")).strip_edges()
-		if not iid.begins_with("potion_"):
-			continue
-		if int(row.get("qty", 0)) <= 0:
-			continue
-		var def: Dictionary = item_catalog.get_item(iid)
-		if def.is_empty():
-			continue
-		var ue := str(def.get("use_effect", def.get("effect", ""))).strip_edges()
-		if ue != effect:
-			continue
-		var amt: int = int(def.get("amount", 0))
-		if amt > best_amt:
-			best_amt = amt
-			best_id = iid
-	return best_id
-
-
+	return _combat_module_logic._best_auto_potion(effect)
 func _maybe_auto_potion_msg(text: String) -> void:
-	text = text.strip_edges()
-	if text.is_empty():
-		return
-	var now_ms: int = Time.get_ticks_msec()
-	if now_ms - _auto_potion_msg_at_ms < 10000:
-		return
-	_auto_potion_msg_at_ms = now_ms
-	_pending_tick_actions.append({"type": "system_message", "text": text})
-
-
+	_combat_module_logic._maybe_auto_potion_msg(text)
 func try_use_item(item_id: String) -> Dictionary:
 	item_id = item_id.strip_edges()
 	# Pet whistle: summon companion (does not consume).
@@ -1039,14 +745,7 @@ func _town_dest() -> Vector2i:
 func _bind_recall_actions(result: Dictionary) -> void:
 	_movement_module_logic._bind_recall_actions(result)
 func _combat_stand_if_needed(result: Dictionary) -> void:
-	if not sitting:
-		return
-	var acts_v: Variant = result.get("actions", [])
-	var acts: Array = acts_v if typeof(acts_v) == TYPE_ARRAY else []
-	_stand_if_sitting(acts)
-	result["actions"] = acts
-
-
+	_combat_module_logic._combat_stand_if_needed(result)
 func _stand_if_sitting(actions: Array) -> bool:
 	return _sustain_module_logic._stand_if_sitting(actions)
 func _tick_sit(delta: float) -> void:
@@ -1172,22 +871,9 @@ func _equipment_update_action() -> Dictionary:
 
 ## Skill book snapshot for HUD / spawn / transfer.
 func snapshot_skill_book() -> Dictionary:
-	if combat_stats == null:
-		return {"known": ["basic_attack"], "skill_points": 0}
-	if combat_stats.has_method("snapshot_skill_book"):
-		return combat_stats.snapshot_skill_book()
-	if combat_stats.skill_book != null and combat_stats.skill_book.has_method("snapshot"):
-		return combat_stats.skill_book.snapshot()
-	return {"known": ["basic_attack"], "skill_points": 0}
-
-
+	return _combat_module_logic.snapshot_skill_book()
 func _reset_skill_book() -> void:
-	if combat_stats == null:
-		return
-	combat_stats.ensure_skill_book()
-	combat_stats.skill_book.grant_starters(skill_catalog)
-
-
+	_combat_module_logic._reset_skill_book()
 ## SP granted per level-up (tune reasonably).
 const SP_PER_LEVEL := 1
 
@@ -1229,105 +915,14 @@ func _append_level_up_sp(actions: Array, levels_gained: Array) -> void:
 
 ## Learn a catalog skill by spending SP when learn_level is met.
 func try_learn_skill(skill_id: String) -> Dictionary:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty() or combat_stats == null or skill_catalog == null:
-		return {"ok": false, "actions": [{"type": "system_message", "text": "无法学习技能。"}]}
-	combat_stats.ensure_skill_book()
-	var lv: int = maxi(int(combat_stats.player.get("level", 1)), 1)
-	var result: Dictionary = combat_stats.skill_book.try_learn(skill_id, skill_catalog, lv)
-	var actions: Array = []
-	actions.append({"type": "system_message", "text": str(result.get("message", ""))})
-	if bool(result.get("ok", false)):
-		var book: Dictionary = snapshot_skill_book()
-		actions.append({
-			"type": "skill_book_update",
-			"known": book.get("known", []),
-			"skill_points": int(book.get("skill_points", 0)),
-		})
-	return {"ok": bool(result.get("ok", false)), "actions": actions}
-
-
+	return _combat_module_logic.try_learn_skill(skill_id)
 ## Flat gold cost to respec skills (independent of refunded SP).
 const SKILL_RESPEC_GOLD_COST := 50
 
 
 ## Reset learned skills (keep basic_attack), refund SP, pay flat gold; scrub forgotten hotbar ids via action.
 func try_skill_respec() -> Dictionary:
-	var actions: Array = []
-	if combat_stats == null or skill_catalog == null:
-		actions.append({"type": "system_message", "text": "无法重置技能。"})
-		return {"ok": false, "reason": "no_stats", "actions": actions}
-	if not combat_stats.player_alive() or awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if in_duel():
-		actions.append({"type": "system_message", "text": "决斗中无法重置技能。"})
-		return {"ok": false, "reason": "duel", "actions": actions}
-	combat_stats.ensure_skill_book()
-	var book = combat_stats.skill_book
-	# Peek: anything besides basic_attack?
-	var has_extra := false
-	for sid_v in book.list_known():
-		if str(sid_v).strip_edges() != "basic_attack":
-			has_extra = true
-			break
-	if not has_extra:
-		actions.append({"type": "system_message", "text": "没有可重置的技能。"})
-		return {"ok": false, "reason": "nothing", "actions": actions}
-	var cost: int = SKILL_RESPEC_GOLD_COST
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "无法重置技能。"})
-		return {"ok": false, "reason": "no_inv", "actions": actions}
-	if inventory.get_gold() < cost:
-		actions.append({"type": "system_message", "text": "金币不足（需要 %d）。" % cost})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	if not inventory.try_spend_gold(cost):
-		actions.append({"type": "system_message", "text": "金币不足（需要 %d）。" % cost})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	var result: Dictionary = book.try_respec(skill_catalog)
-	if not bool(result.get("ok", false)):
-		inventory.add_gold(cost)
-		actions.append({"type": "system_message", "text": str(result.get("message", "无法重置技能。"))})
-		return {"ok": false, "reason": str(result.get("reason", "fail")), "actions": actions}
-	var refunded: int = int(result.get("refunded_sp", 0))
-	var cleared: Array = []
-	var cleared_v: Variant = result.get("cleared", [])
-	if typeof(cleared_v) == TYPE_ARRAY:
-		for c in cleared_v:
-			var cid := str(c).strip_edges()
-			if not cid.is_empty():
-				cleared.append(cid)
-	var snap: Dictionary = snapshot_skill_book()
-	actions.append({
-		"type": "skill_book_update",
-		"known": snap.get("known", []),
-		"skill_points": int(snap.get("skill_points", 0)),
-	})
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	actions.append({
-		"type": "skill_respec",
-		"cleared": cleared,
-		"refunded_sp": refunded,
-		"gold_spent": cost,
-	})
-	actions.append({
-		"type": "system_message",
-		"text": "已重置技能，返还技能点 %d。" % refunded,
-	})
-	return {
-		"ok": true,
-		"reason": "ok",
-		"refunded_sp": refunded,
-		"gold_spent": cost,
-		"cleared": cleared,
-		"actions": actions,
-	}
-
-
+	return _combat_module_logic.try_skill_respec()
 ## Flat gold cost to respec primary attributes.
 const ATTR_RESPEC_GOLD_COST := 30
 
@@ -1455,11 +1050,7 @@ func try_attr_respec() -> Dictionary:
 
 ## Skill catalog snapshot for HUD (includes icon_index / optional icon from JSON).
 func snapshot_skill_catalog() -> Array:
-	if skill_catalog == null:
-		return []
-	return skill_catalog.list_all()
-
-
+	return _combat_module_logic.snapshot_skill_catalog()
 ## Quest journal snapshot for HUD (accepted quests only).
 func get_quest_list() -> Array:
 	return _quest_module_logic.get_quest_list()
@@ -2158,43 +1749,7 @@ func _mob_ai_idle_wander_step(npc_id: String, dt: float) -> Array:
 func _mob_ai_chase_step(npc_id: String, ai: Dictionary, cell: Vector2i, facing: int, px: int, py: int) -> Array:
 	return _npc_ai_module_logic._mob_ai_chase_step(npc_id, ai, cell, facing, px, py)
 func _try_npc_skill_tick(npc_id: String, ai: Dictionary, cell: Vector2i, px: int, py: int) -> Array:
-	var skills_v: Variant = ai.get("skills", [])
-	if typeof(skills_v) != TYPE_ARRAY or (skills_v as Array).is_empty():
-		return []
-	if combat_engine == null or skill_catalog == null or combat_stats == null:
-		return []
-	if combat_engine.has_method("is_npc_casting") and combat_engine.is_npc_casting(npc_id):
-		return []
-	var ready_v: Variant = ai.get("skill_ready_at", {})
-	var ready: Dictionary = ready_v if typeof(ready_v) == TYPE_DICTIONARY else {}
-	var now: float = combat_stats.now_sec()
-	for sid_v in skills_v:
-		var sid := str(sid_v).strip_edges()
-		if sid.is_empty():
-			continue
-		if now < float(ready.get(sid, 0.0)):
-			continue
-		var def: Dictionary = skill_catalog.get_skill(sid)
-		if def.is_empty():
-			continue
-		var rng: int = int(def.get("range", 1))
-		if rng <= 0:
-			rng = 1
-		if maxi(absi(cell.x - px), absi(cell.y - py)) > rng:
-			continue
-		var r: Dictionary = try_npc_skill(npc_id, sid, px, py)
-		if not bool(r.get("ok", false)):
-			continue
-		var cd: float = float(def.get("cooldown", 3.0))
-		ready[sid] = now + maxf(cd, 0.4)
-		ai["skill_ready_at"] = ready
-		combat_stats.npc_ai[npc_id] = ai
-		var acts_v: Variant = r.get("actions", [])
-		return acts_v if typeof(acts_v) == TYPE_ARRAY else []
-	combat_stats.npc_ai[npc_id] = ai
-	return []
-
-
+	return _combat_module_logic._try_npc_skill_tick(npc_id, ai, cell, px, py)
 func _mob_ai_return_home_step(npc_id: String, ai: Dictionary, cell: Vector2i, home: Vector2i) -> Array:
 	return _npc_ai_module_logic._mob_ai_return_home_step(npc_id, ai, cell, home)
 ## Increment stuck counter; teleport snap to home after RETURN_STUCK_TICKS, else face home.
@@ -2262,18 +1817,7 @@ func _maybe_mark_safe_cell(x: int, y: int) -> void:
 
 ## Build threat_update action from combat_stats.snapshot_threat.
 func _threat_update_action(npc_id: String) -> Dictionary:
-	npc_id = str(npc_id).strip_edges()
-	var thr: Dictionary = snapshot_threat(npc_id)
-	return {
-		"type": "threat_update",
-		"npc_id": npc_id,
-		"threat_you": bool(thr.get("threat_you", false)),
-		"threat_rank": int(thr.get("threat_rank", 0)),
-		"threat_pct": float(thr.get("threat_pct", 0.0)),
-		"victim_id": str(thr.get("victim_id", "")),
-	}
-
-
+	return _combat_module_logic._threat_update_action(npc_id)
 ## Append threat_update for NPCs touched by combat actions (damage / kill / set_stat npc).
 
 ## Personal DPS meter snapshot (combat_engine session window).
@@ -2292,104 +1836,9 @@ func _tick_dps_meter(delta: float) -> void:
 
 
 func _append_threat_updates(actions: Array) -> void:
-	var seen: Dictionary = {}
-	# Skip if already present for an id.
-	for a in actions:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str(a.get("type", "")) != "threat_update":
-			continue
-		var eid := str(a.get("npc_id", a.get("id", ""))).strip_edges()
-		if eid != "":
-			seen[eid] = true
-	var ids: Array = []
-	for a in actions:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		var t := str(a.get("type", ""))
-		var nid := ""
-		if t == "damage" and str(a.get("target", "")) == "npc":
-			nid = str(a.get("id", "")).strip_edges()
-		elif t == "kill_npc":
-			nid = str(a.get("npc_id", "")).strip_edges()
-		elif t == "set_stat" and str(a.get("target", "")) == "npc":
-			nid = str(a.get("id", "")).strip_edges()
-		elif t == "npc_reset":
-			nid = str(a.get("npc_id", "")).strip_edges()
-		if nid.is_empty() or seen.has(nid):
-			continue
-		seen[nid] = true
-		ids.append(nid)
-	for nid2 in ids:
-		actions.append(_threat_update_action(nid2))
-
-
+	_combat_module_logic._append_threat_updates(actions)
 func _finalize_combat_result(result: Dictionary) -> Dictionary:
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_append_threat_updates(actions)
-	result["actions"] = actions
-	# Schedule dead-mob respawn + loot + exp + quest kill when a hostile is removed.
-	var kill_extra: Array = []
-	for a in actions:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str(a.get("type", "")) != "kill_npc":
-			continue
-		var kid := str(a.get("npc_id", ""))
-		_schedule_npc_respawn(kid)
-		var death_cell: Variant = a.get("cell", null)
-		kill_extra.append_array(_roll_and_grant_loot(kid, death_cell))
-		kill_extra.append_array(grant_kill_exp(kid))
-		if _is_world_boss_npc(kid):
-			_rewrite_kill_announce(actions, kid)
-			kill_extra.append_array(_world_boss_kill_bonus(kid))
-		kill_extra.append_array(_quest_note_kill_actions(kid))
-		kill_extra.append_array(_note_title_counter("kills", 1))
-		kill_extra.append_array(_note_achievement_counter("kills", 1))
-		kill_extra.append_array(_dungeon_note_kill(kid))
-	if not kill_extra.is_empty():
-		actions.append_array(kill_extra)
-		result["actions"] = actions
-	if sitting:
-		for a in actions:
-			if typeof(a) != TYPE_DICTIONARY:
-				continue
-			var t := str(a.get("type", ""))
-			if t == "damage" and str(a.get("target", a.get("id", ""))) == "player":
-				_stand_if_sitting(actions)
-				break
-			if t == "player_died":
-				sitting = false
-				_sit_acc = 0.0
-				_sit_regen_acc = 0.0
-				break
-	var newly_dead: bool = _actions_has_type(actions, "player_died") or (combat_stats != null and not combat_stats.player_alive())
-	if newly_dead:
-		var first_death: bool = not awaiting_respawn
-		awaiting_respawn = true
-		sitting = false
-		_sit_acc = 0.0
-		_sit_regen_acc = 0.0
-		death_cell = player_cell
-		if not _actions_has_type(actions, "system_message"):
-			actions.append({"type": "system_message", "text": "你死了。"})
-		# Close open loot UI only — does not remove inventory; death drops are separate.
-		_clear_pending_loot_on_death(actions)
-		if first_death:
-			_apply_death_drops(actions)
-			actions.append_array(_note_title_counter("deaths", 1))
-			# Death equipment durability wear (combat hit wear is separate — see wear_weapon).
-			if equipment != null and equipment.has_method("apply_death_wear"):
-				var wear: Dictionary = equipment.apply_death_wear(0.1)
-				if int(wear.get("count", 0)) > 0:
-					actions.append({"type": "system_message", "text": "装备因死亡受损。"})
-					actions.append(_equipment_update_action())
-		result["actions"] = actions
-		result["ok"] = true
-	return result
-
-
+	return _combat_module_logic._finalize_combat_result(result)
 func _actions_has_type(actions: Array, t: String) -> bool:
 	for a in actions:
 		if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == t:
@@ -2584,27 +2033,7 @@ func try_enhance(slot: String = "") -> Dictionary:
 
 ## Apply hp_max / level / atk / def from spawn_data (top-level or nested stats).
 func _apply_npc_spawn_combat_overrides(npc_id: String, spawn_data: Dictionary) -> void:
-	if combat_stats == null or spawn_data.is_empty() or not combat_stats.npcs.has(npc_id):
-		return
-	var st: Dictionary = combat_stats.npcs[npc_id]
-	var stats_v: Variant = spawn_data.get("stats", {})
-	var nested: Dictionary = stats_v if typeof(stats_v) == TYPE_DICTIONARY else {}
-	if spawn_data.has("level") or nested.has("level"):
-		st["level"] = maxi(int(spawn_data.get("level", nested.get("level", st.get("level", 1)))), 1)
-	if spawn_data.has("hp_max") or nested.has("hp_max"):
-		var hp_max: int = maxi(int(spawn_data.get("hp_max", nested.get("hp_max", st.get("hp_max", 30)))), 1)
-		st["hp_max"] = hp_max
-		st["hp"] = hp_max
-		var mp_max: int = combat_stats.npc_mp_max_for(int(st.get("level", 1)), hp_max)
-		st["mp_max"] = mp_max
-		st["mp"] = mp_max
-	if spawn_data.has("atk") or nested.has("atk"):
-		st["atk"] = maxi(int(spawn_data.get("atk", nested.get("atk", st.get("atk", 1)))), 0)
-	if spawn_data.has("def") or nested.has("def"):
-		st["def"] = maxi(int(spawn_data.get("def", nested.get("def", st.get("def", 0)))), 0)
-	combat_stats.npcs[npc_id] = st
-
-
+	_combat_module_logic._apply_npc_spawn_combat_overrides(npc_id, spawn_data)
 func _is_world_boss_npc(npc_id: String) -> bool:
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty():
@@ -3464,200 +2893,11 @@ func _try_duel_attack_target(target_id: String, player_x: int, player_y: int) ->
 ## Thin resurrection: dead party ally / fake-player ally / ally-NPC same map.
 ## Returns {} when skill is not revive (fall through). Otherwise always a result dict.
 func _try_revive_skill(skill_id: String, target_id: String, player_x: int, player_y: int) -> Dictionary:
-	skill_id = str(skill_id).strip_edges()
-	target_id = str(target_id).strip_edges()
-	if skill_id.is_empty():
-		return {}
-	var def: Dictionary = skill_def(skill_id) if has_method("skill_def") else {}
-	if def.is_empty() or str(def.get("effect", "")).strip_edges() != "revive":
-		return {}
-	var actions: Array = []
-	# Caster must be alive (cannot self-revive while dead).
-	if awaiting_respawn or (combat_stats != null and not combat_stats.player_alive()):
-		actions.append({"type": "system_message", "text": "无法自我复活。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if combat_stats == null:
-		actions.append({"type": "system_message", "text": "无法施放。"})
-		return {"ok": false, "reason": "no_combat", "actions": actions}
-	# Must know the skill.
-	if combat_stats.skill_book != null and combat_stats.skill_book.has_method("is_known"):
-		if not combat_stats.skill_book.is_known(skill_id):
-			var sname := str(def.get("name", skill_id))
-			actions.append({"type": "system_message", "text": "尚未学会【%s】。" % sname})
-			return {"ok": false, "reason": "unlearned", "actions": actions}
-	if combat_stats.has_method("is_skill_ready") and not combat_stats.is_skill_ready(skill_id):
-		var rem: float = combat_stats.skill_cd_remaining(skill_id) if combat_stats.has_method("skill_cd_remaining") else 0.0
-		actions.append({"type": "system_message", "text": "技能冷却中（%.1f 秒）。" % rem})
-		actions.append({
-			"type": "skill_cd",
-			"skill_id": skill_id,
-			"remaining": rem,
-			"cooldown": float(def.get("cooldown", 30.0)),
-		})
-		return {"ok": false, "reason": "cooldown", "actions": actions}
-	var mp_cost: int = int(def.get("mp_cost", 25))
-	if int(combat_stats.player.get("mp", 0)) < mp_cost:
-		actions.append({"type": "system_message", "text": "MP 不足。"})
-		return {"ok": false, "reason": "mp", "actions": actions}
-	if target_id.is_empty():
-		actions.append({"type": "system_message", "text": "需要目标。"})
-		return {"ok": false, "reason": "need_target", "actions": actions}
-	var self_id := _party_self_id()
-	if target_id == self_id or target_id == "player":
-		actions.append({"type": "system_message", "text": "无法自我复活。"})
-		return {"ok": false, "reason": "self", "actions": actions}
-	var range_cells: int = maxi(1, int(def.get("range", 4)))
-	var resolved: Dictionary = _revive_resolve_target(target_id)
-	if resolved.is_empty():
-		actions.append({"type": "system_message", "text": "只能复活队友。"})
-		return {"ok": false, "reason": "not_ally", "actions": actions}
-	var kind := str(resolved.get("kind", ""))
-	var mid := str(resolved.get("id", target_id))
-	var mname := str(resolved.get("name", mid)).strip_edges()
-	if mname.is_empty():
-		mname = mid
-	# Same-map check for party/remote (empty map_id = same-map shell).
-	var mmap := str(resolved.get("map_id", "")).strip_edges()
-	if mmap != "" and mmap != map_pack_id:
-		actions.append({"type": "system_message", "text": "只能复活队友。"})
-		return {"ok": false, "reason": "not_same_map", "actions": actions}
-	var tx: int = int(resolved.get("x", -9999))
-	var ty: int = int(resolved.get("y", -9999))
-	if tx <= -9990 or ty <= -9990:
-		actions.append({"type": "system_message", "text": "目标太远。"})
-		return {"ok": false, "reason": "no_cell", "actions": actions}
-	if _chebyshev(player_x, player_y, tx, ty) > range_cells:
-		actions.append({"type": "system_message", "text": "目标太远。"})
-		return {"ok": false, "reason": "range", "actions": actions}
-	var hp_now: int = int(resolved.get("hp", 0))
-	var awaiting: bool = bool(resolved.get("awaiting_respawn", false))
-	if hp_now > 0 and not awaiting:
-		actions.append({"type": "system_message", "text": "目标未死亡。"})
-		return {"ok": false, "reason": "alive", "actions": actions}
-	# Spend MP + CD.
-	var p: Dictionary = combat_stats.player
-	p["mp"] = int(p.get("mp", 0)) - mp_cost
-	combat_stats.player = p
-	var cd: float = float(def.get("cooldown", 30.0))
-	if combat_stats.has_method("set_skill_cooldown"):
-		combat_stats.set_skill_cooldown(skill_id, cd)
-	actions.append({
-		"type": "skill_cd",
-		"skill_id": skill_id,
-		"remaining": cd,
-		"cooldown": cd,
-	})
-	var hp_max: int = maxi(1, int(resolved.get("hp_max", 100)))
-	var pct: float = float(def.get("heal_pct", 0.3))
-	if pct <= 0.0:
-		pct = 0.3
-	var new_hp: int = maxi(1, int(round(float(hp_max) * pct)))
-	# Keep death cell (or nearest walkable).
-	var dest := Vector2i(tx, ty)
-	if map_collision != null and map_collision.has_method("is_landable"):
-		if not map_collision.is_landable(dest.x, dest.y) and map_collision.has_method("find_spawn_near"):
-			dest = map_collision.find_spawn_near(dest.x, dest.y)
-	_revive_apply_to_target(kind, mid, new_hp, hp_max, dest, actions)
-	actions.append({
-		"type": "set_stat",
-		"target": "player",
-		"hp": int(combat_stats.player.get("hp", 0)),
-		"hp_max": int(combat_stats.player.get("hp_max", 0)),
-		"mp": int(combat_stats.player.get("mp", 0)),
-		"mp_max": int(combat_stats.player.get("mp_max", 0)),
-	})
-	actions.append({"type": "system_message", "text": "复活了%s！" % mname})
-	actions.append({
-		"type": "ally_revived",
-		"id": mid,
-		"kind": kind,
-		"hp": new_hp,
-		"hp_max": hp_max,
-		"cell": {"x": dest.x, "y": dest.y},
-	})
-	if in_party():
-		_party_refresh_self_member()
-		actions.append(_party_update_action())
-	return {"ok": true, "actions": actions}
-
-
+	return _combat_module_logic._try_revive_skill(skill_id, target_id, player_x, player_y)
 ## Resolve revive target: party member, fake remote ally, or ally-flagged NPC.
 ## Returns {kind, id, name, hp, hp_max, awaiting_respawn, x, y, map_id} or {}.
 func _revive_resolve_target(target_id: String) -> Dictionary:
-	target_id = target_id.strip_edges()
-	if target_id.is_empty():
-		return {}
-	# Party member (stub / remote id / name).
-	var pidx := _party_find_member_index(target_id)
-	if pidx < 0:
-		pidx = _party_find_member_by_name(target_id)
-	if pidx >= 0 and in_party():
-		var m: Dictionary = _party_members[pidx]
-		var mid := str(m.get("id", "")).strip_edges()
-		if mid == _party_self_id():
-			return {}
-		var cell := _revive_member_cell(m)
-		return {
-			"kind": "party",
-			"id": mid,
-			"name": str(m.get("name", mid)),
-			"hp": int(m.get("hp", 0)),
-			"hp_max": int(m.get("hp_max", 100)),
-			"awaiting_respawn": bool(m.get("awaiting_respawn", false)),
-			"x": cell.x,
-			"y": cell.y,
-			"map_id": str(m.get("map_id", "")),
-		}
-	# Fake remote player that is also in party (or marked ally).
-	var rid := target_id
-	if not _remote_players.has(rid):
-		rid = find_remote_by_name(target_id)
-	if rid != "" and _remote_players.has(rid):
-		var rd: Dictionary = _remote_players[rid]
-		var in_p := _party_find_member_index(rid) >= 0
-		var marked_ally := bool(rd.get("ally", false)) or bool(rd.get("party_ally", false))
-		if not in_p and not marked_ally:
-			# Allow revive if currently in party with this remote by name match.
-			var rn := str(rd.get("name", "")).strip_edges()
-			if rn != "" and _party_find_member_by_name(rn) >= 0:
-				in_p = true
-		if in_p or marked_ally:
-			var cell_v: Variant = rd.get("death_cell", rd.get("cell", {}))
-			var cx := -9999
-			var cy := -9999
-			if typeof(cell_v) == TYPE_DICTIONARY:
-				cx = int(cell_v.get("x", -9999))
-				cy = int(cell_v.get("y", -9999))
-			return {
-				"kind": "remote",
-				"id": rid,
-				"name": str(rd.get("name", rid)),
-				"hp": int(rd.get("hp", 0)),
-				"hp_max": int(rd.get("hp_max", 100)),
-				"awaiting_respawn": bool(rd.get("awaiting_respawn", false)),
-				"x": cx,
-				"y": cy,
-				"map_id": str(rd.get("map_id", "")),
-			}
-	# Ally-flagged NPC (combat layer).
-	if combat_stats != null and combat_stats.npcs.has(target_id):
-		var st: Dictionary = combat_stats.npcs[target_id]
-		if bool(st.get("ally", false)):
-			var ncell: Vector2i = combat_stats.get_npc_cell(target_id)
-			return {
-				"kind": "npc",
-				"id": target_id,
-				"name": str(st.get("name", target_id)),
-				"hp": int(st.get("hp", 0)),
-				"hp_max": int(st.get("hp_max", 100)),
-				"awaiting_respawn": bool(st.get("awaiting_respawn", false)),
-				"x": ncell.x,
-				"y": ncell.y,
-				"map_id": "",
-			}
-	return {}
-
-
+	return _combat_module_logic._revive_resolve_target(target_id)
 func _revive_member_cell(m: Dictionary) -> Vector2i:
 	var cell_v: Variant = m.get("death_cell", m.get("cell", {}))
 	if typeof(cell_v) == TYPE_DICTIONARY:
@@ -3679,100 +2919,8 @@ func _revive_member_cell(m: Dictionary) -> Vector2i:
 	return Vector2i(-9999, -9999)
 
 
-func _revive_apply_to_target(
-	kind: String, mid: String, new_hp: int, hp_max: int, dest: Vector2i, actions: Array
-) -> void:
-	kind = kind.strip_edges()
-	mid = mid.strip_edges()
-	if kind == "party":
-		var idx := _party_find_member_index(mid)
-		if idx >= 0:
-			var m: Dictionary = _party_members[idx]
-			m["hp"] = new_hp
-			m["hp_max"] = hp_max
-			m["awaiting_respawn"] = false
-			m["cell"] = {"x": dest.x, "y": dest.y}
-			m.erase("death_cell")
-			_party_members[idx] = m
-		# Keep remote mirror in sync when party id is a remote.
-		if _remote_players.has(mid):
-			var rd: Dictionary = _remote_players[mid]
-			rd["hp"] = new_hp
-			rd["hp_max"] = hp_max
-			rd["awaiting_respawn"] = false
-			rd["cell"] = {"x": dest.x, "y": dest.y}
-			rd.erase("death_cell")
-			_remote_players[mid] = rd
-			actions.append({
-				"type": "remote_move",
-				"player_id": mid,
-				"x": dest.x,
-				"y": dest.y,
-				"facing": int(rd.get("facing", 2)),
-			})
-			actions.append({
-				"type": "set_stat",
-				"target": mid,
-				"hp": new_hp,
-				"hp_max": hp_max,
-			})
-	elif kind == "remote":
-		if _remote_players.has(mid):
-			var rd2: Dictionary = _remote_players[mid]
-			rd2["hp"] = new_hp
-			rd2["hp_max"] = hp_max
-			rd2["awaiting_respawn"] = false
-			rd2["cell"] = {"x": dest.x, "y": dest.y}
-			rd2.erase("death_cell")
-			_remote_players[mid] = rd2
-			actions.append({
-				"type": "remote_move",
-				"player_id": mid,
-				"x": dest.x,
-				"y": dest.y,
-				"facing": int(rd2.get("facing", 2)),
-			})
-			actions.append({
-				"type": "set_stat",
-				"target": mid,
-				"hp": new_hp,
-				"hp_max": hp_max,
-			})
-		var pidx := _party_find_member_index(mid)
-		if pidx >= 0:
-			var pm: Dictionary = _party_members[pidx]
-			pm["hp"] = new_hp
-			pm["hp_max"] = hp_max
-			pm["awaiting_respawn"] = false
-			pm["cell"] = {"x": dest.x, "y": dest.y}
-			pm.erase("death_cell")
-			_party_members[pidx] = pm
-	elif kind == "npc":
-		if combat_stats != null and combat_stats.npcs.has(mid):
-			var st: Dictionary = combat_stats.npcs[mid]
-			st["hp"] = new_hp
-			st["hp_max"] = hp_max
-			st["awaiting_respawn"] = false
-			combat_stats.npcs[mid] = st
-			combat_stats.set_npc_cell(mid, dest.x, dest.y)
-			if combat_stats.statuses != null:
-				combat_stats.statuses.clear_all_on_death(mid)
-			if combat_stats.npc_ai.has(mid):
-				var ai: Dictionary = combat_stats.npc_ai[mid]
-				ai["ai_state"] = "idle"
-				ai["chase_target"] = ""
-				ai["victim_id"] = ""
-				ai["respawn_acc"] = 0.0
-				combat_stats.npc_ai[mid] = ai
-			actions.append({
-				"type": "set_stat",
-				"target": mid,
-				"id": mid,
-				"hp": new_hp,
-				"hp_max": hp_max,
-			})
-
-
+func _revive_apply_to_target( kind: String, mid: String, new_hp: int, hp_max: int, dest: Vector2i, actions: Array ) -> void:
+	_combat_module_logic._revive_apply_to_target(kind, mid, new_hp, hp_max, dest, actions)
 ## Test/shell helper: mark a party member (or remote ally) dead at a cell.
 func debug_ally_kill(member_id: String, cell_x: int = -9999, cell_y: int = -9999) -> Dictionary:
 	member_id = str(member_id).strip_edges()
