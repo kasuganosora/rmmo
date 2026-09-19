@@ -47,6 +47,8 @@ const ChunkStreamModule = preload("res://scripts/map/field/chunk_stream_module.g
 const RadarModule = preload("res://scripts/map/field/radar_module.gd")
 const WorldMapModule = preload("res://scripts/map/field/world_map_module.gd")
 const AtmosphereModule = preload("res://scripts/map/field/atmosphere_module.gd")
+const EditModule = preload("res://scripts/map/field/edit_module.gd")
+var _edit_module_logic: EditModule = EditModule.new(self)
 var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
 var _world_map_module_logic: WorldMapModule = WorldMapModule.new(self)
 var _radar_module_logic: RadarModule = RadarModule.new(self)
@@ -802,20 +804,9 @@ func rebuild_dirty_cells(cells: Array) -> void:
 
 
 func set_edit_camera_cell(cell: Vector2i) -> void:
-	var prev: Vector2i = cell_to_chunk(_obs_cell)
-	_obs_cell = cell
-	_refresh_chunk_set()
-	var now: Vector2i = cell_to_chunk(_obs_cell)
-	if now != prev or not _chunks.has(_chunk_key(now)):
-		bake_observer_chunk()
-
-
+	_edit_module_logic.set_edit_camera_cell(cell)
 func _edit_observer_cell() -> Vector2i:
-	if edit_start_cell.x >= 0 and edit_start_cell.y >= 0:
-		return Vector2i(clampi(edit_start_cell.x, 0, maxi(grid_width - 1, 0)), clampi(edit_start_cell.y, 0, maxi(grid_height - 1, 0)))
-	return Vector2i(clampi(2, 0, maxi(grid_width - 1, 0)), clampi(2, 0, maxi(grid_height - 1, 0)))
-
-
+	return _edit_module_logic._edit_observer_cell()
 func current_chunk() -> Vector2i:
 	return _chunk_stream_module_logic.current_chunk()
 func current_chunk_rect(cell: Vector2i = Vector2i(-9999, -9999)) -> Rect2i:
@@ -825,99 +816,23 @@ func bake_observer_chunk() -> void:
 func _prioritize_chunk(ch: Vector2i) -> void:
 	_chunk_stream_module_logic._prioritize_chunk(ch)
 func is_layer_drawn_z(z: int) -> bool:
-	if not edit_mode:
-		return true
-	if z < 0 or z >= edit_hidden_z.size():
-		return true
-	return int(edit_hidden_z[z]) == 0
-
-
+	return _edit_module_logic.is_layer_drawn_z(z)
 func is_layer_drawn_ext(id: String) -> bool:
-	if not edit_mode:
-		return true
-	return not bool(edit_hidden_ext.get(id, false))
-
-
+	return _edit_module_logic.is_layer_drawn_ext(id)
 func set_layer_hidden_z(z: int, hidden: bool) -> void:
-	if z < 0 or z > 5:
-		return
-	if edit_hidden_z.size() < 6:
-		edit_hidden_z.resize(6)
-	edit_hidden_z[z] = 1 if hidden else 0
-	rebake_loaded_chunks()
-
-
+	_edit_module_logic.set_layer_hidden_z(z, hidden)
 func set_layer_hidden_ext(id: String, hidden: bool) -> void:
-	if hidden:
-		edit_hidden_ext[id] = true
-	else:
-		edit_hidden_ext.erase(id)
-	rebake_loaded_chunks()
-
-
+	_edit_module_logic.set_layer_hidden_ext(id, hidden)
 func rebake_loaded_chunks() -> void:
 	_chunk_stream_module_logic.rebake_loaded_chunks()
 func _apply_edit_doc_size() -> void:
-	if edit_doc == null:
-		return
-	grid_width = int(edit_doc.width)
-	grid_height = int(edit_doc.height)
-	tile_size = maxi(int(edit_doc.tile_size), 1)
-
-
+	_edit_module_logic._apply_edit_doc_size()
 func set_edit_flags(flags: PackedInt32Array) -> void:
-	if pack != null:
-		pack.flags = flags
-		if pack.collision != null:
-			pack.collision.flags = flags
-
-
+	_edit_module_logic.set_edit_flags(flags)
 func edit_cell_passable(x: int, y: int) -> int:
-	## 0 walk, 1 block, 2 force-pass, 3 force-block.
-	if x < 0 or y < 0 or x >= grid_width or y >= grid_height or edit_doc == null:
-		return 1
-	var meta := 0
-	if edit_doc.has_method("ext_tile"):
-		meta = int(edit_doc.ext_tile("meta", x, y))
-	if (meta & MapExt.META_FORCE_BLOCK) != 0:
-		return 3
-	if (meta & MapExt.META_FORCE_PASS) != 0:
-		return 2
-	var t0: int = int(edit_doc.tile(x, y, 0))
-	var t1: int = int(edit_doc.tile(x, y, 1))
-	var t2: int = int(edit_doc.tile(x, y, 2))
-	var t3: int = int(edit_doc.tile(x, y, 3))
-	if t0 == 0 and t1 == 0 and t2 == 0 and t3 == 0:
-		return 1
-	var flags: PackedInt32Array = pack.flags if pack != null else PackedInt32Array()
-	for z in [3, 2, 1, 0]:
-		var t: int = int(edit_doc.tile(x, y, z))
-		if t <= 0:
-			continue
-		var f: int = int(flags[t]) if t < flags.size() else 0
-		if (f & 0x10) != 0:
-			continue
-		if (f & 0x0F) == 0x0F:
-			return 1
-		return 0
-	return 1
-
-
+	return _edit_module_logic.edit_cell_passable(x, y)
 func _ensure_edit_overlay() -> void:
-	if not edit_mode:
-		if _edit_overlay != null and is_instance_valid(_edit_overlay):
-			_edit_overlay.visible = false
-		return
-	if _edit_overlay == null or not is_instance_valid(_edit_overlay):
-		_edit_overlay = preload("res://scripts/map/map_edit_overlay.gd").new()
-		_edit_overlay.name = "EditOverlay"
-		_edit_overlay.z_as_relative = false
-		_edit_overlay.z_index = 4096
-		add_child(_edit_overlay)
-	_edit_overlay.visible = true
-	move_child(_edit_overlay, get_child_count() - 1)
-
-
+	_edit_module_logic._ensure_edit_overlay()
 func set_observer(cell: Vector2i, facing: int = 2) -> void:
 	_chunk_stream_module_logic.set_observer(cell, facing)
 func light_fx_color() -> Color:
@@ -937,33 +852,7 @@ func _ensure_weather_fx() -> void:
 func _sync_weather_eaves() -> void:
 	_atmosphere_module_logic._sync_weather_eaves()
 func set_reference_image(path: String, alpha: float = 0.35) -> void:
-	_ref_alpha = clampf(alpha, 0.0, 1.0)
-	if _ref_sprite == null or not is_instance_valid(_ref_sprite):
-		_ref_sprite = Sprite2D.new()
-		_ref_sprite.name = "RefOverlay"
-		_ref_sprite.centered = false
-		_ref_sprite.z_as_relative = false
-		_ref_sprite.z_index = 3500
-		add_child(_ref_sprite)
-	if path.strip_edges() == "":
-		_ref_sprite.texture = null
-		_ref_sprite.visible = false
-		return
-	var img := Image.new()
-	if img.load(path) != OK:
-		var glob := ProjectSettings.globalize_path(path)
-		if img.load(glob) != OK:
-			_ref_sprite.visible = false
-			return
-	var mw := float(maxi(grid_width, 1) * maxi(tile_size, 1))
-	var mh := float(maxi(grid_height, 1) * maxi(tile_size, 1))
-	_ref_sprite.texture = ImageTexture.create_from_image(img)
-	_ref_sprite.visible = true
-	_ref_sprite.modulate = Color(1, 1, 1, _ref_alpha)
-	if _ref_sprite.texture:
-		_ref_sprite.scale = Vector2(mw / float(maxi(_ref_sprite.texture.get_width(), 1)), mh / float(maxi(_ref_sprite.texture.get_height(), 1)))
-
-
+	_edit_module_logic.set_reference_image(path, alpha)
 func far_scroll_vec() -> Vector2:
 	return _atmosphere_module_logic.far_scroll_vec()
 func _apply_far_parallax() -> void:
