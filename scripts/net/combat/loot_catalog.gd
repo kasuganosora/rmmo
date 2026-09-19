@@ -2,6 +2,8 @@ extends RefCounted
 ## Loot table definitions: by_npc_id / by_charset / default.
 ## Entries: {item_id, chance, min, max}. MockServer rolls on kill_npc.
 
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+
 const DATA_PATHS: Array[String] = [
 	"res://scripts/net/combat/data/loot_tables.json",
 	"res://data/combat/loot_tables.json",
@@ -18,7 +20,7 @@ func load_catalog() -> void:
 	_by_npc_id.clear()
 	_by_charset.clear()
 	_default.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
+	var raw: Variant = JsonUtil.load_first(DATA_PATHS)
 	if typeof(raw) != TYPE_DICTIONARY:
 		_load_builtin_fallback()
 		return
@@ -97,19 +99,3 @@ func roll_forced(npc_id: String, charset: String = "", force_chance_at: float = 
 	var out: Array = roll(npc_id, charset)
 	rng_roll = prev
 	return out
-
-
-static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null

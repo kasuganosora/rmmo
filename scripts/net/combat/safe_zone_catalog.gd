@@ -1,6 +1,8 @@
 extends RefCounted
 ## Inclusive AABB safe-zone rects per map (town / inn hub). Loaded from JSON.
 
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+
 const DATA_PATHS: Array[String] = [
 	"res://scripts/net/combat/data/safe_zones.json",
 	"res://data/combat/safe_zones.json",
@@ -12,7 +14,7 @@ var _by_map: Dictionary = {}
 
 func load_catalog() -> void:
 	_by_map.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
+	var raw: Variant = JsonUtil.load_first(DATA_PATHS)
 	if typeof(raw) != TYPE_DICTIONARY:
 		_load_builtin_fallback()
 		return
@@ -87,16 +89,3 @@ func zones_for_map(map_id: String) -> Array:
 		if typeof(z) == TYPE_DICTIONARY:
 			out.append((z as Dictionary).duplicate(true))
 	return out
-
-
-func _load_json_first(paths: Array[String]) -> Variant:
-	for p in paths:
-		if not FileAccess.file_exists(p):
-			continue
-		var f := FileAccess.open(p, FileAccess.READ)
-		if f == null:
-			continue
-		var parsed: Variant = JSON.parse_string(f.get_as_text())
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null

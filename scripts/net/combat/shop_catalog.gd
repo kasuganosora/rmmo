@@ -2,6 +2,8 @@ extends RefCounted
 ## Shop definitions for MockServer vendors.
 ## shops.json: { "shops": { shop_id: { "title": "...", "items": [{item_id, buy_price?}] } } }
 
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+
 const DATA_PATHS: Array[String] = [
 	"res://scripts/net/combat/data/shops.json",
 	"res://data/combat/shops.json",
@@ -19,7 +21,7 @@ func set_catalog(p_catalog) -> void:
 
 func load_catalog() -> void:
 	_shops.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
+	var raw: Variant = JsonUtil.load_first(DATA_PATHS)
 	if typeof(raw) != TYPE_DICTIONARY:
 		_load_builtin_fallback()
 		return
@@ -164,19 +166,3 @@ func _load_builtin_fallback() -> void:
 			],
 		},
 	}
-
-
-static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null

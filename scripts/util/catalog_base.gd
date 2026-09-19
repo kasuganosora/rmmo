@@ -10,6 +10,8 @@ extends RefCounted
 ##   _normalize_def(d) -> Dictionary   per-catalog field normalization
 ##   _load_builtin_fallback() -> void  per-catalog builtin defs when JSON missing/empty
 
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+
 var _by_id: Dictionary = {}
 
 
@@ -112,16 +114,4 @@ func icon_ref_of(id: String) -> String:
 
 
 static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null
+	return JsonUtil.load_first(paths)
