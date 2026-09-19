@@ -1,4 +1,4 @@
-extends RefCounted
+extends "res://scripts/util/catalog_base.gd"
 ## Skill definitions loaded from JSON (shared path with future GameServer).
 
 const DATA_PATHS: Array[String] = [
@@ -6,31 +6,13 @@ const DATA_PATHS: Array[String] = [
 	"res://data/combat/skills.json",
 ]
 
-## id -> def Dictionary
-var _by_id: Dictionary = {}
+
+func _data_paths() -> Array:
+	return DATA_PATHS
 
 
-func load_catalog() -> void:
-	_by_id.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
-	if typeof(raw) != TYPE_DICTIONARY:
-		_load_builtin_fallback()
-		return
-	var list_v: Variant = (raw as Dictionary).get("skills", [])
-	if typeof(list_v) != TYPE_ARRAY:
-		_load_builtin_fallback()
-		return
-	for item in list_v:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = item
-		var sid := str(d.get("id", "")).strip_edges()
-		if sid.is_empty():
-			continue
-		_by_id[sid] = _normalize_def(d)
-	if _by_id.is_empty():
-		_load_builtin_fallback()
-
+func _list_key() -> String:
+	return "skills"
 
 
 func _normalize_def(d: Dictionary) -> Dictionary:
@@ -56,65 +38,17 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 	return out
 
 
-func icon_index_of(skill_id: String) -> int:
-	var def := get_skill(skill_id)
-	if def.is_empty():
-		return -1
-	return int(def.get("icon_index", -1))
-
-
-func icon_id_of(skill_id: String) -> String:
-	var def := get_skill(skill_id)
-	if def.is_empty():
-		return ""
-	return str(def.get("icon", "")).strip_edges()
-
-
-func icon_ref_of(skill_id: String) -> String:
-	var def := get_skill(skill_id)
-	if def.is_empty():
-		return ""
-	var r := str(def.get("icon_ref", "")).strip_edges()
-	if not r.is_empty():
-		return r
-	var iid := str(def.get("icon", "")).strip_edges()
-	if iid.is_empty():
-		return ""
-	return "content://icon/%s" % iid
-
-
 func get_skill(skill_id: String) -> Dictionary:
-	skill_id = skill_id.strip_edges()
-	if _by_id.has(skill_id):
-		return (_by_id[skill_id] as Dictionary).duplicate(true)
-	return {}
+	return get_def(skill_id)
 
 
 func has_skill(skill_id: String) -> bool:
-	return _by_id.has(skill_id.strip_edges())
+	return has_id(skill_id)
 
 
 ## Runtime inject for tests / pack overrides. Does not persist.
 func register_skill(def: Dictionary) -> String:
-	var sid := str(def.get("id", "")).strip_edges()
-	if sid.is_empty():
-		return ""
-	_by_id[sid] = _normalize_def(def)
-	return sid
-
-
-func all_ids() -> Array:
-	return _by_id.keys()
-
-
-## Ordered list of skill defs for HUD (text labels).
-func list_all() -> Array:
-	var ids: Array = _by_id.keys()
-	ids.sort()
-	var out: Array = []
-	for sid in ids:
-		out.append(get_skill(str(sid)))
-	return out
+	return register_def(def)
 
 
 
@@ -483,19 +417,3 @@ func _load_builtin_fallback() -> void:
 	var keys: Array = _by_id.keys()
 	for k in keys:
 		_by_id[k] = _normalize_def(_by_id[k])
-
-
-static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null
