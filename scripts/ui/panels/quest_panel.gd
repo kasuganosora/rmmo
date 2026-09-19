@@ -1,6 +1,10 @@
 extends RefCounted
 ## UI panel: quests, tracker, drawer, quest toasts.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
@@ -14,7 +18,7 @@ const QUEST_TABS := [
 	["已完成", "completed"],
 ]
 
-static func _on_status_cancel_requested(ctrl, status_id: String) -> void:
+func _on_status_cancel_requested(status_id: String) -> void:
 	status_id = str(status_id).strip_edges()
 	if status_id.is_empty():
 		return
@@ -29,8 +33,8 @@ static func _on_status_cancel_requested(ctrl, status_id: String) -> void:
 
 
 
-static func apply_quest_snapshot(ctrl, quests: Array) -> void:
-	ctrl._detect_quest_status_toasts(quests)
+func apply_quest_snapshot(quests: Array) -> void:
+	_detect_quest_status_toasts(quests)
 	ctrl._server_quests = quests.duplicate(true)
 	# Drop selection if quest no longer in journal.
 	if not ctrl._selected_quest_id.is_empty():
@@ -41,17 +45,17 @@ static func apply_quest_snapshot(ctrl, quests: Array) -> void:
 				break
 		if not still:
 			ctrl._selected_quest_id = ""
-			ctrl._close_quest_drawer(false)
+			_close_quest_drawer(false)
 	if ctrl._windows.has("quest") and ctrl._windows["quest"].visible:
 		ctrl._refresh_window_contents()
-		ctrl._refresh_quest_drawer_content()
-	ctrl._refresh_quest_tracker()
+		_refresh_quest_drawer_content()
+	_refresh_quest_tracker()
 
 
 
 
 
-static func _build_quest_tracker(ctrl) -> void:
+func _build_quest_tracker() -> void:
 	if ctrl._quest_tracker != null and is_instance_valid(ctrl._quest_tracker):
 		return
 	ctrl._quest_tracker = PanelContainer.new()
@@ -75,7 +79,7 @@ static func _build_quest_tracker(ctrl) -> void:
 
 
 
-static func _default_quest_tracker_pos(ctrl) -> Vector2:
+func _default_quest_tracker_pos() -> Vector2:
 	## Prefer just under the minimap (top-right); fall back to viewport top-right.
 	var tracker_w = 220.0
 	var mini = ctrl.get_node_or_null("MinimapPanel") as Control
@@ -88,7 +92,7 @@ static func _default_quest_tracker_pos(ctrl) -> Vector2:
 
 
 
-static func _place_quest_tracker(ctrl) -> void:
+func _place_quest_tracker() -> void:
 	if ctrl._quest_tracker == null or not is_instance_valid(ctrl._quest_tracker):
 		return
 	var gs = GameSettingsScript.get_i()
@@ -99,7 +103,7 @@ static func _place_quest_tracker(ctrl) -> void:
 			ctrl._quest_tracker.global_position = Vector2(float(lay.get("x", 8)), float(lay.get("y", 176)))
 			placed = true
 	if not placed:
-		ctrl._quest_tracker.global_position = ctrl._default_quest_tracker_pos()
+		ctrl._quest_tracker.global_position = _default_quest_tracker_pos()
 	if ctrl._quest_tracker.find_child("TrackerBody", true, false) == null:
 		var marg = MarginContainer.new()
 		marg.add_theme_constant_override("margin_left", 8)
@@ -111,11 +115,11 @@ static func _place_quest_tracker(ctrl) -> void:
 		col.name = "TrackerBody"
 		col.add_theme_constant_override("separation", 4)
 		marg.add_child(col)
-	ctrl._refresh_quest_tracker()
+	_refresh_quest_tracker()
 
 
 
-static func _refresh_quest_tracker(ctrl) -> void:
+func _refresh_quest_tracker() -> void:
 	if ctrl._quest_tracker == null or not is_instance_valid(ctrl._quest_tracker):
 		return
 	var col = ctrl._quest_tracker.find_child("TrackerBody", true, false) as VBoxContainer
@@ -156,7 +160,7 @@ static func _refresh_quest_tracker(ctrl) -> void:
 		var title = str(q.get("title", "")).strip_edges()
 		if title.is_empty():
 			title = qid if not qid.is_empty() else "任务"
-		var st = ctrl._normalize_quest_status(str(q.get("status", "")))
+		var st = _normalize_quest_status(str(q.get("status", "")))
 		var title_row = HBoxContainer.new()
 		title_row.add_theme_constant_override("separation", 4)
 		col.add_child(title_row)
@@ -176,9 +180,9 @@ static func _refresh_quest_tracker(ctrl) -> void:
 		if not qid.is_empty():
 			title_btn.gui_input.connect(ctrl._on_tracked_quest_gui_input.bind(qid, -1))
 			# Flat button still emits pressed on LMB; route through path-or-journal.
-			title_btn.pressed.connect(ctrl._on_tracked_quest_activate.bind(qid, -1))
+			title_btn.pressed.connect(_on_tracked_quest_activate.bind(qid, -1))
 		title_row.add_child(title_btn)
-		var nav_preview: Dictionary = ctrl._resolve_tracked_quest_nav(qid, -1)
+		var nav_preview: Dictionary = _resolve_tracked_quest_nav(qid, -1)
 		if bool(nav_preview.get("ok", false)):
 			var go_btn = Button.new()
 			go_btn.text = "去"
@@ -188,7 +192,7 @@ static func _refresh_quest_tracker(ctrl) -> void:
 			go_btn.add_theme_font_size_override("font_size", 11)
 			go_btn.add_theme_color_override("font_color", L2Style.COL_GOLD)
 			go_btn.tooltip_text = "前往：%s" % str(nav_preview.get("label", ""))
-			go_btn.pressed.connect(ctrl._path_to_tracked_quest.bind(qid, -1))
+			go_btn.pressed.connect(_path_to_tracked_quest.bind(qid, -1))
 			title_row.add_child(go_btn)
 		var objs: Variant = q.get("objectives", [])
 		if typeof(objs) != TYPE_ARRAY:
@@ -212,14 +216,14 @@ static func _refresh_quest_tracker(ctrl) -> void:
 			line.tooltip_text = "左键前往 / 右键详情"
 			if not qid.is_empty():
 				line.gui_input.connect(ctrl._on_tracked_quest_gui_input.bind(qid, oi))
-				line.pressed.connect(ctrl._on_tracked_quest_activate.bind(qid, oi))
+				line.pressed.connect(_on_tracked_quest_activate.bind(qid, oi))
 			obj_row.add_child(line)
 			oi += 1
 	ctrl.call_deferred("_fit_quest_tracker")
 
 
 
-static func _fit_quest_tracker(ctrl) -> void:
+func _fit_quest_tracker() -> void:
 	if ctrl._quest_tracker == null or not is_instance_valid(ctrl._quest_tracker):
 		return
 	if not ctrl._quest_tracker.visible:
@@ -229,7 +233,7 @@ static func _fit_quest_tracker(ctrl) -> void:
 
 
 
-static func _open_tracked_quest(ctrl, quest_id: String) -> void:
+func _open_tracked_quest(quest_id: String) -> void:
 	## Open journal detail drawer for a tracked quest.
 	quest_id = quest_id.strip_edges()
 	if quest_id.is_empty():
@@ -240,11 +244,11 @@ static func _open_tracked_quest(ctrl, quest_id: String) -> void:
 		ctrl._toggle_window("quest")
 	else:
 		ctrl._fill_window("quest")
-	ctrl._open_quest_drawer(quest_id, true)
+	_open_quest_drawer(quest_id, true)
 
 
 
-static func _quest_nav_world_ctx(ctrl) -> Dictionary:
+func _quest_nav_world_ctx() -> Dictionary:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("get_quest_nav_context"):
 		var ctx_v: Variant = ctrl._world_combat.get_quest_nav_context()
 		if typeof(ctx_v) == TYPE_DICTIONARY:
@@ -254,7 +258,7 @@ static func _quest_nav_world_ctx(ctrl) -> Dictionary:
 
 
 
-static func _find_tracked_quest_row(ctrl, quest_id: String) -> Dictionary:
+func _find_tracked_quest_row(quest_id: String) -> Dictionary:
 	quest_id = quest_id.strip_edges()
 	for q in ctrl._server_quests:
 		if typeof(q) != TYPE_DICTIONARY:
@@ -265,16 +269,16 @@ static func _find_tracked_quest_row(ctrl, quest_id: String) -> Dictionary:
 
 
 
-static func _resolve_tracked_quest_nav(ctrl, quest_id: String, objective_index: int = -1) -> Dictionary:
-	var row: Dictionary = ctrl._find_tracked_quest_row(quest_id)
+func _resolve_tracked_quest_nav(quest_id: String, objective_index: int = -1) -> Dictionary:
+	var row: Dictionary = _find_tracked_quest_row(quest_id)
 	if row.is_empty():
 		return {"ok": false, "cell": Vector2i.ZERO, "label": "", "reason": ""}
-	return QuestTrackerUtil.resolve_quest_nav(row, ctrl._quest_nav_world_ctx(), objective_index)
+	return QuestTrackerUtil.resolve_quest_nav(row, _quest_nav_world_ctx(), objective_index)
 
 
 
-static func _path_to_tracked_quest(ctrl, quest_id: String, objective_index: int = -1) -> void:
-	var nav: Dictionary = ctrl._resolve_tracked_quest_nav(quest_id, objective_index)
+func _path_to_tracked_quest(quest_id: String, objective_index: int = -1) -> void:
+	var nav: Dictionary = _resolve_tracked_quest_nav(quest_id, objective_index)
 	if not bool(nav.get("ok", false)):
 		return
 	var cell: Vector2i = nav.get("cell", Vector2i.ZERO)
@@ -288,16 +292,16 @@ static func _path_to_tracked_quest(ctrl, quest_id: String, objective_index: int 
 
 
 
-static func _on_tracked_quest_activate(ctrl, quest_id: String, objective_index: int = -1) -> void:
-	var nav: Dictionary = ctrl._resolve_tracked_quest_nav(quest_id, objective_index)
+func _on_tracked_quest_activate(quest_id: String, objective_index: int = -1) -> void:
+	var nav: Dictionary = _resolve_tracked_quest_nav(quest_id, objective_index)
 	if bool(nav.get("ok", false)):
-		ctrl._path_to_tracked_quest(quest_id, objective_index)
+		_path_to_tracked_quest(quest_id, objective_index)
 		return
-	ctrl._open_tracked_quest(quest_id)
+	_open_tracked_quest(quest_id)
 
 
 
-static func _lock_quest_window(ctrl, panel: PanelContainer) -> void:
+func _lock_quest_window(panel: PanelContainer) -> void:
 	## Fixed-size quest list window; tabs above Scroll; drawer is a separate HUD sibling.
 	if panel == null:
 		return
@@ -335,14 +339,14 @@ static func _lock_quest_window(ctrl, panel: PanelContainer) -> void:
 		vbox.add_child(tabs)
 		vbox.move_child(tabs, scroll.get_index())
 	panel.set_meta("quest_tabs", tabs)
-	ctrl._rebuild_quest_tab_bar(panel)
-	if not panel.visibility_changed.is_connected(ctrl._on_quest_window_visibility):
-		panel.visibility_changed.connect(ctrl._on_quest_window_visibility)
-	ctrl._ensure_quest_drawer()
+	_rebuild_quest_tab_bar(panel)
+	if not panel.visibility_changed.is_connected(_on_quest_window_visibility):
+		panel.visibility_changed.connect(_on_quest_window_visibility)
+	_ensure_quest_drawer()
 
 
 
-static func _rebuild_quest_tab_bar(ctrl, panel: PanelContainer) -> void:
+func _rebuild_quest_tab_bar(panel: PanelContainer) -> void:
 	var tabs: HBoxContainer = panel.get_meta("quest_tabs", null) if panel else null
 	if tabs == null or not is_instance_valid(tabs):
 		return
@@ -359,13 +363,13 @@ static func _rebuild_quest_tab_bar(ctrl, panel: PanelContainer) -> void:
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		var tid = str(item[1])
-		btn.pressed.connect(ctrl._on_quest_tab.bind(tid))
+		btn.pressed.connect(_on_quest_tab.bind(tid))
 		tabs.add_child(btn)
-	ctrl._highlight_quest_tabs(tabs)
+	_highlight_quest_tabs(tabs)
 
 
 
-static func _on_quest_tab(ctrl, tab_id: String) -> void:
+func _on_quest_tab(tab_id: String) -> void:
 	tab_id = tab_id.strip_edges()
 	if tab_id.is_empty():
 		return
@@ -378,21 +382,21 @@ static func _on_quest_tab(ctrl, tab_id: String) -> void:
 				continue
 			if str(q.get("id", "")) != ctrl._selected_quest_id:
 				continue
-			if ctrl._quest_status_matches_tab(str(q.get("status", ""))):
+			if _quest_status_matches_tab(str(q.get("status", ""))):
 				keep = true
 			break
 		if not keep:
 			ctrl._selected_quest_id = ""
-			ctrl._close_quest_drawer(false)
+			_close_quest_drawer(false)
 	if ctrl._windows.has("quest"):
 		var panel: PanelContainer = ctrl._windows["quest"]
-		ctrl._highlight_quest_tabs(panel.get_meta("quest_tabs", null) as HBoxContainer)
+		_highlight_quest_tabs(panel.get_meta("quest_tabs", null) as HBoxContainer)
 		if panel.visible:
 			ctrl._fill_window("quest")
 
 
 
-static func _highlight_quest_tabs(ctrl, tabs: HBoxContainer) -> void:
+func _highlight_quest_tabs(tabs: HBoxContainer) -> void:
 	if tabs == null:
 		return
 	for i in range(tabs.get_child_count()):
@@ -404,22 +408,22 @@ static func _highlight_quest_tabs(ctrl, tabs: HBoxContainer) -> void:
 
 
 
-static func _on_quest_window_visibility(ctrl) -> void:
+func _on_quest_window_visibility() -> void:
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	if panel == null or not panel.visible:
 		ctrl._selected_quest_id = ""
-		ctrl._close_quest_drawer(false)
+		_close_quest_drawer(false)
 
 
 
-static func _fill_quest(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
+func _fill_quest(body: VBoxContainer, _ch: Dictionary) -> void:
 	## List-only quest window (tabs filter); detail lives in external side drawer.
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	if panel != null:
 		if not panel.has_meta("quest_tabs"):
-			ctrl._lock_quest_window(panel)
+			_lock_quest_window(panel)
 		else:
-			ctrl._rebuild_quest_tab_bar(panel)
+			_rebuild_quest_tab_bar(panel)
 	body.custom_minimum_size = Vector2.ZERO
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var quests: Array = ctrl._server_quests
@@ -432,7 +436,7 @@ static func _fill_quest(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 	for q in quests:
 		if typeof(q) != TYPE_DICTIONARY:
 			continue
-		if ctrl._quest_status_matches_tab(str(q.get("status", ""))):
+		if _quest_status_matches_tab(str(q.get("status", ""))):
 			filtered.append(q)
 	# Validate selection against filtered list.
 	if not ctrl._selected_quest_id.is_empty():
@@ -443,31 +447,31 @@ static func _fill_quest(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 				break
 		if not still:
 			ctrl._selected_quest_id = ""
-			ctrl._close_quest_drawer(false)
+			_close_quest_drawer(false)
 	if filtered.is_empty():
 		var empty_msg = "（暂无已完成任务）" if ctrl._quest_tab == "completed" else "（暂无进行中任务）"
 		ctrl._add_label(body, empty_msg, 12, L2Style.COL_MUTED)
 	else:
 		for q in filtered:
-			body.add_child(ctrl._make_quest_row(q, str(q.get("id", "")) == ctrl._selected_quest_id))
+			body.add_child(_make_quest_row(q, str(q.get("id", "")) == ctrl._selected_quest_id))
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		ctrl.call_deferred("_lock_window_size", panel)
 	# Soft drawer sync: refresh content if open; do not cancel in-flight slide tweens.
-	ctrl._soft_sync_quest_drawer()
+	_soft_sync_quest_drawer()
 
 
 
-static func _soft_sync_quest_drawer(ctrl) -> void:
+func _soft_sync_quest_drawer() -> void:
 	if ctrl._selected_quest_id.is_empty():
 		return
 	if ctrl._quest_drawer != null and is_instance_valid(ctrl._quest_drawer) and ctrl._quest_drawer.visible:
-		ctrl._refresh_quest_drawer_content()
-		ctrl._place_quest_drawer()
+		_refresh_quest_drawer_content()
+		_place_quest_drawer()
 
 
 
-static func _quest_status_matches_tab(ctrl, status: String) -> bool:
-	var st = ctrl._normalize_quest_status(status)
+func _quest_status_matches_tab(status: String) -> bool:
+	var st = _normalize_quest_status(status)
 	if ctrl._quest_tab == "completed":
 		return st == "completed"
 	# 正在进行: in_progress / ready (and legacy active aliases)
@@ -475,7 +479,7 @@ static func _quest_status_matches_tab(ctrl, status: String) -> bool:
 
 
 
-static func _normalize_quest_status(ctrl, status: String) -> String:
+func _normalize_quest_status(status: String) -> String:
 	match status.strip_edges():
 		"completed", "complete":
 			return "completed"
@@ -488,10 +492,10 @@ static func _normalize_quest_status(ctrl, status: String) -> String:
 
 
 
-static func _make_quest_row(ctrl, q: Dictionary, selected: bool) -> Button:
+func _make_quest_row(q: Dictionary, selected: bool) -> Button:
 	var qid = str(q.get("id", "")).strip_edges()
 	var title = str(q.get("title", qid if not qid.is_empty() else "?"))
-	var st = ctrl._quest_status_label(str(q.get("status", "in_progress")))
+	var st = _quest_status_label(str(q.get("status", "in_progress")))
 	var btn = Button.new()
 	btn.text = "%s    [%s]" % [title, st]
 	btn.focus_mode = Control.FOCUS_NONE
@@ -500,13 +504,13 @@ static func _make_quest_row(ctrl, q: Dictionary, selected: bool) -> Button:
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	L2Style.style_row_button(btn, selected)
 	if not qid.is_empty():
-		btn.pressed.connect(ctrl._on_quest_row_selected.bind(qid))
+		btn.pressed.connect(_on_quest_row_selected.bind(qid))
 	return btn
 
 
 
-static func _quest_status_label(ctrl, status: String) -> String:
-	match ctrl._normalize_quest_status(status):
+func _quest_status_label(status: String) -> String:
+	match _normalize_quest_status(status):
 		"ready":
 			return "可交付"
 		"completed":
@@ -516,7 +520,7 @@ static func _quest_status_label(ctrl, status: String) -> String:
 
 
 
-static func _on_quest_row_selected(ctrl, quest_id: String) -> void:
+func _on_quest_row_selected(quest_id: String) -> void:
 	ctrl._abandon_confirm_id = ""
 	quest_id = quest_id.strip_edges()
 	if quest_id.is_empty():
@@ -526,24 +530,24 @@ static func _on_quest_row_selected(ctrl, quest_id: String) -> void:
 		ctrl._selected_quest_id = ""
 		if ctrl._windows.has("quest") and ctrl._windows["quest"].visible:
 			ctrl._fill_window("quest")
-		ctrl._close_quest_drawer(true)
+		_close_quest_drawer(true)
 		return
 	ctrl._selected_quest_id = quest_id
 	if ctrl._windows.has("quest") and ctrl._windows["quest"].visible:
 		ctrl._fill_window("quest")
-	ctrl._open_quest_drawer(quest_id, true)
+	_open_quest_drawer(quest_id, true)
 
 
 
-static func _on_quest_drawer_close(ctrl) -> void:
+func _on_quest_drawer_close() -> void:
 	ctrl._selected_quest_id = ""
-	ctrl._close_quest_drawer(true)
+	_close_quest_drawer(true)
 	if ctrl._windows.has("quest") and ctrl._windows["quest"].visible:
 		ctrl._fill_window("quest")
 
 
 
-static func _ensure_quest_drawer(ctrl) -> void:
+func _ensure_quest_drawer() -> void:
 	if ctrl._quest_drawer != null and is_instance_valid(ctrl._quest_drawer):
 		return
 	var drawer = PanelContainer.new()
@@ -585,7 +589,7 @@ static func _ensure_quest_drawer(ctrl) -> void:
 	var close_btn = Button.new()
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	close_btn.pressed.connect(ctrl._on_quest_drawer_close)
+	close_btn.pressed.connect(_on_quest_drawer_close)
 	L2Style.style_close(close_btn)
 	head.add_child(close_btn)
 	var scroll = ScrollContainer.new()
@@ -606,7 +610,7 @@ static func _ensure_quest_drawer(ctrl) -> void:
 
 
 
-static func _quest_by_id(ctrl, quest_id: String) -> Dictionary:
+func _quest_by_id(quest_id: String) -> Dictionary:
 	for q in ctrl._server_quests:
 		if typeof(q) != TYPE_DICTIONARY:
 			continue
@@ -616,7 +620,7 @@ static func _quest_by_id(ctrl, quest_id: String) -> Dictionary:
 
 
 
-static func _place_quest_drawer(ctrl) -> void:
+func _place_quest_drawer() -> void:
 	if ctrl._quest_drawer == null or not is_instance_valid(ctrl._quest_drawer):
 		return
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
@@ -634,31 +638,31 @@ static func _place_quest_drawer(ctrl) -> void:
 
 
 
-static func _sync_quest_drawer_follow(ctrl) -> void:
+func _sync_quest_drawer_follow() -> void:
 	if ctrl._quest_drawer == null or not is_instance_valid(ctrl._quest_drawer):
 		return
 	if not ctrl._quest_drawer.visible:
 		return
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	if panel == null or not panel.visible:
-		ctrl._close_quest_drawer(false)
+		_close_quest_drawer(false)
 		return
-	ctrl._place_quest_drawer()
+	_place_quest_drawer()
 
 
 
-static func _open_quest_drawer(ctrl, quest_id: String, animate: bool) -> void:
-	ctrl._ensure_quest_drawer()
-	var selected: Dictionary = ctrl._quest_by_id(quest_id)
+func _open_quest_drawer(quest_id: String, animate: bool) -> void:
+	_ensure_quest_drawer()
+	var selected: Dictionary = _quest_by_id(quest_id)
 	if selected.is_empty():
-		ctrl._close_quest_drawer(false)
+		_close_quest_drawer(false)
 		return
-	ctrl._refresh_quest_drawer_content()
+	_refresh_quest_drawer_content()
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	var h: float = panel.size.y if panel != null else 400.0
 	var was_open = ctrl._quest_drawer.visible and ctrl._quest_drawer.size.x > 1.0
 	ctrl._quest_drawer.visible = true
-	ctrl._place_quest_drawer()
+	_place_quest_drawer()
 	if ctrl._quest_drawer_tween != null and is_instance_valid(ctrl._quest_drawer_tween):
 		ctrl._quest_drawer_tween.kill()
 		ctrl._quest_drawer_tween = null
@@ -676,7 +680,7 @@ static func _open_quest_drawer(ctrl, quest_id: String, animate: bool) -> void:
 
 
 
-static func _close_quest_drawer(ctrl, animate: bool) -> void:
+func _close_quest_drawer(animate: bool) -> void:
 	if ctrl._quest_drawer == null or not is_instance_valid(ctrl._quest_drawer):
 		return
 	if not ctrl._quest_drawer.visible and (ctrl._quest_drawer_tween == null or not is_instance_valid(ctrl._quest_drawer_tween)):
@@ -690,13 +694,13 @@ static func _close_quest_drawer(ctrl, animate: bool) -> void:
 		tw.set_parallel(true)
 		tw.tween_property(ctrl._quest_drawer, "size:x", 0.0, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 		tw.tween_property(ctrl._quest_drawer, "modulate:a", 0.0, 0.12)
-		tw.chain().tween_callback(ctrl._finish_quest_drawer_close)
+		tw.chain().tween_callback(_finish_quest_drawer_close)
 	else:
-		ctrl._finish_quest_drawer_close()
+		_finish_quest_drawer_close()
 
 
 
-static func _finish_quest_drawer_close(ctrl) -> void:
+func _finish_quest_drawer_close() -> void:
 	if ctrl._quest_drawer != null and is_instance_valid(ctrl._quest_drawer):
 		ctrl._quest_drawer.visible = false
 		ctrl._quest_drawer.size.x = 0
@@ -705,8 +709,8 @@ static func _finish_quest_drawer_close(ctrl) -> void:
 
 
 
-static func _refresh_quest_drawer_content(ctrl) -> void:
-	ctrl._ensure_quest_drawer()
+func _refresh_quest_drawer_content() -> void:
+	_ensure_quest_drawer()
 	if ctrl._quest_drawer_body == null or not is_instance_valid(ctrl._quest_drawer_body):
 		return
 	while ctrl._quest_drawer_body.get_child_count() > 0:
@@ -715,13 +719,13 @@ static func _refresh_quest_drawer_content(ctrl) -> void:
 		c.free()
 	if ctrl._selected_quest_id.is_empty():
 		return
-	var selected: Dictionary = ctrl._quest_by_id(ctrl._selected_quest_id)
+	var selected: Dictionary = _quest_by_id(ctrl._selected_quest_id)
 	if selected.is_empty():
 		return
 	var title_l = ctrl._quest_drawer.find_child("DrawerTitle", true, false) as Label
 	if title_l != null:
 		title_l.text = str(selected.get("title", "?"))
-	ctrl._add_label(ctrl._quest_drawer_body, ctrl._quest_status_label(str(selected.get("status", "in_progress"))), 12, L2Style.COL_GOLD)
+	ctrl._add_label(ctrl._quest_drawer_body, _quest_status_label(str(selected.get("status", "in_progress"))), 12, L2Style.COL_GOLD)
 	var desc = str(selected.get("desc", "")).strip_edges()
 	if not desc.is_empty():
 		ctrl._add_label(ctrl._quest_drawer_body, desc, 12, L2Style.COL_TEXT)
@@ -742,12 +746,12 @@ static func _refresh_quest_drawer_content(ctrl) -> void:
 	var rewards = str(selected.get("rewards", "")).strip_edges()
 	ctrl._add_label(ctrl._quest_drawer_body, "奖励", 12, L2Style.COL_MUTED)
 	ctrl._add_label(ctrl._quest_drawer_body, rewards if not rewards.is_empty() else "（无）", 12, L2Style.COL_GOLD)
-	var qstatus = ctrl._normalize_quest_status(str(selected.get("status", "")))
+	var qstatus = _normalize_quest_status(str(selected.get("status", "")))
 	if qstatus == "ready":
 		var turn_btn = Button.new()
 		turn_btn.text = "交付任务"
 		turn_btn.focus_mode = Control.FOCUS_NONE
-		turn_btn.pressed.connect(ctrl._on_quest_turn_in.bind(ctrl._selected_quest_id))
+		turn_btn.pressed.connect(_on_quest_turn_in.bind(ctrl._selected_quest_id))
 		L2Style.style_action_button(turn_btn)
 		ctrl._quest_drawer_body.add_child(turn_btn)
 	elif qstatus == "completed":
@@ -756,13 +760,13 @@ static func _refresh_quest_drawer_content(ctrl) -> void:
 		var ab_btn = Button.new()
 		ab_btn.text = "确认放弃" if ctrl._abandon_confirm_id == ctrl._selected_quest_id else "放弃任务"
 		ab_btn.focus_mode = Control.FOCUS_NONE
-		ab_btn.pressed.connect(ctrl._on_quest_abandon.bind(ctrl._selected_quest_id))
+		ab_btn.pressed.connect(_on_quest_abandon.bind(ctrl._selected_quest_id))
 		L2Style.style_action_button(ab_btn)
 		ctrl._quest_drawer_body.add_child(ab_btn)
 
 
 
-static func _on_quest_turn_in(ctrl, quest_id: String) -> void:
+func _on_quest_turn_in(quest_id: String) -> void:
 	quest_id = quest_id.strip_edges()
 	if quest_id.is_empty():
 		return
@@ -771,14 +775,14 @@ static func _on_quest_turn_in(ctrl, quest_id: String) -> void:
 
 
 
-static func _on_quest_abandon(ctrl, quest_id: String) -> void:
+func _on_quest_abandon(quest_id: String) -> void:
 	quest_id = quest_id.strip_edges()
 	if quest_id.is_empty():
 		return
 	if ctrl._abandon_confirm_id != quest_id:
 		ctrl._abandon_confirm_id = quest_id
 		ctrl.append_system("再点一次以确认放弃任务。")
-		ctrl._refresh_quest_drawer_content()
+		_refresh_quest_drawer_content()
 		return
 	ctrl._abandon_confirm_id = ""
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_abandon_quest"):
@@ -786,7 +790,7 @@ static func _on_quest_abandon(ctrl, quest_id: String) -> void:
 
 
 
-static func _detect_quest_status_toasts(ctrl, quests: Array) -> void:
+func _detect_quest_status_toasts(quests: Array) -> void:
 	var next_seen: Dictionary = {}
 	var ready_titles: Array = []
 	var done_titles: Array = []
@@ -797,7 +801,7 @@ static func _detect_quest_status_toasts(ctrl, quests: Array) -> void:
 		var qid = str(q.get("id", "")).strip_edges()
 		if qid.is_empty():
 			continue
-		var st = ctrl._normalize_quest_status(str(q.get("status", "")))
+		var st = _normalize_quest_status(str(q.get("status", "")))
 		next_seen[qid] = st
 		var title = str(q.get("title", qid)).strip_edges()
 		if title.is_empty():
@@ -815,11 +819,11 @@ static func _detect_quest_status_toasts(ctrl, quests: Array) -> void:
 	for t in ready_titles:
 		ctrl.show_quest_ready_toast(str(t))
 	for t in done_titles:
-		ctrl.show_quest_complete_toast(str(t))
+		show_quest_complete_toast(str(t))
 
 
 
-static func _build_quest_toast(ctrl) -> void:
+func _build_quest_toast() -> void:
 	if ctrl._quest_toast != null and is_instance_valid(ctrl._quest_toast):
 		return
 	ctrl._quest_toast = PanelContainer.new()
@@ -859,13 +863,13 @@ static func _build_quest_toast(ctrl) -> void:
 
 
 
-static func show_quest_complete_toast(ctrl, title: String) -> void:
-	ctrl._show_quest_toast("任务完成：%s" % title.strip_edges(), Color(1.0, 0.92, 0.45, 1.0), Color(0.85, 0.72, 0.28, 0.95))
+func show_quest_complete_toast(title: String) -> void:
+	_show_quest_toast("任务完成：%s" % title.strip_edges(), Color(1.0, 0.92, 0.45, 1.0), Color(0.85, 0.72, 0.28, 0.95))
 
 
 
-static func _show_quest_toast(ctrl, line: String, font_col: Color, border_col: Color) -> void:
-	ctrl._build_quest_toast()
+func _show_quest_toast(line: String, font_col: Color, border_col: Color) -> void:
+	_build_quest_toast()
 	if ctrl._quest_toast == null or ctrl._quest_toast_label == null:
 		return
 	ctrl._quest_toast_label.text = line
@@ -877,31 +881,31 @@ static func _show_quest_toast(ctrl, line: String, font_col: Color, border_col: C
 		ctrl._quest_toast.add_theme_stylebox_override("panel", flat)
 	ctrl._quest_toast_ttl = QUEST_TOAST_DURATION
 	ctrl._quest_toast.visible = true
-	ctrl._layout_quest_toast()
+	_layout_quest_toast()
 	ctrl._quest_toast.move_to_front()
 
 
 
-static func hide_quest_toast(ctrl) -> void:
+func hide_quest_toast() -> void:
 	ctrl._quest_toast_ttl = 0.0
 	if ctrl._quest_toast != null:
 		ctrl._quest_toast.visible = false
 
 
 
-static func is_quest_toast_visible(ctrl) -> bool:
+func is_quest_toast_visible() -> bool:
 	return ctrl._quest_toast != null and ctrl._quest_toast.visible and ctrl._quest_toast_ttl > 0.0
 
 
 
-static func get_quest_toast_text(ctrl) -> String:
+func get_quest_toast_text() -> String:
 	if ctrl._quest_toast_label == null:
 		return ""
 	return str(ctrl._quest_toast_label.text)
 
 
 
-static func _layout_quest_toast(ctrl) -> void:
+func _layout_quest_toast() -> void:
 	if ctrl._quest_toast == null:
 		return
 	ctrl._quest_toast.reset_size()
@@ -919,11 +923,11 @@ static func _layout_quest_toast(ctrl) -> void:
 
 
 
-static func _tick_quest_toast(ctrl, delta: float) -> void:
+func _tick_quest_toast(delta: float) -> void:
 	if ctrl._quest_toast_ttl <= 0.0:
 		return
 	ctrl._quest_toast_ttl -= delta
 	if ctrl._quest_toast_ttl <= 0.0:
-		ctrl.hide_quest_toast()
+		hide_quest_toast()
 
 

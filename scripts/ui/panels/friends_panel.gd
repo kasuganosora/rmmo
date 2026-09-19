@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: friends list and whispers.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _build_friends_panel(ctrl) -> void:
+func _build_friends_panel() -> void:
 	ctrl._friends_panel = PanelContainer.new()
 	ctrl._friends_panel.name = "FriendsPanel"
 	ctrl._friends_panel.set_script(HudDrag)
@@ -42,12 +46,12 @@ static func _build_friends_panel(ctrl) -> void:
 	ctrl._friends_add_input = LineEdit.new()
 	ctrl._friends_add_input.placeholder_text = "输入玩家名字"
 	ctrl._friends_add_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl._friends_add_input.text_submitted.connect(func(t: String): ctrl._on_friend_add(t))
+	ctrl._friends_add_input.text_submitted.connect(func(t: String): _on_friend_add(t))
 	add_row.add_child(ctrl._friends_add_input)
 	var add_btn = Button.new()
 	add_btn.text = "添加"
 	add_btn.focus_mode = Control.FOCUS_NONE
-	add_btn.pressed.connect(func(): ctrl._on_friend_add(ctrl._friends_add_input.text if ctrl._friends_add_input else ""))
+	add_btn.pressed.connect(func(): _on_friend_add(ctrl._friends_add_input.text if ctrl._friends_add_input else ""))
 	add_row.add_child(add_btn)
 	var scroll = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -60,17 +64,21 @@ static func _build_friends_panel(ctrl) -> void:
 	scroll.add_child(ctrl._friends_body)
 	ctrl._friends_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._friends_panel)
-	ctrl._refresh_friends_panel()
+	_refresh_friends_panel()
 	ctrl.call_deferred("_nudge_friends")
 
-static func _nudge_friends(ctrl) -> void:
+
+
+func _nudge_friends() -> void:
 	if ctrl._friends_panel == null:
 		return
 	ctrl._friends_panel.size = Vector2(340, 420)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._friends_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96)
 
-static func _toggle_friends_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_friends_panel(force_open: bool = false) -> void:
 	if ctrl._friends_panel == null:
 		return
 	if force_open:
@@ -81,12 +89,14 @@ static func _toggle_friends_panel(ctrl, force_open: bool = false) -> void:
 		# Refresh online flags from server snapshot when opening.
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_friends"):
-			ctrl.apply_friends_update({"type": "friends_update", "friends": srv.snapshot_friends()})
-		ctrl._refresh_friends_panel()
+			apply_friends_update({"type": "friends_update", "friends": srv.snapshot_friends()})
+		_refresh_friends_panel()
 		ctrl._friends_panel.move_to_front()
 		ctrl.call_deferred("_nudge_friends")
 
-static func apply_friends_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_friends_update(action: Dictionary) -> void:
 	var fr_v: Variant = action.get("friends", action)
 	if typeof(fr_v) != TYPE_DICTIONARY:
 		# Allow raw array payload
@@ -103,7 +113,7 @@ static func apply_friends_update(ctrl, action: Dictionary) -> void:
 			ctrl._friends_state["friends"] = cleaned0
 			ctrl._friends_state["count"] = cleaned0.size()
 			if ctrl._friends_panel != null and ctrl._friends_panel.visible:
-				ctrl._refresh_friends_panel()
+				_refresh_friends_panel()
 		return
 	var fr: Dictionary = fr_v
 	ctrl._friends_state = {
@@ -125,9 +135,11 @@ static func apply_friends_update(ctrl, action: Dictionary) -> void:
 		ctrl._friends_state["friends"] = cleaned
 		ctrl._friends_state["count"] = cleaned.size()
 	if ctrl._friends_panel != null and ctrl._friends_panel.visible:
-		ctrl._refresh_friends_panel()
+		_refresh_friends_panel()
 
-static func _refresh_friends_panel(ctrl) -> void:
+
+
+func _refresh_friends_panel() -> void:
 	if ctrl._friends_body == null:
 		return
 	for c in ctrl._friends_body.get_children():
@@ -164,13 +176,13 @@ static func _refresh_friends_panel(ctrl) -> void:
 		whisper_btn.text = "私聊"
 		whisper_btn.focus_mode = Control.FOCUS_NONE
 		whisper_btn.custom_minimum_size = Vector2(48, 24)
-		whisper_btn.pressed.connect(ctrl._on_friend_whisper.bind(fname))
+		whisper_btn.pressed.connect(_on_friend_whisper.bind(fname))
 		btn_row.add_child(whisper_btn)
 		var invite_btn = Button.new()
 		invite_btn.text = "邀请入队"
 		invite_btn.focus_mode = Control.FOCUS_NONE
 		invite_btn.custom_minimum_size = Vector2(72, 24)
-		invite_btn.pressed.connect(ctrl._on_friend_invite.bind(fname))
+		invite_btn.pressed.connect(_on_friend_invite.bind(fname))
 		btn_row.add_child(invite_btn)
 		var ginv_btn = Button.new()
 		ginv_btn.text = "邀请入会"
@@ -182,10 +194,12 @@ static func _refresh_friends_panel(ctrl) -> void:
 		del_btn.text = "删除"
 		del_btn.focus_mode = Control.FOCUS_NONE
 		del_btn.custom_minimum_size = Vector2(48, 24)
-		del_btn.pressed.connect(ctrl._on_friend_remove.bind(fid))
+		del_btn.pressed.connect(_on_friend_remove.bind(fid))
 		btn_row.add_child(del_btn)
 
-static func _on_friend_add(ctrl, name_or_id: String) -> void:
+
+
+func _on_friend_add(name_or_id: String) -> void:
 	name_or_id = str(name_or_id).strip_edges()
 	if name_or_id.is_empty():
 		ctrl.append_system("请输入要添加的玩家名字。")
@@ -197,11 +211,13 @@ static func _on_friend_add(ctrl, name_or_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_friend_add"):
-		ctrl._apply_friends_result_locally(srv.try_friend_add(name_or_id))
+		_apply_friends_result_locally(srv.try_friend_add(name_or_id))
 	else:
 		ctrl.append_system("无法添加好友。")
 
-static func _on_friend_remove(ctrl, friend_id: String) -> void:
+
+
+func _on_friend_remove(friend_id: String) -> void:
 	friend_id = str(friend_id).strip_edges()
 	if friend_id.is_empty():
 		return
@@ -210,15 +226,21 @@ static func _on_friend_remove(ctrl, friend_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_friend_remove"):
-		ctrl._apply_friends_result_locally(srv.try_friend_remove(friend_id))
+		_apply_friends_result_locally(srv.try_friend_remove(friend_id))
 
-static func _on_friend_whisper(ctrl, target_name: String) -> void:
-	ctrl.prefill_whisper(str(ctrl.target_name).strip_edges())
 
-static func _on_friend_invite(ctrl, target_name: String) -> void:
-	ctrl._on_party_invite(str(ctrl.target_name).strip_edges())
 
-static func _apply_friends_result_locally(ctrl, result: Dictionary) -> void:
+func _on_friend_whisper(target_name: String) -> void:
+	ctrl.prefill_whisper(str(target_name).strip_edges())
+
+
+
+func _on_friend_invite(target_name: String) -> void:
+	ctrl._on_party_invite(str(target_name).strip_edges())
+
+
+
+func _apply_friends_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -228,9 +250,11 @@ static func _apply_friends_result_locally(ctrl, result: Dictionary) -> void:
 		var action: Dictionary = a
 		match str(action.get("type", "")):
 			"friends_update":
-				ctrl.apply_friends_update(action)
+				apply_friends_update(action)
 			"system_message":
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
+
+
 

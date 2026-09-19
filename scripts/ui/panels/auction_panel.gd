@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: auction house.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _build_auction_panel(ctrl) -> void:
+func _build_auction_panel() -> void:
 	ctrl._auction_panel = PanelContainer.new()
 	ctrl._auction_panel.name = "AuctionPanel"
 	ctrl._auction_panel.set_script(HudDrag)
@@ -71,21 +75,25 @@ static func _build_auction_panel(ctrl) -> void:
 	var list_btn = Button.new()
 	list_btn.text = "上架"
 	list_btn.focus_mode = Control.FOCUS_NONE
-	list_btn.pressed.connect(ctrl._on_auction_list)
+	list_btn.pressed.connect(_on_auction_list)
 	outer.add_child(list_btn)
 	ctrl._auction_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._auction_panel)
-	ctrl._refresh_auction_panel()
+	_refresh_auction_panel()
 	ctrl.call_deferred("_nudge_auction")
 
-static func _nudge_auction(ctrl) -> void:
+
+
+func _nudge_auction() -> void:
 	if ctrl._auction_panel == null:
 		return
 	ctrl._auction_panel.size = Vector2(540, 500)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._auction_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 270)), 64)
 
-static func _toggle_auction_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_auction_panel(force_open: bool = false) -> void:
 	if ctrl._auction_panel == null:
 		return
 	if force_open:
@@ -95,12 +103,14 @@ static func _toggle_auction_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._auction_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_auction"):
-			ctrl.apply_auction_update({"type": "auction_update", "auction": srv.snapshot_auction()})
-		ctrl._refresh_auction_panel()
+			apply_auction_update({"type": "auction_update", "auction": srv.snapshot_auction()})
+		_refresh_auction_panel()
 		ctrl._auction_panel.move_to_front()
 		ctrl.call_deferred("_nudge_auction")
 
-static func apply_auction_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_auction_update(action: Dictionary) -> void:
 	var ah_v: Variant = action.get("auction", action)
 	if typeof(ah_v) != TYPE_DICTIONARY:
 		if typeof(ah_v) == TYPE_ARRAY:
@@ -112,7 +122,7 @@ static func apply_auction_update(ctrl, action: Dictionary) -> void:
 			ctrl._auction_state["listings"] = cleaned0
 			ctrl._auction_state["count"] = cleaned0.size()
 			if ctrl._auction_panel != null and ctrl._auction_panel.visible:
-				ctrl._refresh_auction_panel()
+				_refresh_auction_panel()
 		return
 	var ad: Dictionary = ah_v
 	ctrl._auction_state = {
@@ -129,9 +139,11 @@ static func apply_auction_update(ctrl, action: Dictionary) -> void:
 		ctrl._auction_state["listings"] = cleaned
 		ctrl._auction_state["count"] = cleaned.size()
 	if ctrl._auction_panel != null and ctrl._auction_panel.visible:
-		ctrl._refresh_auction_panel()
+		_refresh_auction_panel()
 
-static func _refresh_auction_panel(ctrl) -> void:
+
+
+func _refresh_auction_panel() -> void:
 	if ctrl._auction_body == null:
 		return
 	for c in ctrl._auction_body.get_children():
@@ -181,7 +193,7 @@ static func _refresh_auction_panel(ctrl) -> void:
 			cancel_btn.text = "下架"
 			cancel_btn.focus_mode = Control.FOCUS_NONE
 			cancel_btn.custom_minimum_size = Vector2(56, 24)
-			cancel_btn.pressed.connect(ctrl._on_auction_cancel.bind(lid))
+			cancel_btn.pressed.connect(_on_auction_cancel.bind(lid))
 			btn_row.add_child(cancel_btn)
 			ctrl._add_label(btn_row, "（我的）", 10, L2Style.COL_MUTED)
 		else:
@@ -189,10 +201,12 @@ static func _refresh_auction_panel(ctrl) -> void:
 			buy_btn.text = "购买"
 			buy_btn.focus_mode = Control.FOCUS_NONE
 			buy_btn.custom_minimum_size = Vector2(56, 24)
-			buy_btn.pressed.connect(ctrl._on_auction_buy.bind(lid))
+			buy_btn.pressed.connect(_on_auction_buy.bind(lid))
 			btn_row.add_child(buy_btn)
 
-static func _on_auction_list(ctrl) -> void:
+
+
+func _on_auction_list() -> void:
 	var item_id = ctrl._auction_item_id_input.text.strip_edges() if ctrl._auction_item_id_input else ""
 	var qty = int(ctrl._auction_qty_spin.value) if ctrl._auction_qty_spin else 1
 	var price = int(ctrl._auction_price_spin.value) if ctrl._auction_price_spin else 1
@@ -204,7 +218,7 @@ static func _on_auction_list(ctrl) -> void:
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_auction_list"):
-			ctrl._apply_auction_result_locally(srv.try_auction_list(item_id, qty, price))
+			_apply_auction_result_locally(srv.try_auction_list(item_id, qty, price))
 		else:
 			ctrl.append_system("无法上架。")
 			return
@@ -215,7 +229,9 @@ static func _on_auction_list(ctrl) -> void:
 	if ctrl._auction_price_spin:
 		ctrl._auction_price_spin.value = 10
 
-static func _on_auction_buy(ctrl, listing_id: String) -> void:
+
+
+func _on_auction_buy(listing_id: String) -> void:
 	listing_id = str(listing_id).strip_edges()
 	if listing_id.is_empty():
 		return
@@ -224,9 +240,11 @@ static func _on_auction_buy(ctrl, listing_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_auction_buy"):
-		ctrl._apply_auction_result_locally(srv.try_auction_buy(listing_id))
+		_apply_auction_result_locally(srv.try_auction_buy(listing_id))
 
-static func _on_auction_cancel(ctrl, listing_id: String) -> void:
+
+
+func _on_auction_cancel(listing_id: String) -> void:
 	listing_id = str(listing_id).strip_edges()
 	if listing_id.is_empty():
 		return
@@ -235,9 +253,11 @@ static func _on_auction_cancel(ctrl, listing_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_auction_cancel"):
-		ctrl._apply_auction_result_locally(srv.try_auction_cancel(listing_id))
+		_apply_auction_result_locally(srv.try_auction_cancel(listing_id))
 
-static func _apply_auction_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_auction_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -247,7 +267,7 @@ static func _apply_auction_result_locally(ctrl, result: Dictionary) -> void:
 		var action: Dictionary = a
 		match str(action.get("type", "")):
 			"auction_update":
-				ctrl.apply_auction_update(action)
+				apply_auction_update(action)
 			"inventory_update":
 				var items_v: Variant = action.get("items", [])
 				var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []

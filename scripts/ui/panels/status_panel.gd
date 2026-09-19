@@ -1,9 +1,13 @@
 extends RefCounted
 ## UI panel: player status bar, HP/MP/CP, XP, buff chips.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const StatusIconBar = preload("res://scripts/ui/status_icon_bar.gd")
 
-static func _compact_status_panel(ctrl) -> void:
+func _compact_status_panel() -> void:
 	## Lean top-left status: value text overlaid on bars (white, high contrast).
 	var panel = ctrl.get_node_or_null("%StatusPanel") as PanelContainer
 	if panel != null:
@@ -19,18 +23,18 @@ static func _compact_status_panel(ctrl) -> void:
 		if lab != null:
 			lab.visible = false
 	# Color the fill via StyleBox (not modulate) so overlay Labels stay white.
-	ctrl._style_status_bar(ctrl.cp_bar, Color(0.92, 0.78, 0.22, 1.0))
-	ctrl._style_status_bar(ctrl.hp_bar, Color(0.82, 0.22, 0.22, 1.0))
-	ctrl._style_status_bar(ctrl.mp_bar, Color(0.28, 0.42, 0.9, 1.0))
-	ctrl._ensure_status_overlays()
-	ctrl._ensure_xp_bar()
-	ctrl._ensure_status_chip_row()
+	_style_status_bar(ctrl.cp_bar, Color(0.92, 0.78, 0.22, 1.0))
+	_style_status_bar(ctrl.hp_bar, Color(0.82, 0.22, 0.22, 1.0))
+	_style_status_bar(ctrl.mp_bar, Color(0.28, 0.42, 0.9, 1.0))
+	_ensure_status_overlays()
+	_ensure_xp_bar()
+	_ensure_status_chip_row()
 	ctrl._ensure_title_under_name()
 	ctrl._ensure_cast_bar()
 
 
 
-static func _style_status_bar(ctrl, bar: ProgressBar, fill: Color) -> void:
+func _style_status_bar(bar: ProgressBar, fill: Color) -> void:
 	if bar == null:
 		return
 	bar.custom_minimum_size = Vector2(0, 12)
@@ -50,14 +54,14 @@ static func _style_status_bar(ctrl, bar: ProgressBar, fill: Color) -> void:
 
 
 
-static func _ensure_status_overlays(ctrl) -> void:
+func _ensure_status_overlays() -> void:
 	ctrl._ensure_bar_overlay(ctrl.cp_bar, "CpOverlay")
 	ctrl._ensure_bar_overlay(ctrl.hp_bar, "HpOverlay")
 	ctrl._ensure_bar_overlay(ctrl.mp_bar, "MpOverlay")
 
 
 
-static func _ensure_xp_bar(ctrl) -> void:
+func _ensure_xp_bar() -> void:
 	## Thin EXP track under MP; created in code so tscn stays optional.
 	if ctrl.mp_bar == null:
 		return
@@ -78,12 +82,12 @@ static func _ensure_xp_bar(ctrl) -> void:
 		vbox.move_child(ctrl._xp_bar, ctrl.mp_bar.get_index() + 1)
 	ctrl._xp_bar.custom_minimum_size = Vector2(0, 5)
 	ctrl._xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl._style_status_bar(ctrl._xp_bar, Color(0.35, 0.78, 0.92, 1.0))
+	_style_status_bar(ctrl._xp_bar, Color(0.35, 0.78, 0.92, 1.0))
 	ctrl._xp_bar.custom_minimum_size = Vector2(0, 5)
 
 
 
-static func _ensure_status_chip_row(ctrl) -> void:
+func _ensure_status_chip_row() -> void:
 	## L2/FF14 icon strip under the CP/HP/MP panel (buffs then debuffs).
 	var panel = ctrl.get_node_or_null("%StatusPanel") as PanelContainer
 	if panel == null:
@@ -93,7 +97,7 @@ static func _ensure_status_chip_row(ctrl) -> void:
 	var existing = panel.get_parent().get_node_or_null("StatusIconBar") if panel.get_parent() else null
 	if existing != null:
 		ctrl._status_chip_row = existing
-		ctrl._wire_player_status_bar(ctrl._status_chip_row)
+		_wire_player_status_bar(ctrl._status_chip_row)
 		return
 	var parent_ctl = panel.get_parent() as Control
 	var bar = StatusIconBar.new()
@@ -105,13 +109,13 @@ static func _ensure_status_chip_row(ctrl) -> void:
 	else:
 		panel.add_child(bar)
 	ctrl._status_chip_row = bar
-	ctrl._wire_player_status_bar(bar)
+	_wire_player_status_bar(bar)
 	if bar.has_method("apply_statuses"):
 		bar.apply_statuses(ctrl._player_statuses)
 
 
 
-static func _status_kind_color(ctrl, kind: String) -> Color:
+func _status_kind_color(kind: String) -> Color:
 	match kind.strip_edges().to_lower():
 		"buff":
 			return Color(0.35, 0.85, 0.45, 1.0)
@@ -126,7 +130,7 @@ static func _status_kind_color(ctrl, kind: String) -> Color:
 
 
 
-static func _rebuild_status_chips(ctrl, row: HBoxContainer, statuses: Array) -> void:
+func _rebuild_status_chips(row: HBoxContainer, statuses: Array) -> void:
 	if row == null:
 		return
 	for c in row.get_children():
@@ -138,7 +142,7 @@ static func _rebuild_status_chips(ctrl, row: HBoxContainer, statuses: Array) -> 
 		var n = str(d.get("name", d.get("id", "?"))).strip_edges()
 		var rem: float = float(d.get("remaining_sec", 0.0))
 		var txt = "%s %.0fs" % [n, rem] if rem >= 1.0 else "%s %.1fs" % [n, rem]
-		var col = ctrl._status_kind_color(str(d.get("kind", "")))
+		var col = _status_kind_color(str(d.get("kind", "")))
 		var sb = StyleBoxFlat.new()
 		sb.bg_color = Color(col.r * 0.35, col.g * 0.35, col.b * 0.35, 0.92)
 		sb.set_border_width_all(1)
@@ -164,13 +168,13 @@ static func _rebuild_status_chips(ctrl, row: HBoxContainer, statuses: Array) -> 
 
 
 
-static func apply_status_chips(ctrl, statuses: Array) -> void:
+func apply_status_chips(statuses: Array) -> void:
 	ctrl._player_statuses = statuses.duplicate(true)
-	ctrl._ensure_status_chip_row()
+	_ensure_status_chip_row()
 	if ctrl._status_chip_row != null and ctrl._status_chip_row.has_method("apply_statuses"):
 		ctrl._status_chip_row.apply_statuses(ctrl._player_statuses)
 	elif ctrl._status_chip_row != null:
-		ctrl._rebuild_status_chips(ctrl._status_chip_row, ctrl._player_statuses)
+		_rebuild_status_chips(ctrl._status_chip_row, ctrl._player_statuses)
 	# Soft-refresh expanded self row in party panel when statuses change.
 	if ctrl._party_in_party():
 		ctrl._sync_party_self_statuses_from_player()
@@ -179,7 +183,7 @@ static func apply_status_chips(ctrl, statuses: Array) -> void:
 
 
 
-static func _wire_player_status_bar(ctrl, bar: Control) -> void:
+func _wire_player_status_bar(bar: Control) -> void:
 	if bar == null:
 		return
 	if "allow_cancel" in bar:
@@ -190,8 +194,8 @@ static func _wire_player_status_bar(ctrl, bar: Control) -> void:
 
 
 
-static func _refresh_xp_bar(ctrl) -> void:
-	ctrl._ensure_xp_bar()
+func _refresh_xp_bar() -> void:
+	_ensure_xp_bar()
 	if ctrl._xp_bar == null:
 		return
 	var exp_cur: int = maxi(int(ctrl._server_combat.get("exp", 0)), 0)
@@ -213,11 +217,11 @@ static func _refresh_xp_bar(ctrl) -> void:
 		if rmax > 0:
 			tip += " / %d" % rmax
 	ctrl._xp_bar.tooltip_text = tip
-	ctrl._refresh_rested_label(rested)
+	_refresh_rested_label(rested)
 
 
 
-static func _tick_status_icon_bars(ctrl, delta: float) -> void:
+func _tick_status_icon_bars(delta: float) -> void:
 	## Advance pie timers on player/target StatusIconBar strips (no-op if absent).
 	if ctrl._status_chip_row != null and is_instance_valid(ctrl._status_chip_row) and ctrl._status_chip_row.has_method("tick"):
 		ctrl._status_chip_row.tick(delta)
@@ -226,18 +230,18 @@ static func _tick_status_icon_bars(ctrl, delta: float) -> void:
 
 
 
-static func apply_rested_update(ctrl, action: Dictionary) -> void:
+func apply_rested_update(action: Dictionary) -> void:
 	## Snapshot / tick opcode: refresh rested pool on XP bar HUD.
 	if action.has("rested_exp"):
 		ctrl._server_combat["rested_exp"] = maxi(int(action.get("rested_exp", 0)), 0)
 	if action.has("rested_exp_max"):
 		ctrl._server_combat["rested_exp_max"] = maxi(int(action.get("rested_exp_max", 0)), 0)
-	ctrl._refresh_xp_bar()
+	_refresh_xp_bar()
 
 
 
-static func _refresh_rested_label(ctrl, rested: int = -1) -> void:
-	ctrl._ensure_xp_bar()
+func _refresh_rested_label(rested: int = -1) -> void:
+	_ensure_xp_bar()
 	if ctrl._xp_bar == null:
 		return
 	if rested < 0:

@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: emote picker.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _on_remote_debug_spawn(ctrl) -> void:
+func _on_remote_debug_spawn() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_remote_debug_spawn"):
 		ctrl._world_combat.request_remote_debug_spawn("")
 		return
@@ -19,7 +23,7 @@ static func _on_remote_debug_spawn(ctrl) -> void:
 
 
 
-static func _build_emote_panel(ctrl) -> void:
+func _build_emote_panel() -> void:
 	ctrl._emote_panel = PanelContainer.new()
 	ctrl._emote_panel.name = "EmotePanel"
 	ctrl._emote_panel.set_script(HudDrag)
@@ -57,12 +61,12 @@ static func _build_emote_panel(ctrl) -> void:
 	outer.add_child(ctrl._emote_body)
 	ctrl._emote_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._emote_panel)
-	ctrl._refresh_emote_panel()
+	_refresh_emote_panel()
 	ctrl.call_deferred("_nudge_emote")
 
 
 
-static func _nudge_emote(ctrl) -> void:
+func _nudge_emote() -> void:
 	if ctrl._emote_panel == null:
 		return
 	ctrl._emote_panel.size = Vector2(340, 280)
@@ -71,7 +75,7 @@ static func _nudge_emote(ctrl) -> void:
 
 
 
-static func _toggle_emote_panel(ctrl, force_open: bool = false) -> void:
+func _toggle_emote_panel(force_open: bool = false) -> void:
 	if ctrl._emote_panel == null:
 		return
 	if force_open:
@@ -79,13 +83,13 @@ static func _toggle_emote_panel(ctrl, force_open: bool = false) -> void:
 	else:
 		ctrl._emote_panel.visible = not ctrl._emote_panel.visible
 	if ctrl._emote_panel.visible:
-		ctrl._refresh_emote_panel()
+		_refresh_emote_panel()
 		ctrl._emote_panel.move_to_front()
 		ctrl.call_deferred("_nudge_emote")
 
 
 
-static func _emote_catalog_rows(ctrl) -> Array:
+func _emote_catalog_rows() -> Array:
 	var srv = Net.server()
 	if srv != null and srv.has_method("emote_catalog"):
 		var live: Array = srv.emote_catalog()
@@ -109,7 +113,7 @@ static func _emote_catalog_rows(ctrl) -> Array:
 
 
 
-static func _refresh_emote_panel(ctrl) -> void:
+func _refresh_emote_panel() -> void:
 	if ctrl._emote_body == null:
 		return
 	for c in ctrl._emote_body.get_children():
@@ -121,7 +125,7 @@ static func _refresh_emote_panel(ctrl) -> void:
 	grid.add_theme_constant_override("v_separation", 6)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ctrl._emote_body.add_child(grid)
-	var rows: Array = ctrl._emote_catalog_rows()
+	var rows: Array = _emote_catalog_rows()
 	if rows.is_empty():
 		ctrl._add_label(ctrl._emote_body, "（暂无表情）", 12, L2Style.COL_MUTED)
 		return
@@ -135,12 +139,12 @@ static func _refresh_emote_panel(ctrl) -> void:
 		btn.text = str(row.get("label", eid))
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.custom_minimum_size = Vector2(96, 32)
-		btn.pressed.connect(ctrl._on_emote_pressed.bind(eid))
+		btn.pressed.connect(_on_emote_pressed.bind(eid))
 		grid.add_child(btn)
 
 
 
-static func _on_emote_pressed(ctrl, emote_id: String) -> void:
+func _on_emote_pressed(emote_id: String) -> void:
 	emote_id = str(emote_id).strip_edges()
 	if emote_id.is_empty():
 		return
@@ -149,13 +153,13 @@ static func _on_emote_pressed(ctrl, emote_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_emote"):
-		ctrl._apply_emote_result_locally(srv.try_emote(emote_id))
+		_apply_emote_result_locally(srv.try_emote(emote_id))
 	else:
 		ctrl.append_system("无法使用表情。")
 
 
 
-static func _apply_emote_result_locally(ctrl, result: Dictionary) -> void:
+func _apply_emote_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return

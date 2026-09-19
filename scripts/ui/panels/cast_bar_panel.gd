@@ -1,7 +1,11 @@
 extends RefCounted
 ## UI panel: spell cast bar and progress.
 
-static func _ensure_cast_bar(ctrl) -> void:
+var ctrl
+func _init(c):
+	ctrl = c
+
+func _ensure_cast_bar() -> void:
 	## Deprecated: center cast bar removed — hide/free any leftover node.
 	var existing = ctrl.get_node_or_null("CastBarRoot") as Control
 	if existing != null and is_instance_valid(existing):
@@ -13,7 +17,7 @@ static func _ensure_cast_bar(ctrl) -> void:
 
 
 
-static func _style_cast_bar_mode(ctrl, mode: String) -> void:
+func _style_cast_bar_mode(mode: String) -> void:
 	if ctrl._cast_bar == null:
 		return
 	if mode == "channel":
@@ -24,7 +28,7 @@ static func _style_cast_bar_mode(ctrl, mode: String) -> void:
 
 
 
-static func _tick_cast_bar_visual(ctrl, delta: float) -> void:
+func _tick_cast_bar_visual(delta: float) -> void:
 	if not ctrl._cast_active:
 		return
 	if ctrl._cast_duration <= 0.0:
@@ -35,7 +39,7 @@ static func _tick_cast_bar_visual(ctrl, delta: float) -> void:
 
 
 
-static func apply_cast_start(ctrl, action: Dictionary) -> void:
+func apply_cast_start(action: Dictionary) -> void:
 	# Center cast bar removed — progress lives on skill-cell CdChrome only.
 	ctrl._cast_active = true
 	ctrl._cast_mode = str(action.get("mode", "cast"))
@@ -49,9 +53,9 @@ static func apply_cast_start(ctrl, action: Dictionary) -> void:
 
 
 
-static func apply_cast_update(ctrl, action: Dictionary) -> void:
+func apply_cast_update(action: Dictionary) -> void:
 	if not ctrl._cast_active:
-		ctrl.apply_cast_start(action)
+		apply_cast_start(action)
 		return
 	ctrl._cast_elapsed = float(action.get("elapsed", ctrl._cast_elapsed))
 	ctrl._cast_duration = maxf(float(action.get("duration", ctrl._cast_duration)), 0.05)
@@ -67,7 +71,7 @@ static func apply_cast_update(ctrl, action: Dictionary) -> void:
 
 
 
-static func apply_cast_end(ctrl, action: Dictionary) -> void:
+func apply_cast_end(action: Dictionary) -> void:
 	ctrl._cast_active = false
 	ctrl._cast_elapsed = 0.0
 	ctrl._cast_duration = 0.0
@@ -82,7 +86,7 @@ static func apply_cast_end(ctrl, action: Dictionary) -> void:
 
 
 
-static func _apply_cast_to_container(ctrl, host: Node, frac: float) -> void:
+func _apply_cast_to_container(host: Node, frac: float) -> void:
 	if host == null:
 		return
 	for cell in ctrl._iter_skill_cells(host):

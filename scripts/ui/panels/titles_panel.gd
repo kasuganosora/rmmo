@@ -1,12 +1,16 @@
 extends RefCounted
 ## UI panel: titles, daily board, achievements.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const StatusPanel = preload("res://scripts/ui/panels/status_panel.gd")
 
-static func _build_titles_panel(ctrl) -> void:
+func _build_titles_panel() -> void:
 	ctrl._titles_panel = PanelContainer.new()
 	ctrl._titles_panel.name = "TitlesPanel"
 	ctrl._titles_panel.set_script(HudDrag)
@@ -48,12 +52,12 @@ static func _build_titles_panel(ctrl) -> void:
 	scroll.add_child(ctrl._titles_body)
 	ctrl._titles_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._titles_panel)
-	ctrl._refresh_titles_panel()
+	_refresh_titles_panel()
 	ctrl.call_deferred("_nudge_titles")
 
 
 
-static func _nudge_titles(ctrl) -> void:
+func _nudge_titles() -> void:
 	if ctrl._titles_panel == null:
 		return
 	ctrl._titles_panel.size = Vector2(360, 440)
@@ -62,7 +66,7 @@ static func _nudge_titles(ctrl) -> void:
 
 
 
-static func _toggle_titles_panel(ctrl, force_open: bool = false) -> void:
+func _toggle_titles_panel(force_open: bool = false) -> void:
 	if ctrl._titles_panel == null:
 		return
 	if force_open:
@@ -72,14 +76,14 @@ static func _toggle_titles_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._titles_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_titles"):
-			ctrl.apply_title_update({"type": "title_update", "titles": srv.snapshot_titles()})
-		ctrl._refresh_titles_panel()
+			apply_title_update({"type": "title_update", "titles": srv.snapshot_titles()})
+		_refresh_titles_panel()
 		ctrl._titles_panel.move_to_front()
 		ctrl.call_deferred("_nudge_titles")
 
 
 
-static func apply_title_update(ctrl, action: Dictionary) -> void:
+func apply_title_update(action: Dictionary) -> void:
 	var tv: Variant = action.get("titles", action)
 	if typeof(tv) != TYPE_DICTIONARY:
 		return
@@ -93,13 +97,13 @@ static func apply_title_update(ctrl, action: Dictionary) -> void:
 		"crafts": int(d.get("crafts", 0)),
 		"deaths": int(d.get("deaths", 0)),
 	}
-	ctrl._refresh_name_with_title()
+	_refresh_name_with_title()
 	if ctrl._titles_panel != null and ctrl._titles_panel.visible:
-		ctrl._refresh_titles_panel()
+		_refresh_titles_panel()
 
 
 
-static func _build_daily_panel(ctrl) -> void:
+func _build_daily_panel() -> void:
 	ctrl._daily_panel = PanelContainer.new()
 	ctrl._daily_panel.name = "DailyQuestPanel"
 	ctrl._daily_panel.set_script(HudDrag)
@@ -146,12 +150,12 @@ static func _build_daily_panel(ctrl) -> void:
 	scroll.add_child(ctrl._daily_body)
 	ctrl._daily_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._daily_panel)
-	ctrl._refresh_daily_panel()
+	_refresh_daily_panel()
 	ctrl.call_deferred("_nudge_daily")
 
 
 
-static func _nudge_daily(ctrl) -> void:
+func _nudge_daily() -> void:
 	if ctrl._daily_panel == null:
 		return
 	ctrl._daily_panel.size = Vector2(340, 280)
@@ -160,7 +164,7 @@ static func _nudge_daily(ctrl) -> void:
 
 
 
-static func _toggle_daily_panel(ctrl, force_open: bool = false) -> void:
+func _toggle_daily_panel(force_open: bool = false) -> void:
 	if ctrl._daily_panel == null:
 		return
 	if force_open:
@@ -170,16 +174,16 @@ static func _toggle_daily_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._daily_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_daily"):
-			ctrl.apply_daily_board(srv.snapshot_daily())
+			apply_daily_board(srv.snapshot_daily())
 		elif srv != null and srv.has_method("try_daily_board_list"):
-			ctrl.apply_daily_board({"daily": srv.try_daily_board_list(), "daily_date": ""})
-		ctrl._refresh_daily_panel()
+			apply_daily_board({"daily": srv.try_daily_board_list(), "daily_date": ""})
+		_refresh_daily_panel()
 		ctrl._daily_panel.move_to_front()
 		ctrl.call_deferred("_nudge_daily")
 
 
 
-static func apply_daily_board(ctrl, action: Dictionary) -> void:
+func apply_daily_board(action: Dictionary) -> void:
 	var date = str(action.get("daily_date", "")).strip_edges()
 	var list_v: Variant = action.get("daily", action.get("daily_quests", []))
 	var list: Array = list_v if typeof(list_v) == TYPE_ARRAY else []
@@ -189,11 +193,11 @@ static func apply_daily_board(ctrl, action: Dictionary) -> void:
 			"daily": list.duplicate(true),
 		}
 	if ctrl._daily_panel != null and ctrl._daily_panel.visible:
-		ctrl._refresh_daily_panel()
+		_refresh_daily_panel()
 
 
 
-static func _refresh_daily_panel(ctrl) -> void:
+func _refresh_daily_panel() -> void:
 	if ctrl._daily_body == null:
 		return
 	for c in ctrl._daily_body.get_children():
@@ -255,8 +259,8 @@ static func _refresh_daily_panel(ctrl) -> void:
 			# Refresh from server after accept
 			var srv = Net.server()
 			if srv != null and srv.has_method("snapshot_daily"):
-				ctrl.apply_daily_board(srv.snapshot_daily())
-			ctrl._refresh_daily_panel()
+				apply_daily_board(srv.snapshot_daily())
+			_refresh_daily_panel()
 		)
 		line.add_child(btn)
 		var rewards = str(row.get("rewards", "")).strip_edges()
@@ -268,7 +272,7 @@ static func _refresh_daily_panel(ctrl) -> void:
 
 
 
-static func _active_title_display_name(ctrl) -> String:
+func _active_title_display_name() -> String:
 	var aid = str(ctrl._titles_state.get("active_title", "")).strip_edges()
 	if aid.is_empty():
 		return ""
@@ -282,7 +286,7 @@ static func _active_title_display_name(ctrl) -> String:
 
 
 
-static func _ensure_title_under_name(ctrl) -> void:
+func _ensure_title_under_name() -> void:
 	## Thin Label under StatusPanel nameplate for equipped title (not glued into NameLabel).
 	if ctrl._title_under_name != null and is_instance_valid(ctrl._title_under_name):
 		return
@@ -319,8 +323,8 @@ static func _ensure_title_under_name(ctrl) -> void:
 
 
 
-static func _refresh_name_with_title(ctrl) -> void:
-	ctrl._ensure_title_under_name()
+func _refresh_name_with_title() -> void:
+	_ensure_title_under_name()
 	if ctrl.name_label == null:
 		return
 	var base = ctrl._base_char_name.strip_edges()
@@ -336,7 +340,7 @@ static func _refresh_name_with_title(ctrl) -> void:
 		if base.is_empty():
 			base = "???"
 		ctrl._base_char_name = base
-	var tname = ctrl._active_title_display_name()
+	var tname = _active_title_display_name()
 	var gname = str(ctrl._guild_state.get("name", "")).strip_edges()
 	var shown = base
 	# Title lives on thin Label under nameplate; keep guild suffix on name if any.
@@ -353,7 +357,7 @@ static func _refresh_name_with_title(ctrl) -> void:
 
 
 
-static func _title_unlock_hint(ctrl, row: Dictionary) -> String:
+func _title_unlock_hint(row: Dictionary) -> String:
 	var desc = str(row.get("desc", "")).strip_edges()
 	if not desc.is_empty():
 		return desc
@@ -373,7 +377,7 @@ static func _title_unlock_hint(ctrl, row: Dictionary) -> String:
 
 
 
-static func _refresh_titles_panel(ctrl) -> void:
+func _refresh_titles_panel() -> void:
 	if ctrl._titles_body == null:
 		return
 	for c in ctrl._titles_body.get_children():
@@ -387,7 +391,7 @@ static func _refresh_titles_panel(ctrl) -> void:
 	if active.is_empty():
 		ctrl._add_label(ctrl._titles_body, "当前：无（点击已解锁称号装备）", 12, L2Style.COL_TEXT)
 	else:
-		ctrl._add_label(ctrl._titles_body, "当前：%s（再点卸下）" % ctrl._active_title_display_name(), 12, L2Style.COL_GOLD)
+		ctrl._add_label(ctrl._titles_body, "当前：%s（再点卸下）" % _active_title_display_name(), 12, L2Style.COL_GOLD)
 	var unequip = Button.new()
 	unequip.text = "卸下"
 	unequip.focus_mode = Control.FOCUS_NONE
@@ -439,13 +443,13 @@ static func _refresh_titles_panel(ctrl) -> void:
 			nm.add_theme_color_override("font_color", L2Style.COL_MUTED)
 			nm.modulate = Color(0.72, 0.72, 0.72, 1.0)
 			box.add_child(nm)
-			var hint = ctrl._title_unlock_hint(row)
+			var hint = _title_unlock_hint(row)
 			if not hint.is_empty():
 				ctrl._add_label(box, hint, 11, L2Style.COL_MUTED)
 
 
 
-static func _apply_title_result_locally(ctrl, result: Dictionary) -> void:
+func _apply_title_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -459,11 +463,11 @@ static func _apply_title_result_locally(ctrl, result: Dictionary) -> void:
 				if not msg.is_empty():
 					ctrl.append_system(msg)
 			"title_update":
-				ctrl.apply_title_update(action)
+				apply_title_update(action)
 
 
 
-static func _build_achievements_panel(ctrl) -> void:
+func _build_achievements_panel() -> void:
 	ctrl._achievements_panel = PanelContainer.new()
 	ctrl._achievements_panel.name = "AchievementsPanel"
 	ctrl._achievements_panel.set_script(HudDrag)
@@ -505,12 +509,12 @@ static func _build_achievements_panel(ctrl) -> void:
 	scroll.add_child(ctrl._achievements_body)
 	ctrl._achievements_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._achievements_panel)
-	ctrl._refresh_achievements_panel()
+	_refresh_achievements_panel()
 	ctrl.call_deferred("_nudge_achievements")
 
 
 
-static func _nudge_achievements(ctrl) -> void:
+func _nudge_achievements() -> void:
 	if ctrl._achievements_panel == null:
 		return
 	ctrl._achievements_panel.size = Vector2(360, 440)
@@ -519,7 +523,7 @@ static func _nudge_achievements(ctrl) -> void:
 
 
 
-static func _toggle_achievements_panel(ctrl, force_open: bool = false) -> void:
+func _toggle_achievements_panel(force_open: bool = false) -> void:
 	if ctrl._achievements_panel == null:
 		return
 	if force_open:
@@ -529,14 +533,14 @@ static func _toggle_achievements_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._achievements_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_achievements"):
-			ctrl.apply_achievement_update({"type": "achievement_update", "achievements": srv.snapshot_achievements()})
-		ctrl._refresh_achievements_panel()
+			apply_achievement_update({"type": "achievement_update", "achievements": srv.snapshot_achievements()})
+		_refresh_achievements_panel()
 		ctrl._achievements_panel.move_to_front()
 		ctrl.call_deferred("_nudge_achievements")
 
 
 
-static func apply_achievement_update(ctrl, action: Dictionary) -> void:
+func apply_achievement_update(action: Dictionary) -> void:
 	var av: Variant = action.get("achievements", action)
 	if typeof(av) != TYPE_DICTIONARY:
 		return
@@ -551,11 +555,11 @@ static func apply_achievement_update(ctrl, action: Dictionary) -> void:
 		"party": int(d.get("party", 0)),
 	}
 	if ctrl._achievements_panel != null and ctrl._achievements_panel.visible:
-		ctrl._refresh_achievements_panel()
+		_refresh_achievements_panel()
 
 
 
-static func _achievement_unlock_hint(ctrl, row: Dictionary) -> String:
+func _achievement_unlock_hint(row: Dictionary) -> String:
 	var desc = str(row.get("desc", "")).strip_edges()
 	if not desc.is_empty():
 		return desc
@@ -575,7 +579,7 @@ static func _achievement_unlock_hint(ctrl, row: Dictionary) -> String:
 
 
 
-static func _refresh_achievements_panel(ctrl) -> void:
+func _refresh_achievements_panel() -> void:
 	if ctrl._achievements_body == null:
 		return
 	for c in ctrl._achievements_body.get_children():
@@ -636,7 +640,7 @@ static func _refresh_achievements_panel(ctrl) -> void:
 						bits.append("经验 %d" % re)
 					ctrl._add_label(box, "奖励：" + " · ".join(bits), 11, L2Style.COL_MUTED)
 		else:
-			var hint = ctrl._achievement_unlock_hint(row)
+			var hint = _achievement_unlock_hint(row)
 			if not hint.is_empty():
 				ctrl._add_label(box, hint, 11, L2Style.COL_MUTED)
 

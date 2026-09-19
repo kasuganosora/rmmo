@@ -1,6 +1,10 @@
 extends RefCounted
 ## UI panel: minimap, radar blips, pins, zoom.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const RadarView = preload("res://scripts/ui/radar_view.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
@@ -8,12 +12,12 @@ const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const RADAR_BLIPS_INTERVAL_MS: int = 100
 const RADAR_ENABLED := true
 
-static func set_minimap_hint(ctrl, text: String) -> void:
+func set_minimap_hint(text: String) -> void:
 	ctrl.minimap_label.text = text
 
 
 
-static func _sync_radar(ctrl, force_hint: bool = false) -> void:
+func _sync_radar(force_hint: bool = false) -> void:
 	if not RADAR_ENABLED:
 		return
 	if ctrl._radar == null or ctrl._radar_player == null:
@@ -34,7 +38,7 @@ static func _sync_radar(ctrl, force_hint: bool = false) -> void:
 	var now_ms: int = Time.get_ticks_msec()
 	if force_hint or now_ms - ctrl._radar_blips_msec >= RADAR_BLIPS_INTERVAL_MS:
 		ctrl._radar_blips_msec = now_ms
-		ctrl._sync_radar_blips()
+		_sync_radar_blips()
 	if force_hint or cell != ctrl._radar_hint_cell:
 		ctrl._radar_hint_cell = cell
 		if ctrl.minimap_label != null and ctrl._radar.has_method("hint_text"):
@@ -43,7 +47,7 @@ static func _sync_radar(ctrl, force_hint: bool = false) -> void:
 
 
 
-static func _sync_radar_blips(ctrl) -> void:
+func _sync_radar_blips() -> void:
 	if ctrl._radar == null or not ctrl._radar.has_method("set_entity_blips"):
 		return
 	var blips: Array = []
@@ -61,7 +65,7 @@ static func _sync_radar_blips(ctrl) -> void:
 
 
 
-static func _setup_radar(ctrl) -> void:
+func _setup_radar() -> void:
 	if not RADAR_ENABLED:
 		var panel = ctrl.get_node_or_null("MinimapPanel")
 		if panel:
@@ -78,23 +82,23 @@ static func _setup_radar(ctrl) -> void:
 	ctrl._radar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ctrl._radar.mouse_filter = Control.MOUSE_FILTER_STOP
 	ctrl.minimap_view_host.add_child(ctrl._radar)
-	ctrl._setup_radar_zoom_buttons()
-	ctrl._apply_radar_view_radius_from_settings()
-	ctrl._connect_radar_nav()
+	_setup_radar_zoom_buttons()
+	_apply_radar_view_radius_from_settings()
+	_connect_radar_nav()
 
 
 
-static func _connect_radar_nav(ctrl) -> void:
+func _connect_radar_nav() -> void:
 	if ctrl._radar == null or not is_instance_valid(ctrl._radar):
 		return
 	if ctrl._radar.has_signal("cell_clicked") and not ctrl._radar.cell_clicked.is_connected(ctrl._on_map_nav_cell):
 		ctrl._radar.cell_clicked.connect(ctrl._on_map_nav_cell)
-	if ctrl._radar.has_signal("cell_pinned") and not ctrl._radar.cell_pinned.is_connected(ctrl._on_map_pin_cell):
-		ctrl._radar.cell_pinned.connect(ctrl._on_map_pin_cell)
+	if ctrl._radar.has_signal("cell_pinned") and not ctrl._radar.cell_pinned.is_connected(_on_map_pin_cell):
+		ctrl._radar.cell_pinned.connect(_on_map_pin_cell)
 
 
 
-static func _setup_radar_zoom_buttons(ctrl) -> void:
+func _setup_radar_zoom_buttons() -> void:
 	if ctrl.minimap_view_host == null:
 		return
 	var row = HBoxContainer.new()
@@ -128,7 +132,7 @@ static func _setup_radar_zoom_buttons(ctrl) -> void:
 
 
 
-static func _apply_radar_view_radius_from_settings(ctrl) -> void:
+func _apply_radar_view_radius_from_settings() -> void:
 	if ctrl._radar == null or not is_instance_valid(ctrl._radar):
 		return
 	var gs = GameSettingsScript.get_i()
@@ -144,7 +148,7 @@ static func _apply_radar_view_radius_from_settings(ctrl) -> void:
 
 
 
-static func set_map_pin(ctrl, cell: Vector2i) -> void:
+func set_map_pin(cell: Vector2i) -> void:
 	ctrl._map_pin_cell = cell
 	if ctrl._radar != null and is_instance_valid(ctrl._radar) and ctrl._radar.has_method("set_pin_cell"):
 		ctrl._radar.set_pin_cell(cell)
@@ -153,7 +157,7 @@ static func set_map_pin(ctrl, cell: Vector2i) -> void:
 
 
 
-static func apply_map_pins_update(ctrl, action: Dictionary) -> void:
+func apply_map_pins_update(action: Dictionary) -> void:
 	var snap_v: Variant = action.get("map_pins", action)
 	var pins: Array = []
 	if typeof(snap_v) == TYPE_DICTIONARY:
@@ -165,33 +169,33 @@ static func apply_map_pins_update(ctrl, action: Dictionary) -> void:
 	ctrl._map_pins = pins.duplicate(true)
 	# Personal pins render via RadarPoi kind=pin; keep legacy cyan overlay off.
 	ctrl._map_pin_cell = Vector2i(-9999, -9999)
-	ctrl.set_map_pin(ctrl._map_pin_cell)
+	set_map_pin(ctrl._map_pin_cell)
 	ctrl._sync_map_poi_markers()
 
 
 
-static func _on_map_pin_cell(ctrl, cell: Vector2i) -> void:
+func _on_map_pin_cell(cell: Vector2i) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("toggle_map_pin"):
 		ctrl._world_combat.toggle_map_pin(cell)
 	else:
 		if ctrl._map_pin_cell == cell:
-			ctrl.set_map_pin(Vector2i(-9999, -9999))
+			set_map_pin(Vector2i(-9999, -9999))
 		else:
-			ctrl.set_map_pin(cell)
+			set_map_pin(cell)
 
 
 
-static func _on_clear_map_pins(ctrl) -> void:
+func _on_clear_map_pins() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("clear_map_pins"):
 		ctrl._world_combat.clear_map_pins()
 	else:
 		ctrl._map_pins.clear()
-		ctrl.set_map_pin(Vector2i(-9999, -9999))
+		set_map_pin(Vector2i(-9999, -9999))
 		ctrl.append_system("已清除全部标记")
 
 
 
-static func _sync_map_overview_layout(ctrl, panel: PanelContainer, mount: Control, host: Control) -> void:
+func _sync_map_overview_layout(panel: PanelContainer, mount: Control, host: Control) -> void:
 	if panel == null or mount == null or host == null:
 		return
 	if not is_instance_valid(panel) or not is_instance_valid(mount) or not is_instance_valid(host):
@@ -214,7 +218,7 @@ static func _sync_map_overview_layout(ctrl, panel: PanelContainer, mount: Contro
 
 
 
-static func _make_radar_zoom_option(ctrl, gs: Node) -> OptionButton:
+func _make_radar_zoom_option(gs: Node) -> OptionButton:
 	var opt = OptionButton.new()
 	L2Style.style_option(opt)
 	var radii: Array = GameSettingsScript.RADAR_VIEW_RADII

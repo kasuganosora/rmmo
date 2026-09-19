@@ -1,6 +1,10 @@
 extends RefCounted
 ## UI panel: inventory bag, gold bar, search filter, split/drop.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const InvSlot = preload("res://scripts/ui/inv_slot.gd")
@@ -11,7 +15,7 @@ const GOLD_FLOAT_DURATION := 1.2
 const GRID_SEP := 4
 const INV_ROWS := 10
 
-static func _inventory_qty(ctrl, item_id: String) -> int:
+func _inventory_qty(item_id: String) -> int:
 	item_id = item_id.strip_edges()
 	for it in ctrl._server_inventory:
 		if typeof(it) != TYPE_DICTIONARY:
@@ -20,7 +24,9 @@ static func _inventory_qty(ctrl, item_id: String) -> int:
 			return int(it.get("qty", 0))
 	return 0
 
-static func _apply_inv_slot_compare_tip(ctrl, cell: PanelContainer, item_id: String, locked: bool, bound: bool = false, enhance: int = 0, durability: int = -1, durability_max: int = 0) -> void:
+
+
+func _apply_inv_slot_compare_tip(cell: PanelContainer, item_id: String, locked: bool, bound: bool = false, enhance: int = 0, durability: int = -1, durability_max: int = 0) -> void:
 	item_id = item_id.strip_edges()
 	if item_id.is_empty() or cell == null:
 		return
@@ -49,8 +55,11 @@ static func _apply_inv_slot_compare_tip(ctrl, cell: PanelContainer, item_id: Str
 			base += "\n装备后绑定"
 	cell.tooltip_text = ctrl._equip_compare_tip(item_id, base, enhance)
 
-static func apply_inventory_snapshot(ctrl, items: Array, gold: int = -1) -> void:
-	var prev_qty: Dictionary = ctrl._inv_qty_map(ctrl._server_inventory)
+
+
+
+func apply_inventory_snapshot(items: Array, gold: int = -1) -> void:
+	var prev_qty: Dictionary = _inv_qty_map(ctrl._server_inventory)
 	var had_inv: bool = ctrl._inv_qty_known
 	ctrl._server_inventory = items.duplicate(true)
 	ctrl._inv_qty_known = true
@@ -70,8 +79,8 @@ static func apply_inventory_snapshot(ctrl, items: Array, gold: int = -1) -> void
 		ctrl.show_gold_gain_float(ctrl._server_gold - prev_gold)
 	# Item-gain floats: positive qty deltas only; ignore seed + removals.
 	if had_inv:
-		ctrl._emit_item_gain_floats_from_delta(prev_qty, ctrl._inv_qty_map(ctrl._server_inventory))
-	ctrl._refresh_inventory_gold_label()
+		ctrl._emit_item_gain_floats_from_delta(prev_qty, _inv_qty_map(ctrl._server_inventory))
+	_refresh_inventory_gold_label()
 	# Refresh open inventory window if present.
 	if ctrl._windows.has("inventory") and ctrl._windows["inventory"].visible:
 		ctrl._refresh_window_contents()
@@ -84,7 +93,9 @@ static func apply_inventory_snapshot(ctrl, items: Array, gold: int = -1) -> void
 	if ctrl._craft_panel != null and ctrl._craft_panel.visible:
 		ctrl._refresh_craft_panel()
 
-static func _lock_inventory_window(ctrl, panel: PanelContainer) -> void:
+
+
+func _lock_inventory_window(panel: PanelContainer) -> void:
 	## Fixed-size bag: no HudDrag edge resize; size locked to base.
 	## Gold footer sits below Scroll (outside scroll body).
 	if panel == null:
@@ -97,14 +108,16 @@ static func _lock_inventory_window(ctrl, panel: PanelContainer) -> void:
 	panel.size = base
 	panel.set_meta("fixed_size", true)
 	ctrl._apply_l2_chrome(panel)
-	ctrl._ensure_inventory_gold_bar(panel)
+	_ensure_inventory_gold_bar(panel)
 
-static func _ensure_inventory_gold_bar(ctrl, panel: PanelContainer) -> void:
+
+
+func _ensure_inventory_gold_bar(panel: PanelContainer) -> void:
 	if panel == null:
 		return
 	var existing: Label = panel.get_meta("gold_label", null) if panel.has_meta("gold_label") else null
 	if existing != null and is_instance_valid(existing):
-		ctrl._refresh_inventory_gold_label(panel)
+		_refresh_inventory_gold_label(panel)
 		return
 	var scroll = panel.find_child("Scroll", true, false) as ScrollContainer
 	if scroll == null:
@@ -142,9 +155,11 @@ static func _ensure_inventory_gold_bar(ctrl, panel: PanelContainer) -> void:
 	row.add_child(pad_r)
 	vbox.add_child(row)
 	panel.set_meta("gold_label", amt)
-	ctrl._refresh_inventory_gold_label(panel)
+	_refresh_inventory_gold_label(panel)
 
-static func _refresh_inventory_gold_label(ctrl, panel: PanelContainer = null) -> void:
+
+
+func _refresh_inventory_gold_label(panel: PanelContainer = null) -> void:
 	if panel == null:
 		panel = ctrl._windows.get("inventory") as PanelContainer
 	if panel == null:
@@ -154,7 +169,9 @@ static func _refresh_inventory_gold_label(ctrl, panel: PanelContainer = null) ->
 		return
 	lbl.text = str(maxi(ctrl._server_gold, 0))
 
-static func _fill_inventory(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
+
+
+func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	ctrl._sync_equipment_cache()
 	## ScrollContainer fills window body; grid alone (no chrome labels). Rows > viewport → scrollbar.
 	var panel: PanelContainer = ctrl._windows.get("inventory") as PanelContainer
@@ -213,7 +230,7 @@ static func _fill_inventory(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search.custom_minimum_size = Vector2(0, 28)
 	search.focus_mode = Control.FOCUS_CLICK
-	search.text_changed.connect(ctrl._on_inv_search_text_changed)
+	search.text_changed.connect(_on_inv_search_text_changed)
 	body.add_child(search)
 	var grid = GridContainer.new()
 	grid.name = "InvGrid"
@@ -232,7 +249,7 @@ static func _fill_inventory(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 		var q: int = int(it.get("qty", 0))
 		if q <= 0:
 			continue
-		if not ctrl._inv_row_matches_filter(it):
+		if not _inv_row_matches_filter(it):
 			continue
 		packed.append(it)
 	for i in range(ui_slots):
@@ -260,30 +277,32 @@ static func _fill_inventory(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 			if dur_max_flag > 0:
 				cell.set_meta("durability", dur_flag)
 				cell.set_meta("durability_max", dur_max_flag)
-			ctrl._apply_inv_slot_compare_tip(cell, iid, locked_flag, bound_flag, enhance_flag, dur_flag, dur_max_flag)
-			if not cell.activated.is_connected(ctrl._on_inventory_item_pressed):
-				cell.activated.connect(ctrl._on_inventory_item_pressed)
-			if cell.has_signal("split_requested") and not cell.split_requested.is_connected(ctrl._on_inventory_split):
-				cell.split_requested.connect(ctrl._on_inventory_split)
-			if cell.has_signal("lock_toggled") and not cell.lock_toggled.is_connected(ctrl._on_inventory_lock):
-				cell.lock_toggled.connect(ctrl._on_inventory_lock)
+			_apply_inv_slot_compare_tip(cell, iid, locked_flag, bound_flag, enhance_flag, dur_flag, dur_max_flag)
+			if not cell.activated.is_connected(_on_inventory_item_pressed):
+				cell.activated.connect(_on_inventory_item_pressed)
+			if cell.has_signal("split_requested") and not cell.split_requested.is_connected(_on_inventory_split):
+				cell.split_requested.connect(_on_inventory_split)
+			if cell.has_signal("lock_toggled") and not cell.lock_toggled.is_connected(_on_inventory_lock):
+				cell.lock_toggled.connect(_on_inventory_lock)
 		else:
 			cell.set_disabled(false)
 			cell.clear_slot()
 		cell.custom_minimum_size = cell_sz
 		# Force STOP so HudDraggable pass-through never swallows InvSlot clicks.
 		cell.mouse_filter = Control.MOUSE_FILTER_STOP
-	ctrl._apply_inv_search_visibility(grid)
+	_apply_inv_search_visibility(grid)
 	# Keep fixed window size even after content rebuild.
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		ctrl.call_deferred("_lock_window_size", panel)
 	# Sync wallet from MockServer when opening bag (authoritative).
 	if srv != null and srv.get("inventory") != null and srv.inventory.has_method("get_gold"):
 		ctrl._server_gold = int(srv.inventory.get_gold())
-	ctrl._ensure_inventory_gold_bar(panel)
-	ctrl._refresh_inventory_gold_label(panel)
+	_ensure_inventory_gold_bar(panel)
+	_refresh_inventory_gold_label(panel)
 
-static func _inv_row_matches_filter(ctrl, it: Dictionary) -> bool:
+
+
+func _inv_row_matches_filter(it: Dictionary) -> bool:
 	if ctrl._inv_filter == "all" or ctrl._inv_filter.strip_edges() == "":
 		return true
 	var t = str(it.get("type", "")).strip_edges().to_lower()
@@ -303,16 +322,20 @@ static func _inv_row_matches_filter(ctrl, it: Dictionary) -> bool:
 		_:
 			return true
 
-static func _on_inv_search_text_changed(ctrl, new_text: String) -> void:
+
+
+func _on_inv_search_text_changed(new_text: String) -> void:
 	ctrl._inv_search_query = str(new_text)
 	var panel: PanelContainer = ctrl._windows.get("inventory") as PanelContainer
 	if panel == null:
 		return
 	var grid = panel.find_child("InvGrid", true, false) as GridContainer
 	if grid != null:
-		ctrl._apply_inv_search_visibility(grid)
+		_apply_inv_search_visibility(grid)
 
-static func _apply_inv_search_visibility(ctrl, grid: GridContainer) -> void:
+
+
+func _apply_inv_search_visibility(grid: GridContainer) -> void:
 	## Client-only: hide non-matching filled slots; hide empty/locked while query active.
 	if grid == null:
 		return
@@ -336,7 +359,9 @@ static func _apply_inv_search_visibility(ctrl, grid: GridContainer) -> void:
 			continue
 		cell.visible = InvSearchUtil.matches(q, iid, dname)
 
-static func _on_inventory_split(ctrl, item_id: String, qty: int) -> void:
+
+
+func _on_inventory_split(item_id: String, qty: int) -> void:
 	item_id = item_id.strip_edges()
 	if item_id.is_empty() or qty <= 1:
 		return
@@ -345,7 +370,9 @@ static func _on_inventory_split(ctrl, item_id: String, qty: int) -> void:
 	if ctrl._drop_qty_label != null:
 		ctrl._drop_qty_label.text = "拆分：%s（最多 %d）" % [ctrl._item_label(item_id), qty - 1]
 
-static func _on_inventory_lock(ctrl, item_id: String) -> void:
+
+
+func _on_inventory_lock(item_id: String) -> void:
 	item_id = item_id.strip_edges()
 	if item_id.is_empty():
 		return
@@ -361,12 +388,14 @@ static func _on_inventory_lock(ctrl, item_id: String) -> void:
 		if srv != null and srv.has_method("try_inventory_lock"):
 			ctrl._apply_equip_result_locally(srv.try_inventory_lock(item_id, on))
 
-static func _on_inventory_item_drop(ctrl, item_id: String) -> void:
+
+
+func _on_inventory_item_drop(item_id: String) -> void:
 	## Drag bag item onto world → if stack>1 ask qty (default 1), else drop 1.
 	item_id = item_id.strip_edges()
 	if item_id.is_empty():
 		return
-	var have: int = ctrl._inventory_qty(item_id)
+	var have: int = _inventory_qty(item_id)
 	if have <= 0:
 		# Snapshot may lag; still attempt drop 1.
 		have = 1
@@ -376,7 +405,9 @@ static func _on_inventory_item_drop(ctrl, item_id: String) -> void:
 		return
 	ctrl._commit_drop_item(item_id, 1)
 
-static func _on_inventory_item_pressed(ctrl, item_id: String) -> void:
+
+
+func _on_inventory_item_pressed(item_id: String) -> void:
 	## Double-click from InvSlot: equipment toggles via MockServer.try_use_item → try_toggle_equip;
 	## consumables use as before.
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_use_item"):
@@ -384,7 +415,9 @@ static func _on_inventory_item_pressed(ctrl, item_id: String) -> void:
 	else:
 		ctrl.append_system("无法使用：%s" % item_id)
 
-static func _build_gold_float(ctrl) -> void:
+
+
+func _build_gold_float() -> void:
 	if ctrl._gold_float != null and is_instance_valid(ctrl._gold_float):
 		return
 	ctrl._gold_float = Label.new()
@@ -402,7 +435,9 @@ static func _build_gold_float(ctrl) -> void:
 	ctrl._gold_float.text = "金币 +0"
 	ctrl.add_child(ctrl._gold_float)
 
-static func _layout_gold_float(ctrl) -> void:
+
+
+func _layout_gold_float() -> void:
 	if ctrl._gold_float == null:
 		return
 	ctrl._gold_float.reset_size()
@@ -414,7 +449,9 @@ static func _layout_gold_float(ctrl) -> void:
 		pos = Vector2(pr.position.x + 8.0, pr.position.y + pr.size.y + 22.0) - ctrl.global_position
 	ctrl._gold_float.position = pos
 
-static func _tick_gold_float(ctrl, delta: float) -> void:
+
+
+func _tick_gold_float(delta: float) -> void:
 	if ctrl._gold_float_ttl <= 0.0:
 		return
 	ctrl._gold_float_ttl -= delta
@@ -424,12 +461,14 @@ static func _tick_gold_float(ctrl, delta: float) -> void:
 			a = clampf(ctrl._gold_float_ttl / 0.4, 0.0, 1.0)
 		ctrl._gold_float.modulate = Color(1, 1, 1, a)
 		var rise: float = (GOLD_FLOAT_DURATION - maxf(ctrl._gold_float_ttl, 0.0)) * 10.0
-		ctrl._layout_gold_float()
+		_layout_gold_float()
 		ctrl._gold_float.position.y -= rise
 	if ctrl._gold_float_ttl <= 0.0:
 		ctrl.hide_gold_gain_float()
 
-static func _inv_qty_map(ctrl, items: Array) -> Dictionary:
+
+
+func _inv_qty_map(items: Array) -> Dictionary:
 	var m: Dictionary = {}
 	for it in items:
 		if typeof(it) != TYPE_DICTIONARY:
@@ -440,7 +479,9 @@ static func _inv_qty_map(ctrl, items: Array) -> Dictionary:
 		m[iid] = int(m.get(iid, 0)) + maxi(int(it.get("qty", 0)), 0)
 	return m
 
-static func _inv_qty(ctrl, item_id: String) -> int:
+
+
+func _inv_qty(item_id: String) -> int:
 	item_id = item_id.strip_edges()
 	var n = 0
 	for it in ctrl._server_inventory:
@@ -449,4 +490,5 @@ static func _inv_qty(ctrl, item_id: String) -> int:
 		if str(it.get("id", "")) == item_id:
 			n += int(it.get("qty", 0))
 	return n
+
 

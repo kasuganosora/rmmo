@@ -1,6 +1,10 @@
 extends RefCounted
 ## UI panel: equipment / paperdoll with compare tips.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const EquipCompare = preload("res://scripts/ui/equip_compare.gd")
 const EquipSlot = preload("res://scripts/ui/equip_slot.gd")
@@ -8,7 +12,7 @@ const Equipment = preload("res://scripts/net/combat/equipment.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const PaperdollLook = preload("res://scripts/char/paperdoll_look.gd")
 
-static func _is_item_equipped(ctrl, item_id: String) -> bool:
+func _is_item_equipped(item_id: String) -> bool:
 	item_id = item_id.strip_edges()
 	if item_id.is_empty():
 		return false
@@ -19,7 +23,9 @@ static func _is_item_equipped(ctrl, item_id: String) -> bool:
 			return true
 	return false
 
-static func _equipped_def_for_compare(ctrl, item_id: String) -> Dictionary:
+
+
+func _equipped_def_for_compare(item_id: String) -> Dictionary:
 	var def = ctrl._item_def(item_id)
 	var slot_key = EquipCompare.equip_slot_for_item(def)
 	if slot_key.is_empty():
@@ -29,7 +35,9 @@ static func _equipped_def_for_compare(ctrl, item_id: String) -> Dictionary:
 		return {}
 	return ctrl._item_def(eq_id)
 
-static func _equipped_enhance_for_compare(ctrl, item_id: String) -> int:
+
+
+func _equipped_enhance_for_compare(item_id: String) -> int:
 	var def = ctrl._item_def(item_id)
 	var slot_key = EquipCompare.equip_slot_for_item(def)
 	if slot_key.is_empty():
@@ -37,19 +45,23 @@ static func _equipped_enhance_for_compare(ctrl, item_id: String) -> int:
 	var entry = EquipCompare.find_equipped_entry(slot_key, ctrl._server_equipment)
 	return clampi(int(entry.get("enhance", 0)), 0, 5)
 
-static func _equip_compare_tip(ctrl, item_id: String, base_lines: String, item_enhance: int = 0) -> String:
+
+
+func _equip_compare_tip(item_id: String, base_lines: String, item_enhance: int = 0) -> String:
 	var def = ctrl._item_def(item_id)
 	if not EquipCompare.is_equipment(def):
 		return base_lines
 	return EquipCompare.format_compare_tip(
 		def,
-		ctrl._equipped_def_for_compare(item_id),
+		_equipped_def_for_compare(item_id),
 		base_lines,
 		item_enhance,
-		ctrl._equipped_enhance_for_compare(item_id)
+		_equipped_enhance_for_compare(item_id)
 	)
 
-static func apply_equipment_snapshot(ctrl, slots: Array, bonuses: Dictionary = {}) -> void:
+
+
+func apply_equipment_snapshot(slots: Array, bonuses: Dictionary = {}) -> void:
 	ctrl._server_equipment = slots.duplicate(true)
 	ctrl._server_equip_bonuses = bonuses.duplicate(true)
 	if ctrl._windows.has("character") and ctrl._windows["character"].visible:
@@ -57,7 +69,9 @@ static func apply_equipment_snapshot(ctrl, slots: Array, bonuses: Dictionary = {
 	# Equipped gear may leave bag qty 0 — still show hotbar letter.
 	ctrl._refresh_hotbar_slot_visuals()
 
-static func _sync_equipment_cache(ctrl) -> void:
+
+
+func _sync_equipment_cache() -> void:
 	## Refresh from MockServer when opening / rebuilding character window.
 	var srv = Net.server()
 	if srv != null and srv.get("equipment") != null and srv.equipment.has_method("snapshot"):
@@ -65,7 +79,9 @@ static func _sync_equipment_cache(ctrl) -> void:
 		if srv.equipment.has_method("total_bonuses"):
 			ctrl._server_equip_bonuses = srv.equipment.total_bonuses()
 
-static func _equipment_map(ctrl) -> Dictionary:
+
+
+func _equipment_map() -> Dictionary:
 	## slot_id -> {item_id, name, durability, durability_max, icon_index?, icon_ref?}
 	var m: Dictionary = {}
 	for it in ctrl._server_equipment:
@@ -85,7 +101,9 @@ static func _equipment_map(ctrl) -> Dictionary:
 		}
 	return m
 
-static func _build_paperdoll(ctrl, host: Control, ch: Dictionary) -> void:
+
+
+func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 	## Slots around the live character (gender + equipped MV layers).
 	const CELL := 38
 	const CANVAS := Vector2(224, 300)
@@ -97,7 +115,7 @@ static func _build_paperdoll(ctrl, host: Control, ch: Dictionary) -> void:
 	host.add_child(canvas)
 	var sil = TextureRect.new()
 	sil.name = "Silhouette"
-	sil.texture = ctrl._paperdoll_texture(ch)
+	sil.texture = _paperdoll_texture(ch)
 	sil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sil.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	sil.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -123,7 +141,7 @@ static func _build_paperdoll(ctrl, host: Control, ch: Dictionary) -> void:
 		"ring_l": Vector2(182, 200),
 		"feet": Vector2(93, 256),
 	}
-	var eq_map = ctrl._equipment_map()
+	var eq_map = _equipment_map()
 	for sid in positions.keys():
 		var cell = PanelContainer.new()
 		cell.set_script(EquipSlot)
@@ -170,12 +188,14 @@ static func _build_paperdoll(ctrl, host: Control, ch: Dictionary) -> void:
 				cell.tooltip_text = str(cell.tooltip_text) + "\n" + "\n".join(bonus_lines)
 			if bool(entry.get("bound", false)):
 				cell.tooltip_text = str(cell.tooltip_text) + "\n已绑定"
-		cell.equip_requested.connect(ctrl._on_equip_slot_equip)
-		cell.unequip_requested.connect(ctrl._on_equip_slot_unequip)
+		cell.equip_requested.connect(_on_equip_slot_equip)
+		cell.unequip_requested.connect(_on_equip_slot_unequip)
 		canvas.add_child(cell)
 		cell.mouse_filter = Control.MOUSE_FILTER_STOP
 
-static func _paperdoll_texture(ctrl, ch: Dictionary) -> Texture2D:
+
+
+func _paperdoll_texture(ch: Dictionary) -> Texture2D:
 	var catalog = null
 	var srv = Net.server()
 	if srv != null:
@@ -185,29 +205,35 @@ static func _paperdoll_texture(ctrl, ch: Dictionary) -> Texture2D:
 		return tex
 	return L2Style.tex("paperdoll.png")
 
-static func _on_equip_slot_equip(ctrl, item_id: String, slot_id: String) -> void:
+
+
+func _on_equip_slot_equip(item_id: String, slot_id: String) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_equip_item"):
 		ctrl._world_combat.request_equip_item(item_id, slot_id)
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_equip_item"):
 			var result: Dictionary = srv.try_equip_item(item_id, slot_id)
-			ctrl._apply_equip_result_locally(result)
+			_apply_equip_result_locally(result)
 		else:
 			ctrl.append_system("无法装备：%s" % item_id)
 
-static func _on_equip_slot_unequip(ctrl, slot_id: String) -> void:
+
+
+func _on_equip_slot_unequip(slot_id: String) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_unequip_item"):
 		ctrl._world_combat.request_unequip_item(slot_id)
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_unequip_item"):
 			var result: Dictionary = srv.try_unequip_item(slot_id)
-			ctrl._apply_equip_result_locally(result)
+			_apply_equip_result_locally(result)
 		else:
 			ctrl.append_system("无法卸下：%s" % slot_id)
 
-static func _on_equip_slot_drop(ctrl, slot_id: String) -> void:
+
+
+func _on_equip_slot_drop(slot_id: String) -> void:
 	## Drag equipped item onto world GroundDropZone.
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_drop_equipped"):
 		ctrl._world_combat.request_drop_equipped(slot_id)
@@ -215,11 +241,13 @@ static func _on_equip_slot_drop(ctrl, slot_id: String) -> void:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_drop_equipped"):
 			var result: Dictionary = srv.try_drop_equipped(slot_id)
-			ctrl._apply_equip_result_locally(result)
+			_apply_equip_result_locally(result)
 		else:
 			ctrl.append_system("无法丢弃装备：%s" % slot_id)
 
-static func _apply_equip_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_equip_result_locally(result: Dictionary) -> void:
 	## Fallback when world bridge missing: apply action opcodes from try_* result.
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
@@ -238,16 +266,19 @@ static func _apply_equip_result_locally(ctrl, result: Dictionary) -> void:
 				var eq: Array = eq_v if typeof(eq_v) == TYPE_ARRAY else []
 				var bon_v: Variant = action.get("bonuses", {})
 				var bons: Dictionary = bon_v if typeof(bon_v) == TYPE_DICTIONARY else {}
-				ctrl.apply_equipment_snapshot(eq, bons)
+				apply_equipment_snapshot(eq, bons)
 			"system_message":
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
 
-static func _on_title_equip(ctrl, title_id: String) -> void:
+
+
+func _on_title_equip(title_id: String) -> void:
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_title_equip"):
 		ctrl._apply_title_result_locally(srv.try_title_equip(title_id))
 	else:
 		ctrl.append_system("无法装备称号。")
+
 

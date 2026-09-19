@@ -1,6 +1,10 @@
 extends RefCounted
 ## UI panel: skills, hotbar, cooldowns, learn/respec.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HotbarSlot = preload("res://scripts/ui/hotbar_slot.gd")
 const SkillSlot = preload("res://scripts/ui/skill_slot.gd")
@@ -18,7 +22,7 @@ const HOTBAR_PAGES := [
 	["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "+"],
 ]
 
-static func _session_hotbar_store(ctrl) -> Node:
+func _session_hotbar_store() -> Node:
 	var net = ctrl.get_node_or_null("/root/Net")
 	if net != null and net.has_method("session"):
 		return net.session()
@@ -26,8 +30,8 @@ static func _session_hotbar_store(ctrl) -> Node:
 
 
 
-static func _restore_hotbar_from_session(ctrl) -> void:
-	var sess = ctrl._session_hotbar_store()
+func _restore_hotbar_from_session() -> void:
+	var sess = _session_hotbar_store()
 	if sess == null:
 		return
 	ctrl._hotbar_page = clampi(int(sess.hotbar_page), 0, HOTBAR_PAGES.size() - 1)
@@ -50,8 +54,8 @@ static func _restore_hotbar_from_session(ctrl) -> void:
 
 
 
-static func _persist_hotbar_to_session(ctrl) -> void:
-	var sess = ctrl._session_hotbar_store()
+func _persist_hotbar_to_session() -> void:
+	var sess = _session_hotbar_store()
 	if sess == null:
 		return
 	sess.hotbar_page = ctrl._hotbar_page
@@ -59,7 +63,7 @@ static func _persist_hotbar_to_session(ctrl) -> void:
 
 
 
-static func _get_hotbar_binding(ctrl, page: int, slot: int) -> Dictionary:
+func _get_hotbar_binding(page: int, slot: int) -> Dictionary:
 	var k = ctrl._hotbar_bind_key(page, slot)
 	if ctrl._hotbar_bindings.has(k):
 		var v: Variant = ctrl._hotbar_bindings[k]
@@ -69,7 +73,7 @@ static func _get_hotbar_binding(ctrl, page: int, slot: int) -> Dictionary:
 
 
 
-static func _set_hotbar_binding(ctrl, page: int, slot: int, kind: String, id: String) -> void:
+func _set_hotbar_binding(page: int, slot: int, kind: String, id: String) -> void:
 	kind = kind.strip_edges()
 	id = id.strip_edges()
 	var k = ctrl._hotbar_bind_key(page, slot)
@@ -77,20 +81,20 @@ static func _set_hotbar_binding(ctrl, page: int, slot: int, kind: String, id: St
 		ctrl._hotbar_bindings.erase(k)
 	else:
 		ctrl._hotbar_bindings[k] = {"kind": kind, "id": id}
-	ctrl._persist_hotbar_to_session()
-	ctrl._refresh_hotbar_slot_visuals()
+	_persist_hotbar_to_session()
+	_refresh_hotbar_slot_visuals()
 
 
 
-static func _clear_hotbar_binding(ctrl, page: int, slot: int) -> void:
+func _clear_hotbar_binding(page: int, slot: int) -> void:
 	ctrl._hotbar_bindings.erase(ctrl._hotbar_bind_key(page, slot))
-	ctrl._persist_hotbar_to_session()
-	ctrl._refresh_hotbar_slot_visuals()
+	_persist_hotbar_to_session()
+	_refresh_hotbar_slot_visuals()
 	ctrl.append_system("已清除快捷栏 %d 槽位 %d" % [page + 1, slot])
 
 
 
-static func _layout_hotbar_side_nav(ctrl, prev: Node, next: Node) -> void:
+func _layout_hotbar_side_nav(prev: Node, next: Node) -> void:
 	## Put < > on the sides of the slot row; hide page label / top nav row.
 	if ctrl.hotbar == null:
 		return
@@ -132,7 +136,7 @@ static func _layout_hotbar_side_nav(ctrl, prev: Node, next: Node) -> void:
 
 
 
-static func _hotbar_keycode_to_slot(ctrl, keycode: int) -> Vector2i:
+func _hotbar_keycode_to_slot(keycode: int) -> Vector2i:
 	## Returns Vector2i(page, slot_index0) or (-1,-1).
 	match keycode:
 		KEY_F1: return Vector2i(0, 0)
@@ -163,10 +167,10 @@ static func _hotbar_keycode_to_slot(ctrl, keycode: int) -> Vector2i:
 
 
 
-static func _try_hotbar_key(ctrl, keycode: int) -> bool:
+func _try_hotbar_key(keycode: int) -> bool:
 	if ctrl._text_input_focused():
 		return false
-	var map = ctrl._hotbar_keycode_to_slot(keycode)
+	var map = _hotbar_keycode_to_slot(keycode)
 	if map.x < 0:
 		return false
 	var page: int = map.x
@@ -174,12 +178,12 @@ static func _try_hotbar_key(ctrl, keycode: int) -> bool:
 	if page >= HOTBAR_PAGES.size() or idx >= HOTBAR_PAGES[page].size():
 		return false
 	var key = str(HOTBAR_PAGES[page][idx])
-	ctrl._on_hotbar_pressed(page, idx + 1, key)
+	_on_hotbar_pressed(page, idx + 1, key)
 	return true
 
 
 
-static func _build_hotbar(ctrl) -> void:
+func _build_hotbar() -> void:
 	# Immediate free so get_child_count() is accurate this frame.
 	while ctrl.hotbar.get_child_count() > 0:
 		var c: Node = ctrl.hotbar.get_child(0)
@@ -193,20 +197,20 @@ static func _build_hotbar(ctrl) -> void:
 		var slot_n: int = i + 1
 		slot.focus_mode = Control.FOCUS_NONE
 		slot.configure(ctrl._hotbar_page, slot_n)
-		slot.pressed.connect(ctrl._on_hotbar_pressed.bind(ctrl._hotbar_page, slot_n, str(keys[i])))
-		slot.item_dropped.connect(ctrl._on_hotbar_item_dropped)
-		slot.skill_dropped.connect(ctrl._on_hotbar_skill_dropped)
-		slot.binding_cleared.connect(ctrl._on_hotbar_binding_cleared)
+		slot.pressed.connect(_on_hotbar_pressed.bind(ctrl._hotbar_page, slot_n, str(keys[i])))
+		slot.item_dropped.connect(_on_hotbar_item_dropped)
+		slot.skill_dropped.connect(_on_hotbar_skill_dropped)
+		slot.binding_cleared.connect(_on_hotbar_binding_cleared)
 		ctrl.hotbar.add_child(slot)
 		if slot.has_method("set_key_hint"):
 			slot.set_key_hint(str(keys[i]))
 	if ctrl.hotbar_page_label != null:
 		ctrl.hotbar_page_label.visible = false
-	ctrl._refresh_hotbar_slot_visuals()
+	_refresh_hotbar_slot_visuals()
 
 
 
-static func _refresh_hotbar_slot_visuals(ctrl) -> void:
+func _refresh_hotbar_slot_visuals() -> void:
 	ctrl._sync_equipment_cache()
 	if ctrl.hotbar == null:
 		return
@@ -224,7 +228,7 @@ static func _refresh_hotbar_slot_visuals(ctrl) -> void:
 			continue
 		var slot_n: int = i + 1
 		var key_label = str(keys[i]) if i < keys.size() else str(slot_n)
-		var bind = ctrl._get_hotbar_binding(ctrl._hotbar_page, slot_n)
+		var bind = _get_hotbar_binding(ctrl._hotbar_page, slot_n)
 		if btn.has_method("set_binding_visual"):
 			if not bind.is_empty():
 				var kind = str(bind.get("kind", ""))
@@ -247,15 +251,15 @@ static func _refresh_hotbar_slot_visuals(ctrl) -> void:
 						ctrl._item_icon_ref(bid)
 					)
 				elif kind == "skill":
-					var sname = ctrl._skill_display_name(bid)
-					var tip_extra = "（被动）" if ctrl._is_passive_skill(bid) else ""
+					var sname = _skill_display_name(bid)
+					var tip_extra = "（被动）" if _is_passive_skill(bid) else ""
 					btn.set_binding_visual(
 						"skill",
 						ctrl._letter_avatar(sname),
 						0,
 						"技能 %s%s（右键清除）" % [sname, tip_extra],
-						ctrl._skill_icon_index(bid),
-						ctrl._skill_icon_ref(bid)
+						_skill_icon_index(bid),
+						_skill_icon_ref(bid)
 					)
 				else:
 					btn.set_binding_visual("", "", 0, key_label)
@@ -299,29 +303,29 @@ static func _refresh_hotbar_slot_visuals(ctrl) -> void:
 		if btn.has_method("set_bound_id"):
 			btn.set_bound_id(cd_id)
 		ctrl._apply_slot_cooldown_visual(btn, cd_kind, cd_id)
-	ctrl._sync_hotbar_cast_overlays()
+	_sync_hotbar_cast_overlays()
 
 
 
-static func _on_hotbar_item_dropped(ctrl, page: int, slot: int, item_id: String) -> void:
-	ctrl._set_hotbar_binding(page, slot, "item", item_id)
+func _on_hotbar_item_dropped(page: int, slot: int, item_id: String) -> void:
+	_set_hotbar_binding(page, slot, "item", item_id)
 	ctrl.append_system("快捷栏绑定物品：%s → 页%d 槽%d" % [ctrl._item_label(item_id), page + 1, slot])
 
 
 
-static func _on_hotbar_skill_dropped(ctrl, page: int, slot: int, skill_id: String) -> void:
-	ctrl._set_hotbar_binding(page, slot, "skill", skill_id)
-	ctrl.append_system("快捷栏绑定技能：%s → 页%d 槽%d" % [ctrl._skill_display_name(skill_id), page + 1, slot])
+func _on_hotbar_skill_dropped(page: int, slot: int, skill_id: String) -> void:
+	_set_hotbar_binding(page, slot, "skill", skill_id)
+	ctrl.append_system("快捷栏绑定技能：%s → 页%d 槽%d" % [_skill_display_name(skill_id), page + 1, slot])
 
 
 
-static func _on_hotbar_binding_cleared(ctrl, page: int, slot: int) -> void:
-	ctrl._clear_hotbar_binding(page, slot)
+func _on_hotbar_binding_cleared(page: int, slot: int) -> void:
+	_clear_hotbar_binding(page, slot)
 
 
 
-static func _on_hotbar_pressed(ctrl, page: int, slot: int, key: String) -> void:
-	var bind = ctrl._get_hotbar_binding(page, slot)
+func _on_hotbar_pressed(page: int, slot: int, key: String) -> void:
+	var bind = _get_hotbar_binding(page, slot)
 	if not bind.is_empty() and ctrl._world_combat != null:
 		var kind = str(bind.get("kind", ""))
 		var bid = str(bind.get("id", ""))
@@ -329,7 +333,7 @@ static func _on_hotbar_pressed(ctrl, page: int, slot: int, key: String) -> void:
 			ctrl._world_combat.request_use_item(bid)
 			return
 		if kind == "skill":
-			if ctrl._is_passive_skill(bid):
+			if _is_passive_skill(bid):
 				ctrl.append_system("被动，无需施放")
 				return
 			if ctrl._world_combat.has_method("request_use_skill"):
@@ -362,7 +366,7 @@ static func _on_hotbar_pressed(ctrl, page: int, slot: int, key: String) -> void:
 
 
 
-static func apply_skill_catalog(ctrl, skills: Array) -> void:
+func apply_skill_catalog(skills: Array) -> void:
 	ctrl._server_skills = skills.duplicate(true)
 	if ctrl._windows.has("skills") and ctrl._windows["skills"].visible:
 		ctrl._refresh_window_contents()
@@ -370,7 +374,7 @@ static func apply_skill_catalog(ctrl, skills: Array) -> void:
 
 
 
-static func apply_skill_book(ctrl, book: Dictionary) -> void:
+func apply_skill_book(book: Dictionary) -> void:
 	ctrl._skill_respec_armed = false
 	var prev_sp: int = ctrl._skill_points
 	ctrl._known_skills.clear()
@@ -391,7 +395,7 @@ static func apply_skill_book(ctrl, book: Dictionary) -> void:
 
 
 
-static func is_skill_known(ctrl, skill_id: String) -> bool:
+func is_skill_known(skill_id: String) -> bool:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
 		return false
@@ -405,7 +409,7 @@ static func is_skill_known(ctrl, skill_id: String) -> bool:
 
 
 
-static func _iter_skill_cells(ctrl, root: Node) -> Array:
+func _iter_skill_cells(root: Node) -> Array:
 	var out: Array = []
 	if root == null:
 		return out
@@ -418,7 +422,7 @@ static func _iter_skill_cells(ctrl, root: Node) -> Array:
 
 
 
-static func _skill_window_grid(ctrl) -> Node:
+func _skill_window_grid() -> Node:
 	if not ctrl._windows.has("skills"):
 		return null
 	var panel: PanelContainer = ctrl._windows["skills"]
@@ -428,32 +432,32 @@ static func _skill_window_grid(ctrl) -> Node:
 
 
 
-static func _tick_skill_cell_cooldowns(ctrl, host: Node, delta: float) -> void:
-	for cell in ctrl._iter_skill_cells(host):
+func _tick_skill_cell_cooldowns(host: Node, delta: float) -> void:
+	for cell in _iter_skill_cells(host):
 		cell.tick_cooldown(delta)
 
 
 
-static func _tick_skill_window_cooldowns(ctrl, delta: float) -> void:
-	ctrl._tick_skill_cell_cooldowns(ctrl._skill_window_grid(), delta)
+func _tick_skill_window_cooldowns(delta: float) -> void:
+	_tick_skill_cell_cooldowns(_skill_window_grid(), delta)
 
 
 
-static func _apply_cooldown_to_skill_window(ctrl, id: String, remaining: float, total: float) -> void:
-	ctrl._apply_cooldown_to_container(ctrl._skill_window_grid(), id, remaining, total)
+func _apply_cooldown_to_skill_window(id: String, remaining: float, total: float) -> void:
+	ctrl._apply_cooldown_to_container(_skill_window_grid(), id, remaining, total)
 
 
 
-static func _apply_cast_to_skill_window(ctrl, frac: float) -> void:
-	ctrl._apply_cast_to_container(ctrl._skill_window_grid(), frac)
+func _apply_cast_to_skill_window(frac: float) -> void:
+	ctrl._apply_cast_to_container(_skill_window_grid(), frac)
 
 
 
-static func _refresh_skill_window_cooldowns(ctrl) -> void:
-	var grid = ctrl._skill_window_grid()
+func _refresh_skill_window_cooldowns() -> void:
+	var grid = _skill_window_grid()
 	if grid == null:
 		return
-	for cell in ctrl._iter_skill_cells(grid):
+	for cell in _iter_skill_cells(grid):
 		var bid = ctrl._cell_bound_id(cell)
 		if bid.is_empty():
 			if cell.has_method("clear_cooldown"):
@@ -464,11 +468,11 @@ static func _refresh_skill_window_cooldowns(ctrl) -> void:
 			cell.set_cooldown(float(row.get("remaining", 0.0)), float(row.get("cooldown", 0.0)))
 		elif cell.has_method("clear_cooldown"):
 			cell.clear_cooldown()
-	ctrl._sync_skill_cast_overlays()
+	_sync_skill_cast_overlays()
 
 
 
-static func _tick_hotbar_cooldowns(ctrl, delta: float) -> void:
+func _tick_hotbar_cooldowns(delta: float) -> void:
 	var dead: Array = []
 	for sid in ctrl._skill_cd_hint.keys():
 		var row: Variant = ctrl._skill_cd_hint[sid]
@@ -482,34 +486,34 @@ static func _tick_hotbar_cooldowns(ctrl, delta: float) -> void:
 			dead.append(sid)
 	for sid2 in dead:
 		ctrl._skill_cd_hint.erase(sid2)
-	ctrl._tick_skill_cell_cooldowns(ctrl.hotbar, delta)
-	ctrl._tick_skill_window_cooldowns(delta)
+	_tick_skill_cell_cooldowns(ctrl.hotbar, delta)
+	_tick_skill_window_cooldowns(delta)
 
 
 
-static func _apply_hotbar_cooldown_for_id(ctrl, id: String, remaining: float, total: float) -> void:
+func _apply_hotbar_cooldown_for_id(id: String, remaining: float, total: float) -> void:
 	if id.is_empty():
 		return
 	ctrl._apply_cooldown_to_container(ctrl.hotbar, id, remaining, total)
-	ctrl._apply_cooldown_to_skill_window(id, remaining, total)
+	_apply_cooldown_to_skill_window(id, remaining, total)
 
 
 
-static func _sync_hotbar_cast_overlays(ctrl) -> void:
-	ctrl._sync_skill_cast_overlays()
+func _sync_hotbar_cast_overlays() -> void:
+	_sync_skill_cast_overlays()
 
 
 
-static func _sync_skill_cast_overlays(ctrl) -> void:
+func _sync_skill_cast_overlays() -> void:
 	var frac: float = -1.0
 	if ctrl._cast_active and ctrl._cast_duration > 0.0 and not ctrl._cast_skill_id.is_empty():
 		frac = clampf(ctrl._cast_elapsed / ctrl._cast_duration, 0.0, 1.0)
 	ctrl._apply_cast_to_container(ctrl.hotbar, frac)
-	ctrl._apply_cast_to_skill_window(frac)
+	_apply_cast_to_skill_window(frac)
 
 
 
-static func note_skill_cooldown(ctrl, skill_id: String, remaining: float, cooldown: float = 0.0) -> void:
+func note_skill_cooldown(skill_id: String, remaining: float, cooldown: float = 0.0) -> void:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
 		return
@@ -517,24 +521,24 @@ static func note_skill_cooldown(ctrl, skill_id: String, remaining: float, cooldo
 	if total <= 0.0:
 		total = remaining
 	ctrl._skill_cd_hint[skill_id] = {"remaining": remaining, "cooldown": total}
-	ctrl._apply_hotbar_cooldown_for_id(skill_id, remaining, total)
+	_apply_hotbar_cooldown_for_id(skill_id, remaining, total)
 	if ctrl._windows.has("skills") and ctrl._windows["skills"].visible:
 		ctrl._refresh_window_contents()
 
 
-static func hotbar_prev(ctrl) -> void:
+func hotbar_prev() -> void:
 	ctrl._hotbar_page = (ctrl._hotbar_page + HOTBAR_PAGES.size() - 1) % HOTBAR_PAGES.size()
-	ctrl._build_hotbar()
-	ctrl._persist_hotbar_to_session()
+	_build_hotbar()
+	_persist_hotbar_to_session()
 
 
-static func hotbar_next(ctrl) -> void:
+func hotbar_next() -> void:
 	ctrl._hotbar_page = (ctrl._hotbar_page + 1) % HOTBAR_PAGES.size()
-	ctrl._build_hotbar()
-	ctrl._persist_hotbar_to_session()
+	_build_hotbar()
+	_persist_hotbar_to_session()
 
 
-static func _lock_skills_window(ctrl, panel: PanelContainer) -> void:
+func _lock_skills_window(panel: PanelContainer) -> void:
 	## Fixed-size skills: same lock as bag; tab bar sits above Scroll (not inside body).
 	if panel == null:
 		return
@@ -561,11 +565,11 @@ static func _lock_skills_window(ctrl, panel: PanelContainer) -> void:
 		vbox.add_child(tabs)
 		vbox.move_child(tabs, scroll.get_index())
 	panel.set_meta("skills_tabs", tabs)
-	ctrl._rebuild_skills_tab_bar(panel)
+	_rebuild_skills_tab_bar(panel)
 
 
 
-static func _rebuild_skills_tab_bar(ctrl, panel: PanelContainer) -> void:
+func _rebuild_skills_tab_bar(panel: PanelContainer) -> void:
 	var tabs: HBoxContainer = panel.get_meta("skills_tabs", null) if panel else null
 	if tabs == null or not is_instance_valid(tabs):
 		return
@@ -581,26 +585,26 @@ static func _rebuild_skills_tab_bar(ctrl, panel: PanelContainer) -> void:
 		btn.custom_minimum_size = Vector2(100, 30)
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		var cat = str(item[1])
-		btn.pressed.connect(ctrl._on_skills_tab.bind(cat))
+		btn.pressed.connect(_on_skills_tab.bind(cat))
 		tabs.add_child(btn)
-	ctrl._highlight_skills_tabs(tabs)
+	_highlight_skills_tabs(tabs)
 
 
 
-static func _on_skills_tab(ctrl, cat: String) -> void:
+func _on_skills_tab(cat: String) -> void:
 	cat = cat.strip_edges()
 	if cat.is_empty():
 		return
 	ctrl._skills_tab = cat
 	if ctrl._windows.has("skills"):
 		var panel: PanelContainer = ctrl._windows["skills"]
-		ctrl._highlight_skills_tabs(panel.get_meta("skills_tabs", null) as HBoxContainer)
+		_highlight_skills_tabs(panel.get_meta("skills_tabs", null) as HBoxContainer)
 		if panel.visible:
 			ctrl._fill_window("skills")
 
 
 
-static func _highlight_skills_tabs(ctrl, tabs: HBoxContainer) -> void:
+func _highlight_skills_tabs(tabs: HBoxContainer) -> void:
 	if tabs == null:
 		return
 	for i in range(tabs.get_child_count()):
@@ -612,7 +616,7 @@ static func _highlight_skills_tabs(ctrl, tabs: HBoxContainer) -> void:
 
 
 
-static func _skill_icon_index(ctrl, skill_id: String) -> int:
+func _skill_icon_index(skill_id: String) -> int:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
 		return -1
@@ -632,7 +636,7 @@ static func _skill_icon_index(ctrl, skill_id: String) -> int:
 
 
 
-static func _skill_icon_ref(ctrl, skill_id: String) -> String:
+func _skill_icon_ref(skill_id: String) -> String:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
 		return ""
@@ -663,7 +667,7 @@ static func _skill_icon_ref(ctrl, skill_id: String) -> String:
 
 
 
-static func _skill_display_name(ctrl, skill_id: String) -> String:
+func _skill_display_name(skill_id: String) -> String:
 	skill_id = skill_id.strip_edges()
 	for s in ctrl._server_skills:
 		if typeof(s) != TYPE_DICTIONARY:
@@ -683,23 +687,23 @@ static func _skill_display_name(ctrl, skill_id: String) -> String:
 
 
 
-static func _skill_category(ctrl, skill_id: String) -> String:
+func _skill_category(skill_id: String) -> String:
 	skill_id = skill_id.strip_edges()
 	for s in ctrl._server_skills:
 		if typeof(s) != TYPE_DICTIONARY:
 			continue
 		if str(s.get("id", "")) == skill_id:
-			return ctrl._normalize_skill_category(s)
+			return _normalize_skill_category(s)
 	var srv = Net.server()
 	if srv != null and srv.get("skill_catalog") != null:
 		var cat = srv.skill_catalog
 		if cat != null and cat.has_method("get_skill"):
-			return ctrl._normalize_skill_category(cat.get_skill(skill_id))
+			return _normalize_skill_category(cat.get_skill(skill_id))
 	return "physical"
 
 
 
-static func _normalize_skill_category(ctrl, def: Dictionary) -> String:
+func _normalize_skill_category(def: Dictionary) -> String:
 	if def.is_empty():
 		return "physical"
 	var cat = str(def.get("category", "")).strip_edges()
@@ -714,16 +718,16 @@ static func _normalize_skill_category(ctrl, def: Dictionary) -> String:
 
 
 
-static func _is_passive_skill(ctrl, skill_id: String) -> bool:
-	return ctrl._skill_category(skill_id) == "passive"
+func _is_passive_skill(skill_id: String) -> bool:
+	return _skill_category(skill_id) == "passive"
 
 
 
-static func _fill_skills(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
+func _fill_skills(body: VBoxContainer, _ch: Dictionary) -> void:
 	## Grid + tabs (tabs live outside Scroll). SP + Learn row above grid.
 	var panel: PanelContainer = ctrl._windows.get("skills") as PanelContainer
 	if panel != null:
-		ctrl._rebuild_skills_tab_bar(panel)
+		_rebuild_skills_tab_bar(panel)
 	var skills: Array = ctrl._server_skills
 	if skills.is_empty():
 		var srv = Net.server()
@@ -746,14 +750,14 @@ static func _fill_skills(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 	learn_btn.text = "学习"
 	learn_btn.focus_mode = Control.FOCUS_NONE
 	learn_btn.disabled = true
-	learn_btn.pressed.connect(ctrl._on_learn_skill_pressed)
+	learn_btn.pressed.connect(_on_learn_skill_pressed)
 	head.add_child(learn_btn)
 	var respec_btn = Button.new()
 	respec_btn.name = "RespecSkillButton"
 	respec_btn.text = "重置技能"
 	respec_btn.focus_mode = Control.FOCUS_NONE
 	respec_btn.tooltip_text = "重置已学技能并返还技能点（花费 50 金币）。保留普通攻击。"
-	respec_btn.pressed.connect(ctrl._on_respec_skill_pressed)
+	respec_btn.pressed.connect(_on_respec_skill_pressed)
 	head.add_child(respec_btn)
 	var sel_lbl = Label.new()
 	sel_lbl.name = "SelectedSkillHint"
@@ -761,12 +765,12 @@ static func _fill_skills(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 	sel_lbl.add_theme_color_override("font_color", L2Style.COL_MUTED)
 	sel_lbl.add_theme_font_size_override("font_size", 11)
 	body.add_child(sel_lbl)
-	ctrl._update_skills_learn_row(learn_btn, sel_lbl)
+	_update_skills_learn_row(learn_btn, sel_lbl)
 	var filtered: Array = []
 	for s in skills:
 		if typeof(s) != TYPE_DICTIONARY:
 			continue
-		if ctrl._normalize_skill_category(s) == ctrl._skills_tab:
+		if _normalize_skill_category(s) == ctrl._skills_tab:
 			filtered.append(s)
 	var cell_sz = ctrl._grid_cell_size()
 	var cols = SKILL_COLS
@@ -795,44 +799,44 @@ static func _fill_skills(ctrl, body: VBoxContainer, _ch: Dictionary) -> void:
 			var sdef: Dictionary = filtered[i]
 			var sid = str(sdef.get("id", ""))
 			var sname = str(sdef.get("name", sid))
-			var cat = ctrl._normalize_skill_category(sdef)
-			var six = int(sdef.get("icon_index", ctrl._skill_icon_index(sid)))
+			var cat = _normalize_skill_category(sdef)
+			var six = int(sdef.get("icon_index", _skill_icon_index(sid)))
 			var sref = str(sdef.get("icon_ref", "")).strip_edges()
 			if sref.is_empty():
 				var sic = str(sdef.get("icon", "")).strip_edges()
 				if not sic.is_empty():
 					sref = "content://icon/%s" % sic
 				else:
-					sref = ctrl._skill_icon_ref(sid)
+					sref = _skill_icon_ref(sid)
 			grid.add_child(cell)
 			cell.setup(sid, sname, cat, i, six, sref)
 			var known = ctrl._is_skill_known(sid)
 			if cell.has_method("set_known"):
 				cell.set_known(known)
-			cell.activated.connect(ctrl._on_skill_slot_pressed)
+			cell.activated.connect(_on_skill_slot_pressed)
 			cell.custom_minimum_size = cell_sz
-		ctrl._refresh_skill_window_cooldowns()
+		_refresh_skill_window_cooldowns()
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		ctrl.call_deferred("_lock_window_size", panel)
 
 
 
 
-static func _on_skill_slot_pressed(ctrl, skill_id: String) -> void:
+func _on_skill_slot_pressed(skill_id: String) -> void:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
 		return
 	ctrl._selected_skill_id = skill_id
-	ctrl._refresh_skills_learn_controls()
+	_refresh_skills_learn_controls()
 	if not ctrl._is_skill_known(skill_id):
-		var sname = ctrl._skill_display_name(skill_id)
-		var def = ctrl._skill_def(skill_id)
+		var sname = _skill_display_name(skill_id)
+		var def = _skill_def(skill_id)
 		var need_lv = maxi(int(def.get("learn_level", 1)), 1)
 		var cost = maxi(int(def.get("sp_cost", 1)), 0)
 		ctrl.append_system("未学会【%s】（需要 Lv.%d · %d 技能点）。选中后点「学习」。" % [sname, need_lv, cost])
 		return
-	if ctrl._is_passive_skill(skill_id):
-		var sname2 = ctrl._skill_display_name(skill_id)
+	if _is_passive_skill(skill_id):
+		var sname2 = _skill_display_name(skill_id)
 		var extra = ""
 		for s in ctrl._server_skills:
 			if typeof(s) != TYPE_DICTIONARY:
@@ -856,13 +860,13 @@ static func _on_skill_slot_pressed(ctrl, skill_id: String) -> void:
 
 
 
-static func _on_skill_row_pressed(ctrl, skill_id: String) -> void:
+func _on_skill_row_pressed(skill_id: String) -> void:
 	## Compat alias for older call sites.
-	ctrl._on_skill_slot_pressed(skill_id)
+	_on_skill_slot_pressed(skill_id)
 
 
 
-static func _skill_def(ctrl, skill_id: String) -> Dictionary:
+func _skill_def(skill_id: String) -> Dictionary:
 	for s in ctrl._server_skills:
 		if typeof(s) == TYPE_DICTIONARY and str(s.get("id", "")) == skill_id:
 			return s
@@ -873,7 +877,7 @@ static func _skill_def(ctrl, skill_id: String) -> Dictionary:
 
 
 
-static func _player_level_for_skills(ctrl) -> int:
+func _player_level_for_skills() -> int:
 	var lv = int(ctrl._server_combat.get("level", 0))
 	if lv <= 0 and not ctrl._character.is_empty():
 		lv = int(ctrl._character.get("level", 1))
@@ -881,14 +885,14 @@ static func _player_level_for_skills(ctrl) -> int:
 
 
 
-static func _update_skills_learn_row(ctrl, learn_btn: Button, sel_lbl: Label) -> void:
+func _update_skills_learn_row(learn_btn: Button, sel_lbl: Label) -> void:
 	var sid = ctrl._selected_skill_id.strip_edges()
 	if sid.is_empty():
 		sel_lbl.text = "选择技能后可学习"
 		learn_btn.disabled = true
 		return
-	var def = ctrl._skill_def(sid)
-	var sname = str(def.get("name", ctrl._skill_display_name(sid)))
+	var def = _skill_def(sid)
+	var sname = str(def.get("name", _skill_display_name(sid)))
 	if ctrl._is_skill_known(sid):
 		sel_lbl.text = "已学会：%s" % sname
 		learn_btn.disabled = true
@@ -900,7 +904,7 @@ static func _update_skills_learn_row(ctrl, learn_btn: Button, sel_lbl: Label) ->
 
 
 
-static func _refresh_skills_learn_controls(ctrl) -> void:
+func _refresh_skills_learn_controls() -> void:
 	if not ctrl._windows.has("skills"):
 		return
 	var panel: PanelContainer = ctrl._windows["skills"]
@@ -913,11 +917,11 @@ static func _refresh_skills_learn_controls(ctrl) -> void:
 	if sp_lbl != null:
 		sp_lbl.text = "技能点：%d" % ctrl._skill_points
 	if learn_btn != null and sel_lbl != null:
-		ctrl._update_skills_learn_row(learn_btn, sel_lbl)
+		_update_skills_learn_row(learn_btn, sel_lbl)
 
 
 
-static func _on_learn_skill_pressed(ctrl) -> void:
+func _on_learn_skill_pressed() -> void:
 	var sid = ctrl._selected_skill_id.strip_edges()
 	if sid.is_empty():
 		return
@@ -935,11 +939,11 @@ static func _on_learn_skill_pressed(ctrl) -> void:
 					if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "system_message":
 						ctrl.append_system(str(a.get("text", "")))
 					elif typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "skill_book_update":
-						ctrl.apply_skill_book(a)
+						apply_skill_book(a)
 
 
 
-static func _on_respec_skill_pressed(ctrl) -> void:
+func _on_respec_skill_pressed() -> void:
 	if not ctrl._skill_respec_armed:
 		ctrl._skill_respec_armed = true
 		ctrl.append_system("再点一次以确认重置技能（花费 50 金币）。")
@@ -962,15 +966,15 @@ static func _on_respec_skill_pressed(ctrl) -> void:
 				if t == "system_message":
 					ctrl.append_system(str(a.get("text", "")))
 				elif t == "skill_book_update":
-					ctrl.apply_skill_book(a)
+					apply_skill_book(a)
 				elif t == "skill_respec":
-					ctrl.apply_skill_respec(a)
+					apply_skill_respec(a)
 				elif t == "inventory_update" and a.has("gold"):
 					ctrl._server_gold = int(a.get("gold", ctrl._server_gold))
 
 
 
-static func apply_skill_respec(ctrl, action: Dictionary) -> void:
+func apply_skill_respec(action: Dictionary) -> void:
 	var cleared_ids: Dictionary = {}
 	var cleared_v: Variant = action.get("cleared", [])
 	if typeof(cleared_v) == TYPE_ARRAY:
@@ -1004,16 +1008,16 @@ static func apply_skill_respec(ctrl, action: Dictionary) -> void:
 			ctrl._hotbar_bindings.erase(k)
 			removed = true
 	if removed:
-		ctrl._persist_hotbar_to_session()
-		ctrl._refresh_hotbar_slot_visuals()
+		_persist_hotbar_to_session()
+		_refresh_hotbar_slot_visuals()
 
 
 
-static func on_hotbar_prev_pressed(ctrl) -> void:
-	ctrl.hotbar_prev()
+func on_hotbar_prev_pressed() -> void:
+	hotbar_prev()
 
 
-static func on_hotbar_next_pressed(ctrl) -> void:
-	ctrl.hotbar_next()
+func on_hotbar_next_pressed() -> void:
+	hotbar_next()
 
 

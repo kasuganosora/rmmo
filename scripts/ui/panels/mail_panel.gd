@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: mail box.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _build_mail_panel(ctrl) -> void:
+func _build_mail_panel() -> void:
 	ctrl._mail_panel = PanelContainer.new()
 	ctrl._mail_panel.name = "MailPanel"
 	ctrl._mail_panel.set_script(HudDrag)
@@ -81,21 +85,25 @@ static func _build_mail_panel(ctrl) -> void:
 	var send_btn = Button.new()
 	send_btn.text = "发送"
 	send_btn.focus_mode = Control.FOCUS_NONE
-	send_btn.pressed.connect(ctrl._on_mail_send)
+	send_btn.pressed.connect(_on_mail_send)
 	outer.add_child(send_btn)
 	ctrl._mail_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._mail_panel)
-	ctrl._refresh_mail_panel()
+	_refresh_mail_panel()
 	ctrl.call_deferred("_nudge_mail")
 
-static func _nudge_mail(ctrl) -> void:
+
+
+func _nudge_mail() -> void:
 	if ctrl._mail_panel == null:
 		return
 	ctrl._mail_panel.size = Vector2(520, 480)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._mail_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 260)), 72)
 
-static func _toggle_mail_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_mail_panel(force_open: bool = false) -> void:
 	if ctrl._mail_panel == null:
 		return
 	if force_open:
@@ -105,12 +113,14 @@ static func _toggle_mail_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._mail_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_mail"):
-			ctrl.apply_mail_update({"type": "mail_update", "mail": srv.snapshot_mail()})
-		ctrl._refresh_mail_panel()
+			apply_mail_update({"type": "mail_update", "mail": srv.snapshot_mail()})
+		_refresh_mail_panel()
 		ctrl._mail_panel.move_to_front()
 		ctrl.call_deferred("_nudge_mail")
 
-static func apply_mail_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_mail_update(action: Dictionary) -> void:
 	var mail_v: Variant = action.get("mail", action)
 	if typeof(mail_v) != TYPE_DICTIONARY:
 		if typeof(mail_v) == TYPE_ARRAY:
@@ -122,7 +132,7 @@ static func apply_mail_update(ctrl, action: Dictionary) -> void:
 			ctrl._mail_state["mails"] = cleaned0
 			ctrl._mail_state["count"] = cleaned0.size()
 			if ctrl._mail_panel != null and ctrl._mail_panel.visible:
-				ctrl._refresh_mail_panel()
+				_refresh_mail_panel()
 		return
 	var md: Dictionary = mail_v
 	ctrl._mail_state = {
@@ -139,9 +149,11 @@ static func apply_mail_update(ctrl, action: Dictionary) -> void:
 		ctrl._mail_state["mails"] = cleaned
 		ctrl._mail_state["count"] = cleaned.size()
 	if ctrl._mail_panel != null and ctrl._mail_panel.visible:
-		ctrl._refresh_mail_panel()
+		_refresh_mail_panel()
 
-static func _refresh_mail_panel(ctrl) -> void:
+
+
+func _refresh_mail_panel() -> void:
 	if ctrl._mail_body == null:
 		return
 	for c in ctrl._mail_body.get_children():
@@ -201,23 +213,25 @@ static func _refresh_mail_panel(ctrl) -> void:
 		read_btn.text = "阅读"
 		read_btn.focus_mode = Control.FOCUS_NONE
 		read_btn.custom_minimum_size = Vector2(48, 24)
-		read_btn.pressed.connect(ctrl._on_mail_read.bind(mid))
+		read_btn.pressed.connect(_on_mail_read.bind(mid))
 		btn_row.add_child(read_btn)
 		var claim_btn = Button.new()
 		claim_btn.text = "收取"
 		claim_btn.focus_mode = Control.FOCUS_NONE
 		claim_btn.custom_minimum_size = Vector2(48, 24)
 		claim_btn.disabled = claimed or (gold <= 0 and items2.is_empty())
-		claim_btn.pressed.connect(ctrl._on_mail_claim.bind(mid))
+		claim_btn.pressed.connect(_on_mail_claim.bind(mid))
 		btn_row.add_child(claim_btn)
 		var del_btn = Button.new()
 		del_btn.text = "删除"
 		del_btn.focus_mode = Control.FOCUS_NONE
 		del_btn.custom_minimum_size = Vector2(48, 24)
-		del_btn.pressed.connect(ctrl._on_mail_delete.bind(mid))
+		del_btn.pressed.connect(_on_mail_delete.bind(mid))
 		btn_row.add_child(del_btn)
 
-static func _on_mail_send(ctrl) -> void:
+
+
+func _on_mail_send() -> void:
 	var to = ctrl._mail_to_input.text.strip_edges() if ctrl._mail_to_input else ""
 	var subject = ctrl._mail_subject_input.text.strip_edges() if ctrl._mail_subject_input else ""
 	var body = ctrl._mail_body_input.text if ctrl._mail_body_input else ""
@@ -232,7 +246,7 @@ static func _on_mail_send(ctrl) -> void:
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_mail_send"):
-			ctrl._apply_mail_result_locally(srv.try_mail_send(to, subject, body, gold, item_id, qty))
+			_apply_mail_result_locally(srv.try_mail_send(to, subject, body, gold, item_id, qty))
 		else:
 			ctrl.append_system("无法发送邮件。")
 			return
@@ -249,7 +263,9 @@ static func _on_mail_send(ctrl) -> void:
 	if ctrl._mail_item_qty_spin:
 		ctrl._mail_item_qty_spin.value = 1
 
-static func _on_mail_read(ctrl, mail_id: String) -> void:
+
+
+func _on_mail_read(mail_id: String) -> void:
 	mail_id = str(mail_id).strip_edges()
 	if mail_id.is_empty():
 		return
@@ -259,9 +275,11 @@ static func _on_mail_read(ctrl, mail_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_mail_read"):
-		ctrl._apply_mail_result_locally(srv.try_mail_read(mail_id))
+		_apply_mail_result_locally(srv.try_mail_read(mail_id))
 
-static func _on_mail_claim(ctrl, mail_id: String) -> void:
+
+
+func _on_mail_claim(mail_id: String) -> void:
 	mail_id = str(mail_id).strip_edges()
 	if mail_id.is_empty():
 		return
@@ -270,9 +288,11 @@ static func _on_mail_claim(ctrl, mail_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_mail_claim"):
-		ctrl._apply_mail_result_locally(srv.try_mail_claim(mail_id))
+		_apply_mail_result_locally(srv.try_mail_claim(mail_id))
 
-static func _on_mail_delete(ctrl, mail_id: String) -> void:
+
+
+func _on_mail_delete(mail_id: String) -> void:
 	mail_id = str(mail_id).strip_edges()
 	if mail_id.is_empty():
 		return
@@ -281,9 +301,11 @@ static func _on_mail_delete(ctrl, mail_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_mail_delete"):
-		ctrl._apply_mail_result_locally(srv.try_mail_delete(mail_id))
+		_apply_mail_result_locally(srv.try_mail_delete(mail_id))
 
-static func _apply_mail_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_mail_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -293,7 +315,7 @@ static func _apply_mail_result_locally(ctrl, result: Dictionary) -> void:
 		var action: Dictionary = a
 		match str(action.get("type", "")):
 			"mail_update":
-				ctrl.apply_mail_update(action)
+				apply_mail_update(action)
 			"inventory_update":
 				var items_v: Variant = action.get("items", [])
 				var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
@@ -302,4 +324,5 @@ static func _apply_mail_result_locally(ctrl, result: Dictionary) -> void:
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
+
 

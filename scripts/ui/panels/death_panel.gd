@@ -1,10 +1,14 @@
 extends RefCounted
 ## UI panel: death / respawn dialog.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func show_death_dialog(ctrl) -> void:
-	ctrl._build_death_dialog()
+func show_death_dialog() -> void:
+	_build_death_dialog()
 	if ctrl._death_panel:
 		ctrl._death_panel.visible = true
 		ctrl._death_panel.move_to_front()
@@ -12,13 +16,13 @@ static func show_death_dialog(ctrl) -> void:
 
 
 
-static func hide_death_dialog(ctrl) -> void:
+func hide_death_dialog() -> void:
 	if ctrl._death_panel:
 		ctrl._death_panel.visible = false
 
 
 
-static func _build_death_dialog(ctrl) -> void:
+func _build_death_dialog() -> void:
 	if ctrl._death_panel != null and is_instance_valid(ctrl._death_panel):
 		return
 	ctrl._death_panel = PanelContainer.new()
@@ -58,7 +62,7 @@ static func _build_death_dialog(ctrl) -> void:
 	here_btn.pressed.connect(func():
 		if ctrl._world_combat != null and ctrl._world_combat.has_method("request_respawn"):
 			ctrl._world_combat.request_respawn("here")
-		ctrl.hide_death_dialog()
+		hide_death_dialog()
 	)
 	row.add_child(here_btn)
 	var town_btn = Button.new()
@@ -70,7 +74,7 @@ static func _build_death_dialog(ctrl) -> void:
 	town_btn.pressed.connect(func():
 		if ctrl._world_combat != null and ctrl._world_combat.has_method("request_respawn"):
 			ctrl._world_combat.request_respawn("town")
-		ctrl.hide_death_dialog()
+		hide_death_dialog()
 	)
 	row.add_child(town_btn)
 	ctrl.add_child(ctrl._death_panel)
@@ -78,7 +82,7 @@ static func _build_death_dialog(ctrl) -> void:
 
 
 
-static func _place_death_dialog(ctrl) -> void:
+func _place_death_dialog() -> void:
 	if ctrl._death_panel == null or not is_instance_valid(ctrl._death_panel):
 		return
 	var vp = ctrl.get_viewport().get_visible_rect().size

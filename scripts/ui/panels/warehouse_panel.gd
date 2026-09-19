@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: warehouse storage and gold.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _build_warehouse_panel(ctrl) -> void:
+func _build_warehouse_panel() -> void:
 	ctrl._warehouse_panel = PanelContainer.new()
 	ctrl._warehouse_panel.name = "WarehousePanel"
 	ctrl._warehouse_panel.set_script(HudDrag)
@@ -43,17 +47,21 @@ static func _build_warehouse_panel(ctrl) -> void:
 	outer.add_child(ctrl._warehouse_body)
 	ctrl._warehouse_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._warehouse_panel)
-	ctrl._refresh_warehouse_panel()
+	_refresh_warehouse_panel()
 	ctrl.call_deferred("_nudge_warehouse")
 
-static func _nudge_warehouse(ctrl) -> void:
+
+
+func _nudge_warehouse() -> void:
 	if ctrl._warehouse_panel == null:
 		return
 	ctrl._warehouse_panel.size = Vector2(560, 420)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._warehouse_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 280)), 72)
 
-static func _toggle_warehouse_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_warehouse_panel(force_open: bool = false) -> void:
 	if ctrl._warehouse_panel == null:
 		return
 	if force_open:
@@ -66,12 +74,14 @@ static func _toggle_warehouse_panel(ctrl, force_open: bool = false) -> void:
 		else:
 			var srv = Net.server()
 			if srv != null and srv.has_method("try_warehouse_open"):
-				ctrl._apply_warehouse_result_locally(srv.try_warehouse_open())
-		ctrl._refresh_warehouse_panel()
+				_apply_warehouse_result_locally(srv.try_warehouse_open())
+		_refresh_warehouse_panel()
 		ctrl._warehouse_panel.move_to_front()
 		ctrl.call_deferred("_nudge_warehouse")
 
-static func apply_warehouse_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_warehouse_update(action: Dictionary) -> void:
 	var wh_v: Variant = action.get("warehouse", action)
 	if typeof(wh_v) != TYPE_DICTIONARY:
 		return
@@ -91,9 +101,11 @@ static func apply_warehouse_update(ctrl, action: Dictionary) -> void:
 		ctrl._warehouse_state["items"] = cleaned
 		ctrl._warehouse_state["used_slots"] = cleaned.size()
 	if ctrl._warehouse_panel != null and ctrl._warehouse_panel.visible:
-		ctrl._refresh_warehouse_panel()
+		_refresh_warehouse_panel()
 
-static func _refresh_warehouse_panel(ctrl) -> void:
+
+
+func _refresh_warehouse_panel() -> void:
 	if ctrl._warehouse_body == null:
 		return
 	for c in ctrl._warehouse_body.get_children():
@@ -140,7 +152,7 @@ static func _refresh_warehouse_panel(ctrl) -> void:
 			row.focus_mode = Control.FOCUS_NONE
 			row.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			row.tooltip_text = "存入 1 个（Shift+点击存入全部）"
-			row.pressed.connect(ctrl._on_warehouse_deposit_pressed.bind(iid, q))
+			row.pressed.connect(_on_warehouse_deposit_pressed.bind(iid, q))
 			bag_list.add_child(row)
 
 	var wh_wrap = VBoxContainer.new()
@@ -173,7 +185,7 @@ static func _refresh_warehouse_panel(ctrl) -> void:
 			wrow.focus_mode = Control.FOCUS_NONE
 			wrow.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			wrow.tooltip_text = "取出 1 个（Shift+点击取出全部）"
-			wrow.pressed.connect(ctrl._on_warehouse_withdraw_pressed.bind(wid, wq))
+			wrow.pressed.connect(_on_warehouse_withdraw_pressed.bind(wid, wq))
 			wh_list.add_child(wrow)
 
 	var gold_row = HBoxContainer.new()
@@ -189,15 +201,17 @@ static func _refresh_warehouse_panel(ctrl) -> void:
 	var dep_g = Button.new()
 	dep_g.text = "存入"
 	dep_g.focus_mode = Control.FOCUS_NONE
-	dep_g.pressed.connect(ctrl._on_warehouse_deposit_gold)
+	dep_g.pressed.connect(_on_warehouse_deposit_gold)
 	gold_row.add_child(dep_g)
 	var wd_g = Button.new()
 	wd_g.text = "取出"
 	wd_g.focus_mode = Control.FOCUS_NONE
-	wd_g.pressed.connect(ctrl._on_warehouse_withdraw_gold)
+	wd_g.pressed.connect(_on_warehouse_withdraw_gold)
 	gold_row.add_child(wd_g)
 
-static func _on_warehouse_deposit_pressed(ctrl, item_id: String, stack_qty: int) -> void:
+
+
+func _on_warehouse_deposit_pressed(item_id: String, stack_qty: int) -> void:
 	var qty = stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1
 	qty = clampi(qty, 1, maxi(stack_qty, 1))
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_deposit"):
@@ -205,9 +219,11 @@ static func _on_warehouse_deposit_pressed(ctrl, item_id: String, stack_qty: int)
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_warehouse_deposit"):
-			ctrl._apply_warehouse_result_locally(srv.try_warehouse_deposit(item_id, qty))
+			_apply_warehouse_result_locally(srv.try_warehouse_deposit(item_id, qty))
 
-static func _on_warehouse_withdraw_pressed(ctrl, item_id: String, stack_qty: int) -> void:
+
+
+func _on_warehouse_withdraw_pressed(item_id: String, stack_qty: int) -> void:
 	var qty = stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1
 	qty = clampi(qty, 1, maxi(stack_qty, 1))
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_withdraw"):
@@ -215,27 +231,33 @@ static func _on_warehouse_withdraw_pressed(ctrl, item_id: String, stack_qty: int
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_warehouse_withdraw"):
-			ctrl._apply_warehouse_result_locally(srv.try_warehouse_withdraw(item_id, qty))
+			_apply_warehouse_result_locally(srv.try_warehouse_withdraw(item_id, qty))
 
-static func _on_warehouse_deposit_gold(ctrl) -> void:
+
+
+func _on_warehouse_deposit_gold() -> void:
 	var amount: int = int(ctrl._warehouse_gold_spin.value) if ctrl._warehouse_gold_spin else 1
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_deposit_gold"):
 		ctrl._world_combat.request_warehouse_deposit_gold(amount)
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_warehouse_deposit_gold"):
-			ctrl._apply_warehouse_result_locally(srv.try_warehouse_deposit_gold(amount))
+			_apply_warehouse_result_locally(srv.try_warehouse_deposit_gold(amount))
 
-static func _on_warehouse_withdraw_gold(ctrl) -> void:
+
+
+func _on_warehouse_withdraw_gold() -> void:
 	var amount: int = int(ctrl._warehouse_gold_spin.value) if ctrl._warehouse_gold_spin else 1
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_withdraw_gold"):
 		ctrl._world_combat.request_warehouse_withdraw_gold(amount)
 	else:
 		var srv = Net.server()
 		if srv != null and srv.has_method("try_warehouse_withdraw_gold"):
-			ctrl._apply_warehouse_result_locally(srv.try_warehouse_withdraw_gold(amount))
+			_apply_warehouse_result_locally(srv.try_warehouse_withdraw_gold(amount))
 
-static func _apply_warehouse_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_warehouse_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -245,7 +267,7 @@ static func _apply_warehouse_result_locally(ctrl, result: Dictionary) -> void:
 		var action: Dictionary = a
 		match str(action.get("type", "")):
 			"warehouse_update":
-				ctrl.apply_warehouse_update(action)
+				apply_warehouse_update(action)
 			"inventory_update":
 				var items_v: Variant = action.get("items", [])
 				var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
@@ -254,4 +276,6 @@ static func _apply_warehouse_result_locally(ctrl, result: Dictionary) -> void:
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
+
+
 

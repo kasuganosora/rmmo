@@ -1,19 +1,22 @@
 extends RefCounted
 ## UI panel: safe-zone and dungeon chips.
 
-const Net = preload("res://scripts/net/net.gd")
-const StatusPanel = preload("res://scripts/ui/panels/status_panel.gd")
+var ctrl
+func _init(c):
+	ctrl = c
 
-static func apply_safe_zone(ctrl, action: Dictionary) -> void:
+const Net = preload("res://scripts/net/net.gd")
+
+func apply_safe_zone(action: Dictionary) -> void:
 	var inside = bool(action.get("inside", action.get("in_safe_zone", false)))
 	ctrl._safe_zone_inside = inside
-	ctrl._ensure_safe_zone_chip()
+	_ensure_safe_zone_chip()
 	if ctrl._safe_zone_chip != null:
 		ctrl._safe_zone_chip.visible = inside
 
 
 
-static func _ensure_safe_zone_chip(ctrl) -> void:
+func _ensure_safe_zone_chip() -> void:
 	if ctrl._safe_zone_chip != null and is_instance_valid(ctrl._safe_zone_chip):
 		ctrl._safe_zone_chip.visible = ctrl._safe_zone_inside
 		return
@@ -45,18 +48,18 @@ static func _ensure_safe_zone_chip(ctrl) -> void:
 
 
 
-static func apply_dungeon_update(ctrl, action: Dictionary) -> void:
+func apply_dungeon_update(action: Dictionary) -> void:
 	var d: Variant = action.get("dungeon", action)
 	if typeof(d) != TYPE_DICTIONARY:
 		return
 	ctrl._dungeon_state = (d as Dictionary).duplicate(true)
-	ctrl._ensure_dungeon_chip()
-	ctrl._refresh_dungeon_chip()
+	_ensure_dungeon_chip()
+	_refresh_dungeon_chip()
 
 
 
-static func _refresh_dungeon_chip(ctrl) -> void:
-	ctrl._ensure_dungeon_chip()
+func _refresh_dungeon_chip() -> void:
+	_ensure_dungeon_chip()
 	if ctrl._dungeon_chip == null:
 		return
 	var active = bool(ctrl._dungeon_state.get("active", false))
@@ -74,7 +77,7 @@ static func _refresh_dungeon_chip(ctrl) -> void:
 
 
 
-static func _ensure_dungeon_chip(ctrl) -> void:
+func _ensure_dungeon_chip() -> void:
 	if ctrl._dungeon_chip != null and is_instance_valid(ctrl._dungeon_chip):
 		return
 	var panel = ctrl.get_node_or_null("%StatusPanel") as Control
@@ -98,29 +101,29 @@ static func _ensure_dungeon_chip(ctrl) -> void:
 
 
 
-static func _on_dungeon_enter_pressed(ctrl) -> void:
+func _on_dungeon_enter_pressed() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_dungeon_enter"):
 		ctrl._world_combat.request_dungeon_enter()
 		return
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_dungeon_enter"):
 		return
-	ctrl._apply_dungeon_result_locally(srv.try_dungeon_enter())
+	_apply_dungeon_result_locally(srv.try_dungeon_enter())
 
 
 
-static func _on_dungeon_exit_pressed(ctrl) -> void:
+func _on_dungeon_exit_pressed() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_dungeon_exit"):
 		ctrl._world_combat.request_dungeon_exit()
 		return
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_dungeon_exit"):
 		return
-	ctrl._apply_dungeon_result_locally(srv.try_dungeon_exit())
+	_apply_dungeon_result_locally(srv.try_dungeon_exit())
 
 
 
-static func _apply_dungeon_result_locally(ctrl, result: Dictionary) -> void:
+func _apply_dungeon_result_locally(result: Dictionary) -> void:
 	if typeof(result) != TYPE_DICTIONARY:
 		return
 	var acts_v: Variant = result.get("actions", [])
@@ -131,7 +134,7 @@ static func _apply_dungeon_result_locally(ctrl, result: Dictionary) -> void:
 			continue
 		var t = str(a.get("type", ""))
 		if t == "dungeon_update":
-			ctrl.apply_dungeon_update(a)
+			apply_dungeon_update(a)
 		elif t == "system_message":
 			var msg = str(a.get("text", "")).strip_edges()
 			if msg != "":

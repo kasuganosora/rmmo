@@ -1,18 +1,22 @@
 extends RefCounted
 ## UI panel: NPC dialogue window.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func show_npc_dialogue(ctrl, npc_name: String, body: String, options: Array = [], face: Dictionary = {}) -> void:
+func show_npc_dialogue(npc_name: String, body: String, options: Array = [], face: Dictionary = {}) -> void:
 	## Open Lineage2-ish NPC Chat panel. options: Array of String or {label, id}.
 	ctrl._ensure_npc_chat()
 	var title_name = npc_name.strip_edges()
 	if title_name == "":
 		title_name = "NPC"
 	ctrl._npc_chat_name.text = title_name
-	ctrl._apply_dialogue_face(face)
+	_apply_dialogue_face(face)
 	var body_text = body.strip_edges()
 	if body_text == "":
 		body_text = "helloworld"
@@ -44,7 +48,7 @@ static func show_npc_dialogue(ctrl, npc_name: String, body: String, options: Arr
 		var opt_idx = ctrl._npc_chat_options.get_child_count()
 		if typeof(opt) == TYPE_DICTIONARY:
 			opt_id = str(opt.get("id", "")).strip_edges()
-		link.meta_clicked.connect(ctrl._make_dialogue_option_handler(opt_id, opt_idx, label))
+		link.meta_clicked.connect(_make_dialogue_option_handler(opt_id, opt_idx, label))
 		ctrl._npc_chat_options.add_child(link)
 	ctrl._npc_chat.visible = true
 	ctrl._npc_chat.move_to_front()
@@ -54,9 +58,9 @@ static func show_npc_dialogue(ctrl, npc_name: String, body: String, options: Arr
 
 
 
-static func _make_dialogue_option_handler(ctrl, option_id: String, option_index: int, label: String) -> Callable:
+func _make_dialogue_option_handler(option_id: String, option_index: int, label: String) -> Callable:
 	return func(_meta):
-		ctrl.hide_npc_dialogue()
+		hide_npc_dialogue()
 		if ctrl._world_combat != null and ctrl._world_combat.has_method("request_event_choice"):
 			ctrl._world_combat.request_event_choice(option_id, option_index)
 		else:
@@ -67,13 +71,13 @@ static func _make_dialogue_option_handler(ctrl, option_id: String, option_index:
 
 
 
-static func hide_npc_dialogue(ctrl) -> void:
+func hide_npc_dialogue() -> void:
 	if ctrl._npc_chat != null:
 		ctrl._npc_chat.visible = false
 
 
 
-static func _apply_dialogue_face(ctrl, face: Dictionary) -> void:
+func _apply_dialogue_face(face: Dictionary) -> void:
 	if ctrl._npc_chat_face == null:
 		return
 	var fid = str(face.get("id", face.get("face", ""))).strip_edges()

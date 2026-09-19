@@ -1,21 +1,27 @@
 extends RefCounted
 ## UI panel: loot window and roll.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func show_loot(ctrl, session_id: String, npc_id: String, items: Array) -> void:
+func show_loot(session_id: String, npc_id: String, items: Array) -> void:
 	ctrl._loot_session_id = session_id.strip_edges()
 	ctrl._loot_npc_id = npc_id.strip_edges()
 	ctrl._loot_items = items.duplicate(true) if items != null else []
-	ctrl._ensure_loot_panel()
-	ctrl._fill_loot_panel()
+	_ensure_loot_panel()
+	_fill_loot_panel()
 	if ctrl._loot_panel != null:
 		ctrl._loot_panel.visible = true
 		ctrl._loot_panel.move_to_front()
 
-static func refresh_loot(ctrl, session_id: String, items: Array) -> void:
+
+
+func refresh_loot(session_id: String, items: Array) -> void:
 	if session_id.strip_edges() != "" and ctrl._loot_session_id != "" and session_id != ctrl._loot_session_id:
 		# Stale update from a previous session — ignore.
 		return
@@ -23,21 +29,25 @@ static func refresh_loot(ctrl, session_id: String, items: Array) -> void:
 		ctrl._loot_session_id = session_id.strip_edges()
 	ctrl._loot_items = items.duplicate(true) if items != null else []
 	if ctrl._loot_items.is_empty():
-		ctrl.hide_loot()
+		hide_loot()
 		return
-	ctrl._ensure_loot_panel()
-	ctrl._fill_loot_panel()
+	_ensure_loot_panel()
+	_fill_loot_panel()
 	if ctrl._loot_panel != null:
 		ctrl._loot_panel.visible = true
 
-static func hide_loot(ctrl) -> void:
+
+
+func hide_loot() -> void:
 	if ctrl._loot_panel != null:
 		ctrl._loot_panel.visible = false
 	ctrl._loot_session_id = ""
 	ctrl._loot_npc_id = ""
 	ctrl._loot_items.clear()
 
-static func _ensure_loot_panel(ctrl) -> void:
+
+
+func _ensure_loot_panel() -> void:
 	if ctrl._loot_panel != null and is_instance_valid(ctrl._loot_panel):
 		if bool(ctrl._loot_panel.get_meta("loot_v2", false)):
 			return
@@ -77,7 +87,7 @@ static func _ensure_loot_panel(ctrl) -> void:
 	head.add_child(title_l)
 	var close_btn = Button.new()
 	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(ctrl._on_loot_close_pressed)
+	close_btn.pressed.connect(_on_loot_close_pressed)
 	head.add_child(close_btn)
 	var hint = Label.new()
 	hint.name = "LootHint"
@@ -103,20 +113,22 @@ static func _ensure_loot_panel(ctrl) -> void:
 	var take_all = Button.new()
 	take_all.text = "全部拾取"
 	take_all.focus_mode = Control.FOCUS_NONE
-	take_all.pressed.connect(ctrl._on_loot_take_all_pressed)
+	take_all.pressed.connect(_on_loot_take_all_pressed)
 	L2Style.style_action_button(take_all)
 	bottom.add_child(take_all)
 	var close2 = Button.new()
 	close2.text = "关闭"
 	close2.focus_mode = Control.FOCUS_NONE
-	close2.pressed.connect(ctrl._on_loot_close_pressed)
+	close2.pressed.connect(_on_loot_close_pressed)
 	L2Style.style_action_button(close2)
 	bottom.add_child(close2)
 	ctrl._loot_panel = panel
 	ctrl._apply_l2_chrome(panel)
 	ctrl.call_deferred("_place_loot_panel")
 
-static func _place_loot_panel(ctrl) -> void:
+
+
+func _place_loot_panel() -> void:
 	if ctrl._loot_panel == null or not is_instance_valid(ctrl._loot_panel):
 		return
 	var vp = ctrl.get_viewport_rect().size
@@ -127,7 +139,9 @@ static func _place_loot_panel(ctrl) -> void:
 		maxi(8, int((vp.y - sz.y) * 0.35))
 	)
 
-static func _fill_loot_panel(ctrl) -> void:
+
+
+func _fill_loot_panel() -> void:
 	if ctrl._loot_panel == null or not is_instance_valid(ctrl._loot_panel):
 		return
 	var list = ctrl._loot_panel.find_child("LootList", true, false) as VBoxContainer
@@ -199,30 +213,38 @@ static func _fill_loot_panel(ctrl) -> void:
 		take_btn.focus_mode = Control.FOCUS_NONE
 		take_btn.custom_minimum_size = Vector2(56, 26)
 		var captured = iid
-		take_btn.pressed.connect(func(): ctrl._on_loot_take_pressed(captured))
+		take_btn.pressed.connect(func(): _on_loot_take_pressed(captured))
 		L2Style.style_compact_button(take_btn)
 		row.add_child(take_btn)
 
-static func _on_loot_take_pressed(ctrl, item_id: String) -> void:
+
+
+func _on_loot_take_pressed(item_id: String) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_loot_take"):
 		ctrl._world_combat.request_loot_take(item_id, -1)
 	else:
 		ctrl.append_system("无法拾取。")
 
-static func _on_loot_take_all_pressed(ctrl) -> void:
+
+
+func _on_loot_take_all_pressed() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_loot_take_all"):
 		ctrl._world_combat.request_loot_take_all()
 	else:
 		ctrl.append_system("无法全部拾取。")
 
-static func _on_loot_close_pressed(ctrl) -> void:
+
+
+func _on_loot_close_pressed() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_loot_close"):
 		ctrl._world_combat.request_loot_close()
 	else:
-		ctrl.hide_loot()
+		hide_loot()
 
-static func show_loot_roll(ctrl, action: Dictionary) -> void:
-	ctrl.hide_loot_roll({})
+
+
+func show_loot_roll(action: Dictionary) -> void:
+	hide_loot_roll({})
 	ctrl._loot_roll_id = str(action.get("roll_id", action.get("id", ""))).strip_edges()
 	var iname = str(action.get("name", action.get("item_id", "物品"))).strip_edges()
 	var qty = int(action.get("qty", 1))
@@ -254,7 +276,7 @@ static func show_loot_roll(ctrl, action: Dictionary) -> void:
 		btn.focus_mode = Control.FOCUS_NONE
 		var choice = str(pair[1])
 		btn.pressed.connect(func():
-			ctrl._submit_loot_roll(choice)
+			_submit_loot_roll(choice)
 		)
 		row.add_child(btn)
 	ctrl.add_child(ctrl._loot_roll_panel)
@@ -262,20 +284,26 @@ static func show_loot_roll(ctrl, action: Dictionary) -> void:
 	ctrl._loot_roll_panel.position = Vector2(-140, 72)
 	ctrl._loot_roll_panel.move_to_front()
 
-static func apply_loot_roll_choice(ctrl, action: Dictionary) -> void:
+
+
+func apply_loot_roll_choice(action: Dictionary) -> void:
 	# Optional: could grey out after self voted; keep panel until resolve.
 	pass
 
-static func hide_loot_roll(ctrl, _action: Dictionary = {}) -> void:
+
+
+func hide_loot_roll(_action: Dictionary = {}) -> void:
 	if ctrl._loot_roll_panel != null and is_instance_valid(ctrl._loot_roll_panel):
 		ctrl._loot_roll_panel.queue_free()
 	ctrl._loot_roll_panel = null
 	ctrl._loot_roll_id = ""
 	ctrl._loot_roll_label = null
 
-static func _submit_loot_roll(ctrl, choice: String) -> void:
+
+
+func _submit_loot_roll(choice: String) -> void:
 	var rid = ctrl._loot_roll_id
-	ctrl.hide_loot_roll({})
+	hide_loot_roll({})
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_loot_roll"):
 		ctrl._world_combat.request_loot_roll(choice, rid)
 		return
@@ -285,7 +313,9 @@ static func _submit_loot_roll(ctrl, choice: String) -> void:
 		if typeof(result.get("actions", null)) == TYPE_ARRAY and ctrl._world_combat != null and ctrl._world_combat.has_method("_apply_server_actions"):
 			ctrl._world_combat._apply_server_actions(result["actions"])
 
-static func _on_party_set_loot_mode(ctrl, mode: String) -> void:
+
+
+func _on_party_set_loot_mode(mode: String) -> void:
 	mode = str(mode).strip_edges().to_lower()
 	if mode.is_empty():
 		return
@@ -295,4 +325,5 @@ static func _on_party_set_loot_mode(ctrl, mode: String) -> void:
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_party_set_loot_mode"):
 		ctrl._apply_party_result_locally(srv.try_party_set_loot_mode(mode))
+
 

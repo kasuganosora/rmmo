@@ -1,12 +1,16 @@
 extends RefCounted
 ## UI panel: target portrait, status chips, threat.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const StatusIconBar = preload("res://scripts/ui/status_icon_bar.gd")
 
-static func apply_target_status_chips(ctrl, statuses: Array) -> void:
+func apply_target_status_chips(statuses: Array) -> void:
 	if ctrl.target_panel == null:
 		return
-	ctrl._ensure_target_chrome()
+	_ensure_target_chrome()
 	if ctrl._target_status_chip_row == null or not is_instance_valid(ctrl._target_status_chip_row):
 		var vbox = ctrl.target_panel.find_child("TargetVBox", true, false) as VBoxContainer
 		if vbox == null:
@@ -28,7 +32,7 @@ static func apply_target_status_chips(ctrl, statuses: Array) -> void:
 
 
 
-static func clear_target(ctrl) -> void:
+func clear_target() -> void:
 	ctrl.target_panel.visible = false
 	ctrl.target_name.text = ""
 	ctrl.target_hp.value = 0
@@ -48,7 +52,7 @@ static func clear_target(ctrl) -> void:
 
 
 
-static func _ensure_target_chrome(ctrl) -> void:
+func _ensure_target_chrome() -> void:
 	## Name + × close on one row; HP bar below (monster only).
 	if ctrl.target_panel == null:
 		return
@@ -73,7 +77,7 @@ static func _ensure_target_chrome(ctrl) -> void:
 		close_btn.focus_mode = Control.FOCUS_NONE
 		close_btn.custom_minimum_size = Vector2(28, 22)
 		close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-		close_btn.pressed.connect(ctrl._on_target_close_pressed)
+		close_btn.pressed.connect(_on_target_close_pressed)
 		head.add_child(close_btn)
 	# Keep HP under the head row; MP under HP.
 	if ctrl.target_hp.get_parent() == vbox:
@@ -91,17 +95,17 @@ static func _ensure_target_chrome(ctrl) -> void:
 		vbox.add_child(ctrl._target_mp)
 	if ctrl._target_mp.get_parent() == vbox:
 		vbox.move_child(ctrl._target_mp, mini(2, vbox.get_child_count() - 1))
-	ctrl._ensure_threat_chip()
+	_ensure_threat_chip()
 
 
 
-static func apply_threat_chip(ctrl, show: bool, threat_you: bool = false) -> void:
-	ctrl._threat_visible = ctrl.show
+func apply_threat_chip(show: bool, threat_you: bool = false) -> void:
+	ctrl._threat_visible = show
 	ctrl._threat_you = threat_you
-	ctrl._ensure_threat_chip()
+	_ensure_threat_chip()
 	if ctrl._threat_chip == null:
 		return
-	if not ctrl.show:
+	if not show:
 		ctrl._threat_chip.visible = false
 		return
 	var ThreatUtil = preload("res://scripts/ui/threat_hud_util.gd")
@@ -111,7 +115,7 @@ static func apply_threat_chip(ctrl, show: bool, threat_you: bool = false) -> voi
 
 
 
-static func apply_threat_update(ctrl, action: Dictionary) -> void:
+func apply_threat_update(action: Dictionary) -> void:
 	## From threat_update / set_stat piggyback while a hostile target is shown.
 	if not ctrl._threat_visible and not bool(action.get("force", false)):
 		# Only refresh when chip already armed for a hostile target.
@@ -119,11 +123,11 @@ static func apply_threat_update(ctrl, action: Dictionary) -> void:
 			return
 	var ThreatUtil = preload("res://scripts/ui/threat_hud_util.gd")
 	var n: Dictionary = ThreatUtil.normalize(action)
-	ctrl.apply_threat_chip(true, bool(n.get("threat_you", false)))
+	apply_threat_chip(true, bool(n.get("threat_you", false)))
 
 
 
-static func _ensure_threat_chip(ctrl) -> void:
+func _ensure_threat_chip() -> void:
 	if ctrl.target_panel == null:
 		return
 	if ctrl._threat_chip != null and is_instance_valid(ctrl._threat_chip):
@@ -154,16 +158,16 @@ static func _ensure_threat_chip(ctrl) -> void:
 
 
 
-static func _on_target_close_pressed(ctrl) -> void:
+func _on_target_close_pressed() -> void:
 	## × clears HUD target and world selection / foot ring.
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("clear_target_selection"):
 		ctrl._world_combat.clear_target_selection()
 	else:
-		ctrl.clear_target()
+		clear_target()
 
 
 
-static func show_target(ctrl, 
+func show_target(
 	p_name: String,
 	hp_ratio: float = 1.0,
 	world_pos: Variant = null,
@@ -172,7 +176,7 @@ static func show_target(ctrl,
 	show_threat: bool = false,
 	threat_you: bool = false
 ) -> void:
-	ctrl._ensure_target_chrome()
+	_ensure_target_chrome()
 	ctrl.target_panel.visible = true
 	ctrl.target_name.text = p_name
 	ctrl.target_hp.visible = show_hp_bar
@@ -191,15 +195,15 @@ static func show_target(ctrl,
 			ctrl._target_mp.value = 0
 	if typeof(world_pos) == TYPE_VECTOR2:
 		ctrl._target_world_pos = world_pos
-		ctrl._update_target_angle()
+		_update_target_angle()
 	else:
 		ctrl._target_world_pos = null
 		if ctrl._radar and ctrl._radar.has_method("clear_target_angle"):
 			ctrl._radar.clear_target_angle()
-	ctrl.apply_threat_chip(show_threat, threat_you)
+	apply_threat_chip(show_threat, threat_you)
 
 
-static func _update_target_angle(ctrl) -> void:
+func _update_target_angle() -> void:
 	if ctrl._radar == null:
 		return
 	if typeof(ctrl._target_world_pos) != TYPE_VECTOR2 or ctrl._radar_player == null:
@@ -211,5 +215,3 @@ static func _update_target_angle(ctrl) -> void:
 		return
 	if ctrl._radar.has_method("set_target_angle"):
 		ctrl._radar.set_target_angle(atan2(delta.y, delta.x))
-
-

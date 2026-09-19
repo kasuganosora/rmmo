@@ -1,11 +1,15 @@
 extends RefCounted
 ## UI panel: guild roster, invites, management.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _build_guild_panel(ctrl) -> void:
+func _build_guild_panel() -> void:
 	ctrl._guild_panel = PanelContainer.new()
 	ctrl._guild_panel.name = "GuildPanel"
 	ctrl._guild_panel.set_script(HudDrag)
@@ -47,17 +51,21 @@ static func _build_guild_panel(ctrl) -> void:
 	scroll.add_child(ctrl._guild_body)
 	ctrl._guild_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._guild_panel)
-	ctrl._refresh_guild_panel()
+	_refresh_guild_panel()
 	ctrl.call_deferred("_nudge_guild")
 
-static func _nudge_guild(ctrl) -> void:
+
+
+func _nudge_guild() -> void:
 	if ctrl._guild_panel == null:
 		return
 	ctrl._guild_panel.size = Vector2(360, 460)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._guild_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 180)), 88)
 
-static func _toggle_guild_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_guild_panel(force_open: bool = false) -> void:
 	if ctrl._guild_panel == null:
 		return
 	if force_open:
@@ -67,12 +75,14 @@ static func _toggle_guild_panel(ctrl, force_open: bool = false) -> void:
 	if ctrl._guild_panel.visible:
 		var srv = Net.server()
 		if srv != null and srv.has_method("snapshot_guild"):
-			ctrl.apply_guild_update({"type": "guild_update", "guild": srv.snapshot_guild()})
-		ctrl._refresh_guild_panel()
+			apply_guild_update({"type": "guild_update", "guild": srv.snapshot_guild()})
+		_refresh_guild_panel()
 		ctrl._guild_panel.move_to_front()
 		ctrl.call_deferred("_nudge_guild")
 
-static func apply_guild_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_guild_update(action: Dictionary) -> void:
 	var gu_v: Variant = action.get("guild", action)
 	if typeof(gu_v) != TYPE_DICTIONARY:
 		return
@@ -96,14 +106,16 @@ static func apply_guild_update(ctrl, action: Dictionary) -> void:
 	}
 	ctrl._refresh_name_with_title()
 	if ctrl._guild_panel != null and ctrl._guild_panel.visible:
-		ctrl._refresh_guild_panel()
+		_refresh_guild_panel()
 	# Refresh character window 血盟 chip if open.
 	if ctrl._windows.has("character"):
 		var cw: Variant = ctrl._windows["character"]
 		if cw is Control and (cw as Control).visible:
 			ctrl._fill_window("character")
 
-static func apply_guild_invite(ctrl, action: Dictionary) -> void:
+
+
+func apply_guild_invite(action: Dictionary) -> void:
 	var status = str(action.get("status", "pending"))
 	var invite_id = str(action.get("invite_id", "")).strip_edges()
 	var gname = str(action.get("guild_name", "")).strip_edges()
@@ -115,15 +127,17 @@ static func apply_guild_invite(ctrl, action: Dictionary) -> void:
 			"from": from_name,
 		}
 		if ctrl._guild_panel != null and ctrl._guild_panel.visible:
-			ctrl._refresh_guild_panel()
+			_refresh_guild_panel()
 		ctrl.append_system("【%s】邀请你加入公会【%s】。" % [from_name if from_name != "" else "?", gname if gname != "" else "?"])
 	else:
 		if str(ctrl._guild_pending_invite.get("invite_id", "")) == invite_id:
 			ctrl._guild_pending_invite.clear()
 		if ctrl._guild_panel != null and ctrl._guild_panel.visible:
-			ctrl._refresh_guild_panel()
+			_refresh_guild_panel()
 
-static func _refresh_guild_panel(ctrl) -> void:
+
+
+func _refresh_guild_panel() -> void:
 	if ctrl._guild_body == null:
 		return
 	for c in ctrl._guild_body.get_children():
@@ -155,12 +169,12 @@ static func _refresh_guild_panel(ctrl) -> void:
 		var acc = Button.new()
 		acc.text = "接受"
 		acc.focus_mode = Control.FOCUS_NONE
-		acc.pressed.connect(func(): ctrl._on_guild_invite_respond(pend_id, true))
+		acc.pressed.connect(func(): _on_guild_invite_respond(pend_id, true))
 		prow.add_child(acc)
 		var dec = Button.new()
 		dec.text = "拒绝"
 		dec.focus_mode = Control.FOCUS_NONE
-		dec.pressed.connect(func(): ctrl._on_guild_invite_respond(pend_id, false))
+		dec.pressed.connect(func(): _on_guild_invite_respond(pend_id, false))
 		prow.add_child(dec)
 
 	if gid.is_empty() or members.is_empty():
@@ -175,7 +189,7 @@ static func _refresh_guild_panel(ctrl) -> void:
 		var create_btn = Button.new()
 		create_btn.text = "创建公会"
 		create_btn.focus_mode = Control.FOCUS_NONE
-		create_btn.pressed.connect(ctrl._on_guild_create_pressed)
+		create_btn.pressed.connect(_on_guild_create_pressed)
 		crow.add_child(create_btn)
 		return
 
@@ -189,12 +203,12 @@ static func _refresh_guild_panel(ctrl) -> void:
 		ctrl._guild_invite_input = LineEdit.new()
 		ctrl._guild_invite_input.placeholder_text = "输入名字邀请"
 		ctrl._guild_invite_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ctrl._guild_invite_input.text_submitted.connect(func(t: String): ctrl._on_guild_invite(t))
+		ctrl._guild_invite_input.text_submitted.connect(func(t: String): _on_guild_invite(t))
 		irow.add_child(ctrl._guild_invite_input)
 		var inv_btn = Button.new()
 		inv_btn.text = "邀请"
 		inv_btn.focus_mode = Control.FOCUS_NONE
-		inv_btn.pressed.connect(func(): ctrl._on_guild_invite(ctrl._guild_invite_input.text if ctrl._guild_invite_input else ""))
+		inv_btn.pressed.connect(func(): _on_guild_invite(ctrl._guild_invite_input.text if ctrl._guild_invite_input else ""))
 		irow.add_child(inv_btn)
 
 	for e in members:
@@ -217,7 +231,7 @@ static func _refresh_guild_panel(ctrl) -> void:
 			kick_btn.text = "踢出"
 			kick_btn.focus_mode = Control.FOCUS_NONE
 			kick_btn.custom_minimum_size = Vector2(48, 24)
-			kick_btn.pressed.connect(ctrl._on_guild_kick.bind(mid))
+			kick_btn.pressed.connect(_on_guild_kick.bind(mid))
 			row.add_child(kick_btn)
 
 	var brow = HBoxContainer.new()
@@ -226,16 +240,18 @@ static func _refresh_guild_panel(ctrl) -> void:
 	var leave_btn = Button.new()
 	leave_btn.text = "离开公会"
 	leave_btn.focus_mode = Control.FOCUS_NONE
-	leave_btn.pressed.connect(ctrl._on_guild_leave)
+	leave_btn.pressed.connect(_on_guild_leave)
 	brow.add_child(leave_btn)
 	if is_leader:
 		var dis_btn = Button.new()
 		dis_btn.text = "解散公会"
 		dis_btn.focus_mode = Control.FOCUS_NONE
-		dis_btn.pressed.connect(ctrl._on_guild_disband)
+		dis_btn.pressed.connect(_on_guild_disband)
 		brow.add_child(dis_btn)
 
-static func _on_guild_create_pressed(ctrl) -> void:
+
+
+func _on_guild_create_pressed() -> void:
 	var n = ""
 	if ctrl._guild_name_input != null:
 		n = str(ctrl._guild_name_input.text).strip_edges()
@@ -247,11 +263,13 @@ static func _on_guild_create_pressed(ctrl) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_create"):
-		ctrl._apply_guild_result_locally(srv.try_guild_create(n))
+		_apply_guild_result_locally(srv.try_guild_create(n))
 	else:
 		ctrl.append_system("无法创建公会。")
 
-static func _on_guild_invite(ctrl, target: String) -> void:
+
+
+func _on_guild_invite(target: String) -> void:
 	target = str(target).strip_edges()
 	if target.is_empty():
 		ctrl.append_system("请输入要邀请的玩家名字。")
@@ -263,11 +281,13 @@ static func _on_guild_invite(ctrl, target: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_invite"):
-		ctrl._apply_guild_result_locally(srv.try_guild_invite(target))
+		_apply_guild_result_locally(srv.try_guild_invite(target))
 	else:
 		ctrl.append_system("无法邀请。")
 
-static func _on_guild_kick(ctrl, member_id: String) -> void:
+
+
+func _on_guild_kick(member_id: String) -> void:
 	member_id = str(member_id).strip_edges()
 	if member_id.is_empty():
 		return
@@ -276,25 +296,31 @@ static func _on_guild_kick(ctrl, member_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_kick"):
-		ctrl._apply_guild_result_locally(srv.try_guild_kick(member_id))
+		_apply_guild_result_locally(srv.try_guild_kick(member_id))
 
-static func _on_guild_leave(ctrl) -> void:
+
+
+func _on_guild_leave() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_guild_leave"):
 		ctrl._world_combat.request_guild_leave()
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_leave"):
-		ctrl._apply_guild_result_locally(srv.try_guild_leave())
+		_apply_guild_result_locally(srv.try_guild_leave())
 
-static func _on_guild_disband(ctrl) -> void:
+
+
+func _on_guild_disband() -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_guild_disband"):
 		ctrl._world_combat.request_guild_disband()
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_disband"):
-		ctrl._apply_guild_result_locally(srv.try_guild_disband())
+		_apply_guild_result_locally(srv.try_guild_disband())
 
-static func _on_guild_invite_respond(ctrl, invite_id: String, accept: bool) -> void:
+
+
+func _on_guild_invite_respond(invite_id: String, accept: bool) -> void:
 	invite_id = str(invite_id).strip_edges()
 	if invite_id.is_empty():
 		return
@@ -303,9 +329,11 @@ static func _on_guild_invite_respond(ctrl, invite_id: String, accept: bool) -> v
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_guild_invite_respond"):
-		ctrl._apply_guild_result_locally(srv.try_guild_invite_respond(invite_id, accept))
+		_apply_guild_result_locally(srv.try_guild_invite_respond(invite_id, accept))
 
-static func _apply_guild_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_guild_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -315,11 +343,12 @@ static func _apply_guild_result_locally(ctrl, result: Dictionary) -> void:
 		var action: Dictionary = a
 		match str(action.get("type", "")):
 			"guild_update":
-				ctrl.apply_guild_update(action)
+				apply_guild_update(action)
 			"guild_invite":
-				ctrl.apply_guild_invite(action)
+				apply_guild_invite(action)
 			"system_message":
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
+
 

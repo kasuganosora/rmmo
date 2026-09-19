@@ -1,10 +1,14 @@
 extends RefCounted
 ## UI panel: ground drop zone and drop-qty dialog.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _ensure_ground_drop_zone(ctrl) -> void:
+func _ensure_ground_drop_zone() -> void:
 	if ctrl._ground_drop_zone != null and is_instance_valid(ctrl._ground_drop_zone):
 		return
 	var z = preload("res://scripts/ui/ground_drop_zone.gd").new()
@@ -17,7 +21,7 @@ static func _ensure_ground_drop_zone(ctrl) -> void:
 
 
 
-static func _tick_ground_drop_zone(ctrl) -> void:
+func _tick_ground_drop_zone() -> void:
 	## Arm full-screen drop sink only while dragging bag/equip items (not window/skill drags).
 	var want = false
 	if ctrl.get_viewport().gui_is_dragging():
@@ -28,13 +32,13 @@ static func _tick_ground_drop_zone(ctrl) -> void:
 	if want == ctrl._ground_drop_armed:
 		return
 	ctrl._ground_drop_armed = want
-	ctrl._ensure_ground_drop_zone()
+	_ensure_ground_drop_zone()
 	if ctrl._ground_drop_zone != null and ctrl._ground_drop_zone.has_method("set_active"):
 		ctrl._ground_drop_zone.set_active(want)
 
 
 
-static func _ensure_ground_tip(ctrl) -> void:
+func _ensure_ground_tip() -> void:
 	if ctrl._ground_tip != null and is_instance_valid(ctrl._ground_tip):
 		return
 	var tip = PanelContainer.new()
@@ -61,17 +65,17 @@ static func _ensure_ground_tip(ctrl) -> void:
 
 
 
-static func show_ground_tip(ctrl, text: String, screen_pos: Vector2) -> void:
-	ctrl._ensure_ground_tip()
+func show_ground_tip(text: String, screen_pos: Vector2) -> void:
+	_ensure_ground_tip()
 	if ctrl._ground_tip == null or ctrl._ground_tip_label == null:
 		return
 	ctrl._ground_tip_label.text = text.strip_edges()
 	ctrl._ground_tip.visible = not ctrl._ground_tip_label.text.is_empty()
-	ctrl.move_ground_tip(screen_pos)
+	move_ground_tip(screen_pos)
 
 
 
-static func move_ground_tip(ctrl, screen_pos: Vector2) -> void:
+func move_ground_tip(screen_pos: Vector2) -> void:
 	if ctrl._ground_tip == null or not ctrl._ground_tip.visible:
 		return
 	# Offset so tip does not sit under the cursor.
@@ -86,14 +90,14 @@ static func move_ground_tip(ctrl, screen_pos: Vector2) -> void:
 
 
 
-static func hide_ground_tip(ctrl) -> void:
+func hide_ground_tip() -> void:
 	if ctrl._ground_tip != null:
 		ctrl._ground_tip.visible = false
 
 
 
-static func _show_drop_qty_dialog(ctrl, item_id: String, max_qty: int) -> void:
-	ctrl._ensure_drop_qty_dialog()
+func _show_drop_qty_dialog(item_id: String, max_qty: int) -> void:
+	_ensure_drop_qty_dialog()
 	ctrl._drop_qty_item_id = item_id
 	max_qty = maxi(max_qty, 1)
 	if ctrl._qty_mode != "split":
@@ -124,7 +128,7 @@ static func _show_drop_qty_dialog(ctrl, item_id: String, max_qty: int) -> void:
 
 
 
-static func _ensure_drop_qty_dialog(ctrl) -> void:
+func _ensure_drop_qty_dialog() -> void:
 	if ctrl._drop_qty_panel != null and is_instance_valid(ctrl._drop_qty_panel):
 		return
 	var panel = PanelContainer.new()
@@ -175,12 +179,12 @@ static func _ensure_drop_qty_dialog(ctrl) -> void:
 	root.add_child(btns)
 	var cancel = Button.new()
 	cancel.text = "取消"
-	cancel.pressed.connect(ctrl._on_drop_qty_cancel)
+	cancel.pressed.connect(_on_drop_qty_cancel)
 	L2Style.style_action_button(cancel)
 	btns.add_child(cancel)
 	var ok = Button.new()
 	ok.text = "确定"
-	ok.pressed.connect(ctrl._on_drop_qty_confirm)
+	ok.pressed.connect(_on_drop_qty_confirm)
 	L2Style.style_action_button(ok)
 	btns.add_child(ok)
 	panel.custom_minimum_size = Vector2(340, 220)
@@ -189,7 +193,7 @@ static func _ensure_drop_qty_dialog(ctrl) -> void:
 
 
 
-static func _on_drop_qty_cancel(ctrl) -> void:
+func _on_drop_qty_cancel() -> void:
 	ctrl._drop_qty_item_id = ""
 	ctrl._qty_mode = "drop"
 	if ctrl._drop_qty_panel != null:
@@ -197,13 +201,13 @@ static func _on_drop_qty_cancel(ctrl) -> void:
 
 
 
-static func _on_drop_qty_confirm(ctrl) -> void:
+func _on_drop_qty_confirm() -> void:
 	var iid = ctrl._drop_qty_item_id.strip_edges()
 	var q: int = 1
 	if ctrl._drop_qty_spin != null:
 		q = int(ctrl._drop_qty_spin.value)
 	var mode = ctrl._qty_mode
-	ctrl._on_drop_qty_cancel()
+	_on_drop_qty_cancel()
 	if iid.is_empty():
 		return
 	var have: int = ctrl._inventory_qty(iid)

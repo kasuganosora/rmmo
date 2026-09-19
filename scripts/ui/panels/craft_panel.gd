@@ -1,12 +1,16 @@
 extends RefCounted
 ## UI panel: crafting and gathering.
 
+var ctrl
+func _init(c):
+	ctrl = c
+
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const RecipeCatalog = preload("res://scripts/net/combat/recipe_catalog.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
-static func _ensure_craft_recipes_loaded(ctrl) -> void:
+func _ensure_craft_recipes_loaded() -> void:
 	if not ctrl._craft_recipes.is_empty():
 		return
 	var cat = RecipeCatalog.new()
@@ -20,7 +24,9 @@ static func _ensure_craft_recipes_loaded(ctrl) -> void:
 			if not live.is_empty():
 				ctrl._craft_recipes = live
 
-static func _build_craft_panel(ctrl) -> void:
+
+
+func _build_craft_panel() -> void:
 	ctrl._craft_panel = PanelContainer.new()
 	ctrl._craft_panel.name = "CraftPanel"
 	ctrl._craft_panel.set_script(HudDrag)
@@ -58,18 +64,22 @@ static func _build_craft_panel(ctrl) -> void:
 	outer.add_child(ctrl._craft_body)
 	ctrl._craft_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._craft_panel)
-	ctrl._ensure_craft_recipes_loaded()
-	ctrl._refresh_craft_panel()
+	_ensure_craft_recipes_loaded()
+	_refresh_craft_panel()
 	ctrl.call_deferred("_nudge_craft")
 
-static func _nudge_craft(ctrl) -> void:
+
+
+func _nudge_craft() -> void:
 	if ctrl._craft_panel == null:
 		return
 	ctrl._craft_panel.size = Vector2(480, 420)
 	var vp = ctrl.get_viewport_rect().size
 	ctrl._craft_panel.global_position = Vector2(maxi(8, int(vp.x * 0.55 - 240)), 64)
 
-static func _toggle_craft_panel(ctrl, force_open: bool = false) -> void:
+
+
+func _toggle_craft_panel(force_open: bool = false) -> void:
 	if ctrl._craft_panel == null:
 		return
 	if force_open:
@@ -77,18 +87,20 @@ static func _toggle_craft_panel(ctrl, force_open: bool = false) -> void:
 	else:
 		ctrl._craft_panel.visible = not ctrl._craft_panel.visible
 	if ctrl._craft_panel.visible:
-		ctrl._ensure_craft_recipes_loaded()
-		ctrl._refresh_craft_panel()
+		_ensure_craft_recipes_loaded()
+		_refresh_craft_panel()
 		ctrl._craft_panel.move_to_front()
 		ctrl.call_deferred("_nudge_craft")
 
-static func _refresh_craft_panel(ctrl) -> void:
+
+
+func _refresh_craft_panel() -> void:
 	if ctrl._craft_body == null:
 		return
 	for c in ctrl._craft_body.get_children():
 		c.queue_free()
 	ctrl._craft_qty_spin = null
-	ctrl._ensure_craft_recipes_loaded()
+	_ensure_craft_recipes_loaded()
 	ctrl._add_label(ctrl._craft_body, "选择配方后点击制作（任意地点）", 11, L2Style.COL_MUTED)
 	ctrl._add_label(ctrl._craft_body, "金币 %d" % int(ctrl._server_gold), 12, L2Style.COL_TITLE)
 
@@ -126,7 +138,7 @@ static func _refresh_craft_panel(ctrl) -> void:
 			head_btn.text = ("%s → %s×%d" % [rname, out_label, out_q]) if not selected else ("▸ %s → %s×%d" % [rname, out_label, out_q])
 			head_btn.focus_mode = Control.FOCUS_NONE
 			head_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			head_btn.pressed.connect(ctrl._on_craft_select.bind(rid))
+			head_btn.pressed.connect(_on_craft_select.bind(rid))
 			box.add_child(head_btn)
 			var ings_v: Variant = rec.get("ingredients", [])
 			var mats_ok = true
@@ -164,7 +176,7 @@ static func _refresh_craft_panel(ctrl) -> void:
 				craft_btn.text = "制作"
 				craft_btn.focus_mode = Control.FOCUS_NONE
 				craft_btn.disabled = not mats_ok
-				craft_btn.pressed.connect(ctrl._on_craft_pressed.bind(rid))
+				craft_btn.pressed.connect(_on_craft_pressed.bind(rid))
 				row.add_child(craft_btn)
 
 	ctrl._add_label(
@@ -174,11 +186,15 @@ static func _refresh_craft_panel(ctrl) -> void:
 		L2Style.COL_MUTED
 	)
 
-static func _on_craft_select(ctrl, recipe_id: String) -> void:
-	ctrl._craft_selected_id = str(recipe_id).strip_edges()
-	ctrl._refresh_craft_panel()
 
-static func _on_craft_pressed(ctrl, recipe_id: String) -> void:
+
+func _on_craft_select(recipe_id: String) -> void:
+	ctrl._craft_selected_id = str(recipe_id).strip_edges()
+	_refresh_craft_panel()
+
+
+
+func _on_craft_pressed(recipe_id: String) -> void:
 	recipe_id = str(recipe_id).strip_edges()
 	if recipe_id.is_empty():
 		return
@@ -190,11 +206,13 @@ static func _on_craft_pressed(ctrl, recipe_id: String) -> void:
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_craft"):
-		ctrl._apply_craft_result_locally(srv.try_craft(recipe_id, qty))
+		_apply_craft_result_locally(srv.try_craft(recipe_id, qty))
 	else:
 		ctrl.append_system("无法制作。")
 
-static func apply_craft_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_craft_update(action: Dictionary) -> void:
 	if action.has("craft_level"):
 		ctrl._craft_level = maxi(int(action.get("craft_level", 1)), 1)
 	if action.has("craft_xp"):
@@ -202,9 +220,11 @@ static func apply_craft_update(ctrl, action: Dictionary) -> void:
 	if action.has("craft_xp_to_next"):
 		ctrl._craft_xp_to_next = maxi(int(action.get("craft_xp_to_next", 0)), 0)
 	if ctrl._craft_panel != null and ctrl._craft_panel.visible:
-		ctrl._refresh_craft_panel()
+		_refresh_craft_panel()
 
-static func apply_gather_update(ctrl, action: Dictionary) -> void:
+
+
+func apply_gather_update(action: Dictionary) -> void:
 	## Profession skill packet (gather_level/xp). Node deplete packets omit these keys.
 	if action.has("gather_level"):
 		ctrl._gather_level = maxi(int(action.get("gather_level", 1)), 1)
@@ -215,7 +235,9 @@ static func apply_gather_update(ctrl, action: Dictionary) -> void:
 	if ctrl._gather_level_label != null and is_instance_valid(ctrl._gather_level_label):
 		ctrl._gather_level_label.text = "采集 Lv.%d" % ctrl._gather_level
 
-static func _apply_craft_result_locally(ctrl, result: Dictionary) -> void:
+
+
+func _apply_craft_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
 	if typeof(actions_v) != TYPE_ARRAY:
 		return
@@ -229,11 +251,11 @@ static func _apply_craft_result_locally(ctrl, result: Dictionary) -> void:
 				var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
 				ctrl.apply_inventory_snapshot(items, int(action.get("gold", -1)))
 			"craft_update":
-				ctrl.apply_craft_update(action)
+				apply_craft_update(action)
 			"system_message":
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
 	if ctrl._craft_panel != null and ctrl._craft_panel.visible:
-		ctrl._refresh_craft_panel()
+		_refresh_craft_panel()
 

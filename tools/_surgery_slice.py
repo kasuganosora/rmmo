@@ -13,6 +13,11 @@ WORLD = sys.argv[1]
 
 out_res, constname, header, methods = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5].split(",")
 OUT = out_res.replace("res://", "d:/code/rmmo/")
+# logic-panel instance var: ChatPanel -> _chat_panel_logic.
+# NOTE: `_chat_panel` (without `_logic`) would COLLIDE with the existing UI-node
+# var `var _chat_panel: PanelContainer` for ~13 panels, so the logic RefCounted
+# var MUST use the distinct `_logic` suffix.
+instname = "_" + re.sub(r"(?<!^)(?=[A-Z])", "_", constname).lower() + "_logic"
 
 src = io.open(WORLD, "r", encoding="utf-8").read()
 lines = src.split("\n")
@@ -97,27 +102,81 @@ def read_func(idx):
         sig.append(lines[k])
     bs = k + 1
     be, n = bs, len(lines)
+    # Robust string tracking: escaped quotes, `"""`/`'''` multi-line strings, and
+    # quotes INSIDE `#` comments must NOT toggle string state (the old per-char
+    # toggle flipped `in_str` stuck-on on a quoted comment and ran the body to EOF).
     in_str = False
-    while be < n:
-        ln = lines[be]
+    quote = None  # active string delimiter when inside a multi-line string
+    i = bs
+    while i < n:
+        ln = lines[i]
         if in_str:
-            # whole line is inside an open string -> still part of the body
-            for ch in ln:
-                if ch == '"' or ch == "'":
-                    in_str = not in_str
-            be += 1
+            # Inside an open (possibly multi-line) string: whole line is body.
+            # Scan only for the matching closing delimiter.
+            j = 0
+            while j < len(ln):
+                c = ln[j]
+                if c == "\\":
+                    j += 2
+                    continue
+                if quote == '"' and ln[j:j + 3] == '"""':
+                    in_str = False
+                    quote = None
+                    j += 3
+                    continue
+                if quote == "'" and ln[j:j + 3] == "'''":
+                    in_str = False
+                    quote = None
+                    j += 3
+                    continue
+                if c == quote:
+                    in_str = False
+                    quote = None
+                    j += 1
+                    continue
+                j += 1
+            i += 1
             continue
         s = ln.strip()
         if s == "":
-            be += 1
+            i += 1
             continue
         if len(ln) - len(ln.lstrip(" \t")) == 0:
             break
-        for ch in ln:
-            if ch == '"' or ch == "'":
-                in_str = not in_str
-        be += 1
-    return "\n".join(sig), lines[bs:be], be
+        # Scan the line; quotes in `#` comments are literals (ignore them).
+        j = 0
+        while j < len(ln):
+            c = ln[j]
+            if c == "\\":
+                j += 2
+                continue
+            if ln[j:j + 3] in ('"""', "'''"):
+                in_str = True
+                quote = ln[j]
+                j += 3
+                continue
+            if c in ('"', "'"):
+                q = c
+                j += 1
+                while j < len(ln):
+                    d = ln[j]
+                    if d == "\\":
+                        j += 2
+                        continue
+                    if d == q:
+                        j += 1
+                        break
+                    j += 1
+                else:
+                    # unterminated on this line -> string continues to next line
+                    in_str = True
+                    quote = q
+                continue
+            if c == "#":
+                break  # comment; remaining quotes are literals
+            j += 1
+        i += 1
+    return "\n".join(sig), lines[bs:i], i
 
 
 def returns_value(body):
@@ -137,26 +196,41 @@ def collect_locals(body):
             loc.add(m)
         for m in re.findall(r"\bfor\s+([A-Za-z_]\w*)\s+in\b", ln):
             loc.add(m)
+        # lambda / nested-func params also shadow member names in their scope
+        for m in re.findall(r"\bfunc\s*\(([^)]*)\)", ln):
+            for p in m.split(","):
+                pn = p.strip().split(":")[0].split("=")[0].strip()
+                if re.match(r"^[A-Za-z_]\w*$", pn):
+                    loc.add(pn)
     return loc
 
+
+# Build ONE combined regex per `skip` set (skip = locals/params of a func that
+# must NOT be rewritten to ctrl.). Compiled once per func and cached, so we do a
+# single substitution per line instead of ~580 re.sub calls (which thrashed the
+# regex cache and made large panels take >30s, tripping the shell watch timeout).
+_PREFIX_NAMES = sorted(members - GLOBALS, key=len, reverse=True) + NODE_MEMBERS + ["self"]
+_prefix_cache = {}
+
+def _prefix_re(skip):
+    key = frozenset(skip)
+    if key in _prefix_cache:
+        return _prefix_cache[key]
+    names = [n for n in _PREFIX_NAMES if n not in skip]
+    pat = re.compile(r"(?<![\w.])(?:" + "|".join(re.escape(n) for n in names) + r")(?![\w])")
+    _prefix_cache[key] = pat
+    return pat
 
 def prefix(line, skip):
     if line.strip().startswith("#"):
         return line
+    pat = _prefix_re(skip)
     parts = line.split('"')
     for k in range(0, len(parts), 2):
-        seg = parts[k]
-        for nm in sorted(members - skip - GLOBALS, key=len, reverse=True):
-            seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
-        for nm in NODE_MEMBERS:
-            # CRITICAL: never rewrite locals/params (a local named `show` or
-            # `position` would otherwise become `ctrl.show` and break the syntax).
-            if nm in skip or nm in GLOBALS:
-                continue
-            seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
-        # `self` is illegal in a static func; it referred to the world node -> ctrl
-        seg = re.sub(r"(?<![\w.])self(?![\w])", "ctrl", seg)
-        parts[k] = seg
+        # `self` -> ctrl; otherwise prefix matched member/node names with ctrl.
+        # `self` is illegal in a static func; it referred to the world node -> ctrl.
+        # All other matches are member/node names -> ctrl.<name>.
+        parts[k] = pat.sub(lambda m: "ctrl" if m.group(0) == "self" else "ctrl." + m.group(0), parts[k])
     return '"'.join(parts)
 
 
@@ -180,17 +254,36 @@ for name, idx in reversed(targets):
     end = be
     del lines[idx + 1:end]
     lines[idx] = sig_single
-    lines.insert(idx + 1, "\t%s%s.%s(self, %s)" % (ret, constname, name, ", ".join(params)))
+    lines.insert(idx + 1, "\t%s%s.%s(%s)" % (ret, instname, name, ", ".join(params)))
 blocks.reverse()
+
+if not blocks:
+    print("WARN: no targets matched for %s -- check method names" % constname)
+    sys.exit(1)
+
+# Instance-panel mode: the panel's OWN methods must NOT be rewritten to
+# `ctrl.NAME` — they are instance methods of this very panel, so intra-panel
+# calls/callbacks stay as `_NAME(...)` / `connect(_NAME)` and bind `self`
+# naturally (this is what fixes the 433 calls + 91 callbacks bug).
+panel_methods = {n for n, _, _ in blocks}
+_PREFIX_NAMES = sorted((members - GLOBALS) - panel_methods, key=len, reverse=True) + NODE_MEMBERS + ["self"]
 
 out = ["extends RefCounted"]
 out += header.split("\n")
 out.append("")
+out.append("var ctrl")
+out.append("func _init(c):")
+out.append("\tctrl = c")
+out.append("")
 for name, sig_text, body in blocks:
-    newsig = re.sub(r"^func\s+", "static func ", sig_text)
-    newsig = re.sub(r"^static func (\w+)\(", r"static func \1(ctrl, ", newsig, count=1)
-    newsig = newsig.replace("(ctrl, )", "(ctrl)")
-    loc = collect_locals(body)
+    # instance method: keep `func`, drop the `ctrl` param (ctrl is now an instance var)
+    newsig = re.sub(r"^static func ", "func ", sig_text)
+    newsig = re.sub(r"^func\s+", "func ", newsig)
+    newsig = re.sub(r"^func (\w+)\(ctrl,\s*", r"func \1(", newsig)
+    newsig = re.sub(r"^func (\w+)\(ctrl\)", r"func \1()", newsig)
+    # skip = locals + lambda params + the FUNCTION's own params, so a param name
+    # that collides with a member/builtin (e.g. `show`) is NOT rewritten to ctrl.X
+    loc = collect_locals(body) | set(parse_params(sig_text))
     # A local that shadows a member name is dangerous: inside its own initializer
     # the name still refers to the MEMBER, so it may need manual ctrl. prefixing.
     shadow = loc & members
@@ -241,7 +334,7 @@ cdecl = _capture_consts(src.split("\n"))
 
 # ---- append mode: if the module already exists, merge into it (keeps modules cohesive) ----
 append = os.path.exists(OUT)
-funcs_start = next(i for i, ln in enumerate(out) if ln.startswith("static func"))
+funcs_start = next(i for i, ln in enumerate(out) if any(ln.startswith("func %s(" % n) for n, _, _ in blocks))
 funcs_block = "\n".join(out[funcs_start:])
 
 if append:
@@ -250,7 +343,7 @@ if append:
     need = [n for n in cdecl if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, funcs_block)]
     elines = existing.split("\n")
     if need:
-        fi = next((i for i, ln in enumerate(elines) if ln.startswith("static func")), len(elines))
+        fi = next((i for i, ln in enumerate(elines) if any(ln.startswith("func %s(" % n) for n, _, _ in blocks)), len(elines))
         elines[fi:fi] = [cdecl[n] for n in need] + [""]
     io.open(OUT, "w", encoding="utf-8").write("\n".join(elines).rstrip("\n") + "\n\n" + funcs_block)
 else:
@@ -263,9 +356,15 @@ else:
 text = "\n".join(lines)
 # NOTE: must match the exact declaration; a substring check would be fooled by
 # an existing `const SkillAimOverlay` when inserting `const SkillAim`.
-if not re.search(r"^const\s+%s\s*=" % re.escape(constname), text, re.M):
+has_const = re.search(r"^const\s+%s\s*=" % re.escape(constname), text, re.M)
+has_inst = re.search(r"^var\s+%s\s*:" % re.escape(instname), text, re.M)
+if not has_const or not has_inst:
     last = max(i for i, ln in enumerate(lines[:60]) if ln.startswith("const "))
-    lines.insert(last + 1, 'const %s = preload("%s")' % (constname, out_res))
+    if not has_const:
+        lines.insert(last + 1, 'const %s = preload("%s")' % (constname, out_res))
+        last += 1
+    if not has_inst:
+        lines.insert(last + 1, 'var %s: %s = %s.new(self)' % (instname, constname, constname))
     text = "\n".join(lines)
 io.open(WORLD, "w", encoding="utf-8").write(text)
 
