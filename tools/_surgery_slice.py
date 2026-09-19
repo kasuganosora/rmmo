@@ -18,7 +18,10 @@ lines = src.split("\n")
 
 consts = set(re.findall(r"^const\s+([A-Za-z_]\w*)", src, re.M))
 members = set()
-for m in re.findall(r"^(?:@onready\s+var|var|signal)\s+([A-Za-z_]\w*)", src, re.M):
+# captures `var x`, `@onready var x`, and annotated forms like `@export var x`
+for m in re.findall(r"^(?:@[A-Za-z_]\w*(?:\([^)]*\))?\s+)*var\s+([A-Za-z_]\w*)", src, re.M):
+    members.add(m)
+for m in re.findall(r"^signal\s+([A-Za-z_]\w*)", src, re.M):
     members.add(m)
 for m in re.findall(r"^(?:func|static\s+func)\s+([A-Za-z_]\w*)", src, re.M):
     members.add(m)
@@ -123,6 +126,10 @@ def prefix(line, skip):
         for nm in sorted(members - skip - GLOBALS, key=len, reverse=True):
             seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
         for nm in NODE_MEMBERS:
+            # CRITICAL: never rewrite locals/params (a local named `show` or
+            # `position` would otherwise become `ctrl.show` and break the syntax).
+            if nm in skip or nm in GLOBALS:
+                continue
             seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
         # `self` is illegal in a static func; it referred to the world node -> ctrl
         seg = re.sub(r"(?<![\w.])self(?![\w])", "ctrl", seg)

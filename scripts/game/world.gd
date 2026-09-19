@@ -29,6 +29,7 @@ const Follow = preload("res://scripts/game/application/follow.gd")
 const MapPins = preload("res://scripts/game/application/map_pins.gd")
 const GroundLoot = preload("res://scripts/game/application/ground_loot.gd")
 const HudBinding = preload("res://scripts/game/interface/hud_binding.gd")
+const RemoteActors = preload("res://scripts/game/application/remote_actors.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -634,48 +635,7 @@ func _tick_follow() -> void:
 func _follow_target_cell() -> Vector2i:
 	return Follow._follow_target_cell(self, )
 func _apply_remote_look(marker: Node2D, gender: String, look_id: String, equipment: Variant) -> void:
-	var anim := marker.get_node_or_null("Anim") as AnimatedSprite2D
-	if anim == null:
-		return
-	var LookCatalog = load("res://scripts/char/look_catalog.gd")
-	var MV = load("res://scripts/char/mv_generator.gd")
-	gender = LookCatalog.normalize_gender(gender) if LookCatalog != null else gender
-	var frames: SpriteFrames = null
-	var eq: Array = equipment if typeof(equipment) == TYPE_ARRAY else []
-	if MV != null and MV.has_method("compose_frames"):
-		var parts: Dictionary = MV.default_parts(gender) if MV.has_method("default_parts") else {}
-		if PaperdollLook != null and not eq.is_empty():
-			var catalog = null
-			var srv = Net.server()
-			if srv != null:
-				catalog = srv.get("item_catalog")
-			var overlay: Dictionary = PaperdollLook.equipment_to_mv_parts(gender, eq, catalog)
-			parts = MV.apply_equipment(parts, overlay)
-			parts = MV.validate_parts(gender, parts)
-		frames = MV.compose_frames(gender, parts, {})
-	if frames == null and LookCatalog != null and LookCatalog.has_method("build_walk_frames"):
-		frames = LookCatalog.build_walk_frames(look_id if look_id != "" else "1", gender)
-	if frames == null:
-		if marker.get_node_or_null("Body") == null:
-			var body := Polygon2D.new()
-			body.name = "Body"
-			body.polygon = PackedVector2Array([
-				Vector2(-8, -20), Vector2(8, -20), Vector2(10, 4), Vector2(-10, 4)
-			])
-			body.color = Color(0.35, 0.55, 0.95, 0.9)
-			marker.add_child(body)
-		return
-	var legacy := marker.get_node_or_null("Body")
-	if legacy != null:
-		legacy.queue_free()
-	anim.sprite_frames = frames
-	anim.scale = Vector2(1.35, 1.35)
-	if frames.has_animation("idle_front"):
-		anim.play("idle_front")
-	elif frames.has_animation("idle_Front"):
-		anim.play("idle_Front")
-
-
+	RemoteActors._apply_remote_look(self, marker, gender, look_id, equipment)
 func inspect_remote(player_id: String) -> Dictionary:
 	player_id = player_id.strip_edges()
 	var out := {"id": player_id, "name": player_id, "level": 1, "gender": "female", "equipment": []}
@@ -1154,38 +1114,9 @@ func request_party_clear_target() -> void:
 func request_party_set_loot_mode(mode: String) -> void:
 	RequestAdapter.request_party_set_loot_mode(self, mode)
 func _clear_remote_selection() -> void:
-	if _selected_remote_id.is_empty():
-		return
-	if _remote_markers.has(_selected_remote_id):
-		var mk = _remote_markers[_selected_remote_id]
-		if mk != null and is_instance_valid(mk):
-			var body := mk.get_node_or_null("Body") as Polygon2D
-			if body != null:
-				body.color = Color(0.35, 0.55, 0.95, 0.9)
-	_selected_remote_id = ""
-
-
+	RemoteActors._clear_remote_selection(self, )
 func _select_remote(marker: Node2D) -> void:
-	if marker == null or not is_instance_valid(marker):
-		return
-	var pid := str(marker.get_meta("player_id", "")).strip_edges()
-	if pid.is_empty():
-		return
-	_clear_npc_selection()
-	if _selected_remote_id != pid:
-		_clear_remote_selection()
-		_selected_remote_id = pid
-		var body := marker.get_node_or_null("Body") as Polygon2D
-		if body != null:
-			body.color = Color(0.55, 0.75, 1.0, 1.0)
-	var display_name := str(marker.get_meta("display_name", pid)).strip_edges()
-	if display_name.is_empty():
-		display_name = pid
-	if hud != null and hud.has_method("show_target"):
-		hud.show_target(display_name, 1.0, marker.global_position, false)
-	_refresh_remote_nameplates()
-
-
+	RemoteActors._select_remote(self, marker)
 func _ensure_player_context_menu() -> PopupMenu:
 	if _player_ctx_menu != null and is_instance_valid(_player_ctx_menu):
 		return _player_ctx_menu
@@ -1283,201 +1214,21 @@ func _on_player_context_id(id: int) -> void:
 
 
 func _tick_remote_aoi() -> void:
-	## Show/hide fake players by Chebyshev ring (same radii as AssetManager AOI).
-	if player == null or _remote_markers.is_empty():
-		return
-	var pc: Vector2i = player.cell if "cell" in player else Vector2i.ZERO
-	var view_r := aoi_view_radius_cells
-	var cold_r := aoi_prefetch_radius_cells
-	for rid in _remote_markers.keys():
-		var mk = _remote_markers[rid]
-		if mk == null or not is_instance_valid(mk):
-			continue
-		var cv: Variant = mk.get_meta("cell", Vector2i.ZERO)
-		var cell := Vector2i.ZERO
-		if typeof(cv) == TYPE_VECTOR2I:
-			cell = cv
-		elif typeof(cv) == TYPE_DICTIONARY:
-			cell = Vector2i(int(cv.get("x", 0)), int(cv.get("y", 0)))
-		var dist: int = maxi(absi(pc.x - cell.x), absi(pc.y - cell.y))
-		# COLD: hide; PREFETCH/AOI/VIEW: show (simple polygon needs no stream).
-		var show := dist <= cold_r
-		if mk.visible != show:
-			mk.visible = show
-			_radar_blips_ready = false
-		# Dim beyond VIEW
-		var body := mk.get_node_or_null("Body") as CanvasItem
-		if body != null:
-			body.modulate = Color(1, 1, 1, 1) if dist <= view_r else Color(1, 1, 1, 0.55)
-		# Nameplate draw distance (selected always shows).
-		var lab := mk.get_node_or_null("Name") as Label
-		if lab != null:
-			var show_p := GameSettingsScript.flag("show_player_names", true)
-			var max_d := _nameplate_max_dist()
-			var is_sel := str(rid) == _selected_remote_id
-			lab.visible = show_p and NameplateUtil.should_show(dist, max_d, is_sel)
-
-
+	RemoteActors._tick_remote_aoi(self, )
 func _apply_remote_move(action: Dictionary) -> void:
 	ActionApply.apply_remote_move(self, action)
 func _ensure_remote_layer() -> Node2D:
-	var layer := get_node_or_null("RemotePlayerLayer") as Node2D
-	if layer != null and is_instance_valid(layer):
-		return layer
-	layer = Node2D.new()
-	layer.name = "RemotePlayerLayer"
-	layer.z_index = 6
-	layer.z_as_relative = false
-	add_child(layer)
-	return layer
-
-
+	return RemoteActors._ensure_remote_layer(self, )
 func _upsert_remote_marker(data: Dictionary) -> void:
-	var pid := str(data.get("id", "")).strip_edges()
-	if pid.is_empty():
-		return
-	var cell_v: Variant = data.get("cell", {"x": 0, "y": 0})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var display_name := str(data.get("name", pid)).strip_edges()
-	if display_name.is_empty():
-		display_name = pid
-	var layer := _ensure_remote_layer()
-	var marker: Node2D = null
-	if _remote_markers.has(pid) and is_instance_valid(_remote_markers[pid]):
-		marker = _remote_markers[pid]
-	else:
-		marker = Node2D.new()
-		marker.name = "Remote_%s" % pid
-		layer.add_child(marker)
-		var anim := AnimatedSprite2D.new()
-		anim.name = "Anim"
-		anim.centered = true
-		anim.offset = Vector2(0, -32)
-		anim.z_index = 5
-		marker.add_child(anim)
-		var lab := Label.new()
-		lab.name = "Name"
-		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lab.add_theme_font_size_override("font_size", 12)
-		lab.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
-		lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		lab.add_theme_constant_override("outline_size", 2)
-		lab.position = Vector2(-48, -40)
-		lab.size = Vector2(96, 18)
-		marker.add_child(lab)
-		_remote_markers[pid] = marker
-	marker.set_meta("player_id", pid)
-	marker.set_meta("cell", cell)
-	marker.set_meta("display_name", display_name)
-	var gender := str(data.get("gender", "female"))
-	var look_id := str(data.get("look_id", "1"))
-	marker.set_meta("gender", gender)
-	marker.set_meta("look_id", look_id)
-	marker.set_meta("level", int(data.get("level", 1)))
-	_apply_remote_look(marker, gender, look_id, data.get("equipment", []))
-	var lab2 := marker.get_node_or_null("Name") as Label
-	if lab2 != null:
-		lab2.text = display_name
-		var show_p := GameSettingsScript.flag("show_player_names", true)
-		var pc: Vector2i = player.cell if player != null and "cell" in player else Vector2i.ZERO
-		var dist := NameplateUtil.chebyshev(pc, cell)
-		var is_sel := pid == _selected_remote_id
-		lab2.visible = show_p and NameplateUtil.should_show(dist, _nameplate_max_dist(), is_sel)
-	if map_field != null and map_field.has_method("cell_to_world"):
-		var wp: Vector2 = map_field.cell_to_world(cell)
-		marker.global_position = Vector2(wp.x, wp.y - float(map_field.tile_size) * 0.2)
-	else:
-		marker.position = Vector2(cell.x * 48 + 24, cell.y * 48 + 24)
-
-
+	RemoteActors._upsert_remote_marker(self, data)
 func _clear_remote_markers() -> void:
-	for pid in _remote_markers.keys():
-		var n = _remote_markers[pid]
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-	_remote_markers.clear()
-	_selected_remote_id = ""
-	_close_player_context_menu()
-
-
+	RemoteActors._clear_remote_markers(self, )
 func _remove_remote_marker(player_id: String) -> void:
-	player_id = player_id.strip_edges()
-	if player_id.is_empty():
-		return
-	if is_following() and get_follow_id() == player_id:
-		stop_follow()
-	if player_id == _selected_remote_id:
-		_selected_remote_id = ""
-	if _remote_markers.has(player_id):
-		var n = _remote_markers[player_id]
-		_remote_markers.erase(player_id)
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-
-
-
+	RemoteActors._remove_remote_marker(self, player_id)
 func _upsert_pet_marker(data: Dictionary) -> void:
-	if not bool(data.get("active", true)):
-		_remove_pet_marker()
-		return
-	var cell_v: Variant = data.get("cell", {"x": int(data.get("x", 0)), "y": int(data.get("y", 0))})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var display_name := str(data.get("name", "宠物")).strip_edges()
-	if display_name.is_empty():
-		display_name = "宠物"
-	var layer := _ensure_remote_layer()
-	var marker: Node2D = _pet_marker
-	if marker == null or not is_instance_valid(marker):
-		marker = Node2D.new()
-		marker.name = "PetCompanion"
-		layer.add_child(marker)
-		var anim := AnimatedSprite2D.new()
-		anim.name = "Anim"
-		anim.centered = true
-		anim.offset = Vector2(0, -32)
-		anim.z_index = 5
-		marker.add_child(anim)
-		var lab := Label.new()
-		lab.name = "Name"
-		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lab.add_theme_font_size_override("font_size", 12)
-		# Gold nameplate to distinguish from remote players.
-		lab.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
-		lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		lab.add_theme_constant_override("outline_size", 2)
-		lab.position = Vector2(-48, -40)
-		lab.size = Vector2(96, 18)
-		marker.add_child(lab)
-		_pet_marker = marker
-	marker.set_meta("kind", "pet")
-	marker.set_meta("pet_id", str(data.get("id", "default")))
-	marker.set_meta("cell", cell)
-	marker.set_meta("display_name", display_name)
-	var look_id := str(data.get("look_id", "1"))
-	marker.set_meta("look_id", look_id)
-	# Reuse remote look pipeline with a fixed gender (no new art).
-	if has_method("_apply_remote_look"):
-		_apply_remote_look(marker, "female", look_id, [])
-	var lab2 := marker.get_node_or_null("Name") as Label
-	if lab2 != null:
-		lab2.text = display_name
-	if map_field != null and map_field.has_method("cell_to_world"):
-		var wp: Vector2 = map_field.cell_to_world(cell)
-		marker.global_position = Vector2(wp.x, wp.y - float(map_field.tile_size) * 0.2)
-	else:
-		marker.position = Vector2(cell.x * 48 + 24, cell.y * 48 + 24)
-
-
+	RemoteActors._upsert_pet_marker(self, data)
 func _remove_pet_marker() -> void:
-	if _pet_marker != null and is_instance_valid(_pet_marker):
-		_pet_marker.queue_free()
-	_pet_marker = null
-
-
+	RemoteActors._remove_pet_marker(self, )
 func _apply_pet_move(action: Dictionary) -> void:
 	ActionApply.apply_pet_move(self, action)
 func request_chat(channel: String, text: String, whisper_to: String = "") -> void:
