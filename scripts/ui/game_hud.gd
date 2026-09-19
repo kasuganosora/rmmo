@@ -58,6 +58,17 @@ var _chat_channel: String = "all"
 var _chat_history: Array = []
 const CHAT_HISTORY_MAX := 200
 const ShopPanel = preload("res://scripts/ui/panels/shop_panel.gd")
+const SkillsPanel = preload("res://scripts/ui/panels/skills_panel.gd")
+const NpcDialoguePanel = preload("res://scripts/ui/panels/npc_dialogue_panel.gd")
+const DeathPanel = preload("res://scripts/ui/panels/death_panel.gd")
+const DuelPanel = preload("res://scripts/ui/panels/duel_panel.gd")
+const DungeonPanel = preload("res://scripts/ui/panels/dungeon_panel.gd")
+const EmotePanel = preload("res://scripts/ui/panels/emote_panel.gd")
+const GroundDropPanel = preload("res://scripts/ui/panels/ground_drop_panel.gd")
+const MinimapPanel = preload("res://scripts/ui/panels/minimap_panel.gd")
+const StatusPanel = preload("res://scripts/ui/panels/status_panel.gd")
+const CastBarPanel = preload("res://scripts/ui/panels/cast_bar_panel.gd")
+const TargetPanel = preload("res://scripts/ui/panels/target_panel.gd")
 var _hotbar_page: int = 0
 var _windows: Dictionary = {}
 var _radar: Control
@@ -598,56 +609,11 @@ func bind_character(ch: Dictionary) -> void:
 		set_meta("_chat_seeded", true)
 
 func _compact_status_panel() -> void:
-	## Lean top-left status: value text overlaid on bars (white, high contrast).
-	var panel := get_node_or_null("%StatusPanel") as PanelContainer
-	if panel != null:
-		panel.min_size = Vector2(160, 72)
-		panel.default_size = Vector2(200, 88)
-		panel.custom_minimum_size = Vector2(160, 72)
-		panel.size = Vector2(200, 88)
-	if name_label != null:
-		name_label.add_theme_font_size_override("font_size", 12)
-	if level_label != null:
-		level_label.add_theme_font_size_override("font_size", 11)
-	for lab in [cp_text, hp_text, mp_text]:
-		if lab != null:
-			lab.visible = false
-	# Color the fill via StyleBox (not modulate) so overlay Labels stay white.
-	_style_status_bar(cp_bar, Color(0.92, 0.78, 0.22, 1.0))
-	_style_status_bar(hp_bar, Color(0.82, 0.22, 0.22, 1.0))
-	_style_status_bar(mp_bar, Color(0.28, 0.42, 0.9, 1.0))
-	_ensure_status_overlays()
-	_ensure_xp_bar()
-	_ensure_status_chip_row()
-	_ensure_title_under_name()
-	_ensure_cast_bar()
-
-
+	StatusPanel._compact_status_panel(self, )
 func _style_status_bar(bar: ProgressBar, fill: Color) -> void:
-	if bar == null:
-		return
-	bar.custom_minimum_size = Vector2(0, 12)
-	bar.modulate = Color(1, 1, 1, 1)  # never tint children
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.08, 0.08, 0.1, 0.85)
-	bg.set_corner_radius_all(3)
-	bg.content_margin_left = 2
-	bg.content_margin_right = 2
-	bg.content_margin_top = 1
-	bg.content_margin_bottom = 1
-	var fg := StyleBoxFlat.new()
-	fg.bg_color = fill
-	fg.set_corner_radius_all(3)
-	bar.add_theme_stylebox_override("background", bg)
-	bar.add_theme_stylebox_override("fill", fg)
-
-
+	StatusPanel._style_status_bar(self, bar, fill)
 func _ensure_status_overlays() -> void:
-	_ensure_bar_overlay(cp_bar, "CpOverlay")
-	_ensure_bar_overlay(hp_bar, "HpOverlay")
-	_ensure_bar_overlay(mp_bar, "MpOverlay")
-
-
+	StatusPanel._ensure_status_overlays(self, )
 func _ensure_bar_overlay(bar: ProgressBar, oname: String) -> void:
 	if bar == null:
 		return
@@ -669,132 +635,17 @@ func _ensure_bar_overlay(bar: ProgressBar, oname: String) -> void:
 
 
 func _ensure_xp_bar() -> void:
-	## Thin EXP track under MP; created in code so tscn stays optional.
-	if mp_bar == null:
-		return
-	var vbox := mp_bar.get_parent() as VBoxContainer
-	if vbox == null:
-		return
-	if _xp_bar != null and is_instance_valid(_xp_bar):
-		return
-	var existing := vbox.get_node_or_null("XpBar") as ProgressBar
-	if existing != null:
-		_xp_bar = existing
-	else:
-		_xp_bar = ProgressBar.new()
-		_xp_bar.name = "XpBar"
-		_xp_bar.show_percentage = false
-		_xp_bar.mouse_filter = Control.MOUSE_FILTER_STOP
-		vbox.add_child(_xp_bar)
-		vbox.move_child(_xp_bar, mp_bar.get_index() + 1)
-	_xp_bar.custom_minimum_size = Vector2(0, 5)
-	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_style_status_bar(_xp_bar, Color(0.35, 0.78, 0.92, 1.0))
-	_xp_bar.custom_minimum_size = Vector2(0, 5)
-
-
+	StatusPanel._ensure_xp_bar(self, )
 func _ensure_status_chip_row() -> void:
-	## L2/FF14 icon strip under the CP/HP/MP panel (buffs then debuffs).
-	var panel := get_node_or_null("%StatusPanel") as PanelContainer
-	if panel == null:
-		return
-	if _status_chip_row != null and is_instance_valid(_status_chip_row):
-		return
-	var existing := panel.get_parent().get_node_or_null("StatusIconBar") if panel.get_parent() else null
-	if existing != null:
-		_status_chip_row = existing
-		_wire_player_status_bar(_status_chip_row)
-		return
-	var parent_ctl := panel.get_parent() as Control
-	var bar = StatusIconBar.new()
-	bar.name = "StatusIconBar"
-	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if parent_ctl != null:
-		parent_ctl.add_child(bar)
-		parent_ctl.move_child(bar, panel.get_index() + 1)
-	else:
-		panel.add_child(bar)
-	_status_chip_row = bar
-	_wire_player_status_bar(bar)
-	if bar.has_method("apply_statuses"):
-		bar.apply_statuses(_player_statuses)
-
-
+	StatusPanel._ensure_status_chip_row(self, )
 func _status_kind_color(kind: String) -> Color:
-	match kind.strip_edges().to_lower():
-		"buff":
-			return Color(0.35, 0.85, 0.45, 1.0)
-		"debuff":
-			return Color(0.75, 0.4, 0.9, 1.0)
-		"dot":
-			return Color(0.95, 0.35, 0.3, 1.0)
-		"hot":
-			return Color(0.35, 0.8, 0.95, 1.0)
-		_:
-			return Color(0.75, 0.75, 0.8, 1.0)
-
-
+	return StatusPanel._status_kind_color(self, kind)
 func _rebuild_status_chips(row: HBoxContainer, statuses: Array) -> void:
-	if row == null:
-		return
-	for c in row.get_children():
-		c.queue_free()
-	for s in statuses:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = s
-		var n := str(d.get("name", d.get("id", "?"))).strip_edges()
-		var rem: float = float(d.get("remaining_sec", 0.0))
-		var txt := "%s %.0fs" % [n, rem] if rem >= 1.0 else "%s %.1fs" % [n, rem]
-		var col := _status_kind_color(str(d.get("kind", "")))
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(col.r * 0.35, col.g * 0.35, col.b * 0.35, 0.92)
-		sb.set_border_width_all(1)
-		sb.border_color = col
-		sb.set_corner_radius_all(3)
-		sb.content_margin_left = 4
-		sb.content_margin_right = 4
-		sb.content_margin_top = 1
-		sb.content_margin_bottom = 1
-		var chip := PanelContainer.new()
-		chip.mouse_filter = Control.MOUSE_FILTER_STOP
-		chip.add_theme_stylebox_override("panel", sb)
-		var inner := Label.new()
-		inner.text = txt
-		inner.add_theme_font_size_override("font_size", 10)
-		inner.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_child(inner)
-		var desc := str(d.get("desc", d.get("description", ""))).strip_edges()
-		var kind := str(d.get("kind", ""))
-		chip.tooltip_text = "%s\n剩余 %.1f 秒%s%s" % [n, rem, ("\n" + kind) if kind != "" else "", ("\n" + desc) if desc != "" else ""]
-		row.add_child(chip)
-
-
+	StatusPanel._rebuild_status_chips(self, row, statuses)
 func apply_status_chips(statuses: Array) -> void:
-	_player_statuses = statuses.duplicate(true)
-	_ensure_status_chip_row()
-	if _status_chip_row != null and _status_chip_row.has_method("apply_statuses"):
-		_status_chip_row.apply_statuses(_player_statuses)
-	elif _status_chip_row != null:
-		_rebuild_status_chips(_status_chip_row, _player_statuses)
-	# Soft-refresh expanded self row in party panel when statuses change.
-	if _party_in_party():
-		_sync_party_self_statuses_from_player()
-		if _party_panel != null and _party_panel.visible:
-			_refresh_party_panel()
-
-
+	StatusPanel.apply_status_chips(self, statuses)
 func _wire_player_status_bar(bar: Control) -> void:
-	if bar == null:
-		return
-	if "allow_cancel" in bar:
-		bar.allow_cancel = true
-	if bar.has_signal("cancel_requested"):
-		if not bar.cancel_requested.is_connected(_on_status_cancel_requested):
-			bar.cancel_requested.connect(_on_status_cancel_requested)
-
-
+	StatusPanel._wire_player_status_bar(self, bar)
 func _on_status_cancel_requested(status_id: String) -> void:
 	status_id = str(status_id).strip_edges()
 	if status_id.is_empty():
@@ -827,130 +678,21 @@ func _sync_party_self_statuses_from_player() -> void:
 
 
 func apply_target_status_chips(statuses: Array) -> void:
-	if target_panel == null:
-		return
-	_ensure_target_chrome()
-	if _target_status_chip_row == null or not is_instance_valid(_target_status_chip_row):
-		var vbox := target_panel.find_child("TargetVBox", true, false) as VBoxContainer
-		if vbox == null:
-			return
-		var existing = vbox.get_node_or_null("TargetStatusIconBar")
-		if existing != null:
-			_target_status_chip_row = existing
-		else:
-			var bar = StatusIconBar.new()
-			bar.name = "TargetStatusIconBar"
-			bar.icon_size = 28.0
-			bar.allow_cancel = false
-			vbox.add_child(bar)
-			_target_status_chip_row = bar
-	if _target_status_chip_row.has_method("apply_statuses"):
-		_target_status_chip_row.apply_statuses(statuses)
-	else:
-		_rebuild_status_chips(_target_status_chip_row, statuses)
-
-
+	TargetPanel.apply_target_status_chips(self, statuses)
 func _ensure_cast_bar() -> void:
-	## Deprecated: center cast bar removed — hide/free any leftover node.
-	var existing := get_node_or_null("CastBarRoot") as Control
-	if existing != null and is_instance_valid(existing):
-		existing.visible = false
-		existing.queue_free()
-	_cast_root = null
-	_cast_bar = null
-	_cast_label = null
-
-
+	CastBarPanel._ensure_cast_bar(self, )
 func _style_cast_bar_mode(mode: String) -> void:
-	if _cast_bar == null:
-		return
-	if mode == "channel":
-		_style_status_bar(_cast_bar, Color(0.95, 0.55, 0.2, 1.0))
-	else:
-		_style_status_bar(_cast_bar, Color(0.55, 0.72, 1.0, 1.0))
-	_cast_bar.custom_minimum_size = Vector2(0, 22)
-
-
+	CastBarPanel._style_cast_bar_mode(self, mode)
 func _tick_cast_bar_visual(delta: float) -> void:
-	if not _cast_active:
-		return
-	if _cast_duration <= 0.0:
-		return
-	_cast_elapsed = minf(_cast_elapsed + maxf(delta, 0.0), _cast_duration)
-	var frac: float = clampf(_cast_elapsed / _cast_duration, 0.0, 1.0)
-	_sync_skill_cast_overlays()
-
-
+	CastBarPanel._tick_cast_bar_visual(self, delta)
 func apply_cast_start(action: Dictionary) -> void:
-	# Center cast bar removed — progress lives on skill-cell CdChrome only.
-	_cast_active = true
-	_cast_mode = str(action.get("mode", "cast"))
-	_cast_duration = maxf(float(action.get("duration", 0.0)), 0.05)
-	_cast_elapsed = float(action.get("elapsed", 0.0))
-	_cast_skill_id = str(action.get("skill_id", "")).strip_edges()
-	_cast_skill_name = str(action.get("name", action.get("skill_id", "技能")))
-	if _cast_root != null and is_instance_valid(_cast_root):
-		_cast_root.visible = false
-	_sync_skill_cast_overlays()
-
-
+	CastBarPanel.apply_cast_start(self, action)
 func apply_cast_update(action: Dictionary) -> void:
-	if not _cast_active:
-		apply_cast_start(action)
-		return
-	_cast_elapsed = float(action.get("elapsed", _cast_elapsed))
-	_cast_duration = maxf(float(action.get("duration", _cast_duration)), 0.05)
-	var sid := str(action.get("skill_id", "")).strip_edges()
-	if sid != "":
-		_cast_skill_id = sid
-	var nm := str(action.get("name", "")).strip_edges()
-	if nm != "":
-		_cast_skill_name = nm
-	if _cast_root != null and is_instance_valid(_cast_root):
-		_cast_root.visible = false
-	_sync_skill_cast_overlays()
-
-
+	CastBarPanel.apply_cast_update(self, action)
 func apply_cast_end(action: Dictionary) -> void:
-	_cast_active = false
-	_cast_elapsed = 0.0
-	_cast_duration = 0.0
-	_cast_skill_id = ""
-	if _cast_root != null and is_instance_valid(_cast_root):
-		_cast_root.visible = false
-	_sync_skill_cast_overlays()
-	var _ok := bool(action.get("ok", false))
-	var _cancelled := bool(action.get("cancelled", false))
-	if _cancelled:
-		pass
-
-
+	CastBarPanel.apply_cast_end(self, action)
 func _refresh_xp_bar() -> void:
-	_ensure_xp_bar()
-	if _xp_bar == null:
-		return
-	var exp_cur: int = maxi(int(_server_combat.get("exp", 0)), 0)
-	var exp_next: int = int(_server_combat.get("exp_to_next", 0))
-	var rested: int = maxi(int(_server_combat.get("rested_exp", 0)), 0)
-	var tip := ""
-	if exp_next <= 0:
-		_xp_bar.max_value = 1.0
-		_xp_bar.value = 1.0
-		tip = "经验 %d" % exp_cur
-	else:
-		_xp_bar.max_value = float(exp_next)
-		_xp_bar.value = float(mini(exp_cur, exp_next))
-		tip = "经验 %d / %d" % [exp_cur, exp_next]
-	if rested > 0:
-		tip += "
-休息 %d" % rested
-		var rmax: int = int(_server_combat.get("rested_exp_max", 0))
-		if rmax > 0:
-			tip += " / %d" % rmax
-	_xp_bar.tooltip_text = tip
-	_refresh_rested_label(rested)
-
-
+	StatusPanel._refresh_xp_bar(self, )
 func _refresh_bars() -> void:
 	cp_bar.max_value = _cp_max
 	hp_bar.max_value = _hp_max
@@ -983,9 +725,7 @@ func _refresh_bars() -> void:
 	_refresh_xp_bar()
 
 func set_minimap_hint(text: String) -> void:
-	minimap_label.text = text
-
-
+	MinimapPanel.set_minimap_hint(self, text)
 func bind_radar(map_field: Node2D, player: Node2D, map_id: String = "", blip_source: Variant = null) -> void:
 	_radar_map_field = map_field
 	_radar_player = player
@@ -1000,170 +740,20 @@ func bind_radar(map_field: Node2D, player: Node2D, map_id: String = "", blip_sou
 
 
 func clear_target() -> void:
-	target_panel.visible = false
-	target_name.text = ""
-	target_hp.value = 0
-	target_hp.visible = false
-	if _target_mp != null:
-		_target_mp.value = 0
-		_target_mp.visible = false
-	_target_world_pos = null
-	_threat_visible = false
-	_threat_you = false
-	if _threat_chip != null and is_instance_valid(_threat_chip):
-		_threat_chip.visible = false
-	if _target_status_chip_row != null and is_instance_valid(_target_status_chip_row):
-		_rebuild_status_chips(_target_status_chip_row, [])
-	if _radar and _radar.has_method("clear_target_angle"):
-		_radar.clear_target_angle()
-
-
+	TargetPanel.clear_target(self, )
 func _ensure_target_chrome() -> void:
-	## Name + × close on one row; HP bar below (monster only).
-	if target_panel == null:
-		return
-	var vbox := target_panel.find_child("TargetVBox", true, false) as VBoxContainer
-	if vbox == null:
-		return
-	var head := vbox.get_node_or_null("TargetHead") as HBoxContainer
-	if head == null:
-		head = HBoxContainer.new()
-		head.name = "TargetHead"
-		head.add_theme_constant_override("separation", 6)
-		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vbox.add_child(head)
-		vbox.move_child(head, 0)
-		if target_name.get_parent() != head:
-			target_name.reparent(head)
-		target_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		target_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var close_btn := Button.new()
-		close_btn.name = "TargetClose"
-		close_btn.text = "×"
-		close_btn.focus_mode = Control.FOCUS_NONE
-		close_btn.custom_minimum_size = Vector2(28, 22)
-		close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-		close_btn.pressed.connect(_on_target_close_pressed)
-		head.add_child(close_btn)
-	# Keep HP under the head row; MP under HP.
-	if target_hp.get_parent() == vbox:
-		vbox.move_child(target_hp, mini(1, vbox.get_child_count() - 1))
-	if _target_mp == null or not is_instance_valid(_target_mp):
-		_target_mp = vbox.get_node_or_null("TargetMp") as ProgressBar
-	if _target_mp == null:
-		_target_mp = ProgressBar.new()
-		_target_mp.name = "TargetMp"
-		_target_mp.custom_minimum_size = Vector2(0, 10)
-		_target_mp.show_percentage = false
-		_target_mp.modulate = Color(0.28, 0.48, 0.95, 1)
-		_target_mp.max_value = 100.0
-		_target_mp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		vbox.add_child(_target_mp)
-	if _target_mp.get_parent() == vbox:
-		vbox.move_child(_target_mp, mini(2, vbox.get_child_count() - 1))
-	_ensure_threat_chip()
-
-
+	TargetPanel._ensure_target_chrome(self, )
 ## Hostile target bar: 「仇恨」 gold/red when you are victim; 「无仇恨」 muted otherwise.
 func apply_threat_chip(show: bool, threat_you: bool = false) -> void:
-	_threat_visible = show
-	_threat_you = threat_you
-	_ensure_threat_chip()
-	if _threat_chip == null:
-		return
-	if not show:
-		_threat_chip.visible = false
-		return
-	var ThreatUtil = preload("res://scripts/ui/threat_hud_util.gd")
-	_threat_chip.text = ThreatUtil.chip_text(threat_you)
-	_threat_chip.add_theme_color_override("font_color", ThreatUtil.chip_color(threat_you))
-	_threat_chip.visible = true
-
-
+	TargetPanel.apply_threat_chip(self, show, threat_you)
 func apply_threat_update(action: Dictionary) -> void:
-	## From threat_update / set_stat piggyback while a hostile target is shown.
-	if not _threat_visible and not bool(action.get("force", false)):
-		# Only refresh when chip already armed for a hostile target.
-		if target_panel == null or not target_panel.visible:
-			return
-	var ThreatUtil = preload("res://scripts/ui/threat_hud_util.gd")
-	var n: Dictionary = ThreatUtil.normalize(action)
-	apply_threat_chip(true, bool(n.get("threat_you", false)))
-
-
+	TargetPanel.apply_threat_update(self, action)
 func _ensure_threat_chip() -> void:
-	if target_panel == null:
-		return
-	if _threat_chip != null and is_instance_valid(_threat_chip):
-		_threat_chip.visible = _threat_visible
-		return
-	var vbox := target_panel.find_child("TargetVBox", true, false) as VBoxContainer
-	if vbox == null:
-		return
-	var head := vbox.get_node_or_null("TargetHead") as HBoxContainer
-	_threat_chip = Label.new()
-	_threat_chip.name = "ThreatChip"
-	_threat_chip.text = "无仇恨"
-	_threat_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_threat_chip.add_theme_font_size_override("font_size", 11)
-	_threat_chip.add_theme_color_override("font_color", Color(0.55, 0.55, 0.58, 1.0))
-	_threat_chip.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.08, 0.9))
-	_threat_chip.add_theme_constant_override("outline_size", 2)
-	_threat_chip.visible = _threat_visible
-	if head != null:
-		# Insert before close button (last child) when possible.
-		head.add_child(_threat_chip)
-		var close := head.get_node_or_null("TargetClose")
-		if close != null:
-			head.move_child(_threat_chip, close.get_index())
-	else:
-		vbox.add_child(_threat_chip)
-		vbox.move_child(_threat_chip, 0)
-
-
+	TargetPanel._ensure_threat_chip(self, )
 func _on_target_close_pressed() -> void:
-	## × clears HUD target and world selection / foot ring.
-	if _world_combat != null and _world_combat.has_method("clear_target_selection"):
-		_world_combat.clear_target_selection()
-	else:
-		clear_target()
-
-
-func show_target(
-	p_name: String,
-	hp_ratio: float = 1.0,
-	world_pos: Variant = null,
-	show_hp_bar: bool = true,
-	mp_ratio: float = -1.0,
-	show_threat: bool = false,
-	threat_you: bool = false
-) -> void:
-	_ensure_target_chrome()
-	target_panel.visible = true
-	target_name.text = p_name
-	target_hp.visible = show_hp_bar
-	if show_hp_bar:
-		target_hp.max_value = 100.0
-		target_hp.value = clampf(hp_ratio, 0.0, 1.0) * 100.0
-	else:
-		target_hp.value = 0
-	var show_mp := show_hp_bar and mp_ratio >= 0.0
-	if _target_mp != null:
-		_target_mp.visible = show_mp
-		if show_mp:
-			_target_mp.max_value = 100.0
-			_target_mp.value = clampf(mp_ratio, 0.0, 1.0) * 100.0
-		else:
-			_target_mp.value = 0
-	if typeof(world_pos) == TYPE_VECTOR2:
-		_target_world_pos = world_pos
-		_update_target_angle()
-	else:
-		_target_world_pos = null
-		if _radar and _radar.has_method("clear_target_angle"):
-			_radar.clear_target_angle()
-	apply_threat_chip(show_threat, threat_you)
-
+	TargetPanel._on_target_close_pressed(self, )
+func show_target( p_name: String, hp_ratio: float = 1.0, world_pos: Variant = null, show_hp_bar: bool = true, mp_ratio: float = -1.0, show_threat: bool = false, threat_you: bool = false ) -> void:
+	TargetPanel.show_target(self, p_name, hp_ratio, world_pos, show_hp_bar, mp_ratio, show_threat, threat_you)
 func append_chat(speaker: String, msg: String) -> void:
 	_push_chat(_chat_channel if _chat_channel != "all" else "all", speaker, msg)
 
@@ -1193,70 +783,11 @@ func append_combat_typed(kind: String, msg: String) -> void:
 
 
 func show_npc_dialogue(npc_name: String, body: String, options: Array = [], face: Dictionary = {}) -> void:
-	## Open Lineage2-ish NPC Chat panel. options: Array of String or {label, id}.
-	_ensure_npc_chat()
-	var title_name := npc_name.strip_edges()
-	if title_name == "":
-		title_name = "NPC"
-	_npc_chat_name.text = title_name
-	_apply_dialogue_face(face)
-	var body_text := body.strip_edges()
-	if body_text == "":
-		body_text = "helloworld"
-	_npc_chat_body.clear()
-	var safe := body_text.replace("[", "[lb]")
-	_npc_chat_body.append_text(safe)
-	for c in _npc_chat_options.get_children():
-		c.queue_free()
-	for opt in options:
-		var label := ""
-		if typeof(opt) == TYPE_DICTIONARY:
-			label = str(opt.get("label", opt.get("text", "")))
-		else:
-			label = str(opt)
-		label = label.strip_edges()
-		if label == "":
-			continue
-		var link := RichTextLabel.new()
-		link.bbcode_enabled = true
-		link.fit_content = true
-		link.scroll_active = false
-		link.mouse_filter = Control.MOUSE_FILTER_STOP
-		link.add_theme_font_size_override("normal_font_size", 13)
-		link.add_theme_color_override("default_color", L2Style.COL_LINK)
-		link.add_theme_color_override("font_url_color", L2Style.COL_LINK)
-		link.custom_minimum_size = Vector2(0, 22)
-		link.append_text("[center][url][u]%s[/u][/url][/center]" % label)
-		var opt_id := ""
-		var opt_idx := _npc_chat_options.get_child_count()
-		if typeof(opt) == TYPE_DICTIONARY:
-			opt_id = str(opt.get("id", "")).strip_edges()
-		link.meta_clicked.connect(_make_dialogue_option_handler(opt_id, opt_idx, label))
-		_npc_chat_options.add_child(link)
-	_npc_chat.visible = true
-	_npc_chat.move_to_front()
-	var base: Vector2 = _npc_chat.get_meta("base_size", Vector2(380, 400))
-	_npc_chat.size = base
-	call_deferred("_place_npc_chat")
-
-
+	NpcDialoguePanel.show_npc_dialogue(self, npc_name, body, options, face)
 func _make_dialogue_option_handler(option_id: String, option_index: int, label: String) -> Callable:
-	return func(_meta):
-		hide_npc_dialogue()
-		if _world_combat != null and _world_combat.has_method("request_event_choice"):
-			_world_combat.request_event_choice(option_id, option_index)
-		else:
-			var srv = Net.server()
-			if srv != null and srv.has_method("try_event_choice"):
-				srv.try_event_choice(option_id, option_index)
-			append_system("对话选项：%s" % label)
-
-
+	return NpcDialoguePanel._make_dialogue_option_handler(self, option_id, option_index, label)
 func hide_npc_dialogue() -> void:
-	if _npc_chat != null:
-		_npc_chat.visible = false
-
-
+	NpcDialoguePanel.hide_npc_dialogue(self, )
 func _ensure_npc_chat() -> void:
 	if _npc_chat != null and is_instance_valid(_npc_chat):
 		return
@@ -1357,18 +888,7 @@ func _ensure_npc_chat() -> void:
 
 
 func _apply_dialogue_face(face: Dictionary) -> void:
-	if _npc_chat_face == null:
-		return
-	var fid := str(face.get("id", face.get("face", ""))).strip_edges()
-	if fid == "":
-		_npc_chat_face.texture = null
-		_npc_chat_face.visible = false
-		return
-	var tex: Texture2D = CharsetSheet.make_face_texture(fid, int(face.get("index", 0)), str(face.get("pack_dir", "")))
-	_npc_chat_face.texture = tex
-	_npc_chat_face.visible = tex != null
-
-
+	NpcDialoguePanel._apply_dialogue_face(self, face)
 func _place_npc_chat() -> void:
 	if _npc_chat == null or not _npc_chat.visible:
 		return
@@ -1602,18 +1122,7 @@ func _apply_chat_result_locally(result: Dictionary) -> void:
 
 
 func _on_remote_debug_spawn() -> void:
-	if _world_combat != null and _world_combat.has_method("request_remote_debug_spawn"):
-		_world_combat.request_remote_debug_spawn("")
-		return
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_remote_debug_spawn"):
-		var result: Dictionary = srv.try_remote_debug_spawn("")
-		_apply_chat_result_locally(result)
-		# Also ask world if bound
-		if _world_combat != null:
-			pass
-
-
+	EmotePanel._on_remote_debug_spawn(self, )
 func _process(_delta: float) -> void:
 	_tick_duel_banner(_delta)
 	_tick_level_toast(_delta)
@@ -1636,59 +1145,11 @@ func _process(_delta: float) -> void:
 
 
 func _tick_status_icon_bars(delta: float) -> void:
-	## Advance pie timers on player/target StatusIconBar strips (no-op if absent).
-	if _status_chip_row != null and is_instance_valid(_status_chip_row) and _status_chip_row.has_method("tick"):
-		_status_chip_row.tick(delta)
-	if _target_status_chip_row != null and is_instance_valid(_target_status_chip_row) and _target_status_chip_row.has_method("tick"):
-		_target_status_chip_row.tick(delta)
-
-
+	StatusPanel._tick_status_icon_bars(self, delta)
 func _sync_radar(force_hint: bool = false) -> void:
-	if not RADAR_ENABLED:
-		return
-	if _radar == null or _radar_player == null:
-		return
-	var center: Vector2 = _radar_player.global_position
-	var yaw: float = PI * 0.5
-	if _radar_player.has_method("facing_angle"):
-		yaw = float(_radar_player.facing_angle())
-	if _radar.has_method("update_view"):
-		_radar.update_view(center, yaw)
-	_update_target_angle()
-	var cell := Vector2i.ZERO
-	if "cell" in _radar_player:
-		cell = _radar_player.cell
-	elif _radar_map_field != null and _radar_map_field.has_method("world_to_cell"):
-		cell = _radar_map_field.world_to_cell(center)
-	# Blips: throttle (wander NPCs); hint / map-window text only when cell changes.
-	var now_ms: int = Time.get_ticks_msec()
-	if force_hint or now_ms - _radar_blips_msec >= RADAR_BLIPS_INTERVAL_MS:
-		_radar_blips_msec = now_ms
-		_sync_radar_blips()
-	if force_hint or cell != _radar_hint_cell:
-		_radar_hint_cell = cell
-		if minimap_label != null and _radar.has_method("hint_text"):
-			minimap_label.text = str(_radar.hint_text())
-		_refresh_map_window_info()
-
-
+	MinimapPanel._sync_radar(self, force_hint)
 func _sync_radar_blips() -> void:
-	if _radar == null or not _radar.has_method("set_entity_blips"):
-		return
-	var blips: Array = []
-	if typeof(_radar_blip_source) == TYPE_CALLABLE:
-		var result: Variant = _radar_blip_source.call()
-		if typeof(result) == TYPE_ARRAY:
-			blips = result
-	elif _radar_blip_source is Node and is_instance_valid(_radar_blip_source):
-		if _radar_blip_source.has_method("get_radar_blips"):
-			var result2: Variant = _radar_blip_source.get_radar_blips()
-			if typeof(result2) == TYPE_ARRAY:
-				blips = result2
-	_radar.set_entity_blips(blips)
-	_sync_map_poi_markers()
-
-
+	MinimapPanel._sync_radar_blips(self, )
 func _sync_map_poi_markers() -> void:
 	if _map_overview == null or not is_instance_valid(_map_overview):
 		return
@@ -1704,98 +1165,15 @@ func _sync_map_poi_markers() -> void:
 
 
 func _update_target_angle() -> void:
-	if _radar == null:
-		return
-	if typeof(_target_world_pos) != TYPE_VECTOR2 or _radar_player == null:
-		return
-	var delta: Vector2 = (_target_world_pos as Vector2) - _radar_player.global_position
-	if delta.length_squared() < 0.0001:
-		if _radar.has_method("clear_target_angle"):
-			_radar.clear_target_angle()
-		return
-	if _radar.has_method("set_target_angle"):
-		_radar.set_target_angle(atan2(delta.y, delta.x))
-
-
+	TargetPanel._update_target_angle(self, )
 func _setup_radar() -> void:
-	if not RADAR_ENABLED:
-		var panel := get_node_or_null("MinimapPanel")
-		if panel:
-			panel.visible = false
-		set_process(false)
-		return
-	for c in minimap_view_host.get_children():
-		c.queue_free()
-	minimap_view_host.mouse_filter = Control.MOUSE_FILTER_STOP
-	_radar = Control.new()
-	_radar.set_script(RadarView)
-	_radar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_radar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_radar.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_radar.mouse_filter = Control.MOUSE_FILTER_STOP
-	minimap_view_host.add_child(_radar)
-	_setup_radar_zoom_buttons()
-	_apply_radar_view_radius_from_settings()
-	_connect_radar_nav()
-
-
+	MinimapPanel._setup_radar(self, )
 func _connect_radar_nav() -> void:
-	if _radar == null or not is_instance_valid(_radar):
-		return
-	if _radar.has_signal("cell_clicked") and not _radar.cell_clicked.is_connected(_on_map_nav_cell):
-		_radar.cell_clicked.connect(_on_map_nav_cell)
-	if _radar.has_signal("cell_pinned") and not _radar.cell_pinned.is_connected(_on_map_pin_cell):
-		_radar.cell_pinned.connect(_on_map_pin_cell)
-
-
+	MinimapPanel._connect_radar_nav(self, )
 func _setup_radar_zoom_buttons() -> void:
-	if minimap_view_host == null:
-		return
-	var row := HBoxContainer.new()
-	row.name = "RadarZoomBtns"
-	row.mouse_filter = Control.MOUSE_FILTER_STOP
-	row.add_theme_constant_override("separation", 2)
-	row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	row.offset_left = -44
-	row.offset_top = -22
-	row.offset_right = -2
-	row.offset_bottom = -2
-	var mk := func(label: String, dir: int) -> void:
-		var b := Button.new()
-		b.text = label
-		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(20, 18)
-		b.mouse_filter = Control.MOUSE_FILTER_STOP
-		b.tooltip_text = "缩小" if dir > 0 else "放大"
-		b.pressed.connect(func():
-			var gs := GameSettingsScript.get_i()
-			if gs != null and gs.has_method("cycle_radar_view_radius"):
-				gs.cycle_radar_view_radius(dir)
-		)
-		row.add_child(b)
-	# "-" = zoom out (larger radius); "+" = zoom in (smaller radius)
-	mk.call("-", 1)
-	mk.call("+", -1)
-	minimap_view_host.add_child(row)
-
-
+	MinimapPanel._setup_radar_zoom_buttons(self, )
 func _apply_radar_view_radius_from_settings() -> void:
-	if _radar == null or not is_instance_valid(_radar):
-		return
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	var r: float = 11.0
-	if "radar_view_radius" in gs:
-		r = float(gs.radar_view_radius)
-	if _radar.has_method("set_view_radius"):
-		_radar.set_view_radius(r)
-	elif "view_radius_tiles" in _radar:
-		_radar.view_radius_tiles = r
-
-
+	MinimapPanel._apply_radar_view_radius_from_settings(self, )
 func _connect_overview_nav(overview: Control) -> void:
 	if overview == null or not is_instance_valid(overview):
 		return
@@ -1806,29 +1184,9 @@ func _connect_overview_nav(overview: Control) -> void:
 
 
 func set_map_pin(cell: Vector2i) -> void:
-	_map_pin_cell = cell
-	if _radar != null and is_instance_valid(_radar) and _radar.has_method("set_pin_cell"):
-		_radar.set_pin_cell(cell)
-	if _map_overview != null and is_instance_valid(_map_overview) and _map_overview.has_method("set_pin_cell"):
-		_map_overview.set_pin_cell(cell)
-
-
+	MinimapPanel.set_map_pin(self, cell)
 func apply_map_pins_update(action: Dictionary) -> void:
-	var snap_v: Variant = action.get("map_pins", action)
-	var pins: Array = []
-	if typeof(snap_v) == TYPE_DICTIONARY:
-		var pv: Variant = snap_v.get("pins", [])
-		if typeof(pv) == TYPE_ARRAY:
-			pins = pv
-	elif typeof(snap_v) == TYPE_ARRAY:
-		pins = snap_v
-	_map_pins = pins.duplicate(true)
-	# Personal pins render via RadarPoi kind=pin; keep legacy cyan overlay off.
-	_map_pin_cell = Vector2i(-9999, -9999)
-	set_map_pin(_map_pin_cell)
-	_sync_map_poi_markers()
-
-
+	MinimapPanel.apply_map_pins_update(self, action)
 func _on_map_nav_cell(cell: Vector2i) -> void:
 	var label := ""
 	if _map_overview != null and is_instance_valid(_map_overview) and _map_overview.has_method("consume_nav_label"):
@@ -1840,24 +1198,9 @@ func _on_map_nav_cell(cell: Vector2i) -> void:
 
 
 func _on_map_pin_cell(cell: Vector2i) -> void:
-	if _world_combat != null and _world_combat.has_method("toggle_map_pin"):
-		_world_combat.toggle_map_pin(cell)
-	else:
-		if _map_pin_cell == cell:
-			set_map_pin(Vector2i(-9999, -9999))
-		else:
-			set_map_pin(cell)
-
-
+	MinimapPanel._on_map_pin_cell(self, cell)
 func _on_clear_map_pins() -> void:
-	if _world_combat != null and _world_combat.has_method("clear_map_pins"):
-		_world_combat.clear_map_pins()
-	else:
-		_map_pins.clear()
-		set_map_pin(Vector2i(-9999, -9999))
-		append_system("已清除全部标记")
-
-
+	MinimapPanel._on_clear_map_pins(self, )
 func _build_chat_tabs() -> void:
 	for c in chat_tabs.get_children():
 		c.queue_free()
@@ -1893,71 +1236,17 @@ func _hotbar_bind_key(page: int, slot: int) -> String:
 
 
 func _session_hotbar_store() -> Node:
-	var net := get_node_or_null("/root/Net")
-	if net != null and net.has_method("session"):
-		return net.session()
-	return get_node_or_null("/root/GameSession")
-
-
+	return SkillsPanel._session_hotbar_store(self, )
 func _restore_hotbar_from_session() -> void:
-	var sess := _session_hotbar_store()
-	if sess == null:
-		return
-	_hotbar_page = clampi(int(sess.hotbar_page), 0, HOTBAR_PAGES.size() - 1)
-	var raw: Variant = sess.hotbar_bindings
-	if typeof(raw) != TYPE_DICTIONARY:
-		_hotbar_bindings = {}
-		return
-	var src: Dictionary = raw
-	var out: Dictionary = {}
-	for k in src.keys():
-		var v: Variant = src[k]
-		if typeof(v) != TYPE_DICTIONARY:
-			continue
-		var kind := str(v.get("kind", "")).strip_edges()
-		var id := str(v.get("id", "")).strip_edges()
-		if kind.is_empty() or id.is_empty():
-			continue
-		out[str(k)] = {"kind": kind, "id": id}
-	_hotbar_bindings = out
-
-
+	SkillsPanel._restore_hotbar_from_session(self, )
 func _persist_hotbar_to_session() -> void:
-	var sess := _session_hotbar_store()
-	if sess == null:
-		return
-	sess.hotbar_page = _hotbar_page
-	sess.hotbar_bindings = _hotbar_bindings.duplicate(true)
-
-
+	SkillsPanel._persist_hotbar_to_session(self, )
 func _get_hotbar_binding(page: int, slot: int) -> Dictionary:
-	var k := _hotbar_bind_key(page, slot)
-	if _hotbar_bindings.has(k):
-		var v: Variant = _hotbar_bindings[k]
-		if typeof(v) == TYPE_DICTIONARY:
-			return v
-	return {}
-
-
+	return SkillsPanel._get_hotbar_binding(self, page, slot)
 func _set_hotbar_binding(page: int, slot: int, kind: String, id: String) -> void:
-	kind = kind.strip_edges()
-	id = id.strip_edges()
-	var k := _hotbar_bind_key(page, slot)
-	if kind.is_empty() or id.is_empty():
-		_hotbar_bindings.erase(k)
-	else:
-		_hotbar_bindings[k] = {"kind": kind, "id": id}
-	_persist_hotbar_to_session()
-	_refresh_hotbar_slot_visuals()
-
-
+	SkillsPanel._set_hotbar_binding(self, page, slot, kind, id)
 func _clear_hotbar_binding(page: int, slot: int) -> void:
-	_hotbar_bindings.erase(_hotbar_bind_key(page, slot))
-	_persist_hotbar_to_session()
-	_refresh_hotbar_slot_visuals()
-	append_system("已清除快捷栏 %d 槽位 %d" % [page + 1, slot])
-
-
+	SkillsPanel._clear_hotbar_binding(self, page, slot)
 func _inventory_qty(item_id: String) -> int:
 	item_id = item_id.strip_edges()
 	for it in _server_inventory:
@@ -2078,273 +1367,28 @@ func _letter_avatar(name: String) -> String:
 
 
 func _layout_hotbar_side_nav(prev: Node, next: Node) -> void:
-	## Put < > on the sides of the slot row; hide page label / top nav row.
-	if hotbar == null:
-		return
-	if hotbar_page_label != null:
-		hotbar_page_label.visible = false
-	var nav := find_child("HotbarNav", true, false) as Control
-	if nav != null:
-		nav.visible = false
-	# Prefer a dedicated side-nav HBox wrapping prev | slots | next.
-	var host := hotbar.get_parent()
-	if host == null:
-		return
-	var side := host.get_node_or_null("HotbarSideRow") as HBoxContainer
-	if side == null:
-		side = HBoxContainer.new()
-		side.name = "HotbarSideRow"
-		side.add_theme_constant_override("separation", 4)
-		side.alignment = BoxContainer.ALIGNMENT_CENTER
-		side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		host.add_child(side)
-		# Place above menu / where Hotbar was.
-		if hotbar.get_parent() == host:
-			host.move_child(side, hotbar.get_index())
-		hotbar.reparent(side)
-	if prev != null and is_instance_valid(prev):
-		if prev.get_parent() != side:
-			prev.reparent(side)
-		side.move_child(prev, 0)
-		prev.custom_minimum_size = Vector2(22, GRID_CELL)
-		prev.text = "<"
-	if hotbar.get_parent() == side:
-		side.move_child(hotbar, mini(1, side.get_child_count() - 1))
-	if next != null and is_instance_valid(next):
-		if next.get_parent() != side:
-			next.reparent(side)
-		side.move_child(next, side.get_child_count() - 1)
-		next.custom_minimum_size = Vector2(22, GRID_CELL)
-		next.text = ">"
-
-
+	SkillsPanel._layout_hotbar_side_nav(self, prev, next)
 func _text_input_focused() -> bool:
 	var f := get_viewport().gui_get_focus_owner()
 	return f is LineEdit or f is TextEdit or f is CodeEdit
 
 
 func _hotbar_keycode_to_slot(keycode: int) -> Vector2i:
-	## Returns Vector2i(page, slot_index0) or (-1,-1).
-	match keycode:
-		KEY_F1: return Vector2i(0, 0)
-		KEY_F2: return Vector2i(0, 1)
-		KEY_F3: return Vector2i(0, 2)
-		KEY_F4: return Vector2i(0, 3)
-		KEY_F5: return Vector2i(0, 4)
-		KEY_F6: return Vector2i(0, 5)
-		KEY_F7: return Vector2i(0, 6)
-		KEY_F8: return Vector2i(0, 7)
-		KEY_F9: return Vector2i(0, 8)
-		KEY_F10: return Vector2i(0, 9)
-		KEY_F11: return Vector2i(0, 10)
-		KEY_F12: return Vector2i(0, 11)
-		KEY_QUOTELEFT: return Vector2i(1, 0)  # `
-		KEY_1: return Vector2i(1, 1)
-		KEY_2: return Vector2i(1, 2)
-		KEY_3: return Vector2i(1, 3)
-		KEY_4: return Vector2i(1, 4)
-		KEY_5: return Vector2i(1, 5)
-		KEY_6: return Vector2i(1, 6)
-		KEY_7: return Vector2i(1, 7)
-		KEY_8: return Vector2i(1, 8)
-		KEY_9: return Vector2i(1, 9)
-		KEY_0: return Vector2i(1, 10)
-		KEY_MINUS, KEY_EQUAL: return Vector2i(1, 11)  # - / = / + (last slot)
-	return Vector2i(-1, -1)
-
-
+	return SkillsPanel._hotbar_keycode_to_slot(self, keycode)
 func _try_hotbar_key(keycode: int) -> bool:
-	if _text_input_focused():
-		return false
-	var map := _hotbar_keycode_to_slot(keycode)
-	if map.x < 0:
-		return false
-	var page: int = map.x
-	var idx: int = map.y
-	if page >= HOTBAR_PAGES.size() or idx >= HOTBAR_PAGES[page].size():
-		return false
-	var key := str(HOTBAR_PAGES[page][idx])
-	_on_hotbar_pressed(page, idx + 1, key)
-	return true
-
-
+	return SkillsPanel._try_hotbar_key(self, keycode)
 func _build_hotbar() -> void:
-	# Immediate free so get_child_count() is accurate this frame.
-	while hotbar.get_child_count() > 0:
-		var c: Node = hotbar.get_child(0)
-		hotbar.remove_child(c)
-		c.free()
-	var keys: Array = HOTBAR_PAGES[_hotbar_page]
-	for i in range(keys.size()):
-		var slot := Button.new()
-		slot.set_script(HotbarSlot)
-		slot.custom_minimum_size = Vector2(GRID_CELL, GRID_CELL)
-		var slot_n: int = i + 1
-		slot.focus_mode = Control.FOCUS_NONE
-		slot.configure(_hotbar_page, slot_n)
-		slot.pressed.connect(_on_hotbar_pressed.bind(_hotbar_page, slot_n, str(keys[i])))
-		slot.item_dropped.connect(_on_hotbar_item_dropped)
-		slot.skill_dropped.connect(_on_hotbar_skill_dropped)
-		slot.binding_cleared.connect(_on_hotbar_binding_cleared)
-		hotbar.add_child(slot)
-		if slot.has_method("set_key_hint"):
-			slot.set_key_hint(str(keys[i]))
-	if hotbar_page_label != null:
-		hotbar_page_label.visible = false
-	_refresh_hotbar_slot_visuals()
-
-
+	SkillsPanel._build_hotbar(self, )
 func _refresh_hotbar_slot_visuals() -> void:
-	_sync_equipment_cache()
-	if hotbar == null:
-		return
-	var keys: Array = HOTBAR_PAGES[_hotbar_page]
-	var page0_hints := {
-		1: "普通攻击",
-		2: "强力打击",
-		3: "轻度治疗",
-		4: "小型生命药水",
-		5: "小型魔法药水",
-	}
-	for i in range(hotbar.get_child_count()):
-		var btn := hotbar.get_child(i) as Button
-		if btn == null:
-			continue
-		var slot_n: int = i + 1
-		var key_label := str(keys[i]) if i < keys.size() else str(slot_n)
-		var bind := _get_hotbar_binding(_hotbar_page, slot_n)
-		if btn.has_method("set_binding_visual"):
-			if not bind.is_empty():
-				var kind := str(bind.get("kind", ""))
-				var bid := str(bind.get("id", ""))
-				if kind == "item":
-					var dname := _item_label(bid)
-					var tip_name := _item_rarity_name_line(bid, dname)
-					var q := _inventory_qty(bid)
-					var eq_on := q <= 0 and _is_item_equipped(bid)
-					var tip := "%s ×%d\n%s（右键清除）" % [tip_name, q, bid]
-					if eq_on:
-						tip = "%s（已装备）\n%s（右键清除）" % [tip_name, bid]
-					tip = _equip_compare_tip(bid, tip)
-					btn.set_binding_visual(
-						"item",
-						_letter_avatar(dname),
-						q,
-						tip,
-						_item_icon_index(bid),
-						_item_icon_ref(bid)
-					)
-				elif kind == "skill":
-					var sname := _skill_display_name(bid)
-					var tip_extra := "（被动）" if _is_passive_skill(bid) else ""
-					btn.set_binding_visual(
-						"skill",
-						_letter_avatar(sname),
-						0,
-						"技能 %s%s（右键清除）" % [sname, tip_extra],
-						_skill_icon_index(bid),
-						_skill_icon_ref(bid)
-					)
-				else:
-					btn.set_binding_visual("", "", 0, key_label)
-			elif _hotbar_page == 0 and page0_hints.has(slot_n):
-				btn.set_binding_visual(
-					"",
-					"",
-					0,
-					"%s %s（未绑定，按键仍可用默认）" % [key_label, str(page0_hints[slot_n])]
-				)
-			else:
-				btn.set_binding_visual("", "", 0, "%s（可从背包拖入，右键清除）" % key_label)
-		if btn.has_method("set_key_hint"):
-			btn.set_key_hint(key_label)
-		else:
-			# Fallback if script not attached yet.
-			btn.text = ""
-			btn.tooltip_text = key_label
-		var cd_id := ""
-		var cd_kind := ""
-		if not bind.is_empty():
-			cd_kind = str(bind.get("kind", ""))
-			cd_id = str(bind.get("id", "")).strip_edges()
-		elif _hotbar_page == 0:
-			match slot_n:
-				1:
-					cd_kind = "skill"
-					cd_id = "basic_attack"
-				2:
-					cd_kind = "skill"
-					cd_id = "power_strike"
-				3:
-					cd_kind = "skill"
-					cd_id = "heal_light"
-				4:
-					cd_kind = "item"
-					cd_id = "potion_hp_small"
-				5:
-					cd_kind = "item"
-					cd_id = "potion_mp_small"
-		if btn.has_method("set_bound_id"):
-			btn.set_bound_id(cd_id)
-		_apply_slot_cooldown_visual(btn, cd_kind, cd_id)
-	_sync_hotbar_cast_overlays()
-
-
+	SkillsPanel._refresh_hotbar_slot_visuals(self, )
 func _on_hotbar_item_dropped(page: int, slot: int, item_id: String) -> void:
-	_set_hotbar_binding(page, slot, "item", item_id)
-	append_system("快捷栏绑定物品：%s → 页%d 槽%d" % [_item_label(item_id), page + 1, slot])
-
-
+	SkillsPanel._on_hotbar_item_dropped(self, page, slot, item_id)
 func _on_hotbar_skill_dropped(page: int, slot: int, skill_id: String) -> void:
-	_set_hotbar_binding(page, slot, "skill", skill_id)
-	append_system("快捷栏绑定技能：%s → 页%d 槽%d" % [_skill_display_name(skill_id), page + 1, slot])
-
-
+	SkillsPanel._on_hotbar_skill_dropped(self, page, slot, skill_id)
 func _on_hotbar_binding_cleared(page: int, slot: int) -> void:
-	_clear_hotbar_binding(page, slot)
-
-
+	SkillsPanel._on_hotbar_binding_cleared(self, page, slot)
 func _on_hotbar_pressed(page: int, slot: int, key: String) -> void:
-	var bind := _get_hotbar_binding(page, slot)
-	if not bind.is_empty() and _world_combat != null:
-		var kind := str(bind.get("kind", ""))
-		var bid := str(bind.get("id", ""))
-		if kind == "item" and _world_combat.has_method("request_use_item"):
-			_world_combat.request_use_item(bid)
-			return
-		if kind == "skill":
-			if _is_passive_skill(bid):
-				append_system("被动，无需施放")
-				return
-			if _world_combat.has_method("request_use_skill"):
-				_world_combat.request_use_skill(bid)
-				return
-	# Page 0 default combat wiring when unbound.
-	if page == 0 and _world_combat != null:
-		match slot:
-			1:
-				if _world_combat.has_method("request_use_skill"):
-					_world_combat.request_use_skill("basic_attack")
-					return
-			2:
-				if _world_combat.has_method("request_use_skill"):
-					_world_combat.request_use_skill("power_strike")
-					return
-			3:
-				if _world_combat.has_method("request_use_skill"):
-					_world_combat.request_use_skill("heal_light")
-					return
-			4:
-				if _world_combat.has_method("request_use_item"):
-					_world_combat.request_use_item("potion_hp_small")
-					return
-			5:
-				if _world_combat.has_method("request_use_item"):
-					_world_combat.request_use_item("potion_mp_small")
-					return
-	append_system("快捷栏%d [%s] 槽位 %d（可从背包拖入）" % [page + 1, key, slot])
-
-
+	SkillsPanel._on_hotbar_pressed(self, page, slot, key)
 func bind_world_combat(world: Node) -> void:
 	_world_combat = world
 
@@ -2734,45 +1778,11 @@ func _on_shop_sell(item_id: String) -> void:
 func _on_shop_sell_junk() -> void:
 	ShopPanel._on_shop_sell_junk(self, )
 func apply_skill_catalog(skills: Array) -> void:
-	_server_skills = skills.duplicate(true)
-	if _windows.has("skills") and _windows["skills"].visible:
-		_refresh_window_contents()
-
-
-
+	SkillsPanel.apply_skill_catalog(self, skills)
 func apply_skill_book(book: Dictionary) -> void:
-	_skill_respec_armed = false
-	var prev_sp: int = _skill_points
-	_known_skills.clear()
-	var known_v: Variant = book.get("known", book.get("known_skills", []))
-	if typeof(known_v) == TYPE_ARRAY:
-		for sid_v in known_v:
-			var sid := str(sid_v).strip_edges()
-			if not sid.is_empty():
-				_known_skills[sid] = true
-	_skill_points = maxi(int(book.get("skill_points", 0)), 0)
-	# Always treat basic_attack as known locally for UI.
-	_known_skills["basic_attack"] = true
-	if _windows.has("skills") and _windows["skills"].visible:
-		_fill_window("skills")
-	# Level-up toast: skill_book_update often follows level_up with SP grant.
-	if _level_toast_armed and _skill_points > prev_sp:
-		_set_level_toast_sp_note(true)
-
-
+	SkillsPanel.apply_skill_book(self, book)
 func is_skill_known(skill_id: String) -> bool:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return false
-	if skill_id == "basic_attack":
-		return true
-	if _known_skills.is_empty():
-		# Before first book sync, assume starters only once catalog applied.
-		return _known_skills.has(skill_id)
-	return _known_skills.has(skill_id)
-
-
-
+	return SkillsPanel.is_skill_known(self, skill_id)
 func apply_quest_snapshot(quests: Array) -> void:
 	_detect_quest_status_toasts(quests)
 	_server_quests = quests.duplicate(true)
@@ -2795,35 +1805,13 @@ func apply_quest_snapshot(quests: Array) -> void:
 
 
 func _iter_skill_cells(root: Node) -> Array:
-	var out: Array = []
-	if root == null:
-		return out
-	for c in root.get_children():
-		if c == null:
-			continue
-		if c.has_method("set_cooldown") and c.has_method("tick_cooldown"):
-			out.append(c)
-	return out
-
-
+	return SkillsPanel._iter_skill_cells(self, root)
 func _skill_window_grid() -> Node:
-	if not _windows.has("skills"):
-		return null
-	var panel: PanelContainer = _windows["skills"]
-	if panel == null or not is_instance_valid(panel):
-		return null
-	return panel.find_child("SkillGrid", true, false)
-
-
+	return SkillsPanel._skill_window_grid(self, )
 func _tick_skill_cell_cooldowns(host: Node, delta: float) -> void:
-	for cell in _iter_skill_cells(host):
-		cell.tick_cooldown(delta)
-
-
+	SkillsPanel._tick_skill_cell_cooldowns(self, host, delta)
 func _tick_skill_window_cooldowns(delta: float) -> void:
-	_tick_skill_cell_cooldowns(_skill_window_grid(), delta)
-
-
+	SkillsPanel._tick_skill_window_cooldowns(self, delta)
 func _cell_bound_id(cell: Node) -> String:
 	if cell == null:
 		return ""
@@ -2844,69 +1832,17 @@ func _apply_cooldown_to_container(host: Node, id: String, remaining: float, tota
 
 
 func _apply_cooldown_to_skill_window(id: String, remaining: float, total: float) -> void:
-	_apply_cooldown_to_container(_skill_window_grid(), id, remaining, total)
-
-
+	SkillsPanel._apply_cooldown_to_skill_window(self, id, remaining, total)
 func _apply_cast_to_container(host: Node, frac: float) -> void:
-	if host == null:
-		return
-	for cell in _iter_skill_cells(host):
-		if not cell.has_method("set_cast_progress"):
-			continue
-		var bid := _cell_bound_id(cell)
-		if frac >= 0.0 and bid == _cast_skill_id and not bid.is_empty():
-			cell.set_cast_progress(frac)
-		else:
-			cell.set_cast_progress(-1.0)
-
-
+	CastBarPanel._apply_cast_to_container(self, host, frac)
 func _apply_cast_to_skill_window(frac: float) -> void:
-	_apply_cast_to_container(_skill_window_grid(), frac)
-
-
+	SkillsPanel._apply_cast_to_skill_window(self, frac)
 func _refresh_skill_window_cooldowns() -> void:
-	var grid := _skill_window_grid()
-	if grid == null:
-		return
-	for cell in _iter_skill_cells(grid):
-		var bid := _cell_bound_id(cell)
-		if bid.is_empty():
-			if cell.has_method("clear_cooldown"):
-				cell.clear_cooldown()
-			continue
-		var row: Variant = _skill_cd_hint.get(bid, {})
-		if typeof(row) == TYPE_DICTIONARY and float(row.get("remaining", 0.0)) > 0.0:
-			cell.set_cooldown(float(row.get("remaining", 0.0)), float(row.get("cooldown", 0.0)))
-		elif cell.has_method("clear_cooldown"):
-			cell.clear_cooldown()
-	_sync_skill_cast_overlays()
-
-
+	SkillsPanel._refresh_skill_window_cooldowns(self, )
 func _tick_hotbar_cooldowns(delta: float) -> void:
-	var dead: Array = []
-	for sid in _skill_cd_hint.keys():
-		var row: Variant = _skill_cd_hint[sid]
-		if typeof(row) != TYPE_DICTIONARY:
-			dead.append(sid)
-			continue
-		var rem: float = maxf(float(row.get("remaining", 0.0)) - delta, 0.0)
-		row["remaining"] = rem
-		_skill_cd_hint[sid] = row
-		if rem <= 0.0:
-			dead.append(sid)
-	for sid2 in dead:
-		_skill_cd_hint.erase(sid2)
-	_tick_skill_cell_cooldowns(hotbar, delta)
-	_tick_skill_window_cooldowns(delta)
-
-
+	SkillsPanel._tick_hotbar_cooldowns(self, delta)
 func _apply_hotbar_cooldown_for_id(id: String, remaining: float, total: float) -> void:
-	if id.is_empty():
-		return
-	_apply_cooldown_to_container(hotbar, id, remaining, total)
-	_apply_cooldown_to_skill_window(id, remaining, total)
-
-
+	SkillsPanel._apply_hotbar_cooldown_for_id(self, id, remaining, total)
 func _apply_slot_cooldown_visual(btn: Button, _kind: String, id: String) -> void:
 	if btn == null or not btn.has_method("set_cooldown"):
 		return
@@ -2929,39 +1865,15 @@ func _apply_slot_cooldown_visual(btn: Button, _kind: String, id: String) -> void
 
 
 func _sync_hotbar_cast_overlays() -> void:
-	_sync_skill_cast_overlays()
-
-
+	SkillsPanel._sync_hotbar_cast_overlays(self, )
 func _sync_skill_cast_overlays() -> void:
-	var frac: float = -1.0
-	if _cast_active and _cast_duration > 0.0 and not _cast_skill_id.is_empty():
-		frac = clampf(_cast_elapsed / _cast_duration, 0.0, 1.0)
-	_apply_cast_to_container(hotbar, frac)
-	_apply_cast_to_skill_window(frac)
-
-
+	SkillsPanel._sync_skill_cast_overlays(self, )
 func note_skill_cooldown(skill_id: String, remaining: float, cooldown: float = 0.0) -> void:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return
-	var total: float = cooldown
-	if total <= 0.0:
-		total = remaining
-	_skill_cd_hint[skill_id] = {"remaining": remaining, "cooldown": total}
-	_apply_hotbar_cooldown_for_id(skill_id, remaining, total)
-	if _windows.has("skills") and _windows["skills"].visible:
-		_refresh_window_contents()
-
+	SkillsPanel.note_skill_cooldown(self, skill_id, remaining, cooldown)
 func hotbar_prev() -> void:
-	_hotbar_page = (_hotbar_page + HOTBAR_PAGES.size() - 1) % HOTBAR_PAGES.size()
-	_build_hotbar()
-	_persist_hotbar_to_session()
-
+	SkillsPanel.hotbar_prev(self, )
 func hotbar_next() -> void:
-	_hotbar_page = (_hotbar_page + 1) % HOTBAR_PAGES.size()
-	_build_hotbar()
-	_persist_hotbar_to_session()
-
+	SkillsPanel.hotbar_next(self, )
 func _build_menu() -> void:
 	for c in menu_row.get_children():
 		c.queue_free()
@@ -3108,85 +2020,13 @@ func _on_game_settings_changed() -> void:
 
 
 func show_death_dialog() -> void:
-	_build_death_dialog()
-	if _death_panel:
-		_death_panel.visible = true
-		_death_panel.move_to_front()
-		call_deferred("_place_death_dialog")
-
-
+	DeathPanel.show_death_dialog(self, )
 func hide_death_dialog() -> void:
-	if _death_panel:
-		_death_panel.visible = false
-
-
+	DeathPanel.hide_death_dialog(self, )
 func _build_death_dialog() -> void:
-	if _death_panel != null and is_instance_valid(_death_panel):
-		return
-	_death_panel = PanelContainer.new()
-	_death_panel.name = "DeathDialog"
-	_death_panel.visible = false
-	_death_panel.custom_minimum_size = Vector2(320, 180)
-	L2Style.apply_panel(_death_panel)
-	var marg := MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 18)
-	marg.add_theme_constant_override("margin_top", 16)
-	marg.add_theme_constant_override("margin_right", 18)
-	marg.add_theme_constant_override("margin_bottom", 18)
-	_death_panel.add_child(marg)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
-	marg.add_child(col)
-	var title := Label.new()
-	title.text = "你死了"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	L2Style.style_title(title)
-	col.add_child(title)
-	var body := Label.new()
-	body.text = "就地复活：半血\n回城复活：安全点满血"
-	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	body.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	col.add_child(body)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 10)
-	col.add_child(row)
-	var here_btn := Button.new()
-	here_btn.name = "HereBtn"
-	here_btn.text = "就地复活"
-	here_btn.focus_mode = Control.FOCUS_NONE
-	here_btn.custom_minimum_size = Vector2(110, 28)
-	L2Style.style_action_button(here_btn)
-	here_btn.pressed.connect(func():
-		if _world_combat != null and _world_combat.has_method("request_respawn"):
-			_world_combat.request_respawn("here")
-		hide_death_dialog()
-	)
-	row.add_child(here_btn)
-	var town_btn := Button.new()
-	town_btn.name = "TownBtn"
-	town_btn.text = "回城复活"
-	town_btn.focus_mode = Control.FOCUS_NONE
-	town_btn.custom_minimum_size = Vector2(110, 28)
-	L2Style.style_action_button(town_btn)
-	town_btn.pressed.connect(func():
-		if _world_combat != null and _world_combat.has_method("request_respawn"):
-			_world_combat.request_respawn("town")
-		hide_death_dialog()
-	)
-	row.add_child(town_btn)
-	add_child(_death_panel)
-	call_deferred("_place_death_dialog")
-
-
+	DeathPanel._build_death_dialog(self, )
 func _place_death_dialog() -> void:
-	if _death_panel == null or not is_instance_valid(_death_panel):
-		return
-	var vp := get_viewport().get_visible_rect().size
-	_death_panel.size = Vector2(320, 190)
-	_death_panel.global_position = Vector2((vp.x - 320.0) * 0.5, (vp.y - 190.0) * 0.4)
-
-
+	DeathPanel._place_death_dialog(self, )
 func _build_inspect_panel() -> void:
 	if _inspect_panel != null and is_instance_valid(_inspect_panel):
 		return
@@ -3921,35 +2761,7 @@ func _highlight_system_tabs(tabs: HBoxContainer) -> void:
 
 
 func _lock_skills_window(panel: PanelContainer) -> void:
-	## Fixed-size skills: same lock as bag; tab bar sits above Scroll (not inside body).
-	if panel == null:
-		return
-	var base: Vector2 = panel.get_meta("base_size", Vector2(400, 420))
-	panel.resizable = false
-	panel.min_size = base
-	panel.custom_minimum_size = base
-	panel.default_size = base
-	panel.size = base
-	panel.set_meta("fixed_size", true)
-	_apply_l2_chrome(panel)
-	var scroll := panel.find_child("Scroll", true, false) as ScrollContainer
-	if scroll == null:
-		return
-	var vbox := scroll.get_parent() as VBoxContainer
-	if vbox == null:
-		return
-	var tabs := vbox.get_node_or_null("SkillsTabs") as HBoxContainer
-	if tabs == null:
-		tabs = HBoxContainer.new()
-		tabs.name = "SkillsTabs"
-		tabs.add_theme_constant_override("separation", 4)
-		tabs.mouse_filter = Control.MOUSE_FILTER_STOP
-		vbox.add_child(tabs)
-		vbox.move_child(tabs, scroll.get_index())
-	panel.set_meta("skills_tabs", tabs)
-	_rebuild_skills_tab_bar(panel)
-
-
+	SkillsPanel._lock_skills_window(self, panel)
 func _lock_quest_window(panel: PanelContainer) -> void:
 	## Fixed-size quest list window; tabs above Scroll; drawer is a separate HUD sibling.
 	if panel == null:
@@ -4109,49 +2921,11 @@ func _on_quest_window_visibility() -> void:
 
 
 func _rebuild_skills_tab_bar(panel: PanelContainer) -> void:
-	var tabs: HBoxContainer = panel.get_meta("skills_tabs", null) if panel else null
-	if tabs == null or not is_instance_valid(tabs):
-		return
-	while tabs.get_child_count() > 0:
-		var c: Node = tabs.get_child(0)
-		tabs.remove_child(c)
-		c.queue_free()
-	for item in SKILL_TABS:
-		var btn := Button.new()
-		btn.text = str(item[0])
-		btn.toggle_mode = false
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(100, 30)
-		btn.mouse_filter = Control.MOUSE_FILTER_STOP
-		var cat := str(item[1])
-		btn.pressed.connect(_on_skills_tab.bind(cat))
-		tabs.add_child(btn)
-	_highlight_skills_tabs(tabs)
-
-
+	SkillsPanel._rebuild_skills_tab_bar(self, panel)
 func _on_skills_tab(cat: String) -> void:
-	cat = cat.strip_edges()
-	if cat.is_empty():
-		return
-	_skills_tab = cat
-	if _windows.has("skills"):
-		var panel: PanelContainer = _windows["skills"]
-		_highlight_skills_tabs(panel.get_meta("skills_tabs", null) as HBoxContainer)
-		if panel.visible:
-			_fill_window("skills")
-
-
+	SkillsPanel._on_skills_tab(self, cat)
 func _highlight_skills_tabs(tabs: HBoxContainer) -> void:
-	if tabs == null:
-		return
-	for i in range(tabs.get_child_count()):
-		var btn := tabs.get_child(i) as Button
-		if btn == null or i >= SKILL_TABS.size():
-			continue
-		var id := str(SKILL_TABS[i][1])
-		L2Style.style_tab_button(btn, id == _skills_tab)
-
-
+	SkillsPanel._highlight_skills_tabs(self, tabs)
 func _grid_cell_size() -> Vector2:
 	## Same pixel size as hotbar slots.
 	return Vector2(GRID_CELL, GRID_CELL)
@@ -4637,33 +3411,9 @@ func _paperdoll_texture(ch: Dictionary) -> Texture2D:
 
 
 func _ensure_ground_drop_zone() -> void:
-	if _ground_drop_zone != null and is_instance_valid(_ground_drop_zone):
-		return
-	var z := preload("res://scripts/ui/ground_drop_zone.gd").new()
-	z.name = "GroundDropZone"
-	add_child(z)
-	move_child(z, 0)
-	z.ground_drop_item.connect(_on_inventory_item_drop)
-	z.ground_drop_equipped.connect(_on_equip_slot_drop)
-	_ground_drop_zone = z
-
-
+	GroundDropPanel._ensure_ground_drop_zone(self, )
 func _tick_ground_drop_zone() -> void:
-	## Arm full-screen drop sink only while dragging bag/equip items (not window/skill drags).
-	var want := false
-	if get_viewport().gui_is_dragging():
-		var data = get_viewport().gui_get_drag_data()
-		if typeof(data) == TYPE_DICTIONARY:
-			var kind := str(data.get("kind", ""))
-			want = kind == "item" or kind == "equipped"
-	if want == _ground_drop_armed:
-		return
-	_ground_drop_armed = want
-	_ensure_ground_drop_zone()
-	if _ground_drop_zone != null and _ground_drop_zone.has_method("set_active"):
-		_ground_drop_zone.set_active(want)
-
-
+	GroundDropPanel._tick_ground_drop_zone(self, )
 func _on_equip_slot_equip(item_id: String, slot_id: String) -> void:
 	if _world_combat != null and _world_combat.has_method("request_equip_item"):
 		_world_combat.request_equip_item(item_id, slot_id)
@@ -4799,54 +3549,9 @@ func _item_icon_ref(item_id: String) -> String:
 
 
 func _skill_icon_index(skill_id: String) -> int:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return -1
-	for s in _server_skills:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		if str(s.get("id", "")) == skill_id:
-			return int(s.get("icon_index", -1))
-	var srv = Net.server()
-	if srv != null and srv.get("skill_catalog") != null:
-		var cat = srv.skill_catalog
-		if cat != null and cat.has_method("icon_index_of"):
-			return int(cat.icon_index_of(skill_id))
-		if cat != null and cat.has_method("get_skill"):
-			return int(cat.get_skill(skill_id).get("icon_index", -1))
-	return -1
-
-
+	return SkillsPanel._skill_icon_index(self, skill_id)
 func _skill_icon_ref(skill_id: String) -> String:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return ""
-	for s in _server_skills:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		if str(s.get("id", "")) == skill_id:
-			var r := str(s.get("icon_ref", "")).strip_edges()
-			if not r.is_empty():
-				return r
-			var ic := str(s.get("icon", "")).strip_edges()
-			if not ic.is_empty():
-				return "content://icon/%s" % ic
-	var srv = Net.server()
-	if srv != null and srv.get("skill_catalog") != null:
-		var cat = srv.skill_catalog
-		if cat != null and cat.has_method("icon_ref_of"):
-			return str(cat.icon_ref_of(skill_id))
-		if cat != null and cat.has_method("get_skill"):
-			var def: Dictionary = cat.get_skill(skill_id)
-			var r2 := str(def.get("icon_ref", "")).strip_edges()
-			if not r2.is_empty():
-				return r2
-			var ic2 := str(def.get("icon", "")).strip_edges()
-			if not ic2.is_empty():
-				return "content://icon/%s" % ic2
-	return ""
-
-
+	return SkillsPanel._skill_icon_ref(self, skill_id)
 func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	_sync_equipment_cache()
 	## ScrollContainer fills window body; grid alone (no chrome labels). Rows > viewport → scrollbar.
@@ -5090,187 +3795,21 @@ func _commit_drop_item(item_id: String, qty: int) -> void:
 
 
 func _ensure_ground_tip() -> void:
-	if _ground_tip != null and is_instance_valid(_ground_tip):
-		return
-	var tip := PanelContainer.new()
-	tip.name = "GroundItemTip"
-	tip.visible = false
-	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tip.z_index = 80
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.08, 0.10, 0.92)
-	sb.border_color = Color(0.55, 0.5, 0.35, 0.9)
-	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(4)
-	sb.set_content_margin_all(8)
-	tip.add_theme_stylebox_override("panel", sb)
-	var lab := Label.new()
-	lab.name = "Text"
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lab.add_theme_font_size_override("font_size", 13)
-	lab.add_theme_color_override("font_color", Color(0.95, 0.93, 0.88))
-	tip.add_child(lab)
-	add_child(tip)
-	_ground_tip = tip
-	_ground_tip_label = lab
-
-
+	GroundDropPanel._ensure_ground_tip(self, )
 func show_ground_tip(text: String, screen_pos: Vector2) -> void:
-	_ensure_ground_tip()
-	if _ground_tip == null or _ground_tip_label == null:
-		return
-	_ground_tip_label.text = text.strip_edges()
-	_ground_tip.visible = not _ground_tip_label.text.is_empty()
-	move_ground_tip(screen_pos)
-
-
+	GroundDropPanel.show_ground_tip(self, text, screen_pos)
 func move_ground_tip(screen_pos: Vector2) -> void:
-	if _ground_tip == null or not _ground_tip.visible:
-		return
-	# Offset so tip does not sit under the cursor.
-	var pos := screen_pos + Vector2(16, 18)
-	var vp := get_viewport_rect().size
-	var sz := _ground_tip.get_combined_minimum_size()
-	if _ground_tip.size.x > 1.0:
-		sz = _ground_tip.size
-	pos.x = clampf(pos.x, 4.0, maxf(4.0, vp.x - sz.x - 4.0))
-	pos.y = clampf(pos.y, 4.0, maxf(4.0, vp.y - sz.y - 4.0))
-	_ground_tip.position = pos
-
-
+	GroundDropPanel.move_ground_tip(self, screen_pos)
 func hide_ground_tip() -> void:
-	if _ground_tip != null:
-		_ground_tip.visible = false
-
-
+	GroundDropPanel.hide_ground_tip(self, )
 func _show_drop_qty_dialog(item_id: String, max_qty: int) -> void:
-	_ensure_drop_qty_dialog()
-	_drop_qty_item_id = item_id
-	max_qty = maxi(max_qty, 1)
-	if _qty_mode != "split":
-		_qty_mode = "drop"
-	if _drop_qty_label != null:
-		if _qty_mode == "split":
-			_drop_qty_label.text = "拆分：%s（最多 %d）" % [_item_label(item_id), max_qty]
-		else:
-			_drop_qty_label.text = "丢掉：%s（最多 %d）" % [_item_label(item_id), max_qty]
-	if _drop_qty_spin != null:
-		_drop_qty_spin.min_value = 1
-		_drop_qty_spin.max_value = max_qty
-		_drop_qty_spin.value = 1
-	if _drop_qty_panel != null:
-		_drop_qty_panel.visible = true
-		_drop_qty_panel.reset_size()
-		var vp := get_viewport_rect().size
-		var sz := _drop_qty_panel.get_combined_minimum_size()
-		if _drop_qty_panel.size.x > 1.0:
-			sz = _drop_qty_panel.size
-		_drop_qty_panel.position = Vector2(
-			(vp.x - sz.x) * 0.5,
-			(vp.y - sz.y) * 0.5
-		)
-		var parent := _drop_qty_panel.get_parent()
-		if parent != null:
-			parent.move_child(_drop_qty_panel, parent.get_child_count() - 1)
-
-
+	GroundDropPanel._show_drop_qty_dialog(self, item_id, max_qty)
 func _ensure_drop_qty_dialog() -> void:
-	if _drop_qty_panel != null and is_instance_valid(_drop_qty_panel):
-		return
-	var panel := PanelContainer.new()
-	panel.name = "DropQtyDialog"
-	panel.visible = false
-	panel.z_index = 90
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	L2Style.apply_panel(panel)
-	var marg := MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 28)
-	marg.add_theme_constant_override("margin_top", 24)
-	marg.add_theme_constant_override("margin_right", 28)
-	marg.add_theme_constant_override("margin_bottom", 28)
-	panel.add_child(marg)
-	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 10)
-	marg.add_child(root)
-	var title := Label.new()
-	title.text = "丢弃数量"
-	L2Style.style_title(title)
-	root.add_child(title)
-	var info := Label.new()
-	info.name = "Info"
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size = Vector2(220, 0)
-	info.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	root.add_child(info)
-	_drop_qty_label = info
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	root.add_child(row)
-	var qty_lab := Label.new()
-	qty_lab.text = "数量"
-	qty_lab.add_theme_color_override("font_color", L2Style.COL_MUTED)
-	row.add_child(qty_lab)
-	var spin := SpinBox.new()
-	spin.name = "Qty"
-	spin.min_value = 1
-	spin.max_value = 99
-	spin.value = 1
-	spin.rounded = true
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spin)
-	_drop_qty_spin = spin
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 8)
-	btns.alignment = BoxContainer.ALIGNMENT_END
-	root.add_child(btns)
-	var cancel := Button.new()
-	cancel.text = "取消"
-	cancel.pressed.connect(_on_drop_qty_cancel)
-	L2Style.style_action_button(cancel)
-	btns.add_child(cancel)
-	var ok := Button.new()
-	ok.text = "确定"
-	ok.pressed.connect(_on_drop_qty_confirm)
-	L2Style.style_action_button(ok)
-	btns.add_child(ok)
-	panel.custom_minimum_size = Vector2(340, 220)
-	add_child(panel)
-	_drop_qty_panel = panel
-
-
+	GroundDropPanel._ensure_drop_qty_dialog(self, )
 func _on_drop_qty_cancel() -> void:
-	_drop_qty_item_id = ""
-	_qty_mode = "drop"
-	if _drop_qty_panel != null:
-		_drop_qty_panel.visible = false
-
-
+	GroundDropPanel._on_drop_qty_cancel(self, )
 func _on_drop_qty_confirm() -> void:
-	var iid := _drop_qty_item_id.strip_edges()
-	var q: int = 1
-	if _drop_qty_spin != null:
-		q = int(_drop_qty_spin.value)
-	var mode := _qty_mode
-	_on_drop_qty_cancel()
-	if iid.is_empty():
-		return
-	var have: int = _inventory_qty(iid)
-	if have > 0:
-		q = clampi(q, 1, have)
-	else:
-		q = maxi(q, 1)
-	if mode == "split":
-		if _world_combat != null and _world_combat.has_method("request_inventory_split"):
-			_world_combat.request_inventory_split(iid, q)
-		else:
-			var srv = Net.server()
-			if srv != null and srv.has_method("try_inventory_split"):
-				_apply_equip_result_locally(srv.try_inventory_split(iid, q))
-		return
-	_commit_drop_item(iid, q)
-
-
-
+	GroundDropPanel._on_drop_qty_confirm(self, )
 func _on_inventory_item_pressed(item_id: String) -> void:
 	## Double-click from InvSlot: equipment toggles via MockServer.try_use_item → try_toggle_equip;
 	## consumables use as before.
@@ -5281,197 +3820,19 @@ func _on_inventory_item_pressed(item_id: String) -> void:
 
 
 func _skill_display_name(skill_id: String) -> String:
-	skill_id = skill_id.strip_edges()
-	for s in _server_skills:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		if str(s.get("id", "")) == skill_id:
-			var n := str(s.get("name", "")).strip_edges()
-			return n if not n.is_empty() else skill_id
-	var srv = Net.server()
-	if srv != null and srv.get("skill_catalog") != null:
-		var cat = srv.skill_catalog
-		if cat != null and cat.has_method("get_skill"):
-			var def: Dictionary = cat.get_skill(skill_id)
-			var n2 := str(def.get("name", "")).strip_edges()
-			if not n2.is_empty():
-				return n2
-	return skill_id
-
-
+	return SkillsPanel._skill_display_name(self, skill_id)
 func _skill_category(skill_id: String) -> String:
-	skill_id = skill_id.strip_edges()
-	for s in _server_skills:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		if str(s.get("id", "")) == skill_id:
-			return _normalize_skill_category(s)
-	var srv = Net.server()
-	if srv != null and srv.get("skill_catalog") != null:
-		var cat = srv.skill_catalog
-		if cat != null and cat.has_method("get_skill"):
-			return _normalize_skill_category(cat.get_skill(skill_id))
-	return "physical"
-
-
+	return SkillsPanel._skill_category(self, skill_id)
 func _normalize_skill_category(def: Dictionary) -> String:
-	if def.is_empty():
-		return "physical"
-	var cat := str(def.get("category", "")).strip_edges()
-	if cat == "physical" or cat == "magic" or cat == "passive":
-		return cat
-	var eff := str(def.get("effect", ""))
-	if eff.begins_with("passive"):
-		return "passive"
-	if eff == "heal":
-		return "magic"
-	return "physical"
-
-
+	return SkillsPanel._normalize_skill_category(self, def)
 func _is_passive_skill(skill_id: String) -> bool:
-	return _skill_category(skill_id) == "passive"
-
-
+	return SkillsPanel._is_passive_skill(self, skill_id)
 func _fill_skills(body: VBoxContainer, _ch: Dictionary) -> void:
-	## Grid + tabs (tabs live outside Scroll). SP + Learn row above grid.
-	var panel: PanelContainer = _windows.get("skills") as PanelContainer
-	if panel != null:
-		_rebuild_skills_tab_bar(panel)
-	var skills: Array = _server_skills
-	if skills.is_empty():
-		var srv = Net.server()
-		if srv != null and srv.has_method("snapshot_skill_catalog"):
-			skills = srv.snapshot_skill_catalog()
-			_server_skills = skills.duplicate(true)
-	# SP / Learn header
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
-	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(head)
-	var sp_lbl := Label.new()
-	sp_lbl.name = "SkillPointsLabel"
-	sp_lbl.text = "技能点：%d" % _skill_points
-	sp_lbl.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	sp_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(sp_lbl)
-	var learn_btn := Button.new()
-	learn_btn.name = "LearnSkillButton"
-	learn_btn.text = "学习"
-	learn_btn.focus_mode = Control.FOCUS_NONE
-	learn_btn.disabled = true
-	learn_btn.pressed.connect(_on_learn_skill_pressed)
-	head.add_child(learn_btn)
-	var respec_btn := Button.new()
-	respec_btn.name = "RespecSkillButton"
-	respec_btn.text = "重置技能"
-	respec_btn.focus_mode = Control.FOCUS_NONE
-	respec_btn.tooltip_text = "重置已学技能并返还技能点（花费 50 金币）。保留普通攻击。"
-	respec_btn.pressed.connect(_on_respec_skill_pressed)
-	head.add_child(respec_btn)
-	var sel_lbl := Label.new()
-	sel_lbl.name = "SelectedSkillHint"
-	sel_lbl.text = ""
-	sel_lbl.add_theme_color_override("font_color", L2Style.COL_MUTED)
-	sel_lbl.add_theme_font_size_override("font_size", 11)
-	body.add_child(sel_lbl)
-	_update_skills_learn_row(learn_btn, sel_lbl)
-	var filtered: Array = []
-	for s in skills:
-		if typeof(s) != TYPE_DICTIONARY:
-			continue
-		if _normalize_skill_category(s) == _skills_tab:
-			filtered.append(s)
-	var cell_sz := _grid_cell_size()
-	var cols := SKILL_COLS
-	body.add_theme_constant_override("separation", 6)
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if filtered.is_empty():
-		var empty := Label.new()
-		empty.text = "（暂无技能）"
-		empty.add_theme_color_override("font_color", L2Style.COL_MUTED)
-		empty.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		body.add_child(empty)
-	else:
-		var grid := GridContainer.new()
-		grid.name = "SkillGrid"
-		grid.columns = cols
-		grid.add_theme_constant_override("h_separation", GRID_SEP)
-		grid.add_theme_constant_override("v_separation", GRID_SEP)
-		grid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		grid.mouse_filter = Control.MOUSE_FILTER_STOP
-		body.add_child(grid)
-		for i in range(filtered.size()):
-			var cell := PanelContainer.new()
-			cell.set_script(SkillSlot)
-			cell.custom_minimum_size = cell_sz
-			var sdef: Dictionary = filtered[i]
-			var sid := str(sdef.get("id", ""))
-			var sname := str(sdef.get("name", sid))
-			var cat := _normalize_skill_category(sdef)
-			var six := int(sdef.get("icon_index", _skill_icon_index(sid)))
-			var sref := str(sdef.get("icon_ref", "")).strip_edges()
-			if sref.is_empty():
-				var sic := str(sdef.get("icon", "")).strip_edges()
-				if not sic.is_empty():
-					sref = "content://icon/%s" % sic
-				else:
-					sref = _skill_icon_ref(sid)
-			grid.add_child(cell)
-			cell.setup(sid, sname, cat, i, six, sref)
-			var known := _is_skill_known(sid)
-			if cell.has_method("set_known"):
-				cell.set_known(known)
-			cell.activated.connect(_on_skill_slot_pressed)
-			cell.custom_minimum_size = cell_sz
-		_refresh_skill_window_cooldowns()
-	if panel != null and bool(panel.get_meta("fixed_size", false)):
-		call_deferred("_lock_window_size", panel)
-
-
-
+	SkillsPanel._fill_skills(self, body, _ch)
 func _on_skill_slot_pressed(skill_id: String) -> void:
-	skill_id = skill_id.strip_edges()
-	if skill_id.is_empty():
-		return
-	_selected_skill_id = skill_id
-	_refresh_skills_learn_controls()
-	if not _is_skill_known(skill_id):
-		var sname := _skill_display_name(skill_id)
-		var def := _skill_def(skill_id)
-		var need_lv := maxi(int(def.get("learn_level", 1)), 1)
-		var cost := maxi(int(def.get("sp_cost", 1)), 0)
-		append_system("未学会【%s】（需要 Lv.%d · %d 技能点）。选中后点「学习」。" % [sname, need_lv, cost])
-		return
-	if _is_passive_skill(skill_id):
-		var sname2 := _skill_display_name(skill_id)
-		var extra := ""
-		for s in _server_skills:
-			if typeof(s) != TYPE_DICTIONARY:
-				continue
-			if str(s.get("id", "")) != skill_id:
-				continue
-			var atk_b := int(s.get("atk_bonus", 0))
-			var def_b := int(s.get("def_bonus", 0))
-			if atk_b != 0:
-				extra = "（攻击+%d）" % atk_b
-			elif def_b != 0:
-				extra = "（防御+%d）" % def_b
-			break
-		append_system("被动已生效 · 【%s】%s" % [sname2, extra])
-		return
-	if _world_combat != null and _world_combat.has_method("request_use_skill"):
-		_world_combat.request_use_skill(skill_id)
-	else:
-		append_system("无法施放：%s" % skill_id)
-
-
-
+	SkillsPanel._on_skill_slot_pressed(self, skill_id)
 func _on_skill_row_pressed(skill_id: String) -> void:
-	## Compat alias for older call sites.
-	_on_skill_slot_pressed(skill_id)
-
-
+	SkillsPanel._on_skill_row_pressed(self, skill_id)
 func _is_skill_known(skill_id: String) -> bool:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty():
@@ -5482,22 +3843,9 @@ func _is_skill_known(skill_id: String) -> bool:
 
 
 func _skill_def(skill_id: String) -> Dictionary:
-	for s in _server_skills:
-		if typeof(s) == TYPE_DICTIONARY and str(s.get("id", "")) == skill_id:
-			return s
-	var srv = Net.server()
-	if srv != null and srv.has_method("skill_def"):
-		return srv.skill_def(skill_id)
-	return {}
-
-
+	return SkillsPanel._skill_def(self, skill_id)
 func _player_level_for_skills() -> int:
-	var lv := int(_server_combat.get("level", 0))
-	if lv <= 0 and not _character.is_empty():
-		lv = int(_character.get("level", 1))
-	return maxi(lv, 1)
-
-
+	return SkillsPanel._player_level_for_skills(self, )
 func _can_learn_selected() -> bool:
 	var sid := _selected_skill_id.strip_edges()
 	if sid.is_empty() or _is_skill_known(sid):
@@ -5518,129 +3866,16 @@ func _can_learn_selected() -> bool:
 
 
 func _update_skills_learn_row(learn_btn: Button, sel_lbl: Label) -> void:
-	var sid := _selected_skill_id.strip_edges()
-	if sid.is_empty():
-		sel_lbl.text = "选择技能后可学习"
-		learn_btn.disabled = true
-		return
-	var def := _skill_def(sid)
-	var sname := str(def.get("name", _skill_display_name(sid)))
-	if _is_skill_known(sid):
-		sel_lbl.text = "已学会：%s" % sname
-		learn_btn.disabled = true
-		return
-	var need_lv := maxi(int(def.get("learn_level", 1)), 1)
-	var cost := maxi(int(def.get("sp_cost", 1)), 0)
-	sel_lbl.text = "选中：%s · 需要 Lv.%d · %d SP" % [sname, need_lv, cost]
-	learn_btn.disabled = not _can_learn_selected()
-
-
+	SkillsPanel._update_skills_learn_row(self, learn_btn, sel_lbl)
 func _refresh_skills_learn_controls() -> void:
-	if not _windows.has("skills"):
-		return
-	var panel: PanelContainer = _windows["skills"]
-	if panel == null or not panel.visible:
-		return
-	# Controls live inside scroll body; find by name.
-	var learn_btn: Button = panel.find_child("LearnSkillButton", true, false) as Button
-	var sel_lbl: Label = panel.find_child("SelectedSkillHint", true, false) as Label
-	var sp_lbl: Label = panel.find_child("SkillPointsLabel", true, false) as Label
-	if sp_lbl != null:
-		sp_lbl.text = "技能点：%d" % _skill_points
-	if learn_btn != null and sel_lbl != null:
-		_update_skills_learn_row(learn_btn, sel_lbl)
-
-
+	SkillsPanel._refresh_skills_learn_controls(self, )
 func _on_learn_skill_pressed() -> void:
-	var sid := _selected_skill_id.strip_edges()
-	if sid.is_empty():
-		return
-	if _world_combat != null and _world_combat.has_method("request_learn_skill"):
-		_world_combat.request_learn_skill(sid)
-	else:
-		var srv = Net.server()
-		if srv != null and srv.has_method("try_learn_skill"):
-			var result: Dictionary = srv.try_learn_skill(sid)
-			var acts_v: Variant = result.get("actions", [])
-			if typeof(acts_v) == TYPE_ARRAY and _world_combat != null and _world_combat.has_method("apply_server_actions"):
-				_world_combat.apply_server_actions(acts_v)
-			elif typeof(acts_v) == TYPE_ARRAY:
-				for a in acts_v:
-					if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "system_message":
-						append_system(str(a.get("text", "")))
-					elif typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "skill_book_update":
-						apply_skill_book(a)
-
-
+	SkillsPanel._on_learn_skill_pressed(self, )
 func _on_respec_skill_pressed() -> void:
-	if not _skill_respec_armed:
-		_skill_respec_armed = true
-		append_system("再点一次以确认重置技能（花费 50 金币）。")
-		return
-	_skill_respec_armed = false
-	if _world_combat != null and _world_combat.has_method("request_skill_respec"):
-		_world_combat.request_skill_respec()
-		return
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_skill_respec"):
-		var result: Dictionary = srv.try_skill_respec()
-		var acts_v: Variant = result.get("actions", [])
-		if typeof(acts_v) == TYPE_ARRAY and _world_combat != null and _world_combat.has_method("apply_server_actions"):
-			_world_combat.apply_server_actions(acts_v)
-		elif typeof(acts_v) == TYPE_ARRAY:
-			for a in acts_v:
-				if typeof(a) != TYPE_DICTIONARY:
-					continue
-				var t := str(a.get("type", ""))
-				if t == "system_message":
-					append_system(str(a.get("text", "")))
-				elif t == "skill_book_update":
-					apply_skill_book(a)
-				elif t == "skill_respec":
-					apply_skill_respec(a)
-				elif t == "inventory_update" and a.has("gold"):
-					_server_gold = int(a.get("gold", _server_gold))
-
-
+	SkillsPanel._on_respec_skill_pressed(self, )
 ## Clear hotbar skill bindings that reference forgotten skill ids (client-only hotkeys).
 func apply_skill_respec(action: Dictionary) -> void:
-	var cleared_ids: Dictionary = {}
-	var cleared_v: Variant = action.get("cleared", [])
-	if typeof(cleared_v) == TYPE_ARRAY:
-		for c in cleared_v:
-			var cid := str(c).strip_edges()
-			if not cid.is_empty():
-				cleared_ids[cid] = true
-	if cleared_ids.is_empty():
-		# Also scrub any skill binding not currently known.
-		for k in _hotbar_bindings.keys():
-			var v: Variant = _hotbar_bindings[k]
-			if typeof(v) != TYPE_DICTIONARY:
-				continue
-			if str(v.get("kind", "")) != "skill":
-				continue
-			var sid := str(v.get("id", "")).strip_edges()
-			if sid.is_empty() or sid == "basic_attack":
-				continue
-			if not _is_skill_known(sid):
-				cleared_ids[sid] = true
-	var removed := false
-	var keys: Array = _hotbar_bindings.keys()
-	for k in keys:
-		var bv: Variant = _hotbar_bindings[k]
-		if typeof(bv) != TYPE_DICTIONARY:
-			continue
-		if str(bv.get("kind", "")) != "skill":
-			continue
-		var bid := str(bv.get("id", "")).strip_edges()
-		if cleared_ids.has(bid) or (not bid.is_empty() and bid != "basic_attack" and not _is_skill_known(bid)):
-			_hotbar_bindings.erase(k)
-			removed = true
-	if removed:
-		_persist_hotbar_to_session()
-		_refresh_hotbar_slot_visuals()
-
-
+	SkillsPanel.apply_skill_respec(self, action)
 func _fill_quest(body: VBoxContainer, _ch: Dictionary) -> void:
 	## List-only quest window (tabs filter); detail lives in external side drawer.
 	var panel: PanelContainer = _windows.get("quest") as PanelContainer
@@ -6114,27 +4349,7 @@ func _on_map_panel_resized() -> void:
 
 
 func _sync_map_overview_layout(panel: PanelContainer, mount: Control, host: Control) -> void:
-	if panel == null or mount == null or host == null:
-		return
-	if not is_instance_valid(panel) or not is_instance_valid(mount) or not is_instance_valid(host):
-		return
-	# Never raise custom_minimum_size to current avail — that locks grow-only resize.
-	host.custom_minimum_size = Vector2.ZERO
-	host.clip_contents = true
-	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if _map_overview != null and is_instance_valid(_map_overview):
-		_map_overview.custom_minimum_size = Vector2.ZERO
-		_map_overview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_map_overview.queue_redraw()
-	# Keep panel floor at intended base min (HudDrag.min_size), not enlarged content.
-	const MAP_MIN := Vector2(300, 280)
-	if panel.min_size != MAP_MIN:
-		panel.min_size = MAP_MIN
-	if panel.custom_minimum_size != MAP_MIN:
-		panel.custom_minimum_size = MAP_MIN
-
-
+	MinimapPanel._sync_map_overview_layout(self, panel, mount, host)
 func _refresh_map_window_info() -> void:
 	var panel: PanelContainer = _windows.get("map")
 	if panel == null or not panel.visible:
@@ -6397,37 +4612,7 @@ func _make_zoom_option(gs: Node) -> OptionButton:
 
 
 func _make_radar_zoom_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var radii: Array = GameSettingsScript.RADAR_VIEW_RADII
-	var cur: int = 11
-	if gs != null and "radar_view_radius" in gs:
-		cur = int(gs.radar_view_radius)
-	var sel := 1
-	for i in range(radii.size()):
-		var r: int = int(radii[i])
-		var label := "%d 格" % r
-		match r:
-			8:
-				label = "近 (8)"
-			11:
-				label = "默认 (11)"
-			16:
-				label = "中 (16)"
-			22:
-				label = "远 (22)"
-		opt.add_item(label, i)
-		opt.set_item_metadata(i, r)
-		if r == cur:
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		if gs != null and gs.has_method("set_radar_view_radius"):
-			gs.set_radar_view_radius(int(opt.get_item_metadata(idx)))
-	)
-	return opt
-
-
+	return MinimapPanel._make_radar_zoom_option(self, gs)
 func _fill_system_nav(body: VBoxContainer) -> void:
 	_add_label(body, "系统选项", 14, L2Style.COL_TITLE)
 	var mk := func(text: String, cb: Callable) -> void:
@@ -7127,12 +5312,9 @@ func _apply_party_result_locally(result: Dictionary) -> void:
 					append_system(msg)
 
 func on_hotbar_prev_pressed() -> void:
-	hotbar_prev()
-
+	SkillsPanel.on_hotbar_prev_pressed(self, )
 func on_hotbar_next_pressed() -> void:
-	hotbar_next()
-
-
+	SkillsPanel.on_hotbar_next_pressed(self, )
 func _build_player_context_menu() -> void:
 	if _player_ctx_menu != null and is_instance_valid(_player_ctx_menu):
 		return
@@ -7237,280 +5419,41 @@ func _on_trade_open_with(partner_name: String) -> void:
 
 
 func _on_duel_challenge(target_id_or_name: String) -> void:
-	target_id_or_name = str(target_id_or_name).strip_edges()
-	if _world_combat != null and _world_combat.has_method("request_duel_challenge"):
-		_world_combat.request_duel_challenge(target_id_or_name)
-		return
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_duel_challenge"):
-		_apply_duel_result_locally(srv.try_duel_challenge(target_id_or_name))
-
-
+	DuelPanel._on_duel_challenge(self, target_id_or_name)
 func _on_duel_forfeit() -> void:
-	if _world_combat != null and _world_combat.has_method("request_duel_forfeit"):
-		_world_combat.request_duel_forfeit()
-		return
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_duel_forfeit"):
-		_apply_duel_result_locally(srv.try_duel_forfeit())
-
-
+	DuelPanel._on_duel_forfeit(self, )
 func _apply_duel_result_locally(result: Dictionary) -> void:
-	for a in result.get("actions", []):
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		var t := str(a.get("type", ""))
-		match t:
-			"duel_update":
-				apply_duel_update(a)
-			"system_message":
-				append_system(str(a.get("text", "")))
-
-
+	DuelPanel._apply_duel_result_locally(self, result)
 func _build_duel_banner() -> void:
-	_duel_banner = PanelContainer.new()
-	_duel_banner.name = "DuelBanner"
-	_duel_banner.visible = false
-	add_child(_duel_banner)
-	var marg := MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 10)
-	marg.add_theme_constant_override("margin_top", 6)
-	marg.add_theme_constant_override("margin_right", 10)
-	marg.add_theme_constant_override("margin_bottom", 6)
-	_duel_banner.add_child(marg)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	marg.add_child(row)
-	_duel_label = Label.new()
-	_duel_label.name = "DuelLabel"
-	_duel_label.text = "决斗"
-	_duel_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_duel_label)
-	var forfeit_btn := Button.new()
-	forfeit_btn.name = "DuelForfeitBtn"
-	forfeit_btn.text = "认输"
-	forfeit_btn.focus_mode = Control.FOCUS_NONE
-	forfeit_btn.pressed.connect(_on_duel_forfeit)
-	row.add_child(forfeit_btn)
-	if has_method("_apply_l2_chrome"):
-		_apply_l2_chrome(_duel_banner)
-	_duel_banner.position = Vector2(12, 72)
-	_duel_banner.z_index = 40
-
-
+	DuelPanel._build_duel_banner(self, )
 func apply_duel_update(action: Dictionary) -> void:
-	var d: Variant = action.get("duel", action)
-	if typeof(d) != TYPE_DICTIONARY:
-		return
-	_duel_state = (d as Dictionary).duplicate(true)
-	_refresh_duel_banner()
-
-
+	DuelPanel.apply_duel_update(self, action)
 func _refresh_duel_banner() -> void:
-	if _duel_banner == null:
-		return
-	var active := bool(_duel_state.get("active", false))
-	_duel_banner.visible = active
-	if not active:
-		return
-	var oname := str(_duel_state.get("opponent_name", "对手"))
-	var hp := int(_duel_state.get("opponent_hp", 0))
-	var hp_max := int(_duel_state.get("opponent_hp_max", 0))
-	var left := _duel_remaining_sec()
-	if _duel_label != null:
-		_duel_label.text = "决斗 vs 【%s】  HP %d/%d  剩余 %ds" % [oname, hp, hp_max, left]
-	_duel_banner.reset_size()
-	_duel_banner.move_to_front()
-
-
-
+	DuelPanel._refresh_duel_banner(self, )
 func apply_rested_update(action: Dictionary) -> void:
-	## Snapshot / tick opcode: refresh rested pool on XP bar HUD.
-	if action.has("rested_exp"):
-		_server_combat["rested_exp"] = maxi(int(action.get("rested_exp", 0)), 0)
-	if action.has("rested_exp_max"):
-		_server_combat["rested_exp_max"] = maxi(int(action.get("rested_exp_max", 0)), 0)
-	_refresh_xp_bar()
-
-
+	StatusPanel.apply_rested_update(self, action)
 func _refresh_rested_label(rested: int = -1) -> void:
-	_ensure_xp_bar()
-	if _xp_bar == null:
-		return
-	if rested < 0:
-		rested = maxi(int(_server_combat.get("rested_exp", 0)), 0)
-	if _rested_label == null or not is_instance_valid(_rested_label):
-		_rested_label = Label.new()
-		_rested_label.name = "RestedLabel"
-		_rested_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_rested_label.add_theme_font_size_override("font_size", 10)
-		_rested_label.add_theme_color_override("font_color", Color(0.75, 0.92, 1.0, 1.0))
-		_rested_label.add_theme_color_override("font_outline_color", Color(0.05, 0.08, 0.12, 0.9))
-		_rested_label.add_theme_constant_override("outline_size", 2)
-		_rested_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		_rested_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_rested_label.offset_left = 2.0
-		_rested_label.offset_right = -2.0
-		_rested_label.offset_top = -1.0
-		_rested_label.offset_bottom = 0.0
-		_xp_bar.add_child(_rested_label)
-	_rested_label.text = "休息 %d" % rested if rested > 0 else ""
-	_rested_label.visible = rested > 0
-
-
+	StatusPanel._refresh_rested_label(self, rested)
 func apply_safe_zone(action: Dictionary) -> void:
-	var inside := bool(action.get("inside", action.get("in_safe_zone", false)))
-	_safe_zone_inside = inside
-	_ensure_safe_zone_chip()
-	if _safe_zone_chip != null:
-		_safe_zone_chip.visible = inside
-
-
+	DungeonPanel.apply_safe_zone(self, action)
 func _ensure_safe_zone_chip() -> void:
-	if _safe_zone_chip != null and is_instance_valid(_safe_zone_chip):
-		_safe_zone_chip.visible = _safe_zone_inside
-		return
-	var panel := get_node_or_null("%StatusPanel") as Control
-	_safe_zone_chip = Label.new()
-	_safe_zone_chip.name = "SafeZoneChip"
-	_safe_zone_chip.text = "安全区"
-	_safe_zone_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_safe_zone_chip.add_theme_font_size_override("font_size", 11)
-	_safe_zone_chip.add_theme_color_override("font_color", Color(0.55, 0.92, 0.7, 1.0))
-	_safe_zone_chip.add_theme_color_override("font_outline_color", Color(0.05, 0.08, 0.06, 0.9))
-	_safe_zone_chip.add_theme_constant_override("outline_size", 2)
-	_safe_zone_chip.visible = _safe_zone_inside
-	_safe_zone_chip.z_index = 30
-	if panel != null and panel.get_parent() != null:
-		var parent_ctl: Node = panel.get_parent()
-		parent_ctl.add_child(_safe_zone_chip)
-		# Sit just under the status panel.
-		_safe_zone_chip.position = Vector2(panel.position.x + 6.0, panel.position.y + panel.size.y + 2.0)
-		if parent_ctl is Control:
-			# Prefer anchors under panel when layout settles.
-			_safe_zone_chip.set_anchors_preset(Control.PRESET_TOP_LEFT)
-			_safe_zone_chip.offset_left = panel.offset_left + 6.0 if "offset_left" in panel else 8.0
-			_safe_zone_chip.offset_top = (panel.offset_bottom if "offset_bottom" in panel else 90.0) + 2.0
-	else:
-		add_child(_safe_zone_chip)
-		_safe_zone_chip.position = Vector2(12, 100)
-
-
-
+	DungeonPanel._ensure_safe_zone_chip(self, )
 func apply_dungeon_update(action: Dictionary) -> void:
-	var d: Variant = action.get("dungeon", action)
-	if typeof(d) != TYPE_DICTIONARY:
-		return
-	_dungeon_state = (d as Dictionary).duplicate(true)
-	_ensure_dungeon_chip()
-	_refresh_dungeon_chip()
-
-
+	DungeonPanel.apply_dungeon_update(self, action)
 func _refresh_dungeon_chip() -> void:
-	_ensure_dungeon_chip()
-	if _dungeon_chip == null:
-		return
-	var active := bool(_dungeon_state.get("active", false))
-	var completed := bool(_dungeon_state.get("completed", false))
-	if not active and not completed:
-		_dungeon_chip.visible = false
-		return
-	var kills := int(_dungeon_state.get("kills", 0))
-	var needed := int(_dungeon_state.get("kills_needed", 2))
-	if completed:
-		_dungeon_chip.text = "试炼完成"
-	else:
-		_dungeon_chip.text = "试炼 %d/%d" % [kills, needed]
-	_dungeon_chip.visible = true
-
-
+	DungeonPanel._refresh_dungeon_chip(self, )
 func _ensure_dungeon_chip() -> void:
-	if _dungeon_chip != null and is_instance_valid(_dungeon_chip):
-		return
-	var panel := get_node_or_null("%StatusPanel") as Control
-	_dungeon_chip = Label.new()
-	_dungeon_chip.name = "DungeonChip"
-	_dungeon_chip.text = "试炼 0/2"
-	_dungeon_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dungeon_chip.add_theme_font_size_override("font_size", 11)
-	_dungeon_chip.add_theme_color_override("font_color", Color(0.95, 0.78, 0.45, 1.0))
-	_dungeon_chip.add_theme_color_override("font_outline_color", Color(0.08, 0.05, 0.02, 0.9))
-	_dungeon_chip.add_theme_constant_override("outline_size", 2)
-	_dungeon_chip.visible = false
-	_dungeon_chip.z_index = 30
-	if panel != null and panel.get_parent() != null:
-		var parent_ctl: Node = panel.get_parent()
-		parent_ctl.add_child(_dungeon_chip)
-		_dungeon_chip.position = Vector2(panel.position.x + 6.0, panel.position.y + panel.size.y + 16.0)
-	else:
-		add_child(_dungeon_chip)
-		_dungeon_chip.position = Vector2(12, 116)
-
-
+	DungeonPanel._ensure_dungeon_chip(self, )
 func _on_dungeon_enter_pressed() -> void:
-	if _world_combat != null and _world_combat.has_method("request_dungeon_enter"):
-		_world_combat.request_dungeon_enter()
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_dungeon_enter"):
-		return
-	_apply_dungeon_result_locally(srv.try_dungeon_enter())
-
-
+	DungeonPanel._on_dungeon_enter_pressed(self, )
 func _on_dungeon_exit_pressed() -> void:
-	if _world_combat != null and _world_combat.has_method("request_dungeon_exit"):
-		_world_combat.request_dungeon_exit()
-		return
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_dungeon_exit"):
-		return
-	_apply_dungeon_result_locally(srv.try_dungeon_exit())
-
-
+	DungeonPanel._on_dungeon_exit_pressed(self, )
 func _apply_dungeon_result_locally(result: Dictionary) -> void:
-	if typeof(result) != TYPE_DICTIONARY:
-		return
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) != TYPE_ARRAY:
-		return
-	for a in acts_v:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		var t := str(a.get("type", ""))
-		if t == "dungeon_update":
-			apply_dungeon_update(a)
-		elif t == "system_message":
-			var msg := str(a.get("text", "")).strip_edges()
-			if msg != "":
-				append_system(msg)
-		elif t == "map_transfer" and _world_combat != null and _world_combat.has_method("_on_transfer_requested"):
-			if bool(a.get("ok", true)):
-				_world_combat._on_transfer_requested(a)
-		elif t == "inventory_update":
-			apply_inventory_snapshot(a.get("items", []), int(a.get("gold", -1)))
-		elif t == "exp_gain":
-			show_exp_gain_float(int(a.get("amount", 0)))
-
-
-
+	DungeonPanel._apply_dungeon_result_locally(self, result)
 func _duel_remaining_sec() -> int:
-	if not bool(_duel_state.get("active", false)):
-		return 0
-	var ends := float(_duel_state.get("ends_at", 0.0))
-	var now := Time.get_ticks_msec() / 1000.0
-	return maxi(0, int(ceil(ends - now)))
-
-
+	return DuelPanel._duel_remaining_sec(self, )
 func _tick_duel_banner(delta: float) -> void:
-	if not bool(_duel_state.get("active", false)):
-		return
-	_duel_banner_acc += delta
-	if _duel_banner_acc < 0.25:
-		return
-	_duel_banner_acc = 0.0
-	_refresh_duel_banner()
-
-
+	DuelPanel._tick_duel_banner(self, delta)
 func _build_level_toast() -> void:
 	if _level_toast != null and is_instance_valid(_level_toast):
 		return
@@ -9636,156 +7579,19 @@ func _apply_craft_result_locally(result: Dictionary) -> void:
 		_refresh_craft_panel()
 
 func _build_emote_panel() -> void:
-	_emote_panel = PanelContainer.new()
-	_emote_panel.name = "EmotePanel"
-	_emote_panel.set_script(HudDrag)
-	_emote_panel.screen_margin = 4.0
-	_emote_panel.min_size = Vector2(280, 200)
-	_emote_panel.default_size = Vector2(340, 280)
-	_emote_panel.initial_dock = "none"
-	_emote_panel.drag_anywhere = true
-	add_child(_emote_panel)
-	var marg := MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	_emote_panel.add_child(marg)
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head := HBoxContainer.new()
-	outer.add_child(head)
-	var title := Label.new()
-	title.name = "EmoteTitle"
-	title.text = "表情"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn := Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): _emote_panel.visible = false)
-	head.add_child(close_btn)
-	_emote_body = VBoxContainer.new()
-	_emote_body.name = "EmoteBody"
-	_emote_body.add_theme_constant_override("separation", 6)
-	_emote_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer.add_child(_emote_body)
-	_emote_panel.visible = false
-	_apply_l2_chrome(_emote_panel)
-	_refresh_emote_panel()
-	call_deferred("_nudge_emote")
-
-
+	EmotePanel._build_emote_panel(self, )
 func _nudge_emote() -> void:
-	if _emote_panel == null:
-		return
-	_emote_panel.size = Vector2(340, 280)
-	var vp := get_viewport_rect().size
-	_emote_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96)
-
-
+	EmotePanel._nudge_emote(self, )
 func _toggle_emote_panel(force_open: bool = false) -> void:
-	if _emote_panel == null:
-		return
-	if force_open:
-		_emote_panel.visible = true
-	else:
-		_emote_panel.visible = not _emote_panel.visible
-	if _emote_panel.visible:
-		_refresh_emote_panel()
-		_emote_panel.move_to_front()
-		call_deferred("_nudge_emote")
-
-
+	EmotePanel._toggle_emote_panel(self, force_open)
 func _emote_catalog_rows() -> Array:
-	var srv = Net.server()
-	if srv != null and srv.has_method("emote_catalog"):
-		var live: Array = srv.emote_catalog()
-		if not live.is_empty():
-			return live
-	# Static mirror of MockServer.EMOTE_CATALOG labels (fallback).
-	return [
-		{"id": "wave", "label": "挥手", "text": "（挥手）"},
-		{"id": "laugh", "label": "大笑", "text": "哈哈哈"},
-		{"id": "bow", "label": "鞠躬", "text": "（鞠躬）"},
-		{"id": "cry", "label": "哭泣", "text": "（呜呜）"},
-		{"id": "angry", "label": "生气", "text": "（哼！）"},
-		{"id": "love", "label": "爱心", "text": "❤"},
-		{"id": "cheer", "label": "加油", "text": "（加油！）"},
-		{"id": "think", "label": "思考", "text": "（思考中…）"},
-		{"id": "shrug", "label": "耸肩", "text": "（耸肩）"},
-		{"id": "clap", "label": "鼓掌", "text": "（啪啪啪）"},
-		{"id": "sleepy", "label": "困倦", "text": "（打哈欠）"},
-		{"id": "wow", "label": "惊讶", "text": "（哇！）"},
-	]
-
-
+	return EmotePanel._emote_catalog_rows(self, )
 func _refresh_emote_panel() -> void:
-	if _emote_body == null:
-		return
-	for c in _emote_body.get_children():
-		c.queue_free()
-	_add_label(_emote_body, "选择表情（服务器冷却）", 11, L2Style.COL_MUTED)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_emote_body.add_child(grid)
-	var rows: Array = _emote_catalog_rows()
-	if rows.is_empty():
-		_add_label(_emote_body, "（暂无表情）", 12, L2Style.COL_MUTED)
-		return
-	for row in rows:
-		if typeof(row) != TYPE_DICTIONARY:
-			continue
-		var eid := str(row.get("id", "")).strip_edges()
-		if eid.is_empty():
-			continue
-		var btn := Button.new()
-		btn.text = str(row.get("label", eid))
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(96, 32)
-		btn.pressed.connect(_on_emote_pressed.bind(eid))
-		grid.add_child(btn)
-
-
+	EmotePanel._refresh_emote_panel(self, )
 func _on_emote_pressed(emote_id: String) -> void:
-	emote_id = str(emote_id).strip_edges()
-	if emote_id.is_empty():
-		return
-	if _world_combat != null and _world_combat.has_method("request_emote"):
-		_world_combat.request_emote(emote_id)
-		return
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_emote"):
-		_apply_emote_result_locally(srv.try_emote(emote_id))
-	else:
-		append_system("无法使用表情。")
-
-
+	EmotePanel._on_emote_pressed(self, emote_id)
 func _apply_emote_result_locally(result: Dictionary) -> void:
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) != TYPE_ARRAY:
-		return
-	for a in actions_v:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		var action: Dictionary = a
-		match str(action.get("type", "")):
-			"system_message":
-				var msg := str(action.get("text", "")).strip_edges()
-				if not msg.is_empty():
-					append_system(msg)
-			"emote":
-				# Without world host, still echo bubble text to system chat.
-				var bubble := str(action.get("text", "")).strip_edges()
-				if not bubble.is_empty():
-					append_system(bubble)
-
-
-
+	EmotePanel._apply_emote_result_locally(self, result)
 ## --- 战斗日志 panel (client ring buffer; hotkey B) ---
 
 

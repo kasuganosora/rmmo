@@ -33,6 +33,8 @@ builtin = {
     "get_rect", "get_global_rect", "has_focus", "grab_focus", "release_focus",
     "accept_event", "set_anchors_preset", "set_offsets_preset", "queue_redraw",
     "get_screen_position", "custom_minimum_size", "theme", "anchor_mode",
+    # Node members used by panel modules
+    "find_child", "find_children",
 }
 
 bad_total = 0

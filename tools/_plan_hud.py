@@ -88,7 +88,8 @@ import sys
 if len(sys.argv) > 1:
     want = sys.argv[1]
     names = [n for n, _, _ in groups.get(want, [])]
-    print(",".join(names))
+    print("CSV:" + ",".join(names))
+    sys.exit(0)
 else:
     print("UNCLASSIFIED:", len(unclassified), "lines:", sum(x[2] for x in unclassified))
 for n, i, s in unclassified:

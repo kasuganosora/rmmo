@@ -40,8 +40,12 @@ wconsts = capture_consts(rlines)
 tsrc = io.open(target, "r", encoding="utf-8").read()
 
 declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", tsrc, re.M))
+# never inject a const that points back at the target itself (self preload cycle)
+target_res = "res://" + target.replace("d:/code/rmmo/", "").replace("\\", "/")
 need = [n for n in wconsts
-        if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
+        if n not in declared
+        and target_res not in wconsts[n]
+        and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
 
 # := inference is unreliable through untyped ctrl
 tsrc2 = re.sub(r"\bvar\s+([A-Za-z_]\w*)\s*:=", r"var \1 =", tsrc)
