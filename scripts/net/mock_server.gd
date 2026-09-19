@@ -35,6 +35,7 @@ const SafeZoneCatalog = preload("res://scripts/net/combat/safe_zone_catalog.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const Weather = preload("res://scripts/map/weather.gd")
 const WeatherGatherUtil = preload("res://scripts/game/weather_gather_util.gd")
+const GridUtil = preload("res://scripts/util/grid_util.gd")
 
 const DEMO_PACK_PATH := "res://demo_map"
 ## External first-party pack id (resolved via AssetManager; not in res://).
@@ -1760,8 +1761,9 @@ func find_remote_by_name(remote_name: String) -> String:
 	return _remote_module_logic.find_remote_by_name(remote_name)
 func _remote_spawn_action(remote_id: String) -> Dictionary:
 	return _remote_module_logic._remote_spawn_action(remote_id)
+
 func _chebyshev(ax: int, ay: int, bx: int, by: int) -> int:
-	return maxi(absi(ax - bx), absi(ay - by))
+	return GridUtil.chebyshev_cells(ax, ay, bx, by)
 
 
 func _player_xy() -> Vector2i:
