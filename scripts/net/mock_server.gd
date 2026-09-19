@@ -58,6 +58,12 @@ const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
 const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+const ChatModule = preload("res://scripts/net/server/chat_module.gd")
+var _chat_module_logic: ChatModule = ChatModule.new(self)
+const RefineModule = preload("res://scripts/net/server/refine_module.gd")
+var _refine_module_logic: RefineModule = RefineModule.new(self)
+const DpsModule = preload("res://scripts/net/server/dps_module.gd")
+var _dps_module_logic: DpsModule = DpsModule.new(self)
 const DeathDropsModule = preload("res://scripts/net/server/death_drops_module.gd")
 var _death_drops_module_logic: DeathDropsModule = DeathDropsModule.new(self)
 const DailyModule = preload("res://scripts/net/server/daily_module.gd")
@@ -1165,19 +1171,9 @@ func _threat_update_action(npc_id: String) -> Dictionary:
 
 ## Personal DPS meter snapshot (combat_engine session window).
 func snapshot_dps() -> Dictionary:
-	if combat_engine != null and combat_engine.has_method("snapshot_dps"):
-		return combat_engine.snapshot_dps()
-	return {"type": "dps_update", "dps": 0.0, "total": 0, "elapsed": 0.0, "active": false}
-
-
+	return _dps_module_logic.snapshot_dps()
 func _tick_dps_meter(delta: float) -> void:
-	if combat_engine == null or not combat_engine.has_method("tick_dps"):
-		return
-	var acts: Array = combat_engine.tick_dps(delta)
-	if not acts.is_empty():
-		_pending_tick_actions.append_array(acts)
-
-
+	_dps_module_logic._tick_dps_meter(delta)
 func _append_threat_updates(actions: Array) -> void:
 	_combat_module_logic._append_threat_updates(actions)
 func _finalize_combat_result(result: Dictionary) -> Dictionary:
@@ -1203,177 +1199,10 @@ func try_inn_rest(cost: int = 25) -> Dictionary:
 	return _sustain_module_logic.try_inn_rest(cost)
 ## Repair equipped gear at blacksmith. slot ""/"all" = every damaged piece; cost_per_point gold/point.
 func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
-	var actions: Array = []
-	slot = str(slot).strip_edges()
-	cost_per_point = maxi(int(cost_per_point), 0)
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "金币不足。"})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	var do_tools := slot.is_empty() or slot == "all" or slot == "tools"
-	var do_equip := slot != "tools"
-	if do_equip and equipment == null:
-		actions.append({"type": "system_message", "text": "无法修理。"})
-		return {"ok": false, "reason": "no_equipment", "actions": actions}
-	# Preview costs so equip+tools can be paid atomically.
-	var eq_points := 0
-	var eq_targets: Array = []
-	if do_equip and equipment != null:
-		if slot.is_empty() or slot == "all":
-			for sid in equipment.SLOT_IDS:
-				if not equipment.is_empty(sid) and equipment.get_durability(sid) < equipment.get_durability_max(sid):
-					eq_targets.append(sid)
-					eq_points += equipment.get_durability_max(sid) - equipment.get_durability(sid)
-		elif equipment.SLOT_IDS.has(slot):
-			if equipment.is_empty(slot):
-				actions.append({"type": "system_message", "text": "该部位没有装备。"})
-				return {"ok": false, "reason": "empty", "actions": actions}
-			if equipment.get_durability(slot) >= equipment.get_durability_max(slot):
-				# May still repair tools if slot was tools-only path — not here.
-				pass
-			else:
-				eq_targets.append(slot)
-				eq_points += equipment.get_durability_max(slot) - equipment.get_durability(slot)
-		else:
-			actions.append({"type": "system_message", "text": "该部位没有装备。"})
-			return {"ok": false, "reason": "invalid_slot", "actions": actions}
-	var tool_prev: Dictionary = {}
-	var tool_points := 0
-	if do_tools and inventory.has_method("preview_tool_repair_full"):
-		tool_prev = inventory.preview_tool_repair_full()
-		if bool(tool_prev.get("ok", false)):
-			tool_points = int(tool_prev.get("points", 0))
-	var total_points := eq_points + tool_points
-	if total_points <= 0:
-		if slot == "tools":
-			actions.append({"type": "system_message", "text": "工具无需修理。"})
-		else:
-			actions.append({"type": "system_message", "text": "装备无需修理。"})
-		return {"ok": false, "reason": "nothing_to_repair", "actions": actions, "cost": 0}
-	var cost: int = total_points * cost_per_point
-	if cost > 0 and not inventory.try_spend_gold(cost):
-		actions.append({"type": "system_message", "text": "金币不足。"})
-		return {"ok": false, "reason": "no_gold", "actions": actions, "cost": cost}
-	var repaired: Array = []
-	if eq_points > 0 and equipment != null:
-		for sid_v in eq_targets:
-			var sid: String = str(sid_v)
-			var before: int = int(equipment.get_durability(sid))
-			var dmax: int = int(equipment.get_durability_max(sid))
-			equipment._durability[sid] = dmax
-			repaired.append({
-				"slot": sid,
-				"item_id": equipment.get_item_in(sid),
-				"before": before,
-				"after": dmax,
-				"max": dmax,
-			})
-	if tool_points > 0 and inventory.has_method("apply_tool_repair_full"):
-		var tr: Dictionary = inventory.apply_tool_repair_full()
-		for row in tr.get("repaired", []):
-			repaired.append(row)
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	if eq_points > 0:
-		actions.append(_equipment_update_action())
-	var spent: int = cost
-	var pts: int = total_points
-	if slot == "tools":
-		actions.append({"type": "system_message", "text": "工具已修理（%d 点，花费 %dG）。" % [pts, spent]})
-	elif tool_points > 0 and eq_points > 0:
-		actions.append({"type": "system_message", "text": "装备与工具已修理（%d 点，花费 %dG）。" % [pts, spent]})
-	elif tool_points > 0:
-		actions.append({"type": "system_message", "text": "工具已修理（%d 点，花费 %dG）。" % [pts, spent]})
-	elif slot.is_empty() or slot == "all":
-		actions.append({"type": "system_message", "text": "装备已全部修理（%d 点，花费 %dG）。" % [pts, spent]})
-	else:
-		actions.append({"type": "system_message", "text": "装备已修理（%d 点，花费 %dG）。" % [pts, spent]})
-	return {
-		"ok": true,
-		"reason": "",
-		"actions": actions,
-		"gold_spent": spent,
-		"points": pts,
-		"repaired": repaired,
-	}
-
-
+	return _refine_module_logic.try_repair(slot, cost_per_point)
 ## Enhance equipped gear at blacksmith. Consumes 1 enhance_stone + gold (10*(level+1)).
 func try_enhance(slot: String = "") -> Dictionary:
-	var actions: Array = []
-	slot = str(slot).strip_edges()
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if equipment == null:
-		actions.append({"type": "system_message", "text": "无法强化。"})
-		return {"ok": false, "reason": "no_equipment", "actions": actions}
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "金币不足。"})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	if slot.is_empty():
-		actions.append({"type": "system_message", "text": "该部位没有装备。"})
-		return {"ok": false, "reason": "empty", "actions": actions}
-	var r: Dictionary = equipment.try_enhance(inventory, slot)
-	if not bool(r.get("ok", false)):
-		var reason := str(r.get("reason", ""))
-		match reason:
-			"maxed":
-				actions.append({"type": "system_message", "text": "已达强化上限 +%d。" % int(equipment.ENHANCE_MAX)})
-			"no_stone":
-				actions.append({"type": "system_message", "text": "需要强化石。"})
-			"no_gold":
-				actions.append({"type": "system_message", "text": "金币不足。"})
-			"empty", "invalid_slot":
-				actions.append({"type": "system_message", "text": "该部位没有装备。"})
-			_:
-				actions.append({"type": "system_message", "text": "无法强化。"})
-		return {
-			"ok": false,
-			"reason": reason,
-			"actions": actions,
-			"cost": int(r.get("cost", 0)),
-			"enhance": int(r.get("enhance", 0)),
-		}
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	actions.append(_equipment_update_action())
-	var enh_n: int = int(r.get("enhance", 0))
-	var spent: int = int(r.get("gold_spent", 0))
-	var iid := str(r.get("item_id", ""))
-	var nm := item_display_name(iid) if has_method("item_display_name") else iid
-	actions.append({
-		"type": "system_message",
-		"text": "强化成功：%s +%d（花费 %dG）。" % [nm, enh_n, spent],
-	})
-	return {
-		"ok": true,
-		"reason": "",
-		"actions": actions,
-		"slot": slot,
-		"item_id": iid,
-		"enhance": enh_n,
-		"enhance_before": int(r.get("enhance_before", 0)),
-		"gold_spent": spent,
-		"stat_key": str(r.get("stat_key", "")),
-	}
-
-
-
+	return _refine_module_logic.try_enhance(slot)
 ## Apply hp_max / level / atk / def from spawn_data (top-level or nested stats).
 func _apply_npc_spawn_combat_overrides(npc_id: String, spawn_data: Dictionary) -> void:
 	_combat_module_logic._apply_npc_spawn_combat_overrides(npc_id, spawn_data)
@@ -1958,117 +1787,7 @@ func try_remote_despawn(remote_id: String = "") -> Dictionary:
 ## Chat shell: channel = nearby|whisper|all|party|clan|trade|alliance
 ## whisper_to = display name or remote id for whisper.
 func try_chat(channel: String, text: String, whisper_to: String = "") -> Dictionary:
-	var actions: Array = []
-	channel = str(channel).strip_edges().to_lower()
-	text = str(text).strip_edges()
-	whisper_to = str(whisper_to).strip_edges()
-	if text.is_empty():
-		return {"ok": false, "reason": "empty", "actions": actions}
-	var speaker := _party_self_name()
-	var speaker_id := _party_self_id()
-	match channel:
-		"whisper", "w", "tell":
-			channel = "whisper"
-			if whisper_to.is_empty():
-				actions.append({"type": "system_message", "text": "私聊格式：/w 名字 内容"})
-				return {"ok": false, "reason": "no_target", "actions": actions}
-			var tid := find_remote_by_name(whisper_to)
-			if tid.is_empty() and _remote_players.has(whisper_to):
-				tid = whisper_to
-			if tid.is_empty():
-				actions.append({"type": "system_message", "text": "找不到玩家【%s】。" % whisper_to})
-				return {"ok": false, "reason": "not_found", "actions": actions}
-			var target: Dictionary = _remote_players[tid]
-			var tname := str(target.get("name", whisper_to))
-			actions.append({
-				"type": "chat_message",
-				"channel": "whisper",
-				"speaker": speaker,
-				"speaker_id": speaker_id,
-				"target": tname,
-				"target_id": tid,
-				"text": text,
-				"self": true,
-			})
-			return {"ok": true, "actions": actions}
-		"nearby", "say", "local":
-			channel = "nearby"
-			actions.append({
-				"type": "chat_message",
-				"channel": "nearby",
-				"speaker": speaker,
-				"speaker_id": speaker_id,
-				"text": text,
-				"self": true,
-			})
-			var pc := _player_xy()
-			var heard := 0
-			for rid in _remote_players.keys():
-				var d: Variant = _remote_players[rid]
-				if typeof(d) != TYPE_DICTIONARY:
-					continue
-				var row: Dictionary = d
-				var cv: Variant = row.get("cell", {})
-				if typeof(cv) != TYPE_DICTIONARY:
-					continue
-				var rx := int(cv.get("x", -9999))
-				var ry := int(cv.get("y", -9999))
-				if _chebyshev(pc.x, pc.y, rx, ry) > NEARBY_CHAT_RANGE:
-					continue
-				heard += 1
-				var rname := str(row.get("name", rid))
-				# Delivery echo: remote "hears" the line (shell AOI stub).
-				actions.append({
-					"type": "chat_message",
-					"channel": "nearby",
-					"speaker": speaker,
-					"speaker_id": speaker_id,
-					"text": text,
-					"self": false,
-					"heard_by": rname,
-					"heard_by_id": str(rid),
-				})
-			if heard == 0:
-				actions.append({"type": "system_message", "text": "附近没有人听到。"})
-			return {"ok": true, "actions": actions}
-		"party":
-			if not in_party():
-				actions.append({"type": "system_message", "text": "你尚未组队，队伍频道仅本地可见。"})
-			actions.append({
-				"type": "chat_message",
-				"channel": "party",
-				"speaker": speaker,
-				"speaker_id": speaker_id,
-				"text": text,
-				"self": true,
-			})
-			return {"ok": true, "actions": actions}
-		"all", "shout", "yell":
-			channel = "all"
-			actions.append({
-				"type": "chat_message",
-				"channel": "all",
-				"speaker": speaker,
-				"speaker_id": speaker_id,
-				"text": text,
-				"self": true,
-			})
-			return {"ok": true, "actions": actions}
-		_:
-			# clan / trade / alliance — local echo only for now
-			actions.append({
-				"type": "chat_message",
-				"channel": channel,
-				"speaker": speaker,
-				"speaker_id": speaker_id,
-				"text": text,
-				"self": true,
-			})
-			return {"ok": true, "actions": actions}
-
-
-
-
+	return _chat_module_logic.try_chat(channel, text, whisper_to)
 ## --- Personal map pins (waypoints) -----------------------------------------
 
 func snapshot_map_pins() -> Dictionary:
