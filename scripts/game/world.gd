@@ -23,6 +23,8 @@ const Targeting = preload("res://scripts/game/application/targeting.gd")
 const WorldEnv = preload("res://scripts/game/infrastructure/world_env.gd")
 const WorldQuery = preload("res://scripts/game/application/world_query.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
+const CombatFeedback = preload("res://scripts/game/application/combat_feedback.gd")
+const SettingsSync = preload("res://scripts/game/application/settings_sync.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -594,92 +596,19 @@ func _apply_npc_reset(action: Dictionary) -> void:
 func _apply_damage_action(action: Dictionary, npc = null) -> void:
 	ActionApply.apply_damage_action(self, action, npc)
 func _connect_game_settings() -> void:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	if not gs.changed.is_connected(_on_game_settings_changed):
-		gs.changed.connect(_on_game_settings_changed)
-	_on_game_settings_changed()
-
-
+	SettingsSync._connect_game_settings(self, )
 func _on_game_settings_changed() -> void:
-	_push_auto_potion_settings()
-	_push_pet_assist_settings()
-	_apply_camera_zoom()
-	for npc in _npcs:
-		if npc != null and is_instance_valid(npc) and npc.has_method("_refresh_nameplate"):
-			npc._refresh_nameplate()
-	_refresh_remote_nameplates()
-	_apply_atmosphere()
-
-
+	SettingsSync._on_game_settings_changed(self, )
 func _push_auto_potion_settings() -> void:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	var srv = Net.server() if Net != null else null
-	if srv == null or not srv.has_method("try_set_auto_potion"):
-		return
-	srv.try_set_auto_potion(
-		bool(gs.auto_potion_hp),
-		int(gs.auto_potion_hp_pct),
-		bool(gs.auto_potion_mp),
-		int(gs.auto_potion_mp_pct),
-	)
-
-
+	SettingsSync._push_auto_potion_settings(self, )
 func _push_pet_assist_settings() -> void:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	var srv = Net.server() if Net != null else null
-	if srv == null or not srv.has_method("try_set_pet_assist"):
-		return
-	srv.try_set_pet_assist(bool(gs.get("pet_assist")) if "pet_assist" in gs else true)
-
-
+	SettingsSync._push_pet_assist_settings(self, )
 func _trigger_crit_shake() -> void:
-	## Brief Camera2D.offset jitter on crit; gated by GameSettings.screen_shake.
-	if not GameSettingsScript.flag("screen_shake", true):
-		return
-	if _camera_shake == null:
-		_camera_shake = CameraShake.new()
-	_camera_shake.trigger()
-
-
+	CombatFeedback._trigger_crit_shake(self, )
 func _desired_combat_frame_offset() -> Vector2:
-	## Soft bias toward selected hostile; ZERO when off / no hostile / invalid.
-	if not GameSettingsScript.flag("combat_camera_frame", true):
-		return Vector2.ZERO
-	if player == null or not is_instance_valid(player):
-		return Vector2.ZERO
-	if _selected_npc_id.is_empty():
-		return Vector2.ZERO
-	var npc = _find_npc_by_id(_selected_npc_id)
-	if npc == null or not is_instance_valid(npc):
-		return Vector2.ZERO
-	if not ("hostile" in npc and bool(npc.hostile)):
-		return Vector2.ZERO
-	return CombatCamera.compute_frame_offset(player.global_position, npc.global_position)
-
-
+	return CombatFeedback._desired_combat_frame_offset(self, )
 func _tick_camera_shake(delta: float) -> void:
-	## Lerp combat frame offset, then apply shake additively on Camera2D.offset.
-	var desired: Vector2 = _desired_combat_frame_offset()
-	_combat_cam_offset = CombatCamera.lerp_offset(_combat_cam_offset, desired, delta)
-	if _camera_shake != null:
-		_camera_shake.tick(delta)
-	if player == null or not is_instance_valid(player):
-		return
-	var cam := player.get_node_or_null("Camera2D") as Camera2D
-	if cam == null:
-		return
-	if _camera_shake != null:
-		_camera_shake.apply_to(cam, _combat_cam_offset)
-	else:
-		cam.offset = _combat_cam_offset
-
-
+	CombatFeedback._tick_camera_shake(self, delta)
 func _spawn_combat_floater(
 	world_pos: Vector2,
 	text: String,
