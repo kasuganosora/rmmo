@@ -1,7 +1,7 @@
-import re, glob, os
+import re, glob, os, sys
 
-FACADE = "scripts/net/mock_server.gd"
-MODULES = "scripts/net/server/*.gd"
+FACADE = sys.argv[1] if len(sys.argv) > 1 else "scripts/net/mock_server.gd"
+MODULES = sys.argv[2] if len(sys.argv) > 2 else "scripts/net/server/*.gd"
 
 hud = open(FACADE, encoding="utf-8").read()
 members = set(re.findall(r"(?m)^(?:@\w+(?:\([^\n]*\))?\s+)*var\s+(\w+)", hud))

@@ -1,7 +1,10 @@
-import re, glob, os
+import re, glob, os, sys
+
+FACADE = sys.argv[1] if len(sys.argv) > 1 else "scripts/net/mock_server.gd"
+MODULES = sys.argv[2] if len(sys.argv) > 2 else "scripts/net/server/*.gd"
 
 # facade members (vars/signals/funcs/consts) that could be shadowed
-hud = open("scripts/net/mock_server.gd", encoding="utf-8").read()
+hud = open(FACADE, encoding="utf-8").read()
 members = set(re.findall(r"(?m)^(?:@\w+(?:\([^\n]*\))?\s+)*var\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^signal\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^const\s+(\w+)", hud))
@@ -10,7 +13,7 @@ def indent(ln):
     return len(ln) - len(ln.lstrip("\t"))
 
 hits = []
-for f in sorted(glob.glob("scripts/net/server/*.gd")):
+for f in sorted(glob.glob(MODULES)):
     lines = open(f, encoding="utf-8").read().split("\n")
     base = os.path.basename(f)
     idxs = [i for i, ln in enumerate(lines) if re.match(r"^func (\w+)\(", ln)] + [len(lines)]

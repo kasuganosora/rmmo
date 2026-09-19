@@ -42,6 +42,8 @@ var _upper_image: Image
 
 ## Low-res blended atlas for radar (baked once at rebuild; walking only scrolls a window).
 const RADAR_ATLAS_SCALE: float = 0.5
+const TileAnimModule = preload("res://scripts/map/field/tile_anim_module.gd")
+var _tile_anim_module_logic: TileAnimModule = TileAnimModule.new(self)
 var _radar_atlas_image: Image = null
 var _radar_atlas_tex: ImageTexture = null
 var _radar_atlas_scale: float = RADAR_ATLAS_SCALE
@@ -1809,134 +1811,29 @@ func _route_blit(
 
 
 func _cell_has_ground_anim(t0: int, t1: int, t2: int, t3: int, flags: PackedInt32Array) -> bool:
-	var tiles := PackedInt32Array([t0, t1, t2, t3])
-	for t in tiles:
-		if not TileId.is_animated_a1(t):
-			continue
-		if t < flags.size() and (flags[t] & 0x10) != 0:
-			continue
-		return true
-	return false
-
-
+	return _tile_anim_module_logic._cell_has_ground_anim(t0, t1, t2, t3, flags)
 func _anim_image(bucket: String, like: Image) -> Image:
-	if _bake_anim_imgs.has(bucket):
-		return _bake_anim_imgs[bucket]
-	var w: int = like.get_width() if like != null else 1
-	var h: int = like.get_height() if like != null else 1
-	var img := Image.create(maxi(w, 1), maxi(h, 1), false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	_bake_anim_imgs[bucket] = img
-	return img
-
-
+	return _tile_anim_module_logic._anim_image(bucket, like)
 func _begin_anim_bake() -> void:
-	_bake_anim = true
-	_bake_anim_jobs = []
-	_bake_anim_shadows = []
-	_bake_anim_imgs = {}
-
-
+	_tile_anim_module_logic._begin_anim_bake()
 func _finish_anim_bake(node: Node2D, full_anim: bool = true) -> void:
-	_bake_anim = false
-	if node == null:
-		return
-	if node.has_method("set_anim_data"):
-		node.set_anim_data(_bake_anim_jobs, _bake_anim_shadows, _bake_anim_imgs)
-	for b in _bake_anim_imgs.keys():
-		var bucket: String = str(b)
-		var img: Image = _bake_anim_imgs[b]
-		var additive: bool = bucket == "Fx"
-		if node.has_method("apply_bucket"):
-			node.apply_bucket(bucket + "Anim", img, _anim_layer_z(bucket), additive)
-	if full_anim and node.has_method("refresh_anim"):
-		var sheets: Array = pack.sheets if pack else []
-		var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-		node.refresh_anim(_anim_frame, sheets, flags, tile_size, 0.0)
-	_bake_anim_jobs = []
-	_bake_anim_shadows = []
-	_bake_anim_imgs = {}
-
-
+	_tile_anim_module_logic._finish_anim_bake(node, full_anim)
 func _anim_layer_z(bucket: String) -> int:
-	match bucket:
-		"Below":
-			return -21
-		"Ground":
-			return -1
-		"Upper":
-			return 9
-		"Roof":
-			return 11
-		"Fx":
-			return 15
-		_:
-			return -1
-
-
+	return _tile_anim_module_logic._anim_layer_z(bucket)
 func _tick_tile_anim(delta: float) -> void:
-	_anim_accum += delta
-	var advanced := false
-	while _anim_accum >= ANIM_STEP_SEC:
-		_anim_accum -= ANIM_STEP_SEC
-		_anim_frame = (_anim_frame + 1) % 4
-		advanced = true
-	var mix_t: float = clampf(_anim_accum / ANIM_STEP_SEC, 0.0, 1.0)
-	if advanced:
-		_refresh_chunk_anims(mix_t)
-	else:
-		_set_chunk_anim_mix(mix_t)
-
-
+	_tile_anim_module_logic._tick_tile_anim(delta)
 func tick_tile_anim() -> int:
-	_anim_frame = (_anim_frame + 1) % 4
-	_anim_accum = 0.0
-	_refresh_chunk_anims(0.0)
-	return _anim_frame
-
-
+	return _tile_anim_module_logic.tick_tile_anim()
 func tile_anim_mix() -> float:
-	return clampf(_anim_accum / ANIM_STEP_SEC, 0.0, 1.0)
-
-
+	return _tile_anim_module_logic.tile_anim_mix()
 func tile_anim_frame() -> int:
-	return _anim_frame
-
-
+	return _tile_anim_module_logic.tile_anim_frame()
 func _refresh_chunk_anims(mix_t: float = 0.0) -> void:
-	if pack == null:
-		return
-	var sheets: Array = pack.sheets
-	var flags: PackedInt32Array = pack.flags
-	for key in _chunks.keys():
-		var ch: Node = _chunks[key]
-		if ch != null and ch.has_method("refresh_anim"):
-			ch.refresh_anim(_anim_frame, sheets, flags, tile_size, mix_t, false)
-
-
+	_tile_anim_module_logic._refresh_chunk_anims(mix_t)
 func _set_chunk_anim_mix(mix_t: float) -> void:
-	for key in _chunks.keys():
-		var ch: Node = _chunks[key]
-		if ch != null and ch.has_method("set_anim_mix_only"):
-			ch.set_anim_mix_only(mix_t)
-
-
+	_tile_anim_module_logic._set_chunk_anim_mix(mix_t)
 func _pump_anim_prebake() -> void:
-	if pack == null:
-		return
-	var sheets: Array = pack.sheets
-	var flags: PackedInt32Array = pack.flags
-	var n := 0
-	for key in _chunks.keys():
-		var ch: Node = _chunks[key]
-		if ch == null or not ch.has_method("prebake_next_anim_frame"):
-			continue
-		if bool(ch.prebake_next_anim_frame(sheets, flags, tile_size)):
-			n += 1
-			if n >= 1:
-				return
-
-
+	_tile_anim_module_logic._pump_anim_prebake()
 func _bake_radar_mv_only(do_yield: bool, progress: Callable) -> void:
 	_bake_lofi_overview()
 	if do_yield:
