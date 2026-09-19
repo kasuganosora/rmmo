@@ -21,6 +21,8 @@ const AssetOps = preload("res://scripts/editor/adapters/ops/asset_ops.gd")
 const HistoryOps = preload("res://scripts/editor/adapters/ops/history_ops.gd")
 const MapCrudOps = preload("res://scripts/editor/adapters/ops/map_crud_ops.gd")
 const StampOps = preload("res://scripts/editor/adapters/ops/stamp_ops.gd")
+const TilesOps = preload("res://scripts/editor/adapters/ops/tiles_ops.gd")
+var _tiles_ops_logic: TilesOps = TilesOps.new(self)
 var _stamp_ops_logic: StampOps = StampOps.new(self)
 var _map_crud_ops_logic: MapCrudOps = MapCrudOps.new(self)
 var _history_ops_logic: HistoryOps = HistoryOps.new(self)
@@ -809,47 +811,11 @@ func paint_ring(args: Dictionary) -> Dictionary:
 
 
 func copy_tiles(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var r: Dictionary = _clamp_rect(args, int(d.width), int(d.height), 256)
-	if bool(r.get("error", false)):
-		return mcp._err(str(r.get("msg", "bad rect")))
-	_apply_layer(args)
-	var paint = _ensure_paint()
-	var clip: Dictionary = paint.copy_rect(d, Vector2i(int(r.x), int(r.y)), Vector2i(int(r.x) + int(r.w) - 1, int(r.y) + int(r.h) - 1))
-	return mcp._ok({"w": int(clip.get("w", 0)), "h": int(clip.get("h", 0)), "z": paint.layer_z, "ext": str(paint.ext_layer)})
-
-
+	return _tiles_ops_logic.copy_tiles(args)
 func cut_tiles(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var r: Dictionary = _clamp_rect(args, int(d.width), int(d.height), 256)
-	if bool(r.get("error", false)):
-		return mcp._err(str(r.get("msg", "bad rect")))
-	_apply_layer(args)
-	var paint = _ensure_paint()
-	var dirty: Array[Vector2i] = paint.cut_rect(d, Vector2i(int(r.x), int(r.y)), Vector2i(int(r.x) + int(r.w) - 1, int(r.y) + int(r.h) - 1))
-	_touch(dirty)
-	return mcp._ok({"cut": dirty.size(), "w": int(r.w), "h": int(r.h)})
-
-
+	return _tiles_ops_logic.cut_tiles(args)
 func paste_tiles(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var paint = _ensure_paint()
-	if paint.clipboard.is_empty():
-		return mcp._err("tile clipboard empty")
-	var c: Vector2i = mcp._cell(args)
-	var dirty: Array[Vector2i] = paint.paste_at(d, c)
-	if not paint.exact_autotile:
-		paint.refresh_autotiles(d, dirty, dirty)
-	_touch(dirty)
-	return mcp._ok({"pasted": dirty.size(), "x": c.x, "y": c.y})
-
-
+	return _tiles_ops_logic.paste_tiles(args)
 func set_stamp(args: Dictionary) -> Dictionary:
 	return _stamp_ops_logic.set_stamp(args)
 func paint_stamp(args: Dictionary) -> Dictionary:
@@ -1204,24 +1170,11 @@ func scatter(args: Dictionary) -> Dictionary:
 func stamp_from_tileset(args: Dictionary) -> Dictionary:
 	return _stamp_ops_logic.stamp_from_tileset(args)
 func replace_tiles(args: Dictionary) -> Dictionary:
-	_apply_layer(args)
-	var dirty: Array[Vector2i] = _ensure_paint().replace_id(
-		doc(), int(args.get("old_id", 0)), int(args.get("new_id", 0)), bool(args.get("kind_match", true))
-	)
-	_touch(dirty)
-	return mcp._ok({"replaced": dirty.size()})
-
-
+	return _tiles_ops_logic.replace_tiles(args)
 func rotate_tiles(args: Dictionary) -> Dictionary:
-	var clip: Dictionary = _ensure_paint().rotate_clipboard(bool(args.get("cw", true)))
-	return mcp._ok({"w": int(clip.get("w", 0)), "h": int(clip.get("h", 0))})
-
-
+	return _tiles_ops_logic.rotate_tiles(args)
 func flip_tiles(args: Dictionary) -> Dictionary:
-	var clip: Dictionary = _ensure_paint().flip_clipboard(bool(args.get("horizontal", true)))
-	return mcp._ok({"w": int(clip.get("w", 0)), "h": int(clip.get("h", 0))})
-
-
+	return _tiles_ops_logic.flip_tiles(args)
 func list_undo() -> Dictionary:
 	return _history_ops_logic.list_undo()
 func add_bookmark(args: Dictionary) -> Dictionary:
