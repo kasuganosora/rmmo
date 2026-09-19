@@ -18,6 +18,8 @@ const MAP_MAX_SIDE := 16384
 const MV_LAYER_NAMES := ["下层", "中层", "上层", "顶层", "阴影", "区域"]
 const EntityOps = preload("res://scripts/editor/adapters/ops/entity_ops.gd")
 const AssetOps = preload("res://scripts/editor/adapters/ops/asset_ops.gd")
+const HistoryOps = preload("res://scripts/editor/adapters/ops/history_ops.gd")
+var _history_ops_logic: HistoryOps = HistoryOps.new(self)
 var _asset_ops_logic: AssetOps = AssetOps.new(self)
 var _entity_ops_logic: EntityOps = EntityOps.new(self)
 
@@ -972,23 +974,9 @@ func paint_stamp(args: Dictionary) -> Dictionary:
 
 
 func undo() -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var cells: Array[Vector2i] = d.undo_cells()
-	_touch(cells)
-	return mcp._ok({"undone": cells.size()})
-
-
+	return _history_ops_logic.undo()
 func redo() -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var cells: Array[Vector2i] = d.redo_cells()
-	_touch(cells)
-	return mcp._ok({"redone": cells.size()})
-
-
+	return _history_ops_logic.redo()
 func refresh_autotiles() -> Dictionary:
 	var d = doc()
 	if d == null:
@@ -1372,19 +1360,7 @@ func flip_tiles(args: Dictionary) -> Dictionary:
 
 
 func list_undo() -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var items: Array = []
-	var stack: Array = d.get("_undo") if "_undo" in d else []
-	for i in range(stack.size() - 1, maxi(stack.size() - 12, -1), -1):
-		if i < 0:
-			break
-		var cmd: Dictionary = stack[i] if typeof(stack[i]) == TYPE_DICTIONARY else {}
-		items.append({"t": str(cmd.get("t", "")), "cells": d._cmd_cells(cmd).size() if d.has_method("_cmd_cells") else 0})
-	return mcp._ok({"count": stack.size() if typeof(stack) == TYPE_ARRAY else 0, "items": items})
-
-
+	return _history_ops_logic.list_undo()
 func add_bookmark(args: Dictionary) -> Dictionary:
 	var d = doc()
 	if d == null:
