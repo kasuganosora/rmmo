@@ -20,6 +20,7 @@ const RadarPoi = preload("res://scripts/ui/radar_poi.gd")
 const ActionApply = preload("res://scripts/game/application/action_apply.gd")
 const RequestAdapter = preload("res://scripts/game/application/request_adapter.gd")
 const Targeting = preload("res://scripts/game/application/targeting.gd")
+const WorldEnv = preload("res://scripts/game/infrastructure/world_env.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
 
 @onready var player: CharacterBody2D = %Player
@@ -1652,256 +1653,41 @@ func _apply_camera_zoom() -> void:
 
 
 func _load_map_presets() -> void:
-	_light_presets = _read_preset_file("res://data/map/light_presets.json")
-	_sound_presets = _read_preset_file("res://data/map/sound_presets.json")
-	_pin_hud_canvas()
-	# Day/night tints World canvas items (map, actors). Do not use CanvasModulate —
-	# it multiplies every canvas in the viewport, including the HUD.
-	if _bgs_player == null:
-		_bgs_player = AudioStreamPlayer.new()
-		_bgs_player.name = "MapBgs"
-		_bgs_player.bus = "Ambient"
-		add_child(_bgs_player)
-	if _bgm_player == null:
-		_bgm_player = AudioStreamPlayer.new()
-		_bgm_player.name = "MapBgm"
-		_bgm_player.bus = "BGM"
-		add_child(_bgm_player)
-	if _se_player == null:
-		_se_player = AudioStreamPlayer.new()
-		_se_player.name = "MapSe"
-		_se_player.volume_db = -4.0
-		_se_player.bus = "SFX"
-		add_child(_se_player)
-	if _foot_player == null:
-		_foot_player = AudioStreamPlayer.new()
-		_foot_player.name = "Footstep"
-		_foot_player.volume_db = -8.0
-		_foot_player.bus = "SFX"
-		add_child(_foot_player)
-
-
+	return WorldEnv._load_map_presets(self, )
 func _read_preset_file(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return {}
-	var d: Dictionary = parsed
-	if typeof(d.get("presets")) == TYPE_DICTIONARY:
-		return d["presets"]
-	return d
-
-
+	return WorldEnv._read_preset_file(self, path)
 func _sync_map_observer() -> void:
-	if player == null or map_field == null:
-		return
-	var cell: Vector2i = player.cell if "cell" in player else Vector2i.ZERO
-	var facing := 2
-	if player.has_method("get_facing"):
-		facing = int(CharsetSheet.dir_from_facing(str(player.get_facing())))
-	if map_field.has_method("set_observer"):
-		map_field.set_observer(cell, facing)
-	_apply_cell_settings(cell)
-
-
+	return WorldEnv._sync_map_observer(self, )
 func _apply_cell_settings(cell: Vector2i) -> void:
-	if map_field == null or map_field.collision == null:
-		return
-	var col = map_field.collision
-	if not col.has_method("settings_at"):
-		return
-	var packed: int = int(col.settings_at(cell.x, cell.y))
-	var light_id: int = packed & 0xff
-	var sound_id: int = (packed >> 8) & 0xff
-	_last_foot_kind = (packed >> 16) & 0xff
-	if packed == 0 and map_field != null and map_field.pack != null and "light_preset" in map_field.pack:
-		light_id = int(map_field.pack.light_preset)
-	if light_id != _last_light_preset:
-		_last_light_preset = light_id
-		_apply_light_preset(light_id)
-	if sound_id != _last_sound_preset:
-		_last_sound_preset = sound_id
-		_apply_sound_preset(sound_id)
-
-
+	return WorldEnv._apply_cell_settings(self, cell)
 func _apply_light_preset(id: int) -> void:
-	_last_light_preset = id
-	_apply_atmosphere()
-
-
+	return WorldEnv._apply_light_preset(self, id)
 func _apply_weather_action(action: Dictionary) -> void:
 	ActionApply.apply_weather_action(self, action)
 func _pull_server_weather() -> void:
-	var srv = Net.server()
-	if srv != null and srv.has_method("get_weather"):
-		var snap: Dictionary = srv.get_weather()
-		_weather_kind = str(snap.get("kind", "clear"))
-		_weather_intensity = clampf(float(snap.get("intensity", 0.0)), 0.0, 1.0)
-	_apply_atmosphere()
-
-
+	return WorldEnv._pull_server_weather(self, )
 func _pin_hud_canvas() -> void:
-	var cl := get_node_or_null("CanvasLayer") as CanvasLayer
-	if cl:
-		cl.layer = Weather.CANVAS_HUD
-
-
+	return WorldEnv._pin_hud_canvas(self, )
 func _apply_world_light(c: Color) -> void:
-	## Tint map + actors only. HUD lives on a higher CanvasLayer and must stay readable.
-	modulate = Color(c.r, c.g, c.b, 1.0)
-	if _map_modulate != null and is_instance_valid(_map_modulate):
-		_map_modulate.color = Color(1, 1, 1, 1)
-
-
+	return WorldEnv._apply_world_light(self, c)
 func _apply_atmosphere() -> void:
-	var light_id: int = _last_light_preset if _last_light_preset >= 0 else 0
-	if map_field != null and map_field.has_method("set_atmosphere"):
-		var atm: Dictionary = map_field.set_atmosphere(light_id, _weather_kind, _weather_intensity)
-		if map_field.has_method("weather_display_modulate"):
-			_apply_world_light(map_field.weather_display_modulate())
-		else:
-			_apply_world_light(atm.get("modulate", MapExt.light_modulate(light_id)))
-		var vis := str(atm.get("kind", "clear"))
-		if vis != _last_weather_kind:
-			_last_weather_kind = vis
-			if vis != "clear" and hud != null and hud.has_method("append_system"):
-				hud.append_system("天气：%s" % str(atm.get("label", vis)))
-		return
-	_apply_world_light(MapExt.light_modulate(light_id))
-
-
+	return WorldEnv._apply_atmosphere(self, )
 func _tick_weather_display() -> void:
-	if map_field != null and map_field.has_method("weather_display_modulate"):
-		_apply_world_light(map_field.weather_display_modulate())
-
-
+	return WorldEnv._tick_weather_display(self, )
 func _apply_sound_preset(id: int) -> void:
-	if _bgs_player == null:
-		return
-	if id <= 0:
-		_bgs_player.stop()
-		_bgs_player.stream = null
-		return
-	var p: Dictionary = _sound_presets.get(str(id), _sound_presets.get(id, {}))
-	if typeof(p) != TYPE_DICTIONARY or p.is_empty():
-		return
-	var stream: AudioStream = null
-	var stream_path := str(p.get("stream", "")).strip_edges()
-	if stream_path != "" and ResourceLoader.exists(stream_path):
-		var res: Resource = load(stream_path)
-		if res is AudioStream:
-			stream = res
-	if stream == null:
-		var kind := str(p.get("kind", "")).strip_edges()
-		if kind != "":
-			stream = MapSfx.ambient(kind)
-	if stream == null:
-		return
-	_bgs_player.stream = stream
-	_bgs_player.volume_db = float(p.get("volume_db", 0.0))
-	_bgs_player.play()
-
-
+	return WorldEnv._apply_sound_preset(self, id)
 func _apply_event_graphic(action: Dictionary) -> void:
 	ActionApply.apply_event_graphic(self, action)
 func _play_map_bgm() -> void:
-	_load_map_presets()
-	var id := ""
-	if map_field != null and map_field.pack != null and "bgm" in map_field.pack:
-		id = str(map_field.pack.bgm).strip_edges()
-	if id == "":
-		if _bgm_player != null:
-			_bgm_player.stop()
-			_bgm_player.stream = null
-		return
-	_play_pack_audio("bgm", id)
-
-
+	return WorldEnv._play_map_bgm(self, )
 func _play_pack_audio(channel: String, id: String) -> void:
-	id = id.strip_edges()
-	channel = channel.strip_edges().to_lower()
-	if id == "":
-		return
-	_load_map_presets()
-	var stream: AudioStream = _load_pack_audio_stream(channel, id)
-	if stream == null:
-		return
-	var player: AudioStreamPlayer = _se_player
-	match channel:
-		"bgm":
-			player = _bgm_player
-		"bgs":
-			player = _bgs_player
-		"me":
-			player = _se_player
-		_:
-			player = _se_player
-	if player == null:
-		return
-	player.stream = stream
-	if channel == "bgm" or channel == "bgs":
-		if stream is AudioStreamOggVorbis:
-			(stream as AudioStreamOggVorbis).loop = true
-		elif stream is AudioStreamWAV:
-			(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
-	player.play()
-
-
+	return WorldEnv._play_pack_audio(self, channel, id)
 func _load_pack_audio_stream(channel: String, id: String) -> AudioStream:
-	var folder := "audio/se"
-	match channel:
-		"bgm":
-			folder = "audio/bgm"
-		"bgs":
-			folder = "audio/bgs"
-		"me":
-			folder = "audio/me"
-		_:
-			folder = "audio/se"
-	var roots: PackedStringArray = PackedStringArray()
-	if map_field != null and map_field.pack != null:
-		roots.append("%s/assets/%s" % [str(map_field.pack.pack_dir), folder])
-		roots.append("%s/assets/audio" % str(map_field.pack.pack_dir))
-	var am: Node = _asset_mgr if is_inside_tree() else null
-	if am != null and am.has_method("content_root"):
-		roots.append("%s/assets/%s" % [str(am.content_root()), folder])
-	for root in roots:
-		for ext in ["ogg", "wav", "mp3"]:
-			var p := "%s/%s.%s" % [root, id, ext]
-			var abs_p := p
-			if p.begins_with("res://") or p.begins_with("user://"):
-				abs_p = ProjectSettings.globalize_path(p)
-			if FileAccess.file_exists(p) or FileAccess.file_exists(abs_p):
-				var use_p := p if FileAccess.file_exists(p) else abs_p
-				var st: AudioStream = _audio_from_file(use_p, ext)
-				if st != null:
-					return st
-	return null
-
-
+	return WorldEnv._load_pack_audio_stream(self, channel, id)
 func _audio_from_file(path: String, ext: String) -> AudioStream:
-	if ext == "ogg":
-		return AudioStreamOggVorbis.load_from_file(path)
-	if ResourceLoader.exists(path):
-		var res: Resource = load(path)
-		if res is AudioStream:
-			return res
-	return null
-
-
+	return WorldEnv._audio_from_file(self, path, ext)
 func _play_footstep() -> void:
-	if _foot_player == null:
-		return
-	_foot_player.stream = MapSfx.footstep(_last_foot_kind)
-	_foot_player.pitch_scale = randf_range(0.92, 1.08)
-	_foot_player.play()
-
-
-
+	return WorldEnv._play_footstep(self, )
 func _apply_player_move(action: Dictionary) -> void:
 	ActionApply.apply_player_move(self, action)
 func _apply_recall(action: Dictionary) -> void:

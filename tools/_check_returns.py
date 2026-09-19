@@ -8,7 +8,7 @@ wconsts = dict(re.findall(r'^const\s+(\w+)\s*=\s*preload\("([^"]+)"\)', wsrc, re
 path2const = {v: k for k, v in wconsts.items()}
 
 apps = {}
-for p in glob.glob("d:/code/rmmo/scripts/game/application/*.gd"):
+for p in glob.glob("d:/code/rmmo/scripts/game/*/*.gd"):  # application/ + infrastructure/
     src = io.open(p, "r", encoding="utf-8").read()
     blocks, cur_name, cur = {}, None, []
     for ln in src.split("\n"):

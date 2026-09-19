@@ -1,7 +1,7 @@
 import re, io, glob
 
 WORLD = "d:/code/rmmo/scripts/game/world.gd"
-APP_DIR = "d:/code/rmmo/scripts/game/application/*.gd"
+APP_DIR = "d:/code/rmmo/scripts/game/*/*.gd"  # application/ + infrastructure/
 
 world = io.open(WORLD, "r", encoding="utf-8").read()
 decl = set(re.findall(r"(?:func|static func|var|const|signal|@onready var)\s+([A-Za-z_]\w*)", world))
@@ -12,6 +12,7 @@ builtin = {
     "call_deferred", "set_deferred", "get_meta", "set_meta", "has_meta",
     "remove_meta", "emit_signal", "connect", "disconnect", "global_position",
     "position", "visible", "name", "z_index", "is_instance_valid",
+    "is_inside_tree", "modulate",  # Node/Node2D members, valid on ctrl
 }
 
 bad_total = 0
