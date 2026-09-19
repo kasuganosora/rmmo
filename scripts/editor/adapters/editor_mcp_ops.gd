@@ -17,6 +17,8 @@ const TILES_RECT_MAX := 80
 const MAP_MAX_SIDE := 16384
 const MV_LAYER_NAMES := ["下层", "中层", "上层", "顶层", "阴影", "区域"]
 const EntityOps = preload("res://scripts/editor/adapters/ops/entity_ops.gd")
+const AssetOps = preload("res://scripts/editor/adapters/ops/asset_ops.gd")
+var _asset_ops_logic: AssetOps = AssetOps.new(self)
 var _entity_ops_logic: EntityOps = EntityOps.new(self)
 
 var mcp: Node = null
@@ -1136,21 +1138,7 @@ func update_entity(args: Dictionary) -> Dictionary:
 func place_chest(args: Dictionary) -> Dictionary:
 	return _entity_ops_logic.place_chest(args)
 func import_asset(args: Dictionary) -> Dictionary:
-	var p = pack()
-	if p == null:
-		return mcp._err("no pack")
-	var path := str(args.get("path", "")).strip_edges()
-	var kind := str(args.get("kind", "charset")).strip_edges()
-	if path == "":
-		return mcp._err("path required")
-	if p.root.is_empty() and p.has_method("save_dir"):
-		p.save_dir()
-	var id: String = p.import_asset_file(path, kind)
-	if id == "":
-		return mcp._err("import failed")
-	return mcp._ok({"id": id, "kind": kind})
-
-
+	return _asset_ops_logic.import_asset(args)
 func list_assets_merged(kind: String) -> Array:
 	var out: Array = []
 	var seen := {}
