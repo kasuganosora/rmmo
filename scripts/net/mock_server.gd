@@ -51,6 +51,8 @@ const PetModule = preload("res://scripts/net/server/pet_module.gd")
 const SessionModule = preload("res://scripts/net/server/session_module.gd")
 const EventModule = preload("res://scripts/net/server/event_module.gd")
 const WarehouseModule = preload("res://scripts/net/server/warehouse_module.gd")
+const SustainModule = preload("res://scripts/net/server/sustain_module.gd")
+var _sustain_module_logic: SustainModule = SustainModule.new(self)
 var _warehouse_module_logic: WarehouseModule = WarehouseModule.new(self)
 var _event_module_logic: EventModule = EventModule.new(self)
 var _session_module_logic: SessionModule = SessionModule.new(self)
@@ -1623,110 +1625,13 @@ func _combat_stand_if_needed(result: Dictionary) -> void:
 
 
 func _stand_if_sitting(actions: Array) -> bool:
-	if not sitting:
-		return false
-	sitting = false
-	_sit_acc = 0.0
-	_sit_regen_acc = 0.0
-	actions.append({"type": "sit", "on": false})
-	actions.append({"type": "system_message", "text": "你站了起来。"})
-	return true
-
-
+	return _sustain_module_logic._stand_if_sitting(actions)
 func _tick_sit(delta: float) -> void:
-	if not sitting or combat_stats == null:
-		return
-	if awaiting_respawn or not combat_stats.player_alive():
-		sitting = false
-		_sit_acc = 0.0
-		_sit_regen_acc = 0.0
-		return
-	# Rested EXP keeps 1s cadence (independent of HP/MP regen interval).
-	_sit_acc += delta
-	while _sit_acc >= 1.0:
-		_sit_acc -= 1.0
-		_pending_tick_actions.append_array(_tick_rested_accumulate())
-	# Out-of-combat sit HP/MP: +3 HP / +2 MP every ~3s (2× in safe zone). Silent set_stat.
-	var in_combat := false
-	if combat_engine != null and combat_engine.has_method("player_in_combat"):
-		in_combat = bool(combat_engine.player_in_combat())
-	if in_combat:
-		_sit_regen_acc = 0.0
-		return
-	_sit_regen_acc += delta
-	if _sit_regen_acc < SIT_REGEN_INTERVAL:
-		return
-	_sit_regen_acc = 0.0
-	var p: Dictionary = combat_stats.player
-	var hp_max: int = int(p.get("hp_max", 100))
-	var mp_max: int = int(p.get("mp_max", 50))
-	var hp: int = int(p.get("hp", 0))
-	var mp: int = int(p.get("mp", 0))
-	var base_h: int = SIT_REGEN_HP
-	var base_m: int = SIT_REGEN_MP
-	if player_in_safe_zone():
-		base_h *= 2
-		base_m *= 2
-	var dh: int = 0
-	var dm: int = 0
-	if hp < hp_max:
-		dh = mini(hp_max - hp, base_h)
-	if mp < mp_max:
-		dm = mini(mp_max - mp, base_m)
-	if dh <= 0 and dm <= 0:
-		return
-	p["hp"] = hp + dh
-	p["mp"] = mp + dm
-	combat_stats.player = p
-	var set_act := {
-		"type": "set_stat",
-		"target": "player",
-		"hp": int(p.get("hp", 0)),
-		"hp_max": hp_max,
-		"mp": int(p.get("mp", 0)),
-		"mp_max": mp_max,
-	}
-	if combat_stats.has_method("get_rested_exp"):
-		set_act["rested_exp"] = int(combat_stats.get_rested_exp())
-		set_act["rested_exp_max"] = int(combat_stats.rested_exp_max())
-	_pending_tick_actions.append(set_act)
-
-
+	_sustain_module_logic._tick_sit(delta)
 ## +RESTED_EXP_PER_TICK while sitting in safe zone; clamp to rested_exp_max.
 ## System chat only on empty→nonzero and first hit of cap (not every tick).
 func _tick_rested_accumulate() -> Array:
-	var actions: Array = []
-	if combat_stats == null or not sitting:
-		return actions
-	if not player_in_safe_zone():
-		return actions
-	if not combat_stats.has_method("add_rested_exp"):
-		return actions
-	combat_stats.ensure_rested()
-	var before: int = int(combat_stats.get_rested_exp())
-	var cap: int = int(combat_stats.rested_exp_max())
-	if before >= cap:
-		return actions
-	var per: int = int(CombatStats.RESTED_EXP_PER_TICK) if CombatStats != null else 5
-	var result: Dictionary = combat_stats.add_rested_exp(per)
-	var after: int = int(result.get("rested_exp", before))
-	if after == before:
-		return actions
-	actions.append({
-		"type": "rested_update",
-		"rested_exp": after,
-		"rested_exp_max": int(result.get("rested_exp_max", cap)),
-	})
-	if bool(result.get("was_empty", false)) and after > 0:
-		actions.append({"type": "system_message", "text": "开始积攒休息经验。"})
-	if bool(result.get("hit_cap", false)) and not _rested_cap_notified:
-		_rested_cap_notified = true
-		actions.append({"type": "system_message", "text": "休息经验已满。"})
-	elif after < cap:
-		_rested_cap_notified = false
-	return actions
-
-
+	return _sustain_module_logic._tick_rested_accumulate()
 ## Equip from bag into paperdoll slot (preferred_slot optional). Emits inventory_update + equipment_update.
 func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
 	item_id = item_id.strip_edges()
@@ -3806,88 +3711,10 @@ func try_recall() -> Dictionary:
 
 
 func try_sit(on: bool = true) -> Dictionary:
-	var actions: Array = []
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if sitting == on:
-		actions.append({"type": "sit", "on": sitting})
-		return {"ok": true, "reason": "same", "actions": actions}
-	sitting = on
-	_sit_acc = 0.0
-	_sit_regen_acc = 0.0
-	actions.append({"type": "sit", "on": sitting})
-	if sitting:
-		actions.append({"type": "system_message", "text": "你坐了下来。"})
-	else:
-		actions.append({"type": "system_message", "text": "你站了起来。"})
-	return {"ok": true, "actions": actions}
-
-
+	return _sustain_module_logic.try_sit(on)
 ## Pay gold at inn: full HP/MP restore + clear harmful statuses.
 func try_inn_rest(cost: int = 25) -> Dictionary:
-	var actions: Array = []
-	cost = maxi(int(cost), 0)
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if combat_stats == null:
-		actions.append({"type": "system_message", "text": "无法休息。"})
-		return {"ok": false, "reason": "no_stats", "actions": actions}
-	var p: Dictionary = combat_stats.player
-	var hp_max: int = int(p.get("hp_max", 100))
-	var mp_max: int = int(p.get("mp_max", 50))
-	var hp: int = int(p.get("hp", 0))
-	var mp: int = int(p.get("mp", 0))
-	var has_harmful := false
-	if combat_stats.statuses != null:
-		for s in combat_stats.statuses.snapshot_statuses("player"):
-			if typeof(s) != TYPE_DICTIONARY:
-				continue
-			var kind := str((s as Dictionary).get("kind", ""))
-			if kind == "debuff" or kind == "dot":
-				has_harmful = true
-				break
-	if hp >= hp_max and mp >= mp_max and not has_harmful:
-		actions.append({"type": "system_message", "text": "你已经状态全满。"})
-		return {"ok": false, "reason": "already_full", "actions": actions}
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "金币不足。"})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	if not inventory.try_spend_gold(cost):
-		actions.append({"type": "system_message", "text": "金币不足。"})
-		return {"ok": false, "reason": "no_gold", "actions": actions}
-	if sitting:
-		_stand_if_sitting(actions)
-	p["hp"] = hp_max
-	p["mp"] = mp_max
-	combat_stats.player = p
-	if combat_stats.statuses != null:
-		combat_stats.statuses.clear_harmful("player")
-		actions.append(combat_stats.statuses.status_update_action("player"))
-	actions.append({
-		"type": "set_stat",
-		"target": "player",
-		"hp": hp_max,
-		"hp_max": hp_max,
-		"mp": mp_max,
-		"mp_max": mp_max,
-	})
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	actions.append({"type": "system_message", "text": "你休息得很好。"})
-	return {"ok": true, "actions": actions}
-
-
+	return _sustain_module_logic.try_inn_rest(cost)
 ## Repair equipped gear at blacksmith. slot ""/"all" = every damaged piece; cost_per_point gold/point.
 func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
 	var actions: Array = []
