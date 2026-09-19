@@ -55,6 +55,8 @@ const CRIT_DAMAGE_MULT := 1.5
 const CastModule = preload("res://scripts/net/combat/engine/cast_module.gd")
 const DpsModule = preload("res://scripts/net/combat/engine/dps_module.gd")
 const TargetingModule = preload("res://scripts/net/combat/engine/targeting_module.gd")
+const PlayerStateModule = preload("res://scripts/net/combat/engine/player_state_module.gd")
+var _player_state_module_logic: PlayerStateModule = PlayerStateModule.new(self)
 var _targeting_module_logic: TargetingModule = TargetingModule.new(self)
 var _dps_module_logic: DpsModule = DpsModule.new(self)
 var _cast_module_logic: CastModule = CastModule.new(self)
@@ -603,97 +605,22 @@ func _apply_status_to(target_key: String, status_def: Dictionary, source_id: Str
 
 
 func player_has_stealth() -> bool:
-	return stats != null and stats.statuses != null and stats.statuses.has_status("player", "stealth")
-
-
+	return _player_state_module_logic.player_has_stealth()
 ## Clear stealth buff if present; append status_update. Used when attacking / taking damage.
 func break_stealth(actions: Array) -> bool:
-	if not player_has_stealth():
-		return false
-	stats.statuses.clear_status("player", "stealth")
-	actions.append(stats.statuses.status_update_action("player"))
-	return true
-
-
+	return _player_state_module_logic.break_stealth(actions)
 func player_is_mounted() -> bool:
-	return stats != null and stats.statuses != null and stats.statuses.has_status("player", "mounted")
-
-
+	return _player_state_module_logic.player_is_mounted()
 ## Thin combat gate: active DPS fight or any NPC chasing / hating the player.
 func player_in_combat() -> bool:
-	if bool(_dps_fight.get("active", false)):
-		return true
-	if stats == null:
-		return false
-	var actor := "player"
-	if "player_actor_id" in stats:
-		var aid := str(stats.player_actor_id).strip_edges()
-		if aid != "":
-			actor = aid
-	if typeof(stats.npc_ai) == TYPE_DICTIONARY:
-		for nid_v in stats.npc_ai.keys():
-			var nid := str(nid_v)
-			var ai: Dictionary = stats.npc_ai[nid]
-			var chase := str(ai.get("chase_target", "")).strip_edges()
-			if chase == "player" or chase == actor or (chase != "" and str(ai.get("ai_state", "")) == "chase"):
-				return true
-			if stats.has_method("get_hate_list"):
-				for e in stats.get_hate_list(nid, false):
-					if typeof(e) != TYPE_DICTIONARY:
-						continue
-					var hid := str((e as Dictionary).get("id", "")).strip_edges()
-					if hid == "player" or hid == actor:
-						return true
-	return false
-
-
+	return _player_state_module_logic.player_in_combat()
 ## Clear mounted buff; append status_update + 「已下马。」. Used on combat / damage / attack.
 func break_mount(actions: Array) -> bool:
-	if not player_is_mounted():
-		return false
-	stats.statuses.clear_status("player", "mounted")
-	actions.append(stats.statuses.status_update_action("player"))
-	actions.append({"type": "system_message", "text": "已下马。"})
-	return true
-
-
+	return _player_state_module_logic.break_mount(actions)
 func _apply_mount_toggle(def: Dictionary, actions: Array) -> void:
-	if player_is_mounted():
-		break_mount(actions)
-		return
-	if player_in_combat():
-		actions.append({"type": "system_message", "text": "战斗中无法骑乘。"})
-		return
-	var status_def: Dictionary = _status_def_from_skill(def)
-	if status_def.is_empty():
-		status_def = {
-			"id": "mounted",
-			"name": "骑乘",
-			"kind": "buff",
-			"duration": 999999.0,
-			"tick_interval": 0,
-			"move_speed_mul": 1.45,
-		}
-	if not status_def.has("move_speed_mul"):
-		status_def["move_speed_mul"] = 1.45
-	_apply_status_to("player", status_def, "player", actions)
-	actions.append({"type": "system_message", "text": "已骑乘。"})
-
-
+	_player_state_module_logic._apply_mount_toggle(def, actions)
 func _break_all_player_chases() -> void:
-	if stats == null or not stats.has_method("clear_chase"):
-		return
-	var ids: Array = stats.npc_ai.keys() if typeof(stats.npc_ai) == TYPE_DICTIONARY else []
-	for nid_v in ids:
-		var nid := str(nid_v)
-		if not stats.npc_ai.has(nid):
-			continue
-		var ai: Dictionary = stats.npc_ai[nid]
-		var chasing := str(ai.get("chase_target", "")) != "" or str(ai.get("ai_state", "")) == "chase"
-		if chasing:
-			stats.clear_chase(nid)
-
-
+	_player_state_module_logic._break_all_player_chases()
 func _status_def_from_skill(def: Dictionary) -> Dictionary:
 	var sv: Variant = def.get("status", {})
 	if typeof(sv) != TYPE_DICTIONARY:
