@@ -39,6 +39,11 @@ NODE_MEMBERS = [
     "remove_child", "get_parent", "get_tree", "has_method", "emit_signal", "connect",
     "get_meta", "set_meta", "has_meta", "remove_meta", "modulate", "global_position",
     "position", "to_local", "to_global", "get_child", "get_children", "get_child_count",
+    # Node/CanvasItem/Node2D methods discovered during ground-loot slice:
+    "move_child", "get_viewport", "get_global_mouse_position",
+    "get_local_mouse_position", "get_viewport_rect", "get_canvas_transform",
+    "get_screen_transform", "get_window", "set_process", "set_physics_process",
+    "get_index", "raise", "show", "hide", "is_visible_in_tree",
 ]
 
 
