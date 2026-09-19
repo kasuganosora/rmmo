@@ -58,6 +58,8 @@ const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
 const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+const WorldModule = preload("res://scripts/net/server/world_module.gd")
+var _world_module_logic: WorldModule = WorldModule.new(self)
 var _movement_module_logic: MovementModule = MovementModule.new(self)
 var _npc_ai_module_logic: NpcAiModule = NpcAiModule.new(self)
 var _emote_module_logic: EmoteModule = EmoteModule.new(self)
@@ -452,137 +454,23 @@ func poll_combat_tick() -> Array:
 
 
 func get_weather() -> Dictionary:
-	return {
-		"kind": weather_kind,
-		"intensity": weather_intensity,
-		"indoor": _map_indoor(),
-		"environment": map_environment,
-	}
-
-
+	return _world_module_logic.get_weather()
 func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) -> Dictionary:
-	if _map_indoor():
-		kind = "clear"
-		intensity = 0.0
-	weather_kind = Weather.normalize(kind)
-	weather_intensity = 0.0 if weather_kind == "clear" else clampf(intensity, 0.0, 1.0)
-	_weather_left = maxf(duration, 0.0)
-	var act := _weather_action()
-	_pending_tick_actions.append(act)
-	return act
-
-
+	return _world_module_logic.set_weather(kind, intensity, duration)
 func _map_indoor() -> bool:
-	return MapExt.normalize_environment(map_environment) == MapExt.ENV_INDOOR
-
-
+	return _world_module_logic._map_indoor()
 func _weather_action() -> Dictionary:
-	return {"type": "weather", "kind": weather_kind, "intensity": weather_intensity}
-
-
+	return _world_module_logic._weather_action()
 func _reset_weather_for_map() -> void:
-	_weather_rng.seed = 17041 + int(map_pack_id.hash())
-	if _map_indoor():
-		weather_kind = "clear"
-		weather_intensity = 0.0
-		_weather_left = 99999.0
-	else:
-		weather_kind = "clear"
-		weather_intensity = 0.0
-		var dur: Vector2 = Weather.duration_range()
-		_weather_left = _weather_rng.randf_range(dur.x, dur.y)
-
-
+	_world_module_logic._reset_weather_for_map()
 func _tick_weather(delta: float) -> void:
-	if not weather_auto:
-		return
-	if _map_indoor():
-		if weather_kind != "clear" or weather_intensity > 0.001:
-			set_weather("clear", 0.0, 99999.0)
-		return
-	_weather_left -= delta
-	if _weather_left > 0.0:
-		return
-	var cycle: Array = Weather.cycle_list()
-	if cycle.is_empty():
-		cycle = ["clear"]
-	var nxt := str(cycle[_weather_rng.randi() % cycle.size()])
-	var inten := 0.0 if Weather.normalize(nxt) == "clear" else _weather_rng.randf_range(0.55, 1.0)
-	var dur2: Vector2 = Weather.duration_range()
-	set_weather(nxt, inten, _weather_rng.randf_range(dur2.x, dur2.y))
-
-
+	_world_module_logic._tick_weather(delta)
 func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Vector2i(-1, -1)) -> bool:
-	if not _load_pack(pack_path, map_id):
-		return false
-	if cell.x >= 0 and cell.y >= 0:
-		respawn_cell = cell
-		last_safe_cell = cell
-		set_player_cell(cell.x, cell.y)
-	_collect_autorun()
-	return true
-
-
+	return _world_module_logic.load_world_pack(pack_path, map_id, cell)
 func _load_pack(pack_path: String, map_id: String = "") -> bool:
-	var pack = TilemapPack.load_pack(pack_path, map_id)
-	if pack == null or pack.collision == null:
-		push_error("MockServer: failed to load pack collision at %s" % pack_path)
-		return false
-	map_collision = pack.collision
-	_map_pack = pack
-	if map_collision != null and bool(map_collision.get("streaming")):
-		_ingest_stream_around(respawn_cell if respawn_cell.x >= 0 else Vector2i.ZERO)
-	map_tile_size = pack.tile_size
-	map_pack_path = pack_path.rstrip("/")
-	map_pack_id = str(pack.map_id) if str(pack.map_id) != "" else pack_path.get_file()
-	map_content_id = ""
-	map_content_version = ""
-	var pack_meta: Dictionary = {}
-	var pj := FileAccess.open("%s/pack.json" % map_pack_path, FileAccess.READ)
-	if pj != null:
-		var parsed: Variant = JSON.parse_string(pj.get_as_text())
-		if typeof(parsed) == TYPE_DICTIONARY:
-			pack_meta = parsed
-	map_content_id = str(pack_meta.get("content_id", "")).strip_edges()
-	map_content_version = str(pack_meta.get("version", "")).strip_edges()
-	map_warps = pack.warps.duplicate(true) if pack.warps != null else []
-	map_environment = MapExt.normalize_environment(pack.environment) if "environment" in pack else MapExt.ENV_OUTDOOR
-	# Map events for this pack (keep session switches; reload defs only).
-	if event_runtime == null:
-		event_runtime = EventRuntime.new()
-	event_runtime.load_from_pack(pack)
-	_reload_gather_for_map()
-	_reload_fish_for_map()
-	# Stale occupancy belongs to the previous pack; world re-applies after spawn.
-	player_cell = Vector2i(-9999, -9999)
-	# Keep respawn_cell until set_player_cell / enter_world / transfer updates it.
-	if combat_stats != null:
-		combat_stats.clear_npcs()
-	npc_spawn_templates.clear()
-	_npc_respawn_at.clear()
-	_ground_bags.clear()
-	_open_loot_bag_id = ""
-	# Map-local shell stubs do not carry across packs.
-	_remote_players.clear()
-	# Escrow refund if a trade was open mid-warp.
-	if has_method("_trade_force_cancel_silent"):
-		_trade_force_cancel_silent()
-	if has_method("_duel_force_clear_silent"):
-		_duel_force_clear_silent()
-	if combat_engine != null and combat_engine.has_method("clear_cast"):
-		combat_engine.clear_cast()
-	npc_meta.clear()
-	_pending_tick_actions.clear()
-	_combat_tick_acc = 0.0
-	_ai_tick_acc = 0.0
-	_reset_weather_for_map()
-	return true
-
-
+	return _world_module_logic._load_pack(pack_path, map_id)
 func _load_demo_map() -> void:
-	_load_pack(DEMO_PACK_PATH)
-
-
+	_world_module_logic._load_demo_map()
 func is_logged_in() -> bool:
 	return _session_user != ""
 
@@ -612,17 +500,9 @@ func set_player_cell(x: int, y: int) -> void:
 ## --- Town safe zones (PvP / duel / hostile aggro blocked) ---
 
 func is_in_safe_zone(map_id: String, x: int, y: int) -> bool:
-	if safe_zone_catalog == null:
-		return false
-	return safe_zone_catalog.is_in_safe_zone(map_id, x, y)
-
-
+	return _world_module_logic.is_in_safe_zone(map_id, x, y)
 func player_in_safe_zone() -> bool:
-	if player_cell.x <= -9990:
-		return false
-	return is_in_safe_zone(map_pack_id, player_cell.x, player_cell.y)
-
-
+	return _world_module_logic.player_in_safe_zone()
 ## Threat / aggro snapshot for current player vs npc (hate_list + victim_id).
 func snapshot_threat(npc_id: String) -> Dictionary:
 	npc_id = str(npc_id).strip_edges()
@@ -638,31 +518,13 @@ func snapshot_threat(npc_id: String) -> Dictionary:
 
 
 func snapshot_safe_zone() -> Dictionary:
-	return {"inside": player_in_safe_zone()}
-
-
+	return _world_module_logic.snapshot_safe_zone()
 func _safe_zone_action(inside: bool) -> Dictionary:
-	return {"type": "safe_zone", "inside": inside}
-
-
+	return _world_module_logic._safe_zone_action(inside)
 func _safe_zone_transition_actions(force: bool = false) -> Array:
-	## Emit safe_zone action when inside flag changes (or force on enter_world).
-	var inside := player_in_safe_zone()
-	if not force and _safe_zone_known and inside == _safe_zone_inside:
-		return []
-	_safe_zone_known = true
-	_safe_zone_inside = inside
-	return [_safe_zone_action(inside)]
-
-
+	return _world_module_logic._safe_zone_transition_actions(force)
 func _safe_zone_block_pvp_result() -> Dictionary:
-	return {
-		"ok": false,
-		"reason": "safe_zone",
-		"actions": [{"type": "system_message", "text": "安全区内无法决斗。"}],
-	}
-
-
+	return _world_module_logic._safe_zone_block_pvp_result()
 func _target_is_remote_player(target_id: String) -> bool:
 	return _remote_module_logic._target_is_remote_player(target_id)
 func register_npc( npc_id: String, x: int, y: int, hostile: bool = false, aggressive: bool = false, facing: int = 2, wander_radius: int = 0, group_id: int = 0, spawn_data: Dictionary = {}, home_override: Vector2i = Vector2i(-9999, -9999) ) -> void:
@@ -706,100 +568,11 @@ func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Diction
 	return _npc_ai_module_logic.try_npc_move(npc_id, from_x, from_y, dir)
 ## Shared fields after a successful pack switch (warp / event transfer).
 func _transfer_result_extras() -> Dictionary:
-	# Shop buyback is session/map-local — wipe on transfer.
-	_clear_shop_session_buyback()
-	return {
-		"ground_bags": [],
-		"remote_players": snapshot_remote_players(),
-		"pet": snapshot_pet(),
-		"bags_cleared": true,
-		"loot_close": true,
-		"transfer_cleanup": "ground_bags_and_remotes",
-	}
-
-
+	return _world_module_logic._transfer_result_extras()
 ## Authoritative map transfer when standing on a warp cell.
 ## Returns {ok, pack_path, map_id, cell:{x,y}, facing, message} or {ok:false}.
 func try_transfer(from_x: int, from_y: int) -> Dictionary:
-	var warp: Dictionary = {}
-	for item in map_warps:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var w: Dictionary = item
-		var fc: Variant = w.get("from_cell", {})
-		if typeof(fc) != TYPE_DICTIONARY:
-			continue
-		var fcd: Dictionary = fc
-		if int(fcd.get("x", -1)) == from_x and int(fcd.get("y", -1)) == from_y:
-			warp = w
-			break
-	if warp.is_empty():
-		return {"ok": false}
-	var to_pack: String = str(warp.get("to_pack", "")).strip_edges()
-	var to_map_local: String = str(warp.get("to_map", warp.get("to_map_id", ""))).strip_edges()
-	if to_pack.is_empty():
-		to_pack = map_pack_path
-	if to_pack.is_empty():
-		return {"ok": false}
-	var dungeon_was_active: bool = (not _dungeon_xfer_lock) and (in_dungeon() or not _dungeon.is_empty())
-	var to_cell_v: Variant = warp.get("to_cell", {})
-	if typeof(to_cell_v) != TYPE_DICTIONARY:
-		return {"ok": false}
-	var to_cell: Dictionary = to_cell_v
-	var tx: int = int(to_cell.get("x", 0))
-	var ty: int = int(to_cell.get("y", 0))
-	var facing: int = int(warp.get("facing", 2))
-	var message: String = str(warp.get("message", ""))
-	var to_map_id: String = to_map_local
-	if not _load_pack(to_pack, to_map_id):
-		# Reload previous pack if destination failed.
-		_load_pack(map_pack_path if map_pack_path != "" else DEMO_PACK_PATH)
-		return {"ok": false}
-	if to_map_id.is_empty():
-		to_map_id = map_pack_id
-	# Prefer landable cell near destination if blocked.
-	if map_collision != null and map_collision.has_method("is_landable"):
-		if not map_collision.is_landable(tx, ty) and map_collision.has_method("find_spawn_near"):
-			var near: Vector2i = map_collision.find_spawn_near(tx, ty)
-			tx = near.x
-			ty = near.y
-	# Keep server occupancy in sync with the destination immediately.
-	respawn_cell = Vector2i(tx, ty)
-	last_safe_cell = Vector2i(tx, ty)
-	set_player_cell(tx, ty)
-	_ensure_shell_remotes(SHELL_REMOTE_COUNT)
-	var reach_actions: Array = _quest_note_reach_actions(
-		to_map_id if to_map_id != "" else map_pack_id, map_content_id, map_pack_path
-	)
-	var out := {
-		"ok": true,
-		"pack_path": map_pack_path,
-		"map_id": to_map_id if to_map_id != "" else map_pack_id,
-		"content_id": map_content_id,
-		"content_version": map_content_version,
-		"cell": {"x": tx, "y": ty},
-		"facing": facing,
-		"message": message,
-		"quests": quest_journal.snapshot() if quest_journal != null else [],
-	}
-	out.merge(_transfer_result_extras())
-	var actions: Array = []
-	actions.append({"type": "loot_close"})
-	actions.append({"type": "system_message", "text": "已切换地图：上一张图的地面掉落不会带入。"})
-	if not reach_actions.is_empty():
-		actions.append_array(reach_actions)
-	if bool(_pet.get("active", false)):
-		_pet_snap_near_player()
-		actions.append(_pet_spawn_action())
-	actions.append_array(_shell_remote_spawn_actions())
-	actions.append_array(_safe_zone_transition_actions(true))
-	if dungeon_was_active:
-		actions.append_array(_dungeon_abandon_on_leave())
-	out["actions"] = actions
-	out["dungeon"] = snapshot_dungeon()
-	return out
-
-
+	return _world_module_logic.try_transfer(from_x, from_y)
 ## Interact when adjacent. Uses authoritative player_cell + registered npc cell.
 ## Returns {ok, actions:[{type, ...}]} like future multi-opcode scripts.
 func try_interact(npc_id: String, player_x: int, player_y: int) -> Dictionary:
@@ -1262,17 +1035,7 @@ func try_use_item(item_id: String) -> Dictionary:
 func _gate_recall_item_use() -> Dictionary:
 	return _movement_module_logic._gate_recall_item_use()
 func _town_dest() -> Vector2i:
-	var dest: Vector2i = respawn_cell
-	if dest.x <= -9990:
-		dest = last_safe_cell
-	if map_collision != null and map_collision.has_method("is_landable"):
-		if not map_collision.is_landable(dest.x, dest.y) and map_collision.has_method("find_spawn_near"):
-			dest = map_collision.find_spawn_near(dest.x, dest.y)
-	elif map_collision != null and map_collision.has_method("find_spawn_near") and dest.x <= -9990:
-		dest = map_collision.find_spawn_near()
-	return dest
-
-
+	return _world_module_logic._town_dest()
 func _bind_recall_actions(result: Dictionary) -> void:
 	_movement_module_logic._bind_recall_actions(result)
 func _combat_stand_if_needed(result: Dictionary) -> void:
@@ -3537,120 +3300,21 @@ func try_chat(channel: String, text: String, whisper_to: String = "") -> Diction
 ## --- Personal map pins (waypoints) -----------------------------------------
 
 func snapshot_map_pins() -> Dictionary:
-	var pins: Array = []
-	for p in _map_pins:
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		pins.append((p as Dictionary).duplicate(true))
-	return {"pins": pins, "count": pins.size(), "max": MAP_PIN_MAX}
-
-
+	return _world_module_logic.snapshot_map_pins()
 func list_map_pins_for_map(map_id: String = "") -> Array:
-	map_id = str(map_id).strip_edges()
-	if map_id.is_empty():
-		map_id = str(map_pack_id).strip_edges()
-	var out: Array = []
-	for p in _map_pins:
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		var mid := str(p.get("map_id", "")).strip_edges()
-		if mid != "" and map_id != "" and mid != map_id:
-			continue
-		out.append((p as Dictionary).duplicate(true))
-	return out
-
-
+	return _world_module_logic.list_map_pins_for_map(map_id)
 func _map_pins_update_action() -> Dictionary:
-	return {"type": "map_pins_update", "map_pins": snapshot_map_pins()}
-
-
+	return _world_module_logic._map_pins_update_action()
 func _map_pin_slot_free() -> int:
-	var used: Dictionary = {}
-	for p in _map_pins:
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		used[int(p.get("slot", 0))] = true
-	for s in range(1, MAP_PIN_MAX + 1):
-		if not used.has(s):
-			return s
-	return 0
-
-
+	return _world_module_logic._map_pin_slot_free()
 func _find_map_pin_index(x: int, y: int, map_id: String) -> int:
-	map_id = str(map_id).strip_edges()
-	for i in range(_map_pins.size()):
-		var p: Variant = _map_pins[i]
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		var cell_v: Variant = p.get("cell", {})
-		var cx := 0
-		var cy := 0
-		if typeof(cell_v) == TYPE_VECTOR2I:
-			cx = cell_v.x
-			cy = cell_v.y
-		elif typeof(cell_v) == TYPE_DICTIONARY:
-			cx = int(cell_v.get("x", 0))
-			cy = int(cell_v.get("y", 0))
-		else:
-			continue
-		if cx != x or cy != y:
-			continue
-		var mid := str(p.get("map_id", "")).strip_edges()
-		if map_id != "" and mid != "" and mid != map_id:
-			continue
-		return i
-	return -1
-
-
+	return _world_module_logic._find_map_pin_index(x, y, map_id)
 ## Toggle personal pin at cell. Same cell clears; max MAP_PIN_MAX.
 ## Optional short_name overrides default 「标记N」.
 func try_map_pin_toggle(x: int, y: int, map_id: String = "", short_name: String = "") -> Dictionary:
-	var actions: Array = []
-	map_id = str(map_id).strip_edges()
-	if map_id.is_empty():
-		map_id = str(map_pack_id).strip_edges()
-	short_name = str(short_name).strip_edges()
-	var idx := _find_map_pin_index(x, y, map_id)
-	if idx >= 0:
-		var old: Dictionary = _map_pins[idx]
-		var old_name := str(old.get("name", "标记")).strip_edges()
-		_map_pins.remove_at(idx)
-		actions.append(_map_pins_update_action())
-		actions.append({"type": "system_message", "text": "已清除标记：%s" % (old_name if old_name != "" else "标记")})
-		return {"ok": true, "cleared": true, "actions": actions, "map_pins": snapshot_map_pins()}
-	if _map_pins.size() >= MAP_PIN_MAX:
-		actions.append({"type": "system_message", "text": "个人标记已满（最多 %d 个）。" % MAP_PIN_MAX})
-		return {"ok": false, "reason": "full", "actions": actions, "map_pins": snapshot_map_pins()}
-	var slot := _map_pin_slot_free()
-	if slot <= 0:
-		actions.append({"type": "system_message", "text": "个人标记已满（最多 %d 个）。" % MAP_PIN_MAX})
-		return {"ok": false, "reason": "full", "actions": actions, "map_pins": snapshot_map_pins()}
-	var nm := short_name if short_name != "" else "标记%d" % slot
-	var pin := {
-		"id": "pin_%d" % slot,
-		"slot": slot,
-		"name": nm,
-		"map_id": map_id,
-		"cell": {"x": x, "y": y},
-	}
-	_map_pins.append(pin)
-	actions.append(_map_pins_update_action())
-	actions.append({"type": "system_message", "text": "标记：%s (%d, %d)" % [nm, x, y]})
-	return {"ok": true, "cleared": false, "pin": pin.duplicate(true), "actions": actions, "map_pins": snapshot_map_pins()}
-
-
+	return _world_module_logic.try_map_pin_toggle(x, y, map_id, short_name)
 func try_map_pin_clear() -> Dictionary:
-	var actions: Array = []
-	if _map_pins.is_empty():
-		actions.append({"type": "system_message", "text": "当前没有个人标记。"})
-		return {"ok": true, "cleared": 0, "actions": actions, "map_pins": snapshot_map_pins()}
-	var n: int = _map_pins.size()
-	_map_pins.clear()
-	actions.append(_map_pins_update_action())
-	actions.append({"type": "system_message", "text": "已清除全部标记（%d）" % n})
-	return {"ok": true, "cleared": n, "actions": actions, "map_pins": snapshot_map_pins()}
-
-
+	return _world_module_logic.try_map_pin_clear()
 func snapshot_friends() -> Dictionary:
 	return _friends_module_logic.snapshot_friends()
 func _friends_update_action() -> Dictionary:
