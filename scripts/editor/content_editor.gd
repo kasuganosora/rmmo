@@ -33,6 +33,8 @@ const AssetModule = preload("res://scripts/editor/field/asset_module.gd")
 const McpModule = preload("res://scripts/editor/field/mcp_module.gd")
 const SpecModule = preload("res://scripts/editor/field/spec_module.gd")
 const TreeModule = preload("res://scripts/editor/field/tree_module.gd")
+const TilesetModule = preload("res://scripts/editor/field/tileset_module.gd")
+var _tileset_module_logic: TilesetModule = TilesetModule.new(self)
 var _tree_module_logic: TreeModule = TreeModule.new(self)
 var _spec_module_logic: SpecModule = SpecModule.new(self)
 var _mcp_module_logic: McpModule = McpModule.new(self)
@@ -773,30 +775,11 @@ func _popup_win(win: Window) -> void:
 func _open_asset_win() -> void:
 	_asset_module_logic._open_asset_win()
 func _open_tileset_win() -> void:
-	if _tileset_win and _tileset_win.has_method("bind_pack"):
-		_tileset_win.bind_pack(pack)
-	_popup_win(_tileset_win)
-
-
+	_tileset_module_logic._open_tileset_win()
 func _on_tileset_catalog() -> void:
-	if pack:
-		pack.dirty = true
-	_sync_palette()
-	if _tileset_win and _tileset_win.has_method("bind_pack"):
-		_tileset_win.bind_pack(pack)
-	_status.text = "图块套已更新（未写入磁盘，Ctrl+S 保存）"
-
-
+	_tileset_module_logic._on_tileset_catalog()
 func _on_tileset_apply(ts_id: String) -> void:
-	if pack == null or current_map_id == "" or ts_id.strip_edges() == "":
-		return
-	if pack.set_map_tileset(current_map_id, ts_id):
-		_sync_palette()
-		_reload_field()
-		var label: String = pack.tileset_label(ts_id) if pack.has_method("tileset_label") else ts_id
-		_status.text = "当前地图使用图块套：%s" % label
-
-
+	_tileset_module_logic._on_tileset_apply(ts_id)
 func _open_entity_win() -> void:
 	_entity_module_logic._open_entity_win()
 func _on_rm_slot(slot: int, sheet: String) -> void:
@@ -926,7 +909,7 @@ func _sync_shadow_brush() -> void:
 
 
 func _fill_preset_opt(opt: OptionButton, path: String, fallback: PackedStringArray) -> void:
-	EditorAtmosphere.fill_preset_opt(self, opt, path, fallback)
+	_tileset_module_logic._fill_preset_opt(opt, path, fallback)
 func _fill_bgm_opt(current: String) -> void:
 	_atmosphere_module_logic._fill_bgm_opt(current)
 func _set_far_scroll(x: float, y: float) -> void:
@@ -1177,19 +1160,9 @@ func _add_chest_event() -> void:
 func _import_asset(src: String, kind: String) -> void:
 	_asset_module_logic._import_asset(src, kind)
 func _finish_sheet_assign(slot: int, sheet: String) -> void:
-	EditorSession.finish_sheet_assign(self, slot, sheet)
-
-
+	_tileset_module_logic._finish_sheet_assign(slot, sheet)
 func _sync_palette() -> void:
-	if _palette == null or pack == null:
-		return
-	var ts := ""
-	if doc:
-		ts = str(doc.tileset_id)
-	_palette.set_catalog(pack.tilesets, ts)
-	paint.tile_id = int(_palette.selected_id)
-
-
+	_tileset_module_logic._sync_palette()
 func _on_palette_tile(id: int) -> void:
 	paint.tile_id = id
 	if _palette and int(_palette.stamp_w) <= 1 and int(_palette.stamp_h) <= 1:
