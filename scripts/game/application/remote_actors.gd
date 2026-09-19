@@ -265,3 +265,26 @@ static func _remove_pet_marker(ctrl) -> void:
 		ctrl._pet_marker.queue_free()
 	ctrl._pet_marker = null
 
+static func inspect_remote(ctrl, player_id: String) -> Dictionary:
+	player_id = player_id.strip_edges()
+	var out = {"id": player_id, "name": player_id, "level": 1, "gender": "female", "equipment": []}
+	if ctrl._remote_markers.has(player_id):
+		var mk = ctrl._remote_markers[player_id]
+		if mk != null and is_instance_valid(mk):
+			out["name"] = str(mk.get_meta("display_name", player_id))
+			out["level"] = int(mk.get_meta("level", 1))
+			out["gender"] = str(mk.get_meta("gender", "female"))
+	var srv = Net.server()
+	if srv != null and srv.has_method("get_remote_player"):
+		var rd: Dictionary = srv.get_remote_player(player_id)
+		if not rd.is_empty():
+			if str(rd.get("name", "")) != "":
+				out["name"] = str(rd.get("name"))
+			if rd.has("level"):
+				out["level"] = int(rd.get("level", 1))
+			if rd.has("gender"):
+				out["gender"] = str(rd.get("gender"))
+			if typeof(rd.get("equipment", null)) == TYPE_ARRAY:
+				out["equipment"] = rd.get("equipment")
+	return out
+

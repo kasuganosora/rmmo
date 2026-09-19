@@ -10,7 +10,7 @@ static func _bind_hud(ctrl, ch: Dictionary, spawn: Dictionary) -> void:
 		return
 	if ctrl.hud.has_method("bind_character"):
 		ctrl.hud.bind_character(ch)
-	var map_id := str(spawn.get("map_id", "demo_map"))
+	var map_id = str(spawn.get("map_id", "demo_map"))
 	if ctrl.hud.has_method("bind_radar"):
 		ctrl.hud.bind_radar(ctrl.map_field, ctrl.player, map_id, ctrl)
 	elif ctrl.hud.has_method("set_minimap_hint"):
@@ -84,7 +84,7 @@ static func _bind_hud(ctrl, ch: Dictionary, spawn: Dictionary) -> void:
 			ctrl.hud.apply_dungeon_update({"type": "dungeon_update", "dungeon": Net.server().snapshot_dungeon()})
 
 	if ctrl.hud.has_method("apply_craft_update"):
-		var craft_act := {
+		var craft_act = {
 			"type": "craft_update",
 			"craft_level": int(spawn.get("craft_level", 1)),
 			"craft_xp": int(spawn.get("craft_xp", 0)),
@@ -100,7 +100,7 @@ static func _bind_hud(ctrl, ch: Dictionary, spawn: Dictionary) -> void:
 		ctrl.hud.apply_craft_update(craft_act)
 
 	if ctrl.hud.has_method("apply_gather_update"):
-		var gather_act := {
+		var gather_act = {
 			"type": "gather_update",
 			"gather_level": int(spawn.get("gather_level", 1)),
 			"gather_xp": int(spawn.get("gather_xp", 0)),
@@ -203,4 +203,14 @@ static func _bind_hud(ctrl, ch: Dictionary, spawn: Dictionary) -> void:
 			if sd.has("transfer_message"):
 				sd.erase("transfer_message")
 				Net.session().spawn_data = sd
+
+static func _hud_blocks_world(ctrl, screen_pos: Vector2) -> bool:
+	if ctrl.hud == null:
+		return false
+	if ctrl.hud.has_method("blocks_world_click") and ctrl.hud.blocks_world_click(screen_pos):
+		return true
+	var hovered = ctrl.get_viewport().gui_get_hovered_control()
+	if hovered != null and ctrl.hud.is_ancestor_of(hovered):
+		return true
+	return false
 

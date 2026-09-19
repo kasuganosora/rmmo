@@ -36,6 +36,10 @@ const AutoAttack = preload("res://scripts/game/application/auto_attack.gd")
 const Pickup = preload("res://scripts/game/application/pickup.gd")
 const PlayerMenu = preload("res://scripts/game/interface/player_menu.gd")
 const NpcSpawn = preload("res://scripts/game/application/npc_spawn.gd")
+const Aoi = preload("res://scripts/game/application/aoi.gd")
+const PlayerView = preload("res://scripts/game/application/player_view.gd")
+const MapTransfer = preload("res://scripts/game/application/map_transfer.gd")
+const Dungeon = preload("res://scripts/game/application/dungeon.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -236,20 +240,7 @@ func _find_remote_at(cell: Vector2i):
 func _find_adjacent_npc(from_cell: Vector2i, prefer_dir: int = 0):
 	return WorldQuery._find_adjacent_npc(self, from_cell, prefer_dir)
 func tick_event_wait(delta: float) -> void:
-	if _event_wait_left <= 0.0:
-		return
-	_event_wait_left -= delta
-	if _event_wait_left > 0.0:
-		return
-	var rest: Array = _deferred_event_actions
-	var n = _deferred_event_npc
-	_deferred_event_actions = []
-	_deferred_event_npc = null
-	_event_wait_left = 0.0
-	if not rest.is_empty():
-		_apply_server_actions(rest, n)
-
-
+	ActionApply.tick_event_wait(self, delta)
 func _apply_server_actions(actions: Array, npc = null) -> void:
 	ActionApply.apply_server_actions(self, actions, npc)
 func _apply_npc_move(action: Dictionary) -> void:
@@ -272,42 +263,12 @@ func _desired_combat_frame_offset() -> Vector2:
 	return CombatFeedback._desired_combat_frame_offset(self, )
 func _tick_camera_shake(delta: float) -> void:
 	CombatFeedback._tick_camera_shake(self, delta)
-func _spawn_combat_floater(
-	world_pos: Vector2,
-	text: String,
-	_color: Color = Color(),
-	kind: String = "damage",
-	target_key: String = "default",
-	crit: bool = false
-) -> Label:
-	## Rising Label over target; capped per target_key via CombatFloater.
-	if not GameSettingsScript.flag("show_damage_numbers", true):
-		return null
-	return CombatFloater.spawn(self, world_pos, text, kind, target_key, crit)
-
-
+func _spawn_combat_floater(world_pos: Vector2, text: String, _color: Color = Color(), kind: String = "damage", target_key: String = "default", crit: bool = false):
+	return CombatFeedback._spawn_combat_floater(self, world_pos, text, _color, kind, target_key, crit)
 func _apply_miss_action(action: Dictionary) -> void:
 	ActionApply.apply_miss_action(self, action)
 func _resolve_emote_host(actor_id: String) -> Node2D:
-	## Local player, remote marker, or NPC — whichever matches actor_id.
-	actor_id = str(actor_id).strip_edges()
-	if actor_id.is_empty() or actor_id == "player":
-		return player
-	var srv = Net.server()
-	if srv != null and srv.has_method("_party_self_id"):
-		if actor_id == str(srv._party_self_id()):
-			return player
-	if _remote_markers.has(actor_id):
-		var mk = _remote_markers[actor_id]
-		if mk != null and is_instance_valid(mk):
-			return mk
-	var npc = _find_npc_by_id(actor_id)
-	if npc != null and is_instance_valid(npc):
-		return npc
-	# Fallback: treat unknown as local self (client-originated emote).
-	return player
-
-
+	return CombatFeedback._resolve_emote_host(self, actor_id)
 func _apply_emote(action: Dictionary) -> void:
 	ActionApply.apply_emote(self, action)
 func _apply_heal_action(action: Dictionary) -> void:
@@ -402,29 +363,7 @@ func _follow_target_cell() -> Vector2i:
 func _apply_remote_look(marker: Node2D, gender: String, look_id: String, equipment: Variant) -> void:
 	RemoteActors._apply_remote_look(self, marker, gender, look_id, equipment)
 func inspect_remote(player_id: String) -> Dictionary:
-	player_id = player_id.strip_edges()
-	var out := {"id": player_id, "name": player_id, "level": 1, "gender": "female", "equipment": []}
-	if _remote_markers.has(player_id):
-		var mk = _remote_markers[player_id]
-		if mk != null and is_instance_valid(mk):
-			out["name"] = str(mk.get_meta("display_name", player_id))
-			out["level"] = int(mk.get_meta("level", 1))
-			out["gender"] = str(mk.get_meta("gender", "female"))
-	var srv = Net.server()
-	if srv != null and srv.has_method("get_remote_player"):
-		var rd: Dictionary = srv.get_remote_player(player_id)
-		if not rd.is_empty():
-			if str(rd.get("name", "")) != "":
-				out["name"] = str(rd.get("name"))
-			if rd.has("level"):
-				out["level"] = int(rd.get("level", 1))
-			if rd.has("gender"):
-				out["gender"] = str(rd.get("gender"))
-			if typeof(rd.get("equipment", null)) == TYPE_ARRAY:
-				out["equipment"] = rd.get("equipment")
-	return out
-
-
+	return RemoteActors.inspect_remote(self, player_id)
 func request_party_invite_respond(invite_id: String, accept: bool) -> void:
 	RequestAdapter.request_party_invite_respond(self, invite_id, accept)
 func request_respawn(where: String = "town") -> void:
@@ -463,28 +402,9 @@ func _try_auto_pickup_at(cell: Vector2i) -> void:
 func _auto_take_all() -> void:
 	Pickup._auto_take_all(self, )
 func _refresh_player_gear_look(equipment: Array) -> void:
-	if player == null or not player.has_method("apply_gear_look"):
-		return
-	var ch: Dictionary = {}
-	if Net.session() != null:
-		ch = Net.session().active_character()
-	var catalog = null
-	var srv = Net.server()
-	if srv != null:
-		catalog = srv.get("item_catalog")
-	player.apply_gear_look(ch, equipment, catalog)
-
-
+	PlayerView._refresh_player_gear_look(self, equipment)
 func _apply_camera_zoom() -> void:
-	if player == null or not player.has_method("apply_camera_zoom"):
-		return
-	var gs := GameSettingsScript.get_i()
-	var z := 1.0
-	if gs != null:
-		z = float(gs.camera_zoom)
-	player.apply_camera_zoom(z)
-
-
+	PlayerView._apply_camera_zoom(self, )
 func _load_map_presets() -> void:
 	return WorldEnv._load_map_presets(self, )
 func _read_preset_file(path: String) -> Dictionary:
@@ -536,23 +456,9 @@ func _try_attack_npc(npc) -> bool:
 func _try_interact_npc(npc) -> bool:
 	return Engage._try_interact_npc(self, npc)
 func _init_aoi_driver() -> void:
-	if _aoi == null:
-		_aoi = AoiDriver.new()
-	_aoi.configure(aoi_view_radius_cells, aoi_radius_cells, aoi_prefetch_radius_cells, aoi_refresh_interval_sec)
-	_aoi.reset()
-	_refresh_aoi(true)
-
-
+	Aoi._init_aoi_driver(self, )
 func _refresh_aoi(force: bool = false) -> void:
-	var am: Node = _asset_mgr
-	if _aoi == null or am == null:
-		return
-	if force:
-		_aoi.refresh(player, _npcs, am)
-	else:
-		_aoi.tick(0.0, player, _npcs, am, true)
-
-
+	Aoi._refresh_aoi(self, force)
 func _process(delta: float) -> void:
 	tick_event_wait(delta)
 	_tick_camera_shake(delta)
@@ -731,29 +637,7 @@ func request_dungeon_enter() -> void:
 func request_dungeon_exit() -> void:
 	RequestAdapter.request_dungeon_exit(self)
 func _apply_dungeon_server_result(result: Dictionary) -> void:
-	if typeof(result) != TYPE_DICTIONARY:
-		return
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) != TYPE_ARRAY:
-		return
-	# Prefer map_transfer so loading starts; fold sibling actions for system messages.
-	var deferred: Array = []
-	var transfer_act: Dictionary = {}
-	for a in acts_v:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str(a.get("type", "")) == "map_transfer" and bool(a.get("ok", true)):
-			transfer_act = a
-		else:
-			deferred.append(a)
-	if not transfer_act.is_empty():
-		var merged: Dictionary = transfer_act.duplicate(true)
-		merged["actions"] = deferred
-		_on_transfer_requested(merged)
-		return
-	_apply_server_actions(deferred)
-
-
+	Dungeon._apply_dungeon_server_result(self, result)
 func request_pet_summon(pet_id: String = "default") -> void:
 	RequestAdapter.request_pet_summon(self, pet_id)
 func request_pet_dismiss() -> void:
@@ -874,16 +758,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _hud_blocks_world(screen_pos: Vector2) -> bool:
-	if hud == null:
-		return false
-	if hud.has_method("blocks_world_click") and hud.blocks_world_click(screen_pos):
-		return true
-	var hovered := get_viewport().gui_get_hovered_control()
-	if hovered != null and hud.is_ancestor_of(hovered):
-		return true
-	return false
-
-
+	return HudBinding._hud_blocks_world(self, screen_pos)
 func _on_world_right_click(mb: InputEventMouseButton) -> bool:
 	## Right-click remote → player context menu. Returns true if consumed.
 	if _hud_blocks_world(mb.position):
@@ -959,77 +834,4 @@ func _on_world_click(mb: InputEventMouseButton) -> void:
 
 
 func _on_transfer_requested(result: Dictionary) -> void:
-	## Hand off to Loading screen; do not rebuild map in-place or call enter_world.
-	_clear_pending_engage()
-	_clear_npc_selection()
-	if player != null:
-		player.input_locked = true
-		if player.has_method("clear_move_path"):
-			player.clear_move_path()
-	_clear_npcs()
-	# Client-side: drop old-map ground bags / remotes before scene swap.
-	_clear_ground_markers()
-	_clear_remote_markers()
-	if hud != null:
-		if hud.has_method("hide_loot"):
-			hud.hide_loot()
-		if hud.has_method("hide_ground_tip"):
-			hud.hide_ground_tip()
-		if hud.has_method("hide_trade"):
-			hud.hide_trade()
-
-	var pack_path: String = str(result.get("pack_path", ""))
-	var map_id: String = str(result.get("map_id", ""))
-	var cell_v: Variant = result.get("cell", {})
-	var cell := Vector2i(0, 0)
-	if typeof(cell_v) == TYPE_DICTIONARY:
-		cell = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var facing: int = int(result.get("facing", 2))
-	var message: String = str(result.get("message", ""))
-
-	var spawn: Dictionary = Net.session().spawn_data.duplicate(true)
-	spawn["map_id"] = map_id if map_id != "" else pack_path.get_file()
-	spawn["pack_path"] = pack_path
-	var cid := str(result.get("content_id", "")).strip_edges()
-	if cid != "":
-		spawn["content_id"] = cid
-	var cver := str(result.get("content_version", "")).strip_edges()
-	if cver != "":
-		spawn["content_version"] = cver
-	spawn["cell"] = {"x": cell.x, "y": cell.y}
-	spawn["facing"] = facing
-	if message != "":
-		spawn["transfer_message"] = message
-	# Never carry previous map's ground bags / remotes into the new spawn snapshot.
-	spawn["ground_bags"] = []
-	spawn["remote_players"] = []
-	if bool(result.get("bags_cleared", true)):
-		spawn["bags_cleared"] = true
-	# Prefer fresh journal from transfer result / MockServer (reach objectives).
-	var quests_v: Variant = result.get("quests", null)
-	if typeof(quests_v) == TYPE_ARRAY:
-		spawn["quests"] = quests_v
-	else:
-		var srv_q = Net.server()
-		if srv_q != null and srv_q.has_method("get_quest_list"):
-			spawn["quests"] = srv_q.get_quest_list()
-	var srv = Net.server()
-	if srv != null and srv.has_method("snapshot_party"):
-		spawn["party"] = srv.snapshot_party()
-	if not spawn.has("character") or typeof(spawn.get("character")) != TYPE_DICTIONARY:
-		var ch: Dictionary = Net.session().active_character()
-		if not ch.is_empty():
-			spawn["character"] = ch
-	# Apply transfer system messages (bag clear tip) before leaving World.
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY and hud != null:
-		for a in actions_v:
-			if typeof(a) != TYPE_DICTIONARY:
-				continue
-			if str(a.get("type", "")) == "system_message" and hud.has_method("append_system"):
-				var msg := str(a.get("text", "")).strip_edges()
-				if not msg.is_empty():
-					hud.append_system(msg)
-	Net.session().spawn_data = spawn
-	Net.session().loading_mode = "transfer"
-	Net.session().go_loading()
+	MapTransfer._on_transfer_requested(self, result)

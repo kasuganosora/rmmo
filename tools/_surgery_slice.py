@@ -6,7 +6,7 @@ Usage:
 Handles: multi-line signatures, body-based return detection, Node member prefixing,
 auto const injection.
 """
-import re, io, sys
+import re, io, sys, os
 
 WORLD = "d:/code/rmmo/scripts/game/world.gd"
 
@@ -159,10 +159,12 @@ for name, idx in reversed(targets):
         value_returns.add(name)
     params = parse_params(sig_text)
     ret = "return " if name in value_returns else ""
-    sig_first = sig_text.split("\n")[0]
+    # Collapse a multi-line signature into one line; taking only the first line
+    # would leave an unclosed `func name(` and break the syntax.
+    sig_single = re.sub(r"\s+", " ", sig_text).strip()
     end = be
     del lines[idx + 1:end]
-    lines[idx] = sig_first
+    lines[idx] = sig_single
     lines.insert(idx + 1, "\t%s%s.%s(self, %s)" % (ret, constname, name, ", ".join(params)))
 blocks.reverse()
 
@@ -181,13 +183,27 @@ for name, sig_text, body in blocks:
 
 tsrc = "\n".join(out)
 cdecl = dict(re.findall(r"^const\s+([A-Za-z_]\w*)\s*=\s*(preload\(.*?\))", src, re.M))
-declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", tsrc, re.M))
-need = [n for n in cdecl if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
-if need:
-    idx = next(i for i, ln in enumerate(out) if ln.startswith("static func"))
-    out[idx:idx] = ["const %s = %s" % (n, cdecl[n]) for n in need] + [""]
 
-io.open(OUT, "w", encoding="utf-8").write("\n".join(out))
+# ---- append mode: if the module already exists, merge into it (keeps modules cohesive) ----
+append = os.path.exists(OUT)
+funcs_start = next(i for i, ln in enumerate(out) if ln.startswith("static func"))
+funcs_block = "\n".join(out[funcs_start:])
+
+if append:
+    existing = io.open(OUT, "r", encoding="utf-8").read()
+    declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", existing, re.M))
+    need = [n for n in cdecl if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, funcs_block)]
+    elines = existing.split("\n")
+    if need:
+        fi = next((i for i, ln in enumerate(elines) if ln.startswith("static func")), len(elines))
+        elines[fi:fi] = ["const %s = %s" % (n, cdecl[n]) for n in need] + [""]
+    io.open(OUT, "w", encoding="utf-8").write("\n".join(elines).rstrip("\n") + "\n\n" + funcs_block)
+else:
+    declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", tsrc, re.M))
+    need = [n for n in cdecl if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
+    if need:
+        out[funcs_start:funcs_start] = ["const %s = %s" % (n, cdecl[n]) for n in need] + [""]
+    io.open(OUT, "w", encoding="utf-8").write("\n".join(out))
 
 text = "\n".join(lines)
 # NOTE: must match the exact declaration; a substring check would be fooled by
