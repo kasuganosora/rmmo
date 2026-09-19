@@ -1,4 +1,4 @@
-extends RefCounted
+extends "res://scripts/util/catalog_base.gd"
 ## World fishing-spot definitions loaded from JSON (mirror of gather_catalog).
 
 const DATA_PATHS: Array[String] = [
@@ -6,35 +6,16 @@ const DATA_PATHS: Array[String] = [
 	"res://data/combat/fish_spots.json",
 ]
 
-## id -> normalized def
-var _by_id: Dictionary = {}
+func _data_paths() -> Array:
+	return DATA_PATHS
+
+
+func _list_key() -> String:
+	return "spots"
+
+
 ## map_id -> Array[spot_id]
 var _by_map: Dictionary = {}
-
-
-func load_catalog() -> void:
-	_by_id.clear()
-	_by_map.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
-	if typeof(raw) != TYPE_DICTIONARY:
-		return
-	var list_v: Variant = (raw as Dictionary).get("spots", [])
-	if typeof(list_v) != TYPE_ARRAY:
-		return
-	for item in list_v:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = _normalize(item)
-		var sid := str(d.get("id", ""))
-		if sid.is_empty():
-			continue
-		_by_id[sid] = d
-		var mid := str(d.get("map_id", "")).strip_edges()
-		if mid.is_empty():
-			mid = "*"
-		if not _by_map.has(mid):
-			_by_map[mid] = []
-		(_by_map[mid] as Array).append(sid)
 
 
 func _normalize(d: Dictionary) -> Dictionary:
@@ -75,16 +56,9 @@ func _normalize(d: Dictionary) -> Dictionary:
 
 
 func has_spot(spot_id: String) -> bool:
-	return _by_id.has(spot_id.strip_edges())
-
-
+	return has_id(spot_id)
 func get_spot(spot_id: String) -> Dictionary:
-	spot_id = spot_id.strip_edges()
-	if _by_id.has(spot_id):
-		return (_by_id[spot_id] as Dictionary).duplicate(true)
-	return {}
-
-
+	return get_def(spot_id)
 func spots_for_map(map_id: String) -> Array:
 	map_id = map_id.strip_edges()
 	var out: Array = []
@@ -100,13 +74,6 @@ func spots_for_map(map_id: String) -> Array:
 			var d: Dictionary = get_spot(id_s)
 			if not d.is_empty():
 				out.append(d)
-	return out
-
-
-func list_all() -> Array:
-	var out: Array = []
-	for sid in _by_id.keys():
-		out.append(get_spot(str(sid)))
 	return out
 
 
@@ -139,15 +106,3 @@ func pick_yield(spot_def: Dictionary) -> Dictionary:
 		"qty": maxi(int(last.get("qty", 1)), 1),
 	}
 
-
-func _load_json_first(paths: Array[String]) -> Variant:
-	for p in paths:
-		if not FileAccess.file_exists(p):
-			continue
-		var f := FileAccess.open(p, FileAccess.READ)
-		if f == null:
-			continue
-		var parsed: Variant = JSON.parse_string(f.get_as_text())
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null

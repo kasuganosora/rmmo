@@ -1,4 +1,4 @@
-extends RefCounted
+extends "res://scripts/util/catalog_base.gd"
 ## Achievement definitions loaded from JSON (shared path with future GameServer).
 
 const DATA_PATHS: Array[String] = [
@@ -6,34 +6,16 @@ const DATA_PATHS: Array[String] = [
 	"res://data/combat/achievements.json",
 ]
 
-## id -> def Dictionary
-var _by_id: Dictionary = {}
+func _data_paths() -> Array:
+	return DATA_PATHS
+
+
+func _list_key() -> String:
+	return "achievements"
+
+
 ## Stable ordered list of ids (catalog order).
 var _order: Array = []
-
-
-func load_catalog() -> void:
-	_by_id.clear()
-	_order.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
-	if typeof(raw) != TYPE_DICTIONARY:
-		_load_builtin_fallback()
-		return
-	var list_v: Variant = (raw as Dictionary).get("achievements", [])
-	if typeof(list_v) != TYPE_ARRAY:
-		_load_builtin_fallback()
-		return
-	for item in list_v:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = item
-		var aid := str(d.get("id", "")).strip_edges()
-		if aid.is_empty():
-			continue
-		_by_id[aid] = _normalize_def(d)
-		_order.append(aid)
-	if _by_id.is_empty():
-		_load_builtin_fallback()
 
 
 func _normalize_def(d: Dictionary) -> Dictionary:
@@ -69,16 +51,9 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 
 
 func get_achievement(ach_id: String) -> Dictionary:
-	ach_id = ach_id.strip_edges()
-	if _by_id.has(ach_id):
-		return (_by_id[ach_id] as Dictionary).duplicate(true)
-	return {}
-
-
+	return get_def(ach_id)
 func has_achievement(ach_id: String) -> bool:
-	return _by_id.has(ach_id.strip_edges())
-
-
+	return has_id(ach_id)
 func achievement_name(ach_id: String) -> String:
 	var d: Dictionary = get_achievement(ach_id)
 	if d.is_empty():
@@ -86,23 +61,6 @@ func achievement_name(ach_id: String) -> String:
 	return str(d.get("name", ach_id))
 
 
-func all_ids() -> Array:
-	if not _order.is_empty():
-		return _order.duplicate()
-	var ids: Array = _by_id.keys()
-	ids.sort()
-	return ids
-
-
-## Ordered list of achievement defs for HUD.
-func list_all() -> Array:
-	var out: Array = []
-	for aid in all_ids():
-		out.append(get_achievement(str(aid)))
-	return out
-
-
-## Achievements whose require is fully met by counters, not yet unlocked.
 func check_unlocks(counters: Dictionary, unlocked: Array) -> Array:
 	var have: Dictionary = {}
 	for u in unlocked:
@@ -142,18 +100,3 @@ func _load_builtin_fallback() -> void:
 		_by_id[aid] = _normalize_def(row)
 		_order.append(aid)
 
-
-static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null
