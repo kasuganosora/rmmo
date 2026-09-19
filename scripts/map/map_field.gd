@@ -46,6 +46,8 @@ const TileAnimModule = preload("res://scripts/map/field/tile_anim_module.gd")
 const ChunkStreamModule = preload("res://scripts/map/field/chunk_stream_module.gd")
 const RadarModule = preload("res://scripts/map/field/radar_module.gd")
 const WorldMapModule = preload("res://scripts/map/field/world_map_module.gd")
+const AtmosphereModule = preload("res://scripts/map/field/atmosphere_module.gd")
+var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
 var _world_map_module_logic: WorldMapModule = WorldMapModule.new(self)
 var _radar_module_logic: RadarModule = RadarModule.new(self)
 var _chunk_stream_module_logic: ChunkStreamModule = ChunkStreamModule.new(self)
@@ -919,94 +921,21 @@ func _ensure_edit_overlay() -> void:
 func set_observer(cell: Vector2i, facing: int = 2) -> void:
 	_chunk_stream_module_logic.set_observer(cell, facing)
 func light_fx_color() -> Color:
-	if edit_doc != null and "light_fx_color" in edit_doc:
-		return edit_doc.light_fx_color
-	if pack != null and "light_fx_color" in pack:
-		return pack.light_fx_color
-	if pack != null and pack.get("ext") != null and "light_color" in pack.ext:
-		return pack.ext.light_color
-	if collision != null and collision.ext != null and "light_color" in collision.ext:
-		return collision.ext.light_color
-	return Color(1, 1, 1, 1)
-
-
+	return _atmosphere_module_logic.light_fx_color()
 func apply_light_fx_color() -> void:
-	var c := light_fx_color()
-	for key in _chunks.keys():
-		var ch: Node2D = _chunks[key]
-		if ch != null and ch.has_method("set_fx_modulate"):
-			ch.set_fx_modulate(c)
-
-
+	_atmosphere_module_logic.apply_light_fx_color()
 func set_bucket_alpha(bucket: String, a: float) -> void:
-	a = clampf(a, 0.0, 1.0)
-	edit_bucket_alpha[bucket] = a
-	for key in _chunks.keys():
-		var ch: Node = _chunks[key]
-		if ch == null:
-			continue
-		var spr: Sprite2D = ch.get_node_or_null(bucket) as Sprite2D
-		if spr:
-			var m: Color = spr.modulate
-			m.a = a
-			spr.modulate = m
-		var anim: Sprite2D = ch.get_node_or_null(bucket + "Anim") as Sprite2D
-		if anim:
-			var m2: Color = anim.modulate
-			m2.a = a
-			anim.modulate = m2
-
-
+	_atmosphere_module_logic.set_bucket_alpha(bucket, a)
 func map_is_indoor() -> bool:
-	if edit_doc != null and "environment" in edit_doc:
-		return MapExt.normalize_environment(edit_doc.environment) == MapExt.ENV_INDOOR
-	if pack != null and "environment" in pack:
-		return MapExt.normalize_environment(pack.environment) == MapExt.ENV_INDOOR
-	return false
-
-
+	return _atmosphere_module_logic.map_is_indoor()
 func set_atmosphere(light_id: int, kind: String, intensity: float) -> Dictionary:
-	_atm_light = light_id
-	_atm_kind = str(kind)
-	_atm_intensity = intensity
-	var atm: Dictionary = Weather.compose(light_id, kind, intensity, map_is_indoor())
-	last_atmosphere = atm
-	_ensure_weather_fx()
-	if _weather_fx and _weather_fx.has_method("apply"):
-		_weather_fx.apply(atm)
-	_sync_weather_eaves()
-	return atm
-
-
+	return _atmosphere_module_logic.set_atmosphere(light_id, kind, intensity)
 func weather_display_modulate() -> Color:
-	if _weather_fx != null and is_instance_valid(_weather_fx) and _weather_fx.has_method("display_modulate"):
-		return _weather_fx.display_modulate()
-	var c: Variant = last_atmosphere.get("modulate", Color.WHITE)
-	if typeof(c) == TYPE_COLOR:
-		return c
-	return Color.WHITE
-
-
+	return _atmosphere_module_logic.weather_display_modulate()
 func _ensure_weather_fx() -> void:
-	if _weather_fx != null and is_instance_valid(_weather_fx):
-		return
-	_weather_fx = WeatherFxScript.new()
-	_weather_fx.name = "WeatherFx"
-	_weather_fx.layer = Weather.CANVAS_ATMOSPHERE
-	add_child(_weather_fx)
-
-
+	_atmosphere_module_logic._ensure_weather_fx()
 func _sync_weather_eaves() -> void:
-	if _weather_fx == null or not _weather_fx.has_method("set_eaves"):
-		return
-	var eaves := false
-	if collision != null and collision.has_method("meta_at"):
-		eaves = (int(collision.meta_at(_obs_cell.x, _obs_cell.y)) & MapExt.META_INDOOR) != 0
-	elif edit_doc != null and edit_doc.has_method("ext_tile"):
-		eaves = (int(edit_doc.ext_tile("meta", _obs_cell.x, _obs_cell.y)) & MapExt.META_INDOOR) != 0
-	_weather_fx.set_eaves(eaves)
-
-
+	_atmosphere_module_logic._sync_weather_eaves()
 func set_reference_image(path: String, alpha: float = 0.35) -> void:
 	_ref_alpha = clampf(alpha, 0.0, 1.0)
 	if _ref_sprite == null or not is_instance_valid(_ref_sprite):
@@ -1036,44 +965,11 @@ func set_reference_image(path: String, alpha: float = 0.35) -> void:
 
 
 func far_scroll_vec() -> Vector2:
-	if edit_doc != null and "far_scroll" in edit_doc:
-		return edit_doc.far_scroll
-	if pack != null and "ext" in pack and pack.ext != null and "far_scroll" in pack.ext:
-		return pack.ext.far_scroll
-	if collision != null and collision.ext != null and "far_scroll" in collision.ext:
-		return collision.ext.far_scroll
-	return Vector2.ZERO
-
-
+	return _atmosphere_module_logic.far_scroll_vec()
 func _apply_far_parallax() -> void:
-	var sc := far_scroll_vec()
-	var off := Vector2.ZERO
-	if sc != Vector2.ZERO:
-		var cam := get_viewport().get_camera_2d() if get_viewport() else null
-		var origin := Vector2.ZERO
-		if cam != null:
-			origin = cam.get_screen_center_position()
-		off = Vector2(origin.x * sc.x, origin.y * sc.y)
-	for key in _chunks.keys():
-		var ch: Node2D = _chunks[key]
-		if ch != null and ch.has_method("set_below_offset"):
-			ch.set_below_offset(off)
-
-
+	_atmosphere_module_logic._apply_far_parallax()
 func _apply_indoor_from_cell(cell: Vector2i) -> void:
-	var indoor := false
-	if collision != null and collision.has_method("meta_at"):
-		indoor = (int(collision.meta_at(cell.x, cell.y)) & MapExt.META_INDOOR) != 0
-	if indoor == _roof_hidden:
-		return
-	_roof_hidden = indoor
-	for key in _chunks.keys():
-		var ch: Node2D = _chunks[key]
-		if ch != null and ch.has_method("set_roof_visible"):
-			ch.set_roof_visible(not _roof_hidden)
-	_sync_weather_eaves()
-
-
+	_atmosphere_module_logic._apply_indoor_from_cell(cell)
 func _update_observer_from_camera() -> void:
 	_chunk_stream_module_logic._update_observer_from_camera()
 func _chunk_key(c: Vector2i) -> String:
