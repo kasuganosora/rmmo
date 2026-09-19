@@ -32,6 +32,8 @@ const EntityModule = preload("res://scripts/editor/field/entity_module.gd")
 const AssetModule = preload("res://scripts/editor/field/asset_module.gd")
 const McpModule = preload("res://scripts/editor/field/mcp_module.gd")
 const SpecModule = preload("res://scripts/editor/field/spec_module.gd")
+const TreeModule = preload("res://scripts/editor/field/tree_module.gd")
+var _tree_module_logic: TreeModule = TreeModule.new(self)
 var _spec_module_logic: SpecModule = SpecModule.new(self)
 var _mcp_module_logic: McpModule = McpModule.new(self)
 var _asset_module_logic: AssetModule = AssetModule.new(self)
@@ -205,11 +207,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _mcp != null and _mcp.has_method("stop"):
-		_mcp.stop()
-	_restore_window_scale()
-
-
+	_tree_module_logic._exit_tree()
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k := event as InputEventKey
@@ -820,59 +818,13 @@ func _on_entity_changed() -> void:
 func _on_entity_jump(c: Vector2i) -> void:
 	_entity_module_logic._on_entity_jump(c)
 func _refresh_tree() -> void:
-	_tree.clear()
-	var root_item := _tree.create_item()
-	root_item.set_text(0, pack.pack_name)
-	root_item.set_selectable(0, false)
-	var by_parent := {}
-	for item in pack.map_tree:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var p := str(item.get("parent", ""))
-		if not by_parent.has(p):
-			by_parent[p] = []
-		by_parent[p].append(item)
-	_fill_tree(root_item, "", by_parent)
-
-
+	_tree_module_logic._refresh_tree()
 func _fill_tree(parent_item: TreeItem, parent_id: String, by_parent: Dictionary) -> void:
-	var kids: Array = by_parent.get(parent_id, [])
-	for item in kids:
-		var it := _tree.create_item(parent_item)
-		var mid := str(item.get("id", ""))
-		var mark := " ★" if pack != null and mid == pack.start_map else ""
-		it.set_text(0, "%s (%s)%s" % [str(item.get("name", mid)), mid, mark])
-		it.set_meta("map_id", mid)
-		if mid == current_map_id:
-			it.select(0)
-		_fill_tree(it, mid, by_parent)
-
-
+	_tree_module_logic._fill_tree(parent_item, parent_id, by_parent)
 func _on_tree_sel() -> void:
-	var it := _tree.get_selected()
-	if it == null or not it.has_meta("map_id"):
-		return
-	var mid := str(it.get_meta("map_id"))
-	if mid != current_map_id:
-		_select_map(mid)
-
-
+	_tree_module_logic._on_tree_sel()
 func _on_tree_mouse(pos: Vector2, button: int) -> void:
-	if button != MOUSE_BUTTON_RIGHT:
-		return
-	var it := _tree.get_item_at_position(pos)
-	if it == null or not it.has_meta("map_id"):
-		return
-	var mid := str(it.get_meta("map_id"))
-	_ctx_map_id = mid
-	if mid != current_map_id:
-		_select_map(mid)
-	var last: bool = pack != null and pack.maps.size() <= 1
-	_map_ctx.set_item_disabled(_map_ctx.get_item_index(CTX_DEL), last)
-	_map_ctx.position = Vector2i(_tree.get_global_mouse_position())
-	_map_ctx.popup()
-
-
+	_tree_module_logic._on_tree_mouse(pos, button)
 func _on_map_ctx(id: int) -> void:
 	var mid := _ctx_map_id if _ctx_map_id != "" else current_map_id
 	match id:
@@ -962,47 +914,7 @@ func _reload_field() -> void:
 
 
 func _fill_layer_tree() -> void:
-	if _layer_tree == null:
-		return
-	_layer_tree.clear()
-	var root := _layer_tree.create_item()
-	var groups: Array = [
-		{"label": "MV 图层", "rows": [
-			{"z": 0, "ext": "", "spec": "", "name": "地面 z0（先铺草地）"},
-			{"z": 1, "ext": "", "spec": "", "name": "叠层 z1（路/沙盖在草上）"},
-			{"z": 2, "ext": "", "spec": "", "name": "物件 z2"},
-			{"z": 3, "ext": "", "spec": "", "name": "上层 z3"},
-			{"z": 4, "ext": "", "spec": "shadow", "name": "阴影 z4"},
-			{"z": 5, "ext": "", "spec": "region", "name": "区域 z5"},
-		]},
-		{"label": "扩展绘制", "rows": []},
-		{"label": "逻辑", "rows": []},
-	]
-	for id in MapExt.VISUAL_EXT:
-		(groups[1]["rows"] as Array).append({"z": -1, "ext": id, "spec": id, "name": MapExt.layer_label(id)})
-	for id in MapExt.SPEC_EXT:
-		(groups[2]["rows"] as Array).append({"z": -1, "ext": id, "spec": id, "name": MapExt.layer_label(id)})
-	var first: TreeItem = null
-	for g in groups:
-		var head := _layer_tree.create_item(root)
-		head.set_text(1, str(g["label"]))
-		head.set_selectable(0, false)
-		head.set_selectable(1, false)
-		head.set_custom_color(1, Color(0.65, 0.68, 0.72, 1))
-		for row in g["rows"]:
-			var it := _layer_tree.create_item(head)
-			it.set_cell_mode(0, TreeItem.CELL_MODE_CHECK)
-			it.set_checked(0, true)
-			it.set_editable(0, true)
-			it.set_text(1, str(row["name"]))
-			it.set_metadata(0, row)
-			if first == null:
-				first = it
-	if first:
-		first.select(1)
-
-
-
+	_tree_module_logic._fill_layer_tree()
 func _sync_shadow_brush() -> void:
 	var bits := 0
 	if _shadow_box == null:
@@ -1020,26 +932,7 @@ func _fill_bgm_opt(current: String) -> void:
 func _set_far_scroll(x: float, y: float) -> void:
 	EditorAtmosphere.set_far_scroll(self, x, y)
 func _on_layer_tree() -> void:
-	var it := _layer_tree.get_selected() if _layer_tree else null
-	if it == null:
-		return
-	var meta: Variant = it.get_metadata(0)
-	if typeof(meta) != TYPE_DICTIONARY:
-		return
-	var z := int(meta.get("z", 0))
-	var ext := str(meta.get("ext", ""))
-	if z >= 0:
-		paint.layer_z = z
-		paint.ext_layer = ""
-	else:
-		paint.layer_z = -1
-		paint.ext_layer = ext
-	_sync_spec_panel(str(meta.get("spec", "")), str(meta.get("name", "")))
-	var vis: String = "显示" if it.is_checked(0) else "隐藏"
-	if _status:
-		_status.text = "绘制 %s（%s）" % [str(meta.get("name", "")), vis]
-
-
+	_tree_module_logic._on_layer_tree()
 func _sync_spec_panel(spec: String, layer_name: String) -> void:
 	_spec_module_logic._sync_spec_panel(spec, layer_name)
 func _on_layer_vis() -> void:
