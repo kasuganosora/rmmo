@@ -48,6 +48,8 @@ const DuelModule = preload("res://scripts/net/server/duel_module.gd")
 const LootModule = preload("res://scripts/net/server/loot_module.gd")
 const ShopModule = preload("res://scripts/net/server/shop_module.gd")
 const PetModule = preload("res://scripts/net/server/pet_module.gd")
+const SessionModule = preload("res://scripts/net/server/session_module.gd")
+var _session_module_logic: SessionModule = SessionModule.new(self)
 var _pet_module_logic: PetModule = PetModule.new(self)
 var _shop_module_logic: ShopModule = ShopModule.new(self)
 var _loot_module_logic: LootModule = LootModule.new(self)
@@ -572,239 +574,13 @@ func current_server() -> String:
 
 
 func login(username: String, password: String, server: String) -> void:
-	if _login_inflight:
-		return
-	_login_inflight = true
-	await get_tree().create_timer(LATENCY_SEC).timeout
-	_login_inflight = false
-	username = username.strip_edges()
-	server = server.strip_edges()
-	if username.is_empty() or password.is_empty():
-		login_finished.emit(false, "请输入用户名和密码")
-		return
-	if server.is_empty():
-		login_finished.emit(false, "请输入服务器地址")
-		return
-	if not _accounts.has(username):
-		_accounts[username] = {"password": password, "characters": []}
-	elif str(_accounts[username].get("password", "")) != password:
-		login_finished.emit(false, "用户名或密码错误")
-		return
-	_session_user = username
-	_session_server = server
-	login_finished.emit(true, "登录成功 · %s" % server)
-
-
+	_session_module_logic.login(username, password, server)
 func fetch_characters() -> void:
-	if _fetch_inflight:
-		return
-	_fetch_inflight = true
-	await get_tree().create_timer(LATENCY_SEC * 0.6).timeout
-	_fetch_inflight = false
-	if not is_logged_in():
-		characters_ready.emit([])
-		return
-	var list: Array = _accounts[_session_user]["characters"].duplicate(true)
-	characters_ready.emit(list)
-
-
+	_session_module_logic.fetch_characters()
 func create_character(char_name: String, class_id: String, look_id: String, gender: String = "female", customization: Dictionary = {}) -> void:
-	if _create_inflight:
-		return
-	_create_inflight = true
-	await get_tree().create_timer(LATENCY_SEC).timeout
-	_create_inflight = false
-	if not is_logged_in():
-		character_created.emit(false, "未登录", {})
-		return
-	char_name = char_name.strip_edges()
-	look_id = look_id.strip_edges()
-	gender = gender.strip_edges().to_lower()
-	if gender != "male":
-		gender = "female"
-	if char_name.is_empty():
-		character_created.emit(false, "请输入角色名", {})
-		return
-	if char_name.length() > 12:
-		character_created.emit(false, "名字太长（最多 12 字）", {})
-		return
-	var pid: Dictionary = customization.get("part_ids", {}) if typeof(customization) == TYPE_DICTIONARY else {}
-	if look_id.is_empty() and (typeof(pid) != TYPE_DICTIONARY or (pid as Dictionary).is_empty()):
-		character_created.emit(false, "请选择外观", {})
-		return
-	for c in _accounts[_session_user]["characters"]:
-		if str(c.get("name", "")) == char_name:
-			character_created.emit(false, "名字已被占用", {})
-			return
-	var ch := {
-		"id": _next_char_id,
-		"name": char_name,
-		"class_id": class_id if class_id != "" else "adventurer",
-		"level": 1,
-		"look_id": look_id,
-		"gender": gender,
-		"customization": customization if typeof(customization) == TYPE_DICTIONARY else {},
-	}
-	_next_char_id += 1
-	_accounts[_session_user]["characters"].append(ch)
-	character_created.emit(true, "创建成功", ch)
-
-
+	_session_module_logic.create_character(char_name, class_id, look_id, gender, customization)
 func enter_world(character_id: int) -> void:
-	if _enter_inflight:
-		return
-	_enter_inflight = true
-	await get_tree().create_timer(LATENCY_SEC * 1.2).timeout
-	_enter_inflight = false
-	if not is_logged_in():
-		enter_world_ready.emit(false, "未登录", {})
-		return
-	var found: Dictionary = {}
-	for c in _accounts[_session_user]["characters"]:
-		if int(c.get("id", -1)) == character_id:
-			found = c
-			break
-	if found.is_empty():
-		enter_world_ready.emit(false, "找不到该角色", {})
-		return
-	# Always start the session on the home demo pack.
-	_load_pack(DEMO_PACK_PATH)
-	var spawn_cell := Vector2i(0, 0)
-	if map_collision != null and map_collision.has_method("find_spawn_near"):
-		spawn_cell = map_collision.find_spawn_near()
-	var ts: float = float(map_tile_size)
-	# Reset combat for this character session.
-	awaiting_respawn = false
-	var lv: int = int(found.get("level", 1))
-	_session_character_id = str(found.get("id", "")).strip_edges()
-	if combat_stats != null:
-		if combat_stats.has_method("set_player_actor_id"):
-			combat_stats.set_player_actor_id(
-				_session_character_id if _session_character_id != "" else "player"
-			)
-		combat_stats.reset_player(lv)
-		combat_stats.reset_titles()
-		combat_stats.reset_achievements()
-		combat_stats.set_achievement_counter_at_least("level", lv)
-		_reset_skill_book()
-	_reset_craft_skill()
-	if inventory != null:
-		inventory.clear()
-		inventory.grant_starter()
-	if warehouse != null:
-		warehouse.clear()
-	_shop_buyback.clear()
-	if equipment != null:
-		equipment.clear()
-	if quest_journal != null:
-		quest_journal.clear()
-		quest_journal.grant_starter()
-	if event_runtime != null:
-		# Keep event defs from _load_pack; wipe switches for the new character session.
-		event_runtime.clear_session()
-	if combat_engine != null and combat_engine.has_method("reset_dps_fight"):
-		combat_engine.reset_dps_fight()
-	_pending_tick_actions.clear()
-	_collect_autorun()
-	# Party shell: fresh session, no persistence.
-	_party_clear()
-	_party_poll_pending = false
-	_trade_force_cancel_silent()
-	_duel_force_clear_silent()
-	# Friends shell: reset on new character session (survives map transfer only).
-	if friend_list != null:
-		friend_list.clear()
-	else:
-		friend_list = FriendList.new()
-	if guild != null:
-		guild.clear()
-	else:
-		guild = Guild.new()
-	_guild_invites.clear()
-	if mailbox != null:
-		mailbox.clear()
-	else:
-		mailbox = Mailbox.new()
-	_mail_welcome_sent = false
-	_mail_inject_welcome()
-	_attendance_try_grant()
-	if auction != null:
-		auction.clear()
-	else:
-		auction = Auction.new()
-	_auction_seed_npc_stubs()
-	_remote_players.clear()
-	_next_remote_seq = 1
-	_pet_reset()
-	_map_pins.clear()
-	_dungeon.clear()
-	_dungeon_xfer_lock = false
-	var daily_snap: Dictionary = snapshot_daily()
-	var combat_snap: Dictionary = combat_stats.snapshot_player_stats() if combat_stats != null else {}
-	if not combat_snap.is_empty():
-		combat_snap["mounted"] = player_is_mounted()
-		combat_snap["move_speed_mul"] = player_move_speed_mul()
-	var spawn := {
-		"character": found,
-		"map_id": map_pack_id,
-		"pack_path": map_pack_path if map_pack_path != "" else DEMO_PACK_PATH,
-		"content_id": map_content_id,
-		"content_version": map_content_version,
-		"cell": {"x": spawn_cell.x, "y": spawn_cell.y},
-		"position": {
-			"x": float(spawn_cell.x) * ts + ts * 0.5,
-			"y": float(spawn_cell.y) * ts + ts * 0.5,
-		},
-		"server": _session_server,
-		"combat": combat_snap,
-		"skill_book": snapshot_skill_book(),
-		"inventory": inventory.snapshot() if inventory != null else [],
-		"gold": inventory.get_gold() if inventory != null else 0,
-		"equipment": equipment.snapshot() if equipment != null else [],
-		"equipment_bonuses": equipment.total_bonuses() if equipment != null else {},
-		"quests": quest_journal.snapshot() if quest_journal != null else [],
-		"daily_date": str(daily_snap.get("daily_date", "")),
-		"daily": daily_snap.get("daily", []) if typeof(daily_snap.get("daily", [])) == TYPE_ARRAY else [],
-		"party": snapshot_party(),
-		"trade": snapshot_trade(),
-		"duel": snapshot_duel(),
-		"dungeon": snapshot_dungeon(),
-		"safe_zone": snapshot_safe_zone(),
-		"warehouse": snapshot_warehouse(),
-		"friends": snapshot_friends(),
-		"guild": snapshot_guild(),
-		"mail": snapshot_mail(),
-		"auction": snapshot_auction(),
-		"titles": snapshot_titles(),
-		"achievements": snapshot_achievements(),
-		"remote_players": snapshot_remote_players(),
-		"ground_bags": snapshot_ground_bags(),
-		"pet": snapshot_pet(),
-		"map_pins": snapshot_map_pins(),
-		"craft_level": craft_level,
-		"craft_xp": craft_xp,
-		"craft_xp_to_next": craft_xp_to_next,
-		"gather_level": gather_level,
-		"gather_xp": gather_xp,
-		"gather_xp_to_next": gather_xp_to_next,
-	}
-	respawn_cell = spawn_cell
-	last_safe_cell = spawn_cell
-	_safe_zone_known = false
-	set_player_cell(spawn_cell.x, spawn_cell.y)
-	_ensure_shell_remotes(SHELL_REMOTE_COUNT)
-	spawn["remote_players"] = snapshot_remote_players()
-	spawn["safe_zone"] = snapshot_safe_zone()
-	var _sz_enter: Array = _safe_zone_transition_actions(true)
-	if not _sz_enter.is_empty():
-		_pending_tick_actions.append_array(_sz_enter)
-	# Map-reach objectives (demo_map start; street_map etc. via transfer).
-	if quest_journal != null:
-		quest_journal.note_reach(map_pack_id, map_content_id, map_pack_path)
-		spawn["quests"] = quest_journal.snapshot()
-	enter_world_ready.emit(true, "正在进入世界", spawn)
-
-
+	_session_module_logic.enter_world(character_id)
 ## Sync player occupancy into map_collision.extra_blocked.
 func set_player_cell(x: int, y: int) -> void:
 	if map_collision != null:
@@ -3472,11 +3248,7 @@ func item_display_name(item_id: String) -> String:
 
 
 func logout() -> void:
-	_session_user = ""
-	_session_server = ""
-	_session_character_id = ""
-
-
+	_session_module_logic.logout()
 ## NPC AI tick: hostiles idle/chase/return_home; friendlies with wander_radius idle-wander only.
 func _tick_mob_ai(dt: float) -> Array:
 	var actions: Array = []
