@@ -53,6 +53,8 @@ const HIT_LEVEL_STEP := 0.02
 const CRIT_CHANCE_BASE := 0.08
 const CRIT_DAMAGE_MULT := 1.5
 const CastModule = preload("res://scripts/net/combat/engine/cast_module.gd")
+const DpsModule = preload("res://scripts/net/combat/engine/dps_module.gd")
+var _dps_module_logic: DpsModule = DpsModule.new(self)
 var _cast_module_logic: CastModule = CastModule.new(self)
 
 
@@ -1780,93 +1782,20 @@ func _resolve_item_effect(def: Dictionary, effect: String, actions: Array) -> bo
 ## --- Personal DPS meter (session fight window) ---
 
 func _dps_attacker_is_player(attacker_id: String) -> bool:
-	var aid := attacker_id.strip_edges()
-	if aid == "" or aid == "player":
-		return true
-	if stats != null and "player_actor_id" in stats:
-		var sid := str(stats.player_actor_id).strip_edges()
-		if sid != "" and aid == sid:
-			return true
-	return false
-
-
+	return _dps_module_logic._dps_attacker_is_player(attacker_id)
 func reset_dps_fight() -> void:
-	_dps_fight = {
-		"active": false,
-		"total_damage": 0,
-		"fight_start": 0.0,
-		"last_hit_time": 0.0,
-	}
-	_dps_last_snap = {"dps": 0.0, "total": 0, "elapsed": 0.0, "active": false}
-
-
+	_dps_module_logic.reset_dps_fight()
 func snapshot_dps() -> Dictionary:
-	var s: Dictionary = _dps_last_snap.duplicate(true)
-	s["type"] = "dps_update"
-	# Live window while active.
-	if bool(_dps_fight.get("active", false)):
-		var elapsed: float = maxf(0.0, _dps_clock - float(_dps_fight.get("fight_start", 0.0)))
-		var total: int = int(_dps_fight.get("total_damage", 0))
-		var dps: float = float(total) / maxf(1.0, elapsed)
-		s = {"type": "dps_update", "dps": dps, "total": total, "elapsed": elapsed, "active": true}
-	return s
-
-
+	return _dps_module_logic.snapshot_dps()
 func _dps_update_action(active: bool) -> Dictionary:
-	var total: int = int(_dps_fight.get("total_damage", 0))
-	var start: float = float(_dps_fight.get("fight_start", 0.0))
-	var last: float = float(_dps_fight.get("last_hit_time", start))
-	var end_t: float = last if not active else _dps_clock
-	var elapsed: float = maxf(0.0, end_t - start)
-	var dps: float = float(total) / maxf(1.0, elapsed)
-	var act := {
-		"type": "dps_update",
-		"dps": dps,
-		"total": total,
-		"elapsed": elapsed,
-		"active": active,
-	}
-	_dps_last_snap = {
-		"dps": dps,
-		"total": total,
-		"elapsed": elapsed,
-		"active": active,
-	}
-	return act
-
-
+	return _dps_module_logic._dps_update_action(active)
 ## Record player → NPC damage. Returns dps_update action (always when dealt > 0).
 func note_dps_hit(dealt: int) -> Dictionary:
-	dealt = maxi(0, int(dealt))
-	if dealt <= 0:
-		return {}
-	var now: float = _dps_clock
-	if not bool(_dps_fight.get("active", false)):
-		_dps_fight["active"] = true
-		_dps_fight["total_damage"] = 0
-		_dps_fight["fight_start"] = now
-	_dps_fight["total_damage"] = int(_dps_fight.get("total_damage", 0)) + dealt
-	_dps_fight["last_hit_time"] = now
-	_dps_fight["active"] = true
-	return _dps_update_action(true)
-
-
+	return _dps_module_logic.note_dps_hit(dealt)
 ## Advance DPS clock; finalize fight after IDLE_TIMEOUT with no hits.
 ## Returns array of actions (0–1 dps_update with active=false).
 func tick_dps(delta: float) -> Array:
-	_dps_clock += maxf(0.0, float(delta))
-	if not bool(_dps_fight.get("active", false)):
-		return []
-	var last: float = float(_dps_fight.get("last_hit_time", 0.0))
-	if _dps_clock - last < DPS_IDLE_TIMEOUT:
-		return []
-	# Finalize: keep last snapshot values, mark inactive.
-	var act: Dictionary = _dps_update_action(false)
-	_dps_fight["active"] = false
-	# Keep totals in _dps_fight until next hit resets them in note_dps_hit.
-	return [act]
-
-
+	return _dps_module_logic.tick_dps(delta)
 func tick(player_x: int, player_y: int, delta: float) -> Dictionary:
 	player_cell_hint = Vector2i(player_x, player_y)
 	# Lightweight: every ~1.5s of accumulated time handled by MockServer.
