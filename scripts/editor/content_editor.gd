@@ -27,6 +27,8 @@ const EditorCanvas = preload("res://scripts/editor/interface/editor_canvas.gd")
 const EditorAtmosphere = preload("res://scripts/editor/interface/editor_atmosphere.gd")
 const EditorMinimapBridge = preload("res://scripts/editor/interface/editor_minimap_bridge.gd")
 const EditorSession = preload("res://scripts/editor/application/editor_session.gd")
+const AtmosphereModule = preload("res://scripts/editor/field/atmosphere_module.gd")
+var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
 
 var session := EditorSession.new()
 var pack: RefCounted:
@@ -1040,7 +1042,7 @@ func _sync_shadow_brush() -> void:
 func _fill_preset_opt(opt: OptionButton, path: String, fallback: PackedStringArray) -> void:
 	EditorAtmosphere.fill_preset_opt(self, opt, path, fallback)
 func _fill_bgm_opt(current: String) -> void:
-	EditorAtmosphere.fill_bgm_opt(self, current)
+	_atmosphere_module_logic._fill_bgm_opt(current)
 func _set_far_scroll(x: float, y: float) -> void:
 	EditorAtmosphere.set_far_scroll(self, x, y)
 func _on_layer_tree() -> void:
@@ -1847,21 +1849,21 @@ func _spec_eyedrop(cell: Vector2i) -> void:
 
 
 func _on_toolbar_light() -> void:
-	EditorAtmosphere.on_toolbar_light(self)
+	_atmosphere_module_logic._on_toolbar_light()
 func _sync_light_controls() -> void:
-	EditorAtmosphere.sync_light_controls(self)
+	_atmosphere_module_logic._sync_light_controls()
 func _apply_editor_light() -> void:
-	EditorAtmosphere.apply_editor_light(self)
+	_atmosphere_module_logic._apply_editor_light()
 func _on_toolbar_weather() -> void:
-	EditorAtmosphere.on_toolbar_weather(self)
+	_atmosphere_module_logic._on_toolbar_weather()
 func _apply_editor_atmosphere() -> void:
-	EditorAtmosphere.apply_editor_atmosphere(self)
+	_atmosphere_module_logic._apply_editor_atmosphere()
 func _on_fx_color_changed(c: Color) -> void:
-	EditorAtmosphere.on_fx_color_changed(self, c)
+	_atmosphere_module_logic._on_fx_color_changed(c)
 func _sync_fx_color_controls() -> void:
-	EditorAtmosphere.sync_fx_color_controls(self)
+	_atmosphere_module_logic._sync_fx_color_controls()
 func _apply_editor_fx_color() -> void:
-	EditorAtmosphere.apply_editor_fx_color(self)
+	_atmosphere_module_logic._apply_editor_fx_color()
 func _select_opt_id(opt: OptionButton, id: int) -> void:
 	EditorAtmosphere.select_opt_id(self, opt, id)
 func _paint_passage(cell: Vector2i, right: bool) -> void:
