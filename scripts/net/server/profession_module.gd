@@ -6,6 +6,7 @@ func _init(c):
 	ctrl = c
 
 const WeatherGatherUtil = preload("res://scripts/game/weather_gather_util.gd")
+const RngUtil = preload("res://scripts/util/rng_util.gd")
 
 func _craft_xp_needed_for(level: int) -> int:
 	level = maxi(int(level), 1)
@@ -535,7 +536,6 @@ func _pick_fish_yield(spot_def: Dictionary, bait_id: String = "") -> Dictionary:
 	if typeof(yv) != TYPE_ARRAY or (yv as Array).is_empty():
 		return {}
 	var rows: Array = []
-	var total = 0.0
 	for row in yv:
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
@@ -547,17 +547,12 @@ func _pick_fish_yield(spot_def: Dictionary, bait_id: String = "") -> Dictionary:
 		if iid.is_empty() or w <= 0.0:
 			continue
 		rows.append({"item_id": iid, "qty": qty, "weight": w})
-		total += w
-	if rows.is_empty() or total <= 0.0:
+	if rows.is_empty():
 		return ctrl.fish_catalog.pick_yield(spot_def)
-	var r = randf() * total
-	var acc = 0.0
-	for row2 in rows:
-		acc += float(row2.get("weight", 0.0))
-		if r <= acc:
-			return {"item_id": str(row2.get("item_id", "")), "qty": maxi(int(row2.get("qty", 1)), 1)}
-	var last: Dictionary = rows[rows.size() - 1]
-	return {"item_id": str(last.get("item_id", "")), "qty": maxi(int(last.get("qty", 1)), 1)}
+	var picked: Dictionary = RngUtil.weighted_pick(rows)
+	if picked.is_empty():
+		return ctrl.fish_catalog.pick_yield(spot_def)
+	return {"item_id": str(picked.get("item_id", "")), "qty": maxi(int(picked.get("qty", 1)), 1)}
 
 
 

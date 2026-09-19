@@ -1,6 +1,8 @@
 extends "res://scripts/util/catalog_base.gd"
 ## World fishing-spot definitions loaded from JSON (mirror of gather_catalog).
 
+const RngUtil = preload("res://scripts/util/rng_util.gd")
+
 const DATA_PATHS: Array[String] = [
 	"res://scripts/net/combat/data/fish_spots.json",
 	"res://data/combat/fish_spots.json",
@@ -98,29 +100,13 @@ func spots_for_map(map_id: String) -> Array:
 func pick_yield(spot_def: Dictionary) -> Dictionary:
 	## Weighted pick of one yield row. Empty if none.
 	var yv: Variant = spot_def.get("yields", [])
-	if typeof(yv) != TYPE_ARRAY or (yv as Array).is_empty():
+	if typeof(yv) != TYPE_ARRAY:
 		return {}
-	var rows: Array = yv
-	var total := 0.0
-	for row in rows:
-		if typeof(row) == TYPE_DICTIONARY:
-			total += maxf(float(row.get("weight", 1.0)), 0.0)
-	if total <= 0.0:
+	var picked: Dictionary = RngUtil.weighted_pick(yv)
+	if picked.is_empty():
 		return {}
-	var r := randf() * total
-	var acc := 0.0
-	for row2 in rows:
-		if typeof(row2) != TYPE_DICTIONARY:
-			continue
-		acc += maxf(float(row2.get("weight", 1.0)), 0.0)
-		if r <= acc:
-			return {
-				"item_id": str(row2.get("item_id", "")),
-				"qty": maxi(int(row2.get("qty", 1)), 1),
-			}
-	var last: Dictionary = rows[rows.size() - 1]
 	return {
-		"item_id": str(last.get("item_id", "")),
-		"qty": maxi(int(last.get("qty", 1)), 1),
+		"item_id": str(picked.get("item_id", "")),
+		"qty": maxi(int(picked.get("qty", 1)), 1),
 	}
 
