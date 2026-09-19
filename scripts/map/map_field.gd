@@ -45,6 +45,8 @@ const RADAR_ATLAS_SCALE: float = 0.5
 const TileAnimModule = preload("res://scripts/map/field/tile_anim_module.gd")
 const ChunkStreamModule = preload("res://scripts/map/field/chunk_stream_module.gd")
 const RadarModule = preload("res://scripts/map/field/radar_module.gd")
+const WorldMapModule = preload("res://scripts/map/field/world_map_module.gd")
+var _world_map_module_logic: WorldMapModule = WorldMapModule.new(self)
 var _radar_module_logic: RadarModule = RadarModule.new(self)
 var _chunk_stream_module_logic: ChunkStreamModule = ChunkStreamModule.new(self)
 var _tile_anim_module_logic: TileAnimModule = TileAnimModule.new(self)
@@ -574,230 +576,31 @@ func get_radar_origin_cell() -> Vector2i:
 func _uses_radar_window() -> bool:
 	return _radar_module_logic._uses_radar_window()
 func world_map_complete() -> bool:
-	return _wm_complete or not _uses_radar_window()
-
-
+	return _world_map_module_logic.world_map_complete()
 func world_map_progress() -> float:
-	if world_map_complete():
-		return 1.0
-	if _wm_jit_total <= 0:
-		return 0.0
-	return clampf(1.0 - float(_wm_jit_q.size()) / float(_wm_jit_total), 0.0, 1.0)
-
-
+	return _world_map_module_logic.world_map_progress()
 func ensure_world_map() -> void:
-	if not _uses_radar_window():
-		_wm_complete = true
-		return
-	if _wm_complete and _lofi_image != null and _lofi_image.get_width() > 8:
-		return
-	_alloc_world_map_canvas()
-	# Do not clear/rebuild an in-flight JIT queue on every pan kick.
-	if _wm_jit_q.is_empty() and not _wm_complete:
-		_fill_world_map_queue()
-
-
+	_world_map_module_logic.ensure_world_map()
 func world_map_step(n: int = 4) -> bool:
-	if _wm_complete:
-		return true
-	if _wm_jit_q.is_empty():
-		# Already drained (or never queued) — finalize once, never re-commit every pan kick.
-		if _uses_radar_window() and _lofi_image != null:
-			_wm_complete = true
-			_commit_world_map_tex()
-			_try_save_world_map()
-		else:
-			_wm_complete = true
-		return _wm_complete
-	n = maxi(n, 1)
-	var sheets: Array = pack.sheets if pack else []
-	var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-	var did := 0
-	while did < n and not _wm_jit_q.is_empty():
-		var ch: Vector2i = _wm_jit_q.pop_front()
-		_stamp_world_chunk(ch.x, ch.y, _world_chunk_buf(ch.x, ch.y), sheets, flags)
-		did += 1
-	# Commit when batch done or queue drained; avoid uploading full overview every pan.
-	if _wm_jit_q.is_empty():
-		_wm_complete = true
-		_commit_world_map_tex()
-		_try_save_world_map()
-	elif did > 0 and (_wm_jit_q.size() % 16 == 0):
-		_commit_world_map_tex()
-	return _wm_complete
-
-
+	return _world_map_module_logic.world_map_step(n)
 func sample_world_chunk(cx: int, cy: int) -> Image:
-	var key := _chunk_key(Vector2i(cx, cy))
-	if _wm_img_cache.has(key):
-		return _wm_img_cache[key]
-	var buf: PackedInt32Array = _world_chunk_buf(cx, cy)
-	if buf.is_empty() or MapChunkStore.is_empty_buf(buf):
-		return null
-	var img := Image.create(CHUNK_CELLS, CHUNK_CELLS, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 1))
-	var sheets: Array = pack.sheets if pack else []
-	var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-	for ly in range(CHUNK_CELLS):
-		for lx in range(CHUNK_CELLS):
-			var col: Color = MapChunkStore.sample_cell_color(buf, lx, ly, CHUNK_CELLS, CHUNK_CELLS, sheets, flags)
-			if col.a < 0.2:
-				continue
-			img.set_pixel(lx, ly, col)
-	_wm_img_cache[key] = img
-	_evict_wm_cache(_wm_img_cache)
-	return img
-
-
+	return _world_map_module_logic.sample_world_chunk(cx, cy)
 func _alloc_world_map_canvas() -> void:
-	var m: Dictionary = MapChunkStore.overview_metrics(grid_width, grid_height)
-	_wm_step = maxi(int(m.get("step", 1)), 1)
-	var iw: int = int(m.get("w", 1))
-	var ih: int = int(m.get("h", 1))
-	if _lofi_image != null and _lofi_image.get_width() == iw and _lofi_image.get_height() == ih:
-		if _wm_bytes.is_empty():
-			_wm_bytes = _lofi_image.get_data()
-		if _wm_complete:
-			return
-		# Canvas already sized for this map — keep baking into it.
-		_ground_image = _lofi_image
-		_ensure_lofi_sprite()
-		return
-	var img := Image.create(iw, ih, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.04, 0.05, 0.05, 1))
-	_lofi_image = img
-	_ground_image = img
-	_wm_bytes = img.get_data()
-	_commit_world_map_tex()
-	_ensure_lofi_sprite()
-
-
+	_world_map_module_logic._alloc_world_map_canvas()
 func _fill_world_map_queue() -> void:
-	_wm_jit_q.clear()
-	var seen := {}
-	var coords: Array[Vector2i] = []
-	var map_dir := _world_chunk_dir()
-	if map_dir != "":
-		coords.append_array(MapChunkStore.list_chunk_coords(map_dir))
-	if edit_doc != null and "_chunk_cache" in edit_doc:
-		for k in edit_doc._chunk_cache.keys():
-			var parts: PackedStringArray = str(k).split(",")
-			if parts.size() >= 2:
-				coords.append(Vector2i(int(parts[0]), int(parts[1])))
-	if collision != null and collision.has_method("stream_chunk_keys"):
-		for k2 in collision.stream_chunk_keys():
-			var p2: PackedStringArray = str(k2).split(",")
-			if p2.size() >= 2:
-				coords.append(Vector2i(int(p2[0]), int(p2[1])))
-	var obs: Vector2i = cell_to_chunk(_obs_cell)
-	if coords.size() <= 256:
-		coords.sort_custom(func(a, b): return absi(a.x - obs.x) + absi(a.y - obs.y) < absi(b.x - obs.x) + absi(b.y - obs.y))
-	else:
-		_wm_jit_q.append(obs)
-		seen[_chunk_key(obs)] = true
-	for c in coords:
-		var key := _chunk_key(c)
-		if seen.has(key):
-			continue
-		seen[key] = true
-		_wm_jit_q.append(c)
-	_wm_jit_total = maxi(_wm_jit_q.size(), 1)
-	_wm_complete = _wm_jit_q.is_empty()
-
-
+	_world_map_module_logic._fill_world_map_queue()
 func _world_chunk_dir() -> String:
-	if pack != null and "chunk_map_dir" in pack:
-		return str(pack.chunk_map_dir)
-	if edit_doc != null and "_store_dir" in edit_doc:
-		return str(edit_doc._store_dir)
-	return ""
-
-
+	return _world_map_module_logic._world_chunk_dir()
 func _evict_wm_cache(cache: Dictionary) -> void:
-	if cache.size() <= WM_CACHE_MAX:
-		return
-	var keys: Array = cache.keys()
-	var drop_n: int = cache.size() - WM_CACHE_MAX
-	for i in range(mini(drop_n, keys.size())):
-		cache.erase(keys[i])
-
-
+	_world_map_module_logic._evict_wm_cache(cache)
 func _world_chunk_buf(cx: int, cy: int) -> PackedInt32Array:
-	var ck := _chunk_key(Vector2i(cx, cy))
-	if _wm_buf_cache.has(ck):
-		return _wm_buf_cache[ck]
-	var buf := PackedInt32Array()
-	if edit_doc != null and edit_doc.has_method("chunk_buffer"):
-		buf = edit_doc.chunk_buffer(cx, cy)
-	if buf.is_empty() and pack != null and pack.has_method("load_chunk_data"):
-		buf = pack.load_chunk_data(cx, cy)
-	if buf.is_empty():
-		var dir := _world_chunk_dir()
-		if dir != "":
-			buf = MapChunkStore.load_chunk(dir, cx, cy)
-	if not buf.is_empty():
-		_wm_buf_cache[ck] = buf
-		_evict_wm_cache(_wm_buf_cache)
-		return buf
-	if not _uses_radar_window() and collision != null:
-		buf = MapChunkStore.empty_buf()
-		var origin: Vector2i = MapChunkStore.chunk_origin(cx, cy)
-		for ly in range(CHUNK_CELLS):
-			for lx in range(CHUNK_CELLS):
-				var gx := origin.x + lx
-				var gy := origin.y + ly
-				if gx < 0 or gy < 0 or gx >= grid_width or gy >= grid_height:
-					continue
-				for z in range(6):
-					buf[MapChunkStore.local_index(lx, ly, z)] = _src_tile(collision, gx, gy, z)
-		_wm_buf_cache[ck] = buf
-		_evict_wm_cache(_wm_buf_cache)
-		return buf
-	return PackedInt32Array()
-
-
+	return _world_map_module_logic._world_chunk_buf(cx, cy)
 func _stamp_world_chunk(cx: int, cy: int, buf: PackedInt32Array, sheets: Array, flags: PackedInt32Array) -> void:
-	if _lofi_image == null or buf.is_empty():
-		return
-	var iw: int = _lofi_image.get_width()
-	var ih: int = _lofi_image.get_height()
-	if _wm_bytes.size() != iw * ih * 4:
-		_wm_bytes = _lofi_image.get_data()
-	MapChunkStore.stamp_overview_bytes(_wm_bytes, iw, ih, _wm_step, cx, cy, buf, sheets, flags, grid_width, grid_height)
-
-
+	_world_map_module_logic._stamp_world_chunk(cx, cy, buf, sheets, flags)
 func _commit_world_map_tex() -> void:
-	if _lofi_image == null:
-		return
-	var iw: int = _lofi_image.get_width()
-	var ih: int = _lofi_image.get_height()
-	if _wm_bytes.size() == iw * ih * 4:
-		_lofi_image.set_data(iw, ih, false, Image.FORMAT_RGBA8, _wm_bytes)
-	if _world_map_tex is ImageTexture:
-		var t: ImageTexture = _world_map_tex
-		if t.get_width() == iw and t.get_height() == ih:
-			t.update(_lofi_image)
-			_overview_ground_tex = t
-			return
-	_world_map_tex = ImageTexture.create_from_image(_lofi_image)
-	_overview_ground_tex = _world_map_tex
-
-
+	_world_map_module_logic._commit_world_map_tex()
 func _try_save_world_map() -> void:
-	if _lofi_image == null:
-		return
-	var path := ""
-	if pack != null and "overview_path" in pack:
-		path = str(pack.overview_path)
-	if path == "" and edit_doc != null and "_store_dir" in edit_doc:
-		path = MapChunkStore.overview_path(str(edit_doc._store_dir))
-	if path == "":
-		return
-	if path.begins_with("res://"):
-		return
-	_lofi_image.save_png(path)
-
-
+	_world_map_module_logic._try_save_world_map()
 func _resolved_map_id() -> String:
 	if edit_map_id.strip_edges() != "":
 		return edit_map_id
