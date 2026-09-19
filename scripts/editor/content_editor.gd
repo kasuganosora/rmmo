@@ -34,6 +34,8 @@ const McpModule = preload("res://scripts/editor/field/mcp_module.gd")
 const SpecModule = preload("res://scripts/editor/field/spec_module.gd")
 const TreeModule = preload("res://scripts/editor/field/tree_module.gd")
 const TilesetModule = preload("res://scripts/editor/field/tileset_module.gd")
+const MenuDialogModule = preload("res://scripts/editor/field/menu_dialog_module.gd")
+var _menu_dialog_module_logic: MenuDialogModule = MenuDialogModule.new(self)
 var _tileset_module_logic: TilesetModule = TilesetModule.new(self)
 var _tree_module_logic: TreeModule = TreeModule.new(self)
 var _spec_module_logic: SpecModule = SpecModule.new(self)
@@ -594,106 +596,9 @@ func _tb_toggle(parent: Node, text: String, on: bool, cb: Callable) -> Button:
 
 
 func _add_popup(bar: MenuBar, title: String, items: Array) -> void:
-	var pm := PopupMenu.new()
-	pm.name = title
-	for it in items:
-		if typeof(it) != TYPE_ARRAY or (it as Array).is_empty():
-			pm.add_separator()
-			continue
-		var row: Array = it
-		pm.add_item(str(row[0]), int(row[1]))
-	pm.id_pressed.connect(_on_menu)
-	bar.add_child(pm)
-
-
+	_menu_dialog_module_logic._add_popup(bar, title, items)
 func _on_menu(id: int) -> void:
-	match id:
-		MENU_FILE_NEW:
-			_new_pack()
-		MENU_FILE_OPEN:
-			_open_pack_dialog()
-		MENU_FILE_SAVE:
-			_save()
-		MENU_FILE_SAVE_AS:
-			_saveas_edit.text = pack.pack_id if pack else "pack"
-			_saveas_dlg.popup_centered()
-		MENU_FILE_OPEN_DEMO:
-			_open_demo_copy()
-		MENU_FILE_IMPORT:
-			_file_mode = "import"
-			_pick_file(false)
-		MENU_FILE_EXPORT:
-			_file_mode = "export"
-			_pick_file(true)
-		MENU_FILE_LEAVE:
-			_leave()
-		MENU_EDIT_UNDO:
-			if doc:
-				doc.undo()
-				_reload_field()
-		MENU_EDIT_REDO:
-			if doc:
-				doc.redo()
-				_reload_field()
-		MENU_EDIT_COPY:
-			_copy_tiles()
-		MENU_EDIT_CUT:
-			_cut_tiles()
-		MENU_EDIT_PASTE:
-			_paste_tiles()
-		25:
-			_copy_entity()
-		26:
-			_paste_entity()
-		27:
-			_rotate_clip(true)
-		28:
-			_flip_clip(true)
-		29:
-			_replace_prompt()
-		71:
-			_show_undo_list()
-		37:
-			_pick_reference()
-		38:
-			_clear_reference()
-		39:
-			_add_bookmark_here()
-		MENU_MAP_SETTINGS:
-			_open_map_settings(current_map_id)
-		34:
-			_open_rename(current_map_id)
-		MENU_MAP_ADD:
-			_add_child_map()
-		35:
-			_dup_map(current_map_id)
-		MENU_MAP_DEL:
-			_ask_del_map(current_map_id)
-		MENU_MAP_CHEST:
-			_add_chest_event()
-		MENU_ENTITY:
-			_open_entity_win()
-		MENU_ASSET_LIB:
-			_open_asset_win()
-		MENU_ASSET_TILESET:
-			_open_tileset_win()
-		MENU_ASSET_TILE:
-			_file_mode = "tilesheet"
-			_pick_file(false)
-		MENU_ASSET_CHAR:
-			_file_mode = "charset"
-			_pick_file(false)
-		MENU_ASSET_AUDIO:
-			_file_mode = "audio"
-			_pick_file(false)
-		MENU_GAME_PLAY:
-			_playtest()
-		MENU_GAME_PLAY_CURSOR:
-			_playtest(true)
-		MENU_MCP_TOGGLE:
-			_toggle_mcp()
-
-
+	_menu_dialog_module_logic._on_menu(id)
 func _btn(parent: Node, text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
@@ -746,13 +651,9 @@ func _unsaved_action(action: String) -> void:
 
 
 func _open_pack_dialog() -> void:
-	EditorSession.open_pack_dialog(self)
-
-
+	_menu_dialog_module_logic._open_pack_dialog()
 func _confirm_open_pack() -> void:
-	EditorSession.confirm_open_pack(self)
-
-
+	_menu_dialog_module_logic._confirm_open_pack()
 func _confirm_save_as() -> void:
 	EditorSession.confirm_save_as(self)
 
@@ -767,11 +668,7 @@ func _on_reparent(src: String, parent: String) -> void:
 
 
 func _popup_win(win: Window) -> void:
-	if win == null:
-		return
-	win.popup_centered()
-
-
+	_menu_dialog_module_logic._popup_win(win)
 func _open_asset_win() -> void:
 	_asset_module_logic._open_asset_win()
 func _open_tileset_win() -> void:
@@ -1152,9 +1049,7 @@ func _pick_file(save: bool) -> void:
 
 
 func _on_file(path: String) -> void:
-	EditorSession.on_file(self, path)
-
-
+	_menu_dialog_module_logic._on_file(path)
 func _add_chest_event() -> void:
 	_entity_module_logic._add_chest_event()
 func _import_asset(src: String, kind: String) -> void:
@@ -1212,27 +1107,9 @@ func _set_hover(cell: Vector2i) -> void:
 
 
 func _undo_edit() -> void:
-	if doc == null or not doc.has_method("undo_cells"):
-		return
-	var cells: Array[Vector2i] = doc.undo_cells()
-	if paint and paint.has_method("refresh_autotiles"):
-		paint.refresh_autotiles(doc, cells, cells)
-	if cells.is_empty():
-		cells.append(_cursor)
-	_refresh_dirty(cells)
-
-
+	_menu_dialog_module_logic._undo_edit()
 func _redo_edit() -> void:
-	if doc == null or not doc.has_method("redo_cells"):
-		return
-	var cells: Array[Vector2i] = doc.redo_cells()
-	if paint and paint.has_method("refresh_autotiles"):
-		paint.refresh_autotiles(doc, cells, cells)
-	if cells.is_empty():
-		cells.append(_cursor)
-	_refresh_dirty(cells)
-
-
+	_menu_dialog_module_logic._redo_edit()
 func _selection_bounds() -> Array[Vector2i]:
 	var a := _cursor
 	var b := _cursor
@@ -1743,28 +1620,7 @@ func _flip_clip(horizontal: bool) -> void:
 func _replace_prompt() -> void:
 	_entity_module_logic._replace_prompt()
 func _show_undo_list() -> void:
-	if _undo_dlg == null:
-		_undo_dlg = AcceptDialog.new()
-		_undo_dlg.title = "撤销历史"
-		_undo_list = ItemList.new()
-		_undo_list.custom_minimum_size = Vector2(320, 240)
-		_undo_dlg.add_child(_undo_list)
-		add_child(_undo_dlg)
-	_undo_list.clear()
-	if doc == null:
-		_undo_dlg.popup_centered()
-		return
-	var stack: Array = doc.get("_undo") if "_undo" in doc else []
-	_undo_list.add_item("共 %d 步（最近在上）" % stack.size())
-	for i in range(stack.size() - 1, maxi(stack.size() - 16, -1), -1):
-		if i < 0:
-			break
-		var cmd: Dictionary = stack[i] if typeof(stack[i]) == TYPE_DICTIONARY else {}
-		var n: int = doc._cmd_cells(cmd).size() if doc.has_method("_cmd_cells") else 0
-		_undo_list.add_item("%s · %d 格" % [str(cmd.get("t", "?")), n])
-	_undo_dlg.popup_centered()
-
-
+	_menu_dialog_module_logic._show_undo_list()
 func _pick_reference() -> void:
 	_file_mode = "reference"
 	_pick_file(false)
@@ -1777,7 +1633,7 @@ func _clear_reference() -> void:
 
 
 func _add_bookmark_here() -> void:
-	EditorMinimapBridge.add_bookmark_here(self)
+	_menu_dialog_module_logic._add_bookmark_here()
 func _refresh_bookmarks() -> void:
 	EditorMinimapBridge.refresh_bookmarks(self)
 func _on_bookmark_sel(idx: int) -> void:
