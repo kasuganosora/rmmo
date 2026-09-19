@@ -57,6 +57,8 @@ const QuestModule = preload("res://scripts/net/server/quest_module.gd")
 const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
+const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+var _movement_module_logic: MovementModule = MovementModule.new(self)
 var _npc_ai_module_logic: NpcAiModule = NpcAiModule.new(self)
 var _emote_module_logic: EmoteModule = EmoteModule.new(self)
 var _remote_module_logic: RemoteModule = RemoteModule.new(self)
@@ -599,13 +601,7 @@ func enter_world(character_id: int) -> void:
 	_session_module_logic.enter_world(character_id)
 ## Sync player occupancy into map_collision.extra_blocked.
 func set_player_cell(x: int, y: int) -> void:
-	if map_collision != null:
-		if player_cell.x > -9990:
-			map_collision.set_extra_blocked(player_cell.x, player_cell.y, false)
-		map_collision.set_extra_blocked(x, y, true)
-	player_cell = Vector2i(x, y)
-
-
+	_movement_module_logic.set_player_cell(x, y)
 ## Register NPC presence for range checks / tick counter-attacks / mob AI.
 ## aggressive: base 主动 chase-on-sight; false = 被动 (chase only after enrage from damage).
 ## wander_radius: idle roam cells from home (0 = stand still). Spawn cell stored as home_cell.
@@ -694,85 +690,15 @@ func _ingest_stream_around(cell: Vector2i) -> void:
 
 ## Player grid step speed multiplier from statuses (1.0 = normal walk/run tween).
 func player_move_speed_mul() -> float:
-	if combat_stats == null or combat_stats.statuses == null:
-		return 1.0
-	if combat_stats.statuses.has_method("move_speed_mul"):
-		return float(combat_stats.statuses.move_speed_mul("player"))
-	var m: Dictionary = combat_stats.statuses.get_mods("player") if combat_stats.statuses.has_method("get_mods") else {}
-	var v: float = float(m.get("move_speed_mul", 1.0))
-	if v < 0.25:
-		return 0.25
-	if v > 3.0:
-		return 3.0
-	return v
-
-
+	return _movement_module_logic.player_move_speed_mul()
 ## Mount stub: mounted buff flag (status id `mounted`).
 func player_is_mounted() -> bool:
-	if combat_engine != null and combat_engine.has_method("player_is_mounted"):
-		return bool(combat_engine.player_is_mounted())
-	if combat_stats == null or combat_stats.statuses == null:
-		return false
-	return combat_stats.statuses.has_status("player", "mounted")
-
-
+	return _movement_module_logic.player_is_mounted()
 ## Toggle mount via skill authority (`mount`「骑乘」).
 func try_mount() -> Dictionary:
-	return try_use_skill("mount", "", player_cell.x, player_cell.y)
-
-
+	return _movement_module_logic.try_mount()
 func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
-	if map_collision == null:
-		return {"ok": false, "x": from_x, "y": from_y}
-	_ingest_stream_around(Vector2i(from_x, from_y))
-	if combat_stats != null and not combat_stats.player_alive():
-		return {"ok": false, "x": player_cell.x, "y": player_cell.y}
-	# Anti-desync / spoof: client from must match server occupancy.
-	if player_cell.x > -9990:
-		if from_x != player_cell.x or from_y != player_cell.y:
-			return {
-				"ok": false,
-				"x": player_cell.x,
-				"y": player_cell.y,
-				"resync": true,
-			}
-		from_x = player_cell.x
-		from_y = player_cell.y
-	if not TileId.is_dir(dir):
-		return {"ok": false, "x": from_x, "y": from_y}
-	if not map_collision.can_pass(from_x, from_y, dir):
-		return {"ok": false, "x": from_x, "y": from_y}
-	# v1: player move interrupts cast/channel (still allows the step).
-	var interrupt_actions: Array = []
-	if combat_engine != null and combat_engine.has_method("is_casting") and combat_engine.is_casting():
-		if combat_engine.cast == null or combat_engine.cast.should_interrupt_on_move():
-			interrupt_actions = combat_engine.interrupt_cast("move")
-	var delta: Vector2i = TileId.dir_delta(dir)
-	var nx: int = from_x + delta.x
-	var ny: int = from_y + delta.y
-	set_player_cell(nx, ny)
-	_maybe_mark_safe_cell(nx, ny)
-	var out := {"ok": true, "x": nx, "y": ny, "facing": dir, "move_speed_mul": player_move_speed_mul()}
-	if map_collision.has_method("no_dash_at") and map_collision.no_dash_at(nx, ny):
-		out["no_dash"] = true
-	var all_actions: Array = []
-	if sitting:
-		_stand_if_sitting(all_actions)
-	if not interrupt_actions.is_empty():
-		all_actions.append_array(interrupt_actions)
-	var touch_actions: Array = _try_player_touch_events(nx, ny)
-	if not touch_actions.is_empty():
-		all_actions.append_array(touch_actions)
-	var sz_actions: Array = _safe_zone_transition_actions()
-	if not sz_actions.is_empty():
-		all_actions.append_array(sz_actions)
-	if not all_actions.is_empty():
-		out["actions"] = all_actions
-		# Also buffer for poll_combat_tick consumers that ignore try_move actions.
-		_pending_tick_actions.append_array(all_actions)
-	return out
-
-
+	return _movement_module_logic.try_move(from_x, from_y, dir)
 ## Authoritative NPC grid step (server AI only — client must not call).
 ## Blocks player_cell; updates extra_blocked + AI facing on success.
 ## Returns {ok, x, y, facing, npc_id}.
@@ -1046,18 +972,9 @@ func _event_perform_transfer( to_pack: String, to_cell: Dictionary, facing: int 
 	return _event_module_logic._event_perform_transfer(to_pack, to_cell, facing, message, to_map_id)
 ## Fire matching autorun pages once after a play pack/map load.
 func collect_autorun() -> Array:
-	return _collect_autorun()
-
-
+	return _movement_module_logic.collect_autorun()
 func _collect_autorun() -> Array:
-	if event_runtime == null or not event_runtime.has_method("collect_autorun"):
-		return []
-	var acts: Array = event_runtime.collect_autorun(_event_server_ctx())
-	if not acts.is_empty():
-		_pending_tick_actions.append_array(acts)
-	return acts
-
-
+	return _movement_module_logic._collect_autorun()
 ## After a successful step, fire player_touch events on the landing cell (once per page/self-switch).
 func _try_player_touch_events(x: int, y: int) -> Array:
 	return _event_module_logic._try_player_touch_events(x, y)
@@ -1092,27 +1009,7 @@ func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 
 ## Apply authoritative player_move actions from combat (e.g. charge).
 func _apply_player_move_actions(result: Dictionary) -> void:
-	if result.is_empty() or not bool(result.get("ok", false)):
-		return
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) != TYPE_ARRAY:
-		return
-	for a in acts_v:
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str(a.get("type", "")) != "player_move":
-			continue
-		var cell_v: Variant = a.get("cell", {})
-		var nx := int(a.get("x", -9999))
-		var ny := int(a.get("y", -9999))
-		if typeof(cell_v) == TYPE_DICTIONARY:
-			nx = int(cell_v.get("x", nx))
-			ny = int(cell_v.get("y", ny))
-		if nx > -9990 and ny > -9990:
-			set_player_cell(nx, ny)
-
-
-
+	_movement_module_logic._apply_player_move_actions(result)
 func _npc_is_rooted(npc_id: String) -> bool:
 	if combat_stats == null or combat_stats.statuses == null:
 		return false
@@ -1363,20 +1260,7 @@ func try_use_item(item_id: String) -> Dictionary:
 
 ## Pre-consume checks for recall / teleport_home items (Chinese messages).
 func _gate_recall_item_use() -> Dictionary:
-	var actions: Array = []
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	var dest: Vector2i = _town_dest()
-	if player_cell == dest:
-		actions.append({"type": "system_message", "text": "你已在安全点。"})
-		return {"ok": false, "reason": "already_safe", "actions": actions}
-	return {"ok": true, "actions": []}
-
-
+	return _movement_module_logic._gate_recall_item_use()
 func _town_dest() -> Vector2i:
 	var dest: Vector2i = respawn_cell
 	if dest.x <= -9990:
@@ -1390,33 +1274,7 @@ func _town_dest() -> Vector2i:
 
 
 func _bind_recall_actions(result: Dictionary) -> void:
-	var acts_v: Variant = result.get("actions", [])
-	if typeof(acts_v) != TYPE_ARRAY:
-		return
-	var acts: Array = acts_v
-	var dest := _town_dest()
-	var bound := false
-	for i in range(acts.size()):
-		var a: Variant = acts[i]
-		if typeof(a) != TYPE_DICTIONARY:
-			continue
-		if str((a as Dictionary).get("type", "")) != "recall":
-			continue
-		var rec: Dictionary = a
-		if dest.x > -9990:
-			rec["cell"] = {"x": dest.x, "y": dest.y}
-			set_player_cell(dest.x, dest.y)
-		acts[i] = rec
-		bound = true
-	if bound:
-		if sitting:
-			_stand_if_sitting(acts)
-		sitting = false
-		_sit_acc = 0.0
-		_sit_regen_acc = 0.0
-	result["actions"] = acts
-
-
+	_movement_module_logic._bind_recall_actions(result)
 func _combat_stand_if_needed(result: Dictionary) -> void:
 	if not sitting:
 		return
@@ -2778,93 +2636,11 @@ func _actions_has_type(actions: Array, t: String) -> bool:
 
 ## Respawn at town spawn or death cell; clear combat CDs server-side.
 func _append_respawn_actions(actions: Array, where: String = "town") -> void:
-	if combat_stats == null:
-		return
-	# Avoid double-append if already respawned in this action list.
-	if _actions_has_type(actions, "respawn"):
-		return
-	where = where.strip_edges().to_lower()
-	var dest: Vector2i = respawn_cell
-	var here := where == "here" or where == "place"
-	if here and death_cell.x > -9990:
-		dest = death_cell
-	elif dest.x <= -9990:
-		dest = last_safe_cell
-	if map_collision != null and map_collision.has_method("is_landable"):
-		if not map_collision.is_landable(dest.x, dest.y) and map_collision.has_method("find_spawn_near"):
-			dest = map_collision.find_spawn_near(dest.x, dest.y)
-	elif map_collision != null and map_collision.has_method("find_spawn_near") and (dest.x <= -9990):
-		dest = map_collision.find_spawn_near()
-	_clear_pending_loot_on_death(actions)
-	combat_stats.restore_after_death(here)
-	if combat_engine != null and combat_engine.has_method("clear_cast"):
-		combat_engine.clear_cast()
-	set_player_cell(dest.x, dest.y)
-	last_safe_cell = dest
-	sitting = false
-	var p: Dictionary = combat_stats.player
-	actions.append({
-		"type": "status_update",
-		"target": "player",
-		"statuses": [],
-	})
-	actions.append({
-		"type": "respawn",
-		"cell": {"x": dest.x, "y": dest.y},
-		"hp": int(p.get("hp", 0)),
-		"hp_max": int(p.get("hp_max", 0)),
-		"mp": int(p.get("mp", 0)),
-		"mp_max": int(p.get("mp_max", 0)),
-		"input_lock_sec": 1.2,
-	})
-	actions.append({
-		"type": "set_stat",
-		"target": "player",
-		"hp": int(p.get("hp", 0)),
-		"hp_max": int(p.get("hp_max", 0)),
-		"mp": int(p.get("mp", 0)),
-		"mp_max": int(p.get("mp_max", 0)),
-	})
-	if here:
-		actions.append({"type": "system_message", "text": "你就地复活了。"})
-	else:
-		actions.append({"type": "system_message", "text": "你已在安全点复活。"})
-	awaiting_respawn = false
-
-
+	_movement_module_logic._append_respawn_actions(actions, where)
 func try_respawn(where: String = "town") -> Dictionary:
-	var actions: Array = []
-	if combat_stats != null and combat_stats.player_alive() and not awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你还活着。"})
-		return {"ok": false, "reason": "alive", "actions": actions}
-	awaiting_respawn = true
-	_append_respawn_actions(actions, where)
-	return {"ok": true, "actions": actions}
-
-
+	return _movement_module_logic.try_respawn(where)
 func try_recall() -> Dictionary:
-	var actions: Array = []
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	var dest: Vector2i = _town_dest()
-	if sitting:
-		_stand_if_sitting(actions)
-	sitting = false
-	_sit_acc = 0.0
-	_sit_regen_acc = 0.0
-	set_player_cell(dest.x, dest.y)
-	actions.append({
-		"type": "recall",
-		"cell": {"x": dest.x, "y": dest.y},
-	})
-	actions.append({"type": "system_message", "text": "你回到了安全点。"})
-	return {"ok": true, "actions": actions}
-
-
+	return _movement_module_logic.try_recall()
 func try_sit(on: bool = true) -> Dictionary:
 	return _sustain_module_logic.try_sit(on)
 ## Pay gold at inn: full HP/MP restore + clear harmful statuses.
@@ -3207,106 +2983,13 @@ func _store_npc_spawn_template(
 
 ## After kill_npc: queue respawn from stored template (default 30s).
 func _schedule_npc_respawn(npc_id: String) -> void:
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty() or combat_stats == null:
-		return
-	if not npc_spawn_templates.has(npc_id):
-		return
-	var tmpl: Dictionary = npc_spawn_templates[npc_id]
-	var sec: float = float(tmpl.get("respawn_sec", MobAI.DEFAULT_RESPAWN_SEC))
-	if sec < 0.0:
-		return  # disabled
-	_npc_respawn_at[npc_id] = combat_stats.now_sec() + sec
-
-
+	return _movement_module_logic._schedule_npc_respawn(npc_id)
 ## Fire due respawns → re-register + spawn_npc action for client.
 func _tick_npc_respawns() -> Array:
-	var actions: Array = []
-	if combat_stats == null or _npc_respawn_at.is_empty():
-		return actions
-	var now: float = combat_stats.now_sec()
-	var due: Array = []
-	for nid_v in _npc_respawn_at.keys():
-		var nid: String = str(nid_v)
-		if now >= float(_npc_respawn_at[nid]):
-			due.append(nid)
-	for nid2 in due:
-		_npc_respawn_at.erase(nid2)
-		var spawned: Dictionary = _respawn_npc_from_template(str(nid2))
-		if not spawned.is_empty():
-			actions.append(spawned)
-	return actions
-
-
+	return _movement_module_logic._tick_npc_respawns()
 ## Place hostile at home (or find_spawn_near), re-register, return spawn_npc action dict.
 func _respawn_npc_from_template(npc_id: String) -> Dictionary:
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty() or not npc_spawn_templates.has(npc_id):
-		return {}
-	# Already alive (e.g. map re-register) → skip.
-	if combat_stats != null and combat_stats.npcs.has(npc_id):
-		return {}
-	var tmpl: Dictionary = npc_spawn_templates[npc_id].duplicate(true)
-	var home := Vector2i(0, 0)
-	var hv: Variant = tmpl.get("home_cell", tmpl.get("cell", {}))
-	if typeof(hv) == TYPE_VECTOR2I:
-		home = hv
-	elif typeof(hv) == TYPE_DICTIONARY:
-		home = Vector2i(int(hv.get("x", 0)), int(hv.get("y", 0)))
-	var spawn_cell := home
-	if map_collision != null:
-		var free := true
-		if map_collision.has_method("is_landable"):
-			free = bool(map_collision.is_landable(home.x, home.y))
-		elif map_collision.has_method("is_extra_blocked"):
-			free = not bool(map_collision.is_extra_blocked(home.x, home.y))
-		if not free and map_collision.has_method("find_spawn_near"):
-			spawn_cell = map_collision.find_spawn_near(home.x, home.y)
-		# Occupy spawn cell.
-		if map_collision.has_method("set_extra_blocked"):
-			map_collision.set_extra_blocked(spawn_cell.x, spawn_cell.y, true)
-	var facing: int = int(tmpl.get("direction", 2))
-	if not TileId.is_dir(facing):
-		facing = 2
-	var aggressive: bool = bool(tmpl.get("aggressive", false))
-	var wander_r: int = maxi(int(tmpl.get("wander_radius", 0)), 0)
-	var gid: int = int(tmpl.get("group_id", 0))
-	register_npc(
-		npc_id,
-		spawn_cell.x,
-		spawn_cell.y,
-		true,
-		aggressive,
-		facing,
-		wander_r,
-		gid,
-		tmpl,
-		home
-	)
-	# Restore snapshotted combat stats if present.
-	if combat_stats != null and combat_stats.npcs.has(npc_id) and tmpl.has("stats"):
-		var st: Dictionary = combat_stats.npcs[npc_id]
-		var snap_v: Variant = tmpl.get("stats", {})
-		if typeof(snap_v) == TYPE_DICTIONARY:
-			var snap: Dictionary = snap_v
-			var hp_max: int = int(snap.get("hp_max", st.get("hp_max", 30)))
-			st["hp_max"] = hp_max
-			st["hp"] = hp_max
-			var mp_max: int = int(snap.get("mp_max", st.get("mp_max", 0)))
-			if mp_max <= 0:
-				mp_max = combat_stats.npc_mp_max_for(int(st.get("level", 1)), hp_max)
-			st["mp_max"] = mp_max
-			st["mp"] = mp_max
-			if snap.has("atk"):
-				st["atk"] = int(snap.get("atk"))
-			if snap.has("def"):
-				st["def"] = int(snap.get("def"))
-			combat_stats.npcs[npc_id] = st
-	tmpl["cell"] = {"x": spawn_cell.x, "y": spawn_cell.y}
-	tmpl["direction"] = facing
-	return {"type": "spawn_npc", "npc": tmpl}
-
-
+	return _movement_module_logic._respawn_npc_from_template(npc_id)
 ## --- Party / multiplayer shell stubs (debug only; no real netcode) ---
 
 ## Empty party_id means not in a party.
