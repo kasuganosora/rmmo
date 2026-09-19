@@ -80,12 +80,15 @@ for f in sorted(glob.glob(MODULES)):
         while not sig.rstrip().endswith(":") and kk+1 < idxs[k+1]:
             kk += 1; sig += " " + lines[kk].strip()
         body = lines[kk+1:idxs[k+1]]
-        skip = set(params_of(sig)) | locals_of(body)
+        # params are function-scoped: `ctrl.<param>` is ALWAYS wrong. Block-scoped
+        # locals are handled precisely by _scan_shadow.py (a `ctrl.<member>` sharing a
+        # block-local's name is legitimate), so we only flag params here.
+        skip = set(params_of(sig))
         for ln in body:
             code = re.sub(r'"[^"\n]*"', '""', ln).split("#")[0]
             for cm in re.findall(r"\bctrl\.(\w+)", code):
                 if cm in skip:
-                    issues.append("%s: func %s local '%s' wrongly -> ctrl.%s" % (base, name, cm, cm))
+                    issues.append("%s: func %s param '%s' wrongly -> ctrl.%s" % (base, name, cm, cm))
 
 # delegation consistency
 for m in re.finditer(r"\b_(\w+)_logic\.(\w+)\(", hud):
