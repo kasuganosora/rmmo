@@ -31,6 +31,20 @@ func _init() -> void:
 		var nid = c.register_def({"id": "__t", "name": "T"})
 		if nid != "__t" or not c.has_id("__t"):
 			print("FAIL ", name, " register/has"); bad += 1
+		if path.ends_with("fish_catalog.gd"):
+			var spots: Array = c.spots_for_map("demo_map")
+			if spots.is_empty():
+				print("FAIL ", name, " spots_for_map"); bad += 1
+			elif typeof(spots[0].get("cell", null)) != TYPE_DICTIONARY:
+				print("FAIL ", name, " cell normalize"); bad += 1
+			elif not (spots[0].get("yields", []) as Array).is_empty() and str(spots[0]["yields"][0].get("item_id", "")).is_empty():
+				print("FAIL ", name, " yields normalize"); bad += 1
+		if path.ends_with("gather_catalog.gd"):
+			var nodes: Array = c.nodes_for_map("demo_map")
+			if nodes.is_empty():
+				print("FAIL ", name, " nodes_for_map"); bad += 1
+			elif typeof(nodes[0].get("cell", null)) != TYPE_DICTIONARY:
+				print("FAIL ", name, " cell normalize"); bad += 1
 		print("OK    %-24s ids=%d" % [name, c.all_ids().size()])
 	print("CATALOGS_OK=", bad == 0, " bad=", bad)
 	quit()
