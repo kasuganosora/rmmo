@@ -8,9 +8,10 @@ auto const injection.
 """
 import re, io, sys, os
 
-WORLD = "d:/code/rmmo/scripts/game/world.gd"
+# argv: <root.gd> <out_res_path> <ConstName> "<header>" <m1,m2,...>
+WORLD = sys.argv[1]
 
-out_res, constname, header, methods = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4].split(",")
+out_res, constname, header, methods = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5].split(",")
 OUT = out_res.replace("res://", "d:/code/rmmo/")
 
 src = io.open(WORLD, "r", encoding="utf-8").read()
@@ -176,10 +177,19 @@ for name, sig_text, body in blocks:
     newsig = re.sub(r"^static func (\w+)\(", r"static func \1(ctrl, ", newsig, count=1)
     newsig = newsig.replace("(ctrl, )", "(ctrl)")
     loc = collect_locals(body)
+    # A local that shadows a member name is dangerous: inside its own initializer
+    # the name still refers to the MEMBER, so it may need manual ctrl. prefixing.
+    shadow = loc & members
+    if shadow:
+        print("  WARN local shadows member in %s: %s" % (name, sorted(shadow)))
     out += newsig.split("\n")
     for ln in body:
         out.append(prefix(ln, loc))
     out.append("")
+
+# `:=` inference is unreliable once members are accessed through untyped ctrl;
+# demote to dynamic assignment (keeps behaviour, avoids inference errors).
+out = [re.sub(r"\bvar\s+([A-Za-z_]\w*)\s*:=", r"var \1 =", ln) for ln in out]
 
 tsrc = "\n".join(out)
 cdecl = dict(re.findall(r"^const\s+([A-Za-z_]\w*)\s*=\s*(preload\(.*?\))", src, re.M))

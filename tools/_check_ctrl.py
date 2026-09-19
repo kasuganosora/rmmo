@@ -1,10 +1,14 @@
 import re, io, glob
 
-WORLD = "d:/code/rmmo/scripts/game/world.gd"
-APP_DIR = "d:/code/rmmo/scripts/game/*/*.gd"  # application/ + infrastructure/
+APP_DIR = "d:/code/rmmo/scripts/game/*/*.gd"  # application/ + infrastructure/ + interface/
+ROOT_GLOB = "d:/code/rmmo/scripts/game/*.gd"  # composition roots: world.gd, player.gd, ...
 
-world = io.open(WORLD, "r", encoding="utf-8").read()
-decl = set(re.findall(r"(?:func|static func|var|const|signal|@onready var)\s+([A-Za-z_]\w*)", world))
+# declarations must come from EVERY composition root (world.gd, player.gd, ...),
+# not just world.gd, otherwise player modules report false positives.
+decl = set()
+for root in sorted(glob.glob(ROOT_GLOB)):
+    src = io.open(root, "r", encoding="utf-8").read()
+    decl |= set(re.findall(r"(?:func|static func|var|const|signal|@onready var)\s+([A-Za-z_]\w*)", src))
 
 builtin = {
     "get_node_or_null", "create_tween", "add_child", "queue_free", "get_node",

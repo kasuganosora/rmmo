@@ -1,7 +1,8 @@
 import re, io, glob
 
-WORLD = "d:/code/rmmo/scripts/game/world.gd"
-wsrc = io.open(WORLD, "r", encoding="utf-8").read()
+# Scan every composition root under scripts/game/ (world.gd, player.gd, ...)
+ROOTS = sorted(glob.glob("d:/code/rmmo/scripts/game/*.gd"))
+wsrc = "\n".join(io.open(r, "r", encoding="utf-8").read() for r in ROOTS)
 
 # world.gd: const Name = preload("res://...")  ->  reverse map path -> const name
 wconsts = dict(re.findall(r'^const\s+(\w+)\s*=\s*preload\("([^"]+)"\)', wsrc, re.M))
