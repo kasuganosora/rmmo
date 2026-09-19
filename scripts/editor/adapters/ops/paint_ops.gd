@@ -179,7 +179,7 @@ func paint_ring(args: Dictionary) -> Dictionary:
 
 
 
-func refresh_autotiles() -> Dictionary:
+func refresh_autotiles(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -308,4 +308,70 @@ func scatter(args: Dictionary) -> Dictionary:
 	ctrl._touch(dirty)
 	return ctrl.mcp._ok({"scattered": spots.size(), "painted": dirty.size()})
 
+func op_names() -> Array:
+	return ["paint_rect", "paint_fill", "paint_cells", "paint_polyline", "paint_ellipse", "paint_ring", "paint_arc", "scatter", "set_passage", "refresh_autotiles"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("paint_rect", "矩形铺/擦，走自动图块。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+			"x2": {"type": "integer"}, "y2": {"type": "integer"},
+			"tile_id": {"type": "integer"}, "z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"}, "exact": {"type": "boolean"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("paint_fill", "同色填充，走自动图块。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"tile_id": {"type": "integer"}, "z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("paint_cells", "批量写格子。cells: [{x,y,tile_id?,z?,ext?}] 最多 16384。", {
+			"cells": {"type": "array"}, "tile_id": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"}, "exact": {"type": "boolean"},
+		}, ["cells"]),
+		ctrl.mcp._tool("paint_polyline", "折线（河、路、墙）。points: [{x,y},…]，width 线宽。", {
+			"points": {"type": "array"}, "tile_id": {"type": "integer"},
+			"width": {"type": "integer"}, "z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"}, "exact": {"type": "boolean"},
+		}, ["points", "tile_id"]),
+		ctrl.mcp._tool("paint_ellipse", "椭圆。fill 默认 true；给 inner_rx/inner_ry 则成环。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"rx": {"type": "integer"}, "ry": {"type": "integer"},
+			"tile_id": {"type": "integer"}, "fill": {"type": "boolean"},
+			"inner_rx": {"type": "integer"}, "inner_ry": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"}, "exact": {"type": "boolean"},
+		}, ["x", "y", "rx", "tile_id"]),
+		ctrl.mcp._tool("paint_ring", "圆环/椭圆环。r 或 rx/ry，thickness 默认 1。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"r": {"type": "integer"}, "rx": {"type": "integer"}, "ry": {"type": "integer"},
+			"thickness": {"type": "integer"}, "tile_id": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+			"erase": {"type": "boolean"}, "exact": {"type": "boolean"},
+		}, ["x", "y", "tile_id"]),
+		ctrl.mcp._tool("paint_arc", "圆弧。from_deg/to_deg，0=东 90=南（y 向下）。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"rx": {"type": "integer"}, "ry": {"type": "integer"},
+			"from_deg": {"type": "number"}, "to_deg": {"type": "number"},
+			"width": {"type": "integer"}, "tile_id": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+		}, ["x", "y", "rx", "tile_id"]),
+		ctrl.mcp._tool("scatter", "沿线/环按间距盖图章。along: polyline|ring。", {
+			"along": {"type": "string"},
+			"points": {"type": "array"},
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"r": {"type": "integer"}, "rx": {"type": "integer"}, "ry": {"type": "integer"},
+			"spacing": {"type": "integer"},
+			"tile_id": {"type": "integer"},
+			"stamp_w": {"type": "integer"}, "stamp_h": {"type": "integer"}, "tiles": {"type": "array"},
+			"z": {"type": "integer"},
+		}),
+		ctrl.mcp._tool("set_passage", "图块通行。kind: o|x|star；dirs: up,down,left,right 阻挡。", {
+			"tile_id": {"type": "integer"},
+			"kind": {"type": "string"},
+			"up": {"type": "boolean"}, "down": {"type": "boolean"},
+			"left": {"type": "boolean"}, "right": {"type": "boolean"},
+		}, ["tile_id"]),
+		ctrl.mcp._tool("refresh_autotiles", "重算整张地面自动图块接缝。", {}),
+	]

@@ -89,7 +89,7 @@ func save_stamp(args: Dictionary) -> Dictionary:
 
 
 
-func list_stamps() -> Dictionary:
+func list_stamps(_args := {}) -> Dictionary:
 	var p = ctrl.pack()
 	if p == null:
 		return ctrl.mcp._err("no pack")
@@ -114,4 +114,22 @@ func apply_stamp_named(args: Dictionary) -> Dictionary:
 	ctrl._ensure_paint().set_stamp(int(st.get("w", 1)), int(st.get("h", 1)), tiles)
 	return paint_stamp(args)
 
+func op_names() -> Array:
+	return ["set_stamp", "paint_stamp", "stamp_from_tileset", "save_stamp", "apply_stamp_named", "list_stamps"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("set_stamp", "设置多格图章。tiles 行优先。", {
+			"w": {"type": "integer"}, "h": {"type": "integer"}, "tiles": {"type": "array"},
+		}, ["w", "h", "tiles"]),
+		ctrl.mcp._tool("paint_stamp", "在原点盖图章。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("stamp_from_tileset", "从图块套矩形做成图章。", {
+			"tab": {"type": "string"}, "col": {"type": "integer"}, "row": {"type": "integer"},
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+		}, ["col", "row"]),
+		ctrl.mcp._tool("save_stamp", "把当前图章存成命名图章。", {"name": {"type": "string"}}, ["name"]),
+		ctrl.mcp._tool("list_stamps", "列出命名图章。", {}),
+	]

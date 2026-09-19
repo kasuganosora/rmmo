@@ -5,7 +5,7 @@ var ctrl
 func _init(c):
 	ctrl = c
 
-func undo() -> Dictionary:
+func undo(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -15,7 +15,7 @@ func undo() -> Dictionary:
 
 
 
-func redo() -> Dictionary:
+func redo(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -25,7 +25,7 @@ func redo() -> Dictionary:
 
 
 
-func list_undo() -> Dictionary:
+func list_undo(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -38,4 +38,12 @@ func list_undo() -> Dictionary:
 		items.append({"t": str(cmd.get("t", "")), "cells": d._cmd_cells(cmd).size() if d.has_method("_cmd_cells") else 0})
 	return ctrl.mcp._ok({"count": stack.size() if typeof(stack) == TYPE_ARRAY else 0, "items": items})
 
+func op_names() -> Array:
+	return ["undo", "redo", "list_undo"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("undo", "撤销上次绘制/写入。", {}),
+		ctrl.mcp._tool("redo", "重做。", {}),
+		ctrl.mcp._tool("list_undo", "查看撤销栈。", {}),
+	]

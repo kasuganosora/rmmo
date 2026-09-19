@@ -111,7 +111,7 @@ func list_entities(args: Dictionary) -> Dictionary:
 
 
 
-func list_layers() -> Dictionary:
+func list_layers(_args := {}) -> Dictionary:
 	var paint = ctrl._ensure_paint()
 	var rows: Array = []
 	for z in range(6):
@@ -128,7 +128,7 @@ func list_layers() -> Dictionary:
 
 
 
-func list_tilesets() -> Dictionary:
+func list_tilesets(_args := {}) -> Dictionary:
 	var p = ctrl.pack()
 	if p == null:
 		return ctrl.mcp._err("no pack")
@@ -151,7 +151,7 @@ func list_tilesets() -> Dictionary:
 
 
 
-func get_map_settings() -> Dictionary:
+func get_map_settings(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	var p = ctrl.pack()
 	if d == null:
@@ -286,7 +286,7 @@ func find_tiles(args: Dictionary) -> Dictionary:
 
 
 
-func get_weather() -> Dictionary:
+func get_weather(_args := {}) -> Dictionary:
 	var e = ctrl.ed()
 	var kind = "clear"
 	var inten = 0.0
@@ -305,4 +305,45 @@ func get_weather() -> Dictionary:
 		"label": str(atm.get("label", "")),
 	})
 
+func op_names() -> Array:
+	return ["get_tile", "get_tiles_rect", "list_entities", "list_layers", "list_tilesets", "get_map_settings", "find_tiles", "pick_tileset", "get_weather", "preview_tileset", "preview_charset"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("get_tile", "读一格：z0-5、ext、meta、通行。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("get_tiles_rect", "读矩形一层的 tile_id。默认当前层，最大 80×80。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+			"x2": {"type": "integer"}, "y2": {"type": "integer"},
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("list_entities", "列出地图实体。kind: npc|event|warp；可加范围。", {
+			"kind": {"type": "string"},
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+		}),
+		ctrl.mcp._tool("list_layers", "图层列表与当前层。", {}),
+		ctrl.mcp._tool("list_tilesets", "包内图块套。", {}),
+		ctrl.mcp._tool("get_map_settings", "地图设置：尺寸、起点、BGM、光照、室内/室外。", {}),
+		ctrl.mcp._tool("find_tiles", "按用途搜 tile_id。query: 草|水|沙|墙|树|屋顶…", {
+			"query": {"type": "string"},
+		}, ["query"]),
+		ctrl.mcp._tool("pick_tileset", "从图块套格子取 tile_id。tab + col/row，或 px/py 相对预览图。", {
+			"tab": {"type": "string"}, "col": {"type": "integer"}, "row": {"type": "integer"},
+			"px": {"type": "integer"}, "py": {"type": "integer"},
+		}),
+		ctrl.mcp._tool("get_weather", "当前预览天气（与光照叠乘）。", {}),
+		ctrl.mcp._tool("preview_tileset", "渲当前图块套 A/B/C/D/E，返回 PNG + id 目录。", {
+			"tab": {"type": "string", "description": "A|B|C|D|E"},
+			"tileset_id": {"type": "string"},
+			"max_px": {"type": "integer"},
+			"path": {"type": "string"},
+		}),
+		ctrl.mcp._tool("preview_charset", "渲行走图四向（或指定朝向）。", {
+			"charset": {"type": "string"}, "index": {"type": "integer"},
+			"direction": {"type": "integer"}, "max_px": {"type": "integer"},
+			"path": {"type": "string"},
+		}, ["charset"]),
+	]

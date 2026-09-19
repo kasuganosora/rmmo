@@ -62,7 +62,7 @@ func set_map_settings(args: Dictionary) -> Dictionary:
 	if p:
 		p.dirty = true
 	ctrl._persist()
-	return ctrl.get_map_settings()
+	return ctrl.dispatch("get_map_settings", {})
 
 
 
@@ -135,7 +135,7 @@ func add_bookmark(args: Dictionary) -> Dictionary:
 
 
 
-func list_bookmarks() -> Dictionary:
+func list_bookmarks(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -173,7 +173,7 @@ func add_region(args: Dictionary) -> Dictionary:
 
 
 
-func list_regions() -> Dictionary:
+func list_regions(_args := {}) -> Dictionary:
 	var d = ctrl.doc()
 	if d == null:
 		return ctrl.mcp._err("no map")
@@ -224,6 +224,46 @@ func set_weather_preview(args: Dictionary) -> Dictionary:
 		e._apply_editor_atmosphere()
 	elif e.has_method("_apply_editor_light"):
 		e._apply_editor_light()
-	return ctrl.get_weather()
+	return ctrl.dispatch("get_weather", {})
 
+func op_names() -> Array:
+	return ["set_map_settings", "set_map_tileset", "set_layer", "set_layer_visible", "set_layer_alpha", "set_reference", "set_weather_preview", "add_region", "list_regions", "add_bookmark", "list_bookmarks", "goto_bookmark"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("set_map_settings", "改地图设置。environment: outdoor|indoor；或 indoor: bool。", {
+			"name": {"type": "string"}, "bgm": {"type": "string"},
+			"light_preset": {"type": "integer"},
+			"light_fx_color": {"type": "string", "description": "#rrggbb 或 r,g,b"},
+			"start_x": {"type": "integer"}, "start_y": {"type": "integer"},
+			"tileset_id": {"type": "string"}, "start_map": {"type": "boolean"},
+			"water_through": {"type": "boolean"},
+			"far_scroll_x": {"type": "number"}, "far_scroll_y": {"type": "number"},
+			"environment": {"type": "string", "description": "outdoor|indoor"},
+			"indoor": {"type": "boolean"},
+		}),
+		ctrl.mcp._tool("set_map_tileset", "当前地图换图块套。", {"tileset_id": {"type": "string"}}, ["tileset_id"]),
+		ctrl.mcp._tool("set_layer", "当前绘制层。z: 0-5 或 ext: far|water|roof|light|…", {
+			"z": {"type": "integer"}, "ext": {"type": "string"},
+		}),
+		ctrl.mcp._tool("set_layer_visible", "显示/隐藏图层（仅预览）。", {
+			"z": {"type": "integer"}, "ext": {"type": "string"}, "visible": {"type": "boolean"},
+		}),
+		ctrl.mcp._tool("set_layer_alpha", "预览桶透明度。bucket: Ground|Upper|Roof|Below|Fx", {
+			"bucket": {"type": "string"}, "alpha": {"type": "number"},
+		}, ["bucket"]),
+		ctrl.mcp._tool("set_reference", "参考图半透明叠在地图上。path 空则清除。", {
+			"path": {"type": "string"}, "alpha": {"type": "number"},
+		}),
+		ctrl.mcp._tool("add_region", "命名区域。", {
+			"name": {"type": "string"},
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+		}, ["name", "x", "y"]),
+		ctrl.mcp._tool("list_regions", "列出区域。", {}),
+		ctrl.mcp._tool("add_bookmark", "书签。", {
+			"name": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"},
+		}, ["name"]),
+		ctrl.mcp._tool("list_bookmarks", "列出书签。", {}),
+		ctrl.mcp._tool("goto_bookmark", "跳到书签。", {"name": {"type": "string"}}, ["name"]),
+	]

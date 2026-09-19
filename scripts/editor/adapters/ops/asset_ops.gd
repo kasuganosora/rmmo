@@ -20,4 +20,12 @@ func import_asset(args: Dictionary) -> Dictionary:
 		return ctrl.mcp._err("import failed")
 	return ctrl.mcp._ok({"id": id, "kind": kind})
 
+func op_names() -> Array:
+	return ["import_asset"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("import_asset", "导入素材文件。kind: charset|faces|tilesheet|audio/bgm|…", {
+			"path": {"type": "string"}, "kind": {"type": "string"},
+		}, ["path", "kind"]),
+	]

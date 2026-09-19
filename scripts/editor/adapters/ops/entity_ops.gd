@@ -67,4 +67,16 @@ func place_chest(args: Dictionary) -> Dictionary:
 	ctrl.mcp._refresh(c)
 	return ctrl.mcp._ok({"chest": ev})
 
+func op_names() -> Array:
+	return ["update_entity", "place_chest"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("update_entity", "改一格已有实体字段（不整格覆盖）。事件可带 commands/pages。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+		}, ["x", "y"]),
+		ctrl.mcp._tool("place_chest", "放置宝箱事件。", {
+			"x": {"type": "integer"}, "y": {"type": "integer"},
+			"item_id": {"type": "string"}, "qty": {"type": "integer"}, "gold": {"type": "integer"},
+		}, ["x", "y"]),
+	]

@@ -119,4 +119,25 @@ func reparent_map(args: Dictionary) -> Dictionary:
 		ctrl.ed()._refresh_tree()
 	return ctrl.mcp._ok({"map_id": mid, "parent": parent})
 
+func op_names() -> Array:
+	return ["create_map", "delete_map", "rename_map", "duplicate_map", "resize_map", "reparent_map"]
 
+func tools() -> Array:
+	return [
+		ctrl.mcp._tool("create_map", "新建地图并切换过去。", {
+			"map_id": {"type": "string"}, "name": {"type": "string"},
+			"parent": {"type": "string"}, "w": {"type": "integer"}, "h": {"type": "integer"},
+			"tileset": {"type": "string"},
+		}),
+		ctrl.mcp._tool("delete_map", "删除地图。", {"map_id": {"type": "string"}}, ["map_id"]),
+		ctrl.mcp._tool("rename_map", "重命名地图。", {
+			"map_id": {"type": "string"}, "name": {"type": "string"},
+		}, ["map_id", "name"]),
+		ctrl.mcp._tool("duplicate_map", "复制地图。", {"map_id": {"type": "string"}}, ["map_id"]),
+		ctrl.mcp._tool("resize_map", "改变当前地图宽高（裁切/填空）。", {
+			"w": {"type": "integer"}, "h": {"type": "integer"},
+		}, ["w", "h"]),
+		ctrl.mcp._tool("reparent_map", "把地图挂到另一个地图下。", {
+			"map_id": {"type": "string"}, "parent": {"type": "string"},
+		}, ["map_id"]),
+	]
