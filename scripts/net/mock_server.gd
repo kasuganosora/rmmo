@@ -58,6 +58,8 @@ const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
 const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+const DailyModule = preload("res://scripts/net/server/daily_module.gd")
+var _daily_module_logic: DailyModule = DailyModule.new(self)
 const ProgressionModule = preload("res://scripts/net/server/progression_module.gd")
 var _progression_module_logic: ProgressionModule = ProgressionModule.new(self)
 const EquipmentModule = preload("res://scripts/net/server/equipment_module.gd")
@@ -1155,19 +1157,9 @@ func _clear_pending_loot_on_death(actions: Array) -> void:
 func _quest_update_action() -> Dictionary:
 	return _quest_module_logic._quest_update_action()
 func try_daily_board_list() -> Array:
-	if quest_journal == null:
-		return []
-	if quest_journal.has_method("try_daily_board_list"):
-		return quest_journal.try_daily_board_list()
-	return []
-
-
+	return _daily_module_logic.try_daily_board_list()
 func snapshot_daily() -> Dictionary:
-	if quest_journal != null and quest_journal.has_method("snapshot_daily"):
-		return quest_journal.snapshot_daily()
-	return {"daily_date": "", "daily": []}
-
-
+	return _daily_module_logic.snapshot_daily()
 func _quest_note_kill_actions(npc_id: String) -> Array:
 	return _quest_module_logic._quest_note_kill_actions(npc_id)
 func _quest_note_talk_actions(npc_id: String) -> Array:
@@ -2238,47 +2230,13 @@ func _mail_inject_welcome() -> void:
 	_mail_module_logic._mail_inject_welcome()
 ## Local calendar date YYYY-MM-DD (MockServer host clock).
 func _attendance_today_ymd() -> String:
-	var d: Dictionary = Time.get_datetime_dict_from_system()
-	return "%04d-%02d-%02d" % [int(d.get("year", 0)), int(d.get("month", 0)), int(d.get("day", 0))]
-
-
+	return _daily_module_logic._attendance_today_ymd()
 ## Test helper: set last claim ymd ("" clears so next grant can fire).
 func force_attendance_ymd(ymd: String) -> void:
-	_attendance_last_ymd = str(ymd).strip_edges()
-
-
+	_daily_module_logic.force_attendance_ymd(ymd)
 ## Once per local day: mail gold+potion from 系统; queue system_message. Returns actions.
 func _attendance_try_grant() -> Array:
-	var actions: Array = []
-	var today := _attendance_today_ymd()
-	if today.is_empty():
-		return actions
-	if _attendance_last_ymd == today:
-		return actions
-	if mailbox == null:
-		mailbox = Mailbox.new()
-	var to_name := _party_self_name()
-	var attach: Array = [{"id": "potion_hp_small", "qty": 1}]
-	var add_r: Dictionary = mailbox.try_add(
-		"系统",
-		to_name,
-		"每日签到奖励",
-		"感谢你今日登录！请领取签到奖励：金币与回复药水。",
-		50,
-		attach
-	)
-	if not bool(add_r.get("ok", false)):
-		# Inbox full — skip claim so we can retry next enter; do not stamp last ymd.
-		actions.append({"type": "system_message", "text": "邮箱已满，今日签到奖励未能送达。"})
-		_pending_tick_actions.append_array(actions)
-		return actions
-	_attendance_last_ymd = today
-	actions.append({"type": "system_message", "text": "今日签到奖励已发送至邮箱。"})
-	actions.append(_mail_update_action())
-	_pending_tick_actions.append_array(actions)
-	return actions
-
-
+	return _daily_module_logic._attendance_try_grant()
 func _resolve_mail_recipient(to_name: String) -> Dictionary:
 	return _mail_module_logic._resolve_mail_recipient(to_name)
 func try_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> Dictionary:
