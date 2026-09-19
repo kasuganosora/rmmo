@@ -6,6 +6,8 @@ const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
 const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
 const SelectorsModule = preload("res://scripts/editor/interface/inspector/selectors_module.gd")
 const NpcModule = preload("res://scripts/editor/interface/inspector/npc_module.gd")
+const PagesModule = preload("res://scripts/editor/interface/inspector/pages_module.gd")
+var _pages_module_logic: PagesModule = PagesModule.new(self)
 var _npc_module_logic: NpcModule = NpcModule.new(self)
 var _selectors_module_logic: SelectorsModule = SelectorsModule.new(self)
 
@@ -737,144 +739,29 @@ func _sync_kind() -> void:
 
 
 func _reload_pages() -> void:
-	if _pages.is_empty():
-		_pages = [EventCommands.default_page()]
-	_page_idx = clampi(_page_idx, 0, _pages.size() - 1)
-	if _page_opt:
-		_page_opt.clear()
-		for i in range(_pages.size()):
-			var p: Dictionary = _pages[i] if typeof(_pages[i]) == TYPE_DICTIONARY else {}
-			_page_opt.add_item("%d · %s" % [i + 1, EventCommands.page_when_label(p)])
-		_page_opt.select(_page_idx)
-	_load_when()
-	_reload_cmds()
-
-
+	_pages_module_logic._reload_pages()
 func _on_page(idx: int) -> void:
-	if _loading:
-		return
-	_store_when()
-	_store_params()
-	_page_idx = idx
-	_load_when()
-	_reload_cmds()
-
-
+	_pages_module_logic._on_page(idx)
 func _add_page() -> void:
-	_store_when()
-	_pages.append(EventCommands.default_page())
-	_page_idx = _pages.size() - 1
-	_reload_pages()
-
-
+	_pages_module_logic._add_page()
 func _del_page() -> void:
-	if _pages.size() <= 1:
-		return
-	_pages.remove_at(_page_idx)
-	_page_idx = mini(_page_idx, _pages.size() - 1)
-	_reload_pages()
-
-
+	_pages_module_logic._del_page()
 func _load_when() -> void:
-	var page := _current_page()
-	var when_v: Variant = page.get("when", {})
-	var when: Dictionary = when_v if typeof(when_v) == TYPE_DICTIONARY else {}
-	var ss := str(when.get("self_switch", "")).strip_edges()
-	if _self_sw:
-		var sel := 0
-		for i in range(_self_sw.item_count):
-			if _self_sw.get_item_text(i) == ss:
-				sel = i
-				break
-		_self_sw.select(sel)
-	if _switch_id:
-		_switch_id.text = str(when.get("switch", when.get("switch_id", "")))
-	_select_switch_opt(_switch_opt, str(when.get("switch", when.get("switch_id", ""))))
-	var item_id := ""
-	if when.has("item"):
-		var iv: Variant = when.get("item")
-		if typeof(iv) == TYPE_DICTIONARY:
-			item_id = str(iv.get("item_id", iv.get("id", "")))
-		else:
-			item_id = str(iv)
-	if item_id == "":
-		item_id = str(when.get("item_id", "")).strip_edges()
-	if _item_when:
-		var picked := 0
-		for i in range(_item_when.item_count):
-			if str(_item_when.get_item_metadata(i)) == item_id:
-				picked = i
-				break
-		_item_when.select(picked)
-	var trig := str(page.get("trigger", "")).strip_edges()
-	if trig == "":
-		trig = _event_trigger
-	_select_trigger(trig)
-	_load_graphic()
-
-
+	_pages_module_logic._load_when()
 func _store_when() -> void:
-	if _loading:
-		return
-	var page := _current_page()
-	var ss := _self_sw.get_item_text(_self_sw.selected) if _self_sw else "无"
-	var iid := ""
-	if _item_when and _item_when.item_count > 0:
-		iid = str(_item_when.get_item_metadata(_item_when.selected))
-	EventCommands.set_page_when(page, ss, _switch_id.text if _switch_id else "", iid)
-	page["trigger"] = EventCommands.trigger_id_of(_trigger)
-	_event_trigger = str(page["trigger"])
-	if _page_opt and _page_idx >= 0 and _page_idx < _page_opt.item_count:
-		_page_opt.set_item_text(_page_idx, "%d · %s" % [_page_idx + 1, EventCommands.page_when_label(page)])
-
-
+	_pages_module_logic._store_when()
 func _load_graphic() -> void:
-	var page := _current_page()
-	var g: Dictionary = EventCommands.page_graphic(page)
-	var was := _loading
-	_loading = true
-	if _g_charset:
-		_g_charset.text = str(g.get("charset", ""))
-	_select_g_charset_opt(str(g.get("charset", "")))
-	if _g_index:
-		_g_index.value = int(g.get("index", 0))
-	if _g_dir:
-		_select_dir(_g_dir, int(g.get("direction", 2)))
-	_loading = was
-
-
+	_pages_module_logic._load_graphic()
 func _store_graphic() -> void:
-	if _loading:
-		return
-	var page := _current_page()
-	var cs := _g_charset.text.strip_edges() if _g_charset else ""
-	var idx := int(_g_index.value) if _g_index else 0
-	var d := _dir_value(_g_dir) if _g_dir else 2
-	EventCommands.set_page_graphic(page, cs, idx, d)
-
-
+	_pages_module_logic._store_graphic()
 func _select_g_charset_opt(id: String) -> void:
 	_selectors_module_logic._select_g_charset_opt(id)
 func _on_g_charset_opt(idx: int) -> void:
 	_selectors_module_logic._on_g_charset_opt(idx)
 func _current_page() -> Dictionary:
-	if _page_idx < 0 or _page_idx >= _pages.size():
-		_pages = [EventCommands.default_page()]
-		_page_idx = 0
-	if typeof(_pages[_page_idx]) != TYPE_DICTIONARY:
-		_pages[_page_idx] = EventCommands.default_page()
-	return _pages[_page_idx]
-
-
+	return _pages_module_logic._current_page()
 func _page_commands() -> Array:
-	var page := _current_page()
-	var cv: Variant = page.get("commands", [])
-	if typeof(cv) != TYPE_ARRAY:
-		cv = []
-		page["commands"] = cv
-	return cv
-
-
+	return _pages_module_logic._page_commands()
 func _reload_cmds() -> void:
 	if _cmds == null:
 		return
