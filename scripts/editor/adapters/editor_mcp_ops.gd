@@ -23,6 +23,8 @@ const MapCrudOps = preload("res://scripts/editor/adapters/ops/map_crud_ops.gd")
 const StampOps = preload("res://scripts/editor/adapters/ops/stamp_ops.gd")
 const TilesOps = preload("res://scripts/editor/adapters/ops/tiles_ops.gd")
 const PaintOps = preload("res://scripts/editor/adapters/ops/paint_ops.gd")
+const MapSettingsOps = preload("res://scripts/editor/adapters/ops/map_settings_ops.gd")
+var _map_settings_ops_logic: MapSettingsOps = MapSettingsOps.new(self)
 var _paint_ops_logic: PaintOps = PaintOps.new(self)
 var _tiles_ops_logic: TilesOps = TilesOps.new(self)
 var _stamp_ops_logic: StampOps = StampOps.new(self)
@@ -534,63 +536,7 @@ func get_map_settings() -> Dictionary:
 
 
 func set_map_settings(args: Dictionary) -> Dictionary:
-	var d = doc()
-	var p = pack()
-	if d == null:
-		return mcp._err("no map")
-	if args.has("name"):
-		var nm := str(args.get("name", "")).strip_edges()
-		if nm != "" and p and p.has_method("rename_map"):
-			p.rename_map(str(d.map_id), nm)
-		elif nm != "":
-			d.display_name = nm
-			d.dirty = true
-	if args.has("bgm"):
-		d.bgm = str(args.get("bgm", ""))
-		d.dirty = true
-	if args.has("light_preset"):
-		d.light_preset = int(args.get("light_preset", 0))
-		d.dirty = true
-		if ed() and ed().has_method("_apply_editor_light"):
-			ed()._apply_editor_light()
-			ed()._sync_light_controls()
-	if args.has("light_fx_color"):
-		d.light_fx_color = _parse_color(args.get("light_fx_color"), d.light_fx_color)
-		d.dirty = true
-		if ed() and ed().has_method("_apply_editor_fx_color"):
-			ed()._apply_editor_fx_color()
-			ed()._sync_fx_color_controls()
-	if args.has("start_x") or args.has("start_y"):
-		d.start_cell = Vector2i(
-			clampi(int(args.get("start_x", d.start_cell.x)), 0, int(d.width) - 1),
-			clampi(int(args.get("start_y", d.start_cell.y)), 0, int(d.height) - 1)
-		)
-		d.dirty = true
-		if ed() and ed().get("map_field"):
-			ed().map_field.edit_start_cell = d.start_cell
-	if args.has("tileset_id"):
-		set_map_tileset({"tileset_id": args.get("tileset_id")})
-	if args.has("water_through"):
-		d.water_through = bool(args.get("water_through"))
-		d.dirty = true
-	if args.has("environment") or args.has("indoor"):
-		if args.has("environment"):
-			d.environment = MapExt.normalize_environment(args.get("environment"))
-		else:
-			d.environment = MapExt.normalize_environment(args.get("indoor"))
-		d.dirty = true
-	if args.has("far_scroll_x") or args.has("far_scroll_y"):
-		d.far_scroll = Vector2(float(args.get("far_scroll_x", d.far_scroll.x)), float(args.get("far_scroll_y", d.far_scroll.y)))
-		d.dirty = true
-	if bool(args.get("start_map", false)) and p:
-		p.start_map = str(d.map_id)
-		p.dirty = true
-	if p:
-		p.dirty = true
-	_persist()
-	return get_map_settings()
-
-
+	return _map_settings_ops_logic.set_map_settings(args)
 func create_map(args: Dictionary) -> Dictionary:
 	return _map_crud_ops_logic.create_map(args)
 func delete_map(args: Dictionary) -> Dictionary:
@@ -604,51 +550,11 @@ func resize_map(args: Dictionary) -> Dictionary:
 func reparent_map(args: Dictionary) -> Dictionary:
 	return _map_crud_ops_logic.reparent_map(args)
 func set_map_tileset(args: Dictionary) -> Dictionary:
-	var p = pack()
-	var d = doc()
-	if p == null or d == null:
-		return mcp._err("no map")
-	var ts := str(args.get("tileset_id", args.get("tileset", ""))).strip_edges()
-	if ts == "" or not p.tilesets.has(ts):
-		return mcp._err("unknown tileset")
-	p.set_map_tileset(str(d.map_id), ts)
-	_persist()
-	if ed() and ed().has_method("_sync_palette"):
-		ed()._sync_palette()
-	if ed() and ed().has_method("_reload_field"):
-		ed()._reload_field()
-	return mcp._ok({"tileset_id": ts, "map_id": str(d.map_id)})
-
-
+	return _map_settings_ops_logic.set_map_tileset(args)
 func set_layer(args: Dictionary) -> Dictionary:
-	var paint = _ensure_paint()
-	if args.has("ext") and str(args.get("ext", "")).strip_edges() != "":
-		var ext := str(args.get("ext", "")).strip_edges()
-		if MapExt.LAYER_IDS.find(ext) < 0:
-			return mcp._err("unknown ext layer")
-		paint.layer_z = -1
-		paint.ext_layer = ext
-	elif args.has("z"):
-		paint.layer_z = clampi(int(args.get("z", 0)), 0, 5)
-		paint.ext_layer = ""
-	else:
-		return mcp._err("z or ext required")
-	return mcp._ok({"z": paint.layer_z, "ext": str(paint.ext_layer)})
-
-
+	return _map_settings_ops_logic.set_layer(args)
 func set_layer_visible(args: Dictionary) -> Dictionary:
-	var field = ed().get("map_field") if ed() else null
-	if field == null:
-		return mcp._err("no map field")
-	var vis := bool(args.get("visible", true))
-	if args.has("ext") and str(args.get("ext", "")) != "":
-		field.set_layer_hidden_ext(str(args.get("ext")), not vis)
-		return mcp._ok({"ext": str(args.get("ext")), "visible": vis})
-	var z := int(args.get("z", 0))
-	field.set_layer_hidden_z(z, not vis)
-	return mcp._ok({"z": z, "visible": vis})
-
-
+	return _map_settings_ops_logic.set_layer_visible(args)
 func paint_rect(args: Dictionary) -> Dictionary:
 	return _paint_ops_logic.paint_rect(args)
 func paint_fill(args: Dictionary) -> Dictionary:
@@ -910,86 +816,19 @@ func flip_tiles(args: Dictionary) -> Dictionary:
 func list_undo() -> Dictionary:
 	return _history_ops_logic.list_undo()
 func add_bookmark(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	if not ("bookmarks" in d):
-		d.bookmarks = []
-	var c: Vector2i = mcp._cursor()
-	var bm := {
-		"name": str(args.get("name", "")).strip_edges(),
-		"x": int(args.get("x", c.x)),
-		"y": int(args.get("y", c.y)),
-	}
-	if str(bm["name"]) == "":
-		return mcp._err("name required")
-	d.bookmarks.append(bm)
-	d.dirty = true
-	return mcp._ok({"bookmark": bm})
-
-
+	return _map_settings_ops_logic.add_bookmark(args)
 func list_bookmarks() -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	var bms: Array = d.bookmarks if "bookmarks" in d else []
-	return mcp._ok({"bookmarks": bms})
-
-
+	return _map_settings_ops_logic.list_bookmarks()
 func goto_bookmark(args: Dictionary) -> Dictionary:
-	var name := str(args.get("name", "")).strip_edges()
-	for bm in list_bookmarks().get("bookmarks", []):
-		if typeof(bm) == TYPE_DICTIONARY and str(bm.get("name", "")) == name:
-			mcp.call_tool("set_cursor", {"x": int(bm.get("x", 0)), "y": int(bm.get("y", 0))})
-			return mcp._ok({"bookmark": bm})
-	return mcp._err("bookmark not found")
-
-
+	return _map_settings_ops_logic.goto_bookmark(args)
 func add_region(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	if not ("regions" in d):
-		d.regions = []
-	var r := {
-		"name": str(args.get("name", "")).strip_edges(),
-		"x": int(args.get("x", 0)),
-		"y": int(args.get("y", 0)),
-		"w": maxi(int(args.get("w", 1)), 1),
-		"h": maxi(int(args.get("h", 1)), 1),
-	}
-	d.regions.append(r)
-	d.dirty = true
-	return mcp._ok({"region": r})
-
-
+	return _map_settings_ops_logic.add_region(args)
 func list_regions() -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	return mcp._ok({"regions": d.regions if "regions" in d else []})
-
-
+	return _map_settings_ops_logic.list_regions()
 func set_reference(args: Dictionary) -> Dictionary:
-	var field = ed().get("map_field") if ed() else null
-	if field == null:
-		return mcp._err("no map field")
-	var path := str(args.get("path", "")).strip_edges()
-	var alpha := clampf(float(args.get("alpha", 0.35)), 0.0, 1.0)
-	if field.has_method("set_reference_image"):
-		field.set_reference_image(path, alpha)
-	return mcp._ok({"path": path, "alpha": alpha})
-
-
+	return _map_settings_ops_logic.set_reference(args)
 func set_layer_alpha(args: Dictionary) -> Dictionary:
-	var field = ed().get("map_field") if ed() else null
-	if field == null or not field.has_method("set_bucket_alpha"):
-		return mcp._err("no map field")
-	var a := clampf(float(args.get("alpha", 1)), 0.0, 1.0)
-	field.set_bucket_alpha(str(args.get("bucket", "Ground")), a)
-	return mcp._ok({"bucket": str(args.get("bucket")), "alpha": a})
-
-
+	return _map_settings_ops_logic.set_layer_alpha(args)
 func save_stamp(args: Dictionary) -> Dictionary:
 	return _stamp_ops_logic.save_stamp(args)
 func list_stamps() -> Dictionary:
@@ -1015,29 +854,7 @@ func get_weather() -> Dictionary:
 
 
 func set_weather_preview(args: Dictionary) -> Dictionary:
-	var e = ed()
-	if e == null:
-		return mcp._err("no editor")
-	var Weather = load("res://scripts/map/weather.gd")
-	var kind: String = Weather.normalize(str(args.get("kind", "clear")))
-	var inten := clampf(float(args.get("intensity", 0.8)), 0.0, 1.0)
-	if kind == "clear":
-		inten = 0.0
-	e._preview_weather = kind
-	e._preview_weather_i = inten
-	if e.get("_weather_bar") != null:
-		var bar: OptionButton = e._weather_bar
-		for i in range(bar.item_count):
-			if str(bar.get_item_metadata(i)) == kind:
-				bar.select(i)
-				break
-	if e.has_method("_apply_editor_atmosphere"):
-		e._apply_editor_atmosphere()
-	elif e.has_method("_apply_editor_light"):
-		e._apply_editor_light()
-	return get_weather()
-
-
+	return _map_settings_ops_logic.set_weather_preview(args)
 func _color_hex(v: Variant) -> String:
 	var c := Color(1, 1, 1, 1)
 	if typeof(v) == TYPE_COLOR:
