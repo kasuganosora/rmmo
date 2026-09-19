@@ -1,4 +1,4 @@
-extends RefCounted
+extends "res://scripts/util/catalog_base.gd"
 ## Item definitions loaded from JSON (shared path with future GameServer).
 ## Template fields: id, name, type, rarity, stack_max, use_effect, sell_price (+ legacy consumable/effect).
 
@@ -7,29 +7,13 @@ const DATA_PATHS: Array[String] = [
 	"res://data/combat/items.json",
 ]
 
-var _by_id: Dictionary = {}
+
+func _data_paths() -> Array:
+	return DATA_PATHS
 
 
-func load_catalog() -> void:
-	_by_id.clear()
-	var raw: Variant = _load_json_first(DATA_PATHS)
-	if typeof(raw) != TYPE_DICTIONARY:
-		_load_builtin_fallback()
-		return
-	var list_v: Variant = (raw as Dictionary).get("items", [])
-	if typeof(list_v) != TYPE_ARRAY:
-		_load_builtin_fallback()
-		return
-	for item in list_v:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = item
-		var iid := str(d.get("id", "")).strip_edges()
-		if iid.is_empty():
-			continue
-		_by_id[iid] = _normalize_def(d)
-	if _by_id.is_empty():
-		_load_builtin_fallback()
+func _list_key() -> String:
+	return "items"
 
 
 ## Normalize legacy consumable/effect into type / use_effect / stack_max.
@@ -93,65 +77,16 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 
 
 func get_item(item_id: String) -> Dictionary:
-	item_id = item_id.strip_edges()
-	if _by_id.has(item_id):
-		return (_by_id[item_id] as Dictionary).duplicate(true)
-	return {}
+	return get_def(item_id)
 
 
 func has_item(item_id: String) -> bool:
-	return _by_id.has(item_id.strip_edges())
+	return has_id(item_id)
 
 
 ## Runtime inject for tests / pack overrides. Does not persist.
 func register_item(def: Dictionary) -> String:
-	var iid := str(def.get("id", "")).strip_edges()
-	if iid.is_empty():
-		return ""
-	_by_id[iid] = _normalize_def(def)
-	return iid
-
-
-func all_ids() -> Array:
-	return _by_id.keys()
-
-
-## Ordered list of item defs for HUD (text labels).
-func list_all() -> Array:
-	var ids: Array = _by_id.keys()
-	ids.sort()
-	var out: Array = []
-	for iid in ids:
-		out.append(get_item(str(iid)))
-	return out
-
-
-
-func icon_index_of(item_id: String) -> int:
-	var def := get_item(item_id)
-	if def.is_empty():
-		return -1
-	return int(def.get("icon_index", -1))
-
-
-func icon_id_of(item_id: String) -> String:
-	var def := get_item(item_id)
-	if def.is_empty():
-		return ""
-	return str(def.get("icon", "")).strip_edges()
-
-
-func icon_ref_of(item_id: String) -> String:
-	var def := get_item(item_id)
-	if def.is_empty():
-		return ""
-	var r := str(def.get("icon_ref", "")).strip_edges()
-	if not r.is_empty():
-		return r
-	var iid := str(def.get("icon", "")).strip_edges()
-	if iid.is_empty():
-		return ""
-	return "content://icon/%s" % iid
+	return register_def(def)
 
 
 func _load_builtin_fallback() -> void:
@@ -235,19 +170,3 @@ func _load_builtin_fallback() -> void:
 		},
 	]:
 		_by_id[str(d["id"])] = _normalize_def(d)
-
-
-static func _load_json_first(paths: Array) -> Variant:
-	for p in paths:
-		var path := str(p)
-		if not FileAccess.file_exists(path):
-			continue
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f == null:
-			continue
-		var text := f.get_as_text()
-		f.close()
-		var parsed: Variant = JSON.parse_string(text)
-		if typeof(parsed) == TYPE_DICTIONARY:
-			return parsed
-	return null
