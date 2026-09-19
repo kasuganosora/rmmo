@@ -45,6 +45,8 @@ const FriendsModule = preload("res://scripts/net/server/friends_module.gd")
 const MailModule = preload("res://scripts/net/server/mail_module.gd")
 const TradeModule = preload("res://scripts/net/server/trade_module.gd")
 const DuelModule = preload("res://scripts/net/server/duel_module.gd")
+const LootModule = preload("res://scripts/net/server/loot_module.gd")
+var _loot_module_logic: LootModule = LootModule.new(self)
 var _duel_module_logic: DuelModule = DuelModule.new(self)
 var _trade_module_logic: TradeModule = TradeModule.new(self)
 var _mail_module_logic: MailModule = MailModule.new(self)
@@ -3303,127 +3305,33 @@ func try_inventory_lock(item_id: String, on: bool) -> Dictionary:
 ## --- Ground bags + loot UI (bag-backed; close keeps items) ---
 
 func snapshot_ground_bags() -> Array:
-	var out: Array = []
-	for bid in _ground_bags.keys():
-		out.append(_bag_snapshot(str(bid)))
-	return out
-
-
+	return _loot_module_logic.snapshot_ground_bags()
 func ground_bag_count() -> int:
-	return _ground_bags.size()
-
-
+	return _loot_module_logic.ground_bag_count()
 func get_ground_bag(bag_id: String) -> Dictionary:
-	bag_id = bag_id.strip_edges()
-	if bag_id.is_empty() or not _ground_bags.has(bag_id):
-		return {}
-	return _bag_snapshot(bag_id)
-
-
+	return _loot_module_logic.get_ground_bag(bag_id)
 ## Compatibility: true when an open loot UI session has remaining items.
 func has_pending_loot() -> bool:
-	return not _open_loot_bag_id.is_empty() and not _open_bag_items().is_empty()
-
-
+	return _loot_module_logic.has_pending_loot()
 func pending_loot_snapshot() -> Dictionary:
-	if _open_loot_bag_id.is_empty() or not _ground_bags.has(_open_loot_bag_id):
-		return {}
-	var bag: Dictionary = _ground_bags[_open_loot_bag_id]
-	return {
-		"session_id": _open_loot_bag_id,
-		"bag_id": _open_loot_bag_id,
-		"npc_id": str(bag.get("npc_id", "")),
-		"cell": (bag.get("cell", {"x": 0, "y": 0}) as Dictionary).duplicate(true),
-		"items": _open_bag_items_dup(),
-	}
-
-
+	return _loot_module_logic.pending_loot_snapshot()
 ## Clock used for ground bag created_at / party-loot free TTL (same as spawn).
 func _ground_bag_now() -> float:
-	if combat_stats != null and combat_stats.has_method("now_sec"):
-		return float(combat_stats.now_sec())
-	return float(Time.get_ticks_msec()) / 1000.0
-
-
+	return _loot_module_logic._ground_bag_now()
 ## True when bag owner_id blocks the local player (non-empty, not self, within 60s).
 func _bag_loot_owner_blocks(bag: Dictionary) -> bool:
-	var oid := str(bag.get("owner_id", "")).strip_edges()
-	if oid.is_empty():
-		return false
-	var created_at: float = float(bag.get("created_at", 0.0))
-	# Free after 60s from created_at (same clock as spawn). Age can be large if created_at is old/negative.
-	if (_ground_bag_now() - created_at) >= 60.0:
-		return false
-	var self_id := _party_self_id()
-	if oid == self_id or oid == "player":
-		return false
-	return true
-
-
+	return _loot_module_logic._bag_loot_owner_blocks(bag)
 func _bag_loot_owner_fail_msg(bag: Dictionary) -> String:
-	var oid := str(bag.get("owner_id", "")).strip_edges()
-	var oname := ""
-	var idx := _party_find_member_index(oid)
-	if idx >= 0:
-		oname = str((_party_members[idx] as Dictionary).get("name", "")).strip_edges()
-	if oname != "":
-		return "该掉落属于【%s】。" % oname
-	return "该掉落属于队友。"
-
-
+	return _loot_module_logic._bag_loot_owner_fail_msg(bag)
 ## Public: whether local player may open/take from this bag (auto-pickup uses this).
 func can_loot_ground_bag(bag_id: String) -> bool:
-	bag_id = bag_id.strip_edges()
-	if bag_id.is_empty() or not _ground_bags.has(bag_id):
-		return false
-	return not _bag_loot_owner_blocks(_ground_bags[bag_id])
-
-
+	return _loot_module_logic.can_loot_ground_bag(bag_id)
 ## Open loot UI for a ground bag when player is on/adjacent to its cell.
 func try_open_ground_bag(bag_id: String) -> Dictionary:
-	bag_id = bag_id.strip_edges()
-	var actions: Array = []
-	if awaiting_respawn or (combat_stats != null and not combat_stats.player_alive()):
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if bag_id.is_empty() or not _ground_bags.has(bag_id):
-		actions.append({"type": "system_message", "text": "地上没有该掉落物。"})
-		return {"ok": false, "reason": "missing", "actions": actions}
-	var bag: Dictionary = _ground_bags[bag_id]
-	if _bag_loot_owner_blocks(bag):
-		actions.append({"type": "system_message", "text": _bag_loot_owner_fail_msg(bag)})
-		return {"ok": false, "reason": "not_owner", "actions": actions}
-	var items_v: Variant = bag.get("items", [])
-	var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-	if items.is_empty():
-		_remove_ground_bag(bag_id, actions)
-		actions.append({"type": "system_message", "text": "掉落物已空。"})
-		return {"ok": false, "reason": "empty", "actions": actions}
-	var cell: Dictionary = bag.get("cell", {"x": 0, "y": 0})
-	var bx: int = int(cell.get("x", 0))
-	var by: int = int(cell.get("y", 0))
-	if not _player_adjacent_or_on(bx, by):
-		actions.append({"type": "system_message", "text": "离掉落物太远。"})
-		return {"ok": false, "reason": "too_far", "actions": actions}
-	# Switch open session without destroying previous bag.
-	if not _open_loot_bag_id.is_empty() and _open_loot_bag_id != bag_id:
-		actions.append({"type": "loot_close", "session_id": _open_loot_bag_id, "bag_id": _open_loot_bag_id})
-	_open_loot_bag_id = bag_id
-	actions.append(_loot_open_action())
-	return {"ok": true, "bag_id": bag_id, "actions": actions}
-
-
+	return _loot_module_logic.try_open_ground_bag(bag_id)
 ## Find bag id at cell (merged bags: one per cell).
 func find_ground_bag_at(x: int, y: int) -> String:
-	for bid in _ground_bags.keys():
-		var bag: Dictionary = _ground_bags[bid]
-		var cell: Dictionary = bag.get("cell", {})
-		if int(cell.get("x", -99999)) == x and int(cell.get("y", -99999)) == y:
-			return str(bid)
-	return ""
-
-
-
+	return _loot_module_logic.find_ground_bag_at(x, y)
 ## True when catalog marks item bind-on-pickup (BoP).
 func _item_binds_on_pickup(item_id: String) -> bool:
 	if item_catalog == null:
@@ -3434,153 +3342,15 @@ func _item_binds_on_pickup(item_id: String) -> bool:
 
 ## Add looted/rewarded items; BoP stacks enter bag already bound.
 func _try_add_loot_item(item_id: String, qty: int) -> Dictionary:
-	if inventory == null:
-		return {"ok": false, "added": 0, "reason": "no_inventory"}
-	var bound := _item_binds_on_pickup(item_id)
-	return inventory.try_add_item(item_id, qty, bound)
-
-
+	return _loot_module_logic._try_add_loot_item(item_id, qty)
 ## Take one stack from the open ground bag. qty<=0 means all of that item_id.
 func try_loot_take(item_id: String, qty: int = -1) -> Dictionary:
-	item_id = item_id.strip_edges()
-	var actions: Array = []
-	if awaiting_respawn or (combat_stats != null and not combat_stats.player_alive()):
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if _open_loot_bag_id.is_empty() or not _ground_bags.has(_open_loot_bag_id):
-		actions.append({"type": "system_message", "text": "没有可拾取的掉落。"})
-		return {"ok": false, "reason": "no_loot", "actions": actions}
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "背包不可用。"})
-		return {"ok": false, "reason": "no_inventory", "actions": actions}
-	if item_id.is_empty():
-		actions.append({"type": "system_message", "text": "无效物品。"})
-		return {"ok": false, "reason": "invalid", "actions": actions}
-	var bag: Dictionary = _ground_bags[_open_loot_bag_id]
-	if _bag_loot_owner_blocks(bag):
-		actions.append({"type": "system_message", "text": _bag_loot_owner_fail_msg(bag)})
-		return {"ok": false, "reason": "not_owner", "actions": actions}
-	var items: Array = _open_bag_items()
-	var idx: int = -1
-	var have: int = 0
-	for i in range(items.size()):
-		var d: Dictionary = items[i]
-		if str(d.get("item_id", "")) == item_id:
-			idx = i
-			have = int(d.get("qty", 0))
-			break
-	if idx < 0 or have <= 0:
-		actions.append({"type": "system_message", "text": "掉落中没有该物品。"})
-		return {"ok": false, "reason": "missing", "actions": actions}
-	var want: int = have if qty <= 0 else mini(qty, have)
-	var add_r: Dictionary = _try_add_loot_item(item_id, want)
-	var added: int = int(add_r.get("added", 0))
-	if added <= 0:
-		var reason := str(add_r.get("reason", "bag_full"))
-		var msg := "背包已满，无法拾取 %s。" % item_display_name(item_id)
-		if reason == "stack_full":
-			msg = "该物品已达堆叠上限，无法拾取 %s。" % item_display_name(item_id)
-		actions.append({"type": "system_message", "text": msg})
-		return {"ok": false, "reason": reason if reason != "" else "bag_full", "actions": actions}
-	var left: int = have - added
-	if left > 0:
-		items[idx] = {"item_id": item_id, "qty": left}
-	else:
-		items.remove_at(idx)
-	bag["items"] = items
-	_ground_bags[_open_loot_bag_id] = bag
-	actions.append({
-		"type": "system_message",
-		"text": "获得 %s×%d" % [item_display_name(item_id), added],
-	})
-	actions.append_array(_quest_note_item_actions(item_id, added))
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	if items.is_empty():
-		var sid := _open_loot_bag_id
-		_remove_ground_bag(sid, actions)
-		_open_loot_bag_id = ""
-		actions.append({"type": "loot_close", "session_id": sid, "bag_id": sid})
-	else:
-		actions.append(_ground_update_action(_open_loot_bag_id))
-		actions.append(_loot_update_action())
-	return {"ok": true, "added": added, "item_id": item_id, "actions": actions}
-
-
+	return _loot_module_logic.try_loot_take(item_id, qty)
 func try_loot_take_all() -> Dictionary:
-	var actions: Array = []
-	if awaiting_respawn or (combat_stats != null and not combat_stats.player_alive()):
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if _open_loot_bag_id.is_empty() or not _ground_bags.has(_open_loot_bag_id):
-		actions.append({"type": "system_message", "text": "没有可拾取的掉落。"})
-		return {"ok": false, "reason": "no_loot", "actions": actions}
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "背包不可用。"})
-		return {"ok": false, "reason": "no_inventory", "actions": actions}
-	var open_bag_chk: Dictionary = _ground_bags[_open_loot_bag_id]
-	if _bag_loot_owner_blocks(open_bag_chk):
-		actions.append({"type": "system_message", "text": _bag_loot_owner_fail_msg(open_bag_chk)})
-		return {"ok": false, "reason": "not_owner", "actions": actions}
-	var sid := _open_loot_bag_id
-	var any_ok := false
-	var bag_blocked := false
-	var pending_ids: Array = []
-	for d_v in _open_bag_items():
-		if typeof(d_v) == TYPE_DICTIONARY:
-			pending_ids.append(str(d_v.get("item_id", "")))
-	for iid in pending_ids:
-		if _open_loot_bag_id.is_empty() or not _ground_bags.has(_open_loot_bag_id):
-			break
-		iid = str(iid).strip_edges()
-		if iid.is_empty():
-			continue
-		var r: Dictionary = try_loot_take(iid, -1)
-		var sub: Array = r.get("actions", [])
-		for a in sub:
-			if typeof(a) != TYPE_DICTIONARY:
-				continue
-			var t := str(a.get("type", ""))
-			# Nested take emits update/close/despawn; we emit a single final set.
-			if t in ["loot_update", "loot_close", "ground_update", "ground_despawn"]:
-				continue
-			actions.append(a)
-		if bool(r.get("ok", false)):
-			any_ok = true
-		else:
-			var reason := str(r.get("reason", ""))
-			if reason in ["bag_full", "stack_full"]:
-				bag_blocked = true
-	if not _ground_bags.has(sid) or _open_bag_items().is_empty():
-		if _ground_bags.has(sid):
-			_remove_ground_bag(sid, actions)
-		else:
-			actions.append({"type": "ground_despawn", "bag_id": sid})
-		_open_loot_bag_id = ""
-		actions.append({"type": "loot_close", "session_id": sid, "bag_id": sid})
-		return {"ok": any_ok, "reason": ("" if any_ok else "empty"), "actions": actions}
-	actions.append(_ground_update_action(sid))
-	actions.append(_loot_update_action())
-	if not any_ok and bag_blocked:
-		return {"ok": false, "reason": "bag_full", "actions": actions}
-	return {"ok": any_ok, "actions": actions}
-
-
+	return _loot_module_logic.try_loot_take_all()
 ## Close loot UI only — ground bag remains until emptied or map change.
 func try_loot_close() -> Dictionary:
-	var actions: Array = []
-	var sid := _open_loot_bag_id
-	var had := not sid.is_empty() and _ground_bags.has(sid) and not _open_bag_items().is_empty()
-	_open_loot_bag_id = ""
-	actions.append({"type": "loot_close", "session_id": sid, "bag_id": sid})
-	if had:
-		actions.append({"type": "system_message", "text": "已关闭掉落窗口（物品仍在地上）。"})
-	return {"ok": true, "actions": actions}
-
-
+	return _loot_module_logic.try_loot_close()
 ## Drop from inventory onto the ground at the player's cell (merge same-cell bag).
 func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
 	item_id = item_id.strip_edges()
@@ -3696,83 +3466,21 @@ func _open_bag_items_dup() -> Array:
 
 
 func _bag_items_dup(bag_id: String) -> Array:
-	var out: Array = []
-	if not _ground_bags.has(bag_id):
-		return out
-	var items_v: Variant = _ground_bags[bag_id].get("items", [])
-	var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-	for d_v in items:
-		if typeof(d_v) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = d_v
-		var iid := str(d.get("item_id", "")).strip_edges()
-		var q: int = int(d.get("qty", 0))
-		if iid.is_empty() or q <= 0:
-			continue
-		var row := {"item_id": iid, "qty": q, "name": item_display_name(iid)}
-		row.merge(_item_icon_fields(iid))
-		out.append(row)
-	return out
-
-
+	return _loot_module_logic._bag_items_dup(bag_id)
 func _bag_snapshot(bag_id: String) -> Dictionary:
-	if not _ground_bags.has(bag_id):
-		return {}
-	var bag: Dictionary = _ground_bags[bag_id]
-	return {
-		"id": bag_id,
-		"cell": (bag.get("cell", {"x": 0, "y": 0}) as Dictionary).duplicate(true),
-		"items": _bag_items_dup(bag_id),
-		"source": str(bag.get("source", "")),
-		"owner_id": str(bag.get("owner_id", "")),
-		"npc_id": str(bag.get("npc_id", "")),
-		"created_at": float(bag.get("created_at", 0.0)),
-	}
-
-
+	return _loot_module_logic._bag_snapshot(bag_id)
 func _loot_update_action() -> Dictionary:
-	var npc := ""
-	if _ground_bags.has(_open_loot_bag_id):
-		npc = str(_ground_bags[_open_loot_bag_id].get("npc_id", ""))
-	return {
-		"type": "loot_update",
-		"session_id": _open_loot_bag_id,
-		"bag_id": _open_loot_bag_id,
-		"npc_id": npc,
-		"items": _open_bag_items_dup(),
-	}
-
-
+	return _loot_module_logic._loot_update_action()
 func _loot_open_action() -> Dictionary:
-	var bag: Dictionary = _ground_bags.get(_open_loot_bag_id, {})
-	return {
-		"type": "loot_open",
-		"session_id": _open_loot_bag_id,
-		"bag_id": _open_loot_bag_id,
-		"npc_id": str(bag.get("npc_id", "")),
-		"cell": (bag.get("cell", {"x": 0, "y": 0}) as Dictionary).duplicate(true),
-		"items": _open_bag_items_dup(),
-	}
-
-
+	return _loot_module_logic._loot_open_action()
 func _ground_spawn_action(bag_id: String) -> Dictionary:
-	return {"type": "ground_spawn", "bag": _bag_snapshot(bag_id)}
-
-
+	return _loot_module_logic._ground_spawn_action(bag_id)
 func _ground_update_action(bag_id: String) -> Dictionary:
 	return {"type": "ground_update", "bag": _bag_snapshot(bag_id)}
 
 
 func _remove_ground_bag(bag_id: String, actions: Array) -> void:
-	if bag_id.is_empty():
-		return
-	if _ground_bags.has(bag_id):
-		_ground_bags.erase(bag_id)
-	actions.append({"type": "ground_despawn", "bag_id": bag_id})
-	if _open_loot_bag_id == bag_id:
-		_open_loot_bag_id = ""
-
-
+	_loot_module_logic._remove_ground_bag(bag_id, actions)
 func _player_adjacent_or_on(x: int, y: int) -> bool:
 	if player_cell.x <= -9990:
 		return true  # shell tests without placed player
@@ -3991,13 +3699,7 @@ func _apply_death_drops(actions: Array) -> void:
 
 ## Close open loot UI on death; ground bags persist.
 func _clear_pending_loot_on_death(actions: Array) -> void:
-	if _open_loot_bag_id.is_empty():
-		return
-	var sid := _open_loot_bag_id
-	_open_loot_bag_id = ""
-	actions.append({"type": "loot_close", "session_id": sid, "bag_id": sid})
-
-
+	_loot_module_logic._clear_pending_loot_on_death(actions)
 func _quest_update_action() -> Dictionary:
 	var a := {
 		"type": "quest_update",
@@ -4562,57 +4264,7 @@ func _evade_npc(npc_id: String) -> Array:
 ## Roll loot table for dead npc; spawn/merge ground bag at death cell (never home_cell).
 ## death_cell: Dictionary {x,y} or Vector2i from kill_npc action; fallback player_cell.
 func _roll_and_grant_loot(npc_id: String, death_cell: Variant = null) -> Array:
-	var actions: Array = []
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty() or loot_catalog == null:
-		return actions
-	var charset := ""
-	var cell := {"x": player_cell.x, "y": player_cell.y}
-	if typeof(death_cell) == TYPE_DICTIONARY:
-		var dcd: Dictionary = death_cell
-		cell = {"x": int(dcd.get("x", player_cell.x)), "y": int(dcd.get("y", player_cell.y))}
-	elif typeof(death_cell) == TYPE_VECTOR2I:
-		var dcv: Vector2i = death_cell
-		if dcv.x > -9990:
-			cell = {"x": dcv.x, "y": dcv.y}
-	# Charset from spawn template only — NEVER use home_cell for loot placement.
-	if npc_spawn_templates.has(npc_id):
-		var tmpl: Dictionary = npc_spawn_templates[npc_id]
-		charset = str(tmpl.get("charset", "")).strip_edges()
-	var drops: Array = loot_catalog.roll(npc_id, charset)
-	if drops.is_empty():
-		return actions
-	var pending_items: Array = []
-	for d_v in drops:
-		if typeof(d_v) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = d_v
-		var iid := str(d.get("item_id", "")).strip_edges()
-		var qty: int = int(d.get("qty", 0))
-		if iid.is_empty() or qty <= 0:
-			continue
-		actions.append({
-			"type": "loot_drop",
-			"npc_id": npc_id,
-			"item_id": iid,
-			"qty": qty,
-		})
-		_merge_item_into_list(pending_items, iid, qty)
-	if pending_items.is_empty():
-		return actions
-	# need_greed / roll: party N>1 → short roll window instead of immediate owner bag.
-	var loot_mode := party_loot_mode.strip_edges().to_lower()
-	if loot_mode in ["need_greed", "roll"] and in_party():
-		var eligible: Array = _party_online_same_map_ids()
-		if eligible.size() > 1:
-			actions.append_array(_start_party_loot_rolls(cell, pending_items, npc_id, "monster", eligible))
-			return actions
-	var loot_owner := _party_assign_kill_loot_owner()
-	actions.append_array(_add_items_to_ground(cell, pending_items, "monster", npc_id, loot_owner))
-	actions.append({"type": "system_message", "text": "地上出现了掉落物。"})
-	return actions
-
-
+	return _loot_module_logic._roll_and_grant_loot(npc_id, death_cell)
 ## True when NPC cell is registered and within Chebyshev range_cells (8-dir).
 func _require_npc_adjacent(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
 	if combat_stats == null:
@@ -5452,37 +5104,13 @@ func try_party_set_loot_mode(mode: String) -> Dictionary:
 	return _party_module_logic.try_party_set_loot_mode(mode)
 ## Snapshot active need/greed rolls (tests / thin HUD).
 func snapshot_loot_rolls() -> Array:
-	var out: Array = []
-	for rid in _loot_rolls.keys():
-		var r: Dictionary = _loot_rolls[rid]
-		out.append({
-			"id": str(r.get("id", "")),
-			"item_id": str(r.get("item_id", "")),
-			"qty": int(r.get("qty", 1)),
-			"expires_at": float(r.get("expires_at", 0.0)),
-			"eligible": (r.get("eligible", []) as Array).duplicate(),
-			"choices": (r.get("choices", {}) as Dictionary).duplicate(true),
-			"resolved": bool(r.get("resolved", false)),
-		})
-	return out
-
-
+	return _loot_module_logic.snapshot_loot_rolls()
 func loot_roll_count() -> int:
-	return _loot_rolls.size()
-
-
+	return _loot_module_logic.loot_roll_count()
 func _loot_roll_now() -> float:
-	if combat_stats != null and combat_stats.has_method("now_sec"):
-		return float(combat_stats.now_sec())
-	return Time.get_ticks_msec() / 1000.0
-
-
+	return _loot_module_logic._loot_roll_now()
 func _next_loot_die() -> int:
-	if loot_roll_rng_fn.is_valid():
-		return clampi(int(loot_roll_rng_fn.call()), 1, 100)
-	return _loot_roll_rng.randi_range(1, 100)
-
-
+	return _loot_module_logic._next_loot_die()
 func _party_member_display_name(member_id: String) -> String:
 	return _party_module_logic._party_member_display_name(member_id)
 ## Start one roll per pending item. eligible must already be N>1 same-map ids.
@@ -5490,242 +5118,29 @@ func _start_party_loot_rolls(cell: Dictionary, pending_items: Array, npc_id: Str
 	return _party_module_logic._start_party_loot_rolls(cell, pending_items, npc_id, source, eligible)
 ## Debug/test: open a roll without a kill. Returns {ok, roll_id, actions}.
 func debug_start_loot_roll(item_id: String, qty: int = 1, eligible: Array = []) -> Dictionary:
-	var actions: Array = []
-	item_id = str(item_id).strip_edges()
-	qty = maxi(int(qty), 1)
-	if item_id.is_empty():
-		return {"ok": false, "reason": "empty", "actions": actions}
-	if eligible.is_empty():
-		eligible = _party_online_same_map_ids()
-	if eligible.size() <= 1:
-		# Solo: spawn free for killer/local like skip-roll path.
-		var cell := {"x": player_cell.x, "y": player_cell.y}
-		actions.append_array(_add_items_to_ground(cell, [{"item_id": item_id, "qty": qty}], "monster", "", ""))
-		actions.append({"type": "system_message", "text": "地上出现了掉落物。"})
-		return {"ok": true, "skipped": true, "actions": actions}
-	var cell2 := {"x": player_cell.x, "y": player_cell.y}
-	actions.append_array(_start_party_loot_roll(cell2, item_id, qty, "", "monster", eligible))
-	var rid := ""
-	for a in actions:
-		if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == "loot_roll_start":
-			rid = str(a.get("roll_id", ""))
-	return {"ok": true, "roll_id": rid, "actions": actions}
-
-
+	return _loot_module_logic.debug_start_loot_roll(item_id, qty, eligible)
 func _start_party_loot_roll(cell: Dictionary, item_id: String, qty: int, npc_id: String, source: String, eligible: Array) -> Array:
 	return _party_module_logic._start_party_loot_roll(cell, item_id, qty, npc_id, source, eligible)
 ## Local player choice: need | greed | pass. Optional roll_id (else first open roll).
 func try_loot_roll(choice: String, roll_id: String = "") -> Dictionary:
-	return try_loot_roll_for(_party_self_id(), choice, roll_id)
-
-
+	return _loot_module_logic.try_loot_roll(choice, roll_id)
 ## Member (incl. stubs) choice — used by shell + headless tests.
 func try_loot_roll_for(member_id: String, choice: String, roll_id: String = "") -> Dictionary:
-	var actions: Array = []
-	member_id = str(member_id).strip_edges()
-	choice = str(choice).strip_edges().to_lower()
-	roll_id = str(roll_id).strip_edges()
-	if choice not in ["need", "greed", "pass"]:
-		actions.append({"type": "system_message", "text": "无效的掷骰选项。"})
-		return {"ok": false, "reason": "invalid_choice", "actions": actions}
-	if member_id.is_empty():
-		return {"ok": false, "reason": "no_member", "actions": actions}
-	if roll_id.is_empty():
-		roll_id = _first_open_loot_roll_for(member_id)
-	if roll_id.is_empty() or not _loot_rolls.has(roll_id):
-		actions.append({"type": "system_message", "text": "没有进行中的掷骰。"})
-		return {"ok": false, "reason": "no_roll", "actions": actions}
-	var roll: Dictionary = _loot_rolls[roll_id]
-	if bool(roll.get("resolved", false)):
-		return {"ok": false, "reason": "resolved", "actions": actions}
-	var eligible_v: Variant = roll.get("eligible", [])
-	var eligible: Array = eligible_v if typeof(eligible_v) == TYPE_ARRAY else []
-	if member_id not in eligible:
-		actions.append({"type": "system_message", "text": "你不能参与此次掷骰。"})
-		return {"ok": false, "reason": "not_eligible", "actions": actions}
-	var choices: Dictionary = roll.get("choices", {})
-	if typeof(choices) != TYPE_DICTIONARY:
-		choices = {}
-	if choices.has(member_id):
-		actions.append({"type": "system_message", "text": "你已经掷过骰了。"})
-		return {"ok": false, "reason": "already", "actions": actions}
-	var die := 0
-	if choice != "pass":
-		die = _next_loot_die()
-	choices[member_id] = {
-		"choice": choice,
-		"roll": die,
-		"at": _loot_roll_now(),
-	}
-	roll["choices"] = choices
-	_loot_rolls[roll_id] = roll
-	var mname := _party_member_display_name(member_id)
-	if choice == "need":
-		actions.append({"type": "system_message", "text": "%s 需求 %d" % [mname, die]})
-	elif choice == "greed":
-		actions.append({"type": "system_message", "text": "%s 贪婪 %d" % [mname, die]})
-	# pass: silent thin
-	actions.append({
-		"type": "loot_roll_choice",
-		"roll_id": roll_id,
-		"member_id": member_id,
-		"choice": choice,
-		"roll": die,
-	})
-	# Early resolve when everyone has voted.
-	if _loot_roll_all_voted(roll):
-		actions.append_array(_resolve_loot_roll(roll_id))
-	return {"ok": true, "roll_id": roll_id, "choice": choice, "roll": die, "actions": actions}
-
-
+	return _loot_module_logic.try_loot_roll_for(member_id, choice, roll_id)
 func _first_open_loot_roll_for(member_id: String) -> String:
-	var best := ""
-	var best_seq := 1 << 30
-	for rid in _loot_rolls.keys():
-		var r: Dictionary = _loot_rolls[rid]
-		if bool(r.get("resolved", false)):
-			continue
-		var elig_v: Variant = r.get("eligible", [])
-		if typeof(elig_v) != TYPE_ARRAY or member_id not in (elig_v as Array):
-			continue
-		var choices: Dictionary = r.get("choices", {})
-		if typeof(choices) == TYPE_DICTIONARY and choices.has(member_id):
-			continue
-		# Prefer earliest id seq (lr_N)
-		var seq := int(str(rid).get_slice("_", 1)) if str(rid).contains("_") else 0
-		if best.is_empty() or seq < best_seq:
-			best = str(rid)
-			best_seq = seq
-	return best
-
-
+	return _loot_module_logic._first_open_loot_roll_for(member_id)
 func _loot_roll_all_voted(roll: Dictionary) -> bool:
-	var elig_v: Variant = roll.get("eligible", [])
-	if typeof(elig_v) != TYPE_ARRAY:
-		return false
-	var choices: Dictionary = roll.get("choices", {})
-	if typeof(choices) != TYPE_DICTIONARY:
-		return false
-	for mid in elig_v:
-		if not choices.has(str(mid)):
-			return false
-	return true
-
-
+	return _loot_module_logic._loot_roll_all_voted(roll)
 func _tick_loot_rolls() -> Array:
-	var actions: Array = []
-	if _loot_rolls.is_empty():
-		return actions
-	var now := _loot_roll_now()
-	var to_resolve: Array = []
-	for rid in _loot_rolls.keys():
-		var r: Dictionary = _loot_rolls[rid]
-		if bool(r.get("resolved", false)):
-			continue
-		if now >= float(r.get("expires_at", 0.0)):
-			to_resolve.append(str(rid))
-	for rid2 in to_resolve:
-		actions.append_array(_resolve_loot_roll(str(rid2)))
-	return actions
-
-
+	return _loot_module_logic._tick_loot_rolls()
 ## Force timeout resolve (tests). Empty roll_id → all open rolls.
 func debug_force_loot_roll_timeout(roll_id: String = "") -> Dictionary:
-	var actions: Array = []
-	roll_id = str(roll_id).strip_edges()
-	if roll_id != "":
-		if not _loot_rolls.has(roll_id):
-			return {"ok": false, "reason": "missing", "actions": actions}
-		var r: Dictionary = _loot_rolls[roll_id]
-		r["expires_at"] = _loot_roll_now() - 0.01
-		_loot_rolls[roll_id] = r
-		actions.append_array(_resolve_loot_roll(roll_id))
-		return {"ok": true, "actions": actions}
-	var ids: Array = _loot_rolls.keys()
-	for rid in ids:
-		var rr: Dictionary = _loot_rolls[rid]
-		if bool(rr.get("resolved", false)):
-			continue
-		rr["expires_at"] = _loot_roll_now() - 0.01
-		_loot_rolls[rid] = rr
-		actions.append_array(_resolve_loot_roll(str(rid)))
-	return {"ok": true, "actions": actions}
-
-
+	return _loot_module_logic.debug_force_loot_roll_timeout(roll_id)
 func _resolve_loot_roll(roll_id: String) -> Array:
-	var actions: Array = []
-	roll_id = str(roll_id).strip_edges()
-	if roll_id.is_empty() or not _loot_rolls.has(roll_id):
-		return actions
-	var roll: Dictionary = _loot_rolls[roll_id]
-	if bool(roll.get("resolved", false)):
-		return actions
-	# Auto-pass anyone who has not voted.
-	var elig_v: Variant = roll.get("eligible", [])
-	var eligible: Array = elig_v if typeof(elig_v) == TYPE_ARRAY else []
-	var choices: Dictionary = roll.get("choices", {})
-	if typeof(choices) != TYPE_DICTIONARY:
-		choices = {}
-	var now := _loot_roll_now()
-	for mid_v in eligible:
-		var mid := str(mid_v)
-		if not choices.has(mid):
-			choices[mid] = {"choice": "pass", "roll": 0, "at": now}
-	roll["choices"] = choices
-	_loot_tie_note = ""
-	var winner_id := _pick_loot_roll_winner(choices)
-	# Tie-break reroll once among tied top group if needed (handled inside pick).
-	roll["resolved"] = true
-	roll["winner_id"] = winner_id
-	_loot_rolls[roll_id] = roll
-	var item_id := str(roll.get("item_id", ""))
-	var qty: int = int(roll.get("qty", 1))
-	var cell_v: Variant = roll.get("cell", {})
-	var cell: Dictionary = cell_v if typeof(cell_v) == TYPE_DICTIONARY else {"x": player_cell.x, "y": player_cell.y}
-	var npc_id := str(roll.get("npc_id", ""))
-	var source := str(roll.get("source", "monster"))
-	var iname := item_display_name(item_id) if has_method("item_display_name") else item_id
-	var owner_id := winner_id
-	actions.append_array(_add_items_to_ground(cell, [{"item_id": item_id, "qty": qty}], source, npc_id, owner_id))
-	if winner_id != "":
-		var wname := _party_member_display_name(winner_id)
-		actions.append({"type": "system_message", "text": "%s 获得了 %s" % [wname, iname]})
-	if _loot_tie_note != "":
-		actions.append({"type": "system_message", "text": _loot_tie_note})
-		_loot_tie_note = ""
-	else:
-		actions.append({"type": "system_message", "text": "%s 无人认领，自由拾取。" % iname})
-	actions.append({
-		"type": "loot_roll_resolve",
-		"roll_id": roll_id,
-		"item_id": item_id,
-		"qty": qty,
-		"winner_id": winner_id,
-	})
-	_loot_rolls.erase(roll_id)
-	return actions
-
-
+	return _loot_module_logic._resolve_loot_roll(roll_id)
 ## Highest need wins; else highest greed; all pass → "". Ties: earlier `at`; if still equal, one reroll.
 func _pick_loot_roll_winner(choices: Dictionary) -> String:
-	var need_pool: Array = []
-	var greed_pool: Array = []
-	for mid in choices.keys():
-		var row_v: Variant = choices[mid]
-		if typeof(row_v) != TYPE_DICTIONARY:
-			continue
-		var row: Dictionary = row_v
-		var ch := str(row.get("choice", "")).to_lower()
-		if ch == "need":
-			need_pool.append({"id": str(mid), "roll": int(row.get("roll", 0)), "at": float(row.get("at", 0.0))})
-		elif ch == "greed":
-			greed_pool.append({"id": str(mid), "roll": int(row.get("roll", 0)), "at": float(row.get("at", 0.0))})
-	var pool: Array = need_pool if not need_pool.is_empty() else greed_pool
-	if pool.is_empty():
-		return ""
-	return _pick_highest_roll_with_tiebreak(pool)
-
-
+	return _loot_module_logic._pick_loot_roll_winner(choices)
 func _pick_highest_roll_with_tiebreak(pool: Array) -> String:
 	_loot_tie_note = ""
 	if pool.is_empty():
