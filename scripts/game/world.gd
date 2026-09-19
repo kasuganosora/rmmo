@@ -25,6 +25,8 @@ const WorldQuery = preload("res://scripts/game/application/world_query.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
 const CombatFeedback = preload("res://scripts/game/application/combat_feedback.gd")
 const SettingsSync = preload("res://scripts/game/application/settings_sync.gd")
+const Follow = preload("res://scripts/game/application/follow.gd")
+const MapPins = preload("res://scripts/game/application/map_pins.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -843,59 +845,17 @@ func _on_player_arrived_cell(cell: Vector2i, path_complete: bool) -> void:
 
 
 func start_follow(target_id: String) -> void:
-	target_id = target_id.strip_edges()
-	if target_id.is_empty():
-		return
-	_follow_id = target_id
-	if hud != null and hud.has_method("append_system"):
-		hud.append_system("开始跟随。")
-	_tick_follow()
-
-
+	Follow.start_follow(self, target_id)
 func stop_follow() -> void:
-	if _follow_id.is_empty():
-		return
-	_follow_id = ""
-	if hud != null and hud.has_method("append_system"):
-		hud.append_system("停止跟随。")
-
-
+	Follow.stop_follow(self, )
 func is_following() -> bool:
-	return not _follow_id.is_empty()
-
-
+	return Follow.is_following(self, )
 func get_follow_id() -> String:
-	return _follow_id
-
-
+	return Follow.get_follow_id(self, )
 func _tick_follow() -> void:
-	if _follow_id.is_empty() or player == null or player.input_locked:
-		return
-	if player.moving:
-		return
-	var tcell := _follow_target_cell()
-	if tcell.x <= -9990:
-		stop_follow()
-		return
-	var pcell: Vector2i = player.cell
-	var dist: int = maxi(absi(pcell.x - tcell.x), absi(pcell.y - tcell.y))
-	if dist <= 1:
-		return
-	if player.has_method("click_move_to"):
-		player.click_move_to(tcell)
-
-
+	Follow._tick_follow(self, )
 func _follow_target_cell() -> Vector2i:
-	if _remote_markers.has(_follow_id):
-		var mk = _remote_markers[_follow_id]
-		if mk != null and is_instance_valid(mk) and mk.has_meta("cell"):
-			return mk.get_meta("cell")
-	var npc = _find_npc_by_id(_follow_id)
-	if npc != null and "cell" in npc:
-		return npc.cell
-	return Vector2i(-9999, -9999)
-
-
+	return Follow._follow_target_cell(self, )
 func _apply_remote_look(marker: Node2D, gender: String, look_id: String, equipment: Variant) -> void:
 	var anim := marker.get_node_or_null("Anim") as AnimatedSprite2D
 	if anim == null:
@@ -975,93 +935,17 @@ func request_map_move(cell: Vector2i, label: String = "") -> void:
 	RequestAdapter.request_map_move(self, cell, label)
 ## POI display name at cell (radar/big-map markers), or "".
 func _map_poi_label_at(cell: Vector2i) -> String:
-	var markers: Array = get_radar_poi_markers() if has_method("get_radar_poi_markers") else []
-	var hit: Dictionary = RadarPoi.marker_at_cell(markers, cell)
-	if hit.is_empty():
-		return ""
-	return RadarPoi.marker_nav_label(hit)
-
-
+	return MapPins._map_poi_label_at(self, cell)
 func toggle_map_pin(cell: Vector2i, short_name: String = "") -> void:
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_map_pin_toggle"):
-		var mid := str(srv.map_pack_id) if "map_pack_id" in srv else ""
-		var result: Dictionary = srv.try_map_pin_toggle(cell.x, cell.y, mid, short_name)
-		var actions_v: Variant = result.get("actions", [])
-		if typeof(actions_v) == TYPE_ARRAY:
-			_apply_server_actions(actions_v)
-		_sync_map_pins_from_server(result.get("map_pins", {}))
-		_radar_blips_ready = false
-		return
-	# Legacy single-pin fallback (no MockServer).
-	if _map_pin == cell:
-		_map_pin = Vector2i(-9999, -9999)
-		if hud != null and hud.has_method("append_system"):
-			hud.append_system("已清除地图标记")
-	else:
-		_map_pin = cell
-		if hud != null and hud.has_method("append_system"):
-			hud.append_system("标记 (%d, %d)" % [cell.x, cell.y])
-	if hud != null and hud.has_method("set_map_pin"):
-		hud.set_map_pin(_map_pin)
-
-
+	MapPins.toggle_map_pin(self, cell, short_name)
 func clear_map_pins() -> void:
-	var srv = Net.server()
-	if srv != null and srv.has_method("try_map_pin_clear"):
-		var result: Dictionary = srv.try_map_pin_clear()
-		var actions_v: Variant = result.get("actions", [])
-		if typeof(actions_v) == TYPE_ARRAY:
-			_apply_server_actions(actions_v)
-		_sync_map_pins_from_server(result.get("map_pins", {}))
-		_radar_blips_ready = false
-		return
-	_map_pin = Vector2i(-9999, -9999)
-	if hud != null and hud.has_method("set_map_pin"):
-		hud.set_map_pin(_map_pin)
-	if hud != null and hud.has_method("append_system"):
-		hud.append_system("已清除全部标记")
-
-
+	MapPins.clear_map_pins(self, )
 func _sync_map_pins_from_server(snap: Variant) -> void:
-	var pins: Array = []
-	if typeof(snap) == TYPE_DICTIONARY:
-		var pv: Variant = snap.get("pins", [])
-		if typeof(pv) == TYPE_ARRAY:
-			pins = pv
-	elif typeof(snap) == TYPE_ARRAY:
-		pins = snap
-	# Legacy first-pin cell for shell/HUD set_pin_cell.
-	_map_pin = Vector2i(-9999, -9999)
-	for p in pins:
-		if typeof(p) != TYPE_DICTIONARY:
-			continue
-		var cell_v: Variant = p.get("cell", {})
-		if typeof(cell_v) == TYPE_VECTOR2I:
-			_map_pin = cell_v
-		elif typeof(cell_v) == TYPE_DICTIONARY:
-			_map_pin = Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-		break
-	if hud != null and hud.has_method("apply_map_pins_update"):
-		hud.apply_map_pins_update({"type": "map_pins_update", "map_pins": {"pins": pins, "count": pins.size()}})
-	elif hud != null and hud.has_method("set_map_pin"):
-		hud.set_map_pin(_map_pin)
-
-
+	MapPins._sync_map_pins_from_server(self, snap)
 func map_pin_cell() -> Vector2i:
-	return _map_pin
-
-
+	return MapPins.map_pin_cell(self, )
 func map_pins_snapshot() -> Array:
-	var srv = Net.server()
-	if srv != null and srv.has_method("snapshot_map_pins"):
-		var snap: Dictionary = srv.snapshot_map_pins()
-		var pv: Variant = snap.get("pins", [])
-		if typeof(pv) == TYPE_ARRAY:
-			return pv
-	return []
-
-
+	return MapPins.map_pins_snapshot(self, )
 func cycle_hostile_target(dir: int = 1) -> void:
 	var hostiles: Array = []
 	for npc in _npcs:
