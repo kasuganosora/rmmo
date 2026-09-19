@@ -58,6 +58,8 @@ const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
 const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
 const NpcAiModule = preload("res://scripts/net/server/npc_ai_module.gd")
 const MovementModule = preload("res://scripts/net/server/movement_module.gd")
+const InventoryModule = preload("res://scripts/net/server/inventory_module.gd")
+var _inventory_module_logic: InventoryModule = InventoryModule.new(self)
 const DungeonModule = preload("res://scripts/net/server/dungeon_module.gd")
 var _dungeon_module_logic: DungeonModule = DungeonModule.new(self)
 const CombatModule = preload("res://scripts/net/server/combat_module.gd")
@@ -707,38 +709,7 @@ func _best_auto_potion(effect: String) -> String:
 func _maybe_auto_potion_msg(text: String) -> void:
 	_combat_module_logic._maybe_auto_potion_msg(text)
 func try_use_item(item_id: String) -> Dictionary:
-	item_id = item_id.strip_edges()
-	# Pet whistle: summon companion (does not consume).
-	if item_id == "pet_whistle":
-		if inventory == null or not inventory.has_item("pet_whistle", 1):
-			return {
-				"ok": false,
-				"reason": "missing",
-				"actions": [{"type": "system_message", "text": "背包中没有宠物哨。"}],
-			}
-		return try_pet_summon("default")
-	# Equipment: hotbar / inventory "use" toggles equip (not consume).
-	if item_catalog != null and not item_id.is_empty():
-		var def: Dictionary = item_catalog.get_item(item_id)
-		if str(def.get("type", "")).strip_edges() == "equipment":
-			return try_toggle_equip(item_id)
-		# Recall / town scroll: fail before consume if dead / awaiting respawn / already safe.
-		var ue := str(def.get("use_effect", def.get("effect", ""))).strip_edges()
-		if ue == "party_summon" or item_id == "party_summon":
-			return _try_party_summon_item(item_id, def)
-		if ue == "recall" or ue == "teleport_home":
-			var gate: Dictionary = _gate_recall_item_use()
-			if not bool(gate.get("ok", false)):
-				return gate
-	if combat_engine == null:
-		return {"ok": false, "actions": []}
-	var result: Dictionary = combat_engine.try_use_item(item_id)
-	_bind_recall_actions(result)
-	_combat_stand_if_needed(result)
-	_maybe_party_food_share(item_id, result)
-	return _finalize_combat_result(result)
-
-
+	return _inventory_module_logic.try_use_item(item_id)
 ## Pre-consume checks for recall / teleport_home items (Chinese messages).
 func _gate_recall_item_use() -> Dictionary:
 	return _movement_module_logic._gate_recall_item_use()
@@ -1230,55 +1201,11 @@ func _shop_buyback_action() -> Dictionary:
 func try_shop_buyback(index: int, qty: int = -1) -> Dictionary:
 	return _shop_module_logic.try_shop_buyback(index, qty)
 func try_inventory_split(item_id: String, qty: int) -> Dictionary:
-	var actions: Array = []
-	if inventory == null or not inventory.has_method("try_split"):
-		return {"ok": false, "reason": "no_inv", "actions": actions}
-	item_id = item_id.strip_edges()
-	var r: Dictionary = inventory.try_split(item_id, qty)
-	if not bool(r.get("ok", false)):
-		var why := str(r.get("reason", ""))
-		var msg := "无法拆分。"
-		if why == "bag_full":
-			msg = "背包已满，无法拆分。"
-		elif why == "too_small":
-			msg = "数量不足，无法拆分。"
-		actions.append({"type": "system_message", "text": msg})
-		return {"ok": false, "reason": why, "actions": actions}
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	return {"ok": true, "actions": actions}
-
-
+	return _inventory_module_logic.try_inventory_split(item_id, qty)
 func try_inventory_sort() -> Dictionary:
-	var actions: Array = []
-	if inventory == null or not inventory.has_method("sort_stacks"):
-		return {"ok": false, "reason": "no_inv", "actions": actions}
-	inventory.sort_stacks()
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	return {"ok": true, "actions": actions}
-
-
+	return _inventory_module_logic.try_inventory_sort()
 func try_inventory_lock(item_id: String, on: bool) -> Dictionary:
-	var actions: Array = []
-	if inventory == null or not inventory.has_method("set_locked"):
-		return {"ok": false, "reason": "no_inv", "actions": actions}
-	inventory.set_locked(item_id, on)
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	return {"ok": true, "actions": actions}
-
-
-
+	return _inventory_module_logic.try_inventory_lock(item_id, on)
 ## --- Ground bags + loot UI (bag-backed; close keeps items) ---
 
 func snapshot_ground_bags() -> Array:
@@ -1311,12 +1238,7 @@ func find_ground_bag_at(x: int, y: int) -> String:
 	return _loot_module_logic.find_ground_bag_at(x, y)
 ## True when catalog marks item bind-on-pickup (BoP).
 func _item_binds_on_pickup(item_id: String) -> bool:
-	if item_catalog == null:
-		return false
-	var def: Dictionary = item_catalog.get_item(item_id.strip_edges())
-	return Equipment.is_bind_on_pickup(def)
-
-
+	return _inventory_module_logic._item_binds_on_pickup(item_id)
 ## Add looted/rewarded items; BoP stacks enter bag already bound.
 func _try_add_loot_item(item_id: String, qty: int) -> Dictionary:
 	return _loot_module_logic._try_add_loot_item(item_id, qty)
@@ -1330,118 +1252,16 @@ func try_loot_close() -> Dictionary:
 	return _loot_module_logic.try_loot_close()
 ## Drop from inventory onto the ground at the player's cell (merge same-cell bag).
 func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
-	item_id = item_id.strip_edges()
-	var actions: Array = []
-	if inventory == null:
-		actions.append({"type": "system_message", "text": "背包不可用。"})
-		return {"ok": false, "reason": "no_inventory", "actions": actions}
-	if item_id.is_empty() or qty <= 0:
-		actions.append({"type": "system_message", "text": "无效物品。"})
-		return {"ok": false, "reason": "invalid", "actions": actions}
-	if inventory.has_method("is_locked") and inventory.is_locked(item_id):
-		actions.append({"type": "system_message", "text": "该物品已锁定，无法丢弃。"})
-		return {"ok": false, "reason": "locked", "actions": actions}
-	if not inventory.has_item(item_id, qty):
-		actions.append({"type": "system_message", "text": "背包中没有足够的物品。"})
-		return {"ok": false, "reason": "missing", "actions": actions}
-	if not inventory.consume(item_id, qty):
-		actions.append({"type": "system_message", "text": "丢弃失败。"})
-		return {"ok": false, "reason": "consume_failed", "actions": actions}
-	var cell := {"x": player_cell.x, "y": player_cell.y}
-	var bag_actions: Array = _add_items_to_ground(cell, [{"item_id": item_id, "qty": qty}], "player", "")
-	actions.append_array(bag_actions)
-	actions.append({
-		"type": "inventory_update",
-		"items": inventory.snapshot(),
-		"gold": inventory.get_gold(),
-	})
-	actions.append({
-		"type": "system_message",
-		"text": "扔下了 %s×%d" % [item_display_name(item_id), qty],
-	})
-	return {"ok": true, "item_id": item_id, "qty": qty, "actions": actions}
-
-
+	return _inventory_module_logic.try_drop_item(item_id, qty)
 ## Unequip paperdoll slot and drop the item onto the ground (not into bag).
 func try_drop_equipped(slot: String) -> Dictionary:
-	slot = slot.strip_edges()
-	var actions: Array = []
-	if equipment == null:
-		actions.append({"type": "system_message", "text": "装备不可用。"})
-		return {"ok": false, "reason": "no_equipment", "actions": actions}
-	if slot.is_empty():
-		actions.append({"type": "system_message", "text": "无效栏位。"})
-		return {"ok": false, "reason": "invalid_slot", "actions": actions}
-	var r: Dictionary = equipment.try_unequip(slot)
-	if not bool(r.get("ok", false)):
-		var reason := str(r.get("reason", "fail"))
-		var msg := "无法丢弃装备。"
-		match reason:
-			"empty":
-				msg = "该栏位没有装备。"
-			"invalid_slot":
-				msg = "无效栏位。"
-			_:
-				msg = "无法丢弃装备（%s）。" % reason
-		actions.append({"type": "system_message", "text": msg})
-		return {"ok": false, "reason": reason, "actions": actions}
-	var iid := str(r.get("item_id", "")).strip_edges()
-	if iid.is_empty():
-		actions.append({"type": "system_message", "text": "无效物品。"})
-		return {"ok": false, "reason": "invalid", "actions": actions}
-	var cell := {"x": player_cell.x, "y": player_cell.y}
-	actions.append_array(_add_items_to_ground(cell, [{"item_id": iid, "qty": 1}], "player", ""))
-	actions.append(_equipment_update_action())
-	actions.append({
-		"type": "system_message",
-		"text": "扔下了 %s×1" % item_display_name(iid),
-	})
-	return {"ok": true, "item_id": iid, "slot": slot, "qty": 1, "actions": actions}
-
-
+	return _inventory_module_logic.try_drop_equipped(slot)
 func _open_bag_items() -> Array:
-	if _open_loot_bag_id.is_empty() or not _ground_bags.has(_open_loot_bag_id):
-		return []
-	var items_v: Variant = _ground_bags[_open_loot_bag_id].get("items", [])
-	return items_v if typeof(items_v) == TYPE_ARRAY else []
-
-
-
+	return _inventory_module_logic._open_bag_items()
 func _item_icon_fields(item_id: String) -> Dictionary:
-	var out := {"icon_index": -1}
-	if item_catalog == null or item_id.strip_edges().is_empty():
-		return out
-	var def: Dictionary = item_catalog.get_item(item_id)
-	if def.is_empty():
-		return out
-	out["icon_index"] = int(def.get("icon_index", -1))
-	var ic := str(def.get("icon", "")).strip_edges()
-	if not ic.is_empty():
-		out["icon"] = ic
-	var iref := str(def.get("icon_ref", "")).strip_edges()
-	if iref.is_empty() and not ic.is_empty():
-		iref = "content://icon/%s" % ic
-	if not iref.is_empty():
-		out["icon_ref"] = iref
-	return out
-
-
+	return _inventory_module_logic._item_icon_fields(item_id)
 func _open_bag_items_dup() -> Array:
-	var out: Array = []
-	for d_v in _open_bag_items():
-		if typeof(d_v) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = d_v
-		var iid := str(d.get("item_id", "")).strip_edges()
-		var q: int = int(d.get("qty", 0))
-		if iid.is_empty() or q <= 0:
-			continue
-		var row := {"item_id": iid, "qty": q, "name": item_display_name(iid)}
-		row.merge(_item_icon_fields(iid))
-		out.append(row)
-	return out
-
-
+	return _inventory_module_logic._open_bag_items_dup()
 func _bag_items_dup(bag_id: String) -> Array:
 	return _loot_module_logic._bag_items_dup(bag_id)
 func _bag_snapshot(bag_id: String) -> Dictionary:
@@ -1466,15 +1286,7 @@ func _player_adjacent_or_on(x: int, y: int) -> bool:
 
 
 func _merge_item_into_list(items: Array, item_id: String, qty: int) -> void:
-	for i in range(items.size()):
-		var pe: Dictionary = items[i]
-		if str(pe.get("item_id", "")) == item_id:
-			pe["qty"] = int(pe.get("qty", 0)) + qty
-			items[i] = pe
-			return
-	items.append({"item_id": item_id, "qty": qty})
-
-
+	_inventory_module_logic._merge_item_into_list(items, item_id, qty)
 ## Add items to ground at cell (merge same-cell bag). Appends ground_spawn/update actions.
 ## owner_id empty = free-for-all. Merge keeps existing bag owner_id.
 func _add_items_to_ground(cell: Dictionary, add_items: Array, source: String, npc_id: String = "", owner_id: String = "") -> Array:
@@ -1732,14 +1544,7 @@ func note_party_fish(item_id: String = "", qty: int = 1) -> Array:
 	return _party_module_logic.note_party_fish(item_id, qty)
 ## Item catalog lookup helper for HUD labels.
 func item_display_name(item_id: String) -> String:
-	if item_catalog == null:
-		return item_id
-	var def: Dictionary = item_catalog.get_item(item_id)
-	if def.is_empty():
-		return item_id
-	return str(def.get("name", item_id))
-
-
+	return _inventory_module_logic.item_display_name(item_id)
 func logout() -> void:
 	_session_module_logic.logout()
 ## NPC AI tick: hostiles idle/chase/return_home; friendlies with wander_radius idle-wander only.
