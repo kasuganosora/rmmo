@@ -23,6 +23,7 @@ const Targeting = preload("res://scripts/game/application/targeting.gd")
 const WorldEnv = preload("res://scripts/game/infrastructure/world_env.gd")
 const WorldQuery = preload("res://scripts/game/application/world_query.gd")
 const SkillAimOverlay = preload("res://scripts/game/skill_aim_overlay.gd")
+const SkillAim = preload("res://scripts/game/application/skill_aim.gd")
 const CombatFeedback = preload("res://scripts/game/application/combat_feedback.gd")
 const SettingsSync = preload("res://scripts/game/application/settings_sync.gd")
 const Follow = preload("res://scripts/game/application/follow.gd")
@@ -30,6 +31,11 @@ const MapPins = preload("res://scripts/game/application/map_pins.gd")
 const GroundLoot = preload("res://scripts/game/application/ground_loot.gd")
 const HudBinding = preload("res://scripts/game/interface/hud_binding.gd")
 const RemoteActors = preload("res://scripts/game/application/remote_actors.gd")
+const Engage = preload("res://scripts/game/application/engage.gd")
+const AutoAttack = preload("res://scripts/game/application/auto_attack.gd")
+const Pickup = preload("res://scripts/game/application/pickup.gd")
+const PlayerMenu = preload("res://scripts/game/interface/player_menu.gd")
+const NpcSpawn = preload("res://scripts/game/application/npc_spawn.gd")
 
 @onready var player: CharacterBody2D = %Player
 @onready var hud: Control = %GameHud
@@ -199,138 +205,15 @@ func _ready() -> void:
 func _bind_hud(ch: Dictionary, spawn: Dictionary) -> void:
 	HudBinding._bind_hud(self, ch, spawn)
 func _clear_npcs() -> void:
-	var am: Node = _asset_mgr
-	for n in _npcs:
-		if n != null and is_instance_valid(n):
-			if am != null and "npc_id" in n and am.has_method("clear_actor_refs"):
-				var nid := str(n.npc_id).strip_edges()
-				if nid != "":
-					am.clear_actor_refs(nid)
-					if am.has_method("note_actor_ring"):
-						am.note_actor_ring(nid, "COLD")
-			n.queue_free()
-	_npcs.clear()
-	if _aoi != null:
-		_aoi.reset()
-	_radar_blips_cache.clear()
-	_radar_blips_sig = PackedInt32Array()
-	_radar_blips_ready = false
-	if _npc_layer != null and is_instance_valid(_npc_layer):
-		for c in _npc_layer.get_children():
-			c.queue_free()
-	_clear_ground_markers()
-
-
+	NpcSpawn._clear_npcs(self, )
 func _clear_ground_markers() -> void:
 	GroundLoot._clear_ground_markers(self, )
 func _ensure_ground_layer() -> Node2D:
 	return GroundLoot._ensure_ground_layer(self, )
 func _ensure_npc_layer() -> Node2D:
-	if _npc_layer != null and is_instance_valid(_npc_layer):
-		return _npc_layer
-	_npc_layer = get_node_or_null("NpcLayer") as Node2D
-	if _npc_layer == null:
-		_npc_layer = Node2D.new()
-		_npc_layer.name = "NpcLayer"
-		_npc_layer.y_sort_enabled = true
-		_npc_layer.z_index = 5
-		_npc_layer.z_as_relative = false
-		add_child(_npc_layer)
-		# Keep under map visuals but with player/npcs sorting among themselves.
-		if map_field != null:
-			move_child(_npc_layer, map_field.get_index() + 1)
-	return _npc_layer
-
-
+	return NpcSpawn._ensure_npc_layer(self, )
 func _spawn_npcs_from_pack() -> void:
-	_clear_npcs()
-	if map_field == null or map_field.pack == null:
-		return
-	var pack = map_field.pack
-	# Optional pack charset_root -> ProjectSettings for this session.
-	var pack_root: String = str(pack.charset_root) if pack.get("charset_root") != null else ""
-	if pack_root.strip_edges() != "":
-		ProjectSettings.set_setting(CharsetSheet.SETTING_ROOT, pack_root.strip_edges())
-	elif not ProjectSettings.has_setting(CharsetSheet.SETTING_ROOT):
-		ProjectSettings.set_setting(CharsetSheet.SETTING_ROOT, CharsetSheet.DEFAULT_DEV_ROOT)
-
-	var list: Array = pack.npcs if pack.get("npcs") != null else []
-	var occupied: Dictionary = {}
-	for item0 in list:
-		if typeof(item0) != TYPE_DICTIONARY:
-			continue
-		var c0: Variant = item0.get("cell", {})
-		if typeof(c0) == TYPE_DICTIONARY:
-			occupied["%d,%d" % [int(c0.get("x", 0)), int(c0.get("y", 0))]] = true
-	var evs: Array = pack.events if pack.get("events") != null else []
-	var rt = null
-	var srv0 = Net.server()
-	if srv0 != null and "event_runtime" in srv0:
-		rt = srv0.event_runtime
-	for ev_v in evs:
-		if typeof(ev_v) != TYPE_DICTIONARY:
-			continue
-		var ev: Dictionary = ev_v
-		var ec: Variant = ev.get("cell", {})
-		if typeof(ec) != TYPE_DICTIONARY:
-			continue
-		var ekey := "%d,%d" % [int(ec.get("x", 0)), int(ec.get("y", 0))]
-		if occupied.has(ekey):
-			continue
-		var page: Dictionary = {}
-		if rt != null and rt.has_method("select_page"):
-			page = rt.select_page(ev)
-		var ev_actor: Dictionary = EventCommands.event_actor_data(ev, page)
-		list.append(ev_actor)
-		occupied[ekey] = true
-	if list.is_empty():
-		return
-	var layer := _ensure_npc_layer()
-	var pack_dir: String = str(pack.pack_dir)
-	for item in list:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var npc_n = NpcActor.new()
-		layer.add_child(npc_n)
-		npc_n.setup(item, map_field, pack_dir)
-		# Charset stream: AOI driver enqueues by ring; NpcActor may show placeholder
-		_npcs.append(npc_n)
-	# Sync occupancy onto MockServer collision (authoritative move checks).
-	var srv = Net.server()
-	if srv != null and srv.map_collision != null and srv.map_collision.has_method("apply_npc_blocks"):
-		srv.map_collision.clear_extra_blocked()
-		srv.map_collision.apply_npc_blocks(list)
-		# Re-apply player occupancy wiped by clear_extra_blocked.
-		if player != null and srv.has_method("set_player_cell"):
-			srv.set_player_cell(player.cell.x, player.cell.y)
-	# Register NPC cells for server-side range / tick counter-attacks.
-	if srv != null and srv.has_method("register_npc"):
-		for item in list:
-			if typeof(item) != TYPE_DICTIONARY:
-				continue
-			var n: Dictionary = item
-			var nid := str(n.get("id", "")).strip_edges()
-			if nid.is_empty():
-				continue
-			var cell_v: Variant = n.get("cell", {})
-			if typeof(cell_v) != TYPE_DICTIONARY:
-				continue
-			var cd: Dictionary = cell_v
-			srv.register_npc(
-				nid,
-				int(cd.get("x", 0)),
-				int(cd.get("y", 0)),
-				bool(n.get("hostile", false)),
-				bool(n.get("aggressive", false)),
-				int(n.get("direction", 2)),
-				maxi(int(n.get("wander_radius", 0)), 0),
-				int(n.get("group_id", 0)),
-				n
-			)
-	_sync_npc_combat_display()
-	_refresh_aoi(true)
-
-
+	NpcSpawn._spawn_npcs_from_pack(self, )
 func get_radar_blips() -> Array:
 	return WorldQuery.get_radar_blips(self, )
 ## Same POI marker list as radar (quest/inn/smith/gather/fish); depleted gather/fish omitted.
@@ -491,137 +374,19 @@ func _face_toward_cell(to: Vector2i) -> void:
 func _npc_target_cell(npc) -> Vector2i:
 	return Targeting._npc_target_cell(self, npc)
 func _player_in_skill_range(npc, range_cells: int, pcell: Vector2i) -> bool:
-	if npc == null:
-		return false
-	if range_cells <= 1:
-		return _player_beside_npc(npc, pcell)
-	var tcell := _npc_target_cell(npc)
-	if tcell.x <= -9990:
-		return false
-	return _cheb(pcell, tcell) <= maxi(range_cells, 1)
-
-
+	return Engage._player_in_skill_range(self, npc, range_cells, pcell)
 ## -1 = no chase (self buff/heal). Else Chebyshev cells.
 func _skill_chase_range(def: Dictionary) -> int:
-	if def.is_empty():
-		return 1
-	var tmode := str(def.get("target_mode", "")).strip_edges().to_lower()
-	if tmode.is_empty() and bool(def.get("requires_target", false)):
-		tmode = "unit"
-	var req := bool(def.get("requires_target", false))
-	var rng: int = int(def.get("range", 0))
-	var effect := str(def.get("effect", "")).strip_edges()
-	if effect == "heal" or effect == "recall" or effect == "teleport_home":
-		if not req and tmode != "ground" and tmode != "unit":
-			return -1
-	if tmode == "none" and not req and rng <= 0:
-		return -1
-	if not req and tmode != "ground" and tmode != "unit" and rng <= 0:
-		return -1
-	return maxi(rng, 1)
-
-
+	return Engage._skill_chase_range(self, def)
 func _path_to_npc_range(npc, range_cells: int) -> bool:
-	if npc == null or player == null or not player.has_method("click_move_to"):
-		return false
-	var pcell: Vector2i = player.cell
-	var tcell := _npc_target_cell(npc)
-	if tcell.x <= -9990:
-		return false
-	var dest: Vector2i = _approach_cell(pcell, tcell, range_cells)
-	if dest == pcell:
-		return true
-	return bool(player.click_move_to(dest))
-
-
+	return Engage._path_to_npc_range(self, npc, range_cells)
 ## Double-click hostile: run to melee, face, keep auto-attacking.
 func _request_npc_engage(npc) -> void:
-	if npc == null or player == null:
-		return
-	if player.input_locked:
-		return
-	var pcell: Vector2i = player.cell if "cell" in player else Vector2i.ZERO
-	var is_hostile := bool(npc.hostile) if "hostile" in npc else false
-	if is_hostile:
-		stop_follow()
-		if not _auto_attack:
-			_auto_attack = true
-			if hud != null and hud.has_method("append_system"):
-				hud.append_system("自动攻击：开")
-		_face_toward_cell(_npc_target_cell(npc))
-		if _player_beside_npc(npc, pcell):
-			_clear_pending_engage()
-			_try_attack_npc(npc)
-			return
-		_set_pending_engage(npc, "", 1)
-		if not _path_to_npc_range(npc, 1):
-			_clear_pending_engage()
-			if hud != null and hud.has_method("append_system"):
-				hud.append_system("无法到达该位置")
-		return
-	if _player_beside_npc(npc, pcell):
-		_clear_pending_engage()
-		_engage_npc(npc)
-		return
-	_set_pending_engage(npc)
-	if not _path_to_npc_range(npc, 1):
-		_clear_pending_engage()
-		if hud != null and hud.has_method("append_system"):
-			hud.append_system("无法到达该位置")
-
-
+	Engage._request_npc_engage(self, npc)
 func _on_player_path_cancelled() -> void:
-	# Keyboard / failed step: drop click-to-engage intent.
-	_clear_pending_engage()
-	if not _follow_id.is_empty() and player != null:
-		var dir_vec := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		if dir_vec.length() >= 0.5:
-			stop_follow()
-
-
+	Engage._on_player_path_cancelled(self, )
 func _on_player_arrived_cell(cell: Vector2i, path_complete: bool) -> void:
-	_sync_map_observer()
-	_play_footstep()
-	_refresh_npc_nameplates()
-	_refresh_remote_nameplates()
-	if GameSettingsScript.flag("auto_pickup", false):
-		_try_auto_pickup_at(cell)
-	if _pending_engage_npc_id.is_empty():
-		return
-	if player != null and player.input_locked:
-		return
-	var npc = _find_npc_by_id(_pending_engage_npc_id)
-	if npc == null:
-		_clear_pending_engage()
-		return
-	var sid := _pending_skill_id
-	var rng: int = _pending_skill_range
-	if not sid.is_empty():
-		if _player_in_skill_range(npc, rng, cell):
-			_face_toward_cell(_npc_target_cell(npc))
-			_pending_skill_id = ""
-			_pending_engage_npc_id = ""
-			_pending_skill_range = 1
-			if player != null and player.has_method("clear_move_path"):
-				player.clear_move_path()
-			request_use_skill(sid)
-		elif path_complete:
-			if not _path_to_npc_range(npc, rng):
-				_clear_pending_engage()
-		return
-	var beside := _player_beside_npc(npc, cell)
-	if not beside:
-		if path_complete:
-			if not _path_to_npc_range(npc, 1):
-				_clear_pending_engage()
-		return
-	_clear_pending_engage()
-	if player != null and player.has_method("clear_move_path"):
-		player.clear_move_path()
-	_face_toward_cell(_npc_target_cell(npc))
-	_engage_npc(npc)
-
-
+	Engage._on_player_arrived_cell(self, cell, path_complete)
 func start_follow(target_id: String) -> void:
 	Follow.start_follow(self, target_id)
 func stop_follow() -> void:
@@ -684,186 +449,19 @@ func map_pin_cell() -> Vector2i:
 func map_pins_snapshot() -> Array:
 	return MapPins.map_pins_snapshot(self, )
 func cycle_hostile_target(dir: int = 1) -> void:
-	var hostiles: Array = []
-	for npc in _npcs:
-		if npc == null or not is_instance_valid(npc):
-			continue
-		if not ("hostile" in npc and bool(npc.hostile)):
-			continue
-		hostiles.append(npc)
-	if hostiles.is_empty():
-		if hud != null and hud.has_method("append_system"):
-			hud.append_system("附近没有敌人。")
-		return
-	if dir == 0:
-		dir = 1
-	var n: int = hostiles.size()
-	var cur := -1
-	for i in range(n):
-		var npc = hostiles[i]
-		var nid := str(npc.npc_id).strip_edges() if "npc_id" in npc else ""
-		if nid != "" and nid == _selected_npc_id:
-			cur = i
-			break
-	if cur < 0:
-		_cycle_index = 0 if dir > 0 else n - 1
-	else:
-		_cycle_index = (cur + dir) % n
-		if _cycle_index < 0:
-			_cycle_index += n
-	_select_npc(hostiles[_cycle_index])
-
-
+	AutoAttack.cycle_hostile_target(self, dir)
 func toggle_auto_attack() -> void:
-	_auto_attack = not _auto_attack
-	if hud != null and hud.has_method("append_system"):
-		hud.append_system("自动攻击：%s" % ("开" if _auto_attack else "关"))
-
-
+	AutoAttack.toggle_auto_attack(self, )
 func is_auto_attack() -> bool:
-	return _auto_attack
-
-
+	return AutoAttack.is_auto_attack(self, )
 func _tick_auto_attack(delta: float) -> void:
-	if not _auto_attack or player == null or player.input_locked:
-		return
-	if not _pending_skill_id.is_empty():
-		return
-	_auto_attack_cd = maxf(0.0, _auto_attack_cd - delta)
-	if _auto_attack_cd > 0.0:
-		return
-	# Duel shell: swing at selected remote opponent when adjacent.
-	if not _selected_remote_id.is_empty():
-		var dsrv = Net.server()
-		if dsrv != null and dsrv.has_method("in_duel") and dsrv.in_duel():
-			var dsnap: Dictionary = dsrv.snapshot_duel() if dsrv.has_method("snapshot_duel") else {}
-			if str(dsnap.get("opponent_id", "")) == _selected_remote_id and dsrv.has_method("try_attack"):
-				var mk = _remote_markers.get(_selected_remote_id, null)
-				var beside := true
-				if mk != null and is_instance_valid(mk):
-					var cv: Variant = mk.get_meta("cell", Vector2i.ZERO)
-					var rcell := Vector2i.ZERO
-					if typeof(cv) == TYPE_VECTOR2I:
-						rcell = cv
-					elif typeof(cv) == TYPE_DICTIONARY:
-						rcell = Vector2i(int(cv.get("x", 0)), int(cv.get("y", 0)))
-					var pcell: Vector2i = player.cell
-					beside = maxi(absi(pcell.x - rcell.x), absi(pcell.y - rcell.y)) <= 1
-				if beside:
-					_auto_attack_cd = 0.85
-					var result: Dictionary = dsrv.try_attack(_selected_remote_id, player.cell.x, player.cell.y)
-					var acts_v: Variant = result.get("actions", [])
-					if typeof(acts_v) == TYPE_ARRAY:
-						_apply_server_actions(acts_v)
-				else:
-					_auto_attack_cd = 0.4
-				return
-	if _selected_npc_id.is_empty():
-		return
-	var npc = _find_npc_by_id(_selected_npc_id)
-	if npc == null or not ("hostile" in npc and bool(npc.hostile)):
-		return
-	var pcell2: Vector2i = player.cell
-	if _player_beside_npc(npc, pcell2):
-		_auto_attack_cd = 0.85
-		_face_toward_cell(_npc_target_cell(npc))
-		_try_attack_npc(npc)
-	elif player.has_method("click_move_to") and not player.moving:
-		_auto_attack_cd = 0.4
-		_path_to_npc_range(npc, 1)
-
-
-
+	AutoAttack._tick_auto_attack(self, delta)
 func pickup_nearest() -> void:
-	if player == null or player.input_locked:
-		return
-	var best_id := ""
-	var best_d := 99
-	var pcell: Vector2i = player.cell
-	for bag_id in _ground_markers.keys():
-		var mk = _ground_markers[bag_id]
-		if mk == null or not is_instance_valid(mk) or not mk.has_meta("cell"):
-			continue
-		var c: Vector2i = mk.get_meta("cell")
-		var d: int = maxi(absi(pcell.x - c.x), absi(pcell.y - c.y))
-		if d < best_d:
-			best_d = d
-			best_id = str(bag_id)
-	if best_id.is_empty() or best_d > 8:
-		if hud != null and hud.has_method("append_system"):
-			hud.append_system("附近没有掉落。")
-		return
-	if best_d <= 1:
-		request_open_ground_bag(best_id)
-		return
-	var mk2 = _ground_markers[best_id]
-	if player.has_method("click_move_to") and mk2.has_meta("cell"):
-		player.click_move_to(mk2.get_meta("cell"))
-
-
+	Pickup.pickup_nearest(self, )
 func _try_auto_pickup_at(cell: Vector2i) -> void:
-	var bag_id := _find_ground_bag_at(cell)
-	if bag_id.is_empty():
-		return
-	var srv = Net.server()
-	# Respect party loot ownership — do not auto-open/take teammates' bags.
-	if srv != null and srv.has_method("can_loot_ground_bag") and not bool(srv.can_loot_ground_bag(bag_id)):
-		return
-	request_open_ground_bag(bag_id)
-	call_deferred("_auto_take_all")
-
-
+	Pickup._try_auto_pickup_at(self, cell)
 func _auto_take_all() -> void:
-	var srv = Net.server()
-	if srv == null:
-		return
-	var gs := GameSettingsScript.get_i()
-	var filter := "all"
-	if gs != null:
-		filter = str(gs.get("auto_pickup_filter"))
-	if filter not in GameSettingsScript.AUTO_PICKUP_FILTER_IDS:
-		filter = "all"
-	if filter == "all":
-		if srv.has_method("try_loot_take_all"):
-			var result: Dictionary = srv.try_loot_take_all()
-			var actions_v: Variant = result.get("actions", [])
-			if typeof(actions_v) == TYPE_ARRAY:
-				_apply_server_actions(actions_v)
-		return
-	# Filtered auto-loot: take matching stacks only; leave rest on ground.
-	if not srv.has_method("try_loot_take"):
-		return
-	var catalog = srv.get("item_catalog")
-	var pending: Array = []
-	if srv.has_method("pending_loot_snapshot"):
-		var snap: Dictionary = srv.pending_loot_snapshot()
-		var items_v: Variant = snap.get("items", [])
-		if typeof(items_v) == TYPE_ARRAY:
-			pending = items_v
-	var ids: Array = []
-	for d_v in pending:
-		if typeof(d_v) != TYPE_DICTIONARY:
-			continue
-		var iid := str(d_v.get("item_id", "")).strip_edges()
-		if iid.is_empty():
-			continue
-		if GameSettingsScript.matches_auto_pickup_filter(filter, iid, catalog):
-			ids.append(iid)
-	for iid in ids:
-		if not srv.has_method("has_pending_loot") or not bool(srv.has_pending_loot()):
-			break
-		var r: Dictionary = srv.try_loot_take(str(iid), -1)
-		var sub_v: Variant = r.get("actions", [])
-		if typeof(sub_v) == TYPE_ARRAY:
-			_apply_server_actions(sub_v)
-	# Close loot UI if leftovers remain (manual window still can take anything).
-	if srv.has_method("has_pending_loot") and bool(srv.has_pending_loot()) and srv.has_method("try_loot_close"):
-		var cr: Dictionary = srv.try_loot_close()
-		var ca: Variant = cr.get("actions", [])
-		if typeof(ca) == TYPE_ARRAY:
-			_apply_server_actions(ca)
-
-
+	Pickup._auto_take_all(self, )
 func _refresh_player_gear_look(equipment: Array) -> void:
 	if player == null or not player.has_method("apply_gear_look"):
 		return
@@ -932,56 +530,11 @@ func _apply_sit(action: Dictionary) -> void:
 func _apply_respawn(action: Dictionary) -> void:
 	ActionApply.apply_respawn(self, action)
 func _engage_npc(npc) -> bool:
-	## Hostile -> MockServer.try_attack; friendly/script -> try_interact.
-	if npc == null:
-		return false
-	if player != null and player.input_locked:
-		return false
-	var is_hostile := bool(npc.hostile) if "hostile" in npc else false
-	if is_hostile:
-		return _try_attack_npc(npc)
-	return _try_interact_npc(npc)
-
-
+	return Engage._engage_npc(self, npc)
 func _try_attack_npc(npc) -> bool:
-	if npc == null or player == null:
-		return false
-	_face_toward_cell(_npc_target_cell(npc))
-	# Local FX only (face toward player).
-	if npc.has_method("try_interact"):
-		npc.try_interact(player.cell)
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_attack"):
-		return true
-	var npc_id := str(npc.npc_id) if "npc_id" in npc else ""
-	var result: Dictionary = srv.try_attack(npc_id, player.cell.x, player.cell.y)
-	if not bool(result.get("ok", false)):
-		return true
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, npc)
-	return true
-
-
+	return Engage._try_attack_npc(self, npc)
 func _try_interact_npc(npc) -> bool:
-	if npc == null or player == null:
-		return false
-	# Local FX only (face toward player). Do NOT open Chat from interact_text.
-	if npc.has_method("try_interact"):
-		npc.try_interact(player.cell)
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_interact"):
-		return true
-	var npc_id := str(npc.npc_id) if "npc_id" in npc else ""
-	var result: Dictionary = srv.try_interact(npc_id, player.cell.x, player.cell.y)
-	if not bool(result.get("ok", false)):
-		return true
-	var actions_v: Variant = result.get("actions", [])
-	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
-	_apply_server_actions(actions, npc)
-	return true
-
-
+	return Engage._try_interact_npc(self, npc)
 func _init_aoi_driver() -> void:
 	if _aoi == null:
 		_aoi = AoiDriver.new()
@@ -1118,101 +671,13 @@ func _clear_remote_selection() -> void:
 func _select_remote(marker: Node2D) -> void:
 	RemoteActors._select_remote(self, marker)
 func _ensure_player_context_menu() -> PopupMenu:
-	if _player_ctx_menu != null and is_instance_valid(_player_ctx_menu):
-		return _player_ctx_menu
-	# Prefer GameHud-owned menu (CanvasLayer); fall back to a local PopupMenu.
-	if hud != null and hud.has_method("ensure_player_context_menu"):
-		_player_ctx_menu = hud.ensure_player_context_menu()
-		if _player_ctx_menu != null:
-			return _player_ctx_menu
-	_player_ctx_menu = PopupMenu.new()
-	_player_ctx_menu.name = "PlayerContextMenu"
-	add_child(_player_ctx_menu)
-	if not _player_ctx_menu.id_pressed.is_connected(_on_player_context_id):
-		_player_ctx_menu.id_pressed.connect(_on_player_context_id)
-	return _player_ctx_menu
-
-
+	return PlayerMenu._ensure_player_context_menu(self, )
 func _close_player_context_menu() -> void:
-	if hud != null and hud.has_method("close_player_context_menu"):
-		hud.close_player_context_menu()
-		return
-	if _player_ctx_menu != null and is_instance_valid(_player_ctx_menu) and _player_ctx_menu.visible:
-		_player_ctx_menu.hide()
-
-
+	PlayerMenu._close_player_context_menu(self, )
 func _open_player_context_menu(marker: Node2D, screen_pos: Vector2) -> void:
-	if marker == null:
-		return
-	var pid := str(marker.get_meta("player_id", "")).strip_edges()
-	var dname := str(marker.get_meta("display_name", pid)).strip_edges()
-	if dname.is_empty():
-		dname = pid
-	if hud != null and hud.has_method("open_player_context_menu"):
-		hud.open_player_context_menu(pid, dname, screen_pos)
-		return
-	var menu := _ensure_player_context_menu()
-	var PCM = preload("res://scripts/ui/player_context_menu.gd")
-	menu.clear()
-	menu.set_meta("target_player_id", pid)
-	menu.set_meta("target_display_name", dname)
-	menu.add_item(dname, PCM.Action.HEADER)
-	menu.set_item_disabled(0, true)
-	menu.add_separator()
-	var follow_id := ""
-	if is_following() and get_follow_id() == pid:
-		follow_id = pid
-	for d in PCM.item_defs(follow_id):
-		menu.add_item(str(d.get("text", "")), int(d.get("id", 0)))
-	menu.position = Vector2i(int(screen_pos.x), int(screen_pos.y))
-	menu.reset_size()
-	menu.popup()
-
-
+	PlayerMenu._open_player_context_menu(self, marker, screen_pos)
 func _on_player_context_id(id: int) -> void:
-	## Fallback handler when HUD does not own the menu.
-	if hud != null and hud.has_method("_on_player_context_id"):
-		hud._on_player_context_id(id)
-		return
-	var PCM = preload("res://scripts/ui/player_context_menu.gd")
-	var dname := ""
-	var pid := ""
-	if _player_ctx_menu != null:
-		dname = str(_player_ctx_menu.get_meta("target_display_name", ""))
-		pid = str(_player_ctx_menu.get_meta("target_player_id", ""))
-	match id:
-		PCM.Action.VIEW:
-			if hud != null and hud.has_method("append_system"):
-				hud.append_system("玩家【%s】（%s）" % [dname, pid])
-		PCM.Action.INVITE:
-			request_party_invite(dname)
-		PCM.Action.TRADE:
-			request_trade_open(dname)
-		PCM.Action.DUEL:
-			var duel_key := dname if not dname.is_empty() else pid
-			request_duel_challenge(duel_key)
-		PCM.Action.WHISPER:
-			if hud != null and hud.has_method("prefill_whisper"):
-				hud.prefill_whisper(dname)
-			elif hud != null and hud.has_method("append_system"):
-				hud.append_system("密语：在聊天框输入 /w %s 内容" % dname)
-		PCM.Action.ADD_FRIEND:
-			var add_key := dname if not dname.is_empty() else pid
-			request_friend_add(add_key)
-		PCM.Action.INVITE_GUILD:
-			var gkey := dname if not dname.is_empty() else pid
-			request_guild_invite(gkey)
-		PCM.Action.FOLLOW:
-			var fid := pid if not pid.is_empty() else dname
-			if fid.is_empty():
-				if hud != null and hud.has_method("append_system"):
-					hud.append_system("无法跟随。")
-			elif is_following() and _follow_id == fid:
-				stop_follow()
-			else:
-				start_follow(fid)
-
-
+	PlayerMenu._on_player_context_id(self, id)
 func _tick_remote_aoi() -> void:
 	RemoteActors._tick_remote_aoi(self, )
 func _apply_remote_move(action: Dictionary) -> void:
@@ -1346,82 +811,19 @@ func _apply_skill_respec(action: Dictionary) -> void:
 func request_use_skill(skill_id: String, ground: Vector2i = Vector2i(-9999, -9999)) -> void:
 	RequestAdapter.request_use_skill(self, skill_id, ground)
 func is_skill_aiming() -> bool:
-	return not _skill_aim_id.is_empty()
-
-
+	return SkillAim.is_skill_aiming(self, )
 func begin_skill_aim(skill_id: String) -> void:
-	_skill_aim_id = skill_id.strip_edges()
-	_ensure_skill_aim()
-	_skill_aim_hover = Vector2i(-9999, -9999)
-	if hud != null and hud.has_method("append_system"):
-		hud.append_system("选择释放地点（右键取消）")
-	_update_skill_aim_preview()
-
-
+	SkillAim.begin_skill_aim(self, skill_id)
 func cancel_skill_aim() -> void:
-	_skill_aim_id = ""
-	if _skill_aim_overlay != null and _skill_aim_overlay.has_method("clear_preview"):
-		_skill_aim_overlay.clear_preview()
-
-
+	SkillAim.cancel_skill_aim(self, )
 func _ensure_skill_aim() -> void:
-	if _skill_aim_overlay != null and is_instance_valid(_skill_aim_overlay):
-		return
-	_skill_aim_overlay = Node2D.new()
-	_skill_aim_overlay.set_script(SkillAimOverlay)
-	add_child(_skill_aim_overlay)
-	if _skill_aim_overlay.has_method("setup"):
-		_skill_aim_overlay.setup(map_field)
-
-
+	SkillAim._ensure_skill_aim(self, )
 func _ensure_skill_fx() -> void:
-	if _skill_fx != null and is_instance_valid(_skill_fx):
-		return
-	_skill_fx = Node2D.new()
-	_skill_fx.set_script(SkillFxScript)
-	add_child(_skill_fx)
-
-
+	SkillAim._ensure_skill_fx(self, )
 func _skill_aim_def() -> Dictionary:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("skill_def") or _skill_aim_id.is_empty():
-		return {}
-	return srv.skill_def(_skill_aim_id)
-
-
+	return SkillAim._skill_aim_def(self, )
 func _update_skill_aim_preview() -> void:
-	if _skill_aim_id.is_empty() or player == null or map_field == null:
-		return
-	_ensure_skill_aim()
-	var hover: Vector2i = map_field.world_to_cell(get_global_mouse_position())
-	_skill_aim_hover = hover
-	var def: Dictionary = _skill_aim_def()
-	var radius: int = int(def.get("aoe_radius", 0))
-	var shape := str(def.get("aoe_shape", "circle"))
-	var rng: int = int(def.get("range", 1))
-	var facing: int = 2
-	if player.has_method("get_facing"):
-		facing = CharsetSheet.dir_from_facing(str(player.get_facing()))
-	var engine = null
-	var srv = Net.server()
-	if srv != null:
-		engine = srv.get("combat_engine")
-	var cells: Array[Vector2i] = []
-	if engine != null and engine.has_method("aoe_cells"):
-		for c_v in engine.aoe_cells(hover, radius, shape, facing):
-			if typeof(c_v) == TYPE_VECTOR2I:
-				cells.append(c_v)
-	else:
-		for y in range(hover.y - radius, hover.y + radius + 1):
-			for x in range(hover.x - radius, hover.x + radius + 1):
-				if maxi(absi(x - hover.x), absi(y - hover.y)) <= radius:
-					cells.append(Vector2i(x, y))
-	var in_range := maxi(absi(hover.x - player.cell.x), absi(hover.y - player.cell.y)) <= rng
-	if rng <= 0:
-		in_range = true
-	_skill_aim_overlay.set_preview(hover, cells, in_range)
-
-
+	SkillAim._update_skill_aim_preview(self, )
 func _apply_skill_fx(action: Dictionary) -> void:
 	ActionApply.apply_skill_fx(self, action)
 func _apply_skill_anim(action: Dictionary) -> void:

@@ -47,6 +47,14 @@ NODE_MEMBERS = [
     "get_local_mouse_position", "get_viewport_rect", "get_canvas_transform",
     "get_screen_transform", "get_window", "set_process", "set_physics_process",
     "get_index", "raise", "show", "hide", "is_visible_in_tree",
+    # Object/Node methods seen later (call_deferred etc.)
+    "call_deferred", "set_deferred", "is_node_ready", "request_ready",
+    "get_path", "get_name", "set_name", "duplicate", "free", "get_instance_id",
+    "notify_property_list_changed", "has_node", "find_child", "find_children",
+    "get_last_child", "add_sibling", "reparent", "force_update_transform",
+    "update_configuration_warnings", "get_signal_list", "get_method_list",
+    "get_property_list", "get_script", "set_script", "tr", "to_string",
+    "get_class", "is_class", "is_queued_for_deletion", "cancel_free",
 ]
 
 
@@ -182,7 +190,9 @@ if need:
 io.open(OUT, "w", encoding="utf-8").write("\n".join(out))
 
 text = "\n".join(lines)
-if "const %s" % constname not in text:
+# NOTE: must match the exact declaration; a substring check would be fooled by
+# an existing `const SkillAimOverlay` when inserting `const SkillAim`.
+if not re.search(r"^const\s+%s\s*=" % re.escape(constname), text, re.M):
     last = max(i for i, ln in enumerate(lines[:60]) if ln.startswith("const "))
     lines.insert(last + 1, 'const %s = preload("%s")' % (constname, out_res))
     text = "\n".join(lines)
