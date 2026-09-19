@@ -30,6 +30,8 @@ const EditorSession = preload("res://scripts/editor/application/editor_session.g
 const AtmosphereModule = preload("res://scripts/editor/field/atmosphere_module.gd")
 const EntityModule = preload("res://scripts/editor/field/entity_module.gd")
 const AssetModule = preload("res://scripts/editor/field/asset_module.gd")
+const McpModule = preload("res://scripts/editor/field/mcp_module.gd")
+var _mcp_module_logic: McpModule = McpModule.new(self)
 var _asset_module_logic: AssetModule = AssetModule.new(self)
 var _entity_module_logic: EntityModule = EntityModule.new(self)
 var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
@@ -1471,50 +1473,11 @@ func _paste_entity() -> bool:
 
 
 func _want_mcp_autostart() -> bool:
-	var env := OS.get_environment("RMMO_EDITOR_MCP").strip_edges().to_lower()
-	if env in ["1", "true", "yes", "on"]:
-		return true
-	for a in OS.get_cmdline_user_args():
-		if str(a) == "--mcp":
-			return true
-	return false
-
-
+	return _mcp_module_logic._want_mcp_autostart()
 func _toggle_mcp() -> void:
-	if _mcp != null and bool(_mcp.running):
-		_mcp.stop()
-		if _mcp_popup:
-			_mcp_popup.set_item_checked(_mcp_popup.get_item_index(MENU_MCP_TOGGLE), false)
-		_status.text = "MCP 已关闭"
-		return
-	if _mcp == null:
-		_mcp = EditorMcp.new()
-		_mcp.editor = self
-		add_child(_mcp)
-	var info: Dictionary = _mcp.start()
-	var on := bool(info.get("ok", false))
-	if _mcp_popup:
-		_mcp_popup.set_item_checked(_mcp_popup.get_item_index(MENU_MCP_TOGGLE), on)
-	if on:
-		var url := str(info.get("url", ""))
-		DisplayServer.clipboard_set(url)
-		_status.text = "MCP 已启用 · %s（已复制）" % url
-	else:
-		_status.text = "MCP 启动失败：%s" % str(info.get("error", "未知"))
-
-
+	_mcp_module_logic._toggle_mcp()
 func mcp_refresh(cell: Vector2i = Vector2i(-1, -1)) -> void:
-	if cell.x >= 0:
-		_cursor = cell
-	if _inspector:
-		_inspector.bind_pack(pack)
-		if doc:
-			_inspector.load_cell(doc, _cursor)
-	_reload_field()
-	if _tree:
-		_refresh_tree()
-
-
+	_mcp_module_logic.mcp_refresh(cell)
 func _copy_tiles() -> void:
 	if doc == null or paint == null:
 		return

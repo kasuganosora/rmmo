@@ -31,6 +31,15 @@ for m in re.findall(r"^signal\s+([A-Za-z_]\w*)", src, re.M):
     members.add(m)
 for m in re.findall(r"^(?:func|static\s+func)\s+([A-Za-z_]\w*)", src, re.M):
     members.add(m)
+# enum VALUES (anonymous `enum { A = 1, B }` and named `enum Name { ... }`) are
+# class constants accessible via instance (ctrl.X), so treat them as members:
+# the prefix rewrites bare `MENU_X` -> `ctrl.MENU_X`. (Without this the moved
+# method references an undeclared identifier in the module.)
+for eb in re.findall(r"enum\s+\w*\s*\{(.*?)\}", src, re.S):
+    for entry in eb.split(","):
+        em = re.match(r"\s*([A-Za-z_]\w*)", entry)
+        if em:
+            members.add(em.group(1))
 members -= consts
 
 GLOBALS = {
