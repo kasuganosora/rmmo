@@ -9,6 +9,13 @@ members |= set(re.findall(r"(?m)^signal\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^(?:static\s+)?func\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^const\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^enum\s+(\w+)", hud))
+# enum VALUES are accessible via instance (ctrl.X) — collect them so ctrl.ENUM_VALUE
+# isn't falsely flagged as an unknown member.
+for eb in re.findall(r"enum\s+\w*\s*\{(.*?)\}", hud, re.S):
+    for entry in eb.split(","):
+        em = re.match(r"\s*([A-Za-z_]\w*)", entry)
+        if em:
+            members.add(em.group(1))
 
 BUILTINS = set("""add_child get_node_or_null create_tween is_inside_tree queue_free remove_child
 get_parent get_tree has_method emit_signal connect disconnect get_meta set_meta has_meta remove_meta

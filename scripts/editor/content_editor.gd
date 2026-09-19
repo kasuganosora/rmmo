@@ -31,6 +31,8 @@ const AtmosphereModule = preload("res://scripts/editor/field/atmosphere_module.g
 const EntityModule = preload("res://scripts/editor/field/entity_module.gd")
 const AssetModule = preload("res://scripts/editor/field/asset_module.gd")
 const McpModule = preload("res://scripts/editor/field/mcp_module.gd")
+const SpecModule = preload("res://scripts/editor/field/spec_module.gd")
+var _spec_module_logic: SpecModule = SpecModule.new(self)
 var _mcp_module_logic: McpModule = McpModule.new(self)
 var _asset_module_logic: AssetModule = AssetModule.new(self)
 var _entity_module_logic: EntityModule = EntityModule.new(self)
@@ -1039,64 +1041,7 @@ func _on_layer_tree() -> void:
 
 
 func _sync_spec_panel(spec: String, layer_name: String) -> void:
-	_spec_kind = spec
-	if map_field:
-		var overlay := spec if spec in ["meta", "settings", "shadow", "region"] else ""
-		map_field.edit_spec_kind = overlay
-	var hide_pal := spec in ["meta", "settings", "shadow", "region"]
-	if _palette:
-		_palette.visible = not hide_pal
-	if _spec_box == null:
-		return
-	var show := spec != ""
-	_spec_box.visible = show
-	if _meta_box:
-		_meta_box.visible = spec == "meta"
-	if _shadow_box:
-		_shadow_box.visible = spec == "shadow"
-	var region_row := _spec_box.get_node_or_null("RegionRow")
-	if region_row:
-		region_row.visible = spec == "region"
-	var set_row := _spec_box.get_node_or_null("SettingsRow")
-	if set_row:
-		set_row.visible = spec == "settings"
-	var far_row := _spec_box.get_node_or_null("FarRow")
-	if far_row:
-		far_row.visible = spec == "far"
-	if _water_thru:
-		_water_thru.visible = spec == "water"
-	var fx_row := _spec_box.get_node_or_null("LightFxRow")
-	if fx_row:
-		fx_row.visible = spec == "light"
-	if _spec_hint:
-		match spec:
-			"meta":
-				_spec_hint.text = "格子标记：室内藏屋顶；强制阻挡/通行覆盖图块通行。"
-			"settings":
-				_spec_hint.text = "氛围：按格写入光照、环境音、脚步（走到该格时生效）。"
-			"shadow":
-				_spec_hint.text = "阴影：勾选四角后在地图上画（不是图块）。"
-			"region":
-				_spec_hint.text = "区域号：给格子编号，便于事件/脚本区分。"
-			"far":
-				_spec_hint.text = "远景：用图块板绘制。滚动 0 跟地图，>0 随镜头视差。"
-			"water":
-				_spec_hint.text = "水面：有图即挡路；勾选「水面可走」则整层不挡。"
-			"roof":
-				_spec_hint.text = "屋顶：室内标记格子上会自动隐藏。"
-			"light":
-				_spec_hint.text = "光效：叠在角色上方的加色层。颜色可自定，与地图光照无关。"
-			_:
-				_spec_hint.text = layer_name
-	if spec == "far" and doc and _far_sx and _far_sy:
-		_far_sx.set_value_no_signal(doc.far_scroll.x)
-		_far_sy.set_value_no_signal(doc.far_scroll.y)
-	if spec == "water" and doc and _water_thru:
-		_water_thru.set_pressed_no_signal(doc.water_through)
-	if spec == "light":
-		_sync_fx_color_controls()
-
-
+	_spec_module_logic._sync_spec_panel(spec, layer_name)
 func _on_layer_vis() -> void:
 	if _layer_tree == null or map_field == null:
 		return
@@ -1609,21 +1554,7 @@ func _is_spec_paint() -> bool:
 
 
 func _spec_read(cell: Vector2i) -> int:
-	if doc == null:
-		return 0
-	match _spec_kind:
-		"meta":
-			return int(doc.ext_tile("meta", cell.x, cell.y))
-		"settings":
-			return int(doc.ext_tile("settings", cell.x, cell.y))
-		"shadow":
-			return int(doc.tile(cell.x, cell.y, 4)) & 0x0f
-		"region":
-			return int(doc.tile(cell.x, cell.y, 5))
-		_:
-			return 0
-
-
+	return _spec_module_logic._spec_read(cell)
 func _spec_brush_value() -> int:
 	match _spec_kind:
 		"meta":
@@ -1642,35 +1573,7 @@ func _spec_brush_value() -> int:
 
 
 func _spec_write(cell: Vector2i, erase: bool) -> void:
-	if doc == null:
-		return
-	var cur := _spec_read(cell)
-	var nxt := 0
-	if _spec_kind == "meta":
-		if erase:
-			nxt = cur & ~_spec_meta_bit
-		else:
-			nxt = cur | _spec_meta_bit
-			if _spec_meta_bit == MapExt.META_FORCE_BLOCK:
-				nxt &= ~MapExt.META_FORCE_PASS
-			elif _spec_meta_bit == MapExt.META_FORCE_PASS:
-				nxt &= ~MapExt.META_FORCE_BLOCK
-		if nxt != cur:
-			doc.set_ext_tile("meta", cell.x, cell.y, nxt)
-	elif _spec_kind == "settings":
-		nxt = 0 if erase else _spec_brush_value()
-		if nxt != cur:
-			doc.set_ext_tile("settings", cell.x, cell.y, nxt)
-	elif _spec_kind == "shadow":
-		nxt = 0 if erase else (_spec_shadow & 0x0f)
-		if nxt != cur:
-			doc.set_tile(cell.x, cell.y, 4, nxt)
-	elif _spec_kind == "region":
-		nxt = 0 if erase else _spec_brush_value()
-		if nxt != cur:
-			doc.set_tile(cell.x, cell.y, 5, nxt)
-
-
+	_spec_module_logic._spec_write(cell, erase)
 func _paint_spec(cell: Vector2i, erase: bool) -> void:
 	if doc == null or cell.x < 0 or cell.y < 0 or cell.x >= doc.width or cell.y >= doc.height:
 		return
@@ -1730,39 +1633,7 @@ func _spec_fill(start: Vector2i, erase: bool) -> void:
 
 
 func _spec_eyedrop(cell: Vector2i) -> void:
-	var v := _spec_read(cell)
-	match _spec_kind:
-		"meta":
-			if v != 0:
-				if (v & MapExt.META_INDOOR) != 0:
-					_spec_meta_bit = MapExt.META_INDOOR
-				elif (v & MapExt.META_WATER) != 0:
-					_spec_meta_bit = MapExt.META_WATER
-				elif (v & MapExt.META_NO_DASH) != 0:
-					_spec_meta_bit = MapExt.META_NO_DASH
-				if _meta_box:
-					for c in _meta_box.get_children():
-						if c is Button:
-							c.set_pressed_no_signal(int(c.get_meta("bit", 0)) == _spec_meta_bit)
-		"settings":
-			var light := v & 0xff
-			var sound := (v >> 8) & 0xff
-			var foot := (v >> 16) & 0xff
-			_select_opt_id(_light_opt, light)
-			_select_opt_id(_sound_opt, sound)
-			_select_opt_id(_foot_opt, foot)
-		"shadow":
-			_spec_shadow = v & 0x0f
-			if _shadow_box:
-				for c in _shadow_box.get_children():
-					if c is Button:
-						c.set_pressed_no_signal(((_spec_shadow & int(c.get_meta("bit", 0))) != 0))
-		"region":
-			if _region_spin:
-				_region_spin.value = v
-	_status.text = "取样 %s = %d" % [_spec_kind, v]
-
-
+	_spec_module_logic._spec_eyedrop(cell)
 func _on_toolbar_light() -> void:
 	_atmosphere_module_logic._on_toolbar_light()
 func _sync_light_controls() -> void:
