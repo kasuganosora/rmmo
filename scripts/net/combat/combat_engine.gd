@@ -52,6 +52,8 @@ const HIT_CHANCE_MAX := 0.99
 const HIT_LEVEL_STEP := 0.02
 const CRIT_CHANCE_BASE := 0.08
 const CRIT_DAMAGE_MULT := 1.5
+const CastModule = preload("res://scripts/net/combat/engine/cast_module.gd")
+var _cast_module_logic: CastModule = CastModule.new(self)
 
 
 func setup(p_stats, p_skills, p_items, p_bag, p_gear = null) -> void:
@@ -900,126 +902,15 @@ func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 
 
 func is_casting() -> bool:
-	return cast != null and cast.is_busy()
-
-
+	return _cast_module_logic.is_casting()
 func clear_cast() -> void:
-	if cast != null:
-		cast.clear()
-
-
+	_cast_module_logic.clear_cast()
 ## Interrupt active cast/channel. Returns actions (may be empty if idle).
 func interrupt_cast(reason: String = "move") -> Array:
-	if cast == null or not cast.is_busy():
-		return []
-	return cast.interrupt(reason)
-
-
+	return _cast_module_logic.interrupt_cast(reason)
 ## Advance cast/channel; on finish resolves skill effect. Returns action list.
 func tick_cast(delta: float) -> Array:
-	var actions: Array = []
-	if cast == null or not cast.is_busy():
-		return actions
-	var tick_r: Dictionary = cast.tick(delta)
-	actions.append_array(tick_r.get("actions", []))
-	if not bool(tick_r.get("finished", false)):
-		return actions
-	# Snapshot then clear before resolve so nested casts are impossible.
-	var snap: Dictionary = cast.snapshot()
-	cast.clear()
-	var skill_id := str(snap.get("skill_id", ""))
-	var target_id := str(snap.get("target_id", ""))
-	var px: int = int(snap.get("player_x", 0))
-	var py: int = int(snap.get("player_y", 0))
-	var gx: int = int(snap.get("ground_x", -9999))
-	var gy: int = int(snap.get("ground_y", -9999))
-	var def_v: Variant = snap.get("def", {})
-	var def: Dictionary = def_v if typeof(def_v) == TYPE_DICTIONARY else {}
-	var mode := str(snap.get("mode", "cast"))
-	var sname := str(snap.get("name", skill_id))
-	if def.is_empty() and skills != null:
-		def = skills.get_skill(skill_id)
-	if def.is_empty() or not stats.player_alive():
-		actions.append({
-			"type": "cast_end",
-			"skill_id": skill_id,
-			"name": sname,
-			"mode": mode,
-			"ok": false,
-			"cancelled": false,
-		})
-		return actions
-	# Re-validate target at finish (move interrupt should have fired if moved).
-	var needs_target: bool = bool(def.get("requires_target", false))
-	var tmode := skill_target_mode(def)
-	var range_cells: int = int(def.get("range", 1))
-	if tmode == "ground":
-		var gcell: Vector2i = _resolve_ground_cell(def, target_id, px, py, gx, gy)
-		if gcell.x <= -9990:
-			actions.append({
-				"type": "cast_end",
-				"skill_id": skill_id,
-				"name": sname,
-				"mode": mode,
-				"ok": false,
-				"cancelled": false,
-			})
-			actions.append({"type": "system_message", "text": "需要选择地点。"})
-			actions.append_array(_player_stat_actions())
-			return actions
-		if not _cell_in_range(Vector2i(px, py), gcell, range_cells):
-			actions.append({
-				"type": "cast_end",
-				"skill_id": skill_id,
-				"name": sname,
-				"mode": mode,
-				"ok": false,
-				"cancelled": false,
-			})
-			actions.append({"type": "system_message", "text": "地点太远。"})
-			actions.append_array(_player_stat_actions())
-			return actions
-		gx = gcell.x
-		gy = gcell.y
-	elif needs_target:
-		if target_id.is_empty() or not stats.npcs.has(target_id) or int(stats.npcs[target_id].get("hp", 0)) <= 0:
-			actions.append({
-				"type": "cast_end",
-				"skill_id": skill_id,
-				"name": sname,
-				"mode": mode,
-				"ok": false,
-				"cancelled": false,
-			})
-			actions.append({"type": "system_message", "text": "目标已失效。"})
-			actions.append_array(_player_stat_actions())
-			return actions
-		if not _in_range(target_id, px, py, range_cells):
-			actions.append({
-				"type": "cast_end",
-				"skill_id": skill_id,
-				"name": sname,
-				"mode": mode,
-				"ok": false,
-				"cancelled": false,
-			})
-			actions.append({"type": "system_message", "text": "目标太远。"})
-			actions.append_array(_player_stat_actions())
-			return actions
-	var resolve_actions: Array = []
-	_resolve_skill_effect(def, skill_id, target_id, px, py, resolve_actions, gx, gy, "player")
-	actions.append_array(resolve_actions)
-	actions.append({
-		"type": "cast_end",
-		"skill_id": skill_id,
-		"name": sname,
-		"mode": mode,
-		"ok": true,
-		"cancelled": false,
-	})
-	return actions
-
-
+	return _cast_module_logic.tick_cast(delta)
 func try_use_skill(
 	skill_id: String,
 	target_npc_id: String,
@@ -1249,128 +1140,15 @@ func try_npc_skill(
 
 
 func is_npc_casting(npc_id: String) -> bool:
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty() or not npc_casts.has(npc_id):
-		return false
-	var cs = npc_casts[npc_id]
-	return cs != null and cs.is_busy()
-
-
+	return _cast_module_logic.is_npc_casting(npc_id)
 ## Cancel NPC cast. Returns cast_end actions (no player 「施法被打断」 msg).
 func cancel_npc_cast(npc_id: String, reason: String = "interrupt") -> Array:
-	npc_id = npc_id.strip_edges()
-	var actions: Array = []
-	if npc_id.is_empty() or not npc_casts.has(npc_id):
-		return actions
-	var cs = npc_casts[npc_id]
-	npc_casts.erase(npc_id)
-	if cs == null or not cs.is_busy():
-		if cs != null:
-			cs.clear()
-		return actions
-	var snap: Dictionary = cs.snapshot()
-	cs.clear()
-	var sid := str(snap.get("skill_id", ""))
-	var sname := str(snap.get("name", sid))
-	var mode := str(snap.get("mode", "cast"))
-	actions.append({
-		"type": "cast_end",
-		"skill_id": sid,
-		"name": sname,
-		"mode": mode,
-		"ok": false,
-		"cancelled": true,
-		"reason": reason,
-		"npc_id": npc_id,
-		"caster": npc_id,
-	})
-	return actions
-
-
+	return _cast_module_logic.cancel_npc_cast(npc_id, reason)
 func clear_npc_cast(npc_id: String) -> void:
-	npc_id = npc_id.strip_edges()
-	if npc_id.is_empty():
-		return
-	if npc_casts.has(npc_id):
-		var cs = npc_casts[npc_id]
-		if cs != null:
-			cs.clear()
-		npc_casts.erase(npc_id)
-
-
+	_cast_module_logic.clear_npc_cast(npc_id)
 ## Advance all NPC casts; on finish resolves skill. Returns action list.
 func tick_npc_casts(delta: float) -> Array:
-	var actions: Array = []
-	if npc_casts.is_empty():
-		return actions
-	var done: Array = []
-	var ids: Array = npc_casts.keys()
-	for nid_v in ids:
-		var npc_id := str(nid_v)
-		var cs = npc_casts[npc_id]
-		if cs == null or not cs.is_busy():
-			done.append(npc_id)
-			continue
-		if stats == null or not stats.npcs.has(npc_id) or int(stats.npcs[npc_id].get("hp", 0)) <= 0:
-			actions.append_array(cancel_npc_cast(npc_id, "dead"))
-			continue
-		var tick_r: Dictionary = cs.tick(delta)
-		for a in tick_r.get("actions", []):
-			if typeof(a) == TYPE_DICTIONARY:
-				a["npc_id"] = npc_id
-				a["caster"] = npc_id
-				actions.append(a)
-		if not bool(tick_r.get("finished", false)):
-			continue
-		var snap: Dictionary = cs.snapshot()
-		cs.clear()
-		done.append(npc_id)
-		var skill_id := str(snap.get("skill_id", ""))
-		var px: int = int(snap.get("player_x", 0))
-		var py: int = int(snap.get("player_y", 0))
-		var gx: int = int(snap.get("ground_x", -9999))
-		var gy: int = int(snap.get("ground_y", -9999))
-		var def_v: Variant = snap.get("def", {})
-		var def: Dictionary = def_v if typeof(def_v) == TYPE_DICTIONARY else {}
-		var mode := str(snap.get("mode", "cast"))
-		var sname := str(snap.get("name", skill_id))
-		if def.is_empty() and skills != null:
-			def = skills.get_skill(skill_id)
-		if def.is_empty() or not stats.player_alive():
-			actions.append({
-				"type": "cast_end",
-				"skill_id": skill_id,
-				"name": sname,
-				"mode": mode,
-				"ok": false,
-				"cancelled": false,
-				"npc_id": npc_id,
-				"caster": npc_id,
-			})
-			continue
-		# Refresh caster cell if still tracked.
-		if stats.has_method("get_npc_cell"):
-			var cell: Vector2i = stats.get_npc_cell(npc_id)
-			if cell.x > -9990:
-				px = cell.x
-				py = cell.y
-		_resolve_skill_effect(def, skill_id, "", px, py, actions, gx, gy, npc_id)
-		actions.append({
-			"type": "cast_end",
-			"skill_id": skill_id,
-			"name": sname,
-			"mode": mode,
-			"ok": true,
-			"cancelled": false,
-			"npc_id": npc_id,
-			"caster": npc_id,
-		})
-		actions.append_array(_npc_stat_actions(npc_id))
-	for nid2 in done:
-		npc_casts.erase(str(nid2))
-	return actions
-
-
+	return _cast_module_logic.tick_npc_casts(delta)
 ## Force victim / top hate onto the player via a large add_hate spike.
 func _apply_taunt(npc_id: String, def: Dictionary, actions: Array) -> void:
 	npc_id = npc_id.strip_edges()
