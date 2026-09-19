@@ -1,22 +1,49 @@
 import re, io, sys
 
-WORLD = "d:/code/rmmo/scripts/game/world.gd"
-target = sys.argv[1]
+ROOT = sys.argv[1]
+target = sys.argv[2]
 
-wsrc = io.open(WORLD, "r", encoding="utf-8").read()
-# ALL const declarations in world.gd (preload or plain value), keep source line
-wconsts = {}
-for m in re.finditer(r"^const\s+([A-Za-z_]\w*)\s*=\s*(.+)$", wsrc, re.M):
-    wconsts[m.group(1)] = m.group(0)
+rlines = io.open(ROOT, "r", encoding="utf-8").read().split("\n")
 
+
+def capture_consts(lines):
+    """Capture const declarations, including multi-line arrays and `:=` forms."""
+    out, i, n = {}, 0, len(lines)
+    while i < n:
+        m = re.match(r"^const\s+([A-Za-z_]\w*)", lines[i])
+        if not m:
+            i += 1
+            continue
+        name = m.group(1)
+        buf = [lines[i]]
+        depth = 0
+        for ch in lines[i]:
+            if ch in "[({":
+                depth += 1
+            elif ch in "])}":
+                depth -= 1
+        j = i + 1
+        while depth > 0 and j < n:
+            buf.append(lines[j])
+            for ch in lines[j]:
+                if ch in "[({":
+                    depth += 1
+                elif ch in "])}":
+                    depth -= 1
+            j += 1
+        out[name] = "\n".join(buf)
+        i = j
+    return out
+
+
+wconsts = capture_consts(rlines)
 tsrc = io.open(target, "r", encoding="utf-8").read()
 
-# 1) add referenced-but-undeclared consts (plain values too, not just preload)
 declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", tsrc, re.M))
 need = [n for n in wconsts
         if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
 
-# 2) := -> =  (ctrl is untyped, so type inference is unreliable in moved code)
+# := inference is unreliable through untyped ctrl
 tsrc2 = re.sub(r"\bvar\s+([A-Za-z_]\w*)\s*:=", r"var \1 =", tsrc)
 
 lines = tsrc2.split("\n")

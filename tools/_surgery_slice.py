@@ -192,7 +192,11 @@ for name, sig_text, body in blocks:
 out = [re.sub(r"\bvar\s+([A-Za-z_]\w*)\s*:=", r"var \1 =", ln) for ln in out]
 
 tsrc = "\n".join(out)
-cdecl = dict(re.findall(r"^const\s+([A-Za-z_]\w*)\s*=\s*(preload\(.*?\))", src, re.M))
+# ALL consts (preload AND plain values like `const SHOP_TABS: Array = [...]`)
+cdecl = {}
+# allows typed consts: `const SHOP_TABS: Array = [...]`
+for _m in re.finditer(r"^const\s+([A-Za-z_]\w*)\s*(?::\s*[A-Za-z_][\w\[\]\.]*)?\s*=\s*(.+)$", src, re.M):
+    cdecl[_m.group(1)] = _m.group(0)
 
 # ---- append mode: if the module already exists, merge into it (keeps modules cohesive) ----
 append = os.path.exists(OUT)

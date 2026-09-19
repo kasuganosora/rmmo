@@ -1,7 +1,9 @@
 import re, io, glob
 
 # Scan every composition root under scripts/game/ (world.gd, player.gd, ...)
-ROOTS = sorted(glob.glob("d:/code/rmmo/scripts/game/*.gd"))
+ROOTS = sorted(glob.glob("d:/code/rmmo/scripts/game/*.gd")) + [
+    "d:/code/rmmo/scripts/ui/game_hud.gd"
+]
 wsrc = "\n".join(io.open(r, "r", encoding="utf-8").read() for r in ROOTS)
 
 # world.gd: const Name = preload("res://...")  ->  reverse map path -> const name
@@ -9,7 +11,8 @@ wconsts = dict(re.findall(r'^const\s+(\w+)\s*=\s*preload\("([^"]+)"\)', wsrc, re
 path2const = {v: k for k, v in wconsts.items()}
 
 apps = {}
-for p in glob.glob("d:/code/rmmo/scripts/game/*/*.gd"):  # application/ + infrastructure/
+MOD_DIRS = ["d:/code/rmmo/scripts/game/*/*.gd", "d:/code/rmmo/scripts/ui/panels/*.gd"]
+for p in sorted(x for d in MOD_DIRS for x in glob.glob(d)):
     src = io.open(p, "r", encoding="utf-8").read()
     blocks, cur_name, cur = {}, None, []
     for ln in src.split("\n"):
