@@ -44,6 +44,8 @@ var _upper_image: Image
 const RADAR_ATLAS_SCALE: float = 0.5
 const TileAnimModule = preload("res://scripts/map/field/tile_anim_module.gd")
 const ChunkStreamModule = preload("res://scripts/map/field/chunk_stream_module.gd")
+const RadarModule = preload("res://scripts/map/field/radar_module.gd")
+var _radar_module_logic: RadarModule = RadarModule.new(self)
 var _chunk_stream_module_logic: ChunkStreamModule = ChunkStreamModule.new(self)
 var _tile_anim_module_logic: TileAnimModule = TileAnimModule.new(self)
 var _radar_atlas_image: Image = null
@@ -177,41 +179,9 @@ func _ensure_sprites() -> void:
 
 
 func _ensure_lofi_canvas() -> void:
-	var gw: int = maxi(grid_width, 1)
-	var gh: int = maxi(grid_height, 1)
-	if _lofi_image == null or _lofi_image.get_width() != gw or _lofi_image.get_height() != gh:
-		_lofi_image = Image.create(gw, gh, false, Image.FORMAT_RGBA8)
-		_lofi_image.fill(Color(0, 0, 0, 1))
-
-
+	_radar_module_logic._ensure_lofi_canvas()
 func _stamp_lofi_from_chunk(node: Node2D, c: Vector2i) -> void:
-	if node == null:
-		return
-	_ensure_lofi_canvas()
-	var ts: int = maxi(tile_size, 1)
-	var x0: int = c.x * CHUNK_CELLS
-	var y0: int = c.y * CHUNK_CELLS
-	var cw: int = mini(CHUNK_CELLS, grid_width - x0)
-	var ch: int = mini(CHUNK_CELLS, grid_height - y0)
-	if cw <= 0 or ch <= 0:
-		return
-	## GroundAnim holds A1 water (static Ground is empty there).
-	for bucket in ["Ground", "GroundAnim", "Upper", "UpperAnim"]:
-		var spr: Sprite2D = node.get_node_or_null(bucket) as Sprite2D
-		if spr == null or spr.texture == null:
-			continue
-		var tex: Texture2D = spr.texture
-		var img: Image = tex.get_image() if tex is ImageTexture else null
-		if img == null:
-			continue
-		for ly in range(ch):
-			for lx in range(cw):
-				var color := _avg_tile_px(img, lx * ts, ly * ts, ts)
-				if color.a < 0.25:
-					continue
-				_lofi_image.set_pixel(x0 + lx, y0 + ly, color)
-
-
+	_radar_module_logic._stamp_lofi_from_chunk(node, c)
 func cell_visual_color(x: int, y: int) -> Color:
 	var col = collision
 	var sheets: Array = pack.sheets if pack else []
@@ -273,54 +243,9 @@ func _avg_tile_px(img: Image, ox: int, oy: int, ts: int) -> Color:
 
 
 func _publish_lofi_atlas() -> void:
-	if _lofi_image == null:
-		return
-	_ground_image = _lofi_image
-	_radar_atlas_image = _lofi_image
-	_radar_origin_cell = Vector2i.ZERO
-	_radar_atlas_scale = 1.0 / float(maxi(tile_size, 1))
-	if _radar_atlas_tex != null and _radar_atlas_tex.get_width() == _lofi_image.get_width() and _radar_atlas_tex.get_height() == _lofi_image.get_height():
-		_radar_atlas_tex.update(_lofi_image)
-	else:
-		_radar_atlas_tex = ImageTexture.create_from_image(_lofi_image)
-	_world_map_tex = _radar_atlas_tex
-	_overview_ground_tex = _radar_atlas_tex
-	_wm_complete = true
-	_ensure_lofi_sprite()
-
-
+	_radar_module_logic._publish_lofi_atlas()
 func _ensure_lofi_sprite() -> void:
-	if _lofi_sprite == null or not is_instance_valid(_lofi_sprite):
-		_lofi_sprite = get_node_or_null("Lofi") as Sprite2D
-		if _lofi_sprite == null:
-			_lofi_sprite = Sprite2D.new()
-			_lofi_sprite.name = "Lofi"
-			add_child(_lofi_sprite)
-			move_child(_lofi_sprite, 0)
-		_lofi_sprite.centered = false
-		_lofi_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		_lofi_sprite.z_index = -2
-		_lofi_sprite.z_as_relative = true
-	if _lofi_image != null and _lofi_image.get_width() > 0:
-		if _radar_atlas_tex == null:
-			_radar_atlas_tex = ImageTexture.create_from_image(_lofi_image)
-		var tex: Texture2D = _world_map_tex if _world_map_tex != null else _radar_atlas_tex
-		_lofi_sprite.texture = tex
-		if _lofi_image != null and _lofi_image.get_width() == grid_width:
-			_lofi_sprite.scale = Vector2(float(maxi(tile_size, 1)), float(maxi(tile_size, 1)))
-		elif _lofi_image != null and _lofi_image.get_width() > 0 and grid_width > 0:
-			_lofi_sprite.scale = Vector2(
-				float(grid_width * maxi(tile_size, 1)) / float(_lofi_image.get_width()),
-				float(grid_height * maxi(tile_size, 1)) / float(maxi(_lofi_image.get_height(), 1))
-			)
-		else:
-			_lofi_sprite.scale = Vector2(float(maxi(tile_size, 1)), float(maxi(tile_size, 1)))
-		_lofi_sprite.visible = true
-	elif _lofi_sprite != null:
-		_lofi_sprite.visible = false
-
-
-
+	_radar_module_logic._ensure_lofi_sprite()
 func _resolve_pack_path(p: String) -> String:
 	p = p.strip_edges()
 	if p.is_empty():
@@ -635,42 +560,19 @@ func get_upper_texture() -> Texture2D:
 
 
 func get_radar_atlas_image() -> Image:
-	return _radar_atlas_image
-
-
+	return _radar_module_logic.get_radar_atlas_image()
 func get_radar_atlas_texture() -> Texture2D:
-	return _radar_atlas_tex
-
-
+	return _radar_module_logic.get_radar_atlas_texture()
 func get_radar_atlas_scale() -> float:
-	return _radar_atlas_scale
-
-
+	return _radar_module_logic.get_radar_atlas_scale()
 func get_lofi_image() -> Image:
-	return _lofi_image
-
-
+	return _radar_module_logic.get_lofi_image()
 func get_lofi_texture() -> Texture2D:
-	if _world_map_tex != null:
-		return _world_map_tex
-	if _radar_atlas_tex != null and not _uses_radar_window():
-		return _radar_atlas_tex
-	if _lofi_image != null and not _uses_radar_window():
-		_radar_atlas_tex = ImageTexture.create_from_image(_lofi_image)
-		return _radar_atlas_tex
-	return _world_map_tex
-
-
+	return _radar_module_logic.get_lofi_texture()
 func get_radar_origin_cell() -> Vector2i:
-	return _radar_origin_cell
-
-
+	return _radar_module_logic.get_radar_origin_cell()
 func _uses_radar_window() -> bool:
-	if pack != null and "streaming" in pack and bool(pack.streaming):
-		return true
-	return grid_width * grid_height > MapChunkStore.DENSE_MAX_CELLS
-
-
+	return _radar_module_logic._uses_radar_window()
 func world_map_complete() -> bool:
 	return _wm_complete or not _uses_radar_window()
 
@@ -1012,28 +914,7 @@ func _emit_progress(progress: Callable, value: float) -> void:
 
 
 func _bake_radar_atlas(ground_img: Image, upper_img: Image, w_px: int, h_px: int) -> void:
-	## One-time nearest downsample + upper blend. Radar scrolls a window; never resamples full map.
-	var sc: float = RADAR_ATLAS_SCALE
-	if sc <= 0.001:
-		sc = 0.5
-	var aw: int = maxi(1, int(round(float(w_px) * sc)))
-	var ah: int = maxi(1, int(round(float(h_px) * sc)))
-	if ground_img == null or ground_img.get_width() <= 0:
-		_radar_atlas_image = null
-		_radar_atlas_tex = null
-		_radar_atlas_scale = sc
-		return
-	var atlas: Image = ground_img.duplicate()
-	atlas.resize(aw, ah, Image.INTERPOLATE_NEAREST)
-	if upper_img != null and upper_img.get_width() > 0:
-		var u: Image = upper_img.duplicate()
-		u.resize(aw, ah, Image.INTERPOLATE_NEAREST)
-		atlas.blend_rect(u, Rect2i(0, 0, aw, ah), Vector2i.ZERO)
-	_radar_atlas_image = atlas
-	_radar_atlas_scale = sc
-	_radar_atlas_tex = ImageTexture.create_from_image(atlas)
-
-
+	_radar_module_logic._bake_radar_atlas(ground_img, upper_img, w_px, h_px)
 func _hide_legacy_fullmap_sprites() -> void:
 	if _ground:
 		_ground.visible = false
@@ -1533,50 +1414,9 @@ func _set_chunk_anim_mix(mix_t: float) -> void:
 func _pump_anim_prebake() -> void:
 	_tile_anim_module_logic._pump_anim_prebake()
 func _bake_radar_mv_only(do_yield: bool, progress: Callable) -> void:
-	_bake_lofi_overview()
-	if do_yield:
-		_emit_progress(progress, 0.82)
-
-
+	_radar_module_logic._bake_radar_mv_only(do_yield, progress)
 func _bake_lofi_overview() -> void:
-	_wm_buf_cache.clear()
-	_wm_img_cache.clear()
-	var gw: int = maxi(grid_width, 1)
-	var gh: int = maxi(grid_height, 1)
-	if _uses_radar_window():
-		_load_offline_overview()
-		_rebuild_radar_window()
-		_ensure_lofi_sprite()
-		return
-	var img := Image.create(gw, gh, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 1))
-	var sheets: Array = pack.sheets if pack else []
-	var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-	var col = collision
-	var void_id: int = _cached_void_id
-	if void_id == 0:
-		void_id = _detect_border_void_tile_id(col)
-	for y in range(gh):
-		for x in range(gw):
-			if edit_doc == null and _is_void_filler_cell(col, x, y, void_id):
-				continue
-			img.set_pixel(x, y, cell_visual_color(x, y))
-	_lofi_image = img
-	_ground_image = img
-	_upper_image = null
-	_radar_atlas_image = img
-	_radar_origin_cell = Vector2i.ZERO
-	_radar_atlas_scale = 1.0 / float(maxi(tile_size, 1))
-	_radar_atlas_tex = ImageTexture.create_from_image(img)
-	_overview_ground_tex = _radar_atlas_tex
-	_overview_upper_tex = null
-	_world_map_tex = _radar_atlas_tex
-	_wm_complete = true
-	_wm_jit_q.clear()
-	_wm_step = 1
-	_ensure_lofi_sprite()
-
-
+	_radar_module_logic._bake_lofi_overview()
 func _load_offline_overview() -> void:
 	_world_map_tex = null
 	var paths: Array[String] = []
@@ -1613,57 +1453,9 @@ func _load_offline_overview() -> void:
 
 
 func _rebuild_radar_window() -> void:
-	var oc := cell_to_chunk(_obs_cell)
-	_radar_obs_chunk = oc
-	var min_c := Vector2i(maxi(oc.x - 1, 0), maxi(oc.y - 1, 0))
-	var counts: Vector2i = MapChunkStore.chunk_counts(grid_width, grid_height)
-	var max_c := Vector2i(mini(oc.x + 1, counts.x - 1), mini(oc.y + 1, counts.y - 1))
-	var x0: int = min_c.x * CHUNK_CELLS
-	var y0: int = min_c.y * CHUNK_CELLS
-	var x1: int = mini((max_c.x + 1) * CHUNK_CELLS, grid_width)
-	var y1: int = mini((max_c.y + 1) * CHUNK_CELLS, grid_height)
-	var ww: int = maxi(x1 - x0, 1)
-	var hh: int = maxi(y1 - y0, 1)
-	var img := Image.create(ww, hh, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 1))
-	var sheets: Array = pack.sheets if pack else []
-	var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-	var col = collision
-	for y in range(hh):
-		for x in range(ww):
-			img.set_pixel(x, y, cell_visual_color(x0 + x, y0 + y))
-	_radar_origin_cell = Vector2i(x0, y0)
-	_radar_atlas_image = img
-	_radar_atlas_scale = 1.0 / float(maxi(tile_size, 1))
-	_radar_atlas_tex = ImageTexture.create_from_image(img)
-
-
+	_radar_module_logic._rebuild_radar_window()
 func _patch_lofi_cells(cells: Array) -> void:
-	if _lofi_image == null or cells.is_empty():
-		return
-	var sheets: Array = pack.sheets if pack else []
-	var flags: PackedInt32Array = pack.flags if pack else PackedInt32Array()
-	var col = collision
-	var gw: int = _lofi_image.get_width()
-	var gh: int = _lofi_image.get_height()
-	var changed := false
-	for item in cells:
-		var c: Vector2i = item
-		if c.x < 0 or c.y < 0 or c.x >= gw or c.y >= gh:
-			continue
-		_lofi_image.set_pixel(c.x, c.y, cell_visual_color(c.x, c.y))
-		changed = true
-	if not changed:
-		return
-	if _radar_atlas_tex != null:
-		_radar_atlas_tex.update(_lofi_image)
-	else:
-		_radar_atlas_tex = ImageTexture.create_from_image(_lofi_image)
-	_radar_atlas_image = _lofi_image
-	_overview_ground_tex = _radar_atlas_tex
-	_ensure_lofi_sprite()
-
-
+	_radar_module_logic._patch_lofi_cells(cells)
 func _any_sheet(sheets: Array) -> bool:
 	for s in sheets:
 		if s != null:
@@ -1720,33 +1512,7 @@ func render_preview(x0: int, y0: int, cells_w: int, cells_h: int, px_override: i
 
 
 func _render_lofi_preview(x0: int, y0: int, cells_w: int, cells_h: int, px: int) -> Image:
-	var gw: int = maxi(grid_width, 1)
-	var gh: int = maxi(grid_height, 1)
-	x0 = clampi(x0, 0, gw - 1)
-	y0 = clampi(y0, 0, gh - 1)
-	cells_w = clampi(cells_w, 1, gw - x0)
-	cells_h = clampi(cells_h, 1, gh - y0)
-	px = maxi(px, 1)
-	if _lofi_image != null and _lofi_image.get_width() == gw and _lofi_image.get_height() == gh:
-		var chip := Image.create(cells_w, cells_h, false, Image.FORMAT_RGBA8)
-		chip.blit_rect(_lofi_image, Rect2i(x0, y0, cells_w, cells_h), Vector2i.ZERO)
-		if px > 1:
-			chip.resize(cells_w * px, cells_h * px, Image.INTERPOLATE_NEAREST)
-		return chip
-	var dest := Image.create(cells_w * px, cells_h * px, false, Image.FORMAT_RGBA8)
-	dest.fill(Color(0, 0, 0, 1))
-	for y in range(cells_h):
-		for x in range(cells_w):
-			var acc: Color = cell_visual_color(x0 + x, y0 + y)
-			if px == 1:
-				dest.set_pixel(x, y, acc)
-			else:
-				for py in range(px):
-					for pxx in range(px):
-						dest.set_pixel(x * px + pxx, y * px + py, acc)
-	return dest
-
-
+	return _radar_module_logic._render_lofi_preview(x0, y0, cells_w, cells_h, px)
 func _render_preview_body(x0: int, y0: int, cells_w: int, cells_h: int) -> Image:
 	var ts: int = maxi(tile_size, 1)
 	var gw: int = maxi(grid_width, 1)
