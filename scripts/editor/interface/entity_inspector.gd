@@ -4,6 +4,8 @@ extends VBoxContainer
 const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
 const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
+const SelectorsModule = preload("res://scripts/editor/interface/inspector/selectors_module.gd")
+var _selectors_module_logic: SelectorsModule = SelectorsModule.new(self)
 
 signal changed
 signal jump_requested(cell: Vector2i)
@@ -850,24 +852,9 @@ func _store_graphic() -> void:
 
 
 func _select_g_charset_opt(id: String) -> void:
-	if _g_charset_opt == null:
-		return
-	for i in range(_g_charset_opt.item_count):
-		if str(_g_charset_opt.get_item_metadata(i)) == id:
-			_g_charset_opt.select(i)
-			return
-	_g_charset_opt.select(0)
-
-
+	_selectors_module_logic._select_g_charset_opt(id)
 func _on_g_charset_opt(idx: int) -> void:
-	if _g_charset_opt == null or _g_charset == null:
-		return
-	var id := str(_g_charset_opt.get_item_metadata(idx))
-	if id != "":
-		_g_charset.text = id
-	_store_graphic()
-
-
+	_selectors_module_logic._on_g_charset_opt(idx)
 func _current_page() -> Dictionary:
 	if _page_idx < 0 or _page_idx >= _pages.size():
 		_pages = [EventCommands.default_page()]
@@ -1298,171 +1285,41 @@ func _select_trigger(trig: String) -> void:
 
 
 func _fill_dir(opt: OptionButton) -> void:
-	opt.clear()
-	opt.add_item("下", 2)
-	opt.add_item("左", 4)
-	opt.add_item("右", 6)
-	opt.add_item("上", 8)
-	opt.select(0)
-
-
+	_selectors_module_logic._fill_dir(opt)
 func _select_dir(opt: OptionButton, d: int) -> void:
-	for i in range(opt.item_count):
-		if opt.get_item_id(i) == d:
-			opt.select(i)
-			return
-	opt.select(0)
-
-
+	_selectors_module_logic._select_dir(opt, d)
 func _dir_value(opt: OptionButton) -> int:
-	return opt.get_item_id(opt.selected) if opt.item_count > 0 else 2
-
-
+	return _selectors_module_logic._dir_value(opt)
 func _fill_charset_opt() -> void:
-	_fill_one_charset_opt(_charset_opt)
-	_fill_one_charset_opt(_g_charset_opt)
-
-
+	_selectors_module_logic._fill_charset_opt()
 func _fill_one_charset_opt(opt: OptionButton) -> void:
-	if opt == null:
-		return
-	opt.clear()
-	opt.add_item("（手填）")
-	opt.set_item_metadata(0, "")
-	if pack == null or not pack.has_method("list_assets"):
-		return
-	for it in pack.list_assets("charset"):
-		if typeof(it) != TYPE_DICTIONARY:
-			continue
-		var cid := str(it.get("id", ""))
-		opt.add_item(cid)
-		opt.set_item_metadata(opt.item_count - 1, cid)
-
-
+	_selectors_module_logic._fill_one_charset_opt(opt)
 func _select_charset_opt(id: String) -> void:
-	if _charset_opt == null:
-		return
-	for i in range(_charset_opt.item_count):
-		if str(_charset_opt.get_item_metadata(i)) == id:
-			_charset_opt.select(i)
-			return
-	_charset_opt.select(0)
-
-
+	_selectors_module_logic._select_charset_opt(id)
 func _on_charset_opt(idx: int) -> void:
-	var id := str(_charset_opt.get_item_metadata(idx))
-	if id != "":
-		_charset.text = id
-
-
+	_selectors_module_logic._on_charset_opt(idx)
 func _fill_map_opt() -> void:
-	_fill_one_map_opt(_to_map_opt)
-	_fill_one_map_opt(_p_map_opt)
-
-
+	_selectors_module_logic._fill_map_opt()
 func _fill_one_map_opt(opt: OptionButton) -> void:
-	if opt == null:
-		return
-	opt.clear()
-	opt.add_item("（手填）")
-	opt.set_item_metadata(0, "")
-	if pack == null:
-		return
-	for item in pack.map_tree:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var mid := str(item.get("id", ""))
-		opt.add_item("%s (%s)" % [str(item.get("name", mid)), mid])
-		opt.set_item_metadata(opt.item_count - 1, mid)
-
-
+	_selectors_module_logic._fill_one_map_opt(opt)
 func _select_map_opt(id: String) -> void:
-	if _to_map_opt == null:
-		return
-	for i in range(_to_map_opt.item_count):
-		if str(_to_map_opt.get_item_metadata(i)) == id:
-			_to_map_opt.select(i)
-			return
-	_to_map_opt.select(0)
-
-
+	_selectors_module_logic._select_map_opt(id)
 func _on_map_opt(idx: int) -> void:
-	var id := str(_to_map_opt.get_item_metadata(idx))
-	if id != "":
-		_to_map.text = id
-
-
+	_selectors_module_logic._on_map_opt(idx)
 func _load_catalogs() -> void:
-	var ic = ItemCatalog.new()
-	ic.load_catalog()
-	_items = ic.list_all()
-	var sc = ShopCatalog.new()
-	if sc.has_method("load_catalog"):
-		sc.load_catalog()
-	if sc.has_method("all_ids"):
-		_shops = sc.all_ids()
-
-
+	_selectors_module_logic._load_catalogs()
 func _fill_item_opt(opt: OptionButton, allow_empty: bool = false) -> void:
-	opt.clear()
-	if allow_empty:
-		opt.add_item("（无）")
-		opt.set_item_metadata(0, "")
-	for it in _items:
-		if typeof(it) != TYPE_DICTIONARY:
-			continue
-		var iid := str(it.get("id", ""))
-		opt.add_item("%s (%s)" % [str(it.get("name", iid)), iid])
-		opt.set_item_metadata(opt.item_count - 1, iid)
-	if opt.item_count == 0:
-		opt.add_item("potion_hp_small")
-		opt.set_item_metadata(0, "potion_hp_small")
-
-
+	_selectors_module_logic._fill_item_opt(opt, allow_empty)
 func _select_item_opt(id: String) -> void:
-	for i in range(_p_item.item_count):
-		if str(_p_item.get_item_metadata(i)) == id:
-			_p_item.select(i)
-			return
-	if id != "":
-		_p_item.add_item(id)
-		_p_item.set_item_metadata(_p_item.item_count - 1, id)
-		_p_item.select(_p_item.item_count - 1)
-
-
+	_selectors_module_logic._select_item_opt(id)
 func _item_id_of(opt: OptionButton) -> String:
-	if opt.item_count == 0 or opt.selected < 0:
-		return ""
-	return str(opt.get_item_metadata(opt.selected))
-
-
+	return _selectors_module_logic._item_id_of(opt)
 func _fill_shop_opt(opt: OptionButton) -> void:
-	opt.clear()
-	for sid in _shops:
-		opt.add_item(str(sid))
-		opt.set_item_metadata(opt.item_count - 1, str(sid))
-	if opt.item_count == 0:
-		opt.add_item("starter_goods")
-		opt.set_item_metadata(0, "starter_goods")
-
-
+	_selectors_module_logic._fill_shop_opt(opt)
 func _select_shop_opt(id: String) -> void:
-	for i in range(_p_shop.item_count):
-		if str(_p_shop.get_item_metadata(i)) == id:
-			_p_shop.select(i)
-			return
-	if id != "":
-		_p_shop.add_item(id)
-		_p_shop.set_item_metadata(_p_shop.item_count - 1, id)
-		_p_shop.select(_p_shop.item_count - 1)
-
-
+	_selectors_module_logic._select_shop_opt(id)
 func _shop_id_of(opt: OptionButton) -> String:
-	if opt.item_count == 0 or opt.selected < 0:
-		return ""
-	return str(opt.get_item_metadata(opt.selected))
-
-
+	return _selectors_module_logic._shop_id_of(opt)
 func _add(parent: Node, text: String) -> void:
 	var l := Label.new()
 	l.text = text
@@ -1543,154 +1400,28 @@ func _sync_npc_combat() -> void:
 
 
 func _fill_switch_opts() -> void:
-	var ids: PackedStringArray = EventCommands.collect_switch_ids(pack)
-	_fill_id_opt(_switch_opt, ids)
-	_fill_id_opt(_p_switch_opt, ids)
-
-
+	_selectors_module_logic._fill_switch_opts()
 func _fill_id_opt(opt: OptionButton, ids: PackedStringArray) -> void:
-	if opt == null:
-		return
-	var keep := ""
-	if opt.item_count > 0 and opt.selected >= 0:
-		keep = str(opt.get_item_metadata(opt.selected))
-	opt.clear()
-	opt.add_item("（新开关）")
-	opt.set_item_metadata(0, "")
-	for sid in ids:
-		opt.add_item(sid)
-		opt.set_item_metadata(opt.item_count - 1, sid)
-	_select_switch_opt(opt, keep)
-
-
+	_selectors_module_logic._fill_id_opt(opt, ids)
 func _select_switch_opt(opt: OptionButton, id: String) -> void:
-	if opt == null:
-		return
-	for i in range(opt.item_count):
-		if str(opt.get_item_metadata(i)) == id:
-			opt.select(i)
-			return
-	if id.strip_edges() != "":
-		opt.add_item(id)
-		opt.set_item_metadata(opt.item_count - 1, id)
-		opt.select(opt.item_count - 1)
-		return
-	opt.select(0)
-
-
+	_selectors_module_logic._select_switch_opt(opt, id)
 func _on_when_switch_opt(idx: int) -> void:
-	if _switch_opt == null or _switch_id == null:
-		return
-	var id := str(_switch_opt.get_item_metadata(idx))
-	if id != "":
-		_switch_id.text = id
-	_store_when()
-
-
+	_selectors_module_logic._on_when_switch_opt(idx)
 func _on_cmd_switch_opt(idx: int) -> void:
-	if _p_switch_opt == null or _p_switch == null:
-		return
-	var id := str(_p_switch_opt.get_item_metadata(idx))
-	if id != "":
-		_p_switch.text = id
-	_store_params()
-
-
+	_selectors_module_logic._on_cmd_switch_opt(idx)
 func _on_cmd_map_opt(idx: int) -> void:
-	if _p_map_opt == null or _p_map == null:
-		return
-	var id := str(_p_map_opt.get_item_metadata(idx))
-	if id != "":
-		_p_map.text = id
-	_store_params()
-
-
+	_selectors_module_logic._on_cmd_map_opt(idx)
 func _select_cmd_map_opt(id: String) -> void:
-	if _p_map_opt == null:
-		return
-	for i in range(_p_map_opt.item_count):
-		if str(_p_map_opt.get_item_metadata(i)) == id:
-			_p_map_opt.select(i)
-			return
-	_p_map_opt.select(0)
-
-
+	_selectors_module_logic._select_cmd_map_opt(id)
 func _fill_audio_opt(op: String, current: String) -> void:
-	if _p_audio_opt == null:
-		return
-	var kind := "audio/se"
-	match op.strip_edges().to_lower():
-		"play_bgm":
-			kind = "audio/bgm"
-		"play_bgs":
-			kind = "audio/bgs"
-		"play_me":
-			kind = "audio/me"
-		_:
-			kind = "audio/se"
-	_p_audio_opt.clear()
-	_p_audio_opt.add_item("（手填）")
-	_p_audio_opt.set_item_metadata(0, "")
-	if pack != null and pack.has_method("list_assets"):
-		for it in pack.list_assets(kind):
-			if typeof(it) != TYPE_DICTIONARY:
-				continue
-			var aid := str(it.get("id", ""))
-			_p_audio_opt.add_item(aid)
-			_p_audio_opt.set_item_metadata(_p_audio_opt.item_count - 1, aid)
-	var picked := 0
-	for i in range(_p_audio_opt.item_count):
-		if str(_p_audio_opt.get_item_metadata(i)) == current:
-			picked = i
-			break
-	_p_audio_opt.select(picked)
-
-
+	_selectors_module_logic._fill_audio_opt(op, current)
 func _on_audio_opt(idx: int) -> void:
-	if _p_audio_opt == null or _p_audio == null:
-		return
-	var id := str(_p_audio_opt.get_item_metadata(idx))
-	if id != "":
-		_p_audio.text = id
-	_store_params()
-
-
+	_selectors_module_logic._on_audio_opt(idx)
 func _fill_face_opt() -> void:
-	if _p_face_opt == null:
-		return
-	_p_face_opt.clear()
-	_p_face_opt.add_item("（无）")
-	_p_face_opt.set_item_metadata(0, "")
-	if pack == null or not pack.has_method("list_assets"):
-		return
-	for it in pack.list_assets("faces"):
-		if typeof(it) != TYPE_DICTIONARY:
-			continue
-		var fid := str(it.get("id", ""))
-		_p_face_opt.add_item(fid)
-		_p_face_opt.set_item_metadata(_p_face_opt.item_count - 1, fid)
-
-
+	_selectors_module_logic._fill_face_opt()
 func _select_face_opt(id: String) -> void:
-	if _p_face_opt == null:
-		return
-	for i in range(_p_face_opt.item_count):
-		if str(_p_face_opt.get_item_metadata(i)) == id:
-			_p_face_opt.select(i)
-			return
-	if id.strip_edges() != "":
-		_p_face_opt.add_item(id)
-		_p_face_opt.set_item_metadata(_p_face_opt.item_count - 1, id)
-		_p_face_opt.select(_p_face_opt.item_count - 1)
-		return
-	_p_face_opt.select(0)
-
-
+	_selectors_module_logic._select_face_opt(id)
 func _on_face_opt(_idx: int) -> void:
-	_store_params()
-
-
+	_selectors_module_logic._on_face_opt(_idx)
 func _face_id_of() -> String:
-	if _p_face_opt == null or _p_face_opt.item_count == 0 or _p_face_opt.selected < 0:
-		return ""
-	return str(_p_face_opt.get_item_metadata(_p_face_opt.selected))
+	return _selectors_module_logic._face_id_of()
