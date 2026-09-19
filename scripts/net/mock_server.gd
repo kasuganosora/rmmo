@@ -49,6 +49,8 @@ const LootModule = preload("res://scripts/net/server/loot_module.gd")
 const ShopModule = preload("res://scripts/net/server/shop_module.gd")
 const PetModule = preload("res://scripts/net/server/pet_module.gd")
 const SessionModule = preload("res://scripts/net/server/session_module.gd")
+const EventModule = preload("res://scripts/net/server/event_module.gd")
+var _event_module_logic: EventModule = EventModule.new(self)
 var _session_module_logic: SessionModule = SessionModule.new(self)
 var _pet_module_logic: PetModule = PetModule.new(self)
 var _shop_module_logic: ShopModule = ShopModule.new(self)
@@ -1178,139 +1180,19 @@ func try_interact(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 
 ## Build EventRuntime server_ctx for command execution.
 func _event_server_ctx(npc_name: String = "") -> Dictionary:
-	return {
-		"inventory": inventory,
-		"shop_catalog": shop_catalog,
-		"npc_name": npc_name,
-		"transfer_cb": Callable(self, "_event_perform_transfer"),
-		"item_name_cb": Callable(self, "item_display_name"),
-		"quest_item_cb": Callable(self, "_quest_note_item_actions"),
-		"weather_cb": Callable(self, "set_weather"),
-		"npc_step_cb": Callable(self, "_event_npc_step"),
-		"npc_face_cb": Callable(self, "_event_npc_face"),
-		"npc_cell_cb": Callable(self, "_event_npc_cell"),
-		"npc_facing_cb": Callable(self, "_event_npc_facing"),
-		"inn_rest_cb": Callable(self, "try_inn_rest"),
-		"open_shop_cb": Callable(self, "_try_open_shop_action"),
-		"repair_cb": Callable(self, "try_repair"),
-		"collision": map_collision,
-		"player_cell": player_cell,
-	}
-
-
+	return _event_module_logic._event_server_ctx(npc_name)
 ## EventRuntime move_route step → try_npc_move (collision + occupancy).
 func _event_npc_step(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
-	npc_id = str(npc_id).strip_edges()
-	if npc_id.is_empty():
-		return {"ok": false, "x": from_x, "y": from_y}
-	# Ensure cell is known so later AI / interact use the moved position.
-	if combat_stats != null and combat_stats.has_method("set_npc_cell"):
-		var cur: Vector2i = Vector2i(-9999, -9999)
-		if combat_stats.has_method("get_npc_cell"):
-			cur = combat_stats.get_npc_cell(npc_id)
-		if cur.x < -9000:
-			combat_stats.set_npc_cell(npc_id, from_x, from_y)
-	var moved: Dictionary = try_npc_move(npc_id, from_x, from_y, dir)
-	if bool(moved.get("ok", false)) and event_runtime != null:
-		if event_runtime.has_method("has_event") and event_runtime.has_event(npc_id):
-			if event_runtime.has_method("update_event_cell"):
-				event_runtime.update_event_cell(npc_id, int(moved.get("x", from_x)), int(moved.get("y", from_y)))
-	return moved
-
-
+	return _event_module_logic._event_npc_step(npc_id, from_x, from_y, dir)
 func _event_npc_face(npc_id: String, facing: int) -> void:
-	npc_id = str(npc_id).strip_edges()
-	if npc_id.is_empty() or combat_stats == null:
-		return
-	if combat_stats.has_method("set_npc_facing"):
-		combat_stats.set_npc_facing(npc_id, facing)
-
-
+	_event_module_logic._event_npc_face(npc_id, facing)
 func _event_npc_cell(npc_id: String) -> Vector2i:
-	npc_id = str(npc_id).strip_edges()
-	if combat_stats != null and combat_stats.has_method("get_npc_cell"):
-		var c: Vector2i = combat_stats.get_npc_cell(npc_id)
-		if c.x > -9000:
-			return c
-	if event_runtime != null and event_runtime.has_method("get_event"):
-		var ev: Dictionary = event_runtime.get_event(npc_id)
-		var cv: Variant = ev.get("cell", {})
-		if typeof(cv) == TYPE_DICTIONARY:
-			return Vector2i(int(cv.get("x", 0)), int(cv.get("y", 0)))
-	return Vector2i.ZERO
-
-
+	return _event_module_logic._event_npc_cell(npc_id)
 func _event_npc_facing(npc_id: String) -> int:
-	npc_id = str(npc_id).strip_edges()
-	if combat_stats != null and combat_stats.npc_ai.has(npc_id):
-		var f := int(combat_stats.npc_ai[npc_id].get("facing", 2))
-		if f in [2, 4, 6, 8]:
-			return f
-	return 2
-
-
-
-
+	return _event_module_logic._event_npc_facing(npc_id)
 ## Transfer used by event `transfer` op (same landing rules as try_transfer / warps).
-func _event_perform_transfer(
-	to_pack: String,
-	to_cell: Dictionary,
-	facing: int = 2,
-	message: String = "",
-	to_map_id: String = ""
-) -> Dictionary:
-	to_pack = str(to_pack).strip_edges()
-	if to_pack.is_empty():
-		to_pack = map_pack_path
-	if to_pack.is_empty():
-		return {"ok": false}
-	var dungeon_was_active: bool = (not _dungeon_xfer_lock) and (in_dungeon() or not _dungeon.is_empty())
-	var tx: int = int(to_cell.get("x", 0))
-	var ty: int = int(to_cell.get("y", 0))
-	var prev_path := map_pack_path
-	if not _load_pack(to_pack, to_map_id):
-		_load_pack(prev_path if prev_path != "" else DEMO_PACK_PATH)
-		return {"ok": false}
-	if to_map_id.strip_edges().is_empty():
-		to_map_id = map_pack_id
-	if map_collision != null and map_collision.has_method("is_landable"):
-		if not map_collision.is_landable(tx, ty) and map_collision.has_method("find_spawn_near"):
-			var near: Vector2i = map_collision.find_spawn_near(tx, ty)
-			tx = near.x
-			ty = near.y
-	respawn_cell = Vector2i(tx, ty)
-	last_safe_cell = Vector2i(tx, ty)
-	set_player_cell(tx, ty)
-	_ensure_shell_remotes(SHELL_REMOTE_COUNT)
-	var reach_actions: Array = _quest_note_reach_actions(
-		to_map_id if to_map_id != "" else map_pack_id, map_content_id, map_pack_path
-	)
-	var out := {
-		"ok": true,
-		"pack_path": map_pack_path,
-		"map_id": to_map_id if to_map_id != "" else map_pack_id,
-		"content_id": map_content_id,
-		"content_version": map_content_version,
-		"cell": {"x": tx, "y": ty},
-		"facing": facing if facing in [2, 4, 6, 8] else 2,
-		"message": message,
-		"quests": quest_journal.snapshot() if quest_journal != null else [],
-	}
-	out.merge(_transfer_result_extras())
-	var actions: Array = []
-	actions.append({"type": "loot_close"})
-	actions.append({"type": "system_message", "text": "已切换地图：上一张图的地面掉落不会带入。"})
-	if not reach_actions.is_empty():
-		actions.append_array(reach_actions)
-	actions.append_array(_shell_remote_spawn_actions())
-	actions.append_array(_safe_zone_transition_actions(true))
-	if dungeon_was_active:
-		actions.append_array(_dungeon_abandon_on_leave())
-	out["actions"] = actions
-	out["dungeon"] = snapshot_dungeon()
-	return out
-
-
+func _event_perform_transfer( to_pack: String, to_cell: Dictionary, facing: int = 2, message: String = "", to_map_id: String = "" ) -> Dictionary:
+	return _event_module_logic._event_perform_transfer(to_pack, to_cell, facing, message, to_map_id)
 ## Fire matching autorun pages once after a play pack/map load.
 func collect_autorun() -> Array:
 	return _collect_autorun()
@@ -1327,45 +1209,13 @@ func _collect_autorun() -> Array:
 
 ## After a successful step, fire player_touch events on the landing cell (once per page/self-switch).
 func _try_player_touch_events(x: int, y: int) -> Array:
-	if event_runtime == null:
-		return []
-	var ev: Dictionary = event_runtime.get_event_at_cell(x, y)
-	if ev.is_empty():
-		return []
-	var ctx := _event_server_ctx(str(ev.get("name", ev.get("id", ""))))
-	var page: Dictionary = event_runtime.select_page_with_ctx(ev, ctx) if event_runtime.has_method("select_page_with_ctx") else {}
-	var trig := str(ev.get("trigger", ""))
-	if event_runtime.has_method("page_trigger"):
-		trig = str(event_runtime.page_trigger(ev, page))
-	if trig != "player_touch":
-		return []
-	return event_runtime.run_event(str(ev.get("id", "")), ctx)
-
-
+	return _event_module_logic._try_player_touch_events(x, y)
 ## Event whose selected page is event_touch (does not run commands).
 func _event_touch_event(npc_id: String, from_x: int, from_y: int) -> Dictionary:
-	if event_runtime == null:
-		return {}
-	var ev: Dictionary = event_runtime.get_event(npc_id)
-	if ev.is_empty():
-		ev = event_runtime.get_event_at_cell(from_x, from_y)
-	if ev.is_empty():
-		return {}
-	var ctx := _event_server_ctx(str(ev.get("name", ev.get("id", ""))))
-	var page: Dictionary = event_runtime.select_page_with_ctx(ev, ctx) if event_runtime.has_method("select_page_with_ctx") else {}
-	var trig := str(ev.get("trigger", ""))
-	if event_runtime.has_method("page_trigger"):
-		trig = str(event_runtime.page_trigger(ev, page))
-	if trig != "event_touch":
-		return {}
-	return ev
-
-
+	return _event_module_logic._event_touch_event(npc_id, from_x, from_y)
 ## Client dialogue option → quest_* / shop_open / MV event choices.
 func try_event_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
-	return try_dialogue_choice(option_id, option_index)
-
-
+	return _event_module_logic.try_event_choice(option_id, option_index)
 ## Generic dialogue option handler (quest accept/turn-in, shop reopen, event choices).
 func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
 	option_id = str(option_id).strip_edges()
