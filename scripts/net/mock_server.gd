@@ -47,6 +47,8 @@ const TradeModule = preload("res://scripts/net/server/trade_module.gd")
 const DuelModule = preload("res://scripts/net/server/duel_module.gd")
 const LootModule = preload("res://scripts/net/server/loot_module.gd")
 const ShopModule = preload("res://scripts/net/server/shop_module.gd")
+const PetModule = preload("res://scripts/net/server/pet_module.gd")
+var _pet_module_logic: PetModule = PetModule.new(self)
 var _shop_module_logic: ShopModule = ShopModule.new(self)
 var _loot_module_logic: LootModule = LootModule.new(self)
 var _duel_module_logic: DuelModule = DuelModule.new(self)
@@ -1804,9 +1806,7 @@ func try_set_auto_potion(hp_on: bool, hp_pct: int, mp_on: bool, mp_pct: int) -> 
 
 
 func try_set_pet_assist(on: bool) -> void:
-	pet_assist = bool(on)
-
-
+	_pet_module_logic.try_set_pet_assist(on)
 ## Client / tests: lock combat target for pet assist (hostile npc id).
 func try_set_combat_target(npc_id: String = "") -> void:
 	_player_combat_target_id = str(npc_id).strip_edges()
@@ -7291,313 +7291,36 @@ func try_auction_cancel(listing_id: String) -> Dictionary:
 
 
 func snapshot_pet() -> Dictionary:
-	var active := bool(_pet.get("active", false))
-	return {
-		"active": active,
-		"id": str(_pet.get("id", "")),
-		"name": str(_pet.get("name", "")),
-		"cell": (_pet.get("cell", {"x": 0, "y": 0}) as Dictionary).duplicate(true)
-			if typeof(_pet.get("cell", {})) == TYPE_DICTIONARY
-			else {"x": 0, "y": 0},
-		"look_id": str(_pet.get("look_id", "1")),
-		"facing": int(_pet.get("facing", 2)),
-		"atk": _pet_atk() if active else 0,
-		"assist": bool(pet_assist),
-	}
-
-
+	return _pet_module_logic.snapshot_pet()
 func _pet_reset() -> void:
-	_pet = {
-		"active": false,
-		"id": "",
-		"name": "",
-		"cell": {"x": 0, "y": 0},
-		"look_id": "1",
-		"facing": 2,
-		"follow_acc": 0.0,
-		"combat_acc": 0.0,
-	}
-
-
+	_pet_module_logic._pet_reset()
 func _pet_spawn_action() -> Dictionary:
-	var snap: Dictionary = snapshot_pet()
-	return {
-		"type": "pet_spawn",
-		"pet": snap,
-		"id": str(snap.get("id", "")),
-		"name": str(snap.get("name", "")),
-		"x": int((snap.get("cell", {}) as Dictionary).get("x", 0)),
-		"y": int((snap.get("cell", {}) as Dictionary).get("y", 0)),
-		"look_id": str(snap.get("look_id", "1")),
-		"facing": int(snap.get("facing", 2)),
-	}
-
-
+	return _pet_module_logic._pet_spawn_action()
 func _pet_despawn_action() -> Dictionary:
-	return {
-		"type": "pet_despawn",
-		"id": str(_pet.get("id", "")),
-	}
-
-
+	return _pet_module_logic._pet_despawn_action()
 func _pet_pick_spawn_cell(pc: Vector2i) -> Vector2i:
-	var offsets: Array = [
-		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
-		Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1),
-		Vector2i(2, 0), Vector2i(-2, 0),
-	]
-	for off_v in offsets:
-		var off: Vector2i = off_v
-		var cand := Vector2i(pc.x + off.x, pc.y + off.y)
-		if cand == pc:
-			continue
-		var blocked := false
-		if map_collision != null and map_collision.has_method("is_blocked"):
-			blocked = bool(map_collision.is_blocked(cand.x, cand.y))
-		if blocked:
-			continue
-		return cand
-	return Vector2i(pc.x + 1, pc.y)
-
-
+	return _pet_module_logic._pet_pick_spawn_cell(pc)
 func _pet_snap_near_player() -> void:
-	if not bool(_pet.get("active", false)):
-		return
-	var pc := _player_xy()
-	var cell := _pet_pick_spawn_cell(pc)
-	_pet["cell"] = {"x": cell.x, "y": cell.y}
-	_pet["facing"] = MobAI.facing_toward(cell, pc)
-	_pet["follow_acc"] = 0.0
-	_pet["combat_acc"] = 0.0
-
-
+	_pet_module_logic._pet_snap_near_player()
 func try_pet_summon(pet_id: String = "default") -> Dictionary:
-	var actions: Array = []
-	pet_id = str(pet_id).strip_edges()
-	if pet_id.is_empty():
-		pet_id = "default"
-	if bool(_pet.get("active", false)):
-		actions.append({"type": "system_message", "text": "已有宠物。"})
-		return {"ok": false, "reason": "already_active", "actions": actions}
-	var def_v: Variant = PET_DEFS.get(pet_id, PET_DEFS.get("default", {}))
-	var def: Dictionary = def_v if typeof(def_v) == TYPE_DICTIONARY else {"name": "小跟班", "look_id": "1"}
-	if not PET_DEFS.has(pet_id) and pet_id != "default":
-		# Unknown id → still allow as default-named custom id.
-		def = {"name": str(PET_DEFS["default"].get("name", "小跟班")), "look_id": "1"}
-	var pc := _player_xy()
-	var cell := _pet_pick_spawn_cell(pc)
-	_pet = {
-		"active": true,
-		"id": pet_id,
-		"name": str(def.get("name", "小跟班")),
-		"cell": {"x": cell.x, "y": cell.y},
-		"look_id": str(def.get("look_id", "1")),
-		"facing": MobAI.facing_toward(cell, pc),
-		"follow_acc": 0.0,
-		"combat_acc": 0.0,
-	}
-	actions.append(_pet_spawn_action())
-	actions.append({
-		"type": "system_message",
-		"text": "召唤了宠物【%s】。" % str(_pet.get("name", "")),
-	})
-	return {"ok": true, "actions": actions}
-
-
+	return _pet_module_logic.try_pet_summon(pet_id)
 func try_pet_dismiss() -> Dictionary:
-	var actions: Array = []
-	if not bool(_pet.get("active", false)):
-		actions.append({"type": "system_message", "text": "当前没有宠物。"})
-		return {"ok": false, "reason": "not_active", "actions": actions}
-	var pname := str(_pet.get("name", "宠物"))
-	actions.append(_pet_despawn_action())
-	_pet_reset()
-	actions.append({"type": "system_message", "text": "收回了宠物【%s】。" % pname})
-	return {"ok": true, "actions": actions}
-
-
+	return _pet_module_logic.try_pet_dismiss()
 ## Tick: move toward player when Chebyshev distance > PET_LAG_MAX; stay in lag 1–2.
 func _tick_pet_follow(dt: float) -> Array:
-	var actions: Array = []
-	if not bool(_pet.get("active", false)):
-		return actions
-	_pet["follow_acc"] = float(_pet.get("follow_acc", 0.0)) + dt
-	if float(_pet.get("follow_acc", 0.0)) < PET_FOLLOW_INTERVAL_SEC:
-		return actions
-	_pet["follow_acc"] = 0.0
-	var cell_v: Variant = _pet.get("cell", {})
-	if typeof(cell_v) != TYPE_DICTIONARY:
-		return actions
-	var cell := Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var pc := _player_xy()
-	var dist: int = _chebyshev(cell.x, cell.y, pc.x, pc.y)
-	if dist <= PET_LAG_MAX and dist >= PET_LAG_MIN:
-		return actions
-	if dist == 0:
-		# Nudge off player cell.
-		var nudge := _pet_pick_spawn_cell(pc)
-		if nudge == cell:
-			return actions
-		_pet["cell"] = {"x": nudge.x, "y": nudge.y}
-		_pet["facing"] = MobAI.facing_toward(nudge, pc)
-		actions.append({
-			"type": "pet_move",
-			"id": str(_pet.get("id", "")),
-			"x": nudge.x,
-			"y": nudge.y,
-			"facing": int(_pet.get("facing", 2)),
-		})
-		return actions
-	if dist <= PET_LAG_MAX:
-		return actions
-	# Step toward player; do not enter player cell (lag stays ≥ 1).
-	var wdir: int = MobAI.next_step_dir(map_collision, cell, pc, false)
-	if wdir == 0:
-		# Fallback greedy cardinal toward player (ignore collision if no map).
-		wdir = MobAI.facing_toward(cell, pc)
-		var delta0: Vector2i = TileId.dir_delta(wdir)
-		var trial := Vector2i(cell.x + delta0.x, cell.y + delta0.y)
-		if trial == pc:
-			return actions
-		if map_collision != null and map_collision.has_method("is_blocked"):
-			if bool(map_collision.is_blocked(trial.x, trial.y)):
-				return actions
-		wdir = MobAI.facing_toward(cell, pc)
-	var delta: Vector2i = TileId.dir_delta(wdir)
-	var next := Vector2i(cell.x + delta.x, cell.y + delta.y)
-	if next == pc:
-		return actions
-	if map_collision != null and map_collision.has_method("is_blocked"):
-		if bool(map_collision.is_blocked(next.x, next.y)):
-			return actions
-	# Avoid stacking on shell remotes when possible.
-	for oid in _remote_players.keys():
-		var od: Variant = _remote_players[oid]
-		if typeof(od) != TYPE_DICTIONARY:
-			continue
-		var oc: Variant = od.get("cell", {})
-		if typeof(oc) == TYPE_DICTIONARY and int(oc.get("x", -9999)) == next.x and int(oc.get("y", -9999)) == next.y:
-			return actions
-	_pet["cell"] = {"x": next.x, "y": next.y}
-	_pet["facing"] = wdir
-	actions.append({
-		"type": "pet_move",
-		"id": str(_pet.get("id", "")),
-		"x": next.x,
-		"y": next.y,
-		"facing": wdir,
-	})
-	return actions
-
-
+	return _pet_module_logic._tick_pet_follow(dt)
 func _pet_atk() -> int:
-	var lv := 1
-	if combat_stats != null and typeof(combat_stats.player) == TYPE_DICTIONARY:
-		lv = maxi(1, int(combat_stats.player.get("level", 1)))
-	return 3 + lv
-
-
+	return _pet_module_logic._pet_atk()
 func _npc_display_name_for_pet(npc_id: String) -> String:
-	npc_id = str(npc_id).strip_edges()
-	if npc_id.is_empty():
-		return "敌人"
-	if npc_spawn_templates.has(npc_id):
-		var n := str(npc_spawn_templates[npc_id].get("name", "")).strip_edges()
-		if n != "":
-			return n
-	if npc_meta.has(npc_id) and typeof(npc_meta[npc_id]) == TYPE_DICTIONARY:
-		var n2 := str(npc_meta[npc_id].get("name", "")).strip_edges()
-		if n2 != "":
-			return n2
-	return npc_id
-
-
+	return _pet_module_logic._npc_display_name_for_pet(npc_id)
 ## Resolve hostile the player is fighting; prefer locked target, else adjacent hate.
 func _resolve_pet_combat_target() -> String:
-	if combat_stats == null:
-		return ""
-	var cell_v: Variant = _pet.get("cell", {})
-	if typeof(cell_v) != TYPE_DICTIONARY:
-		return ""
-	var pet_cell := Vector2i(int(cell_v.get("x", 0)), int(cell_v.get("y", 0)))
-	var tid := str(_player_combat_target_id).strip_edges()
-	if tid != "" and _pet_target_valid_in_range(tid, pet_cell):
-		return tid
-	# Fallback: hostile with player hate within pet range.
-	var you := "player"
-	if "player_actor_id" in combat_stats:
-		var aid := str(combat_stats.player_actor_id).strip_edges()
-		if aid != "":
-			you = aid
-	for nid_v in combat_stats.npcs.keys():
-		var nid := str(nid_v)
-		if not _pet_target_valid_in_range(nid, pet_cell):
-			continue
-		if not combat_stats.has_method("get_hate_list"):
-			continue
-		var hate: Array = combat_stats.get_hate_list(nid, false)
-		for e in hate:
-			if typeof(e) != TYPE_DICTIONARY:
-				continue
-			if str(e.get("id", "")).strip_edges() == you:
-				return nid
-	return ""
-
-
+	return _pet_module_logic._resolve_pet_combat_target()
 func _pet_target_valid_in_range(npc_id: String, pet_cell: Vector2i) -> bool:
-	npc_id = str(npc_id).strip_edges()
-	if npc_id.is_empty() or combat_stats == null or not combat_stats.npcs.has(npc_id):
-		return false
-	var st: Dictionary = combat_stats.npcs[npc_id]
-	if int(st.get("hp", 0)) <= 0:
-		return false
-	if not bool(st.get("hostile", false)):
-		return false
-	var tc: Vector2i = combat_stats.get_npc_cell(npc_id) if combat_stats.has_method("get_npc_cell") else Vector2i(-9999, -9999)
-	if tc.x <= -9990:
-		return false
-	return _chebyshev(pet_cell.x, pet_cell.y, tc.x, tc.y) <= PET_COMBAT_RANGE
-
-
+	return _pet_module_logic._pet_target_valid_in_range(npc_id, pet_cell)
 ## Periodic small pet damage on player's combat target (hate → player).
 func _tick_pet_combat(dt: float) -> Array:
-	var actions: Array = []
-	if not bool(_pet.get("active", false)):
-		return actions
-	if not bool(pet_assist):
-		return actions
-	if combat_stats == null or combat_engine == null:
-		return actions
-	if awaiting_respawn or not combat_stats.player_alive():
-		return actions
-	_pet["combat_acc"] = float(_pet.get("combat_acc", 0.0)) + dt
-	if float(_pet.get("combat_acc", 0.0)) < PET_COMBAT_INTERVAL_SEC:
-		return actions
-	_pet["combat_acc"] = 0.0
-	var tid := _resolve_pet_combat_target()
-	if tid.is_empty():
-		return actions
-	var hit_actions: Array = []
-	var amount: int = _pet_atk()
-	# Guaranteed hit; attribute as player so hate / loot / exp stay player-side.
-	if combat_engine.has_method("_damage_npc"):
-		combat_engine._damage_npc(tid, amount, hit_actions, false, "player")
-	if hit_actions.is_empty():
-		return actions
-	var nm := _npc_display_name_for_pet(tid)
-	hit_actions.append({"type": "system_message", "text": "宠物攻击了%s" % nm})
-	if combat_engine.has_method("_threat_update_action"):
-		var thr_act: Dictionary = combat_engine._threat_update_action(tid)
-		if not thr_act.is_empty():
-			hit_actions.append(thr_act)
-	var finalized: Dictionary = _finalize_combat_result({"ok": true, "actions": hit_actions})
-	actions.append_array(finalized.get("actions", []))
-	if not combat_stats.npcs.has(tid) or int(combat_stats.npcs[tid].get("hp", 0)) <= 0:
-		if str(_player_combat_target_id).strip_edges() == tid:
-			_player_combat_target_id = ""
-	return actions
-
-
+	return _pet_module_logic._tick_pet_combat(dt)
 ## --- Dungeon instance stub API ---
 
 func in_dungeon() -> bool:
