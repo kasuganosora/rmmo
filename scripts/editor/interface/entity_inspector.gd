@@ -5,6 +5,8 @@ const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
 const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
 const SelectorsModule = preload("res://scripts/editor/interface/inspector/selectors_module.gd")
+const NpcModule = preload("res://scripts/editor/interface/inspector/npc_module.gd")
+var _npc_module_logic: NpcModule = NpcModule.new(self)
 var _selectors_module_logic: SelectorsModule = SelectorsModule.new(self)
 
 signal changed
@@ -1335,70 +1337,17 @@ func _btn(parent: Node, text: String, cb: Callable) -> void:
 
 
 func copy_current() -> bool:
-	if doc == null or not doc.has_method("copy_entity_at"):
-		return false
-	var hit: Dictionary = doc.copy_entity_at(cell)
-	if hit.is_empty():
-		if _info:
-			_info.text = "此格没有实体可复制"
-		return false
-	clip = hit
-	if _info:
-		_info.text = "已复制 %s" % str(hit.get("kind", ""))
-	return true
-
-
+	return _npc_module_logic.copy_current()
 func paste_current() -> bool:
-	if doc == null or clip.is_empty() or not doc.has_method("paste_entity_at"):
-		return false
-	if not doc.paste_entity_at(clip, cell):
-		return false
-	changed.emit()
-	load_cell(doc, cell)
-	if _info:
-		_info.text = "已粘贴到 %d,%d" % [cell.x, cell.y]
-	return true
-
-
+	return _npc_module_logic.paste_current()
 func _npc_kind_id() -> String:
-	if _npc_kind == null or _npc_kind.selected < 0:
-		return "normal"
-	return str(_npc_kind.get_item_metadata(_npc_kind.selected))
-
-
+	return _npc_module_logic._npc_kind_id()
 func _select_npc_kind(kind: String) -> void:
-	if _npc_kind == null:
-		return
-	var key := kind.strip_edges().to_lower()
-	if key == "":
-		key = "monster" if (_hostile != null and _hostile.button_pressed) else "normal"
-	for i in range(_npc_kind.item_count):
-		if str(_npc_kind.get_item_metadata(i)) == key:
-			_npc_kind.select(i)
-			_sync_npc_combat()
-			return
-	_npc_kind.select(0)
-	_sync_npc_combat()
-
-
+	_npc_module_logic._select_npc_kind(kind)
 func _on_npc_kind() -> void:
-	var id := _npc_kind_id()
-	if _hostile and id == "monster":
-		_hostile.button_pressed = true
-	elif _hostile and id == "normal":
-		_hostile.button_pressed = false
-	_sync_npc_combat()
-
-
+	_npc_module_logic._on_npc_kind()
 func _sync_npc_combat() -> void:
-	if _aggressive:
-		_aggressive.disabled = _hostile == null or not _hostile.button_pressed
-		if _aggressive.disabled:
-			_aggressive.set_pressed_no_signal(false)
-	if _hostile != null and _hostile.button_pressed and _npc_kind != null and _npc_kind_id() == "normal":
-		_select_npc_kind("monster")
-
-
+	_npc_module_logic._sync_npc_combat()
 func _fill_switch_opts() -> void:
 	_selectors_module_logic._fill_switch_opts()
 func _fill_id_opt(opt: OptionButton, ids: PackedStringArray) -> void:
