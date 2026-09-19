@@ -35,6 +35,8 @@ const SpecModule = preload("res://scripts/editor/field/spec_module.gd")
 const TreeModule = preload("res://scripts/editor/field/tree_module.gd")
 const TilesetModule = preload("res://scripts/editor/field/tileset_module.gd")
 const MenuDialogModule = preload("res://scripts/editor/field/menu_dialog_module.gd")
+const CanvasModule = preload("res://scripts/editor/field/canvas_module.gd")
+var _canvas_module_logic: CanvasModule = CanvasModule.new(self)
 var _menu_dialog_module_logic: MenuDialogModule = MenuDialogModule.new(self)
 var _tileset_module_logic: TilesetModule = TilesetModule.new(self)
 var _tree_module_logic: TreeModule = TreeModule.new(self)
@@ -213,134 +215,9 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_tree_module_logic._exit_tree()
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		var k := event as InputEventKey
-		if k.ctrl_pressed and k.keycode == KEY_S:
-			_save()
-			_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_Z:
-			_undo_edit()
-			_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_Y:
-			_redo_edit()
-			_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_C:
-			if _mode == 1 and _copy_entity():
-				_mark_handled()
-			else:
-				_copy_tiles()
-				_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_X:
-			_cut_tiles()
-			_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_V:
-			if _mode == 1 and _paste_entity():
-				_mark_handled()
-			else:
-				_paste_tiles()
-				_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_A:
-			_select_all()
-			_mark_handled()
-		elif k.keycode == KEY_F5:
-			_playtest(k.shift_pressed)
-			_mark_handled()
-		elif k.keycode == KEY_DELETE:
-			if _mode == 1 and _inspector:
-				_inspector.cell = _cursor
-				_inspector._delete()
-			elif paint and paint.tool == PaintTools.Tool.SELECT:
-				_erase_selection()
-			_mark_handled()
-		elif k.ctrl_pressed and k.keycode == KEY_D:
-			_dup_map(current_map_id)
-			_mark_handled()
-		elif k.keycode == KEY_ESCAPE:
-			if _poly_pts.size() > 0:
-				_poly_pts.clear()
-				_status.text = "已取消折线"
-				_mark_handled()
-			else:
-				_mark_handled()
-				_leave()
-		elif k.keycode == KEY_F2:
-			_open_rename(current_map_id)
-			_mark_handled()
-		elif k.keycode == KEY_G:
-			if map_field:
-				map_field.show_grid = not map_field.show_grid
-			_mark_handled()
-		elif k.keycode == KEY_1:
-			_set_tool(PaintTools.Tool.PENCIL)
-			_mark_handled()
-		elif k.keycode == KEY_2:
-			_set_tool(PaintTools.Tool.RECT)
-			_mark_handled()
-		elif k.keycode == KEY_3:
-			_set_tool(PaintTools.Tool.FILL)
-			_mark_handled()
-		elif k.keycode == KEY_4:
-			_set_tool(PaintTools.Tool.EYEDROP)
-			_mark_handled()
-		elif k.keycode == KEY_5:
-			_set_tool(PaintTools.Tool.ERASE)
-			_mark_handled()
-		elif k.keycode == KEY_6:
-			_set_tool(PaintTools.Tool.SELECT)
-			_mark_handled()
-		elif k.keycode == KEY_7:
-			_set_tool(PaintTools.Tool.LINE)
-			_mark_handled()
-		elif k.keycode == KEY_8:
-			_set_tool(PaintTools.Tool.POLYLINE)
-			_mark_handled()
-		elif k.keycode == KEY_9:
-			_set_tool(PaintTools.Tool.ELLIPSE)
-			_mark_handled()
-		elif k.keycode == KEY_0:
-			_set_tool(PaintTools.Tool.RING)
-			_mark_handled()
-		elif k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER:
-			if paint and paint.tool == PaintTools.Tool.POLYLINE:
-				_commit_polyline(false)
-				_mark_handled()
-		elif k.keycode == KEY_BRACKETLEFT:
-			_cycle_layer(-1)
-			_mark_handled()
-		elif k.keycode == KEY_BRACKETRIGHT:
-			_cycle_layer(1)
-			_mark_handled()
-		elif k.keycode == KEY_EQUAL or k.keycode == KEY_KP_ADD:
-			_set_zoom(_zoom * 1.25)
-			_mark_handled()
-		elif k.keycode == KEY_MINUS or k.keycode == KEY_KP_SUBTRACT:
-			_set_zoom(_zoom / 1.25)
-			_mark_handled()
-		elif not k.ctrl_pressed and _cam != null:
-			var step := float(doc.tile_size if doc else 48) * 4.0 / maxf(_zoom, 0.05)
-			var delta := Vector2.ZERO
-			if k.keycode == KEY_A or k.keycode == KEY_LEFT:
-				delta.x = -step
-			elif k.keycode == KEY_D or k.keycode == KEY_RIGHT:
-				delta.x = step
-			elif k.keycode == KEY_W or k.keycode == KEY_UP:
-				delta.y = -step
-			elif k.keycode == KEY_S or k.keycode == KEY_DOWN:
-				delta.y = step
-			if delta != Vector2.ZERO:
-				_cam.position += delta
-				_clamp_camera()
-				_sync_scrollbars()
-				_update_edit_observer()
-				_mark_handled()
-
-
+	_canvas_module_logic._unhandled_input(event)
 func _mark_handled() -> void:
-	var vp := get_viewport()
-	if vp:
-		vp.set_input_as_handled()
-
-
+	_canvas_module_logic._mark_handled()
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new()
@@ -810,7 +687,7 @@ func _fill_preset_opt(opt: OptionButton, path: String, fallback: PackedStringArr
 func _fill_bgm_opt(current: String) -> void:
 	_atmosphere_module_logic._fill_bgm_opt(current)
 func _set_far_scroll(x: float, y: float) -> void:
-	EditorAtmosphere.set_far_scroll(self, x, y)
+	_canvas_module_logic._set_far_scroll(x, y)
 func _on_layer_tree() -> void:
 	_tree_module_logic._on_layer_tree()
 func _sync_spec_panel(spec: String, layer_name: String) -> void:
@@ -862,171 +739,11 @@ func _cycle_layer(delta: int) -> void:
 
 
 func _on_canvas_input(event: InputEvent) -> void:
-	if event is InputEventKey:
-		var k := event as InputEventKey
-		if k.keycode == KEY_SPACE:
-			_space_down = k.pressed
-		if k.pressed and not k.echo and paint and paint.tool == PaintTools.Tool.POLYLINE:
-			if k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER:
-				_commit_polyline(false)
-				_mark_handled()
-				return
-			if k.keycode == KEY_ESCAPE:
-				_poly_pts.clear()
-				_status.text = "已取消折线"
-				_mark_handled()
-				return
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			if not mb.pressed:
-				return
-			if mb.ctrl_pressed:
-				var factor := 1.25 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.25
-				_zoom_at(mb.position, _zoom * factor)
-			elif mb.shift_pressed:
-				_canvas_wheel_scroll(true, mb.button_index == MOUSE_BUTTON_WHEEL_DOWN)
-			else:
-				_canvas_wheel_scroll(false, mb.button_index == MOUSE_BUTTON_WHEEL_DOWN)
-			_mark_handled()
-			return
-		if mb.button_index == MOUSE_BUTTON_WHEEL_LEFT or mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT:
-			if mb.pressed:
-				_canvas_wheel_scroll(true, mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT)
-				_mark_handled()
-			return
-		if mb.button_index == MOUSE_BUTTON_MIDDLE or (_space_down and mb.button_index == MOUSE_BUTTON_LEFT):
-			_panning = mb.pressed
-			return
-		if not mb.pressed:
-			if paint.rect_start.x >= 0 and doc and not _placing_start:
-				var cell := _mouse_cell(mb.position)
-				if paint.tool == PaintTools.Tool.SELECT and _mode == 0:
-					if map_field:
-						map_field.edit_rect_b = cell
-					_status.text = "选区 %d,%d → %d,%d" % [paint.rect_start.x, paint.rect_start.y, cell.x, cell.y]
-				elif paint.tool == PaintTools.Tool.RECT:
-					if _mode == 2:
-						_passage_rect(paint.rect_start, cell, mb.button_index == MOUSE_BUTTON_RIGHT)
-					elif _mode == 0 and _is_spec_paint():
-						_spec_rect(paint.rect_start, cell, mb.button_index == MOUSE_BUTTON_RIGHT)
-					elif _mode == 0:
-						paint.exact_autotile = mb.shift_pressed
-						var dirty: Array[Vector2i] = paint.apply_rect(doc, paint.rect_start, cell, mb.button_index == MOUSE_BUTTON_RIGHT)
-						paint.exact_autotile = false
-						_refresh_dirty(dirty)
-					paint.rect_start = Vector2i(-1, -1)
-					if map_field:
-						map_field.edit_rect_a = Vector2i(-1, -1)
-						map_field.edit_rect_b = Vector2i(-1, -1)
-				elif _mode == 0 and paint.tool in [PaintTools.Tool.LINE, PaintTools.Tool.ELLIPSE, PaintTools.Tool.RING]:
-					_commit_shape(paint.rect_start, cell, mb.button_index == MOUSE_BUTTON_RIGHT)
-					paint.rect_start = Vector2i(-1, -1)
-					if map_field:
-						map_field.edit_rect_a = Vector2i(-1, -1)
-						map_field.edit_rect_b = Vector2i(-1, -1)
-			return
-		var cell2 := _mouse_cell(mb.position)
-		_cursor = cell2
-		_set_hover(cell2)
-		if _placing_start:
-			_set_start_cell(cell2)
-			return
-		if _mode == 1:
-			_cursor = cell2
-			if map_field:
-				map_field.edit_cursor_cell = cell2
-			_open_entity_win()
-			_status.text = "实体格 %d,%d" % [cell2.x, cell2.y]
-			return
-		if paint.tool == PaintTools.Tool.POLYLINE and _mode == 0:
-			if mb.button_index == MOUSE_BUTTON_RIGHT:
-				_commit_polyline(false)
-				return
-			_poly_pts.append(cell2)
-			_status.text = "折线 %d 点 · 右键/Enter 完成 / Esc 取消" % _poly_pts.size()
-			return
-		if paint.tool == PaintTools.Tool.RECT or paint.tool == PaintTools.Tool.SELECT or paint.tool == PaintTools.Tool.LINE or paint.tool == PaintTools.Tool.ELLIPSE or paint.tool == PaintTools.Tool.RING:
-			paint.rect_start = cell2
-			if map_field:
-				map_field.edit_rect_a = cell2
-				map_field.edit_rect_b = cell2
-			return
-		if paint.has_method("begin_stroke"):
-			paint.begin_stroke()
-		if _mode == 2:
-			if paint.tool == PaintTools.Tool.FILL:
-				_passage_fill(cell2, mb.button_index == MOUSE_BUTTON_RIGHT)
-			else:
-				_paint_passage(cell2, mb.button_index == MOUSE_BUTTON_RIGHT)
-			return
-		if _is_spec_paint():
-			if paint.tool == PaintTools.Tool.FILL:
-				_spec_fill(cell2, mb.button_index == MOUSE_BUTTON_RIGHT)
-			elif paint.tool == PaintTools.Tool.EYEDROP:
-				_spec_eyedrop(cell2)
-			else:
-				_paint_spec(cell2, mb.button_index == MOUSE_BUTTON_RIGHT)
-			return
-		paint.exact_autotile = mb.shift_pressed
-		var erase := mb.button_index == MOUSE_BUTTON_RIGHT
-		var dirty2: Array[Vector2i] = paint.apply_cell(doc, cell2, erase)
-		paint.exact_autotile = false
-		if paint.tool == PaintTools.Tool.EYEDROP and _palette:
-			_palette.select_tile(paint.tile_id)
-			paint.set_stamp(1, 1, PackedInt32Array())
-			if map_field:
-				map_field.edit_stamp_size = Vector2i(1, 1)
-		_status.text = "画 %d @ %d,%d%s" % [paint.tile_id, cell2.x, cell2.y, " · Shift精确" if mb.shift_pressed else ""]
-		_refresh_dirty(dirty2)
-	elif event is InputEventPanGesture:
-		var pg := event as InputEventPanGesture
-		_canvas_pan_pixels(pg.delta)
-		_mark_handled()
-	elif event is InputEventMouseMotion:
-		var mm := event as InputEventMouseMotion
-		var hover := _mouse_cell(mm.position)
-		_set_hover(hover)
-		if _panning and _cam:
-			var z := maxf(_zoom, 0.05)
-			_cam.position -= mm.relative / z
-			_clamp_camera()
-			_sync_scrollbars()
-			_update_edit_observer()
-			return
-		if _placing_start:
-			return
-		if (paint.tool == PaintTools.Tool.RECT or paint.tool == PaintTools.Tool.SELECT or paint.tool == PaintTools.Tool.LINE or paint.tool == PaintTools.Tool.ELLIPSE or paint.tool == PaintTools.Tool.RING) and paint.rect_start.x >= 0 and map_field:
-			map_field.edit_rect_b = hover
-			return
-		if _mode == 0 and _is_spec_paint() and paint.tool == PaintTools.Tool.PENCIL:
-			if (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-				_paint_spec(hover, false)
-			elif (mm.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0:
-				_paint_spec(hover, true)
-			return
-		if _mode == 2:
-			if (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and paint.tool == PaintTools.Tool.PENCIL:
-				_paint_passage(hover, false)
-			elif (mm.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0 and paint.tool == PaintTools.Tool.PENCIL:
-				_paint_passage(hover, true)
-			return
-		if _mode != 0:
-			return
-		paint.exact_autotile = mm.shift_pressed
-		if (mm.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and paint.tool == PaintTools.Tool.PENCIL:
-			var dirty3: Array[Vector2i] = paint.apply_cell(doc, hover, false)
-			_refresh_dirty(dirty3)
-		elif (mm.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0 and paint.tool == PaintTools.Tool.PENCIL:
-			var dirty4: Array[Vector2i] = paint.apply_cell(doc, hover, true)
-			_refresh_dirty(dirty4)
-		paint.exact_autotile = false
-
-
+	_canvas_module_logic._on_canvas_input(event)
 func _sync_vp_size() -> void:
 	EditorCanvas.sync_vp_size(self)
 func _mouse_cell(pos: Vector2) -> Vector2i:
-	return EditorCanvas.mouse_cell(self, pos)
+	return _canvas_module_logic._mouse_cell(pos)
 func _refresh_dirty(cells: Array) -> void:
 	if map_field and map_field.has_method("rebuild_dirty_cells"):
 		map_field.rebuild_dirty_cells(cells)
@@ -1085,27 +802,7 @@ func _on_palette_tileset(ts_id: String) -> void:
 
 
 func _set_hover(cell: Vector2i) -> void:
-	if map_field:
-		map_field.edit_hover_cell = cell
-		map_field.edit_cursor_cell = _cursor
-	if doc == null or cell.x < 0:
-		return
-	var z: int = int(paint.layer_z) if paint else 0
-	var tid := int(doc.tile(cell.x, cell.y, z)) if z >= 0 else int(doc.ext_tile(paint.ext_layer, cell.x, cell.y))
-	var mark := ""
-	if map_field and map_field.has_method("edit_cell_passable"):
-		match int(map_field.edit_cell_passable(cell.x, cell.y)):
-			0:
-				mark = "○"
-			1:
-				mark = "×"
-			2:
-				mark = "强制○"
-			3:
-				mark = "强制×"
-	_status.text = "%d,%d  图块 %d  通行%s" % [cell.x, cell.y, tid, (" " + mark) if mark != "" else ""]
-
-
+	_canvas_module_logic._set_hover(cell)
 func _undo_edit() -> void:
 	_menu_dialog_module_logic._undo_edit()
 func _redo_edit() -> void:
@@ -1528,19 +1225,19 @@ func _set_start_cell(cell: Vector2i) -> void:
 
 
 func _set_zoom(z: float) -> void:
-	EditorCanvas.set_zoom(self, z)
+	_canvas_module_logic._set_zoom(z)
 func _zoom_at(local_pos: Vector2, z: float) -> void:
-	EditorCanvas.zoom_at(self, local_pos, z)
+	_canvas_module_logic._zoom_at(local_pos, z)
 func _zoom_fit() -> void:
-	EditorCanvas.zoom_fit(self)
+	_canvas_module_logic._zoom_fit()
 func _mouse_world(pos: Vector2) -> Vector2:
 	return EditorCanvas.mouse_world(self, pos)
 func _clamp_camera() -> void:
-	EditorCanvas.clamp_camera(self)
+	_canvas_module_logic._clamp_camera()
 func _sync_scrollbars() -> void:
-	EditorCanvas.sync_scrollbars(self)
+	_canvas_module_logic._sync_scrollbars()
 func _canvas_wheel_scroll(horizontal: bool, toward_positive: bool) -> void:
-	EditorCanvas.canvas_wheel_scroll(self, horizontal, toward_positive)
+	_canvas_module_logic._canvas_wheel_scroll(horizontal, toward_positive)
 func _canvas_pan_pixels(delta: Vector2) -> void:
 	EditorCanvas.canvas_pan_pixels(self, delta)
 func _on_hscroll(v: float) -> void:
