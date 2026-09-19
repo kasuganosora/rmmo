@@ -88,20 +88,34 @@ def parse_params(sig_text):
 
 
 def read_func(idx):
-    """Return (sig_text, body_lines, end_idx) handling multi-line signatures."""
+    """Return (sig_text, body_lines, end_idx) handling multi-line signatures
+    and multi-line string literals (a line at indent 0 that is a continuation
+    of an open `"..."` / `'...'` must NOT be treated as a function boundary)."""
     sig, k = [lines[idx]], idx
     while not sig[-1].rstrip().endswith(":") and k + 1 < len(lines):
         k += 1
         sig.append(lines[k])
     bs = k + 1
     be, n = bs, len(lines)
+    in_str = False
     while be < n:
-        s = lines[be].strip()
+        ln = lines[be]
+        if in_str:
+            # whole line is inside an open string -> still part of the body
+            for ch in ln:
+                if ch == '"' or ch == "'":
+                    in_str = not in_str
+            be += 1
+            continue
+        s = ln.strip()
         if s == "":
             be += 1
             continue
-        if len(lines[be]) - len(lines[be].lstrip(" \t")) == 0:
+        if len(ln) - len(ln.lstrip(" \t")) == 0:
             break
+        for ch in ln:
+            if ch == '"' or ch == "'":
+                in_str = not in_str
         be += 1
     return "\n".join(sig), lines[bs:be], be
 
@@ -192,11 +206,38 @@ for name, sig_text, body in blocks:
 out = [re.sub(r"\bvar\s+([A-Za-z_]\w*)\s*:=", r"var \1 =", ln) for ln in out]
 
 tsrc = "\n".join(out)
-# ALL consts (preload AND plain values like `const SHOP_TABS: Array = [...]`)
-cdecl = {}
-# allows typed consts: `const SHOP_TABS: Array = [...]`
-for _m in re.finditer(r"^const\s+([A-Za-z_]\w*)\s*(?::\s*[A-Za-z_][\w\[\]\.]*)?\s*=\s*(.+)$", src, re.M):
-    cdecl[_m.group(1)] = _m.group(0)
+# ALL consts: preload, plain values, typed, `:=`, and multi-line arrays.
+# Captured with bracket balancing (single-line regex misses := and multi-line).
+def _capture_consts(lines):
+    out, i, n = {}, 0, len(lines)
+    while i < n:
+        m = re.match(r"^const\s+([A-Za-z_]\w*)", lines[i])
+        if not m:
+            i += 1
+            continue
+        name = m.group(1)
+        buf = [lines[i]]
+        depth = 0
+        for ch in lines[i]:
+            if ch in "[({":
+                depth += 1
+            elif ch in "])}":
+                depth -= 1
+        j = i + 1
+        while depth > 0 and j < n:
+            buf.append(lines[j])
+            for ch in lines[j]:
+                if ch in "[({":
+                    depth += 1
+                elif ch in "])}":
+                    depth -= 1
+            j += 1
+        out[name] = "\n".join(buf)
+        i = j
+    return out
+
+
+cdecl = _capture_consts(src.split("\n"))
 
 # ---- append mode: if the module already exists, merge into it (keeps modules cohesive) ----
 append = os.path.exists(OUT)
@@ -210,13 +251,13 @@ if append:
     elines = existing.split("\n")
     if need:
         fi = next((i for i, ln in enumerate(elines) if ln.startswith("static func")), len(elines))
-        elines[fi:fi] = ["const %s = %s" % (n, cdecl[n]) for n in need] + [""]
+        elines[fi:fi] = [cdecl[n] for n in need] + [""]
     io.open(OUT, "w", encoding="utf-8").write("\n".join(elines).rstrip("\n") + "\n\n" + funcs_block)
 else:
     declared = set(re.findall(r"^const\s+([A-Za-z_]\w*)", tsrc, re.M))
     need = [n for n in cdecl if n not in declared and re.search(r"(?<![\w.])%s(?![\w])" % n, tsrc)]
     if need:
-        out[funcs_start:funcs_start] = ["const %s = %s" % (n, cdecl[n]) for n in need] + [""]
+        out[funcs_start:funcs_start] = [cdecl[n] for n in need] + [""]
     io.open(OUT, "w", encoding="utf-8").write("\n".join(out))
 
 text = "\n".join(lines)
