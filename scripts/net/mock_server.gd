@@ -55,6 +55,8 @@ const SustainModule = preload("res://scripts/net/server/sustain_module.gd")
 const ProfessionModule = preload("res://scripts/net/server/profession_module.gd")
 const QuestModule = preload("res://scripts/net/server/quest_module.gd")
 const RemoteModule = preload("res://scripts/net/server/remote_module.gd")
+const EmoteModule = preload("res://scripts/net/server/emote_module.gd")
+var _emote_module_logic: EmoteModule = EmoteModule.new(self)
 var _remote_module_logic: RemoteModule = RemoteModule.new(self)
 var _quest_module_logic: QuestModule = QuestModule.new(self)
 var _profession_module_logic: ProfessionModule = ProfessionModule.new(self)
@@ -4556,50 +4558,9 @@ func try_mail_claim(mail_id: String) -> Dictionary:
 func try_mail_delete(mail_id: String) -> Dictionary:
 	return _mail_module_logic.try_mail_delete(mail_id)
 func emote_catalog() -> Array:
-	## Fixed catalog rows: [{id, label, text}, ...]
-	var out: Array = []
-	for eid in EMOTE_CATALOG.keys():
-		var row: Dictionary = EMOTE_CATALOG[eid]
-		out.append({
-			"id": str(eid),
-			"label": str(row.get("label", eid)),
-			"text": str(row.get("text", "")),
-		})
-	return out
-
-
+	return _emote_module_logic.emote_catalog()
 func try_emote(emote_id: String) -> Dictionary:
-	## Broadcast-ready text emote bubble above actor. Rate-limited server-side.
-	var actions: Array = []
-	emote_id = str(emote_id).strip_edges()
-	if emote_id.is_empty() or not EMOTE_CATALOG.has(emote_id):
-		actions.append({"type": "system_message", "text": "未知表情。"})
-		return {"ok": false, "reason": "unknown", "actions": actions}
-	if combat_stats != null and not combat_stats.player_alive():
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	if awaiting_respawn:
-		actions.append({"type": "system_message", "text": "你已经倒下了。"})
-		return {"ok": false, "reason": "dead", "actions": actions}
-	var now: float = _party_clock()
-	if now < _emote_cd_until:
-		actions.append({"type": "system_message", "text": "表情冷却中。"})
-		return {"ok": false, "reason": "cooldown", "actions": actions}
-	var def: Dictionary = EMOTE_CATALOG[emote_id]
-	var bubble := str(def.get("text", "")).strip_edges()
-	if bubble.is_empty():
-		bubble = "（%s）" % str(def.get("label", emote_id))
-	_emote_cd_until = now + EMOTE_COOLDOWN_SEC
-	var actor_id := _party_self_id()
-	actions.append({
-		"type": "emote",
-		"actor_id": actor_id,
-		"emote_id": emote_id,
-		"text": bubble,
-		"duration_sec": EMOTE_DURATION_SEC,
-	})
-	return {"ok": true, "actions": actions}
-
+	return _emote_module_logic.try_emote(emote_id)
 ## --- Player duel shell (v1: shell remotes auto-accept / instant start) ---
 ## Auto-accept rule: try_duel_challenge against a spawned shell remote starts the duel
 ## immediately in the same call (no pending UI). try_duel_accept / try_duel_decline exist
