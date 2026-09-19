@@ -124,6 +124,8 @@ def prefix(line, skip):
             seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
         for nm in NODE_MEMBERS:
             seg = re.sub(r"(?<![\w.])%s(?![\w])" % re.escape(nm), "ctrl." + nm, seg)
+        # `self` is illegal in a static func; it referred to the world node -> ctrl
+        seg = re.sub(r"(?<![\w.])self(?![\w])", "ctrl", seg)
         parts[k] = seg
     return '"'.join(parts)
 
