@@ -20,6 +20,8 @@ const EntityOps = preload("res://scripts/editor/adapters/ops/entity_ops.gd")
 const AssetOps = preload("res://scripts/editor/adapters/ops/asset_ops.gd")
 const HistoryOps = preload("res://scripts/editor/adapters/ops/history_ops.gd")
 const MapCrudOps = preload("res://scripts/editor/adapters/ops/map_crud_ops.gd")
+const StampOps = preload("res://scripts/editor/adapters/ops/stamp_ops.gd")
+var _stamp_ops_logic: StampOps = StampOps.new(self)
 var _map_crud_ops_logic: MapCrudOps = MapCrudOps.new(self)
 var _history_ops_logic: HistoryOps = HistoryOps.new(self)
 var _asset_ops_logic: AssetOps = AssetOps.new(self)
@@ -849,36 +851,9 @@ func paste_tiles(args: Dictionary) -> Dictionary:
 
 
 func set_stamp(args: Dictionary) -> Dictionary:
-	var w := maxi(int(args.get("w", 1)), 1)
-	var h := maxi(int(args.get("h", 1)), 1)
-	var tiles_v: Variant = args.get("tiles", [])
-	var tiles := PackedInt32Array()
-	if typeof(tiles_v) == TYPE_PACKED_INT32_ARRAY:
-		tiles = tiles_v
-	elif typeof(tiles_v) == TYPE_ARRAY:
-		for v in tiles_v:
-			tiles.append(int(v))
-	if tiles.size() < w * h:
-		return mcp._err("tiles length < w*h")
-	_ensure_paint().set_stamp(w, h, tiles)
-	return mcp._ok({"w": w, "h": h, "tile_id": int(_ensure_paint().tile_id)})
-
-
+	return _stamp_ops_logic.set_stamp(args)
 func paint_stamp(args: Dictionary) -> Dictionary:
-	var d = doc()
-	if d == null:
-		return mcp._err("no map")
-	_apply_layer(args)
-	var paint = _ensure_paint()
-	if not paint.has_stamp():
-		return mcp._err("no stamp")
-	paint.tool = PaintTools.Tool.PENCIL
-	var c: Vector2i = mcp._cell(args)
-	var dirty: Array[Vector2i] = paint.apply_stamp(d, c)
-	_touch(dirty)
-	return mcp._ok({"painted": dirty.size(), "x": c.x, "y": c.y})
-
-
+	return _stamp_ops_logic.paint_stamp(args)
 func undo() -> Dictionary:
 	return _history_ops_logic.undo()
 func redo() -> Dictionary:
@@ -1227,25 +1202,7 @@ func scatter(args: Dictionary) -> Dictionary:
 
 
 func stamp_from_tileset(args: Dictionary) -> Dictionary:
-	var tab := str(args.get("tab", "B")).to_upper()
-	var col := int(args.get("col", 0))
-	var row := int(args.get("row", 0))
-	var w := clampi(int(args.get("w", 1)), 1, 8)
-	var h := clampi(int(args.get("h", 1)), 1, 8)
-	var tiles := PackedInt32Array()
-	tiles.resize(w * h)
-	var i := 0
-	for y in range(h):
-		for x in range(w):
-			if tab == "A":
-				tiles[i] = TilePalette.a_cell_to_id(col + x, row + y)
-			else:
-				tiles[i] = TilePalette.sheet_cell_to_id(col + x, row + y, _tab_base(tab))
-			i += 1
-	_ensure_paint().set_stamp(w, h, tiles)
-	return mcp._ok({"w": w, "h": h, "tile_id": int(tiles[0]) if tiles.size() > 0 else 0, "tiles": Array(tiles)})
-
-
+	return _stamp_ops_logic.stamp_from_tileset(args)
 func replace_tiles(args: Dictionary) -> Dictionary:
 	_apply_layer(args)
 	var dirty: Array[Vector2i] = _ensure_paint().replace_id(
@@ -1349,41 +1306,9 @@ func set_layer_alpha(args: Dictionary) -> Dictionary:
 
 
 func save_stamp(args: Dictionary) -> Dictionary:
-	var p = pack()
-	var paint = _ensure_paint()
-	if p == null or paint == null:
-		return mcp._err("no pack")
-	if not ("stamps" in p):
-		p.stamps = {}
-	var name := str(args.get("name", "")).strip_edges()
-	if name == "":
-		return mcp._err("name required")
-	var tiles: Array = []
-	for t in paint.stamp_tiles:
-		tiles.append(int(t))
-	if tiles.is_empty():
-		tiles.append(int(paint.tile_id))
-	p.stamps[name] = {
-		"w": int(paint.stamp_w),
-		"h": int(paint.stamp_h),
-		"tiles": tiles,
-		"z": int(paint.layer_z),
-		"ext": str(paint.ext_layer),
-	}
-	p.dirty = true
-	return mcp._ok({"name": name, "w": int(paint.stamp_w), "h": int(paint.stamp_h)})
-
-
+	return _stamp_ops_logic.save_stamp(args)
 func list_stamps() -> Dictionary:
-	var p = pack()
-	if p == null:
-		return mcp._err("no pack")
-	var stamps: Dictionary = p.stamps if "stamps" in p else {}
-	var names: Array = stamps.keys()
-	names.sort()
-	return mcp._ok({"stamps": names})
-
-
+	return _stamp_ops_logic.list_stamps()
 func get_weather() -> Dictionary:
 	var e = ed()
 	var kind := "clear"
@@ -1436,20 +1361,7 @@ func _color_hex(v: Variant) -> String:
 
 
 func apply_stamp_named(args: Dictionary) -> Dictionary:
-	var p = pack()
-	if p == null or not ("stamps" in p):
-		return mcp._err("no stamps")
-	var name := str(args.get("name", ""))
-	var st: Variant = p.stamps.get(name, {})
-	if typeof(st) != TYPE_DICTIONARY or (st as Dictionary).is_empty():
-		return mcp._err("unknown stamp")
-	var tiles := PackedInt32Array()
-	for v in st.get("tiles", []):
-		tiles.append(int(v))
-	_ensure_paint().set_stamp(int(st.get("w", 1)), int(st.get("h", 1)), tiles)
-	return paint_stamp(args)
-
-
+	return _stamp_ops_logic.apply_stamp_named(args)
 func _persist() -> void:
 	var p = pack()
 	if p != null and p.has_method("save_dir") and str(p.root).strip_edges() != "":
