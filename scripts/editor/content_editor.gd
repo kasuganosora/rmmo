@@ -29,6 +29,8 @@ const EditorMinimapBridge = preload("res://scripts/editor/interface/editor_minim
 const EditorSession = preload("res://scripts/editor/application/editor_session.gd")
 const AtmosphereModule = preload("res://scripts/editor/field/atmosphere_module.gd")
 const EntityModule = preload("res://scripts/editor/field/entity_module.gd")
+const AssetModule = preload("res://scripts/editor/field/asset_module.gd")
+var _asset_module_logic: AssetModule = AssetModule.new(self)
 var _entity_module_logic: EntityModule = EntityModule.new(self)
 var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
 
@@ -767,12 +769,7 @@ func _popup_win(win: Window) -> void:
 
 
 func _open_asset_win() -> void:
-	if _asset_win and _asset_win.has_method("bind_pack"):
-		_asset_win.bind_pack(pack)
-	_popup_win(_asset_win)
-
-
-
+	_asset_module_logic._open_asset_win()
 func _open_tileset_win() -> void:
 	if _tileset_win and _tileset_win.has_method("bind_pack"):
 		_tileset_win.bind_pack(pack)
@@ -809,11 +806,7 @@ func _on_rm_slot(slot: int, sheet: String) -> void:
 
 
 func _on_assets_changed() -> void:
-	if pack:
-		pack.dirty = true
-	EditorSession.reload_assets(self)
-
-
+	_asset_module_logic._on_assets_changed()
 func _reload_assets() -> void:
 	EditorSession.reload_assets(self)
 
@@ -1342,9 +1335,7 @@ func _on_file(path: String) -> void:
 func _add_chest_event() -> void:
 	_entity_module_logic._add_chest_event()
 func _import_asset(src: String, kind: String) -> void:
-	EditorSession.import_asset(self, src, kind)
-
-
+	_asset_module_logic._import_asset(src, kind)
 func _finish_sheet_assign(slot: int, sheet: String) -> void:
 	EditorSession.finish_sheet_assign(self, slot, sheet)
 
