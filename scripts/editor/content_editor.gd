@@ -28,6 +28,8 @@ const EditorAtmosphere = preload("res://scripts/editor/interface/editor_atmosphe
 const EditorMinimapBridge = preload("res://scripts/editor/interface/editor_minimap_bridge.gd")
 const EditorSession = preload("res://scripts/editor/application/editor_session.gd")
 const AtmosphereModule = preload("res://scripts/editor/field/atmosphere_module.gd")
+const EntityModule = preload("res://scripts/editor/field/entity_module.gd")
+var _entity_module_logic: EntityModule = EntityModule.new(self)
 var _atmosphere_module_logic: AtmosphereModule = AtmosphereModule.new(self)
 
 var session := EditorSession.new()
@@ -797,15 +799,7 @@ func _on_tileset_apply(ts_id: String) -> void:
 
 
 func _open_entity_win() -> void:
-	if _inspector:
-		if _inspector.has_method("bind_pack"):
-			_inspector.bind_pack(pack)
-		_inspector.load_cell(doc, _cursor)
-	if map_field:
-		map_field.edit_cursor_cell = _cursor
-	_popup_win(_entity_win)
-
-
+	_entity_module_logic._open_entity_win()
 func _on_rm_slot(slot: int, sheet: String) -> void:
 	if pack == null or doc == null:
 		return
@@ -825,26 +819,9 @@ func _reload_assets() -> void:
 
 
 func _on_entity_changed() -> void:
-	if pack:
-		pack.dirty = true
-	if map_field:
-		map_field.edit_cursor_cell = _cursor
-	_status.text = "已更新实体"
-
-
+	_entity_module_logic._on_entity_changed()
 func _on_entity_jump(c: Vector2i) -> void:
-	_cursor = c
-	if map_field:
-		map_field.edit_cursor_cell = c
-		map_field.edit_hover_cell = c
-	if _cam and doc:
-		_cam.position = Vector2((float(c.x) + 0.5) * float(doc.tile_size), (float(c.y) + 0.5) * float(doc.tile_size))
-		_clamp_camera()
-		_sync_scrollbars()
-		_update_edit_observer()
-	_status.text = "实体格 %d,%d" % [c.x, c.y]
-
-
+	_entity_module_logic._on_entity_jump(c)
 func _refresh_tree() -> void:
 	_tree.clear()
 	var root_item := _tree.create_item()
@@ -1363,23 +1340,7 @@ func _on_file(path: String) -> void:
 
 
 func _add_chest_event() -> void:
-	if doc == null:
-		return
-	if doc.has_method("remove_entity_at"):
-		doc.remove_entity_at(_cursor)
-	var ev: Dictionary = EventCommands.make_chest(_cursor)
-	doc.events.append(ev)
-	doc.dirty = true
-	if pack:
-		pack.dirty = true
-	if map_field:
-		map_field.edit_cursor_cell = _cursor
-	if _inspector:
-		_inspector.load_cell(doc, _cursor)
-	_open_entity_win()
-	_status.text = "已在 %d,%d 放宝箱 %s" % [_cursor.x, _cursor.y, str(ev.get("id", ""))]
-
-
+	_entity_module_logic._add_chest_event()
 func _import_asset(src: String, kind: String) -> void:
 	EditorSession.import_asset(self, src, kind)
 
@@ -2089,22 +2050,7 @@ func _flip_clip(horizontal: bool) -> void:
 
 
 func _replace_prompt() -> void:
-	if doc == null or paint == null:
-		return
-	var old_id := int(paint.tile_id)
-	var dlg := ConfirmationDialog.new()
-	dlg.title = "替换图块"
-	dlg.dialog_text = "把当前层中与图块 %d（%s）同类的格子换成新 id。\n在调色板选好目标图块后确定。" % [old_id, TileLabels.label_of(old_id)]
-	dlg.confirmed.connect(func():
-		var dirty: Array[Vector2i] = paint.replace_id(doc, old_id, int(paint.tile_id), true)
-		_refresh_dirty(dirty)
-		_status.text = "已替换 %d 格" % dirty.size()
-		dlg.queue_free()
-	)
-	add_child(dlg)
-	dlg.popup_centered()
-
-
+	_entity_module_logic._replace_prompt()
 func _show_undo_list() -> void:
 	if _undo_dlg == null:
 		_undo_dlg = AcceptDialog.new()
