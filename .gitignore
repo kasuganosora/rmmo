@@ -2,8 +2,12 @@
 .godot/
 .import/
 
-# Art / audio — track code and JSON only
+# Art / audio — this repo is source code only. Never commit packs or media.
 assets/
+rmmo_runtime/
+**/rmmo_runtime/
+packs/
+_l2_inspect/
 **/*.png
 **/*.gif
 **/*.jpg
@@ -12,6 +16,8 @@ assets/
 **/*.ogg
 **/*.wav
 **/*.mp3
+**/*.ttf
+**/*.otf
 **/*.import
 
 # Exports / local junk
