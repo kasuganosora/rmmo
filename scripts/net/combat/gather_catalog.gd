@@ -20,9 +20,8 @@ func _list_key() -> String:
 var _by_map: Dictionary = {}
 
 
-func load_catalog() -> void:
-	super.load_catalog()
-	_rebuild_by_map()
+func _after_load() -> void:
+	_index_by_field("map_id", _by_map, "*")
 
 
 func _normalize_def(d: Dictionary) -> Dictionary:
@@ -64,19 +63,6 @@ func _normalize_def(d: Dictionary) -> Dictionary:
 			yields_out.append({"item_id": iid, "qty": qty, "weight": w})
 	out["yields"] = yields_out
 	return out
-
-
-func _rebuild_by_map() -> void:
-	_by_map.clear()
-	for iid in _by_id.keys():
-		var nid := str(iid)
-		var d: Dictionary = _by_id[nid]
-		var mid := str(d.get("map_id", "")).strip_edges()
-		if mid.is_empty():
-			mid = "*"
-		if not _by_map.has(mid):
-			_by_map[mid] = []
-		(_by_map[mid] as Array).append(nid)
 
 
 func has_node(node_id: String) -> bool:

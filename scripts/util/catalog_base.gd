@@ -9,6 +9,7 @@ extends RefCounted
 ##   _list_key() -> String         key of the def list inside the JSON dict
 ##   _normalize_def(d) -> Dictionary   per-catalog field normalization
 ##   _load_builtin_fallback() -> void  per-catalog builtin defs when JSON missing/empty
+##   _after_load() -> void             optional post-load (e.g. rebuild map index)
 
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
@@ -31,15 +32,40 @@ func _load_builtin_fallback() -> void:
 	pass
 
 
+## Called after load_catalog fills `_by_id` (including builtin fallback).
+func _after_load() -> void:
+	pass
+
+
+## Rebuild `out` as field-value -> Array[id]. Empty field becomes `empty_as`.
+func _index_by_field(field: String, out: Dictionary, empty_as: String = "*") -> void:
+	out.clear()
+	if field.is_empty():
+		return
+	for iid in _by_id.keys():
+		var sid := str(iid)
+		var d: Dictionary = _by_id[sid]
+		var mid := str(d.get(field, "")).strip_edges()
+		if mid.is_empty():
+			mid = empty_as
+		if mid.is_empty():
+			continue
+		if not out.has(mid):
+			out[mid] = []
+		(out[mid] as Array).append(sid)
+
+
 func load_catalog() -> void:
 	_by_id.clear()
 	var raw: Variant = _load_json_first(_data_paths())
 	if typeof(raw) != TYPE_DICTIONARY:
 		_load_builtin_fallback()
+		_after_load()
 		return
 	var list_v: Variant = (raw as Dictionary).get(_list_key(), [])
 	if typeof(list_v) != TYPE_ARRAY:
 		_load_builtin_fallback()
+		_after_load()
 		return
 	for entry in list_v:
 		if typeof(entry) != TYPE_DICTIONARY:
@@ -50,6 +76,7 @@ func load_catalog() -> void:
 		_by_id[iid] = _normalize_def(entry)
 	if _by_id.is_empty():
 		_load_builtin_fallback()
+	_after_load()
 
 
 func all_ids() -> Array:
