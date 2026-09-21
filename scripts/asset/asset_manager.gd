@@ -77,6 +77,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute("%s/cache/verified" % root)
 	DirAccess.make_dir_recursive_absolute("%s/manifests" % root)
 	DirAccess.make_dir_recursive_absolute("%s/packs" % root)
+	DirAccess.make_dir_recursive_absolute("%s/packs/ui" % root)
 	DirAccess.make_dir_recursive_absolute("%s/assets/charset" % root)
 
 
@@ -163,6 +164,8 @@ func path(ref: String) -> String:
 			return _resolve_look_path(cr.id)
 		"system":
 			return _resolve_system_asset_path(cr.id)
+		"ui":
+			return _resolve_ui_path(cr.id)
 		_:
 			# Prefer file with .png for image-like kinds; also try bare path.
 			var base := "%s/assets/%s/%s" % [content_root(), cr.kind, cr.id]
@@ -259,6 +262,8 @@ func _is_soft_ref(ref: String) -> bool:
 	if ref.begins_with("content://charset/") or ref.begins_with("content://look/") or ref.begins_with("content://icon/"):
 		return true
 	if ref.begins_with("content://system/") or ref.begins_with("content://audio/") or ref.begins_with("content://tilesheet/"):
+		return true
+	if ref.begins_with("content://ui/"):
 		return true
 	return false
 
@@ -726,6 +731,13 @@ func load_mv_icon_texture(icon_index: int, atlas_ref: String = "content://system
 	return ImageTexture.create_from_image(img)
 
 
+func load_texture(ref_or_path: String) -> ImageTexture:
+	var img := load_image(ref_or_path)
+	if img == null:
+		return null
+	return ImageTexture.create_from_image(img)
+
+
 func clear_mv_icon_cache() -> void:
 	_mv_icon_crop_cache.clear()
 
@@ -1126,6 +1138,57 @@ func _find_project_pack_by_content_id(content_id: String) -> String:
 
 func _resolve_look_path(look_id: String) -> String:
 	return "%s/assets/look/%s" % [content_root(), look_id]
+
+
+## UI chrome pack: content://ui/{skin}/{rel} → packs/ui/<id>/<ver>/{skin}/{rel}.
+func _resolve_ui_pack_dir(pack_id: String = "", version: String = "") -> String:
+	if pack_id.strip_edges() == "":
+		pack_id = str(ProjectSettings.get_setting("rmmo/ui_pack", DEFAULT_PACK_ID)).strip_edges()
+	if pack_id.is_empty():
+		pack_id = DEFAULT_PACK_ID
+	var root := content_root()
+	var bases: Array[String] = [
+		"%s/packs/ui/%s" % [root, pack_id],
+		"%s/packs/ui_pack/%s" % [root, pack_id],
+	]
+	for base0 in bases:
+		var base: String = str(base0)
+		if version != "":
+			var vdir := "%s/%s" % [base, version]
+			if _pack_json_exists(vdir):
+				return vdir
+		if _pack_json_exists(base):
+			return base
+		if DirAccess.dir_exists_absolute(base):
+			var d := DirAccess.open(base)
+			if d:
+				d.list_dir_begin()
+				var name := d.get_next()
+				while name != "":
+					if d.current_is_dir() and not name.begins_with("."):
+						var cand := "%s/%s" % [base, name]
+						if _pack_json_exists(cand):
+							return cand
+					name = d.get_next()
+	return bases[0]
+
+
+func _resolve_ui_path(asset_id: String) -> String:
+	asset_id = asset_id.strip_edges().lstrip("/").replace("\\", "/")
+	var pack_dir := _resolve_ui_pack_dir("", "")
+	var candidates: Array[String] = []
+	if pack_dir != "":
+		candidates.append("%s/%s" % [pack_dir.rstrip("/").rstrip("\\"), asset_id])
+	candidates.append("%s/assets/ui/%s" % [content_root(), asset_id])
+	for c in candidates:
+		var hit := _existing_file(c)
+		if hit != "":
+			return hit
+		if not c.to_lower().ends_with(".png"):
+			hit = _existing_file("%s.png" % c)
+			if hit != "":
+				return hit
+	return candidates[0] if not candidates.is_empty() else ""
 
 
 ## System atlas / UI sheets (MV IconSet.png etc.) under assets/system/.

@@ -1,8 +1,8 @@
 extends RefCounted
 ## Pack white button + Imagine hover (209x68, real alpha). Titles nudged for CJK vertical center.
+## Textures live in the external UI pack (`content://ui/indigo/...`).
 
-const ROOT := "res://assets/ui/indigo"
-const CUSTOM := "res://assets/ui/indigo/custom"
+const UiPack = preload("res://scripts/ui/ui_pack.gd")
 
 const COL_INK := Color(0.22, 0.15, 0.10, 1)
 const COL_INK_MUTED := Color(0.42, 0.34, 0.26, 1)
@@ -12,11 +12,14 @@ const COL_BORDER := Color(0.40, 0.26, 0.14, 1)
 const COL_GOLD := Color(0.78, 0.58, 0.22, 1)
 const COL_PANEL_EDGE := Color(0.32, 0.20, 0.10, 1)
 
-static func tex(path: String) -> Texture2D:
-	if not ResourceLoader.exists(path):
-		push_warning("IndigoStyle missing: %s" % path)
+static func tex(rel: String) -> Texture2D:
+	rel = rel.strip_edges().lstrip("/")
+	if rel.is_empty():
 		return null
-	return load(path) as Texture2D
+	var t: Texture2D = UiPack.tex("indigo/%s" % rel)
+	if t == null:
+		push_warning("IndigoStyle missing: %s" % rel)
+	return t
 
 static func style_box(path: String, ml: float, mt: float, mr: float, mb: float, content_h := 8.0, content_v_top := 10.0, content_v_bottom := 6.0) -> StyleBoxTexture:
 	var sb := StyleBoxTexture.new()
@@ -53,8 +56,8 @@ static func build_theme() -> Theme:
 	panel.shadow_offset = Vector2(2, 3)
 	t.set_stylebox("panel", "PanelContainer", panel)
 
-	var white_path := "%s/button/UI_Dialogue_Button_White.png" % ROOT
-	var hover_path := "%s/btn_menu_hover.png" % CUSTOM
+	var white_path := "button/UI_Dialogue_Button_White.png"
+	var hover_path := "custom/btn_menu_hover.png"
 	var btn_n: StyleBox = style_box(white_path, 18, 10, 18, 10, 8, 11, 5)
 	var btn_h: StyleBox = style_box(hover_path, 18, 10, 18, 10, 8, 11, 5)
 	var btn_p: StyleBox = style_box(white_path, 18, 10, 18, 10, 8, 12, 4)

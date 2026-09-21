@@ -11,9 +11,12 @@ Status: **P2c actor AOI rings implemented** (2026-09-09). Autoload + Gate + stre
 | `ResourceLoader.load` expects imported assets | Must `Image.load` / JSON from disk or HTTP |
 | Project tree pollution | Charsets already forbidden under project (苍蓝星 rule) |
 
-**Rule:** Game shell (Godot project) ships code + UI chrome only. All world content (maps, tilesheets, charsets, looks, item icons, map packs) is **external** under the runtime content root (`rmmo/content_root`, e.g. `D:/code/rmmo_runtime`). Packs are **never** stored in `res://` and are **never** baked into the Godot PCK. Address them by content IDs (`content://map_pack/default`), not project paths.
+**Rule:** Game shell (Godot project) ships code only. All art — including UI chrome — is **external** under the runtime content root (`rmmo/content_root`, e.g. `D:/code/rmmo_runtime`). Packs are **never** stored in `res://` and are **never** baked into the Godot PCK. Address them by content IDs (`content://map_pack/default`, `content://ui/l2/panel.png`), not project paths.
 
-First-party default pack: `content://map_pack/default` → `{content_root}/packs/map_pack/default/<version>/`.
+First-party default packs:
+
+- `content://map_pack/default` → `{content_root}/packs/map_pack/default/<version>/`
+- `content://ui/{skin}/{path}` → `{content_root}/packs/ui/default/<version>/{skin}/{path}`
 
 Legacy `res://demo_map` / `bath_map` / `street_map` remain only as old playtest maps until they are washed into external packs.
 
@@ -29,7 +32,7 @@ Legacy `res://demo_map` / `bath_map` / `street_map` remain only as old playtest 
 ```
 content://{kind}/{id}[@{version}]
 
-kind ∈ map_pack | charset | look | tilesheet | audio | icon | manifest
+kind ∈ map_pack | ui | charset | look | tilesheet | audio | icon | manifest
 id   = stable slug (e.g. demo_home, actor03_0001, look_f_12)
 version = semver or content-hash short (optional; omit = "latest allowed")
 ```
@@ -39,6 +42,8 @@ Examples:
 - `content://map_pack/demo_home@1.2.0`
 - `content://charset/!Chest1`
 - `content://look/female/walk_04`
+- `content://ui/l2/panel.png`
+- `content://ui/indigo/button/UI_Dialogue_Button_White.png`
 
 Internal resolve maps to a filesystem path under the content root, or a URL to download into cache.
 

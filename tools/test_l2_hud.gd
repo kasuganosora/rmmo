@@ -21,9 +21,11 @@ func _run() -> void:
 		"icon_skills.png", "icon_quest.png", "icon_party.png",
 		"icon_map.png", "icon_system.png",
 	]
+	var am: Node = root.get_node_or_null("AssetManager")
+	failed += _expect(am != null, "AssetManager autoload")
 	for n in names:
-		var path := "res://assets/ui/l2/%s" % n
-		failed += _expect(FileAccess.file_exists(path), "exists %s" % n)
+		var ref := "content://ui/l2/%s" % n
+		failed += _expect(am != null and bool(am.has(ref)), "pack has %s" % n)
 		failed += _expect(L2Style.tex(n) != null, "tex %s" % n)
 	failed += _expect(L2Style.has_kit(), "has_kit")
 	failed += _expect(L2Style.panel_box() != null, "panel_box")

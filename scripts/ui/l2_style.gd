@@ -1,8 +1,8 @@
 extends RefCounted
 ## Lineage 2–inspired chrome for character / quest windows.
-## Textures live under res://assets/ui/l2 (png gitignored; load_from_file fallback).
+## Textures live in the external UI pack (`content://ui/l2/...`).
 
-const ROOT := "res://assets/ui/l2"
+const UiPack = preload("res://scripts/ui/ui_pack.gd")
 
 const COL_TITLE := Color(0.93, 0.82, 0.38, 1.0)
 const COL_TEXT := Color(0.90, 0.86, 0.74, 1.0)
@@ -24,16 +24,7 @@ static func tex(name: String) -> Texture2D:
 		return null
 	if _tex_cache.has(name):
 		return _tex_cache[name] as Texture2D
-	var path := "%s/%s" % [ROOT, name]
-	var t: Texture2D = null
-	if ResourceLoader.exists(path):
-		var loaded: Variant = load(path)
-		if loaded is Texture2D:
-			t = loaded
-	if t == null and FileAccess.file_exists(path):
-		var img := Image.load_from_file(path)
-		if img != null and not img.is_empty():
-			t = ImageTexture.create_from_image(img)
+	var t: Texture2D = UiPack.tex("l2/%s" % name)
 	_tex_cache[name] = t
 	return t
 

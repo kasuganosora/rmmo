@@ -33,6 +33,20 @@ func _run() -> void:
 
 	failed += _expect(str(am.content_root()) != "", "content_root non-empty")
 
+	# --- UI pack (external chrome) ---
+	var ui_panel := "content://ui/l2/panel.png"
+	var ui_path: String = str(am.path(ui_panel))
+	print("ui panel path=", ui_path)
+	if FileAccess.file_exists(ui_path):
+		failed += _expect(bool(am.has(ui_panel)), "has content://ui/l2/panel.png")
+		failed += _expect(am.ensure(ui_panel) == OK, "ensure ui panel")
+		var ui_img: Image = am.load_image(ui_panel)
+		failed += _expect(ui_img != null and ui_img.get_width() > 0, "load_image ui panel")
+		var ui_tex: ImageTexture = am.load_texture(ui_panel)
+		failed += _expect(ui_tex != null, "load_texture ui panel")
+	else:
+		print("SKIP ui pack (no packs/ui/default on this machine)")
+
 	# --- resolve_map_pack_path ---
 	var demo_path: String = str(am.resolve_map_pack_path("res://demo_map"))
 	failed += _expect(demo_path == "res://demo_map" or demo_path.ends_with("demo_map"), "resolve res://demo_map")
