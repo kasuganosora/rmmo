@@ -323,15 +323,11 @@ func _setup_rain_flags(p: CPUParticles2D) -> void:
 
 
 func _load_fx(fname: String, fallback: Texture2D) -> Texture2D:
-	var path := "res://assets/fx/%s" % fname
-	if ResourceLoader.exists(path):
-		var res: Resource = load(path)
-		if res is Texture2D:
-			return res
-	if FileAccess.file_exists(path):
-		var img := Image.new()
-		if img.load(path) == OK:
-			return ImageTexture.create_from_image(img)
+	var am = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("load_texture"):
+		var t: Texture2D = am.load_texture("content://fx/%s" % fname)
+		if t != null:
+			return t
 	return fallback
 
 

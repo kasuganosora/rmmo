@@ -1,8 +1,6 @@
 extends Node2D
 ## World-space skill VFX: impact burst, bolt tween, caster flash.
-## Loads optional PNGs from res://assets/fx/; falls back to drawn polygons.
-
-const FX_DIR := "res://assets/fx/"
+## Loads optional PNGs from content://fx/; falls back to drawn polygons.
 
 var _flame_tex: Texture2D = null
 var _bolt_tex: Texture2D = null
@@ -25,17 +23,10 @@ func _ready() -> void:
 
 
 func _load_fx(fname: String) -> Texture2D:
-	var path := FX_DIR + fname
-	if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
-		return null
-	if ResourceLoader.exists(path):
-		var res: Resource = load(path)
-		if res is Texture2D:
-			return res
-	var img := Image.new()
-	if img.load(path) != OK:
-		return null
-	return ImageTexture.create_from_image(img)
+	var am = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("load_texture"):
+		return am.load_texture("content://fx/%s" % fname)
+	return null
 
 
 func play_impact(kind: String, world_pos: Vector2, radius_px: float = 48.0) -> void:

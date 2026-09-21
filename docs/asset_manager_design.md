@@ -44,6 +44,8 @@ Examples:
 - `content://look/female/walk_04`
 - `content://ui/l2/panel.png`
 - `content://ui/indigo/button/UI_Dialogue_Button_White.png`
+- `content://fx/fx_slash.png`
+- `content://icon/wooden_sword`
 
 Internal resolve maps to a filesystem path under the content root, or a URL to download into cache.
 

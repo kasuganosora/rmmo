@@ -238,13 +238,16 @@ func _test_npc_skill() -> int:
 
 func _test_demo_art() -> int:
 	var failed := 0
-	failed += _expect(FileAccess.file_exists("res://assets/fx/fx_slash.png"), "slash fx")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/fx_cast.png"), "cast fx")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/fx_dash.png"), "dash fx")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/fx_spin.png"), "spin fx")
-	failed += _expect(FileAccess.file_exists("res://assets/icons/wooden_sword.png"), "sword icon")
-	failed += _expect(FileAccess.file_exists("res://assets/icons/leather_vest.png"), "vest icon")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/equip_wooden_sword.png"), "sword world")
+	var am: Node = root.get_node_or_null("AssetManager")
+	failed += _expect(am != null, "AssetManager")
+	if am != null:
+		failed += _expect(bool(am.has("content://fx/fx_slash.png")), "slash fx")
+		failed += _expect(bool(am.has("content://fx/fx_cast.png")), "cast fx")
+		failed += _expect(bool(am.has("content://fx/fx_dash.png")), "dash fx")
+		failed += _expect(bool(am.has("content://fx/fx_spin.png")), "spin fx")
+		failed += _expect(bool(am.has("content://icon/wooden_sword")), "sword icon")
+		failed += _expect(bool(am.has("content://icon/leather_vest")), "vest icon")
+		failed += _expect(bool(am.has("content://fx/equip_wooden_sword.png")), "sword world")
 	var ctx = _engine()
 	var engine = ctx.engine
 	var skills = ctx.skills

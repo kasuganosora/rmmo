@@ -101,14 +101,14 @@ static func _place_weapon_overlay(ctrl) -> void:
 			ctrl._weapon_spr.z_index = 6
 
 static func _load_equip_tex(ctrl, item_id: String) -> Texture2D:
-	var path = "res://assets/fx/equip_%s.png" % item_id.strip_edges()
-	if ResourceLoader.exists(path):
-		var res: Resource = load(path)
-		if res is Texture2D:
-			return res
-	if FileAccess.file_exists(path):
-		var img = Image.new()
-		if img.load(path) == OK:
-			return ImageTexture.create_from_image(img)
+	var am = null
+	if ctrl is Node:
+		am = (ctrl as Node).get_node_or_null("/root/AssetManager")
+	if am == null:
+		var loop = Engine.get_main_loop()
+		if loop is SceneTree:
+			am = (loop as SceneTree).root.get_node_or_null("AssetManager")
+	if am != null and am.has_method("load_texture"):
+		return am.load_texture("content://fx/equip_%s.png" % item_id.strip_edges())
 	return null
 

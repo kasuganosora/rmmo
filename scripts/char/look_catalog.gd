@@ -1,12 +1,9 @@
 extends RefCounted
-## Looks by gender: female = walk_4dir_64; male = male_static portraits (no 4-dir walk yet).
+## Looks by gender. External content://look/{female|male}/{id}; empty until first-party looks exist.
 
 const GENDER_FEMALE := "female"
 const GENDER_MALE := "male"
 const GENDER_KID := "kid"
-
-const ROOT_WALK := "res://assets/bkx1/animations/walk_4dir_64"
-const ROOT_MALE := "res://assets/bkx1/characters/male_static"
 
 static func normalize_gender(gender: String) -> String:
 	var g := gender.strip_edges().to_lower()
@@ -22,32 +19,33 @@ static func list_look_ids(gender: String = GENDER_FEMALE) -> PackedStringArray:
 	return _list_walk_ids()
 
 static func _list_walk_ids() -> PackedStringArray:
-	var ids: Array[String] = []
-	var dir := DirAccess.open(ROOT_WALK)
-	if dir == null:
-		push_warning("LookCatalog: missing %s" % ROOT_WALK)
-		return PackedStringArray()
-	dir.list_dir_begin()
-	var name := dir.get_next()
-	while name != "":
-		if dir.current_is_dir() and not name.begins_with("."):
-			ids.append(name)
-		name = dir.get_next()
-	return PackedStringArray(_sort_ids(ids))
+	return _list_look_dir("female")
 
 static func _list_male_ids() -> PackedStringArray:
+	return _list_look_dir("male")
+
+static func _list_look_dir(sub: String) -> PackedStringArray:
 	var ids: Array[String] = []
-	var dir := DirAccess.open(ROOT_MALE)
+	var am = _am()
+	if am == null or not am.has_method("content_root"):
+		return PackedStringArray()
+	var dir_path := "%s/assets/look/%s" % [str(am.content_root()), sub]
+	var dir := DirAccess.open(dir_path)
 	if dir == null:
-		push_warning("LookCatalog: missing %s" % ROOT_MALE)
 		return PackedStringArray()
 	dir.list_dir_begin()
 	var name := dir.get_next()
 	while name != "":
-		if not dir.current_is_dir() and name.ends_with(".png") and not name.ends_with(".import"):
+		if not dir.current_is_dir() and name.ends_with(".png"):
 			ids.append(name.get_basename())
 		name = dir.get_next()
 	return PackedStringArray(_sort_ids(ids))
+
+static func _am():
+	var loop = Engine.get_main_loop()
+	if loop == null or not (loop is SceneTree):
+		return null
+	return (loop as SceneTree).root.get_node_or_null("AssetManager")
 
 static func _sort_ids(ids: Array[String]) -> Array[String]:
 	ids.sort_custom(func(a: String, b: String) -> bool:
@@ -58,18 +56,20 @@ static func _sort_ids(ids: Array[String]) -> Array[String]:
 	return ids
 
 static func idle_texture_path(look_id: String, facing: String = "Front", gender: String = GENDER_FEMALE) -> String:
-	if normalize_gender(gender) == GENDER_MALE:
-		return "%s/%s.png" % [ROOT_MALE, look_id]
-	return "%s/%s/%s/1.png" % [ROOT_WALK, look_id, facing]
+	var sub := "male" if normalize_gender(gender) == GENDER_MALE else "female"
+	return "content://look/%s/%s" % [sub, look_id]
 
 static func walk_frame_path(look_id: String, facing: String, frame: int) -> String:
-	return "%s/%s/Walk %s, 4 Frames/%d.png" % [ROOT_WALK, look_id, facing, frame]
+	return "content://look/female/%s_%s_%d" % [look_id, facing.to_lower(), frame]
 
 static func load_idle(look_id: String, facing: String = "Front", gender: String = GENDER_FEMALE) -> Texture2D:
-	var path := idle_texture_path(look_id, facing, gender)
-	if not ResourceLoader.exists(path):
+	var am = _am()
+	if am == null or not am.has_method("load_texture"):
 		return null
-	return load(path) as Texture2D
+	var t: Texture2D = am.load_texture(idle_texture_path(look_id, facing, gender))
+	if t != null:
+		return t
+	return am.load_texture("content://look/%s" % look_id)
 
 static func world_sprite_scale(gender: String) -> Vector2:
 	## Female walk sprites are 64px; male portraits ~230px — normalize height ~64.
@@ -113,9 +113,12 @@ static func _build_female_walk_frames(look_id: String) -> SpriteFrames:
 		frames.set_animation_speed(anim, 8.0)
 		frames.set_animation_loop(anim, true)
 		for i in range(1, 5):
-			var path := walk_frame_path(look_id, facing, i)
-			if ResourceLoader.exists(path):
-				frames.add_frame(anim, load(path) as Texture2D)
+			var am = _am()
+			var tex: Texture2D = null
+			if am != null and am.has_method("load_texture"):
+				tex = am.load_texture(walk_frame_path(look_id, facing, i))
+			if tex:
+				frames.add_frame(anim, tex)
 		var idle_anim: String = "idle_%s" % facing.to_lower()
 		if frames.has_animation(idle_anim):
 			frames.remove_animation(idle_anim)

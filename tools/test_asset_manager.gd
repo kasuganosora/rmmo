@@ -47,6 +47,18 @@ func _run() -> void:
 	else:
 		print("SKIP ui pack (no packs/ui/default on this machine)")
 
+	var fx_ref := "content://fx/fx_slash.png"
+	if FileAccess.file_exists(str(am.path(fx_ref))):
+		failed += _expect(bool(am.has(fx_ref)), "has content://fx/fx_slash.png")
+		failed += _expect(am.load_texture(fx_ref) != null, "load_texture fx slash")
+	else:
+		print("SKIP fx (no assets/fx on this machine)")
+	var icon_ref := "content://icon/wooden_sword"
+	if FileAccess.file_exists(str(am.path(icon_ref))):
+		failed += _expect(bool(am.has(icon_ref)), "has content://icon/wooden_sword")
+	else:
+		print("SKIP icon wooden_sword")
+
 	# --- resolve_map_pack_path ---
 	var demo_path: String = str(am.resolve_map_pack_path("res://demo_map"))
 	failed += _expect(demo_path == "res://demo_map" or demo_path.ends_with("demo_map"), "resolve res://demo_map")

@@ -52,10 +52,13 @@ func _run() -> void:
 	failed += _expect(str(atm.get("kind", "")) == "rain", "outdoor field rain")
 	failed += _expect(str(atm.get("particles", "")) == "rain", "rain particles on")
 	failed += _expect(field.get_node_or_null("WeatherFx") != null, "WeatherFx on MapField")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/weather_rain.png"), "rain sprite")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/weather_snow.png"), "snow sprite")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/weather_storm.png"), "storm sprite")
-	failed += _expect(FileAccess.file_exists("res://assets/fx/weather_fog.png"), "fog sprite")
+	var am: Node = root.get_node_or_null("AssetManager")
+	failed += _expect(am != null, "AssetManager")
+	if am != null:
+		failed += _expect(bool(am.has("content://fx/weather_rain.png")), "rain sprite")
+		failed += _expect(bool(am.has("content://fx/weather_snow.png")), "snow sprite")
+		failed += _expect(bool(am.has("content://fx/weather_storm.png")), "storm sprite")
+		failed += _expect(bool(am.has("content://fx/weather_fog.png")), "fog sprite")
 	doc.environment = MapExt.ENV_INDOOR
 	var atm_in: Dictionary = field.set_atmosphere(0, "rain", 1.0)
 	failed += _expect(str(atm_in.get("kind", "")) == "clear", "indoor field clears rain")

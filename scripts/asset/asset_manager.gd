@@ -79,6 +79,8 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute("%s/packs" % root)
 	DirAccess.make_dir_recursive_absolute("%s/packs/ui" % root)
 	DirAccess.make_dir_recursive_absolute("%s/assets/charset" % root)
+	DirAccess.make_dir_recursive_absolute("%s/assets/fx" % root)
+	DirAccess.make_dir_recursive_absolute("%s/assets/icon" % root)
 
 
 func content_root() -> String:
@@ -163,7 +165,11 @@ func path(ref: String) -> String:
 		"look":
 			return _resolve_look_path(cr.id)
 		"system":
-			return _resolve_system_asset_path(cr.id)
+			return _resolve_assets_kind_path("system", cr.id)
+		"fx":
+			return _resolve_assets_kind_path("fx", cr.id)
+		"icon":
+			return _resolve_assets_kind_path("icon", cr.id)
 		"ui":
 			return _resolve_ui_path(cr.id)
 		_:
@@ -263,7 +269,7 @@ func _is_soft_ref(ref: String) -> bool:
 		return true
 	if ref.begins_with("content://system/") or ref.begins_with("content://audio/") or ref.begins_with("content://tilesheet/"):
 		return true
-	if ref.begins_with("content://ui/"):
+	if ref.begins_with("content://ui/") or ref.begins_with("content://fx/"):
 		return true
 	return false
 
@@ -1137,7 +1143,7 @@ func _find_project_pack_by_content_id(content_id: String) -> String:
 
 
 func _resolve_look_path(look_id: String) -> String:
-	return "%s/assets/look/%s" % [content_root(), look_id]
+	return _resolve_assets_kind_path("look", look_id)
 
 
 ## UI chrome pack: content://ui/{skin}/{rel} → packs/ui/<id>/<ver>/{skin}/{rel}.
@@ -1191,25 +1197,23 @@ func _resolve_ui_path(asset_id: String) -> String:
 	return candidates[0] if not candidates.is_empty() else ""
 
 
-## System atlas / UI sheets (MV IconSet.png etc.) under assets/system/.
-func _resolve_system_asset_path(asset_id: String) -> String:
-	asset_id = asset_id.strip_edges()
-	var root := content_root()
-	var bare := "%s/assets/system/%s" % [root, asset_id]
+## Flat files under {content_root}/assets/{kind}/{id} (system / fx / icon / ...).
+func _resolve_assets_kind_path(kind: String, asset_id: String) -> String:
+	asset_id = asset_id.strip_edges().lstrip("/").replace("\\", "/")
+	var bare := "%s/assets/%s/%s" % [content_root(), kind.strip_edges(), asset_id]
 	var with_png := bare if bare.to_lower().ends_with(".png") else ("%s.png" % bare)
-	if FileAccess.file_exists(with_png):
-		return with_png
-	if FileAccess.file_exists(bare):
-		return bare
+	var hit := _existing_file(with_png)
+	if hit != "":
+		return hit
+	hit = _existing_file(bare)
+	if hit != "":
+		return hit
 	return with_png
 
 
 ## Resolve slot icon: prefer MV icon_index, else standalone content://icon/{id}.
 ## Returns ImageTexture or null (caller keeps letter avatar).
 func resolve_slot_icon_texture(icon_index: int = -1, icon_id_or_ref: String = "") -> ImageTexture:
-	var local := _try_local_icon(icon_id_or_ref)
-	if local != null:
-		return local
 	if icon_index >= 0:
 		var tex := load_mv_icon_texture(icon_index)
 		if tex != null:
@@ -1223,32 +1227,6 @@ func resolve_slot_icon_texture(icon_index: int = -1, icon_id_or_ref: String = ""
 	if img == null:
 		return null
 	return ImageTexture.create_from_image(img)
-
-
-func _try_local_icon(icon_id_or_ref: String) -> ImageTexture:
-	var id := icon_id_or_ref.strip_edges()
-	if id.is_empty():
-		return null
-	if id.begins_with("content://icon/"):
-		id = id.substr("content://icon/".length())
-	id = id.trim_suffix(".png")
-	var paths := [
-		"res://assets/icons/%s.png" % id,
-		"res://assets/fx/icon_%s.png" % id,
-	]
-	for path in paths:
-		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
-			continue
-		if ResourceLoader.exists(path):
-			var res: Resource = load(path)
-			if res is Texture2D:
-				var img0: Image = (res as Texture2D).get_image()
-				if img0 != null:
-					return ImageTexture.create_from_image(img0)
-		var img := Image.new()
-		if img.load(path) == OK:
-			return ImageTexture.create_from_image(img)
-	return null
 
 
 ## Shared drag preview: TextureRect when atlas/file resolves, else letter Label.
