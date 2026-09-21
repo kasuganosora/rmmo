@@ -37,7 +37,7 @@ const Weather = preload("res://scripts/map/weather.gd")
 const WeatherGatherUtil = preload("res://scripts/game/weather_gather_util.gd")
 const GridUtil = preload("res://scripts/util/grid_util.gd")
 
-const DEMO_PACK_PATH := "res://demo_map"
+const DEMO_PACK_PATH := "content://map_pack/demo_map"
 ## External first-party pack id (resolved via AssetManager; not in res://).
 const DEFAULT_PACK_ID := "default"
 const PartyModule = preload("res://scripts/net/server/party_module.gd")
@@ -1866,7 +1866,7 @@ var _duel: Dictionary = {}  # empty = idle; pending or active session
 var _duel_pending: Dictionary = {}  # optional pending challenge before accept
 
 ## --- Dungeon instance stub (one-shot → street_map) ---
-const DUNGEON_STREET_PACK := "res://street_map"
+const DUNGEON_STREET_PACK := "content://map_pack/street_map"
 const DUNGEON_STREET_MAP_ID := "street_map"
 const DUNGEON_STREET_SPAWN := Vector2i(41, 23)
 const DUNGEON_KILLS_NEEDED := 2

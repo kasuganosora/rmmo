@@ -1089,73 +1089,98 @@ func _existing_file(p: String) -> String:
 	return ""
 
 
+func _legacy_map_pack_id(pack_id: String) -> String:
+	var s := pack_id.strip_edges()
+	if s.begins_with("res://"):
+		s = s.substr(6)
+	s = s.rstrip("/").get_file() if s.find("/") >= 0 else s
+	match s:
+		"demo", "demo_home", "demo_map":
+			return "demo_map"
+		"bath", "bath_home", "bath_map":
+			return "bath_map"
+		"street", "street_central", "street_map":
+			return "street_map"
+		_:
+			return s
+
+
 func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
 	var root := content_root()
-	# Candidate roots: CDN-style map_pack/, flat packs/, and editor user:// packs.
-	var bases: Array[String] = [
-		"%s/packs/map_pack/%s" % [root, pack_id],
-		"%s/packs/%s" % [root, pack_id],
-		ProjectSettings.globalize_path("user://content/packs/%s" % pack_id),
-	]
-	for base0 in bases:
-		var base: String = str(base0)
-		if version != "":
-			var vdir := "%s/%s" % [base, version]
-			if _pack_json_exists(vdir):
-				return vdir
-		if _pack_json_exists(base):
-			return base
-	var base := bases[0]
-	if DirAccess.dir_exists_absolute(base):
-		var d := DirAccess.open(base)
-		if d:
-			d.list_dir_begin()
-			var name := d.get_next()
-			while name != "":
-				if d.current_is_dir() and not name.begins_with("."):
-					var cand := "%s/%s" % [base, name]
-					if _pack_json_exists(cand):
-						return cand
-				name = d.get_next()
-	# Legacy playtest maps still on disk as res:// — not shipped as the default pack.
-	var aliases: Array[String] = [
-		"res://%s" % pack_id,
-		"res://%s_map" % pack_id,
-	]
-	if pack_id == "demo_home" or pack_id == "demo_map" or pack_id == "demo":
-		aliases.append("res://demo_map")
-	if pack_id == "bath_home" or pack_id == "bath_map" or pack_id == "bath":
-		aliases.append("res://bath_map")
-	if pack_id == "street_central" or pack_id == "street_map" or pack_id == "street":
-		aliases.append("res://street_map")
-	for candidate in aliases:
-		if _pack_json_exists(candidate):
-			return candidate
-	# Scan known project packs and match pack.json content_id
-	var by_cid := _find_project_pack_by_content_id(pack_id)
+	var ids: Array[String] = []
+	var raw := pack_id.strip_edges()
+	if raw.begins_with("res://"):
+		raw = raw.substr(6).rstrip("/")
+	var aliased := _legacy_map_pack_id(pack_id)
+	for x in [raw, aliased, raw.get_file()]:
+		var id := str(x).strip_edges()
+		if id != "" and id not in ids:
+			ids.append(id)
+	for id in ids:
+		var bases: Array[String] = [
+			"%s/packs/map_pack/%s" % [root, id],
+			"%s/packs/%s" % [root, id],
+			ProjectSettings.globalize_path("user://content/packs/%s" % id),
+		]
+		for base0 in bases:
+			var base: String = str(base0)
+			if version != "":
+				var vdir := "%s/%s" % [base, version]
+				if _pack_json_exists(vdir):
+					return vdir
+			if _pack_json_exists(base):
+				return base
+			if DirAccess.dir_exists_absolute(base):
+				var d := DirAccess.open(base)
+				if d:
+					d.list_dir_begin()
+					var name := d.get_next()
+					while name != "":
+						if d.current_is_dir() and not name.begins_with("."):
+							var cand := "%s/%s" % [base, name]
+							if _pack_json_exists(cand):
+								return cand
+						name = d.get_next()
+	var by_cid := _find_pack_by_content_id(pack_id)
 	if by_cid != "":
 		return by_cid
-	return base
+	return "%s/packs/map_pack/%s" % [root, aliased]
 
 
-func _find_project_pack_by_content_id(content_id: String) -> String:
-	if content_id.strip_edges() == "":
+func _find_pack_by_content_id(content_id: String) -> String:
+	content_id = _legacy_map_pack_id(content_id)
+	if content_id.is_empty():
 		return ""
-	var known: Array[String] = [
-		"res://demo_map",
-		"res://bath_map",
-		"res://street_map",
-	]
-	for cand in known:
-		if not _pack_json_exists(cand):
-			continue
-		var data: Dictionary = load_json_file("%s/pack.json" % cand)
-		if data.is_empty():
-			var glob := ProjectSettings.globalize_path("%s/pack.json" % cand)
-			data = load_json_file(glob)
-		var cid := str(data.get("content_id", "")).strip_edges()
-		if cid == content_id:
-			return cand
+	var root := "%s/packs/map_pack" % content_root()
+	if not DirAccess.dir_exists_absolute(root):
+		return ""
+	var d := DirAccess.open(root)
+	if d == null:
+		return ""
+	d.list_dir_begin()
+	var name := d.get_next()
+	while name != "":
+		if d.current_is_dir() and not name.begins_with("."):
+			var base := "%s/%s" % [root, name]
+			var hit := base if _pack_json_exists(base) else ""
+			if hit == "":
+				var d2 := DirAccess.open(base)
+				if d2:
+					d2.list_dir_begin()
+					var ver := d2.get_next()
+					while ver != "":
+						if d2.current_is_dir() and not ver.begins_with("."):
+							var cand := "%s/%s" % [base, ver]
+							if _pack_json_exists(cand):
+								hit = cand
+								break
+						ver = d2.get_next()
+			if hit != "":
+				var data: Dictionary = load_json_file("%s/pack.json" % hit)
+				var cid := str(data.get("content_id", data.get("id", ""))).strip_edges()
+				if cid == content_id or name == content_id:
+					return hit
+		name = d.get_next()
 	return ""
 
 

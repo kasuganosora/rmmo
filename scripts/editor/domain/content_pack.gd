@@ -722,7 +722,15 @@ func _sheets_for(doc: RefCounted) -> Array:
 
 
 func _default_tileset() -> Dictionary:
-	var demo: Dictionary = _read_json("res://demo_map/tileset.json")
+	var demo_dir := ""
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var am: Node = (loop as SceneTree).root.get_node_or_null("AssetManager")
+		if am != null and am.has_method("resolve_map_pack_path"):
+			demo_dir = str(am.resolve_map_pack_path("demo_map"))
+	var demo: Dictionary = {}
+	if demo_dir != "":
+		demo = _read_json("%s/tileset.json" % demo_dir)
 	if not demo.is_empty():
 		return demo
 	return {"id": 1, "name": "default", "mode": 1, "flags": [], "tilesetNames": ["", "", "", "", "", "", "", "", ""]}

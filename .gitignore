@@ -6,6 +6,9 @@
 assets/
 /data/
 scripts/net/combat/data/
+/demo_map/
+/bath_map/
+/street_map/
 rmmo_runtime/
 **/rmmo_runtime/
 packs/

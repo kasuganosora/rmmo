@@ -10,7 +10,7 @@ const FriendList = preload("res://scripts/net/combat/friend_list.gd")
 const Guild = preload("res://scripts/net/combat/guild.gd")
 const Mailbox = preload("res://scripts/net/combat/mailbox.gd")
 const Auction = preload("res://scripts/net/combat/auction.gd")
-const DEMO_PACK_PATH := "res://demo_map"
+const DEMO_PACK_PATH := "content://map_pack/demo_map"
 const SHELL_REMOTE_COUNT := 1
 
 func login(username: String, password: String, server: String) -> void:

@@ -165,9 +165,9 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 
 func _resolve_spawn_pack_path(spawn: Dictionary) -> String:
 	var am: Node = _asset_manager()
-	var pack_path: String = str(spawn.get("pack_path", "res://demo_map")).strip_edges()
+	var pack_path: String = str(spawn.get("pack_path", "content://map_pack/demo_map")).strip_edges()
 	if pack_path == "":
-		pack_path = "res://demo_map"
+		pack_path = "content://map_pack/demo_map"
 	var content_id: String = str(spawn.get("content_id", "")).strip_edges()
 	if am != null and am.has_method("resolve_map_pack_path"):
 		var resolved := ""

@@ -5,8 +5,8 @@ var ctrl
 func _init(c):
 	ctrl = c
 
-const DEMO_PACK_PATH := "res://demo_map"
-const DUNGEON_STREET_PACK := "res://street_map"
+const DEMO_PACK_PATH := "content://map_pack/demo_map"
+const DUNGEON_STREET_PACK := "content://map_pack/street_map"
 const DUNGEON_STREET_MAP_ID := "street_map"
 const DUNGEON_STREET_SPAWN := Vector2i(41, 23)
 const DUNGEON_KILLS_NEEDED := 2

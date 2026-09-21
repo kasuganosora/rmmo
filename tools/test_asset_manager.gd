@@ -68,7 +68,7 @@ func _run() -> void:
 
 	# --- resolve_map_pack_path ---
 	var demo_path: String = str(am.resolve_map_pack_path("res://demo_map"))
-	failed += _expect(demo_path == "res://demo_map" or demo_path.ends_with("demo_map"), "resolve res://demo_map")
+	failed += _expect(demo_path.find("demo_map") >= 0 and FileAccess.file_exists("%s/pack.json" % demo_path), "resolve res://demo_map -> external")
 	var by_id: String = str(am.resolve_map_pack_path("demo_home"))
 	failed += _expect(by_id.find("demo_map") >= 0 or by_id.find("demo_home") >= 0, "resolve demo_home id -> demo_map")
 	var by_cref: String = str(am.resolve_map_pack_path("content://map_pack/demo_home@1.0.0"))
@@ -81,9 +81,9 @@ func _run() -> void:
 	failed += _expect(by_street_cref.find("street_map") >= 0, "resolve content street_central")
 
 	# --- ensure map pack (res) ---
-	var err_pack: Error = am.ensure("res://demo_map")
-	failed += _expect(err_pack == OK, "ensure res://demo_map OK")
-	failed += _expect(bool(am.has("res://demo_map")), "has res://demo_map")
+	var err_pack: Error = am.ensure("content://map_pack/demo_map")
+	failed += _expect(err_pack == OK, "ensure content://map_pack/demo_map OK")
+	failed += _expect(bool(am.has("content://map_pack/demo_map")), "has content://map_pack/demo_map")
 	failed += _expect(bool(am.has("content://map_pack/demo_home")), "has content://map_pack/demo_home")
 
 	# --- ensure charset: legacy D:/ or skip if missing ---
@@ -102,10 +102,10 @@ func _run() -> void:
 
 	# --- ensure_many empty OK ---
 	failed += _expect(am.ensure_many([]) == OK, "ensure_many empty OK")
-	failed += _expect(am.ensure_many(["res://demo_map"], "校验") == OK, "ensure_many demo pack")
+	failed += _expect(am.ensure_many(["content://map_pack/demo_map"], "校验") == OK, "ensure_many demo pack")
 
 	# --- double ensure re-entrancy ---
-	failed += _expect(am.ensure("res://demo_map") == OK, "double ensure OK")
+	failed += _expect(am.ensure("content://map_pack/demo_map") == OK, "double ensure OK")
 
 	# --- enqueue + pump + dedupe ---
 	am.enqueue(["content://charset/__missing_a", "content://charset/__missing_a"], 2)

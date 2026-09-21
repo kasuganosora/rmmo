@@ -18,7 +18,7 @@ First-party default packs:
 - `content://map_pack/default` → `{content_root}/packs/map_pack/default/<version>/`
 - `content://ui/{skin}/{path}` → `{content_root}/packs/ui/default/<version>/{skin}/{path}`
 
-Legacy `res://demo_map` / `bath_map` / `street_map` remain only as old playtest maps until they are washed into external packs.
+Playtest maps: `content://map_pack/demo_map` (and bath_map / street_map) under `{content_root}/packs/map_pack/`. `res://demo_map` is a resolve alias only — the files are not in the Godot project.
 
 ## Goals
 

@@ -9,7 +9,7 @@ const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const EventRuntime = preload("res://scripts/net/combat/event_runtime.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const Weather = preload("res://scripts/map/weather.gd")
-const DEMO_PACK_PATH := "res://demo_map"
+const DEMO_PACK_PATH := "content://map_pack/demo_map"
 const MAP_PIN_MAX := 3
 const SHELL_REMOTE_COUNT := 1
 
@@ -102,8 +102,8 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 	if ctrl.map_collision != null and bool(ctrl.map_collision.get("streaming")):
 		ctrl._ingest_stream_around(ctrl.respawn_cell if ctrl.respawn_cell.x >= 0 else Vector2i.ZERO)
 	ctrl.map_tile_size = pack.tile_size
-	ctrl.map_pack_path = pack_path.rstrip("/")
-	ctrl.map_pack_id = str(pack.map_id) if str(pack.map_id) != "" else pack_path.get_file()
+	ctrl.map_pack_path = str(pack.pack_dir).rstrip("/")
+	ctrl.map_pack_id = str(pack.map_id) if str(pack.map_id) != "" else ctrl.map_pack_path.get_file()
 	ctrl.map_content_id = ""
 	ctrl.map_content_version = ""
 	var pack_meta: Dictionary = {}

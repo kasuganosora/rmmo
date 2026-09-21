@@ -40,8 +40,9 @@ func _run() -> void:
 
 	if warp_cell.x < 0:
 		# Synthesize transfer via event helper to street_map if exists
-		var to := "res://street_map"
-		if not FileAccess.file_exists("res://street_map/pack.json"):
+		var am: Node = root.get_node_or_null("AssetManager")
+		var to := str(am.resolve_map_pack_path("street_map")) if am != null else "content://map_pack/street_map"
+		if not FileAccess.file_exists("%s/pack.json" % to):
 			print("test_transfer_cleanup: SKIP no warp and no street_map")
 			# Still unit-test _load_pack cleanup path
 			srv._add_items_to_ground({"x": 6, "y": 6}, [{"item_id": "potion_mp_small", "qty": 1}], "player", "")

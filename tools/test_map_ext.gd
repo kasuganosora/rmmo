@@ -16,10 +16,12 @@ func _run() -> void:
 	failed += _expect(MapExt.settings_sound(packed) == 7, "settings sound nibble")
 	failed += _expect(MapExt.settings_footstep(packed) == 2, "settings footstep nibble")
 
-	var empty: RefCounted = MapExt.load_file("res://demo_map/nope.ext.json", 30, 36)
+	var am: Node = root.get_node_or_null("AssetManager")
+	var demo_dir := str(am.resolve_map_pack_path("demo_map")) if am != null else ""
+	var empty: RefCounted = MapExt.load_file("%s/nope.ext.json" % demo_dir, 30, 36)
 	failed += _expect(empty != null and empty.valid == false, "missing ext is empty/invalid")
 
-	var demo: RefCounted = MapExt.load_file("res://demo_map/map.ext.json", 30, 36)
+	var demo: RefCounted = MapExt.load_file("%s/map.ext.json" % demo_dir, 30, 36)
 	failed += _expect(demo != null and demo.valid == true, "demo map.ext.json valid")
 	failed += _expect(demo.has_tiles("roof") == false, "empty layers have no tiles")
 

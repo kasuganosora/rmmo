@@ -11,11 +11,14 @@ func _run() -> void:
 	var ContentPack = load("res://scripts/editor/domain/content_pack.gd")
 	var PackZip = load("res://scripts/editor/infrastructure/pack_zip.gd")
 	ProjectSettings.set_setting("rmmo/map_editor_dev", false)
-	var demo_json := "res://demo_map/pack.json"
+	var am: Node = root.get_node_or_null("AssetManager")
+	var demo_dir := str(am.resolve_map_pack_path("demo_map")) if am != null else ""
+	var demo_json := "%s/pack.json" % demo_dir
+	failed += _expect(FileAccess.file_exists(demo_json), "external demo pack.json")
 	var before := FileAccess.get_modified_time(demo_json)
 	var before_txt := FileAccess.get_file_as_string(demo_json)
 	var pack = ContentPack.new()
-	failed += _expect(pack.load_dir("res://demo_map"), "load demo_map")
+	failed += _expect(pack.load_dir(demo_dir), "load demo_map")
 	var dest_id := "demo_user_copy_plan"
 	_wipe("user://content/packs/" + dest_id)
 	failed += _expect(pack.adopt_as_user_pack(dest_id, "demo copy"), "adopt user copy")

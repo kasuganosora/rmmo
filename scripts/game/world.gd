@@ -126,7 +126,7 @@ func _ready() -> void:
 	if map_field == null:
 		map_field = get_node_or_null("MapField")
 	if map_field != null:
-		var pack_path: String = str(spawn.get("pack_path", "res://demo_map"))
+		var pack_path: String = str(spawn.get("pack_path", "content://map_pack/demo_map"))
 		var content_id: String = str(spawn.get("content_id", "")).strip_edges()
 		var am: Node = _asset_mgr
 		if am != null and am.has_method("resolve_map_pack_path"):

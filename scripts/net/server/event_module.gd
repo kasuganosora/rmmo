@@ -5,7 +5,7 @@ var ctrl
 func _init(c):
 	ctrl = c
 
-const DEMO_PACK_PATH := "res://demo_map"
+const DEMO_PACK_PATH := "content://map_pack/demo_map"
 const SHELL_REMOTE_COUNT := 1
 
 func _event_server_ctx(npc_name: String = "") -> Dictionary:

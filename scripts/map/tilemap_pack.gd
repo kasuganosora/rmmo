@@ -41,11 +41,65 @@ var overview_path: String = ""
 
 static func load_pack(p_pack_dir: String, p_map_id: String = "") -> RefCounted:
 	var pack := new()
-	pack.pack_dir = p_pack_dir.rstrip("/")
+	pack.pack_dir = _resolve_pack_dir(p_pack_dir)
 	pack.load_map_id = p_map_id
 	if not pack._load():
 		push_error("tilemap_pack: failed to load %s" % p_pack_dir)
 	return pack
+
+
+static func _folder_pack_id(dir: String) -> String:
+	var leaf := dir.get_file()
+	var parts := leaf.split(".")
+	if parts.size() >= 2 and str(parts[0]).is_valid_int():
+		var parent := dir.get_base_dir().get_file()
+		if parent != "":
+			return parent
+	return leaf
+
+
+static func _resolve_pack_dir(p: String) -> String:
+	p = p.strip_edges().rstrip("/")
+	var loop = Engine.get_main_loop()
+	if loop is SceneTree:
+		var am: Node = (loop as SceneTree).root.get_node_or_null("AssetManager")
+		if am != null and am.has_method("resolve_map_pack_path"):
+			var resolved := str(am.resolve_map_pack_path(p)).strip_edges().rstrip("/")
+			if resolved != "" and FileAccess.file_exists("%s/pack.json" % resolved):
+				return resolved
+	var id := p
+	if id.begins_with("res://"):
+		id = id.substr(6)
+	if id.begins_with("content://map_pack/"):
+		id = id.substr("content://map_pack/".length())
+	id = id.rstrip("/")
+	if id.find("@") >= 0:
+		id = id.substr(0, id.find("@"))
+	match id:
+		"demo", "demo_home":
+			id = "demo_map"
+		"bath", "bath_home":
+			id = "bath_map"
+		"street", "street_central":
+			id = "street_map"
+	for root in ["D:/code/rmmo_runtime", "/workspace/rmmo_runtime"]:
+		if not DirAccess.dir_exists_absolute(root):
+			continue
+		var base := "%s/packs/map_pack/%s" % [root, id]
+		if FileAccess.file_exists("%s/pack.json" % base):
+			return base
+		if DirAccess.dir_exists_absolute(base):
+			var d := DirAccess.open(base)
+			if d:
+				d.list_dir_begin()
+				var name := d.get_next()
+				while name != "":
+					if d.current_is_dir() and not name.begins_with("."):
+						var cand := "%s/%s" % [base, name]
+						if FileAccess.file_exists("%s/pack.json" % cand):
+							return cand
+					name = d.get_next()
+	return p
 
 
 func _load() -> bool:
@@ -54,7 +108,7 @@ func _load() -> bool:
 	if pack_data.is_empty():
 		return false
 	tile_size = int(pack_data.get("tile_size", 48))
-	map_id = pack_dir.get_file()
+	map_id = _folder_pack_id(pack_dir)
 	var map_rel: String = str(pack_data.get("map", "map.json"))
 	var tileset_rel: String = str(pack_data.get("tileset", "tileset.json"))
 	var tiles_rel: String = str(pack_data.get("tiles_dir", "tiles"))

@@ -19,7 +19,7 @@ polygon = PackedVector2Array(-100000, -100000, 100000, -100000, 100000, 100000, 
 [node name="MapField" type="Node2D" parent="."]
 unique_name_in_owner = true
 script = ExtResource("4")
-pack_path = "res://demo_map"
+pack_path = "content://map_pack/demo_map"
 
 [node name="Ground" type="Polygon2D" parent="."]
 visible = false

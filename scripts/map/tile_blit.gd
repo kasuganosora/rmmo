@@ -4,7 +4,7 @@ extends RefCounted
 const TileId = preload("res://scripts/map/tile_id.gd")
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
-const TABLES_PATH := "res://scripts/map/autotile_tables.json"
+const TABLES_PATH := "map/autotile_tables.json"
 
 static var _tables_loaded: bool = false
 static var _floor_table: Array = []
@@ -18,7 +18,7 @@ static func ensure_tables() -> void:
 	if _tables_loaded:
 		return
 	_tables_loaded = true
-	var parsed: Variant = JsonUtil.parse_file(TABLES_PATH)
+	var parsed: Variant = JsonUtil.parse_data(TABLES_PATH)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("tile_blit: missing or bad autotile_tables.json")
 		return

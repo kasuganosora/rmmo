@@ -19,7 +19,7 @@ game art, audio, fonts, JSON catalogs, or content packs.
 
 ## Included (code / data, not artwork)
 
-- Engine scripts, scenes, shaders. Map **JSON** under `demo_map/` etc. is layout data without tilesheets.
+- Engine scripts, scenes, shaders. Playtest maps live in `{content_root}/packs/map_pack/` (not in git).
 - RTP **tables** live at `{content_root}/data/rtp/` (not in git). **No RTP PNGs** in this repo.
 - `icon.svg` — Godot project icon (Godot is MIT).
 - `addons/godot_ai/` — MIT (see that addon's `LICENSE`).
@@ -28,7 +28,7 @@ game art, audio, fonts, JSON catalogs, or content packs.
 
 ```
 {content_root}/
-  packs/map_pack/<id>/<version>/
+  packs/map_pack/<id>/<version>/   — demo_map / bath_map / street_map / default
   packs/ui/default/<version>/
   data/combat, data/map, data/rtp     — catalogs (`content://data/…`)
   assets/fx, icon, tilesheet, charset, audio, look, system
