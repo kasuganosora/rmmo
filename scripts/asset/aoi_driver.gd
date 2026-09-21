@@ -5,6 +5,8 @@ extends RefCounted
 ## Map chunk streaming (P2d) is out of scope — actors only.
 ## See docs/asset_manager_design.md.
 
+const GridUtil = preload("res://scripts/util/grid_util.gd")
+
 const RING_VIEW := "VIEW"
 const RING_AOI := "AOI"
 const RING_PREFETCH := "PREFETCH"
@@ -37,7 +39,7 @@ func reset() -> void:
 
 
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:
-	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+	return GridUtil.chebyshev(a, b)
 
 
 func classify_distance(dist: int) -> String:

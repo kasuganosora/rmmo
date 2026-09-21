@@ -6,6 +6,7 @@ const Net = preload("res://scripts/net/net.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const NameplateUtil = preload("res://scripts/game/nameplate_util.gd")
+const GridUtil = preload("res://scripts/util/grid_util.gd")
 
 static func _find_npc_by_id(ctrl, npc_id: String):
 	npc_id = npc_id.strip_edges()
@@ -134,7 +135,7 @@ static func _player_beside_npc(ctrl, npc, pcell: Vector2i) -> bool:
 	return false
 
 static func _cheb(ctrl, a: Vector2i, b: Vector2i) -> int:
-	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+	return GridUtil.chebyshev(a, b)
 
 static func _nameplate_max_dist(ctrl) -> int:
 	var gs = GameSettingsScript.get_i()

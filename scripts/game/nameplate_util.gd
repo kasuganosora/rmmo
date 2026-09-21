@@ -1,6 +1,8 @@
 extends RefCounted
 ## Pure helpers for nameplate draw-distance culling (Chebyshev cells).
 
+const GridUtil = preload("res://scripts/util/grid_util.gd")
+
 
 ## Hide when dist > max_dist unless selected (selected always shows).
 static func should_show(dist: int, max_dist: int, selected: bool) -> bool:
@@ -10,7 +12,7 @@ static func should_show(dist: int, max_dist: int, selected: bool) -> bool:
 
 
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:
-	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+	return GridUtil.chebyshev(a, b)
 
 
 static func clamp_distance(v: int) -> int:

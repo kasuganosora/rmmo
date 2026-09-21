@@ -4,6 +4,7 @@ extends RefCounted
 
 const GridPath = preload("res://scripts/map/grid_path.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")
+const GridUtil = preload("res://scripts/util/grid_util.gd")
 
 ## 6 meters → 6 cells (documented in COMBAT.md).
 const VISION_RANGE_CELLS := 6.0
@@ -192,7 +193,7 @@ static func get_home_cell(ai: Dictionary) -> Vector2i:
 
 
 static func chebyshev(a: Vector2i, b: Vector2i) -> int:
-	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+	return GridUtil.chebyshev(a, b)
 
 
 ## Cell is within wander_radius of home (Chebyshev / king-move). radius 0 → only home.
