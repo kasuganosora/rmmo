@@ -7,6 +7,7 @@ const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 const MapSfx = preload("res://scripts/map/map_sfx.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const Weather = preload("res://scripts/map/weather.gd")
+const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 static func _load_map_presets(ctrl) -> void:
 	ctrl._light_presets = ctrl._read_preset_file("res://data/map/light_presets.json")
@@ -38,12 +39,7 @@ static func _load_map_presets(ctrl) -> void:
 		ctrl.add_child(ctrl._foot_player)
 
 static func _read_preset_file(ctrl, path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	var parsed: Variant = JsonUtil.parse_file(path)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = parsed

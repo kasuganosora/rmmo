@@ -2,6 +2,7 @@ extends RefCounted
 ## CPU blit of tile IDs onto Image targets (48px grid, half-tile quarters).
 
 const TileId = preload("res://scripts/map/tile_id.gd")
+const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const TABLES_PATH := "res://scripts/map/autotile_tables.json"
 
@@ -17,13 +18,9 @@ static func ensure_tables() -> void:
 	if _tables_loaded:
 		return
 	_tables_loaded = true
-	var f := FileAccess.open(TABLES_PATH, FileAccess.READ)
-	if f == null:
-		push_error("tile_blit: missing autotile_tables.json")
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	var parsed: Variant = JsonUtil.parse_file(TABLES_PATH)
 	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("tile_blit: bad autotile_tables.json")
+		push_error("tile_blit: missing or bad autotile_tables.json")
 		return
 	var d: Dictionary = parsed
 	_floor_table = d.get("FLOOR", [])

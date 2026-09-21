@@ -4,6 +4,7 @@ extends RefCounted
 const MapCollision = preload("res://scripts/map/map_collision.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const MapChunkStore = preload("res://scripts/map/map_chunk_store.gd")
+const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 var pack_dir: String = ""
 var tile_size: int = 48
@@ -373,13 +374,9 @@ static func _parse_warps(v: Variant) -> Array:
 
 
 static func _read_json(path: String) -> Dictionary:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		push_error("tilemap_pack: cannot open %s" % path)
-		return {}
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	var parsed: Variant = JsonUtil.parse_file(path)
 	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("tilemap_pack: invalid JSON %s" % path)
+		push_error("tilemap_pack: cannot open or invalid JSON %s" % path)
 		return {}
 	return parsed
 

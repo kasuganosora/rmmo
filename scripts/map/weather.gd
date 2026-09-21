@@ -2,6 +2,7 @@ extends RefCounted
 ## Daylight × weather compose. Tint/energy multiply the map light_preset, they do not replace it.
 
 const MapExt = preload("res://scripts/map/map_ext.gd")
+const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const PATH := "res://data/map/weather.json"
 const KINDS := ["clear", "rain", "storm", "snow", "fog"]
@@ -160,11 +161,10 @@ static func _tint_of(def: Dictionary) -> Color:
 static func _ensure() -> void:
 	if not _cache.is_empty():
 		return
-	if FileAccess.file_exists(PATH):
-		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
-		if typeof(parsed) == TYPE_DICTIONARY:
-			_cache = parsed
-			return
+	var parsed: Variant = JsonUtil.parse_file(PATH)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		_cache = parsed
+		return
 	_cache = {
 		"kinds": {
 			"clear": {"name": "晴", "tint": [1, 1, 1], "energy": 1.0},

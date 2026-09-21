@@ -2,6 +2,8 @@ extends RefCounted
 ## Extra map layers beside RPG Maker MV MapXXX.json (z0–z5).
 ## File: MapXXX.ext.json / map.ext.json. Missing file = empty (legacy pack).
 
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+
 const FORMAT := "map_ext_v1"
 const EXT_Z_BASE := 6
 
@@ -315,20 +317,17 @@ static func _ensure_light_presets() -> void:
 	if not _light_preset_cache.is_empty():
 		return
 	var path := "res://data/map/light_presets.json"
-	if not FileAccess.file_exists(path):
-		_light_preset_cache = {
-			"0": {"name": "日间", "color": [1, 1, 1], "energy": 1.0},
-			"1": {"name": "黄昏", "color": [1.0, 0.82, 0.62], "energy": 0.88},
-			"2": {"name": "夜晚", "color": [0.55, 0.62, 0.95], "energy": 0.7},
-		}
-		return
-	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var raw: Variant = JsonUtil.parse_file(path)
 	if typeof(raw) == TYPE_DICTIONARY:
 		var presets: Variant = (raw as Dictionary).get("presets", raw)
 		if typeof(presets) == TYPE_DICTIONARY:
 			_light_preset_cache = presets
 			return
-	_light_preset_cache = {"0": {"name": "日间", "color": [1, 1, 1], "energy": 1.0}}
+	_light_preset_cache = {
+		"0": {"name": "日间", "color": [1, 1, 1], "energy": 1.0},
+		"1": {"name": "黄昏", "color": [1.0, 0.82, 0.62], "energy": 0.88},
+		"2": {"name": "夜晚", "color": [0.55, 0.62, 0.95], "energy": 0.7},
+	}
 
 
 func layer_index(id: String) -> int:

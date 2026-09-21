@@ -3,24 +3,24 @@ extends RefCounted
 ## 组内函数互相直接调用；被外置构建器调用的入口也保留在组合根作为委托。
 
 const MapExt = preload("res://scripts/map/map_ext.gd")
+const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 static func fill_preset_opt(ctrl, opt: OptionButton, path: String, fallback: PackedStringArray) -> void:
 	opt.clear()
 	var names: Dictionary = {}
-	if FileAccess.file_exists(path):
-		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-		if typeof(raw) == TYPE_DICTIONARY:
-			var presets: Variant = (raw as Dictionary).get("presets", raw)
-			if typeof(presets) == TYPE_DICTIONARY:
-				for k in (presets as Dictionary).keys():
-					var id := int(str(k))
-					var def: Variant = (presets as Dictionary)[k]
-					var label := str(k)
-					if typeof(def) == TYPE_DICTIONARY:
-						var n := str(def.get("name", ""))
-						if n != "":
-							label = n
-					names[id] = label
+	var raw: Variant = JsonUtil.parse_file(path)
+	if typeof(raw) == TYPE_DICTIONARY:
+		var presets: Variant = (raw as Dictionary).get("presets", raw)
+		if typeof(presets) == TYPE_DICTIONARY:
+			for k in (presets as Dictionary).keys():
+				var id := int(str(k))
+				var def: Variant = (presets as Dictionary)[k]
+				var label := str(k)
+				if typeof(def) == TYPE_DICTIONARY:
+					var n := str(def.get("name", ""))
+					if n != "":
+						label = n
+				names[id] = label
 	if names.is_empty():
 		for i in range(fallback.size()):
 			opt.add_item(str(fallback[i]), i)
