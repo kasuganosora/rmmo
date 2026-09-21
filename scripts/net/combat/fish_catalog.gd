@@ -4,8 +4,7 @@ extends "res://scripts/util/catalog_base.gd"
 const RngUtil = preload("res://scripts/util/rng_util.gd")
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/fish_spots.json",
-	"res://data/combat/fish_spots.json",
+	"combat/fish_spots.json",
 ]
 
 func _data_paths() -> Array:

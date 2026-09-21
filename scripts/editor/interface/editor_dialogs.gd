@@ -120,7 +120,7 @@ static func build_map_settings_dialog(ctrl) -> void:
 	ctrl._add_lbl(light_row, "光照")
 	ctrl._set_light = OptionButton.new()
 	ctrl._set_light.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl._fill_preset_opt(ctrl._set_light, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
+	ctrl._fill_preset_opt(ctrl._set_light, "map/light_presets.json", ["日间", "黄昏", "夜晚"])
 	light_row.add_child(ctrl._set_light)
 	var fx_row := HBoxContainer.new()
 	v.add_child(fx_row)

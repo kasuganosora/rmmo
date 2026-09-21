@@ -1,8 +1,0 @@
-{
-  "presets": {
-    "0": { "name": "无", "stream": "", "volume_db": 0.0 },
-    "1": { "name": "风", "kind": "wind", "volume_db": -18.0 },
-    "2": { "name": "水", "kind": "water", "volume_db": -16.0 },
-    "3": { "name": "夜", "kind": "night", "volume_db": -20.0 }
-  }
-}

@@ -3,8 +3,7 @@ extends "res://scripts/util/catalog_base.gd"
 ## Template fields: id, name, type, rarity, stack_max, use_effect, sell_price (+ legacy consumable/effect).
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/items.json",
-	"res://data/combat/items.json",
+	"combat/items.json",
 ]
 
 

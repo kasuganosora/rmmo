@@ -37,12 +37,8 @@ func _run() -> void:
 		"name 初战告捷"
 	)
 
-	# Dual data paths
-	failed += _expect(FileAccess.file_exists("res://data/combat/achievements.json"), "data/combat/achievements.json")
-	failed += _expect(
-		FileAccess.file_exists("res://scripts/net/combat/data/achievements.json"),
-		"scripts mirror achievements.json"
-	)
+	var am: Node = root.get_node_or_null("AssetManager")
+	failed += _expect(am != null and bool(am.has("content://data/combat/achievements.json")), "external achievements.json")
 
 	# Fresh
 	srv.combat_stats.reset_achievements()

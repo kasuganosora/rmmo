@@ -4,7 +4,7 @@ extends RefCounted
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
-const PATH := "res://data/map/weather.json"
+const PATH := "map/weather.json"
 const KINDS := ["clear", "rain", "storm", "snow", "fog"]
 ## Viewport stack: world (0) < atmosphere (weather + day/night veil) < HUD.
 const CANVAS_ATMOSPHERE := 5
@@ -161,7 +161,7 @@ static func _tint_of(def: Dictionary) -> Color:
 static func _ensure() -> void:
 	if not _cache.is_empty():
 		return
-	var parsed: Variant = JsonUtil.parse_file(PATH)
+	var parsed: Variant = JsonUtil.parse_data(PATH)
 	if typeof(parsed) == TYPE_DICTIONARY:
 		_cache = parsed
 		return

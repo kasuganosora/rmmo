@@ -5,13 +5,13 @@ func _init() -> void:
 	var JsonUtil = load("res://scripts/util/json_util.gd")
 	if JsonUtil == null:
 		print("FAIL load json_util"); quit(); return
-	if JsonUtil.parse_file("res://data/combat/items.json") == null:
-		print("FAIL parse_file items.json"); bad += 1
+	if JsonUtil.parse_data("combat/items.json") == null:
+		print("FAIL parse_data items.json"); bad += 1
 	if typeof(JsonUtil.parse_file("res://no/such.json")) != TYPE_NIL:
 		print("FAIL parse_file missing"); bad += 1
 	var first: Variant = JsonUtil.load_first([
 		"res://no/such.json",
-		"res://data/combat/items.json",
+		"combat/items.json",
 	])
 	if typeof(first) != TYPE_DICTIONARY:
 		print("FAIL load_first skip-missing"); bad += 1

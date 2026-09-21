@@ -4,8 +4,7 @@ extends RefCounted
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/safe_zones.json",
-	"res://data/combat/safe_zones.json",
+	"combat/safe_zones.json",
 ]
 
 ## map_id -> Array[Dictionary] of {id, min_x, min_y, max_x, max_y}

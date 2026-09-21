@@ -1,8 +1,9 @@
 extends RefCounted
-## RPG Maker MV default RTP: tileset defs in res://data/rtp, images in content_root.
+## RPG Maker MV default RTP: tileset defs in {content_root}/data/rtp, images in content_root.
 
-const MANIFEST := "res://data/rtp/manifest.json"
-const RTP_DIR := "res://data/rtp"
+const JsonUtil = preload("res://scripts/util/json_util.gd")
+const MANIFEST := "rtp/manifest.json"
+const RTP_DIR := "rtp"
 const STEAM_NEWDATA := "D:/SteamLibrary/steamapps/common/RPG Maker MV/NewData"
 const DEFAULT_PACK_ID := "default"
 
@@ -111,15 +112,5 @@ static func _copy_pngs(from_dir: String, to_dir: String) -> void:
 
 
 static func _read_json(path: String) -> Dictionary:
-	var p := path
-	if not FileAccess.file_exists(p):
-		var abs_path := ProjectSettings.globalize_path(p)
-		if FileAccess.file_exists(abs_path):
-			p = abs_path
-		else:
-			return {}
-	var f := FileAccess.open(p, FileAccess.READ)
-	if f == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	var parsed: Variant = JsonUtil.parse_data(path) if not path.contains("://") else JsonUtil.parse_file(path)
 	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}

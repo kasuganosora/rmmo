@@ -279,7 +279,7 @@ static func open_map_settings(ctrl: ContentEditor, mid: String) -> void:
 			env = MapExt.normalize_environment(ctrl.doc.environment)
 		ctrl._set_env.select(1 if env == MapExt.ENV_INDOOR else 0)
 	ctrl._fill_bgm_opt(str(ctrl.doc.bgm) if "bgm" in ctrl.doc else "")
-	ctrl._fill_preset_opt(ctrl._set_light, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
+	ctrl._fill_preset_opt(ctrl._set_light, "map/light_presets.json", ["日间", "黄昏", "夜晚"])
 	ctrl._select_opt_id(ctrl._set_light, int(ctrl.doc.light_preset) if "light_preset" in ctrl.doc else 0)
 	if ctrl._set_fx_color:
 		ctrl._set_fx_color.color = ctrl.doc.light_fx_color if "light_fx_color" in ctrl.doc else Color(1, 1, 1, 1)

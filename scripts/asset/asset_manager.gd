@@ -81,6 +81,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute("%s/assets/charset" % root)
 	DirAccess.make_dir_recursive_absolute("%s/assets/fx" % root)
 	DirAccess.make_dir_recursive_absolute("%s/assets/icon" % root)
+	DirAccess.make_dir_recursive_absolute("%s/data" % root)
 
 
 func content_root() -> String:
@@ -99,6 +100,18 @@ func content_root() -> String:
 		return linux_rt
 	var user_root := ProjectSettings.globalize_path("user://content")
 	return user_root.rstrip("/").rstrip("\\")
+
+
+## `{content_root}/data/{rel}` — catalogs, map presets, RTP tables (never res://).
+func data_file(rel: String) -> String:
+	rel = rel.strip_edges().replace("\\", "/").lstrip("/")
+	if rel.begins_with("data/"):
+		rel = rel.substr(5)
+	var p := "%s/data/%s" % [content_root(), rel]
+	var hit := _existing_file(p)
+	if hit != "":
+		return hit
+	return p
 
 
 ## RPG Maker MV www/img root (苍蓝星 external — never copy into res://).
@@ -172,6 +185,8 @@ func path(ref: String) -> String:
 			return _resolve_assets_kind_path("icon", cr.id)
 		"ui":
 			return _resolve_ui_path(cr.id)
+		"data":
+			return data_file(cr.id)
 		_:
 			# Prefer file with .png for image-like kinds; also try bare path.
 			var base := "%s/assets/%s/%s" % [content_root(), cr.kind, cr.id]
@@ -270,6 +285,8 @@ func _is_soft_ref(ref: String) -> bool:
 	if ref.begins_with("content://system/") or ref.begins_with("content://audio/") or ref.begins_with("content://tilesheet/"):
 		return true
 	if ref.begins_with("content://ui/") or ref.begins_with("content://fx/"):
+		return true
+	if ref.begins_with("content://data/"):
 		return true
 	return false
 

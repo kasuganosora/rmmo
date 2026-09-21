@@ -48,7 +48,8 @@ func _run() -> void:
 		failed += _expect(sold, "starter_goods sells tool_pickaxe")
 	else:
 		# Fallback: load shops.json
-		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/combat/shops.json"))
+		var JsonUtil = load("res://scripts/util/json_util.gd")
+		var raw: Variant = JsonUtil.parse_data("combat/shops.json")
 		var sold2 := false
 		if typeof(raw) == TYPE_DICTIONARY:
 			for row2 in raw["shops"]["starter_goods"]["items"]:

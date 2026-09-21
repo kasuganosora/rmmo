@@ -5,8 +5,7 @@ extends RefCounted
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/shops.json",
-	"res://data/combat/shops.json",
+	"combat/shops.json",
 ]
 
 ## shop_id -> { title, items: [{item_id, buy_price}] }

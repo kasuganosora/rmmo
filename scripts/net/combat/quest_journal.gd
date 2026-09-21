@@ -6,8 +6,7 @@ extends RefCounted
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/quests.json",
-	"res://data/combat/quests.json",
+	"combat/quests.json",
 ]
 
 ## id -> catalog def Dictionary

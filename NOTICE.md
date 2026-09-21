@@ -1,14 +1,15 @@
 # NOTICE — what this repository does and does not ship
 
 This GitHub repository is **source code only** (MIT). It does **not** include
-game art, audio, fonts, or content packs.
+game art, audio, fonts, JSON catalogs, or content packs.
 
 ## Do not commit
 
 | Location | Why |
 |----------|-----|
-| `{content_root}/` (e.g. `D:/code/rmmo_runtime`) | External runtime. Packs, tilesheets, UI chrome, charsets. |
+| `{content_root}/` (e.g. `D:/code/rmmo_runtime`) | External runtime. Packs, tilesheets, UI chrome, catalogs. |
 | `packs/` | Map / UI packs |
+| `data/` | Combat / map / RTP JSON (`content://data/…`) |
 | `assets/` | Local art (gitignored) |
 | RPG Maker MV RTP images | Kadokawa / Degica license — user must own MV |
 | 苍蓝星 / other commercial `www/img` | Commercial game art — hot-load from a local install only |
@@ -18,8 +19,8 @@ game art, audio, fonts, or content packs.
 
 ## Included (code / data, not artwork)
 
-- Engine scripts, scenes, shaders, and JSON catalogs (items, skills, maps as data).
-- `data/rtp/*.json` — editor **compatibility tables** (slot names / passage flags) for people who already own RPG Maker MV. **No RTP PNGs.**
+- Engine scripts, scenes, shaders. Map **JSON** under `demo_map/` etc. is layout data without tilesheets.
+- RTP **tables** live at `{content_root}/data/rtp/` (not in git). **No RTP PNGs** in this repo.
 - `icon.svg` — Godot project icon (Godot is MIT).
 - `addons/godot_ai/` — MIT (see that addon's `LICENSE`).
 
@@ -29,6 +30,7 @@ game art, audio, fonts, or content packs.
 {content_root}/
   packs/map_pack/<id>/<version>/
   packs/ui/default/<version>/
+  data/combat, data/map, data/rtp     — catalogs (`content://data/…`)
   assets/fx, icon, tilesheet, charset, audio, look, system
   mv_img/          optional junction to an MV www/img you own
 ```

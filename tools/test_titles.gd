@@ -110,9 +110,8 @@ func _run() -> void:
 	failed += _expect(srv.combat_stats.is_title_unlocked("hunter"), "hunter at 10")
 	failed += _expect(srv.combat_stats.is_title_unlocked("newbie_slayer"), "newbie also at 10")
 
-	# Data file exists (both paths)
-	failed += _expect(FileAccess.file_exists("res://data/combat/titles.json"), "data/combat/titles.json")
-	failed += _expect(FileAccess.file_exists("res://scripts/net/combat/data/titles.json"), "scripts mirror titles.json")
+	var am: Node = root.get_node_or_null("AssetManager")
+	failed += _expect(am != null and bool(am.has("content://data/combat/titles.json")), "external titles.json")
 
 	# Document: kill/craft/death hooks all wired via _note_title_counter in
 	# _finalize_combat_result (kills + deaths) and try_craft (crafts).

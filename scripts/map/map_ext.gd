@@ -316,8 +316,7 @@ static func light_preset_names() -> Dictionary:
 static func _ensure_light_presets() -> void:
 	if not _light_preset_cache.is_empty():
 		return
-	var path := "res://data/map/light_presets.json"
-	var raw: Variant = JsonUtil.parse_file(path)
+	var raw: Variant = JsonUtil.parse_data("map/light_presets.json")
 	if typeof(raw) == TYPE_DICTIONARY:
 		var presets: Variant = (raw as Dictionary).get("presets", raw)
 		if typeof(presets) == TYPE_DICTIONARY:

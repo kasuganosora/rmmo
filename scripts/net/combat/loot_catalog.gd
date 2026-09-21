@@ -5,8 +5,7 @@ extends RefCounted
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/loot_tables.json",
-	"res://data/combat/loot_tables.json",
+	"combat/loot_tables.json",
 ]
 
 var _by_npc_id: Dictionary = {}

@@ -2,8 +2,7 @@ extends "res://scripts/util/catalog_base.gd"
 ## Crafting recipe definitions loaded from JSON (shared path with future GameServer).
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/recipes.json",
-	"res://data/combat/recipes.json",
+	"combat/recipes.json",
 ]
 
 func _data_paths() -> Array:

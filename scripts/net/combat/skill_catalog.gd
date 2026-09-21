@@ -2,8 +2,7 @@ extends "res://scripts/util/catalog_base.gd"
 ## Skill definitions loaded from JSON (shared path with future GameServer).
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/skills.json",
-	"res://data/combat/skills.json",
+	"combat/skills.json",
 ]
 
 

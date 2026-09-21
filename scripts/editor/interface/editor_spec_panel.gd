@@ -43,14 +43,14 @@ static func build_spec_panel(ctrl, parent: Node) -> void:
 	ctrl._add_lbl(lr, "光照")
 	ctrl._light_opt = OptionButton.new()
 	ctrl._light_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl._fill_preset_opt(ctrl._light_opt, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
+	ctrl._fill_preset_opt(ctrl._light_opt, "map/light_presets.json", ["日间", "黄昏", "夜晚"])
 	lr.add_child(ctrl._light_opt)
 	var sr := HBoxContainer.new()
 	srow.add_child(sr)
 	ctrl._add_lbl(sr, "环境音")
 	ctrl._sound_opt = OptionButton.new()
 	ctrl._sound_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ctrl._fill_preset_opt(ctrl._sound_opt, "res://data/map/sound_presets.json", ["无"])
+	ctrl._fill_preset_opt(ctrl._sound_opt, "map/sound_presets.json", ["无"])
 	sr.add_child(ctrl._sound_opt)
 	var fr := HBoxContainer.new()
 	srow.add_child(fr)

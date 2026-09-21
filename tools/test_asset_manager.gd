@@ -58,6 +58,13 @@ func _run() -> void:
 		failed += _expect(bool(am.has(icon_ref)), "has content://icon/wooden_sword")
 	else:
 		print("SKIP icon wooden_sword")
+	var data_ref := "content://data/combat/items.json"
+	if FileAccess.file_exists(str(am.data_file("combat/items.json"))):
+		failed += _expect(bool(am.has(data_ref)), "has content://data/combat/items.json")
+		var dj: Dictionary = am.load_json(data_ref)
+		failed += _expect(dj.has("items"), "load_json items")
+	else:
+		print("SKIP data/combat/items.json")
 
 	# --- resolve_map_pack_path ---
 	var demo_path: String = str(am.resolve_map_pack_path("res://demo_map"))

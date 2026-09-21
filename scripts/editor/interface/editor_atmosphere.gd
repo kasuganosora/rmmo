@@ -8,7 +8,7 @@ const JsonUtil = preload("res://scripts/util/json_util.gd")
 static func fill_preset_opt(ctrl, opt: OptionButton, path: String, fallback: PackedStringArray) -> void:
 	opt.clear()
 	var names: Dictionary = {}
-	var raw: Variant = JsonUtil.parse_file(path)
+	var raw: Variant = JsonUtil.parse_data(path) if not path.contains("://") else JsonUtil.parse_file(path)
 	if typeof(raw) == TYPE_DICTIONARY:
 		var presets: Variant = (raw as Dictionary).get("presets", raw)
 		if typeof(presets) == TYPE_DICTIONARY:

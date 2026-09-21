@@ -10,8 +10,8 @@ const Weather = preload("res://scripts/map/weather.gd")
 const JsonUtil = preload("res://scripts/util/json_util.gd")
 
 static func _load_map_presets(ctrl) -> void:
-	ctrl._light_presets = ctrl._read_preset_file("res://data/map/light_presets.json")
-	ctrl._sound_presets = ctrl._read_preset_file("res://data/map/sound_presets.json")
+	ctrl._light_presets = ctrl._read_preset_file("map/light_presets.json")
+	ctrl._sound_presets = ctrl._read_preset_file("map/sound_presets.json")
 	ctrl._pin_hud_canvas()
 	# Day/night tints World canvas items (map, actors). Do not use CanvasModulate —
 	# it multiplies every canvas in the viewport, including the HUD.
@@ -39,7 +39,7 @@ static func _load_map_presets(ctrl) -> void:
 		ctrl.add_child(ctrl._foot_player)
 
 static func _read_preset_file(ctrl, path: String) -> Dictionary:
-	var parsed: Variant = JsonUtil.parse_file(path)
+	var parsed: Variant = JsonUtil.parse_data(path) if not str(path).contains("://") else JsonUtil.parse_file(path)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = parsed

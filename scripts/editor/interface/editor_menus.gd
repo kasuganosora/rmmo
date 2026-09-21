@@ -112,7 +112,7 @@ static func build_toolbar(ctrl) -> Control:
 	ctrl._light_bar = OptionButton.new()
 	ctrl._light_bar.focus_mode = Control.FOCUS_NONE
 	ctrl._light_bar.custom_minimum_size = Vector2(110, 0)
-	ctrl._fill_preset_opt(ctrl._light_bar, "res://data/map/light_presets.json", ["日间", "黄昏", "夜晚"])
+	ctrl._fill_preset_opt(ctrl._light_bar, "map/light_presets.json", ["日间", "黄昏", "夜晚"])
 	ctrl._light_bar.item_selected.connect(func(_i): ctrl._on_toolbar_light())
 	row.add_child(ctrl._light_bar)
 	ctrl._add_lbl(row, "天气")

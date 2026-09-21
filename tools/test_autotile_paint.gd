@@ -192,7 +192,8 @@ func _run() -> void:
 		failed += _expect(g17 < 8, "kind 17 blob interior is dirt not grass")
 
 	# Table-flag A2 (Inside RTP kind 23): paint + hanging edge blit.
-	var inside_flags_path := "res://data/rtp/inside.json"
+	var JsonUtil = load("res://scripts/util/json_util.gd")
+	var inside_flags_path := str(JsonUtil.data_path("rtp/inside.json"))
 	var inside_a2_path := _runtime_root() + "/assets/tilesheet/Inside_A2.png"
 	if FileAccess.file_exists(inside_flags_path) and FileAccess.file_exists(inside_a2_path):
 		var ff := FileAccess.open(inside_flags_path, FileAccess.READ)

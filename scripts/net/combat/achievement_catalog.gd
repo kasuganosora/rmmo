@@ -2,8 +2,7 @@ extends "res://scripts/util/catalog_base.gd"
 ## Achievement definitions loaded from JSON (shared path with future GameServer).
 
 const DATA_PATHS: Array[String] = [
-	"res://scripts/net/combat/data/achievements.json",
-	"res://data/combat/achievements.json",
+	"combat/achievements.json",
 ]
 
 func _data_paths() -> Array:

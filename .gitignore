@@ -2,8 +2,10 @@
 .godot/
 .import/
 
-# Art / audio — this repo is source code only. Never commit packs or media.
+# Art / audio / catalogs — this repo is source code only. Never commit packs or media.
 assets/
+/data/
+scripts/net/combat/data/
 rmmo_runtime/
 **/rmmo_runtime/
 packs/
