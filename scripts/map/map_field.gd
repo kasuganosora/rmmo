@@ -24,7 +24,7 @@ const MAX_CHUNK_SPAN := 5
 ## MV Tilemap: animationFrame = floor(animationCount / 30) at 60fps → 0.5s/step.
 const ANIM_STEP_SEC := 0.5
 
-@export var pack_path: String = "content://map_pack/demo_map"
+@export var pack_path: String = ""
 
 var pack: RefCounted = null
 var collision: RefCounted = null
@@ -254,9 +254,9 @@ func _ensure_lofi_sprite() -> void:
 	_radar_module_logic._ensure_lofi_sprite()
 func _resolve_pack_path(p: String) -> String:
 	p = p.strip_edges()
-	if p.is_empty():
-		p = "content://map_pack/demo_map"
 	var am: Node = get_node_or_null("/root/AssetManager")
+	if p.is_empty() and am != null and am.has_method("start_map_pack_ref"):
+		p = str(am.start_map_pack_ref())
 	if am != null and am.has_method("resolve_map_pack_path"):
 		return str(am.resolve_map_pack_path(p))
 	return p

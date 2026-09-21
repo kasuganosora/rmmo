@@ -10,7 +10,7 @@ const FriendList = preload("res://scripts/net/combat/friend_list.gd")
 const Guild = preload("res://scripts/net/combat/guild.gd")
 const Mailbox = preload("res://scripts/net/combat/mailbox.gd")
 const Auction = preload("res://scripts/net/combat/auction.gd")
-const DEMO_PACK_PATH := "content://map_pack/demo_map"
+
 const SHELL_REMOTE_COUNT := 1
 
 func login(username: String, password: String, server: String) -> void:
@@ -113,7 +113,7 @@ func enter_world(character_id: int) -> void:
 		ctrl.enter_world_ready.emit(false, "找不到该角色", {})
 		return
 	# Always start the session on the home demo pack.
-	ctrl._load_pack(DEMO_PACK_PATH)
+	ctrl._load_pack(ctrl.start_map_pack_path())
 	var spawn_cell = Vector2i(0, 0)
 	if ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
 		spawn_cell = ctrl.map_collision.find_spawn_near()
@@ -192,7 +192,7 @@ func enter_world(character_id: int) -> void:
 	var spawn = {
 		"character": found,
 		"map_id": ctrl.map_pack_id,
-		"pack_path": ctrl.map_pack_path if ctrl.map_pack_path != "" else DEMO_PACK_PATH,
+		"pack_path": ctrl.map_pack_path if ctrl.map_pack_path != "" else ctrl.start_map_pack_path(),
 		"content_id": ctrl.map_content_id,
 		"content_version": ctrl.map_content_version,
 		"cell": {"x": spawn_cell.x, "y": spawn_cell.y},

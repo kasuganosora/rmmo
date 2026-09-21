@@ -14,6 +14,11 @@ const DEFAULT_PACK_ID := "default"
 ## Writable content root (user://content by default).
 @export var content_root_override: String = ""
 
+var _content_cfg: Dictionary = {}
+var _content_cfg_loaded: bool = false
+## alias id -> folder id (from content.json + pack.json content_id)
+var _pack_aliases: Dictionary = {}
+
 ## path -> Image
 var _image_cache: Dictionary = {}
 ## path -> approx RGBA8 bytes
@@ -841,11 +846,155 @@ func make_letter_sprite_frames(text: String, size: int = 48) -> SpriteFrames:
 
 # --- map pack helpers -------------------------------------------------------
 
+func content_config() -> Dictionary:
+	_ensure_content_cfg()
+	return _content_cfg
+
+
+func start_map_pack_id() -> String:
+	_ensure_content_cfg()
+	var id := str(_content_cfg.get("start_map_pack", "")).strip_edges()
+	if id.is_empty():
+		id = str(ProjectSettings.get_setting("rmmo/default_pack", "")).strip_edges()
+	if id.is_empty() or id.begins_with("res://"):
+		id = DEFAULT_PACK_ID
+	return alias_map_pack_id(id)
+
+
+func start_map_pack_ref() -> String:
+	return ContentRef.make("map_pack", start_map_pack_id())
+
+
+func street_map_pack_id() -> String:
+	_ensure_content_cfg()
+	var id := str(_content_cfg.get("street_map_pack", "")).strip_edges()
+	if id.is_empty():
+		id = start_map_pack_id()
+	return alias_map_pack_id(id)
+
+
+func street_map_pack_ref() -> String:
+	return ContentRef.make("map_pack", street_map_pack_id())
+
+
+func street_map_id() -> String:
+	_ensure_content_cfg()
+	var id := str(_content_cfg.get("street_map_id", "")).strip_edges()
+	if id.is_empty():
+		id = street_map_pack_id()
+	return id
+
+
+func street_spawn_cell() -> Vector2i:
+	return _cfg_cell("street_spawn")
+
+
+func start_spawn_cell() -> Vector2i:
+	return _cfg_cell("start_spawn")
+
+
+func _cfg_cell(key: String) -> Vector2i:
+	_ensure_content_cfg()
+	var d: Variant = _content_cfg.get(key, {})
+	if typeof(d) == TYPE_DICTIONARY:
+		return Vector2i(int(d.get("x", 0)), int(d.get("y", 0)))
+	return Vector2i.ZERO
+
+
+func ui_pack_id() -> String:
+	_ensure_content_cfg()
+	var id := str(_content_cfg.get("ui_pack", "")).strip_edges()
+	if id.is_empty():
+		id = str(ProjectSettings.get_setting("rmmo/ui_pack", "")).strip_edges()
+	if id.is_empty():
+		id = DEFAULT_PACK_ID
+	return id
+
+
+func alias_map_pack_id(pack_id: String) -> String:
+	var s := _strip_pack_token(pack_id)
+	if s.is_empty():
+		return s
+	_ensure_content_cfg()
+	if _pack_aliases.has(s):
+		return str(_pack_aliases[s])
+	return s
+
+
+func _strip_pack_token(pack_id: String) -> String:
+	var s := pack_id.strip_edges()
+	if s.begins_with("res://"):
+		s = s.substr(6)
+	if s.begins_with(ContentRef.SCHEME):
+		var cr = ContentRef.parse(s)
+		if cr.is_valid():
+			s = str(cr.id)
+	s = s.rstrip("/")
+	var at := s.rfind("@")
+	if at >= 0:
+		s = s.substr(0, at)
+	if s.find("/") >= 0:
+		s = s.get_file()
+	return s
+
+
+func _ensure_content_cfg() -> void:
+	if _content_cfg_loaded:
+		return
+	_content_cfg_loaded = true
+	_content_cfg = load_json_file("%s/content.json" % content_root())
+	_pack_aliases.clear()
+	var av: Variant = _content_cfg.get("aliases", {})
+	if typeof(av) == TYPE_DICTIONARY:
+		for k in (av as Dictionary).keys():
+			var dst := str((av as Dictionary)[k]).strip_edges()
+			if dst != "":
+				_pack_aliases[str(k).strip_edges()] = dst
+	_scan_pack_aliases()
+
+
+func _scan_pack_aliases() -> void:
+	var root := "%s/packs/map_pack" % content_root()
+	if not DirAccess.dir_exists_absolute(root):
+		return
+	var d := DirAccess.open(root)
+	if d == null:
+		return
+	d.list_dir_begin()
+	var name := d.get_next()
+	while name != "":
+		if d.current_is_dir() and not name.begins_with("."):
+			var hit := _pack_dir_with_json("%s/%s" % [root, name])
+			if hit != "":
+				var data: Dictionary = load_json_file("%s/pack.json" % hit)
+				var cid := str(data.get("content_id", "")).strip_edges()
+				if cid != "" and cid != name and not _pack_aliases.has(cid):
+					_pack_aliases[cid] = name
+		name = d.get_next()
+
+
+func _pack_dir_with_json(base: String) -> String:
+	if _pack_json_exists(base):
+		return base
+	if not DirAccess.dir_exists_absolute(base):
+		return ""
+	var d := DirAccess.open(base)
+	if d == null:
+		return ""
+	d.list_dir_begin()
+	var name := d.get_next()
+	while name != "":
+		if d.current_is_dir() and not name.begins_with("."):
+			var cand := "%s/%s" % [base, name]
+			if _pack_json_exists(cand):
+				return cand
+		name = d.get_next()
+	return ""
+
+
 ## Resolve res:// packs, content ids, absolute dirs → usable pack directory path.
 func default_map_pack_path() -> String:
-	var v := str(ProjectSettings.get_setting("rmmo/default_pack", DEFAULT_PACK_ID)).strip_edges()
-	if v.is_empty() or v.begins_with("res://"):
-		v = DEFAULT_PACK_ID
+	var v := start_map_pack_id()
 	if _pack_json_exists(v):
 		return v
 	var from_id := _resolve_map_pack_dir(v, "")
@@ -1089,29 +1238,11 @@ func _existing_file(p: String) -> String:
 	return ""
 
 
-func _legacy_map_pack_id(pack_id: String) -> String:
-	var s := pack_id.strip_edges()
-	if s.begins_with("res://"):
-		s = s.substr(6)
-	s = s.rstrip("/").get_file() if s.find("/") >= 0 else s
-	match s:
-		"demo", "demo_home", "demo_map":
-			return "demo_map"
-		"bath", "bath_home", "bath_map":
-			return "bath_map"
-		"street", "street_central", "street_map":
-			return "street_map"
-		_:
-			return s
-
-
 func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
 	var root := content_root()
 	var ids: Array[String] = []
-	var raw := pack_id.strip_edges()
-	if raw.begins_with("res://"):
-		raw = raw.substr(6).rstrip("/")
-	var aliased := _legacy_map_pack_id(pack_id)
+	var raw := _strip_pack_token(pack_id)
+	var aliased := alias_map_pack_id(pack_id)
 	for x in [raw, aliased, raw.get_file()]:
 		var id := str(x).strip_edges()
 		if id != "" and id not in ids:
@@ -1148,7 +1279,7 @@ func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
 
 
 func _find_pack_by_content_id(content_id: String) -> String:
-	content_id = _legacy_map_pack_id(content_id)
+	content_id = alias_map_pack_id(content_id)
 	if content_id.is_empty():
 		return ""
 	var root := "%s/packs/map_pack" % content_root()
@@ -1191,9 +1322,7 @@ func _resolve_look_path(look_id: String) -> String:
 ## UI chrome pack: content://ui/{skin}/{rel} → packs/ui/<id>/<ver>/{skin}/{rel}.
 func _resolve_ui_pack_dir(pack_id: String = "", version: String = "") -> String:
 	if pack_id.strip_edges() == "":
-		pack_id = str(ProjectSettings.get_setting("rmmo/ui_pack", DEFAULT_PACK_ID)).strip_edges()
-	if pack_id.is_empty():
-		pack_id = DEFAULT_PACK_ID
+		pack_id = ui_pack_id()
 	var root := content_root()
 	var bases: Array[String] = [
 		"%s/packs/ui/%s" % [root, pack_id],

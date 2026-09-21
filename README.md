@@ -12,8 +12,9 @@ MIT for the source in this repo. Third-party art is **not** included and must no
 
 Set `rmmo/content_root` in `project.godot` (or let `AssetManager` fall back to `D:/code/rmmo_runtime` on Windows). Layout:
 
+- `content.json` — start/street pack ids, aliases, spawn cells
 - `packs/ui/default/<ver>/` — UI chrome (`content://ui/…`)
-- `packs/map_pack/default/<ver>/` — first-party map pack
+- `packs/map_pack/<id>/<ver>/` — map packs
 - `data/combat`, `data/map`, `data/rtp` — catalogs (`content://data/…`)
 - `assets/fx`, `assets/icon`, `assets/tilesheet`, `assets/charset`, …
 

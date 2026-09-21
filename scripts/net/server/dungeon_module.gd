@@ -5,10 +5,6 @@ var ctrl
 func _init(c):
 	ctrl = c
 
-const DEMO_PACK_PATH := "content://map_pack/demo_map"
-const DUNGEON_STREET_PACK := "content://map_pack/street_map"
-const DUNGEON_STREET_MAP_ID := "street_map"
-const DUNGEON_STREET_SPAWN := Vector2i(41, 23)
 const DUNGEON_KILLS_NEEDED := 2
 const DUNGEON_REWARD_GOLD := 50
 const DUNGEON_REWARD_EXP := 80
@@ -80,9 +76,9 @@ func _dungeon_return_cell_dict() -> Dictionary:
 func _dungeon_pick_guard_cells(count: int) -> Array:
 	## Free cells near street spawn for slim dungeon guards.
 	var out: Array = []
-	var origin = DUNGEON_STREET_SPAWN
+	var origin = ctrl.street_spawn_cell()
 	if ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
-		origin = ctrl.map_collision.find_spawn_near(DUNGEON_STREET_SPAWN.x, DUNGEON_STREET_SPAWN.y)
+		origin = ctrl.map_collision.find_spawn_near(ctrl.street_spawn_cell().x, ctrl.street_spawn_cell().y)
 	var used: Dictionary = {}
 	used["%d,%d" % [ctrl.player_cell.x, ctrl.player_cell.y]] = true
 	var offsets: Array = [
@@ -121,7 +117,7 @@ func _dungeon_spawn_guards() -> Array:
 	var guard_ids: Array = []
 	for i in range(DUNGEON_KILLS_NEEDED):
 		var gid = "dungeon_guard_%d" % i
-		var cell: Vector2i = cells[i] if i < cells.size() else DUNGEON_STREET_SPAWN
+		var cell: Vector2i = cells[i] if i < cells.size() else ctrl.street_spawn_cell()
 		var spawn = {
 			"id": gid,
 			"name": "试炼守卫",
@@ -255,16 +251,16 @@ func try_dungeon_enter() -> Dictionary:
 	if ctrl.combat_stats != null and not ctrl.combat_stats.player_alive():
 		actions.append({"type": "system_message", "text": "你已经倒下了。"})
 		return {"ok": false, "reason": "dead", "actions": actions}
-	var return_pack: String = ctrl.map_pack_path if ctrl.map_pack_path != "" else DEMO_PACK_PATH
-	var return_map: String = ctrl.map_pack_id if ctrl.map_pack_id != "" else "demo_map"
+	var return_pack: String = ctrl.map_pack_path if ctrl.map_pack_path != "" else ctrl.start_map_pack_path()
+	var return_map: String = ctrl.map_pack_id if ctrl.map_pack_id != "" else ctrl.start_map_pack_id()
 	var return_cell: Dictionary = _dungeon_return_cell_dict()
 	ctrl._dungeon_xfer_lock = true
 	var xfer: Dictionary = ctrl._event_perform_transfer(
-		DUNGEON_STREET_PACK,
-		{"x": DUNGEON_STREET_SPAWN.x, "y": DUNGEON_STREET_SPAWN.y},
+		ctrl.street_map_pack_path(),
+		{"x": ctrl.street_spawn_cell().x, "y": ctrl.street_spawn_cell().y},
 		4,
 		"进入试炼洞窟",
-		DUNGEON_STREET_MAP_ID
+		ctrl.street_map_id()
 	)
 	ctrl._dungeon_xfer_lock = false
 	if not bool(xfer.get("ok", false)):
@@ -284,11 +280,11 @@ func try_dungeon_enter() -> Dictionary:
 	actions.append({
 		"type": "map_transfer",
 		"ok": true,
-		"pack_path": str(xfer.get("pack_path", DUNGEON_STREET_PACK)),
-		"map_id": str(xfer.get("map_id", DUNGEON_STREET_MAP_ID)),
+		"pack_path": str(xfer.get("pack_path", ctrl.street_map_pack_path())),
+		"map_id": str(xfer.get("map_id", ctrl.street_map_id())),
 		"content_id": str(xfer.get("content_id", "")),
 		"content_version": str(xfer.get("content_version", "")),
-		"cell": xfer.get("cell", {"x": DUNGEON_STREET_SPAWN.x, "y": DUNGEON_STREET_SPAWN.y}),
+		"cell": xfer.get("cell", {"x": ctrl.street_spawn_cell().x, "y": ctrl.street_spawn_cell().y}),
 		"facing": int(xfer.get("facing", 4)),
 		"message": "进入试炼洞窟",
 		"quests": xfer.get("quests", []),
@@ -301,11 +297,11 @@ func try_dungeon_enter() -> Dictionary:
 	actions.append(_dungeon_update_action())
 	var out = {
 		"ok": true,
-		"pack_path": str(xfer.get("pack_path", DUNGEON_STREET_PACK)),
-		"map_id": str(xfer.get("map_id", DUNGEON_STREET_MAP_ID)),
+		"pack_path": str(xfer.get("pack_path", ctrl.street_map_pack_path())),
+		"map_id": str(xfer.get("map_id", ctrl.street_map_id())),
 		"content_id": str(xfer.get("content_id", "")),
 		"content_version": str(xfer.get("content_version", "")),
-		"cell": xfer.get("cell", {"x": DUNGEON_STREET_SPAWN.x, "y": DUNGEON_STREET_SPAWN.y}),
+		"cell": xfer.get("cell", {"x": ctrl.street_spawn_cell().x, "y": ctrl.street_spawn_cell().y}),
 		"facing": int(xfer.get("facing", 4)),
 		"message": "进入试炼洞窟",
 		"dungeon": snapshot_dungeon(),
@@ -322,19 +318,20 @@ func try_dungeon_exit() -> Dictionary:
 	if ctrl._dungeon.is_empty():
 		actions.append({"type": "system_message", "text": "当前没有试炼。"})
 		return {"ok": false, "reason": "idle", "actions": actions}
-	var ret_pack: String = str(ctrl._dungeon.get("return_pack", DEMO_PACK_PATH)).strip_edges()
+	var ret_pack: String = str(ctrl._dungeon.get("return_pack", ctrl.start_map_pack_path())).strip_edges()
 	if ret_pack.is_empty():
-		ret_pack = DEMO_PACK_PATH
-	var ret_map: String = str(ctrl._dungeon.get("return_map", "demo_map")).strip_edges()
-	var ret_cell_v: Variant = ctrl._dungeon.get("return_cell", {"x": 15, "y": 12})
-	var ret_cell: Dictionary = ret_cell_v if typeof(ret_cell_v) == TYPE_DICTIONARY else {"x": 15, "y": 12}
+		ret_pack = ctrl.start_map_pack_path()
+	var ret_map: String = str(ctrl._dungeon.get("return_map", ctrl.start_map_pack_id())).strip_edges()
+	var spawn: Vector2i = ctrl.start_spawn_cell()
+	var ret_cell_v: Variant = ctrl._dungeon.get("return_cell", {"x": spawn.x, "y": spawn.y})
+	var ret_cell: Dictionary = ret_cell_v if typeof(ret_cell_v) == TYPE_DICTIONARY else {"x": spawn.x, "y": spawn.y}
 	var completed = bool(ctrl._dungeon.get("completed", false))
 	# Clear before transfer so abandon hook does not fire.
 	ctrl._dungeon.clear()
 	ctrl._dungeon_xfer_lock = true
 	var xfer: Dictionary = ctrl._event_perform_transfer(
 		ret_pack,
-		{"x": int(ret_cell.get("x", 15)), "y": int(ret_cell.get("y", 12))},
+		{"x": int(ret_cell.get("x", spawn.x)), "y": int(ret_cell.get("y", spawn.y))},
 		2,
 		"离开试炼洞窟",
 		ret_map

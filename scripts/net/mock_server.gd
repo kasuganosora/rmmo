@@ -37,7 +37,6 @@ const Weather = preload("res://scripts/map/weather.gd")
 const WeatherGatherUtil = preload("res://scripts/game/weather_gather_util.gd")
 const GridUtil = preload("res://scripts/util/grid_util.gd")
 
-const DEMO_PACK_PATH := "content://map_pack/demo_map"
 ## External first-party pack id (resolved via AssetManager; not in res://).
 const DEFAULT_PACK_ID := "default"
 const PartyModule = preload("res://scripts/net/server/party_module.gd")
@@ -132,7 +131,7 @@ var map_collision: RefCounted = null
 var _map_pack: RefCounted = null
 var map_tile_size: int = 48
 var map_pack_id: String = "demo_map"
-var map_pack_path: String = DEMO_PACK_PATH
+var map_pack_path: String = ""
 var map_content_id: String = ""
 var map_content_version: String = ""
 ## Warp list for the current pack (from pack.json).
@@ -319,7 +318,49 @@ var _weather_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_init_combat_layers()
-	_load_pack(DEMO_PACK_PATH)
+	_load_pack(start_map_pack_path())
+
+
+func start_map_pack_id() -> String:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_map_pack_id"):
+		return str(am.start_map_pack_id())
+	return ""
+
+
+func start_map_pack_path() -> String:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_map_pack_ref"):
+		return str(am.start_map_pack_ref())
+	return ""
+
+
+func street_map_pack_path() -> String:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_map_pack_ref"):
+		return str(am.street_map_pack_ref())
+	return ""
+
+
+func street_map_id() -> String:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_map_id"):
+		return str(am.street_map_id())
+	return ""
+
+
+func street_spawn_cell() -> Vector2i:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_spawn_cell"):
+		return am.street_spawn_cell()
+	return Vector2i.ZERO
+
+
+func start_spawn_cell() -> Vector2i:
+	var am: Node = get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_spawn_cell"):
+		return am.start_spawn_cell()
+	return Vector2i.ZERO
 
 
 func _init_combat_layers() -> void:
@@ -1865,10 +1906,7 @@ const DUEL_RANGE_CELLS := 1
 var _duel: Dictionary = {}  # empty = idle; pending or active session
 var _duel_pending: Dictionary = {}  # optional pending challenge before accept
 
-## --- Dungeon instance stub (one-shot → street_map) ---
-const DUNGEON_STREET_PACK := "content://map_pack/street_map"
-const DUNGEON_STREET_MAP_ID := "street_map"
-const DUNGEON_STREET_SPAWN := Vector2i(41, 23)
+## --- Dungeon instance stub (one-shot → street pack from content.json) ---
 const DUNGEON_KILLS_NEEDED := 2
 const DUNGEON_REWARD_GOLD := 50
 const DUNGEON_REWARD_EXP := 80

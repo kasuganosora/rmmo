@@ -32,6 +32,9 @@ func _run() -> void:
 		return
 
 	failed += _expect(str(am.content_root()) != "", "content_root non-empty")
+	failed += _expect(str(am.start_map_pack_id()) != "", "content.json start_map_pack")
+	failed += _expect(str(am.street_map_pack_id()) != "", "content.json street_map_pack")
+	failed += _expect(str(am.alias_map_pack_id("demo_home")) == str(am.start_map_pack_id()) or str(am.alias_map_pack_id("demo_home")) != "", "alias demo_home")
 
 	# --- UI pack (external chrome) ---
 	var ui_panel := "content://ui/l2/panel.png"

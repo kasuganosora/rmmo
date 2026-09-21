@@ -9,7 +9,6 @@ const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const EventRuntime = preload("res://scripts/net/combat/event_runtime.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const Weather = preload("res://scripts/map/weather.gd")
-const DEMO_PACK_PATH := "content://map_pack/demo_map"
 const MAP_PIN_MAX := 3
 const SHELL_REMOTE_COUNT := 1
 
@@ -150,7 +149,7 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 
 
 func _load_demo_map() -> void:
-	_load_pack(DEMO_PACK_PATH)
+	_load_pack(ctrl.start_map_pack_path())
 
 
 
@@ -245,7 +244,7 @@ func try_transfer(from_x: int, from_y: int) -> Dictionary:
 	var to_map_id: String = to_map_local
 	if not _load_pack(to_pack, to_map_id):
 		# Reload previous pack if destination failed.
-		_load_pack(ctrl.map_pack_path if ctrl.map_pack_path != "" else DEMO_PACK_PATH)
+		_load_pack(ctrl.map_pack_path if ctrl.map_pack_path != "" else ctrl.start_map_pack_path())
 		return {"ok": false}
 	if to_map_id.is_empty():
 		to_map_id = ctrl.map_pack_id

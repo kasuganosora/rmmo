@@ -5,7 +5,7 @@ var ctrl
 func _init(c):
 	ctrl = c
 
-const DEMO_PACK_PATH := "content://map_pack/demo_map"
+
 const SHELL_REMOTE_COUNT := 1
 
 func _event_server_ctx(npc_name: String = "") -> Dictionary:
@@ -103,7 +103,7 @@ func _event_perform_transfer(
 	var ty: int = int(to_cell.get("y", 0))
 	var prev_path = ctrl.map_pack_path
 	if not ctrl._load_pack(to_pack, to_map_id):
-		ctrl._load_pack(prev_path if prev_path != "" else DEMO_PACK_PATH)
+		ctrl._load_pack(prev_path if prev_path != "" else ctrl.start_map_pack_path())
 		return {"ok": false}
 	if to_map_id.strip_edges().is_empty():
 		to_map_id = ctrl.map_pack_id

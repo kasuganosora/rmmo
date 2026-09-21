@@ -185,12 +185,12 @@ static func confirm_save_as(ctrl: ContentEditor) -> void:
 static func open_demo_copy(ctrl: ContentEditor) -> void:
 	ctrl.current_map_id = ""
 	ctrl.pack = ContentPack.new()
-	var demo_dir := "content://map_pack/demo_map"
 	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
-	if am != null and am.has_method("resolve_map_pack_path"):
-		demo_dir = str(am.resolve_map_pack_path("demo_map"))
-	if not ctrl.pack.load_dir(demo_dir):
-		ctrl._status.text = "无法读取 demo_map 资源包"
+	var demo_dir := ""
+	if am != null and am.has_method("start_map_pack_id"):
+		demo_dir = str(am.resolve_map_pack_path(am.start_map_pack_id()))
+	if demo_dir.is_empty() or not ctrl.pack.load_dir(demo_dir):
+		ctrl._status.text = "无法读取开场地图资源包"
 		return
 	var nid := "demo_copy_%d" % int(Time.get_unix_time_from_system())
 	if ctrl.pack.adopt_as_user_pack(nid, "demo_map 副本"):

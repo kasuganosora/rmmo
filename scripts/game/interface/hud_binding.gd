@@ -10,7 +10,11 @@ static func _bind_hud(ctrl, ch: Dictionary, spawn: Dictionary) -> void:
 		return
 	if ctrl.hud.has_method("bind_character"):
 		ctrl.hud.bind_character(ch)
-	var map_id = str(spawn.get("map_id", "demo_map"))
+	var map_id = str(spawn.get("map_id", "")).strip_edges()
+	if map_id.is_empty():
+		var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+		if am != null and am.has_method("start_map_pack_id"):
+			map_id = str(am.start_map_pack_id())
 	if ctrl.hud.has_method("bind_radar"):
 		ctrl.hud.bind_radar(ctrl.map_field, ctrl.player, map_id, ctrl)
 	elif ctrl.hud.has_method("set_minimap_hint"):

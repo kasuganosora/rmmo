@@ -67,38 +67,6 @@ static func _resolve_pack_dir(p: String) -> String:
 			var resolved := str(am.resolve_map_pack_path(p)).strip_edges().rstrip("/")
 			if resolved != "" and FileAccess.file_exists("%s/pack.json" % resolved):
 				return resolved
-	var id := p
-	if id.begins_with("res://"):
-		id = id.substr(6)
-	if id.begins_with("content://map_pack/"):
-		id = id.substr("content://map_pack/".length())
-	id = id.rstrip("/")
-	if id.find("@") >= 0:
-		id = id.substr(0, id.find("@"))
-	match id:
-		"demo", "demo_home":
-			id = "demo_map"
-		"bath", "bath_home":
-			id = "bath_map"
-		"street", "street_central":
-			id = "street_map"
-	for root in ["D:/code/rmmo_runtime", "/workspace/rmmo_runtime"]:
-		if not DirAccess.dir_exists_absolute(root):
-			continue
-		var base := "%s/packs/map_pack/%s" % [root, id]
-		if FileAccess.file_exists("%s/pack.json" % base):
-			return base
-		if DirAccess.dir_exists_absolute(base):
-			var d := DirAccess.open(base)
-			if d:
-				d.list_dir_begin()
-				var name := d.get_next()
-				while name != "":
-					if d.current_is_dir() and not name.begins_with("."):
-						var cand := "%s/%s" % [base, name]
-						if FileAccess.file_exists("%s/pack.json" % cand):
-							return cand
-					name = d.get_next()
 	return p
 
 

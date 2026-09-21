@@ -28,7 +28,8 @@ game art, audio, fonts, JSON catalogs, or content packs.
 
 ```
 {content_root}/
-  packs/map_pack/<id>/<version>/   — demo_map / bath_map / street_map / default
+  content.json                       — start/street packs, aliases, spawn cells
+  packs/map_pack/<id>/<version>/
   packs/ui/default/<version>/
   data/combat, data/map, data/rtp     — catalogs (`content://data/…`)
   assets/fx, icon, tilesheet, charset, audio, look, system

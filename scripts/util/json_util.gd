@@ -10,10 +10,25 @@ static func data_path(rel: String) -> String:
 	var am = _am()
 	if am != null and am.has_method("data_file"):
 		return str(am.data_file(rel))
-	for root in ["D:/code/rmmo_runtime", "/workspace/rmmo_runtime"]:
-		if DirAccess.dir_exists_absolute(root):
-			return "%s/data/%s" % [root, rel]
+	var root := content_root()
+	if root != "":
+		return "%s/data/%s" % [root, rel]
 	return rel
+
+
+## Same discovery as AssetManager.content_root (for loaders that run before autoload _ready).
+static func content_root() -> String:
+	var am = _am()
+	if am != null and am.has_method("content_root"):
+		return str(am.content_root())
+	if ProjectSettings.has_setting("rmmo/content_root"):
+		var v := str(ProjectSettings.get_setting("rmmo/content_root", "")).strip_edges()
+		if v != "" and DirAccess.dir_exists_absolute(v):
+			return v.rstrip("/").rstrip("\\")
+	for cand in ["D:/code/rmmo_runtime", "/workspace/rmmo_runtime"]:
+		if DirAccess.dir_exists_absolute(cand):
+			return cand
+	return ""
 
 
 static func parse_data(rel: String) -> Variant:

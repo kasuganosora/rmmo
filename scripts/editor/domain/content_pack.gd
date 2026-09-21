@@ -726,8 +726,8 @@ func _default_tileset() -> Dictionary:
 	var loop = Engine.get_main_loop()
 	if loop is SceneTree:
 		var am: Node = (loop as SceneTree).root.get_node_or_null("AssetManager")
-		if am != null and am.has_method("resolve_map_pack_path"):
-			demo_dir = str(am.resolve_map_pack_path("demo_map"))
+		if am != null and am.has_method("start_map_pack_id"):
+			demo_dir = str(am.resolve_map_pack_path(am.start_map_pack_id()))
 	var demo: Dictionary = {}
 	if demo_dir != "":
 		demo = _read_json("%s/tileset.json" % demo_dir)
