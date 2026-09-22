@@ -48,6 +48,8 @@ func clear_target() -> void:
 	if ctrl._target_status_chip_row != null and is_instance_valid(ctrl._target_status_chip_row):
 		ctrl._rebuild_status_chips(ctrl._target_status_chip_row, [])
 	clear_target_cast()
+	if ctrl._target_dist_label != null and is_instance_valid(ctrl._target_dist_label):
+		ctrl._target_dist_label.visible = false
 	if ctrl._radar and ctrl._radar.has_method("clear_target_angle"):
 		ctrl._radar.clear_target_angle()
 
@@ -134,6 +136,38 @@ func clear_target_cast() -> void:
 
 func is_target_casting() -> bool:
 	return ctrl._target_cast_active
+
+
+## Show the player→target distance (in cells) on the target head; cells < 0 hides it.
+func apply_target_distance(cells: int) -> void:
+	if ctrl.target_panel == null:
+		return
+	if ctrl._target_dist_label == null or not is_instance_valid(ctrl._target_dist_label):
+		_ensure_target_chrome()
+		var vbox = ctrl.target_panel.find_child("TargetVBox", true, false) as VBoxContainer
+		if vbox == null:
+			return
+		var head = vbox.get_node_or_null("TargetHead") as HBoxContainer
+		var lab := Label.new()
+		lab.name = "TargetDist"
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lab.add_theme_font_size_override("font_size", 11)
+		lab.add_theme_color_override("font_color", Color(0.7, 0.78, 0.85, 1.0))
+		lab.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.08, 0.9))
+		lab.add_theme_constant_override("outline_size", 2)
+		if head != null:
+			head.add_child(lab)
+			var close = head.get_node_or_null("TargetClose")
+			if close != null:
+				head.move_child(lab, close.get_index())
+		else:
+			vbox.add_child(lab)
+		ctrl._target_dist_label = lab
+	if cells < 0:
+		ctrl._target_dist_label.visible = false
+		return
+	ctrl._target_dist_label.text = "距离 %d" % cells
+	ctrl._target_dist_label.visible = true
 
 
 func _refresh_target_cast_visual() -> void:

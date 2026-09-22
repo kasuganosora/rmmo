@@ -388,6 +388,7 @@ var _target_cast_caster: String = ""
 var _target_cast_elapsed: float = 0.0
 var _target_cast_duration: float = 0.0
 var _target_cast_name: String = ""
+var _target_dist_label: Label = null
 ## Thin 「仇恨」/「无仇恨」 chip on hostile target bar.
 var _threat_chip: Label = null
 var _threat_you: bool = false
@@ -782,6 +783,8 @@ func is_target_casting() -> bool:
 	return _target_panel_logic.is_target_casting()
 func _tick_target_cast(delta: float) -> void:
 	_target_panel_logic._tick_target_cast(delta)
+func apply_target_distance(cells: int) -> void:
+	_target_panel_logic.apply_target_distance(cells)
 ## Hostile target bar: 「仇恨」 gold/red when you are victim; 「无仇恨」 muted otherwise.
 func apply_threat_chip(show: bool, threat_you: bool = false) -> void:
 	_target_panel_logic.apply_threat_chip(show, threat_you)

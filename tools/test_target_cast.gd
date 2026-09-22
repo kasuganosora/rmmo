@@ -45,6 +45,13 @@ func _run() -> void:
 	hud.apply_target_cast_end("mob2")
 	failed += _expect(not hud.is_target_casting(), "matching end clears cast")
 
+	# Distance readout.
+	hud.apply_target_distance(5)
+	failed += _expect(hud._target_dist_label != null and hud._target_dist_label.visible, "distance label visible")
+	failed += _expect(hud._target_dist_label.text == "距离 5", "distance text (got %s)" % hud._target_dist_label.text)
+	hud.apply_target_distance(-1)
+	failed += _expect(not hud._target_dist_label.visible, "distance hidden when unknown")
+
 	# clear_target() also drops the cast bar.
 	hud.apply_target_cast_start("mob3", {"duration": 3.0, "elapsed": 0.0, "name": "闪电"})
 	failed += _expect(hud.is_target_casting(), "casting before clear_target")
