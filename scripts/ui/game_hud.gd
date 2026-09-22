@@ -380,6 +380,14 @@ var _status_chip_row: Control = null
 var _player_statuses: Array = []
 ## Optional chips under target panel.
 var _target_status_chip_row: Control = null
+## Target cast bar (enemy casting readout on the target frame).
+var _target_cast_bar: ProgressBar = null
+var _target_cast_label: Label = null
+var _target_cast_active: bool = false
+var _target_cast_caster: String = ""
+var _target_cast_elapsed: float = 0.0
+var _target_cast_duration: float = 0.0
+var _target_cast_name: String = ""
 ## Thin 「仇恨」/「无仇恨」 chip on hostile target bar.
 var _threat_chip: Label = null
 var _threat_you: bool = false
@@ -762,6 +770,18 @@ func clear_target() -> void:
 	_target_panel_logic.clear_target()
 func _ensure_target_chrome() -> void:
 	_target_panel_logic._ensure_target_chrome()
+func apply_target_cast_start(caster_id: String, action: Dictionary) -> void:
+	_target_panel_logic.apply_target_cast_start(caster_id, action)
+func apply_target_cast_update(caster_id: String, action: Dictionary) -> void:
+	_target_panel_logic.apply_target_cast_update(caster_id, action)
+func apply_target_cast_end(caster_id: String) -> void:
+	_target_panel_logic.apply_target_cast_end(caster_id)
+func clear_target_cast() -> void:
+	_target_panel_logic.clear_target_cast()
+func is_target_casting() -> bool:
+	return _target_panel_logic.is_target_casting()
+func _tick_target_cast(delta: float) -> void:
+	_target_panel_logic._tick_target_cast(delta)
 ## Hostile target bar: 「仇恨」 gold/red when you are victim; 「无仇恨」 muted otherwise.
 func apply_threat_chip(show: bool, threat_you: bool = false) -> void:
 	_target_panel_logic.apply_threat_chip(show, threat_you)
@@ -870,6 +890,7 @@ func _process(_delta: float) -> void:
 	_tick_gold_float(_delta)
 	_tick_item_floats(_delta)
 	_tick_cast_bar_visual(_delta)
+	_tick_target_cast(_delta)
 	_tick_hotbar_cooldowns(_delta)
 	_tick_status_icon_bars(_delta)
 	_sync_quest_drawer_follow()

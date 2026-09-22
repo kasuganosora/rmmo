@@ -184,6 +184,9 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						"kind": ckind,
 						"skill_id": str(action.get("skill_id", "")),
 					})
+					# Show the enemy's cast bar on the target frame when it's our target.
+					if npc_caster == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_start"):
+						ctrl.hud.apply_target_cast_start(npc_caster, action)
 			"cast_update":
 				var npc_cu = str(action.get("npc_id", "")).strip_edges()
 				if npc_cu.is_empty():
@@ -192,6 +195,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_cu = c1
 				if npc_cu.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_update"):
 					ctrl.hud.apply_cast_update(action)
+				elif npc_cu == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_update"):
+					ctrl.hud.apply_target_cast_update(npc_cu, action)
 			"cast_end":
 				var npc_ce = str(action.get("npc_id", "")).strip_edges()
 				if npc_ce.is_empty():
@@ -200,6 +205,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_ce = c2
 				if npc_ce.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_end"):
 					ctrl.hud.apply_cast_end(action)
+				elif npc_ce == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_end"):
+					ctrl.hud.apply_target_cast_end(npc_ce)
 			"skill_fx":
 				apply_skill_fx(ctrl, action)
 			"skill_anim":

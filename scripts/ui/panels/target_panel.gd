@@ -47,8 +47,111 @@ func clear_target() -> void:
 		ctrl._threat_chip.visible = false
 	if ctrl._target_status_chip_row != null and is_instance_valid(ctrl._target_status_chip_row):
 		ctrl._rebuild_status_chips(ctrl._target_status_chip_row, [])
+	clear_target_cast()
 	if ctrl._radar and ctrl._radar.has_method("clear_target_angle"):
 		ctrl._radar.clear_target_angle()
+
+
+# ---- Target cast bar (enemy casting) ----
+func _ensure_target_cast_bar() -> void:
+	if ctrl.target_panel == null:
+		return
+	if ctrl._target_cast_bar != null and is_instance_valid(ctrl._target_cast_bar):
+		return
+	_ensure_target_chrome()
+	var vbox = ctrl.target_panel.find_child("TargetVBox", true, false) as VBoxContainer
+	if vbox == null:
+		return
+	var bar := ProgressBar.new()
+	bar.name = "TargetCastBar"
+	bar.custom_minimum_size = Vector2(0, 12)
+	bar.show_percentage = false
+	bar.max_value = 100.0
+	bar.value = 0
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.visible = false
+	vbox.add_child(bar)
+	var lab := Label.new()
+	lab.name = "TargetCastLabel"
+	lab.add_theme_font_size_override("font_size", 11)
+	lab.add_theme_color_override("font_color", Color(1.0, 0.9, 0.6, 1.0))
+	lab.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.9))
+	lab.add_theme_constant_override("outline_size", 2)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.visible = false
+	vbox.add_child(lab)
+	ctrl._target_cast_bar = bar
+	ctrl._target_cast_label = lab
+
+
+## Show/refresh the enemy cast bar. caster_id identifies who is casting so a stale
+## bar from a previous target can be told apart.
+func apply_target_cast_start(caster_id: String, action: Dictionary) -> void:
+	_ensure_target_cast_bar()
+	if ctrl._target_cast_bar == null:
+		return
+	ctrl._target_cast_active = true
+	ctrl._target_cast_caster = str(caster_id)
+	ctrl._target_cast_duration = maxf(float(action.get("duration", 0.0)), 0.05)
+	ctrl._target_cast_elapsed = clampf(float(action.get("elapsed", 0.0)), 0.0, ctrl._target_cast_duration)
+	ctrl._target_cast_name = str(action.get("name", action.get("skill_id", "施法")))
+	var channel := str(action.get("mode", "cast")) == "channel"
+	ctrl._target_cast_bar.modulate = Color(0.95, 0.45, 0.30, 1.0) if channel else Color(0.98, 0.75, 0.25, 1.0)
+	_refresh_target_cast_visual()
+	ctrl._target_cast_bar.visible = true
+	ctrl._target_cast_label.visible = true
+
+
+func apply_target_cast_update(caster_id: String, action: Dictionary) -> void:
+	if not ctrl._target_cast_active or str(caster_id) != ctrl._target_cast_caster:
+		apply_target_cast_start(caster_id, action)
+		return
+	ctrl._target_cast_duration = maxf(float(action.get("duration", ctrl._target_cast_duration)), 0.05)
+	ctrl._target_cast_elapsed = clampf(float(action.get("elapsed", ctrl._target_cast_elapsed)), 0.0, ctrl._target_cast_duration)
+	var nm := str(action.get("name", "")).strip_edges()
+	if nm != "":
+		ctrl._target_cast_name = nm
+	_refresh_target_cast_visual()
+
+
+func apply_target_cast_end(caster_id: String) -> void:
+	if str(caster_id) != "" and ctrl._target_cast_caster != "" and str(caster_id) != ctrl._target_cast_caster:
+		return
+	clear_target_cast()
+
+
+func clear_target_cast() -> void:
+	ctrl._target_cast_active = false
+	ctrl._target_cast_caster = ""
+	ctrl._target_cast_elapsed = 0.0
+	ctrl._target_cast_duration = 0.0
+	if ctrl._target_cast_bar != null and is_instance_valid(ctrl._target_cast_bar):
+		ctrl._target_cast_bar.visible = false
+		ctrl._target_cast_bar.value = 0
+	if ctrl._target_cast_label != null and is_instance_valid(ctrl._target_cast_label):
+		ctrl._target_cast_label.visible = false
+
+
+func is_target_casting() -> bool:
+	return ctrl._target_cast_active
+
+
+func _refresh_target_cast_visual() -> void:
+	if ctrl._target_cast_bar == null:
+		return
+	var frac := clampf(ctrl._target_cast_elapsed / maxf(ctrl._target_cast_duration, 0.001), 0.0, 1.0)
+	ctrl._target_cast_bar.value = frac * 100.0
+	if ctrl._target_cast_label != null:
+		ctrl._target_cast_label.text = "%s %d%%" % [ctrl._target_cast_name, int(round(frac * 100.0))]
+
+
+func _tick_target_cast(delta: float) -> void:
+	if not ctrl._target_cast_active or ctrl._target_cast_duration <= 0.0:
+		return
+	ctrl._target_cast_elapsed = minf(ctrl._target_cast_elapsed + maxf(delta, 0.0), ctrl._target_cast_duration)
+	_refresh_target_cast_visual()
+	if ctrl._target_cast_elapsed >= ctrl._target_cast_duration:
+		clear_target_cast()
 
 
 

@@ -44,6 +44,9 @@ static func _clear_npc_selection(ctrl) -> void:
 	if prev != null and prev.has_method("set_selected"):
 		prev.set_selected(false)
 	ctrl._selected_npc_id = ""
+	# Drop any enemy cast bar tied to the previous target.
+	if ctrl.hud != null and ctrl.hud.has_method("clear_target_cast"):
+		ctrl.hud.clear_target_cast()
 
 static func clear_target_selection(ctrl) -> void:
 	## HUD × / explicit clear: drop foot ring + top target frame.
