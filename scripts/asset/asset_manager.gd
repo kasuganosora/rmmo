@@ -11,6 +11,8 @@ const ActorInterestModule = preload("res://scripts/asset/actor_interest_module.g
 var _actor_interest_module_logic: ActorInterestModule = ActorInterestModule.new(self)
 const ContentPathResolver = preload("res://scripts/asset/content_path_resolver.gd")
 var _content_path_resolver_logic: ContentPathResolver = ContentPathResolver.new(self)
+const ContentConfigModule = preload("res://scripts/asset/content_config_module.gd")
+var _content_config_module_logic: ContentConfigModule = ContentConfigModule.new(self)
 const PlaceholderTex = preload("res://scripts/asset/placeholder_tex.gd")
 
 const DEFAULT_PACK_ID := "default"
@@ -640,130 +642,59 @@ func make_letter_sprite_frames(text: String, size: int = 48) -> SpriteFrames:
 # --- map pack helpers -------------------------------------------------------
 
 func content_config() -> Dictionary:
-	_ensure_content_cfg()
-	return _content_cfg
+	return _content_config_module_logic.content_config()
 
 
 func start_map_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("start_map_pack", "")).strip_edges()
-	if id.is_empty():
-		id = str(ProjectSettings.get_setting("rmmo/default_pack", "")).strip_edges()
-	if id.is_empty() or id.begins_with("res://"):
-		id = DEFAULT_PACK_ID
-	return alias_map_pack_id(id)
+	return _content_config_module_logic.start_map_pack_id()
 
 
 func start_map_pack_ref() -> String:
-	return ContentRef.make("map_pack", start_map_pack_id())
+	return _content_config_module_logic.start_map_pack_ref()
 
 
 func street_map_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("street_map_pack", "")).strip_edges()
-	if id.is_empty():
-		id = start_map_pack_id()
-	return alias_map_pack_id(id)
+	return _content_config_module_logic.street_map_pack_id()
 
 
 func street_map_pack_ref() -> String:
-	return ContentRef.make("map_pack", street_map_pack_id())
+	return _content_config_module_logic.street_map_pack_ref()
 
 
 func street_map_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("street_map_id", "")).strip_edges()
-	if id.is_empty():
-		id = street_map_pack_id()
-	return id
+	return _content_config_module_logic.street_map_id()
 
 
 func street_spawn_cell() -> Vector2i:
-	return _cfg_cell("street_spawn")
+	return _content_config_module_logic.street_spawn_cell()
 
 
 func start_spawn_cell() -> Vector2i:
-	return _cfg_cell("start_spawn")
+	return _content_config_module_logic.start_spawn_cell()
 
 
 func _cfg_cell(key: String) -> Vector2i:
-	_ensure_content_cfg()
-	var d: Variant = _content_cfg.get(key, {})
-	if typeof(d) == TYPE_DICTIONARY:
-		return Vector2i(int(d.get("x", 0)), int(d.get("y", 0)))
-	return Vector2i.ZERO
+	return _content_config_module_logic._cfg_cell(key)
 
 
 func ui_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("ui_pack", "")).strip_edges()
-	if id.is_empty():
-		id = str(ProjectSettings.get_setting("rmmo/ui_pack", "")).strip_edges()
-	if id.is_empty():
-		id = DEFAULT_PACK_ID
-	return id
+	return _content_config_module_logic.ui_pack_id()
 
 
 func alias_map_pack_id(pack_id: String) -> String:
-	var s := _strip_pack_token(pack_id)
-	if s.is_empty():
-		return s
-	_ensure_content_cfg()
-	if _pack_aliases.has(s):
-		return str(_pack_aliases[s])
-	return s
+	return _content_config_module_logic.alias_map_pack_id(pack_id)
 
 
 func _strip_pack_token(pack_id: String) -> String:
-	var s := pack_id.strip_edges()
-	if s.begins_with("res://"):
-		s = s.substr(6)
-	if s.begins_with(ContentRef.SCHEME):
-		var cr = ContentRef.parse(s)
-		if cr.is_valid():
-			s = str(cr.id)
-	s = s.rstrip("/")
-	var at := s.rfind("@")
-	if at >= 0:
-		s = s.substr(0, at)
-	if s.find("/") >= 0:
-		s = s.get_file()
-	return s
+	return _content_config_module_logic._strip_pack_token(pack_id)
 
 
 func _ensure_content_cfg() -> void:
-	if _content_cfg_loaded:
-		return
-	_content_cfg_loaded = true
-	_content_cfg = load_json_file("%s/content.json" % content_root())
-	_pack_aliases.clear()
-	var av: Variant = _content_cfg.get("aliases", {})
-	if typeof(av) == TYPE_DICTIONARY:
-		for k in (av as Dictionary).keys():
-			var dst := str((av as Dictionary)[k]).strip_edges()
-			if dst != "":
-				_pack_aliases[str(k).strip_edges()] = dst
-	_scan_pack_aliases()
+	_content_config_module_logic._ensure_content_cfg()
 
 
 func _scan_pack_aliases() -> void:
-	var root := "%s/packs/map_pack" % content_root()
-	if not DirAccess.dir_exists_absolute(root):
-		return
-	var d := DirAccess.open(root)
-	if d == null:
-		return
-	d.list_dir_begin()
-	var name := d.get_next()
-	while name != "":
-		if d.current_is_dir() and not name.begins_with("."):
-			var hit := _pack_dir_with_json("%s/%s" % [root, name])
-			if hit != "":
-				var data: Dictionary = load_json_file("%s/pack.json" % hit)
-				var cid := str(data.get("content_id", "")).strip_edges()
-				if cid != "" and cid != name and not _pack_aliases.has(cid):
-					_pack_aliases[cid] = name
-		name = d.get_next()
+	_content_config_module_logic._scan_pack_aliases()
 
 
 func _pack_dir_with_json(base: String) -> String:
