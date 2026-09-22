@@ -20,8 +20,18 @@ signal characters_ready(list: Array)
 signal character_created(ok: bool, message: String, character: Dictionary)
 signal enter_world_ready(ok: bool, message: String, spawn: Dictionary)
 
+## Optional async surface. A synchronous server (MockServer) returns {ok, actions} from
+## each try_*; an async transport MAY instead return {deferred:true, request_id:N} and
+## later emit this signal so RequestPipeline can correlate and apply the actions.
+signal response_ready(request_id: int, result: Dictionary)
+
 const REQUIRED_SIGNALS: Array[String] = [
 	"login_finished", "characters_ready", "character_created", "enter_world_ready",
+]
+
+## Signals only an async transport needs; not required for contract conformance.
+const OPTIONAL_SIGNALS: Array[String] = [
+	"response_ready",
 ]
 
 ## Session lifecycle.
