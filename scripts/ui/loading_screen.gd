@@ -233,12 +233,26 @@ func _ensure_gate_resources(pack_path: String) -> bool:
 
 
 func _on_gate_progress(phase: String, frac: float, label: String) -> void:
-	status_label.text = label
+	status_label.text = _with_load_state(label)
 	# Resource phase 5–35%
 	bar.value = 5.0 + clampf(frac, 0.0, 1.0) * 30.0
 	if phase == "error":
 		_gate_failed = true
 		_gate_error = label
+
+
+## Append a compact live snapshot from AssetManager.load_state() to a status line.
+## Read-only; safe to call from progress callbacks.
+func _with_load_state(label: String) -> String:
+	var am: Node = _asset_manager()
+	if am == null or not am.has_method("load_state"):
+		return label
+	var st: Dictionary = am.load_state()
+	var pending: int = int(st.get("pending", 0)) + int(st.get("inflight", 0))
+	var mb: float = float(st.get("cache_bytes", 0)) / (1024.0 * 1024.0)
+	if pending > 0:
+		return "%s · 待载 %d · 缓存 %.0fMB" % [label, pending, mb]
+	return "%s · 缓存 %.0fMB" % [label, mb]
 
 
 func _bake_spawn_map() -> bool:

@@ -80,8 +80,16 @@ var _mv_icon_crop_cache: Dictionary = {}
 var _remote_base_url: String = ""
 var _remote_headers: Dictionary = {}
 
+## Last gate_progress snapshot, so a loading screen can poll load_state() instead of
+## (or in addition to) subscribing to the gate_progress signal.
+var _last_gate_phase: String = ""
+var _last_gate_fraction: float = 0.0
+var _last_gate_label: String = ""
+
 
 func _ready() -> void:
+	if not gate_progress.is_connected(_record_gate):
+		gate_progress.connect(_record_gate)
 	var root := content_root()
 	DirAccess.make_dir_recursive_absolute(root)
 	DirAccess.make_dir_recursive_absolute("%s/cache/downloads" % root)
@@ -792,6 +800,48 @@ func image_cache_stats() -> Dictionary:
 		"bytes": _image_bytes_total,
 		"soft_mb": budget_soft_mb,
 		"hard_mb": budget_hard_mb,
+	}
+
+
+## Record the latest gate_progress so load_state() can report it without a subscription.
+func _record_gate(phase: String, fraction: float, label: String) -> void:
+	_last_gate_phase = phase
+	_last_gate_fraction = clampf(fraction, 0.0, 1.0)
+	_last_gate_label = label
+
+
+## Loading-state snapshot for the loading screen (and any progress UI).
+## `busy` is true while the stream queue, in-flight loads, ensure-gate, or an
+## unfinished gate phase are still active. `progress` is a 0..1 estimate: the gate
+## fraction while a gate phase runs, otherwise derived from queue drain.
+func load_state() -> Dictionary:
+	var pending: int = _queue.size()
+	var inflight: int = _inflight.size()
+	var active: int = pending + inflight
+	var ensuring: int = _ensuring.size()
+	var gate_active: bool = _last_gate_phase != "" and _last_gate_phase != "done" and _last_gate_fraction < 1.0
+	var busy: bool = active > 0 or ensuring > 0 or gate_active
+	var progress: float = 1.0
+	if gate_active:
+		progress = _last_gate_fraction
+	elif active > 0:
+		# Fewer items left = closer to done; unknown total, so report a soft estimate.
+		progress = clampf(float(inflight) / float(maxi(active, 1)), 0.0, 0.99)
+	return {
+		"busy": busy,
+		"progress": progress,
+		"pending": pending,
+		"inflight": inflight,
+		"active": active,
+		"ensuring": ensuring,
+		"max_concurrent": _max_concurrent,
+		"gate_phase": _last_gate_phase,
+		"gate_fraction": _last_gate_fraction,
+		"gate_label": _last_gate_label,
+		"cache_entries": _image_cache.size(),
+		"cache_bytes": _image_bytes_total,
+		"budget_soft_mb": budget_soft_mb,
+		"budget_hard_mb": budget_hard_mb,
 	}
 
 
