@@ -197,6 +197,12 @@ func _remote_dest_for(ref: String) -> String:
 	return "%s/assets/%s/%s" % [content_root(), kind, id]
 
 
+## True when ref is a content:// map_pack (fetched as a whole directory via manifest).
+func _is_remote_map_pack_ref(ref: String) -> bool:
+	var cr = ContentRef.parse(ref)
+	return cr.is_valid() and str(cr.kind) == "map_pack"
+
+
 ## Remote URL for a ref: the configured base + the content-tree-relative path.
 func remote_url_for(ref: String) -> String:
 	if _remote_base_url == "":
@@ -346,6 +352,100 @@ func ensure_remote(ref: String, expected_sha256: String = "") -> Dictionary:
 	return fetch_remote_file(url, dest, want)
 
 
+## Content-tree-relative dir of a map pack (mirrors the local layout and the server URL).
+func _remote_pack_rel(pack_id: String, version: String = "") -> String:
+	var id := _strip_pack_token(pack_id)
+	if id == "":
+		return ""
+	var rel := "packs/map_pack/%s" % id
+	if version.strip_edges() != "":
+		rel += "/" + version.strip_edges()
+	return rel
+
+
+## Remote URL of a map pack's manifest (pack.manifest.json), or "" when not configured.
+func remote_pack_manifest_url_for(pack_id: String, version: String = "") -> String:
+	if _remote_base_url == "":
+		return ""
+	var rel := _remote_pack_rel(pack_id, version)
+	if rel == "":
+		return ""
+	return "%s/%s/pack.manifest.json" % [_remote_base_url, rel]
+
+
+## Download a whole map pack from the configured remote, manifest-driven.
+## Manifest (pack.manifest.json): { version, files: [{ path, sha256, size }] }.
+## Files already present with a matching sha256 are skipped (resumable). Emits
+## gate_progress per file so a loading screen can show pack download progress.
+## Returns { ok, dir, version, downloaded, skipped, failed: [...], error }.
+func ensure_remote_pack(pack_id: String, version: String = "") -> Dictionary:
+	var res := {"ok": false, "dir": "", "version": "", "downloaded": 0, "skipped": 0, "failed": [], "error": ""}
+	if _remote_base_url == "":
+		res.error = "no remote configured"
+		return res
+	var rel := _remote_pack_rel(pack_id, version)
+	if rel == "":
+		res.error = "invalid pack id"
+		return res
+	var dest_dir := "%s/%s" % [content_root(), rel]
+	res.dir = dest_dir
+	# 1) Manifest.
+	var man_url := "%s/%s/pack.manifest.json" % [_remote_base_url, rel]
+	var man_dest := "%s/cache/downloads/%s.pack.manifest.json" % [content_root(), _strip_pack_token(pack_id)]
+	var mf: Dictionary = fetch_remote_file(man_url, man_dest)
+	if not bool(mf.get("ok", false)):
+		res.error = "manifest fetch failed: %s" % str(mf.get("error", ""))
+		return res
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(man_dest))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		res.error = "manifest is not a JSON object"
+		return res
+	var manifest: Dictionary = parsed
+	res.version = str(manifest.get("version", ""))
+	var files_v: Variant = manifest.get("files", [])
+	if typeof(files_v) != TYPE_ARRAY:
+		res.error = "manifest has no files[]"
+		return res
+	var files: Array = files_v
+	# 2) Files (skip already-present matching sha; verify each).
+	var downloaded := 0
+	var skipped := 0
+	var failed: Array = []
+	var total: int = files.size()
+	var idx := 0
+	for fe_v in files:
+		idx += 1
+		if typeof(fe_v) != TYPE_DICTIONARY:
+			continue
+		var fe: Dictionary = fe_v
+		var fpath := str(fe.get("path", "")).strip_edges().lstrip("/")
+		if fpath == "" or fpath.find("..") >= 0:
+			continue  # skip empty / path-traversal entries
+		var sha := str(fe.get("sha256", "")).strip_edges()
+		var dst := "%s/%s" % [dest_dir, fpath]
+		gate_progress.emit("pack", float(idx) / float(maxi(total, 1)), "拉取地图包 %d/%d：%s" % [idx, total, fpath])
+		if FileAccess.file_exists(dst) and (sha == "" or FileAccess.get_sha256(dst).to_lower() == sha.to_lower()):
+			skipped += 1
+			continue
+		var fr: Dictionary = fetch_remote_file("%s/%s/%s" % [_remote_base_url, rel, fpath], dst, sha)
+		if bool(fr.get("ok", false)):
+			downloaded += 1
+		else:
+			failed.append({"path": fpath, "error": str(fr.get("error", ""))})
+	res.downloaded = downloaded
+	res.skipped = skipped
+	res.failed = failed
+	res.ok = failed.is_empty() and _pack_json_exists(dest_dir)
+	if not res.ok and res.error == "":
+		if not failed.is_empty():
+			res.error = "%d file(s) failed" % failed.size()
+		else:
+			res.error = "pack.json missing after fetch"
+	if res.ok:
+		gate_progress.emit("pack", 1.0, "地图包就绪")
+	return res
+
+
 func set_budget(soft_mb: float, hard_mb: float) -> void:
 	budget_soft_mb = maxf(soft_mb, 32.0)
 	budget_hard_mb = maxf(hard_mb, budget_soft_mb)
@@ -440,6 +540,17 @@ func ensure(ref: String) -> Error:
 			result = OK
 		else:
 			push_warning("AssetManager: remote fetch failed for %s: %s" % [ref, str(dl.get("error", ""))])
+			ensure_finished.emit(ref, false)
+			result = ERR_FILE_NOT_FOUND
+	elif _remote_base_url != "" and _is_remote_map_pack_ref(ref):
+		# Remote fetch: whole map pack, manifest-driven.
+		var cr = ContentRef.parse(ref)
+		var pr: Dictionary = ensure_remote_pack(str(cr.id), str(cr.version))
+		if bool(pr.get("ok", false)):
+			ensure_finished.emit(ref, true)
+			result = OK
+		else:
+			push_warning("AssetManager: remote pack fetch failed for %s: %s" % [ref, str(pr.get("error", ""))])
 			ensure_finished.emit(ref, false)
 			result = ERR_FILE_NOT_FOUND
 	else:
