@@ -31,6 +31,10 @@ func _run() -> void:
 
 	var miss_lab: Label = Floater.spawn(host, Vector2(10, 20), Floater.text_for("miss"), "miss", "npc:a", false)
 	failed += _expect(miss_lab != null and miss_lab.text == "未命中", "miss label text")
+	# Fan-out: concurrent floaters on the same target + position don't overlap.
+	failed += _expect(lab.position != miss_lab.position, "concurrent floaters fan out (no overlap)")
+	failed += _expect(Floater.fan_offset(0) == Floater.BASE_OFFSET, "first floater centered at BASE_OFFSET")
+	failed += _expect(Floater.fan_offset(1) != Floater.fan_offset(2), "fan tiers distinct")
 
 	# Cap: flood beyond MAX_PER_TARGET
 	for i in range(Floater.MAX_PER_TARGET + 4):
