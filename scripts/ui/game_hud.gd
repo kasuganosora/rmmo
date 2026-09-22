@@ -109,6 +109,8 @@ var _chat_panel_logic: ChatPanel = ChatPanel.new(self)
 const CastBarPanel = preload("res://scripts/ui/panels/cast_bar_panel.gd")
 var _cast_bar_panel_logic: CastBarPanel = CastBarPanel.new(self)
 var _auction_panel_logic: AuctionPanel = AuctionPanel.new(self)
+const ToastPanel = preload("res://scripts/ui/panels/toast_panel.gd")
+var _toast_panel_logic: ToastPanel = ToastPanel.new(self)
 var _hotbar_page: int = 0
 var _windows: Dictionary = {}
 var _radar: Control
@@ -3228,116 +3230,41 @@ func _duel_remaining_sec() -> int:
 func _tick_duel_banner(delta: float) -> void:
 	_duel_panel_logic._tick_duel_banner(delta)
 func _build_level_toast() -> void:
-	if _level_toast != null and is_instance_valid(_level_toast):
-		return
-	_level_toast = PanelContainer.new()
-	_level_toast.name = "LevelUpToast"
-	_level_toast.visible = false
-	_level_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_level_toast.z_index = 80
-	add_child(_level_toast)
-	var marg := MarginContainer.new()
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marg.add_theme_constant_override("margin_left", 18)
-	marg.add_theme_constant_override("margin_top", 10)
-	marg.add_theme_constant_override("margin_right", 18)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	_level_toast.add_child(marg)
-	_level_toast_label = Label.new()
-	_level_toast_label.name = "LevelUpToastLabel"
-	_level_toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_level_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_level_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_level_toast_label.add_theme_font_size_override("font_size", 22)
-	_level_toast_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45, 1.0))
-	_level_toast_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
-	_level_toast_label.add_theme_constant_override("outline_size", 4)
-	_level_toast_label.text = "升级！"
-	marg.add_child(_level_toast_label)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.07, 0.12, 0.88)
-	sb.border_color = Color(0.85, 0.72, 0.28, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 4
-	sb.content_margin_right = 4
-	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
-	_level_toast.add_theme_stylebox_override("panel", sb)
+	_toast_panel_logic._build_level_toast()
 
 
 ## Public toast API (headless tests + world level_up path).
 ## sp_gained > 0 appends 「获得技能点」; mouse-filter ignore so input stays free.
 func show_level_up_toast(level: int, sp_gained: int = 0) -> void:
-	_build_level_toast()
-	if _level_toast == null:
-		return
-	_level_toast_level = maxi(level, 1)
-	_level_toast_sp_note = sp_gained > 0
-	_level_toast_armed = true
-	_level_toast_ttl = LEVEL_TOAST_DURATION
-	_refresh_level_toast_text()
-	_level_toast.visible = true
-	_layout_level_toast()
-	_level_toast.move_to_front()
+	_toast_panel_logic.show_level_up_toast(level, sp_gained)
 
 
 func hide_level_up_toast() -> void:
-	_level_toast_ttl = 0.0
-	_level_toast_armed = false
-	_level_toast_sp_note = false
-	if _level_toast != null:
-		_level_toast.visible = false
+	_toast_panel_logic.hide_level_up_toast()
 
 
 func is_level_up_toast_visible() -> bool:
-	return _level_toast != null and _level_toast.visible and _level_toast_ttl > 0.0
+	return _toast_panel_logic.is_level_up_toast_visible()
 
 
 func get_level_up_toast_text() -> String:
-	if _level_toast_label == null:
-		return ""
-	return str(_level_toast_label.text)
+	return _toast_panel_logic.get_level_up_toast_text()
 
 
 func _set_level_toast_sp_note(on: bool) -> void:
-	if not _level_toast_armed:
-		return
-	_level_toast_sp_note = on
-	# Refresh TTL slightly so SP note is readable after late skill_book_update.
-	_level_toast_ttl = maxf(_level_toast_ttl, 1.2)
-	_refresh_level_toast_text()
-	_layout_level_toast()
+	_toast_panel_logic._set_level_toast_sp_note(on)
 
 
 func _refresh_level_toast_text() -> void:
-	if _level_toast_label == null:
-		return
-	var line := "升级！Lv.%d" % _level_toast_level
-	if _level_toast_sp_note:
-		line += "\n获得技能点"
-	_level_toast_label.text = line
+	_toast_panel_logic._refresh_level_toast_text()
 
 
 func _layout_level_toast() -> void:
-	if _level_toast == null:
-		return
-	_level_toast.reset_size()
-	var vp := get_viewport_rect().size
-	if vp.x <= 1.0 or vp.y <= 1.0:
-		vp = Vector2(1280, 720)
-	var sz: Vector2 = _level_toast.get_combined_minimum_size()
-	if sz.x < 1.0:
-		sz = _level_toast.size
-	_level_toast.position = Vector2((vp.x - sz.x) * 0.5, 56.0)
+	_toast_panel_logic._layout_level_toast()
 
 
 func _tick_level_toast(delta: float) -> void:
-	if _level_toast_ttl <= 0.0:
-		return
-	_level_toast_ttl -= delta
-	if _level_toast_ttl <= 0.0:
-		hide_level_up_toast()
+	_toast_panel_logic._tick_level_toast(delta)
 
 
 ## Compare previous statuses → toast only on transition to ready / completed.
@@ -3366,211 +3293,75 @@ func _layout_quest_toast() -> void:
 func _tick_quest_toast(delta: float) -> void:
 	_quest_panel_logic._tick_quest_toast(delta)
 func _note_player_input() -> void:
-	_last_input_sec = Time.get_ticks_msec() / 1000.0
-	_afk_warned = false
+	_toast_panel_logic._note_player_input()
 
 
 func _tick_afk_warn(_delta: float) -> void:
-	_tick_afk_toast(_delta)
-	var gs := GameSettingsScript.get_i()
-	var minutes: int = 10
-	if gs != null and "afk_warn_minutes" in gs:
-		minutes = int(gs.afk_warn_minutes)
-	var threshold := AfkWarnUtil.threshold_sec_from_minutes(minutes)
-	var now := Time.get_ticks_msec() / 1000.0
-	var idle := now - _last_input_sec
-	if not AfkWarnUtil.should_warn(idle, threshold, _afk_warned):
-		return
-	_afk_warned = true
-	show_afk_warn_toast(true)
-	append_system("你已离开一段时间。建议按 R 坐下休息。")
+	_toast_panel_logic._tick_afk_warn(_delta)
 
 
 func _build_afk_toast() -> void:
-	if _afk_toast != null and is_instance_valid(_afk_toast):
-		return
-	_afk_toast = PanelContainer.new()
-	_afk_toast.name = "AfkWarnToast"
-	_afk_toast.visible = false
-	_afk_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_afk_toast.z_index = 80
-	add_child(_afk_toast)
-	var marg := MarginContainer.new()
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marg.add_theme_constant_override("margin_left", 18)
-	marg.add_theme_constant_override("margin_top", 10)
-	marg.add_theme_constant_override("margin_right", 18)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	_afk_toast.add_child(marg)
-	_afk_toast_label = Label.new()
-	_afk_toast_label.name = "AfkWarnToastLabel"
-	_afk_toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_afk_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_afk_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_afk_toast_label.add_theme_font_size_override("font_size", 18)
-	_afk_toast_label.add_theme_color_override("font_color", Color(0.85, 0.90, 1.0, 1.0))
-	_afk_toast_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
-	_afk_toast_label.add_theme_constant_override("outline_size", 4)
-	_afk_toast_label.text = "你已离开一段时间"
-	marg.add_child(_afk_toast_label)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.07, 0.12, 0.88)
-	sb.border_color = Color(0.55, 0.70, 0.95, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 4
-	sb.content_margin_right = 4
-	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
-	_afk_toast.add_theme_stylebox_override("panel", sb)
+	_toast_panel_logic._build_afk_toast()
 
 
 ## Non-blocking AFK banner. Optional soft sit line; never locks input / disconnects.
 func show_afk_warn_toast(suggest_sit: bool = true) -> void:
-	_build_afk_toast()
-	if _afk_toast == null or _afk_toast_label == null:
-		return
-	var line := "你已离开一段时间"
-	if suggest_sit:
-		line += "\n建议坐下休息（R）"
-	_afk_toast_label.text = line
-	_afk_toast_ttl = AFK_TOAST_DURATION
-	_afk_toast.visible = true
-	_layout_afk_toast()
-	_afk_toast.move_to_front()
+	_toast_panel_logic.show_afk_warn_toast(suggest_sit)
 
 
 func hide_afk_warn_toast() -> void:
-	_afk_toast_ttl = 0.0
-	if _afk_toast != null:
-		_afk_toast.visible = false
+	_toast_panel_logic.hide_afk_warn_toast()
 
 
 func is_afk_warn_toast_visible() -> bool:
-	return _afk_toast != null and _afk_toast.visible and _afk_toast_ttl > 0.0
+	return _toast_panel_logic.is_afk_warn_toast_visible()
 
 
 func get_afk_warn_toast_text() -> String:
-	if _afk_toast_label == null:
-		return ""
-	return str(_afk_toast_label.text)
+	return _toast_panel_logic.get_afk_warn_toast_text()
 
 
 func _layout_afk_toast() -> void:
-	if _afk_toast == null:
-		return
-	_afk_toast.reset_size()
-	var vp := get_viewport_rect().size
-	if vp.x <= 1.0 or vp.y <= 1.0:
-		vp = Vector2(1280, 720)
-	var sz: Vector2 = _afk_toast.get_combined_minimum_size()
-	if sz.x < 1.0:
-		sz = _afk_toast.size
-	_afk_toast.position = Vector2((vp.x - sz.x) * 0.5, 100.0)
+	_toast_panel_logic._layout_afk_toast()
 
 
 func _tick_afk_toast(delta: float) -> void:
-	if _afk_toast_ttl <= 0.0:
-		return
-	_afk_toast_ttl -= delta
-	if _afk_toast_ttl <= 0.0:
-		hide_afk_warn_toast()
+	_toast_panel_logic._tick_afk_toast(delta)
 
 
 
 func _build_exp_float() -> void:
-	if _exp_float != null and is_instance_valid(_exp_float):
-		return
-	_exp_float = Label.new()
-	_exp_float.name = "ExpGainFloat"
-	_exp_float.visible = false
-	_exp_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_exp_float.z_index = 75
-	_exp_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_exp_float.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_exp_float.add_theme_font_size_override("font_size", 14)
-	_exp_float.add_theme_color_override("font_color", Color(0.45, 0.88, 1.0, 1.0))
-	_exp_float.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.08, 0.9))
-	_exp_float.add_theme_constant_override("outline_size", 3)
-	_exp_float.text = "经验 +0"
-	add_child(_exp_float)
+	_toast_panel_logic._build_exp_float()
 
 
 ## Public EXP float API (headless tests + world exp_gain path).
 ## Rapid/same-frame gains coalesce into one tip showing the sum.
 func show_exp_gain_float(amount: int) -> void:
-	amount = int(amount)
-	if amount <= 0:
-		return
-	if not GameSettingsScript.flag("show_exp_floats", true):
-		return
-	_build_exp_float()
-	if _exp_float == null:
-		return
-	if _exp_float_ttl > 0.0:
-		_exp_float_amount += amount
-	else:
-		_exp_float_amount = amount
-	_exp_float_ttl = EXP_FLOAT_DURATION
-	_exp_float.text = "经验 +%d" % _exp_float_amount
-	_exp_float.modulate = Color(1, 1, 1, 1)
-	_exp_float.visible = true
-	_layout_exp_float()
-	_exp_float.move_to_front()
+	_toast_panel_logic.show_exp_gain_float(amount)
 
 
 func hide_exp_gain_float() -> void:
-	_exp_float_ttl = 0.0
-	_exp_float_amount = 0
-	if _exp_float != null:
-		_exp_float.visible = false
-		_exp_float.modulate = Color(1, 1, 1, 1)
+	_toast_panel_logic.hide_exp_gain_float()
 
 
 func is_exp_gain_float_visible() -> bool:
-	return _exp_float != null and _exp_float.visible and _exp_float_ttl > 0.0
+	return _toast_panel_logic.is_exp_gain_float_visible()
 
 
 func get_exp_gain_float_text() -> String:
-	if _exp_float == null:
-		return ""
-	return str(_exp_float.text)
+	return _toast_panel_logic.get_exp_gain_float_text()
 
 
 func get_exp_gain_float_amount() -> int:
-	return _exp_float_amount if _exp_float_ttl > 0.0 else 0
+	return _toast_panel_logic.get_exp_gain_float_amount()
 
 
 func _layout_exp_float() -> void:
-	if _exp_float == null:
-		return
-	_exp_float.reset_size()
-	var pos := Vector2(16.0, 118.0)
-	var panel := get_node_or_null("%StatusPanel") as Control
-	if panel != null and is_instance_valid(panel):
-		var pr: Rect2 = panel.get_global_rect()
-		# Local to HUD: float just under status / XP bar.
-		pos = Vector2(pr.position.x + 8.0, pr.position.y + pr.size.y + 4.0) - global_position
-	_exp_float.position = pos
+	_toast_panel_logic._layout_exp_float()
 
 
 func _tick_exp_float(delta: float) -> void:
-	if _exp_float_ttl <= 0.0:
-		return
-	_exp_float_ttl -= delta
-	if _exp_float != null and is_instance_valid(_exp_float):
-		# Fade in last ~0.4s.
-		var a: float = 1.0
-		if _exp_float_ttl < 0.4:
-			a = clampf(_exp_float_ttl / 0.4, 0.0, 1.0)
-		_exp_float.modulate = Color(1, 1, 1, a)
-		# Slight rise while alive.
-		var rise: float = (EXP_FLOAT_DURATION - maxf(_exp_float_ttl, 0.0)) * 10.0
-		# Re-anchor under status; Y drifts up while fading.
-		_layout_exp_float()
-		_exp_float.position.y -= rise
-	if _exp_float_ttl <= 0.0:
-		hide_exp_gain_float()
+	_toast_panel_logic._tick_exp_float(delta)
 
 
 func _build_gold_float() -> void:
@@ -3627,166 +3418,48 @@ func _tick_gold_float(delta: float) -> void:
 func _inv_qty_map(items: Array) -> Dictionary:
 	return _inventory_panel_logic._inv_qty_map(items)
 func _emit_item_gain_floats_from_delta(prev_qty: Dictionary, new_qty: Dictionary) -> void:
-	var gains: Array = []
-	for iid in new_qty.keys():
-		var nid := str(iid)
-		var delta: int = int(new_qty.get(nid, 0)) - int(prev_qty.get(nid, 0))
-		if delta > 0:
-			gains.append({"id": nid, "qty": delta})
-	if gains.is_empty():
-		return
-	# Prefer larger stacks first so loot_all keeps useful tips under the cap.
-	gains.sort_custom(func(a, b): return int(a.get("qty", 0)) > int(b.get("qty", 0)))
-	for g in gains:
-		show_item_gain_float(str(g.get("id", "")), int(g.get("qty", 0)))
+	_toast_panel_logic._emit_item_gain_floats_from_delta(prev_qty, new_qty)
 
 
 func _build_item_floats() -> void:
-	if _item_float_host != null and is_instance_valid(_item_float_host):
-		return
-	_item_float_host = VBoxContainer.new()
-	_item_float_host.name = "ItemGainFloats"
-	_item_float_host.visible = false
-	_item_float_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_item_float_host.z_index = 75
-	_item_float_host.add_theme_constant_override("separation", 2)
-	add_child(_item_float_host)
+	_toast_panel_logic._build_item_floats()
 
 
 func _make_item_float_label() -> Label:
-	var lab := Label.new()
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lab.add_theme_font_size_override("font_size", 14)
-	# Soft green — distinct from cyan exp / yellow gold.
-	lab.add_theme_color_override("font_color", Color(0.55, 0.95, 0.55, 1.0))
-	lab.add_theme_color_override("font_outline_color", Color(0.02, 0.12, 0.04, 0.92))
-	lab.add_theme_constant_override("outline_size", 3)
-	return lab
+	return _toast_panel_logic._make_item_float_label()
 
 
 ## Public item float API. Coalesces same item_id while TTL alive; caps concurrent lines.
 func show_item_gain_float(item_id: String, qty: int, display_name: String = "") -> void:
-	item_id = item_id.strip_edges()
-	qty = int(qty)
-	if item_id.is_empty() or qty <= 0:
-		return
-	if not GameSettingsScript.flag("show_item_floats", true):
-		return
-	_build_item_floats()
-	if _item_float_host == null:
-		return
-	var dname := display_name.strip_edges()
-	if dname.is_empty():
-		dname = _item_label(item_id)
-		if dname.is_empty():
-			dname = item_id
-	dname = _item_rarity_name_line(item_id, dname)
-	# Coalesce into existing active line for same id.
-	for entry in _item_floats:
-		if str(entry.get("id", "")) != item_id:
-			continue
-		entry["qty"] = int(entry.get("qty", 0)) + qty
-		entry["ttl"] = ITEM_FLOAT_DURATION
-		if not dname.is_empty():
-			entry["name"] = dname
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			lab.text = "获得：%s ×%d" % [str(entry.get("name", dname)), int(entry.get("qty", 0))]
-			lab.modulate = Color(1, 1, 1, 1)
-		_layout_item_floats()
-		return
-	# Cap concurrent unique lines (loot_all safety).
-	if _item_floats.size() >= ITEM_FLOAT_MAX_LINES:
-		return
-	var lab2 := _make_item_float_label()
-	lab2.name = "ItemGainFloat_%s" % item_id
-	lab2.text = "获得：%s ×%d" % [dname, qty]
-	_item_float_host.add_child(lab2)
-	_item_floats.append({
-		"id": item_id,
-		"qty": qty,
-		"ttl": ITEM_FLOAT_DURATION,
-		"label": lab2,
-		"name": dname,
-	})
-	_item_float_host.visible = true
-	_layout_item_floats()
-	_item_float_host.move_to_front()
+	_toast_panel_logic.show_item_gain_float(item_id, qty, display_name)
 
 
 func hide_item_gain_floats() -> void:
-	for entry in _item_floats:
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			lab.queue_free()
-	_item_floats.clear()
-	if _item_float_host != null and is_instance_valid(_item_float_host):
-		_item_float_host.visible = false
+	_toast_panel_logic.hide_item_gain_floats()
 
 
 func is_item_gain_float_visible() -> bool:
-	return not _item_floats.is_empty()
+	return _toast_panel_logic.is_item_gain_float_visible()
 
 
 func get_item_gain_float_count() -> int:
-	return _item_floats.size()
+	return _toast_panel_logic.get_item_gain_float_count()
 
 
 func get_item_gain_float_texts() -> Array:
-	var out: Array = []
-	for entry in _item_floats:
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			out.append(str(lab.text))
-		else:
-			out.append("获得：%s ×%d" % [str(entry.get("name", entry.get("id", ""))), int(entry.get("qty", 0))])
-	return out
+	return _toast_panel_logic.get_item_gain_float_texts()
 
 
 func get_item_gain_float_qty(item_id: String) -> int:
-	item_id = item_id.strip_edges()
-	for entry in _item_floats:
-		if str(entry.get("id", "")) == item_id and float(entry.get("ttl", 0.0)) > 0.0:
-			return int(entry.get("qty", 0))
-	return 0
+	return _toast_panel_logic.get_item_gain_float_qty(item_id)
 
 
 func _layout_item_floats() -> void:
-	if _item_float_host == null:
-		return
-	var pos := Vector2(16.0, 154.0)
-	var panel := get_node_or_null("%StatusPanel") as Control
-	if panel != null and is_instance_valid(panel):
-		var pr: Rect2 = panel.get_global_rect()
-		# Under gold float band (exp +4, gold +22 → items +40).
-		pos = Vector2(pr.position.x + 8.0, pr.position.y + pr.size.y + 40.0) - global_position
-	_item_float_host.position = pos
+	_toast_panel_logic._layout_item_floats()
 
 
 func _tick_item_floats(delta: float) -> void:
-	if _item_floats.is_empty():
-		return
-	var remain: Array = []
-	for entry in _item_floats:
-		var ttl: float = float(entry.get("ttl", 0.0)) - delta
-		entry["ttl"] = ttl
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			var a: float = 1.0
-			if ttl < 0.4:
-				a = clampf(ttl / 0.4, 0.0, 1.0)
-			lab.modulate = Color(1, 1, 1, a)
-		if ttl > 0.0:
-			remain.append(entry)
-		else:
-			if lab != null and is_instance_valid(lab):
-				lab.queue_free()
-	_item_floats = remain
-	_layout_item_floats()
-	if _item_floats.is_empty() and _item_float_host != null and is_instance_valid(_item_float_host):
-		_item_float_host.visible = false
+	_toast_panel_logic._tick_item_floats(delta)
 
 
 func _build_trade_panel() -> void:
