@@ -166,8 +166,184 @@ func mv_img_root() -> String:
 
 
 func set_remote(base_url: String, headers: Dictionary = {}) -> void:
-	_remote_base_url = base_url.strip_edges()
+	_remote_base_url = base_url.strip_edges().rstrip("/")
 	_remote_headers = headers.duplicate(true)
+
+
+## True when a remote content base URL is configured.
+func remote_configured() -> bool:
+	return _remote_base_url != ""
+
+
+## Single-file image kinds we can fetch by mirroring the content tree over HTTP.
+## Directory kinds (map_pack) and pack-relative kinds (ui) need a manifest/zip — later.
+const REMOTE_SINGLE_FILE_KINDS := ["charset", "icon", "system", "fx", "tilesheet"]
+
+
+## Canonical writable local destination for a remotely-fetchable ref, or "" if the kind
+## is not a single-file fetch. Mirrors the resolver layout (content_root/assets/<kind>/id.png).
+func _remote_dest_for(ref: String) -> String:
+	var cr = ContentRef.parse(ref)
+	if not cr.is_valid():
+		return ""
+	var kind := str(cr.kind)
+	if kind not in REMOTE_SINGLE_FILE_KINDS:
+		return ""
+	var id := str(cr.id).strip_edges()
+	if id == "":
+		return ""
+	if not id.to_lower().ends_with(".png"):
+		id += ".png"
+	return "%s/assets/%s/%s" % [content_root(), kind, id]
+
+
+## Remote URL for a ref: the configured base + the content-tree-relative path.
+func remote_url_for(ref: String) -> String:
+	if _remote_base_url == "":
+		return ""
+	var dest := _remote_dest_for(ref)
+	if dest == "":
+		return ""
+	var rel := dest.substr(content_root().length())  # leading "/assets/..."
+	if not rel.begins_with("/"):
+		rel = "/" + rel
+	return _remote_base_url + rel
+
+
+## Expected sha256 for a ref from content.json `hashes` (keyed by ref or by relative
+## path). Empty string = no integrity pin (download accepted without verification).
+func _expected_hash_for(ref: String) -> String:
+	_ensure_content_cfg()
+	var hashes_v: Variant = _content_cfg.get("hashes", {})
+	if typeof(hashes_v) != TYPE_DICTIONARY:
+		return ""
+	var hashes: Dictionary = hashes_v
+	if hashes.has(ref):
+		return str(hashes[ref]).strip_edges()
+	var dest := _remote_dest_for(ref)
+	if dest != "":
+		var rel := dest.substr(content_root().length()).lstrip("/")
+		if hashes.has(rel):
+			return str(hashes[rel]).strip_edges()
+	return ""
+
+
+## Blocking HTTP(S) GET → dest_abs, with atomic .part write and optional sha256 verify.
+## Returns { ok, path, bytes, sha256, code, error }. Safe for the (already blocking)
+## resource gate; not for per-frame calls.
+func fetch_remote_file(url: String, dest_abs: String, expected_sha256: String = "", timeout_sec: float = 30.0) -> Dictionary:
+	var res := {"ok": false, "path": "", "bytes": 0, "sha256": "", "code": 0, "error": ""}
+	url = url.strip_edges()
+	dest_abs = dest_abs.strip_edges()
+	if url == "" or dest_abs == "":
+		res.error = "empty url or dest"
+		return res
+	var scheme := "http"
+	var rest := ""
+	if url.begins_with("https://"):
+		scheme = "https"
+		rest = url.substr(8)
+	elif url.begins_with("http://"):
+		scheme = "http"
+		rest = url.substr(7)
+	else:
+		res.error = "unsupported scheme"
+		return res
+	var slash := rest.find("/")
+	var host_port := rest if slash < 0 else rest.substr(0, slash)
+	var req_path := "/" if slash < 0 else rest.substr(slash)
+	var host := host_port
+	var port := 443 if scheme == "https" else 80
+	var colon := host_port.rfind(":")
+	if colon >= 0:
+		host = host_port.substr(0, colon)
+		port = int(host_port.substr(colon + 1))
+	var http := HTTPClient.new()
+	var tls: TLSOptions = TLSOptions.client() if scheme == "https" else null
+	var err := http.connect_to_host(host, port, tls)
+	if err != OK:
+		res.error = "connect failed: %s" % error_string(err)
+		return res
+	var deadline := Time.get_ticks_msec() + int(maxf(timeout_sec, 1.0) * 1000.0)
+	while http.get_status() == HTTPClient.STATUS_CONNECTING or http.get_status() == HTTPClient.STATUS_RESOLVING:
+		http.poll()
+		if Time.get_ticks_msec() > deadline:
+			res.error = "connect timeout"
+			return res
+		OS.delay_msec(5)
+	if http.get_status() != HTTPClient.STATUS_CONNECTED:
+		res.error = "not connected (status %d)" % http.get_status()
+		return res
+	var headers := PackedStringArray()
+	for k in _remote_headers.keys():
+		headers.append("%s: %s" % [str(k), str(_remote_headers[k])])
+	err = http.request(HTTPClient.METHOD_GET, req_path, headers)
+	if err != OK:
+		res.error = "request failed: %s" % error_string(err)
+		return res
+	while http.get_status() == HTTPClient.STATUS_REQUESTING:
+		http.poll()
+		if Time.get_ticks_msec() > deadline:
+			res.error = "request timeout"
+			return res
+		OS.delay_msec(5)
+	res.code = http.get_response_code()
+	if not http.has_response() or int(res.code) < 200 or int(res.code) >= 300:
+		res.error = "http %d" % int(res.code)
+		return res
+	DirAccess.make_dir_recursive_absolute(dest_abs.get_base_dir())
+	var part := dest_abs + ".part"
+	var f := FileAccess.open(part, FileAccess.WRITE)
+	if f == null:
+		res.error = "cannot open %s" % part
+		return res
+	var total := 0
+	while http.get_status() == HTTPClient.STATUS_BODY:
+		http.poll()
+		var chunk := http.read_response_body_chunk()
+		if chunk.size() == 0:
+			if Time.get_ticks_msec() > deadline:
+				f.close()
+				DirAccess.remove_absolute(part)
+				res.error = "body timeout"
+				return res
+			OS.delay_msec(3)
+		else:
+			f.store_buffer(chunk)
+			total += chunk.size()
+	f.close()
+	res.bytes = total
+	var got := FileAccess.get_sha256(part)
+	res.sha256 = got
+	if expected_sha256.strip_edges() != "" and got.to_lower() != expected_sha256.strip_edges().to_lower():
+		DirAccess.remove_absolute(part)
+		res.error = "sha256 mismatch (want %s got %s)" % [expected_sha256.strip_edges(), got]
+		return res
+	if FileAccess.file_exists(dest_abs):
+		DirAccess.remove_absolute(dest_abs)
+	var mv := DirAccess.rename_absolute(part, dest_abs)
+	if mv != OK:
+		DirAccess.remove_absolute(part)
+		res.error = "rename failed: %s" % error_string(mv)
+		return res
+	res.ok = true
+	res.path = dest_abs
+	return res
+
+
+## Fetch a single-file ref from the configured remote into its local cache path.
+## Verifies against content.json `hashes` when present. Returns fetch_remote_file()'s dict.
+func ensure_remote(ref: String, expected_sha256: String = "") -> Dictionary:
+	if _remote_base_url == "":
+		return {"ok": false, "error": "no remote configured"}
+	var dest := _remote_dest_for(ref)
+	if dest == "":
+		return {"ok": false, "error": "ref kind not remotely fetchable: %s" % ref}
+	var url := remote_url_for(ref)
+	var want := expected_sha256.strip_edges()
+	if want == "":
+		want = _expected_hash_for(ref)
+	return fetch_remote_file(url, dest, want)
 
 
 func set_budget(soft_mb: float, hard_mb: float) -> void:
@@ -255,11 +431,19 @@ func ensure(ref: String) -> Error:
 		progress.emit(ref, 1, 1)
 		ensure_finished.emit(ref, true)
 		result = OK
+	elif _remote_base_url != "" and _remote_dest_for(ref) != "":
+		# Remote fetch: mirror the content tree over HTTP into the local cache path.
+		var dl: Dictionary = ensure_remote(ref)
+		if bool(dl.get("ok", false)):
+			progress.emit(ref, int(dl.get("bytes", 0)), int(dl.get("bytes", 0)))
+			ensure_finished.emit(ref, true)
+			result = OK
+		else:
+			push_warning("AssetManager: remote fetch failed for %s: %s" % [ref, str(dl.get("error", ""))])
+			ensure_finished.emit(ref, false)
+			result = ERR_FILE_NOT_FOUND
 	else:
-		# P3 stub: would HTTP GET from manifest when _remote_base_url set.
-		if _remote_base_url != "":
-			push_warning("AssetManager: remote fetch not implemented yet for %s" % ref)
-		push_warning("AssetManager: missing content (no remote yet): %s" % ref)
+		push_warning("AssetManager: missing content (no remote): %s" % ref)
 		ensure_finished.emit(ref, false)
 		result = ERR_FILE_NOT_FOUND
 	_ensuring.erase(ref)
