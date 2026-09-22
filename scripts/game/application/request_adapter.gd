@@ -3,34 +3,20 @@ extends RefCounted
 ## 静态方法接收组合根 ctrl；Net.server() 权威逻辑 → try_* → ctrl._apply_server_actions()。
 
 const Net = preload("res://scripts/net/net.gd")
+const RequestPipeline = preload("res://scripts/net/request_pipeline.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 
+## These adapters route through RequestPipeline.dispatch(), which applies the returned
+## actions synchronously today and will transparently defer to response_ready when an
+## async transport is active. Behavior against the sync MockServer is unchanged.
 static func request_party_invite_respond(ctrl, invite_id: String, accept: bool) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_party_invite_respond"):
-		return
-	var result: Dictionary = srv.try_party_invite_respond(invite_id, accept)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		ctrl._apply_server_actions(actions_v)
+	RequestPipeline.dispatch(ctrl, "try_party_invite_respond", [invite_id, accept])
 
 static func request_respawn(ctrl, where: String = "town") -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_respawn"):
-		return
-	var result: Dictionary = srv.try_respawn(where)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		ctrl._apply_server_actions(actions_v)
+	RequestPipeline.dispatch(ctrl, "try_respawn", [where])
 
 static func request_recall(ctrl) -> void:
-	var srv = Net.server()
-	if srv == null or not srv.has_method("try_recall"):
-		return
-	var result: Dictionary = srv.try_recall()
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		ctrl._apply_server_actions(actions_v)
+	RequestPipeline.dispatch(ctrl, "try_recall", [])
 
 static func request_sit(ctrl, on: Variant = null) -> void:
 	var srv = Net.server()
@@ -45,10 +31,7 @@ static func request_sit(ctrl, on: Variant = null) -> void:
 		ctrl.stop_follow()
 		ctrl._auto_attack = false
 		ctrl._clear_pending_engage()
-	var result: Dictionary = srv.try_sit(want)
-	var actions_v: Variant = result.get("actions", [])
-	if typeof(actions_v) == TYPE_ARRAY:
-		ctrl._apply_server_actions(actions_v)
+	RequestPipeline.dispatch(ctrl, "try_sit", [want])
 
 static func request_map_move(ctrl, cell: Vector2i, label: String = "") -> void:
 	if ctrl.player == null or ctrl.player.input_locked:

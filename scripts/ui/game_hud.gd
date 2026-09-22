@@ -109,6 +109,12 @@ var _chat_panel_logic: ChatPanel = ChatPanel.new(self)
 const CastBarPanel = preload("res://scripts/ui/panels/cast_bar_panel.gd")
 var _cast_bar_panel_logic: CastBarPanel = CastBarPanel.new(self)
 var _auction_panel_logic: AuctionPanel = AuctionPanel.new(self)
+const ToastPanel = preload("res://scripts/ui/panels/toast_panel.gd")
+var _toast_panel_logic: ToastPanel = ToastPanel.new(self)
+const SystemPanel = preload("res://scripts/ui/panels/system_panel.gd")
+var _system_panel_logic: SystemPanel = SystemPanel.new(self)
+const WindowManager = preload("res://scripts/ui/panels/window_manager.gd")
+var _window_manager_logic: WindowManager = WindowManager.new(self)
 var _hotbar_page: int = 0
 var _windows: Dictionary = {}
 var _radar: Control
@@ -374,6 +380,15 @@ var _status_chip_row: Control = null
 var _player_statuses: Array = []
 ## Optional chips under target panel.
 var _target_status_chip_row: Control = null
+## Target cast bar (enemy casting readout on the target frame).
+var _target_cast_bar: ProgressBar = null
+var _target_cast_label: Label = null
+var _target_cast_active: bool = false
+var _target_cast_caster: String = ""
+var _target_cast_elapsed: float = 0.0
+var _target_cast_duration: float = 0.0
+var _target_cast_name: String = ""
+var _target_dist_label: Label = null
 ## Thin 「仇恨」/「无仇恨」 chip on hostile target bar.
 var _threat_chip: Label = null
 var _threat_you: bool = false
@@ -756,6 +771,20 @@ func clear_target() -> void:
 	_target_panel_logic.clear_target()
 func _ensure_target_chrome() -> void:
 	_target_panel_logic._ensure_target_chrome()
+func apply_target_cast_start(caster_id: String, action: Dictionary) -> void:
+	_target_panel_logic.apply_target_cast_start(caster_id, action)
+func apply_target_cast_update(caster_id: String, action: Dictionary) -> void:
+	_target_panel_logic.apply_target_cast_update(caster_id, action)
+func apply_target_cast_end(caster_id: String) -> void:
+	_target_panel_logic.apply_target_cast_end(caster_id)
+func clear_target_cast() -> void:
+	_target_panel_logic.clear_target_cast()
+func is_target_casting() -> bool:
+	return _target_panel_logic.is_target_casting()
+func _tick_target_cast(delta: float) -> void:
+	_target_panel_logic._tick_target_cast(delta)
+func apply_target_distance(cells: int) -> void:
+	_target_panel_logic.apply_target_distance(cells)
 ## Hostile target bar: 「仇恨」 gold/red when you are victim; 「无仇恨」 muted otherwise.
 func apply_threat_chip(show: bool, threat_you: bool = false) -> void:
 	_target_panel_logic.apply_threat_chip(show, threat_you)
@@ -864,6 +893,7 @@ func _process(_delta: float) -> void:
 	_tick_gold_float(_delta)
 	_tick_item_floats(_delta)
 	_tick_cast_bar_visual(_delta)
+	_tick_target_cast(_delta)
 	_tick_hotbar_cooldowns(_delta)
 	_tick_status_icon_bars(_delta)
 	_sync_quest_drawer_follow()
@@ -1574,132 +1604,26 @@ func _finish_keybind(keycode: int) -> void:
 
 
 func _connect_window_layout_signals() -> void:
-	for id in _windows.keys():
-		var p: Control = _windows[id]
-		if p != null and p.has_signal("layout_changed"):
-			if not p.layout_changed.is_connected(_on_window_layout.bind(str(id))):
-				p.layout_changed.connect(_on_window_layout.bind(str(id)))
-		if p != null and not p.visibility_changed.is_connected(_on_window_layout.bind(str(id))):
-			p.visibility_changed.connect(_on_window_layout.bind(str(id)))
+	_window_manager_logic._connect_window_layout_signals()
 
 
 func _on_window_layout(id: String) -> void:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	var p: Control = _windows.get(id)
-	if p == null:
-		return
-	gs.save_window_layout(id, p.global_position, p.visible)
+	_window_manager_logic._on_window_layout(id)
 
 
 func _restore_window_layouts() -> void:
-	var gs := GameSettingsScript.get_i()
-	if gs == null:
-		return
-	for id in _windows.keys():
-		var lay: Dictionary = gs.window_layout(str(id))
-		if lay.is_empty():
-			continue
-		var p: Control = _windows[id]
-		if p == null:
-			continue
-		p.global_position = Vector2(float(lay.get("x", p.global_position.x)), float(lay.get("y", p.global_position.y)))
+	_window_manager_logic._restore_window_layouts()
 
 func _build_windows() -> void:
-	_windows["character"] = _make_window("角色状态", Vector2(560, 420), "top_left", Vector2(200, 90))
-	_lock_character_window(_windows["character"] as PanelContainer)
-	_windows["inventory"] = _make_window("背包", Vector2(420, 500), "top_right", Vector2(200, 40))
-	_lock_inventory_window(_windows["inventory"] as PanelContainer)
-	_windows["skills"] = _make_window("技能与魔法", Vector2(400, 420), "top_center", Vector2(0, 100))
-	_lock_skills_window(_windows["skills"] as PanelContainer)
-	_windows["quest"] = _make_window("任务", Vector2(380, 430), "bottom_right", Vector2(40, 80))
-	_lock_quest_window(_windows["quest"] as PanelContainer)
-	_windows["map"] = _make_window("地图", Vector2(460, 580), "top_center", Vector2(0, 36))
-	_apply_l2_chrome(_windows["map"] as PanelContainer)
-	_windows["system"] = _make_window("系统设置", Vector2(500, 520), "bottom_center", Vector2(0, 80))
-	_lock_system_window(_windows["system"] as PanelContainer)
-	var map_panel: PanelContainer = _windows.get("map")
-	if map_panel:
-		map_panel.min_size = Vector2(300, 280)
-		map_panel.custom_minimum_size = Vector2(300, 280)
-	for id in _windows.keys():
-		(_windows[id] as Control).visible = false
+	_window_manager_logic._build_windows()
 
 func _make_window(title: String, size: Vector2, dock: String, offset: Vector2) -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.set_script(HudDrag)
-	panel.screen_margin = 4.0
-	panel.min_size = Vector2(240, 180)
-	panel.default_size = size
-	panel.initial_dock = "none"
-	panel.drag_anywhere = true
-	panel.visible = false
-	panel.clip_contents = true
-	panel.custom_minimum_size = Vector2(240, 180)
-	add_child(panel)
-	var marg := MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 10)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 10)
-	marg.add_theme_constant_override("margin_bottom", 8)
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(marg)
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	marg.add_child(vbox)
-	var head := HBoxContainer.new()
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(head)
-	var title_l := Label.new()
-	title_l.text = title
-	title_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_l.add_theme_font_size_override("font_size", 14)
-	title_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_child(title_l)
-	var close_btn := Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.custom_minimum_size = Vector2(28, 24)
-	close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	close_btn.pressed.connect(func(): panel.visible = false)
-	head.add_child(close_btn)
-	var scroll := ScrollContainer.new()
-	scroll.name = "Scroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
-	vbox.add_child(scroll)
-	var body := VBoxContainer.new()
-	body.name = "Body"
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 4)
-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	scroll.add_child(body)
-	panel.set_meta("body", body)
-	panel.set_meta("title", title)
-	panel.set_meta("dock_hint", dock)
-	panel.set_meta("pos_offset", offset)
-	panel.set_meta("base_size", size)
-	return panel
+	return _window_manager_logic._make_window(title, size, dock, offset)
 
 func _lock_inventory_window(panel: PanelContainer) -> void:
 	_inventory_panel_logic._lock_inventory_window(panel)
 func _lock_character_window(panel: PanelContainer) -> void:
-	## Fixed-size character / paperdoll window (L2 chrome).
-	if panel == null:
-		return
-	var base: Vector2 = panel.get_meta("base_size", Vector2(560, 420))
-	panel.resizable = false
-	panel.min_size = base
-	panel.custom_minimum_size = base
-	panel.default_size = base
-	panel.size = base
-	panel.set_meta("fixed_size", true)
-	_apply_l2_chrome(panel)
+	_window_manager_logic._lock_character_window(panel)
 
 
 func _ensure_inventory_gold_bar(panel: PanelContainer) -> void:
@@ -1707,74 +1631,19 @@ func _ensure_inventory_gold_bar(panel: PanelContainer) -> void:
 func _refresh_inventory_gold_label(panel: PanelContainer = null) -> void:
 	_inventory_panel_logic._refresh_inventory_gold_label(panel)
 func _lock_system_window(panel: PanelContainer) -> void:
-	if panel == null:
-		return
-	var base: Vector2 = panel.get_meta("base_size", Vector2(500, 520))
-	panel.resizable = false
-	panel.min_size = base
-	panel.custom_minimum_size = base
-	panel.default_size = base
-	panel.size = base
-	panel.set_meta("fixed_size", true)
-	_apply_l2_chrome(panel)
-	var scroll := panel.find_child("Scroll", true, false) as ScrollContainer
-	if scroll == null:
-		return
-	var vbox := scroll.get_parent() as VBoxContainer
-	if vbox == null:
-		return
-	var tabs := vbox.get_node_or_null("SystemTabs") as HBoxContainer
-	if tabs == null:
-		tabs = HBoxContainer.new()
-		tabs.name = "SystemTabs"
-		tabs.add_theme_constant_override("separation", 4)
-		tabs.mouse_filter = Control.MOUSE_FILTER_STOP
-		vbox.add_child(tabs)
-		vbox.move_child(tabs, scroll.get_index())
-	panel.set_meta("system_tabs", tabs)
-	_rebuild_system_tab_bar(panel)
+	_window_manager_logic._lock_system_window(panel)
 
 
 func _rebuild_system_tab_bar(panel: PanelContainer) -> void:
-	var tabs: HBoxContainer = panel.get_meta("system_tabs", null) if panel else null
-	if tabs == null or not is_instance_valid(tabs):
-		return
-	while tabs.get_child_count() > 0:
-		var c: Node = tabs.get_child(0)
-		tabs.remove_child(c)
-		c.queue_free()
-	for item in SYSTEM_TABS:
-		var btn := Button.new()
-		btn.text = str(item[0])
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(90, 30)
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.mouse_filter = Control.MOUSE_FILTER_STOP
-		btn.pressed.connect(_on_system_tab.bind(str(item[1])))
-		tabs.add_child(btn)
-	_highlight_system_tabs(tabs)
+	_window_manager_logic._rebuild_system_tab_bar(panel)
 
 
 func _on_system_tab(tab_id: String) -> void:
-	tab_id = tab_id.strip_edges()
-	if tab_id.is_empty() or tab_id == _system_tab:
-		return
-	_system_tab = tab_id
-	var panel: PanelContainer = _windows.get("system")
-	if panel != null:
-		_highlight_system_tabs(panel.get_meta("system_tabs", null) as HBoxContainer)
-	if panel != null and panel.visible:
-		_fill_window("system")
+	_window_manager_logic._on_system_tab(tab_id)
 
 
 func _highlight_system_tabs(tabs: HBoxContainer) -> void:
-	if tabs == null:
-		return
-	for i in range(tabs.get_child_count()):
-		var btn := tabs.get_child(i) as Button
-		if btn == null or i >= SYSTEM_TABS.size():
-			continue
-		L2Style.style_tab_button(btn, str(SYSTEM_TABS[i][1]) == _system_tab)
+	_window_manager_logic._highlight_system_tabs(tabs)
 
 
 func _lock_skills_window(panel: PanelContainer) -> void:
@@ -1782,51 +1651,7 @@ func _lock_skills_window(panel: PanelContainer) -> void:
 func _lock_quest_window(panel: PanelContainer) -> void:
 	_quest_panel_logic._lock_quest_window(panel)
 func _apply_l2_chrome(panel: PanelContainer) -> void:
-	## Ornate panel + title strip + close icon. Idempotent. Works without a named Scroll.
-	if panel == null:
-		return
-	L2Style.apply_panel(panel)
-	var marg := panel.get_child(0) as MarginContainer
-	if marg != null:
-		marg.add_theme_constant_override("margin_left", 8)
-		marg.add_theme_constant_override("margin_top", 6)
-		marg.add_theme_constant_override("margin_right", 8)
-		marg.add_theme_constant_override("margin_bottom", 14)
-	var vbox: VBoxContainer = null
-	if marg != null and marg.get_child_count() > 0:
-		vbox = marg.get_child(0) as VBoxContainer
-	if vbox == null:
-		return
-	vbox.add_theme_constant_override("separation", 4)
-	var title_bar := vbox.get_node_or_null("TitleBar") as PanelContainer
-	var head: HBoxContainer = null
-	if title_bar != null:
-		head = title_bar.get_child(0) as HBoxContainer if title_bar.get_child_count() > 0 else null
-	else:
-		for c in vbox.get_children():
-			if c is HBoxContainer:
-				head = c
-				break
-		if head != null:
-			title_bar = PanelContainer.new()
-			title_bar.name = "TitleBar"
-			title_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			title_bar.custom_minimum_size = Vector2(0, 30)
-			title_bar.add_theme_stylebox_override("panel", L2Style.title_box())
-			var idx := head.get_index()
-			vbox.remove_child(head)
-			title_bar.add_child(head)
-			vbox.add_child(title_bar)
-			vbox.move_child(title_bar, idx)
-	if head != null:
-		head.add_theme_constant_override("separation", 4)
-		if head.get_child_count() > 0:
-			L2Style.style_title(head.get_child(0) as Label)
-		if head.get_child_count() > 1:
-			L2Style.style_close(head.get_child(head.get_child_count() - 1) as Button)
-		for c in head.get_children():
-			if c is Label and str(c.name).find("Gold") >= 0:
-				L2Style.style_gold_amount(c)
+	_window_manager_logic._apply_l2_chrome(panel)
 
 
 func _rebuild_quest_tab_bar(panel: PanelContainer) -> void:
@@ -1844,148 +1669,30 @@ func _on_skills_tab(cat: String) -> void:
 func _highlight_skills_tabs(tabs: HBoxContainer) -> void:
 	_skills_panel_logic._highlight_skills_tabs(tabs)
 func _grid_cell_size() -> Vector2:
-	## Same pixel size as hotbar slots.
-	return Vector2(GRID_CELL, GRID_CELL)
+	return _window_manager_logic._grid_cell_size()
 
 
 func _grid_cols_for(panel: PanelContainer) -> int:
-	## How many GRID_CELL columns fit the fixed window width (scroll for extra rows).
-	var base: Vector2 = panel.get_meta("base_size", Vector2(420, 500)) if panel else Vector2(420, 460)
-	var win_w: float = panel.size.x if panel and panel.size.x >= 64.0 else base.x
-	const MARGIN_X := 20.0
-	var inner := maxf(float(GRID_CELL), win_w - MARGIN_X)
-	var cols := int(floor((inner + float(GRID_SEP)) / (float(GRID_CELL) + float(GRID_SEP))))
-	return maxi(1, cols)
+	return _window_manager_logic._grid_cols_for(panel)
 
 
 func _place_window(panel: PanelContainer) -> void:
-	var vp := get_viewport().get_visible_rect().size
-	var dock := str(panel.get_meta("dock_hint", "top_left"))
-	var off: Vector2 = panel.get_meta("pos_offset", Vector2.ZERO)
-	var base: Vector2 = panel.get_meta("base_size", panel.default_size)
-	if panel.size.x < 64.0 or panel.size.y < 64.0 or panel.size.y > vp.y - 8.0:
-		panel.size = base
-	var s := panel.size
-	var pos := Vector2(8, 8)
-	match dock:
-		"top_right":
-			pos = Vector2(vp.x - s.x - 8, 8) + Vector2(-off.x, off.y)
-		"top_center":
-			pos = Vector2((vp.x - s.x) * 0.5, 8) + off
-		"bottom_right":
-			pos = Vector2(vp.x - s.x - 8, vp.y - s.y - 8) - off
-		"bottom_center":
-			pos = Vector2((vp.x - s.x) * 0.5, vp.y - s.y - 90) - Vector2(0, off.y)
-		_:
-			pos = Vector2(8, 150) + off
-	panel.global_position = pos
+	_window_manager_logic._place_window(panel)
 
 func _toggle_window(id: String) -> void:
-	if not _windows.has(id):
-		return
-	var panel: PanelContainer = _windows[id]
-	panel.visible = not panel.visible
-	if panel.visible:
-		var base: Vector2 = panel.get_meta("base_size", panel.default_size)
-		panel.size = base
-		_fill_window(id)
-		call_deferred("_lock_window_size", panel)
-		call_deferred("_place_window", panel)
-		panel.move_to_front()
+	_window_manager_logic._toggle_window(id)
 
 func _lock_window_size(panel: PanelContainer) -> void:
-	if panel == null:
-		return
-	var base: Vector2 = panel.get_meta("base_size", panel.default_size)
-	if bool(panel.get_meta("fixed_size", false)):
-		panel.size = base
-		panel.custom_minimum_size = base
-		if "min_size" in panel:
-			panel.min_size = base
-		return
-	var vp := get_viewport().get_visible_rect().size
-	if panel.size.y > base.y + 8.0 or panel.size.y > vp.y * 0.85:
-		panel.size = base
+	_window_manager_logic._lock_window_size(panel)
 
 func _close_top_window() -> bool:
-	# NPC Chat first, then shop, then highest visible floating window
-	if _inspect_panel != null and _inspect_panel.visible:
-		_inspect_panel.visible = false
-		return true
-	if _invite_panel != null and _invite_panel.visible:
-		_hide_invite_dialog()
-		return true
-	if _npc_chat != null and _npc_chat.visible:
-		_npc_chat.visible = false
-		return true
-	if _shop_panel != null and _shop_panel.visible:
-		hide_shop()
-		return true
-	if _party_panel != null and _party_panel.visible:
-		_party_panel.visible = false
-		return true
-	if _friends_panel != null and _friends_panel.visible:
-		_friends_panel.visible = false
-		return true
-	if _guild_panel != null and _guild_panel.visible:
-		_guild_panel.visible = false
-		return true
-	if _auction_panel != null and _auction_panel.visible:
-		_auction_panel.visible = false
-		return true
-	if _daily_panel != null and _daily_panel.visible:
-		_daily_panel.visible = false
-		return true
-	if _mail_panel != null and _mail_panel.visible:
-		_mail_panel.visible = false
-		return true
-	if _emote_panel != null and _emote_panel.visible:
-		_emote_panel.visible = false
-		return true
-	if _combat_log_panel != null and _combat_log_panel.visible:
-		_combat_log_panel.visible = false
-		return true
-	if _craft_panel != null and _craft_panel.visible:
-		_craft_panel.visible = false
-		return true
-	if _warehouse_panel != null and _warehouse_panel.visible:
-		_warehouse_panel.visible = false
-		return true
-	var order := ["system", "map", "quest", "skills", "inventory", "character"]
-	for id in order:
-		var p: PanelContainer = _windows.get(id)
-		if p and p.visible:
-			p.visible = false
-			return true
-	return false
+	return _window_manager_logic._close_top_window()
 
 func _refresh_window_contents() -> void:
-	for id in _windows.keys():
-		var p: PanelContainer = _windows[id]
-		if p.visible:
-			_fill_window(str(id))
+	_window_manager_logic._refresh_window_contents()
 
 func _fill_window(id: String) -> void:
-	var panel: PanelContainer = _windows[id]
-	var body: VBoxContainer = panel.get_meta("body")
-	for c in body.get_children():
-		c.queue_free()
-	var ch := _character
-	if ch.is_empty():
-		ch = Net.session().active_character()
-	match id:
-		"character":
-			_fill_character(body, ch)
-		"inventory":
-			_fill_inventory(body, ch)
-		"skills":
-			_fill_skills(body, ch)
-		"quest":
-			_fill_quest(body, ch)
-		"map":
-			_fill_map(body, ch)
-		"system":
-			_fill_system(body)
+	_window_manager_logic._fill_window(id)
 
 func _add_label(parent: Node, text: String, size: int = 12, color: Color = Color(0.9, 0.9, 0.92)) -> Label:
 	var l := Label.new()
@@ -2567,244 +2274,43 @@ func _refresh_map_window_info() -> void:
 
 
 func _fill_system(body: VBoxContainer) -> void:
-	var gs := GameSettingsScript.get_i()
-	match _system_tab:
-		"audio":
-			_fill_system_audio(body, gs)
-		"game":
-			_fill_system_game(body, gs)
-		"keys":
-			_fill_system_keys(body, gs)
-		"system":
-			_fill_system_nav(body)
-		_:
-			_fill_system_video(body, gs)
+	_system_panel_logic._fill_system(body)
 
 
 func _fill_system_video(body: VBoxContainer, gs: Node) -> void:
-	_add_label(body, "画面设置", 14, L2Style.COL_TITLE)
-	if gs == null:
-		_add_label(body, "设置模块未加载。", 12, L2Style.COL_MUTED)
-		return
-	_add_setting_row(body, "显示模式", _make_mode_option(gs))
-	var res_opt := _make_res_option(gs)
-	_add_setting_row(body, "分辨率", res_opt)
-	res_opt.disabled = str(gs.window_mode) != "windowed"
-	_add_check(body, "垂直同步", bool(gs.vsync), func(on: bool): gs.set_vsync(on))
-	_add_setting_row(body, "帧率上限", _make_fps_option(gs))
-	_add_setting_row(body, "界面缩放", _make_scale_option(gs))
-	_add_reset_row(body, gs)
+	_system_panel_logic._fill_system_video(body, gs)
 
 
 func _fill_system_audio(body: VBoxContainer, gs: Node) -> void:
-	_add_label(body, "声音设置", 14, L2Style.COL_TITLE)
-	if gs == null:
-		_add_label(body, "设置模块未加载。", 12, L2Style.COL_MUTED)
-		return
-	_add_volume_row(body, "主音量", int(gs.master_volume), func(v: int): gs.set_master_volume(v))
-	_add_volume_row(body, "音乐", int(gs.bgm_volume), func(v: int): gs.set_bgm_volume(v))
-	_add_volume_row(body, "音效", int(gs.sfx_volume), func(v: int): gs.set_sfx_volume(v))
-	_add_volume_row(body, "环境", int(gs.ambient_volume), func(v: int): gs.set_ambient_volume(v))
-	_add_check(body, "静音", bool(gs.mute), func(on: bool): gs.set_mute(on))
-	_add_reset_row(body, gs)
+	_system_panel_logic._fill_system_audio(body, gs)
 
 
 func _fill_system_game(body: VBoxContainer, gs: Node) -> void:
-	_add_label(body, "游戏设置", 14, L2Style.COL_TITLE)
-	_gather_level_label = _add_label(
-		body,
-		"采集 Lv.%d" % maxi(_gather_level, 1),
-		11,
-		L2Style.COL_MUTED
-	)
-	if gs == null:
-		_add_label(body, "设置模块未加载。", 12, L2Style.COL_MUTED)
-		return
-	_add_check(body, "显示 NPC 名称", bool(gs.show_npc_names), func(on: bool): gs.set_flag("show_npc_names", on))
-	_add_check(body, "显示玩家名称", bool(gs.show_player_names), func(on: bool): gs.set_flag("show_player_names", on))
-	_add_setting_row(body, "名牌距离", _make_nameplate_distance_spin(gs))
-	_add_setting_row(body, "挂机提醒(分钟)", _make_afk_warn_minutes_spin(gs))
-	_add_check(body, "显示血条", bool(gs.show_hp_bars), func(on: bool): gs.set_flag("show_hp_bars", on))
-	_add_check(body, "显示伤害数字", bool(gs.show_damage_numbers), func(on: bool): gs.set_flag("show_damage_numbers", on))
-	_add_check(body, "显示 DPS 计量", bool(gs.show_dps_meter), func(on: bool):
-		gs.set_flag("show_dps_meter", on)
-		_refresh_dps_meter_visibility()
-	)
-	_add_check(body, "聊天时间戳", bool(gs.show_chat_timestamps), func(on: bool):
-		gs.set_flag("show_chat_timestamps", on)
-		_rebuild_chat_log()
-	)
-	_add_check(body, "宠物助战", bool(gs.pet_assist) if "pet_assist" in gs else true, func(on: bool):
-		gs.set_flag("pet_assist", on)
-	)
-	_add_check(body, "显示经验飘字", bool(gs.show_exp_floats), func(on: bool): gs.set_flag("show_exp_floats", on))
-	_add_check(body, "显示金币飘字", bool(gs.show_gold_floats), func(on: bool): gs.set_flag("show_gold_floats", on))
-	_add_check(body, "显示物品飘字", bool(gs.show_item_floats), func(on: bool): gs.set_flag("show_item_floats", on))
-	_add_check(body, "暴击震屏", bool(gs.screen_shake), func(on: bool): gs.set_flag("screen_shake", on))
-	_add_check(body, "战斗镜头偏移", bool(gs.combat_camera_frame), func(on: bool): gs.set_flag("combat_camera_frame", on))
-	_add_check(body, "始终奔跑", bool(gs.always_run), func(on: bool): gs.set_flag("always_run", on))
-	_add_check(body, "天气特效", bool(gs.weather_fx), func(on: bool): gs.set_flag("weather_fx", on))
-	_add_check(body, "自动拾取", bool(gs.auto_pickup), func(on: bool): gs.set_flag("auto_pickup", on))
-	_add_setting_row(body, "自动拾取过滤", _make_auto_pickup_filter_option(gs))
-	_add_check(body, "低血自动喝药", bool(gs.auto_potion_hp), func(on: bool):
-		if gs.has_method("set_auto_potion_hp"):
-			gs.set_auto_potion_hp(on)
-		else:
-			gs.set_flag("auto_potion_hp", on)
-	)
-	_add_setting_row(body, "自动喝药 HP%", _make_auto_potion_pct_spin(gs, true))
-	_add_check(body, "低蓝自动喝药", bool(gs.auto_potion_mp), func(on: bool):
-		if gs.has_method("set_auto_potion_mp"):
-			gs.set_auto_potion_mp(on)
-		else:
-			gs.set_flag("auto_potion_mp", on)
-	)
-	_add_setting_row(body, "自动喝药 MP%", _make_auto_potion_pct_spin(gs, false))
-	_add_check(body, "锁定 HUD", bool(gs.hud_locked), func(on: bool): gs.set_flag("hud_locked", on))
-	_add_check(body, "任务追踪", bool(gs.show_quest_tracker), func(on: bool):
-		gs.set_flag("show_quest_tracker", on)
-		_refresh_quest_tracker()
-	)
-	_add_setting_row(body, "镜头缩放", _make_zoom_option(gs))
-	_add_setting_row(body, "小地图缩放", _make_radar_zoom_option(gs))
-	var reset_lay := Button.new()
-	reset_lay.text = "重置窗口位置"
-	reset_lay.focus_mode = Control.FOCUS_NONE
-	reset_lay.pressed.connect(func():
-		gs.clear_window_layouts()
-		append_system("窗口位置已重置，下次打开按默认停靠。")
-	)
-	body.add_child(reset_lay)
-	_add_reset_row(body, gs)
+	_system_panel_logic._fill_system_game(body, gs)
 
 
 func _fill_system_keys(body: VBoxContainer, gs: Node) -> void:
-	_add_label(body, "按键绑定", 14, L2Style.COL_TITLE)
-	if gs == null:
-		_add_label(body, "设置模块未加载。", 12, L2Style.COL_MUTED)
-		return
-	if not _waiting_bind.is_empty():
-		_add_label(body, "请按下新按键…", 12, L2Style.COL_GOLD)
-	for item in GameSettingsScript.KEYBIND_ACTIONS:
-		var action := str(item[1])
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var lab := Label.new()
-		lab.text = str(item[0])
-		lab.custom_minimum_size = Vector2(96, 0)
-		lab.add_theme_color_override("font_color", L2Style.COL_TEXT)
-		row.add_child(lab)
-		var btn := Button.new()
-		btn.text = OS.get_keycode_string(int(gs.key_for(action)))
-		if _waiting_bind == action:
-			btn.text = "…"
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(100, 26)
-		btn.pressed.connect(func():
-			_waiting_bind = action
-			_fill_window("system")
-		)
-		row.add_child(btn)
-		body.add_child(row)
-	_add_reset_row(body, gs)
+	_system_panel_logic._fill_system_keys(body, gs)
 
 
 func _make_auto_pickup_filter_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var modes: Array = GameSettingsScript.AUTO_PICKUP_FILTERS
-	var cur := str(gs.auto_pickup_filter)
-	var sel := 0
-	for i in range(modes.size()):
-		opt.add_item(str(modes[i][0]), i)
-		opt.set_item_metadata(i, str(modes[i][1]))
-		if str(modes[i][1]) == cur:
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		gs.set_auto_pickup_filter(str(opt.get_item_metadata(idx)))
-	)
-	return opt
+	return _system_panel_logic._make_auto_pickup_filter_option(gs)
 
 
 
 func _make_auto_potion_pct_spin(gs: Node, for_hp: bool) -> SpinBox:
-	var spin := SpinBox.new()
-	spin.min_value = 1
-	spin.max_value = 90
-	spin.step = 1
-	spin.rounded = true
-	var cur: int = int(gs.auto_potion_hp_pct) if for_hp else int(gs.auto_potion_mp_pct)
-	spin.value = clampi(cur, 1, 90)
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.value_changed.connect(func(v: float):
-		if for_hp:
-			if gs.has_method("set_auto_potion_hp_pct"):
-				gs.set_auto_potion_hp_pct(int(v))
-		else:
-			if gs.has_method("set_auto_potion_mp_pct"):
-				gs.set_auto_potion_mp_pct(int(v))
-	)
-	return spin
+	return _system_panel_logic._make_auto_potion_pct_spin(gs, for_hp)
 
 func _make_nameplate_distance_spin(gs: Node) -> SpinBox:
-	var spin := SpinBox.new()
-	spin.min_value = 4
-	spin.max_value = 32
-	spin.step = 1
-	spin.rounded = true
-	var cur: int = 12
-	if gs != null and "nameplate_distance" in gs:
-		cur = int(gs.nameplate_distance)
-	spin.value = clampi(cur, 4, 32)
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.value_changed.connect(func(v: float):
-		if gs != null and gs.has_method("set_nameplate_distance"):
-			gs.set_nameplate_distance(int(v))
-	)
-	return spin
+	return _system_panel_logic._make_nameplate_distance_spin(gs)
 
 
 func _make_afk_warn_minutes_spin(gs: Node) -> SpinBox:
-	var spin := SpinBox.new()
-	spin.min_value = 0
-	spin.max_value = 60
-	spin.step = 1
-	spin.rounded = true
-	spin.suffix = "(0=关)"
-	var cur: int = 10
-	if gs != null and "afk_warn_minutes" in gs:
-		cur = int(gs.afk_warn_minutes)
-	spin.value = AfkWarnUtil.clamp_minutes(cur)
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.value_changed.connect(func(v: float):
-		if gs != null and gs.has_method("set_afk_warn_minutes"):
-			gs.set_afk_warn_minutes(int(v))
-			# Reflect clamp (1–4 → 5) back into the spin.
-			var clamped := int(gs.afk_warn_minutes)
-			if int(spin.value) != clamped:
-				spin.value = clamped
-	)
-	return spin
+	return _system_panel_logic._make_afk_warn_minutes_spin(gs)
 
 
 func _make_zoom_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var zooms: Array = GameSettingsScript.CAMERA_ZOOMS
-	var cur := float(gs.camera_zoom)
-	var sel := 1
-	for i in range(zooms.size()):
-		var z: float = float(zooms[i])
-		opt.add_item("%d%%" % int(round(z * 100.0)), i)
-		opt.set_item_metadata(i, z)
-		if is_equal_approx(z, cur):
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		gs.set_camera_zoom(float(opt.get_item_metadata(idx)))
-	)
-	return opt
+	return _system_panel_logic._make_zoom_option(gs)
 
 
 func _make_radar_zoom_option(gs: Node) -> OptionButton:
@@ -2906,158 +2412,35 @@ func _fill_system_nav(body: VBoxContainer) -> void:
 
 
 func _add_setting_row(body: VBoxContainer, label: String, control: Control) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var l := Label.new()
-	l.text = label
-	l.custom_minimum_size = Vector2(96, 0)
-	l.add_theme_font_size_override("font_size", 13)
-	l.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(l)
-	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(control)
-	body.add_child(row)
+	_system_panel_logic._add_setting_row(body, label, control)
 
 
 func _add_volume_row(body: VBoxContainer, label: String, value: int, cb: Callable) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var l := Label.new()
-	l.text = label
-	l.custom_minimum_size = Vector2(72, 0)
-	l.add_theme_font_size_override("font_size", 13)
-	l.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(l)
-	var sl := HSlider.new()
-	sl.min_value = 0
-	sl.max_value = 100
-	sl.step = 1
-	sl.value = value
-	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	L2Style.style_slider(sl)
-	var amt := Label.new()
-	amt.text = str(value)
-	amt.custom_minimum_size = Vector2(36, 0)
-	amt.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	amt.add_theme_font_size_override("font_size", 13)
-	amt.add_theme_color_override("font_color", L2Style.COL_GOLD)
-	amt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sl.value_changed.connect(func(v: float):
-		amt.text = str(int(v))
-		cb.call(int(v))
-	)
-	row.add_child(sl)
-	row.add_child(amt)
-	body.add_child(row)
+	_system_panel_logic._add_volume_row(body, label, value, cb)
 
 
 func _add_check(body: VBoxContainer, label: String, on: bool, cb: Callable) -> void:
-	var box := CheckBox.new()
-	box.text = label
-	box.button_pressed = on
-	box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	L2Style.style_check(box)
-	box.toggled.connect(cb)
-	body.add_child(box)
+	_system_panel_logic._add_check(body, label, on, cb)
 
 
 func _add_reset_row(body: VBoxContainer, gs: Node) -> void:
-	body.add_child(L2Style.hairline())
-	var b := Button.new()
-	b.text = "恢复默认"
-	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(96, 28)
-	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	b.pressed.connect(func():
-		if gs != null:
-			gs.reset_defaults()
-		_fill_window("system")
-	)
-	body.add_child(b)
+	_system_panel_logic._add_reset_row(body, gs)
 
 
 func _make_mode_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var modes: Array = GameSettingsScript.WINDOW_MODES
-	var cur := str(gs.window_mode)
-	var sel := 0
-	for i in range(modes.size()):
-		opt.add_item(str(modes[i][0]), i)
-		opt.set_item_metadata(i, str(modes[i][1]))
-		if str(modes[i][1]) == cur:
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		gs.set_window_mode(str(opt.get_item_metadata(idx)))
-		_fill_window("system")
-	)
-	return opt
+	return _system_panel_logic._make_mode_option(gs)
 
 
 func _make_res_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var cur: Vector2i = gs.resolution
-	var sel := 0
-	var res_list: Array = GameSettingsScript.RESOLUTIONS
-	for i in range(res_list.size()):
-		var r: Vector2i = res_list[i]
-		opt.add_item("%d × %d" % [r.x, r.y], i)
-		opt.set_item_metadata(i, r)
-		if r == cur:
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		var r: Vector2i = opt.get_item_metadata(idx)
-		gs.set_resolution(r)
-	)
-	return opt
+	return _system_panel_logic._make_res_option(gs)
 
 
 func _make_fps_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var caps: Array = GameSettingsScript.FPS_CAPS
-	var cur := int(gs.max_fps)
-	var sel := 0
-	for i in range(caps.size()):
-		var cap: int = int(caps[i])
-		opt.add_item("不限制" if cap == 0 else str(cap), i)
-		opt.set_item_metadata(i, cap)
-		if cap == cur:
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		gs.set_max_fps(int(opt.get_item_metadata(idx)))
-	)
-	return opt
+	return _system_panel_logic._make_fps_option(gs)
 
 
 func _make_scale_option(gs: Node) -> OptionButton:
-	var opt := OptionButton.new()
-	L2Style.style_option(opt)
-	var scales: Array = GameSettingsScript.UI_SCALES
-	var cur := float(gs.ui_scale)
-	var sel := 1
-	for i in range(scales.size()):
-		var s: float = float(scales[i])
-		opt.add_item("%d%%" % int(round(s * 100.0)), i)
-		opt.set_item_metadata(i, s)
-		if is_equal_approx(s, cur):
-			sel = i
-	opt.select(sel)
-	opt.item_selected.connect(func(idx: int):
-		gs.set_ui_scale(float(opt.get_item_metadata(idx)))
-	)
-	return opt
+	return _system_panel_logic._make_scale_option(gs)
 
 func _build_party_stub() -> void:
 	_party_panel_logic._build_party_stub()
@@ -3228,116 +2611,41 @@ func _duel_remaining_sec() -> int:
 func _tick_duel_banner(delta: float) -> void:
 	_duel_panel_logic._tick_duel_banner(delta)
 func _build_level_toast() -> void:
-	if _level_toast != null and is_instance_valid(_level_toast):
-		return
-	_level_toast = PanelContainer.new()
-	_level_toast.name = "LevelUpToast"
-	_level_toast.visible = false
-	_level_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_level_toast.z_index = 80
-	add_child(_level_toast)
-	var marg := MarginContainer.new()
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marg.add_theme_constant_override("margin_left", 18)
-	marg.add_theme_constant_override("margin_top", 10)
-	marg.add_theme_constant_override("margin_right", 18)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	_level_toast.add_child(marg)
-	_level_toast_label = Label.new()
-	_level_toast_label.name = "LevelUpToastLabel"
-	_level_toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_level_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_level_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_level_toast_label.add_theme_font_size_override("font_size", 22)
-	_level_toast_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.45, 1.0))
-	_level_toast_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
-	_level_toast_label.add_theme_constant_override("outline_size", 4)
-	_level_toast_label.text = "升级！"
-	marg.add_child(_level_toast_label)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.07, 0.12, 0.88)
-	sb.border_color = Color(0.85, 0.72, 0.28, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 4
-	sb.content_margin_right = 4
-	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
-	_level_toast.add_theme_stylebox_override("panel", sb)
+	_toast_panel_logic._build_level_toast()
 
 
 ## Public toast API (headless tests + world level_up path).
 ## sp_gained > 0 appends 「获得技能点」; mouse-filter ignore so input stays free.
 func show_level_up_toast(level: int, sp_gained: int = 0) -> void:
-	_build_level_toast()
-	if _level_toast == null:
-		return
-	_level_toast_level = maxi(level, 1)
-	_level_toast_sp_note = sp_gained > 0
-	_level_toast_armed = true
-	_level_toast_ttl = LEVEL_TOAST_DURATION
-	_refresh_level_toast_text()
-	_level_toast.visible = true
-	_layout_level_toast()
-	_level_toast.move_to_front()
+	_toast_panel_logic.show_level_up_toast(level, sp_gained)
 
 
 func hide_level_up_toast() -> void:
-	_level_toast_ttl = 0.0
-	_level_toast_armed = false
-	_level_toast_sp_note = false
-	if _level_toast != null:
-		_level_toast.visible = false
+	_toast_panel_logic.hide_level_up_toast()
 
 
 func is_level_up_toast_visible() -> bool:
-	return _level_toast != null and _level_toast.visible and _level_toast_ttl > 0.0
+	return _toast_panel_logic.is_level_up_toast_visible()
 
 
 func get_level_up_toast_text() -> String:
-	if _level_toast_label == null:
-		return ""
-	return str(_level_toast_label.text)
+	return _toast_panel_logic.get_level_up_toast_text()
 
 
 func _set_level_toast_sp_note(on: bool) -> void:
-	if not _level_toast_armed:
-		return
-	_level_toast_sp_note = on
-	# Refresh TTL slightly so SP note is readable after late skill_book_update.
-	_level_toast_ttl = maxf(_level_toast_ttl, 1.2)
-	_refresh_level_toast_text()
-	_layout_level_toast()
+	_toast_panel_logic._set_level_toast_sp_note(on)
 
 
 func _refresh_level_toast_text() -> void:
-	if _level_toast_label == null:
-		return
-	var line := "升级！Lv.%d" % _level_toast_level
-	if _level_toast_sp_note:
-		line += "\n获得技能点"
-	_level_toast_label.text = line
+	_toast_panel_logic._refresh_level_toast_text()
 
 
 func _layout_level_toast() -> void:
-	if _level_toast == null:
-		return
-	_level_toast.reset_size()
-	var vp := get_viewport_rect().size
-	if vp.x <= 1.0 or vp.y <= 1.0:
-		vp = Vector2(1280, 720)
-	var sz: Vector2 = _level_toast.get_combined_minimum_size()
-	if sz.x < 1.0:
-		sz = _level_toast.size
-	_level_toast.position = Vector2((vp.x - sz.x) * 0.5, 56.0)
+	_toast_panel_logic._layout_level_toast()
 
 
 func _tick_level_toast(delta: float) -> void:
-	if _level_toast_ttl <= 0.0:
-		return
-	_level_toast_ttl -= delta
-	if _level_toast_ttl <= 0.0:
-		hide_level_up_toast()
+	_toast_panel_logic._tick_level_toast(delta)
 
 
 ## Compare previous statuses → toast only on transition to ready / completed.
@@ -3366,211 +2674,75 @@ func _layout_quest_toast() -> void:
 func _tick_quest_toast(delta: float) -> void:
 	_quest_panel_logic._tick_quest_toast(delta)
 func _note_player_input() -> void:
-	_last_input_sec = Time.get_ticks_msec() / 1000.0
-	_afk_warned = false
+	_toast_panel_logic._note_player_input()
 
 
 func _tick_afk_warn(_delta: float) -> void:
-	_tick_afk_toast(_delta)
-	var gs := GameSettingsScript.get_i()
-	var minutes: int = 10
-	if gs != null and "afk_warn_minutes" in gs:
-		minutes = int(gs.afk_warn_minutes)
-	var threshold := AfkWarnUtil.threshold_sec_from_minutes(minutes)
-	var now := Time.get_ticks_msec() / 1000.0
-	var idle := now - _last_input_sec
-	if not AfkWarnUtil.should_warn(idle, threshold, _afk_warned):
-		return
-	_afk_warned = true
-	show_afk_warn_toast(true)
-	append_system("你已离开一段时间。建议按 R 坐下休息。")
+	_toast_panel_logic._tick_afk_warn(_delta)
 
 
 func _build_afk_toast() -> void:
-	if _afk_toast != null and is_instance_valid(_afk_toast):
-		return
-	_afk_toast = PanelContainer.new()
-	_afk_toast.name = "AfkWarnToast"
-	_afk_toast.visible = false
-	_afk_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_afk_toast.z_index = 80
-	add_child(_afk_toast)
-	var marg := MarginContainer.new()
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marg.add_theme_constant_override("margin_left", 18)
-	marg.add_theme_constant_override("margin_top", 10)
-	marg.add_theme_constant_override("margin_right", 18)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	_afk_toast.add_child(marg)
-	_afk_toast_label = Label.new()
-	_afk_toast_label.name = "AfkWarnToastLabel"
-	_afk_toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_afk_toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_afk_toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_afk_toast_label.add_theme_font_size_override("font_size", 18)
-	_afk_toast_label.add_theme_color_override("font_color", Color(0.85, 0.90, 1.0, 1.0))
-	_afk_toast_label.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.02, 0.95))
-	_afk_toast_label.add_theme_constant_override("outline_size", 4)
-	_afk_toast_label.text = "你已离开一段时间"
-	marg.add_child(_afk_toast_label)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.07, 0.12, 0.88)
-	sb.border_color = Color(0.55, 0.70, 0.95, 0.95)
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(6)
-	sb.content_margin_left = 4
-	sb.content_margin_right = 4
-	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
-	_afk_toast.add_theme_stylebox_override("panel", sb)
+	_toast_panel_logic._build_afk_toast()
 
 
 ## Non-blocking AFK banner. Optional soft sit line; never locks input / disconnects.
 func show_afk_warn_toast(suggest_sit: bool = true) -> void:
-	_build_afk_toast()
-	if _afk_toast == null or _afk_toast_label == null:
-		return
-	var line := "你已离开一段时间"
-	if suggest_sit:
-		line += "\n建议坐下休息（R）"
-	_afk_toast_label.text = line
-	_afk_toast_ttl = AFK_TOAST_DURATION
-	_afk_toast.visible = true
-	_layout_afk_toast()
-	_afk_toast.move_to_front()
+	_toast_panel_logic.show_afk_warn_toast(suggest_sit)
 
 
 func hide_afk_warn_toast() -> void:
-	_afk_toast_ttl = 0.0
-	if _afk_toast != null:
-		_afk_toast.visible = false
+	_toast_panel_logic.hide_afk_warn_toast()
 
 
 func is_afk_warn_toast_visible() -> bool:
-	return _afk_toast != null and _afk_toast.visible and _afk_toast_ttl > 0.0
+	return _toast_panel_logic.is_afk_warn_toast_visible()
 
 
 func get_afk_warn_toast_text() -> String:
-	if _afk_toast_label == null:
-		return ""
-	return str(_afk_toast_label.text)
+	return _toast_panel_logic.get_afk_warn_toast_text()
 
 
 func _layout_afk_toast() -> void:
-	if _afk_toast == null:
-		return
-	_afk_toast.reset_size()
-	var vp := get_viewport_rect().size
-	if vp.x <= 1.0 or vp.y <= 1.0:
-		vp = Vector2(1280, 720)
-	var sz: Vector2 = _afk_toast.get_combined_minimum_size()
-	if sz.x < 1.0:
-		sz = _afk_toast.size
-	_afk_toast.position = Vector2((vp.x - sz.x) * 0.5, 100.0)
+	_toast_panel_logic._layout_afk_toast()
 
 
 func _tick_afk_toast(delta: float) -> void:
-	if _afk_toast_ttl <= 0.0:
-		return
-	_afk_toast_ttl -= delta
-	if _afk_toast_ttl <= 0.0:
-		hide_afk_warn_toast()
+	_toast_panel_logic._tick_afk_toast(delta)
 
 
 
 func _build_exp_float() -> void:
-	if _exp_float != null and is_instance_valid(_exp_float):
-		return
-	_exp_float = Label.new()
-	_exp_float.name = "ExpGainFloat"
-	_exp_float.visible = false
-	_exp_float.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_exp_float.z_index = 75
-	_exp_float.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_exp_float.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_exp_float.add_theme_font_size_override("font_size", 14)
-	_exp_float.add_theme_color_override("font_color", Color(0.45, 0.88, 1.0, 1.0))
-	_exp_float.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.08, 0.9))
-	_exp_float.add_theme_constant_override("outline_size", 3)
-	_exp_float.text = "经验 +0"
-	add_child(_exp_float)
+	_toast_panel_logic._build_exp_float()
 
 
 ## Public EXP float API (headless tests + world exp_gain path).
 ## Rapid/same-frame gains coalesce into one tip showing the sum.
 func show_exp_gain_float(amount: int) -> void:
-	amount = int(amount)
-	if amount <= 0:
-		return
-	if not GameSettingsScript.flag("show_exp_floats", true):
-		return
-	_build_exp_float()
-	if _exp_float == null:
-		return
-	if _exp_float_ttl > 0.0:
-		_exp_float_amount += amount
-	else:
-		_exp_float_amount = amount
-	_exp_float_ttl = EXP_FLOAT_DURATION
-	_exp_float.text = "经验 +%d" % _exp_float_amount
-	_exp_float.modulate = Color(1, 1, 1, 1)
-	_exp_float.visible = true
-	_layout_exp_float()
-	_exp_float.move_to_front()
+	_toast_panel_logic.show_exp_gain_float(amount)
 
 
 func hide_exp_gain_float() -> void:
-	_exp_float_ttl = 0.0
-	_exp_float_amount = 0
-	if _exp_float != null:
-		_exp_float.visible = false
-		_exp_float.modulate = Color(1, 1, 1, 1)
+	_toast_panel_logic.hide_exp_gain_float()
 
 
 func is_exp_gain_float_visible() -> bool:
-	return _exp_float != null and _exp_float.visible and _exp_float_ttl > 0.0
+	return _toast_panel_logic.is_exp_gain_float_visible()
 
 
 func get_exp_gain_float_text() -> String:
-	if _exp_float == null:
-		return ""
-	return str(_exp_float.text)
+	return _toast_panel_logic.get_exp_gain_float_text()
 
 
 func get_exp_gain_float_amount() -> int:
-	return _exp_float_amount if _exp_float_ttl > 0.0 else 0
+	return _toast_panel_logic.get_exp_gain_float_amount()
 
 
 func _layout_exp_float() -> void:
-	if _exp_float == null:
-		return
-	_exp_float.reset_size()
-	var pos := Vector2(16.0, 118.0)
-	var panel := get_node_or_null("%StatusPanel") as Control
-	if panel != null and is_instance_valid(panel):
-		var pr: Rect2 = panel.get_global_rect()
-		# Local to HUD: float just under status / XP bar.
-		pos = Vector2(pr.position.x + 8.0, pr.position.y + pr.size.y + 4.0) - global_position
-	_exp_float.position = pos
+	_toast_panel_logic._layout_exp_float()
 
 
 func _tick_exp_float(delta: float) -> void:
-	if _exp_float_ttl <= 0.0:
-		return
-	_exp_float_ttl -= delta
-	if _exp_float != null and is_instance_valid(_exp_float):
-		# Fade in last ~0.4s.
-		var a: float = 1.0
-		if _exp_float_ttl < 0.4:
-			a = clampf(_exp_float_ttl / 0.4, 0.0, 1.0)
-		_exp_float.modulate = Color(1, 1, 1, a)
-		# Slight rise while alive.
-		var rise: float = (EXP_FLOAT_DURATION - maxf(_exp_float_ttl, 0.0)) * 10.0
-		# Re-anchor under status; Y drifts up while fading.
-		_layout_exp_float()
-		_exp_float.position.y -= rise
-	if _exp_float_ttl <= 0.0:
-		hide_exp_gain_float()
+	_toast_panel_logic._tick_exp_float(delta)
 
 
 func _build_gold_float() -> void:
@@ -3627,166 +2799,48 @@ func _tick_gold_float(delta: float) -> void:
 func _inv_qty_map(items: Array) -> Dictionary:
 	return _inventory_panel_logic._inv_qty_map(items)
 func _emit_item_gain_floats_from_delta(prev_qty: Dictionary, new_qty: Dictionary) -> void:
-	var gains: Array = []
-	for iid in new_qty.keys():
-		var nid := str(iid)
-		var delta: int = int(new_qty.get(nid, 0)) - int(prev_qty.get(nid, 0))
-		if delta > 0:
-			gains.append({"id": nid, "qty": delta})
-	if gains.is_empty():
-		return
-	# Prefer larger stacks first so loot_all keeps useful tips under the cap.
-	gains.sort_custom(func(a, b): return int(a.get("qty", 0)) > int(b.get("qty", 0)))
-	for g in gains:
-		show_item_gain_float(str(g.get("id", "")), int(g.get("qty", 0)))
+	_toast_panel_logic._emit_item_gain_floats_from_delta(prev_qty, new_qty)
 
 
 func _build_item_floats() -> void:
-	if _item_float_host != null and is_instance_valid(_item_float_host):
-		return
-	_item_float_host = VBoxContainer.new()
-	_item_float_host.name = "ItemGainFloats"
-	_item_float_host.visible = false
-	_item_float_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_item_float_host.z_index = 75
-	_item_float_host.add_theme_constant_override("separation", 2)
-	add_child(_item_float_host)
+	_toast_panel_logic._build_item_floats()
 
 
 func _make_item_float_label() -> Label:
-	var lab := Label.new()
-	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lab.add_theme_font_size_override("font_size", 14)
-	# Soft green — distinct from cyan exp / yellow gold.
-	lab.add_theme_color_override("font_color", Color(0.55, 0.95, 0.55, 1.0))
-	lab.add_theme_color_override("font_outline_color", Color(0.02, 0.12, 0.04, 0.92))
-	lab.add_theme_constant_override("outline_size", 3)
-	return lab
+	return _toast_panel_logic._make_item_float_label()
 
 
 ## Public item float API. Coalesces same item_id while TTL alive; caps concurrent lines.
 func show_item_gain_float(item_id: String, qty: int, display_name: String = "") -> void:
-	item_id = item_id.strip_edges()
-	qty = int(qty)
-	if item_id.is_empty() or qty <= 0:
-		return
-	if not GameSettingsScript.flag("show_item_floats", true):
-		return
-	_build_item_floats()
-	if _item_float_host == null:
-		return
-	var dname := display_name.strip_edges()
-	if dname.is_empty():
-		dname = _item_label(item_id)
-		if dname.is_empty():
-			dname = item_id
-	dname = _item_rarity_name_line(item_id, dname)
-	# Coalesce into existing active line for same id.
-	for entry in _item_floats:
-		if str(entry.get("id", "")) != item_id:
-			continue
-		entry["qty"] = int(entry.get("qty", 0)) + qty
-		entry["ttl"] = ITEM_FLOAT_DURATION
-		if not dname.is_empty():
-			entry["name"] = dname
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			lab.text = "获得：%s ×%d" % [str(entry.get("name", dname)), int(entry.get("qty", 0))]
-			lab.modulate = Color(1, 1, 1, 1)
-		_layout_item_floats()
-		return
-	# Cap concurrent unique lines (loot_all safety).
-	if _item_floats.size() >= ITEM_FLOAT_MAX_LINES:
-		return
-	var lab2 := _make_item_float_label()
-	lab2.name = "ItemGainFloat_%s" % item_id
-	lab2.text = "获得：%s ×%d" % [dname, qty]
-	_item_float_host.add_child(lab2)
-	_item_floats.append({
-		"id": item_id,
-		"qty": qty,
-		"ttl": ITEM_FLOAT_DURATION,
-		"label": lab2,
-		"name": dname,
-	})
-	_item_float_host.visible = true
-	_layout_item_floats()
-	_item_float_host.move_to_front()
+	_toast_panel_logic.show_item_gain_float(item_id, qty, display_name)
 
 
 func hide_item_gain_floats() -> void:
-	for entry in _item_floats:
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			lab.queue_free()
-	_item_floats.clear()
-	if _item_float_host != null and is_instance_valid(_item_float_host):
-		_item_float_host.visible = false
+	_toast_panel_logic.hide_item_gain_floats()
 
 
 func is_item_gain_float_visible() -> bool:
-	return not _item_floats.is_empty()
+	return _toast_panel_logic.is_item_gain_float_visible()
 
 
 func get_item_gain_float_count() -> int:
-	return _item_floats.size()
+	return _toast_panel_logic.get_item_gain_float_count()
 
 
 func get_item_gain_float_texts() -> Array:
-	var out: Array = []
-	for entry in _item_floats:
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			out.append(str(lab.text))
-		else:
-			out.append("获得：%s ×%d" % [str(entry.get("name", entry.get("id", ""))), int(entry.get("qty", 0))])
-	return out
+	return _toast_panel_logic.get_item_gain_float_texts()
 
 
 func get_item_gain_float_qty(item_id: String) -> int:
-	item_id = item_id.strip_edges()
-	for entry in _item_floats:
-		if str(entry.get("id", "")) == item_id and float(entry.get("ttl", 0.0)) > 0.0:
-			return int(entry.get("qty", 0))
-	return 0
+	return _toast_panel_logic.get_item_gain_float_qty(item_id)
 
 
 func _layout_item_floats() -> void:
-	if _item_float_host == null:
-		return
-	var pos := Vector2(16.0, 154.0)
-	var panel := get_node_or_null("%StatusPanel") as Control
-	if panel != null and is_instance_valid(panel):
-		var pr: Rect2 = panel.get_global_rect()
-		# Under gold float band (exp +4, gold +22 → items +40).
-		pos = Vector2(pr.position.x + 8.0, pr.position.y + pr.size.y + 40.0) - global_position
-	_item_float_host.position = pos
+	_toast_panel_logic._layout_item_floats()
 
 
 func _tick_item_floats(delta: float) -> void:
-	if _item_floats.is_empty():
-		return
-	var remain: Array = []
-	for entry in _item_floats:
-		var ttl: float = float(entry.get("ttl", 0.0)) - delta
-		entry["ttl"] = ttl
-		var lab: Label = entry.get("label") as Label
-		if lab != null and is_instance_valid(lab):
-			var a: float = 1.0
-			if ttl < 0.4:
-				a = clampf(ttl / 0.4, 0.0, 1.0)
-			lab.modulate = Color(1, 1, 1, a)
-		if ttl > 0.0:
-			remain.append(entry)
-		else:
-			if lab != null and is_instance_valid(lab):
-				lab.queue_free()
-	_item_floats = remain
-	_layout_item_floats()
-	if _item_floats.is_empty() and _item_float_host != null and is_instance_valid(_item_float_host):
-		_item_float_host.visible = false
+	_toast_panel_logic._tick_item_floats(delta)
 
 
 func _build_trade_panel() -> void:

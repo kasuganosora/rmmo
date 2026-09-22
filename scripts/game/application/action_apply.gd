@@ -8,9 +8,34 @@ const NpcActor = preload("res://scripts/game/npc_actor.gd")
 const CombatFloater = preload("res://scripts/game/combat_floater.gd")
 const CombatLogScript = preload("res://scripts/game/combat_log.gd")
 
+## Server action opcodes seen but not handled here, deduped so each is warned once.
+## Surfaces gaps when a new (Go) server emits an opcode the client doesn't apply yet.
+static var _unknown_action_types: Dictionary = {}
+
+
+## Warn once per unhandled action type; keep a record for telemetry / tests.
+static func _note_unknown_action(atype: String) -> void:
+	atype = atype.strip_edges()
+	if atype == "" or _unknown_action_types.has(atype):
+		return
+	_unknown_action_types[atype] = true
+	push_warning("action_apply: unhandled server action type '%s' (ignored)" % atype)
+
+
+## Distinct unhandled action types seen this session.
+static func unknown_action_types() -> Array:
+	return _unknown_action_types.keys()
+
+
+static func reset_unknown_action_types() -> void:
+	_unknown_action_types.clear()
+
+
 static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 	## Execute MockServer/GameServer action opcodes. Chat opens only via show_npc_dialogue.
 	## A wait action parks the rest of this batch until tick_event_wait elapses.
+	if ctrl == null:
+		return
 	if ctrl.hud == null:
 		ctrl.hud = ctrl.get_node_or_null("CanvasLayer/GameHud")
 	ctrl.last_applied_action_types = []
@@ -159,6 +184,9 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						"kind": ckind,
 						"skill_id": str(action.get("skill_id", "")),
 					})
+					# Show the enemy's cast bar on the target frame when it's our target.
+					if npc_caster == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_start"):
+						ctrl.hud.apply_target_cast_start(npc_caster, action)
 			"cast_update":
 				var npc_cu = str(action.get("npc_id", "")).strip_edges()
 				if npc_cu.is_empty():
@@ -167,6 +195,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_cu = c1
 				if npc_cu.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_update"):
 					ctrl.hud.apply_cast_update(action)
+				elif npc_cu == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_update"):
+					ctrl.hud.apply_target_cast_update(npc_cu, action)
 			"cast_end":
 				var npc_ce = str(action.get("npc_id", "")).strip_edges()
 				if npc_ce.is_empty():
@@ -175,6 +205,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_ce = c2
 				if npc_ce.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_end"):
 					ctrl.hud.apply_cast_end(action)
+				elif npc_ce == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_end"):
+					ctrl.hud.apply_target_cast_end(npc_ce)
 			"skill_fx":
 				apply_skill_fx(ctrl, action)
 			"skill_anim":
@@ -292,6 +324,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 					ctrl.hud.append_system(msg)
 			"weather":
 				apply_weather_action(ctrl, action)
+			_:
+				_note_unknown_action(atype)
 
 static func apply_npc_move(ctrl, action: Dictionary) -> void:
 	var npc_id = str(action.get("npc_id", "")).strip_edges()

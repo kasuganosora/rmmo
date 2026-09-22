@@ -7,6 +7,12 @@ extends Node
 ## P3: remote fetch + sha256 verify (API ready, download stubbed).
 
 const ContentRef = preload("res://scripts/asset/content_ref.gd")
+const ActorInterestModule = preload("res://scripts/asset/actor_interest_module.gd")
+var _actor_interest_module_logic: ActorInterestModule = ActorInterestModule.new(self)
+const ContentPathResolver = preload("res://scripts/asset/content_path_resolver.gd")
+var _content_path_resolver_logic: ContentPathResolver = ContentPathResolver.new(self)
+const ContentConfigModule = preload("res://scripts/asset/content_config_module.gd")
+var _content_config_module_logic: ContentConfigModule = ContentConfigModule.new(self)
 const PlaceholderTex = preload("res://scripts/asset/placeholder_tex.gd")
 
 const DEFAULT_PACK_ID := "default"
@@ -74,8 +80,16 @@ var _mv_icon_crop_cache: Dictionary = {}
 var _remote_base_url: String = ""
 var _remote_headers: Dictionary = {}
 
+## Last gate_progress snapshot, so a loading screen can poll load_state() instead of
+## (or in addition to) subscribing to the gate_progress signal.
+var _last_gate_phase: String = ""
+var _last_gate_fraction: float = 0.0
+var _last_gate_label: String = ""
+
 
 func _ready() -> void:
+	if not gate_progress.is_connected(_record_gate):
+		gate_progress.connect(_record_gate)
 	var root := content_root()
 	DirAccess.make_dir_recursive_absolute(root)
 	DirAccess.make_dir_recursive_absolute("%s/cache/downloads" % root)
@@ -152,8 +166,284 @@ func mv_img_root() -> String:
 
 
 func set_remote(base_url: String, headers: Dictionary = {}) -> void:
-	_remote_base_url = base_url.strip_edges()
+	_remote_base_url = base_url.strip_edges().rstrip("/")
 	_remote_headers = headers.duplicate(true)
+
+
+## True when a remote content base URL is configured.
+func remote_configured() -> bool:
+	return _remote_base_url != ""
+
+
+## Single-file image kinds we can fetch by mirroring the content tree over HTTP.
+## Directory kinds (map_pack) and pack-relative kinds (ui) need a manifest/zip — later.
+const REMOTE_SINGLE_FILE_KINDS := ["charset", "icon", "system", "fx", "tilesheet"]
+
+
+## Canonical writable local destination for a remotely-fetchable ref, or "" if the kind
+## is not a single-file fetch. Mirrors the resolver layout (content_root/assets/<kind>/id.png).
+func _remote_dest_for(ref: String) -> String:
+	var cr = ContentRef.parse(ref)
+	if not cr.is_valid():
+		return ""
+	var kind := str(cr.kind)
+	if kind not in REMOTE_SINGLE_FILE_KINDS:
+		return ""
+	var id := str(cr.id).strip_edges()
+	if id == "":
+		return ""
+	if not id.to_lower().ends_with(".png"):
+		id += ".png"
+	return "%s/assets/%s/%s" % [content_root(), kind, id]
+
+
+## True when ref is a content:// map_pack (fetched as a whole directory via manifest).
+func _is_remote_map_pack_ref(ref: String) -> bool:
+	var cr = ContentRef.parse(ref)
+	return cr.is_valid() and str(cr.kind) == "map_pack"
+
+
+## Remote URL for a ref: the configured base + the content-tree-relative path.
+func remote_url_for(ref: String) -> String:
+	if _remote_base_url == "":
+		return ""
+	var dest := _remote_dest_for(ref)
+	if dest == "":
+		return ""
+	var rel := dest.substr(content_root().length())  # leading "/assets/..."
+	if not rel.begins_with("/"):
+		rel = "/" + rel
+	return _remote_base_url + rel
+
+
+## Expected sha256 for a ref from content.json `hashes` (keyed by ref or by relative
+## path). Empty string = no integrity pin (download accepted without verification).
+func _expected_hash_for(ref: String) -> String:
+	_ensure_content_cfg()
+	var hashes_v: Variant = _content_cfg.get("hashes", {})
+	if typeof(hashes_v) != TYPE_DICTIONARY:
+		return ""
+	var hashes: Dictionary = hashes_v
+	if hashes.has(ref):
+		return str(hashes[ref]).strip_edges()
+	var dest := _remote_dest_for(ref)
+	if dest != "":
+		var rel := dest.substr(content_root().length()).lstrip("/")
+		if hashes.has(rel):
+			return str(hashes[rel]).strip_edges()
+	return ""
+
+
+## Blocking HTTP(S) GET → dest_abs, with atomic .part write and optional sha256 verify.
+## Returns { ok, path, bytes, sha256, code, error }. Safe for the (already blocking)
+## resource gate; not for per-frame calls.
+func fetch_remote_file(url: String, dest_abs: String, expected_sha256: String = "", timeout_sec: float = 30.0) -> Dictionary:
+	var res := {"ok": false, "path": "", "bytes": 0, "sha256": "", "code": 0, "error": ""}
+	url = url.strip_edges()
+	dest_abs = dest_abs.strip_edges()
+	if url == "" or dest_abs == "":
+		res.error = "empty url or dest"
+		return res
+	var scheme := "http"
+	var rest := ""
+	if url.begins_with("https://"):
+		scheme = "https"
+		rest = url.substr(8)
+	elif url.begins_with("http://"):
+		scheme = "http"
+		rest = url.substr(7)
+	else:
+		res.error = "unsupported scheme"
+		return res
+	var slash := rest.find("/")
+	var host_port := rest if slash < 0 else rest.substr(0, slash)
+	var req_path := "/" if slash < 0 else rest.substr(slash)
+	var host := host_port
+	var port := 443 if scheme == "https" else 80
+	var colon := host_port.rfind(":")
+	if colon >= 0:
+		host = host_port.substr(0, colon)
+		port = int(host_port.substr(colon + 1))
+	var http := HTTPClient.new()
+	var tls: TLSOptions = TLSOptions.client() if scheme == "https" else null
+	var err := http.connect_to_host(host, port, tls)
+	if err != OK:
+		res.error = "connect failed: %s" % error_string(err)
+		return res
+	var deadline := Time.get_ticks_msec() + int(maxf(timeout_sec, 1.0) * 1000.0)
+	while http.get_status() == HTTPClient.STATUS_CONNECTING or http.get_status() == HTTPClient.STATUS_RESOLVING:
+		http.poll()
+		if Time.get_ticks_msec() > deadline:
+			res.error = "connect timeout"
+			return res
+		OS.delay_msec(5)
+	if http.get_status() != HTTPClient.STATUS_CONNECTED:
+		res.error = "not connected (status %d)" % http.get_status()
+		return res
+	var headers := PackedStringArray()
+	for k in _remote_headers.keys():
+		headers.append("%s: %s" % [str(k), str(_remote_headers[k])])
+	err = http.request(HTTPClient.METHOD_GET, req_path, headers)
+	if err != OK:
+		res.error = "request failed: %s" % error_string(err)
+		return res
+	while http.get_status() == HTTPClient.STATUS_REQUESTING:
+		http.poll()
+		if Time.get_ticks_msec() > deadline:
+			res.error = "request timeout"
+			return res
+		OS.delay_msec(5)
+	res.code = http.get_response_code()
+	if not http.has_response() or int(res.code) < 200 or int(res.code) >= 300:
+		res.error = "http %d" % int(res.code)
+		return res
+	DirAccess.make_dir_recursive_absolute(dest_abs.get_base_dir())
+	var part := dest_abs + ".part"
+	var f := FileAccess.open(part, FileAccess.WRITE)
+	if f == null:
+		res.error = "cannot open %s" % part
+		return res
+	var total := 0
+	while http.get_status() == HTTPClient.STATUS_BODY:
+		http.poll()
+		var chunk := http.read_response_body_chunk()
+		if chunk.size() == 0:
+			if Time.get_ticks_msec() > deadline:
+				f.close()
+				DirAccess.remove_absolute(part)
+				res.error = "body timeout"
+				return res
+			OS.delay_msec(3)
+		else:
+			f.store_buffer(chunk)
+			total += chunk.size()
+	f.close()
+	res.bytes = total
+	var got := FileAccess.get_sha256(part)
+	res.sha256 = got
+	if expected_sha256.strip_edges() != "" and got.to_lower() != expected_sha256.strip_edges().to_lower():
+		DirAccess.remove_absolute(part)
+		res.error = "sha256 mismatch (want %s got %s)" % [expected_sha256.strip_edges(), got]
+		return res
+	if FileAccess.file_exists(dest_abs):
+		DirAccess.remove_absolute(dest_abs)
+	var mv := DirAccess.rename_absolute(part, dest_abs)
+	if mv != OK:
+		DirAccess.remove_absolute(part)
+		res.error = "rename failed: %s" % error_string(mv)
+		return res
+	res.ok = true
+	res.path = dest_abs
+	return res
+
+
+## Fetch a single-file ref from the configured remote into its local cache path.
+## Verifies against content.json `hashes` when present. Returns fetch_remote_file()'s dict.
+func ensure_remote(ref: String, expected_sha256: String = "") -> Dictionary:
+	if _remote_base_url == "":
+		return {"ok": false, "error": "no remote configured"}
+	var dest := _remote_dest_for(ref)
+	if dest == "":
+		return {"ok": false, "error": "ref kind not remotely fetchable: %s" % ref}
+	var url := remote_url_for(ref)
+	var want := expected_sha256.strip_edges()
+	if want == "":
+		want = _expected_hash_for(ref)
+	return fetch_remote_file(url, dest, want)
+
+
+## Content-tree-relative dir of a map pack (mirrors the local layout and the server URL).
+func _remote_pack_rel(pack_id: String, version: String = "") -> String:
+	var id := _strip_pack_token(pack_id)
+	if id == "":
+		return ""
+	var rel := "packs/map_pack/%s" % id
+	if version.strip_edges() != "":
+		rel += "/" + version.strip_edges()
+	return rel
+
+
+## Remote URL of a map pack's manifest (pack.manifest.json), or "" when not configured.
+func remote_pack_manifest_url_for(pack_id: String, version: String = "") -> String:
+	if _remote_base_url == "":
+		return ""
+	var rel := _remote_pack_rel(pack_id, version)
+	if rel == "":
+		return ""
+	return "%s/%s/pack.manifest.json" % [_remote_base_url, rel]
+
+
+## Download a whole map pack from the configured remote, manifest-driven.
+## Manifest (pack.manifest.json): { version, files: [{ path, sha256, size }] }.
+## Files already present with a matching sha256 are skipped (resumable). Emits
+## gate_progress per file so a loading screen can show pack download progress.
+## Returns { ok, dir, version, downloaded, skipped, failed: [...], error }.
+func ensure_remote_pack(pack_id: String, version: String = "") -> Dictionary:
+	var res := {"ok": false, "dir": "", "version": "", "downloaded": 0, "skipped": 0, "failed": [], "error": ""}
+	if _remote_base_url == "":
+		res.error = "no remote configured"
+		return res
+	var rel := _remote_pack_rel(pack_id, version)
+	if rel == "":
+		res.error = "invalid pack id"
+		return res
+	var dest_dir := "%s/%s" % [content_root(), rel]
+	res.dir = dest_dir
+	# 1) Manifest.
+	var man_url := "%s/%s/pack.manifest.json" % [_remote_base_url, rel]
+	var man_dest := "%s/cache/downloads/%s.pack.manifest.json" % [content_root(), _strip_pack_token(pack_id)]
+	var mf: Dictionary = fetch_remote_file(man_url, man_dest)
+	if not bool(mf.get("ok", false)):
+		res.error = "manifest fetch failed: %s" % str(mf.get("error", ""))
+		return res
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(man_dest))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		res.error = "manifest is not a JSON object"
+		return res
+	var manifest: Dictionary = parsed
+	res.version = str(manifest.get("version", ""))
+	var files_v: Variant = manifest.get("files", [])
+	if typeof(files_v) != TYPE_ARRAY:
+		res.error = "manifest has no files[]"
+		return res
+	var files: Array = files_v
+	# 2) Files (skip already-present matching sha; verify each).
+	var downloaded := 0
+	var skipped := 0
+	var failed: Array = []
+	var total: int = files.size()
+	var idx := 0
+	for fe_v in files:
+		idx += 1
+		if typeof(fe_v) != TYPE_DICTIONARY:
+			continue
+		var fe: Dictionary = fe_v
+		var fpath := str(fe.get("path", "")).strip_edges().lstrip("/")
+		if fpath == "" or fpath.find("..") >= 0:
+			continue  # skip empty / path-traversal entries
+		var sha := str(fe.get("sha256", "")).strip_edges()
+		var dst := "%s/%s" % [dest_dir, fpath]
+		gate_progress.emit("pack", float(idx) / float(maxi(total, 1)), "拉取地图包 %d/%d：%s" % [idx, total, fpath])
+		if FileAccess.file_exists(dst) and (sha == "" or FileAccess.get_sha256(dst).to_lower() == sha.to_lower()):
+			skipped += 1
+			continue
+		var fr: Dictionary = fetch_remote_file("%s/%s/%s" % [_remote_base_url, rel, fpath], dst, sha)
+		if bool(fr.get("ok", false)):
+			downloaded += 1
+		else:
+			failed.append({"path": fpath, "error": str(fr.get("error", ""))})
+	res.downloaded = downloaded
+	res.skipped = skipped
+	res.failed = failed
+	res.ok = failed.is_empty() and _pack_json_exists(dest_dir)
+	if not res.ok and res.error == "":
+		if not failed.is_empty():
+			res.error = "%d file(s) failed" % failed.size()
+		else:
+			res.error = "pack.json missing after fetch"
+	if res.ok:
+		gate_progress.emit("pack", 1.0, "地图包就绪")
+	return res
 
 
 func set_budget(soft_mb: float, hard_mb: float) -> void:
@@ -241,11 +531,30 @@ func ensure(ref: String) -> Error:
 		progress.emit(ref, 1, 1)
 		ensure_finished.emit(ref, true)
 		result = OK
+	elif _remote_base_url != "" and _remote_dest_for(ref) != "":
+		# Remote fetch: mirror the content tree over HTTP into the local cache path.
+		var dl: Dictionary = ensure_remote(ref)
+		if bool(dl.get("ok", false)):
+			progress.emit(ref, int(dl.get("bytes", 0)), int(dl.get("bytes", 0)))
+			ensure_finished.emit(ref, true)
+			result = OK
+		else:
+			push_warning("AssetManager: remote fetch failed for %s: %s" % [ref, str(dl.get("error", ""))])
+			ensure_finished.emit(ref, false)
+			result = ERR_FILE_NOT_FOUND
+	elif _remote_base_url != "" and _is_remote_map_pack_ref(ref):
+		# Remote fetch: whole map pack, manifest-driven.
+		var cr = ContentRef.parse(ref)
+		var pr: Dictionary = ensure_remote_pack(str(cr.id), str(cr.version))
+		if bool(pr.get("ok", false)):
+			ensure_finished.emit(ref, true)
+			result = OK
+		else:
+			push_warning("AssetManager: remote pack fetch failed for %s: %s" % [ref, str(pr.get("error", ""))])
+			ensure_finished.emit(ref, false)
+			result = ERR_FILE_NOT_FOUND
 	else:
-		# P3 stub: would HTTP GET from manifest when _remote_base_url set.
-		if _remote_base_url != "":
-			push_warning("AssetManager: remote fetch not implemented yet for %s" % ref)
-		push_warning("AssetManager: missing content (no remote yet): %s" % ref)
+		push_warning("AssetManager: missing content (no remote): %s" % ref)
 		ensure_finished.emit(ref, false)
 		result = ERR_FILE_NOT_FOUND
 	_ensuring.erase(ref)
@@ -384,277 +693,66 @@ func prefetch_allowed() -> bool:
 
 
 func bind_actor_refs(actor_id: String, refs: Array) -> void:
-	actor_id = actor_id.strip_edges()
-	if actor_id.is_empty():
-		return
-	var cleaned: Array[String] = []
-	var seen: Dictionary = {}
-	for r in refs:
-		var s := str(r).strip_edges()
-		if s.is_empty() or seen.has(s):
-			continue
-		seen[s] = true
-		cleaned.append(s)
-	_actor_refs[actor_id] = cleaned
+	_actor_interest_module_logic.bind_actor_refs(actor_id, refs)
 
 
 func clear_actor_refs(actor_id: String) -> void:
-	actor_id = actor_id.strip_edges()
-	if actor_id.is_empty():
-		return
-	_actor_refs.erase(actor_id)
+	_actor_interest_module_logic.clear_actor_refs(actor_id)
 
 
 func get_actor_refs(actor_id: String) -> Array:
-	var v: Variant = _actor_refs.get(actor_id.strip_edges(), [])
-	if typeof(v) == TYPE_ARRAY:
-		return (v as Array).duplicate()
-	return []
+	return _actor_interest_module_logic.get_actor_refs(actor_id)
 
 
 func note_actor_ring(actor_id: String, ring: String) -> void:
-	actor_id = actor_id.strip_edges()
-	if actor_id.is_empty():
-		return
-	var r := ring.strip_edges().to_upper()
-	if r not in [RING_VIEW, RING_AOI, RING_PREFETCH, RING_COLD]:
-		r = RING_AOI
-	var prev := str(_actor_rings.get(actor_id, ""))
-	if prev == r:
-		return
-	_actor_rings[actor_id] = r
-	# VIEW / AOI: keep decoded assets hot (clear evictable mark)
-	if r == RING_VIEW or r == RING_AOI:
-		_clear_actor_evictable(actor_id)
-	# Leave PREFETCH (or any ring) into COLD → cancel unstarted LOW jobs for this actor
-	if r == RING_COLD:
-		cancel_actor_low_jobs(actor_id)
-		_mark_actor_evictable(actor_id)
-	# Leave AOI → mark look/charset evictable (hysteresis); PREFETCH may still download
-	elif prev == RING_AOI and r == RING_PREFETCH:
-		_mark_actor_evictable(actor_id)
-	elif prev == RING_VIEW and r == RING_PREFETCH:
-		_mark_actor_evictable(actor_id)
+	_actor_interest_module_logic.note_actor_ring(actor_id, ring)
 
 
 func get_actor_ring(actor_id: String) -> String:
-	return str(_actor_rings.get(actor_id.strip_edges(), RING_COLD))
+	return _actor_interest_module_logic.get_actor_ring(actor_id)
 
 
 ## Assign rings for actors currently in interest; anyone previously tracked but not listed → COLD.
 ## view_ids win over aoi_ids over prefetch_ids if an id appears in multiple lists.
 func set_interest(view_ids: Array, aoi_ids: Array, prefetch_ids: Array) -> void:
-	var assigned: Dictionary = {}
-	for raw in view_ids:
-		var id := str(raw).strip_edges()
-		if id.is_empty() or assigned.has(id):
-			continue
-		assigned[id] = RING_VIEW
-		note_actor_ring(id, RING_VIEW)
-	for raw in aoi_ids:
-		var id := str(raw).strip_edges()
-		if id.is_empty() or assigned.has(id):
-			continue
-		assigned[id] = RING_AOI
-		note_actor_ring(id, RING_AOI)
-	for raw in prefetch_ids:
-		var id := str(raw).strip_edges()
-		if id.is_empty() or assigned.has(id):
-			continue
-		assigned[id] = RING_PREFETCH
-		note_actor_ring(id, RING_PREFETCH)
-	# Previous actors not listed become COLD
-	var prev_ids: Array = _actor_rings.keys()
-	for key in prev_ids:
-		var id := str(key)
-		if assigned.has(id):
-			continue
-		note_actor_ring(id, RING_COLD)
+	_actor_interest_module_logic.set_interest(view_ids, aoi_ids, prefetch_ids)
 
 
 ## Remove unstarted LOW queue items bound to this actor (shared refs kept if another non-COLD actor needs them).
 func cancel_actor_low_jobs(actor_id: String) -> void:
-	actor_id = actor_id.strip_edges()
-	if actor_id.is_empty():
-		return
-	var refs_v: Variant = _actor_refs.get(actor_id, [])
-	if typeof(refs_v) != TYPE_ARRAY or (refs_v as Array).is_empty():
-		return
-	var drop: Dictionary = {}
-	for r in refs_v:
-		var ref := str(r)
-		if ref.is_empty():
-			continue
-		if _ref_needed_by_non_cold(ref, actor_id):
-			continue
-		drop[ref] = true
-	if drop.is_empty():
-		return
-	var kept: Array = []
-	var removed := false
-	for item in _queue:
-		var ref := str(item.get("ref", ""))
-		var pri := int(item.get("priority", 0))
-		if pri <= Priority.LOW and drop.has(ref):
-			removed = true
-			continue
-		kept.append(item)
-	if removed:
-		_queue = kept
-		queue_changed.emit(_queue.size())
+	_actor_interest_module_logic.cancel_actor_low_jobs(actor_id)
 
 
 func _ref_needed_by_non_cold(ref: String, exclude_actor: String) -> bool:
-	for aid_k in _actor_refs.keys():
-		var aid := str(aid_k)
-		if aid == exclude_actor:
-			continue
-		var ring := str(_actor_rings.get(aid, RING_COLD))
-		if ring == RING_COLD:
-			continue
-		var refs_v: Variant = _actor_refs.get(aid, [])
-		if typeof(refs_v) != TYPE_ARRAY:
-			continue
-		for r in refs_v:
-			if str(r) == ref:
-				return true
-	return false
+	return _actor_interest_module_logic._ref_needed_by_non_cold(ref, exclude_actor)
 
 
 func _mark_actor_evictable(actor_id: String) -> void:
-	var refs_v: Variant = _actor_refs.get(actor_id, [])
-	if typeof(refs_v) != TYPE_ARRAY:
-		return
-	var now := Time.get_ticks_msec()
-	for r in refs_v:
-		var ref := str(r)
-		if ref.is_empty():
-			continue
-		# Do not mark if still held by VIEW/AOI actor
-		if _ref_held_by_rings(ref, [RING_VIEW, RING_AOI]):
-			continue
-		_evictable_refs[ref] = true
-		if not _evictable_at_msec.has(ref):
-			_evictable_at_msec[ref] = now
+	_actor_interest_module_logic._mark_actor_evictable(actor_id)
 
 
 func _clear_actor_evictable(actor_id: String) -> void:
-	var refs_v: Variant = _actor_refs.get(actor_id, [])
-	if typeof(refs_v) != TYPE_ARRAY:
-		return
-	for r in refs_v:
-		var ref := str(r)
-		_evictable_refs.erase(ref)
-		_evictable_at_msec.erase(ref)
+	_actor_interest_module_logic._clear_actor_evictable(actor_id)
 
 
 func _ref_held_by_rings(ref: String, rings: Array) -> bool:
-	for aid_k in _actor_refs.keys():
-		var aid := str(aid_k)
-		var ring := str(_actor_rings.get(aid, RING_COLD))
-		if ring not in rings:
-			continue
-		var refs_v: Variant = _actor_refs.get(aid, [])
-		if typeof(refs_v) != TYPE_ARRAY:
-			continue
-		for r in refs_v:
-			if str(r) == ref:
-				return true
-	return false
+	return _actor_interest_module_logic._ref_held_by_rings(ref, rings)
 
 
 func _paths_for_ref(ref: String) -> Array[String]:
-	var out: Array[String] = []
-	var p := path(ref) if ref.begins_with("content:") or ref.begins_with(ContentRef.SCHEME) else ref
-	if p.is_empty():
-		return out
-	out.append(p)
-	var alt := p.replace("\\", "/")
-	if alt != p:
-		out.append(alt)
-	return out
+	return _actor_interest_module_logic._paths_for_ref(ref)
 
 
 func _is_path_view_protected(p: String) -> bool:
-	for aid_k in _actor_rings.keys():
-		var aid := str(aid_k)
-		if str(_actor_rings.get(aid, "")) != RING_VIEW:
-			continue
-		var refs_v: Variant = _actor_refs.get(aid, [])
-		if typeof(refs_v) != TYPE_ARRAY:
-			continue
-		for r in refs_v:
-			for cand in _paths_for_ref(str(r)):
-				if cand == p or cand.replace("\\", "/") == p.replace("\\", "/"):
-					return true
-	return false
+	return _actor_interest_module_logic._is_path_view_protected(p)
 
 
 func _is_path_aoi_protected(p: String) -> bool:
-	for aid_k in _actor_rings.keys():
-		var aid := str(aid_k)
-		if str(_actor_rings.get(aid, "")) != RING_AOI:
-			continue
-		var refs_v: Variant = _actor_refs.get(aid, [])
-		if typeof(refs_v) != TYPE_ARRAY:
-			continue
-		for r in refs_v:
-			for cand in _paths_for_ref(str(r)):
-				if cand == p or cand.replace("\\", "/") == p.replace("\\", "/"):
-					return true
-	return false
+	return _actor_interest_module_logic._is_path_aoi_protected(p)
 
 
 func _path_evict_score(p: String, hard: bool) -> int:
-	## Lower = evict sooner. -1 = never (VIEW). Soft: skip AOI. Prefer marked-evictable / COLD.
-	if _is_path_view_protected(p):
-		return -1
-	if not hard and _is_path_aoi_protected(p):
-		return -1
-	var score := 50  # default LRU candidate
-	# Prefer paths tied to COLD / PREFETCH actors or marked evictable
-	var tied_cold := false
-	var tied_prefetch := false
-	var marked := false
-	var past_hyst := false
-	var now := Time.get_ticks_msec()
-	for aid_k in _actor_refs.keys():
-		var aid := str(aid_k)
-		var refs_v: Variant = _actor_refs.get(aid, [])
-		if typeof(refs_v) != TYPE_ARRAY:
-			continue
-		var hit := false
-		for r in refs_v:
-			for cand in _paths_for_ref(str(r)):
-				if cand == p or cand.replace("\\", "/") == p.replace("\\", "/"):
-					hit = true
-					var ref := str(r)
-					if _evictable_refs.get(ref, false):
-						marked = true
-						var at := int(_evictable_at_msec.get(ref, 0))
-						if at == 0 or (now - at) >= evict_hysteresis_msec:
-							past_hyst = true
-					break
-			if hit:
-				break
-		if not hit:
-			continue
-		var ring := str(_actor_rings.get(aid, RING_COLD))
-		if ring == RING_COLD:
-			tied_cold = true
-		elif ring == RING_PREFETCH:
-			tied_prefetch = true
-	if marked and past_hyst:
-		score = 10
-	elif tied_cold:
-		score = 20
-	elif marked:
-		score = 30  # marked but still in hysteresis — soft pass skips
-	elif tied_prefetch:
-		score = 40
-	if not hard and marked and not past_hyst and not tied_cold:
-		return -1  # hysteresis hold under soft budget
-	return score
+	return _actor_interest_module_logic._path_evict_score(p, hard)
 
 
 func load_image(ref_or_path: String) -> Image:
@@ -847,260 +945,81 @@ func make_letter_sprite_frames(text: String, size: int = 48) -> SpriteFrames:
 # --- map pack helpers -------------------------------------------------------
 
 func content_config() -> Dictionary:
-	_ensure_content_cfg()
-	return _content_cfg
+	return _content_config_module_logic.content_config()
 
 
 func start_map_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("start_map_pack", "")).strip_edges()
-	if id.is_empty():
-		id = str(ProjectSettings.get_setting("rmmo/default_pack", "")).strip_edges()
-	if id.is_empty() or id.begins_with("res://"):
-		id = DEFAULT_PACK_ID
-	return alias_map_pack_id(id)
+	return _content_config_module_logic.start_map_pack_id()
 
 
 func start_map_pack_ref() -> String:
-	return ContentRef.make("map_pack", start_map_pack_id())
+	return _content_config_module_logic.start_map_pack_ref()
 
 
 func street_map_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("street_map_pack", "")).strip_edges()
-	if id.is_empty():
-		id = start_map_pack_id()
-	return alias_map_pack_id(id)
+	return _content_config_module_logic.street_map_pack_id()
 
 
 func street_map_pack_ref() -> String:
-	return ContentRef.make("map_pack", street_map_pack_id())
+	return _content_config_module_logic.street_map_pack_ref()
 
 
 func street_map_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("street_map_id", "")).strip_edges()
-	if id.is_empty():
-		id = street_map_pack_id()
-	return id
+	return _content_config_module_logic.street_map_id()
 
 
 func street_spawn_cell() -> Vector2i:
-	return _cfg_cell("street_spawn")
+	return _content_config_module_logic.street_spawn_cell()
 
 
 func start_spawn_cell() -> Vector2i:
-	return _cfg_cell("start_spawn")
+	return _content_config_module_logic.start_spawn_cell()
 
 
 func _cfg_cell(key: String) -> Vector2i:
-	_ensure_content_cfg()
-	var d: Variant = _content_cfg.get(key, {})
-	if typeof(d) == TYPE_DICTIONARY:
-		return Vector2i(int(d.get("x", 0)), int(d.get("y", 0)))
-	return Vector2i.ZERO
+	return _content_config_module_logic._cfg_cell(key)
 
 
 func ui_pack_id() -> String:
-	_ensure_content_cfg()
-	var id := str(_content_cfg.get("ui_pack", "")).strip_edges()
-	if id.is_empty():
-		id = str(ProjectSettings.get_setting("rmmo/ui_pack", "")).strip_edges()
-	if id.is_empty():
-		id = DEFAULT_PACK_ID
-	return id
+	return _content_config_module_logic.ui_pack_id()
 
 
 func alias_map_pack_id(pack_id: String) -> String:
-	var s := _strip_pack_token(pack_id)
-	if s.is_empty():
-		return s
-	_ensure_content_cfg()
-	if _pack_aliases.has(s):
-		return str(_pack_aliases[s])
-	return s
+	return _content_config_module_logic.alias_map_pack_id(pack_id)
 
 
 func _strip_pack_token(pack_id: String) -> String:
-	var s := pack_id.strip_edges()
-	if s.begins_with("res://"):
-		s = s.substr(6)
-	if s.begins_with(ContentRef.SCHEME):
-		var cr = ContentRef.parse(s)
-		if cr.is_valid():
-			s = str(cr.id)
-	s = s.rstrip("/")
-	var at := s.rfind("@")
-	if at >= 0:
-		s = s.substr(0, at)
-	if s.find("/") >= 0:
-		s = s.get_file()
-	return s
+	return _content_config_module_logic._strip_pack_token(pack_id)
 
 
 func _ensure_content_cfg() -> void:
-	if _content_cfg_loaded:
-		return
-	_content_cfg_loaded = true
-	_content_cfg = load_json_file("%s/content.json" % content_root())
-	_pack_aliases.clear()
-	var av: Variant = _content_cfg.get("aliases", {})
-	if typeof(av) == TYPE_DICTIONARY:
-		for k in (av as Dictionary).keys():
-			var dst := str((av as Dictionary)[k]).strip_edges()
-			if dst != "":
-				_pack_aliases[str(k).strip_edges()] = dst
-	_scan_pack_aliases()
+	_content_config_module_logic._ensure_content_cfg()
 
 
 func _scan_pack_aliases() -> void:
-	var root := "%s/packs/map_pack" % content_root()
-	if not DirAccess.dir_exists_absolute(root):
-		return
-	var d := DirAccess.open(root)
-	if d == null:
-		return
-	d.list_dir_begin()
-	var name := d.get_next()
-	while name != "":
-		if d.current_is_dir() and not name.begins_with("."):
-			var hit := _pack_dir_with_json("%s/%s" % [root, name])
-			if hit != "":
-				var data: Dictionary = load_json_file("%s/pack.json" % hit)
-				var cid := str(data.get("content_id", "")).strip_edges()
-				if cid != "" and cid != name and not _pack_aliases.has(cid):
-					_pack_aliases[cid] = name
-		name = d.get_next()
+	_content_config_module_logic._scan_pack_aliases()
 
 
 func _pack_dir_with_json(base: String) -> String:
-	if _pack_json_exists(base):
-		return base
-	if not DirAccess.dir_exists_absolute(base):
-		return ""
-	var d := DirAccess.open(base)
-	if d == null:
-		return ""
-	d.list_dir_begin()
-	var name := d.get_next()
-	while name != "":
-		if d.current_is_dir() and not name.begins_with("."):
-			var cand := "%s/%s" % [base, name]
-			if _pack_json_exists(cand):
-				return cand
-		name = d.get_next()
-	return ""
+	return _content_path_resolver_logic._pack_dir_with_json(base)
 
 
 ## Resolve res:// packs, content ids, absolute dirs → usable pack directory path.
 func default_map_pack_path() -> String:
-	var v := start_map_pack_id()
-	if _pack_json_exists(v):
-		return v
-	var from_id := _resolve_map_pack_dir(v, "")
-	if _pack_json_exists(from_id):
-		return from_id
-	from_id = _resolve_map_pack_dir(DEFAULT_PACK_ID, "")
-	if _pack_json_exists(from_id):
-		return from_id
-	return from_id
+	return _content_path_resolver_logic.default_map_pack_path()
 
 
 func resolve_map_pack_path(pack_path_or_id: String) -> String:
-	var s := pack_path_or_id.strip_edges()
-	if s.is_empty():
-		return default_map_pack_path()
-	if s.begins_with("content:") or s.begins_with(ContentRef.SCHEME):
-		var cr = ContentRef.parse(s)
-		if cr.is_valid() and cr.kind == "map_pack":
-			var resolved := _resolve_map_pack_dir(cr.id, cr.version)
-			if _pack_json_exists(resolved):
-				return _prefer_res_if_project(resolved)
-			return resolved
-		# content:// without kind treated as map_pack id
-		if cr.is_valid():
-			var r2 := _resolve_map_pack_dir(cr.id, cr.version)
-			if _pack_json_exists(r2):
-				return _prefer_res_if_project(r2)
-	if _pack_json_exists(s):
-		return s
-	var glob := ProjectSettings.globalize_path(s) if s.begins_with("res://") else s
-	if _pack_json_exists(glob):
-		return s if s.begins_with("res://") else glob
-	# Bare id / content_id
-	var from_id := _resolve_map_pack_dir(s, "")
-	if _pack_json_exists(from_id):
-		return _prefer_res_if_project(from_id)
-	for candidate in ["res://%s" % s, "res://%s_map" % s]:
-		if _pack_json_exists(candidate):
-			return candidate
-	return s
+	return _content_path_resolver_logic.resolve_map_pack_path(pack_path_or_id)
 
 
 ## Collect Gate deps: pack.json deps + npcs.json charset ids → content:// refs.
 func collect_map_pack_deps(pack_dir: String) -> Array[String]:
-	var out: Array[String] = []
-	var seen: Dictionary = {}
-	var dir := resolve_map_pack_path(pack_dir)
-	var pack_json_path := "%s/pack.json" % dir
-	var pack_data: Dictionary = load_json_file(pack_json_path)
-	if pack_data.is_empty():
-		var glob := ProjectSettings.globalize_path(pack_json_path)
-		pack_data = load_json_file(glob)
-	var cid := str(pack_data.get("content_id", "")).strip_edges()
-	var ver := str(pack_data.get("version", "")).strip_edges()
-	if cid != "":
-		_add_dep(out, seen, ContentRef.make("map_pack", cid, ver))
-	else:
-		# Ensure the pack directory itself as a filesystem ref for Gate
-		_add_dep(out, seen, dir)
-
-	var deps_v: Variant = pack_data.get("deps", [])
-	if typeof(deps_v) == TYPE_ARRAY:
-		for d in deps_v:
-			if typeof(d) == TYPE_DICTIONARY:
-				var dd: Dictionary = d
-				var kind := str(dd.get("kind", "charset")).strip_edges()
-				var id := str(dd.get("id", "")).strip_edges()
-				var dv := str(dd.get("version", "")).strip_edges()
-				if id != "":
-					_add_dep(out, seen, ContentRef.make(kind, id, dv))
-			else:
-				var ds := str(d).strip_edges()
-				if ds.is_empty():
-					continue
-				if ds.begins_with("content:"):
-					_add_dep(out, seen, ds)
-				else:
-					_add_dep(out, seen, ContentRef.make("charset", ds))
-
-	# Auto from npcs.json / pack npcs
-	var npcs_rel := str(pack_data.get("npcs_file", "npcs.json")).strip_edges()
-	if npcs_rel == "":
-		npcs_rel = "npcs.json"
-	var npcs_data: Dictionary = load_json_file("%s/%s" % [dir, npcs_rel])
-	var npcs_list: Array = []
-	if not npcs_data.is_empty():
-		var nv: Variant = npcs_data.get("npcs", [])
-		if typeof(nv) == TYPE_ARRAY:
-			npcs_list = nv
-	elif typeof(pack_data.get("npcs", null)) == TYPE_ARRAY:
-		npcs_list = pack_data.get("npcs", [])
-	for item in npcs_list:
-		if typeof(item) != TYPE_DICTIONARY:
-			continue
-		var cs := str(item.get("charset", "")).strip_edges()
-		if cs != "":
-			_add_dep(out, seen, ContentRef.make("charset", cs))
-	return out
+	return _content_path_resolver_logic.collect_map_pack_deps(pack_dir)
 
 
 func _add_dep(out: Array[String], seen: Dictionary, ref: String) -> void:
-	ref = ref.strip_edges()
-	if ref.is_empty() or seen.has(ref):
-		return
-	seen[ref] = true
-	out.append(ref)
+	_content_path_resolver_logic._add_dep(out, seen, ref)
 
 
 # --- image cache / LRU ------------------------------------------------------
@@ -1179,207 +1098,87 @@ func image_cache_stats() -> Dictionary:
 	}
 
 
+## Record the latest gate_progress so load_state() can report it without a subscription.
+func _record_gate(phase: String, fraction: float, label: String) -> void:
+	_last_gate_phase = phase
+	_last_gate_fraction = clampf(fraction, 0.0, 1.0)
+	_last_gate_label = label
+
+
+## Loading-state snapshot for the loading screen (and any progress UI).
+## `busy` is true while the stream queue, in-flight loads, ensure-gate, or an
+## unfinished gate phase are still active. `progress` is a 0..1 estimate: the gate
+## fraction while a gate phase runs, otherwise derived from queue drain.
+func load_state() -> Dictionary:
+	var pending: int = _queue.size()
+	var inflight: int = _inflight.size()
+	var active: int = pending + inflight
+	var ensuring: int = _ensuring.size()
+	var gate_active: bool = _last_gate_phase != "" and _last_gate_phase != "done" and _last_gate_fraction < 1.0
+	var busy: bool = active > 0 or ensuring > 0 or gate_active
+	var progress: float = 1.0
+	if gate_active:
+		progress = _last_gate_fraction
+	elif active > 0:
+		# Fewer items left = closer to done; unknown total, so report a soft estimate.
+		progress = clampf(float(inflight) / float(maxi(active, 1)), 0.0, 0.99)
+	return {
+		"busy": busy,
+		"progress": progress,
+		"pending": pending,
+		"inflight": inflight,
+		"active": active,
+		"ensuring": ensuring,
+		"max_concurrent": _max_concurrent,
+		"gate_phase": _last_gate_phase,
+		"gate_fraction": _last_gate_fraction,
+		"gate_label": _last_gate_label,
+		"cache_entries": _image_cache.size(),
+		"cache_bytes": _image_bytes_total,
+		"budget_soft_mb": budget_soft_mb,
+		"budget_hard_mb": budget_hard_mb,
+	}
+
+
 # --- resolvers (P1 local) -------------------------------------------------
 
 func _resolve_charset_path(charset_id: String) -> String:
-	## Order: assets/charset → content_root/characters → charset_root → mv_img/characters → exe data → legacy.
-	var id := charset_id.strip_edges()
-	if id.to_lower().ends_with(".png"):
-		id = id.substr(0, id.length() - 4)
-	var file_name := "%s.png" % id
-	var candidates: Array[String] = []
-	candidates.append("%s/assets/charset/%s" % [content_root(), file_name])
-	candidates.append("%s/characters/%s" % [content_root(), file_name])
-	if ProjectSettings.has_setting("rmmo/charset_root"):
-		var root := str(ProjectSettings.get_setting("rmmo/charset_root", "")).strip_edges().rstrip("/").rstrip("\\")
-		if root != "":
-			candidates.append("%s/%s" % [root, file_name])
-	var mv := mv_img_root()
-	if mv != "":
-		candidates.append("%s/characters/%s" % [mv, file_name])
-	candidates.append("%s/data/characters/%s" % [OS.get_executable_path().get_base_dir(), file_name])
-	candidates.append("D:/code/rmmo_runtime/characters/%s" % file_name)
-	for c in candidates:
-		var hit := _existing_file(c)
-		if hit != "":
-			return hit
-	return candidates[0]  # expected path even if missing
+	return _content_path_resolver_logic._resolve_charset_path(charset_id)
 
 
 ## Tilesheet PNG: content_root/assets/tilesheet → mv_img/tilesets (苍蓝星). Soft-miss OK.
 func _resolve_tilesheet_path(sheet_name: String) -> String:
-	var name := sheet_name.strip_edges()
-	if name.to_lower().ends_with(".png"):
-		name = name.substr(0, name.length() - 4)
-	var file_name := "%s.png" % name
-	var candidates: Array[String] = []
-	candidates.append("%s/assets/tilesheet/%s" % [content_root(), file_name])
-	var mv := mv_img_root()
-	if mv != "":
-		candidates.append("%s/tilesets/%s" % [mv, file_name])
-	for c in candidates:
-		var hit := _existing_file(c)
-		if hit != "":
-			return hit
-	return candidates[0]
+	return _content_path_resolver_logic._resolve_tilesheet_path(sheet_name)
 
 
 func _existing_file(p: String) -> String:
-	if p.is_empty():
-		return ""
-	if FileAccess.file_exists(p):
-		return p
-	var alt := p.replace("/", "\\")
-	if alt != p and FileAccess.file_exists(alt):
-		return alt
-	var alt2 := p.replace("\\", "/")
-	if alt2 != p and FileAccess.file_exists(alt2):
-		return alt2
-	return ""
+	return _content_path_resolver_logic._existing_file(p)
 
 
 func _resolve_map_pack_dir(pack_id: String, version: String) -> String:
-	var root := content_root()
-	var ids: Array[String] = []
-	var raw := _strip_pack_token(pack_id)
-	var aliased := alias_map_pack_id(pack_id)
-	for x in [raw, aliased, raw.get_file()]:
-		var id := str(x).strip_edges()
-		if id != "" and id not in ids:
-			ids.append(id)
-	for id in ids:
-		var bases: Array[String] = [
-			"%s/packs/map_pack/%s" % [root, id],
-			"%s/packs/%s" % [root, id],
-			ProjectSettings.globalize_path("user://content/packs/%s" % id),
-		]
-		for base0 in bases:
-			var base: String = str(base0)
-			if version != "":
-				var vdir := "%s/%s" % [base, version]
-				if _pack_json_exists(vdir):
-					return vdir
-			if _pack_json_exists(base):
-				return base
-			if DirAccess.dir_exists_absolute(base):
-				var d := DirAccess.open(base)
-				if d:
-					d.list_dir_begin()
-					var name := d.get_next()
-					while name != "":
-						if d.current_is_dir() and not name.begins_with("."):
-							var cand := "%s/%s" % [base, name]
-							if _pack_json_exists(cand):
-								return cand
-						name = d.get_next()
-	var by_cid := _find_pack_by_content_id(pack_id)
-	if by_cid != "":
-		return by_cid
-	return "%s/packs/map_pack/%s" % [root, aliased]
+	return _content_path_resolver_logic._resolve_map_pack_dir(pack_id, version)
 
 
 func _find_pack_by_content_id(content_id: String) -> String:
-	content_id = alias_map_pack_id(content_id)
-	if content_id.is_empty():
-		return ""
-	var root := "%s/packs/map_pack" % content_root()
-	if not DirAccess.dir_exists_absolute(root):
-		return ""
-	var d := DirAccess.open(root)
-	if d == null:
-		return ""
-	d.list_dir_begin()
-	var name := d.get_next()
-	while name != "":
-		if d.current_is_dir() and not name.begins_with("."):
-			var base := "%s/%s" % [root, name]
-			var hit := base if _pack_json_exists(base) else ""
-			if hit == "":
-				var d2 := DirAccess.open(base)
-				if d2:
-					d2.list_dir_begin()
-					var ver := d2.get_next()
-					while ver != "":
-						if d2.current_is_dir() and not ver.begins_with("."):
-							var cand := "%s/%s" % [base, ver]
-							if _pack_json_exists(cand):
-								hit = cand
-								break
-						ver = d2.get_next()
-			if hit != "":
-				var data: Dictionary = load_json_file("%s/pack.json" % hit)
-				var cid := str(data.get("content_id", data.get("id", ""))).strip_edges()
-				if cid == content_id or name == content_id:
-					return hit
-		name = d.get_next()
-	return ""
+	return _content_path_resolver_logic._find_pack_by_content_id(content_id)
 
 
 func _resolve_look_path(look_id: String) -> String:
-	return _resolve_assets_kind_path("look", look_id)
+	return _content_path_resolver_logic._resolve_look_path(look_id)
 
 
 ## UI chrome pack: content://ui/{skin}/{rel} → packs/ui/<id>/<ver>/{skin}/{rel}.
 func _resolve_ui_pack_dir(pack_id: String = "", version: String = "") -> String:
-	if pack_id.strip_edges() == "":
-		pack_id = ui_pack_id()
-	var root := content_root()
-	var bases: Array[String] = [
-		"%s/packs/ui/%s" % [root, pack_id],
-		"%s/packs/ui_pack/%s" % [root, pack_id],
-	]
-	for base0 in bases:
-		var base: String = str(base0)
-		if version != "":
-			var vdir := "%s/%s" % [base, version]
-			if _pack_json_exists(vdir):
-				return vdir
-		if _pack_json_exists(base):
-			return base
-		if DirAccess.dir_exists_absolute(base):
-			var d := DirAccess.open(base)
-			if d:
-				d.list_dir_begin()
-				var name := d.get_next()
-				while name != "":
-					if d.current_is_dir() and not name.begins_with("."):
-						var cand := "%s/%s" % [base, name]
-						if _pack_json_exists(cand):
-							return cand
-					name = d.get_next()
-	return bases[0]
+	return _content_path_resolver_logic._resolve_ui_pack_dir(pack_id, version)
 
 
 func _resolve_ui_path(asset_id: String) -> String:
-	asset_id = asset_id.strip_edges().lstrip("/").replace("\\", "/")
-	var pack_dir := _resolve_ui_pack_dir("", "")
-	var candidates: Array[String] = []
-	if pack_dir != "":
-		candidates.append("%s/%s" % [pack_dir.rstrip("/").rstrip("\\"), asset_id])
-	candidates.append("%s/assets/ui/%s" % [content_root(), asset_id])
-	for c in candidates:
-		var hit := _existing_file(c)
-		if hit != "":
-			return hit
-		if not c.to_lower().ends_with(".png"):
-			hit = _existing_file("%s.png" % c)
-			if hit != "":
-				return hit
-	return candidates[0] if not candidates.is_empty() else ""
+	return _content_path_resolver_logic._resolve_ui_path(asset_id)
 
 
 ## Flat files under {content_root}/assets/{kind}/{id} (system / fx / icon / ...).
 func _resolve_assets_kind_path(kind: String, asset_id: String) -> String:
-	asset_id = asset_id.strip_edges().lstrip("/").replace("\\", "/")
-	var bare := "%s/assets/%s/%s" % [content_root(), kind.strip_edges(), asset_id]
-	var with_png := bare if bare.to_lower().ends_with(".png") else ("%s.png" % bare)
-	var hit := _existing_file(with_png)
-	if hit != "":
-		return hit
-	hit = _existing_file(bare)
-	if hit != "":
-		return hit
-	return with_png
+	return _content_path_resolver_logic._resolve_assets_kind_path(kind, asset_id)
 
 
 ## Resolve slot icon: prefer MV icon_index, else standalone content://icon/{id}.
@@ -1436,37 +1235,16 @@ func make_drag_preview(display_name: String, icon_index: int = -1, icon_ref: Str
 
 
 func _pack_json_exists(dir_path: String) -> bool:
-	if dir_path.is_empty():
-		return false
-	if FileAccess.file_exists("%s/pack.json" % dir_path):
-		return true
-	var glob := ProjectSettings.globalize_path(dir_path) if dir_path.begins_with("res://") else dir_path
-	return FileAccess.file_exists("%s/pack.json" % glob)
+	return _content_path_resolver_logic._pack_json_exists(dir_path)
 
 
 func _prefer_res_if_project(abs_or_res: String) -> String:
-	if abs_or_res.begins_with("res://"):
-		return abs_or_res
-	var project_res := ProjectSettings.globalize_path("res://").rstrip("/").rstrip("\\")
-	var norm := abs_or_res.replace("\\", "/")
-	var proj := project_res.replace("\\", "/")
-	# Require a directory boundary so D:/code/rmmo_runtime is not treated as res://.
-	if norm == proj or norm.begins_with(proj + "/"):
-		var rel := norm.substr(proj.length()).lstrip("/")
-		return "res://%s" % rel
-	return abs_or_res
+	return _content_path_resolver_logic._prefer_res_if_project(abs_or_res)
 
 
 func _is_filesystem_pack_or_file(ref: String) -> bool:
-	if ref.begins_with("res://") or ref.begins_with("user://"):
-		return true
-	if ref.begins_with("/") or ref.begins_with("\\"):
-		return true
-	# Windows drive
-	if ref.length() >= 3 and ref[1] == ":" and (ref[2] == "/" or ref[2] == "\\"):
-		return true
-	return false
+	return _content_path_resolver_logic._is_filesystem_pack_or_file(ref)
 
 
 func _normalize_fs_path(ref: String) -> String:
-	return ref.rstrip("/").rstrip("\\")
+	return _content_path_resolver_logic._normalize_fs_path(ref)
