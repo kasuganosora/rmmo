@@ -1,5 +1,6 @@
 extends SceneTree
-## Headless: MV img root discovery + charset/tilesheet hot-load from external mv_img (not res://).
+## Headless: MV img root discovery + charset/tilesheet load from packs/mv_img (not res://).
+var created_fixtures: Array[String] = []
 
 
 func _init() -> void:
@@ -14,11 +15,18 @@ func _run() -> void:
 		_finish(failed)
 		return
 
-	# Ensure Linux mock fixture tree exists for CI/box (real Luna uses junction).
-	var mock_root := "/workspace/rmmo_runtime/mv_img"
+	# Discover the same root as production; do not depend on Linux-only fixtures.
+	var mock_root: String = str(am.mv_img_root())
 	var mock_charset := "%s/characters/__mv_hotload_only.png" % mock_root
 	var mock_tile := "%s/tilesets/commu_floor.png" % mock_root
 	var mock_tile_only := "%s/tilesets/__mv_tile_only.png" % mock_root
+	if DirAccess.dir_exists_absolute(mock_root):
+		for fixture in [mock_charset,mock_tile_only]:
+			if FileAccess.file_exists(fixture):continue
+			DirAccess.make_dir_recursive_absolute(fixture.get_base_dir())
+			var image:=Image.create(144,192,false,Image.FORMAT_RGBA8)
+			image.fill(Color(.25,.5,.75,1))
+			if image.save_png(fixture)==OK:created_fixtures.append(fixture)
 	failed += _expect(DirAccess.dir_exists_absolute(mock_root) or DirAccess.dir_exists_absolute(str(am.mv_img_root())), "mv_img fixture or discovered root exists")
 	if not FileAccess.file_exists(mock_charset):
 		push_warning("test_mv_hotload: missing charset fixture %s" % mock_charset)
@@ -86,6 +94,8 @@ func _run() -> void:
 
 	# --- tilemap_pack falls back when pack-local tile missing ---
 	var TilemapPack = load("res://scripts/map/tilemap_pack.gd")
+	var cached_tile: Image=TilemapPack._load_image(mock_tile_only)
+	failed += _expect(cached_tile==am.load_image(mock_tile_only),"pack-local PNG reuses AssetManager image cache")
 	# demo_map often has no tiles/ on box — pack load should still pull sheets via AM when names match
 	var pack = TilemapPack.load_pack("res://demo_map")
 	failed += _expect(pack != null and int(pack.width) > 0, "load demo_map pack")
@@ -133,6 +143,7 @@ func _expect(cond: bool, label: String) -> int:
 
 
 func _finish(failed: int) -> void:
+	for fixture in created_fixtures:DirAccess.remove_absolute(fixture)
 	if failed == 0:
 		print("ALL PASS")
 	else:

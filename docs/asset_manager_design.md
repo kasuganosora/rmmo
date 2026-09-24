@@ -9,7 +9,7 @@ Status: **P2c actor AOI rings implemented** (2026-09-09). Autoload + Gate + stre
 | Editor imports PNGs into `.import` + UID | Players upload maps/NPCs/chars after ship |
 | `res://` baked into PCK | Content lives on CDN / GameServer |
 | `ResourceLoader.load` expects imported assets | Must `Image.load` / JSON from disk or HTTP |
-| Project tree pollution | Charsets already forbidden under project (苍蓝星 rule) |
+| Project tree pollution | Image library lives in `{content_root}/packs/mv_img`, never under `res://` |
 
 **Rule:** Game shell (Godot project) ships code only. All art — including UI chrome — is **external** under the runtime content root (`rmmo/content_root`, e.g. `D:/code/rmmo_runtime`). Packs are **never** stored in `res://` and are **never** baked into the Godot PCK. Address them by content IDs (`content://map_pack/default`, `content://ui/l2/panel.png`), not project paths.
 

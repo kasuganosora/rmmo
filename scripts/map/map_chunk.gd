@@ -49,7 +49,7 @@ func clear_visuals() -> void:
 	_anim_prebaked = false
 
 
-func apply_bucket(bucket: String, img: Image, z_index: int, additive: bool = false) -> void:
+func apply_bucket(bucket: String, img: Image, z_index: int, additive: bool = false, known_nonempty: bool = false) -> void:
 	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
 		_hide_bucket(bucket)
 		return
@@ -61,7 +61,7 @@ func apply_bucket(bucket: String, img: Image, z_index: int, additive: bool = fal
 		and tex.get_height() == img.get_height()
 	)
 	# get_used_rect scans the whole bitmap — skip when we already have a same-size GPU texture.
-	if not reuse:
+	if not reuse and not known_nonempty:
 		var used: Rect2i = img.get_used_rect()
 		if used.size.x <= 0 or used.size.y <= 0:
 			_hide_bucket(bucket)
@@ -73,6 +73,11 @@ func apply_bucket(bucket: String, img: Image, z_index: int, additive: bool = fal
 		spr.texture = ImageTexture.create_from_image(img)
 	spr.visible = true
 
+
+func apply_texture(bucket: String, texture: Texture2D, layer: int, additive: bool = false) -> void:
+	var sprite:=_ensure_sprite(bucket,layer,additive)
+	sprite.texture=texture
+	sprite.visible=true
 
 func _hide_bucket(bucket: String) -> void:
 	var spr: Sprite2D = get_node_or_null(bucket) as Sprite2D

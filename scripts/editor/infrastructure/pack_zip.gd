@@ -1,6 +1,7 @@
 extends RefCounted
 ## .rmpack zip import/export for content packs.
 
+## Shared image library lives at {content_root}/packs/mv_img and stays out of exported zips.
 const SKIP_PREFIXES := ["mv_img/", "www/img/"]
 
 

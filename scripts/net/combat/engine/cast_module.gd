@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain module: cast/channel runtime (player + npc, spend MP+CD at start, interrupt wastes MP).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 func is_casting() -> bool:
 	return ctrl.cast != null and ctrl.cast.is_busy()

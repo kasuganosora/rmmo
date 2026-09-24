@@ -13,6 +13,9 @@ static var _waterfall_table: Array = []
 static var _color_cache: Dictionary = {}
 static var _sample_tmp: Image = null
 
+static func clear_color_cache() -> void:
+	_color_cache.clear()
+
 
 static func ensure_tables() -> void:
 	if _tables_loaded:
@@ -36,8 +39,14 @@ static func sample_color(tile_id: int, sheets: Array, flags: PackedInt32Array = 
 	var sample_id: int = tile_id
 	if TileId.is_tile_a2(tile_id):
 		sample_id = TileId.make_autotile_id(TileId.autotile_kind(tile_id), 47)
-	if _color_cache.has(sample_id):
-		return _color_cache[sample_id]
+	var slot := 0 if TileId.is_tile_a1(sample_id) else (1 if TileId.is_tile_a2(sample_id) else (2 if TileId.is_tile_a3(sample_id) else (3 if TileId.is_tile_a4(sample_id) else (4 if TileId.is_tile_a5(sample_id) else 5 + int(sample_id / 256)))))
+	if TileId.is_extra(sample_id):
+		slot = 9 + (sample_id - TileId.TILE_ID_EXTRA) / 256
+	var source: Image = sheets[slot] if slot >= 0 and slot < sheets.size() else null
+	var flag := int(flags[sample_id]) if sample_id >= 0 and sample_id < flags.size() else 0
+	var cache_key := "%d:%d:%d" % [source.get_instance_id() if source else 0, sample_id, flag]
+	if _color_cache.has(cache_key):
+		return _color_cache[cache_key]
 	## Always blit at native 48px. Sampling at 4px treats the sheet as 4px tiles and
 	## reads autotile corners (dirt seams) instead of grass / water / brick faces.
 	const PX := 48
@@ -48,7 +57,7 @@ static func sample_color(tile_id: int, sheets: Array, flags: PackedInt32Array = 
 	var col := _average_opaque(_sample_tmp, 12, 12, 36, 36)
 	if col.a < 0.2:
 		col = _average_opaque(_sample_tmp, 0, 0, PX, PX)
-	_color_cache[sample_id] = col
+	_color_cache[cache_key] = col
 	return col
 
 
@@ -153,7 +162,10 @@ static func _blit_normal(
 	tile_h: int
 ) -> void:
 	var set_number: int
-	if TileId.is_tile_a5(tile_id):
+	if TileId.is_extra(tile_id):
+		set_number = 9 + (tile_id - TileId.TILE_ID_EXTRA) / 256
+		tile_id = (tile_id - TileId.TILE_ID_EXTRA) % 256
+	elif TileId.is_tile_a5(tile_id):
 		set_number = 4
 	else:
 		set_number = 5 + int(floor(float(tile_id) / 256.0))

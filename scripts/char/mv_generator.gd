@@ -154,6 +154,7 @@ static func root_path() -> String:
 	for cand in [
 		"/workspace/rmmo_runtime/Generator",
 		"/workspace/rmmo_runtime/mv_generator",
+		"/workspace/rmmo_runtime/packs/mv_img/Generator",
 		"/workspace/rmmo_runtime/mv_img/Generator",
 	]:
 		if DirAccess.dir_exists_absolute(cand):

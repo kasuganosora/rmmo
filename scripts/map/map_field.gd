@@ -9,6 +9,13 @@ const MapExt = preload("res://scripts/map/map_ext.gd")
 const Weather = preload("res://scripts/map/weather.gd")
 const WeatherFxScript = preload("res://scripts/map/weather_fx.gd")
 const MapChunkStore = preload("res://scripts/map/map_chunk_store.gd")
+const SurfaceMaterials = preload("res://scripts/map/field/surface_material_module.gd")
+var _surface_materials = SurfaceMaterials.new(self)
+var load_profile: Dictionary = {}
+var loading_state: Dictionary = {}
+var prepared_pack: RefCounted
+var stream_profile_enabled:=false
+var stream_frame_samples: Array=[]
 
 const CHUNK_CELLS := 16
 const PREFETCH_CHUNKS := 1
@@ -292,13 +299,18 @@ func _rebuild_internal_sync() -> void:
 
 
 func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
+	var load_started:=Time.get_ticks_usec()
+	loading_state={"phase":"map","done":0,"total":0}
 	_ensure_sprites()
 	_emit_progress(progress, 0.05)
 	if do_yield:
 		await get_tree().process_frame
 		if not is_instance_valid(self):
 			return
-	pack = TilemapPack.load_pack(_resolve_pack_path(pack_path), _resolved_map_id())
+	pack = prepared_pack if prepared_pack!=null else TilemapPack.load_pack(_resolve_pack_path(pack_path), _resolved_map_id())
+	prepared_pack=null
+	var pack_loaded:=Time.get_ticks_usec()
+	loading_state={"phase":"overview","done":0,"total":0}
 	if pack == null or pack.width <= 0:
 		push_error("MapField: failed to load pack at %s" % pack_path)
 		return
@@ -316,7 +328,8 @@ func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
 		if not is_instance_valid(self):
 			return
 	_bake_lofi_overview()
-	_emit_progress(progress, 0.88)
+	var overview_done:=Time.get_ticks_usec()
+	_emit_progress(progress, 0.2)
 	if do_yield:
 		await get_tree().process_frame
 		if not is_instance_valid(self):
@@ -325,14 +338,21 @@ func _rebuild_internal(do_yield: bool, progress: Callable) -> void:
 	_obs_cell = _spawn_cell_from_session()
 	_rebuild_chunks_around(_obs_cell, not do_yield)
 	if do_yield:
-		while not _chunk_queue.is_empty():
-			_bake_next_chunk()
-			_emit_progress(progress, 0.88 + 0.12 * (1.0 - float(_chunk_queue.size()) / 8.0))
+		loading_state=_chunk_stream_module_logic.visible_progress()
+		loading_state.phase="visible"
+		while _chunk_stream_module_logic.busy():
+			_chunk_stream_module_logic.pump()
+			loading_state=_chunk_stream_module_logic.visible_progress()
+			loading_state.phase="visible"
+			_emit_progress(progress, 0.2+0.8*float(loading_state.done)/maxi(int(loading_state.total),1))
 			await get_tree().process_frame
 			if not is_instance_valid(self):
 				return
+			if _chunk_stream_module_logic.visible_ready():break
 		_publish_lofi_atlas()
+	loading_state={"phase":"ready","done":1,"total":1}
 	_emit_progress(progress, 1.0)
+	load_profile={"pack_ms":(pack_loaded-load_started)/1000.0,"overview_ms":(overview_done-pack_loaded)/1000.0,"ready_ms":(Time.get_ticks_usec()-load_started)/1000.0,"ready_chunks":_chunks.size(),"remaining_chunks":_chunk_queue.size()}
 
 
 func _paint_cell(
@@ -688,12 +708,32 @@ func apply_bake(bake: Dictionary) -> bool:
 	_ensure_lofi_sprite()
 	_stream_ready = true
 	_obs_cell = _spawn_cell_from_session()
-	_rebuild_chunks_around(_obs_cell, true)
+	load_profile=bake.get("load_profile",{})
+	var handoff=bake.get("chunk_handoff")
+	if handoff!=null:
+		handoff.adopt(self)
+	else:
+		_rebuild_chunks_around(_obs_cell, false)
 	return true
 
 
 func export_bake() -> Dictionary:
+	_stream_ready=false
+	var handoff=load("res://scripts/map/chunk_handoff.gd").new()
+	handoff.root=_chunk_root
+	if _chunk_root!=null:remove_child(_chunk_root)
+	_chunk_root=null
+	handoff.chunks=_chunks;_chunks={}
+	handoff.worker=_chunk_stream_module_logic.worker
+	handoff.texture_pool=_chunk_stream_module_logic.texture_pool
+	_chunk_stream_module_logic.texture_pool=load("res://scripts/map/field/chunk_texture_pool.gd").new()
+	_chunk_stream_module_logic.worker=load("res://scripts/map/field/chunk_bake_worker.gd").new()
+	handoff.stats=_chunk_stream_module_logic.stream_stats.duplicate()
+	handoff.pending_upload=_chunk_stream_module_logic.pending_upload
+	_chunk_stream_module_logic.pending_upload={}
 	return {
+		"chunk_handoff":handoff,
+		"load_profile":load_profile,
 		"pack_path": pack_path,
 		"pack": pack,
 		"tile_size": tile_size,
@@ -752,26 +792,41 @@ func _spawn_cell_from_session() -> Vector2i:
 	return Vector2i.ZERO
 
 
+func _exit_tree() -> void:
+	_chunk_stream_module_logic.shutdown()
+
 func _process(delta: float) -> void:
+	var profile_start:=Time.get_ticks_usec() if stream_profile_enabled else 0
+	_surface_materials.tick(delta)
 	if not _stream_ready or pack == null:
 		return
 	_update_observer_from_camera()
-	if _obs_cell != _last_obs_cell or _obs_facing != _last_obs_facing or not _chunk_queue.is_empty():
+	var view_changed: bool=_chunk_stream_module_logic.view_changed()
+	if _obs_cell != _last_obs_cell or _obs_facing != _last_obs_facing or view_changed:
 		_last_obs_cell = _obs_cell
 		_last_obs_facing = _obs_facing
 		_refresh_chunk_set()
-	if not _chunk_queue.is_empty():
+	var profile_refresh:=Time.get_ticks_usec() if stream_profile_enabled else 0
+	if not edit_mode:
+		_chunk_stream_module_logic.pump()
+	elif not _chunk_queue.is_empty():
 		var n := 0
 		var cap := 12 if edit_mode else 1
 		while not _chunk_queue.is_empty() and n < cap:
 			_bake_next_chunk(false)
 			n += 1
+	var profile_pump:=Time.get_ticks_usec() if stream_profile_enabled else 0
 	_pump_anim_prebake()
 	if not _wm_jit_q.is_empty():
 		world_map_step(12 if edit_mode else 8)
 	_ensure_edit_overlay()
 	_apply_far_parallax()
 	_tick_tile_anim(delta)
+	if stream_profile_enabled:
+		var done:=Time.get_ticks_usec()
+		if done-profile_start>8000:
+			stream_frame_samples.append({"cell":str(_obs_cell),"refresh_ms":(profile_refresh-profile_start)/1000.0,"pump_ms":(profile_pump-profile_refresh)/1000.0,"tail_ms":(done-profile_pump)/1000.0})
+			if stream_frame_samples.size()>128:stream_frame_samples.pop_front()
 
 
 func _src_tile(col, x: int, y: int, z: int) -> int:
@@ -785,6 +840,8 @@ func _src_tile(col, x: int, y: int, z: int) -> int:
 func rebuild_dirty_cells(cells: Array) -> void:
 	if not _stream_ready:
 		return
+	if not edit_mode:
+		_chunk_stream_module_logic.shutdown()
 	_patch_lofi_cells(cells)
 	var seen := {}
 	for c in cells:
@@ -964,6 +1021,7 @@ func _route_blit(
 ) -> void:
 	if dest == null or tile_id <= 0:
 		return
+	if _surface_materials.is_scaled_prop_tile(tile_id):return
 	if _bake_anim and TileId.is_animated_a1(tile_id):
 		var aimg: Image = _anim_image(bucket, dest)
 		_bake_anim_jobs.append({
@@ -1092,10 +1150,21 @@ func render_preview(x0: int, y0: int, cells_w: int, cells_h: int, px_override: i
 	if px_override > 0 and px_override <= 4:
 		return _render_lofi_preview(x0, y0, cells_w, cells_h, px_override)
 	var saved_ts: int = tile_size
+	var saved_sheets: Array = pack.sheets
 	if px_override > 0:
 		tile_size = px_override
+		var scaled: Array = []
+		for sheet in saved_sheets:
+			if sheet == null:
+				scaled.append(null)
+				continue
+			var img: Image = sheet.duplicate()
+			img.resize(maxi(1, img.get_width() * px_override / saved_ts), maxi(1, img.get_height() * px_override / saved_ts), Image.INTERPOLATE_NEAREST)
+			scaled.append(img)
+		pack.sheets = scaled
 	var img: Image = _render_preview_body(x0, y0, cells_w, cells_h)
 	tile_size = saved_ts
+	pack.sheets = saved_sheets
 	return img
 
 

@@ -702,11 +702,9 @@ func _sheets_for(doc: RefCounted) -> Array:
 	if doc == null or root == "":
 		return sheets
 	var ts: Dictionary = tilesets.get(str(doc.tileset_id), {})
-	var names_v: Variant = ts.get("tilesetNames", [])
-	if typeof(names_v) != TYPE_ARRAY:
-		return sheets
-	var names: Array = names_v
-	for i in range(mini(9, names.size())):
+	var names: Array = TileId.sheet_names(ts)
+	sheets.resize(names.size())
+	for i in range(names.size()):
 		var name := str(names[i]).strip_edges()
 		if name == "":
 			continue

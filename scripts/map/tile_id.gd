@@ -11,6 +11,22 @@ const TILE_ID_A2 := 2816
 const TILE_ID_A3 := 4352
 const TILE_ID_A4 := 5888
 const TILE_ID_MAX := 8192
+## Optional pack-local baked curve pages. MV IDs and flags remain unchanged.
+const TILE_ID_EXTRA := 16384
+const EXTRA_PAGE_LIMIT := 64
+
+static func is_extra(tile_id: int) -> bool:
+	return tile_id >= TILE_ID_EXTRA and tile_id < TILE_ID_EXTRA + EXTRA_PAGE_LIMIT * 256
+
+static func sheet_names(tileset: Dictionary) -> Array:
+	var names: Array = tileset.get("tilesetNames", []).duplicate()
+	names.resize(9)
+	for i in range(9):
+		if names[i] == null:names[i] = ""
+	var extra: Variant = tileset.get("extraSheets", [])
+	if typeof(extra) == TYPE_ARRAY:
+		names.append_array(extra.slice(0, EXTRA_PAGE_LIMIT))
+	return names
 
 ## MV tileset flags: dirs blocked + higher (star). Other bits (bush/boat/…) are preserved.
 const FLAG_DOWN := 0x01
@@ -64,11 +80,11 @@ static func slot_tab(slot: int) -> String:
 
 
 static func is_visible(tile_id: int) -> bool:
-	return tile_id > 0 and tile_id < TILE_ID_MAX
+	return (tile_id > 0 and tile_id < TILE_ID_MAX) or is_extra(tile_id)
 
 
 static func is_autotile(tile_id: int) -> bool:
-	return tile_id >= TILE_ID_A1
+	return tile_id >= TILE_ID_A1 and tile_id < TILE_ID_MAX
 
 
 static func autotile_kind(tile_id: int) -> int:
@@ -154,7 +170,7 @@ static func with_dir_blocked(flag: int, dir_bit: int, blocked: bool) -> int:
 
 static func passage_ids_for(tile_id: int) -> PackedInt32Array:
 	var out := PackedInt32Array()
-	if tile_id <= 0 or tile_id >= TILE_ID_MAX:
+	if not is_visible(tile_id):
 		return out
 	if not is_autotile(tile_id):
 		out.append(tile_id)

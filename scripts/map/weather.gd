@@ -76,6 +76,9 @@ static func _as_color(v: Variant, fallback: Color = Color.WHITE) -> Color:
 
 
 static func particle_weight(atm: Dictionary, kind: String) -> float:
+	# A transition can itself become the source of the next transition.
+	if atm.has(kind + "_weight"):
+		return maxf(float(atm[kind + "_weight"]), 0.0)
 	var k := str(atm.get("kind", "")).strip_edges()
 	var p := str(atm.get("particles", "")).strip_edges()
 	var amt := maxf(float(atm.get("particle_amount", 0.0)), 0.0)

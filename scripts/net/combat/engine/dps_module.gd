@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain module: personal DPS meter (session window, player->NPC damage only).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const DPS_IDLE_TIMEOUT := 6.0
 

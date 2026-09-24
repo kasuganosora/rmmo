@@ -178,6 +178,16 @@ func _bake_lofi_overview() -> void:
 	ctrl._wm_img_cache.clear()
 	var gw: int = maxi(ctrl.grid_width, 1)
 	var gh: int = maxi(ctrl.grid_height, 1)
+	# Saved packs already contain a composited overview. Repainting 65k full
+	# resolution cells just to average them to 1px defeats chunk streaming.
+	if not ctrl.edit_mode and not _uses_radar_window() and ctrl.pack!=null and FileAccess.file_exists(ctrl.pack.overview_path):
+		var saved:=Image.load_from_file(ctrl.pack.overview_path)
+		if saved!=null:
+			saved.resize(gw,gh,Image.INTERPOLATE_NEAREST)
+			ctrl._lofi_image=saved
+			_publish_lofi_atlas()
+			ctrl._wm_jit_q.clear()
+			return
 	if _uses_radar_window():
 		ctrl._load_offline_overview()
 		_rebuild_radar_window()
@@ -257,13 +267,9 @@ func _patch_lofi_cells(cells: Array) -> void:
 		changed = true
 	if not changed:
 		return
-	if ctrl._radar_atlas_tex != null:
-		ctrl._radar_atlas_tex.update(ctrl._lofi_image)
-	else:
-		ctrl._radar_atlas_tex = ImageTexture.create_from_image(ctrl._lofi_image)
-	ctrl._radar_atlas_image = ctrl._lofi_image
-	ctrl._overview_ground_tex = ctrl._radar_atlas_tex
-	_ensure_lofi_sprite()
+	# Map resize/switch may leave an atlas of a different size. Use the same
+	# size-aware publication path as a full overview rebuild.
+	_publish_lofi_atlas()
 
 
 

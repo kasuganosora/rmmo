@@ -39,11 +39,28 @@ func _run() -> void:
 		"get_map_settings", "set_map_settings", "create_map", "resize_map", "duplicate_map",
 		"set_layer", "paint_rect", "paint_fill", "paint_cells", "paint_polyline",
 		"paint_ellipse", "paint_ring", "copy_tiles", "paste_tiles", "undo", "redo",
-		"preview_tileset", "preview_charset", "set_passage", "update_entity", "place_chest",
+		"preview_tileset", "preview_charset", "reload_tilesheets", "preview_sheet_rect", "set_passage", "update_entity", "place_chest",
 		"import_asset", "refresh_autotiles", "set_stamp", "paint_stamp",
 	]:
 		failed += _expect(names.find(need) >= 0, "tool %s" % need)
 	failed += _expect(names.size() >= 45, "tool count >= 45")
+	var before_tilesets: int = pack.tilesets.size()
+	var invalid_ts: Dictionary = mcp.call_tool("configure_tileset", {"tileset_id": "town_test", "sheets": ["bad"]})
+	failed += _expect(not invalid_ts.get("ok", true) and pack.tilesets.size() == before_tilesets, "invalid tileset rejected atomically")
+	var town_sheets := ["Outside_A1", "Outside_A2", "Outside_A3", "Outside_A4", "Outside_A5", "Outside_B", "Outside_C", "", ""]
+	var configured: Dictionary = mcp.call_tool("configure_tileset", {"tileset_id": "town_test", "name": "Town", "sheets": town_sheets})
+	failed += _expect(configured.get("ok", false) and pack.tilesets.has("town_test"), "MCP creates town tileset")
+	var bad_flags: Dictionary = mcp.call_tool("configure_tileset", {"tileset_id": "town_test", "name": "Changed", "sheets": town_sheets, "flags": [0]})
+	failed += _expect(not bad_flags.get("ok", true) and pack.tilesets.town_test.name == "Town", "invalid flags preserve existing tileset")
+	configured = mcp.call_tool("configure_tileset", {"tileset_id": "town_test", "name": "Town updated", "sheets": town_sheets})
+	failed += _expect(configured.get("ok", false) and not configured.get("created", true) and pack.tilesets.size() == before_tilesets + 1, "MCP updates tileset without duplication")
+	var bad_extra: Dictionary = mcp.call_tool("configure_tileset", {"tileset_id":"town_test","sheets":town_sheets,"extra_sheets":["../bad"]})
+	failed += _expect(not bad_extra.get("ok",true) and not pack.tilesets.town_test.has("extraSheets"),"invalid curve page rejected atomically")
+	configured = mcp.call_tool("configure_tileset", {"tileset_id":"town_test","sheets":town_sheets,"extra_sheets":["Outside_B"]})
+	failed += _expect(configured.get("ok",false) and pack.tilesets.town_test.extraSheets == ["Outside_B"],"MCP persists extra page declaration")
+	var palette = load("res://scripts/editor/interface/tile_palette.gd").new()
+	failed += _expect(palette._base_for_tab("X3") == 17152 and palette._sheet_index_for_tab("X3") == 12 and palette._tab_for_id(17155)=="X3","extra palette page ID mapping")
+	palette.free()
 
 	var grass: int = TileId.TILE_ID_A2
 	var dirt: int = TileId.make_autotile_id(24, 0)
@@ -159,6 +176,27 @@ func _run() -> void:
 	failed += _expect(str(prev_ts.get("png_base64", "")).length() > 80, "tileset png")
 
 	var stt: Dictionary = mcp.call_tool("editor_state", {})
+	mcp.call_tool("set_layer", {"z":3})
+	mcp.call_tool("set_stamp", {"w":1,"h":1,"tiles":[5]})
+	mcp.call_tool("save_stamp", {"name":"upper regression"})
+	mcp.call_tool("set_layer", {"z":0})
+	mcp.call_tool("apply_stamp_named", {"name":"upper regression","x":18,"y":18})
+	failed += _expect(doc.tile(18,18,3)==5, "named stamp restores its saved layer")
+	mcp.call_tool("delete_stamp", {"name":"upper regression"})
+	failed += _expect(not pack.stamps.has("upper regression") and doc.tile(18,18,3)==5, "deleting stamp preserves painted tiles")
+	mcp.call_tool("set_stamp", {"w":2,"h":2,"tiles":[16384,16385,16392,16393]})
+	mcp.call_tool("paint_rect", {"x":16,"y":16,"w":3,"h":3,"ext":"meta","tile_id":0,"exact":true})
+	failed += _expect(doc.ext_tile("meta",17,17)==0, "explicit rectangle ID overrides active stamp in metadata")
+	mcp.call_tool("paint_rect", {"x":16,"y":16,"w":3,"h":3,"z":2,"tile_id":7,"exact":true})
+	failed += _expect(doc.tile(17,17,2)==7, "explicit rectangle ID paints uniform visual layer")
+	mcp.call_tool("add_bookmark", {"name": "Updated landmark", "x": 1, "y": 2})
+	mcp.call_tool("add_bookmark", {"name": "Updated landmark", "x": 3, "y": 4})
+	var matches := 0
+	for bm in mcp.call_tool("list_bookmarks", {}).get("bookmarks", []):
+		if str(bm.get("name", "")) == "Updated landmark":
+			matches += 1
+			failed += _expect(int(bm.x) == 3 and int(bm.y) == 4, "bookmark updated position")
+	failed += _expect(matches == 1, "bookmark update does not duplicate")
 	failed += _expect(stt.has("tileset_id"), "state tileset_id")
 	failed += _expect(stt.has("layer_z"), "state layer_z")
 

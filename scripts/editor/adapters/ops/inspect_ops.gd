@@ -1,14 +1,18 @@
 extends RefCounted
 ## Domain ops: inspect/query (get_tile(s), list entities/layers/tilesets, map settings, find, previews, weather).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const TilePalette = preload("res://scripts/editor/interface/tile_palette.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
 const TileLabels = preload("res://scripts/editor/domain/tile_labels.gd")
+const Rtp = preload("res://scripts/editor/infrastructure/rtp.gd")
 const TILES_RECT_MAX := 80
 const MV_LAYER_NAMES := ["下层", "中层", "上层", "顶层", "阴影", "区域"]
 
@@ -305,8 +309,81 @@ func get_weather(_args := {}) -> Dictionary:
 		"label": str(atm.get("label", "")),
 	})
 
+func reload_tilesheets(_args := {}) -> Dictionary:
+	var am = Engine.get_main_loop().root.get_node_or_null("/root/AssetManager") if Engine.get_main_loop() else null
+	var cleared := false
+	if am != null and am.has_method("clear_image_cache"):
+		am.clear_image_cache()
+		cleared = true
+	var e = ctrl.ed()
+	var palette_reloaded := false
+	if e != null and "_palette" in e and e._palette != null and e._palette.has_method("_load_sheets"):
+		e._palette._load_sheets()
+		if e._palette.has_method("_rebuild_view"):
+			e._palette._rebuild_view()
+		palette_reloaded = true
+	preload("res://scripts/map/tile_blit.gd").clear_color_cache()
+	var field_reloaded := false
+	if e != null and e.has_method("_reload_field") and ctrl.doc() != null:
+		e._reload_field()
+		field_reloaded = true
+	return ctrl.mcp._ok({"cache_cleared": cleared, "palette_reloaded": palette_reloaded, "field_reloaded": field_reloaded})
+
+
+func preview_sheet_rect(args: Dictionary) -> Dictionary:
+	var sheet := str(args.get("sheet", "")).strip_edges()
+	if sheet == "":
+		return ctrl.mcp._err("sheet required")
+	if sheet.to_lower().ends_with(".png"):
+		sheet = sheet.substr(0, sheet.length() - 4)
+	var col := int(args.get("col", 0))
+	var row := int(args.get("row", 0))
+	if col < 0 or row < 0:
+		return ctrl.mcp._err("col and row must be nonnegative")
+	var cols := maxi(int(args.get("cols", 8)), 1)
+	var rows := maxi(int(args.get("rows", 1)), 1)
+	var scale := clampi(int(args.get("scale", 2)), 1, 4)
+	var tile := 48
+	var path := "%s/assets/tilesheet/%s.png" % [Rtp.content_root(), sheet]
+	var am = Engine.get_main_loop().root.get_node_or_null("AssetManager") if Engine.get_main_loop() else null
+	if am != null:
+		var resolved := str(am.path("content://tilesheet/" + sheet))
+		if not resolved.is_empty():
+			path = resolved
+	if not FileAccess.file_exists(path) and ctrl.pack():
+		path = ProjectSettings.globalize_path("%s/assets/tilesheet/%s.png" % [ctrl.pack().root, sheet.get_basename()])
+	if not FileAccess.file_exists(path):
+		return ctrl.mcp._err("sheet missing: %s" % path)
+	var src := Image.new()
+	if src.load(path) != OK:
+		return ctrl.mcp._err("sheet load failed")
+	if src.is_compressed():
+		src.decompress()
+	if src.get_format() != Image.FORMAT_RGBA8:
+		src.convert(Image.FORMAT_RGBA8)
+	var x := col * tile
+	var y := row * tile
+	var w := mini(cols * tile, src.get_width() - x)
+	var h := mini(rows * tile, src.get_height() - y)
+	if w <= 0 or h <= 0:
+		return ctrl.mcp._err("rect outside sheet")
+	var crop := src.get_region(Rect2i(x, y, w, h))
+	if scale > 1:
+		crop.resize(w * scale, h * scale, Image.INTERPOLATE_NEAREST)
+	return ctrl._png_payload(crop, {
+		"sheet": sheet,
+		"resolved_path": path,
+		"col": col,
+		"row": row,
+		"cols": cols,
+		"rows": rows,
+		"scale": scale,
+		"file_mtime": FileAccess.get_modified_time(path),
+	}, args, "res://.grok/mcp_sheet_rect.png")
+
+
 func op_names() -> Array:
-	return ["get_tile", "get_tiles_rect", "list_entities", "list_layers", "list_tilesets", "get_map_settings", "find_tiles", "pick_tileset", "get_weather", "preview_tileset", "preview_charset"]
+	return ["get_tile", "get_tiles_rect", "list_entities", "list_layers", "list_tilesets", "get_map_settings", "find_tiles", "pick_tileset", "get_weather", "preview_tileset", "preview_charset", "reload_tilesheets", "preview_sheet_rect"]
 
 func tools() -> Array:
 	return [
@@ -346,4 +423,12 @@ func tools() -> Array:
 			"direction": {"type": "integer"}, "max_px": {"type": "integer"},
 			"path": {"type": "string"},
 		}, ["charset"]),
+		ctrl.mcp._tool("reload_tilesheets", "清图块及缩略图缓存，重载调色板和当前地图；改完 png 后先调这个。", {}),
+		ctrl.mcp._tool("preview_sheet_rect", "按格子从磁盘渲一张图块表的一块，不走缓存。", {
+			"sheet": {"type": "string"},
+			"col": {"type": "integer"}, "row": {"type": "integer"},
+			"cols": {"type": "integer"}, "rows": {"type": "integer"},
+			"scale": {"type": "integer"},
+			"path": {"type": "string"},
+		}, ["sheet"]),
 	]

@@ -30,7 +30,8 @@ static func fit_layout(ctrl) -> void:
 		win.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 	ctrl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ctrl.size = ctrl.get_viewport_rect().size
+	# Full-rect anchors already follow the viewport. Setting size here fights
+	# the anchor layout during _ready() and triggers a warning in headless QA.
 	sync_vp_size(ctrl)
 	sync_scrollbars(ctrl)
 

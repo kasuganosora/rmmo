@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: tiles clipboard/transform (copy/cut/paste/replace/rotate/flip).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 func copy_tiles(args: Dictionary) -> Dictionary:
 	var d = ctrl.doc()

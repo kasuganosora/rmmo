@@ -187,6 +187,7 @@ func _test_npc_skill() -> int:
 	srv.map_collision = null
 	srv.set_player_cell(5, 5)
 	srv.combat_engine.player_cell_hint = Vector2i(5, 5)
+	srv.combat_engine.combat_randf = func() -> float: return 0.5
 	srv.combat_stats.reset_player(3)
 	srv.combat_stats.player["hp"] = 80
 	srv.register_npc("mob_sk", 5, 7, true, true, 8, 0, 0, {
@@ -205,16 +206,25 @@ func _test_npc_skill() -> int:
 	var hp0: int = int(srv.combat_stats.player.get("hp", 0))
 	var r: Dictionary = srv.try_npc_skill("mob_sk", "flame_burst", 5, 5)
 	failed += _expect(bool(r.get("ok", false)), "npc skill ok")
+	var npc_actions: Array = r.get("actions", [])
+	for _step in range(20):
+		if not srv.combat_engine.is_npc_casting("mob_sk"):
+			break
+		npc_actions.append_array(srv.combat_engine.tick_npc_casts(0.25))
 	var hp1: int = int(srv.combat_stats.player.get("hp", 0))
 	failed += _expect(hp1 < hp0, "npc aoe damaged player %d -> %d" % [hp0, hp1])
-	failed += _expect(_has_type(r.get("actions", []), "skill_fx"), "npc skill_fx")
-	failed += _expect(_has_type(r.get("actions", []), "damage"), "npc damage action")
+	failed += _expect(_has_type(npc_actions, "skill_fx"), "npc skill_fx")
+	failed += _expect(_has_type(npc_actions, "damage"), "npc damage action")
 	# AI chase path also fires when in range
 	ai = srv.combat_stats.npc_ai["mob_sk"]
 	ai["skill_ready_at"] = {}
 	srv.combat_stats.npc_ai["mob_sk"] = ai
 	srv.combat_stats.player["hp"] = 80
 	var chase: Array = srv._try_npc_skill_tick("mob_sk", srv.combat_stats.npc_ai["mob_sk"], Vector2i(5, 7), 5, 5)
+	for _step in range(20):
+		if not srv.combat_engine.is_npc_casting("mob_sk"):
+			break
+		chase.append_array(srv.combat_engine.tick_npc_casts(0.25))
 	failed += _expect(_has_type(chase, "skill_fx") or _has_type(chase, "damage"), "chase tick casts")
 	# MP gate: empty mana cannot cast
 	var st1: Dictionary = srv.combat_stats.npcs["mob_sk"]
@@ -227,7 +237,7 @@ func _test_npc_skill() -> int:
 	var dry: Dictionary = srv.try_npc_skill("mob_sk", "flame_burst", 5, 5)
 	failed += _expect(not bool(dry.get("ok", true)), "npc skill blocked without mp")
 	failed += _expect(str(dry.get("reason", "")) == "mp", "reason mp")
-	st1["mp"] = 18
+	st1["mp"] = int(srv.combat_engine.skills.get_skill("flame_burst").get("mp_cost",18))
 	srv.combat_stats.npcs["mob_sk"] = st1
 	var wet: Dictionary = srv.try_npc_skill("mob_sk", "flame_burst", 5, 5)
 	failed += _expect(bool(wet.get("ok", false)), "npc skill spends last mp")

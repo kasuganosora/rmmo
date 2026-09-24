@@ -50,6 +50,7 @@ func _sync_palette() -> void:
 	var ts = ""
 	if ctrl.doc:
 		ts = str(ctrl.doc.tileset_id)
+	ctrl._palette.pack_root = str(ctrl.pack.root)
 	ctrl._palette.set_catalog(ctrl.pack.tilesets, ts)
 	ctrl.paint.tile_id = int(ctrl._palette.selected_id)
 

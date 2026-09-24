@@ -30,6 +30,9 @@ func _pack_dir_with_json(base: String) -> String:
 	return ""
 
 func default_map_pack_path() -> String:
+	var start_ref: String = ctrl.start_map_pack_ref()
+	if ctrl._pack_json_exists(start_ref):
+		return start_ref
 	var v: String = ctrl.start_map_pack_id()
 	if ctrl._pack_json_exists(v):
 		return v
@@ -135,7 +138,7 @@ func _add_dep(out: Array[String], seen: Dictionary, ref: String) -> void:
 	out.append(ref)
 
 func _resolve_charset_path(charset_id: String) -> String:
-	## Order: assets/charset → content_root/characters → charset_root → mv_img/characters → exe data → legacy.
+	## Order: assets/charset → content_root/characters → charset_root → packs/mv_img/characters → exe data → legacy.
 	var id := charset_id.strip_edges()
 	if id.to_lower().ends_with(".png"):
 		id = id.substr(0, id.length() - 4)

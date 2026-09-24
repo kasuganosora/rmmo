@@ -3,9 +3,12 @@ extends RefCounted
 
 const GridUtil = preload("res://scripts/util/grid_util.gd")
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 func _in_range(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
 	if range_cells <= 0:

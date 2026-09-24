@@ -112,11 +112,15 @@ func enter_world(character_id: int) -> void:
 	if found.is_empty():
 		ctrl.enter_world_ready.emit(false, "找不到该角色", {})
 		return
-	# Always start the session on the home demo pack.
+	# Load the configured home pack and use its configured spawn when present.
 	ctrl._load_pack(ctrl.start_map_pack_path())
 	var spawn_cell = Vector2i(0, 0)
 	if ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
-		spawn_cell = ctrl.map_collision.find_spawn_near()
+		var am = ctrl.get_node_or_null("/root/AssetManager")
+		var preferred := Vector2i(-1, -1)
+		if am != null and am.content_config().has("start_spawn"):
+			preferred = am.start_spawn_cell()
+		spawn_cell = ctrl.map_collision.find_spawn_near(preferred.x, preferred.y)
 	var ts: float = float(ctrl.map_tile_size)
 	# Reset combat for this character session.
 	ctrl.awaiting_respawn = false

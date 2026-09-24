@@ -75,6 +75,10 @@ static func playtest(ctrl: ContentEditor, from_cursor: bool = false) -> void:
 	var ch: Dictionary = sess.active_character() if sess.has_method("active_character") else {}
 	if ch.is_empty():
 		ch = {"name": "编辑器", "look_id": "1", "gender": "female", "level": 1, "class_id": "adventurer"}
+		var generator = load("res://scripts/char/mv_generator.gd")
+		var preview_sheet := "user://cache/editor_playtest_character.png"
+		if generator.bake_sheet("female", generator.default_parts("female"), preview_sheet):
+			ch["customization"] = {"mv_sheet": preview_sheet}
 	var sc: Vector2i = ctrl.doc.start_cell if ctrl.doc else Vector2i(2, 2)
 	if from_cursor:
 		sc = ctrl._cursor

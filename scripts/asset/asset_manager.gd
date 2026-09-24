@@ -27,6 +27,7 @@ var _pack_aliases: Dictionary = {}
 
 ## path -> Image
 var _image_cache: Dictionary = {}
+var _image_cache_mtime: Dictionary = {}
 ## path -> approx RGBA8 bytes
 var _image_cache_bytes: Dictionary = {}
 ## LRU oldest-first absolute paths
@@ -110,7 +111,7 @@ func content_root() -> String:
 		var v := str(ProjectSettings.get_setting("rmmo/content_root", "")).strip_edges()
 		if v != "" and DirAccess.dir_exists_absolute(v):
 			return v.rstrip("/").rstrip("\\")
-	# Luna / playtest fallbacks when ProjectSettings unset (苍蓝星: external runtime, not res://).
+	# Luna / playtest fallbacks when ProjectSettings unset (external runtime, not res://).
 	var win_rt := "D:/code/rmmo_runtime"
 	if DirAccess.dir_exists_absolute(win_rt):
 		return win_rt
@@ -133,32 +134,19 @@ func data_file(rel: String) -> String:
 	return p
 
 
-## RPG Maker MV www/img root (苍蓝星 external — never copy into res://).
-## Discovery: ProjectSettings rmmo/mv_img_root → {content_root}/mv_img → D:/Games/*v50.5*/www/img → Linux mock.
+## MV image library shipped with the content pack. Never res://.
+## Discovery: ProjectSettings rmmo/mv_img_root → {content_root}/packs/mv_img → Linux pack → legacy Linux fixture.
 func mv_img_root() -> String:
 	if ProjectSettings.has_setting("rmmo/mv_img_root"):
 		var v := str(ProjectSettings.get_setting("rmmo/mv_img_root", "")).strip_edges()
 		if v != "" and DirAccess.dir_exists_absolute(v):
 			return v.rstrip("/").rstrip("\\")
-	var junction := "%s/mv_img" % content_root()
-	if DirAccess.dir_exists_absolute(junction):
-		return junction.rstrip("/").rstrip("\\")
-	# Windows: scan installed 苍蓝星 tree under D:/Games
-	var games := "D:/Games"
-	if DirAccess.dir_exists_absolute(games):
-		var d := DirAccess.open(games)
-		if d:
-			d.list_dir_begin()
-			var name := d.get_next()
-			while name != "":
-				if d.current_is_dir() and not name.begins_with(".") and name.find("v50.5") >= 0:
-					var cand := "%s/%s/www/img" % [games, name]
-					if DirAccess.dir_exists_absolute(cand):
-						return cand.rstrip("/").rstrip("\\")
-					var cand_bs := cand.replace("/", "\\")
-					if DirAccess.dir_exists_absolute(cand_bs):
-						return cand_bs.rstrip("/").rstrip("\\")
-				name = d.get_next()
+	var packed := "%s/packs/mv_img" % content_root()
+	if DirAccess.dir_exists_absolute(packed):
+		return packed.rstrip("/").rstrip("\\")
+	var linux_pack := "/workspace/rmmo_runtime/packs/mv_img"
+	if DirAccess.dir_exists_absolute(linux_pack):
+		return linux_pack
 	var linux_mock := "/workspace/rmmo_runtime/mv_img"
 	if DirAccess.dir_exists_absolute(linux_mock):
 		return linux_mock
@@ -766,18 +754,14 @@ func load_image(ref_or_path: String) -> Image:
 		p = path(p)
 	if p.is_empty():
 		return null
-	if _image_cache.has(p):
-		var cached: Variant = _image_cache[p]
-		if cached is Image:
-			_touch_lru(p)
-			return cached
+	if _image_fresh(p):
+		_touch_lru(p)
+		return _image_cache[p]
 	# Also try alt slash form
 	var alt := p.replace("\\", "/")
-	if alt != p and _image_cache.has(alt):
-		var cached2: Variant = _image_cache[alt]
-		if cached2 is Image:
-			_touch_lru(alt)
-			return cached2
+	if alt != p and _image_fresh(alt):
+		_touch_lru(alt)
+		return _image_cache[alt]
 	if not FileAccess.file_exists(p) and not FileAccess.file_exists(alt):
 		return null
 	var load_path := p if FileAccess.file_exists(p) else alt
@@ -924,6 +908,14 @@ func clear_cache() -> void:
 func clear_image_cache() -> void:
 	_image_cache.clear()
 	_image_cache_bytes.clear()
+	_image_cache_mtime.clear()
+
+
+func _image_fresh(p: String) -> bool:
+	if not _image_cache.has(p) or not (_image_cache[p] is Image):
+		return false
+	var cached_m := int(_image_cache_mtime.get(p, -1))
+	return cached_m == FileAccess.get_modified_time(p)
 	_image_lru.clear()
 	_image_bytes_total = 0
 	clear_mv_icon_cache()
@@ -1036,6 +1028,7 @@ func _put_image_cache(p: String, img: Image) -> void:
 	var nbytes := _approx_image_bytes(img)
 	_image_cache[p] = img
 	_image_cache_bytes[p] = nbytes
+	_image_cache_mtime[p] = FileAccess.get_modified_time(p)
 	_image_bytes_total += nbytes
 	_touch_lru(p)
 	evict_lru_if_needed()
@@ -1054,6 +1047,7 @@ func _evict_one(p: String) -> void:
 	_image_bytes_total -= int(_image_cache_bytes.get(p, 0))
 	_image_cache.erase(p)
 	_image_cache_bytes.erase(p)
+	_image_cache_mtime.erase(p)
 	var idx := _image_lru.find(p)
 	if idx >= 0:
 		_image_lru.remove_at(idx)
@@ -1146,7 +1140,7 @@ func _resolve_charset_path(charset_id: String) -> String:
 	return _content_path_resolver_logic._resolve_charset_path(charset_id)
 
 
-## Tilesheet PNG: content_root/assets/tilesheet → mv_img/tilesets (苍蓝星). Soft-miss OK.
+## Tilesheet PNG: content_root/assets/tilesheet → packs/mv_img/tilesets. Soft-miss OK.
 func _resolve_tilesheet_path(sheet_name: String) -> String:
 	return _content_path_resolver_logic._resolve_tilesheet_path(sheet_name)
 

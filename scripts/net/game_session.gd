@@ -27,6 +27,10 @@ var hotbar_page: int = 0
 var editor_return: bool = false
 var editor_pack_root: String = ""
 var editor_map_id: String = ""
+var last_loading_progress: Array = []
+var _world_transition_active: bool = false
+var _loading_transition_active: bool = false
+var last_loading_profile: Dictionary = {}
 
 func go_login() -> void:
 	selected_character = {}
@@ -45,10 +49,82 @@ func go_character_create() -> void:
 	get_tree().change_scene_to_file(SCENE_CREATE)
 
 func go_loading() -> void:
-	get_tree().change_scene_to_file(SCENE_LOADING)
+	if _loading_transition_active or _world_transition_active:return
+	_loading_transition_active=true
+	var cover:=CanvasLayer.new();cover.name="LoadingTransition";cover.layer=100
+	var shade:=ColorRect.new();shade.color=Color(.05,.06,.09,1)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.modulate.a=0.0
+	add_child(cover);cover.add_child(shade)
+	var previous=get_tree().current_scene
+	var player=previous.get_node_or_null("Player") if previous!=null else null
+	var locked: bool=player.input_locked if player!=null else false
+	if player!=null:player.input_locked=true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var fade:=create_tween()
+	fade.tween_property(shade,"modulate:a",1.0,.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await fade.finished
+	var error:=get_tree().change_scene_to_file(SCENE_LOADING)
+	if error==OK:
+		await get_tree().scene_changed
+	else:
+		if is_instance_valid(player):player.input_locked=locked
+		push_error("Cannot open loading scene: %s"%error)
+	cover.queue_free();_loading_transition_active=false
 
 func go_world() -> void:
-	get_tree().change_scene_to_file(SCENE_WORLD)
+	if _world_transition_active:return
+	_world_transition_active=true
+	last_loading_profile["handoff_ms"]=Time.get_ticks_msec()
+	var previous=get_tree().current_scene
+	var cover:=CanvasLayer.new()
+	cover.name="WorldTransition"
+	cover.layer=100
+	add_child(cover)
+	var visual: Control
+	if previous!=null and previous.has_method("transition_visual"):
+		last_loading_progress=previous.progress_history.duplicate(true)
+		visual=previous.transition_visual()
+	else:
+		var background:=ColorRect.new()
+		background.color=Color(.05,.06,.09,1)
+		background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		visual=background
+	cover.add_child(visual)
+	var status:=ResourceLoader.load_threaded_get_status(SCENE_WORLD)
+	while status==ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		await get_tree().process_frame
+		status=ResourceLoader.load_threaded_get_status(SCENE_WORLD)
+	var scene: PackedScene=ResourceLoader.load_threaded_get(SCENE_WORLD) if status==ResourceLoader.THREAD_LOAD_LOADED else load(SCENE_WORLD)
+	var error:=get_tree().change_scene_to_packed(scene) if scene!=null else ERR_CANT_OPEN
+	if error!=OK:
+		cover.queue_free();_world_transition_active=false
+		if is_instance_valid(previous) and previous.has_method("_show_transfer_fail_actions"):
+			previous.status_label.text="无法进入场景，请返回后重试"
+			previous._show_transfer_fail_actions()
+		return
+	await get_tree().scene_changed
+	last_loading_profile["world_ready_ms"]=Time.get_ticks_msec()
+	var world=get_tree().current_scene
+	var player=world.get_node_or_null("Player")
+	if player!=null:player.input_locked=true
+	# Keep the loading visual through the first rendered world frame, including
+	# shader compilation and HUD setup, instead of exposing a blank scene frame.
+	if DisplayServer.get_name()=="headless":await get_tree().process_frame
+	else:await RenderingServer.frame_post_draw
+	last_loading_profile["first_frame_ms"]=Time.get_ticks_msec()
+	# A slow first draw must not count as elapsed animation time and swallow
+	# the whole fade on its first tick.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var fade:=create_tween()
+	fade.tween_property(visual,"modulate:a",0.0,.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await fade.finished
+	cover.queue_free()
+	if is_instance_valid(player) and get_tree().current_scene==world:player.input_locked=false
+	_world_transition_active=false
+	last_loading_profile["finished_ms"]=Time.get_ticks_msec()
 
 
 func go_content_editor() -> void:

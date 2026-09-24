@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: map settings (settings/tileset/layers/regions/bookmarks/reference/weather).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const MapExt = preload("res://scripts/map/map_ext.gd")
 
@@ -129,6 +132,11 @@ func add_bookmark(args: Dictionary) -> Dictionary:
 	}
 	if str(bm["name"]) == "":
 		return ctrl.mcp._err("name required")
+	for i in range(d.bookmarks.size()):
+		if str(d.bookmarks[i].get("name", "")) == str(bm["name"]):
+			d.bookmarks[i] = bm
+			d.dirty = true
+			return ctrl.mcp._ok({"bookmark": bm})
 	d.bookmarks.append(bm)
 	d.dirty = true
 	return ctrl.mcp._ok({"bookmark": bm})

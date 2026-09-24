@@ -63,7 +63,7 @@ static func resolve_sheet_path(charset: String, pack_dir: String = "") -> String
 	path = path.replace("/", "\\")
 	if FileAccess.file_exists(path):
 		return path
-	# 3) content_root/characters + mv_img/characters (苍蓝星) when AssetManager available
+	# 3) content_root/characters + packs/mv_img/characters when AssetManager available
 	if am != null:
 		if am.has_method("content_root"):
 			var cr_chars: String = "%s/characters/%s" % [str(am.content_root()), file_name]

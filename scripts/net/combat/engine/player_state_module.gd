@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain module: player combat state (stealth, mount, in-combat, chase breaking).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 func player_has_stealth() -> bool:
 	return ctrl.stats != null and ctrl.stats.statuses != null and ctrl.stats.statuses.has_status("player", "stealth")

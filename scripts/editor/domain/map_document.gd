@@ -28,6 +28,7 @@ var environment: String = MapExt.ENV_OUTDOOR
 var dirty: bool = false
 var bookmarks: Array = []
 var regions: Array = []
+var building_instances: Dictionary = {}
 
 var _undo: Array = []
 var _redo: Array = []
@@ -72,6 +73,7 @@ func cached_chunk_cells() -> Array[Vector2i]:
 
 
 func setup_blank(p_id: String, p_name: String, w: int, h: int, ts: int = 48) -> void:
+	building_instances.clear()
 	map_id = p_id
 	display_name = p_name
 	width = clamp_side(w)
@@ -261,6 +263,7 @@ func load_dir(dir: String) -> bool:
 		environment = MapExt.ENV_OUTDOOR
 	bookmarks = map_data.get("bookmarks", []) if typeof(map_data.get("bookmarks")) == TYPE_ARRAY else []
 	regions = map_data.get("regions", []) if typeof(map_data.get("regions")) == TYPE_ARRAY else []
+	building_instances = map_data.building_instances.duplicate(true) if typeof(map_data.get("building_instances")) == TYPE_DICTIONARY else {}
 	dirty = false
 	_undo.clear()
 	_redo.clear()
@@ -291,7 +294,9 @@ func save_dir(dir: String) -> bool:
 		"environment": environment,
 		"bookmarks": bookmarks,
 		"regions": regions,
+		"building_instances": building_instances,
 	}
+	if building_instances.is_empty():map_obj.erase("building_instances")
 	if not _write_json("%s/map.json" % dir, map_obj):
 		return false
 	if chunked:
@@ -663,12 +668,15 @@ func clone(new_id: String, new_name: String) -> RefCounted:
 	d.light_preset = light_preset
 	d.light_fx_color = light_fx_color
 	d.environment = environment
+	d.building_instances = building_instances.duplicate(true)
 	d.dirty = true
 	return d
 
 
 func _apply_cmd(cmd: Dictionary, reverse: bool) -> void:
 	match str(cmd.get("t", "")):
+		"building_instances":
+			building_instances = cmd.get("old" if reverse else "new", {}).duplicate(true)
 		"batch":
 			var ops: Array = cmd.get("ops", [])
 			if reverse:

@@ -358,6 +358,23 @@ func can_pass(x: int, y: int, d: int) -> bool:
 	return _can_pass_cardinal(x, y, d, true)
 
 
+## Per-search snapshot: exit bits 1/2/4/8, void 16, occupied 32, OOB 64.
+## The caller caches only for one synchronous search, so live occupancy and
+## editor changes never require a persistent-cache invalidation protocol.
+func path_cell_flags(x: int, y: int) -> int:
+	if not is_valid(x,y):return 64|16
+	var occupied:=32 if is_extra_blocked(x,y) else 0
+	if is_void_cell(x,y):return 16|occupied
+	var meta:=meta_at(x,y)
+	if (meta & MapExt.META_FORCE_BLOCK)!=0:return occupied
+	if (meta & MapExt.META_FORCE_PASS)!=0:return 15|occupied
+	if _ext_water_blocks(x,y,meta):return occupied
+	for tile in layered_tiles(x,y):
+		var flag:=flag_of(tile)
+		if (flag & 16)==0:return ((~flag)&15)|occupied
+	return occupied
+
+
 ## Tile-only passage (ignores extra_blocked). Used to build the static edge graph.
 func can_pass_tiles(x: int, y: int, d: int) -> bool:
 	if TileId.is_diagonal(d):

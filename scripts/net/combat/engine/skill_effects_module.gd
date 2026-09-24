@@ -3,9 +3,12 @@ extends RefCounted
 ## mark, revive, charge, execute) and the _resolve_skill_effect dispatcher.
 ## Damage/heal/status/geometry helpers stay on the engine (ctrl).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const GridPath = preload("res://scripts/map/grid_path.gd")
 

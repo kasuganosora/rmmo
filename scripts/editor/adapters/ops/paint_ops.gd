@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: paint (rect/fill/cells/polyline/ellipse/ring/arc/scatter, passage, autotiles).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const PaintTools = preload("res://scripts/editor/domain/paint_tools.gd")
@@ -22,7 +25,7 @@ func paint_rect(args: Dictionary) -> Dictionary:
 	paint.tool = PaintTools.Tool.RECT
 	paint.exact_autotile = bool(args.get("exact", false))
 	if args.has("tile_id"):
-		paint.tile_id = int(args.get("tile_id", 0))
+		paint.set_stamp(1, 1, PackedInt32Array([int(args.get("tile_id", 0))]))
 	var a = Vector2i(int(r.x), int(r.y))
 	var b = Vector2i(int(r.x) + int(r.w) - 1, int(r.y) + int(r.h) - 1)
 	var dirty: Array[Vector2i] = paint.apply_rect(d, a, b, bool(args.get("erase", false)))
@@ -40,7 +43,7 @@ func paint_fill(args: Dictionary) -> Dictionary:
 	paint.tool = PaintTools.Tool.FILL
 	paint.exact_autotile = false
 	if args.has("tile_id"):
-		paint.tile_id = int(args.get("tile_id", 0))
+		paint.set_stamp(1, 1, PackedInt32Array([int(args.get("tile_id", 0))]))
 	var c: Vector2i = ctrl.mcp._cell(args)
 	var dirty: Array[Vector2i] = paint.apply_cell(d, c, bool(args.get("erase", false)))
 	ctrl._touch(dirty)
@@ -196,13 +199,15 @@ func set_passage(args: Dictionary) -> Dictionary:
 	if p == null or d == null:
 		return ctrl.mcp._err("no map")
 	var tid = int(args.get("tile_id", 0))
-	if tid <= 0:
+	if not TileId.is_visible(tid):
 		return ctrl.mcp._err("tile_id required")
 	var ts_id = str(d.tileset_id)
 	if not p.tilesets.has(ts_id):
 		return ctrl.mcp._err("no tileset")
 	var ts: Dictionary = p.tilesets[ts_id]
 	var flags = ctrl._flags_of(ts)
+	if TileId.is_extra(tid) and tid >= flags.size():
+		flags.resize(tid + 1)
 	if flags.size() < TileId.TILE_ID_MAX:
 		var old = flags.size()
 		flags.resize(TileId.TILE_ID_MAX)

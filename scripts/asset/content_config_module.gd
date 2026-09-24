@@ -24,6 +24,10 @@ func start_map_pack_id() -> String:
 	return ctrl.alias_map_pack_id(id)
 
 func start_map_pack_ref() -> String:
+	ctrl._ensure_content_cfg()
+	var explicit_path := str(ctrl._content_cfg.get("start_map_pack_path", "")).strip_edges()
+	if explicit_path != "":
+		return explicit_path
 	return ContentRef.make("map_pack", ctrl.start_map_pack_id())
 
 func street_map_pack_id() -> String:

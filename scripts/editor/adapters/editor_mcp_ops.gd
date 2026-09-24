@@ -21,10 +21,14 @@ const AssetOps = preload("res://scripts/editor/adapters/ops/asset_ops.gd")
 const HistoryOps = preload("res://scripts/editor/adapters/ops/history_ops.gd")
 const MapCrudOps = preload("res://scripts/editor/adapters/ops/map_crud_ops.gd")
 const StampOps = preload("res://scripts/editor/adapters/ops/stamp_ops.gd")
+const BuildingOps = preload("res://scripts/editor/adapters/ops/building_ops.gd")
+var _building_ops_logic: BuildingOps = BuildingOps.new(self)
 const TilesOps = preload("res://scripts/editor/adapters/ops/tiles_ops.gd")
 const PaintOps = preload("res://scripts/editor/adapters/ops/paint_ops.gd")
 const MapSettingsOps = preload("res://scripts/editor/adapters/ops/map_settings_ops.gd")
 const InspectOps = preload("res://scripts/editor/adapters/ops/inspect_ops.gd")
+const TilesetQaOps = preload("res://scripts/editor/adapters/ops/tileset_qa_ops.gd")
+var _tileset_qa_logic: TilesetQaOps = TilesetQaOps.new(self)
 var _inspect_ops_logic: InspectOps = InspectOps.new(self)
 var _map_settings_ops_logic: MapSettingsOps = MapSettingsOps.new(self)
 var _paint_ops_logic: PaintOps = PaintOps.new(self)
@@ -51,8 +55,8 @@ var _op_registry: Dictionary = {}
 func _build_op_registry() -> void:
 	if _op_modules.is_empty():
 		_op_modules = [
-			_inspect_ops_logic, _map_settings_ops_logic, _paint_ops_logic,
-			_tiles_ops_logic, _stamp_ops_logic, _map_crud_ops_logic,
+			_inspect_ops_logic, _tileset_qa_logic, _map_settings_ops_logic, _paint_ops_logic,
+			_tiles_ops_logic, _stamp_ops_logic, _building_ops_logic, _map_crud_ops_logic,
 			_history_ops_logic, _asset_ops_logic, _entity_ops_logic,
 		]
 	_op_registry = {}
@@ -128,7 +132,7 @@ func paint_one(args: Dictionary) -> Dictionary:
 	paint.tool = PaintTools.Tool.PENCIL
 	paint.exact_autotile = bool(args.get("exact", false))
 	if args.has("tile_id") or args.has("id"):
-		paint.tile_id = int(args.get("tile_id", args.get("id", 0)))
+		paint.set_stamp(1, 1, PackedInt32Array([int(args.get("tile_id", args.get("id", 0)))]))
 	var c: Vector2i = mcp._cell(args)
 	var dirty: Array[Vector2i] = paint.apply_cell(d, c, bool(args.get("erase", false)))
 	_touch(dirty)
@@ -348,10 +352,11 @@ func _flags_of(ts: Dictionary) -> PackedInt32Array:
 func _load_sheets(ts: Dictionary) -> Array:
 	var sheets: Array = []
 	sheets.resize(9)
-	var names_v: Variant = ts.get("tilesetNames", [])
+	var names_v: Variant = TileId.sheet_names(ts)
 	var names: Array = names_v if typeof(names_v) == TYPE_ARRAY else []
+	sheets.resize(names.size())
 	var am = Engine.get_main_loop().root.get_node_or_null("/root/AssetManager") if Engine.get_main_loop() else null
-	for i in range(9):
+	for i in range(names.size()):
 		var n := str(names[i]) if i < names.size() else ""
 		if n.strip_edges() == "":
 			sheets[i] = null
@@ -376,6 +381,11 @@ func _load_sheet(am, sheet_name: String) -> Image:
 		var img2 := Image.new()
 		if img2.load(fallback) == OK:
 			return _rgba(img2)
+	if pack() != null:
+		var local := "%s/assets/tilesheet/%s.png" % [pack().root, sheet_name.get_basename()]
+		if FileAccess.file_exists(local):
+			var img3 := Image.new()
+			if img3.load(local) == OK:return _rgba(img3)
 	return null
 
 func _rgba(img: Image) -> Image:
@@ -416,6 +426,8 @@ func _compose_a(sheets: Array, flags: PackedInt32Array, tile_px: int) -> Image:
 	return img
 
 func _sheet_index(tab: String) -> int:
+	if tab.begins_with("X"):
+		return 9 + int(tab.substr(1))
 	match tab:
 		"B":
 			return 5
@@ -429,6 +441,8 @@ func _sheet_index(tab: String) -> int:
 			return 4
 
 func _tab_base(tab: String) -> int:
+	if tab.begins_with("X"):
+		return TileId.TILE_ID_EXTRA + int(tab.substr(1)) * 256
 	match tab:
 		"C":
 			return TileId.TILE_ID_C
