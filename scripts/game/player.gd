@@ -17,18 +17,25 @@ const PlayerAppearance = preload("res://scripts/game/application/player_appearan
 const PlayerCamera = preload("res://scripts/game/application/player_camera.gd")
 const PlayerDestMarker = preload("res://scripts/game/interface/player_dest_marker.gd")
 const PlayerFacing = preload("res://scripts/game/application/player_facing.gd")
+const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
+var character_3d: Node2D
 
-@export var step_duration: float = 0.16
-@export var run_duration: float = 0.09
+## Seconds per grid step: keyboard walking is half the previous normal speed.
+@export var step_duration: float = 0.32
+@export var run_duration: float = 0.16
 
 @onready var anim: AnimatedSprite2D = %Anim
 
 var look_id: String = "1"
 var gender: String = LookCatalog.GENDER_FEMALE
 var _facing: String = "front"
+var _pose := ""
+var _pose_generation := 0
 
 var cell: Vector2i = Vector2i.ZERO
 var moving: bool = false
+## Resolved for the active step, including map restrictions; also drives animation.
+var _step_running: bool = false
 var input_locked: bool = false
 var sitting: bool = false
 var map_field: Node2D = null
@@ -47,6 +54,19 @@ func setup(p_look_id: String, p_gender: String = LookCatalog.GENDER_FEMALE, p_cu
 	if anim == null:
 		return
 	var cust: Dictionary = p_customization if typeof(p_customization) == TYPE_DICTIONARY else {}
+	if CharacterView3D.enabled():
+		if character_3d==null:
+			character_3d=CharacterView3D.new()
+			character_3d.render_scale=CharacterView3D.WORLD_RENDER_SCALE
+			character_3d.name="Character3D"
+			add_child(character_3d)
+			character_3d.driver=anim
+		character_3d.configure(gender,cust,{})
+		anim.sprite_frames=CharacterView3D.control_frames()
+		anim.visible=false
+		anim.play("idle_front")
+		z_index=5
+		return
 	var sheet := str(cust.get("mv_sheet", ""))
 	if sheet != "":
 		var frames := MV.load_sheet_frames(sheet)
@@ -93,11 +113,44 @@ func snap_camera() -> void:
 	PlayerCamera.snap_camera(self, )
 func _reenable_camera_smoothing() -> void:
 	PlayerCamera._reenable_camera_smoothing(self, )
-func set_sitting(on: bool) -> void:
+func set_sitting(on: bool, on_chair: bool = false) -> void:
 	sitting = on
 	if on:
 		clear_move_path()
-		_play_idle()
+		play_character_action("sit_chair" if on_chair else "sit_ground", true)
+	else:
+		clear_character_action()
+
+
+func is_pose_active() -> bool:
+	return not _pose.is_empty()
+
+
+func clear_character_action() -> void:
+	_pose_generation += 1
+	_pose = ""
+	_play_idle()
+
+
+func play_character_action(action: String, hold: bool = false, variant: String = "") -> void:
+	if anim == null or anim.sprite_frames == null:
+		return
+	var animation := action + "_" + _facing
+	if not anim.sprite_frames.has_animation(animation):
+		return
+	_pose_generation += 1
+	var generation := _pose_generation
+	_pose = action
+	if character_3d!=null:character_3d.play(action,_facing,true,variant)
+	anim.stop()
+	anim.play(animation)
+	if hold:
+		return
+	var duration := anim.sprite_frames.get_frame_count(animation) / maxf(anim.sprite_frames.get_animation_speed(animation), 1.0)
+	if character_3d!=null:duration=character_3d.model.action_duration()
+	await get_tree().create_timer(duration).timeout
+	if generation == _pose_generation:
+		clear_character_action()
 
 func clear_move_path() -> void:
 	PlayerMovement.clear_move_path(self, )
@@ -106,7 +159,7 @@ func set_move_path(path: Array[Vector2i]) -> void:
 	PlayerMovement.set_move_path(self, path)
 func has_move_path() -> bool:
 	return PlayerMovement.has_move_path(self, )
-## Left-click target cell: snap/pathfind then walk.
+## Left-click target cell: snap/pathfind then run.
 func click_move_to(target: Vector2i) -> bool:
 	return PlayerMovement.click_move_to(self, target)
 func _physics_process(delta: float) -> void:

@@ -10,6 +10,8 @@ const Customization = preload("res://scripts/char/customization.gd")
 const SLOT_MV_CAT := {
 	"chest": "Clothing1",
 	"legs": "Clothing2",
+	"feet": "Boots",
+	"belt": "Belt",
 	"necklace": "AccA",
 	"earring_l": "AccB",
 	"earring_r": "AccB",
@@ -22,6 +24,7 @@ static func standing_texture(ch: Dictionary, equipment: Array, catalog = null) -
 	var parts: Dictionary = cust.part_ids.duplicate()
 	if parts.is_empty():
 		parts = MV.default_parts(gender)
+	parts = MV.appearance_parts(parts)
 	var mv_eq := equipment_to_mv_parts(gender, equipment, catalog)
 	parts = MV.apply_equipment(parts, mv_eq)
 	parts = MV.validate_parts(gender, parts)
@@ -67,6 +70,8 @@ static func _compose_standing(gender: String, parts: Dictionary, colors: Diction
 		return null
 	var res: Dictionary = MV.compose_preview(gender, parts, colors)
 	var frames: SpriteFrames = res.get("frames", null)
+	if frames != null and frames.has_animation("idle_front"):
+		return frames.get_frame_texture("idle_front", 0)
 	if frames != null and frames.has_animation("walk_front"):
 		var n: int = frames.get_frame_count("walk_front")
 		if n > 0:

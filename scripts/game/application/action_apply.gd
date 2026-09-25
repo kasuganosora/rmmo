@@ -107,6 +107,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 				ctrl._auto_attack = false
 				if ctrl.player != null:
 					ctrl.player.input_locked = true
+					if ctrl.player.has_method("play_character_action"):
+						ctrl.player.play_character_action("death", true)
 					if ctrl.player.has_method("clear_move_path"):
 						ctrl.player.clear_move_path()
 				if ctrl.hud != null and ctrl.hud.has_method("clear_target"):
@@ -911,7 +913,7 @@ static func apply_recall(ctrl, action: Dictionary) -> void:
 static func apply_sit(ctrl, action: Dictionary) -> void:
 	var on = bool(action.get("on", false))
 	if ctrl.player != null and ctrl.player.has_method("set_sitting"):
-		ctrl.player.set_sitting(on)
+		ctrl.player.set_sitting(on, str(action.get("seat", "ground")) == "chair")
 
 static func apply_respawn(ctrl, action: Dictionary) -> void:
 	ctrl._clear_pending_engage()
@@ -1123,6 +1125,16 @@ static func apply_skill_anim(ctrl, action: Dictionary) -> void:
 		node = ctrl._find_npc_by_id(actor)
 	if node == null:
 		return
+	if node.has_method("play_character_action"):
+		var pose: String = "attack" if kind in ["strike", "spin", "attack"] else kind
+		var variant:String=str(action.get("motion", ""))
+		if variant.is_empty():
+			match str(action.get("skill_id","")):
+				"power_strike","execute":variant="attack_sword_heavy" if node==ctrl.player and ctrl.player.character_3d!=null and ctrl.player.character_3d.model.equipment.get("WeaponMain")!=null and int(ctrl.player.character_3d.model.equipment.get("WeaponMain",0))>0 else "attack_hook"
+				"heal_light","regen_mist","revive","channel_beam":variant="cast_charge"
+				"flame_burst","arcane_bolt":variant="cast_quick"
+		if node==ctrl.player:node.play_character_action(pose,false,variant)
+		else:node.play_character_action(pose)
 	if ctrl._skill_fx.has_method("play_action"):
 		ctrl._skill_fx.play_action(kind, node, facing)
 	else:

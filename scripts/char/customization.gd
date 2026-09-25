@@ -3,7 +3,7 @@ extends RefCounted
 ## 角色外观数据（玩家捏脸与 NPC 形象共用）。
 ##
 ## 一个外观 = 体型(gender) + 部件表(part_ids) + 配色(色带下标) + 装备(equipment)。
-## 配色存的是 gradients.png 的色带下标（0..69），合成时由 MVGenerator 按部件的
+## 配色保存稳定 ID：旧色带 0..69，K 系列发色 1001..1230。合成时由 MVGenerator 按部件的
 ## _mNNN 色组「参考色锚点 + 色带映射」上色。
 ##
 ## 装备不混进 part_ids：equipment 单独存，取 effective_part_ids() 时才叠加，
@@ -19,6 +19,18 @@ var cloth_row: int = MV.default_row("cloth")
 var skin_on: bool = true
 var hair_on: bool = true
 var cloth_on: bool = false
+## Empty eye colour preserves the source iris. Bust 0.5 is the original adult female shape.
+var eye_color: String = ""
+var bust_size: float = 0.5
+
+static func valid_eye_color(value:Variant)->String:
+	var text:=str(value)
+	return "#"+Color.from_string(text,Color.WHITE).to_html(false) if text.begins_with("#") and text.length()==7 and Color.html_is_valid(text) else ""
+
+static func valid_bust_size(value:Variant)->float:
+	if typeof(value) not in [TYPE_INT,TYPE_FLOAT]:return 0.5
+	var number:=float(value)
+	return clampf(number,0.0,1.0) if is_finite(number) else 0.5
 
 ## 分层部件 id（MV Generator）：{ 类别: 变体号(int) }。
 var part_ids: Dictionary = {}
@@ -83,6 +95,8 @@ func to_dict() -> Dictionary:
 		"skin_on": skin_on,
 		"hair_on": hair_on,
 		"cloth_on": cloth_on,
+		"eye_color": valid_eye_color(eye_color),
+		"bust_size": valid_bust_size(bust_size),
 		"part_ids": part_ids,
 		"equipment": equipment,
 		"mv_sheet": mv_sheet,
@@ -99,6 +113,8 @@ static func from_dict(d: Dictionary) -> Customization:
 	c.skin_on = bool(d.get("skin_on", true))
 	c.hair_on = bool(d.get("hair_on", true))
 	c.cloth_on = bool(d.get("cloth_on", false))
+	c.eye_color = valid_eye_color(d.get("eye_color",""))
+	c.bust_size = valid_bust_size(d.get("bust_size",0.5))
 	if typeof(d.get("part_ids")) == TYPE_DICTIONARY:
 		c.part_ids = d["part_ids"]
 	if typeof(d.get("equipment")) == TYPE_DICTIONARY:

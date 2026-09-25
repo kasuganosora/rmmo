@@ -24,6 +24,12 @@ static func apply_gear_look(ctrl, ch: Dictionary, equipment: Array, catalog = nu
 		colors = cust.colors()
 	if parts.is_empty():
 		parts = MV.default_parts(gender)
+	parts = MV.appearance_parts(parts)
+	if ctrl.get("character_3d")!=null:
+		var overlays:Dictionary=preload("res://scripts/char/character_view_3d.gd").equipment_parts(gender,equipment,catalog)
+		ctrl.character_3d.configure(gender,cust_d,overlays)
+		if ctrl._weapon_spr!=null:ctrl._weapon_spr.visible=false
+		return
 	if PaperdollLook != null and PaperdollLook.has_method("equipment_to_mv_parts"):
 		var overlay: Dictionary = PaperdollLook.equipment_to_mv_parts(gender, equipment, catalog)
 		parts = MV.apply_equipment(parts, overlay)
@@ -32,12 +38,21 @@ static func apply_gear_look(ctrl, ch: Dictionary, equipment: Array, catalog = nu
 	if frames == null:
 		return
 	var facing = ctrl._facing
+	var previous_animation: StringName = ctrl.anim.animation
+	var previous_frame: int = ctrl.anim.frame
+	var previous_progress: float = ctrl.anim.frame_progress
+	var was_playing: bool = ctrl.anim.is_playing()
 	ctrl.anim.sprite_frames = frames
 	ctrl.anim.scale = Vector2(1.35, 1.35)
 	ctrl.anim.centered = true
 	ctrl.anim.offset = Vector2(0, -32)
 	var idle = "idle_%s" % facing
-	if ctrl.anim.sprite_frames.has_animation(idle):
+	if frames.has_animation(previous_animation):
+		ctrl.anim.play(previous_animation)
+		ctrl.anim.set_frame_and_progress(mini(previous_frame, frames.get_frame_count(previous_animation) - 1), previous_progress)
+		if not was_playing:
+			ctrl.anim.pause()
+	elif ctrl.anim.sprite_frames.has_animation(idle):
 		ctrl.anim.play(idle)
 	else:
 		ctrl.anim.play("idle_front")

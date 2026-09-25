@@ -88,7 +88,7 @@ func _fill_system_game(body: VBoxContainer, gs: Node) -> void:
 	_add_check(body, "显示物品飘字", bool(gs.show_item_floats), func(on: bool): gs.set_flag("show_item_floats", on))
 	_add_check(body, "暴击震屏", bool(gs.screen_shake), func(on: bool): gs.set_flag("screen_shake", on))
 	_add_check(body, "战斗镜头偏移", bool(gs.combat_camera_frame), func(on: bool): gs.set_flag("combat_camera_frame", on))
-	_add_check(body, "始终奔跑", bool(gs.always_run), func(on: bool): gs.set_flag("always_run", on))
+	_add_check(body, "键盘移动始终奔跑", bool(gs.always_run), func(on: bool): gs.set_flag("always_run", on))
 	_add_check(body, "天气特效", bool(gs.weather_fx), func(on: bool): gs.set_flag("weather_fx", on))
 	_add_check(body, "自动拾取", bool(gs.auto_pickup), func(on: bool): gs.set_flag("auto_pickup", on))
 	_add_setting_row(body, "自动拾取过滤", _make_auto_pickup_filter_option(gs))

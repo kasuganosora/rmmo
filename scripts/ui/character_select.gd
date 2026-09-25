@@ -2,6 +2,8 @@ extends Control
 const Net = preload("res://scripts/net/net.gd")
 const LookCatalog = preload("res://scripts/char/look_catalog.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
+const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
+var _icon_views:Array=[]
 
 @onready var list: ItemList = %CharList
 @onready var status_label: Label = %Status
@@ -22,6 +24,7 @@ func _ready() -> void:
 
 
 func _warmup_create() -> void:
+	if CharacterView3D.enabled():return
 	MV.warmup(LookCatalog.GENDER_FEMALE)
 
 func _refresh() -> void:
@@ -30,6 +33,8 @@ func _refresh() -> void:
 	Net.server().fetch_characters()
 
 func _on_chars(chars: Array) -> void:
+	for view in _icon_views:view.queue_free()
+	_icon_views.clear()
 	_chars = chars
 	Net.session().characters = chars
 	list.clear()
@@ -45,6 +50,13 @@ func _on_chars(chars: Array) -> void:
 		var gender := LookCatalog.normalize_gender(str(c.get("gender", LookCatalog.GENDER_FEMALE)))
 		var tex: Texture2D = null
 		var cust: Dictionary = c.get("customization", {}) if typeof(c.get("customization")) == TYPE_DICTIONARY else {}
+		if CharacterView3D.enabled():
+			var view:=CharacterView3D.new();view.portrait_mode=true
+			add_child(view);view.display.visible=false
+			view.configure(gender,cust,{})
+			_icon_views.append(view)
+			list.set_item_icon(idx,view.viewport.get_texture())
+			continue
 		var sheet := str(cust.get("mv_sheet", ""))
 		if sheet != "":
 			tex = MV.load_sheet_texture(sheet)

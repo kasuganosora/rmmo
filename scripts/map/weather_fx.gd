@@ -35,6 +35,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	add_to_group("character_weather")
 	layer = Weather.CANVAS_ATMOSPHERE
 	follow_viewport_enabled = false
 	_rain = _make_particles("Rain", _gradient_tex(Vector2i(2, 18), false), 220)
@@ -119,7 +120,7 @@ func _refresh_display() -> void:
 
 
 func _visually_same(a: Dictionary, b: Dictionary) -> bool:
-	for key in ["kind", "particles", "map_indoor", "intensity", "modulate", "particle_amount", "fog", "fog_color", "lightning", "sfx"]:
+	for key in ["wind", "kind", "particles", "map_indoor", "intensity", "modulate", "particle_amount", "fog", "fog_color", "lightning", "sfx"]:
 		if a.get(key) != b.get(key):
 			return false
 	return true
@@ -159,15 +160,14 @@ func set_eaves(on: bool) -> void:
 
 
 func _process(delta: float) -> void:
-	if _snow.emitting:
-		_wind_time += delta
-		_wind_tick += delta
-		if _wind_tick >= 0.1:
-			_wind_tick = 0.0
-			_snow.gravity.x = sin(_wind_time * 0.7) * 9.0
-			_snow_far.gravity.x = sin(_wind_time * 0.5 + 1.0) * 3.0
-			_snow_near.gravity.x = sin(_wind_time * 0.65 + 2.0) * 16.0
-			_snow_crystal.gravity.x = sin(_wind_time * 0.8 + 0.7) * 11.0
+	_wind_time += delta
+	_wind_tick += delta
+	if _wind_tick >= 0.1:
+		_wind_tick = 0.0
+		var wind:=character_wind()
+		for particles in [_rain,_storm,_snow,_snow_far,_snow_near,_snow_crystal,_mist]:
+			particles.direction=Vector2(wind.x*.5,1.0+wind.y*.15).normalized()
+			particles.gravity.x=wind.x*(120.0 if particles in [_rain,_storm] else 45.0)
 	if _mix < 1.0:
 		_mix = minf(1.0, _mix + delta / Weather.transition_sec())
 		_refresh_display()
@@ -412,3 +412,6 @@ func _gradient_tex(size: Vector2i, radial: bool) -> Texture2D:
 	tex.fill_from = Vector2(0.5, 0.5) if radial else Vector2(0.5, 0)
 	tex.fill_to = Vector2(0.5, 1)
 	return tex
+
+func character_wind()->Vector2:
+	return Weather.sample_wind(_display,_wind_time)

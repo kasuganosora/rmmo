@@ -13,7 +13,6 @@ config_version=5
 config/name="rmmo"
 run/main_scene="res://scenes/login.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
-config/icon="res://icon.svg"
 
 [autoload]
 
@@ -34,7 +33,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/silence_type_safe_gutter/plugin.cfg", "res://addons/godot_ai/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/silence_type_safe_gutter/plugin.cfg")
 
 [rendering]
 
@@ -47,3 +46,4 @@ content_root="/workspace/rmmo_runtime"
 charset_root="/workspace/rmmo_runtime/assets/charset"
 default_pack="default"
 ui_pack="default"
+characters_3d=true

@@ -11,6 +11,7 @@ const EquipSlot = preload("res://scripts/ui/equip_slot.gd")
 const Equipment = preload("res://scripts/net/combat/equipment.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const PaperdollLook = preload("res://scripts/char/paperdoll_look.gd")
+const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
 
 func _is_item_equipped(item_id: String) -> bool:
 	item_id = item_id.strip_edges()
@@ -115,7 +116,17 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 	host.add_child(canvas)
 	var sil = TextureRect.new()
 	sil.name = "Silhouette"
-	sil.texture = _paperdoll_texture(ch)
+	if CharacterView3D.enabled():
+		var view:=CharacterView3D.new()
+		canvas.add_child(view)
+		view.display.visible=false
+		var srv=Net.server()
+		var catalog=srv.get("item_catalog") if srv!=null else null
+		var gender:String=str(ch.get("gender","female"))
+		view.configure(gender,ch.get("customization",{}),CharacterView3D.equipment_parts(gender,ctrl._server_equipment,catalog))
+		sil.texture=view.viewport.get_texture()
+	else:
+		sil.texture = _paperdoll_texture(ch)
 	sil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sil.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	sil.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -128,7 +139,8 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 	canvas.add_child(sil)
 	# Left column jewelry/armor, right column weapons/rings, head/feet on the figure.
 	var positions: Dictionary = {
-		"head": Vector2(93, 4),
+		"head": Vector2(70, 4),
+		"head_accessory": Vector2(116, 4),
 		"earring_l": Vector2(4, 16),
 		"earring_r": Vector2(182, 16),
 		"necklace": Vector2(4, 62),
@@ -140,6 +152,7 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 		"legs": Vector2(4, 200),
 		"ring_l": Vector2(182, 200),
 		"feet": Vector2(93, 256),
+		"belt": Vector2(182, 246),
 	}
 	var eq_map = _equipment_map()
 	for sid in positions.keys():

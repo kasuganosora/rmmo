@@ -63,9 +63,7 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 		return
 	char_name = char_name.strip_edges()
 	look_id = look_id.strip_edges()
-	gender = gender.strip_edges().to_lower()
-	if gender != "male":
-		gender = "female"
+	gender = preload("res://scripts/char/look_catalog.gd").normalize_gender(gender)
 	if char_name.is_empty():
 		ctrl.character_created.emit(false, "请输入角色名", {})
 		return
@@ -140,11 +138,18 @@ func enter_world(character_id: int) -> void:
 	if ctrl.inventory != null:
 		ctrl.inventory.clear()
 		ctrl.inventory.grant_starter()
+		for item in preload("res://scripts/char/starter_equipment.gd").GIFT_ITEMS:
+			ctrl.inventory.add_item(item["id"],1)
 	if ctrl.warehouse != null:
 		ctrl.warehouse.clear()
 	ctrl._shop_buyback.clear()
 	if ctrl.equipment != null:
 		ctrl.equipment.clear()
+		if ctrl.inventory != null:
+			for item in preload("res://scripts/char/starter_equipment.gd").ITEMS:
+				var iid: String = item["id"]
+				ctrl.inventory.add_item(iid, 1)
+				ctrl.equipment.try_equip_from_bag(ctrl.inventory, iid)
 	if ctrl.quest_journal != null:
 		ctrl.quest_journal.clear()
 		ctrl.quest_journal.grant_starter()

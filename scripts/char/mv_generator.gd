@@ -1,35 +1,23 @@
 class_name MVGenerator
 extends RefCounted
-## RPG Maker MV Generator 部件合成器：把 MV 的分层部件 PNG 叠成角色精灵/头像。
-##
-## 这是「角色外观参数化」的底层模块，玩家捏脸和 NPC 形象共用同一套数据模型：
-##
-##   外观 = 体型(gender) + 部件表(part_ids) + 配色(colors)
-##     gender   : "female" / "male" / "kid"（对应 Generator 下的 Female/Male/Kid）
-##     part_ids : { 类别: 变体号 } ，同一个键同时作用于头像和行走图
-##     colors   : { "skin"/"hair"/"cloth": 色带下标 } ，见 GRADIENT 相关函数
-##
-## 对外只需这几个入口即可生成任意形象（NPC 也走这条）：
-##     slots_for() / default_parts() / random_parts() / validate_parts()
-##     compose_preview() / compose_all() / bake_sheet() / variant_layer_thumb()
-##
-## 颜色机制：部件美术按「参考色」绘制，文件名 _mNNN 标色组；上色 = 把像素相对
-## 参考色的明暗偏移，映射到 gradients.png 所选色带内的横向位置。详见 _tint()。
-##
-## 注意：这些美术来自 RPG Maker MV（RTP/Generator），受 RPG Maker EULA 约束，
-## 只能用于 RPG Maker 制作的游戏。此处仅作原型占位，上线前必须替换为自有理材。
-## 仓库不提交任何 MV 素材，运行时从外部路径读取，烘到 user:// 缓存。
+const ArtPaths=preload("res://scripts/asset/art_paths.gd")
+## Original layered character compositor. MVGenerator name and part keys remain for save compatibility.
+## Artwork lives in the original character_creator package; no Steam/RTP fallback is used.
+## TV: 48x72 standing cells. Motion: 96x96 cells, four frames x eight actions x eight directions.
 
-const DEFAULT_ROOT := "D:/SteamLibrary/steamapps/common/RPG Maker MV/Generator"
 
 # 体型目录名（Generator 下的子目录）
-const BODY_TYPES := ["Female", "Male", "Kid"]
+const BODY_TYPES := ["Female", "Male", "YoungMale", "YoungFemale"]
 # 部件来源目录
 const SOURCES := ["Face", "TV"]
 
-const TV_SIZE := Vector2i(144, 192)
+const TV_SIZE := Vector2i(144, 576)
+const DIRECTIONS := ["front", "left", "right", "back", "front_left", "front_right", "back_left", "back_right"]
+const MOTION_CELL := Vector2i(96, 96)
+const ACTIONS := ["idle", "walk", "attack", "dash", "cast", "death", "sit_ground", "sit_chair"]
+const MOTION_SIZE := Vector2i(384, 6144)
 const FACE_SIZE := Vector2i(144, 144)
-const CELL := Vector2i(48, 48)
+const CELL := Vector2i(48, 72)
 
 # 叠图顺序（底 -> 顶）。
 # 依据部件 PNG 的实际像素结构：
@@ -39,8 +27,8 @@ const CELL := Vector2i(48, 48)
 const TV_ORDER := [
 	"Wing1", "Wing2", "Tail1", "Tail2",
 	"RearHair2", "Body", "RearHair1",
-	"Clothing2", "Clothing1", "Cloak2", "Cloak1",
-	"Ears", "BeastEars", "FrontHair1", "FrontHair2",
+	"Clothing2", "Clothing1", "Boots", "Belt", "Cloak2", "Cloak1",
+	"Ears", "Eyes", "Eyebrows", "Nose", "Mouth", "BeastEars", "FrontHair1", "FrontHair2",
 	"Beard1", "Beard2", "Glasses", "AccA", "AccB", "FacialMark",
 ]
 const FACE_ORDER := [
@@ -54,6 +42,7 @@ const FACE_ORDER := [
 # 归属「装备系统」的类别：建角界面不开放给玩家选（由装备系统在运行时决定）。
 # 注意：合成器本身完整支持这些类别，装备系统直接把对应 part_ids 传进来即可出图。
 const EQUIPMENT_CATS := [
+	"Boots", "Belt",
 	"Clothing1", "Clothing2", "Cloak1", "Cloak2",
 	"AccA", "AccB", "Wing1", "Wing2", "Tail1", "Tail2",
 	"Glasses",
@@ -66,9 +55,9 @@ const GRADIENT_FILE := "gradients.png"
 # 各色组（文件名 _mNNN）的官方参考色：部件美术就是用这些颜色画的，
 # 上色 = 把像素相对参考色的明暗偏移映射到所选色带内的横向位置。
 const M_REF := {
-	1: Color(0.976, 0.757, 0.616),   # m001 肤色
+	1: Color("f6d8c4"),   # original pale skin anchor
 	2: Color(0.173, 0.502, 0.796),   # m002 眼色
-	3: Color(0.988, 0.796, 0.039),   # m003 发色
+	3: Color("8a5635"),   # original chestnut hair anchor
 	4: Color(0.722, 0.573, 0.773),   # m004 发副色
 	5: Color(0.0, 0.569, 0.588),     # m005 面部印记
 	6: Color(0.827, 0.808, 0.780),   # m006 兽耳
@@ -110,6 +99,7 @@ const SLOT_ORDER := [
 
 # 部件类别中文名。
 const LABELS := {
+	"Boots": "鞋子", "Belt": "腰带",
 	"Face": "脸型", "Body": "身体", "Ears": "耳朵", "BeastEars": "兽耳",
 	"RearHair1": "后发1", "RearHair2": "后发2",
 	"FrontHair": "前发", "FrontHair1": "前发1", "FrontHair2": "前发2",
@@ -141,25 +131,14 @@ static var _preview_face_img: Image = null
 static var _preview_face_tex: Texture2D = null
 static var _tinted_cache: Dictionary = {}
 static var _lut_cache: Dictionary = {}
-const TINTED_CACHE_MAX := 160
+const TINTED_CACHE_MAX := 24
 
 
 static func root_path() -> String:
-	var configured := str(ProjectSettings.get_setting("rmmo/mv_generator_root", "")).strip_edges()
+	var configured := str(ProjectSettings.get_setting("rmmo/character_creator_root", "")).strip_edges()
 	if configured != "" and DirAccess.dir_exists_absolute(configured):
 		return configured
-	if DirAccess.dir_exists_absolute(DEFAULT_ROOT):
-		return DEFAULT_ROOT
-	# Box / Linux fallbacks (no Steam Generator install).
-	for cand in [
-		"/workspace/rmmo_runtime/Generator",
-		"/workspace/rmmo_runtime/mv_generator",
-		"/workspace/rmmo_runtime/packs/mv_img/Generator",
-		"/workspace/rmmo_runtime/mv_img/Generator",
-	]:
-		if DirAccess.dir_exists_absolute(cand):
-			return cand
-	return configured if configured != "" else DEFAULT_ROOT
+	return ArtPaths.path("character_creator")
 
 
 static func _regex() -> RegEx:
@@ -177,10 +156,14 @@ static func _regex_mask() -> RegEx:
 ## 体型字符串归一到 Generator 目录名：female/male/kid。
 static func gender_cap(gender: String) -> String:
 	var g := gender.strip_edges().to_lower()
+	if g == "young_male":
+		return "YoungMale"
+	if g == "young_female":
+		return "YoungFemale"
 	if g == "male" or g == "m" or g == "男":
 		return "Male"
 	if g == "kid" or g == "child" or g == "k" or g == "儿童" or g == "小孩":
-		return "Kid"
+		return "YoungFemale"
 	return "Female"
 
 
@@ -223,6 +206,7 @@ static func _catalog(src: String, gender: String) -> Dictionary:
 		d.list_dir_begin()
 		var f := d.get_next()
 		while f != "":
+			f = f.trim_suffix(".remap")
 			# 注意：不能用 continue 跳过本层，否则会漏掉 f = d.get_next() 造成死循环。
 			if not d.current_is_dir() and f.ends_with(".png") and not f.ends_with("_c.png"):
 				var m := _regex().search(f)
@@ -277,7 +261,14 @@ static func _gradients() -> Image:
 	if _grad != null:
 		return _grad
 	var img := Image.new()
-	if img.load(root_path() + "/" + GRADIENT_FILE) == OK:
+	var path := root_path() + "/" + GRADIENT_FILE
+	if path.begins_with("res://") and ResourceLoader.exists(path):
+		var texture := load(path) as Texture2D
+		if texture != null:
+			img = texture.get_image()
+	elif img.load(path) != OK:
+		return null
+	if not img.is_empty():
 		if img.get_format() != Image.FORMAT_RGBA8:
 			img.convert(Image.FORMAT_RGBA8)
 		_grad = img
@@ -319,6 +310,14 @@ static func _user_group(cat: String, m: int) -> String:
 
 ## 取第 index 条色带（0..69）的缓存数据：rgb 字节 + 每列亮度。
 static func _row_data(index: int) -> Dictionary:
+	if preload("res://scripts/char/hair_palette.gd").contains(index):
+		if _row_cache.has(index):return _row_cache[index]
+		var base:Color=preload("res://scripts/char/hair_palette.gd").color(index)
+		var rgb:=PackedByteArray();var lum:=PackedFloat32Array()
+		for x in range(256):
+			var c:Color=base.lerp(Color.WHITE,(128-x)/128.0*.65) if x<128 else base.darkened((x-128)/127.0*.78)
+			rgb.append(c.r8);rgb.append(c.g8);rgb.append(c.b8);lum.append(_lum(c))
+		_row_cache[index]={"rgb":rgb,"lum":lum};return _row_cache[index]
 	if _row_cache.has(index):
 		return _row_cache[index]
 	var rgb := PackedByteArray()
@@ -343,6 +342,7 @@ static func _row_data(index: int) -> Dictionary:
 
 ## 第 index 条色带的代表色（亮度最接近 0.55 的那格，作 UI 色块用）。
 static func row_color(index: int) -> Color:
+	if preload("res://scripts/char/hair_palette.gd").contains(index):return preload("res://scripts/char/hair_palette.gd").color(index)
 	if index < 0:
 		return Color(0.5, 0.5, 0.5)
 	var rd := _row_data(index)
@@ -350,13 +350,7 @@ static func row_color(index: int) -> Color:
 	var rgb: PackedByteArray = rd["rgb"]
 	if lum.is_empty():
 		return Color(0.5, 0.5, 0.5)
-	var best_x := 0
-	var best_d := 2.0
-	for x in range(lum.size()):
-		var d := absf(lum[x] - 0.55)
-		if d < best_d:
-			best_d = d
-			best_x = x
+	var best_x := lum.size() / 2
 	return Color8(rgb[best_x * 3], rgb[best_x * 3 + 1], rgb[best_x * 3 + 2])
 
 
@@ -376,6 +370,7 @@ static func palette() -> Array:
 ## 指定分组的色板。皮肤只保留肤色系的色带（暖色、中低饱和、够亮）；
 ## 发色/服装开放全部色带。若肤色筛选结果为空则退回全量。
 static func palette_for(group: String) -> Array:
+	if group=="hair":return preload("res://scripts/char/hair_palette.gd").entries()
 	var all := palette()
 	if group != "skin":
 		return all
@@ -395,10 +390,11 @@ static func _is_skin(c: Color) -> bool:
 
 ## 某分组的默认色带下标（无可用色带返回 -1，表示不上色）。
 static func default_row(group: String) -> int:
+	if group=="hair":return 1012
 	var p := palette_for(group)
 	if p.is_empty():
 		return -1
-	return int((p[0] as Dictionary)["index"])
+	return 4 if group == "hair" and p.size() > 4 else int((p[0] as Dictionary)["index"])
 
 
 ## 按 MV 官方机制给部件上色：
@@ -423,7 +419,7 @@ static func _tint(img: Image, index: int, ref_lum: float) -> void:
 		if d < best_d:
 			best_d = d
 			x_ref = x
-	var lut := _tint_lut(index, x_ref, ref_lum, rgb, w)
+	var lut := _tint_lut(index, w / 2, ref_lum, rgb, w)
 	var data := img.get_data()
 	var n := data.size()
 	var i := 0
@@ -539,10 +535,10 @@ static func warmup(gender: String) -> void:
 static func default_parts(gender: String) -> Dictionary:
 	var d := {}
 	for cat in TV_ORDER:
-		if not OPTIONAL.has(cat) and _available("TV", gender, cat):
+		if not OPTIONAL.has(cat) and cat not in EQUIPMENT_CATS and _available("TV", gender, cat):
 			d[cat] = _default_variant("TV", gender, cat)
 	for cat in FACE_ORDER:
-		if not OPTIONAL.has(cat) and _available("Face", gender, cat):
+		if not OPTIONAL.has(cat) and cat not in EQUIPMENT_CATS and _available("Face", gender, cat):
 			d[cat] = _default_variant("Face", gender, cat)
 	return d
 
@@ -599,6 +595,13 @@ static func apply_equipment(part_ids: Dictionary, equipment: Dictionary) -> Dict
 	return out
 
 
+static func appearance_parts(part_ids: Dictionary) -> Dictionary:
+	var out := part_ids.duplicate()
+	for cat in EQUIPMENT_CATS:
+		out.erase(cat)
+	return out
+
+
 ## 部件的参考色：优先用文件名色组 _mNNN 的官方参考色；
 ## TV 部件没有 _mNNN，用所属分组的主参考色兜底（肤=m001 发=m003 衣=m007）。
 static func _ref_for(cat: String, m: int) -> Color:
@@ -620,12 +623,19 @@ static func _load_part_image(path: String, size: Vector2i) -> Image:
 	if _png_cache.has(key):
 		return _png_cache[key]
 	var img := Image.new()
-	if img.load(path) != OK:
+	if path.begins_with("res://") and ResourceLoader.exists(path):
+		var texture := load(path) as Texture2D
+		if texture == null:
+			return null
+		img = texture.get_image()
+	elif img.load(path) != OK:
 		return null
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
 	if img.get_size() != size:
 		img.resize(size.x, size.y, Image.INTERPOLATE_NEAREST)
+	if _png_cache.size() >= 32:
+		_png_cache.clear()
 	_png_cache[key] = img
 	return img
 
@@ -642,6 +652,13 @@ static func _tinted_part(path: String, size: Vector2i, row: int, ref_lum: float)
 		return null
 	var img := src.duplicate()
 	_tint(img, row, ref_lum)
+	# The original body includes neutral modest underwear; skin tint must not recolor it.
+	if "_Body_" in path:
+		for y in range(img.get_height()):
+			for x in range(img.get_width()):
+				var original := src.get_pixel(x, y)
+				if original.s < 0.18:
+					img.set_pixel(x, y, original)
 	if _tinted_cache.size() >= TINTED_CACHE_MAX:
 		_tinted_cache.clear()
 	_tinted_cache[key] = img
@@ -653,10 +670,16 @@ static func _tinted_part(path: String, size: Vector2i, row: int, ref_lum: float)
 ##   "skin"/"hair"/"cloth" —— 用户可调的三组（部件按色组自动归属）
 ##   "m3" / "m007" 形式的色组键 —— 精确指定某个 _mNNN 色组（细粒度，装备/NPC 用）
 static func _render(src: String, gender: String, part_ids: Dictionary, colors: Dictionary = {}) -> Image:
-	var size: Vector2i = TV_SIZE if src == "TV" else FACE_SIZE
+	# Dedicated portrait layers take precedence over the old sprite-crop fallback.
+	if src == "Face" and not _available("Face", gender, "Body"):
+		var tv := _render("TV", gender, part_ids, colors)
+		var portrait := tv.get_region(Rect2i(CELL.x + 10, 3, 28, 28))
+		portrait.resize(FACE_SIZE.x, FACE_SIZE.y, Image.INTERPOLATE_NEAREST)
+		return portrait
+	var size: Vector2i = FACE_SIZE if src == "Face" else (MOTION_SIZE if src == "Motion" else TV_SIZE)
 	var base := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
 	var catmap := _catalog(src, gender)
-	var order := TV_ORDER if src == "TV" else FACE_ORDER
+	var order := TV_ORDER
 	for cat in order:
 		if not part_ids.has(cat):
 			continue
@@ -687,31 +710,35 @@ static func _render(src: String, gender: String, part_ids: Dictionary, colors: D
 ## 把 144x192 的 MMV 部件表切成 4 向 × 3 帧 SpriteFrames（命名兼容 LookCatalog）。
 static func sheet_to_frames(sheet: Image) -> SpriteFrames:
 	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
 	var atlas := ImageTexture.create_from_image(sheet)
-	var dirs := ["front", "left", "right", "back"]
-	for di in range(4):
-		var walk := "walk_%s" % dirs[di]
-		if frames.has_animation(walk):
-			frames.remove_animation(walk)
-		frames.add_animation(walk)
-		frames.set_animation_speed(walk, 8.0)
-		frames.set_animation_loop(walk, true)
-		var idle := "idle_%s" % dirs[di]
-		if frames.has_animation(idle):
-			frames.remove_animation(idle)
-		frames.add_animation(idle)
-		frames.set_animation_speed(idle, 1.0)
-		frames.set_animation_loop(idle, true)
-		for f in range(3):
-			frames.add_frame(walk, _cell_atlas(atlas, f, di))
-		frames.add_frame(idle, _cell_atlas(atlas, 1, di))
+	if sheet.get_size() == MOTION_SIZE:
+		var speeds := [1.0, 7.0, 9.0, 12.0, 5.0, 6.0, 5.0, 5.0]
+		for action_idx in range(ACTIONS.size()):
+			for d in range(8):
+				var anim: String = ACTIONS[action_idx] + "_" + DIRECTIONS[d]
+				frames.add_animation(anim)
+				frames.set_animation_speed(anim, speeds[action_idx])
+				frames.set_animation_loop(anim, action_idx in [0, 1, 3, 4])
+				for f in range(1 if action_idx == 0 else 4):
+					frames.add_frame(anim, _cell_atlas(atlas, f, action_idx * 8 + d, MOTION_CELL))
+		return frames
+	var legacy := sheet.get_height() == 192
+	var cell := Vector2i(48, 48) if legacy else CELL
+	for d in range(4 if legacy else 8):
+		for action in ["idle", "walk"]:
+			var anim: String = action + "_" + DIRECTIONS[d]
+			frames.add_animation(anim)
+			frames.set_animation_speed(anim, 8.0 if action == "walk" else 1.0)
+			for f in range(3 if action == "walk" else 1):
+				frames.add_frame(anim, _cell_atlas(atlas, f if action == "walk" else 1, d, cell))
 	return frames
 
 
-static func _cell_atlas(atlas: Texture2D, col: int, row: int) -> AtlasTexture:
+static func _cell_atlas(atlas: Texture2D, col: int, row: int, cell: Vector2i = CELL) -> AtlasTexture:
 	var at := AtlasTexture.new()
 	at.atlas = atlas
-	at.region = Rect2(col * CELL.x, row * CELL.y, CELL.x, CELL.y)
+	at.region = Rect2(col * cell.x, row * cell.y, cell.x, cell.y)
 	return at
 
 
@@ -808,7 +835,7 @@ static func part_thumb(
 
 
 static func _src_preview_key(src: String, gender: String, part_ids: Dictionary, colors: Dictionary) -> String:
-	var order := TV_ORDER if src == "TV" else FACE_ORDER
+	var order := TV_ORDER
 	var key := "%s|%s|" % [src, _gender_cap(gender)]
 	for cat in order:
 		if part_ids.has(cat):
@@ -822,70 +849,37 @@ static func _src_preview_key(src: String, gender: String, part_ids: Dictionary, 
 
 ## 建角实时预览：只切正面 walk 3 帧 + 头像（不做四向），比 compose_all 轻很多。
 static func compose_preview(gender: String, part_ids: Dictionary, colors: Dictionary = {}) -> Dictionary:
-	var cats: Array = part_ids.keys()
-	cats.sort()
-	var key := "%s|" % gender
-	for c in cats:
-		key += "%s=%d;" % [str(c), int(part_ids[c])]
-	var cks: Array = colors.keys()
-	cks.sort()
-	for ck in cks:
-		key += "%s=%d;" % [str(ck), int(colors[ck])]
+	var key := _src_preview_key("TV", gender, part_ids, colors)
 	if key == _preview_cache_key and not _preview_cache.is_empty():
 		return _preview_cache
-	var tv_key := _src_preview_key("TV", gender, part_ids, colors)
-	var sheet: Image
-	var frames: SpriteFrames
-	if tv_key == _preview_tv_key and _preview_tv_sheet != null and _preview_tv_frames != null:
-		sheet = _preview_tv_sheet
-		frames = _preview_tv_frames
-	else:
-		sheet = _render("TV", gender, part_ids, colors)
-		frames = SpriteFrames.new()
-		frames.add_animation("walk_front")
-		frames.set_animation_speed("walk_front", 8.0)
-		frames.set_animation_loop("walk_front", true)
-		var atlas := ImageTexture.create_from_image(sheet)
-		for f in range(3):
-			frames.add_frame("walk_front", _cell_atlas(atlas, f, 0))
-		_preview_tv_key = tv_key
-		_preview_tv_sheet = sheet
-		_preview_tv_frames = frames
-	var face_key := _src_preview_key("Face", gender, part_ids, colors)
-	var pimg: Image
-	var portrait: Texture2D
-	if face_key == _preview_face_key and _preview_face_img != null and _preview_face_tex != null:
-		pimg = _preview_face_img
-		portrait = _preview_face_tex
-	else:
-		pimg = _render("Face", gender, part_ids, colors)
-		portrait = ImageTexture.create_from_image(pimg)
-		_preview_face_key = face_key
-		_preview_face_img = pimg
-		_preview_face_tex = portrait
-	var res := {"sheet": sheet, "frames": frames, "portrait": portrait}
+	var result := compose_all(gender, part_ids, colors)
 	_preview_cache_key = key
-	_preview_cache = res
-	return res
+	_preview_cache = result
+	return result
 
 
 ## 一次性合成身体(4向行走) + 头像，返回 {sheet, frames, portrait}。
 ## colors 形如 {"skin"/"hair"/"cloth": 色带下标}，缺省的分组保留部件参考色。
 static func compose_all(gender: String, part_ids: Dictionary, colors: Dictionary = {}) -> Dictionary:
-	var sheet := _render("TV", gender, part_ids, colors)
+	var source := "Motion" if _available("Motion", gender, "Body") else "TV"
+	var sheet := _render(source, gender, part_ids, colors)
 	var frames := sheet_to_frames(sheet)
 	var pimg := _render("Face", gender, part_ids, colors)
+	if source == "Motion" and not _available("Face", gender, "Body"):
+		pimg = sheet.get_region(Rect2i(34,17,28,28))
+		pimg.resize(FACE_SIZE.x, FACE_SIZE.y, Image.INTERPOLATE_NEAREST)
 	var portrait := ImageTexture.create_from_image(pimg)
 	return {"sheet": sheet, "frames": frames, "portrait": portrait}
 
 
 static func compose_frames(gender: String, part_ids: Dictionary, colors: Dictionary = {}) -> SpriteFrames:
-	return sheet_to_frames(_render("TV", gender, part_ids, colors))
+	var source := "Motion" if _available("Motion", gender, "Body") else "TV"
+	return sheet_to_frames(_render(source, gender, part_ids, colors))
 
 
 ## 烘一张角色表到磁盘（user:// 缓存，不进仓库）。
 static func bake_sheet(gender: String, part_ids: Dictionary, save_path: String, colors: Dictionary = {}) -> bool:
-	var sheet := _render("TV", gender, part_ids, colors)
+	var sheet: Image = compose_all(gender, part_ids, colors)["sheet"]
 	ensure_dir(save_path.get_base_dir())
 	return sheet.save_png(save_path) == OK
 
@@ -898,7 +892,8 @@ static func load_sheet_texture(path: String) -> Texture2D:
 	if img.load(path) != OK:
 		return null
 	# 取 front 中间帧作图标
-	return _cell_tex(img, 1, 0)
+	var frames := sheet_to_frames(img)
+	return frames.get_frame_texture("idle_front", 0)
 
 
 static func load_sheet_frames(path: String) -> SpriteFrames:

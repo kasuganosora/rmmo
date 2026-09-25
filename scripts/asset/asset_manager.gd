@@ -92,6 +92,10 @@ func _ready() -> void:
 	if not gate_progress.is_connected(_record_gate):
 		gate_progress.connect(_record_gate)
 	var root := content_root()
+	var app_icon:=root.path_join("assets/system/rmmo_app.svg")
+	if DisplayServer.get_name()!="headless" and FileAccess.file_exists(app_icon):
+		var icon_image:=Image.load_from_file(app_icon)
+		if icon_image!=null:DisplayServer.set_icon(icon_image)
 	DirAccess.make_dir_recursive_absolute(root)
 	DirAccess.make_dir_recursive_absolute("%s/cache/downloads" % root)
 	DirAccess.make_dir_recursive_absolute("%s/cache/verified" % root)

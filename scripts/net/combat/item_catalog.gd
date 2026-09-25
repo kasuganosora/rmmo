@@ -15,6 +15,14 @@ func _list_key() -> String:
 	return "items"
 
 
+func _after_load() -> void:
+	for definition in preload("res://scripts/char/starter_equipment.gd").ITEMS:
+		if not has_item(str(definition["id"])):
+			register_item(definition)
+	for definition in preload("res://scripts/char/starter_equipment.gd").GIFT_ITEMS:
+		if not has_item(str(definition["id"])):register_item(definition)
+
+
 ## Normalize legacy consumable/effect into type / use_effect / stack_max.
 func _normalize_def(d: Dictionary) -> Dictionary:
 	var out: Dictionary = d.duplicate(true)

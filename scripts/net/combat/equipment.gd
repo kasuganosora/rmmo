@@ -5,10 +5,12 @@ extends RefCounted
 ## L2-like equip slots (order used by snapshot / HUD).
 const SLOT_IDS: Array[String] = [
 	"head",
+	"head_accessory",
 	"chest",
 	"hands",
 	"legs",
 	"feet",
+	"belt",
 	"weapon_main",
 	"weapon_off",
 	"necklace",
@@ -21,10 +23,12 @@ const SLOT_IDS: Array[String] = [
 ## Short Chinese hint for empty slots (tooltip / label).
 const SLOT_LABELS_ZH: Dictionary = {
 	"head": "头",
+	"head_accessory": "头饰",
 	"chest": "胸",
 	"hands": "手",
 	"legs": "腿",
 	"feet": "脚",
+	"belt": "腰带",
 	"weapon_main": "主手",
 	"weapon_off": "副手",
 	"necklace": "项链",

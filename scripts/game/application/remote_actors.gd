@@ -5,6 +5,7 @@ const Net = preload("res://scripts/net/net.gd")
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const NameplateUtil = preload("res://scripts/game/nameplate_util.gd")
 const PaperdollLook = preload("res://scripts/char/paperdoll_look.gd")
+const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
 
 static func _apply_remote_look(ctrl, marker: Node2D, gender: String, look_id: String, equipment: Variant) -> void:
 	var anim = marker.get_node_or_null("Anim") as AnimatedSprite2D
@@ -15,6 +16,16 @@ static func _apply_remote_look(ctrl, marker: Node2D, gender: String, look_id: St
 	gender = LookCatalog.normalize_gender(gender) if LookCatalog != null else gender
 	var frames: SpriteFrames = null
 	var eq: Array = equipment if typeof(equipment) == TYPE_ARRAY else []
+	if CharacterView3D.enabled():
+		var view=marker.get_node_or_null("Character3D")
+		if view==null:
+			view=CharacterView3D.new();view.render_scale=CharacterView3D.WORLD_RENDER_SCALE
+			view.name="Character3D";marker.add_child(view);view.driver=anim
+		var server=Net.server()
+		var catalog=server.get("item_catalog") if server!=null else null
+		view.configure(gender,{},CharacterView3D.equipment_parts(gender,eq,catalog))
+		anim.sprite_frames=CharacterView3D.control_frames();anim.visible=false;anim.play("idle_front")
+		return
 	if MV != null and MV.has_method("compose_frames"):
 		var parts: Dictionary = MV.default_parts(gender) if MV.has_method("default_parts") else {}
 		if PaperdollLook != null and not eq.is_empty():
