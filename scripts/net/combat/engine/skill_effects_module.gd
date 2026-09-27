@@ -125,6 +125,11 @@ func _apply_mark(npc_id: String, def: Dictionary, actions: Array) -> void:
 	actions.append({"type": "system_message", "text": "标记了%s！" % nm})
 
 func _apply_revive(npc_id: String, def: Dictionary, actions: Array) -> void:
+	if ctrl.spatial_revive.is_valid():
+		var error: String = ctrl.spatial_revive.call(npc_id)
+		if error != "":
+			actions.append({"type": "system_message", "text": error})
+			return
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty() or ctrl.stats == null or not ctrl.stats.npcs.has(npc_id):
 		return
@@ -230,25 +235,32 @@ func _apply_charge(npc_id: String, def: Dictionary, player_x: int, player_y: int
 	var st: Dictionary = ctrl.stats.npcs[npc_id]
 	if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
 		return from
-	# Re-validate landing occupancy at apply time (path may have changed since cast start).
-	var path_err: String = ctrl._charge_path_error(npc_id, player_x, player_y)
-	if path_err != "":
-		actions.append({"type": "system_message", "text": path_err})
-		return from
-	var dest: Vector2i = ctrl._charge_dest_cell(npc_id, player_x, player_y)
-	if dest.x <= -9990:
-		dest = from
-	if dest != from:
-		ctrl.player_cell_hint = dest
-		var face: int = ctrl.facing_toward(from, dest)
-		actions.append({
-			"type": "player_move",
-			"x": dest.x,
-			"y": dest.y,
-			"cell": {"x": dest.x, "y": dest.y},
-			"facing": face,
-			"kind": "charge",
-		})
+	var dest := from
+	if ctrl.spatial_charge.is_valid():
+		var error: String = ctrl.spatial_charge.call(npc_id, def, true)
+		if error != "":
+			actions.append({"type": "system_message", "text": error})
+			return from
+	else:
+		# Re-validate landing occupancy at apply time (path may have changed since cast start).
+		var path_err: String = ctrl._charge_path_error(npc_id, player_x, player_y)
+		if path_err != "":
+			actions.append({"type": "system_message", "text": path_err})
+			return from
+		dest = ctrl._charge_dest_cell(npc_id, player_x, player_y)
+		if dest.x <= -9990:
+			dest = from
+		if dest != from:
+			ctrl.player_cell_hint = dest
+			var face: int = ctrl.facing_toward(from, dest)
+			actions.append({
+				"type": "player_move",
+				"x": dest.x,
+				"y": dest.y,
+				"cell": {"x": dest.x, "y": dest.y},
+				"facing": face,
+				"kind": "charge",
+			})
 	var power: float = float(def.get("power", 1.2))
 	if power <= 0.0:
 		power = 1.2
@@ -448,6 +460,8 @@ func _resolve_skill_effect(
 			hit_player = true
 		_:
 			hit_player = false
+	if ctrl.spatial_npc_check.is_valid():
+		hit_player = ctrl.spatial_npc_check.call(caster, def, true)
 	if hit_player and ctrl.stats.player_alive():
 		if effect == "apply_status":
 			ctrl._apply_status_to("player", status_def, caster, actions)

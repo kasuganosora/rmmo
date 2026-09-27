@@ -16,5 +16,5 @@ func run()->void:
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*320,row*300+25);rect.size=Vector2(275,275);root.add_child(rect)
 			var label:=Label.new();label.text=["走动","跑步","施法","死亡"][row]+"  "+str(samples[row][col])+"s";label.position=Vector2(col*320+12,row*300);root.add_child(label)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/motion_phases.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/motion_phases.png"))
 	print("MOTION_PHASES_OK");quit()

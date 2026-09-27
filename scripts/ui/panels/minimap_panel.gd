@@ -186,6 +186,9 @@ func _on_map_pin_cell(cell: Vector2i) -> void:
 
 
 func _on_clear_map_pins() -> void:
+	if is_instance_valid(ctrl._world_map_source):
+		ctrl._world_map_source.clear_world_map_pins()
+		return
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("clear_map_pins"):
 		ctrl._world_combat.clear_map_pins()
 	else:

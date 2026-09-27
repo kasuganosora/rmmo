@@ -15,6 +15,8 @@ var action := "idle"
 var animation_clip:=""
 var direction := "front"
 var elapsed := 0.0
+# Map views supply actual displacement; isolated previews retain authored timing.
+var locomotion_rate:=1.0
 var body_type := "male"
 var appearance := {}
 var equipment := {}
@@ -60,6 +62,9 @@ func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 			set_equipment(parts)
 			pose_at(elapsed)
 			return
+	if gender in ["male", "female"]:
+		push_error("Cannot load approved character resource: " + ImportedRig.source_path(gender))
+		return
 	var young:=gender.begins_with("young")
 	var female:=gender.ends_with("female")
 	rig.scale=Vector3(0.91 if female else 1.0,0.92 if young else 1.0,0.96 if female else 1.0)
@@ -158,22 +163,27 @@ func play(next_action:String,next_direction:String,restart:bool=false,variant:St
 			_from_positions.append(skeleton.get_bone_pose_position(i))
 		_from_position=rig.position;_from_rotation=rig.quaternion
 	_blend_elapsed=0.0;_blend_duration=.09 if next_action=="death" else .16
+	var gait_phase:float=-1.0
 	if next_action!=action or restart:
 		if not restart and action in ["walk","dash"] and next_action in ["walk","dash"]:
-			elapsed=fposmod(elapsed/float(Motion.DURATION[action]),1.0)*float(Motion.DURATION[next_action])
+			gait_phase=fposmod(elapsed/maxf(action_duration(),.001),1.0)
 		else:elapsed=0.0
 	action=next_action;direction=next_direction
 	if imported_rig!=null:animation_clip=imported_rig.animations.select_clip(self,action,variant,true)
+	if gait_phase>=0.0:elapsed=gait_phase*action_duration()
 	pose_at(elapsed)
 	_apply_blend(0)
 
 func _process(delta:float)->void:
-	elapsed+=delta
+	elapsed+=delta*(locomotion_rate if action in ["walk","dash"] else 1.0)
 	pose_at(elapsed)
 	_apply_blend(delta)
 	if imported_rig!=null:
+		if action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+		imported_rig.apply_weapon_grip(self)
 		imported_rig.soft_motion.update(action,elapsed,delta,action_duration())
 		imported_rig.hair_motion.update(self,delta)
+		imported_rig.garment_motion.update(self,delta)
 
 func _apply_blend(delta:float)->void:
 	if _from_rotations.is_empty():return
@@ -187,6 +197,12 @@ func _apply_blend(delta:float)->void:
 	if weight>=1.0:_from_rotations.clear()
 
 func pose_at(time:float)->void:
+	_pose_base(time)
+	if imported_rig!=null:imported_rig.apply_weapon_grip(self)
+	if imported_rig!=null and action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+	if imported_rig!=null:imported_rig.garment_motion.update(self,0)
+
+func _pose_base(time:float)->void:
 	if skeleton==null:return
 	rig.rotation=Vector3(0,float(YAW.get(direction,0.0)),0)
 	rig.position=Vector3.ZERO
@@ -292,3 +308,14 @@ static func _structural_appearance(value:Dictionary)->Dictionary:
 
 func action_duration()->float:
 	return imported_rig.animations.duration(self) if imported_rig!=null else float(Motion.DURATION.get(action,1.0))
+
+
+static func create(gender: String, custom: Dictionary, parts: Dictionary) -> Node3D:
+	var model = load("res://scripts/char/character_model_3d.gd").new()
+	model.body_type = gender
+	model.appearance = custom.duplicate(true)
+	model.equipment = parts.duplicate(true)
+	return model
+
+static func create_npc(recipe: Dictionary) -> Node3D:
+	return create(str(recipe.get("gender", "male")), recipe.get("customization", {}), recipe.get("equipment", {"Clothing1": 1, "Clothing2": 1, "Boots": 1}))

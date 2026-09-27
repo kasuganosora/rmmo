@@ -11,6 +11,8 @@ func _init(c):
 	_owner = weakref(c)
 
 func _in_range(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
+	if ctrl.spatial_range.is_valid():
+		return bool(ctrl.spatial_range.call(npc_id, range_cells))
 	if range_cells <= 0:
 		return true
 	var cell: Vector2i = ctrl.stats.get_npc_cell(npc_id)
@@ -179,6 +181,8 @@ func _collect_aoe_hostiles(
 	shape: String = "circle",
 	facing: int = 2
 ) -> Array:
+	if ctrl.spatial_area.is_valid():
+		return ctrl.spatial_area.call(radius, max_targets, shape)
 	radius = maxi(radius, 0)
 	max_targets = maxi(max_targets, 1)
 	var scored: Array = []

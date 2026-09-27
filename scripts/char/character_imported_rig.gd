@@ -3,9 +3,8 @@ const ArtPaths=preload("res://scripts/asset/art_paths.gd")
 ## Adapts the user-supplied weighted model to the existing character controller.
 ## Original mesh weights and facial blend shapes are retained in the GLB.
 static func source_path(gender:String)->String:
-	var derived:String=ArtPaths.path("characters/imported/"+gender+"/character.glb")
-	if gender in ["male","female"] and FileAccess.file_exists(derived):return derived
-	return ArtPaths.path("characters/imported/artoria/character.glb") if gender=="female" else ""
+	return ArtPaths.path("characters/imported/" + gender + "/character.glb") if gender in ["male", "female"] else ""
+
 const MAP := {"hips":"Hips","spine":"Spine","head":"Head", "armL":"RightArm","forearmL":"RightForeArm","handL":"RightHand", "armR":"LeftArm","forearmR":"LeftForeArm","handR":"LeftHand", "thighL":"RightUpLeg","shinL":"RightLeg","footL":"RightFoot", "thighR":"LeftUpLeg","shinR":"LeftLeg","footR":"LeftFoot"}
 static var packed_by_path:Dictionary={}
 static var masked_meshes:Dictionary={}
@@ -16,27 +15,52 @@ var baseline:Dictionary={}
 var rest_positions:Dictionary={}
 var animations=preload("res://scripts/char/character_animation_library.gd").new()
 var soft_motion=preload("res://scripts/char/character_soft_motion.gd").new()
+var garment_motion=preload("res://scripts/char/character_garment_motion.gd").new()
 var hair_cache:Dictionary={}
 var hair_prepared:=false
 var original_hair:Array=[]
 var hair_motion=preload("res://scripts/char/character_hair_3d.gd").new()
 var body_materials:Array[ShaderMaterial]=[]
+const SkinMaterial=preload("res://scripts/char/character_skin_material.gd")
+const SKIN_LIGHTING := SkinMaterial.LIGHT
 const BODY_SHADER := """shader_type spatial;
-render_mode diffuse_lambert_wrap, specular_disabled;
+render_mode diffuse_lambert_wrap;
 uniform vec4 skin_color : source_color = vec4(1.0);
 uniform bool cover_top = false;
 uniform bool cover_bottom = false;
 uniform bool cover_feet = false;
 uniform bool wearing_dress = false;
+uniform bool skin_maps_enabled = false;
+uniform sampler2D skin_basecolor : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D skin_normal : hint_normal, filter_linear_mipmap_anisotropic;
+uniform sampler2D skin_orm : filter_linear_mipmap_anisotropic;
+"""+SkinMaterial.SURFACE+"""
 void fragment() {
-    bool top = cover_top && COLOR.r > (wearing_dress ? 0.75 : 0.25);
-    bool bottom = wearing_dress ? COLOR.a > 0.5 : (cover_bottom && COLOR.g > 0.25);
+    bool top = !wearing_dress && cover_top && COLOR.r > 0.25;
+    // A skirt can expose the thighs during motion. It must not use the
+    // trouser mask: the cloth itself occludes the underlying legs.
+    bool bottom = !wearing_dress && cover_bottom && COLOR.g > 0.25;
     bool feet = cover_feet && COLOR.b > 0.5;
     if (top || bottom || feet) { discard; }
-    ALBEDO = skin_color.rgb;
-    ROUGHNESS = 1.0;
+    float grain=skin_grain(UV);
+    NORMAL=normalize(NORMAL+TANGENT*grain*0.004+BINORMAL*skin_grain(UV+vec2(0.173,0.319))*0.004);
+    ALBEDO = skin_color.rgb*mix(vec3(1.0),vec3(1.015,0.94,0.915),UV2.x);
+    AO = COLOR.a;
+    AO_LIGHT_AFFECT = 0.32;
+    EMISSION = ALBEDO * skin_fill(NORMAL,INV_VIEW_MATRIX) * COLOR.a;
+    ROUGHNESS = 0.48 + UV2.x*0.08 + grain*0.015;
+    SPECULAR = 0.30;
+    if (skin_maps_enabled) {
+        // The authored default is ff/ea/db in sRGB, decoded to linear here.
+        ALBEDO=skin_color.rgb*texture(skin_basecolor,UV).rgb/vec3(1.0,0.822786,0.708376);
+        vec3 orm=texture(skin_orm,UV).rgb;
+        AO=orm.r;ROUGHNESS=orm.g;
+        NORMAL_MAP=texture(skin_normal,UV).rgb;
+        NORMAL_MAP_DEPTH=0.65;
+        EMISSION=ALBEDO*skin_fill(NORMAL,INV_VIEW_MATRIX)*AO;
+    }
 }
-"""
+""" + SKIN_LIGHTING
 const TINT_SHADER := """shader_type spatial;
 render_mode unshaded, cull_disabled;
 uniform sampler2D source_texture : source_color, filter_linear_mipmap;
@@ -62,6 +86,31 @@ void fragment() {
     ALBEDO = clamp(color, vec3(0.0), vec3(1.0));
 }
 """
+const FACE_SHADER := """shader_type spatial;
+render_mode diffuse_lambert_wrap, cull_disabled;
+uniform sampler2D source_texture : source_color, filter_linear_mipmap;
+uniform vec4 skin_color : source_color = vec4(1.0);
+uniform vec4 source_skin_color : source_color;
+uniform bool eye_enabled = false;
+uniform vec4 eye_color : source_color = vec4(1.0);
+"""+SkinMaterial.SURFACE+"""
+void fragment() {
+    vec3 color = texture(source_texture, UV).rgb;
+    // Normalize the atlas's base skin to the same albedo as the body,
+    // retaining painted blush, lips, lashes and the iris details.
+    if (color.r > 0.48 && color.r > color.g && color.g > color.b * 1.025) {
+        color *= skin_color.rgb / source_skin_color.rgb;
+    }
+    if (eye_enabled && color.g > color.r * 1.03 && color.g > color.b * 1.12 && color.g > 0.035) {
+        float value = clamp(color.g / 0.35, 0.15, 1.35);
+        color = eye_color.rgb * value;
+    }
+    ALBEDO = clamp(color, vec3(0.0), vec3(1.0));
+    ROUGHNESS = 0.48 + skin_grain(UV)*0.015;
+    SPECULAR = 0.30;
+    EMISSION = ALBEDO * skin_fill(NORMAL,INV_VIEW_MATRIX);
+}
+""" + SKIN_LIGHTING
 
 static func available(gender:String)->bool:
 	return FileAccess.file_exists(source_path(gender))
@@ -109,6 +158,8 @@ func install(model:Node3D)->bool:
 		if not model.gear.has(category):category="Body"
 		model.gear[category].append(mesh)
 		_tint_mesh(model,mesh,category)
+		if category in ["BaseTop","BaseBottom"]:
+			mesh.material_override=preload("res://scripts/char/character_underwear_material.gd").for_body(model.body_type)
 		if model.body_type=="female" and mesh.name in ["Body","Clothing1","BaseTop"]:
 			_apply_bust(mesh,Customization.valid_bust_size(model.appearance.get("bust_size",0.5)))
 	for mesh in model.gear.Hair:
@@ -119,6 +170,7 @@ func install(model:Node3D)->bool:
 	_add_accessories(model)
 	preload("res://scripts/char/character_equipment_3d.gd").install(model,self)
 	soft_motion.install(model)
+	garment_motion.install(model,rest_positions)
 	animations.install(model)
 	return true
 
@@ -129,6 +181,22 @@ func _tint_mesh(model:Node3D,mesh:MeshInstance3D,category:String)->void:
 	if group=="hair" and model.body_type=="male":tint_enabled=true
 	var is_body:bool=mesh.name=="Body"
 	var eyes:String=Customization.valid_eye_color(model.appearance.get("eye_color","")) if mesh.name=="Face" else ""
+	if mesh.name=="Face":
+		for i in mesh.mesh.get_surface_count():
+			var material = mesh.get_surface_override_material(i)
+			if not material is ShaderMaterial:
+				var original = mesh.mesh.surface_get_material(i)
+				if not original is StandardMaterial3D:continue
+				material=ShaderMaterial.new()
+				var shader:=Shader.new();shader.code=FACE_SHADER;material.shader=shader
+				material.set_shader_parameter("source_texture",original.albedo_texture if original.albedo_texture!=null else original.emission_texture)
+				# Most frequent skin texel in the supplied atlas (sRGB).
+				material.set_shader_parameter("source_skin_color",Color("faebde"))
+				mesh.set_surface_override_material(i,material)
+			material.set_shader_parameter("skin_color",model._color(model.appearance,"skin",Color("ffeadb")))
+			material.set_shader_parameter("eye_enabled",not eyes.is_empty())
+			material.set_shader_parameter("eye_color",Color.from_string(eyes,Color.WHITE))
+		return
 	if not tint_enabled and not is_body and eyes.is_empty() and not mesh.get_surface_override_material(0) is ShaderMaterial:
 		for i in range(mesh.mesh.get_surface_count()):mesh.set_surface_override_material(i,null)
 		return
@@ -137,10 +205,11 @@ func _tint_mesh(model:Node3D,mesh:MeshInstance3D,category:String)->void:
 		if mesh.material_override is ShaderMaterial:
 			mesh.material_override.set_shader_parameter("skin_color",model._color(model.appearance,"skin",Color("ffeadb")))
 			return
-		_mask_body(mesh,model.body_type=="male")
+		_mask_body(mesh,model.body_type=="male",model.skeleton)
 		var shader:=Shader.new();shader.code=BODY_SHADER
 		var material:=ShaderMaterial.new();material.shader=shader
 		material.set_shader_parameter("skin_color",model._color(model.appearance,"skin",Color("ffeadb")))
+		SkinMaterial.apply_maps(material,model.body_type)
 		mesh.material_override=material
 		body_materials.append(material)
 		return
@@ -198,6 +267,7 @@ func _apply_bust(mesh:MeshInstance3D,size:float)->void:
 			var flags:int=Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS if arrays[Mesh.ARRAY_BONES].size()==arrays[Mesh.ARRAY_VERTEX].size()*8 else 0
 			result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,shapes,{},flags)
 			result.surface_set_material(surface,mesh.mesh.surface_get_material(surface))
+		if mesh.mesh.has_meta("skin_detail_match_ratio"):result.set_meta("skin_detail_match_ratio",mesh.mesh.get_meta("skin_detail_match_ratio"))
 		bust_shapes[key]=result
 	mesh.mesh=bust_shapes[key]
 	bust_instances.append(mesh)
@@ -210,25 +280,43 @@ static func _set_bust_weights(mesh:MeshInstance3D,size:float)->void:
 func update_bust(size:float)->void:
 	for mesh in bust_instances:_set_bust_weights(mesh,size)
 
-func _mask_body(mesh:MeshInstance3D,male:bool)->void:
+func _mask_body(mesh:MeshInstance3D,male:bool,skeleton:Skeleton3D)->void:
 	var key:int=mesh.mesh.get_instance_id()
 	if masked_meshes.has(key):mesh.mesh=masked_meshes[key];return
 	var result:=ArrayMesh.new()
+	var detail:Dictionary=SkinMaterial.detail_for("male" if male else "female")
+	var matched:=0;var total:=0
 	for i in range(mesh.mesh.get_surface_count()):
 		var arrays:Array=mesh.mesh.surface_get_arrays(i)
 		var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+		var skin_bones=arrays[Mesh.ARRAY_BONES];var skin_weights=arrays[Mesh.ARRAY_WEIGHTS]
+		var influences:int=skin_bones.size()/vertices.size()
+		var arm_bindings:Dictionary={}
+		for binding in mesh.skin.get_bind_count():
+			var name:String=mesh.skin.get_bind_name(binding)
+			if name.is_empty():name=skeleton.get_bone_name(mesh.skin.get_bind_bone(binding))
+			if "Arm" in name or "Hand" in name:arm_bindings[binding]=true
 		var colors:=PackedColorArray();colors.resize(vertices.size())
+		var skin_details:=PackedVector2Array();skin_details.resize(vertices.size())
 		for v in range(vertices.size()):
 			var p:Vector3=vertices[v]
 			var top:bool=p.y>(1.50 if male else 1.45) and p.y<(1.98 if male else 1.915) and absf(p.x)<(.92 if male else .79)
 			var bottom:bool=p.y>.145 and p.y<(1.49 if male else 1.46)
-			var dress_cover:bool=p.y>.94 and p.y<(1.94 if male else 1.875) and absf(p.x)<.29
-			colors[v]=Color((1 if absf(p.x)<.29 else .5) if top else 0,(1 if p.y>.95 else .5) if bottom else 0,1 if p.y<.88 else 0,1 if dress_cover else 0)
+			var arm_weight:float=0
+			for influence in influences:
+				if arm_bindings.has(skin_bones[v*influences+influence]):arm_weight+=skin_weights[v*influences+influence]
+			var sample:Array=detail.get(SkinMaterial.key(p),[1.0,0.0])
+			if detail.has(SkinMaterial.key(p)):matched+=1
+			total+=1
+			colors[v]=Color((.5 if arm_weight>.15 else 1) if top else 0,(1 if p.y>.95 else .5) if bottom else 0,1 if p.y<.88 else 0,float(sample[0]))
+			skin_details[v]=Vector2(float(sample[1]),0)
 		arrays[Mesh.ARRAY_COLOR]=colors
+		arrays[Mesh.ARRAY_TEX_UV2]=skin_details
 		var flags:int=Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS if arrays[Mesh.ARRAY_BONES].size()==vertices.size()*8 else 0
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays,[],{},flags)
 		result.surface_set_material(i,mesh.mesh.surface_get_material(i))
 	masked_meshes[key]=result;mesh.mesh=result
+	result.set_meta("skin_detail_match_ratio",float(matched)/maxi(total,1))
 
 func _accessory(model:Node3D,id:String,shape:Mesh,origin:Vector3,mat:Material,category:String)->void:
 	var attach:=BoneAttachment3D.new();attach.bone_name=model.skeleton.get_bone_name(model.bones[id]);model.skeleton.add_child(attach)
@@ -239,14 +327,37 @@ func _accessory(model:Node3D,id:String,shape:Mesh,origin:Vector3,mat:Material,ca
 
 func _add_accessories(model:Node3D)->void:
 	var leather:Material=model._material(Color("4b3326"));var brass:Material=model._material(Color("c3a369"))
-	var belt:Mesh=model.Shapes.profile([Vector4(-.023,.18,.14,0),Vector4(.023,.18,.14,0)])
-	_accessory(model,"hips",belt,Vector3(0,1.485,-.015),leather,"Belt")
-	_accessory(model,"hips",model._box(Vector3(.047,.043,.013)),Vector3(0,1.485,.13),brass,"Belt")
-	var rest:Transform3D=model.rig.global_transform.affine_inverse()*model.skeleton.global_transform*model.skeleton.get_bone_global_rest(model.bones.handL)
-	var hand:Vector3=rest.origin
-	_accessory(model,"handL",model._box(Vector3(.035,.18,.035)),hand,leather,"WeaponMain")
-	_accessory(model,"handL",model._box(Vector3(.18,.03,.04)),hand+Vector3(0,.10,0),brass,"WeaponMain")
-	_accessory(model,"handL",model._box(Vector3(.06,.46,.02)),hand+Vector3(0,.345,0),model._material(Color("bac8d3")),"WeaponMain")
+	var sk:Skeleton3D=model.skeleton
+	var hand:Transform3D=sk.get_bone_global_rest(model.bones.handL)
+	var index:Vector3=sk.get_bone_global_rest(sk.find_bone("mixamorig_RightHandIndex1")).origin
+	var pinky:Vector3=sk.get_bone_global_rest(sk.find_bone("mixamorig_RightHandPinky1")).origin
+	var middle:Vector3=sk.get_bone_global_rest(sk.find_bone("mixamorig_RightHandMiddle1")).origin
+	var along:Vector3=(middle-hand.origin).normalized()
+	var blade:Vector3=(index-pinky).normalized()
+	var normal:Vector3=blade.cross(along).normalized()
+	# A socket in the closed palm, with the blade exiting on the thumb side.
+	blade=along.cross(normal).normalized()
+	var socket:=Transform3D(Basis(-along,blade,normal),(index+pinky)*.5+normal*.018)
+	var attachment:=BoneAttachment3D.new();attachment.name="WeaponGrip";attachment.bone_name=sk.get_bone_name(model.bones.handL);sk.add_child(attachment)
+	for part in [[Vector3(.026,.12,.026),0.0,leather],[Vector3(.14,.022,.035),.074,brass],[Vector3(.048,.46,.016),.315,model._material(Color("bac8d3"))]]:
+		var mesh:=MeshInstance3D.new();mesh.mesh=model._box(part[0]);mesh.material_override=part[2];attachment.add_child(mesh)
+		mesh.transform=hand.affine_inverse()*socket*Transform3D(Basis.IDENTITY,Vector3(0,part[1],0))
+		model.gear.WeaponMain.append(mesh)
+
+func apply_weapon_grip(model:Node3D)->void:
+	if model.equipment.get("WeaponMain")==null or int(model.equipment.get("WeaponMain",0))<=0:return
+	var sk:Skeleton3D=model.skeleton
+	for finger in ["Index","Middle","Ring","Pinky"]:
+		for segment in range(1,4):
+			var id:int=sk.find_bone("mixamorig_RightHand%s%d"%[finger,segment])
+			if id<0:continue
+			var angle:float=[1.15,1.4,.7][segment-1]
+			sk.set_bone_pose_rotation(id,sk.get_bone_rest(id).basis.get_rotation_quaternion()*Quaternion(Vector3.RIGHT,angle))
+	for segment in range(1,4):
+		var id:int=sk.find_bone("mixamorig_RightHandThumb%d"%segment)
+		if id>=0:
+			var opposition:=Quaternion(Vector3.BACK,.65) if segment==1 else Quaternion.IDENTITY
+			sk.set_bone_pose_rotation(id,sk.get_bone_rest(id).basis.get_rotation_quaternion()*opposition*Quaternion(Vector3.RIGHT,[.75,.9,1.0][segment-1]))
 
 func rotate(model:Node3D,id:String,rotation:Quaternion)->void:
 	var basis:Quaternion=basis_by_id[id]
@@ -287,7 +398,15 @@ func plant_leg(model:Node3D,side:String,offset:Vector3,pitch:float)->void:
 	_global_rotation(model,foot,Quaternion(Vector3.RIGHT,pitch))
 
 func set_base_layers(model:Node3D)->void:
-	var dress:bool=model.equipment.get("Clothing1")!=null and int(model.equipment.Clothing1) in [2,3]
+	var dress:=false
+	for category in ["Clothing1","Clothing2"]:
+		for mesh:MeshInstance3D in model.gear[category]:
+			if mesh.visible and mesh.get_meta("garment_kind","")=="skirt":dress=true
+	# The imported starter boots include separate long stockings. Trousers
+	# already cover that layer; rendering both lets the stocking shell poke out.
+	var trousers:bool=not dress and int(model.equipment.get("Clothing2",0))>0 if model.equipment.get("Clothing2")!=null else false
+	for mesh in model.gear.Boots:
+		if mesh.name=="Stockings":mesh.visible=not trousers and model.equipment.get("Boots")==1
 	for mesh in model.gear.Clothing1:
 		if mesh.name=="MaidDress" and mesh.material_override is ShaderMaterial:
 			mesh.material_override.set_shader_parameter("black_variant",model.equipment.get("Clothing1")==3)
@@ -296,14 +415,25 @@ func set_base_layers(model:Node3D)->void:
 	for entry in [["BaseTop","Clothing1"],["BaseBottom","Clothing2"]]:
 		for mesh in model.gear.get(entry[0],[]):
 			mesh.visible=model.equipment.get(entry[1])==null or int(model.equipment.get(entry[1],0))<=0
-			if dress and entry[0]=="BaseBottom":mesh.visible=false
+			if dress and entry[0]=="BaseBottom":mesh.visible=true
 	for material in body_materials:
 		material.set_shader_parameter("wearing_dress",dress)
 		for entry in [["cover_top","Clothing1"],["cover_bottom","Clothing2"],["cover_feet","Boots"]]:
 			material.set_shader_parameter(entry[0],(dress if entry[0]=="cover_bottom" else false) or (model.equipment.get(entry[1])!=null and int(model.equipment.get(entry[1],0))>0))
 
 func finish_pose(model:Node3D)->void:
-	if model.action=="sit_chair":model.rig.position.y=-.46
+	if model.action=="sit_chair":
+		for side in ["L","R"]:
+			_global_rotation(model,"thigh"+side,Quaternion((rest_positions["shin"+side]-rest_positions["thigh"+side]).normalized(),Vector3.BACK))
+			_global_rotation(model,"shin"+side,Quaternion((rest_positions["foot"+side]-rest_positions["shin"+side]).normalized(),Vector3.DOWN))
+			_global_rotation(model,"foot"+side,Quaternion.IDENTITY)
+		var relative:Transform3D=model.rig.global_transform.affine_inverse()*model.skeleton.global_transform
+		var offset:float=0
+		for side in ["L","R"]:
+			var foot:Vector3=(relative*model.skeleton.get_bone_global_pose(model.bones["foot"+side])).origin
+			offset+=(rest_positions["foot"+side].y-foot.y)*.5
+		model.rig.position.y=offset*model.rig.scale.y
+		_rest_seated_hands(model)
 	if model.action=="sit_ground":
 		model.rig.position.y=-.80
 		for side in ["L","R"]:
@@ -313,6 +443,31 @@ func finish_pose(model:Node3D)->void:
 			rotate(model,"thigh"+side,upper)
 			rotate(model,"shin"+side,upper.inverse()*lower)
 			rotate(model,"foot"+side,lower.inverse())
+
+func _rest_seated_hands(model:Node3D)->void:
+	var sk:Skeleton3D=model.skeleton
+	var relative:Transform3D=model.rig.global_transform.affine_inverse()*sk.global_transform
+	for side in ["L","R"]:
+		if side=="L" and model.equipment.get("WeaponMain")!=null and int(model.equipment.WeaponMain)>0:continue
+		var upper:int=model.bones["arm"+side];var lower:int=model.bones["forearm"+side];var hand:int=model.bones["hand"+side]
+		var shoulder:Vector3=(relative*sk.get_bone_global_pose(upper)).origin
+		var elbow:Vector3=(relative*sk.get_bone_global_pose(lower)).origin
+		var wrist:Vector3=(relative*sk.get_bone_global_pose(hand)).origin
+		var thigh:Vector3=(relative*sk.get_bone_global_pose(model.bones["thigh"+side])).origin
+		var knee:Vector3=(relative*sk.get_bone_global_pose(model.bones["shin"+side])).origin
+		var forward:Vector3=(knee-thigh).normalized()
+		var middle:int=sk.find_bone(sk.get_bone_name(hand)+"Middle1")
+		var fingers:Vector3=(relative*sk.get_bone_global_rest(middle)).origin-rest_positions["hand"+side]
+		var target:Vector3=thigh.lerp(knee,.65)+Vector3.UP*garment_motion.leg_radius-forward*fingers.length()*.5
+		var a:float=shoulder.distance_to(elbow);var b:float=elbow.distance_to(wrist)
+		var axis:Vector3=(target-shoulder).normalized();var distance:float=minf(target.distance_to(shoulder),(a+b)*.98)
+		target=shoulder+axis*distance
+		var along:float=(a*a-b*b+distance*distance)/(2*distance)
+		var outward:=Vector3(signf(shoulder.x),0,0);var bend:Vector3=(outward-axis*outward.dot(axis)).normalized()
+		var joint:Vector3=shoulder+axis*along+bend*sqrt(maxf(0,a*a-along*along))
+		var fit=preload("res://scripts/char/character_equipment_fit.gd")
+		fit._rotate_towards(sk,relative,upper,lower,joint);fit._rotate_towards(sk,relative,lower,hand,target)
+		_global_rotation(model,"hand"+side,Quaternion(forward,PI)*Quaternion(fingers.normalized(),forward))
 
 # Preserve the body, equipment, animation state and skeleton while changing hair.
 func switch_hair(model:Node3D)->void:
@@ -364,6 +519,10 @@ func update_appearance(model:Node3D,previous:Dictionary)->void:
 	if skin_changed or eyes_changed:
 		for mesh in model.gear.Body:
 			if skin_changed or mesh.name=="Face":_tint_mesh(model,mesh,"Body")
+	if skin_changed:
+		for mesh in model.gear.Boots:
+			if mesh.name=="MaidStockings" and mesh.material_override is ShaderMaterial:
+				mesh.material_override.set_shader_parameter("skin_color",model._color(current,"skin",Color("ffeadb")))
 	if _changed(previous,current,["cloth_on","cloth_row"]):
 		for category in ["Clothing1","Clothing2"]:
 			for mesh in model.gear[category]:

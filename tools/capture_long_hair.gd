@@ -18,5 +18,5 @@ func run()->void:
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*300,row*420+30);rect.size=Vector2(295,390);root.add_child(rect)
 			var label:=Label.new();label.text=["正面 · 无头饰","左前 · 无头饰","侧面 · 无头饰","背面 · 无头饰"][col];label.position=Vector2(col*300+5,row*420+5);root.add_child(label)
 	await create_timer(.3).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/long_hair_reference.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/long_hair_reference.png"))
 	print("HAIR_PREVIEW_OK");quit()

@@ -18,5 +18,5 @@ func run()->void:
 			view.camera.position=Vector3(0,target_y+.10,5);view.camera.look_at(Vector3(0,target_y,0))
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=origin+Vector2(14,48);rect.size=Vector2(360,450);root.add_child(rect)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/refined_adults.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/refined_adults.png"))
 	print("ADULT_REVIEW_OK");quit()

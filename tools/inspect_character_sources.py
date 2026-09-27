@@ -5,11 +5,11 @@ import math
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from art_paths import art_path
+from art_paths import art_path, review_path
 from mathutils import Vector
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'artifacts/character_3d/source_review'
+OUT=review_path('character_3d/source_review')
 OUT.mkdir(parents=True,exist_ok=True)
 WORK=art_path('characters/source_models/inspected')
 WORK.mkdir(parents=True,exist_ok=True)

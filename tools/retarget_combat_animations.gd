@@ -9,6 +9,8 @@ var source_skeleton:Skeleton3D
 var player:AnimationPlayer
 func _initialize()->void:call_deferred("run")
 func run()->void:
+	if "--run-only" in OS.get_cmdline_user_args():
+		retarget_set(SOURCE,{"dash_female":["Jog_Fwd_Loop"]});quit();return
 	retarget_set(SOURCE,{"attack_jab":["Punch_Jab"],"attack_cross":["Punch_Cross"],"cast_quick":["Spell_Simple_Shoot"],"cast_charge":["Spell_Simple_Enter","Spell_Simple_Idle_Loop","Spell_Simple_Shoot","Spell_Simple_Exit"],"cast":["Spell_Simple_Enter","Spell_Simple_Shoot","Spell_Simple_Exit"],"idle":["Idle_Loop"],"dash_female":["Jog_Fwd_Loop"]})
 	retarget_set(preload("res://scripts/util/json_util.gd").content_root()+"/assets/characters/source_models/universal_animation_library_2/UAL2_Standard.glb",{"attack_hook":["Melee_Hook","Melee_Hook_Rec"],"attack_sword_a":["Sword_Regular_A","Sword_Regular_A_Rec"],"attack_sword_b":["Sword_Regular_B","Sword_Regular_B_Rec"],"attack_sword_c":["Sword_Regular_C"],"attack_sword_combo":["Sword_Regular_Combo"],"attack_sword_heavy":["Sword_Heavy_Combo"],"attack_sword_dash":["Sword_Dash"]})
 	quit()
@@ -114,7 +116,7 @@ func retarget_set(source_path:String,clip_map:Dictionary)->void:
 						if weight<=0:continue
 						var value=animation.track_get_key_value(track,key)
 						animation.track_set_key_value(track,key,value.slerp(first,weight) if value is Quaternion else value.lerp(first,weight))
-			if action=="dash_female":refine_run(animation,sk,relative,feet,hip)
+			if action=="dash_female":refine_run(animation,model)
 			if library.has_animation(action):library.remove_animation(action)
 			library.add_animation(action,animation)
 			print(gender," ",action," ",offset,"s, ",pairs.size()," bones")
@@ -124,33 +126,76 @@ func retarget_set(source_path:String,clip_map:Dictionary)->void:
 	source.free()
 
 
-func refine_run(animation:Animation,sk:Skeleton3D,relative:Transform3D,feet:Array[int],hip:int)->void:
-	var originals:Animation=animation.duplicate()
-	var means:Dictionary={};var ids:Dictionary={};var hip_track:=-1
+# Bake the jog correction offline. Keep UAL cycle timing, but solve the target
+# leg chains after reducing stride/flight so flattening the hips cannot bury feet.
+func refine_run(animation:Animation,model:Node3D)->void:
+	var sk:Skeleton3D=model.skeleton
+	var relative:Transform3D=model.rig.global_transform.affine_inverse()*sk.global_transform
+	var hip:int=model.bones.hips
+	var original:Animation=animation.duplicate()
+	var ids:Dictionary={};var hip_track:=-1
 	for track in range(animation.get_track_count()):
-		var name:String=animation.track_get_path(track).get_subname(0)
-		ids[track]=sk.find_bone(name)
-		if animation.track_get_type(track)==Animation.TYPE_POSITION_3D:hip_track=track;continue
-		var mean:Quaternion=animation.track_get_key_value(track,0)
-		for key in range(1,animation.track_get_key_count(track)):
-			mean=mean.slerp(animation.track_get_key_value(track,key),1.0/(key+1))
-		means[track]=mean
-	for key in range(animation.track_get_key_count(hip_track)):
+		ids[track]=sk.find_bone(animation.track_get_path(track).get_subname(0))
+		if animation.track_get_type(track)==Animation.TYPE_POSITION_3D:hip_track=track
+	var count:=animation.track_get_key_count(hip_track)
+	for key in range(count):
+		apply_sample(original,sk,ids,hip_track,key)
+		var phase:float=animation.track_get_key_time(hip_track,key)/animation.length
+		# Two small rises per stride; the source's deep compression/large flight
+		# is unsuitable for this character's everyday run.
+		var rest:Vector3=model.imported_rig.rest_positions.hips
+		var hips:=rest+Vector3(.008*sin(TAU*phase),-.20-.022*cos(2*TAU*(phase-.125)),0)
+		var parent:int=sk.get_bone_parent(hip)
+		var parent_transform:Transform3D=relative if parent<0 else relative*sk.get_bone_global_pose(parent)
+		sk.set_bone_pose_position(hip,parent_transform.affine_inverse()*hips)
 		for track in ids:
-			if track==hip_track:sk.set_bone_pose_position(hip,originals.track_get_key_value(track,key))
-			else:sk.set_bone_pose_rotation(ids[track],originals.track_get_key_value(track,key))
-		var floor_before:=INF
-		for foot in feet:floor_before=minf(floor_before,(relative*sk.get_bone_global_pose(foot)).origin.y)
-		for track in means:
-			var name:String=sk.get_bone_name(ids[track])
-			var factor:float=.70 if name.ends_with("Arm") or name.ends_with("ForeArm") else .80 if name.ends_with("UpLeg") else .90 if name.ends_with("Leg") else 1.0
-			var center:Quaternion=means[track]
-			if "Spine" in name:center=center.slerp(sk.get_bone_rest(ids[track]).basis.get_rotation_quaternion(),.40)
-			var value:Quaternion=center.slerp(originals.track_get_key_value(track,key),factor)
-			animation.track_set_key_value(track,key,value);sk.set_bone_pose_rotation(ids[track],value)
-		var floor_after:=INF
-		for foot in feet:floor_after=minf(floor_after,(relative*sk.get_bone_global_pose(foot)).origin.y)
-		var position:Vector3=originals.track_get_key_value(hip_track,key)
-		var parent_basis:Basis=(relative*sk.get_bone_global_pose(sk.get_bone_parent(hip))).basis
-		position+=parent_basis.inverse()*Vector3(0,floor_before-floor_after,0)
-		animation.track_set_key_value(hip_track,key,position)
+			if track==hip_track:continue
+			var bone:int=ids[track];var name:=sk.get_bone_name(bone)
+			if bone==hip or "Spine" in name or "Neck" in name or name.ends_with("Head"):
+				var rest_rotation:=sk.get_bone_rest(bone).basis.get_rotation_quaternion()
+				sk.set_bone_pose_rotation(bone,rest_rotation.slerp(sk.get_bone_pose_rotation(bone),.30))
+		# Forward is +Z in character space. Tilt from the pelvis, then solve
+		# legs back to their contact targets rather than tipping the whole rig.
+		var hip_pose:Transform3D=relative*sk.get_bone_global_pose(hip)
+		var lean:Basis=Basis(Vector3.RIGHT,.18)*hip_pose.basis.orthonormalized()
+		sk.set_bone_pose_rotation(hip,(parent_transform.basis.orthonormalized().inverse()*lean).get_rotation_quaternion())
+		for side in ["L","R"]:
+			var leg_phase:float=fposmod(phase+(0.5 if side=="L" else 0.0),1.0)
+			var lift:=0.0;var stride:=0.0;var pitch:=0.0
+			if leg_phase<.38:
+				# Constant-speed support, followed by a short flight interval.
+				stride=lerpf(.60,-.65,leg_phase/.38)
+			else:
+				var u:float=(leg_phase-.38)/.62
+				var v:float=1.0-u
+				# Matching contact velocities avoids the foot snapping backwards.
+				var tangent:float=(1.25/.38)*.62/3.0
+				stride=v*v*v*(-.65)+3*v*v*u*(-.65-tangent)+3*v*u*u*(.60+tangent)+u*u*u*.60
+				lift=.38*pow(sin(PI*u),2)
+				pitch=.42*sin(TAU*u)*pow(sin(PI*u),2)
+			model.imported_rig.plant_leg(model,side,Vector3(0,lift,stride),pitch)
+			# Alternate with the opposite leg. Relaxed elbows, sagittal swing,
+			# a little clearance from the torso, no crossing of the centerline.
+			var swing:float=-.08-.38*cos(TAU*(phase+(0.5 if side=="L" else 0.0)))
+			align_limb(sk,relative,model.bones["arm"+side],model.bones["forearm"+side],Vector3(-.10 if side=="L" else .10,-cos(swing),sin(swing)))
+			var fore_angle:float=swing+1.45+.06*sin(TAU*phase)
+			align_limb(sk,relative,model.bones["forearm"+side],model.bones["hand"+side],Vector3(.025 if side=="L" else -.025,-cos(fore_angle),sin(fore_angle)))
+		for track in ids:
+			animation.track_set_key_value(track,key,sk.get_bone_pose_position(hip) if track==hip_track else sk.get_bone_pose_rotation(ids[track]))
+	# Rig-space support distance per second of source clip playback.
+	animation.set_meta("ground_speed",1.25/(.38*animation.length))
+	# Exactly matching endpoint, including all corrected chains.
+	for track in ids:animation.track_set_key_value(track,count-1,animation.track_get_key_value(track,0))
+
+func apply_sample(animation:Animation,sk:Skeleton3D,ids:Dictionary,hip_track:int,key:int)->void:
+	sk.reset_bone_poses()
+	for track in ids:
+		if track==hip_track:sk.set_bone_pose_position(ids[track],animation.track_get_key_value(track,key))
+		else:sk.set_bone_pose_rotation(ids[track],animation.track_get_key_value(track,key))
+
+func align_limb(sk:Skeleton3D,relative:Transform3D,bone:int,child:int,direction:Vector3)->void:
+	var start:Transform3D=relative*sk.get_bone_global_pose(bone)
+	var end:Vector3=(relative*sk.get_bone_global_pose(child)).origin
+	var delta:=Quaternion((end-start.origin).normalized(),direction.normalized())
+	var parent_basis:Basis=(relative*sk.get_bone_global_pose(sk.get_bone_parent(bone))).basis.orthonormalized()
+	sk.set_bone_pose_rotation(bone,(parent_basis.inverse()*Basis(delta)*start.basis.orthonormalized()).get_rotation_quaternion().normalized())

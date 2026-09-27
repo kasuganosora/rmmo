@@ -31,7 +31,7 @@ func run()->void:
 	for i in range(230):
 		var rect:=ColorRect.new();rect.color=entries[i].color;rect.position=Vector2(25+(i%30)*38,355+(i/30)*40);rect.size=Vector2(34,32);root.add_child(rect)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/hair_palette_preview.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/hair_palette_preview.png"))
 	var creator=load("res://scenes/character_create.tscn").instantiate();root.add_child(creator)
 	await process_frame;await process_frame
 	creator._open_palette("hair",creator.hair_color_btn)

@@ -29,9 +29,20 @@ func run()->void:
 		assert(model.gear.HeadAccessory.size()==1,"Headpiece must be a separate weighted mesh")
 		var headpiece:MeshInstance3D=model.gear.HeadAccessory[0]
 		var dress:MeshInstance3D=model.gear.Clothing1.filter(func(m):return m.name=="MaidDress")[0]
+		assert(dress.get_meta("garment_kind","")=="skirt","Skirt behavior must come from asset metadata")
+		var triangles:=0
+		for surface in dress.mesh.get_surface_count():triangles+=dress.mesh.surface_get_array_index_len(surface)/3
+		assert(triangles==dress.get_meta("source_triangle_count",-1),"Original dress panels must survive fitting and export")
+		var movable_vertices:=0
+		for surface in dress.mesh.get_surface_count():
+			var colors:PackedColorArray=dress.mesh.surface_get_arrays(surface)[Mesh.ARRAY_COLOR]
+			for color in colors:
+				if color.a>.5:movable_vertices+=1
+		assert(movable_vertices>100,"Garment rebuilding must preserve the skirt mobility mask")
 		model.set_equipment({"Clothing1":3,"Boots":2,"HeadAccessory":1})
 		assert(dress.visible and dress.material_override.get_shader_parameter("black_variant"))
 		assert(headpiece.visible and headpiece.skin!=null)
+		for base in model.gear.BaseBottom:assert(base.visible,"Skirts must retain their fitted base layer")
 		for mesh in model.gear.Clothing2:assert(not mesh.visible,"Black dress must also hide trousers")
 		var stocking:MeshInstance3D=model.gear.Boots.filter(func(m):return m.name=="MaidStockings")[0]
 		assert(stocking.material_override is ShaderMaterial,"Stockings need the skin-aware fabric material")

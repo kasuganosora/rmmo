@@ -16,5 +16,5 @@ func run()->void:
 			var rect:=TextureRect.new();rect.texture=view.viewport.get_texture();rect.position=Vector2(t*320+32,45+row*256);rect.size=Vector2(256,256);root.add_child(rect)
 	await create_timer(.5).timeout
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/refined_review.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/refined_review.png"))
 	print("REFINED_REVIEW_OK");quit()

@@ -1,0 +1,52 @@
+diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
+index 3371402..3adeb04 100644
+--- a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
++++ b/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
+@@ -626,12 +626,6 @@ func _exit_tree() -> void:
+ 		_lambda_buffer,
+ 		_positions_img_rid, _normals_img_rid,
+ 		_collider_tri_buffer,
+-		_skin_uniform_set, _predict_uniform_set, _solve_uniform_set,
+-		_update_uniform_set, _collide_uniform_set, _warm_start_uniform_set,
+-		_normals_uniform_set, _output_uniform_set,
+-		_fishing_uniform_set, _pin_override_uniform_set,
+-		_skin_collide_uniform_set, _collide_tris_uniform_set, _skin_collide_tris_uniform_set,
+-		_self_collide_uniform_set,
+ 		_skin_pipeline, _predict_pipeline, _solve_pipeline,
+ 		_update_pipeline, _collide_pipeline, _warm_start_pipeline,
+ 		_normals_pipeline, _output_pipeline,
+@@ -645,6 +639,15 @@ func _exit_tree() -> void:
+ 		_skin_collide_shader, _collide_tris_shader, _skin_collide_tris_shader,
+ 		_peer_collide_shader, _peer_skin_collide_shader,
+ 	]
++	# Release dependent sets before their buffers invalidate them.
++	var uniform_rids: Array = [
++		_skin_uniform_set, _predict_uniform_set, _solve_uniform_set,
++		_update_uniform_set, _collide_uniform_set, _warm_start_uniform_set,
++		_normals_uniform_set, _output_uniform_set,
++		_fishing_uniform_set, _pin_override_uniform_set,
++		_skin_collide_uniform_set, _collide_tris_uniform_set, _skin_collide_tris_uniform_set,
++		_self_collide_uniform_set,
++	]
+ 	# Per-peer uniform sets reference RIDs we don't own (the peer's
+ 	# positions/indices buffers). When the peer's _exit_tree runs first, the
+ 	# RD auto-invalidates every uniform set that referenced those freed
+@@ -660,13 +663,16 @@ func _exit_tree() -> void:
+ 		if not peer_alive:
+ 			continue
+ 		if p.uniform_set.is_valid():
+-			rids.append(p.uniform_set)
++			uniform_rids.append(p.uniform_set)
+ 		if p.has("sanitize_uniform_set") and p.sanitize_uniform_set.is_valid():
+-			rids.append(p.sanitize_uniform_set)
++			uniform_rids.append(p.sanitize_uniform_set)
+ 	RenderingServer.call_on_render_thread(func() -> void:
+ 		var rd := RenderingServer.get_rendering_device()
+ 		if not rd:
+ 			return
++		for rid: RID in uniform_rids:
++			if rid.is_valid() and rd.uniform_set_is_valid(rid):
++				rd.free_rid(rid)
+ 		for rid: RID in rids:
+ 			if rid.is_valid():
+ 				rd.free_rid(rid)

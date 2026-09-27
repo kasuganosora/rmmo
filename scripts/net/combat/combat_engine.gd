@@ -27,6 +27,15 @@ var player_cell_hint: Vector2i = Vector2i(-9999, -9999)
 var map_collision = null
 ## Optional test override: Callable() -> float in [0,1). Used for hit then crit rolls.
 var combat_randf: Callable = Callable()
+## Optional authoritative meter-space adapter. Legacy grid worlds leave this empty.
+var spatial_range: Callable = Callable()
+var spatial_in_combat: Callable = Callable()
+var spatial_ground: Callable = Callable()
+var spatial_area: Callable = Callable()
+var spatial_counter: Callable = Callable()
+var spatial_npc_check: Callable = Callable()
+var spatial_charge: Callable = Callable()
+var spatial_revive: Callable = Callable()
 
 ## Personal DPS meter session window (player → NPC damage only).
 ## Keys: active, total_damage, fight_start, last_hit_time. Clock via _dps_clock.
@@ -438,6 +447,9 @@ func _threat_update_action(npc_id: String) -> Dictionary:
 func _in_range(npc_id: String, player_x: int, player_y: int, range_cells: int) -> bool:
 	return _targeting_module_logic._in_range(npc_id, player_x, player_y, range_cells)
 func _maybe_counter(npc_id: String, player_x: int, player_y: int, actions: Array) -> void:
+	if spatial_counter.is_valid():
+		spatial_counter.call(npc_id, actions)
+		return
 	if not stats.npcs.has(npc_id):
 		return
 	var st: Dictionary = stats.npcs[npc_id]
@@ -744,9 +756,12 @@ func try_use_skill(
 	var range_cells: int = int(def.get("range", 1))
 	var gcell: Vector2i = _resolve_ground_cell(def, target_npc_id, player_x, player_y, ground_x, ground_y)
 	if tmode == "ground":
-		if gcell.x <= -9990:
+		if spatial_ground.is_valid():
+			if not spatial_ground.call(range_cells):
+				return {"ok": false, "reason": "invalid_ground", "actions": [{"type": "system_message", "text": "地点不可达、被遮挡或超出范围。"}]}
+		elif gcell.x <= -9990:
 			return {"ok": false, "reason": "need_ground", "actions": [{"type": "system_message", "text": "需要选择地点。"}]}
-		if not _cell_in_range(Vector2i(player_x, player_y), gcell, range_cells):
+		if not spatial_ground.is_valid() and not _cell_in_range(Vector2i(player_x, player_y), gcell, range_cells):
 			return {"ok": false, "actions": [{"type": "system_message", "text": "地点太远。"}]}
 		ground_x = gcell.x
 		ground_y = gcell.y
@@ -755,6 +770,9 @@ func try_use_skill(
 			return {"ok": false, "actions": [{"type": "system_message", "text": "需要目标。"}]}
 		var eff_chk := str(def.get("effect", "")).strip_edges()
 		if eff_chk == "revive":
+			if spatial_revive.is_valid():
+				var error: String = spatial_revive.call(target_npc_id)
+				if error != "": return {"ok": false, "actions": [{"type": "system_message", "text": error}]}
 			# Dead ally only — do not auto-spawn a living NPC via ensure_npc.
 			if target_npc_id == "player" or (
 				"player_actor_id" in stats and target_npc_id == str(stats.player_actor_id).strip_edges()
@@ -790,12 +808,15 @@ func try_use_skill(
 				if not bool(stats.npcs[target_npc_id].get("hostile", false)):
 					return {"ok": false, "actions": [{"type": "system_message", "text": "只能冲锋敌对目标。"}]}
 				var min_r: int = int(def.get("min_range", 0))
-				if min_r > 0:
+				if spatial_charge.is_valid():
+					var error: String = spatial_charge.call(target_npc_id, def, false)
+					if error != "": return {"ok": false, "actions": [{"type": "system_message", "text": error}]}
+				elif min_r > 0:
 					var tcell: Vector2i = stats.get_npc_cell(target_npc_id)
 					var cdist: int = maxi(absi(tcell.x - player_x), absi(tcell.y - player_y))
 					if cdist < min_r:
 						return {"ok": false, "actions": [{"type": "system_message", "text": "目标太近，无法冲锋。"}]}
-				var path_err := _charge_path_error(target_npc_id, player_x, player_y)
+				var path_err := "" if spatial_charge.is_valid() else _charge_path_error(target_npc_id, player_x, player_y)
 				if path_err != "":
 					return {"ok": false, "actions": [{"type": "system_message", "text": path_err}]}
 			elif eff_chk == "execute":
@@ -883,7 +904,9 @@ func try_npc_skill(
 	var gcell: Vector2i = Vector2i(ground_x, ground_y)
 	if gcell.x <= -9990:
 		gcell = Vector2i(npc_x, npc_y)
-	if not _cell_in_range(Vector2i(npc_x, npc_y), gcell, range_cells):
+	if spatial_npc_check.is_valid():
+		if not spatial_npc_check.call(npc_id, def, false): return {"ok": false, "reason": "space", "actions": []}
+	elif not _cell_in_range(Vector2i(npc_x, npc_y), gcell, range_cells):
 		return {"ok": false, "reason": "range", "actions": []}
 	var mp_cost: int = int(def.get("mp_cost", 0))
 	if not _spend_npc_mp(npc_id, mp_cost):

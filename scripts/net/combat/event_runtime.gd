@@ -652,6 +652,15 @@ func _cmd_take_gold(cmd: Dictionary, server_ctx: Dictionary) -> Array:
 
 
 func _cmd_transfer(cmd: Dictionary, server_ctx: Dictionary) -> Array:
+	if bool(server_ctx.get("world3d", false)):
+		var location: Variant = cmd.get("world_location", {})
+		var path := str(cmd.get("map_path", ""))
+		if not location is Dictionary or path.is_empty():
+			return [{"type": "system_message", "text": "传送事件缺少三维目标位置"}]
+		var parsed = preload("res://scripts/world3d/world_location.gd").from_dictionary(location)
+		if not parsed.valid():
+			return [{"type": "system_message", "text": "传送目标位置无效"}]
+		return [{"type": "world3d_transfer", "path": path, "location": parsed.to_dictionary()}]
 	var to_pack := str(cmd.get("to_pack", "")).strip_edges()
 	var to_map := str(cmd.get("to_map", cmd.get("to_map_id", ""))).strip_edges()
 	var to_cell_v: Variant = cmd.get("to_cell", {})
@@ -957,4 +966,3 @@ func _route_npc_move_action(npc_id: String, x: int, y: int, facing: int) -> Dict
 		"y": y,
 		"facing": facing,
 	}
-

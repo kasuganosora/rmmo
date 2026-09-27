@@ -28,6 +28,8 @@ func player_is_mounted() -> bool:
 
 
 func player_in_combat() -> bool:
+	if ctrl.spatial_in_combat.is_valid() and ctrl.spatial_in_combat.call():
+		return true
 	if bool(ctrl._dps_fight.get("active", false)):
 		return true
 	if ctrl.stats == null:

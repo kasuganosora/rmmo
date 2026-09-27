@@ -15,5 +15,5 @@ func run()->void:
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*200,row*390+20);rect.size=Vector2(198,365);root.add_child(rect)
 			var label:=Label.new();label.text=["站立正面","站立侧面","跑步 A","跑步 B","空手刺拳","剑击 A"][col];label.position=Vector2(col*200+30,row*390);root.add_child(label)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/combat_motion_preview.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/combat_motion_preview.png"))
 	print("PREVIEW_OK");quit()

@@ -6,7 +6,9 @@ const SCENE_CHAR := "res://scenes/character_select.tscn"
 const SCENE_CREATE := "res://scenes/character_create.tscn"
 const SCENE_LOADING := "res://scenes/loading.tscn"
 const SCENE_WORLD := "res://scenes/world.tscn"
+const SCENE_WORLD_3D := "res://scenes/world_3d.tscn"
 const SCENE_EDITOR := "res://scenes/content_editor.tscn"
+const SCENE_WORLD_EDITOR := "res://scenes/world_editor.tscn"
 
 var username: String = ""
 var server_address: String = "127.0.0.1:7777"
@@ -31,8 +33,44 @@ var last_loading_progress: Array = []
 var _world_transition_active: bool = false
 var _loading_transition_active: bool = false
 var last_loading_profile: Dictionary = {}
+## External glTF chosen for this visit. Empty rebuilds the sample yard.
+## The Axel whitebox is a subsystem check, not a shipped map, and is never chosen here.
+var world3d_map_path: String = ""
+var world3d_spawn := Vector3(0, 0.9, 4)
+## Talk and gather flags for the 3D profile. Survives a map reload. Not the 2D save.
+var world3d_switches: Dictionary = {}
+## Editor document kept across playtest. Not written to the 2D save.
+var world3d_editor_doc = null
+var world3d_editor_path := ""
+var prepared_world3d: Node = null
+var world3d_loading := false
+var world3d_requested := false
+var pending_world3d_playtest := false
+
+
+func world_scene() -> String:
+	return SCENE_WORLD_3D if world3d_loading else SCENE_WORLD
+
+
+func use_world3d() -> bool:
+	return world3d_requested or str(ProjectSettings.get_setting("rmmo/startup_profile", "world2d")) == "world3d"
+
+
+func clear_prepared_world3d() -> void:
+	if is_instance_valid(prepared_world3d):
+		prepared_world3d.free()
+	prepared_world3d = null
+
+
+func world3d_travel():
+	var travel = load("res://scripts/world3d/world_travel.gd").new()
+	travel.switches = world3d_switches
+	return travel
 
 func go_login() -> void:
+	world3d_requested = false
+	pending_world3d_playtest = false
+	clear_prepared_world3d()
 	selected_character = {}
 	spawn_data = {}
 	loading_mode = ""
@@ -92,11 +130,12 @@ func go_world() -> void:
 		background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		visual=background
 	cover.add_child(visual)
-	var status:=ResourceLoader.load_threaded_get_status(SCENE_WORLD)
+	var destination := world_scene()
+	var status:=ResourceLoader.load_threaded_get_status(destination)
 	while status==ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 		await get_tree().process_frame
-		status=ResourceLoader.load_threaded_get_status(SCENE_WORLD)
-	var scene: PackedScene=ResourceLoader.load_threaded_get(SCENE_WORLD) if status==ResourceLoader.THREAD_LOAD_LOADED else load(SCENE_WORLD)
+		status=ResourceLoader.load_threaded_get_status(destination)
+	var scene: PackedScene=ResourceLoader.load_threaded_get(destination) if status==ResourceLoader.THREAD_LOAD_LOADED else load(destination)
 	var error:=get_tree().change_scene_to_packed(scene) if scene!=null else ERR_CANT_OPEN
 	if error!=OK:
 		cover.queue_free();_world_transition_active=false
@@ -107,6 +146,12 @@ func go_world() -> void:
 	await get_tree().scene_changed
 	last_loading_profile["world_ready_ms"]=Time.get_ticks_msec()
 	var world=get_tree().current_scene
+	while is_instance_valid(world) and world.has_method("is_world_ready") and not world.is_world_ready():
+		await get_tree().process_frame
+	if not is_instance_valid(world):
+		cover.queue_free()
+		_world_transition_active = false
+		return
 	var player=world.get_node_or_null("Player")
 	if player!=null:player.input_locked=true
 	# Keep the loading visual through the first rendered world frame, including
@@ -127,6 +172,18 @@ func go_world() -> void:
 	last_loading_profile["finished_ms"]=Time.get_ticks_msec()
 
 
+func go_world_3d() -> void:
+	world3d_requested = true
+	if not has_active_character():
+		pending_world3d_playtest = true
+		get_tree().change_scene_to_file(SCENE_CHAR if not username.is_empty() else SCENE_LOGIN)
+		return
+	loading_mode = "world3d_preview"
+	go_loading()
+
+func go_world_editor() -> void:
+	get_tree().change_scene_to_file(SCENE_WORLD_EDITOR)
+
 func go_content_editor() -> void:
 	get_tree().change_scene_to_file(SCENE_EDITOR)
 
@@ -134,7 +191,18 @@ func active_character() -> Dictionary:
 	## Single source of truth for HUD / world: spawn snapshot, else selection.
 	var spawn_ch: Variant = spawn_data.get("character", null)
 	if typeof(spawn_ch) == TYPE_DICTIONARY and not (spawn_ch as Dictionary).is_empty():
-		return (spawn_ch as Dictionary).duplicate(true)
+		if selected_character.is_empty() or int(selected_character.get("id", -1)) == int(spawn_ch.get("id", -2)):
+			return (spawn_ch as Dictionary).duplicate(true)
 	if not selected_character.is_empty():
 		return selected_character.duplicate(true)
 	return {}
+
+
+func has_active_character() -> bool:
+	var character := active_character()
+	return str(character.get("gender", "")) in ["male", "female", "young_male", "young_female"] and character.get("customization", {}) is Dictionary
+
+func has_world3d_snapshot() -> bool:
+	var character := active_character()
+	var snapshot: Dictionary = spawn_data.get("character", {})
+	return has_active_character() and not snapshot.is_empty() and int(character.get("id", -1)) == int(snapshot.get("id", -2)) and spawn_data.has("equipment") and spawn_data.get("world_mode") == "world3d"

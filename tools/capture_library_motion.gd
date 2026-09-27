@@ -15,10 +15,10 @@ func run()->void:
 			view.camera.size=3.4 if col==3 else 2.6;view.camera.position=Vector3(0,2.3,5);view.camera.look_at(Vector3(0,.83,0))
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*256,row*320+32);rect.size=Vector2(256,280);root.add_child(rect)
 			var label:=Label.new();label.text=("男性 · " if row==0 else "女性 · ")+["行走","冲刺","施法","死亡"][col];label.position=Vector2(col*256+65,row*320+8);root.add_child(label)
-	DirAccess.make_dir_recursive_absolute("res://artifacts/character_3d/library_frames")
+	DirAccess.make_dir_recursive_absolute(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/library_frames"))
 	for frame in range(80):
 		for view in views:view.model.pose_at(frame/24.0)
 		await process_frame
 		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png("res://artifacts/character_3d/library_frames/%03d.png"%frame)
+		root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/library_frames/%03d.png")%frame)
 	print("LIBRARY_PREVIEW_OK");quit()

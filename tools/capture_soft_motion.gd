@@ -15,7 +15,7 @@ func run()->void:
 		view.camera.size=2.2;view.camera.position=Vector3(0,1.6,5);view.camera.look_at(Vector3(0,1,0))
 		var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*256,45);rect.size=Vector2(256,470);root.add_child(rect)
 		var label:=Label.new();label.text=["行走 · 原效果","行走 · 柔性回弹","跑步 · 原效果","跑步 · 柔性回弹"][col];label.position=Vector2(col*256+35,12);root.add_child(label)
-	DirAccess.make_dir_recursive_absolute("res://artifacts/character_3d/soft_frames")
+	DirAccess.make_dir_recursive_absolute(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/soft_frames"))
 	for frame in range(96):
 		for i in range(4):
 			var model=views[i].model
@@ -26,5 +26,5 @@ func run()->void:
 					model.skeleton.set_bone_pose_position(bone,model.skeleton.get_bone_rest(bone).origin)
 					model.skeleton.set_bone_pose_rotation(bone,model.skeleton.get_bone_rest(bone).basis.get_rotation_quaternion())
 		await process_frame;await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png("res://artifacts/character_3d/soft_frames/%03d.png"%frame)
+		root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/soft_frames/%03d.png")%frame)
 	print("SOFT_PREVIEW_OK");quit()

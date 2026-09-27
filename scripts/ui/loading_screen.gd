@@ -8,6 +8,8 @@ const MapFieldScript = preload("res://scripts/map/map_field.gd")
 var _gate_failed: bool = false
 var _gate_error: String = ""
 var progress_history: Array = []
+var _map_loader: Node
+var _cancelled := false
 
 func _stage(label: String, done: int = -1, total: int = 0) -> void:
 	status_label.text = label + (" %d / %d" % [done,total] if total>0 else "…")
@@ -29,8 +31,19 @@ func transition_visual() -> Control:
 func _ready() -> void:
 	bar.modulate.a = 0.0
 	Net.session().last_loading_profile={"started_ms":Time.get_ticks_msec()}
-	ResourceLoader.load_threaded_request(Net.session().SCENE_WORLD,"PackedScene")
 	var mode: String = str(Net.session().loading_mode)
+	Net.session().world3d_loading = mode == "world3d_preview" or (mode != "transfer" and Net.session().use_world3d())
+	ResourceLoader.load_threaded_request(Net.session().world_scene(),"PackedScene")
+	if mode == "world3d_preview":
+		if not Net.session().has_active_character():
+			status_label.text = "请先选择角色，试玩不会生成替代人物"
+			_show_transfer_fail_actions()
+		elif Net.session().has_world3d_snapshot():
+			_prepare_world3d()
+		else:
+			Net.session().selected_character = Net.session().active_character()
+			_run_enter()
+		return
 	if mode == "transfer":
 		_run_transfer()
 	else:
@@ -42,6 +55,9 @@ func _asset_manager() -> Node:
 
 
 func _exit_tree() -> void:
+	_cancelled = true
+	if is_instance_valid(_map_loader):
+		_map_loader.cancel()
 	## Drop the enter_world_ready subscription so a stale (freed) loading screen
 	## never receives the signal after the scene is swapped away.
 	if Net.server() != null and Net.server().enter_world_ready.is_connected(_on_enter_ready):
@@ -55,7 +71,14 @@ func _run_enter() -> void:
 	await get_tree().process_frame
 	if not is_instance_valid(self):
 		return
-	Net.server().enter_world(int(Net.session().selected_character.get("id", -1)))
+	if Net.session().world3d_loading:
+		if not Net.server().has_method("enter_world3d"):
+			status_label.text = "当前服务器尚不支持三维世界"
+			_show_transfer_fail_actions()
+			return
+		Net.server().enter_world3d(int(Net.session().selected_character.get("id", -1)))
+	else:
+		Net.server().enter_world(int(Net.session().selected_character.get("id", -1)))
 
 
 func _run_transfer() -> void:
@@ -148,6 +171,9 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 	if typeof(spawn_ch) == TYPE_DICTIONARY and not (spawn_ch as Dictionary).is_empty():
 		Net.session().selected_character = (spawn_ch as Dictionary).duplicate(true)
 	status_label.text = message if message.strip_edges() != "" else "正在准备地图…"
+	if Net.session().world3d_loading:
+		_prepare_world3d()
+		return
 	var bake_ok: bool = await _bake_spawn_map()
 	if not is_instance_valid(self):
 		return
@@ -160,6 +186,62 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 	if not is_instance_valid(self):
 		return
 	_stage("正在进入城镇")
+	Net.session().go_world()
+
+
+func _prepare_world3d() -> void:
+	if not Net.session().has_active_character():
+		status_label.text = "缺少角色外观，请重新选择角色"
+		_show_transfer_fail_actions()
+		return
+	_stage("读取三维地图")
+	var cancel := Button.new()
+	cancel.text = "取消加载"
+	cancel.position = Vector2(24, 24)
+	cancel.pressed.connect(func():
+		_cancelled = true
+		if is_instance_valid(_map_loader):
+			_map_loader.cancel()
+		Net.session().clear_prepared_world3d()
+		if Net.session().editor_return:
+			Net.session().go_world_editor()
+		else:
+			Net.session().go_character_select()
+	)
+	add_child(cancel)
+	await get_tree().process_frame
+	if _cancelled:
+		return
+	var Loader = preload("res://scripts/world3d/map_loader.gd")
+	var requested: String = Net.session().world3d_map_path
+	if requested.is_empty():
+		requested = str(ProjectSettings.get_setting("rmmo/world3d_start_map", ""))
+	var path: String = Loader.resolve_path(requested)
+	if path.is_empty() or not FileAccess.file_exists(path):
+		status_label.text = "三维地图不存在，请检查启动地图设置"
+		_show_transfer_fail_actions()
+		return
+	_map_loader = Loader.new()
+	Net.session().add_child(_map_loader)
+	_map_loader.finished.connect(_on_world3d_loaded)
+	_map_loader.progress.connect(func(stage: String, done: int, total: int): _stage(stage, done, total))
+	_map_loader.start(path)
+
+
+func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
+	if _cancelled:
+		if scene != null:
+			scene.free()
+		return
+	if scene == null:
+		status_label.text = error
+		_show_transfer_fail_actions()
+		return
+	Net.session().clear_prepared_world3d()
+	Net.session().prepared_world3d = scene
+	Net.session().world3d_map_path = path
+	Net.session().loading_mode = ""
+	_stage("准备三维场景和附近碰撞")
 	Net.session().go_world()
 
 

@@ -19,14 +19,17 @@ void fragment() {
 """
 const DRESS_PALETTE:="""shader_type spatial;
 render_mode unshaded, cull_disabled;
+"""+preload("res://scripts/char/character_garment_motion.gd").VERTEX_FIT+"""
 uniform sampler2D source_texture : source_color, filter_linear_mipmap;
 uniform bool black_variant = false;
 void fragment() {
-    vec3 color = texture(source_texture, UV).rgb;
+    vec4 texel = texture(source_texture, UV);
+    if (texel.a < 0.5) { discard; }
+    vec3 color = texel.rgb;
     float pink = smoothstep(0.025, 0.12, min(color.r-color.g, color.r-color.b));
     float shade = dot(color,vec3(0.299,0.587,0.114));
     vec3 charcoal = vec3(0.025,0.028,0.035) * (0.4+shade);
-    ALBEDO = black_variant ? mix(color,charcoal,pink) : color;
+    ALBEDO = (black_variant ? mix(color,charcoal,pink) : color) * COLOR.r;
 }
 """
 static func install(model:Node3D,adapter:RefCounted)->void:
@@ -54,6 +57,10 @@ static func install(model:Node3D,adapter:RefCounted)->void:
 			skin.add_named_bind(bone_name,mesh.skin.get_bind_pose(binding))
 		mesh.reparent(model.rig,false);mesh.transform=transform;mesh.skin=skin
 		mesh.skeleton=mesh.get_path_to(model.skeleton)
+		var extras:Dictionary=mesh.get_meta("extras",{})
+		if extras.has("garment_kind"):mesh.set_meta("garment_kind",str(extras.garment_kind))
+		if extras.has("source_triangle_count"):mesh.set_meta("source_triangle_count",int(extras.source_triangle_count))
+		if extras.has("source_triangle_count"):mesh.set_meta("source_triangle_count",int(extras.source_triangle_count))
 		mesh.set_meta("equipment_variant",2)
 		if mesh.name=="MaidStockings":
 			var material:=ShaderMaterial.new();var shader:=Shader.new();shader.code=STOCKINGS_MATERIAL;material.shader=shader
@@ -61,6 +68,7 @@ static func install(model:Node3D,adapter:RefCounted)->void:
 			mesh.material_override=material
 		if mesh.name=="MaidHeadpiece":mesh.set_meta("equipment_variant",1)
 		if mesh.name=="MaidDress":
+			mesh.set_meta("flexible_garment",mesh.get_meta("garment_kind","")=="skirt")
 			mesh.set_meta("equipment_variants",[2,3])
 			var original:StandardMaterial3D=mesh.get_active_material(0)
 			var material:=ShaderMaterial.new();var shader:=Shader.new();shader.code=DRESS_PALETTE;material.shader=shader

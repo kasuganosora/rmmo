@@ -27,5 +27,5 @@ func run()->void:
 		var label:=Label.new();label.text=item[0];label.position=origin+Vector2(28,12);root.add_child(label)
 		var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=origin+Vector2(12,45);rect.size=Vector2(336,420);root.add_child(rect)
 	await create_timer(.3).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/imported_review_"+gender+".png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/imported_review_")+gender+".png")
 	print("IMPORTED_REVIEW_OK");quit()

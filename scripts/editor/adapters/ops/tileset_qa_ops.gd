@@ -153,4 +153,4 @@ func preview_autotile_cases(args: Dictionary) -> Dictionary:
 	var opts := args.duplicate()
 	if not opts.has("max_px"):
 		opts["max_px"] = 4096
-	return ctrl._png_payload(img,{"kinds":kinds,"frame":frame,"tile_px":48,"row_px":288,"fixtures":["island","hole","L","cross","all_shapes"],"visual_review_required":true,"map_modified":false},opts,"res://.grok/autotile_cases.png")
+	return ctrl._png_payload(img,{"kinds":kinds,"frame":frame,"tile_px":48,"row_px":288,"fixtures":["island","hole","L","cross","all_shapes"],"visual_review_required":true,"map_modified":false},opts,preload("res://scripts/asset/art_paths.gd").review_path("editor/autotile_cases.png"))

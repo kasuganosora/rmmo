@@ -12,5 +12,5 @@ func run()->void:
 		view.viewport.size=Vector2i(350,600);view.camera.size=1.25;view.camera.position=Vector3(0,1.5,5);view.camera.look_at(Vector3(0,1.5,0))
 		var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*250,20);rect.size=Vector2(245,450);root.add_child(rect)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/updo_bust_fixed.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/updo_bust_fixed.png"))
 	print("PREVIEW_OK");quit()

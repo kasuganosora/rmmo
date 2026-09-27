@@ -21,5 +21,5 @@ func run()->void:
 			var label:=Label.new();label.text=("女性 · " if row==0 else "男性 · ")+["鞋袜正面","侧面","背面","卸下鞋袜"][col];label.position=Vector2(col*320+65,row*340+5);root.add_child(label)
 			if moving:label.text=("女性 · " if row==0 else "男性 · ")+["行走","跑步抬脚","跑步落脚","卸下鞋袜"][col]
 	await create_timer(.3).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/maid_footwear_moving.png" if moving else "res://artifacts/character_3d/maid_footwear_fixed.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/maid_footwear_moving.png") if moving else preload("res://scripts/asset/art_paths.gd").review_path("character_3d/maid_footwear_fixed.png"))
 	print("MAID_FOOTWEAR_PREVIEW_OK");quit()

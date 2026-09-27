@@ -111,5 +111,11 @@ func _on_enter() -> void:
 	var ch: Dictionary = (raw as Dictionary).duplicate(true)
 	Net.session().selected_character = ch
 	Net.session().spawn_data = {}
+	if not Net.session().pending_world3d_playtest:
+		Net.session().world3d_map_path = ""
+		Net.session().world3d_spawn = Vector3(0, 0.9, 4)
+		Net.session().editor_return = false
+	Net.session().pending_world3d_playtest = false
+	Net.session().world3d_switches.clear()
 	Net.session().loading_mode = ""
 	Net.session().go_loading()

@@ -65,7 +65,7 @@ func tick_cast(delta: float) -> Array:
 	var range_cells: int = int(def.get("range", 1))
 	if tmode == "ground":
 		var gcell: Vector2i = ctrl._resolve_ground_cell(def, target_id, px, py, gx, gy)
-		if gcell.x <= -9990:
+		if (ctrl.spatial_ground.is_valid() and not ctrl.spatial_ground.call(range_cells)) or (not ctrl.spatial_ground.is_valid() and gcell.x <= -9990):
 			actions.append({
 				"type": "cast_end",
 				"skill_id": skill_id,
@@ -77,7 +77,7 @@ func tick_cast(delta: float) -> Array:
 			actions.append({"type": "system_message", "text": "需要选择地点。"})
 			actions.append_array(ctrl._player_stat_actions())
 			return actions
-		if not ctrl._cell_in_range(Vector2i(px, py), gcell, range_cells):
+		if not ctrl.spatial_ground.is_valid() and not ctrl._cell_in_range(Vector2i(px, py), gcell, range_cells):
 			actions.append({
 				"type": "cast_end",
 				"skill_id": skill_id,
@@ -92,7 +92,7 @@ func tick_cast(delta: float) -> Array:
 		gx = gcell.x
 		gy = gcell.y
 	elif needs_target:
-		if target_id.is_empty() or not ctrl.stats.npcs.has(target_id) or int(ctrl.stats.npcs[target_id].get("hp", 0)) <= 0:
+		if target_id.is_empty() or not ctrl.stats.npcs.has(target_id) or (int(ctrl.stats.npcs[target_id].get("hp", 0)) <= 0 and str(def.get("effect", "")) != "revive"):
 			actions.append({
 				"type": "cast_end",
 				"skill_id": skill_id,

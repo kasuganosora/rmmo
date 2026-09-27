@@ -2,7 +2,8 @@ extends Node2D
 ## Isolated 3D render composited at the same feet anchor as a 2D map character.
 const Model = preload("res://scripts/char/character_model_3d.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
-const WORLD_RENDER_SCALE:float=.42*1.30
+# Reduce map actors by roughly one head, keeping the feet anchor and proportions.
+const WORLD_RENDER_SCALE:float=.42*1.30*.82
 var viewport: SubViewport
 var model: Node3D
 var camera: Camera3D
@@ -11,6 +12,8 @@ var driver: AnimatedSprite2D
 var portrait_mode:=false
 var render_scale:=.42
 var _wide_action:=false
+var _last_map_position:=Vector2.ZERO
+var _map_position_valid:=false
 
 static func enabled()->bool:return bool(ProjectSettings.get_setting("rmmo/characters_3d",true))
 static func equipment_parts(gender:String,snapshot:Array,catalog=null)->Dictionary:
@@ -91,7 +94,7 @@ func _fit_action()->void:
 	viewport.size=Vector2i(384,384) if wide else Vector2i(256,256)
 	camera.size=3.9 if wide else 2.6
 	_anchor_feet()
-func _process(_delta:float)->void:
+func _process(delta:float)->void:
 	if model!=null:
 		model.environment_wind=Vector2.ZERO
 		# Only map actors have a driver; character creation previews stay indoors.
@@ -103,7 +106,24 @@ func _process(_delta:float)->void:
 			if str(driver.animation).begins_with(action+"_"):
 				model.play(action,str(driver.animation).trim_prefix(action+"_"))
 				break
+		_sync_locomotion(delta)
 		modulate=driver.modulate
 	_fit_action()
 	if viewport!=null:
 		viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
+
+func _sync_locomotion(delta:float)->void:
+	var distance:float=global_position.distance_to(_last_map_position) if _map_position_valid else 0.0
+	_last_map_position=global_position;_map_position_valid=true
+	model.locomotion_rate=1.0
+	if model.imported_rig==null or model.action not in ["walk","dash"]:return
+	var library=model.imported_rig.animations
+	var clip:Animation=library.clips.get(model.animation_clip)
+	if clip==null or not clip.has_meta("ground_speed"):return
+	# Map movement is measured before camera zoom. Use the same orthographic
+	# pixels/unit as the composited character, never the old 2D sprite FPS.
+	var pixels_per_unit:float=float(viewport.size.y)/camera.size*render_scale
+	var authored_rate:float=1.25 if model.animation_clip=="dash_female" else 1.0
+	var speed:float=float(clip.get_meta("ground_speed"))*model.rig.scale.x*pixels_per_unit*authored_rate
+	# A warp/server snap is not locomotion. A blocked actor advances no steps.
+	model.locomotion_rate=distance/(maxf(delta,.0001)*speed) if distance<96.0 else 0.0

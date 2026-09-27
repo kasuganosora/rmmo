@@ -235,7 +235,7 @@ func preview_tileset(args: Dictionary) -> Dictionary:
 		"catalog": catalog,
 		"count": catalog.size(),
 	}
-	return ctrl._png_payload(img, extra, args, "res://.grok/mcp_tileset.png")
+	return ctrl._png_payload(img, extra, args, preload("res://scripts/asset/art_paths.gd").review_path("editor/mcp_tileset.png"))
 
 
 
@@ -258,7 +258,7 @@ func preview_charset(args: Dictionary) -> Dictionary:
 			drawn += 1
 	if drawn == 0:
 		return ctrl.mcp._err("charset not found")
-	return ctrl._png_payload(img, {"charset": cs, "index": index, "frames": dirs.size(), "drawn": drawn}, args, "res://.grok/mcp_charset.png")
+	return ctrl._png_payload(img, {"charset": cs, "index": index, "frames": dirs.size(), "drawn": drawn}, args, preload("res://scripts/asset/art_paths.gd").review_path("editor/mcp_charset.png"))
 
 
 
@@ -379,7 +379,7 @@ func preview_sheet_rect(args: Dictionary) -> Dictionary:
 		"rows": rows,
 		"scale": scale,
 		"file_mtime": FileAccess.get_modified_time(path),
-	}, args, "res://.grok/mcp_sheet_rect.png")
+	}, args, preload("res://scripts/asset/art_paths.gd").review_path("editor/mcp_sheet_rect.png"))
 
 
 func op_names() -> Array:

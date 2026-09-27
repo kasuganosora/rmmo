@@ -800,7 +800,7 @@ func _preview_map(args: Dictionary) -> Dictionary:
 		img.resize(maxi(1, int(ow * sc)), maxi(1, int(oh * sc)), Image.INTERPOLATE_NEAREST)
 	var save_path := str(args.get("path", "")).strip_edges()
 	if save_path == "":
-		save_path = ProjectSettings.globalize_path("res://.grok/mcp_preview.png")
+		save_path = ProjectSettings.globalize_path(preload("res://scripts/asset/art_paths.gd").review_path("editor/mcp_preview.png"))
 	DirAccess.make_dir_recursive_absolute(save_path.get_base_dir())
 	var save_err := img.save_png(save_path)
 	var png: PackedByteArray = img.save_png_to_buffer()

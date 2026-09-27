@@ -118,6 +118,19 @@ var _window_manager_logic: WindowManager = WindowManager.new(self)
 var _hotbar_page: int = 0
 var _windows: Dictionary = {}
 var _radar: Control
+var _world_map_source:Node
+
+func bind_world_map_3d(world:Node)->void:
+	_world_map_source=world
+	if is_instance_valid(_radar):_radar.free()
+	_radar=preload("res://scripts/ui/world_map_view_3d.gd").new()
+	minimap_view_host.add_child(_radar)
+	_radar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_radar.bind_world(world,true)
+	minimap_view_host.move_child(_radar,0)
+	_apply_radar_view_radius_from_settings()
+	get_node("MinimapPanel").visible=true
+	minimap_label.text=world._map_data.title
 var _radar_player: Node2D
 var _radar_map_field: Node2D
 var _radar_map_id: String = ""
@@ -2188,7 +2201,8 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 
 	_map_info_label = _add_label(mount, "", 13, Color(0.92, 0.88, 0.65))
 	_add_label(mount, "角色：%s" % str(ch.get("name", "?")), 12)
-	_add_label(mount, "Shift+左键 / 右键：设/清个人标记（最多3）", 11, Color(0.7, 0.72, 0.68))
+	_add_label(mount, "左键寻路 · 滚轮缩放 · 拖动平移 · 双击回到角色" if is_instance_valid(_world_map_source) else "Shift+左键 / 右键：设/清个人标记（最多3）", 11, Color(0.7, 0.72, 0.68))
+	if is_instance_valid(_world_map_source):_add_label(mount,"Shift+左键 / 右键：设/清个人标记（最多3）",11,Color(0.7,0.72,0.68))
 	var pin_row := HBoxContainer.new()
 	pin_row.add_theme_constant_override("separation", 8)
 	mount.add_child(pin_row)
@@ -2209,7 +2223,7 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 	mount.add_child(host)
 
 	var overview := Control.new()
-	overview.set_script(MapOverview)
+	overview.set_script(preload("res://scripts/ui/world_map_view_3d.gd") if is_instance_valid(_world_map_source) else MapOverview)
 	overview.name = "MapOverview"
 	overview.mouse_filter = Control.MOUSE_FILTER_STOP
 	overview.custom_minimum_size = Vector2.ZERO
@@ -2217,6 +2231,7 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 	overview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	overview.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	host.add_child(overview)
+	if is_instance_valid(_world_map_source):overview.bind_world(_world_map_source)
 	if overview.has_method("bind"):
 		overview.bind(_radar_map_field, _radar_player, map_id)
 	_map_overview = overview

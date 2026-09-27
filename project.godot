@@ -38,6 +38,7 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/sile
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+anti_aliasing/quality/msaa_3d=2
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 
 [rmmo]
@@ -47,3 +48,4 @@ charset_root="/workspace/rmmo_runtime/assets/charset"
 default_pack="default"
 ui_pack="default"
 characters_3d=true
+startup_profile="world3d"

@@ -18,17 +18,26 @@ func run()->void:
 			for mesh in view.model.gear[category]:assert(not mesh.visible)
 			for mesh in body:assert(is_instance_valid(mesh) and mesh.visible)
 			view.model.set_equipment(Starter.PARTS)
-			for mesh in view.model.gear[category]:assert(mesh.visible==(int(mesh.get_meta("equipment_variant",1))==1))
+			for mesh in view.model.gear[category]:
+				assert(mesh.visible==(int(mesh.get_meta("equipment_variant",1))==1 and mesh.name!="Stockings"))
 		if view.model.imported_rig==null:assert(view.model.gear.Clothing2.size()==5,"one hips mesh and exactly two pairs of leg segments")
 		else:
 			assert(view.model.gear.Clothing1.size()>0 and view.model.gear.Clothing2.size()>0 and view.model.gear.Boots.size()>0)
+			assert(view.model.gear.Belt.size()==1,"Adult belt is one fitted mesh, not a ring and floating buckle")
+			for mesh in view.model.gear.Belt:
+				assert(mesh.skin!=null and not mesh.get_parent() is BoneAttachment3D,"Belt must deform with the waistband")
 			for mesh in view.model.gear.Body:assert(mesh.skin!=null,"Imported body must retain weighted skinning")
 			var expressions:=0
 			for mesh in view.model.gear.Body:expressions+=mesh.mesh.get_blend_shape_count()
 			assert(expressions>=50,"Face expressions must survive the male derivative and export")
 			view.model.set_equipment({})
 			for mesh in view.model.gear.BaseBottom:assert(mesh.visible)
+			view.model.set_equipment({"Boots":1})
+			for mesh in view.model.gear.Boots:
+				if mesh.name=="Stockings":assert(mesh.visible,"Starter stockings return when trousers are removed")
 			view.model.set_equipment(Starter.PARTS)
+			for mesh in view.model.gear.Boots:
+				if mesh.name=="Stockings":assert(not mesh.visible,"Trousers cover the starter stocking layer")
 			for mesh in view.model.gear.BaseBottom:assert(not mesh.visible,"Base shorts must not intersect equipped trousers")
 		print("PASS 3D body ",gender," eight directions/actions, independent gear, two articulated legs")
 	var scene=load("res://scenes/character_create.tscn").instantiate()

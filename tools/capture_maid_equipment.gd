@@ -17,5 +17,5 @@ func run()->void:
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=Vector2(col*280,row*425+30);rect.size=Vector2(275,390);root.add_child(rect)
 			var label:=Label.new();label.text=("女性 · " if row==0 else "男性 · ")+["旅行者装","女仆装正面","女仆装背面","侧面","跑步"][col];label.position=Vector2(col*280+35,row*425+5);root.add_child(label)
 	await create_timer(.3).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/maid_equipment.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/maid_equipment.png"))
 	print("MAID_PREVIEW_OK");quit()

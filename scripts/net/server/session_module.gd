@@ -93,7 +93,7 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 
 
 
-func enter_world(character_id: int) -> void:
+func enter_world(character_id: int, world3d: bool = false) -> void:
 	if ctrl._enter_inflight:
 		return
 	ctrl._enter_inflight = true
@@ -111,9 +111,10 @@ func enter_world(character_id: int) -> void:
 		ctrl.enter_world_ready.emit(false, "找不到该角色", {})
 		return
 	# Load the configured home pack and use its configured spawn when present.
-	ctrl._load_pack(ctrl.start_map_pack_path())
+	if not world3d:
+		ctrl._load_pack(ctrl.start_map_pack_path())
 	var spawn_cell = Vector2i(0, 0)
-	if ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
+	if not world3d and ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
 		var am = ctrl.get_node_or_null("/root/AssetManager")
 		var preferred := Vector2i(-1, -1)
 		if am != null and am.content_config().has("start_spawn"):
@@ -159,7 +160,8 @@ func enter_world(character_id: int) -> void:
 	if ctrl.combat_engine != null and ctrl.combat_engine.has_method("reset_dps_fight"):
 		ctrl.combat_engine.reset_dps_fight()
 	ctrl._pending_tick_actions.clear()
-	ctrl._collect_autorun()
+	if not world3d:
+		ctrl._collect_autorun()
 	# Party shell: fresh session, no persistence.
 	ctrl._party_clear()
 	ctrl._party_poll_pending = false
@@ -242,6 +244,15 @@ func enter_world(character_id: int) -> void:
 		"gather_xp": ctrl.gather_xp,
 		"gather_xp_to_next": ctrl.gather_xp_to_next,
 	}
+	if world3d:
+		ctrl.world3d_events.runtime.clear_session()
+		ctrl.world3d_state.clear()
+		ctrl.player_cell = Vector2i(-9999, -9999)
+		for field in ["map_id", "pack_path", "content_id", "content_version", "cell", "position", "remote_players", "ground_bags", "map_pins"]:
+			spawn.erase(field)
+		spawn["world_mode"] = "world3d"
+		ctrl.enter_world_ready.emit(true, "正在准备三维世界", spawn)
+		return
 	ctrl.respawn_cell = spawn_cell
 	ctrl.last_safe_cell = spawn_cell
 	ctrl._safe_zone_known = false

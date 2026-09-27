@@ -17,5 +17,5 @@ func run()->void:
 			var label:=Label.new();label.text=(["蓝色瞳孔","紫色瞳孔","棕色瞳孔"][col] if row==0 else "胸部大小 "+str(col*50));label.position=origin+Vector2(20,12);root.add_child(label)
 			var rect:=TextureRect.new();rect.expand_mode=TextureRect.EXPAND_IGNORE_SIZE;rect.texture=view.viewport.get_texture();rect.position=origin+Vector2(10,42);rect.size=Vector2(380,380);root.add_child(rect)
 	await create_timer(.4).timeout;await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://artifacts/character_3d/customization_options.png")
+	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("character_3d/customization_options.png"))
 	print("CUSTOMIZATION_CAPTURE_OK");quit()
