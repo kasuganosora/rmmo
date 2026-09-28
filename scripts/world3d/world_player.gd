@@ -14,7 +14,9 @@ var equipment_parts: Dictionary = {}
 var navigation: Node
 var _route := PackedVector3Array()
 var _sequence := 0
+signal movement_intent
 const Net = preload("res://scripts/net/net.gd")
+const REST_ACTIONS:=["sit_ground","sit_down_ground","stand_up_ground","sit_chair","sit_chair_hold","stand_up_chair","lie_down","lie","get_up"]
 
 @export var camera_path: NodePath
 @onready var _model: Node3D = $CharacterModel3D
@@ -40,6 +42,14 @@ func _physics_process(delta: float) -> void:
 func _step(dt: float) -> void:
 	var yaw := _camera_yaw()
 	var stick := _stick()
+	if stick.length_squared()>.01 or click_target is Vector3:movement_intent.emit()
+	if _model.action in REST_ACTIONS:
+		if stick.length_squared()>.01 or click_target is Vector3:
+			if _model.action in ["sit_down_ground","sit_ground"]:_begin_ground_exit()
+			elif _model.action in ["sit_chair","sit_chair_hold"]:_model.play("stand_up_chair","front",true)
+			elif _model.action in ["lie_down","lie"]:_model.play("get_up","front",true)
+		velocity.x=0;velocity.z=0
+		return
 	var wish := Vector3.ZERO
 	var speed := Motion.WALK_MPS
 	_sense_surface()
@@ -78,6 +88,21 @@ func _step(dt: float) -> void:
 		rotation.y = lerp_angle(rotation.y, facing, 1.0 - exp(-10.0 * dt))
 	_model.play("walk" if actual_speed > 0.2 else "idle", "front")
 	_model.locomotion_rate = actual_speed / Motion.WALK_MPS
+
+func request_rest(action:String)->bool:
+	if input_locked or not Net.server().combat_stats.player_alive():return false
+	if action not in REST_ACTIONS or _model.axis_rig==null or not _model.axis_rig.supports(action):return false
+	click_target=null;_route.clear();velocity.x=0;velocity.z=0
+	if action=="stand_up_ground":_begin_ground_exit()
+	else:_model.play(action,"front",true)
+	return true
+
+func _begin_ground_exit()->void:
+	# The prepared lowering is the exact reverse of rising. Resume at the
+	# matching phase on interruption instead of restarting from fully seated.
+	var reverse_time:float=_model.action_duration()-_model.elapsed if _model.action=="sit_down_ground" else -1.0
+	_model.play("stand_up_ground","front",true)
+	if reverse_time>=0:_model.elapsed=clampf(reverse_time,0,_model.action_duration())
 
 
 func location() -> RefCounted:

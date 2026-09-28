@@ -68,7 +68,7 @@ func _run() -> void:
 		for c in canvas.get_children():
 			if c is PanelContainer:
 				slots += 1
-		failed += _expect(slots == 12, "12 paperdoll slots got %d" % slots)
+		failed += _expect(slots == preload("res://scripts/net/combat/equipment.gd").SLOT_IDS.size(), "paperdoll exposes every equipment slot, got %d" % slots)
 	hud._fill_window("quest")
 	await process_frame
 	var tabs: HBoxContainer = quest_p.get_meta("quest_tabs", null) if quest_p.has_meta("quest_tabs") else null

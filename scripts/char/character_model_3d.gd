@@ -1,10 +1,12 @@
 extends Node3D
 const Shapes = preload("res://scripts/char/character_mesh_shapes.gd")
 const ImportedRig = preload("res://scripts/char/character_imported_rig.gd")
+const AxisRig = preload("res://scripts/char/character_axis_rig.gd")
 const Motion = preload("res://scripts/char/character_motion_3d.gd")
 ## Uses imported weighted adult models when present; young types keep the blockout.
 ## Clothing remains separate geometry sharing the character skeleton.
-const ACTIONS := ["idle","walk","attack","dash","cast","death","sit_ground","sit_chair"]
+const ACTIONS := ["idle","walk","attack","dash","cast","death","sit_ground","sit_down_ground","stand_up_ground","sit_chair","sit_chair_hold","stand_up_chair","lie_down","lie","get_up"]
+const REST_NEXT:={"sit_down_ground":"sit_ground","stand_up_ground":"idle","sit_chair":"sit_chair_hold","stand_up_chair":"idle","lie_down":"lie","get_up":"idle"}
 const YAW := {"front":0.0,"left":-PI/2,"right":PI/2,"back":PI,"front_left":-PI/4,"front_right":PI/4,"back_left":-3*PI/4,"back_right":3*PI/4}
 var environment_wind:=Vector2.ZERO
 var skeleton: Skeleton3D
@@ -22,19 +24,64 @@ var appearance := {}
 var equipment := {}
 var rig: Node3D
 var imported_rig:RefCounted
+var axis_rig:RefCounted
+var _from_axis_angles:Dictionary={}
 var _from_rotations:Array[Quaternion]=[]
 var _from_positions:Array[Vector3]=[]
 var _from_position:=Vector3.ZERO
 var _from_rotation:=Quaternion.IDENTITY
 var _blend_elapsed:=0.0
 var _blend_duration:=.16
+var _expression_from:Dictionary={}
+var _expression_target:Dictionary={}
+var _expression_time:=0.0
+var _expression_duration:=0.0
 
 func _ready()->void:
 	configure(body_type,appearance,equipment)
 
+func set_expressions(values:Dictionary)->bool:
+	if axis_rig==null or not axis_rig.body.set_expressions(values):return false
+	_expression_duration=0.0
+	return true
+
+func set_mmd_expressions(weights:Dictionary)->bool:
+	var values:=preload("res://scripts/char/character_expressions.gd").from_mmd(weights)
+	if values.has("invalid"):return false
+	return set_expressions(values)
+
+func expression_target()->Dictionary:
+	if axis_rig==null:return {}
+	return (_expression_target if _expression_duration>0 else axis_rig.body.expression_values).duplicate()
+
+func transition_expressions(values:Dictionary,duration:float=.18)->bool:
+	var normalized:=preload("res://scripts/char/character_expressions.gd").normalize(values)
+	if axis_rig==null or normalized.has("invalid") or not is_finite(duration):return false
+	if duration<=0:return set_expressions(normalized)
+	_expression_from=axis_rig.body.expression_values.duplicate()
+	_expression_target=normalized;_expression_time=0;_expression_duration=duration
+	return true
+
+func _step_expressions(delta:float)->void:
+	if _expression_duration<=0 or axis_rig==null:return
+	_expression_time+=maxf(delta,0)
+	var amount:=smoothstep(0,_expression_duration,_expression_time)
+	var values:Dictionary={}
+	for key in preload("res://scripts/char/character_expressions.gd").CHANNELS:
+		values[key]=lerpf(float(_expression_from.get(key,0)),float(_expression_target.get(key,0)),amount)
+	if _expression_time>=_expression_duration:values=_expression_target;_expression_duration=0
+	if not axis_rig.body.set_expressions(values):_expression_duration=0;push_error("Expression transition failed")
+
 func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 	custom=custom.duplicate(true)
 	custom.erase("equipment");custom.erase("mv_sheet")
+	var use_axis:bool=custom.get("body_model","")=="female_base_v2"
+	if use_axis and gender!="female":push_error("female_base_v2 requires female body type");return
+	if axis_rig!=null and use_axis and gender==body_type:
+		var previous:Dictionary=appearance
+		appearance=custom.duplicate(true)
+		if not axis_rig.update_appearance(self):appearance=previous;return
+		set_equipment(parts);return
 	if rig!=null and gender==body_type and custom==appearance:
 		set_equipment(parts)
 		return
@@ -45,6 +92,8 @@ func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 		set_equipment(parts)
 		return
 	body_type=gender;appearance=custom.duplicate(true);equipment=parts.duplicate(true)
+	_expression_duration=0.0;_expression_time=0.0
+	_expression_from.clear();_expression_target.clear()
 	if rig != null:
 		remove_child(rig)
 		rig.queue_free()
@@ -52,9 +101,14 @@ func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 	_from_rotations.clear()
 	_from_positions.clear()
 	imported_rig=null
+	axis_rig=null;_from_axis_angles.clear()
 	animation_clip=""
 	rig=Node3D.new();rig.name="Rig";add_child(rig)
 	skeleton=Skeleton3D.new();skeleton.name="Skeleton3D";rig.add_child(skeleton)
+	if use_axis:
+		var adapter:=AxisRig.new()
+		if not adapter.install(self):push_error(adapter.last_error);return
+		axis_rig=adapter;set_equipment(parts);pose_at(elapsed);return
 	if ImportedRig.available(gender):
 		var adapter:=ImportedRig.new()
 		if adapter.install(self):
@@ -145,6 +199,10 @@ func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 	pose_at(elapsed)
 
 func set_equipment(parts:Dictionary)->void:
+	if axis_rig!=null:
+		if axis_rig.set_equipment(parts):equipment=parts.duplicate(true)
+		else:push_error(axis_rig.last_error)
+		return
 	equipment=parts.duplicate(true)
 	for category in ["Clothing1","Clothing2","Boots","Belt","WeaponMain","HeadAccessory"]:
 		for mesh:MeshInstance3D in gear.get(category,[]):
@@ -154,9 +212,17 @@ func set_equipment(parts:Dictionary)->void:
 
 func play(next_action:String,next_direction:String,restart:bool=false,variant:String="")->void:
 	if next_action not in ACTIONS:next_action="idle"
+	# Repeated state packets and turning must not consume the next attack clip.
 	if not restart and next_action==action and next_direction==direction and (variant.is_empty() or variant==animation_clip):return
+	if axis_rig!=null and not restart and next_action==action and variant.is_empty():variant=animation_clip
+	if axis_rig!=null:variant=axis_rig.select_clip(next_action,variant)
+	if axis_rig!=null and not axis_rig.supports(variant if not variant.is_empty() else next_action):
+		axis_rig.report_unsupported(variant if not variant.is_empty() else next_action);return
 	_from_rotations.clear()
 	_from_positions.clear()
+	_from_axis_angles.clear()
+	if axis_rig!=null:
+		for node:Dictionary in axis_rig.body.nodes:_from_axis_angles[node.name]=node.angles
 	if skeleton!=null:
 		for i in range(skeleton.get_bone_count()):
 			_from_rotations.append(skeleton.get_bone_pose_rotation(i))
@@ -170,14 +236,19 @@ func play(next_action:String,next_direction:String,restart:bool=false,variant:St
 		else:elapsed=0.0
 	action=next_action;direction=next_direction
 	if imported_rig!=null:animation_clip=imported_rig.animations.select_clip(self,action,variant,true)
+	if axis_rig!=null:animation_clip=variant if not variant.is_empty() else action
 	if gait_phase>=0.0:elapsed=gait_phase*action_duration()
 	pose_at(elapsed)
 	_apply_blend(0)
 
 func _process(delta:float)->void:
+	_step_expressions(delta)
 	elapsed+=delta*(locomotion_rate if action in ["walk","dash"] else 1.0)
+	if axis_rig!=null and REST_NEXT.has(action) and elapsed>=action_duration() and axis_rig.supports(REST_NEXT[action]):
+		play(REST_NEXT[action],direction,true)
 	pose_at(elapsed)
 	_apply_blend(delta)
+	if axis_rig!=null:axis_rig.finish_frame(self,delta)
 	if imported_rig!=null:
 		if action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
 		imported_rig.apply_weapon_grip(self)
@@ -194,6 +265,7 @@ func _apply_blend(delta:float)->void:
 		skeleton.set_bone_pose_position(i,_from_positions[i].lerp(skeleton.get_bone_pose_position(i),weight))
 	rig.position=_from_position.lerp(rig.position,weight)
 	rig.quaternion=_from_rotation.slerp(rig.quaternion,weight)
+	if axis_rig!=null and not axis_rig.sync_blend(self,_from_axis_angles,weight):push_error(axis_rig.last_error)
 	if weight>=1.0:_from_rotations.clear()
 
 func pose_at(time:float)->void:
@@ -206,6 +278,9 @@ func _pose_base(time:float)->void:
 	if skeleton==null:return
 	rig.rotation=Vector3(0,float(YAW.get(direction,0.0)),0)
 	rig.position=Vector3.ZERO
+	if axis_rig!=null:
+		if not axis_rig.pose(self,time):push_error(axis_rig.last_error)
+		return
 	skeleton.reset_bone_poses()
 	if imported_rig!=null:imported_rig.reset_pose(self)
 	if imported_rig!=null and imported_rig.animations.apply(self,time):return
@@ -307,7 +382,12 @@ static func _structural_appearance(value:Dictionary)->Dictionary:
 	return result
 
 func action_duration()->float:
+	if axis_rig!=null:return axis_rig.duration(animation_clip if not animation_clip.is_empty() else action)
 	return imported_rig.animations.duration(self) if imported_rig!=null else float(Motion.DURATION.get(action,1.0))
+
+static func source_available(gender:String,custom:Dictionary)->bool:
+	if custom.get("body_model","")=="female_base_v2":return gender=="female" and AxisRig.available()
+	return ImportedRig.available(gender) if gender in ["male","female"] else true
 
 
 static func create(gender: String, custom: Dictionary, parts: Dictionary) -> Node3D:
@@ -318,4 +398,6 @@ static func create(gender: String, custom: Dictionary, parts: Dictionary) -> Nod
 	return model
 
 static func create_npc(recipe: Dictionary) -> Node3D:
+	recipe=recipe.duplicate(true)
+	preload("res://scripts/char/character_body_migration.gd").apply(recipe)
 	return create(str(recipe.get("gender", "male")), recipe.get("customization", {}), recipe.get("equipment", {"Clothing1": 1, "Clothing2": 1, "Boots": 1}))

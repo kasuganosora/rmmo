@@ -19,6 +19,17 @@ static func enabled()->bool:return bool(ProjectSettings.get_setting("rmmo/charac
 static func equipment_parts(gender:String,snapshot:Array,catalog=null)->Dictionary:
 	var paperdoll=load("res://scripts/char/paperdoll_look.gd")
 	var parts:Dictionary=paperdoll.equipment_to_mv_parts(gender,snapshot,catalog)
+	# An authoritative empty underlayer slot differs from an old standalone
+	# preview recipe that predates the optional equipment slots.
+	parts["UnderwearTop"]=0;parts["UnderwearBottom"]=0
+	parts["SurfaceEquipment"]=paperdoll.equipment_to_surface_parts("female_base_v2" if gender=="female" else "male_base_v2",snapshot,catalog)
+	var cloth_slots:Array=[]
+	for item in snapshot:
+		if not item is Dictionary:continue
+		var definition:Dictionary=paperdoll._item_def(catalog,str(item.get("item_id",item.get("id",""))))
+		for slot in definition.get("surface_cloth_slots",{}).get("female_base_v2" if gender=="female" else "male_base_v2",[]):
+			if parts.SurfaceEquipment.has(slot) and slot not in cloth_slots:cloth_slots.append(slot)
+	parts["SurfaceClothSlots"]=cloth_slots
 	# Legacy 2D variant numbers do not identify the new 3D garment assets.
 	for category in ["Clothing1","Clothing2","Boots","Belt"]:
 		if parts.get(category)!=null and int(parts[category])>0:parts[category]=1
@@ -28,8 +39,10 @@ static func equipment_parts(gender:String,snapshot:Array,catalog=null)->Dictiona
 		var definition:Dictionary=paperdoll._item_def(catalog,id)
 		var model_parts:Variant=definition.get("model_parts",{})
 		if model_parts is Dictionary:parts.merge(model_parts,true)
+		if str(item.get("slot",""))=="weapon_off" and not id.is_empty():parts["WeaponOffItem"]=id
 		if str(item.get("slot",""))=="weapon_main" and not id.is_empty():
 			parts["WeaponMain"]=1
+			parts["WeaponMainItem"]=id
 			parts["WeaponStyle"]=str(definition.get("animation_style","heavy" if definition.get("hand","")=="both" else "sword"))
 	return parts
 static var _control_frames:SpriteFrames
@@ -59,6 +72,7 @@ func _ready()->void:
 	settings.ambient_light_color=Color("f4e7d6");settings.ambient_light_energy=.45
 	environment.environment=settings;viewport.add_child(environment)
 	var light:=DirectionalLight3D.new();light.rotation_degrees=Vector3(-35,-30,0);light.light_energy=.9;viewport.add_child(light)
+	light.add_to_group("character_key_light")
 	camera=Camera3D.new();camera.projection=Camera3D.PROJECTION_ORTHOGONAL
 	camera.size=1.1 if portrait_mode else 2.6;viewport.add_child(camera)
 	camera.position=Vector3(0,1.7,4) if portrait_mode else Vector3(0,3.4,6)
@@ -71,16 +85,37 @@ func _ready()->void:
 func _anchor_feet()->void:
 	display.position=-camera.unproject_position(Vector3.ZERO)*render_scale
 func _draw()->void:
-	if not portrait_mode:
+	if not portrait_mode and is_instance_valid(display) and display.visible:
 		draw_set_transform(Vector2.ZERO,0,Vector2(1,.32))
 		draw_circle(Vector2.ZERO,11,Color(0,0,0,.18))
 func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 	model.configure(gender,custom,parts)
 	if portrait_mode:
-		var imported:bool=model.imported_rig!=null
+		if model.axis_rig!=null:
+			_fit_axis_portrait()
+			return
+		var imported:bool=model.imported_rig!=null or model.axis_rig!=null
 		camera.size=.58 if imported else 1.1
 		camera.position=Vector3(0,1.75,4) if imported else Vector3(0,1.7,4)
 		camera.look_at(Vector3(0,1.69,0) if imported else Vector3(0,1.52,0))
+func _fit_axis_portrait()->void:
+	var body:Node3D=model.axis_rig.body
+	# Select anatomy from the immutable body, not a height-specific world cutoff.
+	var cutoff:float=lerpf(body.base_rests.neck.origin.y,body.base_rests.head.origin.y,.5)
+	var box:=AABB();var first:=true
+	for i in body.base_rest_points.size():
+		if body.base_rest_points[i].y<cutoff:continue
+		var point:Vector3=body.global_transform*(body.posed_points[i]+body.root_offset)
+		if first:box=AABB(point,Vector3.ZERO);first=false
+		else:box=box.expand(point)
+	if first:return
+	# Long hair tips must not turn a portrait into a full-body shot.
+	var top:float=model.axis_rig.hair.projected_top(Vector3.UP,false)
+	if is_finite(top):box=box.expand(Vector3(box.get_center().x,top,box.get_center().z))
+	var center:Vector3=box.get_center()
+	camera.size=maxf(box.size.y*1.35,box.size.x*1.7)
+	camera.position=center+Vector3(0,0,4)
+	camera.look_at(center)
 func play(action:String,direction:String,restart:bool=false,variant:String="")->void:
 	model.play(action,direction,restart,variant)
 	_fit_action()

@@ -3,6 +3,7 @@ const Net = preload("res://scripts/net/net.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
 const LookCatalog = preload("res://scripts/char/look_catalog.gd")
 const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
+const Hairstyles = preload("res://scripts/char/character_hairstyles.gd")
 var _view_3d: Node2D
 var _portrait_3d: Node2D
 
@@ -32,6 +33,7 @@ var _palette_group: String = ""
 var _gender: String = LookCatalog.GENDER_FEMALE
 var _part_ids: Dictionary = {}
 var _custom := Customization.new()
+var _female_body_model:="female_base_v2"
 var _thumb_token: int = 0
 var _recompose_gen: int = 0
 var _preview_direction := "front"
@@ -108,10 +110,13 @@ func _current_gender() -> String:
 
 func _set_gender(gender: String) -> void:
 	var previous_hair:=int(_part_ids.get("FrontHair1",1))
+	if _custom.body_model=="female_base_v2":_female_body_model=_custom.body_model
+	_custom.body_model=_female_body_model if gender=="female" else ""
 	_gender = gender
 	_part_ids = MV.default_parts(gender)
 	if CharacterView3D.enabled():_part_ids={"Body":1,"FrontHair1":2 if gender.ends_with("female") else 1,"Eyes":1}
 	if CharacterView3D.enabled() and gender in ["male","female"] and previous_hair in [10,11,12,13,14,15]:_part_ids.FrontHair1=previous_hair
+	if CharacterView3D.enabled() and _custom.body_model=="female_base_v2":_part_ids.FrontHair1=Hairstyles.initial(gender,_custom.body_model,previous_hair)
 	_rebuild_slot_ui()
 	_recompose()
 
@@ -125,13 +130,11 @@ func _rebuild_slot_ui() -> void:
 	if CharacterView3D.enabled():
 		var row:=HBoxContainer.new()
 		var label:=Label.new();label.text="发型";row.add_child(label)
-		if preload("res://scripts/char/character_imported_rig.gd").available(_gender):
+		if _custom.body_model=="female_base_v2" or preload("res://scripts/char/character_imported_rig.gd").available(_gender):
 			var imported_select:=OptionButton.new();imported_select.name="HairstyleSelect"
 			imported_select.set_meta("slot_cat","FrontHair1")
-			imported_select.add_item("原始短发" if _gender=="male" else "原始盘发",1)
-			for id in preload("res://scripts/char/character_hair_3d.gd").OPTIONS:
-				imported_select.add_item(preload("res://scripts/char/character_hair_3d.gd").OPTIONS[id],id)
-			imported_select.add_item("无",0)
+			var choices:Dictionary=Hairstyles.options(_gender,_custom.body_model)
+			for id in choices:imported_select.add_item(choices[id],id)
 			imported_select.select(maxi(0,imported_select.get_item_index(int(_part_ids.get("FrontHair1",1)))))
 			imported_select.item_selected.connect(func(i):_part_ids["FrontHair1"]=imported_select.get_item_id(i);_recompose())
 			row.add_child(imported_select);slot_list.add_child(row)
@@ -205,6 +208,8 @@ func _add_imported_customization_controls()->void:
 		_custom.eye_color="";picker.set_block_signals(true);picker.color=Color("86a66b");picker.set_block_signals(false);_recompose()
 	)
 	if _gender!="female":return
+	if _custom.body_model=="female_base_v2":
+		_add_native_shape_controls();return
 	var title:=Label.new();title.text="胸部大小";slot_list.add_child(title)
 	var row:=HBoxContainer.new();slot_list.add_child(row)
 	var slider:=HSlider.new();slider.name="BustSize";slider.min_value=0;slider.max_value=100;slider.step=1
@@ -213,6 +218,27 @@ func _add_imported_customization_controls()->void:
 	var value:=Label.new();value.text=str(int(slider.value));value.custom_minimum_size.x=34;row.add_child(value)
 	slider.value_changed.connect(func(number):_custom.bust_size=number/100.0;value.text=str(int(number));_recompose())
 	var restore:=Button.new();restore.text="默认";restore.pressed.connect(func():slider.value=50);row.add_child(restore)
+
+func _add_native_shape_controls()->void:
+	var names:Dictionary={"bust_size":"胸部大小","waist_width":"腰部宽度","hip_size":"臀部大小","nose_width":"鼻部宽度","height":"身高（相对默认）"}
+	for key:String in names:
+		var label:=Label.new();label.text=names[key];slot_list.add_child(label)
+		var row:=HBoxContainer.new();slot_list.add_child(row)
+		var slider:=HSlider.new();slider.name="Shape_"+key
+		var limits:Vector2=Customization.Shapes.RANGES[key]
+		# The original Height morph's positive weight makes the body shorter.
+		# Keep source weights in the recipe, but make the UI increase mean taller.
+		var direction:float=-1.0 if key=="height" else 1.0
+		slider.min_value=limits.x*100;slider.max_value=limits.y*100;slider.step=1
+		slider.value=float(_custom.body_shapes.get(key,0.0))*100*direction
+		slider.custom_minimum_size=Vector2(170,32);slider.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(slider)
+		var value:=Label.new();value.text=str(int(slider.value));value.custom_minimum_size.x=38;row.add_child(value)
+		slider.value_changed.connect(func(number):
+			if number==0:_custom.body_shapes.erase(key)
+			else:_custom.body_shapes[key]=number/100.0*direction
+			value.text=str(int(number));_recompose()
+		)
+		var reset:=Button.new();reset.text="默认";reset.pressed.connect(func():slider.value=0);row.add_child(reset)
 
 
 func _fill_selected_slot_icons(token: int) -> void:
@@ -503,6 +529,7 @@ func _on_random() -> void:
 	_custom.cloth_on=false
 	_part_ids = MV.random_parts(_gender)
 	if CharacterView3D.enabled():_part_ids={"Body":1,"FrontHair1":([10,11,12,13,14,15].pick_random() if _gender in ["male","female"] else randi_range(1,2)),"Eyes":1}
+	if CharacterView3D.enabled() and _custom.body_model=="female_base_v2":_part_ids.FrontHair1=Hairstyles.random_choice(_gender,_custom.body_model)
 	_sync_customization_ui()
 	if slot_list.get_child_count() == 0:
 		_rebuild_slot_ui()

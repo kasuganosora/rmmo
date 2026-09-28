@@ -2,6 +2,7 @@ extends RefCounted
 ## Domain module: session/auth (login, characters, enter_world, logout).
 
 var ctrl
+var _character_gear:Dictionary={}
 func _init(c):
 	ctrl = c
 
@@ -32,6 +33,9 @@ func login(username: String, password: String, server: String) -> void:
 	elif str(ctrl._accounts[username].get("password", "")) != password:
 		ctrl.login_finished.emit(false, "用户名或密码错误")
 		return
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
+	ctrl._session_character_id = ""
 	ctrl._session_user = username
 	ctrl._session_server = server
 	ctrl.login_finished.emit(true, "登录成功 · %s" % server)
@@ -47,7 +51,12 @@ func fetch_characters() -> void:
 	if not ctrl.is_logged_in():
 		ctrl.characters_ready.emit([])
 		return
+	_checkpoint_gear()
+	for ch:Dictionary in ctrl._accounts[ctrl._session_user]["characters"]:
+		preload("res://scripts/char/character_body_migration.gd").apply(ch)
 	var list: Array = ctrl._accounts[ctrl._session_user]["characters"].duplicate(true)
+	for ch:Dictionary in list:
+		ch["equipment"]=_preview_gear(str(ch.id))
 	ctrl.characters_ready.emit(list)
 
 
@@ -88,6 +97,7 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 		"customization": customization if typeof(customization) == TYPE_DICTIONARY else {},
 	}
 	ctrl._next_char_id += 1
+	preload("res://scripts/char/character_body_migration.gd").apply(ch)
 	ctrl._accounts[ctrl._session_user]["characters"].append(ch)
 	ctrl.character_created.emit(true, "创建成功", ch)
 
@@ -110,6 +120,10 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 	if found.is_empty():
 		ctrl.enter_world_ready.emit(false, "找不到该角色", {})
 		return
+	preload("res://scripts/char/character_body_migration.gd").apply(found)
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
+	var saved:Dictionary=_character_gear.get(ctrl._session_user,{}).get(str(character_id),{})
 	# Load the configured home pack and use its configured spawn when present.
 	if not world3d:
 		ctrl._load_pack(ctrl.start_map_pack_path())
@@ -123,6 +137,7 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 	var ts: float = float(ctrl.map_tile_size)
 	# Reset combat for this character session.
 	ctrl.awaiting_respawn = false
+	ctrl.facial_expressions.reset()
 	var lv: int = int(found.get("level", 1))
 	ctrl._session_character_id = str(found.get("id", "")).strip_edges()
 	if ctrl.combat_stats != null:
@@ -141,6 +156,12 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 		ctrl.inventory.grant_starter()
 		for item in preload("res://scripts/char/starter_equipment.gd").GIFT_ITEMS:
 			ctrl.inventory.add_item(item["id"],1)
+		if str(found.get("gender","female"))=="female":
+			for item in preload("res://scripts/char/underwear_equipment.gd").ITEMS:
+				ctrl.inventory.add_item(item["id"],1)
+		if found.get("customization",{}).get("body_model","")=="female_base_v2":
+			for item in preload("res://scripts/char/source_garment_equipment.gd").ITEMS:
+				ctrl.inventory.add_item(item.id,1)
 	if ctrl.warehouse != null:
 		ctrl.warehouse.clear()
 	ctrl._shop_buyback.clear()
@@ -151,6 +172,9 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 				var iid: String = item["id"]
 				ctrl.inventory.add_item(iid, 1)
 				ctrl.equipment.try_equip_from_bag(ctrl.inventory, iid)
+	if not saved.is_empty():
+		ctrl.inventory.restore_session_state(saved.inventory)
+		ctrl.equipment.restore_session_state(saved.equipment)
 	if ctrl.quest_journal != null:
 		ctrl.quest_journal.clear()
 		ctrl.quest_journal.grant_starter()
@@ -272,8 +296,25 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 
 
 func logout() -> void:
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
 	ctrl._session_user = ""
 	ctrl._session_server = ""
 	ctrl._session_character_id = ""
 
 
+
+
+func _checkpoint_gear()->void:
+	if ctrl._session_user.is_empty() or ctrl._session_character_id.is_empty():return
+	if ctrl.inventory==null or ctrl.equipment==null:return
+	if not _character_gear.has(ctrl._session_user):_character_gear[ctrl._session_user]={}
+	_character_gear[ctrl._session_user][ctrl._session_character_id]={"inventory":ctrl.inventory.capture_session_state(),"equipment":ctrl.equipment.capture_session_state(),"preview":ctrl.equipment.snapshot().duplicate(true)}
+
+func _preview_gear(id:String)->Array:
+	var saved:Dictionary=_character_gear.get(ctrl._session_user,{}).get(id,{})
+	if not saved.is_empty():return saved.preview.duplicate(true)
+	var initial:Array=[]
+	for item:Dictionary in preload("res://scripts/char/starter_equipment.gd").ITEMS:
+		initial.append({"slot":item.equip_slot,"item_id":item.id})
+	return initial

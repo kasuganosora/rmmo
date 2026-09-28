@@ -204,6 +204,8 @@ func _apply_icon_visual() -> void:
 
 
 func _resolve_icon_texture() -> Texture2D:
+	# setup() can run before the cell is parented; _ready() refreshes it again.
+	if not is_inside_tree():return null
 	var am: Node = get_node_or_null("/root/AssetManager")
 	if am == null:
 		return null

@@ -2,7 +2,8 @@
 #version 450
 // RMMO experimental continuous self contact. Reuses the moving-triangle
 // predicate from cloth_collide_triangles.glsl, but reads immutable cloth data.
-// Vertex/face only: edge/edge and initially tangled states are NOT solved here.
+// Experimental vertex/face and separate edge/edge projection. This is not a
+// guarantee of untangling or convergence under conflicting body contacts.
 layout(local_size_x=64,local_size_y=1,local_size_z=1) in;
 layout(set=0,binding=0,std430) readonly buffer Previous {vec4 positions[];};
 layout(set=0,binding=1,std430) buffer Output {vec4 predicted[];};
@@ -10,10 +11,38 @@ layout(set=0,binding=2,std430) readonly buffer Snapshot {vec4 snapshot[];};
 layout(set=0,binding=3,std430) readonly buffer Faces {uint indices[];};
 layout(set=0,binding=5,std430) readonly buffer Weights {vec4 cloth_weights[];};
 layout(set=0,binding=6,std430) readonly buffer Rest {vec4 rest_positions[];};
+layout(set=0,binding=7,std430) readonly buffer Counts {uint neighbor_counts[];};
+layout(set=0,binding=8,std430) readonly buffer Offsets {uint neighbor_offsets[];};
+layout(set=0,binding=9,std430) readonly buffer Neighbors {uint neighbors[];};
+layout(set=0,binding=10,std430) readonly buffer UniqueEdges {uvec2 edge_ids[];};
+// One contact owned by each point. A later dispatch gathers the four reactions
+// without racing float writes to shared triangle vertices.
+layout(set=0,binding=11,std430) buffer Reactions {vec4 reactions[];};
+layout(set=0,binding=12,std430) readonly buffer BodyDirections {vec4 body_directions[];};
 layout(push_constant,std430) uniform Params {
  uint particle_count;uint tri_count;float thickness;float friction;
- uint pad0;uint pad1;uint pad2;uint pad3;
+ uint body_tangents;uint mass_balance;uint edge_phase;uint edge_count;
 };
+// One-sided projection: self contact may move outward or slide along an active
+// body constraint, but must not undo its separating correction. Two directions
+// retain reverse face and forward point contacts separately. Experimental local
+// contact approximation; not a complete persistent manifold for curved bodies.
+vec3 body_safe(uint idx,vec3 direction){
+ if(body_tangents==0u)return direction;
+ vec3 n0=body_directions[idx*2u].xyz,n1=body_directions[idx*2u+1u].xyz;
+ float d0=dot(direction,n0),d1=dot(direction,n1);
+ if(d0>=0.0&&d1>=0.0)return direction;
+ // Exact projection onto two homogeneous half-spaces. Alternating a fixed
+ // number of plane projections leaked through narrow/obtuse contact wedges.
+ vec3 p0=direction-n0*min(d0,0.0);
+ if(dot(p0,n1)>=0.0)return p0;
+ vec3 p1=direction-n1*min(d1,0.0);
+ if(dot(p1,n0)>=0.0)return p1;
+ vec3 axis=cross(n0,n1);float nn=dot(axis,axis);
+ if(nn>1e-12)return axis*(dot(direction,axis)/nn);
+ // Opposite coincident normals leave only their common tangent plane.
+ return direction-n0*d0;
+}
 vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
     vec3 ab = b - a;
     vec3 ac = c - a;
@@ -104,14 +133,98 @@ float swept_hit(vec3 p0,vec3 p1,vec3 a0,vec3 b0,vec3 c0,
     }
     return 2.0;
 }
+// Closest segment pair, including parallel segments; parameters in [0,1].
+vec2 segment_parameters(vec3 a,vec3 b,vec3 c,vec3 d){
+ vec3 u=b-a,v=d-c,r=a-c;float aa=dot(u,u),bb=dot(u,v),cc=dot(v,v),dd=dot(u,r),ee=dot(v,r);
+ if(aa<1e-18||cc<1e-18)return vec2(0);
+ float denom=aa*cc-bb*bb;
+ float x=denom>1e-18?clamp((bb*ee-cc*dd)/denom,0.0,1.0):0.0;
+ float y=(bb*x+ee)/cc;
+ if(y<0.0){y=0.0;x=clamp(-dd/aa,0.0,1.0);}
+ else if(y>1.0){y=1.0;x=clamp((bb-dd)/aa,0.0,1.0);}
+ return vec2(x,y);
+}
+vec3 edge_correction(uint idx){
+ vec3 correction=vec3(0);float contacts=0.0;
+ vec3 u0=positions[idx].xyz,u=snapshot[idx].xyz;
+ for(uint adjacent=0u;adjacent<neighbor_counts[idx];adjacent++){
+  uint other=neighbors[neighbor_offsets[idx]+adjacent];
+  vec3 v0=positions[other].xyz,v=snapshot[other].xyz;
+  vec3 low=min(min(u0,v0),min(u,v))-thickness,high=max(max(u0,v0),max(u,v))+thickness;
+  for(uint edge=0u;edge<edge_count;edge++){
+   uint pi=edge_ids[edge].x,qi=edge_ids[edge].y;
+   if(pi==idx||qi==idx||pi==other||qi==other)continue;
+   vec3 p0=positions[pi].xyz,q0=positions[qi].xyz,p=snapshot[pi].xyz,q=snapshot[qi].xyz;
+   if(any(lessThan(max(max(p0,q0),max(p,q)),low))||any(greaterThan(min(min(p0,q0),min(p,q)),high)))continue;
+   vec3 dir0=q0-p0,dir=q-p,weights0,weights1;float side0,side1;
+   float hit0=swept_hit(p0,p,u0,v0,u0-dir0,u,v,u-dir,weights0,side0);
+   float hit1=swept_hit(p0,p,v0-dir0,u0-dir0,v0,v-dir,u-dir,v,weights1,side1);
+   float along,across,side;
+   vec3 normal=cross(v-u,-dir);float nl=length(normal);if(nl<1e-10)continue;normal/=nl;
+   vec3 ru=rest_positions[idx].xyz,rv=rest_positions[other].xyz,rp=rest_positions[pi].xyz,rq=rest_positions[qi].xyz;
+   vec2 rest_uv=segment_parameters(ru,rv,rp,rq);
+   float gap=min(thickness*cloth_weights[idx].x,.5*distance(mix(ru,rv,rest_uv.x),mix(rp,rq,rest_uv.y)));
+   if(min(hit0,hit1)>1.0){
+    vec2 closest=segment_parameters(u,v,p,q);along=closest.x;across=closest.y;
+    if(distance(mix(u,v,along),mix(p,q,across))>=gap)continue;
+    vec3 old_normal=cross(v0-u0,-dir0);
+    side=dot(p0-u0,old_normal)>=0.0?1.0:-1.0;
+   }else if(hit0<=hit1){along=weights0.y;across=weights0.z;side=side0;}
+   else{along=1.0-weights1.y;across=1.0-weights1.z;side=side1;}
+   float depth=gap-side*dot(mix(p,q,across)-mix(u,v,along),normal);
+   float wa=1.0-along,wb=along,wc=1.0-across,wd=across;
+   float denominator=wa*wa*snapshot[idx].w+wb*wb*snapshot[other].w+wc*wc*snapshot[pi].w+wd*wd*snapshot[qi].w;
+   if(depth<=0.0||denominator<1e-10)continue;
+   float amount=depth*wa*snapshot[idx].w/denominator;
+   vec3 direction=-normal*side;
+   if(body_tangents!=0u){
+    vec3 ga=body_safe(idx,direction),gb=body_safe(other,direction);
+    vec3 gc=body_safe(pi,-direction),gd=body_safe(qi,-direction);
+    denominator=wa*wa*snapshot[idx].w*dot(direction,ga)+wb*wb*snapshot[other].w*dot(direction,gb)
+      +wc*wc*snapshot[pi].w*dot(-direction,gc)+wd*wd*snapshot[qi].w*dot(-direction,gd);
+    // Trust region for the local planes: no vertex may jump farther than the
+    // current contact residual. Unlike dropping the projected mass entirely,
+    // this still redistributes the reaction when one side is blocked by body.
+    float largest=max(max(wa*snapshot[idx].w*length(ga),wb*snapshot[other].w*length(gb)),
+      max(wc*snapshot[pi].w*length(gc),wd*snapshot[qi].w*length(gd)));
+    denominator=max(denominator,largest);
+    if(denominator<1e-10)continue;
+    amount=depth*wa*snapshot[idx].w/denominator;direction=ga;
+   }
+   if(amount>1e-9&&dot(direction,direction)>1e-16){contacts+=1.0;correction+=direction*amount;}
+  }
+ }
+ return contacts>0.0?correction/contacts:vec3(0);
+}
 void main() {
     uint idx=gl_GlobalInvocationID.x;if(idx>=particle_count)return;
-    float w=predicted[idx].w;if(w<.001)return;
-    float base_gap=thickness*cloth_weights[idx].x;if(base_gap<1e-6)return;
+    float w=snapshot[idx].w;
+    if(edge_phase==2u){
+        if(w<.001)return;
+        vec3 correction=vec3(0);float count=0.0;
+        for(uint point=0u;point<particle_count;point++){
+            vec4 ids=reactions[point*5u];
+            for(uint slot=0u;slot<4u;slot++)if(ids[slot]==float(idx)){
+                vec3 delta=reactions[point*5u+1u+slot].xyz;
+                if(dot(delta,delta)>1e-20){correction+=delta;count+=1.0;}
+            }
+        }
+        predicted[idx]=vec4(snapshot[idx].xyz+(count>0.0?correction/count:vec3(0)),w);
+        return;
+    }
+    if(edge_phase==1u){if(w>=.001)predicted[idx]=vec4(snapshot[idx].xyz+edge_correction(idx),w);return;}
+    if(mass_balance!=0u)reactions[idx*5u]=vec4(-1);
+    if(w<.001&&mass_balance==0u)return;
+    float base_gap=thickness*cloth_weights[idx].x;
+    // A fixed point can still constrain a FREE face passing across it. Painted
+    // follow weight zero means immobile, not invisible to the reverse contact.
+    if(base_gap<1e-6&&mass_balance!=0u)base_gap=thickness;
+    if(base_gap<1e-6)return;
     float gap=base_gap;
     vec3 start=positions[idx].xyz,end=predicted[idx].xyz;
     vec3 segment_min=min(start,end)-gap,segment_max=max(start,end)+gap;
     float first=2.0,closest_distance=base_gap,contact_gap=base_gap;vec3 impact=end,contact=end,contact_normal=vec3(0);
+    uvec3 hit_ids=uvec3(0),near_ids=uvec3(0);vec3 hit_bary=vec3(0),near_bary=vec3(0);
     for(uint t=0u;t<tri_count;t++){
         uint i0=indices[t*3u],i1=indices[t*3u+1u],i2=indices[t*3u+2u];
         if(idx==i0||idx==i1||idx==i2)continue;
@@ -128,19 +241,27 @@ void main() {
         vec3 n=cross(b-a,c-a);float nl=length(n);if(nl<1e-10)continue;n/=nl;
         vec3 bary;float side;float hit=swept_hit(start,end,a0,b0,c0,a,b,c,bary,side);
         if(hit<first){
-            first=hit;
             vec3 anchor=a*bary.x+b*bary.y+c*bary.z;
             vec3 remaining=end-anchor;
             vec3 tangent=remaining-n*dot(remaining,n);
             float tangent_length=length(tangent);
             float correction=max(0.0,gap-side*dot(remaining,n));
-            float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
-            // Contact removes inward motion, not all tangential movement.
-            // Welding the cloth to impact barycentrics artificially stretched it.
-            impact=anchor+n*side*gap+tangent*retained;
+            // Other contacts may already have separated this pair. The old
+            // sweep remains in the substep history; it must not attract the
+            // particle back or monopolize the earliest unresolved contact.
+            if(correction>1e-9){
+                first=hit;hit_ids=uvec3(i0,i1,i2);hit_bary=bary;
+                float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
+                impact=end+n*side*correction-tangent*(1.0-retained);
+            }
         }
         vec3 q=closest_point_on_triangle(end,a,b,c),diff=end-q;float distance=length(diff);
         if(distance<gap && distance<closest_distance){
+            near_ids=uvec3(i0,i1,i2);
+            vec3 ab=b-a,ac=c-a,aq=q-a,crossed=cross(ab,ac);float nn=dot(crossed,crossed);
+            near_bary.y=dot(cross(aq,ac),crossed)/nn;
+            near_bary.z=dot(cross(ab,aq),crossed)/nn;
+            near_bary.x=1.0-near_bary.y-near_bary.z;
             contact_gap=gap;
             closest_distance=distance;contact_normal=distance>1e-8?diff/distance:n;
             contact=q+contact_normal*gap;
@@ -151,5 +272,33 @@ void main() {
         vec3 movement=result-start,tangent=movement-contact_normal*dot(movement,contact_normal);
         float len=length(tangent);if(len>1e-8)result-=tangent*min(1.0,friction*(contact_gap-closest_distance)/len);
     }
-    predicted[idx]=vec4(result,w);
+    if(mass_balance==0u){predicted[idx]=vec4(result,w);return;}
+    if(first>1.0&&closest_distance>=contact_gap)return;
+    uvec3 ids=first<=1.0?hit_ids:near_ids;
+    vec3 bary=first<=1.0?hit_bary:near_bary;
+    vec3 masses=vec3(snapshot[ids.x].w,snapshot[ids.y].w,snapshot[ids.z].w);
+    float denominator=w+dot(masses,bary*bary);if(denominator<1e-10)return;
+    if(body_tangents!=0u){
+        vec3 delta=result-end;float distance=length(delta);if(distance<1e-10)return;
+        vec3 direction=delta/distance;
+        vec3 gp=body_safe(idx,direction),g0=body_safe(ids.x,-direction),g1=body_safe(ids.y,-direction),g2=body_safe(ids.z,-direction);
+        denominator=w*dot(direction,gp)+dot(masses*bary*bary,vec3(dot(-direction,g0),dot(-direction,g1),dot(-direction,g2)));
+        // Bound the largest reaction to the current local contact residual.
+        // Near opposed planes need repeated relinearization, not a metre-scale
+        // jump to force exact separation using stale local contact directions.
+        float largest=max(max(w*length(gp),masses.x*bary.x*length(g0)),max(masses.y*bary.y*length(g1),masses.z*bary.z*length(g2)));
+        denominator=max(denominator,largest);
+        if(denominator<1e-10)return;
+        float scale=distance/denominator;
+        reactions[idx*5u]=vec4(float(idx),vec3(ids));
+        reactions[idx*5u+1u]=vec4(gp*w*scale,0);
+        reactions[idx*5u+2u]=vec4(g0*masses.x*bary.x*scale,0);
+        reactions[idx*5u+3u]=vec4(g1*masses.y*bary.y*scale,0);
+        reactions[idx*5u+4u]=vec4(g2*masses.z*bary.z*scale,0);
+        return;
+    }
+    vec3 correction=(result-end)/denominator;
+    reactions[idx*5u]=vec4(float(idx),vec3(ids));
+    reactions[idx*5u+1u]=vec4(correction*w,0);
+    for(uint slot=0u;slot<3u;slot++)reactions[idx*5u+2u+slot]=vec4(-correction*masses[slot]*bary[slot],0);
 }

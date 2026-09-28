@@ -6,7 +6,17 @@ func run()->void:
 	var body:Node3D=studio.regional_preview
 	var body_id:int=body.get_instance_id();var skeleton_id:int=body.skeleton.get_instance_id()
 	studio.set_surface_outfit(2)
-	assert(studio.surface_wardrobe.garments.size()==3)
+	assert(studio.surface_wardrobe.garments.size()==5)
+	var inner:Node3D=studio.surface_wardrobe.garments.UnderwearBottom
+	assert(not inner.cloth_enabled and not inner.enable_cloth())
+	assert(studio.set_underlayer("UnderwearTop",""))
+	studio.set_surface_outfit(8)
+	assert(not studio.surface_wardrobe.garments.has("UnderwearTop"))
+	assert(studio.surface_wardrobe.garments.UnderwearBottom==inner)
+	assert(studio.set_underlayer("UnderwearBottom",""))
+	studio.set_surface_outfit(2)
+	assert(not studio.surface_wardrobe.garments.has("UnderwearBottom"))
+	assert(studio.set_underlayer("UnderwearTop","underlayer_lace/item_00"))
 	var top:Node3D=studio.surface_wardrobe.garments.Clothing1
 	studio.set_surface_outfit(2);assert(studio.surface_wardrobe.garments.Clothing1==top)
 	studio.pose_selector.select(3);studio.pose_amount.set_value_no_signal(.5);studio.apply_body_pose()

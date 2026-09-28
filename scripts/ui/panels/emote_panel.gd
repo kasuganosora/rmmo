@@ -54,11 +54,16 @@ func _build_emote_panel() -> void:
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.pressed.connect(func(): ctrl._emote_panel.visible = false)
 	head.add_child(close_btn)
+	var scroll:=ScrollContainer.new()
+	scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size.y=160
+	outer.add_child(scroll)
 	ctrl._emote_body = VBoxContainer.new()
 	ctrl._emote_body.name = "EmoteBody"
 	ctrl._emote_body.add_theme_constant_override("separation", 6)
 	ctrl._emote_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer.add_child(ctrl._emote_body)
+	scroll.add_child(ctrl._emote_body)
 	ctrl._emote_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._emote_panel)
 	_refresh_emote_panel()
@@ -118,6 +123,29 @@ func _refresh_emote_panel() -> void:
 		return
 	for c in ctrl._emote_body.get_children():
 		c.queue_free()
+	if ctrl._world_combat!=null and ctrl._world_combat.has_method("facial_expression_catalog"):
+		var face_rows:Array=ctrl._world_combat.facial_expression_catalog()
+		if not face_rows.is_empty():
+			ctrl._add_label(ctrl._emote_body,"面部表情 · 分类组合，再点取消",11,L2Style.COL_MUTED)
+			var buttons:Array[Button]=[]
+			var groups:Dictionary={}
+			var state:Dictionary=ctrl._world_combat.facial_expression_state()
+			for row:Dictionary in face_rows:
+				var group:String=str(row.get("group",""))
+				if not groups.has(group):
+					if not group.is_empty():ctrl._add_label(ctrl._emote_body,group,11,L2Style.COL_MUTED)
+					var face_grid:=GridContainer.new();face_grid.columns=3
+					ctrl._emote_body.add_child(face_grid);groups[group]=face_grid
+				var button:=Button.new();button.text=str(row.label);button.tooltip_text=str(row.tag)
+				button.set_meta("expression_id",str(row.id))
+				button.toggle_mode=str(row.id)!="neutral"
+				button.set_pressed_no_signal(state.has(str(row.id)))
+				button.custom_minimum_size=Vector2(96,32);button.focus_mode=Control.FOCUS_NONE
+				button.pressed.connect(func():
+					ctrl._world_combat.request_facial_expression(str(row.id),true)
+					var current:Dictionary=ctrl._world_combat.facial_expression_state()
+					for item:Button in buttons:item.set_pressed_no_signal(current.has(str(item.get_meta("expression_id")))))
+				groups[group].add_child(button);buttons.append(button)
 	ctrl._add_label(ctrl._emote_body, "选择表情（服务器冷却）", 11, L2Style.COL_MUTED)
 	var grid = GridContainer.new()
 	grid.columns = 3

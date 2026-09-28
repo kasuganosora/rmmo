@@ -53,7 +53,8 @@ func _on_chars(chars: Array) -> void:
 		if CharacterView3D.enabled():
 			var view:=CharacterView3D.new();view.portrait_mode=true
 			add_child(view);view.display.visible=false
-			view.configure(gender,cust,{})
+			var snapshot:Array=c.get("equipment",[]) if c.get("equipment",[]) is Array else []
+			view.configure(gender,cust,CharacterView3D.equipment_parts(gender,snapshot,Net.server().get("item_catalog")))
 			_icon_views.append(view)
 			list.set_item_icon(idx,view.viewport.get_texture())
 			continue

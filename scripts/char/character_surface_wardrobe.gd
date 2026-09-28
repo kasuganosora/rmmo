@@ -19,13 +19,17 @@ func warm_start_cloth()->bool:
 	# Dress against a continuous body sweep instead of starting with a hand
 	# already embedded in a skirt. No frame is yielded and the actor pose/identity
 	# is restored before returning. This expensive path is review-only for now.
-	var angles:Dictionary=body.angles_by_name.duplicate(true)
+	var requested_angles:Dictionary=body.angles_by_name.duplicate(true)
+	# Animation and SkeletonModifier poses do not rewrite the test-pose recipe.
+	# Warm-start from the actual final surface pose, then restore that same pose.
+	var angles:Dictionary={}
+	for node:Dictionary in body.nodes:angles[node.name]=node.angles*180.0/PI
 	var original_position:Vector3=body.position
 	var original_offset:Vector3=body.world_offset
 	var root_offset:Vector3=body.root_offset
 	var active:Array=[]
 	for garment:Node3D in ordered_garments():
-		if garment.cloth==null:active.append(garment)
+		if garment.cloth==null and garment.cloth_enabled:active.append(garment)
 	if active.is_empty():return true
 	body.set_angles({},root_offset)
 	var success:=true
@@ -46,8 +50,16 @@ func warm_start_cloth()->bool:
 	else:
 		for garment:Node3D in active:garment.disable_cloth()
 	body.set_angles(angles,root_offset);body.position=original_position;body.world_offset=original_offset
+	body.angles_by_name=requested_angles
 	return success
 func configure(target:Node3D)->void:body=target
+func set_equipment_snapshot(snapshot:Array,catalog)->bool:
+	return set_equipment(preload("res://scripts/char/paperdoll_look.gd").equipment_to_surface_parts("female_base_v2",snapshot,catalog))
+func set_slot(slot:String,id:String)->bool:
+	var recipe:Dictionary=slots.duplicate()
+	if id.is_empty():recipe.erase(slot)
+	else:recipe[slot]=id
+	return set_equipment(recipe)
 func set_equipment(recipe:Dictionary)->bool:
 	var catalog:Variant=JSON.parse_string(FileAccess.get_file_as_string(Art.path("characters/equipment/surface_bound/catalog.json")))
 	if not catalog is Array:return false

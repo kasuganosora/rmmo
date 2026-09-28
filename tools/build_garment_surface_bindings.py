@@ -78,6 +78,13 @@ def main():
             for slot in material['slots']:
                 assert 0 <= slot < len(material_settings)
                 material_settings[slot] = settings
+        overrides_path = folder / 'material_overrides.json'
+        if overrides_path.is_file():
+            overrides = json.loads(overrides_path.read_text(encoding='utf-8'))
+            if set(overrides) - set(data['materials']):
+                raise ValueError(f'Unknown material override: {folder}')
+            material_settings = [dict(settings, **overrides.get(name, {}))
+                                 for name, settings in zip(data['materials'], material_settings)]
         pins = np.ones(len(points), dtype=np.float32)
         physics = tail['physics']
         physics_to_base = {}
@@ -146,6 +153,10 @@ def main():
                       source_relative=str(folder.relative_to(art_path(''))).replace('\\', '/'),
                       anchors=bindings, rebound_vertices=rebound,
                       edges=[[a, b, float(np.linalg.norm(points[a]-points[b]))] for a, b in sorted(edges)])
+        source_manifest_path = folder / 'manifest.json'
+        if source_manifest_path.is_file():
+            source_manifest = json.loads(source_manifest_path.read_text(encoding='utf-8'))
+            result['cloth_enabled'] = source_manifest.get('cloth_enabled', True)
         (output/'binding.json').write_text(json.dumps(result, separators=(',', ':')))
         (output/'material_settings.json').write_text(json.dumps(material_settings))
         (output/'source_cloth_data.json').write_text(json.dumps(tail, separators=(',', ':')))
@@ -173,7 +184,13 @@ def main():
         catalog.append(dict(id=str(folder.relative_to(source_root)).replace('\\', '/'),
                             vertices=len(points), rebound=rebound, rest_error=error))
         print('PASS', catalog[-1], flush=True)
-    if not args.only: (output_root/'catalog.json').write_text(json.dumps(catalog, indent=2))
+    if args.only:
+        if not catalog:
+            raise ValueError(f'No source group: {args.only}')
+        catalog_path = output_root / 'catalog.json'
+        previous = json.loads(catalog_path.read_text(encoding='utf-8')) if catalog_path.exists() else []
+        catalog = [entry for entry in previous if entry['id'].split('/')[0] != args.only] + catalog
+    (output_root/'catalog.json').write_text(json.dumps(catalog, indent=2), encoding='utf-8', newline='\n')
 
 
 if __name__ == '__main__': main()

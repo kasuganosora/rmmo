@@ -16,6 +16,10 @@ func _list_key() -> String:
 
 
 func _after_load() -> void:
+	for definition in preload("res://scripts/char/source_garment_equipment.gd").ITEMS:
+		if not has_item(str(definition["id"])):register_item(definition)
+	for definition in preload("res://scripts/char/underwear_equipment.gd").ITEMS:
+		if not has_item(str(definition["id"])):register_item(definition)
 	for definition in preload("res://scripts/char/starter_equipment.gd").ITEMS:
 		if not has_item(str(definition["id"])):
 			register_item(definition)

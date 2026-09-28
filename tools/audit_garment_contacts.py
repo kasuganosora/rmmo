@@ -3,8 +3,10 @@
 Finite vertices are not sufficient for acceptance. Sample vertices and face interiors,
 record penetration and stretch, and return nonzero while the geometric gate fails.
 """
+import argparse
 import json
 import sys
+from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 from art_paths import art_path, review_path
@@ -96,6 +98,30 @@ def hand_intersections(vertices, body_faces, triangles, hand_vertices):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--complex', action='store_true')
+    mode.add_argument('--candidate', action='store_true')
+    for flag in ['stand-only', 'eight-contacts', 'self-edges', 'contact-structure',
+                 'contact-iterations', 'self-contact', 'mass-balance']:
+        parser.add_argument('--' + flag, action='store_true')
+    parser.add_argument('--review-id')
+    parser.add_argument('--capture-file', type=Path)
+    parser.add_argument('--report-file', type=Path)
+    args = parser.parse_args()
+    if bool(args.capture_file) != bool(args.report_file):
+        parser.error('Explicit capture and report paths must be supplied together')
+    if args.capture_file:
+        if not args.candidate or args.stand_only or args.review_id or args.complex:
+            parser.error('Explicit captures require --candidate and cannot select a preset capture set')
+        if args.capture_file.resolve() == args.report_file.resolve():
+            parser.error('Report must not overwrite the input capture')
+    candidate_flags = [args.eight_contacts, args.self_edges, args.contact_structure,
+                       args.contact_iterations, args.self_contact, args.mass_balance, args.review_id]
+    if any(candidate_flags) and not args.candidate:
+        parser.error('Candidate options require --candidate; refusing to audit a different capture set')
+    if args.review_id is not None and (not args.review_id.isascii() or not args.review_id.isidentifier()):
+        parser.error('Invalid review ID')
     body = json.loads(art_path('characters/base/female_base_v2/female_display_topology.json').read_text())
     body_faces = np.asarray([(p[0], p[j], p[j+1]) for p in body['base_faces'] for j in range(1, len(p)-1)])
     rig = json.loads(art_path('characters/base/female_base_v2/female_axis_rig.json').read_text())
@@ -104,23 +130,29 @@ def main():
         if node['name'][1:].startswith(('Hand', 'Thumb', 'Index', 'Mid', 'Ring', 'Pinky', 'Carpal')):
             hands.update(node['full'])
             hands.update(w['vertex'] for w in node['weights'] if max(w['xweight'], w['yweight'], w['zweight'])>.01)
-    complex_mode = '--complex' in sys.argv
+    complex_mode = args.complex
     prefix = 'cloth_hw_' if complex_mode else 'cloth_'
-    candidate_mode = '--candidate' in sys.argv
+    candidate_mode = args.candidate
     if candidate_mode:
         # A body-contact pass alone used to label a self-intersecting skirt
         # accepted. Keep the independent open-surface gate in the default audit.
         from audit_cloth_self_intersections import intersections
-    if candidate_mode: prefix = 'candidate_self_hw_' if '--self-contact' in sys.argv else 'candidate_hw_'
+    if candidate_mode: prefix = 'candidate_selfedge8_hw_' if args.eight_contacts else 'candidate_selfedge_body_hw_' if args.self_edges else 'candidate_self4s_hw_' if args.contact_structure else 'candidate_self4_hw_' if args.contact_iterations else ('candidate_self_hw_' if args.self_contact else 'candidate_hw_')
+    if candidate_mode and args.mass_balance: prefix = 'candidate_selfmass_hw_'
+    if args.review_id is not None: prefix = 'candidate_' + args.review_id + '_hw_'
     results = []
     names = ['stand', 'step', 'sit'] if complex_mode else ['stand', 'elbow', 'reach', 'step', 'sit', 'lie']
     if candidate_mode: names = ['stand', 'sit_15', 'sit_30', 'sit_45', 'sit']
-    if '--stand-only' in sys.argv: names = ['stand']
+    if args.stand_only: names = ['stand']
+    if args.capture_file: names = [args.capture_file.stem]
     for name in names:
-        capture = json.loads(review_path('character_3d/'+prefix+name+'.json').read_text())
+        capture_path = args.capture_file or review_path('character_3d/'+prefix+name+'.json')
+        capture = json.loads(capture_path.read_text(encoding='utf-8'))
         garment = json.loads(art_path('characters/source_models/garment_validation_set/'+capture['garment_id']+'/clothing_data.json').read_text())
         garment_faces = np.asarray([(f['vertices'][0], f['vertices'][j], f['vertices'][j+1]) for f in garment['faces'] for j in range(1, len(f['vertices'])-1)])
         vertices, points = np.asarray(capture['body']), np.asarray(capture['garment'])
+        if not np.isfinite(vertices).all() or not np.isfinite(points).all():
+            raise ValueError('Non-finite captured body or garment positions: ' + name)
         triangles = vertices[body_faces]
         tree = cKDTree(triangles.mean(axis=1))
         samples = np.concatenate([points, points[garment_faces].mean(axis=1)])
@@ -170,7 +202,10 @@ def main():
                 result['self_crossing_pairs'] or result['self_coplanar_pairs'] or result['degenerate_cloth_faces'])
         results.append(result)
         print(json.dumps(result), flush=True)
-    review_path('character_3d/'+prefix+'contact_audit.json').write_text(json.dumps(results, indent=2))
+    # A partial audit must not overwrite the complete pose-set report.
+    suffix = 'contact_audit_stand_only.json' if args.stand_only else 'contact_audit.json'
+    report_path = args.report_file or review_path('character_3d/'+prefix+suffix)
+    report_path.write_text(json.dumps(results, indent=2), encoding='utf-8')
     return 0 if all(r['accepted'] for r in results) else 2
 
 

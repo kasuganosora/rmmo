@@ -10,6 +10,7 @@ extends RefCounted
 ## 这样换装只改 equipment，身体外观 part_ids 保持干净。
 
 const MV = preload("res://scripts/char/mv_generator.gd")
+const Shapes = preload("res://scripts/char/character_body_shapes.gd")
 
 const GROUPS := ["skin", "hair", "cloth"]
 
@@ -22,6 +23,13 @@ var cloth_on: bool = false
 ## Empty eye colour preserves the source iris. Bust 0.5 is the original adult female shape.
 var eye_color: String = ""
 var bust_size: float = 0.5
+## Versioned renderer selection during migration; empty preserves saved actors.
+var body_model: String = ""
+## New-body identity weights; zero is the approved original, separate from legacy bust_size.
+var body_shapes: Dictionary = {}
+
+static func valid_body_model(value:Variant)->String:
+	return "female_base_v2" if value is String and value=="female_base_v2" else ""
 
 static func valid_eye_color(value:Variant)->String:
 	var text:=str(value)
@@ -97,6 +105,8 @@ func to_dict() -> Dictionary:
 		"cloth_on": cloth_on,
 		"eye_color": valid_eye_color(eye_color),
 		"bust_size": valid_bust_size(bust_size),
+		"body_model": valid_body_model(body_model),
+		"body_shapes": Shapes.normalize(body_shapes),
 		"part_ids": part_ids,
 		"equipment": equipment,
 		"mv_sheet": mv_sheet,
@@ -115,6 +125,8 @@ static func from_dict(d: Dictionary) -> Customization:
 	c.cloth_on = bool(d.get("cloth_on", false))
 	c.eye_color = valid_eye_color(d.get("eye_color",""))
 	c.bust_size = valid_bust_size(d.get("bust_size",0.5))
+	c.body_model = valid_body_model(d.get("body_model",""))
+	c.body_shapes = Shapes.normalize(d.get("body_shapes",{}))
 	if typeof(d.get("part_ids")) == TYPE_DICTIONARY:
 		c.part_ids = d["part_ids"]
 	if typeof(d.get("equipment")) == TYPE_DICTIONARY:

@@ -414,6 +414,10 @@ func set_base_layers(model:Node3D)->void:
 	for mesh in model.gear.Belt:mesh.visible=not dress and model.equipment.get("Belt")!=null and int(model.equipment.Belt)>0
 	for entry in [["BaseTop","Clothing1"],["BaseBottom","Clothing2"]]:
 		for mesh in model.gear.get(entry[0],[]):
+			var slot:String="UnderwearTop" if entry[0]=="BaseTop" else "UnderwearBottom"
+			if model.equipment.has(slot):
+				mesh.visible=model.equipment[slot]!=null and int(model.equipment[slot])>0
+				continue
 			mesh.visible=model.equipment.get(entry[1])==null or int(model.equipment.get(entry[1],0))<=0
 			if dress and entry[0]=="BaseBottom":mesh.visible=true
 	for material in body_materials:

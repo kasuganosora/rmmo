@@ -20,6 +20,7 @@ func update_anchor()->void:
 	var camera:=get_viewport().get_camera_3d()
 	var up:=camera.global_basis.y.normalized() if camera!=null else Vector3.UP
 	var top:=pose.origin.dot(up)
+	if model.axis_rig!=null:top=maxf(top,model.axis_rig.head_top(up))
 	for category in ["Body","Hair","HeadAccessory"]:
 		for mesh in model.gear.get(category,[]):
 			if not mesh is MeshInstance3D or mesh.mesh==null or not mesh.is_visible_in_tree():continue

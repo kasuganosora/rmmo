@@ -141,6 +141,7 @@ float swept_hit(vec3 p0,vec3 p1,vec3 a0,vec3 b0,vec3 c0,
     }
     return 2.0;
 }
+layout(set=0,binding=7,std430) buffer BodyDirections {vec4 body_directions[];};
 void main() {
     uint idx=gl_GlobalInvocationID.x;if(idx>=particle_count)return;
     float w=predicted[idx].w;if(w<.001)return;
@@ -159,16 +160,19 @@ void main() {
         vec3 n=cross(b-a,c-a);float nl=length(n);if(nl<1e-10)continue;n/=nl;
         vec3 bary;float side;float hit=swept_hit(start,end,a0,b0,c0,a,b,c,bary,side);
         if(hit<first){
-            first=hit;
             vec3 anchor=a*bary.x+b*bary.y+c*bary.z;
             vec3 remaining=end-anchor;
             vec3 tangent=remaining-n*dot(remaining,n);
             float tangent_length=length(tangent);
             float correction=max(0.0,gap-side*dot(remaining,n));
-            float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
-            // Contact removes inward motion, not all tangential movement.
-            // Welding the cloth to impact barycentrics artificially stretched it.
-            impact=anchor+n*side*gap+tangent*retained;
+            // Another projection or the moving body may have already released
+            // this contact. A historical crossing must not attract the point
+            // back onto the surface or hide a later unresolved contact.
+            if(correction>1e-9){
+                first=hit;
+                float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
+                impact=end+n*side*correction-tangent*(1.0-retained);
+            }
         }
         vec3 q=closest_point_on_triangle(end,a,b,c),diff=end-q;float distance=length(diff);
         if(distance<closest_distance){
@@ -181,5 +185,7 @@ void main() {
         vec3 movement=result-start,tangent=movement-contact_normal*dot(movement,contact_normal);
         float len=length(tangent);if(len>1e-8)result-=tangent*min(1.0,friction*(gap-closest_distance)/len);
     }
+    vec3 delta=result-end;
+    if(dot(delta,delta)>1e-18)body_directions[idx*2u+1u]=vec4(normalize(delta),1);
     predicted[idx]=vec4(result,w);
 }

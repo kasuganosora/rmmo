@@ -74,13 +74,17 @@ func _relax_arms(model:Node3D)->void:
 		for pair in [["arm","forearm",.15,.015],["forearm","hand",.07,.10]]:
 			var index:int=model.bones[pair[0]+side];var child:int=model.bones[pair[1]+side]
 			var pose:Transform3D=relative*sk.get_bone_global_pose(index)
-			var end:Vector3=(relative*sk.get_bone_global_pose(child)).origin
 			var sign_x:float=signf(pose.origin.x)
 			var target:=Vector3(sign_x*float(pair[2]),-1,float(pair[3])).normalized()
-			var delta:=Quaternion((end-pose.origin).normalized(),target)
-			var parent:int=sk.get_bone_parent(index)
-			var parent_basis:Basis=(relative*sk.get_bone_global_pose(parent)).basis.orthonormalized()
-			sk.set_bone_pose_rotation(index,(parent_basis.inverse()*Basis(delta)*pose.basis.orthonormalized()).get_rotation_quaternion())
+			align_bone_toward(sk,index,child,target,relative)
+
+static func align_bone_toward(sk:Skeleton3D,index:int,child:int,target:Vector3,relative:Transform3D=Transform3D.IDENTITY)->void:
+	var pose:Transform3D=relative*sk.get_bone_global_pose(index)
+	var end:Vector3=(relative*sk.get_bone_global_pose(child)).origin
+	var delta:=Quaternion((end-pose.origin).normalized(),target.normalized())
+	var parent:int=sk.get_bone_parent(index)
+	var parent_basis:Basis=(relative*sk.get_bone_global_pose(parent)).basis.orthonormalized() if parent>=0 else relative.basis.orthonormalized()
+	sk.set_bone_pose_rotation(index,(parent_basis.inverse()*Basis(delta)*pose.basis.orthonormalized()).get_rotation_quaternion())
 
 func _relax_legs(model:Node3D)->void:
 	# Neutral standing support under the hips, not the combat idle stance.

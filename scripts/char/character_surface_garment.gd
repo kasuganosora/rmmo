@@ -23,6 +23,9 @@ uniform bool has_diffuse=false;
 uniform bool has_alpha=false;
 uniform bool has_gloss=false;
 uniform bool has_specular=false;
+uniform bool lined_lace=false;
+uniform float alpha_adjust=0.0;
+uniform bool material_hidden=false;
 vec3 fetch_point(sampler2D map,int index) {
     int width=textureSize(map,0).x;
     return texelFetch(map,ivec2(index%width,index/width),0).xyz;
@@ -47,7 +50,14 @@ void fragment() {
     ALBEDO=color.rgb;
     ROUGHNESS=has_gloss?mix(0.9,0.3,texture(gloss_map,UV).r):0.65;
     SPECULAR=has_specular?0.4*texture(specular_map,UV).r:0.25;
-    if(has_alpha && texture(alpha_map,UV).r<0.5){discard;}
+    float coverage=clamp((has_alpha?texture(alpha_map,UV).r:1.0)+alpha_adjust,0.0,1.0);
+    if(material_hidden){discard;}
+    if(lined_lace){
+        // A fabric lining keeps the cup covered while the original lace map
+        // supplies the thread pattern; scalloped border surfaces remain cutout.
+        ALBEDO*=mix(0.82,1.0,coverage);
+        ROUGHNESS=mix(0.82,0.62,coverage);
+    }else if(coverage<0.5){discard;}
     if(color.a<0.5){discard;}
     if(!FRONT_FACING){NORMAL=-NORMAL;}
 }
@@ -61,7 +71,9 @@ var rest_points:=PackedVector3Array()
 var mesh_instance:MeshInstance3D
 var triangle_count:=0
 var cloth:RefCounted
+var cloth_enabled:=true
 func enable_cloth()->bool:
+	if not cloth_enabled:return false
 	if cloth!=null:return true
 	cloth=preload("res://scripts/char/garment_cloth_gpu.gd").new()
 	if not cloth.initialize(Art.path("characters/equipment/surface_bound/"+garment_id),rest_points.size()):cloth=null;return false
@@ -89,6 +101,7 @@ func initialize(target:Node3D,id:String)->bool:
 	if not FileAccess.file_exists(folder+"/binding.json"):push_error("Missing garment binding: "+id);return false
 	binding=JSON.parse_string(FileAccess.get_file_as_string(folder+"/binding.json"))
 	if binding.version!=3 or binding.body_vertex_count!=target.rest_points.size():return false
+	cloth_enabled=bool(binding.get("cloth_enabled",true))
 	var body_path:String=Art.path("characters/base/female_base_v2/female_display_topology.json")
 	if FileAccess.get_sha256(body_path)!=binding.body_sha256:push_error("Garment/body topology mismatch");return false
 	var source:String=Art.path(binding.source_relative)
@@ -131,6 +144,9 @@ func initialize(target:Node3D,id:String)->bool:
 		material.set_shader_parameter("body_normals",body.normals_texture)
 		var color:Dictionary=config.get("Diffuse Color",{"h":0,"s":0,"v":0.8})
 		material.set_shader_parameter("tint",Color.from_hsv(float(color.h),float(color.s),float(color.v)))
+		material.set_shader_parameter("lined_lace",bool(config.get("lined_lace",false)))
+		material.set_shader_parameter("alpha_adjust",float(config.get("Alpha Adjust",0.0)))
+		material.set_shader_parameter("material_hidden",str(config.get("hideMaterial","false")).to_lower()=="true")
 		for pair in [["diffuse","customTexture_MainTex"],["alpha","customTexture_AlphaTex"],["gloss","customTexture_GlossTex"],["specular","customTexture_SpecTex"]]:
 			var filename:String=config.get(pair[1],"")
 			if filename.is_empty():continue

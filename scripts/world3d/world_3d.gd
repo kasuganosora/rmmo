@@ -31,6 +31,78 @@ var _navigation: Node
 var _previous_feet := Vector3.ZERO
 var _map_data = preload("res://scripts/world3d/world_map_data.gd").new()
 var _map_pin_sets:Dictionary={}
+var _sit_revision:=0
+var _sit_preparing:=false
+var remote_players=preload("res://scripts/world3d/world_remote_players.gd").new(self)
+
+func facial_expression_catalog()->Array:
+	if not is_instance_valid(_player) or _player._model.axis_rig==null:return []
+	var catalog=preload("res://scripts/char/character_expressions.gd")
+	var rows:Array=[{"id":"neutral","label":"恢复自然","tag":""}]
+	for id in catalog.NAMES:rows.append({"id":id,"label":catalog.NAMES[id],"tag":catalog.LABELS[id],"group":catalog.group_for(id)})
+	return rows
+
+func facial_expression_state()->Dictionary:
+	if not is_instance_valid(_player):return {}
+	return _player._model.expression_target()
+
+func request_facial_expression(id:String,combine:bool=false)->bool:
+	if not is_instance_valid(_player) or _player.input_locked:return false
+	if id=="neutral":return _send_facial_expression({})
+	var catalog=preload("res://scripts/char/character_expressions.gd")
+	if not catalog.CHANNELS.has(id):return false
+	if not combine:return _send_facial_expression({id:1.0})
+	# Use the pending target so rapid clicks do not lose a category mid-transition.
+	var values:Dictionary=facial_expression_state()
+	var selected:bool=values.has(id)
+	for peer:String in catalog.GROUPS[catalog.group_for(id)]:values.erase(peer)
+	if not selected:values[id]=1.0
+	return _send_facial_expression(values)
+
+func request_remote_debug_spawn(display_name:String="")->void:
+	var feet:Vector3=_player.global_position-Vector3(0,.9,0)+Vector3(2,0,0)
+	var result:Dictionary=Net.server().facial_expressions.spawn_peer(display_name,_map_path,feet)
+	apply_actions(result.get("actions",[]))
+
+
+func _send_facial_expression(weights:Dictionary)->bool:
+	var result:Dictionary=Net.server().try_facial_expression(weights)
+	apply_actions(result.get("actions",[]))
+	return bool(result.get("ok",false))
+
+func cancel_sit_preparation()->void:
+	_sit_revision+=1
+
+func _on_movement_intent()->void:
+	cancel_sit_preparation()
+	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
+
+func request_sit(on:Variant=null)->void:
+	var want:bool=bool(on) if on is bool else not (Net.server().sitting or _sit_preparing)
+	if want and _sit_preparing:return
+	cancel_sit_preparation()
+	if not want:
+		apply_actions(Net.server().try_sit(false).get("actions",[]));return
+	if _sit_preparing or _transfer_pending or not is_instance_valid(_player) or _player.input_locked:return
+	if not Net.server().combat_stats.player_alive():return
+	var model=_player._model
+	if model.axis_rig==null:return
+	if model.action in _player.REST_ACTIONS:return
+	_player.click_target=null;_player._route.clear()
+	var revision:int=_sit_revision
+	_sit_preparing=true
+	var bundle:AnimationLibrary=await model.axis_rig.prepare_ground_actions()
+	_sit_preparing=false
+	if revision!=_sit_revision or not is_instance_valid(_player) or not is_instance_valid(model):return
+	if _transfer_pending or _player.input_locked or not Net.server().combat_stats.player_alive():return
+	if bundle==null:
+		apply_actions([{"type":"system_message","text":"坐下动作准备失败："+model.axis_rig.last_error}]);return
+	var library:AnimationLibrary=model.axis_rig.animations.library.duplicate()
+	for clip:StringName in bundle.get_animation_list():
+		if library.has_animation(clip):library.remove_animation(clip)
+		library.add_animation(clip,bundle.get_animation(clip))
+	if not model.axis_rig.animations.install(model.skeleton,library):return
+	apply_actions(Net.server().try_sit(true).get("actions",[]))
 
 func _refresh_world_map()->void:
 	_map_data.build(_map_root)
@@ -67,8 +139,10 @@ func is_world_ready() -> bool:
 
 
 func _exit_tree() -> void:
+	cancel_sit_preparation()
 	if is_instance_valid(_transfer_loader): _transfer_loader.cancel()
 	var server = Net.server()
+	if server != null and server.sitting:server.try_sit(false)
 	if server != null and server.get("world3d_authority") != null:
 		server.world3d_authority.release()
 	if server != null and server.has_method("world3d_release_actors"):
@@ -84,7 +158,7 @@ func _ready() -> void:
 		_ready_for_play = true
 		return
 	var body_type := str(Net.session().active_character().gender)
-	if body_type in ["male", "female"] and not preload("res://scripts/char/character_imported_rig.gd").available(body_type):
+	if not preload("res://scripts/char/character_model_3d.gd").source_available(body_type,Net.session().active_character().get("customization",{})):
 		_status.text = "角色资源缺失：请检查外部素材包，未使用替代模型"
 		_ready_for_play = true
 		return
@@ -101,6 +175,7 @@ func _ready() -> void:
 	else:
 		_add_collision(map_root)
 	_add_player()
+	_player.movement_intent.connect(_on_movement_intent)
 	await _prepare_navigation()
 	_add_town_lamps(map_root)
 	_mount_events()
@@ -161,12 +236,26 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
 	if _player == null or _camera == null:
 		return
 	_camera.follow(_player.global_position, delta)
 	_apply_residency(Stream.FRAME_BUDGET)
 	_apply_actor_view()
 	_poll_warp()
+
+func _update_cloth_scene()->void:
+	if not is_instance_valid(_map_root):return
+	var objects:Array=[]
+	var bodies:Dictionary=_map_root.get_meta("stream_bodies",{})
+	var meshes:Dictionary=_map_root.get_meta("stream_meshes",{})
+	for id in meshes:
+		if bodies.has(id) and is_instance_valid(bodies[id]):objects.append(meshes[id])
+	var model=_player._model
+	if model.axis_rig!=null:model.axis_rig.cloth.set_scene_colliders(objects)
+	if is_instance_valid(_combat):
+		for actor in _combat.actors.values():
+			if is_instance_valid(actor) and actor.model.axis_rig!=null:actor.model.axis_rig.cloth.set_scene_colliders(objects)
 
 
 func _physics_process(_delta: float) -> void:
@@ -193,6 +282,7 @@ func _prepare_navigation() -> void:
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
 	add_child(_combat)
 	_combat.setup(self)
+	remote_players.refresh()
 
 
 func _load_or_fail() -> Node:
@@ -300,6 +390,7 @@ func _add_light() -> void:
 	_sun.light_energy = 1.15
 	_sun.light_color = Color(1.0, 0.97, 0.9)
 	add_child(_sun)
+	_sun.add_to_group("character_key_light")
 	var env := WorldEnvironment.new()
 	_env = Environment.new()
 	_env.background_mode = Environment.BG_COLOR
@@ -482,7 +573,17 @@ func _add_game_hud() -> void:
 func apply_actions(actions: Array) -> void:
 	for action in actions:
 		match str(action.get("type", "")):
+			"facial_expression":remote_players.receive(action)
+			"remote_spawn":remote_players.spawn(action.get("player",{}))
+			"remote_despawn":remote_players.despawn(str(action.get("id",action.get("player_id",""))))
+			"sit":
+				if bool(action.get("on",false)):
+					if _player._model.action not in ["sit_down_ground","sit_ground"]:_player.request_rest("sit_down_ground")
+				elif _player._model.action in ["sit_down_ground","sit_ground"]:
+					_player._begin_ground_exit()
 			"player_died":
+				cancel_sit_preparation()
+				Net.server().sitting=false
 				Net.server().awaiting_respawn = true
 				_player.input_locked = true
 				_player.velocity = Vector3.ZERO
@@ -574,6 +675,8 @@ func request_use_item(item_id: String) -> void:
 func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:
 	if _transfer_pending or not destination.is_finite() or target.is_empty(): return false
 	if not Net.server().combat_stats.player_alive(): return false
+	cancel_sit_preparation()
+	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 	_transfer_pending = true
 	_combat._save_map_state()
 	var combat_processing: bool = _combat.is_physics_processing()
@@ -673,6 +776,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
 	add_child(_combat)
 	_combat.setup(self)
+	remote_players.refresh()
 	_add_town_lamps(prepared)
 	_note_map(prepared)
 	_mount_events()

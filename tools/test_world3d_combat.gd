@@ -7,14 +7,19 @@ func check(ok: bool, label: String) -> void:
 	print(("PASS: " if ok else "FAIL: ") + label)
 	if not ok: failed += 1
 func run() -> void:
-	preload("res://tools/world3d_test_character.gd").ensure(self)
+	create_timer(240).timeout.connect(func():push_error("New body combat timeout");quit(2))
 	var session = root.get_node("GameSession")
+	var appearance:Dictionary={"body_model":"female_base_v2","body_shapes":{"height":-.25},"part_ids":{"FrontHair1":202}}
+	session.selected_character={"id":-100,"name":"新底模战斗验收","gender":"female","customization":appearance}
+	session.spawn_data={}
+	var npc_recipe:Dictionary={"gender":"female","customization":appearance,"equipment":{"SurfaceEquipment":preload("res://scripts/char/underwear_equipment.gd").DEFAULT_REVIEW_RECIPE}}
 	var server = root.get_node("MockServer")
 	var dir := Paths.cache_directory("battle_test_%d" % Time.get_ticks_usec())
 	var doc := Doc.new()
 	doc.add_box("ground", Vector3(0, -0.1, 0), Vector3(20, 0.2, 20))
 	var id: String = doc.add_npc(Vector3(0, 0.8, 0), "enemy", "")
 	doc._find(id).merge({"hostile": true, "hp_max": 100, "level": 1, "atk": 10, "def": 1})
+	doc._find(id)["appearance"]=npc_recipe
 	var path := dir.path_join("map.gltf")
 	check(doc.save(path) == OK, "save hostile definition")
 	session.world3d_map_path = path
@@ -24,6 +29,7 @@ func run() -> void:
 	while not world.is_world_ready(): await process_frame
 	world._combat.set_physics_process(false)
 	var resident_actor = world._combat.actors[id]
+	check(world._player._model.axis_rig!=null and resident_actor.model.axis_rig!=null,"player and NPC both use accepted native body")
 	var original_position: Vector3 = resident_actor.position
 	resident_actor.position.x = 200
 	resident_actor.velocity = Vector3.DOWN * 5
@@ -62,9 +68,12 @@ func run() -> void:
 	check(not world._combat.area_targets(5, 8, "circle").has(id), "area damage excludes enemies on another floor")
 	world._combat.actors[id].position.y -= 3
 	var actions: Array = []
+	await world.request_sit(true)
+	check(server.sitting and world._player._model.action=="sit_down_ground","new body enters actual sitting before fatal hit")
 	server.combat_engine._damage_player(9999, actions, id, false)
 	world._combat._apply({"actions": actions})
 	check(world._player.input_locked and not server.combat_stats.player_alive(), "death locks movement")
+	check(not server.sitting and world._player._model.action=="death", "fatal damage clears sitting without replacing death by recovery")
 	check(not server.try_move_world(99999, Vector3.RIGHT, 4).ok, "authority rejects dead actor movement intent")
 	var occupied := StaticBody3D.new()
 	var occupied_shape := CollisionShape3D.new()
@@ -107,6 +116,7 @@ func run() -> void:
 	bridge_doc.map_meta["spawn"] = [0, 3.9, -2]
 	var bridge_enemy: String = bridge_doc.add_npc(Vector3(-4, 0.8, 4), "chaser", "")
 	bridge_doc._find(bridge_enemy)["hostile"] = true
+	bridge_doc._find(bridge_enemy)["appearance"]=npc_recipe
 	var bridge_path := dir.path_join("bridge.gltf")
 	check(bridge_doc.save(bridge_path) == OK, "save multilayer combat fixture")
 	session.world3d_map_path = bridge_path

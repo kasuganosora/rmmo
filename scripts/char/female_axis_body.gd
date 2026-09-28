@@ -3,6 +3,7 @@ extends Node3D
 ## Base topology remains the future garment anchor; subdivision is display-only.
 const Art=preload("res://scripts/asset/art_paths.gd")
 const RegionalSkin=preload("res://scripts/char/character_regional_skin.gd")
+const Shapes=preload("res://scripts/char/character_body_shapes.gd")
 const ORDERS=["XYZ","XZY","YXZ","YZX","ZXY","ZYX"]
 const EULER_ORDERS=[EULER_ORDER_XYZ,EULER_ORDER_XZY,EULER_ORDER_YXZ,EULER_ORDER_YZX,EULER_ORDER_ZXY,EULER_ORDER_ZYX]
 ## Emitted only after the body textures and joint snapshot agree. Consumers must
@@ -18,7 +19,22 @@ const POSES={
 	"reach":{"rShldr":Vector3(0,0,55),"lShldr":Vector3(0,0,-55)},
 	"step":{"rShldr":Vector3(0,0,-75),"lShldr":Vector3(0,0,75),"lThigh":Vector3(-65,0,0),"lShin":Vector3(90,0,0)},
 	"sit":{"rShldr":Vector3(0,0,-75),"lShldr":Vector3(0,0,75),"lThigh":Vector3(-90,0,0),"rThigh":Vector3(-90,0,0),"lShin":Vector3(90,0,0),"rShin":Vector3(90,0,0)},
-	"lie":{"hip":Vector3(-90,0,0),"rShldr":Vector3(0,0,-75),"lShldr":Vector3(0,0,75)}}
+	# Preserve the original lie pose as a collision regression input.
+	"lie":{"hip":Vector3(-90,0,0),"rShldr":Vector3(0,0,-75),"lShldr":Vector3(0,0,75)},
+	"lie_relaxed":{"hip":Vector3(-90,0,0),"neck":Vector3(-9,0,0),"head":Vector3(9,5,0),
+		"rShldr":Vector3(0,10,-70),"lShldr":Vector3(0,-10,70),
+		# Supinated forearms let the backs of the hands rest on the support
+		# surface. Keep the shoulders/elbows in place; don't splay the arms.
+		"rForeArm":Vector3(-75,12,0),"lForeArm":Vector3(-75,-12,0),
+		"rHand":Vector3(0,0,3),"lHand":Vector3(0,0,-3),
+		"rIndex1":Vector3(0,0,-12),"rMid1":Vector3(0,0,-16),"rRing1":Vector3(0,0,-20),"rPinky1":Vector3(0,0,-24),
+		"lIndex1":Vector3(0,0,12),"lMid1":Vector3(0,0,16),"lRing1":Vector3(0,0,20),"lPinky1":Vector3(0,0,24),
+		"rIndex2":Vector3(0,0,-16),"rMid2":Vector3(0,0,-22),"rRing2":Vector3(0,0,-25),"rPinky2":Vector3(0,0,-28),
+		"lIndex2":Vector3(0,0,16),"lMid2":Vector3(0,0,22),"lRing2":Vector3(0,0,25),"lPinky2":Vector3(0,0,28),
+		"rIndex3":Vector3(0,0,-8),"rMid3":Vector3(0,0,-10),"rRing3":Vector3(0,0,-12),"rPinky3":Vector3(0,0,-14),
+		"lIndex3":Vector3(0,0,8),"lMid3":Vector3(0,0,10),"lRing3":Vector3(0,0,12),"lPinky3":Vector3(0,0,14),
+		"rThumb2":Vector3(0,8,8),"lThumb2":Vector3(0,-8,-8),
+		"rThumb3":Vector3(0,0,8),"lThumb3":Vector3(0,0,-8)}}
 const VERTEX_CODE="""
 uniform sampler2D body_positions : filter_nearest;
 uniform sampler2D body_normals : filter_nearest;
@@ -40,10 +56,15 @@ void vertex() {
 """
 var skeleton:Skeleton3D
 var rest_points:=PackedVector3Array()
+var base_rest_points:=PackedVector3Array()
+var expression_values:Dictionary={}
+const Expressions=preload("res://scripts/char/character_expressions.gd")
+var shape_values:Dictionary={}
 var posed_points:=PackedVector3Array()
 var nodes:Array=[]
 var topology:Dictionary
 var rests:Dictionary={}
+var base_rests:Dictionary={}
 var positions_texture:ImageTexture
 var normals_texture:ImageTexture
 var pose_name:="rest"
@@ -59,6 +80,7 @@ func enable_compute()->bool:
 	if gpu==null:
 		gpu=preload("res://scripts/char/female_axis_gpu.gd").new()
 		if not gpu.initialize(Art.path("characters/base/female_base_v2")):gpu=null;return false
+		if not gpu.set_rest_points(rest_points):gpu.close();gpu=null;return false
 	use_compute=true;return true
 func _exit_tree()->void:
 	if gpu:gpu.close();gpu=null
@@ -97,10 +119,12 @@ func initialize()->void:
 	assert(rig.version==1 and rig.vertex_count==21556 and rig.nodes.size()==80 and topology.points.size()==21556)
 	bulge_scale=rig.bulge_scale
 	for p:Array in topology.points:rest_points.append(Vector3(p[0],p[1],p[2]))
+	base_rest_points=rest_points.duplicate()
 	skeleton=Skeleton3D.new();skeleton.name="SharedBodySkeleton";add_child(skeleton)
 	for data:Dictionary in rig.nodes:
 		rests[data.name]=frame(data.rest)
 		nodes.append(data)
+	base_rests=rests.duplicate()
 	var pending:Array=nodes.duplicate()
 	while not pending.is_empty():
 		var added:=false
@@ -124,7 +148,9 @@ func initialize()->void:
 	normals_texture=ImageTexture.create_from_image(Image.create(512,43,false,Image.FORMAT_RGBAF))
 	var size:Array=topology.stencil_size
 	var stencil:=ImageTexture.create_from_image(Image.create_from_data(size[0],size[1],false,Image.FORMAT_RGBAF,FileAccess.get_file_as_bytes(folder+"/subdivision_stencils.rgba32f")))
-	var source:=RegionalSkin.create_preview();assert(source!=null)
+	var screen_space_sss:bool=not (is_inside_tree() and get_viewport().transparent_bg)
+	var source:=RegionalSkin.create_preview(screen_space_sss);assert(source!=null)
+	set_meta("screen_space_sss",screen_space_sss)
 	var materials:Dictionary={}
 	for mesh:MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
 		for surface in mesh.mesh.get_surface_count():materials[mesh.mesh.surface_get_material(surface).resource_name]=mesh.get_surface_override_material(surface)
@@ -139,10 +165,13 @@ func initialize()->void:
 		st.index();st.generate_tangents();st.commit(array_mesh)
 		var original:Material=materials[topology.materials[surface]]
 		var material:=ShaderMaterial.new();var shader:=Shader.new()
+		material.resource_name=original.resource_name
+		material.render_priority=original.render_priority
+		for key:StringName in original.get_meta_list():material.set_meta(key,original.get_meta(key))
 		if original is ShaderMaterial:
 			# Reconstruct tangent frame from deformed surface derivatives; rest-pose
 			# tangents must not rotate the skin detail incorrectly at bent joints.
-			shader.code=RegionalSkin.CODE.replace("NORMAL_MAP = texture(normal_map, UV).rgb;\n\tNORMAL_MAP_DEPTH = 0.35;", """
+			shader.code=original.shader.code.replace("NORMAL_MAP = texture(normal_map, UV).rgb;\n\tNORMAL_MAP_DEPTH = 0.35;", """
 	vec3 mapped=texture(normal_map,UV).rgb*2.0-1.0;mapped.xy*=0.35;
 	vec3 dp1=dFdx(VERTEX),dp2=dFdy(VERTEX);vec2 uv1=dFdx(UV),uv2=dFdy(UV);
 	vec3 perpendicular2=cross(dp2,NORMAL),perpendicular1=cross(NORMAL,dp1);
@@ -152,13 +181,17 @@ func initialize()->void:
 	NORMAL=normalize(tangent*inverse_scale*mapped.x+bitangent*inverse_scale*mapped.y+NORMAL*mapped.z);
 """)+VERTEX_CODE
 			material.shader=shader
-			for semantic in ["albedo","normal","gloss","specular"]:material.set_shader_parameter(semantic+"_map",original.get_shader_parameter(semantic+"_map"))
+			# Preserve each surface's shader and parameters. Replacing every shader
+			# with the skin program silently broke eye and other regional materials.
+			for uniform:Dictionary in original.shader.get_shader_uniform_list():
+				material.set_shader_parameter(uniform.name,original.get_shader_parameter(uniform.name))
 		else:
 			var color:Color=original.albedo_color
 			shader.code="shader_type spatial;\n"+VERTEX_CODE+"void fragment(){ALBEDO=vec3(%s,%s,%s);ROUGHNESS=0.45;%s}"%[color.r,color.g,color.b,"ALPHA=0.0;" if color.a==0 else ""]
 			material.shader=shader
 		material.set_shader_parameter("body_positions",positions_texture);material.set_shader_parameter("body_normals",normals_texture);material.set_shader_parameter("subdivision_weights",stencil)
 		array_mesh.surface_set_material(surface,material)
+	set_meta("skin_id",source.get_meta("skin_id",""));set_meta("eye_id",source.get_meta("eye_id",""))
 	source.free()
 	mesh_instance=MeshInstance3D.new();mesh_instance.mesh=array_mesh;mesh_instance.custom_aabb=AABB(Vector3(-2,-1,-2),Vector3(4,4,4));add_child(mesh_instance)
 	set_angles({})
@@ -166,6 +199,9 @@ func initialize()->void:
 
 func get_solved_bone_pose(index:int)->Transform3D:
 	return solved_bones[index]
+
+func set_colors(recipe:Dictionary)->void:
+	RegionalSkin.apply_colors(self,recipe)
 
 func _on_skeleton_updated()->void:
 	if not _solving:sync_final_pose()
@@ -199,7 +235,7 @@ static func continuous_angles(rotation:Basis,order:int,previous:Vector3)->Vector
 		if score<distance:distance=score;best=candidate
 	return best
 
-func sync_final_pose()->bool:
+func sync_final_pose(angle_references:Dictionary={})->bool:
 	# Read while Skeleton3D exposes the final modifier result, without writing it
 	# back into the animation input. Axis weights need final local Euler angles
 	# as well as global joint matrices; updating only one produces split limbs.
@@ -221,13 +257,75 @@ func sync_final_pose()->bool:
 	for node:Dictionary in nodes:
 		var index:int=node.skeleton_index
 		var relative:Basis=skeleton.get_bone_rest(index).basis.inverse()*skeleton.get_bone_pose(index).basis
-		next_angles.append(continuous_angles(relative.orthonormalized(),node.order,node.angles))
+		var reference:Vector3=angle_references.get(node.name,node.angles)
+		var angles:Vector3=continuous_angles(relative.orthonormalized(),node.order,reference)
+		next_angles.append(angles)
+		if not angles.is_equal_approx(node.angles):changed=true
 	pose_sync_error=""
 	if not changed:return true
 	solved_bones=next_bones
 	for i in nodes.size():nodes[i]["angles"]=next_angles[i]
 	_solve_surface(root_offset)
 	return true
+
+func set_shape_values(values:Dictionary)->bool:
+	for key in values:
+		if not Shapes.RANGES.has(key):return false
+	var normalized:=Shapes.normalize(values)
+	if normalized==shape_values:return true
+	var points:=Shapes.evaluate(base_rest_points,normalized)
+	points=Expressions.evaluate(points,expression_values)
+	if points.is_empty():return false
+	var next_rests:=Shapes.evaluate_rests(base_rests,normalized)
+	if next_rests.size()!=rests.size():return false
+	if gpu!=null and not gpu.set_rest_points(points):return false
+	rest_points=points;shape_values=normalized
+	var degrees:Dictionary={}
+	for node:Dictionary in nodes:degrees[node.name]=node.angles*180.0/PI
+	rests=next_rests
+	for node:Dictionary in nodes:
+		node.rest_frame=rests[node.name];node.inverse_frame=rests[node.name].affine_inverse()
+		var local:Transform3D=rests[node.parent].affine_inverse()*rests[node.name] if not node.parent.is_empty() else rests[node.name]
+		skeleton.set_bone_rest(node.skeleton_index,local)
+	# Original identity formulas move bind centers, not animated local poses.
+	# Reapply the current angles on the new rests without changing clip/time.
+	set_angles(degrees,root_offset)
+	return true
+
+func set_expressions(values:Dictionary)->bool:
+	var normalized:=Expressions.normalize(values)
+	if normalized.has("invalid"):return false
+	if normalized==expression_values:return true
+	var points:=Expressions.evaluate(Shapes.evaluate(base_rest_points,shape_values),normalized)
+	if points.is_empty():return false
+	if gpu!=null and not gpu.set_rest_points(points):return false
+	var previous:Dictionary=Expressions.bone_offsets(expression_values)
+	rest_points=points;expression_values=normalized
+	for surface in topology.materials.size():
+		var material:ShaderMaterial=mesh_instance.mesh.surface_get_material(surface)
+		if topology.materials[surface] in ["Irises","Pupils"]:
+			material.set_shader_parameter("expression_heart",float(normalized.get("heart_eyes",0)))
+			material.set_shader_parameter("expression_star",float(normalized.get("star_eyes",0)))
+			material.set_shader_parameter("expression_circle",float(normalized.get("circle_eyes",0)))
+		elif topology.materials[surface]=="Face":material.set_shader_parameter("expression_blush",float(normalized.get("blush",0)))
+	var references:=apply_expression_bones(previous)
+	if not sync_final_pose(references):return false
+	_solve_surface(root_offset)
+	return true
+
+func apply_expression_bones(previous:Dictionary={})->Dictionary:
+	var offsets:=Expressions.bone_offsets(expression_values)
+	var references:Dictionary={}
+	for node:Dictionary in nodes:
+		if not offsets.has(node.name) and not previous.has(node.name):continue
+		var index:int=node.skeleton_index
+		var rest:Transform3D=skeleton.get_bone_rest(index)
+		var relative:Basis=rest.basis.inverse()*Basis(skeleton.get_bone_pose_rotation(index))
+		var angles:=continuous_angles(relative,node.order,node.angles)
+		angles+=offsets.get(node.name,Vector3.ZERO)-previous.get(node.name,Vector3.ZERO)
+		skeleton.set_bone_pose_rotation(index,(rest.basis*ordered_basis(angles,ORDERS[node.order])).get_rotation_quaternion())
+		references[node.name]=angles
+	return references
 
 func set_angles(degrees:Dictionary,offset:Vector3=Vector3.ZERO)->void:
 	assert(offset.is_finite())
@@ -295,4 +393,3 @@ func _solve_surface(offset:Vector3)->void:
 	last_solve_ms=(Time.get_ticks_usec()-start)/1000.0
 	_solving=false
 	surface_updated.emit()
-

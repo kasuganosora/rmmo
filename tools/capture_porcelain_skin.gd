@@ -16,7 +16,7 @@ func run()->void:
 			triangles+=arrays[Mesh.ARRAY_INDEX].size()/3
 			if arrays[Mesh.ARRAY_TEX_UV].size()!=arrays[Mesh.ARRAY_VERTEX].size():push_error("Missing display UV");quit(1);return
 			var material:Material=mesh.get_surface_override_material(surface)
-			if material is ShaderMaterial:materials[material.resource_name]=material
+			if material is ShaderMaterial and material.resource_name.begins_with("skin_porcelain_01_"):materials[material.resource_name]=material
 	if materials.size()!=3:push_error("Expected exactly three regional skin materials");quit(1);return
 	if triangles!=168716 or root.msaa_3d!=Viewport.MSAA_8X:push_error("Expected subdivided review mesh and 8x MSAA");quit(1);return
 	for material:ShaderMaterial in materials.values():

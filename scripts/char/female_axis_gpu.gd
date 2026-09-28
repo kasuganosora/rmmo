@@ -7,6 +7,7 @@ var pipeline:RID
 var uniform_set:RID
 var last_positions:PackedByteArray
 var last_normals:PackedByteArray
+var rest_data:=PackedFloat32Array()
 func initialize(folder:String)->bool:
 	if RenderingServer.get_rendering_device()==null:return false
 	rd=RenderingServer.create_local_rendering_device()
@@ -17,6 +18,7 @@ func initialize(folder:String)->bool:
 	shader=rd.shader_create_from_spirv(spirv);pipeline=rd.compute_pipeline_create(shader)
 	var data:Array[PackedByteArray]=[]
 	data.append(FileAccess.get_file_as_bytes(folder+"/axis_gpu_rest.bin"));data.append(FileAccess.get_file_as_bytes(folder+"/axis_gpu_weights.bin"))
+	rest_data=data[0].to_float32_array()
 	var bone_data:=PackedByteArray();bone_data.resize(80*16*16);data.append(bone_data)
 	var positions:=PackedByteArray();positions.resize(512*43*16);data.append(positions)
 	data.append(FileAccess.get_file_as_bytes(folder+"/axis_gpu_adjacency.bin"));data.append(FileAccess.get_file_as_bytes(folder+"/axis_gpu_triangles.bin"));data.append(positions)
@@ -25,6 +27,16 @@ func initialize(folder:String)->bool:
 		var rid:=rd.storage_buffer_create(data[i].size(),data[i]);buffers.append(rid)
 		var uniform:=RDUniform.new();uniform.uniform_type=RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER;uniform.binding=i;uniform.add_id(rid);uniforms.append(uniform)
 	uniform_set=rd.uniform_set_create(uniforms,shader,0);return true
+func set_rest_points(points:PackedVector3Array)->bool:
+	# The original buffer includes padding to the 512x43 display texture size.
+	if rd==null or points.size()!=21556 or points.size()*4>rest_data.size():return false
+	for point:Vector3 in points:
+		if not point.is_finite():return false
+	for i in points.size():
+		# Preserve W: it is the number of original axis-weight records.
+		for axis in 3:rest_data[i*4+axis]=points[i][axis]
+	var bytes:=rest_data.to_byte_array()
+	return rd.buffer_update(buffers[0],0,bytes.size(),bytes)==OK
 func evaluate(nodes:Array,solved_bones:Array[Transform3D],bulge_scale:float,offset:Vector3)->void:
 	var bone_data:=PackedFloat32Array();bone_data.resize(80*64)
 	for i in nodes.size():

@@ -12,6 +12,15 @@ func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
 	slot = slot.strip_edges()
 	if ctrl.equipment == null or ctrl.inventory == null:
 		return {"ok": false, "reason": "no_equipment", "actions": []}
+	var definition:Dictionary=ctrl.item_catalog.get_item(item_id) if ctrl.item_catalog!=null else {}
+	var supported:Array=definition.get("supported_body_models",[])
+	if not supported.is_empty():
+		var body_model:=""
+		for ch:Dictionary in ctrl._accounts.get(ctrl._session_user,{}).get("characters",[]):
+			if str(ch.id)==ctrl._session_character_id:
+				body_model=str(ch.get("customization",{}).get("body_model",""));break
+		if body_model not in supported:
+			return {"ok":false,"reason":"incompatible_body","actions":[{"type":"system_message","text":"这件装备尚未适配当前体型。"}]}
 	var r: Dictionary = ctrl.equipment.try_equip_from_bag(ctrl.inventory, item_id, slot)
 	var actions: Array = []
 	if not bool(r.get("ok", false)):

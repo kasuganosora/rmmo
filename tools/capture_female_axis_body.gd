@@ -28,9 +28,9 @@ func run()->void:
 				var actual_length:float=body.skeleton.get_bone_global_pose(bone).origin.distance_to(body.skeleton.get_bone_global_pose(parent).origin)
 				assert(absf(actual_length-body.skeleton.get_bone_rest(bone).origin.length())<.00001,"Joint motion stretched a bone")
 		label.text=name+" / original axis weights"
-		var center:=Vector3(0,1.05,0) if name!="lie" else Vector3(0,.35,-.4)
+		var center:=Vector3(0,1.05,0) if not name.begins_with("lie") else Vector3(0,.35,-.4)
 		studio.camera.position=center+Vector3(2.0,.3,5);studio.camera.look_at(center);studio.camera.size=2.7
-		if name=="lie":
+		if name.begins_with("lie"):
 			studio.camera.position=Vector3(4,1.2,.3);studio.camera.look_at(Vector3(0,.2,.16));studio.camera.size=3.3
 		for p:Vector3 in body.posed_points:assert(p.is_finite() and p.length()<5.0)
 		print("POSE ",name," GPU_ms=",body.last_solve_ms," CPU_GPU_max_error=",max_error)
@@ -63,4 +63,4 @@ func run()->void:
 	for amount in [.2,.5,.8,1.0]:
 		body.set_test_pose("elbow",amount)
 		for point:Vector3 in body.read_gpu_points():assert(point.is_finite())
-	studio.regional_preview=null;body.free();studio.free();canvas.free();print("PASS rest/reset, rigid root, CPU/GPU parity, seven poses, chair and continuous joint range");quit()
+	studio.regional_preview=null;body.free();studio.free();canvas.free();print("PASS rest/reset, rigid root, CPU/GPU parity, eight poses, chair and continuous joint range");quit()

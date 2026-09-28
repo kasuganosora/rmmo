@@ -12,7 +12,8 @@ func run()->void:
 		model.configure(gender,{}, {})
 		for action in ["walk","dash"]:
 			model.play(action,"front",true)
-			var duration:float=Model.Motion.DURATION[action]
+			# Selected clips may override the action (female jog plays at 1.25x).
+			var duration:float=model.action_duration()
 			assert(model.imported_rig.animations.clips.has(action),"Real library clip must be loaded")
 			var low:=INF;var high:=-INF
 			for i in range(60):

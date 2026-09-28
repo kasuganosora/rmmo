@@ -8,6 +8,7 @@ func collider(y:float)->PackedVector3Array:
  if OS.get_cmdline_user_args().has("--edge-only"):return PackedVector3Array([Vector3(-2,y,0),Vector3(2,y,0),Vector3(2,y,.02)])
  return PackedVector3Array([Vector3(-.03,y,0),Vector3(.03,y,0),Vector3(0,y,.04)])
 func run()->void:
+ if preload("res://tools/gpu_shader_review_manifest.gd").collect().is_empty():quit(2);return
  var downward:=OS.get_cmdline_user_args().has("--downward")
  var end_height:=.9 if downward else 1.1
  var scene:=Node3D.new();root.add_child(scene)
@@ -21,6 +22,11 @@ func run()->void:
  var solver=load("res://addons/godot_gpu_cloth/src/gpu_cloth_solver.gd").new()
  solver.target_mesh=NodePath("../Cloth");solver.external_surface_input=true;solver.external_triangle_count=1
  solver.external_reverse_contacts=not OS.get_cmdline_user_args().has("--without-reverse")
+ solver.self_contact_mass_balance=OS.get_cmdline_user_args().has("--mass-balance")
+ if OS.get_cmdline_user_args().has("--self-contact"):
+  solver.self_collide=true;solver.continuous_self_contacts=true;solver.self_edge_contacts=true
+  solver.self_contact_iterations=4;solver.self_contact_structural_projection=true
+  solver.peer_collider_voxel_resolution=0
  if OS.get_cmdline_user_args().has("--edge-only") and not OS.get_cmdline_user_args().has("--without-edges"):
   solver.external_collision_edges=PackedInt32Array([0,1,1,2,2,0])
  solver.substeps=1;solver.solver_iterations=12;solver.gravity=Vector3.ZERO;solver.max_travel_distance=0;solver.damping=1

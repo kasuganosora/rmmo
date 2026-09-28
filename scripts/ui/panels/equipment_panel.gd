@@ -2,6 +2,7 @@ extends RefCounted
 ## UI panel: equipment / paperdoll with compare tips.
 
 var ctrl
+var _character_view:Node2D
 func _init(c):
 	ctrl = c
 
@@ -99,6 +100,8 @@ func _equipment_map() -> Dictionary:
 			"icon_index": int(it.get("icon_index", -1)),
 			"icon": str(it.get("icon", "")).strip_edges(),
 			"icon_ref": str(it.get("icon_ref", "")).strip_edges(),
+			"bound": bool(it.get("bound",false)),
+			"enhance": clampi(int(it.get("enhance",0)),0,5),
 		}
 	return m
 
@@ -117,25 +120,44 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 	var sil = TextureRect.new()
 	sil.name = "Silhouette"
 	if CharacterView3D.enabled():
-		var view:=CharacterView3D.new()
-		canvas.add_child(view)
-		view.display.visible=false
+		# Window contents are rebuilt on snapshots; keep the actor owned by
+		# the HUD so its pose and per-instance state survive those rebuilds.
+		if not is_instance_valid(_character_view):
+			_character_view=CharacterView3D.new()
+			_character_view.name="EquipmentCharacterPreview"
+			ctrl.add_child(_character_view)
+			_character_view.display.visible=false
+		var view=_character_view
 		var srv=Net.server()
 		var catalog=srv.get("item_catalog") if srv!=null else null
 		var gender:String=str(ch.get("gender","female"))
 		view.configure(gender,ch.get("customization",{}),CharacterView3D.equipment_parts(gender,ctrl._server_equipment,catalog))
+		# Match the tall paperdoll area instead of shrinking a square map view
+		# inside it. Use front framing so equipment remains readable.
+		view.viewport.size=Vector2i(296,552)
+		var low:=0.0;var high:=2.0
+		if view.model.axis_rig!=null:
+			low=INF;high=-INF
+			var body:Node3D=view.model.axis_rig.body
+			for point:Vector3 in body.posed_points:
+				var y:float=(body.global_transform*(point+body.root_offset)).y
+				low=minf(low,y);high=maxf(high,y)
+			high=maxf(high,view.model.axis_rig.hair.projected_top(Vector3.UP,false))
+		var center:=Vector3(0,(low+high)*.5,0)
+		view.camera.size=(high-low)*1.12
+		view.camera.position=center+Vector3(0,0,4);view.camera.look_at(center)
 		sil.texture=view.viewport.get_texture()
 	else:
 		sil.texture = _paperdoll_texture(ch)
 	sil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sil.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	sil.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sil.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if CharacterView3D.enabled() else CanvasItem.TEXTURE_FILTER_NEAREST
 	sil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sil.offset_left = 38
 	sil.offset_right = -38
 	sil.offset_top = 18
-	sil.offset_bottom = -6
+	sil.offset_bottom = -48 if CharacterView3D.enabled() else -6
 	canvas.add_child(sil)
 	# Left column jewelry/armor, right column weapons/rings, head/feet on the figure.
 	var positions: Dictionary = {
@@ -153,6 +175,8 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 		"ring_l": Vector2(182, 200),
 		"feet": Vector2(93, 256),
 		"belt": Vector2(182, 246),
+		"underwear_top": Vector2(4, 246),
+		"underwear_bottom": Vector2(50, 256),
 	}
 	var eq_map = _equipment_map()
 	for sid in positions.keys():

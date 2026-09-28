@@ -11,6 +11,8 @@ const SLOT_IDS: Array[String] = [
 	"legs",
 	"feet",
 	"belt",
+	"underwear_top",
+	"underwear_bottom",
 	"weapon_main",
 	"weapon_off",
 	"necklace",
@@ -29,6 +31,8 @@ const SLOT_LABELS_ZH: Dictionary = {
 	"legs": "腿",
 	"feet": "脚",
 	"belt": "腰带",
+	"underwear_top": "内衣上装",
+	"underwear_bottom": "内衣下装",
 	"weapon_main": "主手",
 	"weapon_off": "副手",
 	"necklace": "项链",
@@ -884,3 +888,16 @@ func needs_repair() -> bool:
 
 static func label_zh(slot_id: String) -> String:
 	return str(SLOT_LABELS_ZH.get(slot_id.strip_edges(), slot_id))
+
+
+# Preserve instance metadata when switching mocker characters in memory.
+func capture_session_state() -> Dictionary:
+	return {"equipped":_equipped.duplicate(true),"durability":_durability.duplicate(true),"durability_max":_durability_max.duplicate(true),"bound":_bound.duplicate(true),"enhance":_enhance.duplicate(true)}
+
+func restore_session_state(state:Dictionary) -> void:
+	_equipped=state.equipped.duplicate(true)
+	_durability=state.durability.duplicate(true)
+	_durability_max=state.durability_max.duplicate(true)
+	_bound=state.bound.duplicate(true)
+	_enhance=state.enhance.duplicate(true)
+	_ensure_slots()

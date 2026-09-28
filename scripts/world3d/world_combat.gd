@@ -82,6 +82,7 @@ func in_range(id: String, range_units: int) -> bool:
 	return hit.is_empty() or str(hit.collider.get_meta("uuid", "")) == id
 
 func attack(id: String) -> Dictionary:
+	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	if not targets.has(id): return {"ok": false, "actions": []}
 	selected = id
@@ -91,6 +92,7 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
+	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine
 	var definition: Dictionary = Net.server().skill_catalog.get_skill(id)
@@ -107,6 +109,13 @@ func use_skill(id: String, ground: Variant = null) -> Dictionary:
 
 func _apply(result: Dictionary) -> Dictionary:
 	var actions: Array = result.get("actions", [])
+	# 3D counters and status ticks call the engine directly, bypassing the
+	# legacy combat module's sitting interruption wrapper.
+	for action in actions:
+		if str(action.get("type",""))=="damage" and str(action.get("target",action.get("id","")))=="player":
+			world.cancel_sit_preparation()
+			Net.server()._stand_if_sitting(actions)
+			break
 	if not Net.server().combat_stats.player_alive() and not _death_applied:
 		_death_applied = true
 		var server = Net.server()

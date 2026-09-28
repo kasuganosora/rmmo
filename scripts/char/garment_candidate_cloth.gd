@@ -15,7 +15,15 @@ var control_to_particle:=PackedInt32Array()
 var frame_error:=""
 var edge_contacts:=false
 var constraint_iterations:=24
+var source_bending:=false
+var interpolate_targets:=false
+var self_edge_contacts:=false
 var continuous_self_contacts:=false
+var self_contact_mass_balance:=false
+var self_contact_body_tangents:=false
+var review_stage_trace:=false
+var self_contact_iterations:=1
+var self_contact_structural_projection:=false
 
 func initialize(target:Node3D,objects:Array[MeshInstance3D]=[])->bool:
 	assert(is_inside_tree())
@@ -43,8 +51,38 @@ func initialize(target:Node3D,objects:Array[MeshInstance3D]=[])->bool:
 	var mesh:=ArrayMesh.new();mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
 	controls=MeshInstance3D.new();controls.name="ControlMesh";controls.mesh=mesh;controls.visible=false;add_child(controls)
 	solver=Solver.new();solver.name="Solver";solver.target_mesh=NodePath("../ControlMesh")
+	if source_bending:
+		var source_path:String=Art.path("characters/equipment/surface_bound/"+garment.garment_id+"/source_cloth_data.json")
+		var source:Variant=JSON.parse_string(FileAccess.get_file_as_string(source_path))
+		if not source is Dictionary or not source.get("physics") is Dictionary:
+			frame_error="Missing authored cloth neighbor graph";solver.free();return false
+		var physics:Dictionary=source.physics
+		var to_control:Dictionary={}
+		for face_index in garment.data.faces.size():
+			var face:Dictionary=garment.data.faces[face_index]
+			var uvs:Array=garment.data.uv_faces[face_index].vertices
+			for corner in face.vertices.size():
+				var uv:int=uvs[corner]
+				if uv<0 or uv>=physics.mesh_to_physics.size():
+					frame_error="Invalid authored UV/particle mapping";solver.free();return false
+				var particle:int=physics.mesh_to_physics[uv];var control:int=face.vertices[corner]
+				if to_control.has(particle) and garment.rest_points[to_control[particle]].distance_to(garment.rest_points[control])>.00001:
+					frame_error="Authored particle maps to conflicting control positions";solver.free();return false
+				to_control[particle]=control
+		for group:Array in physics.bend_groups:
+			for pair:Array in group:
+				if not to_control.has(int(pair[0])) or not to_control.has(int(pair[1])):
+					frame_error="Authored bend references an unmapped particle";solver.free();return false
+				solver.external_bend_pairs.append_array(PackedInt32Array([to_control[int(pair[0])],to_control[int(pair[1])]]))
 	solver.external_surface_input=true;solver.external_triangle_count=(body_triangles.size()+scene_triangles.size())/3
+	solver.interpolate_external_targets=interpolate_targets
 	solver.external_reverse_contacts=true
+	solver.self_edge_contacts=self_edge_contacts
+	solver.self_contact_mass_balance=self_contact_mass_balance
+	solver.self_contact_body_tangents=self_contact_body_tangents
+	solver.review_stage_trace=review_stage_trace
+	solver.self_contact_structural_projection=self_contact_structural_projection
+	solver.self_contact_iterations=self_contact_iterations
 	solver.self_collide=continuous_self_contacts
 	solver.continuous_self_contacts=continuous_self_contacts
 	if continuous_self_contacts:solver.peer_collider_voxel_resolution=0

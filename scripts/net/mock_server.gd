@@ -2247,3 +2247,9 @@ func try_dungeon_enter() -> Dictionary:
 	return _dungeon_module_logic.try_dungeon_enter()
 func try_dungeon_exit() -> Dictionary:
 	return _dungeon_module_logic.try_dungeon_exit()
+
+var facial_expressions=preload("res://scripts/net/server/facial_expression_module.gd").new(self)
+func try_facial_expression(weights:Dictionary)->Dictionary:
+	return facial_expressions.request(weights)
+func try_remote_facial_expression(actor_id:String,weights:Dictionary)->Dictionary:
+	return facial_expressions.debug_remote(actor_id,weights)

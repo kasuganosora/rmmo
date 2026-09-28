@@ -22,11 +22,36 @@ extends Node3D
 # RMMO adapter: immutable frame packets, all in solver-local coordinates.
 # Configure before entering the tree; counts/topology stay fixed per instance.
 var external_surface_input: bool = false
+## Match the time of external attachments to the interpolated collider packet.
+## Kept optional for recorded baseline replay; native skinning is unaffected.
+var interpolate_external_targets := false
+var _previous_targets_buffer: RID
+var _last_gpu_target_bytes := PackedByteArray()
 var external_triangle_count: int = 0
 # Explicit experimental reverse vertex/face contacts. Indices refer to flattened
 # external collider triangles and remain fixed for the life of the solver.
 # Explicit candidate option until full garment and edge/edge gates pass.
 var continuous_self_contacts := false
+var self_contact_mass_balance := false
+var self_contact_body_tangents := false
+var _body_contact_directions: RID
+var _body_directions_clear: RID
+var _self_reactions: RID
+## Diagnostic only. Copies states without projecting or changing solver input.
+var review_stage_trace := false
+var review_trace_active := false
+var review_stage_labels: Array[String] = []
+var _review_trace_buffer: RID
+var _review_trace_uniform: RID
+var _review_trace_capacity := 0
+var self_edge_contacts := false
+var _self_neighbor_counts: RID
+var _self_neighbor_offsets: RID
+var _self_neighbors: RID
+var _self_edges: RID
+var _self_edge_count := 0
+var self_contact_iterations := 1
+var self_contact_structural_projection := false
 var _self_previous: RID
 var _self_previous_uniform: RID
 var _self_snapshot: RID
@@ -126,6 +151,10 @@ func set_external_frame(targets: PackedVector3Array, triangles: PackedVector3Arr
 ## Bending constraints from edge-shared triangle pairs. Off = only structural
 ## (edge-length) constraints; cloth will be very droopy.
 @export var bending_from_topology: bool = true
+## Optional authored bend-neighbor pairs in the original input vertex indices.
+## They replace inferred opposite-triangle neighbors, retaining the same XPBD
+## material compliance. Empty preserves the upstream topology-derived behavior.
+var external_bend_pairs:=PackedInt32Array()
 ## Velocity multiplier applied each substep. 1.0 = no damping (energy never
 ## dissipates, cloth oscillates forever), 0.0 = velocity zeroed every substep
 ## (effectively static). 0.99 is a typical garment value; lower for "wet" or
@@ -676,6 +705,7 @@ func _exit_tree() -> void:
 	# Capture every RID into a list so the lambda stays safe after this node is freed.
 	# Hazard 8 — every free_rid must run on the render thread that owns the main RD.
 	var rids: Array = [
+		_self_neighbor_counts, _self_neighbor_offsets, _self_neighbors, _self_edges, _self_reactions, _review_trace_buffer, _body_contact_directions,
 		_self_previous, _self_snapshot, _self_snapshot_pipeline, _self_swept_pipeline, _self_snapshot_shader, _self_swept_shader,
 		_positions_buffer, _predicted_buffer, _velocities_buffer,
 		_constraints_buffer, _colliders_buffer,
@@ -689,6 +719,7 @@ func _exit_tree() -> void:
 		_positions_img_rid, _normals_img_rid,
 		_collider_tri_buffer,
 		_previous_collider_tri_buffer,
+		_previous_targets_buffer,
 		_reverse_vertex_buffer, _reverse_corrections, _reverse_edge_buffer,
 		_reverse_pipeline, _reverse_shader, _gather_pipeline, _gather_shader,
 		_skin_pipeline, _predict_pipeline, _solve_pipeline,
@@ -706,7 +737,7 @@ func _exit_tree() -> void:
 	]
 	# Release dependent sets before their buffers invalidate them.
 	var uniform_rids: Array = [
-		_self_previous_uniform, _self_snapshot_uniform,
+		_self_previous_uniform, _self_snapshot_uniform, _review_trace_uniform, _body_directions_clear,
 		_reverse_uniform, _gather_uniform,
 		_skin_uniform_set, _predict_uniform_set, _solve_uniform_set,
 		_update_uniform_set, _collide_uniform_set, _warm_start_uniform_set,
@@ -1483,6 +1514,7 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 	_rd = RenderingServer.get_rendering_device()
 
 	var pos_bytes:          PackedByteArray = init_data["pos_bytes"]
+	_body_contact_directions = _rd.storage_buffer_create(pos_bytes.size()*2)
 	var rest_bytes:         PackedByteArray = init_data["rest_bytes"]
 	var vel_bytes:          PackedByteArray = init_data["vel_bytes"]
 	var con_bytes:          PackedByteArray = init_data["con_bytes"]
@@ -1525,6 +1557,7 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 	_bone_transforms_buffer   = _rd.storage_buffer_create(max(bone_mat_bytes.size(), 64), bone_mat_bytes)
 	_cloth_weights_buffer     = _rd.storage_buffer_create(cloth_w_bytes.size(),   cloth_w_bytes)
 	_skinned_targets_buffer   = _rd.storage_buffer_create(pos_bytes.size(),       pos_bytes)
+	_previous_targets_buffer = _rd.storage_buffer_create(pos_bytes.size(),       pos_bytes)
 
 	if _collider_tris.size() > 0:
 		_collider_tri_buffer  = _rd.storage_buffer_create(max(_collider_tri_bytes.size(), 64))
@@ -1632,6 +1665,7 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 		_make_uniform(2, _velocities_buffer),
 		_make_uniform(5, _skinned_targets_buffer),
 		_make_uniform(6, _cloth_weights_buffer),
+		_make_uniform(7, _previous_targets_buffer),
 	])
 	_solve_uniform_set = _create_uniform_set(_solve_shader, [
 		_make_uniform(1, _predicted_buffer),
@@ -1697,6 +1731,7 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 			_make_uniform(4, _collider_tri_buffer),
 			_make_uniform(5, _cloth_weights_buffer),
 			_make_uniform(6, _previous_collider_tri_buffer),
+			_make_uniform(7, _body_contact_directions),
 		])
 		# Triangle-collider sanitizer uniform set: skinned_targets (RW) + tri verts (RO).
 		_skin_collide_tris_uniform_set = _create_uniform_set(_skin_collide_tris_shader, [
@@ -1724,7 +1759,7 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 		_gather_uniform=_create_uniform_set(_gather_shader,[
 			_make_uniform(0,_predicted_buffer),_make_uniform(1,_indices_gpu_buffer),
 			_make_uniform(2,_vert_tri_counts_buffer),_make_uniform(3,_vert_tri_offsets_buffer),
-			_make_uniform(4,_vert_tri_list_buffer),_make_uniform(5,_reverse_corrections)])
+			_make_uniform(4,_vert_tri_list_buffer),_make_uniform(5,_reverse_corrections),_make_uniform(6,_body_contact_directions)])
 		_reverse_push.resize(32)
 		_reverse_push.encode_u32(0,_tri_count)
 		_reverse_push.encode_u32(4,external_collision_vertices.size())
@@ -1753,6 +1788,11 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 				_make_uniform(0, _positions_buffer), _make_uniform(1, _self_previous)])
 			_self_snapshot_push.resize(16)
 			_self_snapshot_push.encode_u32(0, _particle_count)
+			_body_directions_clear = _create_uniform_set(_self_snapshot_shader, [_make_uniform(0,_predicted_buffer),_make_uniform(1,_body_contact_directions)])
+			if review_stage_trace:
+				_review_trace_capacity = maxi(1,substeps)*(7+3*solver_iterations+5*clampi(self_contact_iterations,1,8))
+				_review_trace_buffer = _rd.storage_buffer_create(_review_trace_capacity*_particle_count*16)
+				_review_trace_uniform = _create_uniform_set(_self_snapshot_shader, [_make_uniform(0,_predicted_buffer),_make_uniform(1,_review_trace_buffer)])
 		var self_uniforms: Array[RDUniform] = [
 			_make_uniform(0, _self_previous if continuous_self_contacts else _positions_buffer),
 			_make_uniform(1, _predicted_buffer),         # RW
@@ -1760,14 +1800,41 @@ func _gpu_do_init(init_data: Dictionary) -> void:
 			_make_uniform(3, self_indices),              # proxy or full topology
 			_make_uniform(5, _cloth_weights_buffer),     # per-particle thickness factor
 		]
-		if continuous_self_contacts:self_uniforms.append(_make_uniform(6, _rest_positions_buffer))
+		if continuous_self_contacts:
+			var neighbors: Array[Dictionary] = []
+			neighbors.resize(_particle_count)
+			for i in _particle_count: neighbors[i] = {}
+			for i in range(0, _welded_indices.size(), 3):
+				for e in 3:
+					var a: int = _welded_indices[i+e]
+					var b: int = _welded_indices[i+(e+1)%3]
+					neighbors[a][b] = true; neighbors[b][a] = true
+			var edges := PackedInt32Array()
+			for a in neighbors.size():
+				for b in neighbors[a]:
+					if a < b: edges.append(a); edges.append(b)
+			_self_edge_count = edges.size()/2
+			var edge_bytes := edges.to_byte_array(); edge_bytes.resize(maxi(16, edge_bytes.size()))
+			_self_edges = _rd.storage_buffer_create(edge_bytes.size(), edge_bytes)
+			var counts := PackedInt32Array(); var offsets := PackedInt32Array(); var entries := PackedInt32Array()
+			for adjacent in neighbors:
+				counts.append(adjacent.size()); offsets.append(entries.size())
+				for other in adjacent: entries.append(other)
+			var entry_bytes := entries.to_byte_array(); entry_bytes.resize(maxi(16, entry_bytes.size()))
+			_self_neighbor_counts = _rd.storage_buffer_create(counts.size()*4, counts.to_byte_array())
+			_self_neighbor_offsets = _rd.storage_buffer_create(offsets.size()*4, offsets.to_byte_array())
+			_self_neighbors = _rd.storage_buffer_create(entry_bytes.size(), entry_bytes)
+			_self_reactions = _rd.storage_buffer_create(_particle_count*80)
+			self_uniforms.append_array([_make_uniform(6, _rest_positions_buffer), _make_uniform(7, _self_neighbor_counts), _make_uniform(8, _self_neighbor_offsets), _make_uniform(9, _self_neighbors), _make_uniform(10, _self_edges), _make_uniform(11, _self_reactions), _make_uniform(12,_body_contact_directions)])
 		_self_collide_uniform_set = _create_uniform_set(_self_swept_shader if continuous_self_contacts else _peer_collide_shader, self_uniforms)
 		_self_collide_push = PackedByteArray(); _self_collide_push.resize(32)
 		_self_collide_push.encode_u32(0, _particle_count)
 		_self_collide_push.encode_u32(4, self_tri_count)
 		_self_collide_push.encode_float(8, self_collide_thickness)
 		_self_collide_push.encode_float(12, collider_friction)
-		_self_collide_push.encode_u32(16, 1)             # is_self = 1
+		_self_collide_push.encode_u32(28, _self_edge_count)
+		_self_collide_push.encode_u32(20, 1 if self_contact_mass_balance else 0)
+		_self_collide_push.encode_u32(16, int(self_contact_body_tangents) if continuous_self_contacts else 1)
 		print("[GPUCloth] Self-collide wired: %d %s tris, thickness %.4f m" % [self_tri_count, "proxy" if _peer_proxy_tri_count > 0 else "full", self_collide_thickness])
 
 	_gpu_init_done = true
@@ -1794,6 +1861,9 @@ func warm_start() -> bool:
 
 func _gpu_do_warm_start(targets: PackedByteArray = PackedByteArray(), triangles: PackedByteArray = PackedByteArray()) -> void:
 	if not targets.is_empty(): _rd.buffer_update(_skinned_targets_buffer, 0, targets.size(), targets)
+	if not targets.is_empty():
+		_rd.buffer_update(_previous_targets_buffer, 0, targets.size(), targets)
+		_last_gpu_target_bytes=targets.duplicate()
 	if not triangles.is_empty(): _rd.buffer_update(_collider_tri_buffer, 0, triangles.size(), triangles)
 	if not triangles.is_empty():
 		_rd.buffer_update(_previous_collider_tri_buffer, 0, triangles.size(), triangles)
@@ -1997,6 +2067,9 @@ func _gpu_do_simulate(
 
 	if not external_targets.is_empty():
 		_rd.buffer_update(_skinned_targets_buffer, 0, external_targets.size(), external_targets)
+		var previous_targets:PackedByteArray=_last_gpu_target_bytes if _last_gpu_target_bytes.size()==external_targets.size() else external_targets
+		_rd.buffer_update(_previous_targets_buffer, 0, previous_targets.size(), previous_targets)
+		_last_gpu_target_bytes=external_targets.duplicate()
 
 	if bone_bytes.size() > 0:
 		_rd.buffer_update(_bone_transforms_buffer, 0, bone_bytes.size(), bone_bytes)
@@ -2068,7 +2141,15 @@ func _gpu_do_simulate(
 			_rd.compute_list_dispatch(cl, groups, 1, 1)
 			_rd.compute_list_add_barrier(cl)
 
+	review_stage_labels.clear()
 	for _s in p_substeps:
+		if continuous_self_contacts and self_contact_body_tangents:
+			var clear_push:=PackedByteArray();clear_push.resize(16);clear_push.encode_u32(0,_particle_count*2);clear_push.encode_u32(8,1)
+			_rd.compute_list_bind_compute_pipeline(cl,_self_snapshot_pipeline)
+			_rd.compute_list_bind_uniform_set(cl,_body_directions_clear,0)
+			_rd.compute_list_set_push_constant(cl,clear_push,16)
+			_rd.compute_list_dispatch(cl,ceili(float(_particle_count*2)/64.0),1,1)
+			_rd.compute_list_add_barrier(cl)
 		if _self_previous_uniform.is_valid():
 			# PREDICT updates pinned positions in place: preserve the old face
 			# before moving anchors so their swept motion remains detectable.
@@ -2081,6 +2162,8 @@ func _gpu_do_simulate(
 			_collide_tris_push.encode_float(16,float(_s)/float(p_substeps))
 			_collide_tris_push.encode_float(20,float(_s+1)/float(p_substeps))
 		# PREDICT
+		push.encode_float(88,float(_s+1)/float(p_substeps))
+		push.encode_float(92,1.0 if interpolate_external_targets and not external_targets.is_empty() else 0.0)
 		_rd.compute_list_bind_compute_pipeline(cl, _predict_pipeline)
 		_rd.compute_list_bind_uniform_set(cl, _predict_uniform_set, 0)
 		_rd.compute_list_set_push_constant(cl, push, 96)
@@ -2088,6 +2171,7 @@ func _gpu_do_simulate(
 		_rd.compute_list_add_barrier(cl)
 
 		# SOLVE × iterations × graph-colored groups, with COLLIDE inside the
+		_review_capture_stage(cl,"s%d/predict"%_s)
 		# iter loop (Hazard 5).
 		_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
 		_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
@@ -2104,6 +2188,7 @@ func _gpu_do_simulate(
 				_rd.compute_list_dispatch(cl, ceili(float(grp.count) / 64.0), 1, 1)
 				_rd.compute_list_add_barrier(cl)
 
+			_review_capture_stage(cl,"s%d/solve%d/structure"%[_s,_iter])
 			if _collider_count > 0:
 				push.encode_u32(12, _constraint_count)
 				# Offset 28 doubles as the friction μ slot for the primitive
@@ -2136,6 +2221,7 @@ func _gpu_do_simulate(
 				_rd.compute_list_bind_compute_pipeline(cl,_solve_pipeline)
 				_rd.compute_list_bind_uniform_set(cl,_solve_uniform_set,0)
 
+			_review_capture_stage(cl,"s%d/solve%d/body_reverse"%[_s,_iter])
 			# Skinned mesh collider — runs in the same iter slot as capsule/box
 			# collide so cloth particles get pushed out of body triangles before
 			# the next solve iter pulls them back via structural constraints.
@@ -2149,6 +2235,7 @@ func _gpu_do_simulate(
 				_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
 
 			# (peer cloth collision moved out of iter loop — see below)
+			_review_capture_stage(cl,"s%d/solve%d/body_forward"%[_s,_iter])
 
 		# FISHING — hard-clamp predicted[] to within fishing_stretch of each
 		# free particle's K-nearest anchor blend. Was previously inside the
@@ -2183,26 +2270,80 @@ func _gpu_do_simulate(
 		# shader to skip tris where idx is a vert. Runs once per substep at
 		# the same cadence as peer collide.
 		if _self_collide_uniform_set.is_valid():
-			if continuous_self_contacts:
-				_rd.compute_list_bind_compute_pipeline(cl, _self_snapshot_pipeline)
-				_rd.compute_list_bind_uniform_set(cl, _self_snapshot_uniform, 0)
-				_rd.compute_list_set_push_constant(cl, _self_snapshot_push, 16)
+			for contact_iteration in range(clampi(self_contact_iterations, 1, 8) if continuous_self_contacts else 1):
+				if self_contact_structural_projection and contact_iteration > 0:
+					# Continue XPBD with existing lambdas; don't reset compliance or
+					# apply animated follow again when resolving contact conflicts.
+					_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
+					for grp in _constraint_groups:
+						push.encode_u32(12, grp.count)
+						push.encode_u32(28, int(grp.offset))
+						_rd.compute_list_set_push_constant(cl, push, 96)
+						_rd.compute_list_dispatch(cl, ceili(float(grp.count) / 64.0), 1, 1)
+						_rd.compute_list_add_barrier(cl)
+				_review_capture_stage(cl,"s%d/contact%d/structure"%[_s,contact_iteration])
+				if continuous_self_contacts:
+					_rd.compute_list_bind_compute_pipeline(cl, _self_snapshot_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _self_snapshot_uniform, 0)
+					_rd.compute_list_set_push_constant(cl, _self_snapshot_push, 16)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
+				_self_collide_push.encode_u32(24, 0)
+				_rd.compute_list_bind_compute_pipeline(cl, _self_swept_pipeline if continuous_self_contacts else _peer_collide_pipeline)
+				_rd.compute_list_bind_uniform_set(cl, _self_collide_uniform_set, 0)
+				_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
 				_rd.compute_list_dispatch(cl, groups, 1, 1)
 				_rd.compute_list_add_barrier(cl)
-			_rd.compute_list_bind_compute_pipeline(cl, _self_swept_pipeline if continuous_self_contacts else _peer_collide_pipeline)
-			_rd.compute_list_bind_uniform_set(cl, _self_collide_uniform_set, 0)
-			_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
-			_rd.compute_list_dispatch(cl, groups, 1, 1)
-			_rd.compute_list_add_barrier(cl)
-			# Self separation must not be the last operation pushing cloth back
-			# inside a body/seat. Re-project body contact for this candidate path.
-			if continuous_self_contacts and _collider_tris.size() > 0:
-				_rd.compute_list_bind_compute_pipeline(cl, _collide_tris_pipeline)
-				_rd.compute_list_bind_uniform_set(cl, _collide_tris_uniform_set, 0)
-				_rd.compute_list_set_push_constant(cl, _collide_tris_push, 32)
-				_rd.compute_list_dispatch(cl, groups, 1, 1)
-				_rd.compute_list_add_barrier(cl)
+				if continuous_self_contacts and self_contact_mass_balance:
+					_self_collide_push.encode_u32(24, 2)
+					_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
+				_review_capture_stage(cl,"s%d/contact%d/self_faces"%[_s,contact_iteration])
+				if continuous_self_contacts and self_edge_contacts:
+					# Edge contacts consume the completed vertex/face projection,
+					# never add a second correction from the same stale snapshot.
+					_rd.compute_list_bind_compute_pipeline(cl, _self_snapshot_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _self_snapshot_uniform, 0)
+					_rd.compute_list_set_push_constant(cl, _self_snapshot_push, 16)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
+					_self_collide_push.encode_u32(24, 1)
+					_rd.compute_list_bind_compute_pipeline(cl, _self_swept_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _self_collide_uniform_set, 0)
+					_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
+				_review_capture_stage(cl,"s%d/contact%d/self_edges"%[_s,contact_iteration])
+				if continuous_self_contacts and _reverse_pipeline.is_valid():
+					# Cloth vertices alone cannot detect a hand crossing a face interior.
+					_rd.compute_list_bind_compute_pipeline(cl, _reverse_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _reverse_uniform, 0)
+					_rd.compute_list_set_push_constant(cl, _reverse_push, 32)
+					_rd.compute_list_dispatch(cl, ceili(float(_tri_count)/64.0), 1, 1)
+					_rd.compute_list_add_barrier(cl)
+					_rd.compute_list_bind_compute_pipeline(cl, _gather_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _gather_uniform, 0)
+					_rd.compute_list_set_push_constant(cl, _gather_push, 16)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
+				_review_capture_stage(cl,"s%d/contact%d/body_reverse"%[_s,contact_iteration])
+				# Self separation must not be the last operation pushing cloth back
+				# inside a body/seat. Re-project body contact for this candidate path.
+				if continuous_self_contacts and _collider_tris.size() > 0:
+					_rd.compute_list_bind_compute_pipeline(cl, _collide_tris_pipeline)
+					_rd.compute_list_bind_uniform_set(cl, _collide_tris_uniform_set, 0)
+					_rd.compute_list_set_push_constant(cl, _collide_tris_push, 32)
+					_rd.compute_list_dispatch(cl, groups, 1, 1)
+					_rd.compute_list_add_barrier(cl)
 
+				_review_capture_stage(cl,"s%d/contact%d/body_forward"%[_s,contact_iteration])
+		if continuous_self_contacts and self_contact_body_tangents:
+			# Joint finish: separate layers only along directions that preserve
+			# active body corrections, instead of undoing the last body pass.
+			_gpu_body_safe_self_finish(cl,groups)
+			_review_capture_stage(cl,"s%d/body_safe_finish"%_s)
 		# UPDATE — per-substep soft-lerp toward skinned_targets, max_travel clamp.
 		push.encode_u32(12, _constraint_count)
 		push.encode_u32(28, 0)
@@ -2467,7 +2608,19 @@ func _build_mesh_constraints(mesh_to_ref: Transform3D) -> PackedFloat32Array:
 		constraints.append([key.x, key.y, edge_rest[key], stretch_compliance])
 
 	var nonmanifold := 0
-	if bending_from_topology:
+	if not external_bend_pairs.is_empty():
+		assert(external_bend_pairs.size()%2==0,"Incomplete authored bend pair")
+		var seen_bends:Dictionary={}
+		for i in range(0,external_bend_pairs.size(),2):
+			var original_a:int=external_bend_pairs[i];var original_b:int=external_bend_pairs[i+1]
+			assert(original_a>=0 and original_b>=0 and original_a<_original_to_welded.size() and original_b<_original_to_welded.size(),"Invalid authored bend vertex")
+			var a:int=_original_to_welded[original_a];var b:int=_original_to_welded[original_b]
+			var pair:=Vector2i(mini(a,b),maxi(a,b))
+			if a==b or seen_bends.has(pair):continue
+			seen_bends[pair]=true
+			constraints.append([a,b,sim_positions[a].distance_to(sim_positions[b]),bend_compliance])
+		print("[GPUCloth] Authored bend connections: ",seen_bends.size(),"; original material compliance retained")
+	elif bending_from_topology:
 		for key in edge_faces:
 			var fl: Array = edge_faces[key]
 			if fl.size() == 2:
@@ -3327,6 +3480,39 @@ func _pack_collider_tris() -> PackedByteArray:
 			write += 16
 	return _collider_tri_bytes
 
+
+func _gpu_body_safe_self_finish(cl:int,groups:int)->void:
+	for phase in ([0,1] if self_edge_contacts else [0]):
+		_rd.compute_list_bind_compute_pipeline(cl,_self_snapshot_pipeline)
+		_rd.compute_list_bind_uniform_set(cl,_self_snapshot_uniform,0)
+		_rd.compute_list_set_push_constant(cl,_self_snapshot_push,16)
+		_rd.compute_list_dispatch(cl,groups,1,1);_rd.compute_list_add_barrier(cl)
+		_self_collide_push.encode_u32(24,phase)
+		_rd.compute_list_bind_compute_pipeline(cl,_self_swept_pipeline)
+		_rd.compute_list_bind_uniform_set(cl,_self_collide_uniform_set,0)
+		_rd.compute_list_set_push_constant(cl,_self_collide_push,32)
+		_rd.compute_list_dispatch(cl,groups,1,1);_rd.compute_list_add_barrier(cl)
+		if phase==0 and self_contact_mass_balance:
+			_self_collide_push.encode_u32(24,2)
+			_rd.compute_list_set_push_constant(cl,_self_collide_push,32)
+			_rd.compute_list_dispatch(cl,groups,1,1);_rd.compute_list_add_barrier(cl)
+
+func _review_capture_stage(cl:int,label:String)->void:
+	if not review_trace_active or not _review_trace_uniform.is_valid():return
+	if review_stage_labels.size()>=_review_trace_capacity:
+		push_error("Cloth review trace capacity exceeded");return
+	var trace_push:=PackedByteArray();trace_push.resize(16)
+	trace_push.encode_u32(0,_particle_count)
+	trace_push.encode_u32(4,review_stage_labels.size()*_particle_count)
+	review_stage_labels.append(label)
+	_rd.compute_list_bind_compute_pipeline(cl,_self_snapshot_pipeline)
+	_rd.compute_list_bind_uniform_set(cl,_review_trace_uniform,0)
+	_rd.compute_list_set_push_constant(cl,trace_push,16)
+	_rd.compute_list_dispatch(cl,ceili(float(_particle_count)/64.0),1,1)
+	_rd.compute_list_add_barrier(cl)
+	# Structural loops assume their pipeline stays bound between groups.
+	_rd.compute_list_bind_compute_pipeline(cl,_solve_pipeline)
+	_rd.compute_list_bind_uniform_set(cl,_solve_uniform_set,0)
 
 func _load_shader(path: String) -> RID:
 	var sf: RDShaderFile = load(path)
