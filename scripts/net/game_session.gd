@@ -7,7 +7,7 @@ const SCENE_CREATE := "res://scenes/character_create.tscn"
 const SCENE_LOADING := "res://scenes/loading.tscn"
 const SCENE_WORLD := "res://scenes/world.tscn"
 const SCENE_WORLD_3D := "res://scenes/world_3d.tscn"
-const SCENE_EDITOR := "res://scenes/content_editor.tscn"
+const SCENE_EDITOR := "res://scenes/world_editor.tscn" # Legacy alias; 2D editor retired.
 const SCENE_WORLD_EDITOR := "res://scenes/world_editor.tscn"
 
 var username: String = ""
@@ -185,7 +185,7 @@ func go_world_editor() -> void:
 	get_tree().change_scene_to_file(SCENE_WORLD_EDITOR)
 
 func go_content_editor() -> void:
-	get_tree().change_scene_to_file(SCENE_EDITOR)
+	go_world_editor()
 
 func active_character() -> Dictionary:
 	## Single source of truth for HUD / world: spawn snapshot, else selection.

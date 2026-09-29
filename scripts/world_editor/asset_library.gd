@@ -14,7 +14,11 @@ func _init(folder: String = "") -> void:
 		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if raw is Array:
 			for entry in raw:
-				if entry is Dictionary and entry.get("asset_path") is String and entry.get("label") is String: entries.append(entry)
+				if entry is Dictionary and entry.get("asset_path") is String and entry.get("label") is String:
+					for key in ["asset_path", "thumbnail_path"]:
+						if entry.get(key) is String and not str(entry[key]).is_absolute_path():
+							entry[key] = directory.path_join(str(entry[key])).simplify_path()
+					entries.append(entry)
 
 func import_file(path: String) -> Dictionary:
 	if path.get_extension().to_lower() not in ["gltf", "glb"] or not FileAccess.file_exists(path): return {"ok": false, "error": "请选择存在的 glTF / GLB 文件"}
@@ -34,12 +38,19 @@ func import_file(path: String) -> Dictionary:
 		err = DirAccess.rename_absolute(staging, target)
 		if err != OK: return {"ok": false, "error": error_string(err)}
 	for entry in entries:
-		if entry.asset_path == target: return {"ok": true, "entry": entry}
-	var instance := instantiate(target)
+		if entry.asset_path == target:
+			if not entry.has("thumbnail_path"):
+				entry.thumbnail_path = directory.path_join("thumbnails").path_join(hash + ".png")
+				var saved := save()
+				if saved != OK:
+					entry.erase("thumbnail_path")
+					return {"ok": false, "error": "缩略图信息保存失败"}
+			return {"ok": true, "entry": entry}
+	var instance := instantiate_preview(target)
 	if instance == null: return {"ok": false, "error": "导入结果无法实例化"}
 	var bounds := bounds_of(instance)
 	instance.free()
-	var entry := {"label": path.get_file().get_basename(), "category": "导入模型", "asset_path": target, "bounds_position": [bounds.position.x, bounds.position.y, bounds.position.z], "bounds_size": [bounds.size.x, bounds.size.y, bounds.size.z]}
+	var entry := {"label": path.get_file().get_basename(), "category": "导入模型", "asset_path": target, "thumbnail_path": directory.path_join("thumbnails").path_join(hash + ".png"), "bounds_position": [bounds.position.x, bounds.position.y, bounds.position.z], "bounds_size": [bounds.size.x, bounds.size.y, bounds.size.z]}
 	entries.append(entry)
 	err = save()
 	if err != OK:
@@ -59,7 +70,12 @@ func save() -> Error:
 	if file == null:
 		err = FileAccess.get_open_error()
 	else:
-		file.store_string(JSON.stringify(entries, "\t"))
+		var stored: Array = entries.duplicate(true)
+		for entry in stored:
+			for key in ["asset_path", "thumbnail_path"]:
+				if entry.get(key) is String and str(entry[key]).begins_with(directory.trim_suffix("/") + "/"):
+					entry[key] = str(entry[key]).trim_prefix(directory.trim_suffix("/") + "/")
+		file.store_string(JSON.stringify(stored, "\t"))
 		file.flush()
 		err = file.get_error()
 		file.close()
@@ -69,7 +85,9 @@ func save() -> Error:
 	return err
 
 func search(query: String) -> Array:
-	return entries.filter(func(entry: Dictionary): return query.is_empty() or (str(entry.label) + " " + str(entry.category)).to_lower().contains(query.to_lower()))
+	var needle := query.strip_edges().to_lower()
+	if needle.is_empty(): return entries
+	return entries.filter(func(entry: Dictionary): return (str(entry.get("label", "")) + " " + str(entry.get("category", ""))).to_lower().contains(needle))
 
 static func instantiate(path: String) -> Node3D:
 	if not FileAccess.file_exists(path): return null
@@ -78,6 +96,12 @@ static func instantiate(path: String) -> Node3D:
 		if scene == null: return null
 		if not cache_scene(path, scene): return null
 	return _scenes[path].instantiate()
+
+## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
+static func instantiate_preview(path: String) -> Node3D:
+	if not FileAccess.file_exists(path): return null
+	if _scenes.has(path): return _scenes[path].instantiate()
+	return Io.load_scene(path) as Node3D
 
 static func _own(node: Node, root: Node) -> void:
 	for child in node.get_children():

@@ -34,7 +34,7 @@ func show_asset(path: String) -> void:
 	scene = null
 	visible = not path.is_empty()
 	if not visible: return
-	scene = preload("res://scripts/world_editor/asset_library.gd").instantiate(path)
+	scene = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
 	if scene == null:
 		visible = false
 		return

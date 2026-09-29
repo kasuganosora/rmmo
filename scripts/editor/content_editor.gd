@@ -202,15 +202,10 @@ enum {
 
 
 func _ready() -> void:
-	_grab_window_scale()
-	paint = PaintTools.new()
-	paint.tile_id = 2816
-	_build_ui()
-	Rtp.ensure_runtime_assets()
-	_open_or_create_default()
-	call_deferred("_fit_layout")
-	if _want_mcp_autostart():
-		call_deferred("_toggle_mcp")
+	# Retired runtime: even direct script/legacy scene launches go to 3D.
+	set_process_input(false)
+	set_process_unhandled_input(false)
+	Net.session().go_world_editor.call_deferred()
 
 
 func _exit_tree() -> void:

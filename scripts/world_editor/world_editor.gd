@@ -8,6 +8,8 @@ const Paint = preload("res://scripts/world3d/world_paint.gd")
 const Net = preload("res://scripts/net/net.gd")
 
 var _assets = preload("res://scripts/world_editor/asset_library.gd").new()
+var _asset_pack_root := ""
+var _shared_assets: Array = []
 var _doc = null
 var _query := ""
 var _pick := 0
@@ -24,7 +26,9 @@ var _selection_box: MeshInstance3D
 var _grid: MeshInstance3D
 var _canvas: SubViewportContainer
 var _preview: SubViewportContainer
-var _palette: ItemList
+var _palette_items: Array = []
+var _search_timer: Timer
+var _palette: ScrollContainer
 var _snap := 0.25
 var _rotation_snap := 15.0
 var _orbit_center := Vector3.ZERO
@@ -32,6 +36,10 @@ var _drag_anchor := Vector3.ZERO
 var _drag_origin := Vector3.ZERO
 var _drag_active := false
 var _drag_changed := false
+var _pack_map_dialog: ConfirmationDialog
+var _dock_tabs: TabContainer
+var _mode_buttons: Array[Button] = []
+var _thumbnails: Node
 
 
 func _ready() -> void:
@@ -51,6 +59,7 @@ func _ready() -> void:
 		_doc = Document.new()
 		_doc.add_box("ground", Vector3(0, -0.1, 0), Vector3(40, 0.2, 40))
 		Net.session().world3d_editor_doc = _doc
+	_load_asset_scope()
 	_add_light()
 	_camera = Camera3D.new()
 	_camera.current = true
@@ -138,10 +147,24 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _selected() -> Dictionary:
-	var found: Array = _library_items()
+	var found: Array = _palette_items
 	if found.is_empty():
 		return {}
 	return found[clampi(_pick, 0, found.size() - 1)]
+
+
+func _can_drop_palette(_position: Vector2, data: Variant) -> bool:
+	return not _load_failed and data is Dictionary and data.get("type") == "rmmo_palette" and _palette_items.has(data.get("entry"))
+
+
+func _drop_palette(position: Vector2, data: Variant) -> void:
+	if not _can_drop_palette(position, data): return
+	_pick = _palette_items.find(data.entry)
+	_palette.select(_pick)
+	_set_mode(0)
+	_place(position, true)
+	_stroke.end()
+	_status.text = _hint()
 
 
 func _place(screen: Vector2, fresh: bool) -> void:
@@ -291,6 +314,9 @@ func _hud() -> void:
 
 
 func _file_dialog(save_as: bool) -> void:
+	if not save_as:
+		_open_pack_maps()
+		return
 	var dialog := FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE if save_as else FileDialog.FILE_MODE_OPEN_FILE
@@ -338,6 +364,7 @@ func open_document(path: String) -> bool:
 	_doc = document
 	_path = path
 	Net.session().world3d_editor_path = path
+	_load_asset_scope()
 	_load_failed = false
 	_dirty = false
 	_rebuild()
@@ -358,7 +385,7 @@ func _hint() -> String:
 	var spec := _selected()
 	var label := str(spec.get("label", "无"))
 	var mode := "涂地" if bool(spec.get("paint", false)) else "摆放"
-	return "模块库 %d 个 · %s「%s」· 1-9 选择 · Ctrl+Z 撤销整笔 · 保存后再试玩" % [_library_items().size(), mode, label]
+	return "模块库 %d 个 · %s「%s」· 1-9 选择 · Ctrl+Z 撤销整笔 · 保存后再试玩" % [_palette_items.size(), mode, label]
 
 
 func _add_light() -> void:
@@ -372,13 +399,58 @@ func snap_position(point: Vector3) -> Vector3:
 
 
 func _refresh_palette() -> void:
-	_palette.clear()
-	for item in _library_items():
-		_palette.add_item(str(item["label"]) + "   ·   " + str(item["category"]))
-	if _palette.item_count > 0:
-		_pick = clampi(_pick, 0, _palette.item_count - 1)
-		_palette.select(_pick)
-	if _preview != null: _preview.show_asset(str(_selected().get("asset_path", "")))
+	_palette_items = _library_items()
+	_pick = clampi(_pick, 0, maxi(0, _palette_items.size() - 1))
+	_palette.set_entries(_palette_items, _thumbnails.placeholder)
+	_thumbnails.set_visible_entries([])
+	if not _palette_items.is_empty(): _palette.select(_pick)
+	# Filtering never imports a 3D model.
+	if _preview: _preview.show_asset("")
+
+
+func _on_palette_selected(index: int) -> void:
+	_pick = index
+	_preview.show_asset(str(_selected().get("asset_path", "")))
+	_set_mode(0)
+	_status.text = _hint()
+
+
+func _update_visible_thumbnails() -> void:
+	var entries: Array = _palette.visible_entries() if _palette.is_visible_in_tree() else []
+	_thumbnails.set_visible_entries(entries)
+	for entry in entries:
+		_palette.apply_thumbnail(preload("res://scripts/world_editor/asset_thumbnails.gd").key_for(entry), _thumbnails.lookup(entry))
+
+
+func _apply_thumbnail(key: String, texture: Texture2D) -> void:
+	_palette.apply_thumbnail(key, texture)
+
+
+func _set_mode(mode: int) -> void:
+	_mode = mode
+	_stroke.end()
+	_drag_active = false
+	for index in _mode_buttons.size():
+		_mode_buttons[index].set_pressed_no_signal(index == mode)
+	if mode == 0: _dock_tabs.current_tab = 0
+	elif mode == 1: _dock_tabs.current_tab = 1
+
+
+func _undo() -> void:
+	if _doc.undo():
+		_dirty = true
+		_rebuild()
+		_inspector.select(_inspector.selection)
+
+
+func _open_pack_maps() -> void:
+	if _pack_map_dialog == null:
+		_pack_map_dialog = preload("res://scripts/world_editor/pack_map_dialog.gd").new()
+		add_child(_pack_map_dialog)
+		_pack_map_dialog.map_chosen.connect(func(path: String):
+			if path != _path: _request_open(path)
+		)
+	_pack_map_dialog.show_maps(_path)
 
 
 func _duplicate_selected() -> void:
@@ -497,14 +569,60 @@ func _refresh_selection() -> void:
 
 
 func _library_items() -> Array:
-	return Modules.search(_query) + _assets.search(_query)
+	var result := Modules.search(_query) + _assets.search(_query)
+	for library in _shared_assets: result.append_array(library.search(_query))
+	return result
+
+func _load_asset_scope() -> void:
+	var catalog = preload("res://scripts/world_editor/resource_pack_catalog.gd").new()
+	var packs: Array[Dictionary] = catalog.packs()
+	var owner: int = catalog.owner_of(_path, packs)
+	_asset_pack_root = str(packs[owner].root) if owner >= 0 else ""
+	if owner >= 0:
+		_assets = preload("res://scripts/world_editor/asset_library.gd").new(_asset_pack_root.path_join("assets"))
+	else:
+		_assets.entries = []
+	_shared_assets.clear()
+	for pack in packs:
+		if pack.shared and pack.root != _asset_pack_root:
+			_shared_assets.append(preload("res://scripts/world_editor/asset_library.gd").new(str(pack.root).path_join("assets")))
+
 
 func _import_asset(relink: bool = false) -> void:
+	if not _asset_pack_root.is_empty():
+		_import_asset_into_pack(_asset_pack_root, relink)
+		return
+	var packs: Array[Dictionary] = preload("res://scripts/world_editor/resource_pack_catalog.gd").new().packs()
+	if packs.is_empty():
+		_status.text = "请先建立带 metadata.json 的资源包，再导入模型。"
+		return
+	var choose := ConfirmationDialog.new()
+	choose.title = "导入到资源包"
+	choose.ok_button_text = "选择模型…"
+	var options := OptionButton.new()
+	for pack in packs: options.add_item(str(pack.name) + (" · 全局" if pack.shared else ""))
+	choose.add_child(options)
+	choose.confirmed.connect(func():
+		var path := str(packs[options.selected].root)
+		choose.hide()
+		choose.queue_free()
+		_import_asset_into_pack(path, relink)
+	)
+	choose.canceled.connect(choose.queue_free)
+	add_child(choose)
+	choose.popup_centered(Vector2i(360, 120))
+
+
+func _import_asset_into_pack(pack_root: String, relink: bool) -> void:
 	var dialog := FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dialog.filters = PackedStringArray(["*.glb,*.gltf ; 3D 模型"])
 	dialog.file_selected.connect(func(path: String):
+		if _asset_pack_root != pack_root:
+			_asset_pack_root = pack_root
+			_assets = preload("res://scripts/world_editor/asset_library.gd").new(pack_root.path_join("assets"))
+			_shared_assets = _shared_assets.filter(func(library): return library.directory != _assets.directory)
 		var result: Dictionary = _assets.import_file(path)
 		if not result.ok:
 			_status.text = result.error
@@ -522,7 +640,8 @@ func _import_asset(relink: bool = false) -> void:
 			for i in all.size():
 				if all[i].get("asset_path") == result.entry.asset_path: _pick = i
 			_refresh_palette()
-			_status.text = "模型已导入，可摆放：" + str(result.entry.label)
+			_thumbnails.queue_import(result.entry)
+			_status.text = "模型已导入，正在生成资源包缩略图…"
 		dialog.queue_free()
 	)
 	dialog.canceled.connect(dialog.queue_free)
@@ -534,6 +653,9 @@ func _manage_asset() -> void:
 	if not entry.has("asset_path"):
 		_status.text = "请先在素材库选择导入模型"
 		return
+	var owner = _assets
+	for library in _shared_assets:
+		if library.entries.has(entry): owner = library
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "素材名称与分类"
 	var fields := VBoxContainer.new()
@@ -552,14 +674,14 @@ func _manage_asset() -> void:
 		entry.label = name_edit.text.strip_edges()
 		entry.category = category.text.strip_edges()
 		if entry.label.is_empty(): entry.label = old.label
-		if _assets.save() != OK: entry.merge(old, true); _status.text = "素材库保存失败"
+		if owner.save() != OK: entry.merge(old, true); _status.text = "素材库保存失败"
 		_refresh_palette()
 		dialog.queue_free()
 	)
 	dialog.custom_action.connect(func(_action: String):
-		var index: int = _assets.entries.find(entry)
-		_assets.entries.erase(entry)
-		if _assets.save() != OK: _assets.entries.insert(index, entry); _status.text = "素材库保存失败"
+		var index: int = owner.entries.find(entry)
+		owner.entries.erase(entry)
+		if owner.save() != OK: owner.entries.insert(index, entry); _status.text = "素材库保存失败"
 		_refresh_palette()
 		dialog.queue_free()
 	)

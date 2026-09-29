@@ -58,6 +58,7 @@ func run() -> void:
 	editor._assets = library
 	editor._pick = preload("res://scripts/world3d/world_modules.gd").search("").size()
 	editor._refresh_palette()
+	editor._palette.item_selected.emit(editor._pick)
 	editor._inspector.select(id)
 	editor._focus_selected()
 	await process_frame
