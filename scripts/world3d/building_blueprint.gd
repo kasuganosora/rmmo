@@ -2,7 +2,7 @@ extends "res://scripts/world3d/building_geometry.gd"
 ## A shared spatial plan drives both sides of every wall, its openings and collision.
 const Schema = preload("res://scripts/world3d/document_schema.gd")
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
-const VERSION := 2
+const VERSION := 3
 const LABELS := {"house":"民居", "shop":"商住楼", "inn":"旅馆"}
 const DOOR_H := 2.2
 const STAIR_W := 1.4
@@ -11,8 +11,19 @@ const TREAD := .28
 static func legacy_defaults() -> Dictionary:
 	return {"template":"house", "width":12.0, "depth":14.0, "floors":2, "floor_height":3.0, "rooms_per_floor":2, "roof":"gable", "roof_height":2.0, "style":"timber", "seed":1}
 
-static func defaults() -> Dictionary:
+static func medieval_defaults() -> Dictionary:
 	return legacy_defaults().merged({"layout":"standard","roof_axis":"depth","roof_pitch":45.0,"eaves":.3,"jetty":0.0,"bay_width":2.4,"shutters":true,"compound":"none","annex_width":4.0,"annex_depth":6.0,"left_wall":"open","right_wall":"open"})
+
+static func defaults() -> Dictionary:
+	return medieval_defaults().merged({"bedrooms":2,"balcony":"front","balcony_depth":1.6,"roof_canopy":true,"roof_tank":true,"ground_canopy":true,"facade_color":"white"})
+
+static func layout_defaults(layout: String) -> Dictionary:
+	if layout=="urban_village": return defaults().merged({"layout":layout,"width":10.0,"depth":12.0,"floors":3,"floor_height":3.2,"roof":"flat","style":"plaster"},true)
+	return defaults()
+
+static func urban_presets() -> Array:
+	return [{"id":"urban_home","name":"家庭自建房","parameters":layout_defaults("urban_village")},
+		{"id":"urban_shop","name":"底商住宅","parameters":layout_defaults("urban_village").merged({"template":"shop","floors":4,"balcony":"corner","facade_color":"cream"},true)}]
 
 static func medieval_presets() -> Array:
 	return [
@@ -24,23 +35,28 @@ static func medieval_presets() -> Array:
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
 		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(10,30),
-		"floors":{"type":"integer","minimum":1,"maximum":3}, "floor_height":Schema.number(3,4),
+		"floors":{"type":"integer","minimum":1,"maximum":6}, "floor_height":Schema.number(3,4),
 		"rooms_per_floor":{"type":"integer","minimum":1,"maximum":4}, "roof":{"type":"string","enum":["gable","flat"]},
 		"roof_height":Schema.number(.5,4), "style":{"type":"string","enum":["timber","plaster"]},
 		"seed":{"type":"integer","minimum":0,"maximum":2147483647},
-		"layout":{"type":"string","enum":["standard","townhouse","hall"]},
+		"layout":{"type":"string","enum":["standard","townhouse","hall","urban_village"]},
 		"roof_axis":{"type":"string","enum":["depth","width"]}, "roof_pitch":Schema.number(25,60),
 		"eaves":Schema.number(0,.6), "jetty":Schema.number(0,.65), "bay_width":Schema.number(1.8,3.2), "shutters":{"type":"boolean"},
 		"compound":{"type":"string","enum":["none","rear_workshop","left_wing","courtyard"]},
 		"annex_width":Schema.number(3,6), "annex_depth":Schema.number(4,10),
-		"left_wall":{"type":"string","enum":["open","party"]}, "right_wall":{"type":"string","enum":["open","party"]}}, "additionalProperties":false}
+		"left_wall":{"type":"string","enum":["open","party"]}, "right_wall":{"type":"string","enum":["open","party"]},
+		"bedrooms":Schema.number(1,3,true),"balcony":{"type":"string","enum":["none","front","corner"]},"balcony_depth":Schema.number(1.4,2.5),
+		"roof_canopy":{"type":"boolean"},"roof_tank":{"type":"boolean"},"ground_canopy":{"type":"boolean"},
+		"facade_color":{"type":"string","enum":["white","cream","rose","green"]}}, "additionalProperties":false}
 
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
 
 static func generate(parameters: Dictionary) -> Dictionary:
 	var issue := Schema.validate(parameters,schema())
 	if not issue.is_empty(): return fail(issue)
-	var p := defaults(); p.merge(parameters,true)
+	var p := layout_defaults(str(parameters.get("layout","standard"))); p.merge(parameters,true)
+	if p.layout=="urban_village": return preload("res://scripts/world3d/urban_building.gd").generate(p)
+	if p.floors>3: return fail("普通及中世纪布局最多三层；城中村自建房支持六层")
 	if p.layout!="standard": return preload("res://scripts/world3d/medieval_building.gd").generate(p)
 	if p.width<9 or p.depth<12: return fail("普通模板至少需要 9 米宽、12 米深；窄店屋请使用中世纪布局")
 	var w := float(p.width); var d := float(p.depth); var h := float(p.floor_height)
@@ -144,19 +160,19 @@ static func geometry_signature(record: Dictionary) -> String:
 	return JSON.stringify(fields)
 
 static func valid_record(record: Dictionary) -> bool:
-	if record.has("building_shape") and (record.building_shape != "gable" or record.get("kind")!="box" or record.has("tile3d")): return false
+	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder"] or record.get("kind")!="box" or record.has("tile3d")): return false
 	if not record.has("building"): return true
 	var b: Variant = record.building
-	return b is Dictionary and b.get("id") is String and b.get("part") is String and b.get("role") is String and (b.get("floor") is int or b.get("floor") is float) and b.floor>=0 and b.floor<=3 and b.floor==floor(b.floor) and (b.get("floor_y") is int or b.get("floor_y") is float) and is_finite(float(b.floor_y))
+	return b is Dictionary and b.get("id") is String and b.get("part") is String and b.get("role") is String and (b.get("floor") is int or b.get("floor") is float) and b.floor>=0 and b.floor<=6 and b.floor==floor(b.floor) and (b.get("floor_y") is int or b.get("floor_y") is float) and is_finite(float(b.floor_y))
 
 static func valid_meta(meta: Dictionary) -> bool:
 	if not meta.has("building_instances"): return true
 	if not meta.building_instances is Dictionary or meta.building_instances.size()>4096: return false
 	for id in meta.building_instances:
 		var b: Variant = meta.building_instances[id]
-		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
+		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=2 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
 		if not Schema.validate(b.parameters,schema()).is_empty(): return false
-		for key in (legacy_defaults() if b.version==1 else defaults()):
+		for key in (legacy_defaults() if b.version==1 else (medieval_defaults() if b.version==2 else defaults())):
 			if not b.parameters.has(key): return false
 		if not Schema.validate(b.get("position"),Schema.vector(-100000,100000)).is_empty(): return false
 		if not Schema.validate(b.get("yaw"),Schema.number(-180,180)).is_empty(): return false

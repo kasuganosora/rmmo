@@ -33,6 +33,7 @@ func _exit_tree() -> void:
 func busy() -> bool:
 	if editor._playtest != null and editor._playtest.active(): return true
 	if editor._authoring.picking: return true
+	if editor._building_area_busy(): return true
 	if editor._material_tool != null and editor._material_tool.pointer_down: return true
 	return editor._transform_drag.active or editor._auto_stroke.active or editor._stroke._open or editor._selection_tools.marquee or editor._placement_tools.active or editor.get_viewport().gui_get_focus_owner() is LineEdit
 

@@ -27,7 +27,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP MCP")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 65,"discover all 65 current 3D tools")
+	check(discovery.result.tools.size() == 67,"discover all 67 current 3D tools")
 	await call_tool("get_editor_view")
 	await call_tool("set_floor_view",{"isolation":true,"base_height":0,"floor_height":3,"outside":"hide"})
 	await physics()

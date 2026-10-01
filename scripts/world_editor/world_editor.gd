@@ -163,6 +163,8 @@ func _input(event: InputEvent) -> void:
 	if _playtest != null and _playtest.active() and event is InputEventKey:
 		if event.pressed and event.keycode == KEY_ESCAPE: _playtest.stop()
 		get_viewport().set_input_as_handled(); return
+	if _building_panel!=null and _building_panel.region!=null and _building_panel.region.input(event):
+		get_viewport().set_input_as_handled(); return
 	if _building_panel!=null and _building_panel.street!=null and _building_panel.street.input(event):
 		get_viewport().set_input_as_handled(); return
 	if _authoring.input(event): get_viewport().set_input_as_handled(); return
@@ -231,6 +233,7 @@ func _input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 		if _building_panel!=null and _building_panel.street!=null:
 			_building_panel.street.drawing=false; _building_panel.street.refresh()
 		if _material_tool != null: _material_tool.cancel()
@@ -496,6 +499,7 @@ func _add_bodies(node: Node) -> void:
 
 
 func _sync_selected_transform() -> void:
+	_selection_tools.invalidate_pivot()
 	if _authoring.settings.isolation and not _transform_drag.active:
 		_rebuild()
 		return
@@ -567,7 +571,11 @@ func _update_auto_controls() -> void:
 	if _auto_panel != null: _auto_panel.refresh()
 
 
+func _building_area_busy() -> bool:
+	return _building_panel!=null and _building_panel.region!=null and _building_panel.region.drawing
+
 func _finish_edits() -> void:
+	if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 	_authoring.picking = false
 	if _material_tool != null: _material_tool.cancel()
 	_transform_drag.finish()
@@ -845,14 +853,9 @@ func _duplicate_selected() -> void:
 func _nudge_selected(direction: Vector3) -> void:
 	if _load_failed: return
 	if _selection_tools.ids.is_empty(): return
-	_doc.checkpoint()
 	var step := _snap if _snap > 0 else 0.01
-	for record in _selection_tools.records():
-		for axis in 3: record.position[axis] += direction[axis] * step
-	_detach_selected_tile()
-	_dirty = true
-	_sync_selected_transform()
-	_inspector.refresh()
+	_selection_tools.apply_transform(direction*step,Basis.IDENTITY,1.0)
+
 
 
 func _rotate_selected(direction: int) -> void:
@@ -910,8 +913,18 @@ func _refresh_selection() -> void:
 	if _selection_tools == null or _selection_tools.records().is_empty(): return
 	var lines := ImmediateMesh.new()
 	lines.surface_begin(Mesh.PRIMITIVE_LINES)
+	var outlines: Array = []; var buildings := {}
 	for record in _selection_tools.records():
-		var corners := SelectionGeometry.corners(record)
+		if _selection_tools.whole and record.has("building"):
+			var id: String = record.building.id
+			if not buildings.has(id): buildings[id]=[]
+			buildings[id].append(record)
+		else: outlines.append(SelectionGeometry.corners(record))
+	for members in buildings.values():
+		var bounds := SelectionGeometry.bounds(members); var points: Array[Vector3]=[]
+		for index in 8: points.append(bounds.get_endpoint(index))
+		outlines.append(points)
+	for corners in outlines:
 		for i in 8:
 			for bit in [1, 2, 4]:
 				if not i & bit:

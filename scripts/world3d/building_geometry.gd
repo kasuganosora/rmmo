@@ -45,3 +45,8 @@ static func gable_mesh(size: Vector3, material: Material) -> ArrayMesh:
 	for index in [0,1,2,5,4,3,0,3,4,0,4,1,0,2,5,0,5,3,2,1,4,2,4,5]:
 		var point: Vector3 = vertices[index]; mesh.set_uv(Vector2(point.x,point.y)); mesh.add_vertex(point)
 	mesh.generate_normals(); return mesh.commit()
+
+static func cylinder_mesh(size: Vector3, material: Material) -> ArrayMesh:
+	var cylinder := CylinderMesh.new(); cylinder.top_radius=.5; cylinder.bottom_radius=.5; cylinder.height=1; cylinder.radial_segments=16; cylinder.material=material
+	var surface := SurfaceTool.new(); surface.append_from(cylinder,0,Transform3D(Basis.from_scale(size),Vector3.ZERO)); surface.set_material(material)
+	return surface.commit()

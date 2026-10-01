@@ -321,6 +321,7 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 		box.material = mat
 	mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
 	if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
+	if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
 	if mesh_node.mesh == null:
 		mesh_node.mesh = box
 		mesh_node.set_meta("tile_error", "自动拼接套件无法读取")

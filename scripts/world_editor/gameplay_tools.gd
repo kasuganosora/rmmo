@@ -9,6 +9,7 @@ var editor: Node3D
 func guard() -> Dictionary:
 	if editor._playtest != null and editor._playtest.active(): return {"ok":false,"error":"试玩期间不能修改编辑文档，请先停止试玩"}
 	if editor._authoring.picking: return {"ok":false,"error":"请先完成或取消出生点拾取"}
+	if editor._building_area_busy(): return {"ok":false,"error":"请先完成或取消建筑区域框选"}
 	if editor._load_failed: return {"ok": false, "error": "地图加载失败，当前为只读模式"}
 	if editor._safety.state().close_pending: return {"ok": false, "error": "请先处理关闭提示"}
 	if editor._transform_drag.active or editor._auto_stroke.active or editor._selection_tools.marquee or editor._stroke._open or editor._placement_tools.active or editor._material_tool.active: return {"ok": false, "error": "请先完成当前画布操作"}

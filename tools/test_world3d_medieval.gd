@@ -12,7 +12,7 @@ func run() -> void:
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP for medieval editing")
-	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==65,"discover 65 current 3D tools")
+	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==67,"discover 67 current 3D tools")
 	var templates:=await call_tool("list_building_templates"); check(templates.presets.size()==4,"discover medieval presets and parameters")
 	var fixtures: Array=[]; var placements: Array=[]
 	for i in templates.presets.size():
@@ -109,7 +109,7 @@ func run() -> void:
 	await call_tool("save_world"); await call_tool("open_world",{"path":path,"discard_changes":true}); doc=editor._doc
 	check(editor._buildings.conflicts(legacy_id).is_empty(),"version 1 map stays readable with original geometry baseline")
 	await call_tool("update_building",{"id":legacy_id,"parameters":{"seed":2}})
-	check(doc.map_meta.building_instances[legacy_id].version==2,"editing upgrades only the chosen legacy recipe")
+	check(doc.map_meta.building_instances[legacy_id].version==Blueprint.VERSION,"editing upgrades only the chosen legacy recipe")
 	await call_tool("save_world")
 	editor._building_panel.refresh_list(id); editor._building_panel.focus(); await physics(); await capture("townhouse")
 	editor._building_panel.refresh_list(made.building_ids[2]); editor._building_panel.focus()

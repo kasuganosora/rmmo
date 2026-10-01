@@ -5,6 +5,7 @@ const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Schema = preload("res://scripts/world3d/document_schema.gd")
 const Footprint = preload("res://scripts/world_editor/building_footprint.gd")
 const Street = preload("res://scripts/world_editor/building_street.gd")
+const Region = preload("res://scripts/world_editor/building_region.gd")
 var editor: Node3D
 
 static func placement_schema() -> Dictionary:
@@ -20,7 +21,7 @@ func templates() -> Dictionary:
 		var value := Blueprint.defaults(); value.template = id
 		if id=="inn": value.rooms_per_floor = 3
 		rows.append({"id":id,"name":Blueprint.LABELS[id],"parameters":value})
-	return {"ok":true,"templates":rows,"presets":Blueprint.medieval_presets(),"parameters_schema":Blueprint.schema(),"max_batch":16}
+	return {"ok":true,"templates":rows,"presets":Blueprint.medieval_presets(),"urban_presets":Blueprint.urban_presets(),"parameters_schema":Blueprint.schema(),"region_schema":Region.schema(),"max_batch":16}
 
 func list_buildings() -> Dictionary:
 	var rows: Array = []
@@ -60,6 +61,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 		parameters.seed = int(parameters.get("seed",1))+int(placement.get("seed_offset",0))
 		var plan := Blueprint.generate(parameters)
 		if not plan.ok: return plan
+		if plan.records.size()>2000: return Blueprint.fail("单栋建筑超过 2000 个构件，请减少层数或装饰")
 		var origin := Blueprint.vec(placement.position); var yaw := float(placement.get("yaw",0))
 		var basis := Basis(Vector3.UP,deg_to_rad(yaw))
 		plan.occupancy = Footprint.components(plan.records,origin,basis)
@@ -99,10 +101,28 @@ func summary(result: Dictionary) -> Dictionary:
 	if not result.ok: return result
 	var rows: Array = []
 	for plan in result.plans:
-		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"part_count":plan.records.size(),"entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs,"courtyards":plan.get("courtyards",[]),"connections":plan.get("connections",[])})
-	var response := {"ok":true,"buildings":rows,"layout_coordinates":"rooms/openings/stairs/courtyards are building-local meters; position/yaw transform them to world space; entrance/bounds are world space"}
+		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"part_count":plan.records.size(),"entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs,"courtyards":plan.get("courtyards",[]),"connections":plan.get("connections",[]),"terraces":plan.get("terraces",[]),"service_zones":plan.get("service_zones",[])})
+	var response := {"ok":true,"buildings":rows,"layout_coordinates":"rooms/openings/stairs/courtyards/terraces/service_zones are building-local meters; position/yaw transform them to world space; entrance/bounds are world space"}
 	if result.has("street"): response.street=result.street
+	if result.has("region"): response.region=result.region; response.plan_token=result.plan_token
 	return response
+
+func prepare_region(args: Dictionary) -> Dictionary:
+	var result := Region.plan(args,editor._doc.records)
+	if not result.ok: return result
+	if args.has("plan_token") and args.plan_token!=result.plan_token: return Blueprint.fail("区域或已有物体已改变，原预览方案不能直接应用，请重新预览")
+	var prepared := prepare(result.request)
+	if prepared.ok: prepared.region=result.region; prepared.plan_token=result.plan_token
+	return prepared
+
+func generate_region(args: Dictionary) -> Dictionary:
+	var ready: Dictionary=editor._gameplay.guard()
+	if not ready.ok: return ready
+	var prepared := prepare_region(args)
+	if not prepared.ok: return prepared
+	var result := commit(prepared.plans)
+	result.region=prepared.region; result.plan_token=prepared.plan_token
+	return result
 
 func prepare_street(args: Dictionary) -> Dictionary:
 	var result := Street.plan(args)

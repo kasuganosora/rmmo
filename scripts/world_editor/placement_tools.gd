@@ -21,6 +21,7 @@ func report(result: Dictionary) -> void:
 	editor._status.text = "已完成 · %d 件物件" % result.get("changed_ids", []).size() if result.ok else str(result.error)
 
 func _selection() -> Dictionary:
+	if editor._selection_tools.whole: return failure("整栋建筑请使用 XYZ 移动或建筑位置参数；暂不支持贴面、落地和自动排列")
 	if editor._load_failed: return failure("地图只读，无法修改")
 	if editor._transform_drag.active or editor._auto_stroke.active or editor._stroke._open or editor._selection_tools.marquee: return failure("请先结束当前拖动或笔画")
 	var selected: Array = editor._selection_tools.records()

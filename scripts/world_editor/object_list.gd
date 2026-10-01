@@ -22,7 +22,7 @@ func setup(owner: Node3D) -> void:
 	_button(actions, "解组", editor._selection_tools.ungroup).tooltip_text = "Ctrl+Shift+G"
 	_button(actions, "存为预制件", editor._save_prefab_dialog)
 	var hint := Label.new()
-	hint.text = "Shift / Ctrl 多选 · 双击聚焦 · 子项可单独编辑"
+	hint.text = "Shift / Ctrl 多选 · 双击聚焦 · 建筑默认整栋选择"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	add_child(hint)
@@ -81,7 +81,7 @@ func refresh() -> void:
 			var parent := tree.create_item(root)
 			_row(parent, members, label, group)
 			_group_items[group] = parent
-			parent.collapsed = bool(collapsed.get(group, false))
+			parent.collapsed = bool(collapsed.get(group, record.has("building")))
 			for member in members:
 				var item := tree.create_item(parent)
 				_row(item, [member], Geometry.label(member))

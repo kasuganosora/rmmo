@@ -24,7 +24,9 @@ static func plan(args: Dictionary) -> Dictionary:
 		if i>0 and (points[i]-points[i-1]).normalized().dot((points[i+1]-points[i]).normalized())<-.995: return Blueprint.fail("道路不能沿原路折返")
 		for j in range(i+2,points.size()-1):
 			if crossed(Vector2(points[i].x,points[i].z),Vector2(points[i+1].x,points[i+1].z),Vector2(points[j].x,points[j].z),Vector2(points[j+1].x,points[j+1].z)): return Blueprint.fail("道路中心线不能自相交")
-	var parameters: Dictionary = Blueprint.medieval_presets()[0].parameters.duplicate(true); parameters.merge(args.get("parameters",{}),true)
+	var requested: Dictionary=args.get("parameters",{})
+	var parameters: Dictionary = Blueprint.layout_defaults(str(requested.layout)) if requested.get("layout") in ["urban_village","standard"] else Blueprint.medieval_presets()[0].parameters.duplicate(true)
+	parameters.merge(requested,true)
 	var initial := Blueprint.generate(parameters)
 	if not initial.ok: return initial
 	var rng := RandomNumberGenerator.new(); rng.seed=int(parameters.seed)
@@ -41,7 +43,8 @@ static func plan(args: Dictionary) -> Dictionary:
 				if sides.size()==2 and side==-1 and side_counts[-1]>=ceili(float(settings.max_buildings)/2): break
 				attempts+=1
 				var p: Dictionary = parameters.duplicate(true)
-				p.width=snappedf(clampf(parameters.width*(1+rng.randf_range(-settings.width_variation,settings.width_variation)),5.5 if p.layout!="standard" else 9.0,24),.05)
+				var minimum := 8.5 if p.layout=="urban_village" else (9.0 if p.layout=="standard" else 5.5)
+				p.width=snappedf(clampf(parameters.width*(1+rng.randf_range(-settings.width_variation,settings.width_variation)),minimum,24),.05)
 				if p.compound=="courtyard": p.width=maxf(p.width,2*p.annex_width+2.5)
 				p.seed=int(parameters.seed)+placements.size()
 				var building := Blueprint.generate(p)

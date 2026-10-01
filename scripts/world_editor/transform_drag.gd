@@ -19,6 +19,9 @@ var length := 1.0
 var last_angle := 0.0
 var total_angle := 0.0
 var started := false
+var building_drag := false
+var building_delta := Vector3.ZERO
+var building_rotation := Basis.IDENTITY
 
 
 func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
@@ -28,6 +31,11 @@ func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
 	original = editor._doc._find(uuid).duplicate(true)
 	if original.is_empty(): return false
 	originals = editor._selection_tools.records().duplicate(true)
+	building_drag = editor._selection_tools.whole
+	building_delta = Vector3.ZERO; building_rotation = Basis.IDENTITY
+	if building_drag and (editor._transform_mode==2 or (editor._transform_mode==1 and handle!=1)):
+		editor._status.text="整栋建筑使用 XYZ 移动和 Y 轴旋转；尺寸请在建筑参数中修改"
+		return false
 	if editor._transform_mode == 2 and originals.size() > 1 and handle != 3: return false
 	axis = handle
 	mode = editor._transform_mode
@@ -108,9 +116,14 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 			else: value[axis] *= factor
 			value = value.clamp(Vector3.ONE * 0.001, Vector3.ONE * 100000.0)
 	if not value.is_finite(): return
+	if building_drag:
+		building_delta = value-center if mode==0 else Vector3.ZERO
+		building_rotation = group_rotation
 	if originals.size() > 1:
+		var by_id := {}
+		for member in editor._doc.records: by_id[str(member.uuid)]=member
 		for previous in originals:
-			var member: Dictionary = editor._doc._find(str(previous.uuid))
+			var member: Dictionary = by_id[str(previous.uuid)]
 			var position := Gizmo.vector(previous, "position")
 			if mode == 0: position += value - center
 			else: position = center + group_rotation * ((position - center) * group_scale)
@@ -131,16 +144,19 @@ func finish(cancel: bool = false) -> void:
 	active = false
 	editor._gizmo.active = -1
 	var changed := false
+	var result := {"ok":true}
 	for previous in originals:
 		var record: Dictionary = editor._doc._find(str(previous.uuid))
 		for field in ["position", "rotation", "size"]:
 			if not Gizmo.vector(record, field).is_equal_approx(Gizmo.vector(previous, field)): changed = true
-	if cancel or not changed:
+	if cancel or not changed or building_drag:
 		for previous in originals:
 			var record: Dictionary = editor._doc._find(str(previous.uuid))
 			for field in ["position", "rotation", "size"]: record[field] = previous[field].duplicate()
 		editor._sync_selected_transform()
 		editor._inspector.refresh()
+		if building_drag and changed and not cancel:
+			result = editor._selection_tools.motion.move(building_delta,building_rotation,1.0,center)
 	else:
 		editor._detach_selected_tile()
 		editor._doc.commit_change(before)
@@ -149,7 +165,7 @@ func finish(cancel: bool = false) -> void:
 	original.clear()
 	originals.clear()
 	if editor._authoring.settings.isolation: editor._rebuild()
-	if editor._status != null: editor._status.text = "已取消变换" if cancel else editor._hint()
+	if editor._status != null: editor._status.text = ("已取消变换" if cancel else editor._hint()) if result.ok else result.error
 
 
 func _intersection(screen: Vector2) -> Variant:

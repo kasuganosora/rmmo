@@ -8,10 +8,17 @@ var marquee := false
 var start := Vector2.ZERO
 var end := Vector2.ZERO
 var additive := false
+var component_edit := false
+var whole := false
+var last_error := ""
+var motion = preload("res://scripts/world_editor/building_motion.gd").new()
+var _pivot_valid := false
+var _pivot := Vector3.ZERO
 
 
 func setup(owner: Node3D) -> void:
 	editor = owner
+	motion.editor = owner
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	clip_contents = true
@@ -30,9 +37,27 @@ func records() -> Array:
 	return result
 
 
+func set_component_edit(enabled: bool) -> void:
+	editor._transform_drag.finish()
+	var previous := component_edit
+	component_edit = enabled
+	if not enabled:
+		var expanded: Dictionary = motion.expand(ids)
+		if not expanded.ok:
+			component_edit = previous
+			refresh()
+			return
+	var primary: String = ids.back() if not ids.is_empty() else ""
+	set_ids([primary] if enabled and not primary.is_empty() else ids.duplicate())
+
+
 func set_ids(values: Array) -> void:
 	if editor._placement_tools != null: editor._placement_tools.cancel()
 	var requested := values.duplicate()
+	if not component_edit and not requested.is_empty():
+		var expanded: Dictionary = motion.expand(requested,false,true)
+		if not expanded.ok: return
+		requested = expanded.ids
 	var available := {}
 	for record in editor._doc.records:
 		if editor._record_editable(record): available[str(record.uuid)] = true
@@ -45,10 +70,18 @@ func set_ids(values: Array) -> void:
 
 
 func refresh() -> void:
+	invalidate_pivot()
 	var available := {}
 	for record in editor._doc.records:
 		if editor._record_editable(record): available[str(record.uuid)] = true
 	ids = ids.filter(func(id): return available.has(id))
+	whole = false
+	if not component_edit and not ids.is_empty():
+		var expanded: Dictionary = motion.expand(ids,false,true)
+		if not expanded.ok: ids.clear()
+		else: ids.assign(expanded.ids)
+		for record in editor._doc.records:
+			if record.has("building") and ids.has(str(record.uuid)): whole = true; break
 	if editor._inspector != null:
 		editor._inspector.selection = ids.back() if not ids.is_empty() else ""
 		editor._inspector.refresh()
@@ -61,6 +94,11 @@ func members(id: String) -> Array[String]:
 	var result: Array[String] = []
 	var record: Dictionary = editor._doc._find(id)
 	if record.is_empty(): return []
+	if record.has("building"):
+		if component_edit: return [id] if editor._record_editable(record) else []
+		var expanded: Dictionary = motion.expand([id])
+		if expanded.ok: result.assign(expanded.ids)
+		return result
 	var group := str(record.get("editor_group", ""))
 	if group.is_empty():
 		if editor._record_editable(record): result.append(id)
@@ -88,9 +126,15 @@ func choose(id: String, add: bool = false) -> void:
 
 func pivot() -> Vector3:
 	if editor._transform_drag.active and editor._transform_drag.mode != 0: return editor._transform_drag.center
+	if _pivot_valid: return _pivot
 	var selected := records()
-	if selected.size() == 1: return Geometry.vector(selected[0], "position")
-	return Geometry.bounds(selected).get_center()
+	_pivot = Geometry.vector(selected[0], "position") if selected.size() == 1 else Geometry.bounds(selected).get_center()
+	_pivot_valid = true
+	return _pivot
+
+
+func invalidate_pivot() -> void:
+	_pivot_valid = false
 
 
 func begin_box(point: Vector2, add: bool) -> void:
@@ -133,6 +177,7 @@ func finish_box(cancel: bool = false) -> void:
 
 
 func group() -> void:
+	if whole: motion.fail("生成建筑已按整栋管理；需要组合构件时先解除生成关联"); return
 	if editor._load_failed or ids.size() < 2: return
 	editor._transform_drag.finish()
 	var selected := records()
@@ -147,6 +192,7 @@ func group() -> void:
 
 
 func ungroup() -> void:
+	if whole: motion.fail("生成建筑保持整栋关联；修改单个组件请开启构件编辑"); return
 	if editor._load_failed: return
 	var groups := {}
 	for record in records():
@@ -172,6 +218,7 @@ func changed() -> void:
 func remove() -> void:
 	if editor._load_failed or ids.is_empty(): return
 	editor._transform_drag.finish()
+	if whole: motion.remove(); return
 	editor._doc.checkpoint()
 	for id in ids: editor._doc.remove(id)
 	preload("res://scripts/world3d/auto_tile_rules.gd").refresh_all(editor._doc.records)
@@ -184,6 +231,7 @@ func remove() -> void:
 func duplicate_selected() -> void:
 	if editor._load_failed or ids.is_empty(): return
 	editor._transform_drag.finish()
+	if whole: motion.duplicate_selected(); return
 	editor._doc.checkpoint()
 	var step: float = editor._snap if editor._snap > 0 else 0.25
 	var added := Geometry.duplicate_records(editor._doc, records(), Vector3(step, 0, 0))
@@ -205,10 +253,11 @@ func transform_numeric(field: String, axis: int, value: float) -> void:
 	apply_transform(translation, rotation, factor)
 
 
-func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> void:
-	if editor._load_failed or ids.is_empty(): return
+func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Dictionary:
+	if editor._load_failed or ids.is_empty(): return {"ok":false,"error":"请先选择可编辑物件"}
 	var origin := pivot()
-	if translation.is_zero_approx() and rotation.is_equal_approx(Basis.IDENTITY) and is_equal_approx(factor, 1.0): return
+	if whole: return motion.move(translation,rotation,factor,origin)
+	if translation.is_zero_approx() and rotation.is_equal_approx(Basis.IDENTITY) and is_equal_approx(factor, 1.0): return {"ok":true,"changed":false}
 	editor._doc.checkpoint()
 	for record in records():
 		var position := origin + rotation * ((Geometry.vector(record, "position") - origin) * factor) + translation
@@ -220,6 +269,7 @@ func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> vo
 	editor._detach_selected_tile()
 	editor._sync_selected_transform()
 	changed()
+	return {"ok":true,"changed":true}
 
 
 func set_properties(targets: Array, properties: Dictionary) -> bool:
@@ -242,8 +292,13 @@ func set_properties(targets: Array, properties: Dictionary) -> bool:
 
 
 func set_object_transform(id: String, properties: Dictionary) -> bool:
+	last_error = "物件不存在、已隐藏、锁定或不在当前楼层"
 	var record: Dictionary = editor._doc._find(id)
 	if editor._load_failed or not editor._record_editable(record): return false
+	if record.has("building") and not component_edit:
+		last_error = "生成建筑默认按整栋操作；请用 transform_selection，编辑单个组件需先开启 component_edit"
+		editor._status.text = last_error
+		return false
 	var changed_ := false
 	for field in properties:
 		if record[field] != properties[field]: changed_ = true

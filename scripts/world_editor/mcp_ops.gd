@@ -29,12 +29,17 @@ func state() -> Dictionary:
 		"position_snap": editor._snap, "rotation_snap": editor._rotation_snap, "scale_snap": editor._scale_snap,
 		"pivot": array3(editor._selection_tools.pivot()), "canvas_size": [editor._canvas.size.x, editor._canvas.size.y],
 		"surface_placement_active": editor._placement_tools.active,
+		"building_region_drawing": editor._building_area_busy(),
+		"building_component_edit": editor._selection_tools.component_edit,
+		"whole_building_selection": editor._selection_tools.whole,
 		"surface_brush_active": editor._material_tool.active,
 		"autosave": editor._safety.state(),
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"preview_region_buildings": return editor._buildings.summary(editor._buildings.prepare_region(args))
+		"generate_region_buildings": return editor._buildings.generate_region(args)
 		"list_building_templates": return editor._buildings.templates()
 		"list_buildings": return editor._buildings.list_buildings()
 		"preview_buildings":
@@ -104,7 +109,10 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var selected: Array = editor._selection_tools.ids.duplicate() if args.get("append", false) else []
 			for id in target.ids:
 				if not selected.has(id): selected.append(id)
-			if selected.size() > Schema.MAX_SELECTION: return error("Selection exceeds 256 objects")
+			var expanded: Dictionary = editor._selection_tools.motion.expand(selected)
+			if not expanded.ok: return expanded
+			selected=expanded.ids
+			if not editor._selection_tools.motion.selection_limit(selected): return error("Selection exceeds 256 loose objects or 16 buildings")
 			editor._selection_tools.set_ids(selected)
 			editor._set_mode(1)
 			return state()
@@ -116,13 +124,25 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			editor._selection_tools.begin_box(from, args.get("append", false))
 			editor._selection_tools.move_box(to)
 			editor._selection_tools.finish_box()
-			if editor._selection_tools.ids.size() > Schema.MAX_SELECTION:
+			if not editor._selection_tools.motion.selection_limit(editor._selection_tools.ids):
 				editor._selection_tools.set_ids(previous)
 				return error("Selection exceeds 256 objects; use a smaller rectangle")
 			editor._set_mode(1)
 			return state()
 		"configure_transform":
-			if args.get("space") == "local" and editor._selection_tools.ids.size() > 1: return error("Multi-selection uses world axes")
+			var count: int = editor._selection_tools.ids.size()
+			if args.has("component_edit"):
+				if not args.component_edit:
+					# Validate the prospective mode before changing any tool or selection state.
+					var previous_mode: bool = editor._selection_tools.component_edit
+					editor._selection_tools.component_edit=false
+					var expanded: Dictionary = editor._selection_tools.motion.expand(editor._selection_tools.ids)
+					editor._selection_tools.component_edit=previous_mode
+					if not expanded.ok: return expanded
+					count=expanded.ids.size()
+				else: count=mini(count,1)
+			if args.get("space") == "local" and count > 1: return error("Multi-selection uses world axes")
+			if args.has("component_edit"): editor._selection_tools.set_component_edit(args.component_edit)
 			if args.has("mode"): editor._set_transform_mode(["move", "rotate", "scale"].find(args.mode))
 			if args.has("space"): editor._local_transform = args.space == "local"
 			if args.has("position_snap"): editor._snap = args.position_snap
@@ -136,7 +156,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var changes: Dictionary = args.duplicate(true)
 			changes.erase("id")
 			if changes.is_empty(): return error("At least one transform field is required")
-			if not editor._selection_tools.set_object_transform(args.id, changes): return error("Object missing, hidden, locked or outside the active floor")
+			if not editor._selection_tools.set_object_transform(args.id, changes): return error(editor._selection_tools.last_error)
 			return state()
 		"transform_selection":
 			var valid := targets({})
@@ -149,8 +169,8 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 				var position := pivot + rotation * ((Geometry.vector(record, "position") - pivot) * factor) + delta
 				var size_ := Geometry.vector(record, "size") * factor
 				if not position.is_finite() or not size_.is_finite() or position.abs()[position.abs().max_axis_index()] > 1000000 or size_[size_.min_axis_index()] < 0.001 or size_[size_.max_axis_index()] > 100000: return error("Resulting transform is outside supported bounds")
-			editor._selection_tools.apply_transform(delta, rotation, factor)
-			return state()
+			var applied: Dictionary = editor._selection_tools.apply_transform(delta, rotation, factor)
+			return state() if applied.ok else applied
 		"drop_selection": return editor._placement_tools.drop_selection(args.get("align_normal", false), args.get("max_distance", 100.0), args.get("offset", 0.0))
 		"snap_selection_to_surface": return editor._placement_tools.snap_to_surface(Vector2(args.screen[0], args.screen[1]), args.get("align_normal", true), args.get("offset", 0.0))
 		"align_selection": return editor._placement_tools.align_selection(["x", "y", "z"].find(args.axis), args.get("anchor", "center"))
@@ -158,6 +178,14 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"group_selection", "ungroup_selection", "duplicate_selection", "delete_selection", "focus_selection":
 			var valid := targets({})
 			if not valid.ok or valid.ids.is_empty(): return error("Select editable objects first")
+			if editor._selection_tools.whole:
+				var result := {"ok":true}
+				match name:
+					"group_selection", "ungroup_selection": return error("生成建筑已有整栋关联；修改单个组件请开启 component_edit，重新分组请先 detach_building")
+					"duplicate_selection": result=editor._selection_tools.motion.duplicate_selected()
+					"delete_selection": result=editor._selection_tools.motion.remove()
+					"focus_selection": editor._focus_selected()
+				return state() if result.ok else result
 			match name:
 				"group_selection":
 					if valid.ids.size() < 2: return error("At least two objects are required")
@@ -239,7 +267,7 @@ func targets(args: Dictionary, allow_protected: bool = false) -> Dictionary:
 		for record in editor._doc.records:
 			if record.get("editor_group", "") == args.group_id: ids.append(str(record.uuid))
 		if ids.is_empty(): return error("Group not found")
-	if ids.size() > Schema.MAX_SELECTION: return error("At most 256 objects per operation")
+	if not editor._selection_tools.motion.selection_limit(ids): return error("At most 256 loose objects or 16 buildings per operation")
 	for id in ids:
 		var record: Dictionary = editor._doc._find(str(id))
 		if record.is_empty(): return error("Object not found: " + str(id))

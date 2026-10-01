@@ -8,12 +8,22 @@ var title: Label
 var rows := {}
 var tile_note: Label
 var multi_scale: SpinBox
+var component_toggle: CheckButton
+var building_note: Label
 
 
 func setup(owner: Node) -> void:
 	editor = owner
 	title = Label.new()
 	add_child(title)
+	component_toggle=CheckButton.new(); component_toggle.text="构件编辑（单独修改墙、楼梯等）"
+	add_child(component_toggle)
+	component_toggle.toggled.connect(func(enabled):
+		if not _updating: editor._selection_tools.set_component_edit(enabled)
+	)
+	building_note=Label.new(); building_note.custom_minimum_size.x=270
+	building_note.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	add_child(building_note)
 	tile_note = Label.new()
 	tile_note.custom_minimum_size.x = 270
 	tile_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -107,7 +117,13 @@ func refresh() -> void:
 	if record.is_empty(): selection = ""
 	var count: int = editor._selection_tools.ids.size()
 	var multi := count > 1
+	var whole: bool = editor._selection_tools.whole
+	component_toggle.visible = record.has("building") or editor._selection_tools.component_edit
+	component_toggle.button_pressed = editor._selection_tools.component_edit
+	building_note.visible = component_toggle.visible
+	building_note.text = "整栋选择 · XYZ 移动 / Y 轴旋转\n改宽深、层数请用建筑参数；移动会检查碰撞。" if whole else "构件编辑已开启：点击单独构件。手工改动后，重新生成会提示冲突。"
 	title.text = "已选择 %d 件 · 共同中心" % count if multi else ("选择物件编辑" if record.is_empty() else "%s · %s" % [selection, record.get("kind", "")])
+	if whole: title.text="整栋建筑 · %d 个构件"%count
 	tile_note.visible = not multi and record.has("tile3d")
 	if tile_note.visible:
 		var tile: Dictionary = record.tile3d
@@ -127,7 +143,7 @@ func refresh() -> void:
 			values = [pivot.x, pivot.y, pivot.z] if group == "position" else [0, 0, 0]
 		for axis in 3:
 			var value: SpinBox = fields["%s_%d" % [group, axis]]
-			value.editable = not record.is_empty()
+			value.editable = not record.is_empty() and not (whole and (group=="size" or (group=="rotation" and axis!=1)))
 			value.value = float(values[axis]) - (0.9 if group == "spawn" and axis == 1 else 0.0)
 	for key in ["line", "item_id", "target_path", "skills"]:
 		fields[key].text = ", ".join(record.get(key, [])) if key == "skills" else str(record.get(key, ""))
@@ -143,7 +159,7 @@ func refresh() -> void:
 		if key == "skills": show = kind == "npc" and bool(record.get("hostile", false))
 		if key == "item_id": show = kind == "gather"
 		if key in ["target_path", "spawn"]: show = kind == "warp"
-		if multi: show = key in ["position", "rotation", "multi_scale"]
+		if multi: show = key in ["position", "rotation", "multi_scale"] and not (whole and key=="multi_scale")
 		elif key == "multi_scale": show = false
 		for control in rows[key]: control.visible = show
 	for key in ["hostile", "ally"]: fields[key].button_pressed = bool(record.get(key, false))

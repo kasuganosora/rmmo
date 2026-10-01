@@ -24,7 +24,7 @@ func run() -> void:
 	var probe := TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP MCP")
-	var discovery := await rpc("tools/list"); check(discovery.result.tools.size()==65,"discover 65 tools including nine building operations")
+	var discovery := await rpc("tools/list"); check(discovery.result.tools.size()==67,"discover 67 tools including eleven building operations")
 	var templates := await call_tool("list_building_templates"); check(templates.templates.size()==3,"three building uses expose shared parameter schema")
 	for type in Blueprint.LABELS:
 		for floors in [1,2,3]:
@@ -57,11 +57,13 @@ func run() -> void:
 	check(editor._authoring.includes(doc._find(instance.parts["f1/floor/left"])) and not editor._authoring.includes(doc._find(instance.parts["roof/ceiling"])),"semantic floor levels show slabs and exclude ceiling")
 	await call_tool("update_building",{"id":id,"parameters":{"width":14}},false)
 	await call_tool("set_floor_view",{"isolation":false})
+	await call_tool("configure_transform",{"component_edit":true})
 	await call_tool("set_object_transform",{"id":first_record,"position":[.1,-.11,0]})
 	before = doc.recovery_snapshot()
 	await call_tool("update_building",{"id":id,"parameters":{"width":14}},false)
 	check(doc.recovery_snapshot()==before,"regeneration never overwrites a hand-edited structural part")
 	await call_tool("undo")
+	await call_tool("configure_transform",{"component_edit":false})
 	var image_ := Image.create(4,4,false,Image.FORMAT_RGBA8); image_.fill(Color(.7,.5,.3)); image_.save_png(directory.path_join("finish.png"))
 	var finish := await call_tool("import_surface_material",{"path":directory.path_join("finish.png"),"name":"建筑测试材质"})
 	var faces := await call_tool("list_object_surfaces",{"id":first_record})

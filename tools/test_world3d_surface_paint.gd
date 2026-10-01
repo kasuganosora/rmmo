@@ -71,7 +71,7 @@ func run() -> void:
 	probe.stop()
 	check(editor.start_mcp(port).ok, "start surface-paint HTTP fixture")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 65, "surface material tools remain advertised alongside terrain tools")
+	check(discovery.result.tools.size() == 67, "surface material tools remain advertised alongside terrain tools")
 	await call_tool("import_surface_material", {"path": "C:/outside.png"}, false)
 	var imported := await call_tool("import_surface_material", {"path": texture_path, "name": "暖色砖纹"})
 	var material_id: String = imported.material_id

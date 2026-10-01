@@ -65,6 +65,7 @@ func ring_points(axis: int) -> PackedVector2Array:
 
 
 func hit_test(screen: Vector2) -> int:
+	if editor._selection_tools.whole and editor._transform_mode==2: return -1
 	if editor._mode != 1 or editor._doc._find(editor._inspector.selection).is_empty() or editor._camera.is_position_behind(pivot()): return -1
 	var center: Vector2 = editor._camera.unproject_position(pivot())
 	if editor._transform_mode != 1 and screen.distance_to(center) <= 10.0: return 3
@@ -72,6 +73,7 @@ func hit_test(screen: Vector2) -> int:
 	var best := 10.0
 	var chosen := -1
 	for axis in 3:
+		if editor._selection_tools.whole and editor._transform_mode==1 and axis!=1: continue
 		var distance := INF
 		if editor._transform_mode == 1:
 			var points := ring_points(axis)
@@ -88,9 +90,11 @@ func hit_test(screen: Vector2) -> int:
 
 
 func _draw() -> void:
+	if editor!=null and editor._selection_tools.whole and editor._transform_mode==2: return
 	if editor == null or editor._doc._find(editor._inspector.selection).is_empty() or editor._camera.is_position_behind(pivot()): return
 	var center: Vector2 = editor._camera.unproject_position(pivot())
 	for axis in 3:
+		if editor._selection_tools.whole and editor._transform_mode==1 and axis!=1: continue
 		if editor._transform_mode == 2 and editor._selection_tools.ids.size() > 1: break
 		var color: Color = Color("ffe29a") if axis == active or (active < 0 and axis == hovered) else COLORS[axis]
 		if editor._transform_mode == 1:
