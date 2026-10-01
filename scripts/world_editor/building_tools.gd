@@ -3,10 +3,12 @@ extends RefCounted
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Schema = preload("res://scripts/world3d/document_schema.gd")
+const Footprint = preload("res://scripts/world_editor/building_footprint.gd")
+const Street = preload("res://scripts/world_editor/building_street.gd")
 var editor: Node3D
 
 static func placement_schema() -> Dictionary:
-	return {"type":"object","properties":{"position":Schema.vector(-100000,100000),"yaw":Schema.number(-180,180),"seed_offset":{"type":"integer","minimum":0,"maximum":100000}},"required":["position"],"additionalProperties":false}
+	return {"type":"object","properties":{"position":Schema.vector(-100000,100000),"yaw":Schema.number(-180,180),"seed_offset":{"type":"integer","minimum":0,"maximum":100000},"parameters":Blueprint.schema()},"required":["position"],"additionalProperties":false}
 
 static func batch_schema() -> Dictionary:
 	return {"type":"object","properties":{"parameters":Blueprint.schema(),"placements":{"type":"array","items":placement_schema(),"minItems":1,"maxItems":16}},"required":["placements"],"additionalProperties":false}
@@ -18,7 +20,7 @@ func templates() -> Dictionary:
 		var value := Blueprint.defaults(); value.template = id
 		if id=="inn": value.rooms_per_floor = 3
 		rows.append({"id":id,"name":Blueprint.LABELS[id],"parameters":value})
-	return {"ok":true,"templates":rows,"parameters_schema":Blueprint.schema(),"max_batch":16}
+	return {"ok":true,"templates":rows,"presets":Blueprint.medieval_presets(),"parameters_schema":Blueprint.schema(),"max_batch":16}
 
 func list_buildings() -> Dictionary:
 	var rows: Array = []
@@ -43,6 +45,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 	if not issue.is_empty(): return Blueprint.fail(issue)
 	if replacing.is_empty() and instances().size()+args.placements.size()>4096: return Blueprint.fail("地图最多包含 4096 栋生成建筑")
 	var prepared: Array = []; var excluded: Array = []
+	var occupied_shapes := {}
 	if not replacing.is_empty():
 		if args.placements.size()!=1: return Blueprint.fail("更新预览只能包含一栋建筑")
 		if not instances().has(replacing): return Blueprint.fail("建筑不存在")
@@ -53,11 +56,13 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 		var placement: Dictionary = args.placements[index]
 		var parameters: Dictionary = instances()[replacing].parameters.duplicate(true) if not replacing.is_empty() else {}
 		parameters.merge(args.get("parameters",{}),true)
+		parameters.merge(placement.get("parameters",{}),true)
 		parameters.seed = int(parameters.get("seed",1))+int(placement.get("seed_offset",0))
 		var plan := Blueprint.generate(parameters)
 		if not plan.ok: return plan
 		var origin := Blueprint.vec(placement.position); var yaw := float(placement.get("yaw",0))
 		var basis := Basis(Vector3.UP,deg_to_rad(yaw))
+		plan.occupancy = Footprint.components(plan.records,origin,basis)
 		for record in plan.records:
 			record.position = Blueprint.arr(origin+basis*Blueprint.vec(record.position))
 			var orientation := basis*Basis.from_euler(Blueprint.vec(record.rotation)*PI/180)
@@ -68,13 +73,14 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 		var box := Geometry.bounds(plan.records)
 		plan.bounds = {"position":Blueprint.arr(box.position),"size":Blueprint.arr(box.size)}
 		for previous in prepared:
-			if box.grow(-.005).intersects(AABB(Blueprint.vec(previous.bounds.position),Blueprint.vec(previous.bounds.size)).grow(-.005)): return Blueprint.fail("本批第 %d 栋建筑与另一栋建筑占地重叠"%(index+1))
+			if Footprint.batches_overlap(plan.occupancy,previous.occupancy): return Blueprint.fail("本批第 %d 栋建筑与另一栋建筑占地重叠"%(index+1))
 		for record in editor._doc.records:
 			if excluded.has(str(record.uuid)): continue
-			var occupied := Geometry.bounds([record])
+			if not occupied_shapes.has(record.uuid): occupied_shapes[record.uuid]=Footprint.record_shape(record)
+			var occupied: AABB = occupied_shapes[record.uuid].bounds
 			# Existing terrain below the specified foot plane supports the building.
 			if occupied.end.y<=origin.y+.005: continue
-			if box.grow(-.005).intersects(occupied.grow(-.005)): return {"ok":false,"error":"第 %d 栋建筑占地与现有物件重叠"%(index+1),"conflicts":[str(record.uuid)]}
+			if Footprint.batches_overlap(plan.occupancy,[occupied_shapes[record.uuid]]): return {"ok":false,"error":"第 %d 栋建筑占地与现有物件重叠"%(index+1),"conflicts":[str(record.uuid)]}
 		if not replacing.is_empty():
 			var old: Dictionary = instances()[replacing]
 			var new_parts := {}
@@ -93,8 +99,25 @@ func summary(result: Dictionary) -> Dictionary:
 	if not result.ok: return result
 	var rows: Array = []
 	for plan in result.plans:
-		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"part_count":plan.records.size(),"entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs})
-	return {"ok":true,"buildings":rows,"layout_coordinates":"rooms/openings/stairs are building-local meters; position/yaw transform them to world space; entrance/bounds are world space"}
+		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"part_count":plan.records.size(),"entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs,"courtyards":plan.get("courtyards",[]),"connections":plan.get("connections",[])})
+	var response := {"ok":true,"buildings":rows,"layout_coordinates":"rooms/openings/stairs/courtyards are building-local meters; position/yaw transform them to world space; entrance/bounds are world space"}
+	if result.has("street"): response.street=result.street
+	return response
+
+func prepare_street(args: Dictionary) -> Dictionary:
+	var result := Street.plan(args)
+	if not result.ok: return result
+	var prepared := prepare(result.request)
+	if prepared.ok: prepared.street=result.street
+	return prepared
+
+func generate_street(args: Dictionary) -> Dictionary:
+	var ready: Dictionary = editor._gameplay.guard()
+	if not ready.ok: return ready
+	var prepared := prepare_street(args)
+	if not prepared.ok: return prepared
+	var result := commit(prepared.plans); result.street=prepared.street
+	return result
 
 func generate(args: Dictionary) -> Dictionary:
 	var ready: Dictionary = editor._gameplay.guard()

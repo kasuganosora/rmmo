@@ -12,6 +12,7 @@ var _full_mesh: NavigationMesh
 var _disposed := false
 var _specs: Array = []
 var _faces := {}
+var _box_faces := PackedVector3Array()
 var nearby_source_count := 0
 var full_source_count := 0
 var face_extractions := 0
@@ -59,11 +60,19 @@ func _process(_delta: float) -> void:
 			if _clip.has_volume() and not _clip.intersects(box): continue
 			var shape: Shape3D = spec.get("shape")
 			var geometry: Resource = shape if shape is ConcavePolygonShape3D else spec["mesh"]
-			var key := geometry.get_instance_id()
-			if not _faces.has(key):
-				_faces[key] = geometry.get_faces()
-				face_extractions += 1
-			source.add_faces(_faces[key], spec["transform"])
+			if geometry is BoxMesh and not geometry.flip_faces:
+				# Generated buildings contain thousands of differently sized boxes. Their
+				# exact navigation hull is one unit cube; avoid one GPU readback per box.
+				if _box_faces.is_empty():
+					var cube := BoxMesh.new(); cube.size = Vector3.ONE
+					_box_faces = cube.get_faces(); face_extractions += 1
+				source.add_faces(_box_faces, spec["transform"] * Transform3D(Basis.from_scale(geometry.size), Vector3.ZERO))
+			else:
+				var key := geometry.get_instance_id()
+				if not _faces.has(key):
+					_faces[key] = geometry.get_faces()
+					face_extractions += 1
+				source.add_faces(_faces[key], spec["transform"])
 			full_source_count += 1
 	if _cursor < _specs.size(): return
 	_cursor = 0

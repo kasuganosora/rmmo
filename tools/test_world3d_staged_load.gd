@@ -58,7 +58,7 @@ func run() -> void:
 	while not nav.fully_ready: await process_frame
 	check(nav.find_path(Vector3(5, 0, 0), Vector3(180, 0, 0)).ok, "background bake extends navigation without losing local connectivity")
 	check(nav.nearby_source_count < nav.full_source_count and nav.full_source_count == 12, "distant source geometry is deferred until local navigation is available")
-	check(nav.face_extractions == 12, "local and full bake share each geometry face extraction")
+	check(nav.face_extractions == 1, "local and full bake share a single unit cube for all boxes")
 	check(nav.version == 2, "navigation publishes two synchronized versions")
 	print("NAV_METRICS first_ms=%d full_ms=%d" % [first, Time.get_ticks_msec() - begin])
 	var geometry: Array = source.get_meta("stream_library")

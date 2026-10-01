@@ -37,7 +37,7 @@
 
 ## MCP
 
-当前总计 63 个工具；协议与安全约束见 [world_editor_mcp.md](world_editor_mcp.md)。事件/环境批次新增：
+当前总计 65 个工具；协议与安全约束见 [world_editor_mcp.md](world_editor_mcp.md)。事件/环境批次新增：
 
 | 工具 | 用法 |
 | --- | --- |

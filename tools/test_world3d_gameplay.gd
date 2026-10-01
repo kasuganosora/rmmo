@@ -42,7 +42,7 @@ func run() -> void:
 	while probe.listen(port, "127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok, "start real HTTP MCP")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 63, "discover 63 current 3D tools")
+	check(discovery.result.tools.size() == 65, "discover 65 current 3D tools")
 	var catalog := await call_tool("list_event_templates")
 	check(catalog.templates.size() == 5, "all five templates and their defaults are discoverable")
 	var resources := await call_tool("list_event_resources", {"limit": 200})

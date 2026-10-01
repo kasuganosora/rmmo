@@ -93,7 +93,7 @@ func run() -> void:
 	while probe.listen(port, "127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok, "start terrain HTTP fixture")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 63, "63 3D tools include kit import and discovery")
+	check(discovery.result.tools.size() == 65, "65 3D tools include kit import and discovery")
 	var before: Array = doc.records.duplicate(true)
 	var history: int = doc._undo.size()
 	await paint("cliff", Vector2i(-2, -2), 2)

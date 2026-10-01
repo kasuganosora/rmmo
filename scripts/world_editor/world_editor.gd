@@ -163,6 +163,8 @@ func _input(event: InputEvent) -> void:
 	if _playtest != null and _playtest.active() and event is InputEventKey:
 		if event.pressed and event.keycode == KEY_ESCAPE: _playtest.stop()
 		get_viewport().set_input_as_handled(); return
+	if _building_panel!=null and _building_panel.street!=null and _building_panel.street.input(event):
+		get_viewport().set_input_as_handled(); return
 	if _authoring.input(event): get_viewport().set_input_as_handled(); return
 	if _material_tool != null and _material_tool.active:
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -229,6 +231,8 @@ func _input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if _building_panel!=null and _building_panel.street!=null:
+			_building_panel.street.drawing=false; _building_panel.street.refresh()
 		if _material_tool != null: _material_tool.cancel()
 		if _placement_tools != null: _placement_tools.cancel()
 		_transform_drag.finish()

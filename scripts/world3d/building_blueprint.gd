@@ -1,34 +1,48 @@
-extends RefCounted
+extends "res://scripts/world3d/building_geometry.gd"
 ## A shared spatial plan drives both sides of every wall, its openings and collision.
 const Schema = preload("res://scripts/world3d/document_schema.gd")
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
-const VERSION := 1
+const VERSION := 2
 const LABELS := {"house":"民居", "shop":"商住楼", "inn":"旅馆"}
-const WALL := .2
-const SLAB := .22
 const DOOR_H := 2.2
 const STAIR_W := 1.4
 const TREAD := .28
 
-static func defaults() -> Dictionary:
+static func legacy_defaults() -> Dictionary:
 	return {"template":"house", "width":12.0, "depth":14.0, "floors":2, "floor_height":3.0, "rooms_per_floor":2, "roof":"gable", "roof_height":2.0, "style":"timber", "seed":1}
+
+static func defaults() -> Dictionary:
+	return legacy_defaults().merged({"layout":"standard","roof_axis":"depth","roof_pitch":45.0,"eaves":.3,"jetty":0.0,"bay_width":2.4,"shutters":true,"compound":"none","annex_width":4.0,"annex_depth":6.0,"left_wall":"open","right_wall":"open"})
+
+static func medieval_presets() -> Array:
+	return [
+		{"id":"townhouse","name":"窄店屋","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":6.5,"depth":13.0,"jetty":.4},true)},
+		{"id":"workshop","name":"后院作坊","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":8.0,"depth":14.0,"compound":"rear_workshop","jetty":.3},true)},
+		{"id":"courtyard","name":"围院旅馆","parameters":defaults().merged({"layout":"townhouse","template":"inn","width":13.0,"depth":14.0,"compound":"courtyard","roof_axis":"width","roof_pitch":35.0},true)},
+		{"id":"hall","name":"大厅住宅","parameters":defaults().merged({"layout":"hall","width":9.0,"depth":15.0},true)}]
 
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
-		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(9,24), "depth":Schema.number(12,30),
+		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(10,30),
 		"floors":{"type":"integer","minimum":1,"maximum":3}, "floor_height":Schema.number(3,4),
 		"rooms_per_floor":{"type":"integer","minimum":1,"maximum":4}, "roof":{"type":"string","enum":["gable","flat"]},
 		"roof_height":Schema.number(.5,4), "style":{"type":"string","enum":["timber","plaster"]},
-		"seed":{"type":"integer","minimum":0,"maximum":2147483647}}, "additionalProperties":false}
+		"seed":{"type":"integer","minimum":0,"maximum":2147483647},
+		"layout":{"type":"string","enum":["standard","townhouse","hall"]},
+		"roof_axis":{"type":"string","enum":["depth","width"]}, "roof_pitch":Schema.number(25,60),
+		"eaves":Schema.number(0,.6), "jetty":Schema.number(0,.65), "bay_width":Schema.number(1.8,3.2), "shutters":{"type":"boolean"},
+		"compound":{"type":"string","enum":["none","rear_workshop","left_wing","courtyard"]},
+		"annex_width":Schema.number(3,6), "annex_depth":Schema.number(4,10),
+		"left_wall":{"type":"string","enum":["open","party"]}, "right_wall":{"type":"string","enum":["open","party"]}}, "additionalProperties":false}
 
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
-static func vec(v: Array) -> Vector3: return Vector3(v[0],v[1],v[2])
-static func arr(v: Vector3) -> Array: return [v.x,v.y,v.z]
 
 static func generate(parameters: Dictionary) -> Dictionary:
 	var issue := Schema.validate(parameters,schema())
 	if not issue.is_empty(): return fail(issue)
 	var p := defaults(); p.merge(parameters,true)
+	if p.layout!="standard": return preload("res://scripts/world3d/medieval_building.gd").generate(p)
+	if p.width<9 or p.depth<12: return fail("普通模板至少需要 9 米宽、12 米深；窄店屋请使用中世纪布局")
 	var w := float(p.width); var d := float(p.depth); var h := float(p.floor_height)
 	var n := int(p.rooms_per_floor)
 	if (d-WALL*2)/n < 2.8: return fail("房间进深不足 2.8 米，请增加建筑深度或减少房间")
@@ -119,39 +133,6 @@ static func room_label(type: String, floor_: int, index: int) -> String:
 	if type=="inn": return ("接待厅" if index==0 else "厨房 / 储藏") if floor_==0 else "客房 %d"%(index+1)
 	return ("起居室" if index==0 else "厨房 / 餐厅") if floor_==0 else "卧室 %d"%(index+1)
 
-static func box(plan: Dictionary, key: String, position: Vector3, size: Vector3, color: Array, floor_: int, role: String, rotation := Vector3.ZERO) -> void:
-	plan.records.append({"uuid":key.replace("/","_"),"kind":"box","surface_id":"ground" if role=="floor" else "block","position":arr(position),"size":arr(size),"rotation":arr(rotation),"color":color.duplicate(),"editor_name":key,"building":{"part":key,"floor":floor_,"role":role,"floor_y":0.0}})
-
-static func slab(plan: Dictionary, key: String, x0: float, x1: float, z0: float, z1: float, y: float, color: Array, floor_: int) -> void:
-	if x1-x0>.001 and z1-z0>.001: box(plan,key,Vector3((x0+x1)/2,y-SLAB/2,(z0+z1)/2),Vector3(x1-x0,SLAB,z1-z0),color,floor_,"floor")
-
-static func wall(plan: Dictionary, key: String, axis: String, fixed: float, start: float, end: float, y: float, height: float, openings: Array, colors: Dictionary, floor_: int) -> void:
-	var us: Array = [start,end]; var vs: Array = [0.0,height]
-	for opening in openings:
-		us.append(opening.u-opening.width/2); us.append(opening.u+opening.width/2)
-		vs.append(opening.bottom); vs.append(opening.bottom+opening.height)
-	us.sort(); vs.sort()
-	for i in us.size()-1:
-		for j in vs.size()-1:
-			var a := float(us[i]); var b := float(us[i+1]); var c := float(vs[j]); var d := float(vs[j+1])
-			if b-a<.001 or d-c<.001: continue
-			var u := (a+b)/2; var v := (c+d)/2
-			if openings.any(func(o): return absf(u-o.u)<o.width/2 and v>o.bottom and v<o.bottom+o.height): continue
-			wall_box(plan,key+"/solid%d_%d"%[i,j],axis,fixed,u,y+v,b-a,d-c,WALL,colors.wall,floor_,"wall")
-	for opening in openings:
-		var o: Dictionary = opening.duplicate(true); o.wall = key; o.axis = axis; o.fixed = fixed; o.floor_y = y
-		plan.openings.append(o)
-		var prefix := key+"/"+str(o.id)
-		for side in [-1,1]: wall_box(plan,prefix+"/jamb%d"%side,axis,fixed,o.u+side*(o.width/2+.035),y+o.bottom+o.height/2,.07,o.height+.14,WALL+.07,colors.trim,floor_,"frame")
-		wall_box(plan,prefix+"/head",axis,fixed,o.u,y+o.bottom+o.height+.035,o.width+.14,.07,WALL+.07,colors.trim,floor_,"frame")
-		if o.type=="window":
-			wall_box(plan,prefix+"/sill",axis,fixed,o.u,y+o.bottom-.035,o.width+.14,.07,WALL+.14,colors.trim,floor_,"frame")
-			wall_box(plan,prefix+"/glass",axis,fixed,o.u,y+o.bottom+o.height/2,o.width,o.height,.025,colors.glass,floor_,"window")
-			wall_box(plan,prefix+"/mullion",axis,fixed,o.u,y+o.bottom+o.height/2,.055,o.height,.05,colors.trim,floor_,"frame")
-
-static func wall_box(plan: Dictionary, key: String, axis: String, fixed: float, u: float, y: float, width: float, height: float, depth: float, color: Array, floor_: int, role: String) -> void:
-	box(plan,key,Vector3(u,y,fixed) if axis=="x" else Vector3(fixed,y,u),Vector3(width,height,depth) if axis=="x" else Vector3(depth,height,width),color,floor_,role)
-
 static func geometry_signature(record: Dictionary) -> String:
 	var fields := {}
 	for key in ["kind","position","rotation","size","building_shape","collision"]:
@@ -173,9 +154,9 @@ static func valid_meta(meta: Dictionary) -> bool:
 	if not meta.building_instances is Dictionary or meta.building_instances.size()>4096: return false
 	for id in meta.building_instances:
 		var b: Variant = meta.building_instances[id]
-		if not id is String or not b is Dictionary or b.get("version")!=VERSION or not b.get("parameters") is Dictionary: return false
+		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
 		if not Schema.validate(b.parameters,schema()).is_empty(): return false
-		for key in defaults():
+		for key in (legacy_defaults() if b.version==1 else defaults()):
 			if not b.parameters.has(key): return false
 		if not Schema.validate(b.get("position"),Schema.vector(-100000,100000)).is_empty(): return false
 		if not Schema.validate(b.get("yaw"),Schema.number(-180,180)).is_empty(): return false
@@ -198,10 +179,3 @@ static func valid_ownership(meta: Dictionary, records: Array) -> bool:
 			# Missing parts may be intentional hand edits; regeneration then reports a conflict.
 			if by_id.has(uuid) and (by_id[uuid].get("building",{}).get("id")!=id or by_id[uuid].building.part!=part): return false
 	return true
-
-static func gable_mesh(size: Vector3, material: Material) -> ArrayMesh:
-	var vertices := [Vector3(-size.x/2,-size.y/2,-size.z/2),Vector3(size.x/2,-size.y/2,-size.z/2),Vector3(0,size.y/2,-size.z/2),Vector3(-size.x/2,-size.y/2,size.z/2),Vector3(size.x/2,-size.y/2,size.z/2),Vector3(0,size.y/2,size.z/2)]
-	var mesh := SurfaceTool.new(); mesh.begin(Mesh.PRIMITIVE_TRIANGLES); mesh.set_material(material)
-	for index in [0,1,2,5,4,3,0,3,4,0,4,1,0,2,5,0,5,3,2,1,4,2,4,5]:
-		var point: Vector3 = vertices[index]; mesh.set_uv(Vector2(point.x,point.y)); mesh.add_vertex(point)
-	mesh.generate_normals(); return mesh.commit()

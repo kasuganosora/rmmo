@@ -41,6 +41,8 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var request: Dictionary = args.duplicate(true); request.erase("replace_id")
 			return editor._buildings.summary(editor._buildings.prepare(request,str(args.get("replace_id",""))))
 		"generate_buildings": return editor._buildings.generate(args)
+		"preview_street_buildings": return editor._buildings.summary(editor._buildings.prepare_street(args))
+		"generate_street_buildings": return editor._buildings.generate_street(args)
 		"update_building": return editor._buildings.update(args.id,args.get("parameters",{}),args.get("position"),args.get("yaw"))
 		"delete_building": return editor._buildings.remove(args.id)
 		"detach_building": return editor._buildings.remove(args.id,true)

@@ -33,7 +33,7 @@
 
 ## MCP
 
-服务发现当前共 63 项工具。完整入口与安全约束见 [world_editor_mcp.md](world_editor_mcp.md)。楼层/试玩批次七项：
+服务发现当前共 65 项工具。完整入口与安全约束见 [world_editor_mcp.md](world_editor_mcp.md)。楼层/试玩批次七项：
 
 | 工具 | 参数与返回 |
 | --- | --- |

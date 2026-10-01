@@ -10,13 +10,14 @@ var chooser: OptionButton
 var report_label: Label
 var ghost: Node3D
 var hidden_sources: Array = []
+var street: VBoxContainer
 
 func button(text_: String, action: Callable) -> Button:
 	var value := Button.new(); value.text = text_; value.pressed.connect(action); add_child(value); return value
 
 func setup(host: Node3D) -> void:
 	editor = host; add_theme_constant_override("separation",6)
-	var hint := Label.new(); hint.text = "同一蓝图生成外墙、房间、门窗与楼梯洞口。平地矩形建筑；门洞保持可通行。"; hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(hint)
+	var hint := Label.new(); hint.text = "内外共用蓝图：普通建筑、中世纪窄店屋、大厅与附属房。支持平地沿街批量布置。"; hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(hint)
 	chooser = OptionButton.new(); chooser.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS; add_child(chooser)
 	chooser.item_selected.connect(func(index):
 		clear_preview()
@@ -33,11 +34,17 @@ func setup(host: Node3D) -> void:
 			if key=="inn": values.rooms_per_floor = 3
 			chooser.select(0); set_values(values,placement.values().position,placement.values().yaw)
 		)
+	var medieval := GridContainer.new(); medieval.columns=2; add_child(medieval)
+	for preset in Blueprint.medieval_presets():
+		var control:=Button.new(); control.text=preset.name; control.size_flags_horizontal=Control.SIZE_EXPAND_FILL; medieval.add_child(control)
+		control.pressed.connect(func(): chooser.select(0); set_values(preset.parameters,placement.values().position,placement.values().yaw))
 	var actions := HBoxContainer.new(); add_child(actions)
 	for entry in [["预览",preview],["生成一批",generate],["更新建筑",update_building]]:
 		var action := Button.new(); action.text = entry[0]; action.pressed.connect(entry[1]); action.size_flags_horizontal = Control.SIZE_EXPAND_FILL; actions.add_child(action)
 	form = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(form)
 	placement = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(placement)
+	street=preload("res://scripts/world_editor/building_street_panel.gd").new(); street.setup(self); add_child(street)
+	move_child(street,form.get_index())
 	var batch := HBoxContainer.new(); add_child(batch)
 	count = spin(batch,"数量",1,16,1); columns = spin(batch,"列",1,16,4); gap = spin(batch,"间距",1,30,2)
 	button("聚焦所选建筑",focus)
@@ -52,8 +59,15 @@ func spin(parent: Node, text_: String, minimum: float, maximum: float, value: fl
 
 func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 	clear_preview()
-	var ordered := Blueprint.defaults(); ordered.merge(parameters,true)
-	form.build(Blueprint.schema(),ordered,{"template":"建筑用途","width":"宽度（米）","depth":"进深（米）","floors":"层数","floor_height":"层高（米）","rooms_per_floor":"每层房间数","roof":"屋顶","roof_height":"屋顶升高","style":"外观","seed":"变化种子"},{"template":[{"id":"house","name":"民居"},{"id":"shop","name":"商住楼"},{"id":"inn","name":"旅馆"}],"roof":[{"id":"gable","name":"双坡屋顶"},{"id":"flat","name":"平屋顶"}],"style":[{"id":"timber","name":"木梁灰墙"},{"id":"plaster","name":"浅色灰墙"}]})
+	var ordered := {"layout":parameters.get("layout","standard")}; ordered.merge(Blueprint.defaults()); ordered.merge(parameters,true)
+	if ordered.layout=="standard":
+		for key in Blueprint.defaults():
+			if key!="layout" and not Blueprint.legacy_defaults().has(key): ordered.erase(key)
+	else: ordered.erase("roof_height")
+	var labels := {"layout":"布局","template":"建筑用途","width":"宽度（米）","depth":"进深（米）","floors":"层数","floor_height":"层高（米）","rooms_per_floor":"每层房间数","roof":"屋顶","roof_height":"屋顶升高","style":"外观","seed":"变化种子","roof_axis":"屋脊方向","roof_pitch":"屋顶坡度（度）","eaves":"出檐（米）","jetty":"上层临街挑出（米）","bay_width":"木架开间目标宽度","shutters":"开启式窗板","compound":"建筑组合","annex_width":"附属房宽度","annex_depth":"附属房进深","left_wall":"左侧外墙","right_wall":"右侧外墙"}
+	var choices := {"layout":[{"id":"standard","name":"普通侧走廊"},{"id":"townhouse","name":"中世纪窄店屋"},{"id":"hall","name":"中世纪挑空大厅"}],"template":[{"id":"house","name":"民居"},{"id":"shop","name":"商住楼"},{"id":"inn","name":"旅馆"}],"roof":[{"id":"gable","name":"双坡屋顶"},{"id":"flat","name":"平屋顶"}],"style":[{"id":"timber","name":"木梁灰墙"},{"id":"plaster","name":"浅色灰墙"}],"roof_axis":[{"id":"depth","name":"沿进深（山墙朝街）"},{"id":"width","name":"沿宽度（檐口朝街）"}],"compound":[{"id":"none","name":"独栋"},{"id":"rear_workshop","name":"后院＋独立作坊"},{"id":"left_wing","name":"L 形左侧翼"},{"id":"courtyard","name":"U 形围院"}],"left_wall":[{"id":"open","name":"有窗外墙"},{"id":"party","name":"无窗邻接墙"}],"right_wall":[{"id":"open","name":"有窗外墙"},{"id":"party","name":"无窗邻接墙"}]}
+	form.build(Blueprint.schema(),ordered,labels,choices)
+	form.fields.layout.item_selected.connect(func(_index): set_values(form.values(),placement.values().position,placement.values().yaw))
 	placement.build(editor._buildings.placement_schema(),{"position":position,"yaw":yaw},{"position":"建筑中心脚点 XYZ","yaw":"朝向（度）"})
 
 func refresh_list(selected := "") -> void:
@@ -71,17 +85,22 @@ func refresh_list(selected := "") -> void:
 func args() -> Dictionary:
 	var p: Dictionary = form.values(); var at: Dictionary = placement.values(); var lots: Array = []
 	var basis := Basis(Vector3.UP,deg_to_rad(float(at.yaw)))
+	var plan := Blueprint.generate(p); var extent := Vector3(p.width,0,p.depth)
+	if plan.ok: extent=preload("res://scripts/world_editor/selection_geometry.gd").bounds(plan.records).size
 	for index in int(count.value):
-		var offset := Vector3((index%int(columns.value))*(p.width+gap.value),0,floori(float(index)/columns.value)*(p.depth+gap.value))
+		var offset := Vector3((index%int(columns.value))*(extent.x+gap.value),0,floori(float(index)/columns.value)*(extent.z+gap.value))
 		lots.append({"position":Blueprint.arr(Blueprint.vec(at.position)+basis*offset),"yaw":at.yaw,"seed_offset":index})
 	return {"parameters":p,"placements":lots}
 
 func preview() -> void:
 	clear_preview()
 	var replacing := selected_id()
-	var request := args()
-	if not replacing.is_empty(): request.placements = [placement.values()]
-	var result: Dictionary = editor._buildings.prepare(request,replacing)
+	var result: Dictionary
+	if street.enabled.button_pressed: replacing=""; result=editor._buildings.prepare_street(street.request())
+	else:
+		var request := args()
+		if not replacing.is_empty(): request.placements = [placement.values()]
+		result=editor._buildings.prepare(request,replacing)
 	if not result.ok: report(result); return
 	if not replacing.is_empty():
 		for id in editor._buildings.instances()[replacing].parts.values():
@@ -92,7 +111,9 @@ func preview() -> void:
 		for record in plan.records:
 			var mesh: MeshInstance3D = editor._doc._mesh(record); mesh.transparency = .35; ghost.add_child(mesh)
 	report({"ok":true,"message":"预览 %d 栋，未写入地图。参数改变后请重新预览。"%result.plans.size()})
-	frame(result.plans[0].bounds)
+	var bounds:=AABB(Blueprint.vec(result.plans[0].bounds.position),Blueprint.vec(result.plans[0].bounds.size))
+	for plan in result.plans: bounds=bounds.merge(AABB(Blueprint.vec(plan.bounds.position),Blueprint.vec(plan.bounds.size)))
+	frame({"position":Blueprint.arr(bounds.position),"size":Blueprint.arr(bounds.size)})
 
 func clear_preview() -> void:
 	for pair in hidden_sources:
@@ -106,9 +127,10 @@ func clear_preview() -> void:
 	ghost = null
 
 func generate() -> void:
-	report(editor._buildings.generate(args()))
+	report(editor._buildings.generate_street(street.request()) if street.enabled.button_pressed else editor._buildings.generate(args()))
 
 func update_building() -> void:
+	if street.enabled.button_pressed: report(Blueprint.fail("沿街模式用于新建；更新单栋请先关闭沿街模式")); return
 	var at: Dictionary = placement.values()
 	report(editor._buildings.update(selected_id(),form.values(),at.position,at.yaw))
 

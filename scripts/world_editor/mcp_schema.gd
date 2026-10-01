@@ -29,7 +29,9 @@ static func tools() -> Array:
 	select["append"] = {"type": "boolean"}
 	var face := {"type": "object", "properties": {"mesh": text_field(), "surface": {"type": "integer", "minimum": 0, "maximum": 127}, "face": {"type": "integer", "minimum": 0, "maximum": 49999}, "geometry": text_field()}, "required": ["mesh", "surface", "face", "geometry"], "additionalProperties": false}
 	return [
-		spec("list_building_templates", "查询民居/商住楼/旅馆默认参数和建筑参数 schema。矩形平地建筑，内外共用洞口与标高。", {}, [], true),
+		spec("list_building_templates", "查询用途默认参数、中世纪窄店屋/大厅/作坊/围院预设和 schema。内外共用洞口与标高，旧版本地图兼容。", {}, [], true),
+		spec("preview_street_buildings", "只读规划平地道路中心线两侧的建筑，按实际屋檐和挑层留出道路净空，避开转角，返回确定的逐栋参数；不创建道路。", preload("res://scripts/world_editor/building_street.gd").schema().properties, ["points"], true),
+		spec("generate_street_buildings", "沿道路中心线生成至多16栋建筑；参数含路宽、退距、间隙、侧别、宽度变化，整批校验后一次撤销；道路本身仍用地图道路工具绘制。", preload("res://scripts/world_editor/building_street.gd").schema().properties, ["points"]),
 		spec("list_buildings", "列出生成建筑、参数、位置、构件数量与手工改动/锁定/楼层冲突。", {}, [], true),
 		spec("preview_buildings", "只读规划至多16栋建筑，检查占地与参数，返回房间/门窗/楼梯布局和数量；replace_id 可预览单栋参数更新，不修改地图。", preload("res://scripts/world_editor/building_tools.gd").batch_schema().properties.merged({"replace_id":text_field()}), ["placements"], true),
 		spec("generate_buildings", "按统一蓝图生成外观和可通行内部结构；placements 为中心脚点/朝向/种子偏移，整批校验后一次撤销。", preload("res://scripts/world_editor/building_tools.gd").batch_schema().properties, ["placements"]),
