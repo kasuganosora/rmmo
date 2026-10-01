@@ -35,6 +35,20 @@ func show_asset(path: String) -> void:
 	visible = not path.is_empty()
 	if not visible: return
 	scene = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
+	_show_scene()
+
+
+func show_prefab(entry: Dictionary) -> void:
+	var path := str(entry.get("prefab_path", ""))
+	if path == current_path: return
+	current_path = path
+	if is_instance_valid(scene): scene.free()
+	scene = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
+	visible = scene != null
+	_show_scene()
+
+
+func _show_scene() -> void:
 	if scene == null:
 		visible = false
 		return

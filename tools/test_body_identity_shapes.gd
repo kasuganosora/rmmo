@@ -13,10 +13,25 @@ func run()->void:
  var model:=Model.new();model.body_type="female";model.appearance=recipe.duplicate(true);root.add_child(model);model.set_process(false)
  var other:=Model.new();other.body_type="female";other.appearance=recipe.duplicate(true);root.add_child(other);other.set_process(false)
  var body=model.axis_rig.body
+ assert(body.mesh_instance.mesh==other.axis_rig.body.mesh_instance.mesh,"Static geometry is not shared")
+ for surface in body.mesh_instance.mesh.get_surface_count():
+  var first:ShaderMaterial=body.mesh_instance.get_active_material(surface)
+  var second:ShaderMaterial=other.axis_rig.body.mesh_instance.get_active_material(surface)
+  assert(first!=second and first.shader==second.shader,"Materials must be local, shaders shared")
+  assert(first.get_shader_parameter("body_positions")==body.positions_texture)
+  assert(second.get_shader_parameter("body_positions")==other.axis_rig.body.positions_texture)
  var original_mesh:Mesh=body.mesh_instance.mesh;var original_skeleton:Skeleton3D=body.skeleton
  var other_points:PackedVector3Array=other.axis_rig.body.rest_points.duplicate()
  var original_texture:Texture2D=body.positions_texture
  assert(body.use_compute)
+ body.set_angles(body.POSES.elbow,Vector3(.2,.3,-.1))
+ var offset_gpu:PackedVector3Array=body.read_gpu_points()
+ var min_y:=INF
+ for point:Vector3 in offset_gpu:min_y=minf(min_y,point.y)
+ assert(absf(min_y-body.surface_min_y)<.000001,"GPU support reduction changed the support height")
+ body.use_compute=false;body._solve_surface(body.root_offset)
+ assert(maximum_difference(offset_gpu,body.posed_points)<.00001,"Packed contact points must remain root-local")
+ body.use_compute=true;body.set_angles({})
  var max_error:=0.0
  for key:String in body.Shapes.RANGES:
   assert(body.set_shape_values({key:.5}))
@@ -29,6 +44,9 @@ func run()->void:
   assert(maximum_difference(body.read_gpu_points(),expected)<.00001)
   body.set_angles(body.POSES.elbow)
   var gpu_points:PackedVector3Array=body.read_gpu_points()
+  min_y=INF
+  for point:Vector3 in gpu_points:min_y=minf(min_y,point.y)
+  assert(absf(min_y-body.surface_min_y)<.000001)
   body.use_compute=false;body._solve_surface(body.root_offset)
   max_error=maxf(max_error,maximum_difference(gpu_points,body.posed_points))
   body.use_compute=true

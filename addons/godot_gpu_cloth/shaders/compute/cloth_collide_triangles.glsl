@@ -1,5 +1,8 @@
 #[compute]
 #version 450
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
+#define RMMO_PARALLEL
+#endif
 
 // Skinned mesh collider — pushes each free cloth particle outside the body's
 // decimated triangle proxy. The CPU side (gpu_cloth_solver.gd:_build_collider_mesh)
@@ -45,7 +48,7 @@ layout(push_constant, std430) uniform Params {
     float friction;      // Coulomb μ; 0 = frictionless
     float frame_start;
     float frame_end;
-    float unused0, unused1;
+    uint use_body_bounds; uint triangle_leaves;
 };
 
 // Standard closest-point-on-triangle (Ericson, Real-Time Collision Detection).
@@ -142,14 +145,64 @@ float swept_hit(vec3 p0,vec3 p1,vec3 a0,vec3 b0,vec3 c0,
     return 2.0;
 }
 layout(set=0,binding=7,std430) buffer BodyDirections {vec4 body_directions[];};
+layout(set=0,binding=8,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
+uint next_node(uint node){
+ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
+ return node+1u;
+}
+layout(set=0,binding=9,std430) readonly buffer Order {uint order[];};
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
+layout(set=0,binding=10,std430) readonly buffer Candidates {uint candidates[];};
+#endif
+#ifdef RMMO_PARALLEL
+shared float hits[64],distances[64];
+shared vec3 impacts[64],contacts[64],normals[64];
+shared uint hit_ids[64],closest_ids[64];
+#endif
 void main() {
-    uint idx=gl_GlobalInvocationID.x;if(idx>=particle_count)return;
+    #ifdef RMMO_PARALLEL
+    uint idx=gl_WorkGroupID.x;
+#else
+    uint idx=gl_GlobalInvocationID.x;
+#endif
+    if(idx>=particle_count)return;
+#ifdef RMMO_CANDIDATE_LIST
+ if(candidates[idx*2055u]>2048u)return;
+#endif
+#ifdef RMMO_CANDIDATE_FALLBACK
+ if(candidates[idx*2055u]<=2048u)return;
+#endif
+
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_COMBINED)
+    if(candidates[idx*2055u]==0u)return;
+#endif
     float w=predicted[idx].w;if(w<.001)return;
     float gap=thickness*cloth_weights[idx].x;if(gap<1e-6)return;
     vec3 start=positions[idx].xyz,end=predicted[idx].xyz;
     vec3 segment_min=min(start,end)-gap,segment_max=max(start,end)+gap;
     float first=2.0,closest_distance=gap;vec3 impact=end,contact=end,contact_normal=vec3(0);
-    for(uint t=0u;t<tri_count;t++){
+    uint first_index=0xffffffffu,closest_index=0xffffffffu;
+#ifdef RMMO_CANDIDATE_COMBINED
+ uint candidate_count=candidates[idx*2055u];
+ bool overflow=candidate_count>2048u;
+ for(uint entry=gl_LocalInvocationID.x;entry<(overflow?tri_count:candidate_count);entry+=64u){
+  uint t=overflow?entry:candidates[idx*2055u+1u+entry];
+#elif defined(RMMO_CANDIDATE_LIST)
+ for(uint entry=gl_LocalInvocationID.x;entry<candidates[idx*2055u];entry+=64u){
+  uint t=candidates[idx*2055u+1u+entry];
+#elif defined(RMMO_CANDIDATE_FALLBACK)
+ for(uint t=gl_LocalInvocationID.x;t<tri_count;t+=64u){
+#else
+    uint node=1u;
+    while(node!=0u){
+        bool hit_box=use_body_bounds==0u || !(any(lessThan(body_bounds[(triangle_leaves*2u+node)*2u+1u].xyz,segment_min))||any(greaterThan(body_bounds[(triangle_leaves*2u+node)*2u].xyz,segment_max)));
+        if(hit_box && node<triangle_leaves){node*=2u;continue;}
+        uint begin=node>=triangle_leaves?(node-triangle_leaves)*8u:tri_count;
+        uint limit=hit_box?min(begin+8u,tri_count):begin;
+        node=next_node(node);
+        for(uint item=begin;item<limit;item++){
+        uint t=use_body_bounds!=0u?order[item]:item;
+#endif
         vec3 ar=old_tri_verts[t*3u].xyz,br=old_tri_verts[t*3u+1u].xyz,cr=old_tri_verts[t*3u+2u].xyz;
         vec3 an=tri_verts[t*3u].xyz,bn=tri_verts[t*3u+1u].xyz,cn=tri_verts[t*3u+2u].xyz;
         vec3 a0=mix(ar,an,frame_start),b0=mix(br,bn,frame_start),c0=mix(cr,cn,frame_start);
@@ -159,7 +212,7 @@ void main() {
         if(any(lessThan(high,segment_min))||any(greaterThan(low,segment_max)))continue;
         vec3 n=cross(b-a,c-a);float nl=length(n);if(nl<1e-10)continue;n/=nl;
         vec3 bary;float side;float hit=swept_hit(start,end,a0,b0,c0,a,b,c,bary,side);
-        if(hit<first){
+        if(hit<first || (hit==first && hit<=1.0 && t<first_index)){
             vec3 anchor=a*bary.x+b*bary.y+c*bary.z;
             vec3 remaining=end-anchor;
             vec3 tangent=remaining-n*dot(remaining,n);
@@ -169,17 +222,35 @@ void main() {
             // this contact. A historical crossing must not attract the point
             // back onto the surface or hide a later unresolved contact.
             if(correction>1e-9){
-                first=hit;
+                first=hit;first_index=t;
                 float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
                 impact=end+n*side*correction-tangent*(1.0-retained);
             }
         }
         vec3 q=closest_point_on_triangle(end,a,b,c),diff=end-q;float distance=length(diff);
-        if(distance<closest_distance){
-            closest_distance=distance;contact_normal=distance>1e-8?diff/distance:n;
+        if(distance<closest_distance || (distance==closest_distance && t<closest_index && distance<gap)){
+            closest_distance=distance;closest_index=t;contact_normal=distance>1e-8?diff/distance:n;
             contact=q+contact_normal*gap;
         }
     }
+
+#ifndef RMMO_PARALLEL
+    }
+#endif
+#ifdef RMMO_PARALLEL
+    uint lane=gl_LocalInvocationID.x;
+    hits[lane]=first;hit_ids[lane]=first_index;impacts[lane]=impact;
+    distances[lane]=closest_distance;closest_ids[lane]=closest_index;contacts[lane]=contact;normals[lane]=contact_normal;
+    barrier();if(lane!=0u)return;
+    for(uint other=1u;other<64u;other++){
+        if(hits[other]<first || (hits[other]==first && hit_ids[other]<first_index)){
+            first=hits[other];first_index=hit_ids[other];impact=impacts[other];
+        }
+        if(distances[other]<closest_distance || (distances[other]==closest_distance && closest_ids[other]<closest_index)){
+            closest_distance=distances[other];closest_index=closest_ids[other];contact=contacts[other];contact_normal=normals[other];
+        }
+    }
+#endif
     vec3 result=first<=1.0?impact:contact;
     if(first>1.0&&closest_distance<gap&&friction>0.0){
         vec3 movement=result-start,tangent=movement-contact_normal*dot(movement,contact_normal);

@@ -6,12 +6,18 @@ var _updating := false
 var fields := {}
 var title: Label
 var rows := {}
+var tile_note: Label
+var multi_scale: SpinBox
 
 
 func setup(owner: Node) -> void:
 	editor = owner
 	title = Label.new()
 	add_child(title)
+	tile_note = Label.new()
+	tile_note.custom_minimum_size.x = 270
+	tile_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(tile_note)
 	for group in ["position", "rotation", "size"]:
 		var label := Label.new()
 		label.text = {"position": "位置 (m)", "rotation": "旋转 (°)", "size": "尺寸 (m)"}[group]
@@ -40,6 +46,20 @@ func setup(owner: Node) -> void:
 		rows[key] = [label, value]
 		value.text_submitted.connect(func(text: String): _text_changed(key, text))
 		value.focus_exited.connect(func(): _text_changed(key, value.text))
+	var scale_label := Label.new()
+	scale_label.text = "整体等比缩放"
+	add_child(scale_label)
+	multi_scale = SpinBox.new()
+	multi_scale.min_value = 0.01
+	multi_scale.max_value = 1000
+	multi_scale.step = 0.01
+	multi_scale.value = 1.0
+	multi_scale.suffix = "倍"
+	add_child(multi_scale)
+	rows["multi_scale"] = [scale_label, multi_scale]
+	multi_scale.value_changed.connect(func(value: float):
+		if not _updating: editor._selection_tools.transform_numeric("size", 0, value)
+	)
 	var label := Label.new()
 	label.text = "目标出生脚点 (m)"
 	add_child(label)
@@ -74,12 +94,37 @@ func setup(owner: Node) -> void:
 
 
 func select(uuid: String) -> void:
+	if editor._selection_tools != null:
+		editor._selection_tools.set_ids([uuid] if not uuid.is_empty() else [])
+		return
 	selection = uuid
+	refresh()
+
+
+func refresh() -> void:
 	_updating = true
-	var record: Dictionary = editor._doc._find(uuid)
-	title.text = "选择物件编辑" if record.is_empty() else "%s · %s" % [uuid, record.get("kind", "")]
+	var record: Dictionary = editor._doc._find(selection)
+	if record.is_empty(): selection = ""
+	var count: int = editor._selection_tools.ids.size()
+	var multi := count > 1
+	title.text = "已选择 %d 件 · 共同中心" % count if multi else ("选择物件编辑" if record.is_empty() else "%s · %s" % [selection, record.get("kind", "")])
+	tile_note.visible = not multi and record.has("tile3d")
+	if tile_note.visible:
+		var tile: Dictionary = record.tile3d
+		var rules = preload("res://scripts/world3d/auto_tile_rules.gd")
+		var detail: String = rules.shape_name(int(tile.mask)) if str(tile.family) in ["road", "wall", "bridge"] else "地形过渡"
+		var options: Dictionary = tile.get("options", {})
+		match str(tile.family):
+			"cliff": detail = "基底 %.1f → 顶面 %.1f m" % [options.get("base_height", 0), tile.elevation]
+			"stairs": detail = "下端 %.1f · 升高 %.1f m · 向%s" % [tile.elevation, options.get("rise", 2), ["北", "东", "南", "西"][int(options.get("direction", 0))]]
+			"roof": detail = "檐口 %.1f · 升高 %.1f m" % [tile.elevation, options.get("rise", 2)]
+		if options.has("kit"): detail += " · " + str(options.kit.name)
+		tile_note.text = "%s · %s\n%s" % [rules.LABELS.get(str(tile.family), "自动模块"), detail, "自由变换会脱离自动拼接；撤销可恢复。" if rules.attached(record) else "独立物件，不再跟随邻居变化。"]
 	for group in ["position", "rotation", "size", "spawn"]:
 		var values: Array = record.get(group, [1, 1, 1] if group == "size" else [0, 0, 0])
+		if multi:
+			var pivot: Vector3 = editor._selection_tools.pivot()
+			values = [pivot.x, pivot.y, pivot.z] if group == "position" else [0, 0, 0]
 		for axis in 3:
 			var value: SpinBox = fields["%s_%d" % [group, axis]]
 			value.editable = not record.is_empty()
@@ -89,12 +134,17 @@ func select(uuid: String) -> void:
 		fields[key].editable = not record.is_empty()
 	var kind := str(record.get("kind", ""))
 	rows["size"][0].text = "缩放倍率" if kind == "asset" else "尺寸 (m)"
+	rows["position"][0].text = "组合中心 (m)" if multi else "位置 (m)"
+	rows["rotation"][0].text = "绕组合中心旋转 (增量 °)" if multi else "旋转 (°)"
+	multi_scale.value = 1.0
 	for key in rows:
 		var show: bool = not record.is_empty()
 		if key in ["line", "hostile", "ally"]: show = kind == "npc"
 		if key == "skills": show = kind == "npc" and bool(record.get("hostile", false))
 		if key == "item_id": show = kind == "gather"
 		if key in ["target_path", "spawn"]: show = kind == "warp"
+		if multi: show = key in ["position", "rotation", "multi_scale"]
+		elif key == "multi_scale": show = false
 		for control in rows[key]: control.visible = show
 	for key in ["hostile", "ally"]: fields[key].button_pressed = bool(record.get(key, false))
 	editor._refresh_selection()
@@ -102,14 +152,21 @@ func select(uuid: String) -> void:
 
 
 func _number_changed(group: String, axis: int, value: float) -> void:
-	if _updating or selection.is_empty() or not is_finite(value):
+	if _updating or editor._load_failed or selection.is_empty() or not is_finite(value):
+		return
+	if editor._selection_tools.ids.size() > 1:
+		editor._selection_tools.transform_numeric(group, axis, value)
 		return
 	var record: Dictionary = editor._doc._find(selection)
 	if record.is_empty():
 		return
-	editor._doc.checkpoint()
 	var values: Array = record.get(group, [0, 0.9, 4] if group == "spawn" else [0, 0, 0]).duplicate()
+	if is_equal_approx(float(values[axis]), value): return
 	values[axis] = value
+	if group in ["position", "rotation", "size"]:
+		editor._selection_tools.set_object_transform(selection, {group: values})
+		return
+	editor._doc.checkpoint()
 	record[group] = values
 	editor._dirty = true
 	editor._rebuild()
@@ -118,7 +175,7 @@ func _number_changed(group: String, axis: int, value: float) -> void:
 func _text_changed(key: String, value: String) -> void:
 	var record: Dictionary = editor._doc._find(selection)
 	var previous := ", ".join(record.get(key, [])) if key == "skills" else str(record.get(key, ""))
-	if _updating or record.is_empty() or previous == value:
+	if _updating or editor._load_failed or editor._selection_tools.ids.size() > 1 or record.is_empty() or previous == value:
 		return
 	editor._doc.checkpoint()
 	if key == "skills":

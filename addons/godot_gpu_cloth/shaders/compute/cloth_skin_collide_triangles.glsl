@@ -32,6 +32,7 @@ layout(push_constant, std430) uniform Params {
     float thickness;
     float pad0;
 };
+layout(set=0,binding=2,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
 
 vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
     vec3 ab = b - a;
@@ -75,6 +76,10 @@ vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
     return a + ab * v + ac * w;
 }
 
+uint next_node(uint node){
+ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
+ return node+1u;
+}
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= particle_count) return;
@@ -84,7 +89,18 @@ void main() {
 
     // No pinned-skip: pinned particles especially need their anchor positions
     // sanitized — they get snapped to skinned_targets directly in predict.
-    for (uint t = 0u; t < tri_count; t++) {
+    uint leaves=tri_count<=8u?1u:1u<<uint(findMSB((tri_count-1u)/8u)+1);
+    uint node=1u;
+    while(node!=0u){
+        bool hit_box=true;
+#ifndef RMMO_EXHAUSTIVE_SANITIZE
+        hit_box=!(any(lessThan(body_bounds[node*2u+1u].xyz,pos-thickness))||any(greaterThan(body_bounds[node*2u].xyz,pos+thickness)));
+#endif
+        if(hit_box&&node<leaves){node*=2u;continue;}
+        uint begin=node>=leaves?(node-leaves)*8u:tri_count;
+        uint limit=hit_box?min(begin+8u,tri_count):begin;
+        node=next_node(node);
+        for(uint t=begin;t<limit;t++){
         vec3 a = tri_verts[t * 3u + 0u].xyz;
         vec3 b = tri_verts[t * 3u + 1u].xyz;
         vec3 c = tri_verts[t * 3u + 2u].xyz;
@@ -102,5 +118,6 @@ void main() {
         }
     }
 
+    }
     skinned_targets[idx] = vec4(pos, w);
 }

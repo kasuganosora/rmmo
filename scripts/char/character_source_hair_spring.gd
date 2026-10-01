@@ -4,8 +4,10 @@ var simulators:Array[SpringBoneSimulator3D]=[]
 var snapshots:Dictionary={}
 var contacts:Array=[]
 var contacts_enabled:=false
+var contact_body:WeakRef
 
 func install_contacts(body:Node3D)->void:
+	contact_body=weakref(body)
 	var path:String=preload("res://scripts/asset/art_paths.gd").path("characters/hair/female_base_v2/body_contacts.json")
 	if not FileAccess.file_exists(path):return
 	var data:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -23,6 +25,9 @@ func install_contacts(body:Node3D)->void:
 
 func set_contacts_enabled(value:bool)->void:
 	contacts_enabled=value
+	if value and contact_body!=null:
+		var body=contact_body.get_ref()
+		if is_instance_valid(body):sync_contacts(body)
 	for simulator in simulators:
 		var shapes:Array=[]
 		for spec:Dictionary in contacts:
@@ -35,7 +40,8 @@ func set_contacts_enabled(value:bool)->void:
 			if value:
 				for j in shapes.size():simulator.set_collision_path(i,j,simulator.get_path_to(shapes[j]))
 
-func sync_contacts(body:Node3D)->void:
+func sync_contacts(body:Node3D,diagnostic_force:bool=false)->void:
+	if not contacts_enabled and not diagnostic_force:return
 	for spec:Dictionary in contacts:
 		var pose:Transform3D=body.solved_bones[spec.bone]
 		var a:Vector3=body.global_transform*(pose*spec.a+body.root_offset)

@@ -1,0 +1,294 @@
+extends RefCounted
+## Paint is record data. Rebuild an instance mesh; never mutate shared source assets.
+const Paths = preload("res://scripts/world3d/map_paths.gd")
+const MAX_TRIANGLES := 50000
+const MAX_OVERRIDES := 128
+static var _textures := {}
+
+static func fail(message: String) -> Dictionary: return {"ok": false, "error": message}
+
+static func numbers(value: Variant, count: int, low: float, high: float) -> bool:
+	if not value is Array or value.size() != count: return false
+	for n in value:
+		if not (n is int or n is float) or not is_finite(float(n)) or n < low or n > high: return false
+	return true
+
+static func material_valid(value: Variant, relative: bool = false) -> bool:
+	if not value is Dictionary or not value.get("name") is String: return false
+	if not numbers(value.get("color"), 4, 0, 1) or not numbers([value.get("roughness")], 1, 0, 1): return false
+	var path: Variant = value.get("texture_path", "")
+	if not path is String: return false
+	if path.is_empty(): return value.get("pattern", "") in ["", "checker"]
+	if path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"]: return false
+	return Paths.allowed(path) or (relative and not path.is_absolute_path() and not path.contains(":") and not ".." in path.replace("\\", "/").split("/"))
+
+static func valid(record: Dictionary, relative: bool = false) -> bool:
+	var entries: Variant = record.get("surface_paint", [])
+	if not entries is Array or entries.size() > MAX_OVERRIDES: return false
+	var seen := {}
+	for entry in entries:
+		if not entry is Dictionary or not entry.get("mesh") is String or not entry.get("geometry") is String: return false
+		if not numbers([entry.get("surface"), entry.get("face")], 2, 0, 1000000): return false
+		if entry.surface != floor(entry.surface) or entry.face != floor(entry.face): return false
+		if not material_valid(entry.get("material"), relative): return false
+		if not numbers(entry.get("scale"), 2, 0.01, 100) or not numbers(entry.get("offset"), 2, -100, 100): return false
+		if not numbers([entry.get("rotation")], 1, -3600, 3600) or entry.get("mapping") not in ["planar", "uv"]: return false
+		var key := face_key(entry)
+		if seen.has(key): return false
+		seen[key] = true
+	return true
+
+static func face_key(entry: Dictionary) -> String:
+	return "%s|%d|%d" % [entry.mesh, entry.surface, entry.face]
+
+static func meshes(root: Node) -> Array[MeshInstance3D]:
+	var result: Array[MeshInstance3D] = []
+	if root is MeshInstance3D and root.mesh != null: result.append(root)
+	for child in root.get_children(): result.append_array(meshes(child))
+	return result
+
+static func source(node: MeshInstance3D) -> Mesh:
+	return node.get_meta("paint_source", node.mesh)
+
+static func _root_of(parents: PackedInt32Array, at: int) -> int:
+	while parents[at] != at: at = parents[at]
+	return at
+
+static func _vertex_key(point: Vector3) -> String:
+	return "%d,%d,%d" % [roundi(point.x * 100000), roundi(point.y * 100000), roundi(point.z * 100000)]
+
+static func geometry(node: MeshInstance3D) -> Dictionary:
+	if node.has_meta("paint_geometry"): return node.get_meta("paint_geometry")
+	var mesh := source(node)
+	if mesh == null or (mesh is ArrayMesh and mesh.get_blend_shape_count() > 0) or node.skin != null: return fail("蒙皮或变形模型暂不支持表面绘制")
+	if mesh.get_surface_count() > 128: return fail("模型材质槽超过 128 个")
+	var surfaces: Array = []
+	for slot in mesh.get_surface_count():
+		if mesh is ArrayMesh and mesh.surface_get_primitive_type(slot) != Mesh.PRIMITIVE_TRIANGLES: return fail("仅支持三角网格表面")
+		var arrays := mesh.surface_get_arrays(slot)
+		if arrays[Mesh.ARRAY_BONES] != null and arrays[Mesh.ARRAY_BONES].size() > 0: return fail("蒙皮模型暂不支持表面绘制")
+		for channel in range(Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM3 + 1):
+			if arrays[channel] != null and arrays[channel].size() > 0: return fail("含自定义顶点通道的模型暂不支持表面绘制")
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if indices.is_empty():
+			for index in vertices.size(): indices.append(index)
+		var count := indices.size() / 3
+		if count > MAX_TRIANGLES or count < 1: return fail("单个材质槽需包含 1–50000 个三角面")
+		var parents := PackedInt32Array()
+		var normals := PackedVector3Array()
+		var origins := PackedVector3Array()
+		var edges := {}
+		for triangle in count:
+			parents.append(triangle)
+			var a := vertices[indices[triangle * 3]]
+			var b := vertices[indices[triangle * 3 + 1]]
+			var c := vertices[indices[triangle * 3 + 2]]
+			var normal := (c - a).cross(b - a).normalized()
+			normals.append(normal); origins.append(a)
+			var points := [_vertex_key(a), _vertex_key(b), _vertex_key(c)]
+			for edge in 3:
+				var x: String = points[edge]
+				var y: String = points[(edge + 1) % 3]
+				var key := x + ";" + y if x < y else y + ";" + x
+				if edges.has(key):
+					var other: int = edges[key]
+					if normal.dot(normals[other]) > 0.99999 and absf(normal.dot(origins[other] - a)) < 0.0001:
+						var p := _root_of(parents, triangle)
+						var q := _root_of(parents, other)
+						parents[maxi(p, q)] = mini(p, q)
+				else: edges[key] = triangle
+		var faces := {}
+		for triangle in count:
+			var face := _root_of(parents, triangle)
+			parents[triangle] = face
+			if not faces.has(face): faces[face] = {"triangles": [], "normal": normals[face], "center": Vector3.ZERO}
+			faces[face].triangles.append(triangle)
+			for corner in 3: faces[face].center += vertices[indices[triangle * 3 + corner]]
+		for face in faces.values(): face.center /= float(face.triangles.size() * 3)
+		var hasher := HashingContext.new()
+		hasher.start(HashingContext.HASH_SHA256); hasher.update(var_to_bytes([vertices, indices]))
+		var signature := "box-v1" if mesh is BoxMesh else hasher.finish().hex_encode()
+		surfaces.append({"arrays": arrays, "indices": indices, "face_for_triangle": parents, "faces": faces, "signature": signature})
+	var result := {"ok": true, "surfaces": surfaces}
+	node.set_meta("paint_geometry", result)
+	return result
+
+static func texture(material: Dictionary) -> Texture2D:
+	var path := str(material.get("texture_path", ""))
+	if not path.is_empty() and (not Paths.allowed(path) or not FileAccess.file_exists(path)): return null
+	var key := path if not path.is_empty() else str(material.get("pattern", ""))
+	if key.is_empty(): return null
+	if _textures.has(key): return _textures[key]
+	var image: Image
+	if key == "checker":
+		image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
+		for y in 64:
+			for x in 64: image.set_pixel(x, y, Color("cba574") if (x / 16 + y / 16) % 2 == 0 else Color("526477"))
+	else:
+		if not Paths.allowed(path) or not FileAccess.file_exists(path): return null
+		image = Image.load_from_file(path)
+		if image == null or image.is_empty() or image.get_width() > 4096 or image.get_height() > 4096: return null
+	image.generate_mipmaps()
+	var result := ImageTexture.create_from_image(image)
+	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
+	_textures[key] = result
+	return result
+
+static func make_material(value: Dictionary) -> StandardMaterial3D:
+	var result := StandardMaterial3D.new()
+	result.resource_name = value.name
+	result.albedo_color = Color(value.color[0], value.color[1], value.color[2], value.color[3])
+	result.roughness = value.roughness
+	result.albedo_texture = texture(value)
+	result.texture_repeat = true
+	if result.albedo_color.a < 1 or (result.albedo_texture != null and result.albedo_texture.get_image().detect_alpha() != Image.ALPHA_NONE): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return result
+
+static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
+	var vertices: PackedVector3Array = data.arrays[Mesh.ARRAY_VERTEX]
+	var uv := PackedVector2Array()
+	var face: Dictionary = data.faces[int(entry.face)]
+	var normal: Vector3 = face.normal
+	var u := (Vector3.RIGHT - normal * normal.x).normalized() if absf(normal.x) < 0.9 else (Vector3.BACK - normal * normal.z).normalized()
+	var v := normal.cross(u).normalized()
+	var low := Vector2(INF, INF)
+	var high := Vector2(-INF, -INF)
+	for triangle in face.triangles:
+		for corner in 3:
+			var vertex := vertices[data.indices[triangle * 3 + corner]]
+			var point := Vector2(vertex.dot(u), vertex.dot(v))
+			low = low.min(point); high = high.max(point)
+	var dimensions := (high - low).max(Vector2(0.00001, 0.00001))
+	var original: Variant = data.arrays[Mesh.ARRAY_TEX_UV]
+	for i in vertices.size():
+		var point: Vector2 = original[i] if entry.mapping == "uv" and original != null and original.size() == vertices.size() else (Vector2(vertices[i].dot(u), vertices[i].dot(v)) - low) / dimensions
+		point = (point - Vector2(0.5, 0.5)).rotated(deg_to_rad(entry.rotation)) * Vector2(entry.scale[0], entry.scale[1]) + Vector2(0.5 + entry.offset[0], 0.5 + entry.offset[1])
+		uv.append(point)
+	return uv
+
+static func _compact(arrays: Array) -> Array:
+	# Keep only referenced vertices; each painted face must not duplicate the whole model.
+	var old_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var unique := PackedInt32Array()
+	var indices := PackedInt32Array()
+	var remap := {}
+	for old in old_indices:
+		if not remap.has(old): remap[old] = unique.size(); unique.append(old)
+		indices.append(remap[old])
+	var count: int = arrays[Mesh.ARRAY_VERTEX].size()
+	var result := arrays.duplicate()
+	for channel in Mesh.ARRAY_INDEX:
+		var values: Variant = arrays[channel]
+		if values == null or values.size() == 0: continue
+		var stride: int = values.size() / count
+		var packed: Variant = values.slice(0, 0)
+		for old in unique:
+			for component in stride: packed.append(values[old * stride + component])
+		result[channel] = packed
+	result[Mesh.ARRAY_INDEX] = indices
+	return result
+
+static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
+	var geo := geometry(node)
+	if not geo.ok: return geo
+	var mesh := source(node)
+	var overrides := {}
+	for entry in entries:
+		var slot := int(entry.surface)
+		if slot >= geo.surfaces.size() or not geo.surfaces[slot].faces.has(int(entry.face)) or geo.surfaces[slot].signature != entry.geometry: return fail("模型几何已改变，请先清除旧面材质再重新绘制")
+		if not str(entry.material.get("texture_path", "")).is_empty() and texture(entry.material) == null: return fail("表面贴图缺失或损坏")
+		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
+		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
+		overrides["%d:%d" % [slot, entry.face]] = entry
+	if mesh.get_surface_count() + entries.size() > 256: return fail("绘制后材质槽超过 256 个，请拆分模型")
+	var output := ArrayMesh.new()
+	for slot in mesh.get_surface_count():
+		var data: Dictionary = geo.surfaces[slot]
+		var groups := {}
+		for triangle in data.face_for_triangle.size():
+			var face: int = data.face_for_triangle[triangle]
+			var key := "%d:%d" % [slot, face]
+			if not overrides.has(key): key = "original"
+			if not groups.has(key): groups[key] = PackedInt32Array()
+			for corner in 3: groups[key].append(data.indices[triangle * 3 + corner])
+		for key in groups:
+			var arrays: Array = data.arrays.duplicate()
+			arrays[Mesh.ARRAY_INDEX] = groups[key]
+			var material: Material = node.get_meta("paint_source_materials")[slot] if node.has_meta("paint_source_materials") else node.get_active_material(slot)
+			if key != "original":
+				arrays[Mesh.ARRAY_TEX_UV] = _uvs(data, overrides[key])
+				# Painted diffuse UVs differ from the source normal-map tangent space.
+				arrays[Mesh.ARRAY_TANGENT] = null
+				var painted := make_material(overrides[key].material)
+				if material is BaseMaterial3D: painted.cull_mode = material.cull_mode
+				material = painted
+			output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _compact(arrays))
+			output.surface_set_material(output.get_surface_count() - 1, material)
+	return {"ok": true, "mesh": output}
+
+static func apply(root: Node3D, record: Dictionary) -> void:
+	if not record.has("surface_paint"): return
+	if not valid(record): root.set_meta("paint_error", "表面材质记录损坏"); return
+	var unresolved: Array = record.surface_paint.duplicate()
+	for node in meshes(root):
+		var path := str(root.get_path_to(node))
+		var entries: Array = record.surface_paint.filter(func(entry): return entry.mesh == path)
+		if entries.is_empty(): continue
+		for entry in entries: unresolved.erase(entry)
+		var result := painted_mesh(node, entries)
+		if not result.ok: root.set_meta("paint_error", result.error); continue
+		var originals: Array = []
+		for slot in node.mesh.get_surface_count(): originals.append(node.get_active_material(slot))
+		node.set_meta("paint_source_materials", originals)
+		node.set_meta("paint_source", node.mesh)
+		node.mesh = result.mesh
+		node.material_override = null
+		for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot, null)
+	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
+
+static func missing(records: Array) -> Array:
+	var paths: Array = []
+	for record in records:
+		for entry in record.get("surface_paint", []):
+			var path := str(entry.material.get("texture_path", ""))
+			if not path.is_empty() and not FileAccess.file_exists(path) and not paths.has(path): paths.append(path)
+	return paths
+
+static func _face_shape(data: Dictionary, face: int) -> Array:
+	# Import/export can reorder or weld vertices. Compare actual triangles at fixed precision.
+	var triangles: Array = []
+	var vertices: PackedVector3Array = data.arrays[Mesh.ARRAY_VERTEX]
+	for triangle in data.faces[face].triangles:
+		var points: Array = []
+		for corner in 3: points.append(_vertex_key(vertices[data.indices[triangle * 3 + corner]]))
+		points.sort(); triangles.append(";".join(points))
+	triangles.sort()
+	return triangles
+
+static func remap(entries: Array, before: Node3D, after: Node3D) -> Dictionary:
+	var result: Array = []
+	var old_meshes := {}; var new_meshes := {}
+	for node in meshes(before): old_meshes[str(before.get_path_to(node))] = node
+	for node in meshes(after): new_meshes[str(after.get_path_to(node))] = node
+	for entry in entries:
+		if not old_meshes.has(entry.mesh) or not new_meshes.has(entry.mesh): return fail("打包模型的节点结构改变，无法匹配已绘制表面")
+		var old_geo := geometry(old_meshes[entry.mesh])
+		var new_geo := geometry(new_meshes[entry.mesh])
+		if not old_geo.ok or not new_geo.ok: return fail("模型网格不支持材质重映射")
+		var slot := int(entry.surface)
+		if slot >= old_geo.surfaces.size() or not old_geo.surfaces[slot].faces.has(int(entry.face)) or old_geo.surfaces[slot].signature != entry.geometry: return fail("原模型表面已变化")
+		var old_data: Dictionary = old_geo.surfaces[slot]
+		var shape := _face_shape(old_data, int(entry.face))
+		var matches: Array = []
+		for new_slot in new_geo.surfaces.size():
+			var data: Dictionary = new_geo.surfaces[new_slot]
+			for face in data.faces:
+				if data.faces[face].triangles.size() != old_data.faces[int(entry.face)].triangles.size(): continue
+				if data.faces[face].normal.dot(old_data.faces[int(entry.face)].normal) < 0.99999: continue
+				if _face_shape(data, face) == shape: matches.append({"surface": new_slot, "face": face, "geometry": data.signature})
+		if matches.size() != 1: return fail("打包模型的表面匹配不唯一，预制件未保存")
+		var copy: Dictionary = entry.duplicate(true)
+		copy.merge(matches[0], true)
+		result.append(copy)
+	return {"ok": true, "entries": result}

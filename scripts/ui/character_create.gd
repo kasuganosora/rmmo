@@ -220,6 +220,13 @@ func _add_imported_customization_controls()->void:
 	var restore:=Button.new();restore.text="默认";restore.pressed.connect(func():slider.value=50);row.add_child(restore)
 
 func _add_native_shape_controls()->void:
+	var reset_all:=Button.new();reset_all.name="ResetBodyShapes";reset_all.text="重置全部体型参数"
+	slot_list.add_child(reset_all)
+	reset_all.pressed.connect(func():
+		_custom.body_shapes.clear()
+		_sync_native_shape_controls()
+		_recompose()
+	)
 	var names:Dictionary={"bust_size":"胸部大小","waist_width":"腰部宽度","hip_size":"臀部大小","nose_width":"鼻部宽度","height":"身高（相对默认）"}
 	for key:String in names:
 		var label:=Label.new();label.text=names[key];slot_list.add_child(label)
@@ -240,6 +247,15 @@ func _add_native_shape_controls()->void:
 		)
 		var reset:=Button.new();reset.text="默认";reset.pressed.connect(func():slider.value=0);row.add_child(reset)
 
+
+func _sync_native_shape_controls()->void:
+	for key:String in Customization.Shapes.RANGES:
+		var slider:=slot_list.find_child("Shape_"+key,true,false) as HSlider
+		if slider==null:continue
+		var direction:float=-1.0 if key=="height" else 1.0
+		slider.set_value_no_signal(float(_custom.body_shapes.get(key,0))*100*direction)
+		var label:=slider.get_parent().get_child(1) as Label
+		if label:label.text=str(int(slider.value))
 
 func _fill_selected_slot_icons(token: int) -> void:
 	if token != _thumb_token:
@@ -526,6 +542,10 @@ func _sync_customization_ui() -> void:
 
 func _on_random() -> void:
 	_custom.randomize_colors()
+	if _custom.body_model=="female_base_v2":
+		var rng:=RandomNumberGenerator.new();rng.randomize()
+		_custom.body_shapes=Customization.Shapes.random_values(rng)
+		_sync_native_shape_controls()
 	_custom.cloth_on=false
 	_part_ids = MV.random_parts(_gender)
 	if CharacterView3D.enabled():_part_ids={"Body":1,"FrontHair1":([10,11,12,13,14,15].pick_random() if _gender in ["male","female"] else randi_range(1,2)),"Eyes":1}

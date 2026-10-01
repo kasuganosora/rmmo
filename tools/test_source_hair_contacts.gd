@@ -18,6 +18,9 @@ func run()->void:
 			var phase:float=clampf((frame-20)/40.0,0,1)*TAU
 			pose.head=Vector3(20*sin(phase),35*sin(phase),0)
 			body.set_angles(pose)
+			# Negative-control measurement still needs current collider geometry,
+			# even though production skips updates for disabled contacts.
+			spring.sync_contacts(body,true)
 			await process_frame
 			if frame<20:continue
 			for simulator:SpringBoneSimulator3D in spring.simulators:

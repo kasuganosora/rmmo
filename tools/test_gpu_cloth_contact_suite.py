@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from art_paths import review_path
+from run_godot_background import run_background
 
 
 def main():
@@ -42,7 +43,7 @@ def main():
     for name, script, flags, negative in cases:
         command = [args.godot, '--path', str(root), '--script', f'res://tools/test_gpu_cloth_{script}.gd', '--', *flags]
         try:
-            run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+            run = run_background(command, cwd=root, timeout=120)
             output = run.stdout.decode('utf-8', errors='replace')
             ok = (run.returncode != 0 and negative in output) if negative else (run.returncode == 0 and 'PASS ' in output and 'ERROR:' not in output)
             ok = ok and 'Parse Error' not in output and 'Stale shader' not in output

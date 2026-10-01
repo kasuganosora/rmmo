@@ -30,6 +30,27 @@ static func save_scene(root: Node, gltf_path: String) -> Error:
 # Test-only interruption hook; production leaves it empty.
 static var save_fault: Callable
 
+static func decode_dependency_uri(uri: String) -> String:
+	# Godot's decoder expects uppercase escapes. Normalize valid pairs first so
+	# lowercase escapes cannot hide an absolute path from the containment checks.
+	var normalized := ""
+	var index := 0
+	while index < uri.length():
+		if uri[index] == "%":
+			if index + 2 >= uri.length(): return ""
+			var pair := uri.substr(index + 1, 2).to_upper()
+			if not pair[0] in "0123456789ABCDEF" or not pair[1] in "0123456789ABCDEF": return ""
+			normalized += "%" + pair
+			index += 3
+		else:
+			normalized += uri[index]
+			index += 1
+	var decoded := normalized.uri_decode().replace("\\", "/")
+	if decoded.is_absolute_path() or decoded.contains(":") or decoded.contains("%"): return ""
+	for character in decoded.length():
+		if decoded.unicode_at(character) < 32: return ""
+	return decoded
+
 static func save_scene_atomic(root: Node, gltf_path: String, expected_signature: Variant = null) -> Error:
 	if root == null or gltf_path.is_empty(): return ERR_INVALID_PARAMETER
 	gltf_path = ProjectSettings.globalize_path(gltf_path).simplify_path()
@@ -103,9 +124,11 @@ static func _save_version(root: Node, gltf_path: String) -> Error:
 			for item in parsed.get(section, []):
 				var uri := str(item.get("uri", ""))
 				if uri.is_empty() or uri.begins_with("data:"): continue
-				if uri.is_absolute_path() or uri.contains(":") or ".." in uri.split("/"): return ERR_INVALID_DATA
-				if not FileAccess.file_exists(staging.path_join(uri)): return ERR_FILE_NOT_FOUND
-				item["uri"] = relative + "/" + uri
+				# Godot emits percent-encoded image URIs, including the textures/ separator.
+				var dependency := decode_dependency_uri(uri)
+				if dependency.is_empty() or ".." in dependency.split("/"): return ERR_INVALID_DATA
+				if not FileAccess.file_exists(staging.path_join(dependency)): return ERR_FILE_NOT_FOUND
+				item["uri"] = (relative + "/" + dependency).uri_encode()
 		var file := FileAccess.open(staged, FileAccess.WRITE)
 		if file == null: return FileAccess.get_open_error()
 		file.store_string(JSON.stringify(parsed))
@@ -131,8 +154,10 @@ static func _buffer_uris(gltf_path: String) -> PackedStringArray:
 			var uri := str(item.get("uri", ""))
 			if uri.is_empty() or uri.begins_with("data:") or uri.contains("://"):
 				continue
-			if not uris.has(uri):
-				uris.append(uri)
+			var dependency := decode_dependency_uri(uri)
+			if dependency.is_empty(): continue
+			if not uris.has(dependency):
+				uris.append(dependency)
 	return uris
 
 

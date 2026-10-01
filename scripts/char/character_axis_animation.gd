@@ -80,8 +80,7 @@ func apply(body:Node3D,clip:StringName,time:float)->bool:
 	references.merge(body.apply_expression_bones(),true)
 	if not body.sync_final_pose(references):return false
 	if rest_weight>0:
-		var lowest:=INF
-		for p:Vector3 in body.posed_points:lowest=minf(lowest,p.y)
+		var lowest:float=body.surface_min_y
 		visual_offset=visual_offset.lerp(Vector3(0,support_height-lowest-body.root_offset.y,0),rest_weight)
 	visual_offset=apply_support(body,visual_offset)
 	return true
@@ -90,8 +89,7 @@ func apply_support(body:Node3D,offset:Vector3)->Vector3:
 	authored_offset=offset
 	support_adjustment=0.0
 	if support_enabled:
-		var lowest:=INF
-		for point:Vector3 in body.posed_points:lowest=minf(lowest,point.y)
+		var lowest:float=body.surface_min_y
 		# Only lift a penetrating surface. Snapping every frame to the floor
 		# would erase genuine airborne phases and change the source action.
 		support_adjustment=maxf(0.0,support_height-lowest-body.root_offset.y-offset.y)
@@ -117,3 +115,23 @@ func _relax_idle(sk:Skeleton3D)->void:
 			for segment:int in range(1,4):
 				var bone:int=sk.find_bone(side+finger+str(segment))
 				sk.set_bone_pose_rotation(bone,sk.get_bone_rest(bone).basis.get_rotation_quaternion().slerp(sk.get_bone_pose_rotation(bone),.25))
+
+func reference_position(skeleton:Skeleton3D,clip:StringName,bone_name:String)->Vector3:
+	# Sample authored FK without posing the visible body or emitting surface updates.
+	var animation:Animation=library.get_animation(clip)
+	var poses:Array[Transform3D]=[]
+	for i in skeleton.get_bone_count():poses.append(skeleton.get_bone_rest(i))
+	var offset:=Vector3.ZERO
+	for track in animation.get_track_count():
+		var path:NodePath=animation.track_get_path(track)
+		if animation.track_get_type(track)==Animation.TYPE_ROTATION_3D:
+			var index:int=skeleton.find_bone(path.get_subname(0))
+			poses[index].basis=Basis(animation.rotation_track_interpolate(track,0))
+		elif animation.track_get_type(track)==Animation.TYPE_POSITION_3D and path==NodePath("VisualRoot:position"):
+			offset=animation.position_track_interpolate(track,0)
+	var index:int=skeleton.find_bone(bone_name)
+	var result:Transform3D=poses[index]
+	index=skeleton.get_bone_parent(index)
+	while index>=0:
+		result=poses[index]*result;index=skeleton.get_bone_parent(index)
+	return result.origin+offset

@@ -1,4 +1,5 @@
 extends Node3D
+signal identity_shapes_changed
 const Shapes = preload("res://scripts/char/character_mesh_shapes.gd")
 const ImportedRig = preload("res://scripts/char/character_imported_rig.gd")
 const AxisRig = preload("res://scripts/char/character_axis_rig.gd")
@@ -22,6 +23,7 @@ var locomotion_rate:=1.0
 var body_type := "male"
 var appearance := {}
 var equipment := {}
+var auto_configure:=true
 var rig: Node3D
 var imported_rig:RefCounted
 var axis_rig:RefCounted
@@ -38,7 +40,7 @@ var _expression_time:=0.0
 var _expression_duration:=0.0
 
 func _ready()->void:
-	configure(body_type,appearance,equipment)
+	if auto_configure:configure(body_type,appearance,equipment)
 
 func set_expressions(values:Dictionary)->bool:
 	if axis_rig==null or not axis_rig.body.set_expressions(values):return false
@@ -92,6 +94,10 @@ func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
 		set_equipment(parts)
 		return
 	body_type=gender;appearance=custom.duplicate(true);equipment=parts.duplicate(true)
+	# A replacement rig cannot inherit clips or blending state from its predecessor.
+	action="idle";elapsed=0.0;animation_clip=""
+	_blend_elapsed=0.0;locomotion_rate=1.0
+	if rig!=null:identity_shapes_changed.emit()
 	_expression_duration=0.0;_expression_time=0.0
 	_expression_from.clear();_expression_target.clear()
 	if rig != null:

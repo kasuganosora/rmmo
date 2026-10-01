@@ -15,13 +15,18 @@
 // the denominator collapses to (w_a + w_b + α̃). α = 0 ⇒ ideal-rigid PBD-
 // equivalent correction with no λ drift.
 
+#ifdef RMMO_BATCHED_SOLVE
+layout(local_size_x = 256) in;
+layout(set=0,binding=9,std430) readonly buffer Groups {uvec2 groups[];};
+#else
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#endif
 
-layout(set = 0, binding = 1, std430) restrict buffer Predicted          { vec4 predicted[];   };
+layout(set = 0, binding = 1, std430) coherent restrict buffer Predicted          { vec4 predicted[];   };
 layout(set = 0, binding = 3, std430) restrict readonly buffer Constraints { vec4 constraints[]; };
 // Per-constraint λ. Written every iter; effectively cleared on iter 0 by the
 // reset bit in constraint_offset_packed (avoids a separate clear pass).
-layout(set = 0, binding = 8, std430) restrict buffer Lambdas            { float lambdas[];    };
+layout(set = 0, binding = 8, std430) coherent restrict buffer Lambdas            { float lambdas[];    };
 
 layout(push_constant, std430) uniform Params {
     float dt;
@@ -42,13 +47,7 @@ layout(push_constant, std430) uniform Params {
     float pad_gy, pad_gz, pad_g1, pad_g2;
 };
 
-void main() {
-    uint idx = gl_GlobalInvocationID.x;
-    if (idx >= constraint_count) return;
-
-    uint reset_lambda = constraint_offset_packed >> 31u;
-    uint cidx         = (constraint_offset_packed & 0x7FFFFFFFu) + idx;
-
+void solve_constraint(uint cidx,uint reset_lambda) {
     uint  a          = uint(constraints[cidx].x);
     uint  b          = uint(constraints[cidx].y);
     float rest       = constraints[cidx].z;
@@ -76,4 +75,21 @@ void main() {
     vec3 corr = n * dlambda;
     predicted[a] = vec4(pa - corr * wa, wa);
     predicted[b] = vec4(pb + corr * wb, wb);
+}
+
+void main(){
+#ifdef RMMO_BATCHED_SOLVE
+    // One workgroup owns the entire cloth. Within each graph color endpoints
+    // are disjoint; all threads publish their writes before the next color.
+    for(uint color=0u;color<constraint_count;color++){
+        uvec2 group=groups[color];
+        for(uint index=gl_LocalInvocationID.x;index<group.y;index+=256u)
+            solve_constraint(group.x+index,constraint_offset_packed>>31u);
+        memoryBarrierBuffer();barrier();
+    }
+#else
+    uint index=gl_GlobalInvocationID.x;
+    if(index<constraint_count)
+        solve_constraint((constraint_offset_packed&0x7fffffffu)+index,constraint_offset_packed>>31u);
+#endif
 }

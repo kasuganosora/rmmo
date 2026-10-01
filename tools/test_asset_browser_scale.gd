@@ -66,7 +66,9 @@ func run() -> void:
 	editor._refresh_palette()
 	var elapsed := Time.get_ticks_usec() - start
 	await settle(40)
-	check(editor._palette.item_count == 10005, "10,000 assets remain searchable without creating 10,000 UI nodes")
+	var shared_count := 0
+	for shared in editor._shared_assets: shared_count += shared.entries.size()
+	check(editor._palette.item_count == 10000 + preload("res://scripts/world3d/world_modules.gd").all().size() + shared_count, "10,000 assets remain searchable without creating 10,000 UI nodes")
 	check(editor._palette._pool.size() <= 36, "virtual grid bounds live controls to viewport and buffer rows")
 	print("METRIC 10000 metadata refresh_ms=", elapsed / 1000.0, " live_tiles=", editor._palette._pool.size())
 	var peak := 0
@@ -85,7 +87,7 @@ func run() -> void:
 	check(editor._pick == visible_index and editor._selected().asset_path == editor._palette_items[visible_index].asset_path, "recycled tile selects the correct global asset after scrolling")
 	editor._palette.scroll_vertical = 0
 	await settle(40)
-	check(editor._palette.get_item_icon(5) != editor._thumbnails.placeholder, "scrolling back reloads thumbnail from pack PNG")
+	check(editor._palette.get_item_icon(preload("res://scripts/world3d/world_modules.gd").all().size()) != editor._thumbnails.placeholder, "scrolling back reloads thumbnail from pack PNG")
 	start = Time.get_ticks_usec()
 	for i in 10000: editor._selected()
 	print("METRIC 10000 selected lookups_ms=", (Time.get_ticks_usec() - start) / 1000.0)

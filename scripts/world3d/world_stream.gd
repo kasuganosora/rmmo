@@ -330,6 +330,7 @@ static func _make_body(host: Node, spec: Dictionary) -> StaticBody3D:
 	body.set_meta("npc_id", str(extras.get("npc_id", "")))
 	body.set_meta("node_id", str(extras.get("node_id", "")))
 	body.set_meta("line", str(extras.get("line", "")))
+	if extras.get("seat") is Dictionary:body.set_meta("seat",extras.seat.duplicate(true))
 	var position: Vector3 = spec.get("position", Vector3.ZERO)
 	body.set_meta("center", position)
 	body.position = position

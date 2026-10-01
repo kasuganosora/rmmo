@@ -82,6 +82,7 @@ func in_range(id: String, range_units: int) -> bool:
 	return hit.is_empty() or str(hit.collider.get_meta("uuid", "")) == id
 
 func attack(id: String) -> Dictionary:
+	if world.furniture.active():world.furniture.cancel()
 	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	if not targets.has(id): return {"ok": false, "actions": []}
@@ -92,6 +93,7 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
+	if world.furniture.active():world.furniture.cancel()
 	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine

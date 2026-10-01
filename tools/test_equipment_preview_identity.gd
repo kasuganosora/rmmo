@@ -24,7 +24,7 @@ func run()->void:
   assert(body.posed_points==points,"Equipment UI refresh changed current pose")
  assert(view.model.axis_rig.wardrobe.slots.size()==2)
  await RenderingServer.frame_post_draw
- var folder:String=preload("res://scripts/asset/art_paths.gd").review_path("character_3d/equipment_preview_01")
+ var folder:String=preload("res://scripts/asset/art_paths.gd").review_path("character_3d/equipment_preview_02")
  DirAccess.make_dir_recursive_absolute(folder)
  var rendered:Image=view.viewport.get_texture().get_image()
  var covered:=0
@@ -56,6 +56,26 @@ func run()->void:
  assert(server.try_unequip_item("weapon_main").ok)
  hud.apply_equipment_snapshot(server.equipment.snapshot(),server.equipment.total_bonuses())
  assert(not view.model.axis_rig.twohand.bridge.modifier.active and not view.model.axis_rig.weapon.visible)
+ view.model.set_process(true)
+ for cycle in 3:
+  hud._windows.character.hide()
+  var paused_time:float=view.model.elapsed
+  for frame in 4:await process_frame
+  assert(view.model.elapsed==paused_time and not view.model.can_process(),"Hidden preview keeps animating")
+  assert(view.viewport.render_target_update_mode==SubViewport.UPDATE_DISABLED)
+  hud._windows.character.show()
+  for frame in 4:await process_frame
+  assert(view.model.elapsed>paused_time and view.model.can_process(),"Reopened preview did not resume")
+  assert(view.model.get_instance_id()==model_id and body.get_instance_id()==body_id)
+ view.model.set_process(false)
+ view.hide()
+ assert(not view.model.can_process())
+ view.show()
+ assert(not view.model.is_processing(),"Visibility overwrote caller's manual pause")
+ var disposable_owner:=Control.new();root.add_child(disposable_owner)
+ view.set_activity_owner(disposable_owner);disposable_owner.free()
+ for frame in 3:await process_frame
+ assert(not view.model.can_process(),"Freed presentation owner leaves preview active")
  hud.free()
  for frame in 3:await process_frame
  assert(not is_instance_valid(view),"HUD preview actor leaked on close")

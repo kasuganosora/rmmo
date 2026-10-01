@@ -46,6 +46,7 @@ var prepared_world3d: Node = null
 var world3d_loading := false
 var world3d_requested := false
 var pending_world3d_playtest := false
+var editor_playtest: Node
 
 
 func world_scene() -> String:
@@ -68,6 +69,7 @@ func world3d_travel():
 	return travel
 
 func go_login() -> void:
+	if is_instance_valid(editor_playtest): editor_playtest.stop(); return
 	world3d_requested = false
 	pending_world3d_playtest = false
 	clear_prepared_world3d()
@@ -81,6 +83,7 @@ func go_login() -> void:
 	get_tree().change_scene_to_file(SCENE_LOGIN)
 
 func go_character_select() -> void:
+	if is_instance_valid(editor_playtest): editor_playtest.stop(); return
 	get_tree().change_scene_to_file(SCENE_CHAR)
 
 func go_character_create() -> void:
@@ -182,6 +185,7 @@ func go_world_3d() -> void:
 	go_loading()
 
 func go_world_editor() -> void:
+	if is_instance_valid(editor_playtest): editor_playtest.stop(); return
 	get_tree().change_scene_to_file(SCENE_WORLD_EDITOR)
 
 func go_content_editor() -> void:

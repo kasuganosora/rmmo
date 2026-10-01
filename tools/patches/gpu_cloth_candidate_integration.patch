@@ -1,7 +1,7 @@
 diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
 --- a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
 +++ b/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd
-@@ -18,6 +18,86 @@
+@@ -18,6 +18,156 @@
  # Hazards honored: 1 (welded-space adjacency), 2 (skeleton-local colliders),
  # 3 (fork's 48 B bone-matrix encoding), 5 (fishing on predicted, mid-substep,
  # no velocity-damp), 8 (RID cleanup via render-thread callable).
@@ -27,6 +27,9 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +## Diagnostic only. Copies states without projecting or changing solver input.
 +var review_stage_trace := false
 +var review_trace_active := false
++var review_gpu_timing := false
++var review_gpu_ticks:Dictionary={}
++var review_render_submit_ms:=0.0
 +var review_stage_labels: Array[String] = []
 +var _review_trace_buffer: RID
 +var _review_trace_uniform: RID
@@ -49,6 +52,49 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +var _self_swept_pipeline: RID
 +var _self_snapshot_push := PackedByteArray()
 +var external_reverse_contacts := false
++## Conservative full-frame bounds; false retains exhaustive scans for parity tests.
++var body_block_broadphase := true
++## 2048 IDs + count + 6 cached-bound words per query; overflow uses full search.
++## Fixed before initialization; never truncate exact collision candidates.
++var contact_candidate_lists:=true
++static var default_substep_candidates:=true
++var substep_candidates:=default_substep_candidates
++static var default_adaptive_candidates:=true
++var adaptive_candidates:=default_adaptive_candidates
++## Search-envelope heuristic only; never changes collision thickness or precision.
++static var default_candidate_motion_threshold_m:=0.08
++var candidate_motion_threshold_m:=default_candidate_motion_threshold_m
++static var default_combined_contacts:=true
++var combined_contacts:=default_combined_contacts
++var _candidate_shader:RID
++var _candidate_pipeline:RID
++var _candidate_forward_uniform:RID
++var _candidate_reverse_uniform:RID
++var _forward_candidates:RID
++var _reverse_candidates:RID
++var _forward_narrow_shader:RID
++var _forward_narrow_pipeline:RID
++var _forward_narrow_uniform:RID
++var _reverse_narrow_shader:RID
++var _reverse_narrow_pipeline:RID
++var _reverse_narrow_uniform:RID
++var external_collision_order:=PackedInt32Array()
++var _body_order:RID
++var _body_bounds: RID
++var _body_bounds_shader: RID
++var _body_bounds_pipeline: RID
++var _body_bounds_uniform: RID
++var _body_bounds_push := PackedByteArray()
++## Conservative cache envelope only; contact thickness and CCD are unchanged.
++static var default_candidate_padding:=0.012
++var candidate_padding:=default_candidate_padding
++static var default_substep_tree_refit:=false
++var substep_tree_refit:=default_substep_tree_refit
++static var default_candidate_group_size:=64
++var candidate_group_size:=default_candidate_group_size
++static var default_cooperative_candidates:=true
++var cooperative_candidates:=default_cooperative_candidates
++var _body_bounds_count := 0
 +var external_collision_vertices := PackedInt32Array()
 +var external_collision_edges := PackedInt32Array()
 +var _reverse_edge_buffer: RID
@@ -65,6 +111,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +var _external_frame_ready: bool = false
 +var _external_targets := PackedByteArray()
 +var _external_triangles := PackedByteArray()
++var _external_resident_packet:RefCounted
 +var _external_triangle_count_at_init: int = -1
 +
 +func set_external_frame(targets: PackedVector3Array, triangles: PackedVector3Array) -> bool:
@@ -77,18 +124,41 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +	for i in external_triangle_count:
 +		if (triangles[i*3+1]-triangles[i*3]).cross(triangles[i*3+2]-triangles[i*3]).length_squared() < 1e-16:
 +			return false
-+	var target_data := PackedFloat32Array()
-+	for point in targets: target_data.append_array(PackedFloat32Array([point.x,point.y,point.z,1.0]))
-+	var triangle_data := PackedFloat32Array()
-+	for point in triangles: triangle_data.append_array(PackedFloat32Array([point.x,point.y,point.z,0.0]))
++	# One contiguous vec4 array per packet; avoid a temporary float array for
++	# every collider vertex. Layout and validation are identical to the GPU ABI.
++	var target_data := PackedVector4Array()
++	target_data.resize(targets.size())
++	for i in targets.size():
++		var point := targets[i]
++		target_data[i] = Vector4(point.x, point.y, point.z, 1.0)
++	var triangle_data := PackedVector4Array()
++	triangle_data.resize(triangles.size())
++	for i in triangles.size():
++		var point := triangles[i]
++		triangle_data[i] = Vector4(point.x, point.y, point.z, 0.0)
 +	_external_targets = target_data.to_byte_array()
 +	_external_triangles = triangle_data.to_byte_array()
++	_external_resident_packet=null
 +	_external_frame_ready = true
 +	return true
++
++## Same-frame indexed packets remain atomic after GPU validation.
++func set_indexed_external_frame(targets:PackedVector3Array, packet:RefCounted, points:PackedVector3Array, offset:Vector3, extras:PackedVector3Array)->bool:
++	if not external_surface_input or _use_skinning or _particle_count<=0 or external_triangle_count!=_external_triangle_count_at_init or targets.size()!=_particle_count:return false
++	if packet.topology.size()+extras.size()!=external_triangle_count*3:return false
++	var data:=PackedVector4Array();data.resize(targets.size())
++	for i in targets.size():
++		var p:=targets[i]
++		if not p.is_finite():return false
++		data[i]=Vector4(p.x,p.y,p.z,1)
++	if not packet.build(points,offset,extras):return false
++	_external_targets=data.to_byte_array();_external_triangles=packet.output
++	_external_resident_packet=packet if packet.has_method("is_gpu_resident") else null
++	_external_frame_ready=true;return true
  
  @export_group("Mesh Input")
  ## MeshInstance3D whose mesh and skeleton drive the simulation.
-@@ -71,6 +151,10 @@
+@@ -71,6 +221,10 @@
  ## Bending constraints from edge-shared triangle pairs. Off = only structural
  ## (edge-length) constraints; cloth will be very droopy.
  @export var bending_from_topology: bool = true
@@ -99,16 +169,27 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  ## Velocity multiplier applied each substep. 1.0 = no damping (energy never
  ## dissipates, cloth oscillates forever), 0.0 = velocity zeroed every substep
  ## (effectively static). 0.99 is a typical garment value; lower for "wet" or
-@@ -499,6 +583,8 @@
+@@ -411,6 +565,10 @@
+ 
+ var _skin_pipeline: RID
+ var _predict_pipeline: RID
++## Diagnostic default must be selected before creating a solver.
++static var default_batched_structure:=true
++var batched_structure:=default_batched_structure
++var _constraint_group_buffer:RID
+ var _solve_pipeline: RID
+ var _update_pipeline: RID
+ var _collide_pipeline: RID
+@@ -499,6 +657,8 @@
  var _collider_tris: Array = []
  var _collider_tri_bytes: PackedByteArray
  var _collider_tri_buffer: RID
 +var _previous_collider_tri_buffer: RID
-+var _last_gpu_tri_bytes := PackedByteArray()
++var _last_gpu_tri_size:=0
  var _collide_tris_shader: RID
  var _collide_tris_pipeline: RID
  var _collide_tris_uniform_set: RID
-@@ -587,8 +673,7 @@
+@@ -587,8 +747,7 @@
  	if Engine.is_editor_hint() or not _gpu_init_done:
  		return
  	if _needs_warm_start:
@@ -118,7 +199,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  		return
  	_simulate(delta)
  	if debug_show_particles or debug_show_colliders or debug_show_peer_proxy:
-@@ -612,9 +697,16 @@
+@@ -612,9 +771,19 @@
  	if not _gpu_init_done:
  		return
  	_gpu_init_done = false
@@ -130,12 +211,15 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	# Capture every RID into a list so the lambda stays safe after this node is freed.
  	# Hazard 8 — every free_rid must run on the render thread that owns the main RD.
  	var rids: Array = [
++		_candidate_pipeline,_candidate_shader,_forward_candidates,_reverse_candidates,
++		_forward_narrow_pipeline,_forward_narrow_shader,_reverse_narrow_pipeline,_reverse_narrow_shader,
++		_body_order, _body_bounds, _body_bounds_pipeline, _body_bounds_shader,
 +		_self_neighbor_counts, _self_neighbor_offsets, _self_neighbors, _self_edges, _self_reactions, _review_trace_buffer, _body_contact_directions,
 +		_self_previous, _self_snapshot, _self_snapshot_pipeline, _self_swept_pipeline, _self_snapshot_shader, _self_swept_shader,
  		_positions_buffer, _predicted_buffer, _velocities_buffer,
  		_constraints_buffer, _colliders_buffer,
  		_rest_positions_buffer, _bone_indices_buffer, _bone_weights_skin_buffer,
-@@ -626,12 +718,10 @@
+@@ -626,13 +795,11 @@
  		_lambda_buffer,
  		_positions_img_rid, _normals_img_rid,
  		_collider_tri_buffer,
@@ -145,20 +229,24 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 -		_fishing_uniform_set, _pin_override_uniform_set,
 -		_skin_collide_uniform_set, _collide_tris_uniform_set, _skin_collide_tris_uniform_set,
 -		_self_collide_uniform_set,
+-		_skin_pipeline, _predict_pipeline, _solve_pipeline,
 +		_previous_collider_tri_buffer,
 +		_previous_targets_buffer,
 +		_reverse_vertex_buffer, _reverse_corrections, _reverse_edge_buffer,
 +		_reverse_pipeline, _reverse_shader, _gather_pipeline, _gather_shader,
- 		_skin_pipeline, _predict_pipeline, _solve_pipeline,
++		_skin_pipeline, _predict_pipeline, _solve_pipeline, _constraint_group_buffer,
  		_update_pipeline, _collide_pipeline, _warm_start_pipeline,
  		_normals_pipeline, _output_pipeline,
-@@ -644,6 +734,17 @@
+ 		_fishing_pipeline, _pin_override_pipeline,
+@@ -644,6 +811,19 @@
  		_fishing_shader, _pin_override_shader,
  		_skin_collide_shader, _collide_tris_shader, _skin_collide_tris_shader,
  		_peer_collide_shader, _peer_skin_collide_shader,
 +	]
 +	# Release dependent sets before their buffers invalidate them.
 +	var uniform_rids: Array = [
++		_candidate_forward_uniform,_candidate_reverse_uniform,_forward_narrow_uniform,_reverse_narrow_uniform,
++		_body_bounds_uniform,
 +		_self_previous_uniform, _self_snapshot_uniform, _review_trace_uniform, _body_directions_clear,
 +		_reverse_uniform, _gather_uniform,
 +		_skin_uniform_set, _predict_uniform_set, _solve_uniform_set,
@@ -170,7 +258,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	]
  	# Per-peer uniform sets reference RIDs we don't own (the peer's
  	# positions/indices buffers). When the peer's _exit_tree runs first, the
-@@ -660,13 +761,16 @@
+@@ -660,13 +840,16 @@
  		if not peer_alive:
  			continue
  		if p.uniform_set.is_valid():
@@ -189,7 +277,16 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  		for rid: RID in rids:
  			if rid.is_valid():
  				rd.free_rid(rid)
-@@ -1167,6 +1271,11 @@
+@@ -700,6 +883,8 @@
+ # ---------------------------------------------------------------------------
+ 
+ func _initialize() -> void:
++	# The diagnostic exhaustive switch must also bypass cached candidate search.
++	contact_candidate_lists = contact_candidate_lists and body_block_broadphase
+ 	# Resolve nodes
+ 	_mesh_instance_node = get_node_or_null(target_mesh) as MeshInstance3D
+ 	if not _mesh_instance_node:
+@@ -1167,6 +1352,11 @@
  		else:
  			_build_collider_mesh()
  
@@ -201,7 +298,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	_collider_count = _colliders.size() + _auto_colliders.size() + _auto_spheres.size()
  	print("[GPUCloth] Colliders: %d manual + %d auto-capsule + %d body-sphere = %d total, plus %d mesh-collider tris" % [
  		_colliders.size(), _auto_colliders.size(), _auto_spheres.size(), _collider_count, _collider_tris.size()])
-@@ -1345,7 +1454,7 @@
+@@ -1345,7 +1535,7 @@
  	# Skinned mesh collider push constant and per-frame skinned-vert byte buffer.
  	# 3 vec4 per triangle = 48 bytes per triangle. Reused each frame.
  	if _collider_tris.size() > 0:
@@ -210,15 +307,19 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  		_collide_tris_push.encode_u32(0, _particle_count)
  		_collide_tris_push.encode_u32(4, _collider_tris.size())
  		_collide_tris_push.encode_float(8, body_collider_thickness)
-@@ -1405,6 +1514,7 @@
+@@ -1403,8 +1593,11 @@
+ 
+ func _gpu_do_init(init_data: Dictionary) -> void:
  	_rd = RenderingServer.get_rendering_device()
++	if mini(_rd.limit_get(RenderingDevice.LIMIT_MAX_COMPUTE_WORKGROUP_INVOCATIONS),_rd.limit_get(RenderingDevice.LIMIT_MAX_COMPUTE_WORKGROUP_SIZE_X))<256:
++		batched_structure=false
  
  	var pos_bytes:          PackedByteArray = init_data["pos_bytes"]
 +	_body_contact_directions = _rd.storage_buffer_create(pos_bytes.size()*2)
  	var rest_bytes:         PackedByteArray = init_data["rest_bytes"]
  	var vel_bytes:          PackedByteArray = init_data["vel_bytes"]
  	var con_bytes:          PackedByteArray = init_data["con_bytes"]
-@@ -1423,6 +1533,14 @@
+@@ -1423,6 +1616,14 @@
  	var pin_override_bytes: PackedByteArray = init_data["pin_override_bytes"]
  
  	# ── Storage buffers ──
@@ -233,7 +334,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	_positions_buffer         = _rd.storage_buffer_create(pos_bytes.size(),       pos_bytes)
  	_predicted_buffer         = _rd.storage_buffer_create(pos_bytes.size(),       pos_bytes)
  	_velocities_buffer        = _rd.storage_buffer_create(vel_bytes.size(),       vel_bytes)
-@@ -1439,9 +1557,11 @@
+@@ -1439,9 +1640,11 @@
  	_bone_transforms_buffer   = _rd.storage_buffer_create(max(bone_mat_bytes.size(), 64), bone_mat_bytes)
  	_cloth_weights_buffer     = _rd.storage_buffer_create(cloth_w_bytes.size(),   cloth_w_bytes)
  	_skinned_targets_buffer   = _rd.storage_buffer_create(pos_bytes.size(),       pos_bytes)
@@ -245,26 +346,97 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  
  	_face_normals_buffer      = _rd.storage_buffer_create(max(_tri_count * 16, 64))
  	_indices_gpu_buffer       = _rd.storage_buffer_create(idx_bytes.size(),       idx_bytes)
-@@ -1544,6 +1664,8 @@
+@@ -1488,7 +1691,7 @@
+ 	# ── Shaders ──
+ 	_skin_shader        = _load_shader(_plugin_dir + "/shaders/compute/cloth_skin.glsl")
+ 	_predict_shader     = _load_shader(_plugin_dir + "/shaders/compute/cloth_predict.glsl")
+-	_solve_shader       = _load_shader(_plugin_dir + "/shaders/compute/cloth_solve.glsl")
++	_solve_shader       = _load_shader(_plugin_dir + "/shaders/compute/cloth_solve.glsl", "RMMO_BATCHED_SOLVE" if batched_structure else "")
+ 	_update_shader      = _load_shader(_plugin_dir + "/shaders/compute/cloth_update.glsl")
+ 	_collide_shader     = _load_shader(_plugin_dir + "/shaders/compute/cloth_collide.glsl")
+ 	_warm_start_shader  = _load_shader(_plugin_dir + "/shaders/compute/cloth_warm_start.glsl")
+@@ -1496,7 +1699,7 @@
+ 	_output_shader      = _load_shader(_plugin_dir + "/shaders/compute/cloth_output.glsl")
+ 	_skin_collide_shader = _load_shader(_plugin_dir + "/shaders/compute/cloth_skin_collide.glsl")
+ 	if _collider_tris.size() > 0:
+-		_collide_tris_shader = _load_shader(_plugin_dir + "/shaders/compute/cloth_collide_triangles.glsl")
++		_collide_tris_shader = _load_shader(_plugin_dir + "/shaders/compute/cloth_collide_triangles.glsl", ("RMMO_CANDIDATE_COMBINED" if combined_contacts else "RMMO_CANDIDATE_FALLBACK") if contact_candidate_lists else "")
+ 		_skin_collide_tris_shader = _load_shader(_plugin_dir + "/shaders/compute/cloth_skin_collide_triangles.glsl")
+ 	# Peer collide shader doubles as the self-collide shader (is_self flag in
+ 	# the push constant switches behavior), so load it whenever either feature
+@@ -1544,12 +1747,17 @@
  		_make_uniform(1, _predicted_buffer),
  		_make_uniform(2, _velocities_buffer),
  		_make_uniform(5, _skinned_targets_buffer),
 +		_make_uniform(6, _cloth_weights_buffer),
 +		_make_uniform(7, _previous_targets_buffer),
  	])
- 	_solve_uniform_set = _create_uniform_set(_solve_shader, [
+-	_solve_uniform_set = _create_uniform_set(_solve_shader, [
+-		_make_uniform(1, _predicted_buffer),
+-		_make_uniform(3, _constraints_buffer),
+-		_make_uniform(8, _lambda_buffer),
+-	])
++	var solve_uniforms:Array[RDUniform]=[_make_uniform(1,_predicted_buffer),_make_uniform(3,_constraints_buffer),_make_uniform(8,_lambda_buffer)]
++	if batched_structure:
++		var packed_groups:=PackedInt32Array()
++		for group in _constraint_groups:packed_groups.append(group.offset);packed_groups.append(group.count)
++		var group_bytes:=packed_groups.to_byte_array();group_bytes.resize(maxi(8,group_bytes.size()))
++		_constraint_group_buffer=_rd.storage_buffer_create(group_bytes.size(),group_bytes)
++		solve_uniforms.append(_make_uniform(9,_constraint_group_buffer))
++	_solve_uniform_set=_create_uniform_set(_solve_shader,solve_uniforms)
+ 	_update_uniform_set = _create_uniform_set(_update_shader, [
+ 		_make_uniform(0, _positions_buffer),
  		_make_uniform(1, _predicted_buffer),
-@@ -1608,6 +1730,8 @@
+@@ -1603,38 +1811,179 @@
+ 	# friction tangent calc), predicted (RW), skinned tri verts (RO),
+ 	# cloth_weights (RO, per-particle thickness multiplier).
+ 	if _collider_tris.size() > 0:
+-		_collide_tris_uniform_set = _create_uniform_set(_collide_tris_shader, [
++		var triangle_blocks := _body_tree_leaves(_collider_tris.size())
++		# Empty reverse IDs fall back to all triangle vertices below.
++		var vertex_count := 0
++		if external_surface_input and external_reverse_contacts:
++			vertex_count = external_collision_vertices.size() if not external_collision_vertices.is_empty() else external_triangle_count * 3
++		var vertex_leaves := _body_tree_leaves(vertex_count)
++		_body_bounds_count = maxi(triangle_blocks,vertex_leaves)
++		_body_bounds = _rd.storage_buffer_create((triangle_blocks*2+vertex_leaves)*2*32)
++		if external_collision_order.is_empty():
++			for i in _collider_tris.size():external_collision_order.append(i)
++			for i in vertex_count:external_collision_order.append(i)
++		assert(external_collision_order.size()==_collider_tris.size()+vertex_count)
++		var triangle_order:=external_collision_order.slice(0,_collider_tris.size());triangle_order.sort()
++		var vertex_order:=external_collision_order.slice(_collider_tris.size());vertex_order.sort()
++		for i in triangle_order.size():assert(triangle_order[i]==i)
++		for i in vertex_order.size():assert(vertex_order[i]==i)
++		_body_order=_rd.storage_buffer_create(external_collision_order.size()*4,external_collision_order.to_byte_array())
++		_body_bounds_push.resize(32)
++		_body_bounds_push.encode_u32(0, _collider_tris.size())
++		_body_bounds_push.encode_u32(4, vertex_count)
++		_body_bounds_push.encode_u32(8, triangle_blocks)
++		_collide_tris_push.encode_u32(24, int(body_block_broadphase))
++		_collide_tris_push.encode_u32(28, triangle_blocks)
++		if contact_candidate_lists:
++			_forward_candidates=_rd.storage_buffer_create(_particle_count*2055*4)
++		var forward_uniforms:Array[RDUniform]=[
+ 			_make_uniform(0, _positions_buffer),
  			_make_uniform(1, _predicted_buffer),
  			_make_uniform(4, _collider_tri_buffer),
  			_make_uniform(5, _cloth_weights_buffer),
+-		])
 +			_make_uniform(6, _previous_collider_tri_buffer),
 +			_make_uniform(7, _body_contact_directions),
- 		])
++			_make_uniform(8, _body_bounds), _make_uniform(9,_body_order)]
++		if contact_candidate_lists:forward_uniforms.append(_make_uniform(10,_forward_candidates))
++		_collide_tris_uniform_set=_create_uniform_set(_collide_tris_shader,forward_uniforms)
++		if contact_candidate_lists and not combined_contacts:
++			_forward_narrow_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_collide_triangles.glsl","RMMO_CANDIDATE_LIST")
++			_forward_narrow_pipeline=_rd.compute_pipeline_create(_forward_narrow_shader)
++			_forward_narrow_uniform=_create_uniform_set(_forward_narrow_shader,forward_uniforms)
  		# Triangle-collider sanitizer uniform set: skinned_targets (RW) + tri verts (RO).
  		_skin_collide_tris_uniform_set = _create_uniform_set(_skin_collide_tris_shader, [
-@@ -1615,26 +1739,103 @@
+ 			_make_uniform(0, _skinned_targets_buffer),
  			_make_uniform(1, _collider_tri_buffer),
++			_make_uniform(2, _body_bounds),
  		])
  
 -	# Self-collide uniform set — eagerly built (depends only on our own
@@ -281,15 +453,23 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +		var edge_bytes:=external_collision_edges.to_byte_array();edge_bytes.resize(max(edge_bytes.size(),8))
 +		_reverse_edge_buffer=_rd.storage_buffer_create(edge_bytes.size(),edge_bytes)
 +		_reverse_corrections=_rd.storage_buffer_create(max(_tri_count*48,48))
-+		_reverse_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_reverse_contacts.glsl")
++		_reverse_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_reverse_contacts.glsl", ("RMMO_CANDIDATE_COMBINED" if combined_contacts else "RMMO_CANDIDATE_FALLBACK") if contact_candidate_lists else "")
 +		_gather_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_gather_contacts.glsl")
 +		_reverse_pipeline=_rd.compute_pipeline_create(_reverse_shader)
 +		_gather_pipeline=_rd.compute_pipeline_create(_gather_shader)
-+		_reverse_uniform=_create_uniform_set(_reverse_shader,[
++		if contact_candidate_lists:
++			_reverse_candidates=_rd.storage_buffer_create(maxi(1,_tri_count)*2055*4)
++		var reverse_uniforms:Array[RDUniform]=[
 +			_make_uniform(0,_positions_buffer),_make_uniform(1,_predicted_buffer),
 +			_make_uniform(2,_indices_gpu_buffer),_make_uniform(3,_collider_tri_buffer),
 +			_make_uniform(4,_previous_collider_tri_buffer),_make_uniform(5,_reverse_vertex_buffer),
-+			_make_uniform(6,_reverse_corrections),_make_uniform(7,_reverse_edge_buffer)])
++			_make_uniform(6,_reverse_corrections),_make_uniform(7,_reverse_edge_buffer),_make_uniform(8,_body_bounds),_make_uniform(9,_body_order)]
++		if contact_candidate_lists:reverse_uniforms.append(_make_uniform(10,_reverse_candidates))
++		_reverse_uniform=_create_uniform_set(_reverse_shader,reverse_uniforms)
++		if contact_candidate_lists and not combined_contacts:
++			_reverse_narrow_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_reverse_contacts.glsl","RMMO_CANDIDATE_LIST")
++			_reverse_narrow_pipeline=_rd.compute_pipeline_create(_reverse_narrow_shader)
++			_reverse_narrow_uniform=_create_uniform_set(_reverse_narrow_shader,reverse_uniforms)
 +		_gather_uniform=_create_uniform_set(_gather_shader,[
 +			_make_uniform(0,_predicted_buffer),_make_uniform(1,_indices_gpu_buffer),
 +			_make_uniform(2,_vert_tri_counts_buffer),_make_uniform(3,_vert_tri_offsets_buffer),
@@ -299,7 +479,29 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +		_reverse_push.encode_u32(4,external_collision_vertices.size())
 +		_reverse_push.encode_float(8,body_collider_thickness)
 +		_reverse_push.encode_u32(12,external_collision_edges.size()/2)
++		_reverse_push.encode_u32(24, int(body_block_broadphase))
++		_reverse_push.encode_u32(28, _body_tree_leaves(_collider_tris.size()))
 +		_gather_push.resize(16);_gather_push.encode_u32(0,_particle_count)
++
++	if _body_bounds.is_valid():
++		_body_bounds_shader = _load_shader(_plugin_dir + "/shaders/compute/cloth_body_bounds.glsl")
++		_body_bounds_pipeline = _rd.compute_pipeline_create(_body_bounds_shader)
++		_body_bounds_uniform = _create_uniform_set(_body_bounds_shader, [
++			_make_uniform(0, _collider_tri_buffer), _make_uniform(1, _previous_collider_tri_buffer),
++			_make_uniform(2, _reverse_vertex_buffer if _reverse_vertex_buffer.is_valid() else _indices_gpu_buffer),
++			_make_uniform(3, _body_bounds),_make_uniform(4,_body_order)])
++
++	if contact_candidate_lists and _body_bounds.is_valid():
++		var candidate_define:="" if candidate_padding==0.012 else "RMMO_CANDIDATE_PADDING %.6f"%clampf(candidate_padding,0.0,0.25)
++		if candidate_group_size not in [1,4,8,16,32,64]:candidate_group_size=64
++		if candidate_group_size!=64:
++			candidate_define+=("\n#define " if not candidate_define.is_empty() else "")+"RMMO_CANDIDATE_GROUP_SIZE %d"%candidate_group_size
++		if cooperative_candidates:
++			candidate_define+=("\n#define " if not candidate_define.is_empty() else "")+"RMMO_COOPERATIVE_CANDIDATES"
++		_candidate_shader=_load_shader(_plugin_dir+"/shaders/compute/cloth_contact_candidates.glsl",candidate_define)
++		_candidate_pipeline=_rd.compute_pipeline_create(_candidate_shader)
++		_candidate_forward_uniform=_create_candidate_uniform(_forward_candidates)
++		if _reverse_candidates.is_valid():_candidate_reverse_uniform=_create_candidate_uniform(_reverse_candidates)
 +
 +	# Match peer collision: zero resolution means full topology, not disabled.
 +	# Also fall back if decimation collapses every proxy triangle.
@@ -381,7 +583,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  
  	_gpu_init_done = true
  	# Peer uniform-set creation is deferred to _ensure_peer_uniform_sets, called
-@@ -1648,7 +1849,25 @@
+@@ -1648,9 +1997,29 @@
  #  Warm start (one-shot, render thread)
  # ---------------------------------------------------------------------------
  
@@ -391,12 +593,13 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +	# A freshly seeded surface has no motion history before this frame.
 +	_prev_skel_world_pos = _ref_node.global_position
 +	_prev_skel_world_basis = _ref_node.global_transform.basis
-+	RenderingServer.call_on_render_thread(_gpu_do_warm_start.bind(_external_targets.duplicate(), _external_triangles.duplicate()))
++	RenderingServer.call_on_render_thread(_gpu_do_warm_start.bind(_external_targets.duplicate(), _external_triangles.duplicate(),_external_resident_packet))
 +	_needs_warm_start = false
 +	return true
 +
 +
-+func _gpu_do_warm_start(targets: PackedByteArray = PackedByteArray(), triangles: PackedByteArray = PackedByteArray()) -> void:
++func _gpu_do_warm_start(targets: PackedByteArray = PackedByteArray(), triangles: PackedByteArray = PackedByteArray(),resident:RefCounted=null) -> void:
++	if resident!=null:_gpu_copy_resident_packet(resident,true)
 +	if not targets.is_empty(): _rd.buffer_update(_skinned_targets_buffer, 0, targets.size(), targets)
 +	if not targets.is_empty():
 +		_rd.buffer_update(_previous_targets_buffer, 0, targets.size(), targets)
@@ -404,11 +607,41 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +	if not triangles.is_empty(): _rd.buffer_update(_collider_tri_buffer, 0, triangles.size(), triangles)
 +	if not triangles.is_empty():
 +		_rd.buffer_update(_previous_collider_tri_buffer, 0, triangles.size(), triangles)
-+		_last_gpu_tri_bytes=triangles.duplicate()
++		_last_gpu_tri_size=triangles.size()
  	var groups := ceili(float(_particle_count) / 64.0)
  	var cl := _rd.compute_list_begin()
++	_dispatch_body_bounds(cl)
  
-@@ -1751,7 +1970,6 @@
+ 	# SKIN — produces skinned_targets[] for the current pose. Skipped in
+ 	# unrigged mode: skinned_targets was pre-populated at GPU init from
+@@ -1720,6 +2089,26 @@
+ 	_rd.compute_list_end()
+ 	print("[GPUCloth] Warm start complete.")
+ 
++static func _body_tree_leaves(count:int)->int:
++	var leaves:=1
++	while leaves*8<count:leaves*=2
++	return leaves
++
++func _dispatch_body_bounds(cl:int,start:=0.0,end:=1.0,refit:=false)->void:
++	if not _body_bounds_uniform.is_valid():return
++	_body_bounds_push.encode_float(16,start);_body_bounds_push.encode_float(20,end)
++	_body_bounds_push.encode_u32(24,clampi(roundi(candidate_motion_threshold_m*1000.0),0,0xffffff))
++	_body_bounds_push.encode_u32(28,(1 if adaptive_candidates else 3) if refit else 0)
++	_rd.compute_list_bind_compute_pipeline(cl, _body_bounds_pipeline)
++	_rd.compute_list_bind_uniform_set(cl, _body_bounds_uniform, 0)
++	var width:=_body_bounds_count;var level:=0
++	while width>0:
++		_body_bounds_push.encode_u32(12,level)
++		_rd.compute_list_set_push_constant(cl, _body_bounds_push, 32)
++		_rd.compute_list_dispatch(cl, ceili(float(width) / 64.0), 1, 1)
++		_rd.compute_list_add_barrier(cl)
++		width=width>>1;level+=1
++
+ 
+ # ---------------------------------------------------------------------------
+ #  Per-frame simulate (game thread)
+@@ -1751,7 +2140,6 @@
  	# scene tree produces the same "cape lags behind character" effect.
  	var delta_world := _ref_node.global_position - _prev_skel_world_pos
  	var delta_local := _ref_node.global_transform.basis.inverse() * delta_world
@@ -416,7 +649,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	_prev_skel_world_pos = _ref_node.global_position
  
  	# Rotational inertia. Same reference-frame logic — ref-local positions ride
-@@ -1762,6 +1980,17 @@
+@@ -1762,6 +2150,17 @@
  	var q_full: Quaternion = counter_basis.get_rotation_quaternion()
  	var q_per_sub: Quaternion = Quaternion.IDENTITY.slerp(q_full, 1.0 / float(substeps))
  	q_per_sub = Quaternion.IDENTITY.slerp(q_per_sub, rotational_inertia_scale)
@@ -434,22 +667,24 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	_prev_skel_world_basis = _ref_node.global_transform.basis
  
  	# Wind (solver-local frame per fork pattern)
-@@ -1822,7 +2051,7 @@
+@@ -1822,7 +2221,7 @@
  
  	RenderingServer.call_on_render_thread(
  		_gpu_do_simulate.bind(bone_bytes, col_bytes, push_copy, pin_bytes_copy,
 -			tri_bytes, nflip, cap_substeps, cap_iters))
-+			tri_bytes, nflip, cap_substeps, cap_iters, _external_targets.duplicate()))
++			tri_bytes, nflip, cap_substeps, cap_iters, _external_targets.duplicate(),_external_resident_packet))
  
  
  func _gpu_do_simulate(
-@@ -1833,7 +2062,14 @@
+@@ -1833,7 +2232,16 @@
  		tri_bytes:    PackedByteArray,
  		nflip:        float,
  		p_substeps:   int,
 -		p_iters:      int) -> void:
 +		p_iters:      int,
-+		external_targets: PackedByteArray = PackedByteArray()) -> void:
++		external_targets: PackedByteArray = PackedByteArray(),resident:RefCounted=null) -> void:
++	var render_start:=Time.get_ticks_usec()
++	if resident!=null:_gpu_copy_resident_packet(resident,false)
 +
 +	if not external_targets.is_empty():
 +		_rd.buffer_update(_skinned_targets_buffer, 0, external_targets.size(), external_targets)
@@ -459,22 +694,51 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  
  	if bone_bytes.size() > 0:
  		_rd.buffer_update(_bone_transforms_buffer, 0, bone_bytes.size(), bone_bytes)
-@@ -1843,6 +2079,9 @@
+@@ -1842,14 +2250,34 @@
+ 	if _has_anchors and pin_bytes.size() > 0:
  		_rd.buffer_update(_pin_overrides_buffer, 0, pin_bytes.size(), pin_bytes)
  	if tri_bytes.size() > 0:
- 		_rd.buffer_update(_collider_tri_buffer, 0, tri_bytes.size(), tri_bytes)
-+		var previous:PackedByteArray=_last_gpu_tri_bytes if _last_gpu_tri_bytes.size()==tri_bytes.size() else tri_bytes
-+		_rd.buffer_update(_previous_collider_tri_buffer, 0, previous.size(), previous)
-+		_last_gpu_tri_bytes=tri_bytes.duplicate()
+-		_rd.buffer_update(_collider_tri_buffer, 0, tri_bytes.size(), tri_bytes)
++		# Current body triangles are read-only throughout a step. Snapshot on the
++		# GPU before uploading the new frame, avoiding another CPU clone/upload.
++		# Targets cannot use this shortcut: their current buffer is sanitized.
++		if _last_gpu_tri_size==tri_bytes.size():
++			_rd.buffer_copy(_collider_tri_buffer,_previous_collider_tri_buffer,0,0,tri_bytes.size())
++		else:
++			_rd.buffer_update(_previous_collider_tri_buffer,0,tri_bytes.size(),tri_bytes)
++		_rd.buffer_update(_collider_tri_buffer,0,tri_bytes.size(),tri_bytes)
++		_last_gpu_tri_size=tri_bytes.size()
  
  	# Wire peer cloth collision lazily — peers may not have finished _gpu_do_init
  	# at our own init time, so we retry every frame until they're all ready.
-@@ -1902,8 +2141,29 @@
+ 	_ensure_peer_uniform_sets()
+ 
+ 	var groups := ceili(float(_particle_count) / 64.0)
+-	var cl     := _rd.compute_list_begin()
++	if review_gpu_timing:
++		var previous_time:=0
++		var timings:Dictionary={}
++		for i in _rd.get_captured_timestamps_count():
++			var label:String=_rd.get_captured_timestamp_name(i)
++			if not label.begins_with("rmmo_cloth/"):continue
++			var now:int=_rd.get_captured_timestamp_gpu_time(i)
++			if previous_time:timings[label.trim_prefix("rmmo_cloth/")]=now-previous_time
++			previous_time=now
++		review_gpu_ticks=timings
++		_rd.capture_timestamp("rmmo_cloth/begin")
++	var cl:=_rd.compute_list_begin()
++	_dispatch_body_bounds(cl)
+ 
+ 	# SKIN once per frame. Skipped in unrigged mode (skinned_targets is the
+ 	# static rest pose populated at GPU init).
+@@ -1902,8 +2330,31 @@
  			_rd.compute_list_dispatch(cl, groups, 1, 1)
  			_rd.compute_list_add_barrier(cl)
  
 +	review_stage_labels.clear()
  	for _s in p_substeps:
++		if substep_tree_refit and substep_candidates and contact_candidate_lists:
++			_dispatch_body_bounds(cl,float(_s)/float(p_substeps),float(_s+1)/float(p_substeps),true)
 +		if continuous_self_contacts and self_contact_body_tangents:
 +			var clear_push:=PackedByteArray();clear_push.resize(16);clear_push.encode_u32(0,_particle_count*2);clear_push.encode_u32(8,1)
 +			_rd.compute_list_bind_compute_pipeline(cl,_self_snapshot_pipeline)
@@ -499,23 +763,38 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  		_rd.compute_list_bind_compute_pipeline(cl, _predict_pipeline)
  		_rd.compute_list_bind_uniform_set(cl, _predict_uniform_set, 0)
  		_rd.compute_list_set_push_constant(cl, push, 96)
-@@ -1911,6 +2171,7 @@
+@@ -1911,22 +2362,23 @@
  		_rd.compute_list_add_barrier(cl)
  
  		# SOLVE × iterations × graph-colored groups, with COLLIDE inside the
-+		_review_capture_stage(cl,"s%d/predict"%_s)
++		if review_gpu_timing or review_trace_active:
++			cl=_review_capture_stage(cl,"s%d/predict"%_s)
  		# iter loop (Hazard 5).
  		_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
  		_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
-@@ -1927,6 +2188,7 @@
- 				_rd.compute_list_dispatch(cl, ceili(float(grp.count) / 64.0), 1, 1)
- 				_rd.compute_list_add_barrier(cl)
- 
-+			_review_capture_stage(cl,"s%d/solve%d/structure"%[_s,_iter])
+ 		for _iter in p_iters:
++			if review_gpu_timing and _iter in [11,23]:
++				cl=_review_capture_stage(cl,"s%d/solve%d/start"%[_s,_iter])
+ 			# XPBD: reset λ on iter 0 of each substep. The high bit (0x80000000)
+ 			# of constraint_offset signals "this is iter 0 — ignore lambdas[cidx]
+ 			# and treat it as 0 before accumulating." Avoids a separate clear
+ 			# pass at the substep boundary.
+ 			var xpbd_reset_bit: int = 0x80000000 if _iter == 0 else 0
+-			for grp in _constraint_groups:
+-				push.encode_u32(12, grp.count)
+-				push.encode_u32(28, int(grp.offset) | xpbd_reset_bit)
+-				_rd.compute_list_set_push_constant(cl, push, 96)
+-				_rd.compute_list_dispatch(cl, ceili(float(grp.count) / 64.0), 1, 1)
+-				_rd.compute_list_add_barrier(cl)
+-
++			_dispatch_structural(cl,push,xpbd_reset_bit)
++
++			if review_gpu_timing or review_trace_active:
++				cl=_review_capture_stage(cl,"s%d/solve%d/structure"%[_s,_iter])
  			if _collider_count > 0:
  				push.encode_u32(12, _constraint_count)
  				# Offset 28 doubles as the friction μ slot for the primitive
-@@ -1941,19 +2203,39 @@
+@@ -1941,20 +2393,50 @@
  				_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
  				_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
  
@@ -524,10 +803,13 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +			if _reverse_pipeline.is_valid():
 +				_reverse_push.encode_float(16,float(_s)/float(p_substeps))
 +				_reverse_push.encode_float(20,float(_s+1)/float(p_substeps))
++				_dispatch_contact_candidates(cl,true,_reverse_push,_iter==0 and _s==0,_iter==0)
++				if review_gpu_timing:
++					cl=_review_capture_stage(cl,"s%d/solve%d/reverse_candidates"%[_s,_iter])
 +				_rd.compute_list_bind_compute_pipeline(cl,_reverse_pipeline)
 +				_rd.compute_list_bind_uniform_set(cl,_reverse_uniform,0)
 +				_rd.compute_list_set_push_constant(cl,_reverse_push,32)
-+				_rd.compute_list_dispatch(cl,ceili(float(_tri_count)/64.0),1,1)
++				_rd.compute_list_dispatch(cl,(_tri_count if contact_candidate_lists else ceili(float(_tri_count)/64.0)),1,1)
 +				_rd.compute_list_add_barrier(cl)
 +				_rd.compute_list_bind_compute_pipeline(cl,_gather_pipeline)
 +				_rd.compute_list_bind_uniform_set(cl,_gather_uniform,0)
@@ -537,26 +819,36 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +				_rd.compute_list_bind_compute_pipeline(cl,_solve_pipeline)
 +				_rd.compute_list_bind_uniform_set(cl,_solve_uniform_set,0)
 +
-+			_review_capture_stage(cl,"s%d/solve%d/body_reverse"%[_s,_iter])
++			if review_gpu_timing or review_trace_active:
++				cl=_review_capture_stage(cl,"s%d/solve%d/body_reverse"%[_s,_iter])
  			# Skinned mesh collider — runs in the same iter slot as capsule/box
  			# collide so cloth particles get pushed out of body triangles before
  			# the next solve iter pulls them back via structural constraints.
  			if _collider_tris.size() > 0:
++				_dispatch_contact_candidates(cl,false,_collide_tris_push,_iter==0 and _s==0,_iter==0)
++				if review_gpu_timing:
++					cl=_review_capture_stage(cl,"s%d/solve%d/forward_candidates"%[_s,_iter])
  				_rd.compute_list_bind_compute_pipeline(cl, _collide_tris_pipeline)
  				_rd.compute_list_bind_uniform_set(cl, _collide_tris_uniform_set, 0)
 -				_rd.compute_list_set_push_constant(cl, _collide_tris_push, 16)
+-				_rd.compute_list_dispatch(cl, groups, 1, 1)
 +				_rd.compute_list_set_push_constant(cl, _collide_tris_push, 32)
- 				_rd.compute_list_dispatch(cl, groups, 1, 1)
++				_rd.compute_list_dispatch(cl, (_particle_count if contact_candidate_lists else groups), 1, 1)
  				_rd.compute_list_add_barrier(cl)
  				_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
  				_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
  
  			# (peer cloth collision moved out of iter loop — see below)
-+			_review_capture_stage(cl,"s%d/solve%d/body_forward"%[_s,_iter])
- 
+-
++			if review_gpu_timing or review_trace_active:
++				cl=_review_capture_stage(cl,"s%d/solve%d/body_forward"%[_s,_iter])
++
++		if review_gpu_timing:
++			cl=_review_capture_stage(cl,"s%d/solve_end"%_s)
  		# FISHING — hard-clamp predicted[] to within fishing_stretch of each
  		# free particle's K-nearest anchor blend. Was previously inside the
-@@ -1988,12 +2270,80 @@
+ 		# iter loop (run solver_iterations × substeps times per frame); moved
+@@ -1988,12 +2470,83 @@
  		# shader to skip tris where idx is a vert. Runs once per substep at
  		# the same cadence as peer collide.
  		if _self_collide_uniform_set.is_valid():
@@ -572,13 +864,9 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +					# apply animated follow again when resolving contact conflicts.
 +					_rd.compute_list_bind_compute_pipeline(cl, _solve_pipeline)
 +					_rd.compute_list_bind_uniform_set(cl, _solve_uniform_set, 0)
-+					for grp in _constraint_groups:
-+						push.encode_u32(12, grp.count)
-+						push.encode_u32(28, int(grp.offset))
-+						_rd.compute_list_set_push_constant(cl, push, 96)
-+						_rd.compute_list_dispatch(cl, ceili(float(grp.count) / 64.0), 1, 1)
-+						_rd.compute_list_add_barrier(cl)
-+				_review_capture_stage(cl,"s%d/contact%d/structure"%[_s,contact_iteration])
++					_dispatch_structural(cl,push,0)
++				if review_gpu_timing or review_trace_active:
++					cl=_review_capture_stage(cl,"s%d/contact%d/structure"%[_s,contact_iteration])
 +				if continuous_self_contacts:
 +					_rd.compute_list_bind_compute_pipeline(cl, _self_snapshot_pipeline)
 +					_rd.compute_list_bind_uniform_set(cl, _self_snapshot_uniform, 0)
@@ -596,7 +884,8 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +					_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
 +					_rd.compute_list_dispatch(cl, groups, 1, 1)
 +					_rd.compute_list_add_barrier(cl)
-+				_review_capture_stage(cl,"s%d/contact%d/self_faces"%[_s,contact_iteration])
++				if review_gpu_timing or review_trace_active:
++					cl=_review_capture_stage(cl,"s%d/contact%d/self_faces"%[_s,contact_iteration])
 +				if continuous_self_contacts and self_edge_contacts:
 +					# Edge contacts consume the completed vertex/face projection,
 +					# never add a second correction from the same stale snapshot.
@@ -611,39 +900,65 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +					_rd.compute_list_set_push_constant(cl, _self_collide_push, 32)
 +					_rd.compute_list_dispatch(cl, groups, 1, 1)
 +					_rd.compute_list_add_barrier(cl)
-+				_review_capture_stage(cl,"s%d/contact%d/self_edges"%[_s,contact_iteration])
++				if review_gpu_timing or review_trace_active:
++					cl=_review_capture_stage(cl,"s%d/contact%d/self_edges"%[_s,contact_iteration])
 +				if continuous_self_contacts and _reverse_pipeline.is_valid():
 +					# Cloth vertices alone cannot detect a hand crossing a face interior.
++					_dispatch_contact_candidates(cl,true,_reverse_push)
 +					_rd.compute_list_bind_compute_pipeline(cl, _reverse_pipeline)
 +					_rd.compute_list_bind_uniform_set(cl, _reverse_uniform, 0)
 +					_rd.compute_list_set_push_constant(cl, _reverse_push, 32)
-+					_rd.compute_list_dispatch(cl, ceili(float(_tri_count)/64.0), 1, 1)
++					_rd.compute_list_dispatch(cl, (_tri_count if contact_candidate_lists else ceili(float(_tri_count)/64.0)), 1, 1)
 +					_rd.compute_list_add_barrier(cl)
 +					_rd.compute_list_bind_compute_pipeline(cl, _gather_pipeline)
 +					_rd.compute_list_bind_uniform_set(cl, _gather_uniform, 0)
 +					_rd.compute_list_set_push_constant(cl, _gather_push, 16)
 +					_rd.compute_list_dispatch(cl, groups, 1, 1)
 +					_rd.compute_list_add_barrier(cl)
-+				_review_capture_stage(cl,"s%d/contact%d/body_reverse"%[_s,contact_iteration])
++				if review_gpu_timing or review_trace_active:
++					cl=_review_capture_stage(cl,"s%d/contact%d/body_reverse"%[_s,contact_iteration])
 +				# Self separation must not be the last operation pushing cloth back
 +				# inside a body/seat. Re-project body contact for this candidate path.
 +				if continuous_self_contacts and _collider_tris.size() > 0:
++					_dispatch_contact_candidates(cl,false,_collide_tris_push)
 +					_rd.compute_list_bind_compute_pipeline(cl, _collide_tris_pipeline)
 +					_rd.compute_list_bind_uniform_set(cl, _collide_tris_uniform_set, 0)
 +					_rd.compute_list_set_push_constant(cl, _collide_tris_push, 32)
-+					_rd.compute_list_dispatch(cl, groups, 1, 1)
++					_rd.compute_list_dispatch(cl, (_particle_count if contact_candidate_lists else groups), 1, 1)
 +					_rd.compute_list_add_barrier(cl)
 +
-+				_review_capture_stage(cl,"s%d/contact%d/body_forward"%[_s,contact_iteration])
++				if review_gpu_timing or review_trace_active:
++					cl=_review_capture_stage(cl,"s%d/contact%d/body_forward"%[_s,contact_iteration])
 +		if continuous_self_contacts and self_contact_body_tangents:
 +			# Joint finish: separate layers only along directions that preserve
 +			# active body corrections, instead of undoing the last body pass.
 +			_gpu_body_safe_self_finish(cl,groups)
-+			_review_capture_stage(cl,"s%d/body_safe_finish"%_s)
++			if review_gpu_timing or review_trace_active:
++				cl=_review_capture_stage(cl,"s%d/body_safe_finish"%_s)
  		# UPDATE — per-substep soft-lerp toward skinned_targets, max_travel clamp.
  		push.encode_u32(12, _constraint_count)
  		push.encode_u32(28, 0)
-@@ -2258,7 +2608,19 @@
+@@ -2006,7 +2559,18 @@
+ 	_dispatch_output_passes(cl, groups, nflip)
+ 
+ 	_rd.compute_list_end()
+-
++	if review_gpu_timing:_rd.capture_timestamp("rmmo_cloth/end")
++	review_render_submit_ms=(Time.get_ticks_usec()-render_start)/1000.0
++
++
++func _gpu_copy_resident_packet(packet:RefCounted,warm:bool)->void:
++	assert(packet.rd==_rd and packet.output_buffer.is_valid())
++	var bytes:int=packet.output_bytes
++	if not warm and _last_gpu_tri_size==bytes:
++		_rd.buffer_copy(_collider_tri_buffer,_previous_collider_tri_buffer,0,0,bytes)
++	else:_rd.buffer_copy(packet.output_buffer,_previous_collider_tri_buffer,0,0,bytes)
++	_rd.buffer_copy(packet.output_buffer,_collider_tri_buffer,0,0,bytes)
++	_last_gpu_tri_size=bytes
+ 
+ func _dispatch_output_passes(cl: int, groups: int, nflip: float) -> void:
+ 	var tri_groups := ceili(float(_tri_count) / 64.0)
+@@ -2258,7 +2822,19 @@
  		constraints.append([key.x, key.y, edge_rest[key], stretch_compliance])
  
  	var nonmanifold := 0
@@ -664,7 +979,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  		for key in edge_faces:
  			var fl: Array = edge_faces[key]
  			if fl.size() == 2:
-@@ -2952,7 +3314,7 @@
+@@ -2952,7 +3528,7 @@
  # The proxy uses our existing _positions_buffer (no separate storage), so the
  # representative particles still move with the simulation as normal — the proxy
  # is just a coarser triangulation drawn over them. peer_collider_voxel_resolution
@@ -673,7 +988,7 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  func _build_peer_proxy_indices() -> PackedInt32Array:
  	if _welded_positions.is_empty() or _welded_indices.size() < 3:
  		return PackedInt32Array()
-@@ -3095,6 +3457,7 @@
+@@ -3095,6 +3671,7 @@
  # shader reads. 48 bytes per triangle (3 × vec4, w unused). Reuses
  # _collider_tri_bytes across frames to avoid reallocation.
  func _pack_collider_tris() -> PackedByteArray:
@@ -681,10 +996,11 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	if _collider_tris.is_empty():
  		return PackedByteArray()
  	# Cache each bone's pose just once per frame — many tris share bones.
-@@ -3118,10 +3481,45 @@
+@@ -3118,10 +3695,56 @@
  	return _collider_tri_bytes
  
  
+-func _load_shader(path: String) -> RID:
 +func _gpu_body_safe_self_finish(cl:int,groups:int)->void:
 +	for phase in ([0,1] if self_edge_contacts else [0]):
 +		_rd.compute_list_bind_compute_pipeline(cl,_self_snapshot_pipeline)
@@ -701,10 +1017,13 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +			_rd.compute_list_set_push_constant(cl,_self_collide_push,32)
 +			_rd.compute_list_dispatch(cl,groups,1,1);_rd.compute_list_add_barrier(cl)
 +
-+func _review_capture_stage(cl:int,label:String)->void:
-+	if not review_trace_active or not _review_trace_uniform.is_valid():return
++func _review_capture_stage(cl:int,label:String)->int:
++	if review_gpu_timing and (label.ends_with("/predict") or "/solve0/" in label or "/solve11/" in label or "/solve23/" in label or label.ends_with("/solve_end") or "/contact0/" in label or label.ends_with("/body_safe_finish")):
++		_rd.compute_list_end();_rd.capture_timestamp("rmmo_cloth/"+label);cl=_rd.compute_list_begin()
++		_rd.compute_list_bind_compute_pipeline(cl,_solve_pipeline);_rd.compute_list_bind_uniform_set(cl,_solve_uniform_set,0)
++	if not review_trace_active or not _review_trace_uniform.is_valid():return cl
 +	if review_stage_labels.size()>=_review_trace_capacity:
-+		push_error("Cloth review trace capacity exceeded");return
++		push_error("Cloth review trace capacity exceeded");return cl
 +	var trace_push:=PackedByteArray();trace_push.resize(16)
 +	trace_push.encode_u32(0,_particle_count)
 +	trace_push.encode_u32(4,review_stage_labels.size()*_particle_count)
@@ -718,7 +1037,15 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
 +	_rd.compute_list_bind_compute_pipeline(cl,_solve_pipeline)
 +	_rd.compute_list_bind_uniform_set(cl,_solve_uniform_set,0)
 +
- func _load_shader(path: String) -> RID:
++	return cl
++
++func _load_shader(path: String,define:String="") -> RID:
++	if not define.is_empty():
++		var source:=RDShaderSource.new()
++		source.source_compute=FileAccess.get_file_as_string(path).replace("#[compute]", "").replace("#version 450","#version 450\n#define "+define)
++		var spirv:=_rd.shader_compile_spirv_from_source(source)
++		if not spirv.compile_error_compute.is_empty():push_error(spirv.compile_error_compute);return RID()
++		return _rd.shader_create_from_spirv(spirv)
  	var sf: RDShaderFile = load(path)
  	if not sf:
  		push_error("[GPUCloth] Failed to load shader: %s" % path); return RID()
@@ -727,10 +1054,341 @@ diff --git a/addons/godot_gpu_cloth/src/gpu_cloth_solver.gd b/addons/godot_gpu_c
  	var rid := _rd.shader_create_from_spirv(sf.get_spirv())
  	if not rid.is_valid():
  		push_error("[GPUCloth] Shader compilation failed: %s" % path)
+@@ -3449,3 +4072,36 @@
+ 			var bq1 := by * (cos(t1) * r) + axis_dir * (sin(t1) * r)
+ 			im.surface_set_color(color); im.surface_add_vertex(b + bq0)
+ 			im.surface_set_color(color); im.surface_add_vertex(b + bq1)
++
++func _create_candidate_uniform(output:RID)->RID:
++	return _create_uniform_set(_candidate_shader,[
++		_make_uniform(0,_positions_buffer),_make_uniform(1,_predicted_buffer),_make_uniform(2,_indices_gpu_buffer),
++		_make_uniform(3,_collider_tri_buffer),_make_uniform(4,_previous_collider_tri_buffer),
++		_make_uniform(5,_reverse_vertex_buffer if _reverse_vertex_buffer.is_valid() else _indices_gpu_buffer),
++		_make_uniform(6,_body_bounds),_make_uniform(7,_body_order),_make_uniform(8,output),_make_uniform(9,_cloth_weights_buffer)])
++
++func _dispatch_contact_candidates(cl:int,reverse:bool,source:PackedByteArray,refresh:=false,substep_start:=false)->void:
++	if not contact_candidate_lists:return
++	var count:int=_tri_count if reverse else _particle_count
++	var push:=PackedByteArray();push.resize(32)
++	push.encode_u32(0,count);push.encode_u32(4,int(reverse)+(2 if refresh else 0)+(4 if substep_candidates else 0)+(8 if substep_start else 0)+(16 if adaptive_candidates else 0)+(clampi(roundi(candidate_motion_threshold_m*1000.0),0,0xffffff)<<8));push.encode_u32(8,_body_tree_leaves(_collider_tris.size()))
++	push.encode_u32(12,_collider_tris.size());push.encode_float(16,source.decode_float(16));push.encode_float(20,source.decode_float(20))
++	push.encode_float(24,body_collider_thickness);push.encode_u32(28,external_collision_vertices.size())
++	_rd.compute_list_bind_compute_pipeline(cl,_candidate_pipeline)
++	_rd.compute_list_bind_uniform_set(cl,_candidate_reverse_uniform if reverse else _candidate_forward_uniform,0)
++	_rd.compute_list_set_push_constant(cl,push,32);_rd.compute_list_dispatch(cl,count if cooperative_candidates else ceili(float(count)/float(candidate_group_size)),1,1);_rd.compute_list_add_barrier(cl)
++	if combined_contacts:return # One following dispatch handles both cached and overflow queries.
++	_rd.compute_list_bind_compute_pipeline(cl,_reverse_narrow_pipeline if reverse else _forward_narrow_pipeline)
++	_rd.compute_list_bind_uniform_set(cl,_reverse_narrow_uniform if reverse else _forward_narrow_uniform,0)
++	_rd.compute_list_set_push_constant(cl,source,32);_rd.compute_list_dispatch(cl,count,1,1);_rd.compute_list_add_barrier(cl)
++
++func _dispatch_structural(cl:int,push:PackedByteArray,reset:int)->void:
++	if batched_structure:
++		push.encode_u32(12,_constraint_groups.size());push.encode_u32(28,reset)
++		_rd.compute_list_set_push_constant(cl,push,96)
++		_rd.compute_list_dispatch(cl,1,1,1);_rd.compute_list_add_barrier(cl)
++	else:
++		for group in _constraint_groups:
++			push.encode_u32(12,group.count);push.encode_u32(28,int(group.offset)|reset)
++			_rd.compute_list_set_push_constant(cl,push,96)
++			_rd.compute_list_dispatch(cl,ceili(float(group.count)/64),1,1);_rd.compute_list_add_barrier(cl)
+diff --git a/addons/godot_gpu_cloth/src/cloth_indexed_packet.gd b/addons/godot_gpu_cloth/src/cloth_indexed_packet.gd
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/src/cloth_indexed_packet.gd
+@@ -0,0 +1,74 @@
++extends RefCounted
++## Same-frame indexed expansion and validation, private per adapter.
++## Fix before initialize. Status and payload share one readback, same-frame.
++## Paired RX7900XTX measurements favor separate readbacks. Packed is QA-only.
++static var default_packed_readback:=false
++var packed_readback:=default_packed_readback
++var owned_buffers:Array[RID]=[]
++var rd:RenderingDevice
++var buffers:Array[RID]=[]
++var shader:RID
++var pipeline:RID
++var uniform_set:RID
++var topology:=PackedInt32Array()
++var point_count:=0
++var extra_count:=0
++var output:=PackedByteArray()
++func initialize(indices:PackedInt32Array,points:int,extras:int)->bool:
++	if indices.is_empty() or indices.size()%3 or extras%3:return false
++	for index in indices:
++		if index<0 or index>=points:return false
++	close();topology=indices.duplicate();point_count=points;extra_count=extras
++	rd=RenderingServer.create_local_rendering_device()
++	if rd==null:return false
++	var source:=RDShaderSource.new()
++	source.source_compute=FileAccess.get_file_as_string("res://addons/godot_gpu_cloth/shaders/compute/cloth_indexed_packet.glsl").replace("#[compute]","")
++	if packed_readback:source.source_compute=source.source_compute.replace("#version 450","#version 450\n#define RMMO_PACKED_STATUS")
++	var spirv:=rd.shader_compile_spirv_from_source(source)
++	if not spirv.compile_error_compute.is_empty():push_error(spirv.compile_error_compute);close();return false
++	shader=rd.shader_create_from_spirv(spirv);pipeline=rd.compute_pipeline_create(shader)
++	var sizes:Array[int]=[points*12,indices.size()*4,maxi(extras*12,12),(indices.size()+extras)*16,4]
++	var uniforms:Array[RDUniform]=[]
++	for i in sizes.size():
++		if packed_readback and i==4:buffers.append(buffers[3])
++		else:
++			var rid:=rd.storage_buffer_create(sizes[i]+(16 if packed_readback and i==3 else 0))
++			buffers.append(rid);owned_buffers.append(rid)
++		var u:=RDUniform.new();u.uniform_type=RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER;u.binding=i;u.add_id(buffers[i]);uniforms.append(u)
++	rd.buffer_update(buffers[1],0,indices.size()*4,indices.to_byte_array())
++	uniform_set=rd.uniform_set_create(uniforms,shader,0);return true
++func build(points:PackedVector3Array,offset:Vector3,extras:PackedVector3Array,read_payload:=true)->bool:
++	if rd==null or points.size()!=point_count or extras.size()!=extra_count or not offset.is_finite():return false
++	var bytes:=points.to_byte_array();rd.buffer_update(buffers[0],0,bytes.size(),bytes)
++	if extra_count:
++		bytes=extras.to_byte_array();rd.buffer_update(buffers[2],0,bytes.size(),bytes)
++	var zero:=PackedByteArray([0,0,0,0]);rd.buffer_update(buffers[4],0,4,zero)
++	var push:=PackedByteArray();push.resize(32)
++	push.encode_u32(0,topology.size()/3);push.encode_u32(4,extra_count/3)
++	push.encode_float(16,offset.x);push.encode_float(20,offset.y);push.encode_float(24,offset.z)
++	var cl:=rd.compute_list_begin();rd.compute_list_bind_compute_pipeline(cl,pipeline);rd.compute_list_bind_uniform_set(cl,uniform_set,0)
++	rd.compute_list_set_push_constant(cl,push,32);rd.compute_list_dispatch(cl,ceili(float((topology.size()+extra_count)/3)/64),1,1);rd.compute_list_end();rd.submit();rd.sync()
++	if packed_readback:
++		if not read_payload:return rd.buffer_get_data(buffers[4],0,4).decode_u32(0)==0
++		var result:=rd.buffer_get_data(buffers[3])
++		if result.decode_u32(0)!=0:return false
++		output=result.slice(16)
++	else:
++		if rd.buffer_get_data(buffers[4]).decode_u32(0)!=0:return false
++		if read_payload:output=rd.buffer_get_data(buffers[3])
++	return true
++func close()->void:
++	if rd==null:return
++	if uniform_set.is_valid():rd.free_rid(uniform_set)
++	for rid in owned_buffers:rd.free_rid(rid)
++	if pipeline.is_valid():rd.free_rid(pipeline)
++	if shader.is_valid():rd.free_rid(shader)
++	rd.free();rd=null;buffers.clear();owned_buffers.clear();uniform_set=RID();pipeline=RID();shader=RID()
++func _notification(what:int)->void:
++	if what!=NOTIFICATION_PREDELETE or rd==null:return
++	# Do not call a method on self after the reference count reaches zero.
++	if uniform_set.is_valid():rd.free_rid(uniform_set)
++	for rid in owned_buffers:rd.free_rid(rid)
++	if pipeline.is_valid():rd.free_rid(pipeline)
++	if shader.is_valid():rd.free_rid(shader)
++	rd.free()
+diff --git a/addons/godot_gpu_cloth/src/cloth_resident_packet.gd b/addons/godot_gpu_cloth/src/cloth_resident_packet.gd
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/src/cloth_resident_packet.gd
+@@ -0,0 +1,115 @@
++extends RefCounted
++## Main RenderingDevice payload, local-device status-only validation. No main
++## queue synchronization per frame: validated uploads precede the solver in FIFO.
++var validator=preload("res://addons/godot_gpu_cloth/src/cloth_indexed_packet.gd").new()
++var rd:RenderingDevice
++var topology:=PackedInt32Array()
++var point_count:=0
++var extra_count:=0
++var output:=PackedByteArray() # Deliberately empty; reference path compatibility.
++var output_buffer:RID
++var output_bytes:=0
++var buffers:Array[RID]=[]
++var shader:RID
++var pipeline:RID
++var uniform_set:RID
++var success:=false
++var status_readback_bytes:=0
++var payload_readback_bytes:=0
++var packed_readback:=false
++## Provider updates and this expansion use the same render-thread FIFO. Only
++## identical submitted CPU snapshots may share the mutable input buffer; output
++## packets/history remain independently owned. Never free the provider buffer.
++var point_source:RefCounted
++var point_upload_bytes:=0
++var shared_point_read_bytes:=0
++var shared_uniform_set:RID
++var shared_buffer:RID
++func set_point_source(source:RefCounted)->void:point_source=source
++func is_gpu_resident()->bool:return true
++func initialize(indices:PackedInt32Array,points:int,extras:int)->bool:
++	if indices.is_empty() or indices.size()%3 or extras<0 or extras%3 or points<=0:return false
++	for index in indices:
++		if index<0 or index>=points:return false
++	close();topology=indices.duplicate();point_count=points;extra_count=extras
++	output_bytes=(indices.size()+extras)*16
++	if not validator.initialize(indices,points,extras):return false
++	RenderingServer.call_on_render_thread(_initialize_gpu)
++	RenderingServer.force_sync()
++	return success
++func _initialize_gpu()->void:
++	rd=RenderingServer.get_rendering_device();success=false
++	if rd==null:return
++	var source:=RDShaderSource.new()
++	source.source_compute=FileAccess.get_file_as_string("res://addons/godot_gpu_cloth/shaders/compute/cloth_indexed_packet.glsl").replace("#[compute]","")
++	var spirv:=rd.shader_compile_spirv_from_source(source)
++	if not spirv.compile_error_compute.is_empty():push_error(spirv.compile_error_compute);return
++	shader=rd.shader_create_from_spirv(spirv);pipeline=rd.compute_pipeline_create(shader)
++	var sizes:Array[int]=[point_count*12,topology.size()*4,maxi(extra_count*12,12),output_bytes,4]
++	var uniforms:Array[RDUniform]=[]
++	for i in sizes.size():
++		buffers.append(rd.storage_buffer_create(sizes[i]))
++		var u:=RDUniform.new();u.uniform_type=RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER;u.binding=i;u.add_id(buffers[i]);uniforms.append(u)
++	rd.buffer_update(buffers[1],0,topology.size()*4,topology.to_byte_array())
++	uniform_set=rd.uniform_set_create(uniforms,shader,0)
++	output_buffer=rd.storage_buffer_create(output_bytes);success=true
++func build(points:PackedVector3Array,offset:Vector3,extras:PackedVector3Array)->bool:
++	if rd==null or points.size()!=point_count or extras.size()!=extra_count or not offset.is_finite():return false
++	var valid:bool=validator.build(points,offset,extras,false)
++	status_readback_bytes+=4
++	if not valid:return false
++	var shared:=RID()
++	if point_source!=null and point_source.rd==rd:shared=point_source.shared_points_buffer(points)
++	var upload:=PackedByteArray()
++	if shared.is_valid():shared_point_read_bytes+=points.size()*12
++	else:upload=points.to_byte_array();point_upload_bytes+=upload.size()
++	RenderingServer.call_on_render_thread(_build_gpu.bind(upload,offset,extras.to_byte_array(),shared))
++	return true
++func _build_gpu(points:PackedByteArray,offset:Vector3,extras:PackedByteArray,shared:RID)->void:
++	var bindings:=uniform_set
++	if shared.is_valid():
++		if shared_buffer!=shared or not rd.uniform_set_is_valid(shared_uniform_set):
++			if shared_uniform_set.is_valid() and rd.uniform_set_is_valid(shared_uniform_set):rd.free_rid(shared_uniform_set)
++			var uniforms:Array[RDUniform]=[]
++			for i in buffers.size():
++				var u:=RDUniform.new();u.uniform_type=RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER;u.binding=i;u.add_id(shared if i==0 else buffers[i]);uniforms.append(u)
++			shared_uniform_set=rd.uniform_set_create(uniforms,shader,0);shared_buffer=shared
++		bindings=shared_uniform_set
++	else:rd.buffer_update(buffers[0],0,points.size(),points)
++	if not extras.is_empty():rd.buffer_update(buffers[2],0,extras.size(),extras)
++	rd.buffer_update(buffers[4],0,4,PackedByteArray([0,0,0,0]))
++	var push:=PackedByteArray();push.resize(32)
++	push.encode_u32(0,topology.size()/3);push.encode_u32(4,extra_count/3)
++	push.encode_float(16,offset.x);push.encode_float(20,offset.y);push.encode_float(24,offset.z)
++	var cl:=rd.compute_list_begin();rd.compute_list_bind_compute_pipeline(cl,pipeline);rd.compute_list_bind_uniform_set(cl,bindings,0)
++	rd.compute_list_set_push_constant(cl,push,32);rd.compute_list_dispatch(cl,ceili(float((topology.size()+extra_count)/3)/64),1,1);rd.compute_list_end()
++	# The identical immutable inputs were validated on the local device before
++	# this callback was queued. No payload/status readback on the main device.
++	# This copy must execute in release builds too (assert expressions may not).
++	var error:=rd.buffer_copy(buffers[3],output_buffer,0,0,output_bytes)
++	if error!=OK:push_error("Resident collider GPU copy failed: "+str(error))
++func close()->void:
++	point_source=null
++	validator.close()
++	if rd==null:return
++	var device:=rd;var shared_set:=shared_uniform_set;var resources:Array[RID]=[uniform_set]
++	resources.append_array(buffers);resources.append_array([output_buffer,pipeline,shader])
++	# Capture values, not this RefCounted, so PREDELETE cannot leave a dangling callback.
++	RenderingServer.call_on_render_thread(func():
++		if shared_set.is_valid() and device.uniform_set_is_valid(shared_set):device.free_rid(shared_set)
++		for rid in resources:
++			if rid.is_valid():device.free_rid(rid))
++	RenderingServer.force_sync()
++	buffers.clear();shared_uniform_set=RID();shared_buffer=RID();output_buffer=RID();uniform_set=RID();pipeline=RID();shader=RID();rd=null;success=false
++func _notification(what:int)->void:
++	if what!=NOTIFICATION_PREDELETE:return
++	# A zero-reference object cannot invoke its own methods during PREDELETE.
++	validator.close()
++	if rd==null:return
++	var device:=rd;var shared_set:=shared_uniform_set;var resources:Array[RID]=[uniform_set]
++	resources.append_array(buffers);resources.append_array([output_buffer,pipeline,shader])
++	RenderingServer.call_on_render_thread(func():
++		if shared_set.is_valid() and device.uniform_set_is_valid(shared_set):device.free_rid(shared_set)
++		for rid in resources:
++			if rid.is_valid():device.free_rid(rid))
++	RenderingServer.force_sync()
+diff --git a/addons/godot_gpu_cloth/src/cloth_spatial_order.gd b/addons/godot_gpu_cloth/src/cloth_spatial_order.gd
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/src/cloth_spatial_order.gd
+@@ -0,0 +1,21 @@
++extends RefCounted
++## Morton ordering affects search only. Original IDs resolve exact contact ties.
++static func spread(value:int)->int:
++	value=(value | (value<<16)) & 0x030000ff
++	value=(value | (value<<8)) & 0x0300f00f
++	value=(value | (value<<4)) & 0x030c30c3
++	value=(value | (value<<2)) & 0x09249249
++	return value
++static func order(points:PackedVector3Array)->PackedInt32Array:
++	var low:=Vector3(INF,INF,INF);var high:=-low
++	for p in points:low=low.min(p);high=high.max(p)
++	var size:=(high-low).max(Vector3(.000001,.000001,.000001))
++	var keys:=PackedInt64Array();keys.resize(points.size())
++	for i in points.size():
++		var p:=(points[i]-low)/size*1023
++		var morton:=spread(clampi(int(p.x),0,1023)) | (spread(clampi(int(p.y),0,1023))<<1) | (spread(clampi(int(p.z),0,1023))<<2)
++		keys[i]=(morton<<32)|i
++	keys.sort()
++	var result:=PackedInt32Array();result.resize(points.size())
++	for i in keys.size():result[i]=keys[i]&0xffffffff
++	return result
+diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_solve.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_solve.glsl
+--- a/addons/godot_gpu_cloth/shaders/compute/cloth_solve.glsl
++++ b/addons/godot_gpu_cloth/shaders/compute/cloth_solve.glsl
+@@ -15,13 +15,18 @@
+ // the denominator collapses to (w_a + w_b + α̃). α = 0 ⇒ ideal-rigid PBD-
+ // equivalent correction with no λ drift.
+ 
++#ifdef RMMO_BATCHED_SOLVE
++layout(local_size_x = 256) in;
++layout(set=0,binding=9,std430) readonly buffer Groups {uvec2 groups[];};
++#else
+ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
++#endif
+ 
+-layout(set = 0, binding = 1, std430) restrict buffer Predicted          { vec4 predicted[];   };
++layout(set = 0, binding = 1, std430) coherent restrict buffer Predicted          { vec4 predicted[];   };
+ layout(set = 0, binding = 3, std430) restrict readonly buffer Constraints { vec4 constraints[]; };
+ // Per-constraint λ. Written every iter; effectively cleared on iter 0 by the
+ // reset bit in constraint_offset_packed (avoids a separate clear pass).
+-layout(set = 0, binding = 8, std430) restrict buffer Lambdas            { float lambdas[];    };
++layout(set = 0, binding = 8, std430) coherent restrict buffer Lambdas            { float lambdas[];    };
+ 
+ layout(push_constant, std430) uniform Params {
+     float dt;
+@@ -42,13 +47,7 @@
+     float pad_gy, pad_gz, pad_g1, pad_g2;
+ };
+ 
+-void main() {
+-    uint idx = gl_GlobalInvocationID.x;
+-    if (idx >= constraint_count) return;
+-
+-    uint reset_lambda = constraint_offset_packed >> 31u;
+-    uint cidx         = (constraint_offset_packed & 0x7FFFFFFFu) + idx;
+-
++void solve_constraint(uint cidx,uint reset_lambda) {
+     uint  a          = uint(constraints[cidx].x);
+     uint  b          = uint(constraints[cidx].y);
+     float rest       = constraints[cidx].z;
+@@ -77,3 +76,20 @@
+     predicted[a] = vec4(pa - corr * wa, wa);
+     predicted[b] = vec4(pb + corr * wb, wb);
+ }
++
++void main(){
++#ifdef RMMO_BATCHED_SOLVE
++    // One workgroup owns the entire cloth. Within each graph color endpoints
++    // are disjoint; all threads publish their writes before the next color.
++    for(uint color=0u;color<constraint_count;color++){
++        uvec2 group=groups[color];
++        for(uint index=gl_LocalInvocationID.x;index<group.y;index+=256u)
++            solve_constraint(group.x+index,constraint_offset_packed>>31u);
++        memoryBarrierBuffer();barrier();
++    }
++#else
++    uint index=gl_GlobalInvocationID.x;
++    if(index<constraint_count)
++        solve_constraint((constraint_offset_packed&0x7fffffffu)+index,constraint_offset_packed>>31u);
++#endif
++}
 diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 --- a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 +++ b/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
-@@ -34,12 +34,18 @@
+@@ -1,5 +1,8 @@
+ #[compute]
+ #version 450
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
++#define RMMO_PARALLEL
++#endif
+ 
+ // Skinned mesh collider — pushes each free cloth particle outside the body's
+ // decimated triangle proxy. The CPU side (gpu_cloth_solver.gd:_build_collider_mesh)
+@@ -34,12 +37,18 @@
  layout(set = 0, binding = 5, std430) restrict readonly buffer ClothWeights {
      vec4 cloth_weights[];
  };
@@ -745,11 +1403,11 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
      float friction;      // Coulomb μ; 0 = frictionless
 +    float frame_start;
 +    float frame_end;
-+    float unused0, unused1;
++    uint use_body_bounds; uint triangle_leaves;
  };
  
  // Standard closest-point-on-triangle (Ericson, Real-Time Collision Detection).
-@@ -88,53 +94,98 @@
+@@ -88,53 +97,166 @@
      return a + ab * v + ac * w;
  }
  
@@ -801,6 +1459,20 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 +    return 2.0;
 +}
 +layout(set=0,binding=7,std430) buffer BodyDirections {vec4 body_directions[];};
++layout(set=0,binding=8,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
++uint next_node(uint node){
++ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
++ return node+1u;
++}
++layout(set=0,binding=9,std430) readonly buffer Order {uint order[];};
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
++layout(set=0,binding=10,std430) readonly buffer Candidates {uint candidates[];};
++#endif
++#ifdef RMMO_PARALLEL
++shared float hits[64],distances[64];
++shared vec3 impacts[64],contacts[64],normals[64];
++shared uint hit_ids[64],closest_ids[64];
++#endif
  void main() {
 -    uint idx = gl_GlobalInvocationID.x;
 -    if (idx >= particle_count) return;
@@ -828,7 +1500,72 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 -                push_dir = diff / dist;
 -            } else {
 -                push_dir = normalize(cross(b - a, c - a));
--            }
++    #ifdef RMMO_PARALLEL
++    uint idx=gl_WorkGroupID.x;
++#else
++    uint idx=gl_GlobalInvocationID.x;
++#endif
++    if(idx>=particle_count)return;
++#ifdef RMMO_CANDIDATE_LIST
++ if(candidates[idx*2055u]>2048u)return;
++#endif
++#ifdef RMMO_CANDIDATE_FALLBACK
++ if(candidates[idx*2055u]<=2048u)return;
++#endif
++
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_COMBINED)
++    if(candidates[idx*2055u]==0u)return;
++#endif
++    float w=predicted[idx].w;if(w<.001)return;
++    float gap=thickness*cloth_weights[idx].x;if(gap<1e-6)return;
++    vec3 start=positions[idx].xyz,end=predicted[idx].xyz;
++    vec3 segment_min=min(start,end)-gap,segment_max=max(start,end)+gap;
++    float first=2.0,closest_distance=gap;vec3 impact=end,contact=end,contact_normal=vec3(0);
++    uint first_index=0xffffffffu,closest_index=0xffffffffu;
++#ifdef RMMO_CANDIDATE_COMBINED
++ uint candidate_count=candidates[idx*2055u];
++ bool overflow=candidate_count>2048u;
++ for(uint entry=gl_LocalInvocationID.x;entry<(overflow?tri_count:candidate_count);entry+=64u){
++  uint t=overflow?entry:candidates[idx*2055u+1u+entry];
++#elif defined(RMMO_CANDIDATE_LIST)
++ for(uint entry=gl_LocalInvocationID.x;entry<candidates[idx*2055u];entry+=64u){
++  uint t=candidates[idx*2055u+1u+entry];
++#elif defined(RMMO_CANDIDATE_FALLBACK)
++ for(uint t=gl_LocalInvocationID.x;t<tri_count;t+=64u){
++#else
++    uint node=1u;
++    while(node!=0u){
++        bool hit_box=use_body_bounds==0u || !(any(lessThan(body_bounds[(triangle_leaves*2u+node)*2u+1u].xyz,segment_min))||any(greaterThan(body_bounds[(triangle_leaves*2u+node)*2u].xyz,segment_max)));
++        if(hit_box && node<triangle_leaves){node*=2u;continue;}
++        uint begin=node>=triangle_leaves?(node-triangle_leaves)*8u:tri_count;
++        uint limit=hit_box?min(begin+8u,tri_count):begin;
++        node=next_node(node);
++        for(uint item=begin;item<limit;item++){
++        uint t=use_body_bounds!=0u?order[item]:item;
++#endif
++        vec3 ar=old_tri_verts[t*3u].xyz,br=old_tri_verts[t*3u+1u].xyz,cr=old_tri_verts[t*3u+2u].xyz;
++        vec3 an=tri_verts[t*3u].xyz,bn=tri_verts[t*3u+1u].xyz,cn=tri_verts[t*3u+2u].xyz;
++        vec3 a0=mix(ar,an,frame_start),b0=mix(br,bn,frame_start),c0=mix(cr,cn,frame_start);
++        vec3 a=mix(ar,an,frame_end),b=mix(br,bn,frame_end),c=mix(cr,cn,frame_end);
++        vec3 low=min(min(min(a,b),c),min(min(a0,b0),c0));
++        vec3 high=max(max(max(a,b),c),max(max(a0,b0),c0));
++        if(any(lessThan(high,segment_min))||any(greaterThan(low,segment_max)))continue;
++        vec3 n=cross(b-a,c-a);float nl=length(n);if(nl<1e-10)continue;n/=nl;
++        vec3 bary;float side;float hit=swept_hit(start,end,a0,b0,c0,a,b,c,bary,side);
++        if(hit<first || (hit==first && hit<=1.0 && t<first_index)){
++            vec3 anchor=a*bary.x+b*bary.y+c*bary.z;
++            vec3 remaining=end-anchor;
++            vec3 tangent=remaining-n*dot(remaining,n);
++            float tangent_length=length(tangent);
++            float correction=max(0.0,gap-side*dot(remaining,n));
++            // Another projection or the moving body may have already released
++            // this contact. A historical crossing must not attract the point
++            // back onto the surface or hide a later unresolved contact.
++            if(correction>1e-9){
++                first=hit;first_index=t;
++                float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
++                impact=end+n*side*correction-tangent*(1.0-retained);
+             }
 -            float push_mag = pthk - dist;
 -            pos = closest + push_dir * pthk;
 -
@@ -845,45 +1582,37 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 -                    float k = min(max_damp / tan_len, 1.0);
 -                    pos -= tangent * k;
 -                }
-+    uint idx=gl_GlobalInvocationID.x;if(idx>=particle_count)return;
-+    float w=predicted[idx].w;if(w<.001)return;
-+    float gap=thickness*cloth_weights[idx].x;if(gap<1e-6)return;
-+    vec3 start=positions[idx].xyz,end=predicted[idx].xyz;
-+    vec3 segment_min=min(start,end)-gap,segment_max=max(start,end)+gap;
-+    float first=2.0,closest_distance=gap;vec3 impact=end,contact=end,contact_normal=vec3(0);
-+    for(uint t=0u;t<tri_count;t++){
-+        vec3 ar=old_tri_verts[t*3u].xyz,br=old_tri_verts[t*3u+1u].xyz,cr=old_tri_verts[t*3u+2u].xyz;
-+        vec3 an=tri_verts[t*3u].xyz,bn=tri_verts[t*3u+1u].xyz,cn=tri_verts[t*3u+2u].xyz;
-+        vec3 a0=mix(ar,an,frame_start),b0=mix(br,bn,frame_start),c0=mix(cr,cn,frame_start);
-+        vec3 a=mix(ar,an,frame_end),b=mix(br,bn,frame_end),c=mix(cr,cn,frame_end);
-+        vec3 low=min(min(min(a,b),c),min(min(a0,b0),c0));
-+        vec3 high=max(max(max(a,b),c),max(max(a0,b0),c0));
-+        if(any(lessThan(high,segment_min))||any(greaterThan(low,segment_max)))continue;
-+        vec3 n=cross(b-a,c-a);float nl=length(n);if(nl<1e-10)continue;n/=nl;
-+        vec3 bary;float side;float hit=swept_hit(start,end,a0,b0,c0,a,b,c,bary,side);
-+        if(hit<first){
-+            vec3 anchor=a*bary.x+b*bary.y+c*bary.z;
-+            vec3 remaining=end-anchor;
-+            vec3 tangent=remaining-n*dot(remaining,n);
-+            float tangent_length=length(tangent);
-+            float correction=max(0.0,gap-side*dot(remaining,n));
-+            // Another projection or the moving body may have already released
-+            // this contact. A historical crossing must not attract the point
-+            // back onto the surface or hide a later unresolved contact.
-+            if(correction>1e-9){
-+                first=hit;
-+                float retained=tangent_length>1e-8?max(0.0,1.0-friction*correction/tangent_length):0.0;
-+                impact=end+n*side*correction-tangent*(1.0-retained);
-             }
-         }
-+        vec3 q=closest_point_on_triangle(end,a,b,c),diff=end-q;float distance=length(diff);
-+        if(distance<closest_distance){
-+            closest_distance=distance;contact_normal=distance>1e-8?diff/distance:n;
-+            contact=q+contact_normal*gap;
-+        }
-     }
+-            }
+-        }
+-    }
 -
 -    predicted[idx] = vec4(pos, w);
+-}
++        }
++        vec3 q=closest_point_on_triangle(end,a,b,c),diff=end-q;float distance=length(diff);
++        if(distance<closest_distance || (distance==closest_distance && t<closest_index && distance<gap)){
++            closest_distance=distance;closest_index=t;contact_normal=distance>1e-8?diff/distance:n;
++            contact=q+contact_normal*gap;
++        }
++    }
++
++#ifndef RMMO_PARALLEL
++    }
++#endif
++#ifdef RMMO_PARALLEL
++    uint lane=gl_LocalInvocationID.x;
++    hits[lane]=first;hit_ids[lane]=first_index;impacts[lane]=impact;
++    distances[lane]=closest_distance;closest_ids[lane]=closest_index;contacts[lane]=contact;normals[lane]=contact_normal;
++    barrier();if(lane!=0u)return;
++    for(uint other=1u;other<64u;other++){
++        if(hits[other]<first || (hits[other]==first && hit_ids[other]<first_index)){
++            first=hits[other];first_index=hit_ids[other];impact=impacts[other];
++        }
++        if(distances[other]<closest_distance || (distances[other]==closest_distance && closest_ids[other]<closest_index)){
++            closest_distance=distances[other];closest_index=closest_ids[other];contact=contacts[other];contact_normal=normals[other];
++        }
++    }
++#endif
 +    vec3 result=first<=1.0?impact:contact;
 +    if(first>1.0&&closest_distance<gap&&friction>0.0){
 +        vec3 movement=result-start,tangent=movement-contact_normal*dot(movement,contact_normal);
@@ -892,7 +1621,7 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_collide_triangles.glsl
 +    vec3 delta=result-end;
 +    if(dot(delta,delta)>1e-18)body_directions[idx*2u+1u]=vec4(normalize(delta),1);
 +    predicted[idx]=vec4(result,w);
- }
++}
 diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_predict.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_predict.glsl
 --- a/addons/godot_gpu_cloth/shaders/compute/cloth_predict.glsl
 +++ b/addons/godot_gpu_cloth/shaders/compute/cloth_predict.glsl
@@ -1036,9 +1765,12 @@ diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_reverse_contacts.glsl 
 new file mode 100644
 --- /dev/null
 +++ b/addons/godot_gpu_cloth/shaders/compute/cloth_reverse_contacts.glsl
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,250 @@
 +#[compute]
 +#version 450
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
++#define RMMO_PARALLEL
++#endif
 +layout(local_size_x=64) in;
 +layout(set=0,binding=0,std430) readonly buffer OldCloth {vec4 positions[];};
 +layout(set=0,binding=1,std430) readonly buffer Cloth {vec4 predicted[];};
@@ -1048,9 +1780,10 @@ new file mode 100644
 +layout(set=0,binding=5,std430) readonly buffer VertexIds {uint vertex_ids[];};
 +layout(set=0,binding=6,std430) writeonly buffer Corrections {vec4 corrections[];};
 +layout(set=0,binding=7,std430) readonly buffer Edges {uvec2 edges[];};
++layout(set=0,binding=8,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
 +layout(push_constant,std430) uniform Params {
 + uint face_count; uint vertex_count; float thickness; uint edge_count;
-+ float frame_start; float frame_end; float pad2; float pad3;
++ float frame_start; float frame_end; uint use_body_bounds; uint triangle_blocks;
 +};
 +vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
 +    vec3 ab = b - a;
@@ -1133,7 +1866,7 @@ new file mode 100644
 +        float t=(lo+hi)*.5;if(t<1e-5)continue;
 +        vec3 a=mix(a0,a1,t),ab=mix(b0,b1,t)-a,ac=mix(c0,c1,t)-a;
 +        vec3 q=mix(p0,p1,t)-a,n=cross(ab,ac);float nn=dot(n,n);
-+        if(nn<1e-18)continue;
++       if(nn<1e-18)continue;
 +        float x=dot(cross(q,ac),n)/nn,y=dot(cross(ab,q),n)/nn;
 +        if(x<-.00001||y<-.00001||x+y>1.00001)continue;
 +        bary=vec3(1.0-x-y,x,y);
@@ -1142,20 +1875,75 @@ new file mode 100644
 +    }
 +    return 2.0;
 +}
++uint next_node(uint node){
++ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
++ return node+1u;
++}
++layout(set=0,binding=9,std430) readonly buffer Order {uint order[];};
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
++layout(set=0,binding=10,std430) readonly buffer Candidates {uint candidates[];};
++#endif
++#ifdef RMMO_PARALLEL
++shared float depths[64];shared uint contact_ids[64];shared vec3 barycentrics[64],directions[64];
++#endif
 +void main(){
-+ uint face=gl_GlobalInvocationID.x;if(face>=face_count)return;
++ #ifdef RMMO_PARALLEL
++ uint face=gl_WorkGroupID.x;
++#else
++ uint face=gl_GlobalInvocationID.x;
++#endif
++ if(face>=face_count)return;
++#ifdef RMMO_CANDIDATE_LIST
++ if(candidates[face*2055u]>2048u)return;
++#endif
++#ifdef RMMO_CANDIDATE_FALLBACK
++ if(candidates[face*2055u]<=2048u)return;
++#endif
++
 + uint i=indices[face*3],j=indices[face*3+1],k=indices[face*3+2];
 + vec3 a=predicted[i].xyz,b=predicted[j].xyz,c=predicted[k].xyz;
 + vec3 a0=positions[i].xyz,b0=positions[j].xyz,c0=positions[k].xyz;
 + vec3 mass=vec3(predicted[i].w,predicted[j].w,predicted[k].w);
 + vec3 n=cross(b-a,c-a);float nn=dot(n,n);
++#ifdef RMMO_PARALLEL
++ if(gl_LocalInvocationID.x==0u){
++#endif
 + corrections[face*3]=vec4(0);corrections[face*3+1]=vec4(0);corrections[face*3+2]=vec4(0);
++#ifdef RMMO_PARALLEL
++ }
++#endif
++#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_COMBINED)
++ if(candidates[face*2055u]==0u && edge_count==0u)return;
++#endif
 + if(nn<1e-18||dot(mass,mass)<1e-8)return;
 + vec3 unit_n=n/sqrt(nn);
 + vec3 low=min(min(min(a,b),c),min(min(a0,b0),c0))-thickness;
 + vec3 high=max(max(max(a,b),c),max(max(a0,b0),c0))+thickness;
 + float strongest=0;vec3 chosen=vec3(0),direction=vec3(0);
-+ for(uint v=0;v<vertex_count;v++){
++ uint chosen_index=0xffffffffu;
++#ifdef RMMO_CANDIDATE_COMBINED
++ uint candidate_count=candidates[face*2055u];
++ bool overflow=candidate_count>2048u;
++ for(uint entry=gl_LocalInvocationID.x;entry<(overflow?vertex_count:candidate_count);entry+=64u){
++  uint v=overflow?entry:candidates[face*2055u+1u+entry];
++#elif defined(RMMO_CANDIDATE_LIST)
++ for(uint entry=gl_LocalInvocationID.x;entry<candidates[face*2055u];entry+=64u){
++  uint v=candidates[face*2055u+1u+entry];
++#elif defined(RMMO_CANDIDATE_FALLBACK)
++ for(uint v=gl_LocalInvocationID.x;v<vertex_count;v+=64u){
++#else
++ uint leaves=vertex_count<=8u?1u:1u<<uint(findMSB((vertex_count-1u)/8u)+1);
++ uint node=1u;
++ while(node!=0u){
++  uint address=triangle_blocks*4u+node;
++  bool hit_box=use_body_bounds==0u || !(any(lessThan(body_bounds[address*2u+1u].xyz,low))||any(greaterThan(body_bounds[address*2u].xyz,high)));
++  if(hit_box&&node<leaves){node*=2u;continue;}
++  uint begin=node>=leaves?(node-leaves)*8u:vertex_count;
++  uint limit=hit_box?min(begin+8u,vertex_count):begin;
++  node=next_node(node);
++  for(uint item=begin;item<limit;item++){
++  uint v=use_body_bounds!=0u?order[floatBitsToUint(body_bounds[0].w)+item]:item;
++#endif
 +  uint id=vertex_ids[v];
 +  vec3 p0=mix(old_body[id].xyz,body[id].xyz,frame_start);
 +  vec3 p=mix(old_body[id].xyz,body[id].xyz,frame_end);
@@ -1172,9 +1960,23 @@ new file mode 100644
 +   bary=vec3(1-x-y,x,y);
 +  }
 +  float depth=thickness-side*dot(p-(a*bary.x+b*bary.y+c*bary.z),unit_n);
-+  if(depth>strongest){strongest=depth;chosen=bary;direction=-unit_n*side;}
++  if(depth>strongest || (depth==strongest && v<chosen_index && depth>0)){strongest=depth;chosen_index=v;chosen=bary;direction=-unit_n*side;}
 + }
 +
++
++#ifndef RMMO_PARALLEL
++ }
++#endif
++#ifdef RMMO_PARALLEL
++ uint lane=gl_LocalInvocationID.x;
++ depths[lane]=strongest;contact_ids[lane]=chosen_index;barycentrics[lane]=chosen;directions[lane]=direction;
++ barrier();if(lane!=0u)return;
++ for(uint other=1u;other<64u;other++){
++  if(depths[other]>strongest || (depths[other]==strongest && contact_ids[other]<chosen_index)){
++   strongest=depths[other];chosen_index=contact_ids[other];chosen=barycentrics[other];direction=directions[other];
++  }
++ }
++#endif
 + // Edge/edge CCD. A moving edge pair is coplanar exactly when the moving
 + // body endpoint meets the parallelogram spanned by clothEdge and -bodyEdge.
 + // Two triangles cover that parallelogram without the s+t<=1 restriction.
@@ -1564,4 +2366,281 @@ new file mode 100644
 +    reactions[idx*5u]=vec4(float(idx),vec3(ids));
 +    reactions[idx*5u+1u]=vec4(correction*w,0);
 +    for(uint slot=0u;slot<3u;slot++)reactions[idx*5u+2u+slot]=vec4(-correction*masses[slot]*bary[slot],0);
++}
+diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_body_bounds.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_body_bounds.glsl
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/shaders/compute/cloth_body_bounds.glsl
+@@ -0,0 +1,49 @@
++#[compute]
++#version 450
++// Ordered binary trees: eight primitives per leaf. Endpoint bounds are
++// conservative for every substep, reduction levels have dispatch barriers.
++layout(local_size_x=64) in;
++layout(set=0,binding=0,std430) readonly buffer Body {vec4 body[];};
++layout(set=0,binding=1,std430) readonly buffer OldBody {vec4 old_body[];};
++layout(set=0,binding=2,std430) readonly buffer VertexIds {uint vertex_ids[];};
++layout(set=0,binding=3,std430) buffer Bounds {vec4 bounds[];};
++layout(set=0,binding=4,std430) readonly buffer Order {uint order[];};
++layout(push_constant,std430) uniform Params {
++ uint triangle_count;uint vertex_count;uint triangle_leaves;uint level;
++ float frame_start;float frame_end;uint motion_threshold_mm;uint refit;
++};
++void build(uint leaves,uint base,uint count,bool triangles,bool ordered){
++ uint id=gl_GlobalInvocationID.x,width=leaves>>level;
++ if(id>=width)return;
++ uint node=base+width+id;
++ vec3 low=vec3(3.402823e38),high=-low;float motion=0.0;
++ if(level==0u){
++  for(uint item=id*8u;item<min(id*8u+8u,count);item++){
++   for(uint corner=0u;corner<(triangles?3u:1u);corner++){
++    uint mapped=ordered?order[(triangles?0u:triangle_count)+item]:item;
++    uint i=triangles?mapped*3u+corner:vertex_ids[mapped];
++    motion=max(motion,length(body[i].xyz-old_body[i].xyz));
++    vec3 a=refit!=0u?mix(old_body[i].xyz,body[i].xyz,frame_start):old_body[i].xyz;
++    vec3 b=refit!=0u?mix(old_body[i].xyz,body[i].xyz,frame_end):body[i].xyz;
++    low=min(low,min(a,b));high=max(high,max(a,b));
++   }
++  }
++  if(id*8u<count){vec3 guard=max(vec3(1e-6),max(abs(low),abs(high))*1e-6);low-=guard;high+=guard;}
++ }else{
++  uint child=base+(width+id)*2u;
++  motion=max(bounds[child*2u].w,bounds[(child+1u)*2u].w);
++  low=min(bounds[child*2u].xyz,bounds[(child+1u)*2u].xyz);
++  high=max(bounds[child*2u+1u].xyz,bounds[(child+1u)*2u+1u].xyz);
++ }
++ bounds[node*2u]=vec4(low,motion);bounds[node*2u+1u]=vec4(high,0);
++}
++void main(){
++ // Keep the original-order whole-frame tree immutable during refit. Its root
++ // holds the frame motion test and its leaves serve sanitizer/fallback paths.
++ if(refit!=0u && (refit&2u)==0u && bounds[2].w<=float(motion_threshold_mm)*.001)return;
++ if(refit==0u && gl_GlobalInvocationID.x==0u && level==0u)bounds[0]=vec4(0,0,0,uintBitsToFloat(triangle_count));
++ uint vertex_leaves=vertex_count<=8u?1u:1u<<uint(findMSB((vertex_count-1u)/8u)+1);
++ if(refit==0u)build(triangle_leaves,0u,triangle_count,true,false);
++ build(triangle_leaves,triangle_leaves*2u,triangle_count,true,true);
++ build(vertex_leaves,triangle_leaves*4u,vertex_count,false,true);
++}
+diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_skin_collide_triangles.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_skin_collide_triangles.glsl
+--- a/addons/godot_gpu_cloth/shaders/compute/cloth_skin_collide_triangles.glsl
++++ b/addons/godot_gpu_cloth/shaders/compute/cloth_skin_collide_triangles.glsl
+@@ -32,6 +32,7 @@
+     float thickness;
+     float pad0;
+ };
++layout(set=0,binding=2,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
+ 
+ vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
+     vec3 ab = b - a;
+@@ -75,6 +76,10 @@
+     return a + ab * v + ac * w;
+ }
+ 
++uint next_node(uint node){
++ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
++ return node+1u;
++}
+ void main() {
+     uint idx = gl_GlobalInvocationID.x;
+     if (idx >= particle_count) return;
+@@ -84,7 +89,18 @@
+ 
+     // No pinned-skip: pinned particles especially need their anchor positions
+     // sanitized — they get snapped to skinned_targets directly in predict.
+-    for (uint t = 0u; t < tri_count; t++) {
++    uint leaves=tri_count<=8u?1u:1u<<uint(findMSB((tri_count-1u)/8u)+1);
++    uint node=1u;
++    while(node!=0u){
++        bool hit_box=true;
++#ifndef RMMO_EXHAUSTIVE_SANITIZE
++        hit_box=!(any(lessThan(body_bounds[node*2u+1u].xyz,pos-thickness))||any(greaterThan(body_bounds[node*2u].xyz,pos+thickness)));
++#endif
++        if(hit_box&&node<leaves){node*=2u;continue;}
++        uint begin=node>=leaves?(node-leaves)*8u:tri_count;
++        uint limit=hit_box?min(begin+8u,tri_count):begin;
++        node=next_node(node);
++        for(uint t=begin;t<limit;t++){
+         vec3 a = tri_verts[t * 3u + 0u].xyz;
+         vec3 b = tri_verts[t * 3u + 1u].xyz;
+         vec3 c = tri_verts[t * 3u + 2u].xyz;
+@@ -102,5 +118,6 @@
+         }
+     }
+ 
++    }
+     skinned_targets[idx] = vec4(pos, w);
+ }
+diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_indexed_packet.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_indexed_packet.glsl
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/shaders/compute/cloth_indexed_packet.glsl
+@@ -0,0 +1,32 @@
++#[compute]
++#version 450
++layout(local_size_x=64) in;
++layout(set=0,binding=0,std430) readonly buffer Points {float points[];};
++layout(set=0,binding=1,std430) readonly buffer Indices {uint indices[];};
++layout(set=0,binding=2,std430) readonly buffer Extras {float extras[];};
++layout(set=0,binding=3,std430) writeonly buffer Output {
++#ifdef RMMO_PACKED_STATUS
++ layout(offset=16) vec4 output_points[];
++#else
++ vec4 output_points[];
++#endif
++};
++layout(set=0,binding=4,std430) buffer Invalid {uint invalid;};
++layout(push_constant,std430) uniform Params {uint body_count;uint extra_count;uint p0;uint p1;vec4 offset;};
++void main(){
++ uint face=gl_GlobalInvocationID.x;if(face>=body_count+extra_count)return;
++ vec3 p[3];
++ for(uint corner=0;corner<3;corner++){
++  if(face<body_count){
++   uint i=indices[face*3+corner]*3;
++   p[corner]=vec3(points[i],points[i+1],points[i+2])+offset.xyz;
++  }else{
++   uint i=((face-body_count)*3+corner)*3;
++   p[corner]=vec3(extras[i],extras[i+1],extras[i+2]);
++  }
++  if(any(isnan(p[corner]))||any(isinf(p[corner])))atomicOr(invalid,1u);
++  output_points[face*3+corner]=vec4(p[corner],0);
++ }
++ vec3 n=cross(p[1]-p[0],p[2]-p[0]);
++ if(dot(n,n)<1e-16)atomicOr(invalid,1u);
++}
+diff --git a/addons/godot_gpu_cloth/shaders/compute/cloth_contact_candidates.glsl b/addons/godot_gpu_cloth/shaders/compute/cloth_contact_candidates.glsl
+new file mode 100644
+--- /dev/null
++++ b/addons/godot_gpu_cloth/shaders/compute/cloth_contact_candidates.glsl
+@@ -0,0 +1,132 @@
++#[compute]
++#version 450
++#ifndef RMMO_CANDIDATE_PADDING
++#define RMMO_CANDIDATE_PADDING 0.012
++#endif
++#ifndef RMMO_CANDIDATE_GROUP_SIZE
++#define RMMO_CANDIDATE_GROUP_SIZE 64
++#endif
++layout(local_size_x=RMMO_CANDIDATE_GROUP_SIZE) in;
++layout(set=0,binding=0,std430) readonly buffer OldCloth {vec4 positions[];};
++layout(set=0,binding=1,std430) readonly buffer Cloth {vec4 predicted[];};
++layout(set=0,binding=2,std430) readonly buffer Indices {uint indices[];};
++layout(set=0,binding=3,std430) readonly buffer Body {vec4 body[];};
++layout(set=0,binding=4,std430) readonly buffer OldBody {vec4 old_body[];};
++layout(set=0,binding=5,std430) readonly buffer Vertices {uint vertex_ids[];};
++layout(set=0,binding=6,std430) readonly buffer Bounds {vec4 bounds[];};
++layout(set=0,binding=7,std430) readonly buffer Order {uint order[];};
++layout(set=0,binding=8,std430) buffer Candidates {uint candidates[];};
++layout(set=0,binding=9,std430) readonly buffer Weights {vec4 weights[];};
++// reverse bit flags: 1=reverse query, 2=new frame, 4=substep mode,
++// 8=substep boundary, 16=adapt envelope to body motion; upper 24 bits
++// encode the motion threshold in millimeters (search policy, not precision).
++layout(push_constant,std430) uniform Params {uint count;uint reverse;uint leaves;uint triangle_count;float start;float end;float thickness;uint vertex_count;};
++uint next_node(uint node){while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}return node+1u;}
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++shared uint shared_found;
++uint next_subtree_node(uint node,uint root){while(node!=root && (node&1u)!=0u)node>>=1u;return node==root?0u:node+1u;}
++#endif
++void main(){
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ uint lane=gl_LocalInvocationID.x;
++ uint id=gl_WorkGroupID.x;if(id>=count)return;
++#else
++ uint id=gl_GlobalInvocationID.x;if(id>=count)return;
++#endif
++ uint base=id*2055u,found=0u,mode=reverse&1u;
++ // Whole-frame caching is cheaper for small motion. The threshold selects
++ // only a conservative search envelope; contact thickness/CCD are unchanged.
++ bool substep=(reverse&4u)!=0u && ((reverse&16u)==0u || bounds[(leaves*2u+1u)*2u].w>float(reverse>>8u)*.001);
++ bool refresh=(reverse&2u)!=0u || (substep && (reverse&8u)!=0u);
++ vec3 low,high;
++ if(mode==0u){
++  float gap=thickness*weights[id].x;if(predicted[id].w<.001||gap<1e-6){
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++   if(lane==0u)candidates[base]=0u;
++#else
++   candidates[base]=0u;
++#endif
++   return;
++  }
++  low=min(positions[id].xyz,predicted[id].xyz)-gap;high=max(positions[id].xyz,predicted[id].xyz)+gap;
++ }else{
++  uvec3 ids=uvec3(indices[id*3u],indices[id*3u+1u],indices[id*3u+2u]);
++  low=min(min(predicted[ids.x].xyz,predicted[ids.y].xyz),predicted[ids.z].xyz);
++  low=min(low,min(min(positions[ids.x].xyz,positions[ids.y].xyz),positions[ids.z].xyz))-thickness;
++  high=max(max(predicted[ids.x].xyz,predicted[ids.y].xyz),predicted[ids.z].xyz);
++  high=max(high,max(max(positions[ids.x].xyz,positions[ids.y].xyz),positions[ids.z].xyz))+thickness;
++ }
++ bool reuse=false;
++ if(!refresh){
++  vec3 cached_low=vec3(uintBitsToFloat(candidates[base+2049u]),uintBitsToFloat(candidates[base+2050u]),uintBitsToFloat(candidates[base+2051u]));
++  vec3 cached_high=vec3(uintBitsToFloat(candidates[base+2052u]),uintBitsToFloat(candidates[base+2053u]),uintBitsToFloat(candidates[base+2054u]));
++  reuse=all(greaterThanEqual(low,cached_low))&&all(lessThanEqual(high,cached_high));
++ }
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ // All lanes finish reading the old cache before lane zero may replace it.
++ groupMemoryBarrier();barrier();
++#endif
++ if(reuse)return;
++ // Cached lists are a conservative superset. Rebuild whenever the full swept
++ // query escapes, and unconditionally at each new body-packet boundary. Body candidate bounds
++ // cover the entire frame. Active substep mode narrows only leaf endpoints;
++ // bit 8 forces a refresh at each substep boundary even if the cloth is still.
++ low-=RMMO_CANDIDATE_PADDING;high+=RMMO_CANDIDATE_PADDING;
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ if(lane==0u){shared_found=0u;
++#endif
++ for(uint axis=0u;axis<3u;axis++){candidates[base+2049u+axis]=floatBitsToUint(low[axis]);candidates[base+2052u+axis]=floatBitsToUint(high[axis]);}
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ }
++ barrier();
++#endif
++ uint tree_leaves=mode==0u?leaves:(vertex_count<=8u?1u:1u<<uint(findMSB((vertex_count-1u)/8u)+1));
++ uint tree_base=mode==0u?leaves*2u:leaves*4u;
++ uint total=mode==0u?triangle_count:vertex_count;
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ uint roots=min(tree_leaves,uint(RMMO_CANDIDATE_GROUP_SIZE));
++ uint root=roots+lane,node=lane<roots?root:0u;
++#else
++ uint node=1u;
++#endif
++ while(node!=0u){
++  uint address=tree_base+node;
++  bool hit=!(any(lessThan(bounds[address*2u+1u].xyz,low))||any(greaterThan(bounds[address*2u].xyz,high)));
++  if(hit&&node<tree_leaves){node*=2u;continue;}
++  uint begin=node>=tree_leaves?(node-tree_leaves)*8u:total;
++  uint limit=hit?min(begin+8u,total):begin;
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++  node=next_subtree_node(node,root);
++#else
++  node=next_node(node);
++#endif
++  for(uint item=begin;item<limit;item++){
++   uint original=order[(mode==0u?0u:triangle_count)+item];
++   vec3 plow=vec3(3.402823e38),phigh=-plow;
++   for(uint corner=0u;corner<(mode==0u?3u:1u);corner++){
++    uint vertex=mode==0u?original*3u+corner:vertex_ids[original];
++    vec3 old=old_body[vertex].xyz,current=body[vertex].xyz;
++    vec3 a=substep?mix(old,current,start):old;
++    vec3 b=substep?mix(old,current,end):current;
++    plow=min(plow,min(a,b));phigh=max(phigh,max(a,b));
++   }
++   if(any(lessThan(phigh,low))||any(greaterThan(plow,high)))continue;
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++   uint slot=atomicAdd(shared_found,1u)+1u;
++   if(slot<=2048u)candidates[base+slot]=original;
++#else
++   found++;if(found>2048u){candidates[base]=2049u;return;}
++   candidates[base+found]=original;
++#endif
++  }
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++  if(atomicAdd(shared_found,0u)>2048u)break;
++#endif
++ }
++#ifdef RMMO_COOPERATIVE_CANDIDATES
++ barrier();
++ if(lane==0u)candidates[base]=min(shared_found,2049u);
++#else
++ candidates[base]=found;
++#endif
 +}

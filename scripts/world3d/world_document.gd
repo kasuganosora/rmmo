@@ -3,12 +3,14 @@ extends RefCounted
 
 const WorldLocation = preload("res://scripts/world3d/world_location.gd")
 const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
+const SurfaceMaterials = preload("res://scripts/world3d/surface_materials.gd")
 
 var records: Array = []
 var map_meta: Dictionary = {}
 var _next := 1
 var _disk_path := ""
 var _disk_signature := ""
+var editor_dirty := false
 
 
 func add_warp(position: Vector3, target_path: String, spawn: Vector3) -> String:
@@ -32,10 +34,16 @@ func add_npc(position: Vector3, npc_id: String, line: String) -> String:
 
 
 var _undo: Array = []
+var _redo: Array = []
 
 
 func checkpoint() -> void:
-	_undo.append(records.duplicate(true))
+	commit_change(records)
+
+
+func commit_change(before: Array) -> void:
+	_undo.append(before.duplicate(true))
+	_redo.clear()
 	if _undo.size() > 32:
 		_undo.pop_front()
 
@@ -43,8 +51,39 @@ func checkpoint() -> void:
 func undo() -> bool:
 	if _undo.is_empty():
 		return false
-	records = _undo.pop_back()
+	var state: Variant = _undo.pop_back()
+	_redo.append(recovery_snapshot() if state is Dictionary else records.duplicate(true))
+	if state is Dictionary: apply_recovery(state)
+	else: records = state
 	return true
+
+
+func redo() -> bool:
+	if _redo.is_empty():
+		return false
+	var state: Variant = _redo.pop_back()
+	_undo.append(recovery_snapshot() if state is Dictionary else records.duplicate(true))
+	if state is Dictionary: apply_recovery(state)
+	else: records = state
+	return true
+
+
+func recovery_snapshot() -> Dictionary:
+	return {"records": records.duplicate(true), "map_meta": map_meta.duplicate(true), "next": _next, "disk_path": _disk_path, "disk_signature": _disk_signature}
+
+
+func checkpoint_recovery() -> void:
+	_undo.append(recovery_snapshot())
+	_redo.clear()
+	if _undo.size() > 32: _undo.pop_front()
+
+
+func apply_recovery(state: Dictionary) -> void:
+	records = state.records.duplicate(true)
+	map_meta = state.map_meta.duplicate(true)
+	_next = maxi(_next, int(state.next))
+	_disk_path = str(state.disk_path)
+	_disk_signature = str(state.disk_signature)
 
 
 func begin_change() -> void:
@@ -58,6 +97,15 @@ func add_box_silent(surface_id: String, position: Vector3, size: Vector3, rotati
 func add_box(surface_id: String, position: Vector3, size: Vector3, rotation_degrees: Vector3 = Vector3.ZERO) -> String:
 	checkpoint()
 	return _push("box", surface_id, position, size, rotation_degrees)
+
+
+func add_seat(surface_center:Vector3,dimensions:Vector2,yaw_degrees:float=0.0)->String:
+	# A white-box stool; imported furniture may provide the same local seat metadata.
+	if not surface_center.is_finite() or not dimensions.is_finite() or dimensions.x<=0 or dimensions.y<=0 or not is_finite(yaw_degrees):return ""
+	checkpoint()
+	var id:=_push("seat","block",surface_center-Vector3(0,.02,0),Vector3(dimensions.x,.04,dimensions.y),Vector3(0,yaw_degrees,0))
+	records.back()["seat"]={"surface":[0,.02,0],"size":[dimensions.x,dimensions.y]}
+	return id
 
 
 func _push(kind: String, surface_id: String, position: Vector3, size: Vector3, rotation_degrees: Vector3 = Vector3.ZERO) -> String:
@@ -112,14 +160,32 @@ func build() -> Node3D:
 
 
 func save(gltf_path: String) -> Error:
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(map_meta): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(map_meta,records): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(map_meta): return ERR_INVALID_DATA
 	if not missing_assets().is_empty(): return ERR_FILE_NOT_FOUND
+	if not preload("res://scripts/world3d/environment_settings.gd").valid(map_meta): return ERR_INVALID_DATA
+	for record in records:
+		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return ERR_INVALID_DATA
+		if not SurfaceMaterials.valid(record): return ERR_INVALID_DATA
 	var view := build()
+	for child in view.get_children():
+		if child.has_meta("paint_error") or child.has_meta("tile_error"):
+			view.free()
+			return ERR_INVALID_DATA
 	var canonical := ProjectSettings.globalize_path(gltf_path).simplify_path()
 	var expected: Variant = _disk_signature if canonical == _disk_path else null
 	var err := GltfMapIo.save_scene_atomic(view, gltf_path, expected)
 	if err == OK:
 		_disk_path = canonical
 		_disk_signature = str(view.get_meta("published_signature", ""))
+		# History restores content, never an obsolete save-conflict baseline after saving.
+		for state in _undo + _redo:
+			if state is Dictionary:
+				state.disk_path = _disk_path
+				state.disk_signature = _disk_signature
 	view.free()
 	return err
 
@@ -130,6 +196,11 @@ static func open_file(gltf_path: String):
 	if scene == null:
 		return null
 	var extras := GltfMapIo.extras_of(scene).duplicate(true)
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extras): scene.free(); return null
+	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(extras): scene.free(); return null
+	if not preload("res://scripts/world3d/environment_settings.gd").valid(extras):
+		scene.free()
+		return null
 	var raw: Variant = extras.get("rmmo_records")
 	if raw == null and str(extras.get("rmmo_format", "")) == WorldLocation.FORMAT:
 		raw = _legacy_records(scene)
@@ -137,11 +208,16 @@ static func open_file(gltf_path: String):
 	if not raw is Array:
 		# Do not replace unsupported/imported documents with an empty yard.
 		return null
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(extras,raw): return null
 	var doc = load("res://scripts/world3d/world_document.gd").new()
 	var ids := {}
 	for record in raw:
 		if not record is Dictionary:
 			return null
+		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return null
+		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return null
+		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return null
+		if not SurfaceMaterials.valid(record): return null
 		var uuid := str(record.get("uuid", ""))
 		if uuid.is_empty() or ids.has(uuid):
 			return null
@@ -243,7 +319,12 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
-	mesh_node.mesh = box
+	mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
+	if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
+	if mesh_node.mesh == null:
+		mesh_node.mesh = box
+		mesh_node.set_meta("tile_error", "自动拼接套件无法读取")
+	if record.has("tile3d"): mesh_node.scale = Vector3(float(size[0]), float(size[1]), float(size[2]))
 	var position: Array = record.get("position", [0, 0, 0])
 	mesh_node.position = Vector3(float(position[0]), float(position[1]), float(position[2]))
 	var rotation: Array = record.get("rotation", [0, 0, 0])
@@ -273,7 +354,9 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 		extras["line"] = str(record.get("line", ""))
 	if str(record.get("node_id", "")) != "":
 		extras["node_id"] = str(record.get("node_id", ""))
+	if record.get("seat") is Dictionary:extras["seat"]=record.seat.duplicate(true)
 	mesh_node.set_meta("extras", extras)
+	SurfaceMaterials.apply(mesh_node, record)
 	return mesh_node
 
 
@@ -284,7 +367,8 @@ func add_asset(entry: Dictionary, position: Vector3) -> String:
 	return id
 
 func missing_assets() -> Array:
-	var missing: Array = []
+	var missing: Array = SurfaceMaterials.missing(records)
+	missing.append_array(preload("res://scripts/world3d/auto_tile_kit.gd").missing(records))
 	for record in records:
 		if record.get("kind") == "asset" and not FileAccess.file_exists(str(record.get("asset_path", ""))): missing.append(str(record.get("asset_path", "")))
 	return missing
@@ -308,6 +392,7 @@ func _asset(record: Dictionary) -> Node3D:
 	else:
 		holder.add_child(model)
 		_namespace_asset(model, str(record.uuid), model)
+	SurfaceMaterials.apply(holder, record)
 	return holder
 
 func _namespace_asset(node: Node, prefix: String, asset_root: Node) -> void:

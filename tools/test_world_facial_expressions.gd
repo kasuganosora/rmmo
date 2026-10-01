@@ -48,8 +48,8 @@ func run()->void:
  assert(not model.axis_rig.body.expression_values.has("blink"))
  for surface in model.axis_rig.body.topology.materials.size():
   if model.axis_rig.body.topology.materials[surface]=="Irises":
-   var player_material=model.axis_rig.body.mesh_instance.mesh.surface_get_material(surface)
-   var npc_material=npc.axis_rig.body.mesh_instance.mesh.surface_get_material(surface)
+   var player_material=model.axis_rig.body.mesh_instance.get_active_material(surface)
+   var npc_material=npc.axis_rig.body.mesh_instance.get_active_material(surface)
    assert(player_material!=npc_material)
    assert(float(player_material.get_shader_parameter("expression_star"))==1)
    assert(float(npc_material.get_shader_parameter("expression_star"))==0)

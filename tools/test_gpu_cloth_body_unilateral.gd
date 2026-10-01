@@ -32,10 +32,13 @@ func run()->void:
 		var directions:=PackedByteArray();directions.resize(32)
 		var data:Dictionary={0:point,1:point,4:packed(body(1,second,basis)),5:PackedFloat32Array([1,0,0,0]).to_byte_array(),6:packed(body(0,second,basis)),7:directions}
 		var uniforms:Array[RDUniform]=[];var buffers:Dictionary={}
+		data[9]=directions
+		data[8]=directions # Broadphase disabled in this narrowphase regression.
 		for key:int in data:
 			buffers[key]=rd.storage_buffer_create(data[key].size(),data[key]);uniforms.append(uniform(key,buffers[key]))
 		var bindings:=rd.uniform_set_create(uniforms,shader,0)
 		var push:=PackedByteArray();push.resize(32);push.encode_u32(0,1);push.encode_u32(4,2 if second else 1);push.encode_float(8,.006);push.encode_float(20,1)
+		push.encode_u32(28,1)
 		var commands:=rd.compute_list_begin();rd.compute_list_bind_compute_pipeline(commands,pipeline);rd.compute_list_bind_uniform_set(commands,bindings,0)
 		rd.compute_list_set_push_constant(commands,push,32);rd.compute_list_dispatch(commands,1,1,1);rd.compute_list_end();rd.submit();rd.sync()
 		var result:=rd.buffer_get_data(buffers[1]).to_float32_array();var actual:=Vector3(result[0],result[1],result[2]);var expected:=Vector3(.506,0,0) if second else Vector3.ZERO

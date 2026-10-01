@@ -6,9 +6,9 @@ import subprocess
 import tempfile
 
 UPSTREAM = 'bd917afd15a8389370c7e12ec9c074555834cf68'
-FILES = ['src/gpu_cloth_solver.gd', *['shaders/compute/' + name + '.glsl' for name in (
-    'cloth_collide_triangles', 'cloth_predict', 'cloth_update', 'cloth_reverse_contacts',
-    'cloth_gather_contacts', 'cloth_snapshot', 'cloth_collide_self_swept')]]
+FILES = ['src/gpu_cloth_solver.gd', 'src/cloth_indexed_packet.gd', 'src/cloth_resident_packet.gd', 'src/cloth_spatial_order.gd', *['shaders/compute/' + name + '.glsl' for name in (
+    'cloth_solve', 'cloth_collide_triangles', 'cloth_predict', 'cloth_update', 'cloth_reverse_contacts',
+    'cloth_gather_contacts', 'cloth_snapshot', 'cloth_collide_self_swept', 'cloth_body_bounds', 'cloth_skin_collide_triangles', 'cloth_indexed_packet', 'cloth_contact_candidates')]]
 
 
 def main():

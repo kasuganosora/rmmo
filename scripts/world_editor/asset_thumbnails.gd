@@ -19,7 +19,7 @@ var model_load_count := 0
 var disk_load_count := 0
 
 static func key_for(entry: Dictionary) -> String:
-	return str(entry.get("asset_path", entry.get("id", "")))
+	return str(entry.get("prefab_path", entry.get("asset_path", entry.get("id", ""))))
 
 func lookup(entry: Dictionary) -> Texture2D:
 	var key := key_for(entry)
@@ -85,7 +85,7 @@ func _next() -> void:
 	var key := key_for(entry)
 	_key = key
 	_output = str(entry.get("thumbnail_path", "")) if importing else ""
-	if entry.has("asset_path") and not importing:
+	if (entry.has("asset_path") or entry.has("prefab_path")) and not importing:
 		# Browsing never instantiates models, including resources without a thumbnail.
 		var path := str(entry.get("thumbnail_path", ""))
 		var texture: Texture2D
@@ -102,7 +102,10 @@ func _next() -> void:
 		return
 	_busy = true
 	var model: Node3D
-	if entry.has("asset_path"):
+	if entry.has("prefab_path"):
+		model_load_count += 1
+		model = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
+	elif entry.has("asset_path"):
 		model_load_count += 1
 		model = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(entry.asset_path)
 	else:
@@ -114,6 +117,10 @@ func _next() -> void:
 		var material := StandardMaterial3D.new()
 		material.albedo_color = Color("72966a") if entry.get("category") == "地面" else Color("ab9680")
 		mesh.material_override = material
+		if entry.has("auto_family"):
+			mesh.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build({"family": entry.auto_family, "mask": 3, "neighbors": []})
+			mesh.scale = entry.get("size", Vector3.ONE)
+			mesh.material_override = null
 		model = mesh
 	if model != null:
 		_viewport.add_child(model)

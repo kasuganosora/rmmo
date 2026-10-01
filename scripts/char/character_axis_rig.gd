@@ -21,6 +21,7 @@ var animations:=Motion.new()
 var ground_pose=preload("res://scripts/char/character_ground_pose_preparer.gd").new()
 var ground_actions=preload("res://scripts/char/character_ground_action_preparer.gd").new()
 var last_error:=""
+var shape_revision:=0
 var head_vertices:=PackedInt32Array()
 var reported_unsupported:Dictionary={}
 static func available()->bool:
@@ -76,10 +77,25 @@ func update_appearance(model:Node3D)->bool:
 		last_error="Identity shape update failed";push_error(last_error);return false
 	model.rig.position=animations.apply_support(body,animations.authored_offset)
 	body.set_colors(model.appearance)
-	if previous_shapes!=body.shape_values:cloth.invalidate()
+	if previous_shapes!=body.shape_values:
+		shape_revision+=1
+		cloth.invalidate()
+		_invalidate_ground_actions(model)
+		model.identity_shapes_changed.emit()
 	hair.refit_body()
 	if not hair.apply(model):push_warning(hair.error)
 	return true
+func _invalidate_ground_actions(model:Node3D)->void:
+	# Baked contact/support belongs to one identity, unlike ordinary motion clips.
+	var clips:Array[StringName]=[&"sit_ground",&"sit_down_ground",&"stand_up_ground"]
+	var library:AnimationLibrary=animations.library.duplicate()
+	for clip:StringName in clips:
+		if library.has_animation(clip):library.remove_animation(clip)
+	if not animations.install(body.skeleton,library):
+		push_error("Cannot invalidate shape-specific ground actions");return
+	if model.action in clips:
+		model.play("idle","front",true)
+
 func set_equipment(parts:Dictionary)->bool:
 	var recipe:Variant=parts.get("SurfaceEquipment",{})
 	if not recipe is Dictionary:last_error="SurfaceEquipment must be a dictionary";return false
@@ -113,9 +129,10 @@ func duration(clip:StringName)->float:
 ## validate entry/exit transitions before exposing it as a gameplay action.
 func prepare_ground_pose()->Animation:
 	var requested:Dictionary=body.shape_values.duplicate(true)
+	var revision:int=shape_revision
 	var prepared:Animation=await ground_pose.prepare(body,requested)
 	if not is_instance_valid(body):return null
-	if body.shape_values!=requested:
+	if revision!=shape_revision or body.shape_values!=requested:
 		last_error="Body shape changed during ground pose preparation";return null
 	if prepared==null:last_error=ground_pose.error
 	return prepared
@@ -123,11 +140,12 @@ func prepare_ground_actions()->AnimationLibrary:
 	if not supports("get_up"):
 		last_error="Missing ground recovery animation";return null
 	var requested:Dictionary=body.shape_values.duplicate(true)
+	var revision:int=shape_revision
 	var seated:Animation=await prepare_ground_pose()
 	if seated==null or not is_instance_valid(body):return null
 	var result:AnimationLibrary=await ground_actions.prepare(body,requested,seated,animations.library)
 	if not is_instance_valid(body):return null
-	if body.shape_values!=requested:
+	if revision!=shape_revision or body.shape_values!=requested:
 		last_error="Body shape changed during ground action preparation";return null
 	last_error=ground_actions.error if result==null else ""
 	return result

@@ -3,6 +3,7 @@ extends RefCounted
 
 var ctrl
 var _character_gear:Dictionary={}
+var _session_revision:=0
 func _init(c):
 	ctrl = c
 
@@ -35,7 +36,9 @@ func login(username: String, password: String, server: String) -> void:
 		return
 	ctrl._trade_force_cancel_silent()
 	_checkpoint_gear()
+	ctrl.furniture.release_actor(ctrl._party_self_id())
 	ctrl._session_character_id = ""
+	_session_revision+=1
 	ctrl._session_user = username
 	ctrl._session_server = server
 	ctrl.login_finished.emit(true, "登录成功 · %s" % server)
@@ -46,8 +49,12 @@ func fetch_characters() -> void:
 	if ctrl._fetch_inflight:
 		return
 	ctrl._fetch_inflight = true
+	var request_revision:=_session_revision
 	await ctrl.get_tree().create_timer(LATENCY_SEC * 0.6).timeout
 	ctrl._fetch_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.characters_ready.emit([])
+		return
 	if not ctrl.is_logged_in():
 		ctrl.characters_ready.emit([])
 		return
@@ -65,8 +72,14 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	if ctrl._create_inflight:
 		return
 	ctrl._create_inflight = true
+	var request_revision:=_session_revision
+	# Capture at request time, before simulated network latency.
+	customization = customization.duplicate(true)
 	await ctrl.get_tree().create_timer(LATENCY_SEC).timeout
 	ctrl._create_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.character_created.emit(false, "会话已变更，请重试", {})
+		return
 	if not ctrl.is_logged_in():
 		ctrl.character_created.emit(false, "未登录", {})
 		return
@@ -79,7 +92,8 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	if char_name.length() > 12:
 		ctrl.character_created.emit(false, "名字太长（最多 12 字）", {})
 		return
-	var pid: Dictionary = customization.get("part_ids", {}) if typeof(customization) == TYPE_DICTIONARY else {}
+	customization["body_shapes"] = preload("res://scripts/char/character_body_shapes.gd").normalize(customization.get("body_shapes",{}))
+	var pid: Dictionary = customization.get("part_ids", {}) if customization.get("part_ids", {}) is Dictionary else {}
 	if look_id.is_empty() and (typeof(pid) != TYPE_DICTIONARY or (pid as Dictionary).is_empty()):
 		ctrl.character_created.emit(false, "请选择外观", {})
 		return
@@ -99,7 +113,7 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	ctrl._next_char_id += 1
 	preload("res://scripts/char/character_body_migration.gd").apply(ch)
 	ctrl._accounts[ctrl._session_user]["characters"].append(ch)
-	ctrl.character_created.emit(true, "创建成功", ch)
+	ctrl.character_created.emit(true, "创建成功", ch.duplicate(true))
 
 
 
@@ -107,8 +121,12 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 	if ctrl._enter_inflight:
 		return
 	ctrl._enter_inflight = true
+	var request_revision:=_session_revision
 	await ctrl.get_tree().create_timer(LATENCY_SEC * 1.2).timeout
 	ctrl._enter_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.enter_world_ready.emit(false, "会话已变更，请重试", {})
+		return
 	if not ctrl.is_logged_in():
 		ctrl.enter_world_ready.emit(false, "未登录", {})
 		return
@@ -139,6 +157,7 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 	ctrl.awaiting_respawn = false
 	ctrl.facial_expressions.reset()
 	var lv: int = int(found.get("level", 1))
+	ctrl.furniture.release_actor(ctrl._party_self_id())
 	ctrl._session_character_id = str(found.get("id", "")).strip_edges()
 	if ctrl.combat_stats != null:
 		if ctrl.combat_stats.has_method("set_player_actor_id"):
@@ -225,7 +244,7 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 		combat_snap["mounted"] = ctrl.player_is_mounted()
 		combat_snap["move_speed_mul"] = ctrl.player_move_speed_mul()
 	var spawn = {
-		"character": found,
+		"character": found.duplicate(true),
 		"map_id": ctrl.map_pack_id,
 		"pack_path": ctrl.map_pack_path if ctrl.map_pack_path != "" else ctrl.start_map_pack_path(),
 		"content_id": ctrl.map_content_id,
@@ -296,6 +315,8 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 
 
 func logout() -> void:
+	ctrl.furniture.release_actor(ctrl._party_self_id())
+	_session_revision+=1
 	ctrl._trade_force_cancel_silent()
 	_checkpoint_gear()
 	ctrl._session_user = ""

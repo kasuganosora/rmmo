@@ -57,7 +57,7 @@ func run()->void:
  await process_frame
  assert(model.set_expressions({}) and shaped==body.rest_points)
  for surface in body.topology.materials.size():
-  var material:ShaderMaterial=body.mesh_instance.mesh.surface_get_material(surface)
+  var material:ShaderMaterial=body.mesh_instance.get_active_material(surface)
   if body.topology.materials[surface] in ["Irises","Pupils"]:assert(float(material.get_shader_parameter("expression_heart"))==0 and float(material.get_shader_parameter("expression_circle"))==0)
  for shape in [-.6,0.0,.6]:
   assert(body.set_shape_values({"height":shape,"nose_width":shape}))

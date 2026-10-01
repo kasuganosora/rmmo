@@ -81,13 +81,14 @@ func run() -> void:
 		Input.parse_input_event(motion)
 		await process_frame
 		check(is_equal_approx(float(editor._doc._find(original_id).position[0]), 1.0), "mouse drag uses grid snapping in the viewport")
+		click = click.duplicate()
+		click.pressed = false
+		Input.parse_input_event(click)
+		await process_frame
 		editor._doc.undo()
 		check(is_zero_approx(float(editor._doc._find(original_id).position[0])), "entire drag is a single undo operation")
 		editor._rebuild()
 		editor._inspector.select(original_id)
-		click = click.duplicate()
-		click.pressed = false
-		Input.parse_input_event(click)
 	else:
 		print("SKIP: viewport input requires graphical renderer; run without --headless")
 	check(editor._canvas.size.x > 600, "1280 px layout retains a large central canvas")

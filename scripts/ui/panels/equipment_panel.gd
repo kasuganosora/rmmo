@@ -128,6 +128,7 @@ func _build_paperdoll(host: Control, ch: Dictionary) -> void:
 			ctrl.add_child(_character_view)
 			_character_view.display.visible=false
 		var view=_character_view
+		view.set_activity_owner(ctrl._windows["character"])
 		var srv=Net.server()
 		var catalog=srv.get("item_catalog") if srv!=null else null
 		var gender:String=str(ch.get("gender","female"))

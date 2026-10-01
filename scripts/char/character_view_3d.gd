@@ -14,6 +14,39 @@ var render_scale:=.42
 var _wide_action:=false
 var _last_map_position:=Vector2.ZERO
 var _map_position_valid:=false
+var _activity_owner:WeakRef
+var _render_active:=true
+
+# The equipment texture is displayed in a window outside this node's ancestry.
+func set_activity_owner(owner:CanvasItem)->void:
+	if _activity_owner!=null:
+		var previous=_activity_owner.get_ref()
+		if is_instance_valid(previous):
+			previous.visibility_changed.disconnect(_sync_activity)
+			previous.tree_exiting.disconnect(_owner_exiting)
+	_activity_owner=weakref(owner) if owner!=null else null
+	if owner!=null:
+		owner.visibility_changed.connect(_sync_activity)
+		owner.tree_exiting.connect(_owner_exiting)
+	_sync_activity()
+
+func _owner_exiting()->void:
+	_set_render_active(false)
+
+func _sync_activity()->void:
+	var active:=is_visible_in_tree()
+	if _activity_owner!=null:
+		var owner=_activity_owner.get_ref()
+		active=active and is_instance_valid(owner) and owner.is_inside_tree() and owner.is_visible_in_tree()
+	_set_render_active(active)
+
+func _set_render_active(active:bool)->void:
+	_render_active=active
+	if viewport==null:return
+	viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	# Pause the whole subtree without changing individual process flags.
+	viewport.process_mode=Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
+	if not active:_map_position_valid=false
 
 static func enabled()->bool:return bool(ProjectSettings.get_setting("rmmo/characters_3d",true))
 static func equipment_parts(gender:String,snapshot:Array,catalog=null)->Dictionary:
@@ -65,7 +98,9 @@ func _ready()->void:
 	viewport.size=Vector2i(256,256);viewport.transparent_bg=true;viewport.own_world_3d=true
 	viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS;viewport.msaa_3d=Viewport.MSAA_2X
 	add_child(viewport)
-	model=Model.new();model.name="CharacterModel";viewport.add_child(model)
+	# Preview consumers supply their recipe via configure; do not load and then
+	# discard the default male body before the requested identity arrives.
+	model=Model.new();model.auto_configure=false;model.name="CharacterModel";viewport.add_child(model)
 	var environment:=WorldEnvironment.new();var settings:=Environment.new()
 	settings.background_mode=Environment.BG_CLEAR_COLOR
 	settings.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
@@ -81,6 +116,8 @@ func _ready()->void:
 	display.texture_filter=CanvasItem.TEXTURE_FILTER_LINEAR;display.centered=false
 	display.scale=Vector2.ONE*render_scale;add_child(display)
 	call_deferred("_anchor_feet")
+	visibility_changed.connect(_sync_activity)
+	_sync_activity()
 
 func _anchor_feet()->void:
 	display.position=-camera.unproject_position(Vector3.ZERO)*render_scale
@@ -130,6 +167,7 @@ func _fit_action()->void:
 	camera.size=3.9 if wide else 2.6
 	_anchor_feet()
 func _process(delta:float)->void:
+	if not _render_active:return
 	if model!=null:
 		model.environment_wind=Vector2.ZERO
 		# Only map actors have a driver; character creation previews stay indoors.
@@ -144,8 +182,6 @@ func _process(delta:float)->void:
 		_sync_locomotion(delta)
 		modulate=driver.modulate
 	_fit_action()
-	if viewport!=null:
-		viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 
 func _sync_locomotion(delta:float)->void:
 	var distance:float=global_position.distance_to(_last_map_position) if _map_position_valid else 0.0

@@ -2253,3 +2253,5 @@ func try_facial_expression(weights:Dictionary)->Dictionary:
 	return facial_expressions.request(weights)
 func try_remote_facial_expression(actor_id:String,weights:Dictionary)->Dictionary:
 	return facial_expressions.debug_remote(actor_id,weights)
+
+var furniture=preload("res://scripts/net/server/furniture_module.gd").new()

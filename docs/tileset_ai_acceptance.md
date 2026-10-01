@@ -1,5 +1,7 @@
 # AI tileset acceptance
 
+> Historical 2D workflow, retired on 2026-10-01. Its source remains, but these tools are no longer registered or served. Use [the current 3D editor MCP](world_editor_mcp.md) for active editor operations; the commands below are retained for reference.
+
 The content editor MCP can validate and render MV assets without changing the
 current map. Keep technical acceptance separate from image review: dimensions
 and file hashes cannot establish that an illustration matches an art reference.

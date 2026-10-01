@@ -107,8 +107,8 @@ func to_dict() -> Dictionary:
 		"bust_size": valid_bust_size(bust_size),
 		"body_model": valid_body_model(body_model),
 		"body_shapes": Shapes.normalize(body_shapes),
-		"part_ids": part_ids,
-		"equipment": equipment,
+		"part_ids": part_ids.duplicate(true),
+		"equipment": equipment.duplicate(true),
 		"mv_sheet": mv_sheet,
 	}
 
@@ -128,9 +128,9 @@ static func from_dict(d: Dictionary) -> Customization:
 	c.body_model = valid_body_model(d.get("body_model",""))
 	c.body_shapes = Shapes.normalize(d.get("body_shapes",{}))
 	if typeof(d.get("part_ids")) == TYPE_DICTIONARY:
-		c.part_ids = d["part_ids"]
+		c.part_ids = d["part_ids"].duplicate(true)
 	if typeof(d.get("equipment")) == TYPE_DICTIONARY:
-		c.equipment = d["equipment"]
+		c.equipment = d["equipment"].duplicate(true)
 	c.mv_sheet = str(d.get("mv_sheet", ""))
 	return c
 

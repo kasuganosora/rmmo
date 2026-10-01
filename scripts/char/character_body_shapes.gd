@@ -60,3 +60,9 @@ static func evaluate_rests(base:Dictionary,values:Dictionary)->Dictionary:
    transform.origin+=source.centers[bone]*weight
    result[bone]=transform
  return result
+
+static func random_values(rng:RandomNumberGenerator)->Dictionary:
+ var values:Dictionary={}
+ for key:String in RANGES:
+  values[key]=rng.randf_range(RANGES[key].x,RANGES[key].y)
+ return normalize(values)

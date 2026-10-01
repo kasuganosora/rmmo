@@ -1,5 +1,8 @@
 #[compute]
 #version 450
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
+#define RMMO_PARALLEL
+#endif
 layout(local_size_x=64) in;
 layout(set=0,binding=0,std430) readonly buffer OldCloth {vec4 positions[];};
 layout(set=0,binding=1,std430) readonly buffer Cloth {vec4 predicted[];};
@@ -9,9 +12,10 @@ layout(set=0,binding=4,std430) readonly buffer OldBody {vec4 old_body[];};
 layout(set=0,binding=5,std430) readonly buffer VertexIds {uint vertex_ids[];};
 layout(set=0,binding=6,std430) writeonly buffer Corrections {vec4 corrections[];};
 layout(set=0,binding=7,std430) readonly buffer Edges {uvec2 edges[];};
+layout(set=0,binding=8,std430) readonly buffer BodyBounds {vec4 body_bounds[];};
 layout(push_constant,std430) uniform Params {
  uint face_count; uint vertex_count; float thickness; uint edge_count;
- float frame_start; float frame_end; float pad2; float pad3;
+ float frame_start; float frame_end; uint use_body_bounds; uint triangle_blocks;
 };
 vec3 closest_point_on_triangle(vec3 p, vec3 a, vec3 b, vec3 c) {
     vec3 ab = b - a;
@@ -94,7 +98,7 @@ float swept_hit(vec3 p0,vec3 p1,vec3 a0,vec3 b0,vec3 c0,
         float t=(lo+hi)*.5;if(t<1e-5)continue;
         vec3 a=mix(a0,a1,t),ab=mix(b0,b1,t)-a,ac=mix(c0,c1,t)-a;
         vec3 q=mix(p0,p1,t)-a,n=cross(ab,ac);float nn=dot(n,n);
-        if(nn<1e-18)continue;
+       if(nn<1e-18)continue;
         float x=dot(cross(q,ac),n)/nn,y=dot(cross(ab,q),n)/nn;
         if(x<-.00001||y<-.00001||x+y>1.00001)continue;
         bary=vec3(1.0-x-y,x,y);
@@ -103,20 +107,75 @@ float swept_hit(vec3 p0,vec3 p1,vec3 a0,vec3 b0,vec3 c0,
     }
     return 2.0;
 }
+uint next_node(uint node){
+ while((node&1u)!=0u){node>>=1u;if(node==0u)return 0u;}
+ return node+1u;
+}
+layout(set=0,binding=9,std430) readonly buffer Order {uint order[];};
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_FALLBACK) || defined(RMMO_CANDIDATE_COMBINED)
+layout(set=0,binding=10,std430) readonly buffer Candidates {uint candidates[];};
+#endif
+#ifdef RMMO_PARALLEL
+shared float depths[64];shared uint contact_ids[64];shared vec3 barycentrics[64],directions[64];
+#endif
 void main(){
- uint face=gl_GlobalInvocationID.x;if(face>=face_count)return;
+ #ifdef RMMO_PARALLEL
+ uint face=gl_WorkGroupID.x;
+#else
+ uint face=gl_GlobalInvocationID.x;
+#endif
+ if(face>=face_count)return;
+#ifdef RMMO_CANDIDATE_LIST
+ if(candidates[face*2055u]>2048u)return;
+#endif
+#ifdef RMMO_CANDIDATE_FALLBACK
+ if(candidates[face*2055u]<=2048u)return;
+#endif
+
  uint i=indices[face*3],j=indices[face*3+1],k=indices[face*3+2];
  vec3 a=predicted[i].xyz,b=predicted[j].xyz,c=predicted[k].xyz;
  vec3 a0=positions[i].xyz,b0=positions[j].xyz,c0=positions[k].xyz;
  vec3 mass=vec3(predicted[i].w,predicted[j].w,predicted[k].w);
  vec3 n=cross(b-a,c-a);float nn=dot(n,n);
+#ifdef RMMO_PARALLEL
+ if(gl_LocalInvocationID.x==0u){
+#endif
  corrections[face*3]=vec4(0);corrections[face*3+1]=vec4(0);corrections[face*3+2]=vec4(0);
+#ifdef RMMO_PARALLEL
+ }
+#endif
+#if defined(RMMO_CANDIDATE_LIST) || defined(RMMO_CANDIDATE_COMBINED)
+ if(candidates[face*2055u]==0u && edge_count==0u)return;
+#endif
  if(nn<1e-18||dot(mass,mass)<1e-8)return;
  vec3 unit_n=n/sqrt(nn);
  vec3 low=min(min(min(a,b),c),min(min(a0,b0),c0))-thickness;
  vec3 high=max(max(max(a,b),c),max(max(a0,b0),c0))+thickness;
  float strongest=0;vec3 chosen=vec3(0),direction=vec3(0);
- for(uint v=0;v<vertex_count;v++){
+ uint chosen_index=0xffffffffu;
+#ifdef RMMO_CANDIDATE_COMBINED
+ uint candidate_count=candidates[face*2055u];
+ bool overflow=candidate_count>2048u;
+ for(uint entry=gl_LocalInvocationID.x;entry<(overflow?vertex_count:candidate_count);entry+=64u){
+  uint v=overflow?entry:candidates[face*2055u+1u+entry];
+#elif defined(RMMO_CANDIDATE_LIST)
+ for(uint entry=gl_LocalInvocationID.x;entry<candidates[face*2055u];entry+=64u){
+  uint v=candidates[face*2055u+1u+entry];
+#elif defined(RMMO_CANDIDATE_FALLBACK)
+ for(uint v=gl_LocalInvocationID.x;v<vertex_count;v+=64u){
+#else
+ uint leaves=vertex_count<=8u?1u:1u<<uint(findMSB((vertex_count-1u)/8u)+1);
+ uint node=1u;
+ while(node!=0u){
+  uint address=triangle_blocks*4u+node;
+  bool hit_box=use_body_bounds==0u || !(any(lessThan(body_bounds[address*2u+1u].xyz,low))||any(greaterThan(body_bounds[address*2u].xyz,high)));
+  if(hit_box&&node<leaves){node*=2u;continue;}
+  uint begin=node>=leaves?(node-leaves)*8u:vertex_count;
+  uint limit=hit_box?min(begin+8u,vertex_count):begin;
+  node=next_node(node);
+  for(uint item=begin;item<limit;item++){
+  uint v=use_body_bounds!=0u?order[floatBitsToUint(body_bounds[0].w)+item]:item;
+#endif
   uint id=vertex_ids[v];
   vec3 p0=mix(old_body[id].xyz,body[id].xyz,frame_start);
   vec3 p=mix(old_body[id].xyz,body[id].xyz,frame_end);
@@ -133,9 +192,23 @@ void main(){
    bary=vec3(1-x-y,x,y);
   }
   float depth=thickness-side*dot(p-(a*bary.x+b*bary.y+c*bary.z),unit_n);
-  if(depth>strongest){strongest=depth;chosen=bary;direction=-unit_n*side;}
+  if(depth>strongest || (depth==strongest && v<chosen_index && depth>0)){strongest=depth;chosen_index=v;chosen=bary;direction=-unit_n*side;}
  }
 
+
+#ifndef RMMO_PARALLEL
+ }
+#endif
+#ifdef RMMO_PARALLEL
+ uint lane=gl_LocalInvocationID.x;
+ depths[lane]=strongest;contact_ids[lane]=chosen_index;barycentrics[lane]=chosen;directions[lane]=direction;
+ barrier();if(lane!=0u)return;
+ for(uint other=1u;other<64u;other++){
+  if(depths[other]>strongest || (depths[other]==strongest && contact_ids[other]<chosen_index)){
+   strongest=depths[other];chosen_index=contact_ids[other];chosen=barycentrics[other];direction=directions[other];
+  }
+ }
+#endif
  // Edge/edge CCD. A moving edge pair is coplanar exactly when the moving
  // body endpoint meets the parallelogram spanned by clothEdge and -bodyEdge.
  // Two triangles cover that parallelogram without the s+t<=1 restriction.

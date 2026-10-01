@@ -1,8 +1,16 @@
 extends SceneTree
 const View=preload("res://scripts/char/character_view_3d.gd")
 const Art=preload("res://scripts/asset/art_paths.gd")
+var previous_packet:=PackedByteArray()
+var packet_read_finished:=false
+func read_previous_packet(solver:Node,current:=false)->void:
+ previous_packet=solver._rd.buffer_get_data(solver._collider_tri_buffer if current else solver._previous_collider_tri_buffer)
+ packet_read_finished=true
 func _initialize()->void:call_deferred("run")
 func run()->void:
+ preload("res://scripts/char/garment_candidate_cloth.gd").default_shared_body_points="--shared-body-points" in OS.get_cmdline_user_args()
+ preload("res://scripts/char/female_axis_body.gd").default_gpu_display="--gpu-display" in OS.get_cmdline_user_args()
+ preload("res://scripts/char/garment_candidate_cloth.gd").default_resident_packet="--resident-packet" in OS.get_cmdline_user_args()
  var twohand:bool="--twohand" in OS.get_cmdline_user_args()
  create_timer(300).timeout.connect(func():push_error("Runtime cloth lifecycle timeout");quit(2))
  var view=View.new();root.add_child(view)
@@ -33,8 +41,17 @@ func run()->void:
  if twohand:
   parts.WeaponMain=1;parts.WeaponMainItem="great_club";parts.WeaponStyle="heavy"
   view.model.set_equipment(parts)
+ var expected_previous:PackedByteArray=adapter.solver._external_triangles.duplicate()
+ if adapter.indexed_packet.has_method("is_gpu_resident"):
+  packet_read_finished=false
+  RenderingServer.call_on_render_thread(read_previous_packet.bind(adapter.solver,true))
+  while not packet_read_finished:await process_frame
+  expected_previous=previous_packet.duplicate();packet_read_finished=false
  view.model.play("walk","front",true);view.model._process(1.0/60.0)
  await process_frame;await RenderingServer.frame_post_draw
+ RenderingServer.call_on_render_thread(read_previous_packet.bind(adapter.solver))
+ while not packet_read_finished:await process_frame
+ assert(previous_packet==expected_previous,"GPU history snapshot lost the immediately preceding body frame")
  assert(cloth.error.is_empty() and body.pose_sync_error.is_empty())
  var submitted:PackedFloat32Array=adapter.solver._external_targets.to_float32_array()
  var expected:PackedVector3Array=adapter.garment.evaluate(body.posed_points)
@@ -47,13 +64,15 @@ func run()->void:
   assert(view.model.axis_rig.twohand.bridge.completed_revision==view.model.axis_rig.twohand.bridge.revision)
   assert(view.model.axis_rig.cloth_ik_revision==view.model.axis_rig.twohand.bridge.revision,"Cloth missed final IK phase")
   assert(view.viewport.get_texture().get_image().save_png(folder+"/final_ik.png")==OK)
+ if "--shared-body-points" in OS.get_cmdline_user_args():
+  assert(adapter.indexed_packet.shared_point_read_bytes>0,"Shared body path never executed")
  recipe.body_shapes={"height":.2};view.configure("female",recipe,parts)
  assert(body.get_instance_id()==actor_id and not is_instance_valid(adapter))
  assert(cloth.entries.Clothing2.prepared_frames==0 and not cloth.is_ready())
  var renewed=cloth.entries.Clothing2.adapter
  view.model.set_equipment({"SurfaceEquipment":{"UnderwearTop":"underlayer_lace/item_00"},"SurfaceClothSlots":[]})
  assert(cloth.entries.is_empty() and not is_instance_valid(renewed))
- var report={"wearer_error_m":max_error,"prepared_frames":65,"same_recipe_reused":true,"shape_invalidated":true,"unequip_freed":true,"animation_tick_submitted":true,"final_blend_packet_error_m":packet_error,"visual_acceptance":"Not all poses/garments; existing side/back flare remains"}
+ var report={"wearer_error_m":max_error,"prepared_frames":65,"same_recipe_reused":true,"shape_invalidated":true,"unequip_freed":true,"animation_tick_submitted":true,"previous_body_packet_exact":true,"final_blend_packet_error_m":packet_error,"visual_acceptance":"Not all poses/garments; existing side/back flare remains"}
  var file:=FileAccess.open(folder+"/report.json",FileAccess.WRITE);file.store_string(JSON.stringify(report,"  "));file.close()
  view.free()
  for frame in 4:await process_frame

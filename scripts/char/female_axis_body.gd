@@ -3,6 +3,7 @@ extends Node3D
 ## Base topology remains the future garment anchor; subdivision is display-only.
 const Art=preload("res://scripts/asset/art_paths.gd")
 const RegionalSkin=preload("res://scripts/char/character_regional_skin.gd")
+const Assets=preload("res://scripts/char/character_axis_assets.gd")
 const Shapes=preload("res://scripts/char/character_body_shapes.gd")
 const ORDERS=["XYZ","XZY","YXZ","YZX","ZXY","ZYX"]
 const EULER_ORDERS=[EULER_ORDER_XYZ,EULER_ORDER_XZY,EULER_ORDER_YXZ,EULER_ORDER_YZX,EULER_ORDER_ZXY,EULER_ORDER_ZYX]
@@ -61,12 +62,13 @@ var expression_values:Dictionary={}
 const Expressions=preload("res://scripts/char/character_expressions.gd")
 var shape_values:Dictionary={}
 var posed_points:=PackedVector3Array()
+var surface_min_y:=0.0
 var nodes:Array=[]
 var topology:Dictionary
 var rests:Dictionary={}
 var base_rests:Dictionary={}
-var positions_texture:ImageTexture
-var normals_texture:ImageTexture
+var positions_texture:Texture2D
+var normals_texture:Texture2D
 var pose_name:="rest"
 var last_solve_ms:=0.0
 var bulge_scale:=0.0
@@ -75,19 +77,32 @@ var angles_by_name:Dictionary={}
 var world_offset:=Vector3.ZERO
 var mesh_instance:MeshInstance3D
 var gpu:RefCounted
+static var default_gpu_display:=true
+var gpu_display:RefCounted
 var use_compute:=false
+var load_timings:Dictionary={}
+static var shared_shaders:Dictionary={}
+static var material_templates:Dictionary={}
 func enable_compute()->bool:
 	if gpu==null:
 		gpu=preload("res://scripts/char/female_axis_gpu.gd").new()
 		if not gpu.initialize(Art.path("characters/base/female_base_v2")):gpu=null;return false
 		if not gpu.set_rest_points(rest_points):gpu.close();gpu=null;return false
+	if default_gpu_display and gpu_display==null:
+		gpu_display=preload("res://scripts/char/female_axis_display.gd").new()
+		if not gpu_display.initialize(Art.path("characters/base/female_base_v2")):gpu_display.close();gpu_display=null
+		else:
+			gpu_display.update(posed_points,root_offset)
+			positions_texture=gpu_display.positions;normals_texture=gpu_display.normals
+			for i in mesh_instance.mesh.get_surface_count():
+				var material=mesh_instance.get_surface_override_material(i)
+				material.set_shader_parameter("body_positions",positions_texture);material.set_shader_parameter("body_normals",normals_texture)
 	use_compute=true;return true
 func _exit_tree()->void:
+	if gpu_display:gpu_display.close();gpu_display=null
 	if gpu:gpu.close();gpu=null
 func read_gpu_points()->PackedVector3Array:
-	var values:PackedFloat32Array=gpu.last_positions.to_float32_array();var result:=PackedVector3Array();result.resize(rest_points.size())
-	for i in result.size():result[i]=Vector3(values[i*4],values[i*4+1],values[i*4+2])-root_offset
-	return result
+	return gpu.last_points
 func set_test_pose(value:String,amount:float=1.0)->void:
 	assert(POSES.has(value))
 	pose_name=value
@@ -112,18 +127,21 @@ static func ordered_basis(angles:Vector3,order:String)->Basis:
 		result=result*Basis(direction,angles[index])
 	return result
 func initialize()->void:
+	var phase:=Time.get_ticks_usec()
 	assert(is_inside_tree(),"Body must belong to the scene before creating per-instance GPU resources")
 	var folder:String=Art.path("characters/base/female_base_v2")
-	var rig:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(folder+"/female_axis_rig.json"))
-	topology=JSON.parse_string(FileAccess.get_file_as_string(folder+"/female_display_topology.json"))
+	var assets:=Assets.get_assets(folder)
+	var rig:Dictionary=assets.rig
+	topology=assets.topology
 	assert(rig.version==1 and rig.vertex_count==21556 and rig.nodes.size()==80 and topology.points.size()==21556)
+	load_timings["json_ms"]=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
 	bulge_scale=rig.bulge_scale
 	for p:Array in topology.points:rest_points.append(Vector3(p[0],p[1],p[2]))
 	base_rest_points=rest_points.duplicate()
 	skeleton=Skeleton3D.new();skeleton.name="SharedBodySkeleton";add_child(skeleton)
 	for data:Dictionary in rig.nodes:
 		rests[data.name]=frame(data.rest)
-		nodes.append(data)
+		nodes.append(data.duplicate())
 	base_rests=rests.duplicate()
 	var pending:Array=nodes.duplicate()
 	while not pending.is_empty():
@@ -140,29 +158,26 @@ func initialize()->void:
 	for node:Dictionary in nodes:
 		node["rest_frame"]=rests[node.name];node["inverse_frame"]=rests[node.name].affine_inverse()
 		node["skeleton_index"]=skeleton.find_bone(node.name)
-		for w:Dictionary in node.weights:
-			w["axis_weights"]=Vector3(w.xweight,w.yweight,w.zweight)
-			w["left"]=Vector3(w.xleftbulge,w.yleftbulge,w.zleftbulge)
-			w["right"]=Vector3(w.xrightbulge,w.yrightbulge,w.zrightbulge)
+	load_timings["skeleton_ms"]=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
 	positions_texture=ImageTexture.create_from_image(Image.create(512,43,false,Image.FORMAT_RGBAF))
 	normals_texture=ImageTexture.create_from_image(Image.create(512,43,false,Image.FORMAT_RGBAF))
 	var size:Array=topology.stencil_size
 	var stencil:=ImageTexture.create_from_image(Image.create_from_data(size[0],size[1],false,Image.FORMAT_RGBAF,FileAccess.get_file_as_bytes(folder+"/subdivision_stencils.rgba32f")))
 	var screen_space_sss:bool=not (is_inside_tree() and get_viewport().transparent_bg)
-	var source:=RegionalSkin.create_preview(screen_space_sss);assert(source!=null)
 	set_meta("screen_space_sss",screen_space_sss)
-	var materials:Dictionary={}
-	for mesh:MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
-		for surface in mesh.mesh.get_surface_count():materials[mesh.mesh.surface_get_material(surface).resource_name]=mesh.get_surface_override_material(surface)
-	var array_mesh:=ArrayMesh.new()
-	for surface in topology.surfaces.size():
-		var st:=SurfaceTool.new();st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for quad:Array in topology.surfaces[surface]:
-			for corner in [0,1,2,0,2,3]:
-				var vertex:int=quad[0][corner];var p:Array=topology.display_points[vertex];var uv:Array=quad[1][corner];var span:Array=topology.ranges[vertex]
-				st.set_uv(Vector2(uv[0],1.0-uv[1]));st.set_uv2(Vector2(span[0],span[1]));st.set_normal(Vector3.UP)
-				st.add_vertex(Vector3(p[0],p[1],p[2]))
-		st.index();st.generate_tangents();st.commit(array_mesh)
+	var template:Dictionary=Assets.get_materials(folder,screen_space_sss)
+	var materials:Dictionary=template.materials
+	load_timings["materials_ms"]=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
+	# Geometry is immutable/shared; all material overrides belong to this instance.
+	var array_mesh:ArrayMesh=assets.mesh
+	mesh_instance=MeshInstance3D.new();mesh_instance.mesh=array_mesh
+	for surface in topology.materials.size():
+		var template_key:=str(screen_space_sss)+":"+str(surface)
+		if material_templates.has(template_key):
+			var local:ShaderMaterial=material_templates[template_key].duplicate()
+			local.set_shader_parameter("body_positions",positions_texture);local.set_shader_parameter("body_normals",normals_texture);local.set_shader_parameter("subdivision_weights",stencil)
+			mesh_instance.set_surface_override_material(surface,local)
+			continue
 		var original:Material=materials[topology.materials[surface]]
 		var material:=ShaderMaterial.new();var shader:=Shader.new()
 		material.resource_name=original.resource_name
@@ -189,12 +204,16 @@ func initialize()->void:
 			var color:Color=original.albedo_color
 			shader.code="shader_type spatial;\n"+VERTEX_CODE+"void fragment(){ALBEDO=vec3(%s,%s,%s);ROUGHNESS=0.45;%s}"%[color.r,color.g,color.b,"ALPHA=0.0;" if color.a==0 else ""]
 			material.shader=shader
+		if shared_shaders.has(shader.code):material.shader=shared_shaders[shader.code]
+		else:shared_shaders[shader.code]=shader
+		material_templates[template_key]=material.duplicate()
 		material.set_shader_parameter("body_positions",positions_texture);material.set_shader_parameter("body_normals",normals_texture);material.set_shader_parameter("subdivision_weights",stencil)
-		array_mesh.surface_set_material(surface,material)
-	set_meta("skin_id",source.get_meta("skin_id",""));set_meta("eye_id",source.get_meta("eye_id",""))
-	source.free()
-	mesh_instance=MeshInstance3D.new();mesh_instance.mesh=array_mesh;mesh_instance.custom_aabb=AABB(Vector3(-2,-1,-2),Vector3(4,4,4));add_child(mesh_instance)
+		mesh_instance.set_surface_override_material(surface,material)
+	set_meta("skin_id",template.skin_id);set_meta("eye_id",template.eye_id)
+	mesh_instance.custom_aabb=AABB(Vector3(-2,-1,-2),Vector3(4,4,4));add_child(mesh_instance)
+	load_timings["mesh_ms"]=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
 	set_angles({})
+	load_timings["initial_solve_ms"]=(Time.get_ticks_usec()-phase)/1000.0
 	skeleton.skeleton_updated.connect(_on_skeleton_updated)
 
 func get_solved_bone_pose(index:int)->Transform3D:
@@ -302,7 +321,7 @@ func set_expressions(values:Dictionary)->bool:
 	var previous:Dictionary=Expressions.bone_offsets(expression_values)
 	rest_points=points;expression_values=normalized
 	for surface in topology.materials.size():
-		var material:ShaderMaterial=mesh_instance.mesh.surface_get_material(surface)
+		var material:ShaderMaterial=mesh_instance.get_active_material(surface)
 		if topology.materials[surface] in ["Irises","Pupils"]:
 			material.set_shader_parameter("expression_heart",float(normalized.get("heart_eyes",0)))
 			material.set_shader_parameter("expression_star",float(normalized.get("star_eyes",0)))
@@ -347,11 +366,14 @@ func _solve_surface(offset:Vector3)->void:
 	_solving=true
 	var start:=Time.get_ticks_usec()
 	if use_compute and gpu!=null:
-		gpu.evaluate(nodes,solved_bones,bulge_scale,offset)
-		positions_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,gpu.last_positions))
-		normals_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,gpu.last_normals))
+		gpu.evaluate(nodes,solved_bones,bulge_scale,offset,gpu_display==null)
+		if gpu_display:gpu_display.update(gpu.last_points,offset)
+		else:
+			positions_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,gpu.last_positions))
+			normals_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,gpu.last_normals))
 		last_solve_ms=(Time.get_ticks_usec()-start)/1000.0
 		posed_points=read_gpu_points()
+		surface_min_y=gpu.last_min_y
 		_solving=false
 		surface_updated.emit()
 		return
@@ -385,11 +407,15 @@ func _solve_surface(offset:Vector3)->void:
 			var normal:Vector3=-(posed_points[b]-posed_points[a]).cross(posed_points[c]-posed_points[a])
 			normals[a]+=normal;normals[b]+=normal;normals[c]+=normal
 	var position_data:=PackedFloat32Array();var normal_data:=PackedFloat32Array();position_data.resize(512*43*4);normal_data.resize(512*43*4)
+	surface_min_y=INF
 	for i in posed_points.size():
+		surface_min_y=minf(surface_min_y,posed_points[i].y)
 		var p:Vector3=posed_points[i]+offset;var normal:Vector3=normals[i].normalized()
 		for axis in 3:position_data[i*4+axis]=p[axis];normal_data[i*4+axis]=normal[axis]
-	positions_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,position_data.to_byte_array()))
-	normals_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,normal_data.to_byte_array()))
+	if gpu_display:gpu_display.update(posed_points,offset)
+	else:
+		positions_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,position_data.to_byte_array()))
+		normals_texture.update(Image.create_from_data(512,43,false,Image.FORMAT_RGBAF,normal_data.to_byte_array()))
 	last_solve_ms=(Time.get_ticks_usec()-start)/1000.0
 	_solving=false
 	surface_updated.emit()

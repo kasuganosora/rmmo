@@ -44,6 +44,17 @@ func run()->void:
 		ui._on_random()
 		for frame in 3:await process_frame
 		assert(ui._part_ids.FrontHair1 in [201,202,203])
+		assert(not ui._custom.body_shapes.is_empty())
+		assert(ui._view_3d.model.axis_rig.body.shape_values==ui._custom.body_shapes)
+		assert(ui._portrait_3d.model.axis_rig.body.shape_values==ui._custom.body_shapes)
+		for key:String in Customization.Shapes.RANGES:
+			var slider:HSlider=ui.find_child("Shape_"+key,true,false)
+			assert(absf(slider.value-float(ui._custom.body_shapes.get(key,0))*100*(-1 if key=="height" else 1))<=.51)
+	ui.find_child("ResetBodyShapes",true,false).pressed.emit()
+	for frame in 3:await process_frame
+	assert(ui._custom.body_shapes.is_empty())
+	assert(ui._view_3d.model.axis_rig.body.shape_values.is_empty() and ui._portrait_3d.model.axis_rig.body.shape_values.is_empty())
+	assert(ui._view_3d.model.axis_rig.body.get_instance_id()==main_body)
 	ui._set_gender("male")
 	for frame in 3:await process_frame
 	assert(ui._custom.body_model=="" and ui._part_ids.FrontHair1<200)

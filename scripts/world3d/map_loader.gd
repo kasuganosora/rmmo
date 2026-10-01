@@ -11,6 +11,7 @@ var _document: GLTFDocument
 var _state: GLTFState
 var _error := OK
 var _path := ""
+var _content_root := ""
 var _cancelled := false
 
 
@@ -34,6 +35,8 @@ static func resolve_path(requested: String) -> String:
 
 func start(path: String) -> void:
 	_path = path
+	# Snapshot the configured root on the main thread; parsing must not read autoload nodes.
+	_content_root = preload("res://scripts/world3d/map_paths.gd").external_root()
 	_thread = Thread.new()
 	_error = _thread.start(_parse)
 	if _error != OK:
@@ -59,6 +62,9 @@ func _parse() -> void:
 				if roots.size() == 1 and int(roots[0]) >= 0 and int(roots[0]) < nodes.size():
 					var root: Dictionary = nodes[int(roots[0])]
 					var extra: Dictionary = root.get("extras", {})
+					if extra.get("rmmo_format") == "rmmo_gltf_map" and not _valid_records(extra):
+						_error = ERR_INVALID_DATA
+						return
 					if not root.has("matrix") and not root.has("translation") and not root.has("rotation") and not root.has("scale") and _valid_records(extra):
 						_record_meta = extra
 						for record in extra.rmmo_records:
@@ -116,12 +122,19 @@ func _exit_tree() -> void:
 
 
 func _valid_records(extra: Dictionary) -> bool:
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extra): return false
 	if extra.get("rmmo_format", "") != "rmmo_gltf_map" or int(extra.get("rmmo_version", 0)) != 1: return false
+	if not preload("res://scripts/world3d/environment_settings.gd").valid(extra): return false
+	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(extra): return false
 	var records: Variant = extra.get("rmmo_records")
 	if not records is Array: return false
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(extra,records): return false
 	var ids := {}
 	for record in records:
 		if not record is Dictionary or str(record.get("uuid", "")).is_empty() or ids.has(record.uuid): return false
+		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return false
+		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record, false, _content_root): return false
+		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record, _content_root): return false
 		ids[record.uuid] = true
 		for field in ["position", "rotation", "size"]:
 			var values: Variant = record.get(field)
@@ -166,6 +179,10 @@ func _build_records() -> void:
 				cursor += 1
 				continue
 			var visual: MeshInstance3D = doc._mesh(records[cursor])
+			if visual.has_meta("tile_error"):
+				visual.free(); root.free(); _prepared = null
+				_finish_error("自动拼接套件模型缺失或无效")
+				return
 			var spec: Dictionary = Stream._spec(visual)
 			visual.free()
 			var id: String = spec.uuid

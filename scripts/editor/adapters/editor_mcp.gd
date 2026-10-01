@@ -1,5 +1,6 @@
 extends Node
-## Content-editor MCP: JSON-RPC 2.0 over HTTP. Off until 工具菜单 enables it.
+## Retired 2D MCP adapter. Historical operations remain for reference only.
+## The 3D subclass reuses HTTP framing; only it may register production tools.
 
 const DEFAULT_HOST := "127.0.0.1"
 const DEFAULT_PORT := 18765
@@ -32,7 +33,19 @@ func url() -> String:
 	return "http://%s:%d/mcp" % [host, port]
 
 
-func start(p_port: int = DEFAULT_PORT) -> Dictionary:
+func server_name() -> String:
+	return SERVER_NAME
+
+
+func instructions() -> String:
+	return "RMMO legacy 2D content editor. The current 3D host is tools/editor_mcp_host.gd (port 18766)."
+
+
+func start(_p_port: int = DEFAULT_PORT) -> Dictionary:
+	return {"ok": false, "error": "Legacy 2D editor MCP is retired. Use the 3D editor service on port 18766."}
+
+
+func _legacy_start(p_port: int = DEFAULT_PORT) -> Dictionary:
 	stop()
 	port = p_port
 	_tcp = TCPServer.new()
@@ -223,7 +236,7 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 	if method == "GET" and (path.begins_with("/health") or path == "/"):
 		_write_http(peer, 200, "application/json", JSON.stringify({
 			"ok": true,
-			"server": SERVER_NAME,
+			"server": server_name(),
 			"url": url(),
 			"running": running,
 			"map": _map_id(),
@@ -318,8 +331,8 @@ func handle_rpc(msg: Dictionary) -> Variant:
 			result = {
 				"protocolVersion": ver,
 				"capabilities": {"tools": {"listChanged": false}},
-				"serverInfo": {"name": SERVER_NAME, "version": "1.0.0"},
-				"instructions": "RMMO content editor. Enable via 工具 → 启用 MCP 服务, or run tools/editor_mcp_host.gd.",
+				"serverInfo": {"name": server_name(), "version": "1.0.0"},
+				"instructions": instructions(),
 			}
 		"ping":
 			result = {}
@@ -361,6 +374,10 @@ func handle_rpc(msg: Dictionary) -> Variant:
 
 
 func tools_list() -> Array:
+	return []
+
+
+func _legacy_tools_list() -> Array:
 	var listed: Array = [
 		_tool("editor_state", "当前内容包、地图、光标、图层。", {}),
 		_tool("list_maps", "列出包内地图。", {}),
@@ -449,7 +466,11 @@ func _tool(name: String, desc: String, props: Dictionary, required: Array = []) 
 	}
 
 
-func call_tool(name: String, args: Dictionary) -> Dictionary:
+func call_tool(_name: String, _args: Dictionary) -> Dictionary:
+	return _err("Legacy 2D editor MCP tools are retired; use the 3D service")
+
+
+func _legacy_call_tool(name: String, args: Dictionary) -> Dictionary:
 	if editor == null:
 		return _err("no editor")
 	match name:

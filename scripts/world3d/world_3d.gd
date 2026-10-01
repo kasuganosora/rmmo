@@ -15,6 +15,7 @@ var _map_path := ""
 var _map_root: Node
 var _sun: DirectionalLight3D
 var _env: Environment
+var _outline: CanvasLayer
 var _lamps: Array = []
 var _night := false
 var _check_map := false
@@ -33,6 +34,7 @@ var _map_data = preload("res://scripts/world3d/world_map_data.gd").new()
 var _map_pin_sets:Dictionary={}
 var _sit_revision:=0
 var _sit_preparing:=false
+var furniture=preload("res://scripts/world3d/world_furniture.gd").new(self)
 var remote_players=preload("res://scripts/world3d/world_remote_players.gd").new(self)
 
 func facial_expression_catalog()->Array:
@@ -70,14 +72,23 @@ func _send_facial_expression(weights:Dictionary)->bool:
 	apply_actions(result.get("actions",[]))
 	return bool(result.get("ok",false))
 
+func _on_identity_shapes_changed()->void:
+	furniture.cancel()
+	cancel_sit_preparation()
+	if Net.server().sitting:
+		apply_actions(Net.server().try_sit(false).get("actions",[]))
+
 func cancel_sit_preparation()->void:
 	_sit_revision+=1
 
 func _on_movement_intent()->void:
+	if furniture.active():furniture.stand()
 	cancel_sit_preparation()
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 
 func request_sit(on:Variant=null)->void:
+	if furniture.active():
+		furniture.stand();return
 	var want:bool=bool(on) if on is bool else not (Net.server().sitting or _sit_preparing)
 	if want and _sit_preparing:return
 	cancel_sit_preparation()
@@ -91,9 +102,11 @@ func request_sit(on:Variant=null)->void:
 	_player.click_target=null;_player._route.clear()
 	var revision:int=_sit_revision
 	_sit_preparing=true
-	var bundle:AnimationLibrary=await model.axis_rig.prepare_ground_actions()
+	var requested_rig=model.axis_rig
+	var bundle:AnimationLibrary=await requested_rig.prepare_ground_actions()
 	_sit_preparing=false
 	if revision!=_sit_revision or not is_instance_valid(_player) or not is_instance_valid(model):return
+	if model!=_player._model or model.axis_rig!=requested_rig:return
 	if _transfer_pending or _player.input_locked or not Net.server().combat_stats.player_alive():return
 	if bundle==null:
 		apply_actions([{"type":"system_message","text":"坐下动作准备失败："+model.axis_rig.last_error}]);return
@@ -139,6 +152,7 @@ func is_world_ready() -> bool:
 
 
 func _exit_tree() -> void:
+	furniture.cancel()
 	cancel_sit_preparation()
 	if is_instance_valid(_transfer_loader): _transfer_loader.cancel()
 	var server = Net.server()
@@ -178,6 +192,7 @@ func _ready() -> void:
 	_player.movement_intent.connect(_on_movement_intent)
 	await _prepare_navigation()
 	_add_town_lamps(map_root)
+	_apply_map_environment()
 	_mount_events()
 	if not Net.session().active_character().is_empty():
 		_add_game_hud()
@@ -192,6 +207,7 @@ func _ready() -> void:
 		_status.text = "WASD 走 · 右键转动 · E 对话 · 走到北边的垫子会去另一张图"
 	else:
 		_status.text = "WASD 走 · 右键转动 · N 切换路灯"
+	if is_instance_valid(Net.session().editor_playtest): _status.text = "WASD 移动 · 右键转动 · E 交互 · 临时试玩"
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -239,6 +255,7 @@ func _process(delta: float) -> void:
 	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
 	if _player == null or _camera == null:
 		return
+	furniture.tick()
 	_camera.follow(_player.global_position, delta)
 	_apply_residency(Stream.FRAME_BUDGET)
 	_apply_actor_view()
@@ -359,6 +376,7 @@ func _add_player() -> void:
 	body.equipment_parts = preload("res://scripts/char/character_view_3d.gd").equipment_parts(str(body.character.gender), equipment, Net.server().item_catalog)
 	body.position = Net.session().world3d_spawn
 	var capsule := CollisionShape3D.new()
+	capsule.name="CollisionShape3D"
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.3
 	shape.height = 1.8
@@ -370,6 +388,7 @@ func _add_player() -> void:
 	body.add_child(model)
 	add_child(body)
 	_player = body
+	model.identity_shapes_changed.connect(_on_identity_shapes_changed)
 	var rig := Node3D.new()
 	rig.name = "FollowCamera"
 	rig.set_script(load("res://scripts/world3d/third_person_camera.gd"))
@@ -382,6 +401,9 @@ func _add_player() -> void:
 	_camera = rig
 	_camera.exclude_body(_player.get_rid())
 	_player.camera_path = _camera.get_path()
+	_outline = preload("res://scripts/world3d/occlusion_outline.gd").new()
+	add_child(_outline)
+	_outline.bind(_player, camera)
 
 
 func _add_light() -> void:
@@ -404,19 +426,26 @@ func _add_light() -> void:
 
 func set_night(on: bool) -> void:
 	_night = on
-	if _sun != null:
-		_sun.light_energy = 0.04 if on else 1.15
-		_sun.light_color = Color(0.45, 0.55, 0.82) if on else Color(1.0, 0.97, 0.9)
-	if _env != null:
-		_env.ambient_light_energy = 0.03 if on else 0.42
-		_env.ambient_light_color = Color(0.25, 0.32, 0.5) if on else Color(0.72, 0.76, 0.82)
-		_env.background_color = Color(0.02, 0.03, 0.07) if on else Color(0.55, 0.68, 0.78)
+	var settings = preload("res://scripts/world3d/environment_settings.gd")
+	var values: Dictionary = settings.updated(GltfMapIo.extras_of(_map_root), {"preset": "night" if on else "day"})
+	settings.apply(values, _sun, _env)
+	_refresh_lamps()
+
+func _apply_map_environment() -> void:
+	var settings = preload("res://scripts/world3d/environment_settings.gd")
+	var values: Dictionary = settings.resolve(GltfMapIo.extras_of(_map_root))
+	settings.apply(values, _sun, _env)
+	_night = values.preset == "night"
+	if is_instance_valid(_outline): _outline.configure(values)
+	_refresh_lamps()
+
+func _refresh_lamps() -> void:
 	for lamp in _lamps:
 		if lamp is OmniLight3D:
-			(lamp as OmniLight3D).light_energy = 1.8 if on else 0.0
+			(lamp as OmniLight3D).light_energy = 1.8 if _night else 0.0
 	if _status != null and not _lamps.is_empty():
 		var prefix := "检查用白模 · " if _check_map else ""
-		_status.text = prefix + ("夜晚 · 路灯亮着" if on else "白天 · 路灯关掉")
+		_status.text = prefix + ("夜晚 · 路灯亮着" if _night else "白天 · 路灯关掉")
 
 
 func _add_town_lamps(map_root: Node) -> void:
@@ -455,6 +484,7 @@ func _add_hud() -> void:
 	_status.position = Vector2(16, 12)
 	_status.text = "正在读取外部地图…"
 	layer.add_child(_status)
+	if is_instance_valid(Net.session().editor_playtest): return
 	var back := Button.new()
 	back.text = "返回登录"
 	back.anchor_left = 0.5
@@ -529,11 +559,13 @@ func _map_ref() -> String:
 
 
 func _talk() -> void:
+	if furniture.active():
+		furniture.stand();return
 	if _player == null or _travel == null:
 		return
 	var bodies: Array = []
 	for child in get_children():
-		if str(child.get_meta("kind", "")) == "npc" or str(child.get_meta("kind", "")) == "gather":
+		if child.has_meta("seat"):
 			bodies.append(child)
 	var closest: StaticBody3D
 	var distance := 2.0
@@ -544,11 +576,16 @@ func _talk() -> void:
 			closest = body
 			distance = flat
 	if closest != null:
-		apply_actions(Net.server().world3d_events.interact(str(closest.get_meta("uuid", "")), _player, closest))
+		if closest.has_meta("seat"):
+			if not furniture.interact(closest):_status.text="无法使用这张椅子。"
+			return
+	var events = Net.server().world3d_events
+	var id: String = events.nearest(_player)
+	if not id.is_empty(): apply_actions(events.interact(id, _player))
 
 
 func _mount_events() -> void:
-	Net.server().world3d_events.mount(_map_ref(), _map_root.get_meta("stream_library", []))
+	Net.server().world3d_events.mount(_map_ref(), _map_root.get_meta("stream_library", []), GltfMapIo.extras_of(_map_root).get("rmmo_records", []))
 
 
 func _add_game_hud() -> void:
@@ -573,15 +610,25 @@ func _add_game_hud() -> void:
 func apply_actions(actions: Array) -> void:
 	for action in actions:
 		match str(action.get("type", "")):
+			"open_shop":
+				if _hud != null:
+					_hud.show_shop(str(action.get("shop_id", "")), str(action.get("title", "")), action.get("listings", []), int(action.get("gold", 0)), int(action.get("vendor_rep", -1)))
+					_hud.apply_shop_buyback(action.get("buyback", []))
+			"shop_buyback":
+				if _hud != null: _hud.apply_shop_buyback(action.get("buyback", []))
 			"facial_expression":remote_players.receive(action)
 			"remote_spawn":remote_players.spawn(action.get("player",{}))
 			"remote_despawn":remote_players.despawn(str(action.get("id",action.get("player_id",""))))
 			"sit":
+				if furniture.active():
+					if not bool(action.get("on",false)):furniture.stand()
+					continue
 				if bool(action.get("on",false)):
 					if _player._model.action not in ["sit_down_ground","sit_ground"]:_player.request_rest("sit_down_ground")
 				elif _player._model.action in ["sit_down_ground","sit_ground"]:
 					_player._begin_ground_exit()
 			"player_died":
+				furniture.cancel(true)
 				cancel_sit_preparation()
 				Net.server().sitting=false
 				Net.server().awaiting_respawn = true
@@ -637,6 +684,21 @@ func apply_actions(actions: Array) -> void:
 func request_event_choice(option_id: String, option_index: int) -> void:
 	apply_actions(Net.server().world3d_events.choice(option_id, option_index))
 
+func request_shop_buy(shop_id: String, item_id: String, quantity: int = 1) -> void:
+	apply_actions(Net.server().try_shop_buy(shop_id, item_id, quantity).get("actions", []))
+
+func request_shop_sell(item_id: String, quantity: int = 1) -> void:
+	apply_actions(Net.server().try_shop_sell(item_id, quantity).get("actions", []))
+
+func request_shop_sell_junk() -> void:
+	apply_actions(Net.server().try_shop_sell_junk().get("actions", []))
+
+func request_shop_buyback(index: int) -> void:
+	apply_actions(Net.server().try_shop_buyback(index).get("actions", []))
+
+func request_shop_close() -> void:
+	apply_actions(Net.server().try_shop_close().get("actions", []))
+
 
 func request_equip_item(item_id: String, slot: String = "") -> void:
 	apply_actions(Net.server().try_equip_item(item_id, slot).get("actions", []))
@@ -673,10 +735,12 @@ func request_use_item(item_id: String) -> void:
 
 
 func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:
+	if is_instance_valid(Net.session().editor_playtest): target = Net.session().editor_playtest.resolve_map(target)
 	if _transfer_pending or not destination.is_finite() or target.is_empty(): return false
 	if not Net.server().combat_stats.player_alive(): return false
 	cancel_sit_preparation()
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
+	furniture.cancel()
 	_transfer_pending = true
 	_combat._save_map_state()
 	var combat_processing: bool = _combat.is_physics_processing()
@@ -781,7 +845,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_note_map(prepared)
 	_mount_events()
 	_refresh_world_map()
-	set_night(_night)
+	_apply_map_environment()
 	await get_tree().physics_frame
 	_player.input_locked = false
 	_transfer_pending = false

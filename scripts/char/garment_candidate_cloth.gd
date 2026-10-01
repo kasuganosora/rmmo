@@ -13,6 +13,11 @@ var body_triangles:=PackedInt32Array()
 var scene_triangles:=PackedVector3Array()
 var control_to_particle:=PackedInt32Array()
 var frame_error:=""
+var last_submit_ms:=0.0
+var last_simulate_ms:=0.0
+static var default_shared_body_points:=false
+static var default_resident_packet:=true
+var indexed_packet=(preload("res://addons/godot_gpu_cloth/src/cloth_resident_packet.gd").new() if default_resident_packet else preload("res://addons/godot_gpu_cloth/src/cloth_indexed_packet.gd").new())
 var edge_contacts:=false
 var constraint_iterations:=24
 var source_bending:=false
@@ -91,6 +96,15 @@ func initialize(target:Node3D,objects:Array[MeshInstance3D]=[])->bool:
 		if not seen.has(body_triangles[i]):
 			seen[body_triangles[i]]=true;solver.external_collision_vertices.append(i)
 	for i in scene_triangles.size():solver.external_collision_vertices.append(body_triangles.size()+i)
+	var collider_points:=PackedVector3Array()
+	for index in body_triangles:collider_points.append(body.rest_points[index])
+	collider_points.append_array(scene_triangles)
+	var centers:=PackedVector3Array()
+	for i in range(0,collider_points.size(),3):centers.append((collider_points[i]+collider_points[i+1]+collider_points[i+2])/3)
+	solver.external_collision_order=preload("res://addons/godot_gpu_cloth/src/cloth_spatial_order.gd").order(centers)
+	var vertex_centers:=PackedVector3Array()
+	for index in solver.external_collision_vertices:vertex_centers.append(collider_points[index])
+	solver.external_collision_order.append_array(preload("res://addons/godot_gpu_cloth/src/cloth_spatial_order.gd").order(vertex_centers))
 	var edge_set:Dictionary={}
 	for i in range(0,body_triangles.size() if edge_contacts else 0,3):
 		for side in 3:
@@ -135,17 +149,21 @@ func submit_frame()->bool:
 		if assigned[particle] and targets[particle].distance_to(point)>.00001:
 			frame_error="Welded seam has conflicting surface targets";return false
 		targets[particle]=point;assigned[particle]=1
-	var triangles:=PackedVector3Array()
-	for index in body_triangles:triangles.append(body.posed_points[index]+body.root_offset)
-	triangles.append_array(_scene_points())
-	if not solver.set_external_frame(targets,triangles):frame_error="Candidate rejected surface/collider packet";return false
+	var extras:=_scene_points()
+	if indexed_packet.rd==null:
+		if not indexed_packet.initialize(body_triangles,body.posed_points.size(),extras.size()):frame_error="Collider packet initialization failed";return false
+	if indexed_packet.has_method("set_point_source"):indexed_packet.set_point_source(body.gpu_display if default_shared_body_points else null)
+	if not solver.set_indexed_external_frame(targets,indexed_packet,body.posed_points,body.root_offset,extras):frame_error="Candidate rejected indexed collider packet";return false
 	frame_error="";return true
 
 func advance(delta:float)->bool:
+	var start:=Time.get_ticks_usec()
 	if not solver._gpu_init_done or not submit_frame():return false
+	last_submit_ms=(Time.get_ticks_usec()-start)/1000.0;start=Time.get_ticks_usec()
 	if solver._needs_warm_start:
 		if not solver.warm_start():frame_error="Candidate warm start unavailable";return false
 	else:solver._simulate(delta)
+	last_simulate_ms=(Time.get_ticks_usec()-start)/1000.0
 	for i in garment.mesh_instance.mesh.get_surface_count():
 		var material:ShaderMaterial=garment.mesh_instance.mesh.surface_get_material(i)
 		material.set_shader_parameter("candidate_lookup",lookup)
@@ -155,5 +173,6 @@ func advance(delta:float)->bool:
 	return true
 
 func _exit_tree()->void:
+	indexed_packet.close()
 	if not is_instance_valid(garment):return
 	for i in garment.mesh_instance.mesh.get_surface_count():garment.mesh_instance.mesh.surface_get_material(i).set_shader_parameter("candidate_simulate",false)

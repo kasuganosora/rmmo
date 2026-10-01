@@ -14,8 +14,8 @@ func _init(folder: String = "") -> void:
 		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if raw is Array:
 			for entry in raw:
-				if entry is Dictionary and entry.get("asset_path") is String and entry.get("label") is String:
-					for key in ["asset_path", "thumbnail_path"]:
+				if entry is Dictionary and (entry.get("asset_path") is String or entry.get("prefab_path") is String) and entry.get("label") is String:
+					for key in ["asset_path", "prefab_path", "thumbnail_path"]:
 						if entry.get(key) is String and not str(entry[key]).is_absolute_path():
 							entry[key] = directory.path_join(str(entry[key])).simplify_path()
 					entries.append(entry)
@@ -38,7 +38,7 @@ func import_file(path: String) -> Dictionary:
 		err = DirAccess.rename_absolute(staging, target)
 		if err != OK: return {"ok": false, "error": error_string(err)}
 	for entry in entries:
-		if entry.asset_path == target:
+		if entry.get("asset_path") == target:
 			if not entry.has("thumbnail_path"):
 				entry.thumbnail_path = directory.path_join("thumbnails").path_join(hash + ".png")
 				var saved := save()
@@ -72,7 +72,7 @@ func save() -> Error:
 	else:
 		var stored: Array = entries.duplicate(true)
 		for entry in stored:
-			for key in ["asset_path", "thumbnail_path"]:
+			for key in ["asset_path", "prefab_path", "thumbnail_path"]:
 				if entry.get(key) is String and str(entry[key]).begins_with(directory.trim_suffix("/") + "/"):
 					entry[key] = str(entry[key]).trim_prefix(directory.trim_suffix("/") + "/")
 		file.store_string(JSON.stringify(stored, "\t"))

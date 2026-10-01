@@ -34,6 +34,15 @@ func run()->void:
  check(model.action=="idle","transfer recovery reaches idle")
  await world.request_sit(true)
  check(server.sitting,"sit again before leaving world")
+ var custom:Dictionary=model.appearance.duplicate(true)
+ custom["body_shapes"]={"height":.15}
+ var body_identity:int=model.axis_rig.body.get_instance_id()
+ model.configure("female",custom,model.equipment)
+ check(not server.sitting and model.action=="idle","identity change clears server sitting and stops obsolete ground playback")
+ check(not model.axis_rig.supports("sit_ground"),"old baked ground clip is invalidated")
+ check(model.axis_rig.body.get_instance_id()==body_identity,"identity change preserves accepted body instance")
+ await world.request_sit(true)
+ check(server.sitting and model.action=="sit_down_ground","ground actions rebuild for new identity through ordinary request")
  world.free()
  await process_frame
  check(not server.sitting,"world exit clears authoritative sitting")
