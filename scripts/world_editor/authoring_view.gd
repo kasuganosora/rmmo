@@ -53,7 +53,7 @@ func set_settings(changes: Dictionary) -> Dictionary:
 func pick(screen: Vector2) -> Dictionary:
 	if not Rect2(Vector2.ZERO,editor._canvas.size).has_point(screen): return {"ok":false,"error":"坐标不在地图画布内"}
 	var origin: Vector3 = editor._camera.project_ray_origin(screen)
-	var hit: Dictionary = editor.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+editor._camera.project_ray_normal(screen)*10000))
+	var hit: Dictionary = editor.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+editor._camera.project_ray_normal(screen)*editor._camera.far))
 	if hit.is_empty() or hit.normal.y < .7: return {"ok":false,"error":"请选择朝上的地面或平台"}
 	return set_settings({"spawn":[hit.position.x,hit.position.y,hit.position.z]})
 

@@ -1,6 +1,7 @@
 extends Node
 ## A separate meter-space navigation map; bridges and ground remain separate polygons.
 var ready_for_queries := false
+var agent_height:=1.8
 var map := RID()
 var region := RID()
 var mesh := NavigationMesh.new()
@@ -24,24 +25,43 @@ var _has_bounds := false
 var _clip := AABB()
 var _publish_wait := 0
 var _publish_final := true
+var _doors: Array=[]
+var _resizing:=false
+
+func resize_agent(height:float,specs:Array,origin:Vector3)->void:
+	# Keep this Node stable: player, NPC and summon authorities hold weak refs.
+	# Bake in a child map and swap only a complete result; never reset combat.
+	if _resizing or not fully_ready or is_equal_approx(height,agent_height):return
+	_resizing=true
+	var replacement=get_script().new();replacement.agent_height=height;add_child(replacement)
+	replacement.build(specs,origin)
+	while not replacement.fully_ready:await get_tree().process_frame
+	NavigationServer3D.free_rid(region);NavigationServer3D.free_rid(map)
+	map=replacement.map;region=replacement.region;mesh=replacement.mesh
+	replacement.map=RID();replacement.region=RID()
+	_doors=replacement._doors;agent_height=height;version+=1
+	replacement.queue_free();_resizing=false
 
 
 func build(specs: Array, origin: Variant = null) -> void:
 	map = NavigationServer3D.map_create()
 	NavigationServer3D.map_set_use_async_iterations(map, false)
 	NavigationServer3D.map_set_active(map, true)
-	NavigationServer3D.map_set_cell_size(map, 0.15)
+	NavigationServer3D.map_set_cell_size(map, 0.1)
 	NavigationServer3D.map_set_cell_height(map, 0.1)
-	mesh.cell_size = 0.15
+	# A 28cm tread needs at least two horizontal cells at every grid phase;
+	# 15cm voxels can collapse a tread and disconnect an otherwise valid stair.
+	mesh.cell_size = 0.1
 	mesh.cell_height = 0.1
-	# One voxel of clearance beyond the capsule avoids polygon simplification
+	# Extra clearance beyond the capsule avoids polygon simplification
 	# placing ramp corner waypoints on the rounded capsule's contact boundary.
-	mesh.agent_radius = 0.45
-	mesh.agent_height = 1.8
+	mesh.agent_radius = 0.5
+	mesh.agent_height = ceilf(agent_height/mesh.cell_height)*mesh.cell_height
 	mesh.agent_max_climb = 0.4
 	mesh.agent_max_slope = 40.0
 	mesh.filter_walkable_low_height_spans = true
 	_specs = specs
+	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door")
 	_origin = origin
 	_phase = "bounds"
 
@@ -100,6 +120,7 @@ func _process(_delta: float) -> void:
 
 func _collides(spec: Dictionary) -> bool:
 	var extras: Dictionary = spec.get("extras", {})
+	if extras.get("fixture",{}).get("kind")=="door": return false
 	return str(extras.get("rmmo_collision", "")) != "none" and not bool(extras.get("hostile", false)) and not bool(extras.get("ally", false))
 
 
@@ -161,7 +182,70 @@ func find_path(start: Vector3, goal: Vector3) -> Dictionary:
 		return {"ok": false, "reason": "unreachable", "path": PackedVector3Array()}
 	points[0] = start
 	points[-1] = goal
-	return {"ok": true, "reason": "", "path": points, "version": version}
+	for attempt in 8:
+		var obstruction:=_door_obstruction(points)
+		if obstruction.is_empty():return {"ok":true,"reason":"","path":points,"version":version}
+		var door: Dictionary=obstruction.door
+		var replacement:=PackedVector3Array()
+		var first:int=obstruction.segment;var last:=first+1
+		var inverse:Transform3D=door.transform.affine_inverse()
+		var blocked_bounds:AABB=door.mesh.get_aabb().grow(.32)
+		# Navmesh tessellation can put several consecutive waypoints inside the
+		# open leaf's clearance envelope. Detour the whole span, not a segment
+		# whose destination is itself inside the obstacle.
+		while first>0 and blocked_bounds.has_point(inverse*(points[first]+Vector3.UP*.9)):first-=1
+		while last<points.size()-1 and blocked_bounds.has_point(inverse*(points[last]+Vector3.UP*.9)):last+=1
+		if float(door.extras.fixture.open)>.95: replacement=_around_open_leaf(points[first],points[last],door)
+		if replacement.is_empty():return {"ok":false,"reason":"door_blocked","component_id":door.extras.fixture.id,"path":PackedVector3Array()}
+		var amended:=points.slice(0,first);amended.append_array(replacement);amended.append_array(points.slice(last+1));points=amended
+	return {"ok":false,"reason":"door_blocked","path":PackedVector3Array()}
+
+func _door_obstruction(points: PackedVector3Array) -> Dictionary:
+	for door in _doors:
+		var segment:=_door_segment(points,door)
+		if segment>=0:return {"door":door,"segment":segment}
+	return {}
+
+func _door_segment(points:PackedVector3Array,door:Dictionary)->int:
+	var inverse:Transform3D=door.transform.affine_inverse()
+	var bounds:AABB=door.mesh.get_aabb().grow(.32)
+	for i in points.size()-1:
+		if bounds.intersects_segment(inverse*(points[i]+Vector3.UP*.9),inverse*(points[i+1]+Vector3.UP*.9))!=null:return i
+	return -1
+
+func _around_open_leaf(a: Vector3, b: Vector3, door: Dictionary) -> PackedVector3Array:
+	# A fully open leaf is a small movable obstacle. Keep the static walk mesh
+	# connected (especially narrow rotated doorways) and route around its corners.
+	var candidates: Array[Vector3]=[]
+	# A single generous offset can land beyond a narrow hall's opposite wall.
+	# Sample clearance rings and snap to the actual walk surface before routing.
+	for margin in [.37,.45,.55,.7]:
+		var bounds:AABB=door.mesh.get_aabb().grow(margin)
+		for x in [bounds.position.x,bounds.end.x]:
+			for z in [bounds.position.z,bounds.end.z]:
+				var point:Vector3=door.transform*Vector3(x,0,z);point.y=a.y
+				if not near_surface(point,.2,.4):continue
+				point=NavigationServer3D.map_get_closest_point(map,point)
+				if not candidates.has(point):candidates.append(point)
+	var best:=PackedVector3Array();var shortest:=INF
+	for first in candidates:
+		for last in candidates:
+			var route:=PackedVector3Array();var valid:=true
+			var stops: Array[Vector3]=[a,first,last,b]
+			for i in 3:
+				if stops[i].distance_to(stops[i+1])<.001:continue
+				var segment:=NavigationServer3D.map_get_path(map,stops[i],stops[i+1],true)
+				if segment.is_empty() or segment[-1].distance_to(stops[i+1])>.4:valid=false;break
+				segment[0]=stops[i];segment[-1]=stops[i+1]
+				# Resolve one leaf at a time; another leaf later on the candidate
+				# route is handled by the outer loop, not grounds to reject this bend.
+				if _door_segment(segment,door)>=0:valid=false;break
+				route.append_array(segment)
+			if not valid:continue
+			var length:=0.0
+			for i in route.size()-1:length+=route[i].distance_to(route[i+1])
+			if length<shortest:shortest=length;best=route
+	return best
 
 
 func _exit_tree() -> void:

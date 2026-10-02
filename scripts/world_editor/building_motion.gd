@@ -90,13 +90,15 @@ func proposal(rows: Array, delta: Vector3, rotation: Basis, center: Vector3) -> 
 func clearance(plans: Array, excluded: Dictionary) -> Dictionary:
 	var obstacles: Array = []
 	for record in editor._doc.records:
-		if not excluded.has(record.uuid): obstacles.append({"id":record.uuid,"shape":Footprint.record_shape(record)})
+		if not excluded.has(record.uuid):
+			for shape in Footprint.record_shapes(record): obstacles.append({"id":record.uuid,"record":record,"shape":shape})
 	for index in plans.size():
 		var plan: Dictionary = plans[index]
+		if Footprint.batches_overlap(plan.occupancy,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)): return {"ok":false,"error":"建筑进入禁建区或保留通道，已保留原位"}
 		for previous in plans.slice(0,index):
 			if Footprint.batches_overlap(plan.occupancy,previous.occupancy): return {"ok":false,"error":"移动后的建筑占地相互重叠"}
 		for obstacle in obstacles:
-			if obstacle.shape.bounds.end.y<=float(plan.value.position[1])+.005: continue
+			if Footprint.supporting_ground(obstacle.record,obstacle.shape.bounds.end.y,float(plan.value.position[1])): continue
 			if Footprint.batches_overlap(plan.occupancy,[obstacle.shape]): return {"ok":false,"error":"建筑与现有物件重叠，已保留原位","conflicts":[obstacle.id]}
 	return {"ok":true}
 

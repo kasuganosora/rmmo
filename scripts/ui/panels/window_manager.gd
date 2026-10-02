@@ -10,7 +10,7 @@ func _init(c):
 
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const Net = preload("res://scripts/net/net.gd")
 
 
@@ -20,8 +20,6 @@ func _connect_window_layout_signals() -> void:
 		if p != null and p.has_signal("layout_changed"):
 			if not p.layout_changed.is_connected(_on_window_layout.bind(str(id))):
 				p.layout_changed.connect(_on_window_layout.bind(str(id)))
-		if p != null and not p.visibility_changed.is_connected(_on_window_layout.bind(str(id))):
-			p.visibility_changed.connect(_on_window_layout.bind(str(id)))
 
 
 func _on_window_layout(id: String) -> void:
@@ -49,17 +47,17 @@ func _restore_window_layouts() -> void:
 
 
 func _build_windows() -> void:
-	ctrl._windows["character"] = _make_window("角色状态", Vector2(560, 420), "top_left", Vector2(200, 90))
+	ctrl._windows["character"] = _make_window("角色状态", Vector2(540, 400), "top_left", Vector2(200, 90))
 	_lock_character_window(ctrl._windows["character"] as PanelContainer)
-	ctrl._windows["inventory"] = _make_window("背包", Vector2(420, 500), "top_right", Vector2(200, 40))
+	ctrl._windows["inventory"] = _make_window("背包", Vector2(376, 438), "top_right", Vector2(200, 40))
 	ctrl._lock_inventory_window(ctrl._windows["inventory"] as PanelContainer)
-	ctrl._windows["skills"] = _make_window("技能与魔法", Vector2(400, 420), "top_center", Vector2(0, 100))
+	ctrl._windows["skills"] = _make_window("技能与魔法", Vector2(360, 380), "top_center", Vector2(0, 100))
 	ctrl._lock_skills_window(ctrl._windows["skills"] as PanelContainer)
-	ctrl._windows["quest"] = _make_window("任务", Vector2(380, 430), "bottom_right", Vector2(40, 80))
+	ctrl._windows["quest"] = _make_window("任务", Vector2(330, 380), "bottom_right", Vector2(40, 80))
 	ctrl._lock_quest_window(ctrl._windows["quest"] as PanelContainer)
-	ctrl._windows["map"] = _make_window("地图", Vector2(460, 580), "top_center", Vector2(0, 36))
+	ctrl._windows["map"] = _make_window("地图", Vector2(420, 480), "top_center", Vector2(0, 36))
 	_apply_l2_chrome(ctrl._windows["map"] as PanelContainer)
-	ctrl._windows["system"] = _make_window("系统设置", Vector2(500, 520), "bottom_center", Vector2(0, 80))
+	ctrl._windows["system"] = _make_window("系统设置", Vector2(560, 480), "bottom_center", Vector2(0, 80))
 	_lock_system_window(ctrl._windows["system"] as PanelContainer)
 	var map_panel: PanelContainer = ctrl._windows.get("map")
 	if map_panel:
@@ -70,13 +68,13 @@ func _build_windows() -> void:
 
 
 func _make_window(title: String, size: Vector2, dock: String, offset: Vector2) -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.set_script(HudDrag)
+	var panel := GameWindow.new()
 	panel.screen_margin = 4.0
 	panel.min_size = Vector2(240, 180)
 	panel.default_size = size
 	panel.initial_dock = "none"
-	panel.drag_anywhere = true
+	panel.drag_anywhere = false
+	panel.drag_strip_height = 36
 	panel.visible = false
 	panel.clip_contents = true
 	panel.custom_minimum_size = Vector2(240, 180)
@@ -171,6 +169,7 @@ func _lock_system_window(panel: PanelContainer) -> void:
 		vbox.move_child(tabs, scroll.get_index())
 	panel.set_meta("system_tabs", tabs)
 	_rebuild_system_tab_bar(panel)
+	ctrl._system_panel_logic.setup_layout(panel)
 
 
 func _rebuild_system_tab_bar(panel: PanelContainer) -> void:
@@ -185,7 +184,7 @@ func _rebuild_system_tab_bar(panel: PanelContainer) -> void:
 		var btn := Button.new()
 		btn.text = str(item[0])
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(90, 30)
+		btn.custom_minimum_size = Vector2(64, L2Style.TAB_HEIGHT)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		btn.pressed.connect(_on_system_tab.bind(str(item[1])))
@@ -198,9 +197,11 @@ func _on_system_tab(tab_id: String) -> void:
 	if tab_id.is_empty() or tab_id == ctrl._system_tab:
 		return
 	ctrl._system_tab = tab_id
+	ctrl._waiting_bind = ""
 	var panel: PanelContainer = ctrl._windows.get("system")
 	if panel != null:
 		_highlight_system_tabs(panel.get_meta("system_tabs", null) as HBoxContainer)
+		panel.find_child("Scroll", true, false).scroll_vertical = 0
 	if panel != null and panel.visible:
 		_fill_window("system")
 
@@ -212,55 +213,16 @@ func _highlight_system_tabs(tabs: HBoxContainer) -> void:
 		var btn := tabs.get_child(i) as Button
 		if btn == null or i >= ctrl.SYSTEM_TABS.size():
 			continue
-		L2Style.style_tab_button(btn, str(ctrl.SYSTEM_TABS[i][1]) == ctrl._system_tab)
+		ctrl._system_panel_logic.style_settings_tab(btn, str(ctrl.SYSTEM_TABS[i][1]) == ctrl._system_tab)
 
 
 func _apply_l2_chrome(panel: PanelContainer) -> void:
-	## Ornate panel + title strip + close icon. Idempotent. Works without a named Scroll.
+	## Thin metal frame + compact title strip. Idempotent, including auxiliary windows.
 	if panel == null:
 		return
-	L2Style.apply_panel(panel)
-	var marg := panel.get_child(0) as MarginContainer
-	if marg != null:
-		marg.add_theme_constant_override("margin_left", 8)
-		marg.add_theme_constant_override("margin_top", 6)
-		marg.add_theme_constant_override("margin_right", 8)
-		marg.add_theme_constant_override("margin_bottom", 14)
-	var vbox: VBoxContainer = null
-	if marg != null and marg.get_child_count() > 0:
-		vbox = marg.get_child(0) as VBoxContainer
-	if vbox == null:
-		return
-	vbox.add_theme_constant_override("separation", 4)
-	var title_bar := vbox.get_node_or_null("TitleBar") as PanelContainer
-	var head: HBoxContainer = null
-	if title_bar != null:
-		head = title_bar.get_child(0) as HBoxContainer if title_bar.get_child_count() > 0 else null
-	else:
-		for c in vbox.get_children():
-			if c is HBoxContainer:
-				head = c
-				break
-		if head != null:
-			title_bar = PanelContainer.new()
-			title_bar.name = "TitleBar"
-			title_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			title_bar.custom_minimum_size = Vector2(0, 30)
-			title_bar.add_theme_stylebox_override("panel", L2Style.title_box())
-			var idx := head.get_index()
-			vbox.remove_child(head)
-			title_bar.add_child(head)
-			vbox.add_child(title_bar)
-			vbox.move_child(title_bar, idx)
-	if head != null:
-		head.add_theme_constant_override("separation", 4)
-		if head.get_child_count() > 0:
-			L2Style.style_title(head.get_child(0) as Label)
-		if head.get_child_count() > 1:
-			L2Style.style_close(head.get_child(head.get_child_count() - 1) as Button)
-		for c in head.get_children():
-			if c is Label and str(c.name).find("Gold") >= 0:
-				L2Style.style_gold_amount(c)
+	GameWindow.apply_chrome(panel)
+	if panel.has_signal("layout_changed") and not panel.layout_changed.is_connected(_remember_position.bind(panel)):
+		panel.layout_changed.connect(_remember_position.bind(panel))
 
 
 func _grid_cell_size() -> Vector2:
@@ -285,7 +247,7 @@ func _place_window(panel: PanelContainer) -> void:
 	var base: Vector2 = panel.get_meta("base_size", panel.default_size)
 	if panel.size.x < 64.0 or panel.size.y < 64.0 or panel.size.y > vp.y - 8.0:
 		panel.size = base
-	var s := panel.size
+	var s := panel.size * panel.get_global_transform().get_scale()
 	var pos := Vector2(8, 8)
 	match dock:
 		"top_right":
@@ -298,7 +260,7 @@ func _place_window(panel: PanelContainer) -> void:
 			pos = Vector2((vp.x - s.x) * 0.5, vp.y - s.y - 90) - Vector2(0, off.y)
 		_:
 			pos = Vector2(8, 150) + off
-	panel.global_position = pos
+	place_at(panel, pos)
 
 
 func _toggle_window(id: String) -> void:
@@ -331,54 +293,24 @@ func _lock_window_size(panel: PanelContainer) -> void:
 
 
 func _close_top_window() -> bool:
-	# NPC Chat first, then shop, then highest visible floating window
-	if ctrl._inspect_panel != null and ctrl._inspect_panel.visible:
-		ctrl._inspect_panel.visible = false
-		return true
 	if ctrl._invite_panel != null and ctrl._invite_panel.visible:
 		ctrl._hide_invite_dialog()
 		return true
-	if ctrl._npc_chat != null and ctrl._npc_chat.visible:
-		ctrl._npc_chat.visible = false
-		return true
-	if ctrl._shop_panel != null and ctrl._shop_panel.visible:
-		ctrl.hide_shop()
-		return true
-	if ctrl._party_panel != null and ctrl._party_panel.visible:
-		ctrl._party_panel.visible = false
-		return true
-	if ctrl._friends_panel != null and ctrl._friends_panel.visible:
-		ctrl._friends_panel.visible = false
-		return true
-	if ctrl._guild_panel != null and ctrl._guild_panel.visible:
-		ctrl._guild_panel.visible = false
-		return true
-	if ctrl._auction_panel != null and ctrl._auction_panel.visible:
-		ctrl._auction_panel.visible = false
-		return true
-	if ctrl._daily_panel != null and ctrl._daily_panel.visible:
-		ctrl._daily_panel.visible = false
-		return true
-	if ctrl._mail_panel != null and ctrl._mail_panel.visible:
-		ctrl._mail_panel.visible = false
-		return true
-	if ctrl._emote_panel != null and ctrl._emote_panel.visible:
-		ctrl._emote_panel.visible = false
-		return true
-	if ctrl._combat_log_panel != null and ctrl._combat_log_panel.visible:
-		ctrl._combat_log_panel.visible = false
-		return true
-	if ctrl._craft_panel != null and ctrl._craft_panel.visible:
-		ctrl._craft_panel.visible = false
-		return true
-	if ctrl._warehouse_panel != null and ctrl._warehouse_panel.visible:
-		ctrl._warehouse_panel.visible = false
-		return true
-	var order := ["system", "map", "quest", "skills", "inventory", "character"]
-	for id in order:
-		var p: PanelContainer = ctrl._windows.get(id)
-		if p and p.visible:
-			p.visible = false
+	# Match visual stacking, including titles/achievements and auxiliary windows.
+	# Reuse each close callback so shop/trade cleanup follows the same path as X.
+	var children: Array = ctrl.get_children()
+	children.reverse()
+	for child in children:
+		if not child is PanelContainer or not child.visible: continue
+		if child.has_meta("confirmation") and is_instance_valid(child.get_meta("confirmation")):
+			GameWindow.cancel_confirmation(child)
+			return true
+		var title := child.find_child("TitleBar", true, false) as PanelContainer
+		if title == null or title.get_child_count() == 0: continue
+		var head := title.get_child(0)
+		var close := head.get_child(head.get_child_count() - 1) as Button
+		if close != null:
+			close.pressed.emit()
 			return true
 	return false
 
@@ -394,6 +326,7 @@ func _fill_window(id: String) -> void:
 	var panel: PanelContainer = ctrl._windows[id]
 	var body: VBoxContainer = panel.get_meta("body")
 	for c in body.get_children():
+		body.remove_child(c)
 		c.queue_free()
 	var ch: Dictionary = ctrl._character
 	if ch.is_empty():
@@ -411,3 +344,27 @@ func _fill_window(id: String) -> void:
 			ctrl._fill_map(body, ch)
 		"system":
 			ctrl._fill_system(body)
+
+
+func _layout_key(panel: Control) -> String:
+	for id in ctrl._windows:
+		if ctrl._windows[id] == panel: return str(id)
+	return "aux:" + str(panel.get_meta("title", panel.name))
+
+
+func _remember_position(panel: Control) -> void:
+	var gs := GameSettingsScript.get_i()
+	if gs != null: gs.save_window_layout(_layout_key(panel), panel.global_position, panel.visible)
+
+
+func place_at(panel: Control, fallback: Vector2) -> void:
+	var gs := GameSettingsScript.get_i()
+	var saved: Dictionary = gs.window_layout(_layout_key(panel)) if gs != null else {}
+	panel.global_position = Vector2(float(saved.get("x", fallback.x)), float(saved.get("y", fallback.y)))
+	if panel.has_method("_clamp_on_screen"): panel._clamp_on_screen()
+
+
+func clamp_visible_windows() -> void:
+	for child in ctrl.get_children():
+		if child is Control and child.visible and child.has_method("_clamp_on_screen"):
+			child._clamp_on_screen()

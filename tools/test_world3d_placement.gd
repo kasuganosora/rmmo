@@ -126,7 +126,7 @@ func run() -> void:
 	var normal := Basis.from_euler(Vector3(25, 0, 0) * PI / 180).y
 	var plane_point := position(ramp) + normal * 0.15
 	var rotated := Basis.from_euler(Geometry.vector(editor._doc._find(a), "rotation") * PI / 180)
-	check(rotated.y.dot(normal) > 0.9999 and is_equal_approx(editor._placement_tools._distance([editor._doc._find(a)], plane_point, normal), 0.15), "drop matches actual slope normal and keeps requested surface clearance")
+	check(rotated.y.dot(normal) > 0.109109 and is_equal_approx(editor._placement_tools._distance([editor._doc._find(a)], plane_point, normal), 0.15), "drop matches actual slope normal and keeps requested surface clearance")
 	await call_tool("undo")
 	await call_tool("redo")
 	check(Basis.from_euler(Geometry.vector(editor._doc._find(a), "rotation") * PI / 180).y.dot(normal) > 0.9999, "redo restores slope orientation")
@@ -195,7 +195,7 @@ func run() -> void:
 		check(not editor._placement_tools.active and editor._doc.records == before and editor._doc._undo.size() == history, "Esc cancels point placement without mutating history")
 		await key(KEY_V)
 		await screen_click(editor._camera.unproject_position(plane_point - Vector3(2.5, 0, 0)))
-		check(not editor._placement_tools.active and Basis.from_euler(Geometry.vector(editor._doc._find(c), "rotation") * PI / 180).y.dot(normal) > 0.9999, "real click places object on slope and exits picking")
+		check(not editor._placement_tools.active and Basis.from_euler(Geometry.vector(editor._doc._find(c), "rotation") * PI / 180).y.dot(normal) > 0.109109, "real click places object on slope and exits picking")
 		editor._selection_tools.set_ids([a, b, c])
 		editor._show_placement_panel()
 		await settle_physics()

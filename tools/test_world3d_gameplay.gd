@@ -42,7 +42,9 @@ func run() -> void:
 	while probe.listen(port, "127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok, "start real HTTP MCP")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 67, "discover 67 current 3D tools")
+	var discovered_names:Dictionary={}
+	for tool in discovery.result.tools: discovered_names[tool.name]=true
+	check(discovered_names.size()==discovery.result.tools.size() and discovered_names.has("set_environment") and discovered_names.has("set_event_template") and discovered_names.has("list_event_templates"), "discover unique 3D gameplay and environment tools")
 	var catalog := await call_tool("list_event_templates")
 	check(catalog.templates.size() == 5, "all five templates and their defaults are discoverable")
 	var resources := await call_tool("list_event_resources", {"limit": 200})

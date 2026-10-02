@@ -3,7 +3,9 @@ extends RefCounted
 const Paths = preload("res://scripts/world3d/map_paths.gd")
 const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
+const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path"]
 static var _textures := {}
+static var _materials := {}
 
 static func fail(message: String) -> Dictionary: return {"ok": false, "error": message}
 
@@ -13,26 +15,38 @@ static func numbers(value: Variant, count: int, low: float, high: float) -> bool
 		if not (n is int or n is float) or not is_finite(float(n)) or n < low or n > high: return false
 	return true
 
-static func material_valid(value: Variant, relative: bool = false) -> bool:
+static func material_valid(value: Variant, relative: bool = false, content_root: String = "") -> bool:
 	if not value is Dictionary or not value.get("name") is String: return false
 	if not numbers(value.get("color"), 4, 0, 1) or not numbers([value.get("roughness")], 1, 0, 1): return false
-	var path: Variant = value.get("texture_path", "")
-	if not path is String: return false
-	if path.is_empty(): return value.get("pattern", "") in ["", "checker"]
-	if path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"]: return false
-	return Paths.allowed(path) or (relative and not path.is_absolute_path() and not path.contains(":") and not ".." in path.replace("\\", "/").split("/"))
+	if value.get("pattern", "") not in ["", "checker"]: return false
+	if value.get("normal_format", "opengl") not in ["opengl", "directx"]: return false
+	if not numbers([value.get("normal_strength", 1.0)], 1, 0, 4): return false
+	if not numbers([value.get("metallic", 0.0)], 1, 0, 1): return false
+	if not numbers(value.get("tile_size", [1.0, 1.0]), 2, 0.01, 100): return false
+	for field in MAP_FIELDS:
+		var path: Variant = value.get(field, "")
+		if not path is String: return false
+		if path.is_empty(): continue
+		if path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"]: return false
+		if not Paths.allowed(path,content_root) and not (relative and not path.is_absolute_path() and not path.contains(":") and not ".." in path.replace("\\", "/").split("/")): return false
+	return true
 
 static func valid(record: Dictionary, relative: bool = false) -> bool:
+	if record.has("terrain_material") and not material_valid(record.terrain_material,relative): return false
 	var entries: Variant = record.get("surface_paint", [])
 	if not entries is Array or entries.size() > MAX_OVERRIDES: return false
 	var seen := {}
+	var checked_materials: Array = []
 	for entry in entries:
 		if not entry is Dictionary or not entry.get("mesh") is String or not entry.get("geometry") is String: return false
 		if not numbers([entry.get("surface"), entry.get("face")], 2, 0, 1000000): return false
 		if entry.surface != floor(entry.surface) or entry.face != floor(entry.face): return false
-		if not material_valid(entry.get("material"), relative): return false
+		var definition: Variant = entry.get("material")
+		if not definition in checked_materials:
+			if not material_valid(definition, relative): return false
+			checked_materials.append(definition)
 		if not numbers(entry.get("scale"), 2, 0.01, 100) or not numbers(entry.get("offset"), 2, -100, 100): return false
-		if not numbers([entry.get("rotation")], 1, -3600, 3600) or entry.get("mapping") not in ["planar", "uv"]: return false
+		if not numbers([entry.get("rotation")], 1, -3600, 3600) or entry.get("mapping") not in ["planar", "uv", "meters"]: return false
 		var key := face_key(entry)
 		if seen.has(key): return false
 		seen[key] = true
@@ -114,12 +128,14 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 	node.set_meta("paint_geometry", result)
 	return result
 
-static func texture(material: Dictionary) -> Texture2D:
-	var path := str(material.get("texture_path", ""))
+static func texture(material: Dictionary, field: String = "texture_path") -> Texture2D:
+	var path := str(material.get(field, ""))
 	if not path.is_empty() and (not Paths.allowed(path) or not FileAccess.file_exists(path)): return null
-	var key := path if not path.is_empty() else str(material.get("pattern", ""))
+	var key := path if not path.is_empty() else (str(material.get("pattern", "")) if field == "texture_path" else "")
+	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
+	var cache_key := key + ("|flip_y" if flip_normal else "")
 	if key.is_empty(): return null
-	if _textures.has(key): return _textures[key]
+	if _textures.has(cache_key): return _textures[cache_key]
 	var image: Image
 	if key == "checker":
 		image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
@@ -129,20 +145,44 @@ static func texture(material: Dictionary) -> Texture2D:
 		if not Paths.allowed(path) or not FileAccess.file_exists(path): return null
 		image = Image.load_from_file(path)
 		if image == null or image.is_empty() or image.get_width() > 4096 or image.get_height() > 4096: return null
+	if flip_normal:
+		image.convert(Image.FORMAT_RGBA8)
+		var bytes := image.get_data()
+		for at in range(1, bytes.size(), 4): bytes[at] = 255 - bytes[at]
+		image = Image.create_from_data(image.get_width(), image.get_height(), false, Image.FORMAT_RGBA8, bytes)
 	image.generate_mipmaps()
 	var result := ImageTexture.create_from_image(image)
 	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
-	_textures[key] = result
+	_textures[cache_key] = result
 	return result
 
-static func make_material(value: Dictionary) -> StandardMaterial3D:
+static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CULL_BACK) -> StandardMaterial3D:
+	# Paint definitions are immutable; UVs live on the mesh. Reuse equivalent
+	# materials so glTF packs ORM textures once, not once for every wall face.
+	var key := str(cull_mode) + "|" + JSON.stringify(value, "", true)
+	if _materials.has(key): return _materials[key]
 	var result := StandardMaterial3D.new()
+	result.cull_mode = cull_mode
 	result.resource_name = value.name
 	result.albedo_color = Color(value.color[0], value.color[1], value.color[2], value.color[3])
 	result.roughness = value.roughness
 	result.albedo_texture = texture(value)
+	result.normal_texture = texture(value, "normal_path")
+	result.normal_enabled = result.normal_texture != null
+	result.normal_scale = float(value.get("normal_strength", 1.0))
+	result.roughness_texture = texture(value, "roughness_path")
+	result.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	result.metallic_texture = texture(value, "metallic_path")
+	result.metallic = float(value.get("metallic", 1.0 if result.metallic_texture != null else 0.0))
+	result.metallic_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	result.ao_texture = texture(value, "ao_path")
+	result.ao_enabled = result.ao_texture != null
+	result.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	result.texture_repeat = true
+	result.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if result.albedo_color.a < 1 or (result.albedo_texture != null and result.albedo_texture.get_image().detect_alpha() != Image.ALPHA_NONE): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if _materials.size() >= 128: _materials.erase(_materials.keys()[0])
+	_materials[key] = result
 	return result
 
 static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
@@ -163,6 +203,9 @@ static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
 	var original: Variant = data.arrays[Mesh.ARRAY_TEX_UV]
 	for i in vertices.size():
 		var point: Vector2 = original[i] if entry.mapping == "uv" and original != null and original.size() == vertices.size() else (Vector2(vertices[i].dot(u), vertices[i].dot(v)) - low) / dimensions
+		if entry.mapping == "meters":
+			var tile: Array = entry.material.get("tile_size", [1.0, 1.0])
+			point = (Vector2(vertices[i].dot(u), vertices[i].dot(v)) - low) / Vector2(tile[0], tile[1])
 		point = (point - Vector2(0.5, 0.5)).rotated(deg_to_rad(entry.rotation)) * Vector2(entry.scale[0], entry.scale[1]) + Vector2(0.5 + entry.offset[0], 0.5 + entry.offset[1])
 		uv.append(point)
 	return uv
@@ -189,15 +232,30 @@ static func _compact(arrays: Array) -> Array:
 	result[Mesh.ARRAY_INDEX] = indices
 	return result
 
+static func source_material(node: MeshInstance3D, slot: int) -> Material:
+	# Runtime wind is a temporary instance override, never an authored paint source.
+	if node.has_meta("wind_original"):
+		var original: Dictionary = node.get_meta("wind_original")
+		if original.override != null: return original.override
+		if original.surfaces[slot] != null: return original.surfaces[slot]
+		return node.mesh.surface_get_material(slot)
+	return node.get_active_material(slot)
+
 static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
 	var geo := geometry(node)
 	if not geo.ok: return geo
 	var mesh := source(node)
 	var overrides := {}
+	var checked_materials: Array = []
 	for entry in entries:
 		var slot := int(entry.surface)
 		if slot >= geo.surfaces.size() or not geo.surfaces[slot].faces.has(int(entry.face)) or geo.surfaces[slot].signature != entry.geometry: return fail("模型几何已改变，请先清除旧面材质再重新绘制")
-		if not str(entry.material.get("texture_path", "")).is_empty() and texture(entry.material) == null: return fail("表面贴图缺失或损坏")
+		# Only deduplicate within this synchronous operation: every later paint
+		# still checks file existence and resource-root containment afresh.
+		if not entry.material in checked_materials:
+			for field in MAP_FIELDS:
+				if not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
+			checked_materials.append(entry.material)
 		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
 		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
 		overrides["%d:%d" % [slot, entry.face]] = entry
@@ -206,24 +264,43 @@ static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
 	for slot in mesh.get_surface_count():
 		var data: Dictionary = geo.surfaces[slot]
 		var groups := {}
+		var group_entries := {}
+		var face_groups := {}
+		# Original UV mapping is independent of the face plane. Identical UV
+		# paint can share a draw surface while retaining per-face authoring data.
+		# Curved walls otherwise export thousands of identical material slots.
+		for face in data.faces:
+			var face_key := "%d:%d" % [slot, face]
+			if not overrides.has(face_key): continue
+			var entry: Dictionary = overrides[face_key]
+			var group_key := face_key
+			if entry.mapping == "uv": group_key = "uv:" + JSON.stringify([entry.material, entry.scale, entry.offset, entry.rotation], "", true)
+			face_groups[face_key] = group_key
+			group_entries[group_key] = entry
 		for triangle in data.face_for_triangle.size():
 			var face: int = data.face_for_triangle[triangle]
 			var key := "%d:%d" % [slot, face]
-			if not overrides.has(key): key = "original"
+			key = face_groups.get(key, "original")
 			if not groups.has(key): groups[key] = PackedInt32Array()
 			for corner in 3: groups[key].append(data.indices[triangle * 3 + corner])
 		for key in groups:
 			var arrays: Array = data.arrays.duplicate()
 			arrays[Mesh.ARRAY_INDEX] = groups[key]
-			var material: Material = node.get_meta("paint_source_materials")[slot] if node.has_meta("paint_source_materials") else node.get_active_material(slot)
+			var material: Material = node.get_meta("paint_source_materials")[slot] if node.has_meta("paint_source_materials") else source_material(node,slot)
 			if key != "original":
-				arrays[Mesh.ARRAY_TEX_UV] = _uvs(data, overrides[key])
+				arrays[Mesh.ARRAY_TEX_UV] = _uvs(data, group_entries[key])
 				# Painted diffuse UVs differ from the source normal-map tangent space.
 				arrays[Mesh.ARRAY_TANGENT] = null
-				var painted := make_material(overrides[key].material)
-				if material is BaseMaterial3D: painted.cull_mode = material.cull_mode
+				var painted := make_material(group_entries[key].material, material.cull_mode if material is BaseMaterial3D else BaseMaterial3D.CULL_BACK)
 				material = painted
-			output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _compact(arrays))
+			var compact := _compact(arrays)
+			if key != "original" and material is BaseMaterial3D and material.normal_enabled:
+				var temporary := ArrayMesh.new()
+				temporary.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, compact)
+				var builder := SurfaceTool.new()
+				builder.create_from(temporary, 0); builder.generate_tangents()
+				compact = builder.commit_to_arrays()
+			output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, compact)
 			output.surface_set_material(output.get_surface_count() - 1, material)
 	return {"ok": true, "mesh": output}
 
@@ -239,7 +316,7 @@ static func apply(root: Node3D, record: Dictionary) -> void:
 		var result := painted_mesh(node, entries)
 		if not result.ok: root.set_meta("paint_error", result.error); continue
 		var originals: Array = []
-		for slot in node.mesh.get_surface_count(): originals.append(node.get_active_material(slot))
+		for slot in node.mesh.get_surface_count(): originals.append(source_material(node,slot))
 		node.set_meta("paint_source_materials", originals)
 		node.set_meta("paint_source", node.mesh)
 		node.mesh = result.mesh
@@ -247,12 +324,19 @@ static func apply(root: Node3D, record: Dictionary) -> void:
 		for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot, null)
 	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
 
+static func definitions(record: Dictionary) -> Array:
+	var result: Array=[]
+	for entry in record.get("surface_paint",[]): result.append(entry.material)
+	if record.has("terrain_material"): result.append(record.terrain_material)
+	return result
+
 static func missing(records: Array) -> Array:
 	var paths: Array = []
 	for record in records:
-		for entry in record.get("surface_paint", []):
-			var path := str(entry.material.get("texture_path", ""))
-			if not path.is_empty() and not FileAccess.file_exists(path) and not paths.has(path): paths.append(path)
+		for definition in definitions(record):
+			for field in MAP_FIELDS:
+				var path := str(definition.get(field, ""))
+				if not path.is_empty() and not FileAccess.file_exists(path) and not paths.has(path): paths.append(path)
 	return paths
 
 static func _face_shape(data: Dictionary, face: int) -> Array:

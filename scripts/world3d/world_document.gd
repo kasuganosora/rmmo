@@ -160,6 +160,7 @@ func build() -> Node3D:
 
 
 func save(gltf_path: String) -> Error:
+	if not preload("res://scripts/world3d/city_layout.gd").valid(map_meta): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(map_meta): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(map_meta,records): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(map_meta): return ERR_INVALID_DATA
@@ -169,7 +170,12 @@ func save(gltf_path: String) -> Error:
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
 		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
 		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/channel_surface.gd").valid(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return ERR_INVALID_DATA
 		if not SurfaceMaterials.valid(record): return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return ERR_INVALID_DATA
 	var view := build()
 	for child in view.get_children():
 		if child.has_meta("paint_error") or child.has_meta("tile_error"):
@@ -192,19 +198,22 @@ func save(gltf_path: String) -> Error:
 
 static func open_file(gltf_path: String):
 	var signature := FileAccess.get_sha256(gltf_path) if FileAccess.file_exists(gltf_path) else ""
-	var scene := GltfMapIo.load_scene(gltf_path)
-	if scene == null:
-		return null
-	var extras := GltfMapIo.extras_of(scene).duplicate(true)
-	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extras): scene.free(); return null
-	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(extras): scene.free(); return null
-	if not preload("res://scripts/world3d/environment_settings.gd").valid(extras):
-		scene.free()
-		return null
+	var fast:=authoritative_extras(gltf_path)
+	if fast.has("error"): return null
+	var extras: Dictionary=fast.get("extras",{})
+	var scene: Node
+	if extras.is_empty():
+		scene=GltfMapIo.load_scene(gltf_path)
+		if scene==null:return null
+		extras=GltfMapIo.extras_of(scene).duplicate(true)
 	var raw: Variant = extras.get("rmmo_records")
-	if raw == null and str(extras.get("rmmo_format", "")) == WorldLocation.FORMAT:
+	if raw == null and scene!=null and str(extras.get("rmmo_format", "")) == WorldLocation.FORMAT:
 		raw = _legacy_records(scene)
-	scene.free()
+	if scene!=null: scene.free()
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extras): return null
+	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(extras): return null
+	if not preload("res://scripts/world3d/city_layout.gd").valid(extras): return null
+	if not preload("res://scripts/world3d/environment_settings.gd").valid(extras): return null
 	if not raw is Array:
 		# Do not replace unsupported/imported documents with an empty yard.
 		return null
@@ -217,7 +226,12 @@ static func open_file(gltf_path: String):
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return null
 		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return null
 		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return null
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return null
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return null
+		if not preload("res://scripts/world3d/channel_surface.gd").valid(record): return null
+		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return null
 		if not SurfaceMaterials.valid(record): return null
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return null
 		var uuid := str(record.get("uuid", ""))
 		if uuid.is_empty() or ids.has(uuid):
 			return null
@@ -238,6 +252,40 @@ static func open_file(gltf_path: String):
 	extras.erase("rmmo_records")
 	doc.map_meta = extras
 	return doc
+
+
+static func authoritative_extras(path: String) -> Dictionary:
+	# Like MapLoader, native editor records are authoritative. Importing thousands
+	# of duplicate exported meshes just to discard them makes reopening a street
+	# take minutes. Legacy/imported/transformed roots retain the GLTF import path.
+	if path.get_extension().to_lower()!="gltf" or not FileAccess.file_exists(path):return {}
+	var data: Variant=JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not data is Dictionary:return {"error":"invalid JSON"}
+	var scenes: Variant=data.get("scenes"); var nodes: Variant=data.get("nodes")
+	var index:=int(data.get("scene",0))
+	if not scenes is Array or not nodes is Array or index<0 or index>=scenes.size() or not scenes[index] is Dictionary:return {}
+	var roots: Variant=scenes[index].get("nodes")
+	if not roots is Array or roots.size()!=1 or not (roots[0] is float or roots[0] is int):return {}
+	var root_index:=int(roots[0])
+	if root_index<0 or root_index>=nodes.size() or not nodes[root_index] is Dictionary:return {}
+	var node: Dictionary=nodes[root_index]; var extra: Variant=node.get("extras")
+	if not extra is Dictionary or extra.get("rmmo_format")!=WorldLocation.FORMAT or extra.get("rmmo_version")!=1 or not extra.get("rmmo_records") is Array:return {}
+	for field in ["translation","rotation","scale","matrix"]:
+		if node.has(field):return {}
+	var Paths=preload("res://scripts/world3d/map_paths.gd")
+	for section in ["buffers","images"]:
+		if not data.get(section,[]) is Array:return {"error":"invalid dependencies"}
+		for dependency in data.get(section,[]):
+			if not dependency is Dictionary:return {"error":"invalid dependency"}
+			var uri:=str(dependency.get("uri",""))
+			if uri.is_empty() or uri.begins_with("data:"):continue
+			var relative:=GltfMapIo.decode_dependency_uri(uri)
+			var target:=path.get_base_dir().path_join(relative)
+			if relative.is_empty() or not Paths.allowed(target) or not FileAccess.file_exists(target):return {"error":"missing or invalid dependency"}
+			if section=="buffers":
+				var file:=FileAccess.open(target,FileAccess.READ)
+				if file==null or file.get_length()<int(dependency.get("byteLength",0)):return {"error":"truncated buffer"}
+	return {"extras":extra}
 
 
 static func _legacy_records(scene: Node) -> Variant:
@@ -320,8 +368,15 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 			mat.albedo_color.a = 0.0
 		box.material = mat
 	mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
+	if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
+	if record.has("terrain_mesh"): mesh_node.mesh = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material)
+	if record.has("channel_mesh"):
+		if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
+			box.material.roughness=.22; box.material.metallic=.15
+		mesh_node.mesh = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
 	if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
 	if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
+	if record.get("building_shape")=="roof_prism": mesh_node.mesh = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
 	if mesh_node.mesh == null:
 		mesh_node.mesh = box
 		mesh_node.set_meta("tile_error", "自动拼接套件无法读取")
@@ -330,6 +385,7 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 	mesh_node.position = Vector3(float(position[0]), float(position[1]), float(position[2]))
 	var rotation: Array = record.get("rotation", [0, 0, 0])
 	mesh_node.rotation_degrees = Vector3(float(rotation[0]), float(rotation[1]), float(rotation[2]))
+	if record.has("fixture"): mesh_node.transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
 	if bool(record.get("invisible", false)):
 		mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var surface_id := str(record.get("surface_id", "ground"))
@@ -356,8 +412,13 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 	if str(record.get("node_id", "")) != "":
 		extras["node_id"] = str(record.get("node_id", ""))
 	if record.get("seat") is Dictionary:extras["seat"]=record.seat.duplicate(true)
+	if record.has("fixture"):
+		extras.fixture=record.fixture.duplicate(true)
+		extras.building=record.get("building",{}).duplicate(true)
+	if record.has("fortification"): extras.fortification=record.fortification.duplicate(true)
 	mesh_node.set_meta("extras", extras)
 	SurfaceMaterials.apply(mesh_node, record)
+	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
 	return mesh_node
 
 
@@ -392,13 +453,15 @@ func _asset(record: Dictionary) -> Node3D:
 		holder.set_meta("missing_asset", true)
 	else:
 		holder.add_child(model)
-		_namespace_asset(model, str(record.uuid), model)
+		_namespace_asset(model, str(record.uuid), model, str(record.get("collision","")))
 	SurfaceMaterials.apply(holder, record)
+	preload("res://scripts/world3d/wind_response.gd").annotate(holder,record)
 	return holder
 
-func _namespace_asset(node: Node, prefix: String, asset_root: Node) -> void:
+func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:
 	if node is MeshInstance3D:
 		var extras: Dictionary = node.get_meta("extras", {}).duplicate(true)
 		extras["uuid"] = prefix + "__" + str(asset_root.get_path_to(node)).replace("/", "__")
+		if collision in ["none","walk","block"]: extras["rmmo_collision"]=collision
 		node.set_meta("extras", extras)
-	for child in node.get_children(): _namespace_asset(child, prefix, asset_root)
+	for child in node.get_children(): _namespace_asset(child, prefix, asset_root, collision)

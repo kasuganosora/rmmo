@@ -133,6 +133,7 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 		spec["chunk"] = chunk_key(world_transform.origin)
 		spec["chunk_min"] = chunk_key(bounds.position)
 		spec["chunk_max"] = chunk_key(bounds.end)
+		preload("res://scripts/world3d/building_fixtures.gd").prepare_spec(spec)
 		var metadata: Dictionary = spec["extras"]
 		spec["uuid"] = str(metadata.get("uuid", str(map_root.get_path_to(mesh)).replace("/", "__")))
 		var adopted := str(spec.get("uuid", ""))
@@ -153,6 +154,7 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 	for mesh in incoming:
 		if mesh.has_meta("native_visual"):
 			mesh.set_meta("stream_instance", true)
+			preload("res://scripts/world3d/wind_response.gd").register(mesh)
 			continue
 		mesh.get_parent().remove_child(mesh)
 		(mesh as Node).free()
@@ -269,7 +271,7 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 	var bounds: AABB = visual.transform * visual.get_aabb()
 	var extras: Dictionary = Io.extras_of(visual).duplicate(true)
 	if visual.has_meta("native_dynamic"): extras["rmmo_collision"] = "none"
-	return {
+	var spec := {
 		"native_visual": visual.has_meta("native_visual"),
 		"uuid": str(visual.name),
 		"position": visual.position,
@@ -282,6 +284,8 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 		"extras": extras,
 		"chunk": chunk_key(visual.position),
 	}
+	preload("res://scripts/world3d/building_fixtures.gd").prepare_spec(spec)
+	return spec
 
 
 static func _spawn(spec: Dictionary) -> MeshInstance3D:
@@ -296,6 +300,7 @@ static func _spawn(spec: Dictionary) -> MeshInstance3D:
 	var extras: Dictionary = spec.get("extras", {})
 	if not extras.is_empty():
 		visual.set_meta("extras", extras)
+	preload("res://scripts/world3d/wind_response.gd").register(visual)
 	if bool(extras.get("invisible", false)):
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):

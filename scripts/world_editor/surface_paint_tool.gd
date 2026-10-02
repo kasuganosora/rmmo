@@ -69,7 +69,7 @@ func pick(screen: Vector2) -> Dictionary:
 	if not Rect2(Vector2.ZERO, editor._canvas.size).has_point(screen): return Paint.fail("坐标超出 3D 画布")
 	var origin: Vector3 = editor._camera.project_ray_origin(screen)
 	var direction: Vector3 = editor._camera.project_ray_normal(screen)
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 10000)
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * editor._camera.far)
 	query.hit_back_faces = false
 	var hit: Dictionary = editor.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty(): return Paint.fail("没有命中可绘制表面")
@@ -134,7 +134,9 @@ func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 func _commit(id: String, next: Dictionary) -> Dictionary:
 	var record: Dictionary = editor._doc._find(id)
 	if record == next: return {"ok": true, "changed_ids": []}
-	var before: Array = editor._doc.records.duplicate(true)
+	# A brush stroke already owns one complete before-image. Copying the whole
+	# town for each painted component makes large architectural sets quadratic.
+	var before: Array = [] if stroke_active else editor._doc.records.duplicate(true)
 	var detached := Rules.attached(next)
 	Rules.detach(next)
 	record.clear(); record.merge(next)

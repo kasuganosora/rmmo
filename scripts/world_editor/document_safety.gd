@@ -31,6 +31,8 @@ func _exit_tree() -> void:
 	get_tree().auto_accept_quit = _auto_quit_before
 
 func busy() -> bool:
+	if editor._terrain_brush!=null and editor._terrain_brush.pointer_down: return true
+	if editor._city.busy(): return true
 	if editor._playtest != null and editor._playtest.active(): return true
 	if editor._authoring.picking: return true
 	if editor._building_area_busy(): return true

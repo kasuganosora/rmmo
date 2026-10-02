@@ -1,0 +1,30 @@
+{
+  "materials": [
+    {
+      "slug": "troweled_plaster", "folder": "walls", "category": "墙面／外墙抹面",
+      "name": "手工抹面灰泥", "title": "Construction Plaster", "seller": "Quixel Megascans",
+      "listing_id": "c61bd44e-ce01-47ae-b0b8-eb0f4ff3cc60", "archive": "construction_plaster_pjbkt0_4k.zip",
+      "normal_format": "opengl", "normal_strength": 0.4, "tile_size": [1, 1],
+      "usage": "半木构外墙填充抹面；保留抹刀痕，区别于裸露石块。",
+      "maps": {
+        "texture_path": "Construction_Plaster_pjBkT0_4K_BaseColor.jpg",
+        "normal_path": "Construction_Plaster_pjBkT0_4K_Normal.jpg",
+        "roughness_path": "Construction_Plaster_pjBkT0_4K_Roughness.jpg",
+        "ao_path": "Construction_Plaster_pjBkT0_4K_AO.jpg"
+      }
+    },
+    {
+      "slug": "fine_plaster", "folder": "walls", "category": "墙面／内墙灰泥",
+      "name": "细抹蓝灰墙面", "title": "Fresh Wall Plaster", "seller": "Quixel Megascans",
+      "listing_id": "b427a11b-5d79-41bc-af42-3cd3aadae25c", "archive": "fresh_wall_plaster_wi0oadulw_8k.zip",
+      "normal_format": "opengl", "tile_size": [2, 2],
+      "usage": "室内细抹面；原扫描为蓝灰色，白刷室内使用保留法线和粗糙度的白灰泥变体。",
+      "maps": {
+        "texture_path": "Fresh_Wall_Plaster_wi0oadulw_8K_BaseColor.jpg",
+        "normal_path": "Fresh_Wall_Plaster_wi0oadulw_8K_Normal.jpg",
+        "roughness_path": "Fresh_Wall_Plaster_wi0oadulw_8K_Roughness.jpg",
+        "ao_path": "Fresh_Wall_Plaster_wi0oadulw_8K_AO.jpg"
+      }
+    }
+  ]
+}

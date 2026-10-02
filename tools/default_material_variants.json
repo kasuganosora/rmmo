@@ -1,0 +1,124 @@
+{
+  "variants": [
+    {
+      "path": "wood/structural_oak/material.json",
+      "descriptor": {
+        "category": "木材／天然木板",
+        "material": {
+          "name": "深色旧木板",
+          "color": [
+            0.58,
+            0.48,
+            0.4,
+            1
+          ],
+          "roughness": 1.0,
+          "normal_format": "opengl",
+          "normal_strength": 0.5,
+          "tile_size": [
+            2,
+            2
+          ],
+          "texture_path": "../worn_planks/texture.jpg",
+          "normal_path": "../worn_planks/normal.png",
+          "roughness_path": "../worn_planks/roughness.png",
+          "ao_path": "../worn_planks/ao.png"
+        },
+        "source": {
+          "type": "material_variant",
+          "base_material_id": "pack:default:wood/worn_planks/material",
+          "listing_url": "https://www.fab.com/listings/7992bc73-2fd9-4b56-b25a-c549d7d9e1b5",
+          "note": "Reuse unchanged Quixel maps with dark timber tint and lower normal strength."
+        },
+        "usage": "旧木地板、门板；保留历史ID，示例梁柱使用独立整木纹材质。"
+      }
+    },
+    {
+      "path": "details/window_glass/material.json",
+      "descriptor": {
+        "category": "门窗／玻璃",
+        "source": {
+          "type": "procedural_parameters"
+        },
+        "usage": "薄窗玻璃；保留窗洞与原碰撞。",
+        "material": {
+          "name": "微绿旧窗玻璃",
+          "color": [
+            0.44,
+            0.54,
+            0.49,
+            0.28
+          ],
+          "roughness": 0.26,
+          "metallic": 0,
+          "tile_size": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "path": "walls/interior_limewash/material.json",
+      "descriptor": {
+        "category": "墙面／内墙灰泥",
+        "source": {
+          "type": "material_variant",
+          "base_material_id": "pack:default:walls/fine_plaster/material",
+          "listing_url": "https://www.fab.com/listings/b427a11b-5d79-41bc-af42-3cd3aadae25c"
+        },
+        "usage": "室内白刷细灰泥；基色使用暖白参数，保留细抹面的扫描法线、粗糙度与AO。",
+        "material": {
+          "name": "室内白刷细灰泥",
+          "color": [
+            0.82,
+            0.79,
+            0.72,
+            1
+          ],
+          "roughness": 1.0,
+          "normal_format": "opengl",
+          "normal_strength": 0.3,
+          "tile_size": [
+            2,
+            2
+          ],
+          "normal_path": "../fine_plaster/normal.png",
+          "roughness_path": "../fine_plaster/roughness.png",
+          "ao_path": "../fine_plaster/ao.png"
+        }
+      }
+    },
+    {
+      "path": "walls/exterior_limewash/material.json",
+      "descriptor": {
+        "category": "墙面／外墙抹面",
+        "source": {
+          "type": "material_variant",
+          "base_material_id": "pack:default:walls/troweled_plaster/material",
+          "listing_url": "https://www.fab.com/listings/c61bd44e-ce01-47ae-b0b8-eb0f4ff3cc60"
+        },
+        "usage": "室外石灰刷面；暖白灰浆覆盖原扫描的灰水泥基色，保留手工抹面法线、粗糙度和AO。",
+        "material": {
+          "name": "外墙石灰抹面",
+          "color": [
+            0.78,
+            0.72,
+            0.62,
+            1
+          ],
+          "roughness": 1,
+          "normal_format": "opengl",
+          "normal_strength": 0.28,
+          "tile_size": [
+            1,
+            1
+          ],
+          "normal_path": "../troweled_plaster/normal.png",
+          "roughness_path": "../troweled_plaster/roughness.png",
+          "ao_path": "../troweled_plaster/ao.png"
+        }
+      }
+    }
+  ]
+}

@@ -2,11 +2,20 @@ extends RefCounted
 ## UI panel: shop window (catalog, buy/sell carts, buyback, vendor rep).
 
 var ctrl
+var _submitting := false
+var _batch: Array = []
+var _batch_index := 0
+var _batch_buy := true
+var _batch_errors: Array[String] = []
+var _feedback: Label
 func _init(c):
 	ctrl = c
 
+const UIRequest = preload("res://scripts/ui/ui_request.gd")
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
+const Inventory = preload("res://scripts/net/combat/inventory.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const SHOP_TABS := [
 	["买入", "buy"],
@@ -15,6 +24,7 @@ const SHOP_TABS := [
 ]
 
 func show_shop(shop_id: String, title: String, listings: Array, gold: int = 0, vendor_rep: int = -1) -> void:
+	if _submitting: return
 	ctrl._shop_id = shop_id.strip_edges()
 	ctrl._shop_title = title.strip_edges() if title.strip_edges() != "" else "商店"
 	ctrl._shop_listings = listings.duplicate(true) if listings != null else []
@@ -39,25 +49,8 @@ func apply_shop_buyback(rows: Variant) -> void:
 
 
 
-func _add_buyback_row(parent: Node, index: int, label: String, price: int) -> void:
-	var btn = Button.new()
-	btn.text = "%s   %d" % [label, price]
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	L2Style.style_row_button(btn, false)
-	btn.pressed.connect(func():
-		if ctrl._world_combat != null and ctrl._world_combat.has_method("request_shop_buyback"):
-			ctrl._world_combat.request_shop_buyback(index)
-		else:
-			var srv = Net.server()
-			if srv != null and srv.has_method("try_shop_buyback"):
-				ctrl._apply_equip_result_locally(srv.try_shop_buyback(index))
-	)
-	parent.add_child(btn)
-
-
-
 func hide_shop() -> void:
+	if _submitting: return
 	if ctrl._shop_panel != null:
 		ctrl._shop_panel.visible = false
 	ctrl._shop_id = ""
@@ -87,7 +80,7 @@ func _ensure_shop_panel() -> void:
 		ctrl._shop_panel.queue_free()
 		ctrl._shop_panel = null
 	var panel = PanelContainer.new()
-	panel.set_script(HudDrag)
+	panel.set_script(GameWindow)
 	panel.name = "ShopWindow"
 	panel.screen_margin = 4.0
 	panel.min_size = Vector2(520, 400)
@@ -120,7 +113,7 @@ func _ensure_shop_panel() -> void:
 	head.add_child(title_l)
 	var gold_l = Label.new()
 	gold_l.name = "ShopGold"
-	gold_l.text = "Adena 0"
+	gold_l.text = "金币 0"
 	head.add_child(gold_l)
 	var rep_l = Label.new()
 	rep_l.name = "ShopRep"
@@ -135,12 +128,13 @@ func _ensure_shop_panel() -> void:
 	tabs.add_theme_constant_override("separation", 4)
 	tabs.mouse_filter = Control.MOUSE_FILTER_STOP
 	vbox.add_child(tabs)
-	var buy_root = _make_shop_tab_page("BuyPage", "BuyCatalog", "BuyCart", "商品列表", "我的选择")
+	var buy_root = _make_shop_tab_page("BuyPage", "BuyCatalog", "BuyCart", "商品", "购物篮")
 	vbox.add_child(buy_root)
-	var sell_root = _make_shop_tab_page("SellPage", "SellCatalog", "SellCart", "背包可出售", "我的选择")
+	var sell_root = _make_shop_tab_page("SellPage", "SellCatalog", "SellCart", "背包可出售", "待出售")
 	vbox.add_child(sell_root)
 	var back_root = _make_shop_tab_page("BuybackPage", "BuybackCatalog", "BuybackCart", "最近卖出", "回购")
 	vbox.add_child(back_root)
+	_feedback = UIRequest.status(vbox, "ShopStatus")
 	var footer = HBoxContainer.new()
 	footer.name = "ShopFooter"
 	footer.add_theme_constant_override("separation", 8)
@@ -162,16 +156,18 @@ func _ensure_shop_panel() -> void:
 	L2Style.style_action_button(junk_btn)
 	bottom.add_child(junk_btn)
 	var cancel_btn = Button.new()
-	cancel_btn.text = "取消"
+	cancel_btn.text = "关闭"
 	cancel_btn.focus_mode = Control.FOCUS_NONE
 	cancel_btn.pressed.connect(hide_shop)
 	L2Style.style_action_button(cancel_btn)
 	bottom.add_child(cancel_btn)
 	var ok_btn = Button.new()
-	ok_btn.text = "确定"
+	ok_btn.name = "ConfirmShopSelection"
+	ok_btn.text = "购买所选"
 	ok_btn.focus_mode = Control.FOCUS_NONE
 	ok_btn.pressed.connect(_on_shop_confirm)
 	L2Style.style_action_button(ok_btn)
+	L2Style.style_primary_button(ok_btn)
 	bottom.add_child(ok_btn)
 	panel.set_meta("shop_tabs", tabs)
 	ctrl._apply_l2_chrome(panel)
@@ -193,6 +189,7 @@ func _make_shop_tab_page(page_name: String, catalog_name: String, cart_name: Str
 	var left = _make_shop_list_pane(catalog_name, cat_title)
 	left.size_flags_stretch_ratio = 1.35
 	root.add_child(left)
+	if page_name == "BuybackPage": return root
 	var right = _make_shop_list_pane(cart_name, cart_title)
 	right.size_flags_stretch_ratio = 1.0
 	root.add_child(right)
@@ -209,18 +206,45 @@ func _make_shop_list_pane(list_name: String, heading: String) -> PanelContainer:
 	col.add_theme_constant_override("separation", 4)
 	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	pane.add_child(col)
-	ctrl._add_label(col, heading, 11, L2Style.COL_MUTED)
-	var scroll = ScrollContainer.new()
-	scroll.name = list_name + "Scroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	col.add_child(scroll)
-	var list = VBoxContainer.new()
-	list.name = list_name
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 3)
-	scroll.add_child(list)
+	var title = ctrl._add_label(col, heading, 11, L2Style.COL_MUTED)
+	title.name = list_name + "Heading"
+	var grid = ItemGrid.create(ctrl, col, list_name, 150)
+	grid.minimum_cells = 0
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 4)
+	col.add_child(actions)
+	var quantity := SpinBox.new()
+	quantity.name = list_name + "Quantity"
+	quantity.min_value = 1
+	quantity.max_value = 1
+	quantity.editable = false
+	quantity.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	quantity.custom_minimum_size.x = 100
+	actions.add_child(quantity)
+	var action := Button.new()
+	action.name = list_name + "Action"
+	var is_cart := list_name.ends_with("Cart")
+	var is_back := list_name == "BuybackCatalog"
+	action.text = "移除" if is_cart else ("回购所选" if is_back else "加入")
+	action.disabled = true
+	actions.add_child(action)
+	quantity.visible = not is_back
+	grid.item_selected.connect(func(item):
+		action.disabled = item.is_empty() or (is_back and int(item.get("unit_price", 0)) * int(item.get("qty", 1)) > ctrl._server_gold)
+		quantity.editable = not item.is_empty()
+		quantity.max_value = _shop_selection_limit(list_name, item)
+	)
+	action.pressed.connect(func():
+		var item: Dictionary = grid.selected_item()
+		if item.is_empty(): return
+		var is_buy := list_name.begins_with("Buy")
+		if is_back:
+			_request_buyback(int(item.get("key", -1)))
+		elif is_cart:
+			_on_shop_cart_adjust(is_buy, str(item.item_id), -int(quantity.value))
+		else:
+			_add_selected_shop_item(is_buy, item, int(quantity.value))
+	)
 	return pane
 
 
@@ -237,7 +261,7 @@ func _rebuild_shop_tab_bar(panel: PanelContainer) -> void:
 		var btn = Button.new()
 		btn.text = str(item[0])
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(140, 30)
+		btn.custom_minimum_size = Vector2(100, L2Style.TAB_HEIGHT)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		btn.pressed.connect(_on_shop_tab.bind(str(item[1])))
@@ -254,6 +278,7 @@ func _on_shop_tab(tab_id: String) -> void:
 	_show_shop_tab_pages()
 	if ctrl._shop_panel != null:
 		_highlight_shop_tabs(ctrl._shop_panel.get_meta("shop_tabs", null) as HBoxContainer)
+		_fill_shop_panel()
 
 
 
@@ -280,6 +305,13 @@ func _show_shop_tab_pages() -> void:
 	var back = ctrl._shop_panel.find_child("BuybackPage", true, false) as Control
 	if back != null:
 		back.visible = ctrl._shop_tab == "buyback"
+	var junk: Button = ctrl._shop_panel.find_child("SellJunkBtn", true, false)
+	if junk: junk.visible = ctrl._shop_tab == "sell"
+	var confirm: Button = ctrl._shop_panel.find_child("ConfirmShopSelection", true, false)
+	if confirm:
+		confirm.visible = ctrl._shop_tab != "buyback"
+		confirm.text = "出售所选" if ctrl._shop_tab == "sell" else "购买所选"
+		confirm.disabled = (ctrl._shop_sell_cart if ctrl._shop_tab == "sell" else ctrl._shop_buy_cart).is_empty()
 
 
 
@@ -288,7 +320,7 @@ func _place_shop_panel() -> void:
 		return
 	var vp = ctrl.get_viewport().get_visible_rect().size
 	ctrl._shop_panel.size = Vector2(580, 460)
-	ctrl._shop_panel.global_position = Vector2(maxi(8, int(vp.x * 0.2)), maxi(40, int(vp.y * 0.12)))
+	ctrl._window_manager_logic.place_at(ctrl._shop_panel, Vector2(maxi(8, int(vp.x * 0.2)), maxi(40, int(vp.y * 0.12))))
 
 
 
@@ -304,7 +336,7 @@ func _fill_shop_panel() -> void:
 			title_l.text = ctrl._shop_title if ctrl._shop_title != "" else "商店"
 	var gold_l = ctrl._shop_panel.get_meta("gold_label") as Label
 	if gold_l != null:
-		gold_l.text = "Adena  %d" % maxi(ctrl._server_gold, 0)
+		gold_l.text = "金币  %d" % maxi(ctrl._server_gold, 0)
 		L2Style.style_gold_amount(gold_l)
 	var rep_l = ctrl._shop_panel.find_child("ShopRep", true, false) as Label
 	if rep_l != null:
@@ -323,118 +355,110 @@ func _fill_shop_panel() -> void:
 			footer_rep.text = ""
 			footer_rep.visible = false
 	_show_shop_tab_pages()
-	var buy_cat = ctrl._shop_panel.find_child("BuyCatalog", true, false) as VBoxContainer
-	var buy_cart = ctrl._shop_panel.find_child("BuyCart", true, false) as VBoxContainer
-	var sell_cat = ctrl._shop_panel.find_child("SellCatalog", true, false) as VBoxContainer
-	var sell_cart = ctrl._shop_panel.find_child("SellCart", true, false) as VBoxContainer
-	ctrl._clear_container(buy_cat)
-	ctrl._clear_container(buy_cart)
-	ctrl._clear_container(sell_cat)
-	ctrl._clear_container(sell_cart)
-	# Buy catalog
-	if buy_cat != null:
-		if ctrl._shop_listings.is_empty():
-			ctrl._add_label(buy_cat, "（无商品）", 12, L2Style.COL_MUTED)
-		else:
-			for it in ctrl._shop_listings:
-				if typeof(it) != TYPE_DICTIONARY:
-					continue
-				var iid = str(it.get("item_id", ""))
-				var iname = str(it.get("name", iid))
-				var price: int = int(it.get("buy_price", 0))
-				_add_shop_catalog_row(buy_cat, iname, price, true, iid, iname, price)
-	# Buy cart
-	_fill_cart_list(buy_cart, ctrl._shop_buy_cart, true)
-	# Sell catalog from bag
-	if sell_cat != null:
-		var sellables: Array = _shop_sellable_bag_rows()
-		if sellables.is_empty():
-			ctrl._add_label(sell_cat, "（无可出售物品）", 12, L2Style.COL_MUTED)
-		else:
-			for it2 in sellables:
-				var iid2 = str(it2.get("id", ""))
-				var iname2 = str(it2.get("name", iid2))
-				var sprice: int = int(it2.get("sell_price", 0))
-				var have_q: int = int(it2.get("qty", 1))
-				_add_shop_catalog_row(sell_cat, "%s×%d" % [iname2, have_q], sprice, false, iid2, iname2, sprice)
-	_fill_cart_list(sell_cart, ctrl._shop_sell_cart, false)
-	var back_cat = ctrl._shop_panel.find_child("BuybackCatalog", true, false) as VBoxContainer
-	ctrl._clear_container(back_cat)
-	if back_cat != null:
-		if ctrl._shop_buyback.is_empty():
-			ctrl._add_label(back_cat, "（无回购）", 12, L2Style.COL_MUTED)
-		else:
-			for i in range(ctrl._shop_buyback.size()):
-				var row: Variant = ctrl._shop_buyback[i]
-				if typeof(row) != TYPE_DICTIONARY:
-					continue
-				var iid3 = str(row.get("item_id", ""))
-				var nm3 = str(row.get("name", iid3))
-				var q3: int = int(row.get("qty", 1))
-				var p3: int = int(row.get("unit_price", 0))
-				_add_buyback_row(back_cat, i, "%s×%d" % [nm3, q3], p3)
+	var buy_items: Array = []
+	for entry in ctrl._shop_listings:
+		if not entry is Dictionary: continue
+		var item: Dictionary = entry.duplicate(true)
+		item["qty"] = 1
+		item["unit_price"] = int(item.get("buy_price", 0))
+		item["hint"] = "单价 %d 金币" % item.unit_price
+		buy_items.append(item)
+	var sell_items: Array = []
+	for entry in _shop_sellable_bag_rows():
+		var item: Dictionary = entry.duplicate(true)
+		item["unit_price"] = int(item.get("sell_price", 0))
+		item["hint"] = "单价 %d 金币" % item.unit_price
+		sell_items.append(item)
+	_set_shop_grid("BuyCatalog", buy_items)
+	_set_shop_grid("SellCatalog", sell_items)
+	_fill_buy_cart_slots()
+	_set_shop_grid("SellCart", ctrl._shop_sell_cart)
+	var back_items: Array = []
+	for index in ctrl._shop_buyback.size():
+		var item: Dictionary = ctrl._shop_buyback[index].duplicate(true)
+		item["key"] = str(index)
+		item["hint"] = "整组 %d 金币" % (int(item.get("unit_price", 0)) * int(item.get("qty", 1)))
+		back_items.append(item)
+	_set_shop_grid("BuybackCatalog", back_items)
+	var total := 0
+	for line in (ctrl._shop_sell_cart if ctrl._shop_tab == "sell" else ctrl._shop_buy_cart): total += int(line.get("qty", 1)) * int(line.get("unit_price", 0))
+	footer_rep.text = "合计 %d 金币" % total
+	footer_rep.visible = ctrl._shop_tab != "buyback"
+	if _submitting: UIRequest.lock_form(ctrl._shop_panel, true)
 
 
-
-func _add_shop_catalog_row(parent: VBoxContainer, label_text: String, price: int, is_buy: bool, item_id: String, display_name: String, unit_price: int) -> void:
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	parent.add_child(row)
-	var btn = Button.new()
-	btn.text = "%s    %d Adena" % [label_text, price]
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(0, 30)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.tooltip_text = ctrl._equip_compare_tip(item_id, "%s\n%d Adena\n点击加入选择" % [ctrl._item_rarity_name_line(item_id, display_name), unit_price])
-	L2Style.style_row_button(btn, false)
-	btn.pressed.connect(_on_shop_catalog_add.bind(is_buy, item_id, display_name, unit_price))
-	row.add_child(btn)
-	var add_btn = Button.new()
-	add_btn.text = "+"
-	add_btn.focus_mode = Control.FOCUS_NONE
-	add_btn.custom_minimum_size = Vector2(28, 28)
-	L2Style.style_compact_button(add_btn)
-	add_btn.pressed.connect(_on_shop_catalog_add.bind(is_buy, item_id, display_name, unit_price))
-	row.add_child(add_btn)
+func _set_shop_grid(node_name: String, items: Array) -> void:
+	var grid = ctrl._shop_panel.find_child(node_name, true, false)
+	grid.set_items(items)
+	# Refresh both selection and quantity limits after stock/cart updates.
+	grid.item_selected.emit(grid.selected_item())
 
 
+func _fill_buy_cart_slots() -> void:
+	# Forecast on an isolated bag using the same stacking rules as shop purchases.
+	# The real inventory and the submitted shopping list are never mutated here.
+	var bag = Inventory.new()
+	var srv = Net.server()
+	bag.catalog = srv.get("item_catalog") if srv != null else null
+	var capacity := Inventory.MAX_SLOTS
+	if srv != null and srv.get("inventory") != null:
+		capacity = maxi(int(srv.inventory.max_slots), 1)
+	bag.restore_session_state({"stacks": ctrl._server_inventory, "gold": 0, "max_slots": capacity})
+	var free_before := maxi(0, capacity - bag.slot_count())
+	var display: Array = []
+	for entry in ctrl._shop_buy_cart:
+		var item: Dictionary = entry.duplicate(true)
+		var occupied: int = bag.slot_count()
+		var result: Dictionary = bag.try_add_item(str(item.item_id), int(item.qty))
+		var used: int = bag.slot_count() - occupied
+		item["hint"] = "占用 %d 个空位" % used if used > 0 else "叠入背包已有物品"
+		if int(result.get("added", 0)) < int(item.qty):
+			item["hint"] = "空间不足，仅可装入 %d 件" % int(result.get("added", 0))
+		display.append(item)
+	var free_after := maxi(0, capacity - bag.slot_count())
+	var grid = ctrl._shop_panel.find_child("BuyCart", true, false)
+	grid.minimum_cells = display.size() + free_after
+	grid.empty_text = "背包已满" if free_before == 0 else "选择商品加入购物篮"
+	var title: Label = ctrl._shop_panel.find_child("BuyCartHeading", true, false)
+	title.text = "购物篮 · 空位 %d" % free_after
+	title.tooltip_text = "背包当前有 %d 个空位，本次购买预计占用 %d 个。可叠加到已有物品的数量不占新格。" % [free_before, free_before - free_after]
+	_set_shop_grid("BuyCart", display)
 
-func _fill_cart_list(parent: VBoxContainer, cart: Array, is_buy: bool) -> void:
-	if parent == null:
-		return
-	if cart.is_empty():
-		ctrl._add_label(parent, "（未选择）", 12, L2Style.COL_MUTED)
-		return
-	var total = 0
+
+func _shop_selection_limit(node_name: String, item: Dictionary) -> int:
+	if item.is_empty(): return 1
+	if node_name == "BuyCatalog":
+		var price := int(item.get("unit_price", 0))
+		return maxi(1, mini(999, int(ctrl._server_gold / price))) if price > 0 else 999
+	return maxi(1, int(item.get("qty", 1)))
+
+
+func _add_selected_shop_item(is_buy: bool, item: Dictionary, count: int) -> void:
+	var cart: Array = ctrl._shop_buy_cart if is_buy else ctrl._shop_sell_cart
+	var id := str(item.item_id)
+	var existing := 0
 	for line in cart:
-		if typeof(line) != TYPE_DICTIONARY:
-			continue
-		var iid = str(line.get("item_id", ""))
-		var q: int = int(line.get("qty", 1))
-		var up: int = int(line.get("unit_price", 0))
-		var nm = str(line.get("name", iid))
-		var line_gold: int = up * q
-		total += line_gold
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		parent.add_child(row)
-		var lab = Button.new()
-		lab.text = "%s ×%d    %d Adena" % [nm, q, line_gold]
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.focus_mode = Control.FOCUS_NONE
-		lab.custom_minimum_size = Vector2(0, 30)
-		lab.tooltip_text = "点击移除"
-		L2Style.style_row_button(lab, true)
-		lab.pressed.connect(_on_shop_cart_remove.bind(is_buy, iid))
-		row.add_child(lab)
-		var minus = Button.new()
-		minus.text = "−"
-		minus.focus_mode = Control.FOCUS_NONE
-		minus.custom_minimum_size = Vector2(28, 28)
-		L2Style.style_compact_button(minus)
-		minus.pressed.connect(_on_shop_cart_adjust.bind(is_buy, iid, -1))
-		row.add_child(minus)
-	ctrl._add_label(parent, "合计  %d Adena" % total, 12, L2Style.COL_GOLD)
+		if str(line.get("item_id", "")) == id: existing = int(line.get("qty", 0))
+	var maximum := _shop_selection_limit("BuyCatalog" if is_buy else "SellCatalog", item)
+	var desired := mini(existing + count, maximum)
+	if desired <= existing: return
+	for line in cart:
+		if str(line.get("item_id", "")) == id:
+			line["qty"] = desired
+			_fill_shop_panel()
+			return
+	cart.append({"item_id": id, "name": item.name, "qty": desired, "unit_price": int(item.get("unit_price", 0))})
+	_fill_shop_panel()
+
+
+func _request_buyback(index: int) -> void:
+	if index < 0 or index >= ctrl._shop_buyback.size(): return
+	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_shop_buyback"):
+		ctrl._world_combat.request_shop_buyback(index)
+	else:
+		var srv = Net.server()
+		if srv != null and srv.has_method("try_shop_buyback"):
+			ctrl._apply_equip_result_locally(srv.try_shop_buyback(index))
 
 
 
@@ -506,55 +530,64 @@ func _on_shop_confirm() -> void:
 	if ctrl._shop_tab == "sell":
 		_confirm_sell_cart()
 	elif ctrl._shop_tab == "buyback":
-		ctrl.append_system("点选回购列表中的物品即可买回。")
+		ctrl.append_system("选择回购物品，再点击回购所选。")
 	else:
 		_confirm_buy_cart()
 
 
 
 func _confirm_buy_cart() -> void:
-	if ctrl._shop_id.is_empty():
-		return
-	if ctrl._shop_buy_cart.is_empty():
-		ctrl.append_system("请先选择要购买的物品。")
-		return
-	if ctrl._world_combat == null or not ctrl._world_combat.has_method("request_shop_buy"):
-		ctrl.append_system("无法购买。")
-		return
-	var lines: Array = ctrl._shop_buy_cart.duplicate(true)
-	ctrl._shop_buy_cart.clear()
-	_fill_shop_panel()
-	for line in lines:
-		if typeof(line) != TYPE_DICTIONARY:
-			continue
-		var iid = str(line.get("item_id", ""))
-		var q: int = maxi(int(line.get("qty", 1)), 1)
-		if iid.is_empty():
-			continue
-		# Server system_message reports gold/bag/stack failures per line.
-		ctrl._world_combat.request_shop_buy(ctrl._shop_id, iid, q)
-
+	_submit_cart(true)
 
 
 func _confirm_sell_cart() -> void:
-	if ctrl._shop_sell_cart.is_empty():
-		ctrl.append_system("请先选择要出售的物品。")
-		return
-	if ctrl._world_combat == null or not ctrl._world_combat.has_method("request_shop_sell"):
-		ctrl.append_system("无法出售。")
-		return
-	var lines: Array = ctrl._shop_sell_cart.duplicate(true)
-	ctrl._shop_sell_cart.clear()
-	_fill_shop_panel()
-	for line in lines:
-		if typeof(line) != TYPE_DICTIONARY:
-			continue
-		var iid = str(line.get("item_id", ""))
-		var q: int = maxi(int(line.get("qty", 1)), 1)
-		if iid.is_empty():
-			continue
-		ctrl._world_combat.request_shop_sell(iid, q)
+	_submit_cart(false)
 
+
+func _submit_cart(is_buy: bool) -> void:
+	if _submitting: return
+	var cart: Array = ctrl._shop_buy_cart if is_buy else ctrl._shop_sell_cart
+	if cart.is_empty() or (is_buy and ctrl._shop_id.is_empty()): return
+	_submitting = true
+	_batch_buy = is_buy
+	_batch = cart.duplicate(true)
+	_batch_index = 0
+	_batch_errors.clear()
+	UIRequest.lock_form(ctrl._shop_panel, true)
+	_submit_next_cart_line()
+
+
+func _apply_shop_result(result: Dictionary) -> void:
+	ctrl._apply_equip_result_locally(result)
+	for action in result.get("actions", []):
+		if action.get("type", "") == "shop_buyback": apply_shop_buyback(action.get("buyback", []))
+
+
+func _submit_next_cart_line() -> void:
+	if _batch_index >= _batch.size():
+		_submitting = false
+		UIRequest.lock_form(ctrl._shop_panel, false)
+		_fill_shop_panel()
+		var text := "交易完成" if _batch_errors.is_empty() else _batch_errors[0] + ("（另有 %d 项未完成）" % (_batch_errors.size() - 1) if _batch_errors.size() > 1 else "")
+		UIRequest.set_status(_feedback, text, not _batch_errors.is_empty())
+		_feedback.tooltip_text = "\n".join(_batch_errors)
+		return
+	UIRequest.set_status(_feedback, "处理中 %d / %d，请等待结果…" % [_batch_index + 1, _batch.size()])
+	var line: Dictionary = _batch[_batch_index]
+	var args: Array = [ctrl._shop_id, str(line.item_id), int(line.qty)] if _batch_buy else [str(line.item_id), int(line.qty)]
+	UIRequest.dispatch(ctrl, "try_shop_buy" if _batch_buy else "try_shop_sell", args, _apply_shop_result, _cart_line_finished)
+
+
+func _cart_line_finished(result: Dictionary) -> void:
+	var line: Dictionary = _batch[_batch_index]
+	if result.get("ok", false):
+		var cart: Array = ctrl._shop_buy_cart if _batch_buy else ctrl._shop_sell_cart
+		for i in range(cart.size() - 1, -1, -1):
+			if str(cart[i].get("item_id", "")) == str(line.item_id): cart.remove_at(i)
+	else:
+		_batch_errors.append("%s：%s" % [line.get("name", line.item_id), UIRequest.message(result)])
+	_batch_index += 1
+	_submit_next_cart_line()
 
 
 func _shop_sellable_bag_rows() -> Array:

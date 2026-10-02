@@ -213,6 +213,7 @@ func _ensure_target_chrome() -> void:
 		close_btn.text = "×"
 		close_btn.focus_mode = Control.FOCUS_NONE
 		close_btn.custom_minimum_size = Vector2(28, 22)
+		preload("res://scripts/ui/l2_style.gd").style_close(close_btn)
 		close_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		close_btn.pressed.connect(_on_target_close_pressed)
 		head.add_child(close_btn)

@@ -64,7 +64,7 @@
 
 `tools/test_world3d_height_terrain.gd` 使用独立临时地图和资源包，通过真实 HTTP 验证工具发现、画笔、导入/列表、非法参数无副作用、锁定、撤销重做、保存重开、依赖缺失保护与预制件搬迁；验证道路/楼梯/屋顶/桥套件旋转，真实 UI 笔画与 Esc，运行时崖面高度、桥栏杆开口、角色物理上楼梯。Windows 图形测试使用 `tools/run_godot_background.py` 独立后台桌面。
 
-这是规则地形和模块拼接，不包含任意曲面雕刻、洞穴、自动生成整栋建筑、桥墩、楼梯自动寻路或自动测量两端高差。楼梯的方向与升高需设置；陡峭或过窄的自定义楼梯不保证角色可走。内置模型用于搭建与验证，正式美术可以通过套件替换。
+本页是规则地形和模块拼接；连续高度场的隆起、下沉、整平、平滑、洞口和补洞已由独立 [地形雕刻工具](world_editor_terrain_sculpt.md) 提供。洞穴、桥墩、楼梯自动寻路及自动测量两端高差仍未实现。楼梯的方向与升高需设置；陡峭或过窄的自定义楼梯不保证角色可走。内置模型用于搭建与验证，正式美术可以通过套件替换。
 
 事件模板、环境与遮挡轮廓已进入第三批，见 [world_editor_events_environment.md](world_editor_events_environment.md)。楼层隔离显示、临时副本试玩和指定出生点已交付，见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。
 

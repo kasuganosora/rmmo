@@ -19,7 +19,7 @@ func show_npc_dialogue(npc_name: String, body: String, options: Array = [], face
 	_apply_dialogue_face(face)
 	var body_text = body.strip_edges()
 	if body_text == "":
-		body_text = "helloworld"
+		body_text = "…"
 	ctrl._npc_chat_body.clear()
 	var safe = body_text.replace("[", "[lb]")
 	ctrl._npc_chat_body.append_text(safe)
@@ -34,25 +34,18 @@ func show_npc_dialogue(npc_name: String, body: String, options: Array = [], face
 		label = label.strip_edges()
 		if label == "":
 			continue
-		var link = RichTextLabel.new()
-		link.bbcode_enabled = true
-		link.fit_content = true
-		link.scroll_active = false
-		link.mouse_filter = Control.MOUSE_FILTER_STOP
-		link.add_theme_font_size_override("normal_font_size", 13)
-		link.add_theme_color_override("default_color", L2Style.COL_LINK)
-		link.add_theme_color_override("font_url_color", L2Style.COL_LINK)
-		link.custom_minimum_size = Vector2(0, 22)
-		link.append_text("[center][url][u]%s[/u][/url][/center]" % label)
-		var opt_id = ""
-		var opt_idx = ctrl._npc_chat_options.get_child_count()
-		if typeof(opt) == TYPE_DICTIONARY:
-			opt_id = str(opt.get("id", "")).strip_edges()
-		link.meta_clicked.connect(_make_dialogue_option_handler(opt_id, opt_idx, label))
-		ctrl._npc_chat_options.add_child(link)
+		var choice := Button.new()
+		choice.text = label
+		choice.custom_minimum_size.y = 30
+		choice.focus_mode = Control.FOCUS_NONE
+		L2Style.style_row_button(choice, false)
+		var opt_id := str(opt.get("id", "")) if opt is Dictionary else ""
+		var opt_idx: int = ctrl._npc_chat_options.get_child_count()
+		choice.pressed.connect(_make_dialogue_option_handler(opt_id, opt_idx, label).bind(null))
+		ctrl._npc_chat_options.add_child(choice)
 	ctrl._npc_chat.visible = true
 	ctrl._npc_chat.move_to_front()
-	var base: Vector2 = ctrl._npc_chat.get_meta("base_size", Vector2(380, 400))
+	var base: Vector2 = ctrl._npc_chat.get_meta("base_size", Vector2(380, 320))
 	ctrl._npc_chat.size = base
 	ctrl.call_deferred("_place_npc_chat")
 

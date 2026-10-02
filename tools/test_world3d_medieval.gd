@@ -12,10 +12,11 @@ func run() -> void:
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP for medieval editing")
-	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==67,"discover 67 current 3D tools")
-	var templates:=await call_tool("list_building_templates"); check(templates.presets.size()==4,"discover medieval presets and parameters")
+	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==109,"discover 109 current 3D tools")
+	var templates:=await call_tool("list_building_templates"); check(templates.presets.size()==7,"discover medieval presets and parameters")
+	check(templates.parameters_schema.properties.has("timber_width") and templates.parameters_schema.properties.has("chimney"),"HTTP discovers structural timber and roof stack controls")
 	var fixtures: Array=[]; var placements: Array=[]
-	for i in templates.presets.size():
+	for i in 4:
 		var p: Dictionary=templates.presets[i].parameters
 		fixtures.append({"parameters":p,"position":[i*26.0,0,0],"yaw":0.0})
 	fixtures.append({"parameters":Blueprint.medieval_presets()[1].parameters.merged({"compound":"left_wing","roof_pitch":40.0},true),"position":[104,0,0],"yaw":0.0})
@@ -30,6 +31,27 @@ func run() -> void:
 			if unique.has(record.building.part): check(false,"duplicate part "+record.building.part)
 			unique[record.building.part]=true
 		check(plan.records.size()<2000,"recipe fits persistent component limits")
+		for opening_ in plan.openings:
+			var jamb_key: String=opening_.wall+"/"+opening_.id+"/jamb1"
+			var jambs: Array=plan.records.filter(func(r):return r.building.part==jamb_key)
+			if jambs.is_empty():continue
+			var tangent_axis: int=0 if opening_.axis=="x" else 2
+			var jamb: Dictionary=jambs[0]
+			# Roof-axis rotation can reverse jamb1 and swap its local X/Z axes.
+			var frame:=Transform3D(Basis.from_euler(Blueprint.vec(jamb.rotation)*PI/180),Blueprint.vec(jamb.position))
+			var bounds: AABB=frame*AABB(-Blueprint.vec(jamb.size)/2,Blueprint.vec(jamb.size))
+			var inner: float=absf(bounds.get_center()[tangent_axis]-opening_.u)-bounds.size[tangent_axis]/2
+			check(is_equal_approx(inner,opening_.width/2-.05),"jamb overlaps reveal without a coplanar inner face")
+			var heads: Array=plan.records.filter(func(r):return r.building.part==opening_.wall+"/"+opening_.id+"/head")
+			check(not heads.is_empty() and is_equal_approx(heads[0].position[1]-heads[0].size[1]/2,opening_.floor_y+opening_.bottom+opening_.height-.05),"lintel overlaps the upper reveal without coplanar flicker")
+		for joint in plan.frame_joints:
+			for endpoint in 2:
+				var support: Dictionary=plan.records.filter(func(r):return r.building.part==joint.supports[endpoint])[0]
+				var size:=Blueprint.vec(support.size)
+				var local:=Blueprint.vec(joint.start if endpoint==0 else joint.end)-Blueprint.vec(support.position)
+				check(AABB(-size/2,size).grow(.001).has_point(local),"brace endpoint is seated inside its supporting post or beam")
+		if fixture.parameters.style=="plaster":
+			check(plan.frame_joints.is_empty() and plan.records.all(func(r):return r.building.role!="brace" and r.building.role!="post"),"masonry facade never inherits a timber grid")
 	check(not Blueprint.generate({"layout":"townhouse","width":5.5,"depth":10,"floor_height":4}).ok,"impossible stair and room packing fails")
 	check(not Blueprint.generate({"layout":"hall","jetty":.3}).ok,"unsupported jetty over a void fails")
 	check(not Blueprint.generate({"layout":"townhouse","compound":"courtyard","width":8}).ok,"narrow courtyard cannot squeeze away circulation")
@@ -42,6 +64,8 @@ func run() -> void:
 	var preview:=await call_tool("preview_buildings",{"placements":placements})
 	check(preview.buildings.size()==6 and doc.recovery_snapshot()==before,"all medieval layouts preview without side effects")
 	await call_tool("generate_buildings",{"parameters":{"layout":"townhouse","roof_pitch":80},"placements":[{"position":[0,0,0]}]},false)
+	await call_tool("generate_buildings",{"parameters":{"layout":"townhouse","timber_width":.01},"placements":[{"position":[0,0,0]}]},false)
+	await call_tool("generate_buildings",{"parameters":{"layout":"townhouse","chimney":"yes"},"placements":[{"position":[0,0,0]}]},false)
 	await call_tool("generate_buildings",{"placements":[placements[0],placements[0]]},false)
 	check(doc.recovery_snapshot()==before and doc._undo.size()==history,"invalid medieval batches preserve document and undo history")
 	var made:=await call_tool("generate_buildings",{"placements":placements})
@@ -50,8 +74,9 @@ func run() -> void:
 	await call_tool("redo"); check(editor._buildings.instances().size()==6,"redo retains all medieval building identities")
 	var id: String=made.building_ids[0]; var first: String=editor._buildings.instances()[id].parts["f0/floor"]
 	var initial_parts: Dictionary=editor._buildings.instances()[id].parts.duplicate()
-	await call_tool("update_building",{"id":id,"parameters":{"roof_axis":"width","jetty":.6}})
+	await call_tool("update_building",{"id":id,"parameters":{"roof_axis":"width","jetty":.6,"chimney":false,"timber_width":.28}})
 	check(editor._buildings.instances()[id].parts["f0/floor"]==first,"new roof and jetty preserve stable structural IDs")
+	check(editor._buildings.instances()[id].parts.keys().all(func(k):return not k.contains("/chimney/")),"HTTP regeneration removes the complete roof chimney")
 	await call_tool("undo"); check(editor._buildings.instances()[id].parts==initial_parts,"undo restores dimensions and semantic mapping")
 	await call_tool("set_object_properties",{"ids":[first],"hidden":true})
 	before=doc.recovery_snapshot()
@@ -101,6 +126,13 @@ func run() -> void:
 	check(editor._buildings.instances().has(id),"draft restores compound recipes and components")
 	await call_tool("open_world",{"path":path,"discard_changes":true}); doc=editor._doc
 	check(editor._buildings.conflicts(id).is_empty(),"saved medieval recipes reopen without false manual-edit conflicts")
+	# Version 3 had no facade-width/chimney fields. Reading never regenerates it.
+	var old_snapshot: Array=doc.records.duplicate(true)
+	doc.map_meta.building_instances[id].version=3
+	doc.map_meta.building_instances[id].parameters.erase("timber_width")
+	doc.map_meta.building_instances[id].parameters.erase("chimney")
+	await call_tool("save_world"); await call_tool("open_world",{"path":path,"discard_changes":true}); doc=editor._doc
+	check(equivalent(doc.records,old_snapshot) and editor._buildings.conflicts(id).is_empty(),"version 3 opens without new required fields or geometry changes")
 	# A genuinely old recipe omits all added parameters and uses version 1.
 	var legacy:=await call_tool("generate_buildings",{"placements":[{"position":[160,0,0]}]})
 	var legacy_id: String=legacy.building_ids[0]
@@ -164,6 +196,7 @@ func runtime_checks(scene: Node3D, fixtures: Array) -> void:
 			for room_ in fixture.plan.rooms:
 				var route: Dictionary=nav.find_path(origin+basis*Blueprint.vec(fixture.plan.entrance),origin+basis*Blueprint.vec(room_.center))
 				check(route.ok,"entry reaches %s / %s"%[fixture.parameters.compound,room_.id])
+				if not route.ok: print("ROUTE_FAILURE ",fixture.position," ",room_.id," ",route)
 	var body:=WalkBody.new(); body.floor_snap_length=.2; var shape:=CollisionShape3D.new(); var capsule:=CapsuleShape3D.new(); capsule.radius=.3; capsule.height=1.8; shape.shape=capsule; body.add_child(shape); host.add_child(body)
 	var walk_nav:=WalkNavigation.new(); host.add_child(walk_nav)
 	var authority:=preload("res://scripts/world3d/world_authority.gd").new()

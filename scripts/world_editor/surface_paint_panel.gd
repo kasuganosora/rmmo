@@ -3,6 +3,7 @@ const Paint = preload("res://scripts/world3d/surface_materials.gd")
 const UI = preload("res://scripts/world_editor/placement_panel.gd")
 var editor: Node3D
 var picker: OptionButton
+var category_picker: OptionButton
 var preview: TextureRect
 var mapping: OptionButton
 var fields := {}
@@ -15,6 +16,10 @@ func setup(owner: Node3D) -> void:
 	var heading := Label.new()
 	heading.text = "表面材质笔刷"
 	add_child(heading)
+	category_picker = OptionButton.new(); category_picker.name = "SurfaceCategory"
+	category_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(category_picker)
+	category_picker.item_selected.connect(func(_index): _refresh_materials())
 	picker = OptionButton.new(); picker.name = "SurfaceMaterial"
 	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	picker.clip_text = true
@@ -27,7 +32,7 @@ func setup(owner: Node3D) -> void:
 	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	add_child(preview)
 	mapping = OptionButton.new(); mapping.name = "SurfaceMapping"
-	mapping.add_item("平面投影（整面铺一张）"); mapping.add_item("模型原始 UV")
+	mapping.add_item("平面投影（整面铺一张）"); mapping.add_item("模型原始 UV"); mapping.add_item("按米重复（材质建议尺寸）")
 	add_child(mapping)
 	for spec in [["scale_u", "横向重复", 0.01, 100.0, 1.0], ["scale_v", "纵向重复", 0.01, 100.0, 1.0], ["rotation", "旋转 °", -3600.0, 3600.0, 0.0], ["offset_u", "横向偏移", -100.0, 100.0, 0.0], ["offset_v", "纵向偏移", -100.0, 100.0, 0.0]]:
 		var row := HBoxContainer.new(); add_child(row)
@@ -55,11 +60,22 @@ func setup(owner: Node3D) -> void:
 	refresh()
 
 func refresh(chosen: String = "") -> void:
+	var selected_category := str(category_picker.get_item_metadata(category_picker.selected)) if category_picker.selected >= 0 else ""
+	category_picker.clear(); category_picker.add_item("全部分类"); category_picker.set_item_metadata(0, "")
+	for category in editor._material_tool.library.categories():
+		var index := category_picker.item_count
+		category_picker.add_item(category); category_picker.set_item_metadata(index, category)
+		if category == selected_category: category_picker.select(index)
+	if not chosen.is_empty(): category_picker.select(0)
+	_refresh_materials(chosen)
+
+func _refresh_materials(chosen: String = "") -> void:
 	var id := chosen if not chosen.is_empty() else str(editor._material_tool.material_id)
 	picker.clear()
-	for entry in editor._material_tool.library.entries():
+	var category := str(category_picker.get_item_metadata(category_picker.selected)) if category_picker.selected >= 0 else ""
+	for entry in editor._material_tool.library.search("", category):
 		var index := picker.item_count
-		picker.add_item(entry.material.name)
+		picker.add_item("%s · %s" % [entry.get("category", "内置"), entry.material.name])
 		picker.set_item_metadata(index, entry.material_id)
 		if entry.material_id == id: picker.select(index)
 	_choose()
@@ -73,7 +89,7 @@ func _choose() -> void:
 func _sync() -> void:
 	var focus := editor.get_viewport().gui_get_focus_owner()
 	if focus is LineEdit and focus.get_parent() in fields.values(): focus.get_parent().apply()
-	editor._material_tool.options = {"mapping": "planar" if mapping.selected == 0 else "uv", "scale": [fields.scale_u.value, fields.scale_v.value], "rotation": fields.rotation.value, "offset": [fields.offset_u.value, fields.offset_v.value]}
+	editor._material_tool.options = {"mapping": ["planar", "uv", "meters"][mapping.selected], "scale": [fields.scale_u.value, fields.scale_v.value], "rotation": fields.rotation.value, "offset": [fields.offset_u.value, fields.offset_v.value]}
 
 func _apply() -> void:
 	_sync()

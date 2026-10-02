@@ -52,6 +52,7 @@ const REQUIRED_PROPERTIES: Array[String] = [
 
 ## Intent requests: client -> server, each returns `{ok, actions:[...]}` (or applies async).
 const REQUEST_METHODS: Array[String] = [
+	"try_set_world3d_environment",
 	"try_abandon_quest", "try_accept_quest", "try_allocate_attr", "try_attack", "try_attr_respec", "try_auction_buy",
 	"try_auction_cancel", "try_auction_list", "try_cancel_status", "try_chat", "try_craft", "try_daily_board_list",
 	"try_dialogue_choice", "try_drop_equipped", "try_drop_item", "try_duel_accept", "try_duel_challenge", "try_duel_debug_hit",
@@ -75,6 +76,7 @@ const REQUEST_METHODS: Array[String] = [
 
 ## Authoritative state pulls: client -> server -> current dictionary/array snapshot.
 const SNAPSHOT_METHODS: Array[String] = [
+	"snapshot_world3d_sky",
 	"snapshot_achievements", "snapshot_auction", "snapshot_craft", "snapshot_daily", "snapshot_dps", "snapshot_duel",
 	"snapshot_dungeon", "snapshot_friends", "snapshot_gather", "snapshot_ground_bags", "snapshot_guild", "snapshot_loot_rolls",
 	"snapshot_mail", "snapshot_map_pins", "snapshot_party", "snapshot_party_summon", "snapshot_pet", "snapshot_quest_journal",

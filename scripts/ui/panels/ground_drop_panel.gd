@@ -6,6 +6,7 @@ func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _ensure_ground_drop_zone() -> void:
@@ -99,6 +100,9 @@ func hide_ground_tip() -> void:
 func _show_drop_qty_dialog(item_id: String, max_qty: int) -> void:
 	_ensure_drop_qty_dialog()
 	ctrl._drop_qty_item_id = item_id
+	var slot = ctrl._drop_qty_panel.find_child("QuantityItem", true, false)
+	slot.setup(item_id, max_qty, ctrl._item_label(item_id), -1, ctrl._item_icon_index(item_id), ctrl._item_icon_ref(item_id))
+	slot.item_tooltip = ctrl._equip_compare_tip(item_id, ctrl._item_label(item_id))
 	max_qty = maxi(max_qty, 1)
 	if ctrl._qty_mode != "split":
 		ctrl._qty_mode = "drop"
@@ -112,16 +116,10 @@ func _show_drop_qty_dialog(item_id: String, max_qty: int) -> void:
 		ctrl._drop_qty_spin.max_value = max_qty
 		ctrl._drop_qty_spin.value = 1
 	if ctrl._drop_qty_panel != null:
+		ctrl._drop_qty_panel.find_child("QuantityTitle", true, false).text = "拆分物品" if ctrl._qty_mode == "split" else "丢弃物品"
+		ctrl._drop_qty_panel.find_child("QuantityConfirm", true, false).text = "拆分" if ctrl._qty_mode == "split" else "丢弃"
 		ctrl._drop_qty_panel.visible = true
-		ctrl._drop_qty_panel.reset_size()
-		var vp = ctrl.get_viewport_rect().size
-		var sz = ctrl._drop_qty_panel.get_combined_minimum_size()
-		if ctrl._drop_qty_panel.size.x > 1.0:
-			sz = ctrl._drop_qty_panel.size
-		ctrl._drop_qty_panel.position = Vector2(
-			(vp.x - sz.x) * 0.5,
-			(vp.y - sz.y) * 0.5
-		)
+		preload("res://scripts/ui/game_window.gd").place_dialog(ctrl._drop_qty_panel)
 		var parent = ctrl._drop_qty_panel.get_parent()
 		if parent != null:
 			parent.move_child(ctrl._drop_qty_panel, parent.get_child_count() - 1)
@@ -138,24 +136,31 @@ func _ensure_drop_qty_dialog() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	L2Style.apply_panel(panel)
 	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 28)
-	marg.add_theme_constant_override("margin_top", 24)
-	marg.add_theme_constant_override("margin_right", 28)
-	marg.add_theme_constant_override("margin_bottom", 28)
+	marg.add_theme_constant_override("margin_left", 16)
+	marg.add_theme_constant_override("margin_top", 14)
+	marg.add_theme_constant_override("margin_right", 16)
+	marg.add_theme_constant_override("margin_bottom", 14)
 	panel.add_child(marg)
 	var root = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
 	marg.add_child(root)
 	var title = Label.new()
-	title.text = "丢弃数量"
+	title.name = "QuantityTitle"
+	title.text = "丢弃物品"
 	L2Style.style_title(title)
 	root.add_child(title)
+	var item_row := HBoxContainer.new()
+	item_row.add_theme_constant_override("separation", 8)
+	root.add_child(item_row)
+	var slot = ItemGrid.display_cell(ctrl, item_row, {})
+	slot.name = "QuantityItem"
 	var info = Label.new()
 	info.name = "Info"
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.custom_minimum_size = Vector2(220, 0)
+	info.custom_minimum_size = Vector2(0, 0)
 	info.add_theme_color_override("font_color", L2Style.COL_TEXT)
-	root.add_child(info)
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	item_row.add_child(info)
 	ctrl._drop_qty_label = info
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -173,6 +178,10 @@ func _ensure_drop_qty_dialog() -> void:
 	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spin)
 	ctrl._drop_qty_spin = spin
+	var all := Button.new()
+	all.text = "全部"
+	all.pressed.connect(func(): spin.value = spin.max_value)
+	row.add_child(all)
 	var btns = HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 8)
 	btns.alignment = BoxContainer.ALIGNMENT_END
@@ -183,11 +192,12 @@ func _ensure_drop_qty_dialog() -> void:
 	L2Style.style_action_button(cancel)
 	btns.add_child(cancel)
 	var ok = Button.new()
-	ok.text = "确定"
+	ok.name = "QuantityConfirm"
+	ok.text = "丢弃"
 	ok.pressed.connect(_on_drop_qty_confirm)
 	L2Style.style_action_button(ok)
 	btns.add_child(ok)
-	panel.custom_minimum_size = Vector2(340, 220)
+	panel.custom_minimum_size = Vector2(320, 162)
 	ctrl.add_child(panel)
 	ctrl._drop_qty_panel = panel
 

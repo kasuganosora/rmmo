@@ -8,7 +8,7 @@ func run()->void:
 	var abandoned=load("res://scenes/login.tscn").instantiate();root.add_child(abandoned)
 	abandoned.free()
 	var login=load("res://scenes/login.tscn").instantiate();root.add_child(login);current_scene=login
-	login.pass_edit.text="";login._on_login_pressed()
+	login.user_edit.text="demo";login.pass_edit.text="";login._on_login_pressed()
 	assert(login.login_btn.disabled)
 	await create_timer(.6).timeout
 	assert(is_instance_valid(login) and not login.login_btn.disabled and not login._accepted_login)

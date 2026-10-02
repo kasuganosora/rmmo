@@ -2,44 +2,28 @@ extends RefCounted
 ## UI panel: warehouse storage and gold.
 
 var ctrl
+var _selected := ""
+var _deposit := true
+var _item_quantity: SpinBox
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _build_warehouse_panel() -> void:
 	ctrl._warehouse_panel = PanelContainer.new()
 	ctrl._warehouse_panel.name = "WarehousePanel"
-	ctrl._warehouse_panel.set_script(HudDrag)
+	ctrl._warehouse_panel.set_script(GameWindow)
 	ctrl._warehouse_panel.screen_margin = 4.0
 	ctrl._warehouse_panel.min_size = Vector2(420, 320)
 	ctrl._warehouse_panel.default_size = Vector2(560, 420)
 	ctrl._warehouse_panel.initial_dock = "none"
 	ctrl._warehouse_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._warehouse_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._warehouse_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "WarehouseTitle"
-	title.text = "仓库"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._warehouse_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._warehouse_panel, "仓库", func(): ctrl._warehouse_panel.visible = false, "WarehouseTitle")
 	ctrl._warehouse_body = VBoxContainer.new()
 	ctrl._warehouse_body.name = "WarehouseBody"
 	ctrl._warehouse_body.add_theme_constant_override("separation", 6)
@@ -57,7 +41,7 @@ func _nudge_warehouse() -> void:
 		return
 	ctrl._warehouse_panel.size = Vector2(560, 420)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._warehouse_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 280)), 72)
+	ctrl._window_manager_logic.place_at(ctrl._warehouse_panel, Vector2(maxi(8, int(vp.x * 0.5 - 280)), 72))
 
 
 
@@ -106,15 +90,17 @@ func apply_warehouse_update(action: Dictionary) -> void:
 
 
 func _refresh_warehouse_panel() -> void:
+	var previous_quantity := _item_quantity.value if is_instance_valid(_item_quantity) else 1.0
 	if ctrl._warehouse_body == null:
 		return
 	for c in ctrl._warehouse_body.get_children():
+		ctrl._warehouse_body.remove_child(c)
 		c.queue_free()
 	ctrl._warehouse_gold_spin = null
 	var used: int = int(ctrl._warehouse_state.get("used_slots", 0))
 	var cap: int = int(ctrl._warehouse_state.get("max_slots", 60))
 	ctrl._add_label(ctrl._warehouse_body, "容量 %d / %d" % [used, cap], 11, L2Style.COL_MUTED)
-	ctrl._add_label(ctrl._warehouse_body, "金币 %d" % int(ctrl._warehouse_state.get("gold", 0)), 12, L2Style.COL_TITLE)
+	ctrl._add_label(ctrl._warehouse_body, "背包金币 %d    仓库金币 %d" % [ctrl._server_gold, int(ctrl._warehouse_state.get("gold", 0))], 12, L2Style.COL_TITLE)
 
 	var cols = HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 10)
@@ -127,67 +113,51 @@ func _refresh_warehouse_panel() -> void:
 	bag_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bag_wrap.add_theme_constant_override("separation", 4)
 	cols.add_child(bag_wrap)
-	ctrl._add_label(bag_wrap, "背包（双击存入）", 11, L2Style.COL_MUTED)
-	var bag_scroll = ScrollContainer.new()
-	bag_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	bag_scroll.custom_minimum_size = Vector2(0, 180)
-	bag_wrap.add_child(bag_scroll)
-	var bag_list = VBoxContainer.new()
-	bag_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bag_list.add_theme_constant_override("separation", 2)
-	bag_scroll.add_child(bag_list)
+	ctrl._add_label(bag_wrap, "背包 → 存入仓库", 11, L2Style.COL_MUTED)
 	var bag_items: Array = ctrl._server_inventory
-	if bag_items.is_empty():
-		ctrl._add_label(bag_list, "（空）", 11, L2Style.COL_MUTED)
-	else:
-		for it in bag_items:
-			if typeof(it) != TYPE_DICTIONARY:
-				continue
-			var iid = str(it.get("id", "")).strip_edges()
-			var q: int = int(it.get("qty", 0))
-			if iid.is_empty() or q <= 0:
-				continue
-			var row = Button.new()
-			row.text = "%s ×%d" % [ctrl._item_label(iid), q]
-			row.focus_mode = Control.FOCUS_NONE
-			row.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			row.tooltip_text = "存入 1 个（Shift+点击存入全部）"
-			row.pressed.connect(_on_warehouse_deposit_pressed.bind(iid, q))
-			bag_list.add_child(row)
-
-	var wh_wrap = VBoxContainer.new()
-	wh_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wh_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	wh_wrap.add_theme_constant_override("separation", 4)
-	cols.add_child(wh_wrap)
-	ctrl._add_label(wh_wrap, "仓库（双击取出）", 11, L2Style.COL_MUTED)
-	var wh_scroll = ScrollContainer.new()
-	wh_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	wh_scroll.custom_minimum_size = Vector2(0, 180)
-	wh_wrap.add_child(wh_scroll)
-	var wh_list = VBoxContainer.new()
-	wh_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wh_list.add_theme_constant_override("separation", 2)
-	wh_scroll.add_child(wh_list)
 	var wh_items: Array = ctrl._warehouse_state.get("items", [])
-	if wh_items.is_empty():
-		ctrl._add_label(wh_list, "（空）", 11, L2Style.COL_MUTED)
-	else:
-		for it2 in wh_items:
-			if typeof(it2) != TYPE_DICTIONARY:
-				continue
-			var wid = str(it2.get("id", "")).strip_edges()
-			var wq: int = int(it2.get("qty", 0))
-			if wid.is_empty() or wq <= 0:
-				continue
-			var wrow = Button.new()
-			wrow.text = "%s ×%d" % [ctrl._item_label(wid), wq]
-			wrow.focus_mode = Control.FOCUS_NONE
-			wrow.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			wrow.tooltip_text = "取出 1 个（Shift+点击取出全部）"
-			wrow.pressed.connect(_on_warehouse_withdraw_pressed.bind(wid, wq))
-			wh_list.add_child(wrow)
+	var bag_grid = ItemGrid.create(ctrl, bag_wrap, "WarehouseBag", 170)
+	bag_grid.set_items(bag_items)
+	bag_grid.select_key(_selected if _deposit else "", false)
+	bag_grid.item_selected.connect(func(item): _select_item(str(item.get("item_id", "")), true))
+	var wh_wrap := VBoxContainer.new()
+	wh_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols.add_child(wh_wrap)
+	ctrl._add_label(wh_wrap, "仓库 → 取回背包", 11, L2Style.COL_MUTED)
+	var storage_grid = ItemGrid.create(ctrl, wh_wrap, "WarehouseStorage", 170)
+	storage_grid.set_items(wh_items)
+	storage_grid.select_key(_selected if not _deposit else "", false)
+	storage_grid.item_selected.connect(func(item): _select_item(str(item.get("item_id", "")), false))
 
+	ctrl._warehouse_body.add_child(L2Style.hairline())
+	var selected_qty := 0
+	for entry in (bag_items if _deposit else wh_items):
+		if str(entry.get("id", "")) == _selected: selected_qty += int(entry.get("qty", 0))
+	ctrl._add_label(ctrl._warehouse_body, "选择左侧或右侧的物品" if selected_qty == 0 else ctrl._item_label(_selected), 12, L2Style.COL_TEXT)
+	var item_row := HBoxContainer.new()
+	item_row.add_theme_constant_override("separation", 8)
+	ctrl._warehouse_body.add_child(item_row)
+	ctrl._add_label(item_row, "数量", 12, L2Style.COL_MUTED)
+	_item_quantity = SpinBox.new()
+	_item_quantity.min_value = 1
+	_item_quantity.max_value = maxi(1, selected_qty)
+	_item_quantity.value = previous_quantity
+	_item_quantity.editable = selected_qty > 0
+	_item_quantity.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_item_quantity.custom_minimum_size.x = 100
+	item_row.add_child(_item_quantity)
+	var all := Button.new()
+	all.text = "全部"
+	all.disabled = selected_qty == 0
+	all.pressed.connect(func(): _item_quantity.value = _item_quantity.max_value)
+	item_row.add_child(all)
+	var transfer := Button.new()
+	transfer.text = "存入物品 →" if _deposit else "← 取出物品"
+	transfer.disabled = selected_qty == 0
+	transfer.custom_minimum_size.x = 108
+	transfer.pressed.connect(func(): _transfer(_selected, int(_item_quantity.value), _deposit))
+	item_row.add_child(transfer)
+	ctrl._warehouse_body.add_child(L2Style.hairline())
 	var gold_row = HBoxContainer.new()
 	gold_row.add_theme_constant_override("separation", 6)
 	ctrl._warehouse_body.add_child(gold_row)
@@ -196,43 +166,47 @@ func _refresh_warehouse_panel() -> void:
 	ctrl._warehouse_gold_spin.min_value = 1
 	ctrl._warehouse_gold_spin.max_value = 999999999
 	ctrl._warehouse_gold_spin.value = 1
-	ctrl._warehouse_gold_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ctrl._warehouse_gold_spin.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	ctrl._warehouse_gold_spin.custom_minimum_size.x = 100
 	gold_row.add_child(ctrl._warehouse_gold_spin)
 	var dep_g = Button.new()
-	dep_g.text = "存入"
+	dep_g.text = "存金币"
+	dep_g.disabled = ctrl._server_gold <= 0
 	dep_g.focus_mode = Control.FOCUS_NONE
 	dep_g.pressed.connect(_on_warehouse_deposit_gold)
 	gold_row.add_child(dep_g)
 	var wd_g = Button.new()
-	wd_g.text = "取出"
+	wd_g.text = "取金币"
+	wd_g.disabled = int(ctrl._warehouse_state.get("gold", 0)) <= 0
 	wd_g.focus_mode = Control.FOCUS_NONE
 	wd_g.pressed.connect(_on_warehouse_withdraw_gold)
 	gold_row.add_child(wd_g)
 
 
 
-func _on_warehouse_deposit_pressed(item_id: String, stack_qty: int) -> void:
-	var qty = stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1
-	qty = clampi(qty, 1, maxi(stack_qty, 1))
-	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_deposit"):
-		ctrl._world_combat.request_warehouse_deposit(item_id, qty)
-	else:
-		var srv = Net.server()
-		if srv != null and srv.has_method("try_warehouse_deposit"):
-			_apply_warehouse_result_locally(srv.try_warehouse_deposit(item_id, qty))
+func _select_item(id: String, deposit: bool) -> void:
+	if is_instance_valid(_item_quantity): _item_quantity.value = 1
+	_selected = id
+	_deposit = deposit
+	_refresh_warehouse_panel()
 
+
+func _on_warehouse_deposit_pressed(item_id: String, stack_qty: int) -> void:
+	_transfer(item_id, stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1, true)
 
 
 func _on_warehouse_withdraw_pressed(item_id: String, stack_qty: int) -> void:
-	var qty = stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1
-	qty = clampi(qty, 1, maxi(stack_qty, 1))
-	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_warehouse_withdraw"):
-		ctrl._world_combat.request_warehouse_withdraw(item_id, qty)
+	_transfer(item_id, stack_qty if Input.is_key_pressed(KEY_SHIFT) else 1, false)
+
+
+func _transfer(id: String, qty: int, deposit: bool) -> void:
+	var operation := "warehouse_deposit" if deposit else "warehouse_withdraw"
+	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_" + operation):
+		ctrl._world_combat.call("request_" + operation, id, qty)
 	else:
 		var srv = Net.server()
-		if srv != null and srv.has_method("try_warehouse_withdraw"):
-			_apply_warehouse_result_locally(srv.try_warehouse_withdraw(item_id, qty))
-
+		if srv != null and srv.has_method("try_" + operation):
+			_apply_warehouse_result_locally(srv.call("try_" + operation, id, qty))
 
 
 func _on_warehouse_deposit_gold() -> void:

@@ -10,6 +10,7 @@ var tile_note: Label
 var multi_scale: SpinBox
 var component_toggle: CheckButton
 var building_note: Label
+var wind_panel: VBoxContainer
 
 
 func setup(owner: Node) -> void:
@@ -101,6 +102,8 @@ func setup(owner: Node) -> void:
 			select(selection)
 		)
 	select("")
+	wind_panel = preload("res://scripts/world_editor/wind_panel.gd").new()
+	add_child(wind_panel); wind_panel.setup(editor); wind_panel.refresh()
 
 
 func select(uuid: String) -> void:
@@ -164,6 +167,7 @@ func refresh() -> void:
 		for control in rows[key]: control.visible = show
 	for key in ["hostile", "ally"]: fields[key].button_pressed = bool(record.get(key, false))
 	editor._refresh_selection()
+	if wind_panel != null: wind_panel.refresh()
 	_updating = false
 
 

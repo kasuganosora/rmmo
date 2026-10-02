@@ -2,81 +2,75 @@ extends RefCounted
 ## UI panel: auction house.
 
 var ctrl
+var _tabs: HBoxContainer
+var _sell_form: VBoxContainer
+var _listing_scroll: ScrollContainer
+var _page := 0
+var _list_button: Button
+var _listing := false
+var _feedback: Label
 func _init(c):
 	ctrl = c
 
+const UIRequest = preload("res://scripts/ui/ui_request.gd")
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _build_auction_panel() -> void:
 	ctrl._auction_panel = PanelContainer.new()
 	ctrl._auction_panel.name = "AuctionPanel"
-	ctrl._auction_panel.set_script(HudDrag)
+	ctrl._auction_panel.set_script(GameWindow)
 	ctrl._auction_panel.screen_margin = 4.0
 	ctrl._auction_panel.min_size = Vector2(420, 320)
 	ctrl._auction_panel.default_size = Vector2(540, 500)
 	ctrl._auction_panel.initial_dock = "none"
 	ctrl._auction_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._auction_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._auction_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "AuctionTitle"
-	title.text = "拍卖行"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._auction_panel.visible = false)
-	head.add_child(close_btn)
-	var scroll = ScrollContainer.new()
+	var outer = GameWindow.build_body(ctrl._auction_panel, "拍卖行", func(): ctrl._auction_panel.hide(), "AuctionTitle")
+	_tabs = GameWindow.add_tabs(outer, ["购买", "我的出售", "上架物品"], _select_page)
+	var scroll := ScrollContainer.new()
+	_listing_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 220)
+	scroll.custom_minimum_size.y = 120
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	outer.add_child(scroll)
 	ctrl._auction_body = VBoxContainer.new()
-	ctrl._auction_body.name = "AuctionBody"
-	ctrl._auction_body.add_theme_constant_override("separation", 4)
 	ctrl._auction_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ctrl._auction_body.add_theme_constant_override("separation", 10)
 	scroll.add_child(ctrl._auction_body)
-	ctrl._add_label(outer, "上架", 12, L2Style.COL_TITLE)
-	var list_row = HBoxContainer.new()
-	list_row.add_theme_constant_override("separation", 6)
-	outer.add_child(list_row)
-	ctrl._add_label(list_row, "物品ID", 11, L2Style.COL_MUTED)
-	ctrl._auction_item_id_input = LineEdit.new()
-	ctrl._auction_item_id_input.placeholder_text = "如 potion_hp_small"
-	ctrl._auction_item_id_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_row.add_child(ctrl._auction_item_id_input)
-	ctrl._add_label(list_row, "数量", 11, L2Style.COL_MUTED)
+	_sell_form = VBoxContainer.new()
+	_sell_form.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_sell_form.add_theme_constant_override("separation", 8)
+	outer.add_child(_sell_form)
+	_sell_form.add_child(L2Style.hairline())
+	ctrl._add_label(_sell_form, "出售物品 · 从背包选择", 11, L2Style.COL_MUTED)
+	ctrl._auction_item_id_input = ItemGrid.create(ctrl, _sell_form, "AuctionItemPicker", 160)
+	ctrl._auction_item_id_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ctrl._auction_qty_spin = SpinBox.new()
 	ctrl._auction_qty_spin.min_value = 1
-	ctrl._auction_qty_spin.max_value = 99
 	ctrl._auction_qty_spin.value = 1
-	ctrl._auction_qty_spin.custom_minimum_size = Vector2(70, 0)
-	list_row.add_child(ctrl._auction_qty_spin)
-	ctrl._add_label(list_row, "售价", 11, L2Style.COL_MUTED)
+	GameWindow.field(_sell_form, "数量", ctrl._auction_qty_spin)
 	ctrl._auction_price_spin = SpinBox.new()
 	ctrl._auction_price_spin.min_value = 1
 	ctrl._auction_price_spin.max_value = 999999
 	ctrl._auction_price_spin.value = 10
-	ctrl._auction_price_spin.custom_minimum_size = Vector2(90, 0)
-	list_row.add_child(ctrl._auction_price_spin)
-	var list_btn = Button.new()
-	list_btn.text = "上架"
-	list_btn.focus_mode = Control.FOCUS_NONE
-	list_btn.pressed.connect(_on_auction_list)
-	outer.add_child(list_btn)
+	ctrl._auction_price_spin.suffix = "金币"
+	GameWindow.field(_sell_form, "整组售价", ctrl._auction_price_spin)
+	_feedback = UIRequest.status(_sell_form, "AuctionStatus")
+	ctrl._auction_qty_spin.value_changed.connect(func(_value): _clear_feedback_on_edit())
+	ctrl._auction_price_spin.value_changed.connect(func(_value): _clear_feedback_on_edit())
+	ctrl._auction_item_id_input.item_selected.connect(func(_item): _clear_feedback_on_edit())
+	_list_button = Button.new()
+	_list_button.text = "上架出售"
+	_list_button.custom_minimum_size = Vector2(112, 30)
+	L2Style.style_primary_button(_list_button)
+	_list_button.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_list_button.pressed.connect(_on_auction_list)
+	_sell_form.add_child(_list_button)
+	ctrl._auction_item_id_input.item_selected.connect(func(_i): _sync_listing_quantity())
+	_select_page(0)
 	ctrl._auction_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._auction_panel)
 	_refresh_auction_panel()
@@ -89,7 +83,7 @@ func _nudge_auction() -> void:
 		return
 	ctrl._auction_panel.size = Vector2(540, 500)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._auction_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 270)), 64)
+	ctrl._window_manager_logic.place_at(ctrl._auction_panel, Vector2(maxi(8, int(vp.x * 0.5 - 270)), 64))
 
 
 
@@ -147,6 +141,7 @@ func _refresh_auction_panel() -> void:
 	if ctrl._auction_body == null:
 		return
 	for c in ctrl._auction_body.get_children():
+		ctrl._auction_body.remove_child(c)
 		c.queue_free()
 	var listings_v: Variant = ctrl._auction_state.get("listings", [])
 	var listings: Array = listings_v if typeof(listings_v) == TYPE_ARRAY else []
@@ -163,6 +158,7 @@ func _refresh_auction_panel() -> void:
 		var sid: Variant = srv.get("_session_character_id")
 		if sid != null and str(sid) != "":
 			self_id = str(sid)
+	var shown := 0
 	for e in listings:
 		if typeof(e) != TYPE_DICTIONARY:
 			continue
@@ -176,15 +172,25 @@ func _refresh_auction_panel() -> void:
 		var qty = int(e.get("qty", 0))
 		var price = int(e.get("price_gold", 0))
 		var is_own = (self_id != "" and seller_id == self_id) or seller_id == "player"
-		var row = VBoxContainer.new()
-		row.add_theme_constant_override("separation", 2)
+		if (_page == 1) != is_own: continue
+		shown += 1
+		var row = HBoxContainer.new()
+		row.name = "AuctionListing"
+		row.add_theme_constant_override("separation", 10)
 		ctrl._auction_body.add_child(row)
+		ItemGrid.display_cell(ctrl, row, {"item_id": iid, "name": iname, "qty": qty})
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(info)
 		var nl = Label.new()
-		nl.text = "%s ×%d — %d 金币（%s）" % [iname, qty, price, seller]
+		nl.text = "%s ×%d" % [iname, qty]
 		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.add_theme_font_size_override("font_size", 12)
 		nl.add_theme_color_override("font_color", L2Style.COL_TEXT)
-		row.add_child(nl)
+		info.add_child(nl)
+		ctrl._add_label(info, "卖家：%s" % seller, 11, L2Style.COL_MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ctrl._add_label(row, "%d 金币\n整组" % price, 11, L2Style.COL_GOLD)
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 4)
 		row.add_child(btn_row)
@@ -198,36 +204,55 @@ func _refresh_auction_panel() -> void:
 			ctrl._add_label(btn_row, "（我的）", 10, L2Style.COL_MUTED)
 		else:
 			var buy_btn = Button.new()
-			buy_btn.text = "购买"
+			buy_btn.text = "购买这组"
+			buy_btn.disabled = ctrl._server_gold < price
+			buy_btn.tooltip_text = "金币不足" if buy_btn.disabled else "购买整组物品"
 			buy_btn.focus_mode = Control.FOCUS_NONE
 			buy_btn.custom_minimum_size = Vector2(56, 24)
 			buy_btn.pressed.connect(_on_auction_buy.bind(lid))
 			btn_row.add_child(buy_btn)
 
+	if shown == 0: ctrl._add_label(ctrl._auction_body, "你还没有上架物品。" if _page == 1 else "暂无可购买的物品。", 12, L2Style.COL_MUTED)
+
 
 
 func _on_auction_list() -> void:
-	var item_id = ctrl._auction_item_id_input.text.strip_edges() if ctrl._auction_item_id_input else ""
+	if _listing: return
+	var item_id = str(ctrl._auction_item_id_input.selected_item().get("item_id", ""))
 	var qty = int(ctrl._auction_qty_spin.value) if ctrl._auction_qty_spin else 1
 	var price = int(ctrl._auction_price_spin.value) if ctrl._auction_price_spin else 1
 	if item_id.is_empty():
-		ctrl.append_system("请填写要上架的物品 ID。")
+		ctrl.append_system("请从背包选择要出售的物品。")
 		return
-	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_auction_list"):
-		ctrl._world_combat.request_auction_list(item_id, qty, price)
-	else:
-		var srv = Net.server()
-		if srv != null and srv.has_method("try_auction_list"):
-			_apply_auction_result_locally(srv.try_auction_list(item_id, qty, price))
-		else:
-			ctrl.append_system("无法上架。")
-			return
+	_listing = true
+	UIRequest.lock_form(_sell_form, true)
+	_list_button.text = "上架中…"
+	UIRequest.set_status(_feedback, "正在上架，请等待结果…")
+	UIRequest.dispatch(ctrl, "try_auction_list", [item_id, qty, price], _apply_auction_result_locally, _auction_list_finished)
+
+
+func _auction_list_finished(result: Dictionary) -> void:
+	_listing = false
+	UIRequest.lock_form(_sell_form, false)
+	_list_button.text = "上架出售"
+	UIRequest.set_status(_feedback, UIRequest.message(result, "物品已上架"), not result.get("ok", false))
+	ctrl._auction_item_id_input.fill_inventory(ctrl._server_inventory)
+	if not result.get("ok", false):
+		_sync_listing_quantity()
+		UIRequest.set_status(_feedback, UIRequest.message(result), true)
+		return
 	if ctrl._auction_item_id_input:
-		ctrl._auction_item_id_input.text = ""
+		ctrl._auction_item_id_input.select_key("")
+		_sync_listing_quantity()
 	if ctrl._auction_qty_spin:
 		ctrl._auction_qty_spin.value = 1
 	if ctrl._auction_price_spin:
 		ctrl._auction_price_spin.value = 10
+	UIRequest.set_status(_feedback, "物品已上架")
+
+
+func _clear_feedback_on_edit() -> void:
+	if not _listing: _feedback.text = ""
 
 
 
@@ -277,3 +302,19 @@ func _apply_auction_result_locally(result: Dictionary) -> void:
 				if not msg.is_empty():
 					ctrl.append_system(msg)
 
+
+
+func _select_page(index: int) -> void:
+	_page = index
+	GameWindow.highlight_tabs(_tabs, index)
+	_sell_form.visible = index == 2
+	_listing_scroll.visible = index != 2
+	if not _listing: ctrl._auction_item_id_input.fill_inventory(ctrl._server_inventory)
+	_sync_listing_quantity()
+	_refresh_auction_panel()
+
+
+func _sync_listing_quantity() -> void:
+	if _listing: return
+	ctrl._auction_item_id_input.sync_quantity(ctrl._auction_qty_spin)
+	_list_button.disabled = str(ctrl._auction_item_id_input.selected_item().get("item_id", "")).is_empty()

@@ -1,7 +1,5 @@
 extends "res://scripts/world3d/building_geometry.gd"
 ## One family layout per floor; the shared stair core also reaches the roof terrace.
-const FLIGHT_W := 1.4
-const CORE_W := 3.2
 const TREAD := .28
 
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
@@ -14,8 +12,11 @@ static func generate(p: Dictionary) -> Dictionary:
 	var w: float=p.width; var d: float=p.depth; var h: float=p.floor_height; var levels: int=p.floors
 	if w<8.5: return fail("家庭自建房至少宽 8.5 米，以容纳房间、通道与折返楼梯")
 	var left := -w/2+WALL; var right := w/2-WALL; var front := -d/2+WALL; var back := d/2-WALL
-	var sx := right-CORE_W; var partition := sx-1.8; var hall_x := (partition+WALL/2+sx-WALL/2)/2
-	var steps := ceili(h/2/.17); var run := steps*TREAD; var z1 := back-1.5; var z0 := z1-run; var split := z0-1.7
+	var core_w: float=2*p.stair_width+.4
+	var sx := right-core_w; var partition := sx-float(p.corridor_width)-WALL; var hall_x := (partition+WALL/2+sx-WALL/2)/2
+	if partition-WALL/2-left<2.4: return fail("卧室净宽不足 2.4 米，请增加房屋宽度或减小楼梯 / 通道宽度")
+	var landing:float=maxf(1.5,p.stair_landing)
+	var steps := ceili(h/2/.17); var run := steps*TREAD; var z1 := back-landing; var z0 := z1-run; var split := z0-maxf(1.7,landing+WALL)
 	if split-front<2.8: return fail("客厅与楼梯平台空间不足，请增加进深或降低层高")
 	var bedroom_depth: float = (d-2*WALL-5.0-(p.bedrooms+1)*WALL)/p.bedrooms
 	if bedroom_depth<2.6: return fail("卧室、厨房和卫浴放不下，请增加进深或减少卧室数")
@@ -24,7 +25,7 @@ static func generate(p: Dictionary) -> Dictionary:
 	elif p.facade_color=="rose": colors.wall=[.82,.66,.62]; colors.cap=[.49,.23,.21]
 	elif p.facade_color=="green": colors.wall=[.72,.83,.74]; colors.cap=[.2,.4,.28]
 	for c in 3: colors.wall[c]=clampf(colors.wall[c]+(int(p.seed)%5-2)*.009,0,1)
-	var plan := {"ok":true,"version":3,"parameters":p,"records":[],"rooms":[],"openings":[],"stairs":[],"routes":[],"terraces":[],"service_zones":[],"entrance":[hall_x,0,-d/2-1],"size":[w,levels*h+2.8,d]}
+	var plan := {"ok":true,"version":3,"parameters":p,"records":[],"rooms":[],"openings":[],"stairs":[],"routes":[],"terraces":[],"service_zones":[],"entrance":[hall_x,0,-d/2-1],"size":[w,(levels+1)*h,d]}
 	for f in levels:
 		var y := f*h; var prefix := "f%d/"%f
 		floor_slab(plan,prefix,w,d,sx,z0,y,f,colors.floor)
@@ -54,7 +55,7 @@ static func generate(p: Dictionary) -> Dictionary:
 		var east: Array=[]
 		if p.right_wall=="open": east.append(opening("living_side",(front+split)/2,"door" if f>0 and p.balcony=="corner" else "window",prefix+"living"))
 		var south := [opening("bathroom_window",(left+partition-WALL/2)/2,"window",prefix+"bathroom",.8),opening("hall_window",hall_x,"window",prefix+"hall",.8)]
-		var stair_window := opening("stair_window",sx+CORE_W/2,"window",prefix+"hall",1.2); stair_window.bottom=h-.8; stair_window.height=.5; south.append(stair_window)
+		var stair_window := opening("stair_window",sx+core_w/2,"window",prefix+"hall",1.2); stair_window.bottom=h-.8; stair_window.height=.5; south.append(stair_window)
 		wall(plan,prefix+"west","z",-w/2+WALL/2,-d/2,d/2,y,h,west,colors,f)
 		wall(plan,prefix+"east","z",w/2-WALL/2,-d/2,d/2,y,h,east,colors,f)
 		wall(plan,prefix+"north","x",-d/2+WALL/2,left,right,y,h,north,colors,f)
@@ -65,17 +66,18 @@ static func generate(p: Dictionary) -> Dictionary:
 	var roof_y := levels*h
 	floor_slab(plan,"roof/",w,d,sx,z0,roof_y,levels,colors.roof)
 	room(plan,"roof/terrace","屋顶露台",levels,[left+.3,-d/2+.4,sx-.5,d/2-.4],roof_y)
-	plan.terraces.append({"id":"roof/terrace","floor":levels,"bounds":[-w/2,-d/2,w/2,d/2],"center":[hall_x,roof_y,0]})
+	plan.terraces.append({"id":"roof/terrace","floor":levels,"bounds":[-w/2,-d/2,w/2,d/2],"center":plan.rooms.back().center.duplicate()})
 	# The stair headhouse has a real side exit onto the roof, with the same shaft opening.
+	var head_h:=h-SLAB
 	# Leave turn clearance on both sides of the exit, including navigation voxel erosion.
 	var head_front := z0-2.1
-	wall(plan,"roof/headhouse/west","z",sx-WALL/2,head_front,d/2,roof_y,2.6,[opening("roof_exit",z0-1.05,"door","roof/terrace",1.5)],colors,levels)
-	wall(plan,"roof/headhouse/east","z",w/2-WALL/2,head_front,d/2,roof_y,2.6,[],colors,levels)
-	wall(plan,"roof/headhouse/north","x",head_front,sx-WALL,w/2,roof_y,2.6,[],colors,levels)
-	wall(plan,"roof/headhouse/south","x",d/2-WALL/2,sx-WALL,w/2,roof_y,2.6,[],colors,levels)
-	box(plan,"roof/headhouse/ceiling",Vector3((sx-WALL+w/2)/2,roof_y+2.66,(head_front+d/2)/2),Vector3(w/2-sx+WALL,.12,d/2-head_front+.1),colors.cap,levels,"roof")
+	wall(plan,"roof/headhouse/west","z",sx-WALL/2,head_front,d/2,roof_y,head_h,[opening("roof_exit",z0-1.05,"door","roof/terrace",1.5)],colors,levels)
+	wall(plan,"roof/headhouse/east","z",w/2-WALL/2,head_front,d/2,roof_y,head_h,[],colors,levels)
+	wall(plan,"roof/headhouse/north","x",head_front,sx-WALL,w/2,roof_y,head_h,[],colors,levels)
+	wall(plan,"roof/headhouse/south","x",d/2-WALL/2,sx-WALL,w/2,roof_y,head_h,[],colors,levels)
+	box(plan,"roof/headhouse/ceiling",Vector3((sx-WALL+w/2)/2,roof_y+head_h+.06,(head_front+d/2)/2),Vector3(w/2-sx+WALL,.12,d/2-head_front+.1),colors.cap,levels,"roof")
 	# Guard the unoccupied ascending flight at the roof level, without closing its exit landing.
-	wall_box(plan,"roof/shaft_guard","x",z0+.06,sx+.78,roof_y+.5,1.6,1,.08,colors.metal,levels,"rail")
+	wall_box(plan,"roof/shaft_guard","x",z0+.06,sx+.05+float(p.stair_width)/2,roof_y+.5,float(p.stair_width)+.2,1,.08,colors.metal,levels,"rail")
 	for side in [-1,1]:
 		wall_box(plan,"roof/parapet_x%d"%side,"x",side*(d/2-.08),0,roof_y+.5,w,1,.16,colors.wall,levels,"parapet")
 		wall_box(plan,"roof/parapet_z%d"%side,"z",side*(w/2-.08),0,roof_y+.5,d,1,.16,colors.wall,levels,"parapet")
@@ -107,22 +109,24 @@ static func floor_slab(plan: Dictionary, prefix: String, w: float, d: float, sx:
 
 static func staircase(plan: Dictionary, prefix: String, sx: float, z0: float, z1: float, y: float, h: float, steps: int, colors: Dictionary, f: int) -> void:
 	var half := h/2; var length := z1-z0
-	slab(plan,prefix+"stair/turn",sx,sx+CORE_W,z1,z1+1.5,y+half,colors.floor,f)
+	var flight_w: float=plan.parameters.stair_width; var core_w:=2*flight_w+.4
+	var landing:float=maxf(1.5,plan.parameters.stair_landing)
+	slab(plan,prefix+"stair/turn",sx,sx+core_w,z1,z1+landing,y+half,colors.floor,f)
 	# The hallway edge and half landing need their own guards above the lower flight.
-	if f>0: rail(plan,prefix+"stair/hall_guard","z",sx-.025,z0+.08,z1+1.5,y,colors,f)
-	rail(plan,prefix+"stair/turn_guard","z",sx+.02,z1,z1+1.5,y+half,colors,f)
+	if f>0: rail(plan,prefix+"stair/hall_guard","z",sx-.025,z0+.08,z1+landing,y,colors,f)
+	rail(plan,prefix+"stair/turn_guard","z",sx+.02,z1,z1+landing,y+half,colors,f)
 	for flight in 2:
-		var x := sx+.05+flight*1.7; var direction := 1 if flight==0 else -1
+		var x := sx+.05+flight*(flight_w+.3); var direction := 1 if flight==0 else -1
 		var start := z0 if flight==0 else z1; var base := y+flight*half
-		var bottom := Vector3(x+FLIGHT_W/2,base,start-direction*.6)
-		var top := Vector3(x+FLIGHT_W/2,base+half,(z1 if flight==0 else z0)+direction*.6)
-		plan.stairs.append({"floor":f,"flight":flight,"hole":[sx-.06,z0+.03,sx+CORE_W+.08,z1+1.5],"bottom":arr(bottom),"top":arr(top),"direction":[0,0,direction]})
+		var bottom := Vector3(x+flight_w/2,base,start-direction*(.6 if flight==0 else landing/2))
+		var top := Vector3(x+flight_w/2,base+half,(z1 if flight==0 else z0)+direction*(landing/2 if flight==0 else .6))
+		plan.stairs.append({"floor":f,"flight":flight,"hole":[sx-.06,z0+.03,sx+core_w+.08,z1+landing],"bottom":arr(bottom),"top":arr(top),"direction":[0,0,direction]})
 		for step in steps:
 			var rise := half*(step+1)/steps; var z := start+direction*(step+.5)*length/steps
 			var key := prefix+"stair/%d/step%d"%[flight,step]
-			box(plan,key,Vector3(x+FLIGHT_W/2,base+rise-.07,z),Vector3(FLIGHT_W,.14,length/steps+.004),colors.floor,f,"stairs")
-			for side in [-1,1]: box(plan,key+"/rail%d"%side,Vector3(x+FLIGHT_W/2+side*(FLIGHT_W/2+.02),base+rise+.5,z),Vector3(.07,1,length/steps),colors.metal,f,"rail")
-		if flight==1: slab(plan,prefix+"stair/top_landing",x-.03,x+FLIGHT_W+.03,z0-.2,z0+.15,y+h,colors.floor,f+1)
+			box(plan,key,Vector3(x+flight_w/2,base+rise-.07,z),Vector3(flight_w,.14,length/steps+.004),colors.floor,f,"stairs")
+			for side in [-1,1]: box(plan,key+"/rail%d"%side,Vector3(x+flight_w/2+side*(flight_w/2+.02),base+rise+.5,z),Vector3(.07,1,length/steps),colors.metal,f,"rail")
+		if flight==1: slab(plan,prefix+"stair/top_landing",x-.03,x+flight_w+.03,z0-.2,z0+.15,y+h,colors.floor,f+1)
 
 static func rail(plan: Dictionary, key: String, axis: String, fixed: float, start: float, end: float, y: float, colors: Dictionary, f: int) -> void:
 	for height in [.25,.65,1.05]: wall_box(plan,key+"/bar%d"%int(height*100),axis,fixed,(start+end)/2,y+height,end-start,.065,.065,colors.metal,f,"rail")
@@ -139,7 +143,8 @@ static func balcony(plan: Dictionary, prefix: String, w: float, d: float, split:
 		slab(plan,prefix+"balcony/side",w/2,right,-d/2,split,y,colors.floor,f)
 		rail(plan,prefix+"balcony/end_rail","x",split-.08,w/2,right-.08,y,colors,f)
 		plan.terraces.append({"id":prefix+"balcony_side","floor":f,"bounds":[w/2,-d/2,right,split],"center":[w/2+depth/2,y,(-d/2+split)/2]})
-	plan.terraces.append({"id":prefix+"balcony","floor":f,"bounds":[-w/2,edge,right,-d/2],"center":[0,y,edge+depth/2]})
+	# Keep the representative destination away from the outward-swinging door.
+	plan.terraces.append({"id":prefix+"balcony","floor":f,"bounds":[-w/2,edge,right,-d/2],"center":[w/4,y,edge+depth/2]})
 
 static func facade_bands(plan: Dictionary, prefix: String, w: float, d: float, y: float, h: float, colors: Dictionary, f: int) -> void:
 	for side in [-1,1]:

@@ -10,7 +10,7 @@ func run() -> void:
 	create_timer(120).timeout.connect(func(): push_error("urban layout timeout"); quit(2))
 	var base:=Blueprint.layout_defaults("urban_village")
 	equipment_roundtrip(base)
-	var cases: Array=[base,base.merged({"width":8.5,"depth":10,"floors":2,"bedrooms":1,"floor_height":4,"balcony":"none","roof_canopy":false},true),base.merged({"width":11,"depth":15,"floors":6,"bedrooms":3,"balcony":"corner","template":"shop"},true)]
+	var cases: Array=[base,base.merged({"width":9.5,"depth":11,"floors":2,"bedrooms":1,"floor_height":4,"balcony":"none","roof_canopy":false},true),base.merged({"width":11,"depth":15,"floors":6,"bedrooms":3,"balcony":"corner","template":"shop"},true)]
 	for invalid in [{"width":8.0},{"depth":10,"bedrooms":3},{"template":"inn"},{"roof":"gable"},{"compound":"left_wing"},{"jetty":.3},{"balcony":"corner","right_wall":"party"},{"rental_units":4}]:
 		check(not Blueprint.generate(base.merged(invalid,true)).ok,"reject unsupported family layout "+str(invalid))
 	check(not Blueprint.generate({"floors":4}).ok,"legacy floor limit remains three")
@@ -18,28 +18,31 @@ func run() -> void:
 		var p: Dictionary=cases[index]; var plan:=Blueprint.generate(p)
 		check(plan.ok,"urban family plan %d"%index)
 		if not plan.ok: print(plan); quit(1); return
-		check(plan.records.size()<=2000,"persistable parts %d"%plan.records.size())
+		check(plan.records.size()<=Blueprint.MAX_PARTS,"persistable parts %d"%plan.records.size())
 		check(plan.stairs.size()==p.floors*2,"two flights per floor including rooftop access")
 		var parts:={}
 		for record in plan.records:
 			check(false,"duplicate part "+record.building.part) if parts.has(record.building.part) else parts.set(record.building.part,true)
 		var doc:=Doc.new(); doc.add_box("ground",Vector3(45,-.1,15),Vector3(160,.2,100))
-		var origin:=Vector3(55,0,0) if index==1 else Vector3(.07,0,.11); var basis:=Basis(Vector3.UP,deg_to_rad(37 if index==2 else (-23 if index==1 else 0)))
+		var origin:=Vector3(55,0,0) if index==1 else (Vector3.ZERO if index==0 else Vector3(.07,0,.11)); var basis:=Basis(Vector3.UP,deg_to_rad(37 if index==2 else (-23 if index==1 else 0)))
 		for record in plan.records:
 			var copy: Dictionary=record.duplicate(true); copy.position=Blueprint.arr(origin+basis*Blueprint.vec(copy.position)); copy.rotation=Blueprint.arr((basis*Basis.from_euler(Blueprint.vec(copy.rotation)*PI/180)).get_euler()*180/PI); doc.records.append(copy)
 		var specs: Array=[]
 		for record in doc.records:
 			var visual:=doc._mesh(record); specs.append({"mesh":visual.mesh,"transform":visual.transform,"extras":visual.get_meta("extras")}); visual.free()
-		var nav:=preload("res://scripts/world3d/world_navigation.gd").new(); root.add_child(nav); nav.build(specs)
+		var nav:=preload("res://scripts/world3d/world_navigation.gd").new(); nav.agent_height=2.1; root.add_child(nav); nav.build(specs)
 		var deadline:=Time.get_ticks_msec()+25000
 		while not nav.fully_ready and Time.get_ticks_msec()<deadline: await process_frame
 		check(nav.fully_ready,"navigation ready")
 		if nav.fully_ready:
+			for stair:Dictionary in plan.stairs:
+				var path:=NavigationServer3D.map_get_path(nav.map,origin+basis*Blueprint.vec(stair.bottom),origin+basis*Blueprint.vec(stair.top),true)
+				check(not path.is_empty() and path[-1].distance_to(origin+basis*Blueprint.vec(stair.top))<=.4,"case %d flight %d/%d connects on actual voxel grid"%[index,stair.floor,stair.flight])
 			for destination in plan.rooms+plan.terraces:
 				var point:=origin+basis*Blueprint.vec(destination.center)
 				var route: Dictionary=nav.find_path(origin+basis*Blueprint.vec(plan.entrance),point)
 				check(route.ok,"case%d entry reaches %s"%[index,destination.id])
-				if not route.ok: print("  target=",point," nearest=",NavigationServer3D.map_get_closest_point(nav.map,point))
+				if not route.ok: print("  target=",point," nearest=",NavigationServer3D.map_get_closest_point(nav.map,point)," result=",route)
 		nav.free(); await process_frame
 	print("test_world3d_urban_layout: %s"%("PASS" if failed==0 else "FAIL")); quit(0 if failed==0 else 1)
 

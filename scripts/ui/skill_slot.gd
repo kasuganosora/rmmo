@@ -23,9 +23,9 @@ var bound_id: String:
 
 var _avatar_label: Label
 var _icon_rect: TextureRect
-var _empty_sb: StyleBoxFlat
-var _filled_sb: StyleBoxFlat
-var _passive_sb: StyleBoxFlat
+var _empty_sb: StyleBox
+var _filled_sb: StyleBox
+var _passive_sb: StyleBox
 var _cd: Control
 
 
@@ -81,36 +81,9 @@ func clear_slot() -> void:
 
 
 func _ensure_styles() -> void:
-	if _empty_sb == null:
-		_empty_sb = StyleBoxFlat.new()
-		_empty_sb.bg_color = Color(0.08, 0.08, 0.10, 0.92)
-		_empty_sb.border_color = Color(0.22, 0.22, 0.26, 0.9)
-		_empty_sb.set_border_width_all(1)
-		_empty_sb.set_corner_radius_all(3)
-		_empty_sb.content_margin_left = 3
-		_empty_sb.content_margin_right = 3
-		_empty_sb.content_margin_top = 3
-		_empty_sb.content_margin_bottom = 3
-	if _filled_sb == null:
-		_filled_sb = StyleBoxFlat.new()
-		_filled_sb.bg_color = Color(0.14, 0.15, 0.18, 0.95)
-		_filled_sb.border_color = Color(0.40, 0.55, 0.75, 0.85)
-		_filled_sb.set_border_width_all(1)
-		_filled_sb.set_corner_radius_all(3)
-		_filled_sb.content_margin_left = 3
-		_filled_sb.content_margin_right = 3
-		_filled_sb.content_margin_top = 3
-		_filled_sb.content_margin_bottom = 3
-	if _passive_sb == null:
-		_passive_sb = StyleBoxFlat.new()
-		_passive_sb.bg_color = Color(0.14, 0.16, 0.14, 0.95)
-		_passive_sb.border_color = Color(0.45, 0.65, 0.40, 0.85)
-		_passive_sb.set_border_width_all(1)
-		_passive_sb.set_corner_radius_all(3)
-		_passive_sb.content_margin_left = 3
-		_passive_sb.content_margin_right = 3
-		_passive_sb.content_margin_top = 3
-		_passive_sb.content_margin_bottom = 3
+	if _empty_sb == null: _empty_sb = preload("res://scripts/ui/l2_style.gd").slot_box(false)
+	if _filled_sb == null: _filled_sb = preload("res://scripts/ui/l2_style.gd").slot_box(true)
+	if _passive_sb == null: _passive_sb = preload("res://scripts/ui/l2_chrome.gd").box("slot_passive", 3, 3)
 
 
 func _ensure_children() -> void:
@@ -122,6 +95,7 @@ func _ensure_children() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 	_icon_rect = TextureRect.new()
+	_icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_icon_rect.name = "Icon"
 	_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

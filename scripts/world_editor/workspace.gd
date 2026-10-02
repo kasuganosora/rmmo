@@ -183,6 +183,7 @@ static func build(editor: Node3D) -> void:
 	button(modes, "属性", func(): editor._dock_tabs.current_tab = 1)
 	button(modes, "物件", func(): editor._dock_tabs.current_tab = 2)
 	button(modes, "建筑", func(): editor._dock_tabs.current_tab = 8)
+	button(modes, "城镇布局", func(): editor._dock_tabs.current_tab = 9)
 	button(modes, "网格", func(): editor._grid.visible = not editor._grid.visible)
 	var transform_group := ButtonGroup.new()
 	for index in 3:
@@ -264,6 +265,9 @@ static func build(editor: Node3D) -> void:
 	viewport.gui_disable_input = true
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	editor._canvas.add_child(viewport)
+	editor._city.overlay = preload("res://scripts/world_editor/city_overlay.gd").new()
+	editor._canvas.add_child(editor._city.overlay)
+	editor._city.overlay.setup(editor._city)
 	editor._gizmo = preload("res://scripts/world_editor/transform_gizmo.gd").new()
 	editor._canvas.add_child(editor._gizmo)
 	editor._gizmo.setup(editor)
@@ -332,6 +336,16 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs.add_child(building_scroll)
 	editor._building_panel = preload("res://scripts/world_editor/building_panel.gd").new(); editor._building_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	building_scroll.add_child(editor._building_panel); editor._building_panel.setup(editor)
+	var city_scroll := ScrollContainer.new(); city_scroll.name = "城镇布局"; city_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	editor._dock_tabs.add_child(city_scroll)
+	var city_panel := preload("res://scripts/world_editor/city_panel.gd").new(); city_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	city_scroll.add_child(city_panel); city_panel.setup(editor)
+	editor._terrain_brush=preload("res://scripts/world_editor/terrain_brush.gd").new()
+	editor._canvas.add_child(editor._terrain_brush); editor._terrain_brush.setup(editor)
+	var terrain_scroll:=ScrollContainer.new(); terrain_scroll.name="地形"; terrain_scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	editor._dock_tabs.add_child(terrain_scroll)
+	editor._terrain_panel=preload("res://scripts/world_editor/terrain_panel.gd").new(); editor._terrain_panel.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	terrain_scroll.add_child(editor._terrain_panel); editor._terrain_panel.setup(editor)
 	editor._status = Label.new()
 	editor._status.text = "左键摆放/选择 · 右键旋转视角 · 中键平移 · 滚轮缩放 · 方向键微调 · Q/E 旋转"
 	editor._status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

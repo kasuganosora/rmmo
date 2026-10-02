@@ -44,12 +44,13 @@ func call_tool(name: String, args: Dictionary) -> Dictionary:
 	if not validation.is_empty(): return {"ok": false, "error": validation}
 	if not is_instance_valid(editor) or editor._selection_tools == null: return {"ok": false, "error": "3D editor is not ready"}
 	if not definition.annotations.readOnlyHint:
+		if editor._city.busy(): return {"ok":false,"error":"Finish or cancel the road draft/node drag first"}
 		if editor._playtest.active() and name != "stop_playtest": return {"ok":false,"error":"Stop the playtest before editing the document"}
 		if editor._authoring.picking: return {"ok":false,"error":"Finish or cancel spawn picking first"}
 		if editor._building_area_busy(): return {"ok":false,"error":"Finish or cancel building region selection first"}
 		if editor._load_failed and name not in ["open_world", "restore_editor_draft", "discard_editor_draft", "configure_autosave", "close_editor"]: return {"ok": false, "error": "Current map is read-only after a load failure"}
 		if editor._safety.state().close_pending and name != "close_editor": return {"ok": false, "error": "Resolve or cancel the pending close dialog first"}
-		if editor._transform_drag.active or editor._auto_stroke.active or editor._selection_tools.marquee or editor._stroke._open or editor._placement_tools.active or editor._material_tool.active:
+		if editor._transform_drag.active or editor._auto_stroke.active or editor._selection_tools.marquee or editor._stroke._open or editor._placement_tools.active or editor._material_tool.active or (editor._terrain_brush!=null and editor._terrain_brush.active):
 			return {"ok": false, "error": "Editor interaction in progress; retry after it finishes"}
 	_ops.editor = editor
 	return _ops.execute(name, args)

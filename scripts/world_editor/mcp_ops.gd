@@ -30,18 +30,64 @@ func state() -> Dictionary:
 		"pivot": array3(editor._selection_tools.pivot()), "canvas_size": [editor._canvas.size.x, editor._canvas.size.y],
 		"surface_placement_active": editor._placement_tools.active,
 		"building_region_drawing": editor._building_area_busy(),
+		"waterway_drawing":editor._city.waterway_draft,
+		"fortification_drawing":editor._city.fortification_draft,
+		"road_drawing":editor._city.drawing, "vegetation_drawing":editor._city.scatter_draft, "road_node_drag":not editor._city.drag_node.is_empty(), "editor_camera":editor._city.camera_state(),
 		"building_component_edit": editor._selection_tools.component_edit,
 		"whole_building_selection": editor._selection_tools.whole,
 		"surface_brush_active": editor._material_tool.active,
+		"terrain_brush_active": editor._terrain_brush!=null and editor._terrain_brush.active,
 		"autosave": editor._safety.state(),
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"list_terrains": return editor._terrain.catalog()
+		"create_terrain": return editor._terrain.create(args)
+		"preview_terrain_stroke": return editor._terrain.summary(args)
+		"sculpt_terrain": return editor._terrain.sculpt(args)
+		"set_terrain_material": return editor._terrain.set_material(args.id,args.material_id)
+		"list_vegetation_scatter": return editor._scatter.catalog(args.get("query",""),int(args.get("offset",0)),int(args.get("limit",100)))
+		"list_waterways": return editor._waterways.catalog()
+		"connect_waterway_bridge": return editor._connections.connect_bridge(args.waterway_id,args.bridge_id)
+		"disconnect_waterway_bridge": return editor._connections.disconnect_bridge(args.edge_id)
+		"get_road_connectivity": return editor._connections.audit()
+		"list_fortifications": return editor._fortifications.catalog()
+		"preview_fortification": return editor._fortifications.summary(args)
+		"generate_fortification": return editor._fortifications.generate(args)
+		"remove_fortification": return editor._fortifications.remove(args.id,args.get("keep_objects",true))
+		"set_fortification_gate": return editor._fortifications.set_gate(args.id,args.gate_id,args.open)
+		"preview_waterway": return editor._waterways.summary(args)
+		"generate_waterway": return editor._waterways.generate(args)
+		"remove_waterway": return editor._waterways.remove(args.id,args.get("keep_objects",true))
+		"preview_vegetation_scatter": return editor._scatter.summary(args)
+		"generate_vegetation_scatter": return editor._scatter.generate(args)
+		"remove_vegetation_scatter": return editor._scatter.remove(args.id,args.get("keep_objects",true))
+		"get_city_blocks": return editor._blocks.catalog()
+		"preview_block_buildings": return editor._blocks.summary(args)
+		"generate_block_buildings": return editor._blocks.generate(args)
+		"detach_block_buildings": return editor._blocks.detach(args.block_ids)
+		"split_road_intersections": return editor._roads.split()
+		"preview_road_surface": return editor._roads.summary(args)
+		"generate_road_surface": return editor._roads.generate(args)
+		"detach_road_surface": return editor._roads.detach()
+		"update_planning_zones": return editor._roads.zones(args)
+		"get_city_layout": return editor._city.state()
+		"set_editor_camera": return editor._city.set_camera(args)
+		"focus_editor_view": return editor._city.focus(args)
+		"set_map_reference": return editor._city.set_reference(args)
+		"calibrate_map_reference": return editor._city.calibrate(args)
+		"save_view_bookmark": return editor._city.bookmark(args)
+		"delete_view_bookmark": return editor._city.bookmark(args,true)
+		"recall_view_bookmark": return editor._city.recall(args.id)
+		"update_road_graph": return editor._city.update_roads(args)
+		"create_road_path": return editor._city.add_path(args.points,args.get("width",8.0),args.get("kind","ground"))
 		"preview_region_buildings": return editor._buildings.summary(editor._buildings.prepare_region(args))
 		"generate_region_buildings": return editor._buildings.generate_region(args)
 		"list_building_templates": return editor._buildings.templates()
 		"list_buildings": return editor._buildings.list_buildings()
+		"list_building_components": return preload("res://scripts/world_editor/building_fixture_tools.gd").list_components(editor,args.id)
+		"set_building_component_state": return preload("res://scripts/world_editor/building_fixture_tools.gd").set_open(editor,args.id,args.component_id,args.open)
 		"preview_buildings":
 			var request: Dictionary = args.duplicate(true); request.erase("replace_id")
 			return editor._buildings.summary(editor._buildings.prepare(request,str(args.get("replace_id",""))))
@@ -80,8 +126,8 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			if imported.ok: editor._auto_panel.refresh(imported.kit_id)
 			return imported
 		"list_surface_materials":
-			var entries: Array = editor._material_tool.library.entries().filter(func(entry): return str(entry.material.name).to_lower().contains(str(args.get("query", "")).to_lower()))
-			return ok({"materials": page(entries, args), "total": entries.size()})
+			var entries: Array = editor._material_tool.library.search(str(args.get("query", "")), str(args.get("category", "")))
+			return ok({"materials": page(entries, args), "total": entries.size(), "categories": editor._material_tool.library.categories()})
 		"import_surface_material":
 			var result: Dictionary = editor._material_tool.library.import_texture(args.path, args.get("name", ""))
 			if result.ok: editor._material_panel.refresh(result.material_id)
@@ -101,7 +147,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			return ok({"objects": rows, "total": records.size()})
 		"get_object":
 			var record: Dictionary = editor._doc._find(args.id)
-			return error("Object not found") if record.is_empty() else ok({"record": record.duplicate(true)})
+			return error("Object not found") if record.is_empty() else ok({"record": record.duplicate(true), "wind_meshes":editor._wind_tools.catalog(args.id)})
 		"select_objects":
 			if not args.has("ids") and not args.has("group_id"): return error("ids or group_id is required")
 			var target := targets(args)
@@ -202,6 +248,9 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var target := targets(args, true)
 			if not target.ok: return target
 			if target.ids.is_empty(): return error("No target objects")
+			if args.has("wind"):
+				if args.has("name") or args.has("hidden") or args.has("locked"): return error("wind must be edited in its own transaction")
+				return editor._wind_tools.set_settings(target.ids,args.wind)
 			var properties := {}
 			if args.has("name"):
 				if str(args.name).strip_edges().is_empty(): return error("Name must not be empty")
@@ -253,6 +302,13 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			if DisplayServer.get_name() == "headless": return error("Preview requires a graphical renderer; use the background desktop host")
 			var viewport: SubViewport = editor._playtest.viewport if editor._playtest.viewport != null else editor._canvas.get_child(0)
 			var image := viewport.get_texture().get_image()
+			if args.get("include_layout",false) and not editor._playtest.active():
+				var composite: Image = editor.get_viewport().get_texture().get_image()
+				if composite!=null and not composite.is_empty():
+					var ratio: Vector2 = Vector2(composite.get_width(),composite.get_height())/editor.get_viewport().get_visible_rect().size
+					var canvas: Rect2 = editor._canvas.get_global_rect()
+					var crop := Rect2i(canvas.position*ratio,canvas.size*ratio).intersection(Rect2i(Vector2i.ZERO,composite.get_size()))
+					if crop.has_area(): image = composite.get_region(crop)
 			if image == null or image.is_empty(): return error("No rendered frame yet")
 			if image.get_width() > 1280: image.resize(1280, maxi(1, roundi(image.get_height() * 1280.0 / image.get_width())))
 			return ok({"png_base64": Marshalls.raw_to_base64(image.save_png_to_buffer()), "width": image.get_width(), "height": image.get_height()})
@@ -374,8 +430,11 @@ func validate_assets(records: Array) -> String:
 	for record in records:
 		if not record is Dictionary: return "Invalid object record"
 		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return "Invalid building component"
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return "Invalid wind response"
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return "Invalid 3D event template"
 		if not Rules.valid(record): return "Invalid auto tile or kit outside the allowed content root"
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return "Invalid surface material record or texture outside the allowed content root"
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return "Invalid terrain mesh"
 		if not preload("res://scripts/world3d/surface_materials.gd").valid(record): return "Invalid surface material record or texture outside the allowed content root"
 		if record.get("kind") == "asset" and not allowed_path(str(record.get("asset_path", ""))): return "Model reference is outside the allowed content root"
 	return ""

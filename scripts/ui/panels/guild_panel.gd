@@ -2,45 +2,27 @@ extends RefCounted
 ## UI panel: guild roster, invites, management.
 
 var ctrl
+var _actions: HBoxContainer
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _build_guild_panel() -> void:
 	ctrl._guild_panel = PanelContainer.new()
 	ctrl._guild_panel.name = "GuildPanel"
-	ctrl._guild_panel.set_script(HudDrag)
+	ctrl._guild_panel.set_script(GameWindow)
 	ctrl._guild_panel.screen_margin = 4.0
 	ctrl._guild_panel.min_size = Vector2(300, 260)
 	ctrl._guild_panel.default_size = Vector2(360, 460)
 	ctrl._guild_panel.initial_dock = "none"
 	ctrl._guild_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._guild_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._guild_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "GuildTitle"
-	title.text = "公会"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._guild_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._guild_panel, "公会", func(): ctrl._guild_panel.visible = false, "GuildTitle")
 	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 300)
 	outer.add_child(scroll)
@@ -49,6 +31,10 @@ func _build_guild_panel() -> void:
 	ctrl._guild_body.add_theme_constant_override("separation", 4)
 	ctrl._guild_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(ctrl._guild_body)
+	_actions = HBoxContainer.new()
+	_actions.alignment = BoxContainer.ALIGNMENT_END
+	_actions.add_theme_constant_override("separation", 8)
+	outer.add_child(_actions)
 	ctrl._guild_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._guild_panel)
 	_refresh_guild_panel()
@@ -61,7 +47,7 @@ func _nudge_guild() -> void:
 		return
 	ctrl._guild_panel.size = Vector2(360, 460)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._guild_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 180)), 88)
+	ctrl._window_manager_logic.place_at(ctrl._guild_panel, Vector2(maxi(8, int(vp.x * 0.5 - 180)), 88))
 
 
 
@@ -140,8 +126,10 @@ func apply_guild_invite(action: Dictionary) -> void:
 func _refresh_guild_panel() -> void:
 	if ctrl._guild_body == null:
 		return
-	for c in ctrl._guild_body.get_children():
-		c.queue_free()
+	for host in [ctrl._guild_body, _actions]:
+		for c in host.get_children():
+			host.remove_child(c)
+			c.queue_free()
 	ctrl._guild_name_input = null
 	ctrl._guild_invite_input = null
 	var gid = str(ctrl._guild_state.get("id", "")).strip_edges()
@@ -220,10 +208,12 @@ func _refresh_guild_panel() -> void:
 		var rank_cn = "会长" if rank == "leader" else "成员"
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
+		row.custom_minimum_size.y = 30
 		ctrl._guild_body.add_child(row)
 		var nl = Label.new()
 		nl.text = "%s（%s）" % [mname, rank_cn]
 		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.add_theme_font_size_override("font_size", 12)
 		row.add_child(nl)
 		if is_leader and mid != self_id and rank != "leader":
@@ -236,7 +226,7 @@ func _refresh_guild_panel() -> void:
 
 	var brow = HBoxContainer.new()
 	brow.add_theme_constant_override("separation", 6)
-	ctrl._guild_body.add_child(brow)
+	_actions.add_child(brow)
 	var leave_btn = Button.new()
 	leave_btn.text = "离开公会"
 	leave_btn.focus_mode = Control.FOCUS_NONE

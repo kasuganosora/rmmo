@@ -17,6 +17,7 @@ var details_toggle: CheckButton
 var bound_instance: Dictionary = {}
 var placement_raw: Dictionary = {}
 var placement_shown: Dictionary = {}
+var fixtures: VBoxContainer
 
 func button(text_: String, action: Callable) -> Button:
 	var value := Button.new(); value.text = text_; value.pressed.connect(action); add_child(value); return value
@@ -30,7 +31,7 @@ func setup(host: Node3D) -> void:
 		var id: String = chooser.get_item_metadata(index)
 		if id.is_empty(): set_values(Blueprint.defaults(),[0,0,0],0)
 		elif editor._buildings.instances().has(id):
-			var value: Dictionary = editor._buildings.instances()[id]; set_values(value.parameters,value.position,value.yaw)
+			var value: Dictionary = editor._buildings.instances()[id]; set_values(Blueprint.instance_parameters(value),value.position,value.yaw)
 	)
 	var presets := HBoxContainer.new(); add_child(presets)
 	for key in Blueprint.LABELS:
@@ -41,7 +42,7 @@ func setup(host: Node3D) -> void:
 			chooser.select(0); set_values(values,placement_values().position,placement_values().yaw)
 		)
 	var medieval := GridContainer.new(); medieval.columns=2; add_child(medieval)
-	for preset in Blueprint.medieval_presets()+Blueprint.urban_presets():
+	for preset in Blueprint.medieval_presets()+Blueprint.roof_presets()+Blueprint.urban_presets():
 		var control:=Button.new(); control.text=preset.name; control.size_flags_horizontal=Control.SIZE_EXPAND_FILL; medieval.add_child(control)
 		control.pressed.connect(func(): chooser.select(0); set_values(preset.parameters,placement_values().position,placement_values().yaw))
 	var actions := HBoxContainer.new(); add_child(actions)
@@ -54,7 +55,8 @@ func setup(host: Node3D) -> void:
 	var batch := HBoxContainer.new(); add_child(batch)
 	count = spin(batch,"数量",1,16,1); columns = spin(batch,"列",1,16,4); gap = spin(batch,"间距",1,30,2)
 	button("聚焦所选建筑",focus)
-	button("解除关联，保留普通物件",func(): remove(true))
+	fixtures=preload("res://scripts/world_editor/building_fixture_panel.gd").new(); fixtures.setup(self); add_child(fixtures)
+	button("解除关联，门窗固定为当前姿态",func(): remove(true))
 	button("删除所选建筑",func(): remove(false))
 	button("清除预览",clear_preview)
 	report_label = Label.new(); report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(report_label)
@@ -88,6 +90,19 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 	var labels := {"layout":"布局","template":"建筑用途","width":"宽度（米）","depth":"进深（米）","floors":"层数","floor_height":"层高（米）","rooms_per_floor":"每层房间数","roof":"屋顶","roof_height":"屋顶升高","style":"外观","seed":"变化种子","roof_axis":"屋脊方向","roof_pitch":"屋顶坡度（度）","eaves":"出檐（米）","jetty":"上层临街挑出（米）","bay_width":"木架开间目标宽度","shutters":"开启式窗板","compound":"建筑组合","annex_width":"附属房宽度","annex_depth":"附属房进深","left_wall":"左侧外墙","right_wall":"右侧外墙"}
 	var choices := {"layout":[{"id":"standard","name":"普通侧走廊"},{"id":"townhouse","name":"中世纪窄店屋"},{"id":"hall","name":"中世纪挑空大厅"}],"template":[{"id":"house","name":"民居"},{"id":"shop","name":"商住楼"},{"id":"inn","name":"旅馆"}],"roof":[{"id":"gable","name":"双坡屋顶"},{"id":"flat","name":"平屋顶"}],"style":[{"id":"timber","name":"木梁灰墙"},{"id":"plaster","name":"浅色灰墙"}],"roof_axis":[{"id":"depth","name":"沿进深（山墙朝街）"},{"id":"width","name":"沿宽度（檐口朝街）"}],"compound":[{"id":"none","name":"独栋"},{"id":"rear_workshop","name":"后院＋独立作坊"},{"id":"left_wing","name":"L 形左侧翼"},{"id":"courtyard","name":"U 形围院"}],"left_wall":[{"id":"open","name":"有窗外墙"},{"id":"party","name":"无窗邻接墙"}],"right_wall":[{"id":"open","name":"有窗外墙"},{"id":"party","name":"无窗邻接墙"}]}
 	labels.merge({"bedrooms":"每层卧室数","balcony":"阳台","balcony_depth":"阳台进深（米）","facade_color":"外墙配色","ground_canopy":"入口雨棚","roof_canopy":"屋顶晾晒棚","roof_tank":"屋顶水箱"})
+	labels.merge({"timber_width":"主木柱宽度（米）","chimney":"屋顶烟囱"})
+	for metric in ["door_height","door_width","stair_width","stair_landing","corridor_width"]: ordered[metric]=parameters.get(metric,Blueprint.defaults()[metric])
+	labels.merge({"door_height":"门洞高度（米）","door_width":"门洞最小宽度（米）","stair_width":"楼梯净宽（米）","stair_landing":"楼梯转角平台深度（米）","corridor_width":"通道最小净宽（米）"})
+	ordered.foundation_depth=parameters.get("foundation_depth",1.0)
+	labels.foundation_depth="地基向下延伸（米）"
+	labels.front_canopy="临街遮檐"; labels.dormers="主屋老虎窗数量"
+	if layout!="urban_village": ordered.roof_solver=parameters.get("roof_solver","unified")
+	if layout in ["townhouse","hall"]: ordered.annex_floors=parameters.get("annex_floors",1)
+	labels.roof_solver="屋面生成方式"; labels.annex_floors="翼楼层数（与主屋连通）"
+	choices.roof_solver=[{"id":"unified","name":"统一屋面与交接"},{"id":"legacy","name":"旧版兼容"}]
+	choices.roof.append({"id":"hip","name":"四坡屋顶"}); choices.roof.append({"id":"shed","name":"单坡屋顶"})
+	choices.compound.append({"id":"rear_wing","name":"T 形后侧翼"})
+	if layout in ["townhouse","hall"]: choices.style=[{"id":"timber","name":"石基木构灰泥"},{"id":"plaster","name":"暖灰泥石砌墙角"}]
 	choices.layout.append({"id":"urban_village","name":"城中村家庭自建房"})
 	choices.merge({"balcony":[{"id":"none","name":"无阳台"},{"id":"front","name":"临街通长阳台"},{"id":"corner","name":"临街＋右侧转角阳台"}],"facade_color":[{"id":"white","name":"白墙红边"},{"id":"cream","name":"米黄墙金边"},{"id":"rose","name":"浅粉墙"},{"id":"green","name":"浅绿墙"}]})
 	var schema:=Blueprint.schema()
@@ -100,6 +115,7 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 	placement.build(editor._buildings.placement_schema(),{"position":position,"yaw":yaw},{"position":"建筑中心脚点 XYZ","yaw":"朝向（度）"})
 	placement_raw={"position":position.duplicate(),"yaw":yaw}
 	placement_shown=placement.values()
+	if fixtures!=null: fixtures.refresh(selected_id())
 
 func placement_values() -> Dictionary:
 	var values: Dictionary=placement.values()
@@ -122,8 +138,9 @@ func refresh_list(selected := "") -> void:
 		if id==selected: chooser.select(chooser.item_count-1)
 	var current := instance_form_state(selected)
 	if not current.is_empty() and (explicit or current!=bound_instance):
-		var value: Dictionary = editor._buildings.instances()[selected]; set_values(value.parameters,value.position,value.yaw)
+		var value: Dictionary = editor._buildings.instances()[selected]; set_values(Blueprint.instance_parameters(value),value.position,value.yaw)
 	elif current.is_empty() and not bound_instance.is_empty(): set_values(Blueprint.defaults(),[0,0,0],0)
+	if fixtures!=null: fixtures.refresh(selected_id())
 
 func instance_form_state(id: String) -> Dictionary:
 	if not editor._buildings.instances().has(id): return {}
@@ -139,7 +156,7 @@ func args() -> Dictionary:
 	var p: Dictionary = parameters(); var at: Dictionary = placement_values(); var lots: Array = []
 	var basis := Basis(Vector3.UP,deg_to_rad(float(at.yaw)))
 	var plan := Blueprint.generate(p); var extent := Vector3(p.width,0,p.depth)
-	if plan.ok: extent=preload("res://scripts/world_editor/selection_geometry.gd").bounds(plan.records).size
+	if plan.ok: extent=preload("res://scripts/world_editor/building_footprint.gd").local_bounds(plan.records).size
 	for index in int(count.value):
 		var offset := Vector3((index%int(columns.value))*(extent.x+gap.value),0,floori(float(index)/columns.value)*(extent.z+gap.value))
 		lots.append({"position":Blueprint.arr(Blueprint.vec(at.position)+basis*offset),"yaw":at.yaw,"seed_offset":index})

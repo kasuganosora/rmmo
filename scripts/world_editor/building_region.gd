@@ -15,7 +15,7 @@ static func schema() -> Dictionary:
 		"max_buildings":Schema.number(1,16,true),"plan_token":{"type":"string","minLength":64,"maxLength":64}},
 		"required":["from","to"],"additionalProperties":false}
 
-static func plan(args: Dictionary, records: Array) -> Dictionary:
+static func plan(args: Dictionary, records: Array, reservations: Array = []) -> Dictionary:
 	var issue := Schema.validate(args,schema())
 	if not issue.is_empty(): return Blueprint.fail(issue)
 	var settings := {"style":"urban_village","mode":"single","density":"medium","yaw":0,"seed":1,"max_buildings":8}; settings.merge(args,true)
@@ -31,19 +31,19 @@ static func plan(args: Dictionary, records: Array) -> Dictionary:
 	var rng := RandomNumberGenerator.new(); rng.seed=int(settings.seed)
 	var gap: float={"low":4.0,"medium":2.5,"high":1.4}[settings.density]
 	var ideal := Vector2(11,15) if settings.style=="urban_village" else (Vector2(8,14) if settings.style=="medieval" else Vector2(14,17))
-	var minimum := Vector2(8.6,11.1) if settings.style=="urban_village" else (Vector2(6.2,11.1) if settings.style=="medieval" else Vector2(9.1,13.1))
+	var minimum := Vector2(9.6,12.1) if settings.style=="urban_village" else (Vector2(6.2,11.1) if settings.style=="medieval" else Vector2(9.1,13.1))
 	var columns := 1; var rows := 1
 	if settings.mode=="block":
 		var variation := rng.randf_range(.85,1.15)
 		columns=clampi(roundi(extent.x/(ideal.x*variation+gap)),1,mini(8,maxi(1,floori((extent.x+gap)/(minimum.x+gap)))))
 		rows=clampi(roundi(extent.y/(ideal.y*variation+gap)),1,mini(8,maxi(1,floori((extent.y+gap)/(minimum.y+gap)))))
 	var cell := Vector2((extent.x-(columns-1)*gap)/columns,(extent.y-(rows-1)*gap)/rows)
-	var obstacles: Array=[]
+	var obstacles: Array=reservations.duplicate()
 	for record in records:
-		var shape := Footprint.record_shape(record)
-		if shape.bounds.end.y<=a.y+.005: continue # Existing ground supports the requested foot plane.
-		if shape.bounds.end.x<low.x or shape.bounds.position.x>high.x or shape.bounds.end.z<low.z or shape.bounds.position.z>high.z: continue
-		obstacles.append(shape)
+		for shape in Footprint.record_shapes(record):
+			if Footprint.supporting_ground(record,shape.bounds.end.y,a.y): continue
+			if shape.bounds.end.x<low.x or shape.bounds.position.x>high.x or shape.bounds.end.z<low.z or shape.bounds.position.z>high.z: continue
+			obstacles.append(shape)
 	var slots: Array=[]
 	for z in rows:
 		for x in columns: slots.append(Vector2i(x,z))
@@ -59,8 +59,8 @@ static func plan(args: Dictionary, records: Array) -> Dictionary:
 		for attempt in 12:
 			var p := variant(settings.style,cell,rng,attempt==11)
 			var building := Blueprint.generate(p)
-			if not building.ok or building.records.size()>2000: continue
-			var bounds := Geometry.bounds(building.records)
+			if not building.ok or building.records.size()>Blueprint.MAX_PARTS: continue
+			var bounds := Footprint.local_bounds(building.records)
 			# Keep the entrance approach inside the lot as well as every visible overhang.
 			bounds=bounds.expand(Blueprint.vec(building.entrance))
 			if bounds.size.x>cell.x+.001 or bounds.size.z>cell.y+.001: continue
@@ -89,7 +89,7 @@ static func variant(style: String, cell: Vector2, rng: RandomNumberGenerator, mi
 	p.seed=rng.randi_range(0,2147483647)
 	p.template="shop" if rng.randf()<.25 else "house"
 	p.floors=1 if minimum else rng.randi_range(2,5 if style=="urban_village" else 3)
-	p.floor_height=3.0 if minimum else [3.0,3.2,3.5][rng.randi_range(0,2)]
+	p.floor_height=4.0
 	var extra_x := .1; var extra_z := 1.1
 	if style=="urban_village":
 		p.balcony="none" if minimum else ["none","front","corner"][rng.randi_range(0,2)]
@@ -101,12 +101,13 @@ static func variant(style: String, cell: Vector2, rng: RandomNumberGenerator, mi
 	elif style=="medieval":
 		p.jetty=0 if minimum else rng.randf_range(0,.5); p.eaves=.25
 		p.roof_axis="width" if rng.randf()<.5 else "depth"; p.roof_pitch=rng.randf_range(35,50)
-		p.shutters=not minimum and rng.randf()<.8; p.style="timber" if rng.randf()<.8 else "plaster"
+		p.shutters=not minimum and rng.randf()<.8; p.style="timber" if rng.randf()<.35 else "plaster"
+		p.dormers=0 if minimum or rng.randf()<.45 else 1
 		extra_x=.65; extra_z=1.4+p.jetty
 	else:
 		p.roof="flat" if rng.randf()<.3 else "gable"; p.style="plaster" if rng.randf()<.5 else "timber"
-	var min_width := 8.5 if style=="urban_village" else (5.5 if style=="medieval" else 9.0)
-	var min_depth := 12.0 if style=="standard" else 10.0
+	var min_width := 9.5 if style=="urban_village" else (5.5 if style=="medieval" else 9.0)
+	var min_depth := 12.0 if style=="standard" else (11.0 if style=="urban_village" else 10.0)
 	var maximum := Vector2(minf(24,cell.x-extra_x),minf(30,cell.y-extra_z))
 	p.width=min_width if minimum else snappedf(rng.randf_range(min_width,maxf(min_width,maximum.x)),.05)
 	p.depth=min_depth if minimum else snappedf(rng.randf_range(min_depth,maxf(min_depth,maximum.y)),.05)

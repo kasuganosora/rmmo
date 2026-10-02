@@ -2,91 +2,94 @@ extends RefCounted
 ## UI panel: mail box.
 
 var ctrl
+var _tabs: HBoxContainer
+var _inbox: ScrollContainer
+var _compose: VBoxContainer
+var _send_button: Button
+var _page := 0
+var _sending := false
+var _feedback: Label
+var _feedback_state: Array = []
 func _init(c):
 	ctrl = c
 
+const UIRequest = preload("res://scripts/ui/ui_request.gd")
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _build_mail_panel() -> void:
 	ctrl._mail_panel = PanelContainer.new()
 	ctrl._mail_panel.name = "MailPanel"
-	ctrl._mail_panel.set_script(HudDrag)
+	ctrl._mail_panel.set_script(GameWindow)
 	ctrl._mail_panel.screen_margin = 4.0
 	ctrl._mail_panel.min_size = Vector2(420, 320)
 	ctrl._mail_panel.default_size = Vector2(520, 480)
 	ctrl._mail_panel.initial_dock = "none"
 	ctrl._mail_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._mail_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._mail_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "MailTitle"
-	title.text = "邮件"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._mail_panel.visible = false)
-	head.add_child(close_btn)
-	var scroll = ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 200)
-	outer.add_child(scroll)
+	var outer = GameWindow.build_body(ctrl._mail_panel, "邮件", func(): ctrl._mail_panel.hide(), "MailTitle")
+	_tabs = GameWindow.add_tabs(outer, ["收件箱", "写信"], _select_page)
+	_inbox = ScrollContainer.new()
+	_inbox.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_inbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(_inbox)
 	ctrl._mail_body = VBoxContainer.new()
 	ctrl._mail_body.name = "MailBody"
-	ctrl._mail_body.add_theme_constant_override("separation", 4)
 	ctrl._mail_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(ctrl._mail_body)
-	ctrl._add_label(outer, "写信", 12, L2Style.COL_TITLE)
+	ctrl._mail_body.add_theme_constant_override("separation", 10)
+	_inbox.add_child(ctrl._mail_body)
+	_compose = VBoxContainer.new()
+	_compose.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_compose.add_theme_constant_override("separation", 5)
+	outer.add_child(_compose)
 	ctrl._mail_to_input = LineEdit.new()
-	ctrl._mail_to_input.placeholder_text = "收件人（自己 / 好友 / 旅人）"
-	outer.add_child(ctrl._mail_to_input)
+	ctrl._mail_to_input.placeholder_text = "玩家名字"
+	GameWindow.field(_compose, "收件人", ctrl._mail_to_input)
 	ctrl._mail_subject_input = LineEdit.new()
-	ctrl._mail_subject_input.placeholder_text = "主题"
-	outer.add_child(ctrl._mail_subject_input)
+	ctrl._mail_subject_input.placeholder_text = "信件主题"
+	GameWindow.field(_compose, "主题", ctrl._mail_subject_input)
 	ctrl._mail_body_input = TextEdit.new()
-	ctrl._mail_body_input.custom_minimum_size = Vector2(0, 64)
-	ctrl._mail_body_input.placeholder_text = "正文"
-	outer.add_child(ctrl._mail_body_input)
-	var attach_row = HBoxContainer.new()
-	attach_row.add_theme_constant_override("separation", 6)
-	outer.add_child(attach_row)
-	ctrl._add_label(attach_row, "金币", 11, L2Style.COL_MUTED)
+	ctrl._mail_body_input.placeholder_text = "写点什么…"
+	ctrl._mail_body_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ctrl._mail_body_input.custom_minimum_size.y = 65
+	_compose.add_child(ctrl._mail_body_input)
 	ctrl._mail_gold_spin = SpinBox.new()
 	ctrl._mail_gold_spin.min_value = 0
 	ctrl._mail_gold_spin.max_value = 999999
-	ctrl._mail_gold_spin.step = 1
-	ctrl._mail_gold_spin.custom_minimum_size = Vector2(90, 0)
-	attach_row.add_child(ctrl._mail_gold_spin)
-	ctrl._add_label(attach_row, "物品ID", 11, L2Style.COL_MUTED)
-	ctrl._mail_item_id_input = LineEdit.new()
-	ctrl._mail_item_id_input.placeholder_text = "可选"
-	ctrl._mail_item_id_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	attach_row.add_child(ctrl._mail_item_id_input)
-	ctrl._add_label(attach_row, "数量", 11, L2Style.COL_MUTED)
+	GameWindow.field(_compose, "附加金币", ctrl._mail_gold_spin)
+	ctrl._add_label(_compose, "附加物品 · 从背包选择", 11, L2Style.COL_MUTED)
+	ctrl._mail_item_id_input = ItemGrid.create(ctrl, _compose, "MailItemPicker", 82)
+	ctrl._mail_item_id_input.size_flags_vertical = Control.SIZE_FILL
 	ctrl._mail_item_qty_spin = SpinBox.new()
 	ctrl._mail_item_qty_spin.min_value = 1
-	ctrl._mail_item_qty_spin.max_value = 99
 	ctrl._mail_item_qty_spin.value = 1
-	ctrl._mail_item_qty_spin.custom_minimum_size = Vector2(70, 0)
-	attach_row.add_child(ctrl._mail_item_qty_spin)
-	var send_btn = Button.new()
-	send_btn.text = "发送"
-	send_btn.focus_mode = Control.FOCUS_NONE
-	send_btn.pressed.connect(_on_mail_send)
-	outer.add_child(send_btn)
+	GameWindow.field(_compose, "物品数量", ctrl._mail_item_qty_spin)
+	ctrl._mail_item_id_input.item_selected.connect(func(_i): ctrl._mail_item_id_input.sync_quantity(ctrl._mail_item_qty_spin))
+	_feedback = UIRequest.status(_compose, "MailStatus")
+	ctrl._mail_to_input.text_changed.connect(func(_text): _clear_feedback_on_edit())
+	ctrl._mail_subject_input.text_changed.connect(func(_text): _clear_feedback_on_edit())
+	ctrl._mail_body_input.text_changed.connect(_clear_feedback_on_edit)
+	ctrl._mail_gold_spin.value_changed.connect(func(_value): _clear_feedback_on_edit())
+	ctrl._mail_item_qty_spin.value_changed.connect(func(_value): _clear_feedback_on_edit())
+	ctrl._mail_item_id_input.item_selected.connect(func(_item): _clear_feedback_on_edit())
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_END
+	_compose.add_child(actions)
+	_send_button = Button.new()
+	_send_button.text = "发送邮件"
+	_send_button.custom_minimum_size = Vector2(112, 30)
+	L2Style.style_primary_button(_send_button)
+	_send_button.pressed.connect(_on_mail_send)
+	_send_button.disabled = true
+	ctrl._mail_to_input.text_changed.connect(func(text): _send_button.disabled = _sending or text.strip_edges().is_empty())
+	var clear_attachment := Button.new()
+	clear_attachment.text = "取消附件"
+	clear_attachment.pressed.connect(func(): ctrl._mail_item_id_input.select_key(""))
+	actions.add_child(clear_attachment)
+	actions.add_child(_send_button)
+	_select_page(0)
 	ctrl._mail_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._mail_panel)
 	_refresh_mail_panel()
@@ -99,7 +102,7 @@ func _nudge_mail() -> void:
 		return
 	ctrl._mail_panel.size = Vector2(520, 480)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._mail_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 260)), 72)
+	ctrl._window_manager_logic.place_at(ctrl._mail_panel, Vector2(maxi(8, int(vp.x * 0.5 - 260)), 72))
 
 
 
@@ -157,7 +160,9 @@ func _refresh_mail_panel() -> void:
 	if ctrl._mail_body == null:
 		return
 	for c in ctrl._mail_body.get_children():
+		ctrl._mail_body.remove_child(c)
 		c.queue_free()
+	_refresh_attachment_choices()
 	var mails_v: Variant = ctrl._mail_state.get("mails", [])
 	var mails: Array = mails_v if typeof(mails_v) == TYPE_ARRAY else []
 	var cap = int(ctrl._mail_state.get("max_mail", 30))
@@ -183,40 +188,33 @@ func _refresh_mail_panel() -> void:
 		var attach_hint = ""
 		if not claimed and (gold > 0 or not items2.is_empty()):
 			attach_hint = " [附件]"
-		var nl = Label.new()
-		nl.text = "%s%s ← %s%s" % [mark, subj, frm, attach_hint]
-		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		nl.add_theme_font_size_override("font_size", 12)
-		nl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.7) if not is_read else L2Style.COL_TEXT)
-		row.add_child(nl)
+		var subject_button := Button.new()
+		subject_button.text = "%s%s%s" % [mark, subj, attach_hint]
+		subject_button.tooltip_text = "%s\n来自 %s" % [subj, frm]
+		subject_button.custom_minimum_size.y = 30
+		L2Style.style_row_button(subject_button, ctrl._mail_selected_id == mid)
+		subject_button.pressed.connect(func():
+			ctrl._mail_selected_id = "" if ctrl._mail_selected_id == mid else mid
+			_refresh_mail_panel()
+			if ctrl._mail_selected_id == mid: _on_mail_read(mid)
+		)
+		row.add_child(subject_button)
+		ctrl._add_label(row, "来自 " + frm, 11, L2Style.COL_MUTED)
+		if ctrl._mail_selected_id != mid: continue
 		var body_txt = str(e.get("body", "")).strip_edges()
 		if not body_txt.is_empty():
-			ctrl._add_label(row, body_txt, 10, L2Style.COL_MUTED)
-		if gold > 0 or not items2.is_empty():
-			var parts: PackedStringArray = PackedStringArray()
-			if gold > 0:
-				parts.append("金币 %d" % gold)
-			for it in items2:
-				if typeof(it) != TYPE_DICTIONARY:
-					continue
-				var iid = str(it.get("id", ""))
-				var q = int(it.get("qty", 0))
-				if iid.is_empty() or q <= 0:
-					continue
-				parts.append("%s×%d" % [ctrl._item_label(iid), q])
-			if parts.size() > 0:
-				ctrl._add_label(row, "附件：%s%s" % [", ".join(parts), "（已领）" if claimed else ""], 10, L2Style.COL_GOLD)
+			ctrl._add_label(row, body_txt, 12, L2Style.COL_TEXT).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if gold > 0: ctrl._add_label(row, "金币 %d%s" % [gold, "（已领）" if claimed else ""], 11, L2Style.COL_GOLD)
+		if not items2.is_empty():
+			var attachments = ItemGrid.create(ctrl, row, "MailAttachments", 90)
+			attachments.minimum_cells = 0
+			attachments.set_items(items2)
+			if claimed: ctrl._add_label(row, "附件已领取", 11, L2Style.COL_MUTED)
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 4)
 		row.add_child(btn_row)
-		var read_btn = Button.new()
-		read_btn.text = "阅读"
-		read_btn.focus_mode = Control.FOCUS_NONE
-		read_btn.custom_minimum_size = Vector2(48, 24)
-		read_btn.pressed.connect(_on_mail_read.bind(mid))
-		btn_row.add_child(read_btn)
 		var claim_btn = Button.new()
-		claim_btn.text = "收取"
+		claim_btn.text = "收取附件"
 		claim_btn.focus_mode = Control.FOCUS_NONE
 		claim_btn.custom_minimum_size = Vector2(48, 24)
 		claim_btn.disabled = claimed or (gold <= 0 and items2.is_empty())
@@ -232,26 +230,36 @@ func _refresh_mail_panel() -> void:
 
 
 func _on_mail_send() -> void:
+	if _sending: return
 	var to = ctrl._mail_to_input.text.strip_edges() if ctrl._mail_to_input else ""
 	var subject = ctrl._mail_subject_input.text.strip_edges() if ctrl._mail_subject_input else ""
 	var body = ctrl._mail_body_input.text if ctrl._mail_body_input else ""
 	var gold = int(ctrl._mail_gold_spin.value) if ctrl._mail_gold_spin else 0
-	var item_id = ctrl._mail_item_id_input.text.strip_edges() if ctrl._mail_item_id_input else ""
+	var item_id = str(ctrl._mail_item_id_input.selected_item().get("item_id", ""))
 	var qty = int(ctrl._mail_item_qty_spin.value) if ctrl._mail_item_qty_spin else 1
 	if to.is_empty():
 		ctrl.append_system("请填写收件人。")
 		return
-	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_mail_send"):
-		ctrl._world_combat.request_mail_send(to, subject, body, gold, item_id, qty)
-	else:
-		var srv = Net.server()
-		if srv != null and srv.has_method("try_mail_send"):
-			_apply_mail_result_locally(srv.try_mail_send(to, subject, body, gold, item_id, qty))
-		else:
-			ctrl.append_system("无法发送邮件。")
-			return
+	_sending = true
+	UIRequest.lock_form(_compose, true)
+	_send_button.text = "发送中…"
+	UIRequest.set_status(_feedback, "正在发送，请等待结果…")
+	UIRequest.dispatch(ctrl, "try_mail_send", [to, subject, body, gold, item_id, qty], _apply_mail_result_locally, _mail_send_finished)
+
+
+func _mail_send_finished(result: Dictionary) -> void:
+	_sending = false
+	UIRequest.lock_form(_compose, false)
+	_send_button.text = "发送邮件"
+	_refresh_attachment_choices()
+	UIRequest.set_status(_feedback, UIRequest.message(result, "邮件已发送"), not result.get("ok", false))
+	_send_button.disabled = ctrl._mail_to_input.text.strip_edges().is_empty()
+	if not result.get("ok", false):
+		_feedback_state = _compose_state()
+		return
 	if ctrl._mail_to_input:
 		ctrl._mail_to_input.text = ""
+		_send_button.disabled = true
 	if ctrl._mail_subject_input:
 		ctrl._mail_subject_input.text = ""
 	if ctrl._mail_body_input:
@@ -259,9 +267,21 @@ func _on_mail_send() -> void:
 	if ctrl._mail_gold_spin:
 		ctrl._mail_gold_spin.value = 0
 	if ctrl._mail_item_id_input:
-		ctrl._mail_item_id_input.text = ""
+		ctrl._mail_item_id_input.select_key("")
+		ctrl._mail_item_id_input.sync_quantity(ctrl._mail_item_qty_spin)
 	if ctrl._mail_item_qty_spin:
 		ctrl._mail_item_qty_spin.value = 1
+	UIRequest.set_status(_feedback, "邮件已发送")
+	_feedback_state = _compose_state()
+
+
+func _clear_feedback_on_edit() -> void:
+	# Ignore notifications that do not change the form associated with this result.
+	if not _sending and _compose_state() != _feedback_state: _feedback.text = ""
+
+
+func _compose_state() -> Array:
+	return [ctrl._mail_to_input.text, ctrl._mail_subject_input.text, ctrl._mail_body_input.text, ctrl._mail_gold_spin.value, ctrl._mail_item_id_input.selected_key, ctrl._mail_item_qty_spin.value]
 
 
 
@@ -326,3 +346,18 @@ func _apply_mail_result_locally(result: Dictionary) -> void:
 					ctrl.append_system(msg)
 
 
+
+
+func _refresh_attachment_choices() -> void:
+	if ctrl._mail_item_id_input == null or _sending: return
+	ctrl._mail_item_id_input.fill_inventory(ctrl._server_inventory)
+	ctrl._mail_item_id_input.sync_quantity(ctrl._mail_item_qty_spin)
+	ctrl._mail_gold_spin.max_value = maxi(0, ctrl._server_gold)
+
+
+func _select_page(index: int) -> void:
+	_page = index
+	GameWindow.highlight_tabs(_tabs, index)
+	_inbox.visible = index == 0
+	_compose.visible = index == 1
+	if index == 1: _refresh_attachment_choices()

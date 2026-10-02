@@ -57,7 +57,7 @@ func run() -> void:
 	probe.stop()
 	check(editor.start_mcp(port).ok, "start recovery HTTP fixture")
 	var listed := await rpc("tools/list")
-	check(listed.result.tools.size() == 67, "discovery includes draft, autosave and close tools")
+	check(listed.result.tools.size() == 109, "discovery includes draft, autosave and close tools")
 	var status := await call_tool("editor_state")
 	check(status.autosave.enabled and status.autosave.interval_seconds == 60 and not auto_accept_quit, "autosave defaults and native close guard are enabled")
 	await call_tool("configure_autosave", {"enabled": true, "interval_seconds": 15})

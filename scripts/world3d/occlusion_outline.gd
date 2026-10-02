@@ -11,6 +11,7 @@ var enabled := true
 var occluded := false
 var tagged: Array[GeometryInstance3D] = []
 var scan_time := 0.0
+var visual_exclusions:Array[RID]=[]
 
 func bind(body: CharacterBody3D, view: Camera3D) -> void:
 	player = body; source = view; layer = 5
@@ -71,7 +72,8 @@ func _blocked() -> bool:
 	for height in [-.65, 0, .65]:
 		var destination := player.global_position + Vector3(0, height, 0)
 		var ray := PhysicsRayQueryParameters3D.create(source.global_position, destination)
-		ray.exclude = [player.get_rid()]
+		ray.exclude = visual_exclusions.duplicate()
+		ray.exclude.append(player.get_rid())
 		if not player.get_world_3d().direct_space_state.intersect_ray(ray).is_empty(): return true
 	return false
 

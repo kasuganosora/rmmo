@@ -12,11 +12,12 @@ static func resolve(meta: Dictionary) -> Dictionary:
 	if valid(meta): value.merge(meta.get("editor_view",{}),true)
 	return value
 static func elevation(record: Dictionary) -> float:
+	if record.has("terrain_mesh"): return float(record.position[1])
 	if record.has("building"): return float(record.building.floor_y)
 	if record.has("tile3d"): return float(record.tile3d.elevation)
 	var bounds := Geometry.bounds([record])
 	# Thin walkable slabs belong to the floor they support, not the storey below.
-	if record.get("surface_id") == "ground" and bounds.size.y <= .5: return bounds.end.y
+	if (record.get("surface_id") == "ground" or record.has("road_mesh")) and bounds.size.y <= .5: return bounds.end.y
 	return bounds.position.y
 static func contains(record: Dictionary, settings: Dictionary) -> bool:
 	if not settings.isolation: return true

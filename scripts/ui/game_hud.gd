@@ -15,6 +15,7 @@ const HotbarSlot = preload("res://scripts/ui/hotbar_slot.gd")
 const SkillSlot = preload("res://scripts/ui/skill_slot.gd")
 const RecipeCatalog = preload("res://scripts/net/combat/recipe_catalog.gd")
 const CharsetSheet = preload("res://scripts/char/charset_sheet.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const PaperdollLook = preload("res://scripts/char/paperdoll_look.gd")
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
@@ -40,7 +41,7 @@ var _target_mp: ProgressBar = null
 @onready var minimap_label: Label = %MinimapLabel
 @onready var chat_log: RichTextLabel = %ChatLog
 @onready var chat_input: LineEdit = %ChatInput
-@onready var hotbar: HBoxContainer = %Hotbar
+@onready var hotbar: VBoxContainer = %Hotbar
 @onready var menu_row: HBoxContainer = %MenuRow
 @onready var chat_tabs: HBoxContainer = %ChatTabs
 @onready var hotbar_page_label: Label = %HotbarPageLabel
@@ -173,7 +174,7 @@ var _mail_to_input: LineEdit = null
 var _mail_subject_input: LineEdit = null
 var _mail_body_input: TextEdit = null
 var _mail_gold_spin: SpinBox = null
-var _mail_item_id_input: LineEdit = null
+var _mail_item_id_input: ItemGrid = null
 var _mail_item_qty_spin: SpinBox = null
 var _craft_panel: PanelContainer = null
 var _craft_body: VBoxContainer = null
@@ -217,7 +218,7 @@ var _guild_pending_invite: Dictionary = {}
 var _auction_panel: PanelContainer = null
 var _auction_body: VBoxContainer = null
 var _auction_state: Dictionary = {"listings": [], "count": 0, "max_listings": 50}
-var _auction_item_id_input: LineEdit = null
+var _auction_item_id_input: ItemGrid = null
 var _auction_qty_spin: SpinBox = null
 var _auction_price_spin: SpinBox = null
 var _base_char_name: String = ""
@@ -438,12 +439,6 @@ const MENU_ITEMS := [
 	["系统", "system", "icon_system.png"],
 ]
 
-## Page 0 = F1–F12; page 1 = ` 1–0 - = (top number row). Max 2 pages.
-const HOTBAR_PAGES := [
-	["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"],
-	["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "+"],
-]
-
 const CHAT_CHANNELS := [
 	["全部", "all"],
 	["附近", "nearby"],
@@ -456,6 +451,8 @@ const CHAT_CHANNELS := [
 ]
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	theme = L2Style.hud_theme()
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ensure_ground_drop_zone()
 	_ensure_ground_tip()
@@ -475,9 +472,9 @@ func _ready() -> void:
 	if next:
 		next.pressed.connect(hotbar_next)
 	_layout_hotbar_side_nav(prev, next)
-	_hotbar_page = clampi(_hotbar_page, 0, HOTBAR_PAGES.size() - 1)
 	_restore_hotbar_from_session()
 	_build_hotbar()
+	get_viewport().size_changed.connect(_on_hotbar_viewport_resized)
 	_build_menu()
 	_build_windows()
 	_connect_game_settings()
@@ -535,7 +532,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_finish_keybind(k.keycode)
 		get_viewport().set_input_as_handled()
 		return
-	if _try_hotbar_key(k.keycode):
+	if _try_hotbar_key(k):
 		get_viewport().set_input_as_handled()
 		return
 	var gs := GameSettingsScript.get_i()
@@ -1052,8 +1049,8 @@ func _text_input_focused() -> bool:
 
 func _hotbar_keycode_to_slot(keycode: int) -> Vector2i:
 	return _skills_panel_logic._hotbar_keycode_to_slot(keycode)
-func _try_hotbar_key(keycode: int) -> bool:
-	return _skills_panel_logic._try_hotbar_key(keycode)
+func _try_hotbar_key(event: InputEventKey) -> bool:
+	return _skills_panel_logic._try_hotbar_key(event)
 func _build_hotbar() -> void:
 	_skills_panel_logic._build_hotbar()
 func _refresh_hotbar_slot_visuals() -> void:
@@ -1131,8 +1128,6 @@ func show_shop(shop_id: String, title: String, listings: Array, gold: int = 0, v
 	_shop_panel_logic.show_shop(shop_id, title, listings, gold, vendor_rep)
 func apply_shop_buyback(rows: Variant) -> void:
 	_shop_panel_logic.apply_shop_buyback(rows)
-func _add_buyback_row(parent: Node, index: int, label: String, price: int) -> void:
-	_shop_panel_logic._add_buyback_row(parent, index, label, price)
 func hide_shop() -> void:
 	_shop_panel_logic.hide_shop()
 func show_loot(session_id: String, npc_id: String, items: Array) -> void:
@@ -1182,10 +1177,6 @@ func _clear_container(node: Node) -> void:
 		c.free()
 
 
-func _add_shop_catalog_row(parent: VBoxContainer, label_text: String, price: int, is_buy: bool, item_id: String, display_name: String, unit_price: int) -> void:
-	_shop_panel_logic._add_shop_catalog_row(parent, label_text, price, is_buy, item_id, display_name, unit_price)
-func _fill_cart_list(parent: VBoxContainer, cart: Array, is_buy: bool) -> void:
-	_shop_panel_logic._fill_cart_list(parent, cart, is_buy)
 func _on_shop_catalog_add(is_buy: bool, item_id: String, display_name: String, unit_price: int) -> void:
 	_shop_panel_logic._on_shop_catalog_add(is_buy, item_id, display_name, unit_price)
 func _on_shop_cart_adjust(is_buy: bool, item_id: String, delta: int) -> void:
@@ -1302,7 +1293,7 @@ func _build_menu() -> void:
 	_menu_btn.tooltip_text = "菜单"
 	_menu_btn.focus_mode = Control.FOCUS_NONE
 	_menu_btn.pressed.connect(_toggle_menu_popup)
-	L2Style.style_icon_button(_menu_btn, "icon_menu.png", 40.0)
+	L2Style.style_icon_button(_menu_btn, "icon_menu.png", 30.0)
 	if _menu_btn.icon == null:
 		_menu_btn.text = "菜单"
 	menu_row.add_child(_menu_btn)
@@ -1333,11 +1324,19 @@ func _ensure_menu_popup() -> void:
 		var btn := Button.new()
 		btn.text = str(item[0])
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(108, 32)
+		btn.custom_minimum_size = Vector2(108, 26)
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.expand_icon = true
-		btn.add_theme_constant_override("icon_max_width", 22)
-		var ic := L2Style.tex(str(item[2]))
+		btn.add_theme_constant_override("icon_max_width", 18)
+		btn.add_theme_constant_override("h_separation", 10)
+		btn.add_theme_stylebox_override("normal", L2Style._flat(Color.TRANSPARENT, Color.TRANSPARENT, 0, 5))
+		var hover_style := L2Style.row_box(true)
+		hover_style.set_content_margin_all(5)
+		var press_style := L2Style.button_box("pressed")
+		press_style.set_content_margin_all(5)
+		btn.add_theme_stylebox_override("hover", hover_style)
+		btn.add_theme_stylebox_override("pressed", press_style)
+		var ic := preload("res://scripts/ui/l2_chrome.gd").glyph(str(item[1]), L2Style.COL_TITLE)
 		if ic != null:
 			btn.icon = ic
 		var wid := str(item[1])
@@ -1425,6 +1424,9 @@ func _on_game_settings_changed() -> void:
 	var gs := GameSettingsScript.get_i()
 	if gs != null and gs.has_method("apply_hud_scale"):
 		gs.apply_hud_scale(self)
+		_skills_panel_logic._sync_hotbar_preferences()
+		_fit_hotbar_panel.call_deferred()
+		_window_manager_logic.clamp_visible_windows.call_deferred()
 	_apply_radar_view_radius_from_settings()
 	_refresh_quest_tracker()
 
@@ -1440,7 +1442,7 @@ func _place_death_dialog() -> void:
 func _build_inspect_panel() -> void:
 	if _inspect_panel != null and is_instance_valid(_inspect_panel):
 		return
-	_inspect_panel = _make_window("查看", Vector2(360, 320), "top_center", Vector2(0, 80))
+	_inspect_panel = _make_window("查看", Vector2(400, 366), "top_center", Vector2(0, 80))
 	_apply_l2_chrome(_inspect_panel)
 	_inspect_panel.visible = false
 	_inspect_panel.name = "InspectPanel"
@@ -1579,8 +1581,7 @@ func _show_invite_dialog(invite_id: String, from_name: String) -> void:
 	)
 	row.add_child(dec)
 	add_child(_invite_panel)
-	_invite_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_invite_panel.position = Vector2(-130, -60)
+	preload("res://scripts/ui/game_window.gd").place_dialog.call_deferred(_invite_panel)
 	_invite_panel.move_to_front()
 
 
@@ -1752,61 +1753,77 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stats_wrap.add_child(stats)
 	_add_label(stats, "%s  ·  %s  ·  Lv.%d" % [str(ch.get("name", "?")), str(st.get("class_label", "")), show_lv], 13, L2Style.COL_TITLE)
+	var attributes := VBoxContainer.new()
+	attributes.add_theme_constant_override("separation", 8)
+	var overview := VBoxContainer.new()
+	overview.add_theme_constant_override("separation", 6)
+	var stat_tabs := preload("res://scripts/ui/game_window.gd").add_tabs(stats, ["概况", "属性"], func(index):
+		_windows["character"].set_meta("character_tab", index)
+		overview.visible = index == 0
+		attributes.visible = index == 1
+		preload("res://scripts/ui/game_window.gd").highlight_tabs(stats.get_child(1), index)
+	)
+	var character_tab := int(_windows["character"].get_meta("character_tab", 0))
+	preload("res://scripts/ui/game_window.gd").highlight_tabs(stat_tabs, character_tab)
+	stats.add_child(overview)
+	stats.add_child(attributes)
+	overview.visible = character_tab == 0
+	attributes.visible = character_tab == 1
 	var exp_cur: int = int(_server_combat.get("exp", st.get("exp", 0)))
 	var exp_next: int = int(_server_combat.get("exp_to_next", 0))
 	if exp_next > 0:
-		_add_label(stats, "EXP  %d / %d" % [exp_cur, exp_next], 12, L2Style.COL_TEXT)
+		_add_label(overview, "EXP  %d / %d" % [exp_cur, exp_next], 12, L2Style.COL_TEXT)
 	else:
-		_add_label(stats, "EXP  %d" % exp_cur, 12, L2Style.COL_TEXT)
-	_add_label(stats, "SP  %d" % int(st.get("sp", 0)), 12, L2Style.COL_TEXT)
+		_add_label(overview, "EXP  %d" % exp_cur, 12, L2Style.COL_TEXT)
+	_add_label(overview, "SP  %d" % int(st.get("sp", 0)), 12, L2Style.COL_TEXT)
 	var adena_v: int = maxi(_server_gold, 0) if _server_gold >= 0 else int(st.get("adena", 0))
-	_add_label(stats, "Adena  %d" % adena_v, 12, L2Style.COL_GOLD)
+	_add_label(overview, "金币  %d" % adena_v, 12, L2Style.COL_GOLD)
 	var _guild_chip := str(_guild_state.get("name", "")).strip_edges()
 	if _guild_chip.is_empty():
 		_guild_chip = str(st.get("clan", "无"))
-	_add_label(stats, "血盟  %s" % _guild_chip, 12, L2Style.COL_TEXT)
-	_add_label(stats, "— 属性 —", 11, L2Style.COL_MUTED)
+	_add_label(overview, "血盟  %s" % _guild_chip, 12, L2Style.COL_TEXT)
+	_add_label(attributes, "— 属性 —", 11, L2Style.COL_MUTED)
 	var attrs_v: Variant = _server_combat.get("attrs", {})
 	var attrs: Dictionary = attrs_v if typeof(attrs_v) == TYPE_DICTIONARY else {}
 	var unspent_ap: int = maxi(int(_server_combat.get("attr_points", 0)), 0)
-	_add_label(stats, "属性点：%d" % unspent_ap, 12, L2Style.COL_GOLD if unspent_ap > 0 else L2Style.COL_TEXT)
-	_add_attr_row(stats, "力量", "str", int(attrs.get("str", 0)), unspent_ap)
-	_add_attr_row(stats, "敏捷", "agi", int(attrs.get("agi", 0)), unspent_ap)
-	_add_attr_row(stats, "体质", "vit", int(attrs.get("vit", 0)), unspent_ap)
-	_add_attr_row(stats, "智力", "intel", int(attrs.get("intel", 0)), unspent_ap)
+	_add_label(attributes, "属性点：%d" % unspent_ap, 12, L2Style.COL_GOLD if unspent_ap > 0 else L2Style.COL_TEXT)
+	_add_attr_row(attributes, "力量", "str", int(attrs.get("str", 0)), unspent_ap)
+	_add_attr_row(attributes, "敏捷", "agi", int(attrs.get("agi", 0)), unspent_ap)
+	_add_attr_row(attributes, "体质", "vit", int(attrs.get("vit", 0)), unspent_ap)
+	_add_attr_row(attributes, "智力", "intel", int(attrs.get("intel", 0)), unspent_ap)
 	var respec_btn := Button.new()
 	respec_btn.text = "重置属性（30金）"
 	respec_btn.focus_mode = Control.FOCUS_NONE
 	respec_btn.disabled = (int(attrs.get("str", 0)) + int(attrs.get("agi", 0)) + int(attrs.get("vit", 0)) + int(attrs.get("intel", 0))) <= 0
 	respec_btn.pressed.connect(_on_attr_respec_pressed)
-	stats.add_child(respec_btn)
-	_add_label(stats, "— 战斗 —", 11, L2Style.COL_MUTED)
+	attributes.add_child(respec_btn)
+	_add_label(overview, "— 战斗 —", 11, L2Style.COL_MUTED)
 	var base_patk := int(_server_combat.get("atk", st.get("p_atk", 0)))
 	var base_pdef := int(_server_combat.get("def", st.get("p_def", 0)))
 	var p_atk := base_patk + int(bon.get("p_atk", 0))
 	var m_atk := int(st.get("m_atk", 0)) + int(bon.get("m_atk", 0))
 	var p_def := base_pdef + int(bon.get("p_def", 0))
 	var m_def := int(st.get("m_def", 0)) + int(bon.get("m_def", 0))
-	_add_stat_line(stats, "P.Atk", p_atk, "M.Atk", m_atk)
-	_add_stat_line(stats, "P.Def", p_def, "M.Def", m_def)
-	_add_label(stats, "CP / HP / MP", 11, L2Style.COL_MUTED)
-	_add_label(stats, "%d  /  %d  /  %d" % [int(_cp_max), int(_hp_max), int(_mp_max)], 12, L2Style.COL_VALUE)
+	_add_stat_line(overview, "物攻", p_atk, "魔攻", m_atk)
+	_add_stat_line(overview, "物防", p_def, "魔防", m_def)
+	_add_label(overview, "CP / HP / MP", 11, L2Style.COL_MUTED)
+	_add_label(overview, "%d  /  %d  /  %d" % [int(_cp_max), int(_hp_max), int(_mp_max)], 12, L2Style.COL_VALUE)
 	if not bon.is_empty():
-		_add_label(stats, "— 装备加成 —", 11, L2Style.COL_MUTED)
+		_add_label(overview, "— 装备加成 —", 11, L2Style.COL_MUTED)
 		var parts: Array[String] = []
 		for k in bon.keys():
 			var v: int = int(bon[k])
 			if v != 0:
 				parts.append("%s%+d" % [str(k), v])
 		if parts.is_empty():
-			_add_label(stats, "无", 12, L2Style.COL_MUTED)
+			_add_label(overview, "无", 12, L2Style.COL_MUTED)
 		else:
 			var line := ""
 			for i in range(parts.size()):
 				if i > 0:
 					line += "   "
 				line += parts[i]
-			_add_label(stats, line, 12, L2Style.COL_GOLD)
+			_add_label(overview, line, 12, L2Style.COL_GOLD)
 	var panel: PanelContainer = _windows.get("character") as PanelContainer
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		call_deferred("_lock_window_size", panel)
@@ -1857,6 +1874,10 @@ func _on_attr_plus_pressed(stat_key: String) -> void:
 
 
 func _on_attr_respec_pressed() -> void:
+	preload("res://scripts/ui/game_window.gd").confirm_action(_windows["character"], "花费 30 金币重置已分配属性并返还属性点？", "确认重置属性", _confirm_attr_respec)
+
+
+func _confirm_attr_respec() -> void:
 	var srv = Net.server()
 	if srv == null or not srv.has_method("try_attr_respec"):
 		append_system("无法重置属性。")
@@ -2200,9 +2221,8 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 		body.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
 	_map_info_label = _add_label(mount, "", 13, Color(0.92, 0.88, 0.65))
-	_add_label(mount, "角色：%s" % str(ch.get("name", "?")), 12)
-	_add_label(mount, "左键寻路 · 滚轮缩放 · 拖动平移 · 双击回到角色" if is_instance_valid(_world_map_source) else "Shift+左键 / 右键：设/清个人标记（最多3）", 11, Color(0.7, 0.72, 0.68))
-	if is_instance_valid(_world_map_source):_add_label(mount,"Shift+左键 / 右键：设/清个人标记（最多3）",11,Color(0.7,0.72,0.68))
+	var map_help := _add_label(mount, "左键寻路 · 拖动平移 · 滚轮缩放" if is_instance_valid(_world_map_source) else "Shift+左键标记 · 右键清除", 11, L2Style.COL_MUTED)
+	map_help.tooltip_text = "Shift+左键设置标记，右键清除标记（最多 3 个）；双击回到角色。"
 	var pin_row := HBoxContainer.new()
 	pin_row.add_theme_constant_override("separation", 8)
 	mount.add_child(pin_row)
@@ -2212,6 +2232,15 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 	clear_pins.custom_minimum_size = Vector2(100, 26)
 	clear_pins.pressed.connect(_on_clear_map_pins)
 	pin_row.add_child(clear_pins)
+	if is_instance_valid(_world_map_source):
+		var center_map := Button.new()
+		center_map.text = "回到角色"
+		center_map.pressed.connect(func():
+			if is_instance_valid(_map_overview) and is_instance_valid(_world_map_source):
+				_map_overview.center = Vector2(_world_map_source._player.position.x, _world_map_source._player.position.z)
+				_map_overview.queue_redraw()
+		)
+		pin_row.add_child(center_map)
 
 	var host := Control.new()
 	host.name = "MapHost"
@@ -3144,3 +3173,59 @@ func _on_auction_cancel(listing_id: String) -> void:
 	_auction_panel_logic._on_auction_cancel(listing_id)
 func _apply_auction_result_locally(result: Dictionary) -> void:
 	_auction_panel_logic._apply_auction_result_locally(result)
+
+
+func _fit_hotbar_panel() -> void:
+	var panel: Control = get_node("%HotbarPanel")
+	var old_bottom := panel.position.y + panel.size.y
+	panel.size = panel.get_combined_minimum_size()
+	panel.position.y = maxf(4.0, old_bottom - panel.size.y)
+	if not panel.has_meta("hotbar_position_restored"):
+		panel.set_meta("hotbar_position_restored", true)
+		var gs := GameSettingsScript.get_i()
+		var layout: Dictionary = gs.window_layout("hotbar") if gs != null else {}
+		panel.set_meta("hotbar_auto_position", layout.is_empty())
+		if not layout.is_empty():
+			panel.global_position = Vector2(float(layout.get("x", panel.position.x)), float(layout.get("y", panel.position.y)))
+		panel.layout_changed.connect(_save_hotbar_position)
+	if bool(panel.get_meta("hotbar_auto_position", false)):
+		_place_hotbar_clear_of_chat()
+	panel._clamp_on_screen()
+
+
+func _place_hotbar_clear_of_chat() -> void:
+	var panel: Control = get_node("%HotbarPanel")
+	var chat: Control = get_node("%ChatPanel")
+	if not chat.layout_changed.is_connected(_on_chat_layout_changed):
+		chat.layout_changed.connect(_on_chat_layout_changed)
+	if not bool(chat.get_meta("custom_hud_position", false)):
+		chat._apply_dock()
+	panel._apply_dock()
+	if not chat.is_visible_in_tree():
+		return
+	var gap := 12.0
+	var chat_rect := chat.get_global_rect().grow(gap)
+	var bar_rect := panel.get_global_rect()
+	if not bar_rect.intersects(chat_rect):
+		return
+	var viewport_size := get_viewport_rect().size
+	if chat_rect.end.x + bar_rect.size.x <= viewport_size.x - 4.0:
+		panel.global_position.x = chat_rect.end.x
+	else:
+		panel.global_position.y = maxf(4.0, chat_rect.position.y - bar_rect.size.y)
+
+
+func _on_chat_layout_changed() -> void:
+	get_node("%ChatPanel").set_meta("custom_hud_position", true)
+	_fit_hotbar_panel.call_deferred()
+
+
+func _save_hotbar_position() -> void:
+	get_node("%HotbarPanel").set_meta("hotbar_auto_position", false)
+	var gs := GameSettingsScript.get_i()
+	if gs != null:
+		gs.save_window_layout("hotbar", get_node("%HotbarPanel").global_position, true)
+
+
+func _on_hotbar_viewport_resized() -> void:
+	_fit_hotbar_panel.call_deferred()

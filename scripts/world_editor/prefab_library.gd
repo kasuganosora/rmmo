@@ -10,13 +10,18 @@ static func capture(records: Array, library, label: String) -> Dictionary:
 	if records.is_empty() or label.strip_edges().is_empty(): return {"ok": false, "error": "请选择物件并填写预制件名称"}
 	for record in records:
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return {"ok": false, "error": "预制件事件模板无效"}
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return {"ok":false,"error":"预制件受风配置无效"}
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return {"ok": false, "error": "预制件表面材质无效"}
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return {"ok":false,"error":"预制件地形损坏"}
 		if not SurfacePaint.valid(record): return {"ok": false, "error": "预制件表面材质无效"}
 	if not SurfacePaint.missing(records).is_empty(): return {"ok": false, "error": "预制件引用的表面贴图缺失"}
 	var bounds := Geometry.bounds(records)
 	var pivot := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
 	var copies: Array = records.duplicate(true)
 	for record in copies:
+		preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(record)
 		record.erase("building") # Snapshot prefabs retain meshes, not a live building recipe.
+		record.erase("road_source")
 		var position := Geometry.vector(record, "position") - pivot
 		record.position = [position.x, position.y, position.z]
 		for key in ["editor_group", "editor_group_name", "editor_hidden", "editor_locked"]: record.erase(key)
@@ -29,15 +34,16 @@ static func capture(records: Array, library, label: String) -> Dictionary:
 			if not MapPaths.allowed(destination): return {"ok": false, "error": "预制件拼接套件目录无效"}
 			if DirAccess.make_dir_recursive_absolute(destination.get_base_dir()) != OK or Rules.Kits.write_immutable(destination, FileAccess.get_file_as_bytes(source)) != OK: return {"ok": false, "error": "预制件拼接模型打包失败"}
 			kit.pieces[key] = "tile_models/" + destination.get_file()
-		for paint in record.get("surface_paint", []):
-			var source := str(paint.material.get("texture_path", ""))
-			if source.is_empty(): continue
-			var destination: String = library.directory.path_join("material_textures").path_join(FileAccess.get_sha256(source) + "." + source.get_extension().to_lower())
-			if not MapPaths.allowed(destination) or not MapPaths.allowed(destination + ".previous"): return {"ok": false, "error": "预制件贴图目录无效"}
-			var error := DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
-			if error == OK and not FileAccess.file_exists(destination): error = preload("res://scripts/world_editor/surface_material_library.gd")._write(destination, FileAccess.get_file_as_bytes(source))
-			if error != OK: return {"ok": false, "error": "预制件贴图打包失败"}
-			paint.material.texture_path = destination.trim_prefix(library.directory.trim_suffix("/") + "/")
+		for definition in SurfacePaint.definitions(record):
+			for field in SurfacePaint.MAP_FIELDS:
+				var source := str(definition.get(field, ""))
+				if source.is_empty(): continue
+				var destination: String = library.directory.path_join("material_textures").path_join(FileAccess.get_sha256(source) + "." + source.get_extension().to_lower())
+				if not MapPaths.allowed(destination) or not MapPaths.allowed(destination + ".previous"): return {"ok": false, "error": "预制件贴图目录无效"}
+				var error := DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
+				if error == OK and not FileAccess.file_exists(destination): error = preload("res://scripts/world_editor/surface_material_library.gd")._write(destination, FileAccess.get_file_as_bytes(source))
+				if error != OK: return {"ok": false, "error": "预制件贴图打包失败"}
+				definition[field] = destination.trim_prefix(library.directory.trim_suffix("/") + "/")
 		if record.get("kind") == "asset":
 			var original_path := str(record.get("asset_path", ""))
 			var imported: Dictionary = library.import_file(original_path)
@@ -96,6 +102,9 @@ static func read(entry: Dictionary) -> Dictionary:
 		if not record is Dictionary or not Rules.valid(record, true): return {"ok": false, "error": "预制件物件损坏"}
 		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return {"ok":false,"error":"预制件建筑构件损坏"}
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return {"ok": false, "error": "预制件事件模板损坏"}
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return {"ok":false,"error":"预制件受风配置损坏"}
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return {"ok": false, "error": "预制件表面材质损坏"}
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return {"ok":false,"error":"预制件地形损坏"}
 		if not SurfacePaint.valid(record, true): return {"ok": false, "error": "预制件表面材质损坏"}
 		var id := str(record.get("uuid", ""))
 		if id.is_empty() or ids.has(id) or not record.get("kind") in ["box", "asset", "npc", "gather", "warp", "seat", "event"]:
@@ -107,12 +116,13 @@ static func read(entry: Dictionary) -> Dictionary:
 			if not source.is_absolute_path(): source = path.get_base_dir().get_base_dir().path_join(source).simplify_path()
 			if not Rules.Kits.check_model(source).is_empty(): return {"ok": false, "error": "预制件拼接模型缺失或路径无效"}
 			kit.pieces[key] = source
-		for paint in record.get("surface_paint", []):
-			var texture := str(paint.material.get("texture_path", ""))
-			if texture.is_empty(): continue
-			if not texture.is_absolute_path(): texture = path.get_base_dir().get_base_dir().path_join(texture).simplify_path()
-			if not MapPaths.allowed(texture) or not FileAccess.file_exists(texture): return {"ok": false, "error": "预制件表面贴图缺失或路径无效"}
-			paint.material.texture_path = texture
+		for definition in SurfacePaint.definitions(record):
+			for field in SurfacePaint.MAP_FIELDS:
+				var texture := str(definition.get(field, ""))
+				if texture.is_empty(): continue
+				if not texture.is_absolute_path(): texture = path.get_base_dir().get_base_dir().path_join(texture).simplify_path()
+				if not MapPaths.allowed(texture) or not FileAccess.file_exists(texture): return {"ok": false, "error": "预制件表面贴图缺失或路径无效"}
+				definition[field] = texture
 		for field in ["position", "rotation", "size"]:
 			var values: Variant = record.get(field)
 			if not values is Array or values.size() != 3: return {"ok": false, "error": "预制件变换数据损坏"}

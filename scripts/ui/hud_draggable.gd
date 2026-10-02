@@ -41,6 +41,7 @@ func _is_scripted_slot(c: Control) -> bool:
 	var path := str(scr.resource_path)
 	return (
 		path.ends_with("inv_slot.gd")
+		or path.ends_with("item_grid_cell.gd")
 		or path.ends_with("equip_slot.gd")
 		or path.ends_with("skill_slot.gd")
 		or path.ends_with("hotbar_slot.gd")
@@ -87,7 +88,7 @@ func _apply_dock() -> void:
 		return
 	var vp := get_viewport_rect().size
 	var m := screen_margin
-	var s := size
+	var s := size * get_global_transform().get_scale()
 	match initial_dock:
 		"top_left":
 			global_position = _snap_px(Vector2(m, m))
@@ -131,10 +132,10 @@ func _cursor_for_edge(edge: int) -> Control.CursorShape:
 		_:
 			return Control.CURSOR_ARROW
 
-func _canvas_mouse() -> Vector2:
-	## CanvasItem space (project viewport), not window pixels — event.global_position
-	## mismatches under canvas_items stretch and makes the panel jitter.
-	return get_global_mouse_position()
+func _event_canvas_mouse(event: InputEventMouse) -> Vector2:
+	## _input positions are viewport-local. Convert explicitly instead of polling
+	## the OS cursor, which can be stale (or invalid on an inactive desktop).
+	return get_canvas_transform().affine_inverse() * event.position
 
 
 func _snap_px(v: Vector2) -> Vector2:
@@ -201,13 +202,14 @@ func _gui_input(event: InputEvent) -> void:
 				_resizing = true
 				_resize_edge = edge
 				_start_rect = Rect2(global_position, size)
-				_grab = _canvas_mouse()
+				_grab = get_global_transform() * mb.position
 				_begin_pointer_capture()
 				accept_event()
 				return
 			if drag_anywhere or mb.position.y <= drag_strip_height:
 				_dragging = true
-				_grab = _canvas_mouse() - global_position
+				# _gui_input has already transformed the event into this control's space.
+				_grab = get_global_transform() * mb.position - global_position
 				_begin_pointer_capture()
 				accept_event()
 		else:
@@ -221,10 +223,10 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		if _dragging:
-			global_position = _snap_px(_canvas_mouse() - _grab)
+			global_position = _snap_px(_event_canvas_mouse(event) - _grab)
 			_clamp_on_screen()
 		elif _resizing and resizable:
-			_apply_resize(_canvas_mouse())
+			_apply_resize(_event_canvas_mouse(event))
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_end_pointer_capture()
@@ -261,7 +263,7 @@ func _apply_resize(canvas_mouse: Vector2) -> void:
 
 func _clamp_on_screen() -> void:
 	var vp := get_viewport_rect().size
-	var s := size
+	var s := size * get_global_transform().get_scale()
 	global_position = _snap_px(Vector2(
 		clampf(global_position.x, screen_margin, maxf(screen_margin, vp.x - s.x - screen_margin)),
 		clampf(global_position.y, screen_margin, maxf(screen_margin, vp.y - s.y - screen_margin))
@@ -270,7 +272,7 @@ func _clamp_on_screen() -> void:
 func _snap_to_edges() -> void:
 	var vp := get_viewport_rect().size
 	var p := global_position
-	var s := size
+	var s := size * get_global_transform().get_scale()
 	var m := screen_margin
 	var d := snap_distance
 	if p.x - m <= d:

@@ -206,9 +206,9 @@ func respawn() -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.29
-	capsule.height = 1.78
+	capsule.height = float(world._player.get_meta("standing_height",1.8))-.02
 	query.shape = capsule
-	query.transform = Transform3D(Basis.IDENTITY, respawn_point + Vector3(0, 0.01, 0))
+	query.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0, capsule.height/2+.02, 0))
 	query.exclude = [world._player.get_rid()]
 	if not world.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
 		world._status.text = "出生点被占用，请稍后重试。"
@@ -450,9 +450,9 @@ func _landing_clear(body: CharacterBody3D, point: Vector3) -> bool:
 	var query := PhysicsShapeQueryParameters3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.29
-	shape.height = 1.78
+	shape.height = float(body.get_meta("standing_height",1.8))-.02
 	query.shape = shape
-	query.transform = Transform3D(Basis.IDENTITY, point + Vector3(0, 0.91, 0))
+	query.transform = Transform3D(Basis.IDENTITY, point + Vector3(0, shape.height/2+.02, 0))
 	query.exclude = [body.get_rid()]
 	return world._navigation.near_surface(point, 0.35, 0.4) and world.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 

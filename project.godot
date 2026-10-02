@@ -46,6 +46,7 @@ environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 content_root="/workspace/rmmo_runtime"
 charset_root="/workspace/rmmo_runtime/assets/charset"
 default_pack="default"
+entry_map="medieval_material_house"
 ui_pack="default"
 characters_3d=true
 startup_profile="world3d"

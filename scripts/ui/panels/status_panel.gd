@@ -23,9 +23,9 @@ func _compact_status_panel() -> void:
 		if lab != null:
 			lab.visible = false
 	# Color the fill via StyleBox (not modulate) so overlay Labels stay white.
-	_style_status_bar(ctrl.cp_bar, Color(0.92, 0.78, 0.22, 1.0))
-	_style_status_bar(ctrl.hp_bar, Color(0.82, 0.22, 0.22, 1.0))
-	_style_status_bar(ctrl.mp_bar, Color(0.28, 0.42, 0.9, 1.0))
+	_style_status_bar(ctrl.cp_bar, Color("bca35c"))
+	_style_status_bar(ctrl.hp_bar, Color("a3413b"))
+	_style_status_bar(ctrl.mp_bar, Color("436d9e"))
 	_ensure_status_overlays()
 	_ensure_xp_bar()
 	_ensure_status_chip_row()
@@ -39,16 +39,8 @@ func _style_status_bar(bar: ProgressBar, fill: Color) -> void:
 		return
 	bar.custom_minimum_size = Vector2(0, 12)
 	bar.modulate = Color(1, 1, 1, 1)  # never tint children
-	var bg = StyleBoxFlat.new()
-	bg.bg_color = Color(0.08, 0.08, 0.1, 0.85)
-	bg.set_corner_radius_all(3)
-	bg.content_margin_left = 2
-	bg.content_margin_right = 2
-	bg.content_margin_top = 1
-	bg.content_margin_bottom = 1
-	var fg = StyleBoxFlat.new()
-	fg.bg_color = fill
-	fg.set_corner_radius_all(3)
+	var bg := preload("res://scripts/ui/l2_chrome.gd").box("input", 1, 1)
+	var fg := preload("res://scripts/ui/l2_chrome.gd").bar_fill(fill)
 	bar.add_theme_stylebox_override("background", bg)
 	bar.add_theme_stylebox_override("fill", fg)
 

@@ -49,7 +49,7 @@ static func plan(args: Dictionary) -> Dictionary:
 				p.seed=int(parameters.seed)+placements.size()
 				var building := Blueprint.generate(p)
 				if not building.ok: return building
-				var bounds := Geometry.bounds(building.records)
+				var bounds := Footprint.local_bounds(building.records)
 				if cursor+bounds.size.x>length-settings.road_width/2-settings.setback: break
 				var normal := Vector3(-tangent.z,0,tangent.x)*float(side)
 				var yaw := rad_to_deg(atan2(normal.x,normal.z)); var basis := Basis(Vector3.UP,deg_to_rad(yaw))

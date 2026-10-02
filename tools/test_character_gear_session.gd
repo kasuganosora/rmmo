@@ -23,8 +23,12 @@ func run()->void:
  # The real selection handler must consume the same authoritative snapshot.
  var ui=load("res://scenes/character_select.tscn").instantiate();root.add_child(ui)
  await server.characters_ready
- assert(ui._icon_views[0].model.equipment.SurfaceEquipment==converted.SurfaceEquipment)
- assert(ui._icon_views[1].model.equipment.SurfaceEquipment.is_empty(),"Second character inherited first gear")
+ ui.list.select(0);ui._show_character(0)
+ assert(ui._view.model.equipment.SurfaceEquipment==converted.SurfaceEquipment)
+ var shared_view=ui._view
+ ui.list.select(1);ui._show_character(1)
+ assert(ui._view==shared_view,"Selection should reuse one render view")
+ assert(ui._view.model.equipment.SurfaceEquipment.is_empty(),"Second character inherited first gear")
  ui.free()
  assert(server.try_trade_open("gear switch escrow").ok)
  assert(server.try_trade_put_item("potion_hp_small",1).ok)

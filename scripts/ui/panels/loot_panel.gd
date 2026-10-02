@@ -6,7 +6,8 @@ func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func show_loot(session_id: String, npc_id: String, items: Array) -> void:
@@ -54,7 +55,7 @@ func _ensure_loot_panel() -> void:
 		ctrl._loot_panel.queue_free()
 		ctrl._loot_panel = null
 	var panel = PanelContainer.new()
-	panel.set_script(HudDrag)
+	panel.set_script(GameWindow)
 	panel.name = "LootWindow"
 	panel.screen_margin = 4.0
 	panel.min_size = Vector2(300, 240)
@@ -82,7 +83,7 @@ func _ensure_loot_panel() -> void:
 	vbox.add_child(head)
 	var title_l = Label.new()
 	title_l.name = "LootTitle"
-	title_l.text = "掉落确认"
+	title_l.text = "战利品"
 	title_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title_l)
 	var close_btn = Button.new()
@@ -91,33 +92,32 @@ func _ensure_loot_panel() -> void:
 	head.add_child(close_btn)
 	var hint = Label.new()
 	hint.name = "LootHint"
-	hint.text = "选择拾取或关闭（关闭将丢弃剩余）"
+	hint.text = "拾取战利品；关闭将放弃剩余物品。"
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", L2Style.COL_MUTED)
 	vbox.add_child(hint)
-	var scroll = ScrollContainer.new()
-	scroll.name = "LootScroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 120)
-	vbox.add_child(scroll)
-	var list = VBoxContainer.new()
-	list.name = "LootList"
-	list.add_theme_constant_override("separation", 4)
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(list)
+	var grid = ItemGrid.create(ctrl, vbox, "LootGrid", 150)
+	var selected_take := Button.new()
+	selected_take.name = "TakeSelectedLoot"
+	selected_take.text = "拾取所选"
+	selected_take.disabled = true
+	grid.item_selected.connect(func(item): selected_take.disabled = item.is_empty())
+	selected_take.pressed.connect(func(): _on_loot_take_pressed(str(grid.selected_item().get("item_id", ""))))
 	var bottom = HBoxContainer.new()
 	bottom.alignment = BoxContainer.ALIGNMENT_END
 	bottom.add_theme_constant_override("separation", 8)
 	vbox.add_child(bottom)
+	bottom.add_child(selected_take)
 	var take_all = Button.new()
+	take_all.name = "TakeAllLoot"
 	take_all.text = "全部拾取"
 	take_all.focus_mode = Control.FOCUS_NONE
 	take_all.pressed.connect(_on_loot_take_all_pressed)
 	L2Style.style_action_button(take_all)
 	bottom.add_child(take_all)
 	var close2 = Button.new()
-	close2.text = "关闭"
+	close2.text = "放弃剩余"
 	close2.focus_mode = Control.FOCUS_NONE
 	close2.pressed.connect(_on_loot_close_pressed)
 	L2Style.style_action_button(close2)
@@ -134,88 +134,17 @@ func _place_loot_panel() -> void:
 	var vp = ctrl.get_viewport_rect().size
 	var sz = Vector2(340, 300)
 	ctrl._loot_panel.size = sz
-	ctrl._loot_panel.global_position = Vector2(
-		maxi(8, int((vp.x - sz.x) * 0.5)),
-		maxi(8, int((vp.y - sz.y) * 0.35))
-	)
+	ctrl._window_manager_logic.place_at(ctrl._loot_panel, Vector2(maxf(8, (vp.x - sz.x) * 0.5), maxf(8, (vp.y - sz.y) * 0.35)))
 
 
 
 func _fill_loot_panel() -> void:
 	if ctrl._loot_panel == null or not is_instance_valid(ctrl._loot_panel):
 		return
-	var list = ctrl._loot_panel.find_child("LootList", true, false) as VBoxContainer
-	if list == null:
-		return
-	for c in list.get_children():
-		c.queue_free()
-	if ctrl._loot_items.is_empty():
-		var empty = Label.new()
-		empty.text = "（无掉落）"
-		empty.add_theme_font_size_override("font_size", 12)
-		empty.add_theme_color_override("font_color", L2Style.COL_MUTED)
-		list.add_child(empty)
-		return
-	for it_v in ctrl._loot_items:
-		if typeof(it_v) != TYPE_DICTIONARY:
-			continue
-		var it: Dictionary = it_v
-		var iid = str(it.get("item_id", it.get("id", ""))).strip_edges()
-		var qty: int = int(it.get("qty", 0))
-		if iid.is_empty() or qty <= 0:
-			continue
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		list.add_child(row)
-		var dname = str(it.get("name", "")).strip_edges()
-		if dname.is_empty():
-			dname = ctrl._item_label(iid) if ctrl.has_method("_item_label") else iid
-		var iix = int(it.get("icon_index", ctrl._item_icon_index(iid)))
-		var iref = str(it.get("icon_ref", "")).strip_edges()
-		if iref.is_empty():
-			var ic = str(it.get("icon", "")).strip_edges()
-			if not ic.is_empty():
-				iref = ic if ic.begins_with("content:") else ("content://icon/%s" % ic)
-			else:
-				iref = ctrl._item_icon_ref(iid)
-		var icon_tex: Texture2D = null
-		var am: Node = ctrl.get_node_or_null("/root/AssetManager")
-		if am != null and am.has_method("resolve_slot_icon_texture"):
-			icon_tex = am.resolve_slot_icon_texture(iix, iref)
-		if icon_tex != null:
-			var tr = TextureRect.new()
-			tr.texture = icon_tex
-			tr.custom_minimum_size = Vector2(22, 22)
-			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			row.add_child(tr)
-		else:
-			var letter = Label.new()
-			letter.text = dname.substr(0, 1) if dname.length() > 0 else "?"
-			letter.custom_minimum_size = Vector2(22, 22)
-			letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			letter.add_theme_font_size_override("font_size", 13)
-			letter.add_theme_color_override("font_color", Color(0.95, 0.9, 0.55))
-			row.add_child(letter)
-		var lab = Label.new()
-		lab.text = "%s ×%d" % [dname, qty]
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.add_theme_font_size_override("font_size", 13)
-		lab.add_theme_color_override("font_color", L2Style.COL_TEXT)
-		var loot_tip = ctrl._equip_compare_tip(iid, "%s ×%d" % [ctrl._item_rarity_name_line(iid, dname), qty])
-		lab.tooltip_text = loot_tip
-		row.tooltip_text = loot_tip
-		row.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.add_child(lab)
-		var take_btn = Button.new()
-		take_btn.text = "拾取"
-		take_btn.focus_mode = Control.FOCUS_NONE
-		take_btn.custom_minimum_size = Vector2(56, 26)
-		var captured = iid
-		take_btn.pressed.connect(func(): _on_loot_take_pressed(captured))
-		L2Style.style_compact_button(take_btn)
-		row.add_child(take_btn)
+	var grid = ctrl._loot_panel.find_child("LootGrid", true, false)
+	grid.set_items(ctrl._loot_items)
+	ctrl._loot_panel.find_child("TakeAllLoot", true, false).disabled = ctrl._loot_items.is_empty()
+	ctrl._loot_panel.find_child("TakeSelectedLoot", true, false).disabled = grid.selected_item().is_empty()
 
 
 
@@ -267,12 +196,15 @@ func show_loot_roll(action: Dictionary) -> void:
 	ctrl._loot_roll_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ctrl._loot_roll_label.add_theme_color_override("font_color", L2Style.COL_TEXT)
 	col.add_child(ctrl._loot_roll_label)
+	ItemGrid.display_cell(ctrl, col, action)
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	col.add_child(row)
 	for pair in [["需求", "need"], ["贪婪", "greed"], ["放弃", "pass"]]:
 		var btn = Button.new()
 		btn.text = str(pair[0])
+		btn.custom_minimum_size = Vector2(72, 28)
+		btn.tooltip_text = {"need": "需要这件物品，参与需求掷骰", "greed": "有需要者优先，否则参与贪婪掷骰", "pass": "放弃这件物品"}.get(str(pair[1]), "")
 		btn.focus_mode = Control.FOCUS_NONE
 		var choice = str(pair[1])
 		btn.pressed.connect(func():
@@ -280,8 +212,7 @@ func show_loot_roll(action: Dictionary) -> void:
 		)
 		row.add_child(btn)
 	ctrl.add_child(ctrl._loot_roll_panel)
-	ctrl._loot_roll_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	ctrl._loot_roll_panel.position = Vector2(-140, 72)
+	GameWindow.place_dialog.call_deferred(ctrl._loot_roll_panel, 0.2)
 	ctrl._loot_roll_panel.move_to_front()
 
 

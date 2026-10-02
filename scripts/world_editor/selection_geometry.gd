@@ -12,7 +12,21 @@ static func corners(record: Dictionary) -> Array[Vector3]:
 	if record.get("kind") == "asset":
 		local = AABB(vector(record, "bounds_position") * size, vector(record, "bounds_size") * size)
 	var transform := Transform3D(Basis.from_euler(vector(record, "rotation") * PI / 180.0), vector(record, "position"))
+	if record.has("fixture"): transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
 	var result: Array[Vector3] = []
+	if record.has("terrain_mesh"):
+		var terrain_bounds:=preload("res://scripts/world3d/terrain_surface.gd").bounds(record)
+		for i in 8: result.append(transform*terrain_bounds.get_endpoint(i))
+		return result
+	if record.has("channel_mesh"):
+		for p in preload("res://scripts/world3d/channel_surface.gd").vertices(record): result.append(transform*p)
+		return result
+	if record.has("road_mesh"):
+		for p in preload("res://scripts/world3d/road_surface.gd").vertices(record): result.append(transform*p)
+		return result
+	if record.get("building_shape")=="roof_prism":
+		for p in preload("res://scripts/world3d/roof_mesh.gd").vertices(record): result.append(transform*p)
+		return result
 	for i in 8: result.append(transform * local.get_endpoint(i))
 	return result
 
@@ -49,7 +63,9 @@ static func duplicate_records(doc, originals: Array, offset: Vector3, group_labe
 	var prefab_group := new_group_id() if not group_label.is_empty() else ""
 	for record in originals:
 		var copy: Dictionary = record.duplicate(true)
+		preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(copy)
 		copy.erase("building") # Ordinary copies are independent, not another owner's generated parts.
+		copy.erase("road_source")
 		var id: String = doc._push(str(copy.kind), str(copy.get("surface_id", "model")), Vector3.ZERO, Vector3.ONE)
 		remap[str(copy.uuid)] = id
 		copy.uuid = id

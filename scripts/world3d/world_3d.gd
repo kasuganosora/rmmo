@@ -13,8 +13,18 @@ var _status: Label
 var _travel = null
 var _map_path := ""
 var _map_root: Node
+
+## Program-controlled doors, glazed casements and shutters. Runtime changes persist
+## across chunk residency; authored defaults are changed through editor/MCP tools.
+func list_building_components(building_id: String) -> Array:
+	return preload("res://scripts/world3d/building_fixtures.gd").list_runtime(_map_root,building_id) if is_instance_valid(_map_root) else []
+
+func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
+	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
+	return preload("res://scripts/world3d/building_fixtures.gd").set_runtime(_map_root,building_id,component_id,open,duration)
 var _sun: DirectionalLight3D
 var _env: Environment
+var _weather: Node3D
 var _outline: CanvasLayer
 var _lamps: Array = []
 var _night := false
@@ -73,6 +83,7 @@ func _send_facial_expression(weights:Dictionary)->bool:
 	return bool(result.get("ok",false))
 
 func _on_identity_shapes_changed()->void:
+	call_deferred("_refresh_player_clearance")
 	furniture.cancel()
 	cancel_sit_preparation()
 	if Net.server().sitting:
@@ -256,8 +267,11 @@ func _process(delta: float) -> void:
 	if _player == null or _camera == null:
 		return
 	furniture.tick()
-	_camera.follow(_player.global_position, delta)
+	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
+		_navigation.resize_agent(float(_player.get_meta("standing_height",1.9)),_map_root.get_meta("stream_library",[]),_player.position)
 	_apply_residency(Stream.FRAME_BUDGET)
+	_camera.follow(_player.global_position, delta)
+	if is_instance_valid(_outline):_outline.visual_exclusions=_camera.visual_exclusions()
 	_apply_actor_view()
 	_poll_warp()
 
@@ -290,6 +304,7 @@ func _prepare_navigation() -> void:
 	if is_instance_valid(_navigation):
 		_navigation.free()
 	_navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	_navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(_navigation)
 	_player.navigation = _navigation
 	_navigation.build(_map_root.get_meta("stream_library", []), _player.position)
@@ -399,11 +414,21 @@ func _add_player() -> void:
 	rig.add_child(camera)
 	add_child(rig)
 	_camera = rig
+	_refresh_player_clearance()
 	_camera.exclude_body(_player.get_rid())
 	_player.camera_path = _camera.get_path()
 	_outline = preload("res://scripts/world3d/occlusion_outline.gd").new()
 	add_child(_outline)
 	_outline.bind(_player, camera)
+
+func _refresh_player_clearance()->void:
+	if not is_instance_valid(_player) or not is_instance_valid(_camera):return
+	_camera.actor_height=preload("res://scripts/world3d/player_clearance.gd").apply(_player,_player.get_node("CharacterModel3D"))
+
+## Perspective controllers must switch this before taking over camera/head pose.
+## First-person/VR controllers own their movement; this does not simulate an HMD.
+func set_camera_mode(mode:String)->bool:
+	return is_instance_valid(_camera) and _camera.set_view_mode(mode)
 
 
 func _add_light() -> void:
@@ -425,18 +450,46 @@ func _add_light() -> void:
 
 
 func set_night(on: bool) -> void:
-	_night = on
+	_request_environment({"preset":"night" if on else "day"})
+
+func _request_environment(changes: Dictionary) -> Dictionary:
+	var server = Net.server()
+	if not is_instance_valid(_weather) or not server.has_method("try_set_world3d_environment"): return {"ok":false,"error":"环境服务未就绪"}
+	var result: Dictionary = server.try_set_world3d_environment(_map_ref(),changes)
+	if result.get("ok",false): _weather.sky_poll = 0; _weather._process(0)
+	return result
+
+func _on_server_environment(config: Dictionary) -> void:
+	_night = config.preset == "night"; _refresh_lamps()
+	if is_instance_valid(_outline): _outline.configure(config)
+	if is_instance_valid(_camera): _camera.bind_map(_map_root,config)
+
+## Runtime weather changes are transient; editor/MCP author the map's initial weather.
+func set_weather(kind: String, intensity := .7) -> Dictionary:
+	var changes := {"weather":kind, "weather_intensity":intensity}
 	var settings = preload("res://scripts/world3d/environment_settings.gd")
-	var values: Dictionary = settings.updated(GltfMapIo.extras_of(_map_root), {"preset": "night" if on else "day"})
-	settings.apply(values, _sun, _env)
-	_refresh_lamps()
+	var invalid: String = settings.Schema.validate(changes, settings.schema())
+	if not invalid.is_empty(): return {"ok":false, "error":invalid}
+	if not is_instance_valid(_weather): return {"ok":false, "error":"地图天气尚未就绪"}
+	return _request_environment(changes)
 
 func _apply_map_environment() -> void:
 	var settings = preload("res://scripts/world3d/environment_settings.gd")
 	var values: Dictionary = settings.resolve(GltfMapIo.extras_of(_map_root))
 	settings.apply(values, _sun, _env)
+	if not is_instance_valid(_weather):
+		_weather = preload("res://scripts/world3d/weather_controller.gd").new()
+		add_child(_weather)
+		_weather.bind(_camera.camera, _sun, _env, _player)
+		_weather.environment_changed.connect(_on_server_environment)
+	var sky_server = Net.server()
+	if sky_server.has_method("mount_world3d_sky"): sky_server.mount_world3d_sky(_map_ref(),_map_path)
+	if sky_server.has_method("snapshot_world3d_sky"): _weather.bind_sky(_map_ref(),Callable(sky_server,"snapshot_world3d_sky").bind(_map_ref()))
+	_weather.configure(values, true)
+	values = _weather.values
 	_night = values.preset == "night"
 	if is_instance_valid(_outline): _outline.configure(values)
+	if is_instance_valid(_camera):_camera.bind_map(_map_root,values)
 	_refresh_lamps()
 
 func _refresh_lamps() -> void:
@@ -507,7 +560,7 @@ func _pick(screen: Vector2) -> Dictionary:
 	var origin := camera.project_ray_origin(screen)
 	var end := origin + camera.project_ray_normal(screen) * 80.0
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
-	query.exclude = [_player.get_rid()]
+	query.exclude = _camera.visual_exclusions()
 	return get_world_3d().direct_space_state.intersect_ray(query)
 
 
@@ -775,6 +828,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 		Stream.sync(prepared, stage, destination, Stream.FRAME_BUDGET)
 		await get_tree().process_frame
 	var navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(navigation)
 	navigation.build(prepared.get_meta("stream_library", []), destination)
 	while not navigation.ready_for_queries: await get_tree().process_frame
@@ -784,9 +838,9 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	var query := PhysicsShapeQueryParameters3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.29
-	capsule.height = 1.78
+	capsule.height = float(_player.get_meta("standing_height",1.9))-.02
 	query.shape = capsule
-	query.transform = Transform3D(Basis.IDENTITY, destination + Vector3(0, 0.01, 0))
+	query.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0, capsule.height/2+.02, 0))
 	var fits: bool = navigation.near_surface(feet, 0.35, 0.4) and stage.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 	# Dynamic actors are deliberately absent from static navigation/collision.
 	# Check their authored occupancy before committing, including cached poses.

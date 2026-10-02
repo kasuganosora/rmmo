@@ -24,7 +24,7 @@ func run() -> void:
 	var probe := TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP MCP")
-	var discovery := await rpc("tools/list"); check(discovery.result.tools.size()==67,"discover 67 tools including eleven building operations")
+	var discovery := await rpc("tools/list"); check(discovery.result.tools.size()==109,"discover 109 tools including eleven building operations")
 	var templates := await call_tool("list_building_templates"); check(templates.templates.size()==3,"three building uses expose shared parameter schema")
 	for type in Blueprint.LABELS:
 		for floors in [1,2,3]:

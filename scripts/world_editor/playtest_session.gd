@@ -81,8 +81,8 @@ func _prepare(clone, character: Dictionary, generation: int) -> void:
 	if generation != _generation or not active(): return
 	var space := host.get_world_3d().direct_space_state
 	var ground := space.intersect_ray(PhysicsRayQueryParameters3D.create(spawn+Vector3(0,.15,0),spawn-Vector3(0,.2,0)))
-	var query := PhysicsShapeQueryParameters3D.new(); var capsule := CapsuleShape3D.new(); capsule.radius = .3; capsule.height = 1.8
-	query.shape = capsule; query.transform = Transform3D(Basis.IDENTITY,spawn+Vector3(0,.91,0)); query.margin = .001
+	var query := PhysicsShapeQueryParameters3D.new(); var capsule := CapsuleShape3D.new(); capsule.radius = .3; capsule.height = preload("res://scripts/world3d/player_clearance.gd").NAV_HEIGHT
+	query.shape = capsule; query.transform = Transform3D(Basis.IDENTITY,spawn+Vector3(0,capsule.height/2+.01,0)); query.margin = .001
 	if ground.is_empty() or ground.normal.y < .7 or absf(ground.position.y-spawn.y) > .12 or not space.intersect_shape(query,1).is_empty():
 		_fail("出生点没有支撑或角色空间被占用，请重新选择地面位置"); return
 	_stage.free(); _stage = null

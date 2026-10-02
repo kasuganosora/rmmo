@@ -7,6 +7,7 @@ func _init(c):
 
 const Net = preload("res://scripts/net/net.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const QuestTrackerUtil = preload("res://scripts/ui/quest_tracker_util.gd")
@@ -148,6 +149,7 @@ func _refresh_quest_tracker() -> void:
 	close_b.text = "×"
 	close_b.focus_mode = Control.FOCUS_NONE
 	close_b.custom_minimum_size = Vector2(22, 22)
+	L2Style.style_close(close_b)
 	close_b.pressed.connect(func():
 		var gs = GameSettingsScript.get_i()
 		if gs != null:
@@ -359,7 +361,7 @@ func _rebuild_quest_tab_bar(panel: PanelContainer) -> void:
 		btn.text = str(item[0])
 		btn.toggle_mode = false
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(140, 30)
+		btn.custom_minimum_size = Vector2(96, L2Style.TAB_HEIGHT)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		var tid = str(item[1])
@@ -497,7 +499,8 @@ func _make_quest_row(q: Dictionary, selected: bool) -> Button:
 	var title = str(q.get("title", qid if not qid.is_empty() else "?"))
 	var st = _quest_status_label(str(q.get("status", "in_progress")))
 	var btn = Button.new()
-	btn.text = "%s    [%s]" % [title, st]
+	btn.text = "%s  · %s  ›" % [title, st]
+	btn.tooltip_text = "%s\n%s · 点击查看目标和奖励" % [title, st]
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.custom_minimum_size = Vector2(0, 34)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -559,10 +562,10 @@ func _ensure_quest_drawer() -> void:
 	L2Style.apply_panel(drawer)
 	ctrl.add_child(drawer)
 	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 6)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
+	marg.add_theme_constant_override("margin_left", 3)
+	marg.add_theme_constant_override("margin_top", 0)
+	marg.add_theme_constant_override("margin_right", 3)
+	marg.add_theme_constant_override("margin_bottom", 3)
 	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	drawer.add_child(marg)
 	var vbox = VBoxContainer.new()
@@ -573,7 +576,7 @@ func _ensure_quest_drawer() -> void:
 	var title_bar = PanelContainer.new()
 	title_bar.name = "TitleBar"
 	title_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_bar.custom_minimum_size = Vector2(0, 30)
+	title_bar.custom_minimum_size = Vector2(0, L2Style.TITLE_HEIGHT)
 	title_bar.add_theme_stylebox_override("panel", L2Style.title_box())
 	vbox.add_child(title_bar)
 	var head = HBoxContainer.new()
@@ -605,6 +608,7 @@ func _ensure_quest_drawer() -> void:
 	dbody.add_theme_constant_override("separation", 6)
 	dbody.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scroll.add_child(dbody)
+	preload("res://scripts/ui/game_window.gd").apply_chrome(drawer)
 	ctrl._quest_drawer = drawer
 	ctrl._quest_drawer_body = dbody
 
@@ -626,14 +630,18 @@ func _place_quest_drawer() -> void:
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	if panel == null or not panel.visible:
 		return
-	# Sibling of quest window: attach to its right edge, same top.
+	# Attach to the free side of the journal, including when HUD scale is changed.
+	var bounds: Rect2 = panel.get_global_rect()
+	var viewport_size: Vector2 = ctrl.get_viewport_rect().size
+	ctrl._quest_drawer.size.y = panel.size.y
+	var drawer_size: Vector2 = ctrl._quest_drawer.size * ctrl.get_global_transform().get_scale()
+	var x: float = bounds.end.x + 2.0
+	if x + drawer_size.x > viewport_size.x - 4.0:
+		x = bounds.position.x - drawer_size.x - 2.0
 	ctrl._quest_drawer.global_position = Vector2(
-		panel.global_position.x + panel.size.x,
-		panel.global_position.y
+		clampf(x, 4.0, maxf(4.0, viewport_size.x - drawer_size.x - 4.0)),
+		clampf(bounds.position.y, 4.0, maxf(4.0, viewport_size.y - drawer_size.y - 4.0))
 	)
-	var h: float = panel.size.y
-	if ctrl._quest_drawer.size.y != h:
-		ctrl._quest_drawer.size.y = h
 	ctrl._quest_drawer.move_to_front()
 
 
@@ -651,7 +659,7 @@ func _sync_quest_drawer_follow() -> void:
 
 
 
-func _open_quest_drawer(quest_id: String, animate: bool) -> void:
+func _open_quest_drawer(quest_id: String, _animate: bool) -> void:
 	_ensure_quest_drawer()
 	var selected: Dictionary = _quest_by_id(quest_id)
 	if selected.is_empty():
@@ -660,44 +668,22 @@ func _open_quest_drawer(quest_id: String, animate: bool) -> void:
 	_refresh_quest_drawer_content()
 	var panel: PanelContainer = ctrl._windows.get("quest") as PanelContainer
 	var h: float = panel.size.y if panel != null else 400.0
-	var was_open = ctrl._quest_drawer.visible and ctrl._quest_drawer.size.x > 1.0
+	if ctrl._quest_drawer_tween != null and is_instance_valid(ctrl._quest_drawer_tween):
+		ctrl._quest_drawer_tween.kill()
+		ctrl._quest_drawer_tween = null
+	# This is a frequently-used reading surface. Reveal immediately without
+	# reflowing text through a width tween or fading readable content.
+	ctrl._quest_drawer.size = Vector2(QUEST_DRAWER_WIDTH, h)
+	ctrl._quest_drawer.modulate = Color.WHITE
 	ctrl._quest_drawer.visible = true
 	_place_quest_drawer()
+
+
+func _close_quest_drawer(_animate: bool) -> void:
+	if ctrl._quest_drawer == null or not is_instance_valid(ctrl._quest_drawer): return
 	if ctrl._quest_drawer_tween != null and is_instance_valid(ctrl._quest_drawer_tween):
 		ctrl._quest_drawer_tween.kill()
-		ctrl._quest_drawer_tween = null
-	# Animate only when sliding out from collapsed; switching rows keeps width.
-	if animate and not was_open:
-		ctrl._quest_drawer.size = Vector2(0, h)
-		ctrl._quest_drawer.modulate = Color(1, 1, 1, 0.35)
-		ctrl._quest_drawer_tween = ctrl.create_tween()
-		ctrl._quest_drawer_tween.set_parallel(true)
-		ctrl._quest_drawer_tween.tween_property(ctrl._quest_drawer, "size:x", QUEST_DRAWER_WIDTH, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		ctrl._quest_drawer_tween.tween_property(ctrl._quest_drawer, "modulate:a", 1.0, 0.14)
-	else:
-		ctrl._quest_drawer.size = Vector2(QUEST_DRAWER_WIDTH, h)
-		ctrl._quest_drawer.modulate = Color(1, 1, 1, 1)
-
-
-
-func _close_quest_drawer(animate: bool) -> void:
-	if ctrl._quest_drawer == null or not is_instance_valid(ctrl._quest_drawer):
-		return
-	if not ctrl._quest_drawer.visible and (ctrl._quest_drawer_tween == null or not is_instance_valid(ctrl._quest_drawer_tween)):
-		return
-	if ctrl._quest_drawer_tween != null and is_instance_valid(ctrl._quest_drawer_tween):
-		ctrl._quest_drawer_tween.kill()
-		ctrl._quest_drawer_tween = null
-	if animate and ctrl._quest_drawer.visible and ctrl._quest_drawer.size.x > 1.0:
-		var tw = ctrl.create_tween()
-		ctrl._quest_drawer_tween = tw
-		tw.set_parallel(true)
-		tw.tween_property(ctrl._quest_drawer, "size:x", 0.0, 0.12).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-		tw.tween_property(ctrl._quest_drawer, "modulate:a", 0.0, 0.12)
-		tw.chain().tween_callback(_finish_quest_drawer_close)
-	else:
-		_finish_quest_drawer_close()
-
+	_finish_quest_drawer_close()
 
 
 func _finish_quest_drawer_close() -> void:
@@ -745,7 +731,7 @@ func _refresh_quest_drawer_content() -> void:
 		ctrl._add_label(ctrl._quest_drawer_body, "· （无）", 12, L2Style.COL_MUTED)
 	var rewards = str(selected.get("rewards", "")).strip_edges()
 	ctrl._add_label(ctrl._quest_drawer_body, "奖励", 12, L2Style.COL_MUTED)
-	ctrl._add_label(ctrl._quest_drawer_body, rewards if not rewards.is_empty() else "（无）", 12, L2Style.COL_GOLD)
+	ItemGrid.show_rewards(ctrl, ctrl._quest_drawer_body, selected.get("reward", {}), rewards if not rewards.is_empty() else "（无）")
 	var qstatus = _normalize_quest_status(str(selected.get("status", "")))
 	if qstatus == "ready":
 		var turn_btn = Button.new()

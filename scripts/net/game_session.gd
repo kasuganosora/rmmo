@@ -23,7 +23,9 @@ var map_bake: Dictionary = {}
 var pending_select_id: int = -1
 ## UI hotbar bindings survive Loading/World scene changes: "page:slot" -> {kind,id}.
 var hotbar_bindings: Dictionary = {}
-## Last hotbar page index (0..1).
+var hotbar_initialized: bool = false
+var hotbar_profile_key: String = ""
+## Last hotbar page index (0..5).
 var hotbar_page: int = 0
 ## Return to content editor after playtest.
 var editor_return: bool = false
@@ -79,6 +81,8 @@ func go_login() -> void:
 	map_bake = {}
 	pending_select_id = -1
 	hotbar_bindings = {}
+	hotbar_initialized = false
+	hotbar_profile_key = ""
 	hotbar_page = 0
 	get_tree().change_scene_to_file(SCENE_LOGIN)
 

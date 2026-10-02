@@ -27,7 +27,7 @@ func build(schema: Dictionary, values: Dictionary, labels: Dictionary, choices: 
 				var picker := ColorPickerButton.new(); picker.edit_alpha = false; picker.color = Color(values[key][0], values[key][1], values[key][2]); control = picker
 			else:
 				var row := HBoxContainer.new()
-				for axis in 3:
+				for axis in values[key].size():
 					var spin := number(spec.items, values[key][axis]); spin.prefix = ["X", "Y", "Z"][axis]; spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(spin)
 				control = row
 		elif spec.type in ["number", "integer"]: control = number(spec, values[key])

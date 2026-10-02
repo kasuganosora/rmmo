@@ -177,7 +177,7 @@ func _apply_visual() -> void:
 		if _icon_rect != null:
 			_icon_rect.texture = null
 			_icon_rect.visible = false
-		_hint_label.text = hint_label
+		_hint_label.text = {"underwear_top": "内衣", "underwear_bottom": "内裤"}.get(slot_id, hint_label)
 		tooltip_text = hint_label if not hint_label.is_empty() else slot_id
 		if _dur_label != null:
 			_dur_label.text = ""

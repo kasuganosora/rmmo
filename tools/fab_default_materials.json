@@ -1,0 +1,206 @@
+{
+  "materials": [
+    {
+      "slug": "lime_plaster",
+      "name": "浅色石砌墙",
+      "title": "Plaster Wall Material",
+      "listing_id": "b2d5ad89-b0cd-4f5e-b877-8424db90c31f",
+      "seller": "Meshsmith Foundry",
+      "archive": "plasterwall.zip",
+      "category": "墙面／浅色石砌",
+      "folder": "walls",
+      "usage": "外露浅色石墙、石基；房屋填充墙使用外墙石灰抹面。",
+      "ai_generated": true,
+      "normal_format": "directx",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "PlasterWall_basecolor.png",
+        "normal_path": "PlasterWall_normal.png",
+        "roughness_path": "PlasterWall_roughness.png",
+        "metallic_path": "PlasterWall_metallic.png",
+        "ao_path": "PlasterWall_ambientocclusion.png"
+      }
+    },
+    {
+      "slug": "castle_rubble",
+      "name": "古城石砌墙",
+      "title": "Castle Wall",
+      "listing_id": "c7bacf7e-8073-4f4f-aaf9-ef9fa357c11c",
+      "seller": "Quixel Megascans",
+      "archive": "castle_wall_td0neior_4k.zip",
+      "category": "墙面／石砌城墙",
+      "folder": "walls",
+      "usage": "城墙、塔楼、桥墩及房屋石基；扫描区域2×2米。",
+      "normal_format": "opengl",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "Castle_Wall_td0neior_4K_BaseColor.jpg",
+        "normal_path": "Castle_Wall_td0neior_4K_Normal.jpg",
+        "roughness_path": "Castle_Wall_td0neior_4K_Roughness.jpg",
+        "ao_path": "Castle_Wall_td0neior_4K_AO.jpg"
+      }
+    },
+    {
+      "slug": "worn_planks",
+      "name": "天然风化木板",
+      "title": "Worn Wooden Planks",
+      "listing_id": "7992bc73-2fd9-4b56-b25a-c549d7d9e1b5",
+      "seller": "Quixel Megascans",
+      "archive": "worn_wooden_planks_whnfbg3_4k.zip",
+      "category": "木材／天然木板",
+      "folder": "wood",
+      "usage": "室内木地板、木桥、门板；扫描区域2×2米，不使用现代漆色。",
+      "normal_format": "opengl",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "Worn_Wooden_Planks_whnfbg3_4K_BaseColor.jpg",
+        "normal_path": "Worn_Wooden_Planks_whnfbg3_4K_Normal.jpg",
+        "roughness_path": "Worn_Wooden_Planks_whnfbg3_4K_Roughness.jpg",
+        "ao_path": "Worn_Wooden_Planks_whnfbg3_4K_AO.jpg"
+      }
+    },
+    {
+      "slug": "painted_weathered",
+      "name": "风化青漆木",
+      "title": "Old Painted Wood Texture & Material Vol. 02",
+      "listing_id": "4bb26fbd-a619-4d79-8dd9-9ce5783f6d0d",
+      "seller": "ehsan vaezi",
+      "archive": "old_painted_wood_map_s_sbsar_texture_material_vol_02.zip",
+      "category": "木材／漆木",
+      "folder": "wood",
+      "usage": "风化门窗、木围栏；局部装饰，不作为所有建筑的主梁。",
+      "normal_format": "directx",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "Old_Painted_Wood_Vol_02_basecolor.png",
+        "normal_path": "Old_Painted_Wood_Vol_02_normal.png",
+        "roughness_path": "Old_Painted_Wood_Vol_02_roughness.png",
+        "metallic_path": "Old_Painted_Wood_Vol_02_metallic.png",
+        "ao_path": "Old_Painted_Wood_Vol_02_ambientOcclusion.png"
+      }
+    },
+    {
+      "slug": "sandstone_floor",
+      "name": "风化石板地面",
+      "title": "Smooth Rock Floor Material",
+      "listing_id": "9bd35429-bb3f-4f72-91b9-454aebcde85b",
+      "seller": "Meshsmith Foundry",
+      "archive": "smoothrockfloor.zip",
+      "category": "铺装／石板",
+      "folder": "paving",
+      "usage": "教堂、庭院与城堡地面；也可作为基础石材。",
+      "ai_generated": false,
+      "normal_format": "directx",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "SmoothRockFloor_basecolor.png",
+        "normal_path": "SmoothRockFloor_normal.png",
+        "roughness_path": "SmoothRockFloor_roughness.png",
+        "metallic_path": "SmoothRockFloor_metallic.png",
+        "ao_path": "SmoothRockFloor_ambientocclusion.png"
+      }
+    },
+    {
+      "slug": "historic_cobble",
+      "name": "历史鹅卵石街道",
+      "title": "Cobblestone",
+      "listing_id": "904d4710-9fe2-402d-853d-f042fe95b3f5",
+      "seller": "Quixel Megascans",
+      "archive": "cobblestone_tctoehat_4k.zip",
+      "category": "铺装／鹅卵石",
+      "folder": "paving",
+      "usage": "中世纪街巷、广场、桥面；扫描区域2×2米。",
+      "normal_format": "opengl",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "Cobblestone_tctoehat_4K_BaseColor.jpg",
+        "normal_path": "Cobblestone_tctoehat_4K_Normal.jpg",
+        "roughness_path": "Cobblestone_tctoehat_4K_Roughness.jpg",
+        "ao_path": "Cobblestone_tctoehat_4K_AO.jpg"
+      }
+    },
+    {
+      "slug": "mud_pebbles",
+      "name": "湿泥碎石地",
+      "title": "Realistic Muddy Ground Texture with Pebbles and Grass - PBR Material",
+      "listing_id": "93d594e8-99f2-4ec6-8980-6135929338d8",
+      "seller": "AL-HADIDI",
+      "archive": "mud_pebbles_texture_pack_2k.zip",
+      "category": "地表／泥土",
+      "folder": "terrain",
+      "usage": "河岸、湿地、土路边缘；不作为干燥街道主材。",
+      "normal_format": "directx",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "MAT_MUD_2K/MAT_MUD_2K_Albedo.png",
+        "normal_path": "MAT_MUD_2K/MAT_MUD_2K_Normal.png",
+        "roughness_path": "MAT_MUD_2K/MAT_MUD_2K_Roughness.png",
+        "metallic_path": "MAT_MUD_2K/MAT_MUD_2K_Metalness.png",
+        "ao_path": "MAT_MUD_2K/MAT_MUD_2K_AO.png"
+      }
+    },
+    {
+      "slug": "moss_rock",
+      "name": "苔藓岩石地",
+      "title": "Realistic Mossy Rocky Grass PBR Material (2K/4K/8K)",
+      "listing_id": "eb3390a8-0f58-4d74-844a-a47a2c16bd29",
+      "seller": "AL-HADIDI",
+      "archive": "realistic_mossy_rocky_grass_pbr_material_2k.zip",
+      "category": "地表／岩石苔藓",
+      "folder": "terrain",
+      "usage": "河岸岩石、林缘；不作为整片草坪。",
+      "normal_format": "directx",
+      "tile_size": [
+        2,
+        2
+      ],
+      "maps": {
+        "texture_path": "Realistic Mossy Rocky Grass PBR Material_2K/Realistic Mossy Rocky Grass PBR Material_2K_Albedo.png",
+        "normal_path": "Realistic Mossy Rocky Grass PBR Material_2K/Realistic Mossy Rocky Grass PBR Material_2K_Normal.png",
+        "roughness_path": [
+          "Realistic Mossy Rocky Grass PBR Material_2K/Realistic Mossy Rocky Grass PBR Material_2K_ORD.tga",
+          1
+        ],
+        "ao_path": [
+          "Realistic Mossy Rocky Grass PBR Material_2K/Realistic Mossy Rocky Grass PBR Material_2K_ORD.tga",
+          0
+        ]
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "category": "屋顶",
+      "reason": "已购roof/shingle/clay/tiles搜索未找到符合参考图的写实红陶瓦／叠瓦；Stylized包不纳入，绿色金属屋顶不作为中世纪屋顶。",
+      "resolved_by": "pack:default:roofs/terracotta_plain/material",
+      "resolution": "用户要求后使用内置 image_gen 制作红陶叠瓦色图、OpenGL 法线和粗糙度，已分类安装；非 Fab 资源，来源另存 sources/generated/roofs/terracotta_plain。",
+      "excluded_listing": "https://www.fab.com/listings/791b0ad4-acfb-47cb-aa63-c3eb101609e4"
+    },
+    {
+      "category": "其他候选／Unreal 专用石墙包",
+      "reason": "12 Stonebricks Materials 已购但仅支持Epic启动器下载，网页无可移植原图；暂未安装。 已改选可移植的 Castle Wall 扫描覆盖城墙用途。",
+      "listing": "https://www.fab.com/listings/72c3d18a-e321-44a5-a17e-bcbfc52ddadb"
+    }
+  ]
+}

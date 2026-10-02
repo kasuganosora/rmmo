@@ -13,7 +13,8 @@ func run()->void:
  var folder:String=Art.review_path("character_3d/identity_entries_01");DirAccess.make_dir_recursive_absolute(folder)
  var results:Array=[]
  for i in chars.size():
-  var view=ui._icon_views[i];view.model.set_process(false)
+  ui.list.select(i);ui._show_character(i)
+  var view=ui._view;view.model.set_process(false)
   assert(view.model.appearance==chars[i].customization)
   var body=view.model.axis_rig.body
   var cutoff:float=lerpf(body.base_rests.neck.origin.y,body.base_rests.head.origin.y,.5)

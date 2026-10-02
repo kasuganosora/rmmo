@@ -121,11 +121,11 @@ func _refresh_visual() -> void:
 	_ensure_nodes()
 	var col := _kind_color()
 	var sb := StyleBoxFlat.new()
-	# L2-ish dark plate + bright rim; FF14-ish saturated kind color.
-	sb.bg_color = Color(0.08, 0.09, 0.12, 0.92)
-	sb.set_border_width_all(2)
+	# Keep the status-kind cue on a thin rim, matching inventory and skill cells.
+	sb.bg_color = Color(0.06, 0.10, 0.12, 0.94)
+	sb.set_border_width_all(1)
 	sb.border_color = col
-	sb.set_corner_radius_all(4)
+	sb.set_corner_radius_all(0)
 	sb.shadow_color = Color(0, 0, 0, 0.35)
 	sb.shadow_size = 2
 	sb.shadow_offset = Vector2(1, 1)

@@ -134,6 +134,7 @@ static func validate(state: Variant) -> String:
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(state.map_meta,state.records): return "草稿建筑归属损坏"
 	if not preload("res://scripts/world3d/environment_settings.gd").valid(state.map_meta): return "草稿环境配置损坏"
 	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(state.map_meta): return "草稿楼层/出生点配置损坏"
+	if not preload("res://scripts/world3d/city_layout.gd").valid(state.map_meta): return "草稿城镇布局损坏"
 	if not state.get("disk_path") is String or not Paths.allowed(state.disk_path) or not state.get("disk_signature") is String: return "草稿来源无效"
 	if not (state.get("next") is int or state.get("next") is float) or not is_finite(float(state.next)) or state.next < 1 or state.next > 2147483647 or state.next != floor(state.next): return "草稿物件计数损坏"
 	if state.records.size() > 100000: return "草稿超过 100000 件物件"
@@ -147,8 +148,13 @@ static func validate(state: Variant) -> String:
 		if id.begins_with("obj_") and id.trim_prefix("obj_").is_valid_int() and int(id.trim_prefix("obj_")) >= state.next: return "草稿物件计数与标识冲突"
 		ids[id] = true
 		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return "草稿自动瓦片损坏"
+		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return "草稿表面材质损坏"
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return "草稿地形网格损坏"
+		if not preload("res://scripts/world3d/channel_surface.gd").valid(record): return "草稿河道网格损坏"
+		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return "草稿城墙构件损坏"
 		if not preload("res://scripts/world3d/surface_materials.gd").valid(record): return "草稿表面材质损坏"
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return "草稿事件模板损坏"
+		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return "草稿受风配置损坏"
 		for field in ["position", "rotation", "size"]:
 			if not vector_valid(record.get(field), field == "size"): return "草稿物件变换无效"
 		for field in ["spawn", "bounds_position", "bounds_size"]:

@@ -7,6 +7,34 @@ signal characters_ready(list: Array)
 signal character_created(ok: bool, message: String, character: Dictionary)
 signal enter_world_ready(ok: bool, message: String, spawn: Dictionary)
 
+var sky_authority := preload("res://scripts/net/server/sky_module.gd").new()
+
+## Local scaffold map registry hook; not a client RPC or a seed-setting request.
+func mount_world3d_sky(map_id: String, path: String) -> void:
+	if sky_authority.maps.has(map_id): return
+	var settings := preload("res://scripts/world3d/environment_settings.gd").defaults()
+	if preload("res://scripts/world3d/map_paths.gd").allowed(path) and FileAccess.file_exists(path):
+		var document = preload("res://scripts/world3d/world_document.gd").open_file(path)
+		if document != null: settings = preload("res://scripts/world3d/environment_settings.gd").resolve(document.map_meta)
+	sky_authority.ensure_map(map_id,settings)
+
+func snapshot_world3d_sky(map_id: String) -> Dictionary:
+	return sky_authority.snapshot(map_id,Time.get_ticks_msec()/1000.0)
+
+## Trusted gameplay/GM request in this scaffold. Real transports must authorize it.
+func try_set_world3d_environment(map_id: String, changes: Dictionary) -> Dictionary:
+	return sky_authority.set_environment(map_id,changes,Time.get_ticks_msec()/1000.0)
+
+## Trusted server-script commands, deliberately absent from the client request API.
+func issue_world3d_meteor(map_id: String, event: Dictionary) -> bool:
+	return sky_authority.meteor(map_id,event)
+
+func issue_world3d_meteor_shower(map_id: String, command: Dictionary) -> bool:
+	return sky_authority.meteor_shower(map_id,command)
+
+func issue_world3d_lightning(map_id: String, event: Dictionary) -> bool:
+	return sky_authority.lightning(map_id,event)
+
 const LATENCY_SEC := 0.35
 const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")

@@ -62,7 +62,7 @@ func _ray(from: Vector3, to: Vector3) -> Dictionary:
 func _screen_hit(screen: Vector2) -> Dictionary:
 	if not Rect2(Vector2.ZERO, editor._canvas.size).has_point(screen): return {}
 	var origin: Vector3 = editor._camera.project_ray_origin(screen)
-	return _ray(origin, origin + editor._camera.project_ray_normal(screen) * 10000.0)
+	return _ray(origin, origin + editor._camera.project_ray_normal(screen) * editor._camera.far)
 
 func _rotated(records: Array, center: Vector3, normal: Vector3, match_normal: bool) -> Array:
 	var result: Array = records.duplicate(true)

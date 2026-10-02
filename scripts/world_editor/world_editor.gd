@@ -74,11 +74,23 @@ var _gameplay = preload("res://scripts/world_editor/gameplay_tools.gd").new()
 var _event_panel: VBoxContainer
 var _environment_panel: VBoxContainer
 var _sun: DirectionalLight3D
+var _weather: Node3D
+var _wind_tools = preload("res://scripts/world_editor/wind_tools.gd").new()
 var _authoring = preload("res://scripts/world_editor/authoring_view.gd").new()
 var _view_panel: VBoxContainer
 var _playtest: Node
 var _buildings = preload("res://scripts/world_editor/building_tools.gd").new()
 var _building_panel: VBoxContainer
+var _roads = preload("res://scripts/world_editor/road_tools.gd").new()
+var _blocks = preload("res://scripts/world_editor/block_tools.gd").new()
+var _scatter = preload("res://scripts/world_editor/scatter_tools.gd").new()
+var _waterways = preload("res://scripts/world_editor/waterway_tools.gd").new()
+var _connections = preload("res://scripts/world_editor/road_connection_tools.gd").new()
+var _fortifications = preload("res://scripts/world_editor/fortification_tools.gd").new()
+var _terrain = preload("res://scripts/world_editor/terrain_tools.gd").new()
+var _terrain_brush: Control
+var _terrain_panel: VBoxContainer
+var _city = preload("res://scripts/world_editor/city_tools.gd").new()
 
 
 func _ready() -> void:
@@ -102,14 +114,25 @@ func _ready() -> void:
 		Net.session().world3d_editor_doc = _doc
 	_load_asset_scope()
 	_gameplay.editor = self
+	_wind_tools.editor = self
 	_buildings.editor = self
 	_authoring.editor = self
+	_roads.editor = self
+	_blocks.editor = self
+	_scatter.editor = self
+	_waterways.editor = self
+	_connections.editor = self
+	_fortifications.editor = self
+	_terrain.editor = self
+	_city.editor = self
 	_playtest = preload("res://scripts/world_editor/playtest_session.gd").new()
 	add_child(_playtest); _playtest.editor = self
 	_auto_stroke.editable = _record_editable
 	_add_light()
 	_camera = Camera3D.new()
 	_camera.current = true
+	_camera.size = 24
+	_camera.far = 40000
 	_camera.position = Vector3(0, 8, 12)
 	_camera.rotation_degrees = Vector3(-35, 0, 0)
 	add_child(_camera)
@@ -160,6 +183,8 @@ func _show_placement_panel() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _terrain_brush!=null and _terrain_brush.input(event): get_viewport().set_input_as_handled(); return
+	if _city.input(event): get_viewport().set_input_as_handled(); return
 	if _playtest != null and _playtest.active() and event is InputEventKey:
 		if event.pressed and event.keycode == KEY_ESCAPE: _playtest.stop()
 		get_viewport().set_input_as_handled(); return
@@ -233,9 +258,11 @@ func _input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_city.finish_draw(true)
 		if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 		if _building_panel!=null and _building_panel.street!=null:
 			_building_panel.street.drawing=false; _building_panel.street.refresh()
+		if _terrain_brush != null: _terrain_brush.cancel()
 		if _material_tool != null: _material_tool.cancel()
 		if _placement_tools != null: _placement_tools.cancel()
 		_transform_drag.finish()
@@ -303,7 +330,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if button.pressed and button.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			var factor := 0.85 if button.button_index == MOUSE_BUTTON_WHEEL_UP else 1.18
-			_camera.position = _orbit_center + (_camera.position - _orbit_center).normalized() * clampf(_camera.position.distance_to(_orbit_center) * factor, 2, 100)
+			_city.zoom(factor)
 			return
 		if button.button_index == MOUSE_BUTTON_LEFT:
 			if button.pressed:
@@ -315,14 +342,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not _canvas.get_global_rect().has_point(motion.position):
 			return
 		if (motion.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
-			var pan := (-_camera.global_basis.x * motion.relative.x + _camera.global_basis.y * motion.relative.y) * _camera.position.distance_to(_orbit_center) * 0.0015
-			_camera.position += pan
-			_orbit_center += pan
+			_city.pan(motion.relative)
 		elif (motion.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0:
-			var distance := _camera.position.distance_to(_orbit_center)
-			_camera.rotation.x = clampf(_camera.rotation.x - motion.relative.y * 0.005, -1.55, -0.05)
-			_camera.rotation.y -= motion.relative.x * 0.005
-			_camera.position = _orbit_center + _camera.basis.z * distance
+			_city.orbit(motion.relative)
 		elif (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 			_place(motion.position - _canvas.global_position, false)
 
@@ -384,7 +406,7 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 		if handle >= 0:
 			_transform_drag.begin(self, screen, handle)
 			return
-	var end := origin + _camera.project_ray_normal(screen) * 80.0
+	var end := origin + _camera.project_ray_normal(screen) * _camera.far
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty():
@@ -441,10 +463,12 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 
 
 func _rebuild() -> void:
+	if _terrain_panel!=null: _terrain_panel.refresh()
 	if _building_panel != null:
 		_building_panel.clear_preview()
 		_building_panel.refresh_list()
 	_authoring.refresh()
+	_city.refresh()
 	_bodies_by_uuid.clear()
 	var doomed: Array = []
 	for child in get_children():
@@ -463,6 +487,7 @@ func _rebuild() -> void:
 	if _selection_tools != null: _selection_tools.refresh()
 	if _object_list != null: _object_list.refresh()
 	_refresh_selection()
+	if is_instance_valid(_weather): _weather.precipitation.clear()
 	_apply_environment()
 	if not _load_failed:
 		Net.session().world3d_editor_doc = _doc
@@ -508,7 +533,12 @@ func _sync_selected_transform() -> void:
 
 
 func _sync_record_transform(record: Dictionary) -> void:
-	if record.has("surface_paint") and record.get("kind") != "asset":
+	if _city.overlay!=null: _city.overlay.invalidated=true
+	if _city.panel!=null and _city.panel.block_panel!=null and not _blocks.overlay_plan.is_empty(): _city.panel.block_panel.invalidate()
+	if _city.panel!=null and _city.panel.scatter_panel!=null and not _scatter.overlay_plan.is_empty(): _city.panel.scatter_panel.invalidate()
+	if _city.panel!=null and _city.panel.waterway_panel!=null and not _waterways.overlay_plan.is_empty(): _city.panel.waterway_panel.invalidate()
+	if _city.panel!=null and _city.panel.fortification_panel!=null and not _fortifications.overlay_plan.is_empty(): _city.panel.fortification_panel.invalidate()
+	if (record.has("surface_paint") or record.has("terrain_mesh")) and record.get("kind") != "asset":
 		_refresh_records([str(record.uuid)])
 		return
 	var visual := _view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
@@ -516,6 +546,7 @@ func _sync_record_transform(record: Dictionary) -> void:
 	var helper = preload("res://scripts/world_editor/transform_gizmo.gd")
 	visual.position = helper.vector(record, "position")
 	visual.rotation_degrees = helper.vector(record, "rotation")
+	if record.has("fixture"): visual.transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
 	if record.get("kind") == "asset" or record.has("tile3d"): visual.scale = helper.vector(record, "size")
 	elif visual is MeshInstance3D and visual.mesh is BoxMesh: visual.mesh.size = helper.vector(record, "size")
 	visual.force_update_transform()
@@ -575,8 +606,10 @@ func _building_area_busy() -> bool:
 	return _building_panel!=null and _building_panel.region!=null and _building_panel.region.drawing
 
 func _finish_edits() -> void:
+	_city.finish_draw(true)
 	if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 	_authoring.picking = false
+	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	_transform_drag.finish()
 	_finish_auto_stroke()
@@ -676,6 +709,7 @@ func _request_open(path: String) -> void:
 
 
 func open_document(path: String) -> bool:
+	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel(); _material_tool.clear_target()
 	if _placement_tools != null: _placement_tools.cancel()
 	var document = Document.open_file(path)
@@ -685,6 +719,7 @@ func open_document(path: String) -> bool:
 	_transform_drag.finish()
 	_finish_auto_stroke()
 	_doc = document
+	_city.finish_draw(true)
 	_path = path
 	Net.session().world3d_editor_path = path
 	_load_asset_scope()
@@ -692,6 +727,7 @@ func open_document(path: String) -> bool:
 	_dirty = false
 	_rebuild()
 	_inspector.select("")
+	if is_instance_valid(_weather): _weather.configure(preload("res://scripts/world3d/environment_settings.gd").resolve(_doc.map_meta), true)
 	_refresh_palette()
 	_status.text = "已打开：" + path.get_file() + (" · 素材缺失，请重新关联" if not _doc.missing_assets().is_empty() else "")
 	return true
@@ -723,8 +759,14 @@ func _add_light() -> void:
 	add_child(sun)
 
 func _apply_environment() -> void:
-	if _camera != null:
-		preload("res://scripts/world3d/environment_settings.gd").apply(preload("res://scripts/world3d/environment_settings.gd").resolve(_doc.map_meta), _sun, _camera.environment)
+	if _camera != null and _camera.environment != null:
+		var first := not is_instance_valid(_weather)
+		if first:
+			_weather = preload("res://scripts/world3d/weather_controller.gd").new()
+			_weather.editor_preview = true
+			_camera.get_parent().add_child(_weather)
+			_weather.bind(_camera, _sun, _camera.environment)
+		_weather.configure(preload("res://scripts/world3d/environment_settings.gd").resolve(_doc.map_meta), first)
 	if _environment_panel != null: _environment_panel.refresh()
 
 func snap_position(point: Vector3) -> Vector3:
@@ -763,6 +805,7 @@ func _apply_thumbnail(key: String, texture: Texture2D) -> void:
 
 
 func _set_mode(mode: int) -> void:
+	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
 	_transform_drag.finish()
@@ -804,6 +847,8 @@ func _update_space_button() -> void:
 
 
 func _undo() -> void:
+	_city.finish_draw(true)
+	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
 	_transform_drag.finish()
@@ -815,6 +860,8 @@ func _undo() -> void:
 
 
 func _redo() -> void:
+	_city.finish_draw(true)
+	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
 	_transform_drag.finish()
@@ -876,16 +923,13 @@ func _rotate_selected(direction: int) -> void:
 
 func _focus_selected() -> void:
 	if _selection_tools.ids.is_empty(): return
-	var bounds := SelectionGeometry.bounds(_selection_tools.records())
-	_orbit_center = bounds.get_center()
-	var extent := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
-	_camera.position = _orbit_center + _camera.basis.z * clampf(extent * 2.5, 3, 80)
+	var result: Dictionary = _city.focus({"target":"selection"})
+	if not result.ok: _status.text = result.error
 
 
 func _top_view() -> void:
-	var distance := _camera.position.distance_to(_orbit_center)
-	_camera.rotation_degrees = Vector3(-90, 0, 0)
-	_camera.position = _orbit_center + Vector3.UP * distance
+	var result: Dictionary = _city.set_camera({"projection":"top"})
+	if not result.ok: _status.text = result.error
 
 
 func _add_grid() -> void:
@@ -944,7 +988,7 @@ func _refresh_selection() -> void:
 
 func _pick_object(screen: Vector2) -> String:
 	var origin := _camera.project_ray_origin(screen)
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + _camera.project_ray_normal(screen) * 1000)
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + _camera.project_ray_normal(screen) * _camera.far)
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return "" if hit.is_empty() else str(hit.collider.get_meta("uuid", ""))
 

@@ -11,14 +11,14 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"real HTTP MCP starts")
 	var discovery:=await rpc("tools/list"); var names: Array=discovery.result.tools.map(func(tool): return tool.name)
-	check(names.size()==67 and not names.has("paint_tile"),"67 current tools, retired 2D stays unregistered")
+	check(names.size()==109 and not names.has("paint_tile"),"109 current tools, retired 2D stays unregistered")
 	var templates:=await call_tool("list_building_templates")
 	check(templates.urban_presets.size()==2 and templates.parameters_schema.properties.layout.enum.has("urban_village"),"discover urban family presets and schema")
 	check(not templates.parameters_schema.properties.has("rental_units"),"contract contains no subdivision or tenancy rules")
 	var base: Dictionary=templates.urban_presets[0].parameters
 	var fixtures: Array=[{"parameters":base,"position":[0,0,0],"yaw":0.0},
 		{"parameters":base.merged({"template":"shop","floors":6,"width":11,"depth":15,"bedrooms":3,"balcony":"corner","facade_color":"cream"},true),"position":[27,0,0],"yaw":37.0},
-		{"parameters":base.merged({"width":8.5,"depth":10,"floor_height":4,"floors":2,"bedrooms":1,"balcony":"none","roof_canopy":false,"roof_tank":false},true),"position":[55,0,0],"yaw":-23.0}]
+		{"parameters":base.merged({"width":9.5,"depth":11,"floor_height":4,"floors":2,"bedrooms":1,"balcony":"none","roof_canopy":false,"roof_tank":false},true),"position":[55,0,0],"yaw":-23.0}]
 	var placements: Array=[]
 	for fixture in fixtures:
 		fixture.plan=Blueprint.generate(fixture.parameters); placements.append({"parameters":fixture.parameters,"position":fixture.position,"yaw":fixture.yaw})
@@ -27,7 +27,7 @@ func run() -> void:
 	check(preview.buildings.size()==3 and preview.buildings[0].terraces.size()==3 and preview.buildings[0].service_zones.size()==6 and doc.recovery_snapshot()==before,"preview exposes terraces and services without mutations")
 	await call_tool("generate_buildings",{"parameters":{"layout":"urban_village","rental_units":4},"placements":[{"position":[0,0,0]}]},false)
 	await call_tool("generate_buildings",{"parameters":base.merged({"width":7},true),"placements":[{"position":[0,0,0]}]},false)
-	await call_tool("generate_buildings",{"parameters":base.merged({"width":24,"depth":30,"floor_height":4,"floors":6,"bedrooms":3,"balcony":"corner"},true),"placements":[{"position":[0,0,0]}]},false)
+	await call_tool("generate_buildings",{"parameters":base.merged({"width":25,"depth":30,"floor_height":4,"floors":6,"bedrooms":3,"balcony":"corner"},true),"placements":[{"position":[0,0,0]}]},false)
 	await call_tool("generate_buildings",{"placements":[placements[0],placements[0]]},false)
 	check(doc.recovery_snapshot()==before and doc._undo.size()==history,"illegal schema, layout and collisions fail atomically")
 	var made:=await call_tool("generate_buildings",{"placements":placements})
@@ -71,8 +71,8 @@ func run() -> void:
 	before=doc.recovery_snapshot(); editor._building_panel.preview(); await physics()
 	check(is_instance_valid(editor._building_panel.ghost) and doc.recovery_snapshot()==before,"UI preview shares read-only business plan")
 	await capture("preview"); editor._building_panel.clear_preview(); editor._building_panel.focus(); await physics(); await capture("exterior")
-	await call_tool("set_floor_view",{"isolation":true,"base_height":3.2,"floor_height":3.2}); editor._top_view(); await physics(); await capture("family_floor")
-	await call_tool("set_floor_view",{"isolation":true,"base_height":19.2,"floor_height":3.2})
+	await call_tool("set_floor_view",{"isolation":true,"base_height":base.floor_height,"floor_height":base.floor_height}); editor._top_view(); await physics(); await capture("family_floor")
+	await call_tool("set_floor_view",{"isolation":true,"base_height":6*base.floor_height,"floor_height":base.floor_height})
 	var high_id: String=made.building_ids[1]; var roof_id: String=editor._buildings.instances()[high_id].parts["roof/floor/left"]
 	check(editor._record_editable(doc._find(roof_id)) and not editor._record_editable(doc._find(floor_id)),"sixth roof level isolates correctly")
 	await call_tool("set_floor_view",{"isolation":false}); editor._building_panel.refresh_list(high_id); editor._building_panel.focus(); await physics(); await capture("six_storey")
@@ -104,7 +104,7 @@ func runtime_checks(scene: Node3D, fixtures: Array) -> void:
 			if (o.type=="door" and not hit.is_empty()) or (o.type=="window" and (hit.is_empty() or hit.position.distance_to(center)>.04)):
 				openings_ok=false; print("opening mismatch ",fixture.yaw," ",o.wall," ",o.id," ",hit)
 		check(openings_ok,"every actual door/window aperture agrees with shared plan")
-	var nav:=preload("res://scripts/world3d/world_navigation.gd").new(); host.add_child(nav); nav.build(scene.get_meta("stream_library"))
+	var nav:=preload("res://scripts/world3d/world_navigation.gd").new(); nav.agent_height=2.1; host.add_child(nav); nav.build(scene.get_meta("stream_library"))
 	var deadline:=Time.get_ticks_msec()+40000
 	while not nav.fully_ready and Time.get_ticks_msec()<deadline: await process_frame
 	check(nav.fully_ready,"saved map navigation completes")
@@ -114,6 +114,7 @@ func runtime_checks(scene: Node3D, fixtures: Array) -> void:
 			for destination in fixture.plan.rooms+fixture.plan.terraces:
 				var route: Dictionary=nav.find_path(origin+basis*Blueprint.vec(fixture.plan.entrance),origin+basis*Blueprint.vec(destination.center))
 				check(route.ok,"saved entrance reaches %s (%s degrees)"%[destination.id,fixture.yaw])
+				if not route.ok:print("SAVED_ROUTE_FAILURE ",route)
 	var body:=WalkBody.new(); body.floor_snap_length=.2; var shape:=CollisionShape3D.new(); var capsule:=CapsuleShape3D.new(); capsule.radius=.3; capsule.height=1.8; shape.shape=capsule; body.add_child(shape); host.add_child(body)
 	var walk_nav:=WalkNavigation.new(); host.add_child(walk_nav)
 	var authority:=preload("res://scripts/world3d/world_authority.gd").new()

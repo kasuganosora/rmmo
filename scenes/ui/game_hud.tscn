@@ -252,7 +252,7 @@ layout_mode = 2
 focus_mode = 0
 text = ">"
 
-[node name="Hotbar" type="HBoxContainer" parent="HotbarPanel/HotbarMarg/HotbarVBox"]
+[node name="Hotbar" type="VBoxContainer" parent="HotbarPanel/HotbarMarg/HotbarVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
