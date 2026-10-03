@@ -4,7 +4,7 @@ static func obj(p: Dictionary,r: Array=[]) -> Dictionary: return {"type":"object
 static func text(n:=80) -> Dictionary: return {"type":"string","maxLength":n}
 static func arr(item: Dictionary,n: int,minimum:=0) -> Dictionary: return {"type":"array","items":item,"maxItems":n,"minItems":minimum}
 static func bridge_schema() -> Dictionary:
-	return obj({"id":text(),"segment":S.number(0,30,true),"t":S.number(0,1),"width":S.number(3,12),"approach":S.number(1,12),"rail_height":S.number(.9,1.5)},["id","segment","t","width","approach","rail_height"])
+	return obj({"id":text(),"segment":S.number(0,30,true),"t":S.number(0,1),"width":S.number(3,12),"approach":S.number(1,12),"rail_height":S.number(.9,1.5),"prefab_id":{"type":"string","enum":["legacy_flat","stone_segmental","stone_pointed","stone_rustic"]},"camber":S.number(0,5)},["id","segment","t","width","approach","rail_height"])
 static func settings_schema() -> Dictionary:
 	return obj({"id":text(),"name":text(120),"points":arr(arr(S.number(-10000,10000),2,2),32,2),"ground_ids":arr(text(100),32,1),"width":S.number(3,60),"bank_width":S.number(.5,8),"bank_height":S.number(-1000,1000),"water_drop":S.number(.5,5),"depth":S.number(.5,10),"bank_material_id":text(256),"bed_material_id":text(256),"bridge_material_id":text(256),"bridges":arr(bridge_schema(),16)})
 static func request_schema() -> Dictionary:
@@ -26,6 +26,7 @@ static func valid_settings(s: Dictionary) -> bool:
 	seen.clear()
 	for b in s.bridges:
 		if b.id.is_empty() or not b.id.is_valid_identifier() or seen.has(b.id) or b.segment>=s.points.size()-1: return false
+		if b.get("prefab_id","legacy_flat")=="legacy_flat" and b.get("camber",0)!=0: return false
 		seen[b.id]=true
 	return true
 static func valid(regions: Array) -> bool:

@@ -14,7 +14,7 @@ func run() -> void:
 	probe.stop(); check(editor.start_mcp(port).ok,"erosion real loopback MCP")
 	var defs: Array=(await rpc("tools/list")).result.tools
 	var schema: Dictionary=defs.filter(func(d):return d.name=="sculpt_terrain")[0].inputSchema
-	check(defs.size()==114 and schema.properties.mode.enum.has("erode") and schema.properties.has("talus_angle"),"HTTP discovers bounded erosion schema")
+	check(defs.size()==118 and schema.properties.mode.enum.has("erode") and schema.properties.has("talus_angle"),"HTTP discovers bounded erosion schema")
 	check(editor._terrain_panel.brush_fields.fields.has("iterations") and editor._terrain_panel.brush_fields.fields.has("erosion_seed"),"UI exposes same erosion parameters")
 	editor._grid.hide(); editor._city.overlay.hide(); editor._authoring.marker.hide()
 	var camera_args:={"projection":"perspective","center":[20.8,0.,0],"distance":11,"pitch":-22,"yaw":-64}

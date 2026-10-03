@@ -23,6 +23,7 @@ static func tools() -> Array:
 	var city = preload("res://scripts/world3d/city_layout.gd")
 	var scatter: Dictionary=preload("res://scripts/world3d/vegetation_scatter.gd").request_schema()
 	var waterways: Dictionary=preload("res://scripts/world3d/waterway_data.gd").request_schema()
+	var bridges: Dictionary=preload("res://scripts/world3d/bridge_data.gd").request_schema()
 	var fort: Dictionary=preload("res://scripts/world3d/fortification_data.gd").request_schema()
 	var road_settings: Dictionary=preload("res://scripts/world3d/road_plan.gd").settings_schema().properties.merged({"plan_token":city.text(64)})
 	var reference: Dictionary = city.reference_schema().properties.duplicate(true); reference.erase("pixel_size"); reference.remove = {"type":"boolean"}
@@ -54,8 +55,12 @@ static func tools() -> Array:
 		spec("connect_waterway_bridge", "将现有河道桥梁绑定为道路图的一条通行边，创建/吸附两端节点，不复制桥面。两端道路需朝桥外直向接入，绘路时端点宽度自动收至净宽。已手改/隐藏/锁定/隔层河道拒绝，一次撤销。", {"waterway_id":city.text(),"bridge_id":city.text()}, ["waterway_id","bridge_id"]),
 		spec("disconnect_waterway_bridge", "解除桥梁道路绑定，保留实际桥梁及两端道路，删除无连接的端点。河道或路网受保护时拒绝，一次撤销。", {"edge_id":city.text()}, ["edge_id"]),
 		spec("get_road_connectivity", "只读检查道路连通分量、断头节点、缺乏水平承托的节点、桥梁绑定、铺面过期和当前铺面方案可生成性。断头/承托提示不等于完整导航证明。", {}, [], true),
+		spec("list_bridge_prefabs", "读取可选的 Blender 写实石桥模块配方和用户保存的桥型。只读。", {}, [], true),
+		spec("preview_bridge", "预览两端 start/end 间的石桥。prefab_id 选择桥型，width/depth 为米，arches=0 自动拱孔数，camber=0 平桥或指定拱高；坡度最大 15%。只读返回 plan_token。", bridges.properties, bridges.required, true),
+		spec("generate_bridge", "按预制件生成一体石桥，长度自适应、可拱起，PBR 复用默认库，LOD/碰撞/保存同一几何。与 UI 共用校验和一次撤销；同 id 更新，保护隐藏锁定隔层及手工刷面。", bridges.properties, bridges.required),
+		spec("save_bridge_prefab", "将程序桥梁的桥型和材质保存为可重复选取的配方（不含现场位置或跨度）。不可变资源库文件不随地图撤销删除。", {"id":city.text(100),"name":city.text(120)},["id","name"]),
 		spec("list_waterways", "读取河道配方、构件数量和手改/缺失成员。只读。", {}, [], true),
-		spec("preview_waterway", "预览水平河道、两岸及平桥。新建需 id/points(XZ中心线)/ground_ids(普通同高地面)；同ID更新可省略未变字段。width/bank_width/bank_height/water_drop/depth；bridges指定直线段segment、t、width、approach及rail_height。挖河替换指定地面几何，保留原始记录；拒绝现有物体与道路冲突。返回轮廓、桥头端点及plan_token。", waterways.properties, waterways.required, true),
+		spec("preview_waterway", "预览水平河道、两岸及所选桥型。新建需 id/points(XZ中心线)/ground_ids(普通同高地面)；同ID更新可省略未变字段。width/bank_width/bank_height/water_drop/depth；bridges指定直线段segment、t、width、approach及rail_height；可选prefab_id（石桥型或legacy_flat）和camber拱高。挖河替换指定地面几何，保留原始记录；拒绝现有物体与道路冲突。返回轮廓、桥头端点及plan_token。", waterways.properties, waterways.required, true),
 		spec("generate_waterway", "提交河道及地面开槽，一次撤销。与UI共用预览校验，可带plan_token；手改/删除、锁定/隐藏/隔层成员阻止重生成。支持河岸、河床、桥面PBR材质ID；水面无行走碰撞。", waterways.properties, waterways.required),
 		spec("remove_waterway", "keep_objects默认true解除关联保留河槽现场；false删除未改生成物并恢复原地面。手改/保护或恢复会覆盖河槽独立物件时拒绝。一次撤销。", {"id":city.text(),"keep_objects":{"type":"boolean"}}, ["id"]),
 		spec("list_vegetation_scatter", "查询植被散布区域、修改/缺失成员及可选 GLB 素材。query/offset/limit 仅过滤素材。素材由使用者选择，不自动判定是否为植物。", pagination, [], true),

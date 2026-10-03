@@ -503,7 +503,13 @@ func _asset(record: Dictionary) -> Node3D:
 	holder.position = Vector3(record.position[0], record.position[1], record.position[2])
 	holder.rotation_degrees = Vector3(record.rotation[0], record.rotation[1], record.rotation[2])
 	holder.scale = Vector3(record.size[0], record.size[1], record.size[2])
-	var model = preload("res://scripts/world_editor/asset_library.gd").instantiate(str(record.get("asset_path", "")))
+	var model: Node3D
+	if record.has("bridge_mesh"):
+		var bridge:=MeshInstance3D.new(); bridge.name="StoneBridge"
+		bridge.mesh=preload("res://scripts/world3d/bridge_mesh.gd").new().build(record)
+		if bridge.mesh!=null: model=bridge
+		else: bridge.free()
+	else: model = preload("res://scripts/world_editor/asset_library.gd").instantiate(str(record.get("asset_path", "")))
 	if model == null:
 		var fallback := MeshInstance3D.new()
 		fallback.mesh = BoxMesh.new()

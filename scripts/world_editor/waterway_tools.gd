@@ -108,9 +108,17 @@ func prepare(args: Dictionary) -> Dictionary:
 			if Foot.batches_overlap([shape],envelopes): return Data.fail("河道与已有道路骨架相交，请先调整道路；本批不自动拆改道路图")
 	var parts: Array=[]
 	for r in result.records:
+		if r.has("bridge_mesh"):
+			var defaults:=preload("res://scripts/world3d/bridge_data.gd").default_materials()
+			for role in defaults:
+				var material: Dictionary=editor._material_tool.library.find(defaults[role])
+				if role=="deck" and materials.has("bridge"): material=materials.bridge
+				if material.is_empty(): return Data.fail("默认石桥 PBR 材质缺失")
+				r.bridge_materials[role]=material
+			if preload("res://scripts/world3d/bridge_mesh.gd").kit(r.asset_path).is_empty(): return Data.fail("Blender 石桥模块库缺失")
 		if not ownership.ids.has(r.uuid) and editor._doc.has_uuid(r.uuid): return Data.fail("河道构件 ID 已被其他物件占用")
 		var role: String=result.roles[r.uuid]; var material_role: String="bridge" if role=="rail" else role
-		if materials.has(material_role):
+		if materials.has(material_role) and not r.has("bridge_mesh"):
 			var applied:=paint(r,materials[material_role])
 			if not applied.ok: return applied
 		if not editor._authoring.Settings.contains(r,editor._authoring.settings): return Data.fail("生成构件落在当前隔离楼层之外")

@@ -19,7 +19,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"furrow HTTP server")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==114 and definitions.any(func(d):return d.name=="set_terrain_furrows") and definitions.all(func(d):return d.name!="paint_tile"),"114 current 3D tools, legacy 2D disabled")
+	check(definitions.size()==118 and definitions.any(func(d):return d.name=="set_terrain_furrows") and definitions.all(func(d):return d.name!="paint_tile"),"118 current 3D tools, legacy 2D disabled")
 	var ids: Array=[]
 	for x in [16,48]:
 		var result:=await call_tool("create_terrain",{"center":[x,0,16],"width":32,"depth":32,"cell_size":2.,"material_id":"pack:default:terrain/mossy_grass_vcjmej0s/material"})

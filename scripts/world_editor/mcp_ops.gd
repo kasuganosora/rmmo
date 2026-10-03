@@ -31,6 +31,7 @@ func state() -> Dictionary:
 		"surface_placement_active": editor._placement_tools.active,
 		"building_region_drawing": editor._building_area_busy(),
 		"waterway_drawing":editor._city.waterway_draft,
+		"bridge_drawing":editor._city.bridge_draft,
 		"fortification_drawing":editor._city.fortification_draft,
 		"road_drawing":editor._city.drawing, "vegetation_drawing":editor._city.scatter_draft, "road_node_drag":not editor._city.drag_node.is_empty(), "editor_camera":editor._city.camera_state(),
 		"building_component_edit": editor._selection_tools.component_edit,
@@ -45,6 +46,10 @@ func state() -> Dictionary:
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"list_bridge_prefabs": return editor._bridges.catalog()
+		"preview_bridge": return editor._bridges.summary(args)
+		"generate_bridge": return editor._bridges.generate(args)
+		"save_bridge_prefab": return editor._bridges.save_prefab(args.id,args.name)
 		"set_terrain_furrows": return preload("res://scripts/world_editor/terrain_furrow_tools.gd").apply(editor,args)
 		"paint_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args)
 		"remove_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args,true)

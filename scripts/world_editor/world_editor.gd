@@ -87,6 +87,7 @@ var _roads = preload("res://scripts/world_editor/road_tools.gd").new()
 var _blocks = preload("res://scripts/world_editor/block_tools.gd").new()
 var _scatter = preload("res://scripts/world_editor/scatter_tools.gd").new()
 var _waterways = preload("res://scripts/world_editor/waterway_tools.gd").new()
+var _bridges = preload("res://scripts/world_editor/bridge_tools.gd").new()
 var _connections = preload("res://scripts/world_editor/road_connection_tools.gd").new()
 var _fortifications = preload("res://scripts/world_editor/fortification_tools.gd").new()
 var _terrain = preload("res://scripts/world_editor/terrain_tools.gd").new()
@@ -124,6 +125,7 @@ func _ready() -> void:
 	_blocks.editor = self
 	_scatter.editor = self
 	_waterways.editor = self
+	_bridges.editor = self
 	_connections.editor = self
 	_fortifications.editor = self
 	_terrain.editor = self
@@ -487,6 +489,7 @@ func _sync_ground_batches() -> void:
 	_ground_batches.sync(_view.get_children(), _selection_tools.ids if _selection_tools != null else [])
 
 func _rebuild() -> void:
+	_bridges.clear_preview()
 	if is_instance_valid(_ground_batches): _ground_batches.clear(false)
 	if _terrain_panel!=null: _terrain_panel.refresh()
 	if _building_panel != null:

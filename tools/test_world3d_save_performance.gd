@@ -15,7 +15,7 @@ func run() -> void:
 	while probe.listen(port, "127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok, "real HTTP save server")
 	var definitions: Array = (await rpc("tools/list")).result.tools
-	check(definitions.size() == 114 and definitions.any(func(d): return d.name == "save_world") and definitions.all(func(d): return d.name != "paint_tile"), "current 3D save tool, no legacy 2D registration")
+	check(definitions.size() == 118 and definitions.any(func(d): return d.name == "save_world") and definitions.all(func(d): return d.name != "paint_tile"), "current 3D save tool, no legacy 2D registration")
 	var ids := []
 	for x in [8,24]:
 		var made := await call_tool("create_terrain", {"center":[x,0,8],"width":16,"depth":16,"cell_size":2})

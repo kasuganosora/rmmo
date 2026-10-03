@@ -7,7 +7,8 @@ static func geometry(settings: Dictionary,bridge: Dictionary) -> Dictionary:
 	var tangent: Vector2=(b-a).normalized(); var n:=Vector2(-tangent.y,tangent.x); var c:=a.lerp(b,bridge.t)
 	var half: float=settings.width*.5+settings.bank_width+bridge.approach; var y: float=settings.bank_height
 	var prefix: String="river_"+settings.id.sha256_text().left(16)+"_bridge_"+bridge.id.sha256_text().left(10)
-	return {"endpoints":[xyz(Vector3((c-n*half).x,y,(c-n*half).y)),xyz(Vector3((c+n*half).x,y,(c+n*half).y))],"width":bridge.width-.6,"deck_id":prefix,"part_ids":[prefix,prefix+"_rail_m1",prefix+"_rail_1"]}
+	var stone: bool=bridge.get("prefab_id","legacy_flat")!="legacy_flat"
+	return {"endpoints":[xyz(Vector3((c-n*half).x,y,(c-n*half).y)),xyz(Vector3((c+n*half).x,y,(c+n*half).y))],"width":bridge.width-(1.16 if stone else .6),"deck_id":prefix,"part_ids":[prefix] if stone else [prefix,prefix+"_rail_m1",prefix+"_rail_1"]}
 static func resolve(data: Dictionary) -> Dictionary:
 	var nodes:={}; var ports: Array=[]; var used:={}
 	for node in data.roads.nodes: nodes[node.id]=node

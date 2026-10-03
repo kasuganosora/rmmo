@@ -154,6 +154,15 @@ func build(settings: Dictionary,sources: Array) -> Dictionary:
 			var end: Array=[c-tangent*wide-normal*bridge.approach*.49,c+tangent*wide-normal*bridge.approach*.49,c+tangent*wide+normal*bridge.approach*.49,c-tangent*wide+normal*bridge.approach*.49]
 			if subtract([end],envelope).reduce(func(sum,p):return sum+Poly.area(p),0.0)<Poly.area(end)-.001: return Data.fail("桥头落入其他河段，请移动桥梁")
 		var base_id: String=prefix+"_bridge_"+bridge.id.sha256_text().left(10)
+		if bridge.get("prefab_id","legacy_flat")!="legacy_flat":
+			var prefab:=preload("res://scripts/world3d/bridge_data.gd").preset(bridge.prefab_id); prefab.recipe.rail_height=bridge.rail_height
+			var endpoints: Array=[Data.xyz(Vector3((center-normal*(half+bridge.approach)).x,y+.025,(center-normal*(half+bridge.approach)).y)),Data.xyz(Vector3((center+normal*(half+bridge.approach)).x,y+.025,(center+normal*(half+bridge.approach)).y))]
+			var r:=preload("res://scripts/world_editor/bridge_tools.gd").make_record({"id":base_id,"start":endpoints[0],"end":endpoints[1],"width":bridge.width,"depth":maxf(1.5,y-bed_y+.2),"camber":bridge.get("camber",0)},prefab)
+			if not preload("res://scripts/world3d/bridge_data.gd").valid(r): return Data.fail("石桥拱高过大：通行坡度不得超过 15%")
+			records.append(r); roles[r.uuid]="bridge"
+			deck_shape=shape(deck,bed_y-.2,y+bridge.get("camber",0)+3)
+			crossings.append({"id":bridge.id,"shape":deck_shape,"polygon":deck.map(func(p):return [p.x,p.y]),"endpoints":endpoints,"width":bridge.width})
+			continue
 		var r:=slab(base_id,triangles(deck),y+.025,y-.35,"bridge_deck",[.43,.40,.34]); r.channel_clearance=3.0; r.editor_name=settings.name+" · 桥面 / 桥头"; records.append(r); roles[r.uuid]="bridge"
 		for side in [-1,1]:
 			var c: Vector2=center+tangent*side*(wide-.15)

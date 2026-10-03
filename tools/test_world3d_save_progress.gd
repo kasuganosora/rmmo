@@ -39,7 +39,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok,"HTTP server")
 	var definitions: Array = (await rpc("tools/list")).result.tools
-	check(definitions.size()==114 and definitions.any(func(d): return d.name=="save_world" and d.inputSchema.properties.has("background")), "3D discovery exposes background saves")
+	check(definitions.size()==118 and definitions.any(func(d): return d.name=="save_world" and d.inputSchema.properties.has("background")), "3D discovery exposes background saves")
 	process_frame.connect(track_frame)
 	Io.save_fault = delayed_publish
 	var dialog := AcceptDialog.new(); editor.add_child(dialog); dialog.popup_centered()

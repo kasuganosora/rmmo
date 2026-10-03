@@ -34,7 +34,7 @@ func run() -> void:
 	probe.stop(); check(editor.start_mcp(port).ok,"start PBR HTTP fixture")
 	var discovery := await rpc("tools/list")
 	var specs: Array = discovery.result.tools
-	check(specs.size()==114 and not specs.any(func(s):return s.name=="paint_tile"),"only current 3D MCP tools")
+	check(specs.size()==118 and not specs.any(func(s):return s.name=="paint_tile"),"only current 3D MCP tools")
 	var listing: Dictionary = specs.filter(func(s):return s.name=="list_surface_materials")[0]
 	var painting: Dictionary = specs.filter(func(s):return s.name=="paint_surface")[0]
 	check(listing.inputSchema.properties.has("category") and painting.inputSchema.properties.mapping.enum.has("meters"),"discovery advertises category and meter mapping")

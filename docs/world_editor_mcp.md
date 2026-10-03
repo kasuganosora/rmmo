@@ -1,10 +1,12 @@
 # 当前 3D 地图编辑器 MCP
 
-2026-10-03 城镇地表收尾：`set_river_materials` 增加 `wet_darkening`（0～0.8，默认 0），与 `wet_height` 一起控制天然岸沙/土/岩的湿痕；UI 同步提供参数，旧图不自动改变外观。仍为 114 个 3D 工具；泥路软边和逐面铺装分别复用 `paint_terrain_region` / `paint_surface`。
+2026-10-03 程序化写实石桥：当前 **118 项** 3D 工具。新增桥型列表、预览、生成及保存桥型；Blender 模块按长度装配，支持平直/拱起、三组 PBR、合并网格与 LOD。河道桥梁也可选择桥型，继续支持道路绑定。见 [石桥说明](world_editor_stone_bridges.md)。
+
+2026-10-03 城镇地表收尾：`set_river_materials` 增加 `wet_darkening`（0～0.8，默认 0），与 `wet_height` 一起控制天然岸沙/土/岩的湿痕；UI 同步提供参数，旧图不自动改变外观。当时为 114 个 3D 工具；泥路软边和逐面铺装分别复用 `paint_terrain_region` / `paint_surface`。
 
 2026-10-03 农田垄沟：新增 `set_terrain_furrows`，与地形面板共用方向、垄距、高度、田边留白、保护与撤销操作；`list_terrains.ground_regions.regions[].furrows` 返回可编辑配方。详见 [农田垄沟和接缝](world_editor_furrows.md)。
 
-2026-10-03 区域地表绘制：当前 **114 项** 3D 工具。新增 `paint_terrain_region`、`remove_terrain_region`；`set_terrain_material` 增加可选 `saturation`（0～1），保存为地形底材调色，法线与原贴图保持不变；UI 支持拖矩形或点选多边形，MCP 使用相同保护、验证、撤销和保存。`list_terrains.ground_regions` 返回区域、局部 XZ 坐标和 PBR 材质，`editor_state.ground_region_drawing` 表示待提交草案。详见 [地表材质区域](world_editor_ground_regions.md)。
+2026-10-03 区域地表绘制：该批交付时 **114 项** 3D 工具。新增 `paint_terrain_region`、`remove_terrain_region`；`set_terrain_material` 增加可选 `saturation`（0～1），保存为地形底材调色，法线与原贴图保持不变；UI 支持拖矩形或点选多边形，MCP 使用相同保护、验证、撤销和保存。`list_terrains.ground_regions` 返回区域、局部 XZ 坐标和 PBR 材质，`editor_state.ground_region_drawing` 表示待提交草案。详见 [地表材质区域](world_editor_ground_regions.md)。
 
 2026-10-03 风化笔刷：`preview_terrain_stroke` / `sculpt_terrain` 新增 `mode=erode`，共享 `iterations`、`talus_angle`、`erosion_seed` 参数。保持体积、块边与洞边，超工作预算原子拒绝，水面无碰撞覆盖层不阻挡河床编辑。该批交付时工具总数为 111，旧二维工具保持下线。参见 [连续地形编辑](world_editor_terrain_sculpt.md#风化与性能2026-10-03)。
 
@@ -69,7 +71,8 @@
 | --- | --- |
 | 连续城墙、角塔、垛口、活动城门 | `list_fortifications`、`preview_fortification`、`generate_fortification`、`remove_fortification`、`set_fortification_gate` |
 | 河道桥梁接入路网、解绑、连通及承托诊断 | `connect_waterway_bridge`、`disconnect_waterway_bridge`、`get_road_connectivity` |
-| 河道开槽、河岸、平桥与桥头、恢复地面 | `list_waterways`、`preview_waterway`、`generate_waterway`、`remove_waterway` |
+| 写实石桥及可复用桥型 | `list_bridge_prefabs`、`preview_bridge`、`generate_bridge`、`save_bridge_prefab` |
+| 河道开槽、河岸、桥梁与桥头、恢复地面 | `list_waterways`、`preview_waterway`、`generate_waterway`、`remove_waterway` |
 | 区域植被混合散布、重生成、保护与解除 | `list_vegetation_scatter`、`preview_vegetation_scatter`、`generate_vegetation_scatter`、`remove_vegetation_scatter` |
 | 闭合街区、临街地块与空位房屋 | `get_city_blocks`、`preview_block_buildings`、`generate_block_buildings`、`detach_block_buildings` |
 | 道路交叉拆分、真实铺面、保留区 | `split_road_intersections`、`preview_road_surface`、`generate_road_surface`、`detach_road_surface`、`update_planning_zones` |

@@ -33,6 +33,12 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 	return true
 
 static func valid(record: Dictionary, relative: bool = false, content_root: String = "") -> bool:
+	if not preload("res://scripts/world3d/bridge_data.gd").valid(record): return false
+	if record.has("bridge_mesh"):
+		if not record.get("bridge_materials") is Dictionary or record.bridge_materials.size()!=3: return false
+		for role in ["deck","masonry","trim"]:
+			if not material_valid(record.bridge_materials.get(role),relative,content_root): return false
+			if record.bridge_materials[role].color[3]!=1: return false
 	if not preload("res://scripts/world3d/river_material_data.gd").valid(record): return false
 	if not preload("res://scripts/world3d/terrain_regions.gd").valid(record): return false
 	if preload("res://scripts/world3d/terrain_furrows.gd").maximum_height(record)>0:
@@ -348,6 +354,7 @@ static func apply(root: Node3D, record: Dictionary) -> void:
 
 static func definitions(record: Dictionary) -> Array:
 	var result: Array=[]
+	result.append_array(record.get("bridge_materials",{}).values())
 	result.append_array(record.get("terrain_regions",{}).get("materials",[]))
 	for entry in record.get("surface_paint",[]): result.append(entry.material)
 	if record.has("terrain_material"): result.append(record.terrain_material)

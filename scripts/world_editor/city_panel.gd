@@ -21,6 +21,7 @@ var road_surface_panel: VBoxContainer
 var block_panel: VBoxContainer
 var scatter_panel: VBoxContainer
 var waterway_panel: VBoxContainer
+var bridge_panel: VBoxContainer
 var fortification_panel: VBoxContainer
 var tab_index := 9
 
@@ -90,6 +91,7 @@ func setup(host: Node3D) -> void:
 	block_panel=preload("res://scripts/world_editor/block_panel.gd").new(); add_child(block_panel); block_panel.setup(self)
 	scatter_panel=preload("res://scripts/world_editor/scatter_panel.gd").new(); add_child(scatter_panel); scatter_panel.setup(self)
 	waterway_panel=preload("res://scripts/world_editor/waterway_panel.gd").new(); add_child(waterway_panel); waterway_panel.setup(self)
+	bridge_panel=preload("res://scripts/world_editor/bridge_panel.gd").new(); add_child(bridge_panel); bridge_panel.setup(self)
 	fortification_panel=preload("res://scripts/world_editor/fortification_panel.gd").new(); add_child(fortification_panel); fortification_panel.setup(self)
 	diagnostics=note(self,"")
 	refresh()

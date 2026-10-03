@@ -10,6 +10,7 @@ var drawing := false
 var zone_draft: Dictionary = {}
 var scatter_draft := false
 var waterway_draft := false
+var bridge_draft := false
 var fortification_draft := false
 var pending: Array = []
 var draw_width := 8.0
@@ -336,6 +337,7 @@ func begin_draw(width: float, height: float, kind: String) -> Dictionary:
 	draw_width=width; draw_height=height; draw_kind=kind; pending=[]; drawing=true; zone_draft={}
 	scatter_draft=false
 	waterway_draft=false
+	bridge_draft=false
 	fortification_draft=false
 	if panel!=null: editor._dock_tabs.current_tab=panel.tab_index
 	editor._status.text="点选道路节点 · Enter 提交 · Backspace 退一点 · Esc 取消；端点靠近已有节点会吸附"
@@ -353,6 +355,13 @@ func begin_scatter(height: float) -> Dictionary:
 	if result.ok:
 		scatter_draft=true
 		editor._status.text="点选植被区域边界 · Enter 完成 · Backspace 退一点 · Esc 取消"
+	return result
+
+func begin_bridge(height: float) -> Dictionary:
+	var result:=begin_draw(1,height,"bridge")
+	if result.ok:
+		bridge_draft=true
+		editor._status.text="点选两个桥头 · Enter 确认 · Esc 取消；随后预览石桥"
 	return result
 
 func begin_waterway(height: float) -> Dictionary:
@@ -374,7 +383,9 @@ func finish_draw(cancel: bool = false) -> Dictionary:
 	drawing=false
 	var result:={"ok":true}
 	if not cancel:
-		if fortification_draft:
+		if bridge_draft:
+			result=panel.bridge_panel.set_points(pending)
+		elif fortification_draft:
 			result=panel.fortification_panel.set_points(pending.map(func(p):return [p[0],p[2]]))
 		elif waterway_draft:
 			result=panel.waterway_panel.set_points(pending.map(func(p):return [p[0],p[2]]))
@@ -385,7 +396,7 @@ func finish_draw(cancel: bool = false) -> Dictionary:
 			result=editor._roads.zones({"expected_token":JSON.stringify(data.get("zones",[])).sha256_text(),"zones":[zone]})
 		elif pending.size()<2: result=Data.fail("至少点选两个道路节点")
 		else: result=add_path(pending,draw_width,draw_kind)
-	if result.ok or cancel: pending=[]; zone_draft={}; scatter_draft=false; waterway_draft=false; fortification_draft=false
+	if result.ok or cancel: pending=[]; zone_draft={}; scatter_draft=false; waterway_draft=false; bridge_draft=false; fortification_draft=false
 	else: drawing=true
 	return result
 

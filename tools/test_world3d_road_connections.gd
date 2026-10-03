@@ -1,4 +1,5 @@
 extends "res://tools/test_world3d_roads.gd"
+func bridge_spec() -> Dictionary: return {"id":"crossing","segment":0,"t":.5,"width":5,"approach":3,"rail_height":1.1}
 func run() -> void:
 	create_timer(300).timeout.connect(func():quit(2)); root.size=Vector2i(1440,1000); root.content_scale_size=root.size
 	directory=Paths.cache_directory("road_links_%d"%Time.get_ticks_usec()); DirAccess.make_dir_recursive_absolute(directory); map_path=directory.path_join("map.gltf")
@@ -8,8 +9,8 @@ func run() -> void:
 	var probe:=TCPServer.new(); port=30110
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"road connection HTTP starts")
-	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==114 and definitions.any(func(t):return t.name=="get_road_connectivity" and t.annotations.readOnlyHint),"114 tools expose bridge linkage and readonly network checks")
-	await call_tool("generate_waterway",{"id":"river","ground_ids":[ground],"points":[[0,-55],[0,55]],"bridges":[{"id":"crossing","segment":0,"t":.5,"width":5,"approach":3,"rail_height":1.1}]})
+	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==118 and definitions.any(func(t):return t.name=="get_road_connectivity" and t.annotations.readOnlyHint),"118 tools expose bridge linkage and readonly network checks")
+	await call_tool("generate_waterway",{"id":"river","ground_ids":[ground],"points":[[0,-55],[0,55]],"bridges":[bridge_spec()]})
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size()
 	var linked:=await call_tool("connect_waterway_bridge",{"waterway_id":"river","bridge_id":"crossing"})
 	if not linked.get("ok",false): quit(1); return

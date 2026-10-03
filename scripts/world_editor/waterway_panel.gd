@@ -15,8 +15,8 @@ var current: Dictionary={}
 var preview: Dictionary={}
 func setup(panel: VBoxContainer) -> void:
 	host=panel; editor=host.editor
-	var body: VBoxContainer=host.section("河道、河岸与平桥")
-	host.note(body,"先选普通水平地面，再点选河道中心线。预览会检查开槽与现有物件冲突；应用后生成真实河槽、两岸及平桥。仅支持同标高平地，带手刷材质或事件的地面不能直接开槽。")
+	var body: VBoxContainer=host.section("河道、河岸与石桥")
+	host.note(body,"先选普通水平地面，再点选河道中心线。预览会检查开槽与现有物件冲突；应用后生成真实河槽、两岸及所选桥型。仅支持同标高平地，带手刷材质或事件的地面不能直接开槽。")
 	choice=OptionButton.new(); body.add_child(choice); choice.item_selected.connect(func(_i):load_region())
 	host.button(body,"新建河道",new_region)
 	fields=Form.new(); body.add_child(fields)
@@ -24,7 +24,7 @@ func setup(panel: VBoxContainer) -> void:
 	source_info=host.note(body,"")
 	host.button(body,"点选河道中心线",func():host.report(editor._city.begin_waterway(float(fields.values().bank_height))))
 	for role in ["bank","bed","bridge"]:
-		host.note(body,{"bank":"河岸材质","bed":"河床材质","bridge":"桥面与栏杆材质"}[role])
+		host.note(body,{"bank":"河岸材质","bed":"河床材质","bridge":"桥面材质（旧式平桥同时用于栏杆）"}[role])
 		var menu:=OptionButton.new(); menu.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(menu); materials[role]=menu
 		menu.add_item("原色"); menu.set_item_metadata(0,"")
 		for entry in editor._material_tool.library.entries(): menu.add_item(str(entry.material.name)); menu.set_item_metadata(menu.item_count-1,entry.material_id)
@@ -55,8 +55,10 @@ func form() -> void:
 	sync_bridges()
 func bridge_form(value: Dictionary={}) -> void:
 	var schema:=W.bridge_schema(); schema.properties.erase("id"); schema.required=[]
-	var values:={"segment":0,"t":.5,"width":5.0,"approach":3.0,"rail_height":1.1}; values.merge(value,true); values.erase("id")
-	bridge_fields.build(schema,values,{"segment":"河段编号（从 0 起）","t":"段内位置（0～1）","width":"桥梁总宽（米）","approach":"每端桥头长度（米）","rail_height":"栏杆高度（米）"})
+	var values:={"segment":0,"t":.5,"width":5.0,"approach":3.0,"rail_height":1.1,"prefab_id":"stone_segmental","camber":0.0}; values.merge(value,true); values.erase("id")
+	if not value.is_empty() and not value.has("prefab_id"): values.prefab_id="legacy_flat"
+	var choices: Array=[{"id":"legacy_flat","name":"旧式平桥（兼容）"}]; choices.append_array(preload("res://scripts/world3d/bridge_data.gd").presets())
+	bridge_fields.build(schema,values,{"segment":"河段编号（从 0 起）","t":"段内位置（0～1）","width":"桥梁总宽（米）","approach":"每端桥头长度（米）","rail_height":"栏杆高度（米）","prefab_id":"桥梁预制件","camber":"桥面拱高（米，0 为平直）"},{"prefab_id":choices})
 func sync_bridges() -> void:
 	bridge_choice.clear()
 	for b in current.bridges: bridge_choice.add_item("%s · 第 %d 段 / %.2f"%[b.id,b.segment,b.t])
