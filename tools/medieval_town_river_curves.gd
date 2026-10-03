@@ -13,6 +13,7 @@ var sampled_left:=PackedVector2Array()
 var sampled_right:=PackedVector2Array()
 var original:=PackedVector2Array()
 var dry_bank_width:=10.0
+var ribbon: Dictionary={}
 const STEP:=2.0
 
 func setup(spec: Dictionary) -> void:
@@ -22,9 +23,20 @@ func setup(spec: Dictionary) -> void:
 	left=spec.river_left.map(func(p):return Vector2(p[0]-500,p[1]-500)*scale_m)
 	right=spec.river_right.map(func(p):return Vector2(p[0]-500,p[1]-500)*scale_m)
 	original=PackedVector2Array(left); var reverse: Array=right.duplicate(); reverse.reverse(); original.append_array(PackedVector2Array(reverse))
+	ribbon={}
+	if spec.has("river_centerline"):
+		var recipe: Dictionary=spec.river_centerline
+		var anchors: Array=recipe.points.map(func(p):return Vector2(p[0]-500.,p[1]-500.)*scale_m)
+		ribbon=preload("res://tools/medieval_town_river_ribbon.gd").build(anchors,float(recipe.width_m))
+		if not ribbon.ok: push_error(str(ribbon)); return
+		left=ribbon.left; right=ribbon.right
 	for i in 701:
 		var z: float=-700+i*STEP
-		sampled_left.append(Vector2(x_at(left,z),z)); sampled_right.append(Vector2(x_at(right,z),z))
+		if ribbon.is_empty():
+			sampled_left.append(Vector2(x_at(left,z),z)); sampled_right.append(Vector2(x_at(right,z),z))
+		else:
+			sampled_left.append(Vector2(preload("res://tools/medieval_town_river_ribbon.gd").bank_x(left,z),z))
+			sampled_right.append(Vector2(preload("res://tools/medieval_town_river_ribbon.gd").bank_x(right,z),z))
 
 static func slope(points: Array, i: int) -> float:
 	if i==0: return (points[1].x-points[0].x)/(points[1].y-points[0].y)
@@ -67,8 +79,9 @@ static func height_at(distance: float, dry_width: float=10.0) -> float:
 	return -1.5+1.5*(3*t*t-2*t*t*t)+(.25*dry_width)*(t*t*t-2*t*t+t)
 
 func apply(doc, previous: RefCounted=null) -> Dictionary:
+	if sampled_left.size()!=701 or sampled_right.size()!=701: return City.fail("Invalid or incomplete river curve; no records changed")
 	if doc.map_meta.get("town_reference",{}).has("river_curve") and previous==null: return City.fail("River already curved; provide its previous trace to revise the corridor")
-	if previous!=null and doc.map_meta.get("town_reference",{}).get("river_curve",{}).get("trace_revision",1)!=1: return City.fail("Town shoreline revision already applied")
+	if previous!=null and doc.map_meta.get("town_reference",{}).get("river_curve",{}).get("trace_revision",1)!=(1 if ribbon.is_empty() else 2): return City.fail("Town shoreline revision already applied or has an unexpected source")
 	var changed_vertices:=0; var changed_tiles:=0; var cells:={}; var old_water: Array=doc.records.filter(func(r):return r.has("channel_mesh") and r.surface_id=="water")
 	if old_water.is_empty(): return City.fail("No existing river material to preserve")
 	if old_water.any(func(r):return r.get("editor_locked",false) or r.get("editor_hidden",false)): return City.fail("Show and unlock water before river authoring")
@@ -144,6 +157,8 @@ func apply(doc, previous: RefCounted=null) -> Dictionary:
 	doc.records=doc.records.filter(func(r):return not (r.has("channel_mesh") and r.surface_id=="water"))+water
 	doc.map_meta.editor_layout.zones=doc.map_meta.editor_layout.zones.filter(func(z):return not str(z.id).begins_with("river_corridor"))+zones
 	doc.map_meta.town_reference.river_curve={"version":1,"method":"shape_preserving_cubic_x_of_z","sample_spacing":STEP,"shore_y":-1.5,"bed_y":-4.5,"water_under_bank":3,"shore_slope":.25,"dry_bank_width":dry_bank_width,"trace_revision":2}
+	if not ribbon.is_empty():
+		doc.map_meta.town_reference.river_curve.merge({"method":"c2_centerline_normal_offset","width_m":ribbon.width,"minimum_radius_m":ribbon.minimum_radius,"trace_revision":3},true)
 	return {"ok":true,"water_chunks":water.size(),"changed_terrain_tiles":changed_tiles,"changed_height_samples":changed_vertices,"river_zones":zones.size(),"bank_samples":sampled_left.size()}
 
 static func land_height(p: Vector2, roads: Array) -> float:

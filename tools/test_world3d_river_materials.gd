@@ -37,7 +37,7 @@ func run() -> void:
 	probe.stop(); check(editor.start_mcp(port).ok,"real HTTP MCP starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools
 	check(definitions.filter(func(t):return t.name=="set_river_materials").size()==1 and definitions.all(func(t):return t.name!="paint_tile"),"discover new 3D river material operation; 2D stays disabled")
-	var args:={"terrain_ids":terrains,"water_ids":waters,"water_level":0,"sand_material_id":SAND,"rock_material_id":ROCK}
+	var args:={"terrain_ids":terrains,"water_ids":waters,"water_level":0,"sand_material_id":SAND,"rock_material_id":ROCK,"wet_darkening":.65,"wet_height":.6}
 	var before: Array=editor._doc.records.duplicate(true); var history: int=editor._doc._undo.size()
 	await call_tool("set_river_materials",args)
 	var expected: Array=editor._doc.records.duplicate(true)
@@ -46,7 +46,7 @@ func run() -> void:
 	await call_tool("redo"); check(equivalent(expected,editor._doc.records),"redo restores all material definitions")
 	history=editor._doc._undo.size(); await call_tool("set_river_materials",args)
 	check(history==editor._doc._undo.size(),"idempotent apply has no history")
-	for bad in [{"rock_start":3,"rock_end":2},{"shore_start":2,"shore_end":1},{"terrain_ids":[terrains[0],terrains[0]]},{"sand_material_id":"missing"},{"water_level":1},{"absorption":-1},{"terrain_ids":[waters[0]]},{"water_ids":[terrains[0]]},{"bogus":true}]:
+	for bad in [{"wet_darkening":.81},{"wet_darkening":-1},{"wet_height":0},{"rock_start":3,"rock_end":2},{"shore_start":2,"shore_end":1},{"terrain_ids":[terrains[0],terrains[0]]},{"sand_material_id":"missing"},{"water_level":1},{"absorption":-1},{"terrain_ids":[waters[0]]},{"water_ids":[terrains[0]]},{"bogus":true}]:
 		await atomic_reject("set_river_materials",args.merged(bad,true))
 	for property in ["locked","hidden"]:
 		await call_tool("set_object_properties",{"ids":[terrains[1]],property:true}); await atomic_reject("set_river_materials",args.merged({"rock_end":3},true)); await call_tool("undo")
@@ -57,8 +57,10 @@ func run() -> void:
 	broken=record.duplicate(true); broken.terrain_depth_blend.rock_material.normal_path=directory.path_join("absent.png")
 	check(not Paint.missing([broken]).is_empty(),"missing nested normals reported")
 	var state:=await call_tool("list_terrains")
+	check(state.terrains[0].depth_blend.wet_darkening==.65 and state.terrains[0].depth_blend.wet_height==.6,"MCP reports persisted wetness")
 	check(state.terrains[0].depth_blend.rock_end==2.2,"MCP catalog reports full persisted depth thresholds")
 	editor._terrain_panel.refresh(terrains[0]); check(is_equal_approx(editor._terrain_panel.river_fields.fields.rock_end.value,2.2),"UI reads persisted thresholds")
+	check(is_equal_approx(editor._terrain_panel.river_fields.fields.wet_darkening.value,.65),"UI reads persisted natural-bank wetness")
 	editor._selection_tools.ids.clear(); editor._terrain_panel.river_fields.fields.rock_end.value=2.6; editor._terrain_panel._apply_river(true)
 	check(is_equal_approx(editor._doc._find(terrains[0]).terrain_depth_blend.rock_end,2.6),"UI form uses shared operation: "+str(editor._status.text)); await call_tool("undo")
 	await call_tool("set_river_materials",{"terrain_ids":terrains,"water_ids":waters,"enabled":false})
@@ -71,13 +73,20 @@ func run() -> void:
 	check(equivalent(expected,editor._doc.records),"save and reopen preserve exact definitions")
 	var node: MeshInstance3D=editor._view.get_node(NodePath(terrains[0])); var mat: ShaderMaterial=node.get_active_material(0)
 	check(mat!=null and mat.get_shader_parameter("sand_normal")!=null and mat.get_shader_parameter("rock_rough")!=null,"terrain shader binds full PBR maps")
+	check(is_equal_approx(mat.get_shader_parameter("wet_darkening"),.65) and is_equal_approx(mat.get_shader_parameter("wet_height"),.6),"GPU binds native wetness parameters")
+	var legacy:=record.duplicate(true); legacy.terrain_depth_blend.erase("wet_darkening"); legacy.terrain_depth_blend.erase("wet_height")
+	check(Paint.valid(legacy) and River.terrain(legacy).get_shader_parameter("wet_darkening")==0.,"legacy terrain stays visually unchanged")
 	var source_height: Texture2D=mat.get_shader_parameter("rock_height")
 	check(source_height!=null and source_height.get_width()==2048 and mat.get_shader_parameter("soil_albedo")!=null,"river renderer binds original 2K height and transition textures")
 	editor._grid.hide(); editor._city.overlay.hide(); editor._authoring.marker.hide()
 	await call_tool("set_editor_camera",{"projection":"perspective","center":[0,-.5,0],"distance":42,"pitch":-48,"yaw":15})
 	await shot("with_water")
 	for id in waters: editor._view.get_node(NodePath(id)).hide()
-	await shot("bed_layers")
+	var wet_image:=await shot("bed_layers")
+	mat.set_shader_parameter("wet_darkening",0.)
+	var dry_image:=await shot("bed_dry")
+	check(image_difference(wet_image,dry_image)>.1,"natural bank wetness changes actual GPU shading")
+	mat.set_shader_parameter("wet_darkening",.65)
 	await call_tool("set_editor_camera",{"projection":"top","center":[3,-1,0],"span":13})
 	var normals_on:=await shot("normals_on")
 	mat.set_shader_parameter("sand_strength",0.); mat.set_shader_parameter("rock_strength",0.)

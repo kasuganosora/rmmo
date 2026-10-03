@@ -59,6 +59,8 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 		bind(result,"region_b",regions.materials[1] if regions.materials.size()>1 else base)
 	if depth_enabled:
 		for param in ["water_level","shore_start","shore_end","rock_start","rock_end"]: result.set_shader_parameter(param,config[param])
+		result.set_shader_parameter("wet_height",config.get("wet_height",.3))
+		result.set_shader_parameter("wet_darkening",config.get("wet_darkening",0.))
 	result.set_shader_parameter("slope_aware",record.has("terrain_slope_blend") or (depth_enabled and config.get("bank_profile","depth")=="natural"))
 	result.set_shader_parameter("steep_start",config.get("steep_start",40.0)); result.set_shader_parameter("steep_end",config.get("steep_end",65.0))
 	return remember(key,result)

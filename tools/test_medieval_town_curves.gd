@@ -13,6 +13,7 @@ func run() -> void:
 	var candidate:="D:/code/rmmo_runtime/cache/world3d/medieval_town_terrain/map.gltf" if revised else "D:/code/rmmo_runtime/cache/world3d/medieval_town_curves/map.gltf"
 	var output:="D:/code/rmmo_runtime/review_artifacts/medieval_town_terrain/geometry_result.json" if revised else "D:/code/rmmo_runtime/review_artifacts/medieval_town_curves/geometry_result.json"
 	var spec: Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://tools/medieval_town_layout.json"))
+	spec.erase("river_centerline") # This test audits the preserved historical double-bank trace.
 	if not revised and spec.has("river_previous_trace"): spec.merge(spec.river_previous_trace,true)
 	var river:=River.new(); river.setup(spec); var retained:=true; var overshoot:=false
 	for bank in [river.left,river.right]:

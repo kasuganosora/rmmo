@@ -8,7 +8,7 @@ static func parameters(doc) -> Dictionary:
 	for record in doc.records:
 		if record.has("terrain_mesh") and float(record.terrain_mesh.heights.min())*record.size[1]+record.position[1]<-.2: terrain_ids.append(record.uuid)
 		if record.has("channel_mesh") and record.get("surface_id")=="water": water_ids.append(record.uuid)
-	return {"terrain_ids":terrain_ids,"water_ids":water_ids,"water_level":-1.5,"shore_start":.05,"shore_end":.55,"rock_start":.6,"rock_end":2.2,"absorption":.9,"shallow_color":[.13,.27,.31],"deep_color":[.055,.14,.205],"bank_profile":"natural","transition_width":2.,"edge_noise":.4,"height_blend_strength":.35,"transition_material_id":"pack:default:terrain/natural_dirt/material","sand_material_id":"pack:default:terrain/natural_sand/material","rock_material_id":"pack:default:terrain/icelandic_jagged_slate/material"}
+	return {"terrain_ids":terrain_ids,"water_ids":water_ids,"water_level":-1.5,"shore_start":0.,"shore_end":.35,"wet_height":.6,"wet_darkening":.65,"rock_start":.6,"rock_end":2.2,"absorption":.9,"shallow_color":[.13,.27,.31],"deep_color":[.055,.14,.205],"bank_profile":"natural","transition_width":2.5,"edge_noise":.55,"height_blend_strength":.35,"transition_material_id":"pack:default:terrain/natural_dirt/material","sand_material_id":"pack:default:terrain/natural_sand/material","rock_material_id":"pack:default:terrain/icelandic_jagged_slate/material"}
 static func apply(doc, include_ground: bool=false) -> Dictionary:
 	var args:=parameters(doc)
 	var view:=Settings.resolve(doc.map_meta)

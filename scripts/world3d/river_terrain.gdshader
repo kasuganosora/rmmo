@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 uniform float terrain_saturation = 1.;
+uniform float wet_height = .3;
+uniform float wet_darkening = 0.;
 uniform vec4 base_color : source_color = vec4(1.);
 uniform vec2 base_tile = vec2(2.);
 uniform float base_roughness = .9;
@@ -356,6 +358,13 @@ void fragment() {
 		vec3 tangent=normalize(vec3(1.,0.,0.)-up*up.x);
 		vec3 bitangent=normalize(cross(tangent,up));
 		surface=tangent*surface.x+bitangent*surface.y+up*surface.z;
+	}
+	// Waterline dampness uses world height, so adjacent patches and render batches
+	// agree. No extra texture, mesh or translucent pass is needed.
+	if (depth_enabled && wet_darkening>0.) {
+		float wet=(1.-smoothstep(0.,wet_height,-depth))*(weights.y+weights.z+weights.w);
+		ALBEDO*=1.-wet*wet_darkening;
+		ROUGHNESS*=1.-wet*.25;
 	}
 	NORMAL=normalize((VIEW_MATRIX*vec4(surface,0.)).xyz);
 }

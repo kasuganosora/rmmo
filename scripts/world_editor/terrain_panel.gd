@@ -200,10 +200,11 @@ func _refresh_river() -> void:
 	if key==river_loaded: return
 	river_loaded=key
 	var values:=River.DEFAULTS.duplicate(true)
+	values.wet_darkening=config.get("wet_darkening",0.)
 	for key_ in River.TRANSITION_DEFAULTS: values[key_]=config.get(key_,River.TRANSITION_DEFAULTS[key_] if config.is_empty() else 0.)
 	values.transition_material_id=River.TRANSITION_MATERIAL
 	values.merge(water_config,true)
-	for name_ in ["water_level","shore_start","shore_end","rock_start","rock_end","bank_profile","steep_start","steep_end"]:
+	for name_ in ["water_level","shore_start","shore_end","rock_start","rock_end","bank_profile","steep_start","steep_end","wet_height"]:
 		if config.has(name_): values[name_]=config[name_]
 	if not config.is_empty() and not config.has("bank_profile"): values.bank_profile="depth"
 	values.merge(bank_config,true)
@@ -214,7 +215,7 @@ func _refresh_river() -> void:
 		options.append({"id":entry.material_id,"name":entry.material.name})
 		for layer in ["sand","rock","transition"]:
 			if config.get(layer+"_material",{})==entry.material: values[layer+"_material_id"]=entry.material_id
-	river_fields.build(River.request_schema(),values,{"water_level":"水面世界标高（米）","shore_start":"岸上开始接回底材（米）","shore_end":"岸上完全恢复底材（米）","rock_start":"水下开始混入岩石（米）","rock_end":"水下完全转为岩石（米）","bank_profile":"自然河岸算法","steep_start":"开始露岩坡度（度）","steep_end":"完全露岩坡度（度）","wet_height":"水渠岸墙湿痕高度（米）","absorption":"河水浑浊 / 吸收系数","shallow_color":"浅水颜色","deep_color":"深水颜色","sand_material_id":"浅水沙地材质","rock_material_id":"深水岩石材质","transition_material_id":"边缘土层 / 碎石材质","transition_width":"自然交错范围（米；0 关闭）","edge_noise":"边界不规则程度","height_blend_strength":"贴图高度混合强度"},{"sand_material_id":options,"rock_material_id":options,"transition_material_id":options,"bank_profile":[{"id":"natural","name":"水深 + 坡度 · 三向投影"},{"id":"depth","name":"仅水深 · 旧版对照"}]})
+	river_fields.build(River.request_schema(),values,{"water_level":"水面世界标高（米）","shore_start":"岸上开始接回底材（米）","shore_end":"岸上完全恢复底材（米）","rock_start":"水下开始混入岩石（米）","rock_end":"水下完全转为岩石（米）","bank_profile":"自然河岸算法","steep_start":"开始露岩坡度（度）","steep_end":"完全露岩坡度（度）","wet_height":"河岸 / 岸墙湿痕高度（米）","wet_darkening":"自然河岸湿润变暗（0 关闭）","absorption":"河水浑浊 / 吸收系数","shallow_color":"浅水颜色","deep_color":"深水颜色","sand_material_id":"浅水沙地材质","rock_material_id":"深水岩石材质","transition_material_id":"边缘土层 / 碎石材质","transition_width":"自然交错范围（米；0 关闭）","edge_noise":"边界不规则程度","height_blend_strength":"贴图高度混合强度"},{"sand_material_id":options,"rock_material_id":options,"transition_material_id":options,"bank_profile":[{"id":"natural","name":"水深 + 坡度 · 三向投影"},{"id":"depth","name":"仅水深 · 旧版对照"}]})
 
 func _apply_river(enabled: bool) -> void:
 	editor._terrain_brush.cancel()

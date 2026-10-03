@@ -52,6 +52,10 @@ static func prepare(records: Array, args: Dictionary, library, editable: Callabl
 			if enabled:
 				next[field]={"water_level":config.water_level,"shore_start":config.shore_start,"shore_end":config.shore_end,"rock_start":config.rock_start,"rock_end":config.rock_end,"sand_material":sand.duplicate(true),"rock_material":rock.duplicate(true)}
 				for key in ["bank_profile","steep_start","steep_end"]: next[field][key]=config[key]
+				# Opt-in for existing maps; retain the previous dry appearance when absent.
+				if args.get("wet_darkening",0)>0:
+					next[field].wet_height=config.wet_height
+					next[field].wet_darkening=args.wet_darkening
 				next[field].merge(blend)
 		elif bank_ids.has(id):
 			if not Data.bank_target(record): return fail("护岸仅支持普通方块或河道岸/底网格；不能将道路、建筑或水面作为护岸")

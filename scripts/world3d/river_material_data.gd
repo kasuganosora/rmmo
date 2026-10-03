@@ -12,6 +12,7 @@ static func parameters() -> Dictionary:
 static func request_schema() -> Dictionary:
 	var ids:={"type":"array","items":{"type":"string","maxLength":128},"minItems":0,"maxItems":256,"uniqueItems":true}
 	var props:=parameters()
+	props.wet_darkening=S.number(0,.8)
 	props.merge(transition_parameters())
 	props.merge({"terrain_ids":ids,"water_ids":ids,"bank_ids":ids,"enabled":{"type":"boolean"},"sand_material_id":{"type":"string","maxLength":512},"rock_material_id":{"type":"string","maxLength":512}})
 	props.transition_material_id={"type":"string","maxLength":512}
@@ -38,10 +39,11 @@ static func valid(record: Dictionary) -> bool:
 	if record.has("terrain_depth_blend"):
 		if not record.has("terrain_mesh") or record.has("surface_paint"): return false
 		var props:=parameters()
-		for key in ["absorption","shallow_color","deep_color","wet_height"]: props.erase(key)
+		for key in ["absorption","shallow_color","deep_color"]: props.erase(key)
+		props["wet_darkening"]=S.number(0,.8)
 		props.merge({"sand_material":{},"rock_material":{}})
 		var required: Array=props.keys()
-		for key in ["bank_profile","steep_start","steep_end"]: required.erase(key) # Existing maps retain depth-only rendering.
+		for key in ["bank_profile","steep_start","steep_end","wet_height","wet_darkening"]: required.erase(key) # Existing maps retain their appearance.
 		props.merge(transition_parameters()); props.transition_material={}
 		var schema:={"type":"object","properties":props,"required":required}
 		if not S.validate(record.terrain_depth_blend,schema).is_empty() or not ordered(record.terrain_depth_blend): return false

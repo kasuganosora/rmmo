@@ -3694,5 +3694,56 @@
       "feather": 16
     }
   ],
-  "ground_region_note": "Image X/Y pixels, same 1000px reference and 1.4m/px calibration. Observed fields and open yards only; no reconstruction beneath buildings. Dirt and moss overlays over short-grass base; stone streets/plazas retain their separate authored geometry."
+  "ground_region_note": "Image X/Y pixels, same 1000px reference and 1.4m/px calibration. Observed fields and open yards only; no reconstruction beneath buildings. Dirt and moss overlays over short-grass base; stone streets/plazas retain their separate authored geometry.",
+  "river_centerline": {
+    "method": "natural_cubic_x_of_z",
+    "width_m": 40.0,
+    "points": [
+      [
+        425,
+        -60
+      ],
+      [
+        376,
+        45
+      ],
+      [
+        405,
+        125
+      ],
+      [
+        550,
+        230
+      ],
+      [
+        705,
+        325
+      ],
+      [
+        756,
+        420
+      ],
+      [
+        758,
+        520
+      ],
+      [
+        676,
+        620
+      ],
+      [
+        499,
+        735
+      ],
+      [
+        465,
+        830
+      ],
+      [
+        462,
+        1040
+      ]
+    ],
+    "note": "User requested a broadly uniform-width, smoothly flowing river. Width is measured normal to the C2 centreline, not horizontally between independently traced banks. Original bank traces retained for restoring the old corridor."
+  }
 }
