@@ -1,0 +1,15 @@
+extends SceneTree
+func _initialize() -> void:
+	var box := BoxMesh.new(); box.size = Vector3(2,3,4)
+	var cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd").capture(box)
+	assert(cpu.get_aabb() == box.get_aabb())
+	assert(cpu.get_faces() == box.get_faces())
+	assert(cpu.create_trimesh_shape().get_faces() == box.create_trimesh_shape().get_faces())
+	assert(not cpu.get_rid().is_valid())
+	assert(cpu.restore().get_faces() == box.get_faces())
+	box.size = Vector3(6,7,8)
+	var changed=preload("res://scripts/world3d/ground_cpu_mesh.gd").capture(box)
+	assert(changed.get_aabb()==box.get_aabb())
+	assert(changed!=cpu)
+	print("CPU_MESH_PASS no GPU RID, matching faces/collision/restoration")
+	quit()

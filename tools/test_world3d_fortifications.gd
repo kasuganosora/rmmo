@@ -9,7 +9,7 @@ func run() -> void:
 	var probe:=TCPServer.new(); port=30120
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"fortification HTTP starts")
-	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==109 and definitions.any(func(t):return t.name=="preview_fortification" and t.annotations.readOnlyHint),"109 tools expose fortification generation and gate control")
+	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==113 and definitions.any(func(t):return t.name=="preview_fortification" and t.annotations.readOnlyHint),"111 tools expose fortification generation and gate control")
 	await call_tool("create_road_path",{"points":[[0,0,-55],[0,0,0]],"width":4}); await call_tool("generate_road_surface",{})
 	var args:={"id":"city_wall","points":[[-30,-30],[30,-30],[30,30],[-30,30]],"closed":true,"gates":[{"id":"north","segment":0,"t":.5,"width":6,"height":4.5,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size()

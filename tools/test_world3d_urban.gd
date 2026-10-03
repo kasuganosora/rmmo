@@ -11,7 +11,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"real HTTP MCP starts")
 	var discovery:=await rpc("tools/list"); var names: Array=discovery.result.tools.map(func(tool): return tool.name)
-	check(names.size()==109 and not names.has("paint_tile"),"109 current tools, retired 2D stays unregistered")
+	check(names.size()==113 and not names.has("paint_tile"),"111 current tools, retired 2D stays unregistered")
 	var templates:=await call_tool("list_building_templates")
 	check(templates.urban_presets.size()==2 and templates.parameters_schema.properties.layout.enum.has("urban_village"),"discover urban family presets and schema")
 	check(not templates.parameters_schema.properties.has("rental_units"),"contract contains no subdivision or tenancy rules")

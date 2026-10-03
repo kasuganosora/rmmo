@@ -56,7 +56,7 @@ def install(spec, downloads, pack):
             image.load()
             if channel is not None:
                 image = image.convert("RGB").getchannel(channel)
-            elif field in ["roughness_path", "metallic_path", "ao_path"]:
+            elif field in ["roughness_path", "metallic_path", "ao_path", "height_path"]:
                 image = image.convert("RGB").getchannel(0)
             else:
                 image = image.convert("RGB")
@@ -78,7 +78,7 @@ def install(spec, downloads, pack):
     if not destination.exists():
         shutil.copy2(archive, destination)
     source = {"listing_url": "https://www.fab.com/listings/" + spec["listing_id"], "seller": spec["seller"],
-              "title": spec["title"], "license_url": "https://www.fab.com/eula", "owned_library_verified": "2026-10-02",
+              "title": spec["title"], "license_url": "https://www.fab.com/eula", "owned_library_verified": spec.get("owned_verified", "2026-10-02"),
               "archive": destination.relative_to(pack).as_posix(), "archive_sha256": sha,
               "ai_generated_on_listing": spec.get("ai_generated", False), "maps": members}
     value = {"category": spec["category"], "source": source, "usage": spec["usage"], "material": {

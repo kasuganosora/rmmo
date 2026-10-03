@@ -63,6 +63,27 @@ func run() -> void:
 			for i in 11: matches=matches and Split.position(edge,solved.nodes,i/10.0).distance_to(Split.position(curve.edges[0],source.nodes,lerpf(lo,hi,i/10.0)))<.001
 		check(matches,"split subcurves preserve original cubic geometry")
 		var result:=Plan.build(split.graph,Plan.defaults()); check(result.ok,"curved pavement union valid"); if not result.ok: print(result)
+	var bend:=graph([[[-80,0,0],[80,0,0]]]); bend.edges[0].controls=[[-25,0,50],[25,0,-50]]
+	var tee:=graph([[[0,0,-40],[0,0,0],[0,0,40]],[[0,0,0],[60,0,0]]])
+	for e in tee.edges: e.width_start=14 if e.id=="edge_2" else 6; e.width_end=e.width_start
+	var tee_plan:=Plan.build(tee,Plan.defaults())
+	check(tee_plan.ok and covers(tee_plan.records,Vector3(1,1,0)) and not covers(tee_plan.records,Vector3(-5,1,0)),"wide T branch has continuous junction without a cap protruding through the narrow street")
+	var bend_plan:=Plan.build(bend,Plan.defaults())
+	check(bend_plan.ok,"continuous S bend builds")
+	if bend_plan.ok:
+		var checked:=Data.analyze(bend); var coverage:=true; var outside:=false; var overlap:=false; var patches:=0
+		for i in range(1,40):
+			var t:=i/40.0; var p:=Split.position(bend.edges[0],checked.nodes,t); var d:=Split.derivative(bend.edges[0],checked.nodes,t).normalized(); var side:=Vector3(-d.z,0,d.x)
+			for sign_ in [-1,1]:
+				coverage=coverage and covers(bend_plan.records,p+side*1.9*sign_+Vector3.UP)
+				outside=outside or covers(bend_plan.records,p+side*2.25*sign_+Vector3.UP)
+		for record in bend_plan.records:
+			patches+=record.road_mesh.polygons.size()
+			var shapes:=Foot.record_shapes(record)
+			for i in shapes.size():
+				for j in range(i+1,shapes.size()): overlap=overlap or Foot.overlaps(shapes[i],shapes[j])
+		check(coverage and not outside,"S bend covers both edges at intended width without join bulges")
+		check(not overlap and patches<100,"shared curve edges produce disjoint compact patches")
 	var bridge:=graph([[[-40,0,0],[40,0,0]],[[0,5,-30],[0,5,30]]]); bridge.edges[1].kind="bridge"
 	check(Split.split(bridge).added_nodes==0,"grade separation does not join nodes")
 	check(Plan.build(bridge,Plan.defaults()).ok,"5m bridge with sufficient underside clearance")

@@ -88,6 +88,7 @@ var _waterways = preload("res://scripts/world_editor/waterway_tools.gd").new()
 var _connections = preload("res://scripts/world_editor/road_connection_tools.gd").new()
 var _fortifications = preload("res://scripts/world_editor/fortification_tools.gd").new()
 var _terrain = preload("res://scripts/world_editor/terrain_tools.gd").new()
+var _ground_draw: Control
 var _terrain_brush: Control
 var _terrain_panel: VBoxContainer
 var _city = preload("res://scripts/world_editor/city_tools.gd").new()
@@ -185,6 +186,7 @@ func _show_placement_panel() -> void:
 func _input(event: InputEvent) -> void:
 	# Drawer controls overlap the canvas; let GUI consume them before scene tools.
 	if _material_panel != null and _material_panel.drawer_input(event): return
+	if _ground_draw!=null and _ground_draw.input(event): get_viewport().set_input_as_handled(); return
 	if _terrain_brush!=null and _terrain_brush.input(event): get_viewport().set_input_as_handled(); return
 	if _city.input(event): get_viewport().set_input_as_handled(); return
 	if _playtest != null and _playtest.active() and event is InputEventKey:
@@ -264,6 +266,7 @@ func _notification(what: int) -> void:
 		if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 		if _building_panel!=null and _building_panel.street!=null:
 			_building_panel.street.drawing=false; _building_panel.street.refresh()
+		if _ground_draw != null: _ground_draw.cancel()
 		if _terrain_brush != null: _terrain_brush.cancel()
 		if _material_tool != null: _material_tool.cancel()
 		if _placement_tools != null: _placement_tools.cancel()
@@ -464,7 +467,18 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 	_rebuild()
 
 
+var _ground_batches: Node3D
+var _ground_sync_suspended := false
+
+func _sync_ground_batches() -> void:
+	if _view == null or _ground_sync_suspended: return
+	if not is_instance_valid(_ground_batches):
+		_ground_batches = preload("res://scripts/world3d/ground_batcher.gd").new()
+		add_child(_ground_batches)
+	_ground_batches.sync(_view.get_children(), _selection_tools.ids if _selection_tools != null else [])
+
 func _rebuild() -> void:
+	if is_instance_valid(_ground_batches): _ground_batches.clear(false)
 	if _terrain_panel!=null: _terrain_panel.refresh()
 	if _building_panel != null:
 		_building_panel.clear_preview()
@@ -530,11 +544,14 @@ func _sync_selected_transform() -> void:
 	if _authoring.settings.isolation and not _transform_drag.active:
 		_rebuild()
 		return
+	_ground_sync_suspended = true
 	for record in _selection_tools.records(): _sync_record_transform(record)
+	_ground_sync_suspended = false
 	_refresh_selection()
 
 
 func _sync_record_transform(record: Dictionary) -> void:
+	if is_instance_valid(_ground_batches): _ground_batches.release([str(record.uuid)])
 	if _city.overlay!=null: _city.overlay.invalidated=true
 	if _city.panel!=null and _city.panel.block_panel!=null and not _blocks.overlay_plan.is_empty(): _city.panel.block_panel.invalidate()
 	if _city.panel!=null and _city.panel.scatter_panel!=null and not _scatter.overlay_plan.is_empty(): _city.panel.scatter_panel.invalidate()
@@ -551,6 +568,9 @@ func _sync_record_transform(record: Dictionary) -> void:
 	if record.has("fixture"): visual.transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
 	if record.get("kind") == "asset" or record.has("tile3d"): visual.scale = helper.vector(record, "size")
 	elif visual is MeshInstance3D and visual.mesh is BoxMesh: visual.mesh.size = helper.vector(record, "size")
+	if visual is MeshInstance3D:
+		if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): visual.set_meta("ground_batch_record",record.duplicate(true))
+		elif visual.has_meta("ground_batch_record"): visual.remove_meta("ground_batch_record")
 	visual.force_update_transform()
 	for body: StaticBody3D in _bodies_by_uuid.get(str(record.uuid), []):
 		var mesh: MeshInstance3D = body.get_meta("visual")
@@ -560,9 +580,11 @@ func _sync_record_transform(record: Dictionary) -> void:
 			shape.shape.size = mesh.get_aabb().size
 			shape.position = mesh.get_aabb().get_center()
 		body.force_update_transform()
+	_sync_ground_batches()
 
 
 func _refresh_records(ids: Array[String]) -> void:
+	if is_instance_valid(_ground_batches): _ground_batches.release(ids)
 	# Rebuild only cells whose rule variant changed, including erased cells.
 	for uuid in ids:
 		for body in _bodies_by_uuid.get(uuid, []): body.free()
@@ -576,6 +598,7 @@ func _refresh_records(ids: Array[String]) -> void:
 		_view.add_child(visual)
 		_add_bodies(visual)
 	if _inspector != null and ids.has(_inspector.selection): _inspector.refresh()
+	_sync_ground_batches()
 
 
 func _finish_auto_stroke(cancel: bool = false) -> void:
@@ -611,6 +634,7 @@ func _finish_edits() -> void:
 	_city.finish_draw(true)
 	if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 	_authoring.picking = false
+	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	_transform_drag.finish()
@@ -711,6 +735,7 @@ func _request_open(path: String) -> void:
 
 
 func open_document(path: String) -> bool:
+	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel(); _material_tool.clear_target()
 	if _placement_tools != null: _placement_tools.cancel()
@@ -807,6 +832,7 @@ func _apply_thumbnail(key: String, texture: Texture2D) -> void:
 
 
 func _set_mode(mode: int) -> void:
+	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
@@ -850,28 +876,51 @@ func _update_space_button() -> void:
 
 func _undo() -> void:
 	_city.finish_draw(true)
+	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
 	_transform_drag.finish()
 	_finish_auto_stroke()
+	var before: Array=_doc.records
+	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.undo():
 		_dirty = true
-		_rebuild()
+		if not _restore_terrain_materials(before,before_meta): _rebuild()
 		_selection_tools.refresh()
 
 
 func _redo() -> void:
 	_city.finish_draw(true)
+	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	if _placement_tools != null: _placement_tools.cancel()
 	_transform_drag.finish()
 	_finish_auto_stroke()
+	var before: Array=_doc.records
+	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.redo():
 		_dirty = true
-		_rebuild()
+		if not _restore_terrain_materials(before,before_meta): _rebuild()
 		_selection_tools.refresh()
+
+func _restore_terrain_materials(before: Array,before_meta: Dictionary) -> bool:
+	# A small paint undo must not rebuild every road/collision mesh in a town.
+	# Keep the existing full restore for geometry, order or map-setting changes.
+	if before_meta!=_doc.map_meta or before.size()!=_doc.records.size(): return false
+	var ids: Array[String]=[]
+	for i in before.size():
+		var old: Dictionary=before[i]; var current: Dictionary=_doc.records[i]
+		if old==current: continue
+		if old.uuid!=current.uuid or not old.has("terrain_mesh"): return false
+		var a:=old.duplicate(); var b:=current.duplicate()
+		for field in ["terrain_regions","terrain_material","terrain_saturation"]: a.erase(field); b.erase(field)
+		if a!=b: return false
+		ids.append(current.uuid)
+	_refresh_records(ids)
+	if _terrain_panel!=null: _terrain_panel.refresh()
+	return true
 
 
 func _request_exit() -> void:
@@ -954,6 +1003,7 @@ func _add_grid() -> void:
 
 
 func _refresh_selection() -> void:
+	_sync_ground_batches()
 	if is_instance_valid(_selection_box):
 		_selection_box.free()
 	if _selection_tools == null or _selection_tools.records().is_empty(): return

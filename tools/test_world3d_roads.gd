@@ -21,7 +21,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"road HTTP server starts"); await rpc("initialize",{"protocolVersion":"2025-03-26"})
 	var defs: Array=(await rpc("tools/list")).result.tools
-	check(defs.size()==109 and defs.filter(func(d):return d.name=="preview_road_surface")[0].annotations.readOnlyHint,"109 3D tools include readonly road preview")
+	check(defs.size()==113 and defs.filter(func(d):return d.name=="preview_road_surface")[0].annotations.readOnlyHint,"113 3D tools include readonly road preview")
 	await call_tool("create_road_path",{"points":[[-60,0,0],[50,0,0]],"width":6})
 	await call_tool("create_road_path",{"points":[[0,0,-40],[0,0,40]],"width":6})
 	await atomic_reject("generate_road_surface",{})

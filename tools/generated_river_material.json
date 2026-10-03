@@ -1,0 +1,52 @@
+{
+  "path": "water/river_ripples",
+  "descriptor": {
+    "category": "水面／河流",
+    "usage": "静态河面细波纹基础材质。原生1254像素生成法线，小于2K预算；流动、水深、折射和岸边泡沫需后续水体着色器。",
+    "source": {
+      "type": "generated",
+      "generator": "built-in image_gen",
+      "ai_generated": true,
+      "provenance": "sources/generated/water/river_ripples/source.json"
+    },
+    "material": {
+      "name": "河流细波纹 · 生成法线",
+      "color": [
+        0.085,
+        0.21,
+        0.18,
+        1
+      ],
+      "roughness": 0.18,
+      "metallic": 0,
+      "normal_format": "opengl",
+      "normal_strength": 0.7,
+      "tile_size": [
+        4,
+        4
+      ],
+      "normal_path": "normal.png"
+    }
+  },
+  "generation": {
+    "type": "generated",
+    "generator": "built-in image_gen",
+    "date": "2026-10-02",
+    "prompt": "Use case: scientific-educational. Asset type: production game PBR tangent-space NORMAL MAP, not a beauty render. Create ONE square 2048x2048 seamless tileable OpenGL +Y normal texture for realistic calm flowing freshwater river surface in a medieval European town. Render only encoded surface normals, predominantly neutral periwinkle RGB(128,128,255) with subtle smooth cyan/magenta variations encoding slopes. Dense natural small gently elongated ripples with slightly irregular intersecting wavelets across an approximately 4x4 meter patch; low amplitude, flowing softly along the horizontal axis, organic nonuniform spacing. Every pixel is tangent-space normal data, normalized vectors, positive blue channel. Flat orthographic texture across full canvas, no perspective, no borders. Opposite edges must match seamlessly both axes. No reflected environment, no sunlight, no baked specular highlights, no shadows, no foam, no stones, no shore, no green water color, no text or labels. Clean finely resolved gradients, natural photographic wave structure translated into purple normal map, not brush strokes or noise.",
+    "requested_size": [
+      2048,
+      2048
+    ],
+    "native_size": [
+      1254,
+      1254
+    ],
+    "runtime_size": [
+      1254,
+      1254
+    ],
+    "limitations": "AI-generated approximate tangent-space normal map, not a measured scan. No exact seamlessness guarantee. This material is static; no flow, depth absorption or refraction.",
+    "original": "normal_original.png",
+    "normal_sha256": "1a68be2515953081eae3fa0343779708a9a0ef2bf495bf1188f99e3afc23ba06"
+  }
+}

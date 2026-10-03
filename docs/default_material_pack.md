@@ -1,8 +1,88 @@
 # 默认资源包：写实建筑与中世纪城镇材质
 
-2026-10-02。默认包已包含 10 套直接下载的 Fab 材质、从已购 Wood Material Pack3 原生导出的 3 套精选木材、1 套生成陶瓦，以及 4 个参数变体，共 18 项。运行材质均按用途分类。整木纹用于梁柱，拼板用于地板，外墙和室内使用不同的抹面；石材仅用于石砌结构、基座与铺地。
+## 草地、沙地与海岸岩石储备（2026-10-03）
+
+验收结果：后台 GPU 退出码 0，`COASTAL_TERRAIN_VERIFIED failures=0`。四款渲染近景已目视检查，法线开关的平均像素差分别为 2.4089、3.2406、13.5230、10.1606，确认运行时法线参与光照。原图重复特征仍可见，大面积铺设可按场景搭配其他材质。
+
+四款 Quixel Megascans 已从 Fab 已购库下载并加入外部默认包。编辑器中使用如下分类，材质 ID 为 `pack:default:terrain/<目录>/material`：
+
+| 分类 | 名称 | 目录 | 扫描重复尺寸 | 来源 |
+| --- | --- | --- | --- | --- |
+| 地表／草地 | 苔藓草地 · 2K | `mossy_grass` | 4×4 米 | [Mossy Grass](https://www.fab.com/listings/4d5c0280-b300-4fa4-9cc6-850eef6e2943) |
+| 地表／沙地 | 浅色沙漠细沙 · 2K | `bright_desert_sand` | 2×2 米 | [Bright Desert Sand](https://www.fab.com/listings/fe7bd740-84d5-4843-b391-d15834e62825) |
+| 地表／岩石 | 冰岛碎裂板岩 · 2K | `icelandic_jagged_slate` | 2×2 米 | [Icelandic Jagged Slate Rock](https://www.fab.com/listings/e43184eb-f0c7-4021-8b61-f674014d4c36) |
+| 地表／岩石 | 海岸崖壁 · 2K | `beach_cliff` | 2×2 米 | [Beach Cliff](https://www.fab.com/listings/cda0efb9-0659-49fb-905e-812e51085c86) |
+
+运行目录包含 15 张原生 2048×2048 贴图，总计约 59.98 MiB（包含材质元数据的磁盘大小，不是显存用量）。四款均有颜色、OpenGL 法线和粗糙度；草地、沙地与崖壁另有 AO，板岩原包没有 AO，未用 Cavity 冒充。颜色保持原色，法线重新归一化并对照原 Bump/Displacement 梯度验证方向。各款法线 X 相关为负、图像向下 Y 相关为正，记录于导入清单，不额外翻转绿色通道。
+
+完整原包及额外高度、高光等通道保留在 `sources/fab/terrain/<目录>/`，附 `source.json`、`curation.json` 和原包/运行贴图 SHA-256。原 ZIP CRC、运行文件尺寸与哈希已检查。它们是表面材质，不生成立体草叶或悬崖几何，也未启用位移。
+
+导入清单为 `tools/fab_coastal_terrain_materials.json`，复用 `tools/import_fab_materials.py`。当前 3D 编辑器与 MCP 共用既有 `list_surface_materials` / `paint_surface`，无需增加工具。专用验收为 `tools/verify_coastal_terrain_materials.gd`，在独立后台桌面和临时地图中逐项检查真实 HTTP 工具发现、分类与 UI 一致、通道尺寸、合法/非法刷面、失败无副作用、锁定保护、撤销重做、保存重开及运行 glTF。实际渲染及法线开关对照输出至 `D:/code/rmmo_runtime/review_artifacts/coastal_terrain/`。
+
+
+## Stone Tiles Facade 储备（2026-10-02）
+
+验收结果：后台 GPU 退出码 0，`STONE_FACADE_VERIFIED failures=0`，所有 HTTP/UI、保存与运行时检查通过。正面光照的法线开关图像差异为 2.9064，墙面预览已目视检查。四张运行贴图共约 14.55 MiB 磁盘文件（非显存用量）。
+
+已从 Fab 已购库下载 [Quixel Stone Tiles Facade](https://www.fab.com/listings/8ee3d9ca-f3a9-442f-8ce2-d5c86e3cc3aa)（`ub4nbiag`），收录为“墙面／石材立面 → 风化石砖立面 · 2K”。ID 为 `pack:default:walls/stone_tiles_facade/material`，供建筑外墙、矮墙和石基选用，不自动替换现有地图。
+
+原生 2K ZIP 已通过 CRC 检查，完整归档到默认包 `sources/fab/walls/stone_tiles_facade/`，包括高度、凹腔、高光等未接入运行时的额外通道及 Quixel 元数据。运行材质包含 2048×2048 颜色、OpenGL 法线、粗糙度和 AO，扫描尺寸 2×2 米；法线重新归一化，并与原位移图梯度核对（X 相关 -0.81648，图像向下 Y 相关 +0.85010）。不启用几何位移，也不将高光图误作金属度。
+
+导入清单 `tools/fab_stone_facade_material.json` 沿用 `tools/import_fab_materials.py`；`source.json` 记录来源、许可链接、已购核对日期、原包及运行图 SHA-256。通过现有 3D `list_surface_materials` / `paint_surface` 和编辑器材质库使用，无新增工具。专用验收 `tools/verify_stone_facade_material.gd` 使用独立临时地图与后台桌面，检查工具发现、UI/MCP 分类一致、四通道、非法调用无副作用、锁定保护、撤销重做、保存重开及运行时 glTF，预览输出至 `review_artifacts/stone_facade/`。
+
+## 4K Realistic Outdoor Materials：整套基底（2026-10-02）
+
+按用户要求完整安装 [Shaded Spectrum 的 8 套户外材质](https://www.fab.com/listings/bde6fde4-f433-492b-8b20-1207b0a67bb5)，保留 AI 生成来源标记。已购库直接下载的 `freerealisticoutdoormaterials.zip` 为 503,027,160 字节，CRC 检查通过；全包仅归档一份到默认包 `sources/fab/collections/shaded_spectrum_outdoor/`，旁边保存原 README、导入审计、SHA-256 和实际颜色图对照。
+
+| 分类 | 名称 | 默认包材质路径 |
+| --- | --- | --- |
+| 地表／泥土 | 户外基底 · 干裂泥土 | `terrain/outdoor_dry_dirt` |
+| 墙面／石砌 | 户外基底 · 暖色乱石 | `walls/outdoor_rough_stone` |
+| 地表／草地 | 户外基底 · 短草 | `terrain/outdoor_short_grass` |
+| 木材／天然木板 | 户外基底 · 浅色木板 | `wood/outdoor_planks` |
+| 地表／泥土 | 户外基底 · 湿泥碎石 | `terrain/outdoor_wet_mud` |
+| 铺装／石板 | 户外基底 · 灰色不规则石板 | `paving/outdoor_flagstone` |
+| 地表／草地 | 户外基底 · 三叶草地被 | `terrain/outdoor_clover` |
+| 木材／树皮 | 户外基底 · 粗树皮 | `wood/outdoor_bark` |
+
+材质 ID 为 `pack:default:<表中路径>/material`。Wild Grass 的实际图像是圆叶三叶草地被，按外观命名；暖色乱石可用作粗石墙，木板与树皮分开，不作为整木梁柱替代。红框款是 `SmoothStone`，保持原色入库；后续已按用户要求替换参考河流城镇的全部 793 块路面。米制重复尺寸为编辑建议，不是扫描测量值。
+
+原包每种含 4K Albedo、Normal、AO、Specular 和 Displacement 五张图，**没有 Roughness 图**。运行目录仅安装 24 张 2048×2048 颜色、法线和 AO，共 73,907,807 字节（约 70.5 MiB 磁盘文件，不等于显存）。高光不能直接充当粗糙度，因此各用途使用清单中的标量粗糙度；金属度为 0。高度和高光全分辨率原件保留在原 ZIP，运行时不加载，也未启用位移。
+
+原法线与高度梯度的相关系数在 X、图像 Y 方向均为正（约 0.85～0.93），与目标 OpenGL 切线法线的 X 方向相反。导入时保留原件，对运行法线反转 R 通道，缩小后重新归一化，输出记录为 OpenGL +Y；不再翻转 G。该校正保证与附带高度图的方向一致，不将 AI 高度图宣称为物理扫描。纹理已有明显明暗和色彩风格，最终场景仍需按光照与重复尺度选用。
+
+复现用 `tools/import_outdoor_materials.py` 和 `tools/fab_outdoor_materials.json`。安装器只读取指定图像成员，不解压执行第三方包；原档集中归档，运行材质按用途分目录。`tools/verify_outdoor_materials.gd` 在独立临时地图用真实 HTTP 检查 3D 工具发现、8 项材质和 UI 分类、2K 通道、刷面、非法调用无副作用、锁定、撤销重做及保存重开，并检查运行 glTF 的法线/AO和后台图像对照。产物在 `D:/code/rmmo_runtime/review_artifacts/outdoor_materials/`。沿用既有材质接口，无新增二维工具，也不隐式改写地图中的材质快照。
+
+## 12 Natural Materials（2026-10-02）
+
+已从用户导入的 `C:/Users/luna/Documents/Unreal Projects/RMMOMaterialStaging/Content/MaterialsPack` 原生导出并安装 [Stein Games / 12 Natural Materials](https://www.fab.com/listings/994cea12-e09b-4224-a0b2-056f66a9df6a)。12 套材质共 36 张原生 2048×2048 贴图，包含颜色、法线和粗糙度；没有独立 AO、金属度或高度图。金属度为 0。以下为新增内容，下方原有建筑材质数量是此前批次的记录。
+
+| 编辑器分类 | 名称 | 默认包材质路径 |
+| --- | --- | --- |
+| 墙面／砖墙 | 红砖砌墙 | `walls/natural_red_brick` |
+| 铺装／石板 | 灰色乱石铺面 | `paving/natural_fieldstone` |
+| 地表／泥土 | 褐色泥土地、湿泥石地 | `terrain/natural_dirt`、`terrain/natural_mud` |
+| 地表／林地 | 林地枯枝落叶 | `terrain/natural_forest_floor` |
+| 地表／碎石 | 浅色碎石地 | `terrain/natural_gravel` |
+| 地表／沙地 | 浅黄沙地 | `terrain/natural_sand` |
+| 地表／雪地 | 浅蓝积雪 | `terrain/natural_snow` |
+| 地表／岩石 | 深灰细岩面、灰色碎裂岩面、灰褐层理岩面、红褐花岗岩面 | `terrain/natural_rock_01`、`terrain/natural_rock_02`、`terrain/natural_rock_03`、`terrain/natural_granite` |
+
+材质 ID 为 `pack:default:<上述路径>/material`。编辑器材质页与当前 3D MCP `list_surface_materials` / `paint_surface` 共用相同分类和内容，无新增编辑器能力或工具。选择“按米重复”即可使用；普通地表建议 2×2 米，砖墙建议 1.5×1.5 米，均为编辑建议而非实测扫描尺寸。积雪为静态表面材质，不包含动态积雪、脚印或地形混合效果。
+
+Unreal 的法线纹理使用 `TC_NORMALMAP`、非 sRGB、`flip_green_channel=false`，按该引擎 DirectX 约定记录；Godot 现有加载器转换一次绿色通道。没有独立高度图，未将该约定推断称为扫描方向测量验证。粗糙度为非 sRGB，已逐图核对 RGB 三通道一致，运行时提取 R 通道。原生材质仅公开三张贴图和 `Scale=1`，没有任意着色器图烘焙。
+
+原 `.uasset` 包、导出参数与筛选清单归档在默认包 `sources/fab/terrain/natural_materials_12/`；原生 PNG 与导出日志保留在 `D:/code/rmmo_runtime/cache/fab_natural_export_20261002/`。运行贴图共约 228.76 MiB 磁盘文件（不是显存用量），各通道尺寸和 SHA-256 已核对。重建清单为 `tools/fab_unreal_natural_materials.json`，沿用 `tools/export_unreal_materials.py`、`tools/import_unreal_materials.py`。不会覆盖已有地图的材质快照。
+
+专用验收脚本 `tools/verify_natural_materials.gd` 使用临时地图和独立后台桌面，逐项检查真实 HTTP 工具发现、12 套分类与 UI 一致、合法刷面、非法调用无副作用、锁定保护、撤销重做、保存重开及运行时 glTF 的三通道依赖。2026-10-02 实测退出码 0、`NATURAL_MATERIALS_VERIFIED failures=0`；开关法线的 GPU 对照有可测光照差异，画廊及沙地近景已目视检查。截图和验收日志输出到外部 `review_artifacts/natural_materials/`。
+
+## 原有建筑与城镇材质
+
+2026-10-02。默认包已包含 11 套直接下载的 Fab 材质、从已购 Wood Material Pack3 原生导出的 3 套精选木材、生成陶瓦和河水法线，以及 4 个参数变体，共 20 项。运行材质均按用途分类。整木纹用于梁柱，拼板用于地板，外墙和室内使用不同的抹面；石材仅用于石砌结构、基座与铺地。
 
 本机默认包为 `D:/code/rmmo_runtime/packs/default`，不使用历史二维包 `packs/map_pack/default/0.1.0`。美术数据保存在外部内容根，不写入源码仓库。其他地图使用共享默认包，无需逐图导入。
+
+2026-10-02 补充：已购 Quixel `Cobblestone`（`tbjjai0s`）从 8K 原包生成四张 2048×2048 运行贴图，安装为 `pack:default:paving/granite_cobble/material`。编辑器分类为“铺装／灰色石块”，名称为“浅灰石块铺路 · 2K”，扫描范围 1×1 米。颜色、OpenGL 法线、粗糙度、AO 共约 15.45 MiB 磁盘文件；该数值不是显存用量。法线缩小后重新归一化，并结合原高度图核对方向。8K ZIP 仅保存在 `sources/fab/paving/granite_cobble/`，运行材质只引用 `assets/materials/paving/granite_cobble/` 的 2K 文件。导入清单为 `tools/fab_granite_cobble_material.json`，沿用同一安装器和 UI/MCP 材质库。按用户后续要求，已应用到参考河流城镇的 793 块道路、广场和过河铺面，颜色乘数为白色，不沿用旧路面的偏黄调色；其他地图材质快照未改动。
 
 ## 分类与用途
 
@@ -16,6 +96,8 @@
 | `wood/painted_weathered` | 木材／漆木 · 风化青漆木 | 门窗、围栏的局部旧漆装饰 | [Old Painted Wood Vol.02](https://www.fab.com/listings/4bb26fbd-a619-4d79-8dd9-9ce5783f6d0d) |
 | `paving/sandstone_floor` | 铺装／石板 · 风化石板地面 | 庭院、教堂、城堡地面 | [Smooth Rock Floor Material](https://www.fab.com/listings/9bd35429-bb3f-4f72-91b9-454aebcde85b) |
 | `paving/historic_cobble` | 铺装／鹅卵石 · 历史鹅卵石街道 | 街巷、广场、桥面 | [Cobblestone / Quixel](https://www.fab.com/listings/904d4710-9fe2-402d-853d-f042fe95b3f5) |
+| `paving/granite_cobble` | 铺装／灰色石块 · 浅灰石块铺路 · 2K | 参考城镇街道、广场、过河铺面；1 米重复 | [Cobblestone / Quixel](https://www.fab.com/listings/9cd1d969-e039-4f26-81bb-6314980d5476) |
+| `water/river_ripples` | 水面／河流 · 河流细波纹 · 生成法线 | 静态河面，4 米重复 | 内置 image_gen 生成 OpenGL 法线；水色和粗糙度使用参数 |
 | `terrain/mud_pebbles` | 地表／泥土 · 湿泥碎石地 | 河岸、湿地、土路边缘 | [Muddy Ground](https://www.fab.com/listings/93d594e8-99f2-4ec6-8980-6135929338d8) |
 | `terrain/moss_rock` | 地表／岩石苔藓 · 苔藓岩石地 | 河岸岩石、林缘，局部使用 | [Mossy Rocky Grass](https://www.fab.com/listings/eb3390a8-0f58-4d74-844a-a47a2c16bd29) |
 | `roofs/terracotta_plain` | 屋顶／陶瓦 · 手工红陶叠瓦 | 中世纪民居坡屋顶 | 内置 image_gen 制作；颜色、OpenGL 法线、粗糙度三张图 |
@@ -40,6 +122,14 @@ Quixel 三套采用扫描标注的 2 × 2 米范围和 OpenGL 法线，方向结
 陶瓦每张约 4 列、4 层，建议覆盖 `tile_size=[1.0,0.72]` 米。使用生成店屋的默认沿深度屋脊时，两侧坡面分别旋转 ±90°，`scale=[0.72,1.388889]` 补偿当前 UV 旋转的尺寸轴，使瓦层平行屋檐、搭接朝向檐口。法线仅提供表面凹凸，不修改房屋几何或碰撞。
 
 ## 编辑器与 MCP 使用
+
+### 生成河水基础材质
+
+`pack:default:water/river_ripples/material` 位于“水面／河流”分类，名称为“河流细波纹 · 生成法线”。使用内置 image_gen 生成的 OpenGL 波纹法线，水色 `[0.085,0.21,0.18,1]`、粗糙度 `0.18`、金属度 `0`、法线强度 `0.7`，建议覆盖 4×4 米。实际输出为 **1254×1254**，保留原生图像而未放大到请求的 2048；小于 2K 预算。水色与粗糙度是参数，没有额外加载颜色图或粗糙度图。光照由引擎计算，不在颜色贴图中烘焙倒影。
+
+生成提示词、原件、SHA-256 保存在默认包 `sources/generated/water/river_ripples/`；可复原参数和完整提示词在 `tools/generated_river_material.json`。这是 AI 生成的近似法线，不是扫描或流体模拟数据；尚未证明严格周期连续。后台 24×32 米重复预览可检查视觉接缝。当前是静态 StandardMaterial3D 基础材质，尚无动态流动、水深吸收、折射或岸边泡沫。按用户后续要求，已应用到参考河流城镇的全部 155 块河面，并启用天空环境反射。
+
+`tools/verify_generated_river_material.gd` 使用独立临时地图和后台 GPU，通过真实 loopback HTTP 验证当前 3D 材质发现、刷面、无副作用非法调用、撤销重做、保存重开和法线连接；相同光照下开关法线的图像对照有可测差异。预览位于 `review_artifacts/generated_river/`。沿用现有 UI/MCP 接口，未注册二维工具或新增着色器参数。
 
 打开左侧 **材质** 页，按用途选择分类，再选材质。生成房屋的墙、地面等仍通过已有表面笔刷应用，建议选择 **按米重复（材质建议尺寸）**；例如 6 × 3 米墙面不会把石块拉伸到整个面。也可旋转木纹、设置重复和偏移。此轮没有给建筑生成配方新增自动材质分配规则。
 

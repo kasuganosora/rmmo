@@ -1,0 +1,235 @@
+{
+  "source_folder": "terrain/natural_materials_12",
+  "package_folder": "MaterialsPack",
+  "owned_verified": "2026-10-02",
+  "materials": [
+    {
+      "folder": "walls/natural_red_brick",
+      "name": "红砖砌墙",
+      "category": "墙面／砖墙",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Bricks_01.MI_Bricks_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        1.5,
+        1.5
+      ],
+      "usage": "砖砌墙、烟囱及矮墙。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "paving/natural_fieldstone",
+      "name": "灰色乱石铺面",
+      "category": "铺装／石板",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Cobblestone_01.MI_Cobblestone_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "庭院、步道及不规则石铺面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_dirt",
+      "name": "褐色泥土地",
+      "category": "地表／泥土",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Dirt_01.MI_Dirt_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "城外土路、裸土地和田地边缘。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_forest_floor",
+      "name": "林地枯枝落叶",
+      "category": "地表／林地",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_ForestGround_01.MI_ForestGround_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "林下枯枝落叶覆盖地面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_gravel",
+      "name": "浅色碎石地",
+      "category": "地表／碎石",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Gravel_01.MI_Gravel_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "碎石小路、路肩和河滩。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_mud",
+      "name": "湿泥石地",
+      "category": "地表／泥土",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Mud_01.MI_Mud_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "湿地、泥泞小路和河岸。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_sand",
+      "name": "浅黄沙地",
+      "category": "地表／沙地",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Sand_01.MI_Sand_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "沙岸及干燥沙地。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_snow",
+      "name": "浅蓝积雪",
+      "category": "地表／雪地",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Snow_01.MI_Snow_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "静态积雪地表；不含动态积雪或脚印。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_rock_01",
+      "name": "深灰细岩面",
+      "category": "地表／岩石",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Stone_01.MI_Stone_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "深灰岩地及岩块表面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_rock_02",
+      "name": "灰色碎裂岩面",
+      "category": "地表／岩石",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Stone_02.MI_Stone_02",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "粗糙碎裂岩地及岩块表面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_rock_03",
+      "name": "灰褐层理岩面",
+      "category": "地表／岩石",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_Stone_03.MI_Stone_03",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "层理岩地及坡面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    },
+    {
+      "folder": "terrain/natural_granite",
+      "name": "红褐花岗岩面",
+      "category": "地表／岩石",
+      "unreal_material": "/Game/MaterialsPack/Materials/MI_StoneGranite_01.MI_StoneGranite_01",
+      "channels": {
+        "texture_path": "Base Color",
+        "normal_path": "Normal Map",
+        "roughness_path": "Roughness"
+      },
+      "normal_format": "directx",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "暖色花岗岩地及岩块表面。",
+      "adaptation": "保留原生2K颜色、法线和粗糙度图；粗糙度RGB通道已核对一致。法线按Unreal约定DirectX（原纹理flip_green_channel=false）记录，Godot加载时转换一次绿色通道；无独立高度图可验证扫描方向。金属度为0，无AO或置换图。米制尺寸为编辑建议，不宣称实测尺寸；保留原Scale=1参数，未烘焙任意材质图。"
+    }
+  ]
+}

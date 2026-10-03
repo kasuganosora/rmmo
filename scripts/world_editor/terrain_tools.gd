@@ -11,6 +11,11 @@ func catalog() -> Dictionary:
 		if not r.has("terrain_mesh"): continue
 		var t: Dictionary=r.terrain_mesh
 		rows.append({"id":r.uuid,"name":Geometry.label(r),"columns":t.columns,"rows":t.rows,"cell_size":[r.size[0]/t.columns,r.size[2]/t.rows],"holes":t.holes.count(true),"position":r.position,"height_range":[t.heights.min()*r.size[1]+r.position[1],t.heights.max()*r.size[1]+r.position[1]],"editable":editor._record_editable(r),"material":r.get("terrain_material",{}).get("name","")})
+	for row in rows:
+		row.depth_blend=editor._doc._find(row.id).get("terrain_depth_blend",{}).duplicate(true)
+		row.saturation=editor._doc._find(row.id).get("terrain_saturation",1.)
+		row.ground_regions=editor._doc._find(row.id).get("terrain_regions",{}).duplicate(true)
+		row.slope_blend=editor._doc._find(row.id).get("terrain_slope_blend",{}).duplicate(true)
 	return {"ok":true,"terrains":rows}
 func material(id: String) -> Dictionary:
 	if id.is_empty(): return {"ok":true,"material":{}}
@@ -90,6 +95,9 @@ func prepare(args: Dictionary) -> Dictionary:
 		changed_volumes.append(Foot.from_points(points))
 	for obstacle in editor._doc.records:
 		if obstacle.uuid==record.uuid: continue
+		# River water is a non-solid overlay; sculpting the bed through its level is
+		# expected. Keep all other props/linings (including hidden ones) protected.
+		if obstacle.get("surface_id")=="water" and obstacle.has("channel_mesh") and obstacle.get("collision")=="none": continue
 		var bounds:=Foot.record_shape(obstacle)
 		if not Foot.batches_overlap(changed_volumes,[bounds]): continue
 		if Foot.batches_overlap(changed_volumes,Foot.record_shapes(obstacle)): return {"ok":false,"error":"笔刷会侵入现有物件或移除其地面承托，整笔已拒绝","conflicts":[obstacle.uuid]}
@@ -113,17 +121,24 @@ func sculpt(args: Dictionary, interactive: bool=false) -> Dictionary:
 		editor._refresh_selection()
 		if editor._terrain_panel!=null: editor._terrain_panel.refresh(str(args.id))
 	return {"ok":true,"changed":true,"changed_cells":result.cells.size(),"samples":result.samples}
-func set_material(id: String, material_id: String) -> Dictionary:
+func set_material(id: String, material_id: Variant=null, saturation: float=-1.) -> Dictionary:
 	var ready: Dictionary=editor._gameplay.guard()
 	if not ready.ok: return ready
 	var record: Dictionary=editor._doc._find(id)
 	if not record.has("terrain_mesh") or not editor._record_editable(record): return Terrain.fail("请先显示并解锁当前楼层的地形")
-	var chosen:=material(material_id)
+	if material_id==null and saturation==-1.: return Terrain.fail("请指定材质或饱和度")
+	var chosen: Dictionary=material(str(material_id)) if material_id!=null else {"ok":true,"material":record.get("terrain_material",{}).duplicate(true)}
 	if not chosen.ok: return chosen
-	if record.get("terrain_material",{})==chosen.material: return {"ok":true,"changed":false}
+	if saturation==-1.: saturation=float(record.get("terrain_saturation",1.))
+	if not is_finite(saturation) or saturation<0 or saturation>1: return Terrain.fail("底材饱和度需在 0～1")
+	if saturation<1. and record.has("surface_paint"): return Terrain.fail("请先清除手刷三角面覆盖，或使用地表区域工具，再调整底材饱和度")
+	if (saturation<1. or record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions")) and not chosen.material.is_empty() and chosen.material.color[3]!=1: return Terrain.fail("渐变地形的整体底材必须不透明")
+	if record.get("terrain_material",{})==chosen.material and is_equal_approx(saturation,float(record.get("terrain_saturation",1.))): return {"ok":true,"changed":false}
 	editor._doc.checkpoint()
 	if chosen.material.is_empty(): record.erase("terrain_material")
 	else: record.terrain_material=chosen.material
+	if saturation==1.: record.erase("terrain_saturation")
+	else: record.terrain_saturation=saturation
 	var refresh_ids: Array[String]=[id]
 	editor._dirty=true; editor._refresh_records(refresh_ids)
 	return {"ok":true,"changed":true}

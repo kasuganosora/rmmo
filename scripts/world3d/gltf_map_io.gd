@@ -260,6 +260,16 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 		if visual == null or not visual.mesh is ArrayMesh: continue
 		for blend in mini(visual.mesh.get_blend_shape_count(), weights.size()):
 			visual.set_blend_shape_value(blend, float(weights[blend]))
+	# Synchronous native loads use the same effects as the streaming/editor path.
+	var extra:=extras_of(scene)
+	if extra.get("rmmo_format")=="rmmo_gltf_map":
+		var by_id:={}
+		for visual in preload("res://scripts/world3d/surface_materials.gd").meshes(scene):
+			by_id[str(extras_of(visual).get("uuid",""))]=visual
+		for record in extra.get("rmmo_records",[]):
+			if record is Dictionary and by_id.has(str(record.get("uuid",""))):
+				preload("res://scripts/world3d/river_materials.gd").apply(by_id[str(record.uuid)],record)
+				if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): by_id[str(record.uuid)].set_meta("ground_batch_record",record.duplicate(true))
 	return scene
 
 

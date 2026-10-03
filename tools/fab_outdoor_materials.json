@@ -1,0 +1,16 @@
+{
+  "listing_id": "bde6fde4-f433-492b-8b20-1207b0a67bb5",
+  "title": "4K Realistic Outdoor Materials",
+  "seller": "Shaded Spectrum",
+  "archive": "freerealisticoutdoormaterials.zip",
+  "materials": [
+    {"source": "DryDirt", "folder": "terrain/outdoor_dry_dirt", "name": "户外基底 · 干裂泥土", "category": "地表／泥土", "roughness": 0.95, "tile_size": [2,2], "usage": "干旱地面、干裂泥岸；不是普通松土。"},
+    {"source": "RoughStone", "folder": "walls/outdoor_rough_stone", "name": "户外基底 · 暖色乱石", "category": "墙面／石砌", "roughness": 0.9, "tile_size": [2,2], "usage": "粗石墙、石基和局部乱石铺装。"},
+    {"source": "ShortGrass", "folder": "terrain/outdoor_short_grass", "name": "户外基底 · 短草", "category": "地表／草地", "roughness": 0.9, "tile_size": [1,1], "usage": "开阔草地底层；贴图不产生立体草叶。"},
+    {"source": "WoodPlanks", "folder": "wood/outdoor_planks", "name": "户外基底 · 浅色木板", "category": "木材／天然木板", "roughness": 0.78, "tile_size": [2,2], "usage": "木地板、门板、木桥铺板；不用于整木梁柱。"},
+    {"source": "WetDirt", "folder": "terrain/outdoor_wet_mud", "name": "户外基底 · 湿泥碎石", "category": "地表／泥土", "roughness": 0.38, "tile_size": [2,2], "usage": "河岸湿泥、湿土路边缘；粗糙度为编辑参数。"},
+    {"source": "SmoothStone", "folder": "paving/outdoor_flagstone", "name": "户外基底 · 灰色不规则石板", "category": "铺装／石板", "roughness": 0.82, "tile_size": [2,2], "usage": "用户红框款，街道和广场候选；保持原色，暖灰调色另作变体。"},
+    {"source": "WildGrass", "folder": "terrain/outdoor_clover", "name": "户外基底 · 三叶草地被", "category": "地表／草地", "roughness": 0.88, "tile_size": [1,1], "usage": "原名 Wild Grass，图像实际以圆叶三叶草地被为主，适合林缘和庭院。"},
+    {"source": "WoodBark", "folder": "wood/outdoor_bark", "name": "户外基底 · 粗树皮", "category": "木材／树皮", "roughness": 0.94, "tile_size": [1,2], "usage": "树干和带皮原木；竖向纹理，不用于木地板。"}
+  ]
+}
