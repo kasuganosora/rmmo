@@ -183,6 +183,8 @@ func _show_placement_panel() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Drawer controls overlap the canvas; let GUI consume them before scene tools.
+	if _material_panel != null and _material_panel.drawer_input(event): return
 	if _terrain_brush!=null and _terrain_brush.input(event): get_viewport().set_input_as_handled(); return
 	if _city.input(event): get_viewport().set_input_as_handled(); return
 	if _playtest != null and _playtest.active() and event is InputEventKey:

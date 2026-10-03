@@ -29,8 +29,11 @@ func button(parent: Node, label_: String, action: Callable) -> Button:
 func note(parent: Node, text_: String) -> Label:
 	var item:=Label.new(); item.text=text_; item.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; parent.add_child(item); return item
 func section(title: String) -> VBoxContainer:
-	var toggle:=Button.new(); toggle.text=title; toggle.toggle_mode=true; toggle.alignment=HORIZONTAL_ALIGNMENT_LEFT; add_child(toggle)
-	var body:=VBoxContainer.new(); body.add_theme_constant_override("separation",6); add_child(body); body.hide(); toggle.toggled.connect(func(value): body.visible=value)
+	var toggle:=Button.new(); toggle.text="▸ " + title; toggle.toggle_mode=true; toggle.alignment=HORIZONTAL_ALIGNMENT_LEFT; add_child(toggle)
+	var body:=VBoxContainer.new(); body.add_theme_constant_override("separation",6); add_child(body); body.hide(); toggle.toggled.connect(func(value):
+		body.visible=value
+		toggle.text=("▾ " if value else "▸ ") + title
+	)
 	return body
 func setup(host: Node3D) -> void:
 	editor=host; city=host._city; city.panel=self; add_theme_constant_override("separation",8)

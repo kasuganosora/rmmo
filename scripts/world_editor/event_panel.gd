@@ -9,6 +9,8 @@ var position_form: VBoxContainer
 var note: Label
 var preview: TextEdit
 var _key := ""
+var apply_button: Button
+var remove_button: Button
 
 func setup(host: Node3D) -> void:
 	editor = host; add_theme_constant_override("separation", 7)
@@ -18,8 +20,9 @@ func setup(host: Node3D) -> void:
 	add_child(type_select)
 	type_select.item_selected.connect(func(_index): fill(Templates.defaults(type_select.get_item_metadata(type_select.selected))))
 	var actions := HFlowContainer.new(); add_child(actions)
-	button(actions, "应用到所选物件", apply_selected)
-	button(actions, "移除所选事件", func(): report(editor._gameplay.clear_event(selected_id())))
+	apply_button = button(actions, "应用到所选物件", apply_selected)
+	apply_button.tooltip_text = "先在场景或物件列表中选择一个物件"
+	remove_button = button(actions, "移除所选事件", func(): report(editor._gameplay.clear_event(selected_id())))
 	button(actions, "生成事件预览", show_preview)
 	var create_toggle := CheckButton.new(); create_toggle.text = "在指定位置新建事件"; add_child(create_toggle)
 	var create_box := VBoxContainer.new(); create_box.visible = false; add_child(create_box)
@@ -31,8 +34,8 @@ func setup(host: Node3D) -> void:
 	preview = TextEdit.new(); preview.editable = false; preview.custom_minimum_size.y = 130; preview.visible = false; add_child(preview)
 	refresh()
 
-func button(parent: Node, text_: String, callback: Callable) -> void:
-	var control := Button.new(); control.text = text_; control.pressed.connect(callback); parent.add_child(control)
+func button(parent: Node, text_: String, callback: Callable) -> Button:
+	var control := Button.new(); control.text = text_; control.pressed.connect(callback); parent.add_child(control); return control
 
 func selected_id() -> String:
 	return str(editor._selection_tools.ids[0]) if editor._selection_tools.ids.size() == 1 else ""
@@ -40,6 +43,8 @@ func selected_id() -> String:
 func refresh() -> void:
 	if form == null: return
 	var record: Dictionary = editor._doc._find(selected_id())
+	apply_button.disabled = record.is_empty()
+	remove_button.disabled = not record.has("event_template")
 	var key := selected_id() + JSON.stringify(record.get("event_template", {}))
 	if key == _key: return
 	_key = key
@@ -57,6 +62,11 @@ func fill(values: Dictionary) -> void:
 	ordered.merge(values)
 	var labels := LABELS.merged({"trigger": "触发方式"}, true)
 	form.build(Templates.parameters_schema(), ordered, labels, {"trigger": [{"id":"action", "name":"按 E 交互"}, {"id":"player_touch", "name":"接触触发"}], "item_id": blank + choices.items, "required_item": blank + choices.items, "shop_id": blank + choices.shops})
+	form.group_fields([
+		{"id":"event", "label":"事件内容", "expanded":true, "fields":["name","enabled","trigger","text","item_id","quantity","gold","shop_id","map_path","spawn","once","empty_text"]},
+		{"id":"conditions", "label":"触发条件与完成后开关", "fields":["required_switch","required_item","required_quantity","set_switch"]},
+		{"id":"range", "label":"交互位置与范围", "fields":["offset","touch_size","radius"]}
+	])
 	if preview != null: preview.visible = false
 
 func apply_selected() -> void:

@@ -27,10 +27,6 @@ static func build(editor: Node3D) -> void:
 	panel.add_child(root)
 	var menubar := HBoxContainer.new()
 	root.add_child(menubar)
-	var action_panel := PanelContainer.new()
-	root.add_child(action_panel)
-	var menu := HBoxContainer.new()
-	action_panel.add_child(menu)
 	var file := MenuButton.new()
 	file.text = "文件"
 	menubar.add_child(file)
@@ -89,6 +85,23 @@ static func build(editor: Node3D) -> void:
 			3: editor._top_view()
 			4: editor._dock_tabs.current_tab = 2
 	)
+	var resource_menu := MenuButton.new(); resource_menu.name = "WorkspaceResourcesMenu"
+	resource_menu.text = "资源"; menubar.add_child(resource_menu)
+	resource_menu.get_popup().add_item("导入模型…", 0)
+	resource_menu.get_popup().add_item("素材管理…", 1)
+	resource_menu.get_popup().id_pressed.connect(func(id: int):
+		if id == 0: editor._import_asset()
+		elif id == 1: editor._manage_asset()
+	)
+	var play_menu := MenuButton.new(); play_menu.name = "WorkspacePlayMenu"
+	play_menu.text = "试玩"; menubar.add_child(play_menu)
+	play_menu.get_popup().add_item("临时试玩  F5", 0)
+	play_menu.get_popup().set_item_tooltip(0, "使用当前未保存内容的副本，不修改正式地图")
+	play_menu.get_popup().add_item("楼层与出生点设置…", 1)
+	play_menu.get_popup().id_pressed.connect(func(id: int):
+		if id == 0: editor._play()
+		elif id == 1: editor._dock_tabs.current_tab = 7
+	)
 	var service_menu := MenuButton.new()
 	service_menu.text = "工具"
 	menubar.add_child(service_menu)
@@ -103,21 +116,10 @@ static func build(editor: Node3D) -> void:
 	menubar.add_spacer(false)
 	editor._recovery_button = button(menubar, "恢复草稿", func(): editor._safety.show_recovery())
 	editor._recovery_button.visible = false
-	var title := Label.new()
-	title.text = "内容编辑器 · 3D"
-	title.add_theme_color_override("font_color", Color("82919e"))
-	menubar.add_child(title)
-	button(menu, "资源包地图", editor._open_pack_maps)
-	button(menu, "保存", editor._save)
-	menu.add_child(VSeparator.new())
-	button(menu, "↶ 撤销", editor._undo)
-	button(menu, "↷ 重做", editor._redo)
-	button(menu, "复制物件", editor._duplicate_selected).tooltip_text = "Ctrl+D"
-	menu.add_child(VSeparator.new())
-	button(menu, "导入模型", editor._import_asset)
-	button(menu, "素材管理", editor._manage_asset)
-	menu.add_spacer(false)
-	button(menu, "▶ 临时试玩", editor._play).tooltip_text = "F5 · 使用未保存内容的副本"
+	var scene_toolbar := PanelContainer.new(); scene_toolbar.name = "SceneToolbar"
+	root.add_child(scene_toolbar)
+	var scene_actions := HFlowContainer.new(); scene_actions.name = "SceneToolbarActions"
+	scene_toolbar.add_child(scene_actions)
 	var split := HSplitContainer.new()
 	split.name = "WorkspaceSplit"
 	split.split_offset = 330
@@ -128,7 +130,19 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs = TabContainer.new()
 	editor._dock_tabs.custom_minimum_size = Vector2(310, 280)
 	editor._dock_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.add_child(editor._dock_tabs)
+	var dock := VBoxContainer.new(); dock.name = "WorkspaceDock"
+	dock.custom_minimum_size.x = 310
+	split.add_child(dock)
+	var navigator := OptionButton.new(); navigator.name = "WorkspacePanelPicker"
+	navigator.tooltip_text = "切换工作面板；全部面板均可在此找到"
+	navigator.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dock.add_child(navigator)
+	dock.add_child(editor._dock_tabs)
+	editor._dock_tabs.tabs_visible = false
+	navigator.item_selected.connect(func(index): editor._dock_tabs.current_tab = index)
+	editor._dock_tabs.tab_changed.connect(func(index):
+		if index >= 0 and index < navigator.item_count: navigator.select(index)
+	)
 	var library := VBoxContainer.new()
 	library.name = "素材"
 	editor._dock_tabs.add_child(library)
@@ -166,10 +180,8 @@ static func build(editor: Node3D) -> void:
 	center.add_child(tools_panel)
 	var rows := VBoxContainer.new()
 	tools_panel.add_child(rows)
-	var modes := HFlowContainer.new()
-	rows.add_child(modes)
-	var transforms := HFlowContainer.new()
-	rows.add_child(transforms)
+	var modes := scene_actions
+	var transforms := scene_actions
 	var tools := HFlowContainer.new()
 	rows.add_child(tools)
 	var group := ButtonGroup.new()
@@ -180,11 +192,8 @@ static func build(editor: Node3D) -> void:
 		mode.button_pressed = index == editor._mode
 		editor._mode_buttons.append(mode)
 	modes.add_child(VSeparator.new())
-	button(modes, "属性", func(): editor._dock_tabs.current_tab = 1)
-	button(modes, "物件", func(): editor._dock_tabs.current_tab = 2)
-	button(modes, "建筑", func(): editor._dock_tabs.current_tab = 8)
-	button(modes, "城镇布局", func(): editor._dock_tabs.current_tab = 9)
 	button(modes, "网格", func(): editor._grid.visible = not editor._grid.visible)
+	transforms.add_child(VSeparator.new())
 	var transform_group := ButtonGroup.new()
 	for index in 3:
 		var control := button(transforms, ["移动 W", "旋转 R", "缩放 T"][index], editor._set_transform_mode.bind(index))
@@ -324,8 +333,12 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs.add_child(event_scroll)
 	editor._event_panel = preload("res://scripts/world_editor/event_panel.gd").new(); editor._event_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	event_scroll.add_child(editor._event_panel); editor._event_panel.setup(editor)
-	var environment_scroll := ScrollContainer.new(); environment_scroll.name = "环境"; environment_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	editor._dock_tabs.add_child(environment_scroll)
+	var environment_page := VBoxContainer.new(); environment_page.name = "环境"
+	editor._dock_tabs.add_child(environment_page)
+	button(environment_page, "应用环境设置", func(): editor._environment_panel.apply())
+	var environment_scroll := ScrollContainer.new(); environment_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	environment_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	environment_page.add_child(environment_scroll)
 	editor._environment_panel = preload("res://scripts/world_editor/environment_panel.gd").new(); editor._environment_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	environment_scroll.add_child(editor._environment_panel); editor._environment_panel.setup(editor)
 	var view_scroll := ScrollContainer.new(); view_scroll.name = "楼层/试玩"; view_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -346,6 +359,8 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs.add_child(terrain_scroll)
 	editor._terrain_panel=preload("res://scripts/world_editor/terrain_panel.gd").new(); editor._terrain_panel.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	terrain_scroll.add_child(editor._terrain_panel); editor._terrain_panel.setup(editor)
+	for index in editor._dock_tabs.get_tab_count(): navigator.add_item("工作面板 · " + editor._dock_tabs.get_tab_title(index))
+	navigator.select(editor._dock_tabs.current_tab)
 	editor._status = Label.new()
 	editor._status.text = "左键摆放/选择 · 右键旋转视角 · 中键平移 · 滚轮缩放 · 方向键微调 · Q/E 旋转"
 	editor._status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

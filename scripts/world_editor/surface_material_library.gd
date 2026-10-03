@@ -9,25 +9,26 @@ func _init(folder: String = "") -> void:
 	directory = folder if not folder.is_empty() else Paths.cache_directory("surface_materials")
 	include_shared = folder.is_empty()
 
-func entries() -> Array:
+func entries(content_root: String = "") -> Array:
+	if content_root.is_empty(): content_root = Paths.external_root()
 	var result: Array = [
 		{"material_id": "builtin:white", "material": {"name": "白色", "color": [1, 1, 1, 1], "roughness": 0.9}},
 		{"material_id": "builtin:checker", "material": {"name": "棋盘格 · 检查比例", "pattern": "checker", "color": [1, 1, 1, 1], "roughness": 0.9}}]
-	_collect(directory, directory, "", "导入材质", result)
+	_collect(directory, directory, "", "导入材质", result, content_root)
 	if include_shared:
-		for pack in preload("res://scripts/world_editor/resource_pack_catalog.gd").new().packs():
+		for pack in preload("res://scripts/world_editor/resource_pack_catalog.gd").new(content_root).packs():
 			if not pack.shared: continue
 			var base: String = str(pack.root).path_join("assets/materials")
-			_collect(base, base, "pack:" + str(pack.id) + ":", "默认资源包", result)
+			_collect(base, base, "pack:" + str(pack.id) + ":", "默认资源包", result, content_root)
 	return result
 
-func _collect(path: String, base: String, prefix: String, origin: String, result: Array, depth: int = 0) -> void:
-	if depth > 8 or result.size() >= 2048 or not Paths.allowed(path): return
+func _collect(path: String, base: String, prefix: String, origin: String, result: Array, content_root: String, depth: int = 0) -> void:
+	if depth > 8 or result.size() >= 2048 or not Paths.allowed(path, content_root): return
 	var dir := DirAccess.open(path)
 	if dir == null: return
 	for file in dir.get_files():
 		var full := path.path_join(file)
-		if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full): continue
+		if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full, content_root): continue
 		var value: Variant = JSON.parse_string(FileAccess.get_file_as_string(full))
 		if not value is Dictionary or not value.get("material") is Dictionary: continue
 		for field in Paint.MAP_FIELDS:
@@ -37,13 +38,13 @@ func _collect(path: String, base: String, prefix: String, origin: String, result
 				# Pack descriptors cannot reach sibling packs or their sources folder.
 				if not prefix.is_empty() and not texture_path.replace("\\", "/").begins_with(base.replace("\\", "/").trim_suffix("/") + "/"): value.material[field] = "invalid:outside-material-library"
 				else: value.material[field] = texture_path
-		if not Paint.material_valid(value.material): continue
+		if not Paint.material_valid(value.material, false, content_root): continue
 		var relative := full.replace("\\", "/").trim_prefix(base.replace("\\", "/").trim_suffix("/") + "/").get_basename()
 		var category := str(value.get("category", "导入材质"))
 		result.append({"material_id": prefix + relative, "material": value.material, "category": category, "origin": origin, "source": value.get("source", {})})
 	for folder in dir.get_directories():
 		if folder.begins_with(".") or dir.is_link(folder): continue
-		_collect(path.path_join(folder), base, prefix, origin, result, depth + 1)
+		_collect(path.path_join(folder), base, prefix, origin, result, content_root, depth + 1)
 
 func categories() -> Array:
 	var result: Array = []

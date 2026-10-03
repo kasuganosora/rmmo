@@ -1,13 +1,17 @@
 extends VBoxContainer
 ## Schema-driven fields shared by the event and environment authoring panels.
 var fields := {}
+var _labels := {}
+var _expanded := {}
 
 func build(schema: Dictionary, values: Dictionary, labels: Dictionary, choices: Dictionary = {}) -> void:
 	for child in get_children(): remove_child(child); child.queue_free()
-	fields.clear()
+	fields.clear(); _labels.clear()
 	for key in values:
 		var spec: Dictionary = schema.properties[key]
-		var label := Label.new(); label.text = labels.get(key, key); add_child(label)
+		var label := Label.new(); label.text = labels.get(key, key)
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		add_child(label); _labels[key] = label
 		var control: Control
 		if spec.has("enum") or choices.has(key):
 			var select := OptionButton.new(); select.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -43,7 +47,30 @@ func number(spec: Dictionary, value: float) -> SpinBox:
 	spin.value = value
 	return spin
 
+func group_fields(groups: Array) -> void:
+	for group in groups:
+		var id: String = group.id
+		var toggle := Button.new(); toggle.name = "Section_" + id
+		toggle.toggle_mode = true; toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		toggle.button_pressed = _expanded.get(id, group.get("expanded", false))
+		var body := VBoxContainer.new(); body.name = "Fields_" + id
+		body.add_theme_constant_override("separation", 6)
+		add_child(toggle); add_child(body)
+		body.visible = toggle.button_pressed
+		toggle.text = ("▾ " if body.visible else "▸ ") + str(group.label)
+		toggle.toggled.connect(func(open):
+			_expanded[id] = open
+			body.visible = open
+			toggle.text = ("▾ " if open else "▸ ") + str(group.label)
+		)
+		for key in group.fields:
+			if not fields.has(key): continue
+			_labels[key].reparent(body); fields[key].reparent(body)
+
 func values() -> Dictionary:
+	# Include the number currently being typed when an Apply button is clicked.
+	var focus := get_viewport().gui_get_focus_owner()
+	if focus is LineEdit and focus.get_parent() is SpinBox and is_ancestor_of(focus): focus.get_parent().apply()
 	var result := {}
 	for key in fields:
 		var control: Control = fields[key]

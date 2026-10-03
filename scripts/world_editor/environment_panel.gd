@@ -7,8 +7,8 @@ const LABELS = {"interior_cutaway":"第三人称先被楼板挡住时隐藏天�
 
 func setup(host: Node3D) -> void:
 	editor = host; add_theme_constant_override("separation", 7)
-	var note := Label.new(); note.text = "应用后实时预览并保存到地图。天气使用世界空间雨雪、碰撞遮雨和落地水花，随云层、光照和远景雾过渡。风向 0° 向 +X，90° 向 +Z。连续昼夜由世界时间驱动，关闭后使用手工主光。湿润与积水在客户端本地累积，不强制联网同步。编辑器天气预览静音。室内楼层隐藏仅在第三人称被建筑遮挡时触发，碰撞保留。"; note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(note)
-	var apply_button := Button.new(); apply_button.text = "应用环境设置"; apply_button.pressed.connect(apply); add_child(apply_button)
+	var note := Label.new(); note.text = "按主题调整参数，再点击上方「应用环境设置」。支持撤销。"
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(note)
 	form = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(form)
 	refresh()
 
@@ -25,6 +25,17 @@ func fill(values: Dictionary) -> void:
 	var profile = preload("res://scripts/world3d/weather_profile.gd")
 	for index in profile.KINDS.size(): weather_choices.append({"id":profile.KINDS[index], "name":profile.LABELS[index]})
 	form.build(Settings.schema(), ordered, LABELS.merged({"preset":"时段", "time_hours":"世界时间（小时，0～24）", "time_speed":"时间倍率（游戏秒 / 秒，0 暂停）", "weather":"天气", "weather_intensity":"天气强度（0～1）", "wind_speed":"风速（米 / 秒）", "wind_direction":"风向（度）", "weather_transition":"天气过渡（秒）", "sky_enabled":"立体天空与流动云层", "cloud_altitude":"云底高度（世界米）", "cloud_thickness":"云层厚度（米）", "cloud_scale":"云团尺度（米）", "cirrus_amount":"高空薄云（0～1）", "star_intensity":"夜间星空亮度（0 关闭）", "meteors_enabled":"夜间流星", "meteor_frequency":"流星频率（次 / 分钟，0 关闭）", "lightning_enabled":"雷暴闪电", "celestial_cycle":"连续昼夜（关闭则使用手工主光）", "thunder_enabled":"按距离延迟的雷声", "lightning_center":"雷暴落点区域中心（世界坐标）", "lightning_radius":"雷暴落点区域半径（米）", "environment_audio":"雨声 / 屋顶雨声 / 风声 / 雷声", "surface_wetness":"本地地表湿润与积水", "initial_wetness":"进入地图时湿润度（本地初值）", "wetting_seconds":"湿润响应时间（秒）", "drying_seconds":"干燥响应时间（秒）", "puddle_strength":"积水反光强度"}, true), {"weather":weather_choices, "preset": [{"id":"day", "name":"白天"}, {"id":"sunset", "name":"黄昏"}, {"id":"night", "name":"夜晚"}]})
+	form.group_fields([
+		{"id":"time", "label":"时间与天气", "expanded":true, "fields":["preset","time_hours","weather","weather_intensity"]},
+		{"id":"progression", "label":"时间推进与天气过渡", "fields":["time_speed","celestial_cycle","weather_transition"]},
+		{"id":"wind", "label":"风与环境声音", "fields":["wind_speed","wind_direction","environment_audio"]},
+		{"id":"sky", "label":"天空、云层与星空", "fields":["sky_enabled","cloud_altitude","cloud_thickness","cloud_scale","cirrus_amount","star_intensity","meteors_enabled","meteor_frequency"]},
+		{"id":"storm", "label":"闪电与雷声", "fields":["lightning_enabled","thunder_enabled","lightning_center","lightning_radius"]},
+		{"id":"wet", "label":"湿润与积水", "fields":["surface_wetness","initial_wetness","wetting_seconds","drying_seconds","puddle_strength"]},
+		{"id":"light", "label":"光照与阴影", "fields":["sun_energy","sun_color","sun_rotation","sun_shadows","ambient_occlusion","ambient_energy","ambient_color","background_color"]},
+		{"id":"fog", "label":"雾效", "fields":["fog_enabled","fog_density","fog_color"]},
+		{"id":"camera", "label":"人物遮挡与室内视角", "fields":["outline_enabled","outline_color","outline_width","interior_cutaway","indoor_camera_distance"]}
+	])
 	form.fields.preset.item_selected.connect(func(index):
 		var chosen: String = form.fields.preset.get_item_metadata(index)
 		var current: Dictionary = form.values()

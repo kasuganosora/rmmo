@@ -4,13 +4,19 @@ var editor: Node3D
 var form: VBoxContainer
 var ids: Array = []
 var key := ""
+var details: VBoxContainer
+var toggle: Button
+var enabled := false
 
 func setup(host: Node3D) -> void:
 	editor = host
-	var heading := Label.new(); heading.text = "柔性物件受风"; add_child(heading)
-	var note := Label.new(); note.text = "选植被或布料，再设置固定边。网格需要足够细分；风速/风向在环境页调整。碰撞保持原形。"; note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; note.custom_minimum_size.x = 260; add_child(note)
-	form = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(form)
-	var button := Button.new(); button.text = "应用受风设置"; button.pressed.connect(apply); add_child(button)
+	toggle = Button.new(); toggle.name = "ToggleWindSettings"; toggle.toggle_mode = true; toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT; add_child(toggle)
+	details = VBoxContainer.new(); details.visible = false; add_child(details)
+	toggle.toggled.connect(func(open): details.visible = open; _update_heading())
+	_update_heading()
+	var note := Label.new(); note.text = "选植被或布料，再设置固定边。网格需要足够细分；风速/风向在环境页调整。碰撞保持原形。"; note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; note.custom_minimum_size.x = 260; details.add_child(note)
+	form = preload("res://scripts/world_editor/settings_form.gd").new(); details.add_child(form)
+	var button := Button.new(); button.text = "应用受风设置"; button.pressed.connect(apply); details.add_child(button)
 
 func refresh() -> void:
 	ids = editor._selection_tools.ids.duplicate()
@@ -18,6 +24,8 @@ func refresh() -> void:
 	if not visible: key = ""; return
 	var record: Dictionary = editor._doc._find(str(ids[0]))
 	var values := Response.resolve(record)
+	enabled = values.get("profile", "off") != "off"
+	_update_heading()
 	var next_key := JSON.stringify([ids,values])
 	if key == next_key: return
 	key = next_key
@@ -30,3 +38,6 @@ func refresh() -> void:
 func apply() -> void:
 	var result: Dictionary = editor._wind_tools.set_settings(ids,form.values())
 	editor._status.text = "受风设置已应用，可撤销" if result.ok else str(result.error)
+
+func _update_heading() -> void:
+	toggle.text = ("▾ " if toggle.button_pressed else "▸ ") + "柔性物件受风" + (" · 已启用" if enabled else "")
