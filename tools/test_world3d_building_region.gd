@@ -23,7 +23,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start loopback HTTP MCP")
 	var discovery:=await rpc("tools/list"); var names: Array=discovery.result.tools.map(func(tool): return tool.name)
-	check(names.size()==109 and names.has("preview_region_buildings") and names.has("generate_region_buildings") and not names.has("paint_tile"),"109 tools discover both region operations and keep 2D retired")
+	check(names.size()==113 and names.has("preview_region_buildings") and names.has("generate_region_buildings") and not names.has("paint_tile"),"111 tools discover both region operations and keep 2D retired")
 	var args:={"from":[-35,0,-28],"to":[35,0,28],"style":"urban_village","mode":"block","seed":42,"max_buildings":3}
 	var before:=doc.recovery_snapshot(); var history: int=doc._undo.size()
 	var first:=await call_tool("preview_region_buildings",args); var second:=await call_tool("preview_region_buildings",args)

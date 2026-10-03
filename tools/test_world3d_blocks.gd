@@ -13,7 +13,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"block HTTP starts")
 	var tools_: Array=(await rpc("tools/list")).result.tools
-	check(tools_.size()==109 and tools_.any(func(t):return t.name=="get_city_blocks" and t.annotations.readOnlyHint) and tools_.any(func(t):return t.name=="generate_block_buildings") and not tools_.any(func(t):return t.name=="paint_tile"),"109 current tools expose block workflow; 2D remains retired")
+	check(tools_.size()==113 and tools_.any(func(t):return t.name=="get_city_blocks" and t.annotations.readOnlyHint) and tools_.any(func(t):return t.name=="generate_block_buildings") and not tools_.any(func(t):return t.name=="paint_tile"),"111 current tools expose block workflow; 2D remains retired")
 	await atomic_reject("preview_block_buildings",{})
 	await call_tool("create_road_path",{"points":[[-40,0,-40],[40,0,-40],[40,0,40],[-40,0,40],[-40,0,-40]],"width":4})
 	await call_tool("generate_road_surface",{"material_id":"pack:default:paving/historic_cobble/material"})

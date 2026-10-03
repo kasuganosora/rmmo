@@ -135,10 +135,12 @@ func _valid_records(extra: Dictionary) -> bool:
 		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return false
 		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return false
 		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return false
-		if record.has("terrain_material"):
-			if not preload("res://scripts/world3d/surface_materials.gd").material_valid(record.terrain_material,false,_content_root): return false
+		if not preload("res://scripts/world3d/river_material_data.gd").valid(record): return false
+		if not preload("res://scripts/world3d/surface_materials.gd").valid(record,false,_content_root): return false
+		for definition in preload("res://scripts/world3d/surface_materials.gd").definitions(record):
+			if not preload("res://scripts/world3d/surface_materials.gd").material_valid(definition,false,_content_root): return false
 			for field in preload("res://scripts/world3d/surface_materials.gd").MAP_FIELDS:
-				var path: String=record.terrain_material.get(field, "")
+				var path: String=definition.get(field, "")
 				if not path.is_empty() and (not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root) or not FileAccess.file_exists(path)): return false
 		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record, false, _content_root): return false
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record, _content_root): return false
@@ -186,7 +188,7 @@ func _build_records() -> void:
 				cursor += 1
 				continue
 			var visual: MeshInstance3D = doc._mesh(records[cursor])
-			if visual.has_meta("tile_error"):
+			if visual.has_meta("tile_error") or visual.has_meta("paint_error"):
 				visual.free(); root.free(); _prepared = null
 				_finish_error("自动拼接套件模型缺失或无效")
 				return

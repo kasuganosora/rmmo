@@ -36,17 +36,23 @@ func state() -> Dictionary:
 		"building_component_edit": editor._selection_tools.component_edit,
 		"whole_building_selection": editor._selection_tools.whole,
 		"surface_brush_active": editor._material_tool.active,
+		"ground_region_drawing":editor._ground_draw!=null and editor._ground_draw.active,
 		"terrain_brush_active": editor._terrain_brush!=null and editor._terrain_brush.active,
 		"autosave": editor._safety.state(),
+		"ground_batching": editor._ground_batches.stats() if is_instance_valid(editor._ground_batches) else {},
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"paint_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args)
+		"remove_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args,true)
+		"set_river_materials": return preload("res://scripts/world_editor/river_material_tools.gd").apply(editor,args)
+		"set_terrain_slope_materials": return preload("res://scripts/world_editor/river_material_tools.gd").apply_slope(editor,args)
 		"list_terrains": return editor._terrain.catalog()
 		"create_terrain": return editor._terrain.create(args)
 		"preview_terrain_stroke": return editor._terrain.summary(args)
 		"sculpt_terrain": return editor._terrain.sculpt(args)
-		"set_terrain_material": return editor._terrain.set_material(args.id,args.material_id)
+		"set_terrain_material": return editor._terrain.set_material(args.id,args.get("material_id"),args.get("saturation",-1.))
 		"list_vegetation_scatter": return editor._scatter.catalog(args.get("query",""),int(args.get("offset",0)),int(args.get("limit",100)))
 		"list_waterways": return editor._waterways.catalog()
 		"connect_waterway_bridge": return editor._connections.connect_bridge(args.waterway_id,args.bridge_id)

@@ -12,7 +12,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP MCP")
 	var discovery:=await rpc("tools/list"); var names: Array=discovery.result.tools.map(func(t):return t.name)
-	check(names.size()==109 and names.has("set_building_component_state") and names.has("list_building_components") and not names.has("paint_tile"),"discover 109 current 3D tools including articulated components")
+	check(names.size()==113 and names.has("set_building_component_state") and names.has("list_building_components") and not names.has("paint_tile"),"discover 111 current 3D tools including articulated components")
 	var recipes:=await call_tool("list_building_templates")
 	check(recipes.presets.size()==7 and recipes.parameters_schema.properties.has("foundation_depth") and recipes.parameters_schema.properties.has("dormers"),"discover foundations and varied architectural recipes")
 	for preset in Blueprint.medieval_presets()+Blueprint.urban_presets():

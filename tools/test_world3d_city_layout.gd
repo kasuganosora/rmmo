@@ -34,7 +34,7 @@ func run() -> void:
 	await rpc("initialize",{"protocolVersion":"2025-03-26"})
 	var definitions: Array=(await rpc("tools/list")).result.tools
 	var names:=definitions.map(func(t): return t.name)
-	check(names.size()==109 and names.has("get_city_layout") and names.has("update_road_graph") and not names.has("paint_tile"),"109 current 3D tools, including 10 city operations")
+	check(names.size()==113 and names.has("get_city_layout") and names.has("update_road_graph") and not names.has("paint_tile"),"111 current 3D tools, including 10 city operations")
 	var initial:=(await call_tool("get_city_layout"))
 	check(initial.layout.roads.nodes.is_empty() and not initial.runtime_geometry,"old map opens with empty planning graph")
 	var undo_count: int=editor._doc._undo.size()

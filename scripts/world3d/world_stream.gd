@@ -7,6 +7,8 @@ const RENDER_RADIUS := 1
 const COLLISION_RADIUS := 2
 ## Gameplay spreads a chunk swap across frames. Tests pass 0 and finish in one call.
 const FRAME_BUDGET := 12
+const GroundBatcher = preload("res://scripts/world3d/ground_batcher.gd")
+const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 
 
 static func chunk_key(position: Vector3) -> Vector2i:
@@ -63,6 +65,11 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		if budget > 0 and Time.get_ticks_usec() - apply_started >= 3000:
 			break
 	map_root.set_meta(&"stream_cursor", cursor)
+	var batcher: Node3D = map_root.get_node_or_null("GroundRenderBatches")
+	if batcher == null:
+		batcher = GroundBatcher.new(); batcher.name = "GroundRenderBatches"; batcher.set_meta("stream_instance",true); map_root.add_child(batcher)
+	batcher.sync(meshes.values())
+	if budget <= 0: batcher.flush()
 	map_root.set_meta(&"stream_library", library)
 	map_root.set_meta(&"stream_children", map_root.get_child_count())
 	if cursor < jobs.size():
@@ -281,9 +288,16 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 		"chunk_max": chunk_key(bounds.end),
 		"mesh": visual.mesh,
 		"material_override": visual.material_override,
+		"surface_overrides": [],
+		"cast_shadow": visual.cast_shadow,
 		"extras": extras,
 		"chunk": chunk_key(visual.position),
 	}
+	for slot in visual.mesh.get_surface_count(): spec.surface_overrides.append(visual.get_surface_override_material(slot))
+	if visual.has_meta("ground_batch_record"):
+		spec.ground_batch_record = visual.get_meta("ground_batch_record")
+		# Off-screen terrain keeps CPU collision/authoring data, not GPU buffers.
+		spec.mesh = CpuMesh.capture(visual.mesh)
 	preload("res://scripts/world3d/building_fixtures.gd").prepare_spec(spec)
 	return spec
 
@@ -292,7 +306,11 @@ static func _spawn(spec: Dictionary) -> MeshInstance3D:
 	var visual := MeshInstance3D.new()
 	visual.name = str(spec.get("uuid", "chunk"))
 	visual.mesh = spec.get("mesh")
+	if visual.mesh is CpuMesh: visual.mesh = visual.mesh.restore()
+	if spec.has("ground_batch_record"): visual.set_meta("ground_batch_record",spec.ground_batch_record)
 	visual.material_override = spec.get("material_override")
+	visual.cast_shadow=spec.get("cast_shadow",GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+	for slot in spec.get("surface_overrides",[]).size(): visual.set_surface_override_material(slot,spec.surface_overrides[slot])
 	visual.set_meta("stream_instance", true)
 	visual.position = spec.get("position", Vector3.ZERO)
 	visual.rotation = spec.get("rotation", Vector3.ZERO)
@@ -349,7 +367,7 @@ static func _make_body(host: Node, spec: Dictionary) -> StaticBody3D:
 	# A bounding box is not a collision mesh: it would fill arches and stairs.
 	# Cache the static shape in the document view spec across residency changes.
 	if not spec.has("shape"):
-		if mesh is BoxMesh:
+		if mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size != Vector3.ZERO):
 			var box := BoxShape3D.new()
 			box.size = mesh.get_aabb().size
 			spec["shape"] = box

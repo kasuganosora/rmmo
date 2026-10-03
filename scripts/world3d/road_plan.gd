@@ -38,9 +38,18 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 	for warning in checked.diagnostics:
 		if warning.code not in ["grade_separated_crossing"]: return Data.fail("请先处理道路诊断再铺面："+str(warning.code))
 	var chunks:={}; var sources: Array=[]; var sorted: Array=graph.edges.duplicate(true); sorted.sort_custom(func(a,b): return a.id<b.id)
-	var radii:={}
+	var radii:={}; var junctions:={}; var capped:={}
 	for edge in sorted:
 		radii[edge.from]=maxf(radii.get(edge.from,0),edge.width_start*.5); radii[edge.to]=maxf(radii.get(edge.to,0),edge.width_end*.5)
+		var path: Array=checked.paths[edge.id]
+		for end in [0,1]:
+			var id: String=edge.from if end==0 else edge.to
+			var at: Vector3=path[0] if end==0 else path[-1]
+			var direction: Vector3=(path[1]-path[0]) if end==0 else (path[-2]-path[-1])
+			var side:=Vector2(-direction.z,direction.x).normalized()*float(edge.width_start if end==0 else edge.width_end)*.5
+			if not junctions.has(id): junctions[id]={"count":0,"points":PackedVector2Array()}
+			junctions[id].count+=1
+			junctions[id].points.append(Vector2(at.x,at.z)+side); junctions[id].points.append(Vector2(at.x,at.z)-side)
 	for edge in sorted:
 		if edge.has("bridge_ref"):
 			if not portals.any(func(p):return p.edge_id==edge.id): return Data.fail("桥梁路网绑定缺失或尚未验证")
@@ -55,6 +64,20 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 			var start: Vector3=path[0]+Vector3(delta.x,0,delta.z)*float(radii[edge.from])/length_
 			var end: Vector3=path[-1]-Vector3(delta.x,0,delta.z)*float(radii[edge.to])/length_
 			path=[path[0],start,end,path[-1]]
+		# Smooth sampled bends share cross sections. Stacking a complete disc at
+		# every sample creates thousands of tiny clipped patches in a city curve.
+		# Keep the established round join for tight turns and short/wide segments.
+		var joins:={}
+		if not ramp:
+			for i in range(1,path.size()-1):
+				var before:=Vector2(path[i].x-path[i-1].x,path[i].z-path[i-1].z)
+				var after:=Vector2(path[i+1].x-path[i].x,path[i+1].z-path[i].z)
+				var u:=before.normalized(); var v:=after.normalized()
+				if u.dot(v)<.95: continue
+				var normal:=Vector2(-u.y,u.x); var bisector:=(normal+Vector2(-v.y,v.x)).normalized()
+				var offset:=bisector/bisector.dot(normal)
+				var extension:=absf(offset.dot(u))*maxf(edge.width_start,edge.width_end)*.5
+				if extension<minf(before.length(),after.length())*.45: joins[i]=offset
 		for i in path.size()-1:
 			var a:=Vector2(path[i].x,path[i].z); var b:=Vector2(path[i+1].x,path[i+1].z)
 			var n:=Vector2(-(b-a).y,(b-a).x).normalized()
@@ -63,16 +86,31 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 			var w0:=lerpf(edge.width_start,edge.width_end,t0)*.5; var w1:=lerpf(edge.width_start,edge.width_end,t1)*.5
 			var grade: Vector2=(b-a)*(path[i+1].y-path[i].y)/(b-a).length_squared()
 			var plane:=Vector3(grade.x,grade.y,path[i].y-grade.dot(a))
-			sources.append({"polygon":[a-n*w0,b-n*w1,b+n*w1,a+n*w0],"plane":plane,"kind":edge.kind,"edge":edge})
+			var start_offset: Vector2=joins.get(i,n)*w0; var end_offset: Vector2=joins.get(i+1,n)*w1
+			sources.append({"polygon":[a-start_offset,b-end_offset,b+end_offset,a+start_offset],"plane":plane,"kind":edge.kind,"edge":edge})
 		for i in path.size():
 			# Round caps and round joins avoid unbounded miter spikes at acute corners.
+			if i==0 or i==path.size()-1:
+				var id: String=edge.from if i==0 else edge.to
+				if junctions[id].count>1:
+					if capped.has(id): continue
+					capped[id]=true
+					# Connected streets end at their shared cross sections. A full
+					# dead-end disc here pokes through the far side of a narrow T.
+					var hull:=Geometry2D.convex_hull(junctions[id].points)
+					if hull.size()>3:
+						var polygon: Array=Array(hull).slice(0,-1)
+						if Poly.area(polygon)<0: polygon.reverse()
+						sources.append({"polygon":polygon,"plane":Vector3(0,0,path[i].y),"kind":edge.kind,"edge":edge})
+					continue
 			if i>0 and i<path.size()-1:
+				if joins.has(i): continue
 				if ramp: continue
 				if (path[i]-path[i-1]).normalized().dot((path[i+1]-path[i]).normalized())>.99999: continue
 			var radius:=lerpf(edge.width_start,edge.width_end,float(i)/(path.size()-1))*.5; var poly: Array=[]
 			for j in 24: poly.append(Vector2(path[i].x,path[i].z)+Vector2(cos(TAU*j/24),sin(TAU*j/24))*radius)
 			sources.append({"polygon":poly,"plane":Vector3(0,0,path[i].y),"kind":edge.kind,"edge":edge})
-	if sources.size()>4096: return Data.fail("路面源轮廓超过 4096，请分区规划")
+	if sources.size()>8192: return Data.fail("路面源轮廓超过 8192，请分区规划")
 	var operations:=0
 	for source in sources:
 		# Flat-cut the cap at a linked deck boundary. Approaching roads keep their

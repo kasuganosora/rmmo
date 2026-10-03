@@ -340,6 +340,8 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs.add_child(city_scroll)
 	var city_panel := preload("res://scripts/world_editor/city_panel.gd").new(); city_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	city_scroll.add_child(city_panel); city_panel.setup(editor)
+	editor._ground_draw=preload("res://scripts/world_editor/terrain_region_draw.gd").new()
+	editor._canvas.add_child(editor._ground_draw); editor._ground_draw.setup(editor)
 	editor._terrain_brush=preload("res://scripts/world_editor/terrain_brush.gd").new()
 	editor._canvas.add_child(editor._terrain_brush); editor._terrain_brush.setup(editor)
 	var terrain_scroll:=ScrollContainer.new(); terrain_scroll.name="地形"; terrain_scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED

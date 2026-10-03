@@ -10,7 +10,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"round wall HTTP starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools; var schema: Dictionary=definitions.filter(func(t):return t.name=="generate_fortification")[0].inputSchema
-	check(definitions.size()==109 and schema.properties.shape.enum.has("ellipse") and schema.properties.gates.items.properties.has("angle"),"discovery exposes circle / ellipse dimensions and gate angles")
+	check(definitions.size()==113 and schema.properties.shape.enum.has("ellipse") and schema.properties.gates.items.properties.has("angle"),"discovery exposes circle / ellipse dimensions and gate angles")
 	await call_tool("create_road_path",{"points":[[0,0,-60],[0,0,0]],"width":4}); await call_tool("generate_road_surface",{"material_id":"pack:default:paving/historic_cobble/material"})
 	var args:={"id":"ring","shape":"ellipse","radius_x":40,"radius_z":40,"gates":[{"id":"north","angle":270,"width":6,"height":4.5,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size(); var preview:=await call_tool("preview_fortification",args)

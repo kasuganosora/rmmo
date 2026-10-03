@@ -59,6 +59,7 @@ static func duplicate_records(doc, originals: Array, offset: Vector3, group_labe
 	var ids: Array[String] = []
 	var remap := {}
 	var groups := {}
+	var ground_regions := {}
 	var copies: Array = []
 	var prefab_group := new_group_id() if not group_label.is_empty() else ""
 	for record in originals:
@@ -66,6 +67,11 @@ static func duplicate_records(doc, originals: Array, offset: Vector3, group_labe
 		preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(copy)
 		copy.erase("building") # Ordinary copies are independent, not another owner's generated parts.
 		copy.erase("road_source")
+		# Preserve cross-patch links inside this copy, without linking its region
+		# delete/update operations back to the source or another prefab instance.
+		for region in copy.get("terrain_regions",{}).get("regions",[]):
+			if not ground_regions.has(region.id): ground_regions[region.id]="region_"+Crypto.new().generate_random_bytes(12).hex_encode()
+			region.id=ground_regions[region.id]
 		var id: String = doc._push(str(copy.kind), str(copy.get("surface_id", "model")), Vector3.ZERO, Vector3.ONE)
 		remap[str(copy.uuid)] = id
 		copy.uuid = id

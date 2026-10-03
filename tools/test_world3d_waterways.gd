@@ -13,7 +13,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"waterway HTTP server starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==109 and definitions.any(func(t):return t.name=="preview_waterway" and t.annotations.readOnlyHint) and not definitions.any(func(t):return t.name=="paint_tile"),"109 current 3D tools expose waterway preview, old 2D remains retired")
+	check(definitions.size()==113 and definitions.any(func(t):return t.name=="preview_waterway" and t.annotations.readOnlyHint) and not definitions.any(func(t):return t.name=="paint_tile"),"111 current 3D tools expose waterway preview, old 2D remains retired")
 	check((await call_tool("list_waterways")).regions.is_empty(),"initial river catalog empty")
 	var bridge:={"id":"market_bridge","segment":1,"t":.5,"width":5.0,"approach":3.0,"rail_height":1.1}
 	var args:={"id":"town_river","ground_ids":[ground_id],"points":[[-10,-60],[0,-35],[0,35],[12,60]],"bridges":[bridge],"bank_material_id":"pack:default:paving/historic_cobble/material","bridge_material_id":"pack:default:paving/historic_cobble/material"}

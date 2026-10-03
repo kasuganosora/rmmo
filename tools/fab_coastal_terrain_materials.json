@@ -1,0 +1,122 @@
+{
+  "materials": [
+    {
+      "slug": "mossy_grass",
+      "name": "苔藓草地 · 2K",
+      "title": "Mossy Grass",
+      "listing_id": "4d5c0280-b300-4fa4-9cc6-850eef6e2943",
+      "seller": "Quixel Megascans",
+      "archive": "mossy_grass_vcpoajjs_2k.zip",
+      "category": "地表／草地",
+      "folder": "terrain",
+      "owned_verified": "2026-10-03",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [
+        4,
+        4
+      ],
+      "usage": "Mossy Grass 扫描表面，保留原色；按扫描范围重复。法线仅改变表面光照，不生成立体草叶或岩壁几何。",
+      "normal_validation": {
+        "reference": "Mossy_Grass_vcpoajjs_2K_Bump.jpg",
+        "correlation_x": -0.6811528065050287,
+        "correlation_image_y": 0.6878816777509306
+      },
+      "maps": {
+        "texture_path": "Mossy_Grass_vcpoajjs_2K_BaseColor.jpg",
+        "normal_path": "Mossy_Grass_vcpoajjs_2K_Normal.jpg",
+        "roughness_path": "Mossy_Grass_vcpoajjs_2K_Roughness.jpg",
+        "ao_path": "Mossy_Grass_vcpoajjs_2K_AO.jpg",
+        "height_path": "Mossy_Grass_vcpoajjs_2K_Bump.jpg"
+      }
+    },
+    {
+      "slug": "bright_desert_sand",
+      "name": "浅色沙漠细沙 · 2K",
+      "title": "Bright Desert Sand",
+      "listing_id": "fe7bd740-84d5-4843-b391-d15834e62825",
+      "seller": "Quixel Megascans",
+      "archive": "bright_desert_sand_sjzkfega_2k.zip",
+      "category": "地表／沙地",
+      "folder": "terrain",
+      "owned_verified": "2026-10-03",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "Bright Desert Sand 扫描表面，保留原色；按扫描范围重复。法线仅改变表面光照，不生成立体草叶或岩壁几何。",
+      "normal_validation": {
+        "reference": "Bright_Desert_Sand_sjzkfega_2K_Displacement.jpg",
+        "correlation_x": -0.7999327809782885,
+        "correlation_image_y": 0.8738927479782965
+      },
+      "maps": {
+        "texture_path": "Bright_Desert_Sand_sjzkfega_2K_BaseColor.jpg",
+        "normal_path": "Bright_Desert_Sand_sjzkfega_2K_Normal.jpg",
+        "roughness_path": "Bright_Desert_Sand_sjzkfega_2K_Roughness.jpg",
+        "ao_path": "Bright_Desert_Sand_sjzkfega_2K_AO.jpg",
+        "height_path": "Bright_Desert_Sand_sjzkfega_2K_Displacement.jpg"
+      }
+    },
+    {
+      "slug": "icelandic_jagged_slate",
+      "name": "冰岛碎裂板岩 · 2K",
+      "title": "Icelandic Jagged Slate Rock",
+      "listing_id": "e43184eb-f0c7-4021-8b61-f674014d4c36",
+      "seller": "Quixel Megascans",
+      "archive": "icelandic_jagged_slate_rock_shfsaida_2k.zip",
+      "category": "地表／岩石",
+      "folder": "terrain",
+      "owned_verified": "2026-10-03",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "Icelandic Jagged Slate Rock 扫描表面，保留原色；按扫描范围重复。法线仅改变表面光照，不生成立体草叶或岩壁几何。",
+      "normal_validation": {
+        "reference": "Icelandic_Jagged_Slate_Rock_shfsaida_2K_Displacement.jpg",
+        "correlation_x": -0.7145463917566183,
+        "correlation_image_y": 0.6892460063378166
+      },
+      "maps": {
+        "texture_path": "Icelandic_Jagged_Slate_Rock_shfsaida_2K_BaseColor.jpg",
+        "normal_path": "Icelandic_Jagged_Slate_Rock_shfsaida_2K_Normal.jpg",
+        "roughness_path": "Icelandic_Jagged_Slate_Rock_shfsaida_2K_Roughness.jpg",
+        "height_path": "Icelandic_Jagged_Slate_Rock_shfsaida_2K_Displacement.jpg"
+      }
+    },
+    {
+      "slug": "beach_cliff",
+      "name": "海岸崖壁 · 2K",
+      "title": "Beach Cliff",
+      "listing_id": "cda0efb9-0659-49fb-905e-812e51085c86",
+      "seller": "Quixel Megascans",
+      "archive": "beach_cliff_xdhicfv_2k.zip",
+      "category": "地表／岩石",
+      "folder": "terrain",
+      "owned_verified": "2026-10-03",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [
+        2,
+        2
+      ],
+      "usage": "Beach Cliff 扫描表面，保留原色；按扫描范围重复。法线仅改变表面光照，不生成立体草叶或岩壁几何。",
+      "normal_validation": {
+        "reference": "Beach_Cliff_xdhicfv_2K_Displacement.jpg",
+        "correlation_x": -0.7525468586580072,
+        "correlation_image_y": 0.7696735575838878
+      },
+      "maps": {
+        "texture_path": "Beach_Cliff_xdhicfv_2K_BaseColor.jpg",
+        "normal_path": "Beach_Cliff_xdhicfv_2K_Normal.jpg",
+        "roughness_path": "Beach_Cliff_xdhicfv_2K_Roughness.jpg",
+        "ao_path": "Beach_Cliff_xdhicfv_2K_AO.jpg"
+      }
+    }
+  ]
+}

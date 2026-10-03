@@ -99,6 +99,7 @@ func pick(screen: Vector2) -> Dictionary:
 func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")
 	var record: Dictionary = editor._doc._find(id)
+	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"): return Paint.fail("此地形使用渐变、区域或底材调色；请先停用这些效果再手刷三角面，或使用地表区域工具")
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"]: return Paint.fail("物件不存在、锁定、隐藏或不在当前楼层")
 	var resolved := resolve(id, target)
 	if not resolved.ok: return resolved

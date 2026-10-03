@@ -1,6 +1,12 @@
 # 当前 3D 地图编辑器 MCP
 
-2026-10-02 连续地形：当前共 **109 项** 3D 工具。新增地形查询、新建/转换、笔画预览、雕刻和整体 PBR 材质五项。支持隆起、下沉、整平、平滑、贯穿洞口和补洞；UI/MCP 共用碰撞及承托保护、整笔撤销、草稿、保存重开。参见 [连续地形编辑](world_editor_terrain_sculpt.md)。
+2026-10-03 区域地表绘制：当前 **113 项** 3D 工具。新增 `paint_terrain_region`、`remove_terrain_region`；`set_terrain_material` 增加可选 `saturation`（0～1），保存为地形底材调色，法线与原贴图保持不变；UI 支持拖矩形或点选多边形，MCP 使用相同保护、验证、撤销和保存。`list_terrains.ground_regions` 返回区域、局部 XZ 坐标和 PBR 材质，`editor_state.ground_region_drawing` 表示待提交草案。详见 [地表材质区域](world_editor_ground_regions.md)。
+
+2026-10-03 风化笔刷：`preview_terrain_stroke` / `sculpt_terrain` 新增 `mode=erode`，共享 `iterations`、`talus_angle`、`erosion_seed` 参数。保持体积、块边与洞边，超工作预算原子拒绝，水面无碰撞覆盖层不阻挡河床编辑。该批交付时工具总数为 111，旧二维工具保持下线。参见 [连续地形编辑](world_editor_terrain_sculpt.md#风化与性能2026-10-03)。
+
+2026-10-03 地形与河岸材质：该批交付时共 **111 项** 3D 工具。`set_river_materials` 支持自然河岸水深与坡度渐变、缓岸草土沙交错、三向投影、垂直砌石护岸湿痕及水平水面透光；新增 `set_terrain_slope_materials`，给普通隆起地形按坡度自动露岩，无须水位。UI 与 HTTP 共用整批验证、保护、撤销和原生保存。`list_terrains` 返回完整 `depth_blend` / `slope_blend` 参数；水面和护岸配置通过物件记录读取。参见 [地形与河岸渐变](world_editor_river_materials.md)。
+
+2026-10-02 连续地形：地形查询、新建/转换、笔画预览、雕刻和整体 PBR 材质五项。支持隆起、下沉、整平、平滑、贯穿洞口和补洞；UI/MCP 共用碰撞及承托保护、整笔撤销、草稿、保存重开。参见 [连续地形编辑](world_editor_terrain_sculpt.md)。
 
 2026-10-02 道路桥梁联动与城墙城门：该批交付时共 **104 项** 3D 工具。新增桥梁接入/解绑、路网诊断三项，以及城墙查询/预览/生成/移除/开关城门五项。支持保留水平接头的直线坡道、连续折线城墙、圆形/椭圆围城、方塔/圆塔、垛口、双扇活动门；UI/MCP 共用校验、保护、撤销、草稿和保存。参数、限制和运行时接口见 [道路桥梁联动](world_editor_road_connections.md)、[城墙与城门](world_editor_fortifications.md)。
 
@@ -52,6 +58,8 @@
 `--map` 需指向内容根内已有地图；省略则使用编辑器默认地图。`--port` 可省略，端口占用明确失败，不会换端口后悄悄连接另一实例。无窗口渲染器不能提供 `preview_map` 或 `start_playtest`；需要预览/试玩时连接图形编辑器。自动化图形测试使用独立后台桌面，不能弹出前台窗口。
 
 ## 工具清单
+
+道路曲线继续通过 `update_road_graph.edges[].controls` 的两个世界坐标控制柄编辑；`preview_road_surface` / `generate_road_surface` 与 UI 共用连续边缘铺面，缓弯不再逐采样点叠加整圆。参数、锁定/隐藏保护、预览令牌与整笔撤销语义不变。源轮廓预算为 8192，裁切预算仍为 100 万次，超限整笔拒绝。参考城镇的广场与道路手工合并，保持解除生成关联；该图批量重铺使用 `tools/apply_medieval_town_road_curves.gd` 保留广场，不能直接追加一份生成铺面。
 
 | 能力 | 工具 |
 | --- | --- |
@@ -182,3 +190,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 | 整城承载 | 从第一阶段就测量分区/空间索引/增量刷新、列表虚拟化、增量撤销、后台保存与失败恢复、异步任务/取消、分区导航、轻量建筑/室内按需升级/LOD、预算与通行诊断 | 代表性弯路/Y口/不规则地块/河岸桥头/建筑植被街区逐级扩容；记录生成、编辑、保存、加载、导航、试玩成本；100000 记录上限不是性能承诺 |
 
 本工作区还有 UI 和天气并行修改；实施时针对当前代码核实，不回退其他任务改动。所有阶段复用当前 3D MCP 与共享事务，使用临时地图和后台测试桌面。静态快照预制件不冒充关联模板，自动块刷面导致的脱离邻接保护也不能直接取消。
+
+### 地面绘制合并统计（2026-10-03）
+
+当前 `editor_state` 增加只读 `ground_batching`：合并组数、待处理组数、来源物件/材质面/顶点数、合并后的材质面/顶点数、累计重建次数及构建/提交耗时。使用原 `sculpt_terrain`、变换、材质、隐藏、楼层隔离、撤销和保存工具，自动更新同一派生缓存；没有额外合并事务或改变 UUID。返回材质面数不是整帧 GPU draw calls，首次后台构建完成前 `pending_groups` 可以非零。新增统计不增加工具，该批交付时为 111 个 3D 工具；详见 [地面分块合并](world_editor_terrain_sculpt.md#地面分块合并2026-10-03)。

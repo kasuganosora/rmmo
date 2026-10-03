@@ -1,9 +1,10 @@
 extends RefCounted
 ## Paint is record data. Rebuild an instance mesh; never mutate shared source assets.
 const Paths = preload("res://scripts/world3d/map_paths.gd")
+const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
-const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path"]
+const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var _textures := {}
 static var _materials := {}
 
@@ -31,8 +32,25 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 		if not Paths.allowed(path,content_root) and not (relative and not path.is_absolute_path() and not path.contains(":") and not ".." in path.replace("\\", "/").split("/")): return false
 	return true
 
-static func valid(record: Dictionary, relative: bool = false) -> bool:
-	if record.has("terrain_material") and not material_valid(record.terrain_material,relative): return false
+static func valid(record: Dictionary, relative: bool = false, content_root: String = "") -> bool:
+	if not preload("res://scripts/world3d/river_material_data.gd").valid(record): return false
+	if not preload("res://scripts/world3d/terrain_regions.gd").valid(record): return false
+	if record.has("terrain_saturation") and (not record.has("terrain_mesh") or not numbers([record.terrain_saturation],1,0,1)): return false
+	if record.has("terrain_saturation") and record.has("surface_paint"): return false
+	for definition in record.get("terrain_regions",{}).get("materials",[]):
+		if not material_valid(definition,relative,content_root) or definition.color[3]!=1: return false
+	if record.has("terrain_depth_blend"):
+		for key in ["sand_material","rock_material"]:
+			if not material_valid(record.terrain_depth_blend[key],relative,content_root): return false
+			if record.terrain_depth_blend[key].color[3]!=1: return false
+	if record.has("terrain_material") and not material_valid(record.terrain_material,relative,content_root): return false
+	if record.has("terrain_slope_blend"):
+		if not material_valid(record.terrain_slope_blend.rock_material,relative,content_root) or record.terrain_slope_blend.rock_material.color[3]!=1: return false
+	for field in ["terrain_depth_blend","terrain_slope_blend"]:
+		if record.get(field,{}).has("transition_material"):
+			var definition: Variant=record[field].transition_material
+			if not material_valid(definition,relative,content_root) or definition.color[3]!=1: return false
+	if (record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation")) and record.has("terrain_material") and record.terrain_material.color[3]!=1: return false
 	var entries: Variant = record.get("surface_paint", [])
 	if not entries is Array or entries.size() > MAX_OVERRIDES: return false
 	var seen := {}
@@ -43,8 +61,9 @@ static func valid(record: Dictionary, relative: bool = false) -> bool:
 		if entry.surface != floor(entry.surface) or entry.face != floor(entry.face): return false
 		var definition: Variant = entry.get("material")
 		if not definition in checked_materials:
-			if not material_valid(definition, relative): return false
+			if not material_valid(definition, relative, content_root): return false
 			checked_materials.append(definition)
+		if record.has("bank_wetness") and definition.color[3]!=1: return false
 		if not numbers(entry.get("scale"), 2, 0.01, 100) or not numbers(entry.get("offset"), 2, -100, 100): return false
 		if not numbers([entry.get("rotation")], 1, -3600, 3600) or entry.get("mapping") not in ["planar", "uv", "meters"]: return false
 		var key := face_key(entry)
@@ -122,7 +141,7 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 		for face in faces.values(): face.center /= float(face.triangles.size() * 3)
 		var hasher := HashingContext.new()
 		hasher.start(HashingContext.HASH_SHA256); hasher.update(var_to_bytes([vertices, indices]))
-		var signature := "box-v1" if mesh is BoxMesh else hasher.finish().hex_encode()
+		var signature := "box-v1" if mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size != Vector3.ZERO) else hasher.finish().hex_encode()
 		surfaces.append({"arrays": arrays, "indices": indices, "face_for_triangle": parents, "faces": faces, "signature": signature})
 	var result := {"ok": true, "surfaces": surfaces}
 	node.set_meta("paint_geometry", result)
@@ -326,8 +345,14 @@ static func apply(root: Node3D, record: Dictionary) -> void:
 
 static func definitions(record: Dictionary) -> Array:
 	var result: Array=[]
+	result.append_array(record.get("terrain_regions",{}).get("materials",[]))
 	for entry in record.get("surface_paint",[]): result.append(entry.material)
 	if record.has("terrain_material"): result.append(record.terrain_material)
+	if record.has("terrain_depth_blend"):
+		for key in ["sand_material","rock_material"]: result.append(record.terrain_depth_blend[key])
+	if record.has("terrain_slope_blend"): result.append(record.terrain_slope_blend.rock_material)
+	for field in ["terrain_depth_blend","terrain_slope_blend"]:
+		if record.get(field,{}).has("transition_material"): result.append(record[field].transition_material)
 	return result
 
 static func missing(records: Array) -> Array:

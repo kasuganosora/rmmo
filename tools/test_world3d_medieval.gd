@@ -12,7 +12,7 @@ func run() -> void:
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP for medieval editing")
-	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==109,"discover 109 current 3D tools")
+	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==113,"discover 111 current 3D tools")
 	var templates:=await call_tool("list_building_templates"); check(templates.presets.size()==7,"discover medieval presets and parameters")
 	check(templates.parameters_schema.properties.has("timber_width") and templates.parameters_schema.properties.has("chimney"),"HTTP discovers structural timber and roof stack controls")
 	var fixtures: Array=[]; var placements: Array=[]

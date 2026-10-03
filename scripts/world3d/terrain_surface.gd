@@ -2,13 +2,13 @@ extends RefCounted
 ## One editable heightfield per record, with shared vertices and real open cells.
 const S=preload("res://scripts/world3d/document_schema.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
-const MODES=["raise","lower","flatten","smooth","hole","fill"]
+const MODES=["raise","lower","flatten","smooth","hole","fill","erode"]
 const MAX_CELLS=64
 
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
 static func integer(low: int, high: int) -> Dictionary: return {"type":"integer","minimum":low,"maximum":high}
 static func stroke_schema() -> Dictionary:
-	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000)},"required":["id","mode","points"],"additionalProperties":false}
+	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000),"iterations":integer(1,32),"talus_angle":S.number(15,70),"erosion_seed":integer(0,2147483647)},"required":["id","mode","points"],"additionalProperties":false}
 static func create_schema() -> Dictionary:
 	return {"type":"object","properties":{"source_id":{"type":"string","maxLength":128},"name":{"type":"string","maxLength":128},"center":S.vector(-100000,100000),"width":S.number(2,256),"depth":S.number(2,256),"cell_size":S.number(.25,8),"bedrock_depth":S.number(1,100),"material_id":{"type":"string","maxLength":512}},"additionalProperties":false}
 static func valid(record: Dictionary) -> bool:
@@ -66,10 +66,23 @@ static func mesh(record: Dictionary, fallback: Material) -> ArrayMesh:
 	var tile: Array=record.get("terrain_material",{}).get("tile_size",[2,2]); var uv_scale:=Vector2(tile[0],tile[1])
 	var top:=SurfaceTool.new(); top.begin(Mesh.PRIMITIVE_TRIANGLES); top.set_material(material)
 	var sides:=SurfaceTool.new(); sides.begin(Mesh.PRIMITIVE_TRIANGLES); sides.set_material(material)
+	# Each shared grid vertex used to recompute its position/normal for every
+	# adjacent cell. Cache once without changing triangle order or paint signatures.
+	var grid:=PackedVector3Array(); var grid_normals:=PackedVector3Array()
+	var stride:=int(t.columns)+1
+	for z in range(int(t.rows)+1):
+		for x in stride: grid.append(point(record,x,z))
+	for z in range(int(t.rows)+1):
+		for x in stride:
+			var dx:=grid[z*stride+mini(x+1,t.columns)]-grid[z*stride+maxi(x-1,0)]
+			var dz:=grid[mini(z+1,t.rows)*stride+x]-grid[maxi(z-1,0)*stride+x]
+			grid_normals.append(dz.cross(dx).normalized())
 	for z in int(t.rows):
 		for x in int(t.columns):
 			if not solid(t,x,z): continue
-			var p:=cell(record,x,z); var normals:=[normal(record,x,z),normal(record,x+1,z),normal(record,x+1,z+1),normal(record,x,z+1)]
+			var at:=z*stride+x
+			var p:=[grid[at],grid[at+1],grid[at+stride+1],grid[at+stride]]
+			var normals:=[grid_normals[at],grid_normals[at+1],grid_normals[at+stride+1],grid_normals[at+stride]]
 			for i in [0,1,2,0,2,3]:
 				top.set_normal(normals[i]); top.set_uv(Vector2(p[i].x,p[i].z)/uv_scale); top.add_vertex(p[i])
 			var bottom: Array[Vector3]=[]
@@ -109,6 +122,7 @@ static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 		var previous:=Vector2(args.points[i-1][0],args.points[i-1][1]); var count:=ceili(previous.distance_to(p)/maxf(radius*.25,.125))
 		if samples.size()+count>2048: return fail("单笔路径过长，请拆分为多笔")
 		for j in range(1,count+1): samples.append(previous.lerp(p,float(j)/count))
+	if args.mode=="erode": return preload("res://scripts/world3d/terrain_erosion.gd").stroke(record,args,samples)
 	var touched:={}
 	for world in samples:
 		var local:=inverse*Vector3(world.x,record.position[1],world.y)

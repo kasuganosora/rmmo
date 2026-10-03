@@ -142,7 +142,7 @@ func has_uuid(uuid: String) -> bool:
 	return not _find(uuid).is_empty()
 
 
-func build() -> Node3D:
+func build(effects: bool=true) -> Node3D:
 	var world := Node3D.new()
 	world.name = "rmmo_world"
 	var extras := {
@@ -155,7 +155,7 @@ func build() -> Node3D:
 	extras["rmmo_records"] = records.duplicate(true)
 	world.set_meta("extras", extras)
 	for record in records:
-		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record))
+		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
 	return world
 
 
@@ -176,7 +176,8 @@ func save(gltf_path: String) -> Error:
 		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return ERR_INVALID_DATA
 		if not SurfaceMaterials.valid(record): return ERR_INVALID_DATA
 		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return ERR_INVALID_DATA
-	var view := build()
+	# glTF stores standard PBR fallbacks; native records restore dynamic shaders.
+	var view := build(false)
 	for child in view.get_children():
 		if child.has_meta("paint_error") or child.has_meta("tile_error"):
 			view.free()
@@ -352,7 +353,7 @@ func _find(uuid: String) -> Dictionary:
 	return {}
 
 
-func _mesh(record: Dictionary) -> MeshInstance3D:
+func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 	var mesh_node := MeshInstance3D.new()
 	mesh_node.name = str(record.get("uuid", "box"))
 	var box := BoxMesh.new()
@@ -418,7 +419,9 @@ func _mesh(record: Dictionary) -> MeshInstance3D:
 	if record.has("fortification"): extras.fortification=record.fortification.duplicate(true)
 	mesh_node.set_meta("extras", extras)
 	SurfaceMaterials.apply(mesh_node, record)
+	if effects: preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record)
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
+	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", record.duplicate(true))
 	return mesh_node
 
 

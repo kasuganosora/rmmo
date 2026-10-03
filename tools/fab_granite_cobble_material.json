@@ -1,0 +1,24 @@
+{
+  "materials": [
+    {
+      "slug": "granite_cobble",
+      "name": "浅灰石块铺路 · 2K",
+      "title": "Cobblestone",
+      "listing_id": "9cd1d969-e039-4f26-81bb-6314980d5476",
+      "seller": "Quixel Megascans",
+      "archive": "cobblestone_tbjjai0s_8k.zip",
+      "category": "铺装／灰色石块",
+      "folder": "paving",
+      "usage": "中世纪城镇道路与广场的灰色石块铺面；扫描范围 1×1 米。运行时仅使用 2048×2048 贴图；8K 原包仅归档。",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [1, 1],
+      "maps": {
+        "texture_path": "Cobblestone_tbjjai0s_8K_BaseColor.jpg",
+        "normal_path": "Cobblestone_tbjjai0s_8K_Normal.jpg",
+        "roughness_path": "Cobblestone_tbjjai0s_8K_Roughness.jpg",
+        "ao_path": "Cobblestone_tbjjai0s_8K_AO.jpg"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "materials": [
+    {
+      "slug": "stone_tiles_facade",
+      "name": "风化石砖立面 · 2K",
+      "title": "Stone Tiles Facade",
+      "listing_id": "8ee3d9ca-f3a9-442f-8ce2-d5c86e3cc3aa",
+      "seller": "Quixel Megascans",
+      "archive": "stone_tiles_facade_ub4nbiag_2k.zip",
+      "category": "墙面／石材立面",
+      "folder": "walls",
+      "usage": "暖灰褐色风化石砖立面；用于建筑外墙、矮墙与石基的备用款。扫描范围2×2米；四通道2K，位移等额外通道仅保存在原ZIP，未启用几何位移。",
+      "normal_format": "opengl",
+      "normal_strength": 1.0,
+      "tile_size": [2, 2],
+      "normal_validation": "法线对原位移图梯度的相关系数：X=-0.81648，图像向下Y=+0.85010，符合OpenGL约定。",
+      "maps": {
+        "texture_path": "Stone_Tiles_Facade_ub4nbiag_2K_BaseColor.jpg",
+        "normal_path": "Stone_Tiles_Facade_ub4nbiag_2K_Normal.jpg",
+        "roughness_path": "Stone_Tiles_Facade_ub4nbiag_2K_Roughness.jpg",
+        "ao_path": "Stone_Tiles_Facade_ub4nbiag_2K_AO.jpg"
+      }
+    }
+  ]
+}
