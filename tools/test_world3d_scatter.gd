@@ -34,7 +34,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"scatter HTTP server starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==113 and definitions.any(func(t):return t.name=="preview_vegetation_scatter" and t.annotations.readOnlyHint) and not definitions.any(func(t):return t.name=="paint_tile"),"111 current 3D tools expose readonly scatter preview; 2D remains retired")
+	check(definitions.size()==114 and definitions.any(func(t):return t.name=="preview_vegetation_scatter" and t.annotations.readOnlyHint) and not definitions.any(func(t):return t.name=="paint_tile"),"114 current 3D tools expose readonly scatter preview; 2D remains retired")
 	var catalog:=await call_tool("list_vegetation_scatter",{"query":"fixture_"}); check(catalog.assets.size()==2 and catalog.regions.is_empty(),"scoped model discovery and empty recipe list")
 	var args:={"id":"test_grove","asset_ids":asset_ids,"polygon":[[-50,-50],[50,-50],[50,50],[-50,50]],"count":40,"seed":20,"spacing":5}
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size()

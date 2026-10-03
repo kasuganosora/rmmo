@@ -177,3 +177,6 @@ python tools/import_fab_materials.py --manifest tools/fab_default_materials.json
 2026-10-02 按街屋参考更新了两张示例：默认包 `maps/medieval_material_house/map.gltf` 为灰泥石墙店屋（634 构件、3802 个绘制面），`maps/medieval_timber_house/map.gltf` 为石基木构店屋（606 构件、3634 个绘制面）。在编辑器“资源包地图 → 默认”打开对应名称。外观、室内和临时剖面截图分别位于 `review_artifacts/material_house/`、`review_artifacts/material_house_timber/`。后者可用脚本的 `--timber` 参数重建；两者都验证了真实 HTTP、绘制撤销重做、保存重开和材质依赖。旧示例完整备份于 `review_artifacts/material_house/previous_published_20261002/`，验证源图保留在 cache，每个发布副本的 26 个 glTF 文件引用均已检查。
 
 蓝图 V5 的六栋对比场景位于 `maps/medieval_building_gallery/map.gltf`，由 `tools/build_medieval_building_gallery.gd` 制作。包含单层小店、灰泥石墙店屋、三层窄住宅、木构后院作坊、L 形翼楼和围院旅馆，使用上述十类 PBR 材质，保留颜色、法线及粗糙度等实际通道。新增地下 1 米基础、活动门窗、临街雨棚与老虎窗；房间墙面及楼板底面分别使用室内灰泥和天花材质。完整场景、各栋正背面、开闭对照、地基和室内剖面截图放在 `review_artifacts/building_v5/`。检查截图临时隐藏的地面、墙体和楼层不会写入地图。
+
+
+2026-10-03 新增用户选定的 [Mossy Grass（vcjmej0s）](https://www.fab.com/listings/dffa11a3-d345-4b88-88bd-8bfd7575500f)，归入 `terrain/mossy_grass_vcjmej0s/`，不覆盖旧 vcpoajjs。颜色、OpenGL 法线、粗糙度、AO 和 Bump 五张运行图均为 2K，扫描范围 4×4 米，保留原色。可复原清单：`tools/fab_mossy_grass_vcjmej0s.json`；原 ZIP 及来源保存在 `sources/fab/terrain/mossy_grass_vcjmej0s/`。

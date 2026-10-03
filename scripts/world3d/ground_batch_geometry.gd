@@ -67,7 +67,7 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 		origins.append(Vector4(local.origin.x, local.origin.y, local.origin.z, 0))
 		spans.append(Vector4(record.size[0], record.size[2], local.basis.x.x, local.basis.z.x))
 		if record.has("terrain_mesh"):
-			images.append(height_image(record))
+			images.append(source.materials[0].get_meta("terrain_height_image") if source.materials[0] is ShaderMaterial and source.materials[0].has_meta("terrain_height_image") else height_image(record))
 			if record.has("terrain_regions"):
 				# Snapshot uses the cached image; never rerasterize on the batch worker.
 				masks.append(source.materials[0].get_meta("ground_mask_image"))

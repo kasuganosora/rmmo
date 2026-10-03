@@ -40,12 +40,15 @@ static func vertices(record: Dictionary) -> Array[Vector3]:
 		for x in int(t.columns):
 			if not solid(t,x,z): continue
 			for p in cell(record,x,z): result.append(p); result.append(Vector3(p.x,t.floor*record.size[1],p.z))
+	var cultivation:=preload("res://scripts/world3d/terrain_furrows.gd").generate(record)
+	if cultivation.ok: result.append_array(cultivation.vertices)
 	return result
 static func bounds(record: Dictionary) -> AABB:
 	var lo:=INF; var hi:=-INF
 	for h in record.terrain_mesh.heights: lo=minf(lo,h); hi=maxf(hi,h)
 	lo=minf(lo,record.terrain_mesh.floor)
-	return AABB(Vector3(-record.size[0]/2,lo*record.size[1],-record.size[2]/2),Vector3(record.size[0],(hi-lo)*record.size[1],record.size[2]))
+	var extra:=preload("res://scripts/world3d/terrain_furrows.gd").maximum_height(record)
+	return AABB(Vector3(-record.size[0]/2,lo*record.size[1],-record.size[2]/2),Vector3(record.size[0],(hi-lo)*record.size[1]+extra,record.size[2]))
 static func sample(record: Dictionary, local: Vector3, ignore_holes: bool=false) -> float:
 	var t: Dictionary=record.terrain_mesh
 	var u: float=(local.x/record.size[0]+.5)*t.columns; var v: float=(local.z/record.size[2]+.5)*t.rows
@@ -59,7 +62,7 @@ static func normal(record: Dictionary, x: int, z: int) -> Vector3:
 	var dx:=point(record,mini(x+1,t.columns),z)-point(record,maxi(x-1,0),z)
 	var dz:=point(record,x,mini(z+1,t.rows))-point(record,x,maxi(z-1,0))
 	return dz.cross(dx).normalized()
-static func mesh(record: Dictionary, fallback: Material) -> ArrayMesh:
+static func mesh(record: Dictionary, fallback: Material, context: Dictionary={}) -> ArrayMesh:
 	var t: Dictionary=record.terrain_mesh; var result:=ArrayMesh.new()
 	var material: Material=Paint.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") else fallback
 	if material==null: material=StandardMaterial3D.new()
@@ -76,7 +79,7 @@ static func mesh(record: Dictionary, fallback: Material) -> ArrayMesh:
 		for x in stride:
 			var dx:=grid[z*stride+mini(x+1,t.columns)]-grid[z*stride+maxi(x-1,0)]
 			var dz:=grid[mini(z+1,t.rows)*stride+x]-grid[maxi(z-1,0)*stride+x]
-			grid_normals.append(dz.cross(dx).normalized())
+			grid_normals.append(context.get("normals",{}).get(z*stride+x,dz.cross(dx).normalized()))
 	for z in int(t.rows):
 		for x in int(t.columns):
 			if not solid(t,x,z): continue
@@ -97,6 +100,7 @@ static func mesh(record: Dictionary, fallback: Material) -> ArrayMesh:
 				triangle(sides,[p[i],bottom[j],p[j]],uv_scale,false)
 	top.index(); top.generate_tangents(); top.commit(result); result.surface_set_name(0,"terrain")
 	sides.index(); sides.generate_tangents(); sides.commit(result); result.surface_set_name(1,"bedrock_and_cut_edges")
+	preload("res://scripts/world3d/terrain_furrows.gd").append_to(result,record,material)
 	return result
 static func triangle(st: SurfaceTool, points: Array, tile: Vector2, horizontal: bool) -> void:
 	var n: Vector3=(points[2]-points[0]).cross(points[1]-points[0]).normalized()

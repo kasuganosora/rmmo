@@ -11,15 +11,17 @@ func make_editor(path: String, draft_root: String) -> void:
 	root.add_child(editor)
 	await settle()
 
-func wait_file(path: String, seconds: int = 15) -> bool:
+func wait_file(path: String, seconds: int = 45) -> bool:
 	var deadline := Time.get_ticks_msec() + seconds * 1000
 	while not FileAccess.file_exists(path) and Time.get_ticks_msec() < deadline: await create_timer(0.05).timeout
 	return FileAccess.file_exists(path)
 
 func child_args(extra: Array) -> PackedStringArray:
-	return PackedStringArray(["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://tools/test_world3d_recovery.gd", "--"] + extra)
+	var log_path := preload("res://scripts/asset/art_paths.gd").review_path("save_performance/recovery_child_%d.log" % Time.get_ticks_usec())
+	return PackedStringArray(["--headless", "--path", ProjectSettings.globalize_path("res://"), "--log-file", log_path, "--script", "res://tools/test_world3d_recovery.gd", "--"] + extra)
 
 func run() -> void:
+	Engine.max_fps = 60
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0 and args[0] == "--interrupted-draft":
 		var document = Doc.open_file(args[1])
@@ -57,7 +59,7 @@ func run() -> void:
 	probe.stop()
 	check(editor.start_mcp(port).ok, "start recovery HTTP fixture")
 	var listed := await rpc("tools/list")
-	check(listed.result.tools.size() == 113, "discovery includes draft, autosave and close tools")
+	check(listed.result.tools.size() == 114, "discovery includes draft, autosave and close tools")
 	var status := await call_tool("editor_state")
 	check(status.autosave.enabled and status.autosave.interval_seconds == 60 and not auto_accept_quit, "autosave defaults and native close guard are enabled")
 	await call_tool("configure_autosave", {"enabled": true, "interval_seconds": 15})

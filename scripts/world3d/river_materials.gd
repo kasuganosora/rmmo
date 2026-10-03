@@ -18,12 +18,15 @@ static func bind(material: ShaderMaterial, prefix: String, definition: Dictionar
 	material.set_shader_parameter(prefix+"_metallic",definition.get("metallic",1.0 if definition.has("metallic_path") else 0.0))
 	material.set_shader_parameter(prefix+"_strength",definition.get("normal_strength",1.0) if definition.has("normal_path") else 0.0)
 
-static func terrain(record: Dictionary) -> ShaderMaterial:
+static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMaterial:
 	var depth_enabled: bool=record.has("terrain_depth_blend")
 	var config: Dictionary=record.terrain_depth_blend if depth_enabled else record.get("terrain_slope_blend",{})
 	var base: Dictionary=record.get("terrain_material",{"name":"Terrain","color":record.get("color",[1.0,1.0,1.0]).slice(0,3)+[1.0],"roughness":.92})
 	var transition_enabled: bool=config.get("transition_width",0)>0 and config.has("transition_material") and (not depth_enabled or config.get("bank_profile","depth")=="natural")
-	var signature: Array=[record.get("terrain_saturation",1.),record.get("terrain_regions",{}),depth_enabled,config,base,record.terrain_mesh if transition_enabled else {},record.size if transition_enabled or record.has("terrain_regions") else []]
+	var coverage: Dictionary=record.get("terrain_regions",{}).duplicate(true)
+	for region in coverage.get("regions",[]): region.erase("furrows")
+	var signature: Array=[record.get("terrain_saturation",1.),coverage,depth_enabled,config,base,record.terrain_mesh if transition_enabled else {},record.size if transition_enabled or record.has("terrain_regions") else []]
+	if transition_enabled: signature.append(context.get("signature",[]))
 	var key:="terrain:"+str(hash(signature))
 	# Avoid serializing thousands of heights on every hit. Verify equality so a
 	# hash collision is a cache miss, never another patch's heights/materials.
@@ -38,9 +41,11 @@ static func terrain(record: Dictionary) -> ShaderMaterial:
 	if transition_enabled:
 		var t: Dictionary=record.terrain_mesh; var heights:=PackedFloat32Array()
 		for height in t.heights: heights.append(float(height)*record.size[1])
-		var image:=Image.create_from_data(int(t.columns)+1,int(t.rows)+1,false,Image.FORMAT_RF,heights.to_byte_array())
+		var image: Image=context.get("image",Image.create_from_data(int(t.columns)+1,int(t.rows)+1,false,Image.FORMAT_RF,heights.to_byte_array()))
+		result.set_meta("terrain_height_image",image)
 		result.set_shader_parameter("terrain_heights",ImageTexture.create_from_image(image))
 		result.set_shader_parameter("terrain_span",Vector2(record.size[0],record.size[2]))
+	result.set_shader_parameter("terrain_padding",context.get("padding",Vector2.ZERO) if transition_enabled else Vector2.ZERO)
 	result.set_shader_parameter("terrain_saturation",record.get("terrain_saturation",1.))
 	result.set_shader_parameter("depth_enabled",depth_enabled)
 	result.set_shader_parameter("ground_enabled",record.has("terrain_regions"))
@@ -87,12 +92,13 @@ static func bank(config: Dictionary, source: StandardMaterial3D) -> ShaderMateri
 	for pair in [["albedo_tex","albedo_texture"],["normal_tex","normal_texture"],["rough_tex","roughness_texture"],["metal_tex","metallic_texture"],["ao_tex","ao_texture"]]: result.set_shader_parameter(pair[0],source.get(pair[1]))
 	return remember(key,result)
 
-static func apply(node: MeshInstance3D, record: Dictionary) -> void:
+static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={}) -> void:
 	if not record.has("terrain_depth_blend") and not record.has("terrain_slope_blend") and not record.has("terrain_regions") and not record.has("terrain_saturation") and not record.has("water_depth_effect") and not record.has("bank_wetness"): return
 	if not Data.valid(record) or not Paint.valid(record): node.set_meta("paint_error","地形/河道材质参数无效"); return
 	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"):
-		var material:=terrain(record)
+		var material:=terrain(record,context)
 		node.set_surface_override_material(0,material)
+		for slot in range(2,node.mesh.get_surface_count()): node.set_surface_override_material(slot,material)
 		# Natural exposed cut edges use the same slope rule; legacy depth-only maps stay unchanged.
 		if material.get_shader_parameter("slope_aware"):
 			for slot in range(1,node.mesh.get_surface_count()): node.set_surface_override_material(slot,material)

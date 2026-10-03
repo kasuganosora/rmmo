@@ -164,6 +164,8 @@ func _build_records() -> void:
 	var known := {}
 	var records: Array = _record_meta.rmmo_records
 	var doc = preload("res://scripts/world3d/world_document.gd").new()
+	doc.records=records
+	doc.terrain_neighbors.update(records)
 	var Stream = preload("res://scripts/world3d/world_stream.gd")
 	var cursor := 0
 	while cursor < records.size():

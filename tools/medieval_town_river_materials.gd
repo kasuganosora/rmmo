@@ -2,7 +2,7 @@ extends RefCounted
 ## The town recipe uses the same validation and records as UI/HTTP authoring.
 const Tools=preload("res://scripts/world_editor/river_material_tools.gd")
 const Settings=preload("res://scripts/world3d/editor_view_settings.gd")
-const GROUND_MATERIAL="pack:default:terrain/outdoor_short_grass/material"
+const GROUND_MATERIAL="pack:default:terrain/mossy_grass_vcjmej0s/material"
 static func parameters(doc) -> Dictionary:
 	var terrain_ids: Array=[]; var water_ids: Array=[]
 	for record in doc.records:
@@ -20,5 +20,5 @@ static func apply(doc, include_ground: bool=false) -> Dictionary:
 	for r in prepared.records: doc.records[doc.records.find(doc._find(r.uuid))]=r
 	if include_ground:
 		for r in doc.records:
-			if r.has("terrain_mesh"): r.terrain_material=ground.duplicate(true); r.terrain_saturation=.45
+			if r.has("terrain_mesh"): r.terrain_material=ground.duplicate(true); r.terrain_saturation=1.
 	return {"ok":true,"terrain_count":args.terrain_ids.size(),"water_count":args.water_ids.size(),"parameters":args}

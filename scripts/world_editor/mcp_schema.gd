@@ -36,6 +36,7 @@ static func tools() -> Array:
 	select["append"] = {"type": "boolean"}
 	var face := {"type": "object", "properties": {"mesh": text_field(), "surface": {"type": "integer", "minimum": 0, "maximum": 127}, "face": {"type": "integer", "minimum": 0, "maximum": 49999}, "geometry": text_field()}, "required": ["mesh", "surface", "face", "geometry"], "additionalProperties": false}
 	return [
+		spec("set_terrain_furrows","为已有地表区域生成/修改真实农田垄沟，id 为区域ID，terrain_ids 包含关联地形。spacing/height/margin 为米，angle为世界方向（0度南北垄）；enabled=false移除垄沟，保留土壤区域。跨块统一相位、跟随地形、有碰撞；拒绝保护目标、超过20度陡坡、侵入道路/物件和超面数预算。一次撤销。",preload("res://scripts/world3d/terrain_furrows.gd").schemas().properties,["id","terrain_ids"]),
 		spec("set_river_materials", "河床沙/岩PBR水深渐变；bank_profile=natural默认增加坡度露岩及三向投影，depth保留旧算法。steep_start/end为露岩角度；transition_width默认1.25米（0禁用自然交错），transition_material_id指定边缘土/碎石，缓岸草土沙按世界坐标不规则交错，陡岸保留坡度露岩；edge_noise及height_blend_strength默认0.3/0.5。terrain_ids/water_ids/bank_ids合计至少一个；bank_ids为普通护岸/渠底，保留铺砌材质与UV，只增加wet_height米水线湿痕。河床需sand_material_id/rock_material_id。water_level世界水位；shore_start/end岸上恢复底材高度，rock_start/end水下沙转岩深度。水面启用深度透光，absorption控制浑浊；同选岸/床和水面时校验标高。enabled=false恢复底材。整批校验、一次撤销；锁定/隐藏/隔层或手刷河床拒绝。", preload("res://scripts/world3d/river_material_data.gd").request_schema().properties),
 		spec("set_terrain_slope_materials", "普通地形从原草/土渐变到rock_material_id岩石PBR，不依赖水位。steep_start/end默认40/65度；三向投影与材质权重分离。transition_width默认1.25米（0禁用自然交错）；transition_material_id为边缘土/碎石，默认包褐色泥土；edge_noise默认0.3，height_blend_strength默认0.5，使用原材质height_path高度图。隆起/下沉/整平后即时更新覆盖。terrain_ids批量，一次撤销；enabled=false恢复底材。自然河岸已包含此能力，不叠加独立坡度配置；隐藏/锁定/隔层/手刷或非法资源整批拒绝。", preload("res://scripts/world3d/river_material_data.gd").slope_schema().properties,["terrain_ids"]),
 		spec("list_terrains", "查询可雕刻地形、格距、标高范围、洞格和编辑保护状态。", {}, [], true),
@@ -134,7 +135,7 @@ static func tools() -> Array:
 		spec("import_auto_tile_kit", "导入资源根内的 JSON 套件清单。静态 GLB 必须内嵌依赖，验证全部邻接变体后复制进独立库。", {"path": text_field()}, ["path"]),
 		spec("undo", "撤销最近一笔 UI 或 MCP 地图修改。", {}),
 		spec("redo", "重做最近撤销的地图修改。", {}),
-		spec("save_world", "保存当前地图，或另存到授权内容根内的 glTF 路径。", {"path": text_field()}),
+		spec("save_world", "原子保存当前地图；默认等完成返回 saved 和耗时。background=true 立即返回 pending/job_id，通过 editor_state.save 查询阶段、计数和结果；保存期间拒绝修改。", {"path": text_field(), "background": {"type":"boolean"}}),
 		spec("open_world", "打开授权内容根内的 glTF 地图；有未保存修改时需显式 discard_changes。", {"path": text_field(), "discard_changes": {"type": "boolean"}}, ["path"]),
 		spec("preview_map", "返回当前 3D 画布最近渲染帧 PNG。include_layout=true 包含参考底图、道路骨架、概览及编辑辅助；试玩仍只返回游戏视图。headless 无图形时明确报错。", {"include_layout":{"type":"boolean"}}, [], true),
 		spec("configure_autosave", "设置本次编辑会话的自动草稿；默认开启，每 60 秒保存已结束的编辑事务。正式地图不变。", {"enabled": {"type": "boolean"}, "interval_seconds": number(15, 600)}),

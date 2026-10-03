@@ -39,7 +39,10 @@ func rpc(method: String, params: Dictionary = {}) -> Dictionary:
 	request.append_array(body)
 	var peer := StreamPeerTCP.new()
 	peer.connect_to_host("127.0.0.1", port)
-	var deadline := Time.get_ticks_msec() + 5000
+	# Saving now yields the main loop instead of accidentally suspending this
+	# client's timeout too. Keep ordinary RPCs strict; allow long map publication.
+	var save_call: bool = method == "tools/call" and params.get("name") in ["save_world", "close_editor"]
+	var deadline := Time.get_ticks_msec() + (180000 if save_call else 5000)
 	var sent := false
 	var received := PackedByteArray()
 	while Time.get_ticks_msec() < deadline:
@@ -103,7 +106,7 @@ func run() -> void:
 	check(initialized.get("result", {}).get("serverInfo", {}).get("name") == "rmmo-world-editor", "initialize identifies only the 3D service")
 	var discovery := await rpc("tools/list")
 	var names: Array = discovery.get("result", {}).get("tools", []).map(func(t): return t.name)
-	check(names.size() == 113 and not names.has("paint_tile") and not names.has("set_cursor") and names.has("paint_auto_tiles") and names.has("save_prefab"), "discovery contains 111 current tools and no legacy 2D tools")
+	check(names.size() == 114 and not names.has("paint_tile") and not names.has("set_cursor") and names.has("paint_auto_tiles") and names.has("save_prefab"), "discovery contains 114 current tools and no legacy 2D tools")
 	await call_tool("paint_tile", {"x": 0, "y": 0}, false)
 	var state := await call_tool("editor_state")
 	check(state.object_count == 2 and state.up_axis == "Y", "state uses 3D meters and current document")

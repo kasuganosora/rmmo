@@ -31,6 +31,7 @@ func _exit_tree() -> void:
 	get_tree().auto_accept_quit = _auto_quit_before
 
 func busy() -> bool:
+	if editor.saving(): return true
 	if editor._terrain_brush!=null and editor._terrain_brush.pointer_down: return true
 	if editor._city.busy(): return true
 	if editor._playtest != null and editor._playtest.active(): return true
@@ -112,6 +113,7 @@ func discard(id: String) -> Dictionary:
 	return result
 
 func request_exit(close_window: bool = true) -> void:
+	if editor.saving(): return
 	if editor._playtest != null and editor._playtest.active(): editor._playtest.stop(); return
 	if is_instance_valid(prompt): return
 	editor._finish_edits()
@@ -126,13 +128,14 @@ func request_exit(close_window: bool = true) -> void:
 	prompt.dialog_hide_on_ok = false
 	prompt.add_button("保留草稿并关闭" if close_window else "保留草稿并返回", true, "keep_draft")
 	prompt.add_button("放弃修改并关闭" if close_window else "放弃修改并返回", true, "discard")
-	prompt.confirmed.connect(func(): close_action("save"))
+	prompt.confirmed.connect(close_after_save)
 	prompt.custom_action.connect(close_action)
 	prompt.canceled.connect(func(): close_action("cancel"))
 	editor.add_child(prompt)
 	prompt.popup_centered(Vector2i(570, 160))
 
 func close_action(action: String) -> Dictionary:
+	if editor.saving(): return Store.fail("正在保存，请等待保存完成后关闭")
 	if action == "cancel":
 		if is_instance_valid(prompt): prompt.queue_free(); prompt = null
 		return {"ok": true, "closing": false}
@@ -148,6 +151,16 @@ func close_action(action: String) -> Dictionary:
 	if is_instance_valid(prompt): prompt.queue_free(); prompt = null
 	call_deferred("_finish_exit")
 	return {"ok": true, "closing": true}
+
+func close_after_save() -> void:
+	if editor.saving(): return
+	if is_instance_valid(prompt): prompt.hide()
+	if await editor._save_async():
+		if is_instance_valid(prompt): prompt.queue_free(); prompt = null
+		call_deferred("_finish_exit")
+	elif is_instance_valid(prompt):
+		prompt.dialog_text = editor._status.text + "\n当前地图仍保持打开。"
+		prompt.popup_centered()
 
 func _finish_exit() -> void:
 	preload("res://scripts/net/net.gd").session().world3d_editor_doc = null

@@ -42,7 +42,7 @@ func run() -> void:
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start actual loopback HTTP roof MCP")
-	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==113,"current 3D discovery, no legacy 2D tools")
+	var discovery:=await rpc("tools/list"); check(discovery.result.tools.size()==114,"current 3D discovery, no legacy 2D tools")
 	var templates:=await call_tool("list_building_templates")
 	check(templates.roof_presets.size()==5 and templates.parameters_schema.properties.has("annex_floors") and "hip" in templates.parameters_schema.properties.roof.enum,"discover unified roofs, shapes and storey controls")
 	var lots: Array=[]; var recipes: Array=[]

@@ -9,6 +9,7 @@ var materials: OptionButton
 var saturation: SpinBox
 var region_fields: VBoxContainer
 var region_list: OptionButton
+var furrow_fields: VBoxContainer
 var info: Label
 var tasks: TabContainer
 var begin_button: Button
@@ -62,6 +63,12 @@ func setup(value: Node3D) -> void:
 	button("点选多边形区域",func():_begin_region(false))
 	button("取消区域绘制",func():editor._ground_draw.cancel())
 	region_list=OptionButton.new(); region_list.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; add_child(region_list)
+	region_list.item_selected.connect(func(_index):_refresh_furrows())
+	note("选定上方区域后生成农田垄沟。沟底沿用原地面；垄脊带真实碰撞。区域边缘渐降回地面，避免侵入已有道路和物件。")
+	furrow_fields=Form.new(); add_child(furrow_fields)
+	furrow_fields.build(preload("res://scripts/world3d/terrain_furrows.gd").schemas(),{"spacing":1.6,"height":.18,"angle":0.,"margin":2.,"setback":0.},{"spacing":"垄距（米）","height":"垄高（米）","angle":"方向（0° 南北 / 90° 东西）","margin":"田边渐平距离（米）","setback":"田边留白（米）"})
+	button("应用区域垄沟",func():_apply_furrows(true))
+	button("移除区域垄沟（保留土壤）",func():_apply_furrows(false))
 	button("删除选定地表区域（全部关联地形）",func():
 		editor._finish_edits()
 		if region_list.selected<0: return
@@ -113,6 +120,7 @@ func refresh(preferred: String="") -> void:
 	_refresh_river()
 	_refresh_slope()
 	if region_list!=null:
+		var selected_region:=str(region_list.get_item_metadata(region_list.selected)) if region_list.selected>=0 else ""
 		region_list.clear()
 		var seen:={}
 		for r in editor._doc.records:
@@ -126,6 +134,20 @@ func refresh(preferred: String="") -> void:
 				var world:=Terrain.transform(r)*Vector3(center.x,0,center.y)
 				region_list.add_item("%s · X%.0f Z%.0f"%[r.terrain_regions.materials[int(region.layer)].name,world.x,world.z])
 				region_list.set_item_metadata(region_list.item_count-1,region.id)
+				if region.id==selected_region: region_list.select(region_list.item_count-1)
+		_refresh_furrows()
+
+func _refresh_furrows() -> void:
+	if furrow_fields==null or region_list.selected<0: return
+	var id:=str(region_list.get_item_metadata(region_list.selected))
+	var values:={"spacing":1.6,"height":.18,"angle":0.,"margin":2.,"setback":0.}
+	for r in editor._doc.records:
+		for region in r.get("terrain_regions",{}).get("regions",[]):
+			if region.id==id and region.has("furrows"):
+				for key in values: values[key]=region.furrows.get(key,values[key])
+				values.angle=wrapf(values.angle-r.rotation[1],-180.,180.)
+				break
+	for key in values: furrow_fields.fields[key].value=values[key]
 
 func _refresh_slope() -> void:
 	if slope_fields==null: return
@@ -142,6 +164,16 @@ func _refresh_slope() -> void:
 		if config.get("rock_material",{})==entry.material: values.rock_material_id=entry.material_id
 		if config.get("transition_material",{})==entry.material: values.transition_material_id=entry.material_id
 	slope_fields.build(River.slope_schema(),values,{"steep_start":"开始露岩坡度（度）","steep_end":"完全露岩坡度（度）","rock_material_id":"陡坡岩石材质","transition_material_id":"边缘土层 / 碎石材质","transition_width":"自然交错范围（米；0 关闭）","edge_noise":"边界不规则程度","height_blend_strength":"贴图高度混合强度"},{"rock_material_id":options,"transition_material_id":options})
+
+func _apply_furrows(enabled: bool) -> void:
+	editor._finish_edits()
+	if region_list.selected<0: report(Terrain.fail("请先圈画并选择农田地表区域")); return
+	var id:=str(region_list.get_item_metadata(region_list.selected)); var ids: Array=[]
+	for r in editor._doc.records:
+		if r.get("terrain_regions",{}).get("regions",[]).any(func(p):return p.id==id): ids.append(r.uuid)
+	var args: Dictionary=furrow_fields.values() if enabled else {}
+	args.merge({"id":id,"terrain_ids":ids,"enabled":enabled})
+	report(preload("res://scripts/world_editor/terrain_furrow_tools.gd").apply(editor,args))
 
 func _apply_slope(enabled: bool) -> void:
 	editor._terrain_brush.cancel()

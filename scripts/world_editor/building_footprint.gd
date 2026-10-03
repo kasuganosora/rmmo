@@ -13,13 +13,20 @@ static func record_shapes(record: Dictionary) -> Array:
 	if record.has("terrain_mesh"):
 		var terrain=preload("res://scripts/world3d/terrain_surface.gd"); var t: Dictionary=record.terrain_mesh
 		var world: Transform3D=terrain.transform(record); var out: Array=[]
+		var fields: Array=[]
+		for region in record.get("terrain_regions",{}).get("regions",[]):
+			if region.has("furrows"): fields.append({"bounds":preload("res://scripts/world3d/terrain_regions.gd").bounds(preload("res://scripts/world3d/terrain_regions.gd").points(region)),"height":region.furrows.height})
 		for z in int(t.rows):
 			for x in int(t.columns):
 				if not terrain.solid(t,x,z): continue
 				var points: Array[Vector3]=[]
 				var top_low:=INF; var top_high:=-INF
+				var extra:=0.; var base: Vector3=terrain.point(record,x,z)
+				var cell_bounds:=Rect2(Vector2(base.x,base.z),Vector2(record.size[0]/t.columns,record.size[2]/t.rows))
+				for field in fields:
+					if field.bounds.intersects(cell_bounds): extra=maxf(extra,field.height)
 				for p in terrain.cell(record,x,z):
-					var top: Vector3=world*p; top_low=minf(top_low,top.y); top_high=maxf(top_high,top.y)
+					var top: Vector3=world*(p+Vector3.UP*extra); top_low=minf(top_low,(world*p).y); top_high=maxf(top_high,top.y)
 					points.append(top); points.append(world*Vector3(p.x,t.floor*record.size[1],p.z))
 				out.append(from_points(points).merged({"top_min_y":top_low,"top_max_y":top_high}))
 		return out

@@ -3,7 +3,7 @@ extends RefCounted
 const City=preload("res://scripts/world3d/city_layout.gd")
 const Surface=preload("res://scripts/world3d/road_surface.gd")
 const DIRT="pack:default:terrain/natural_dirt/material"
-const GRASS="pack:default:terrain/outdoor_short_grass/material"
+const GRASS="pack:default:terrain/mossy_grass_vcjmej0s/material"
 const MOSS="pack:default:terrain/mossy_grass/material"
 const DIRT_ROUTES=["北郊小路","西北门外路","西南门外路","东北郊小路","东北田间岔路","东南田间路","南郊横巷"]
 static func apply(doc) -> Dictionary:

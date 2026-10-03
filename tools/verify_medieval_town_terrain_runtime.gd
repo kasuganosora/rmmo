@@ -2,6 +2,9 @@ extends "res://tools/verify_medieval_town_curves_runtime.gd"
 func run() -> void:
 	CURVE_MAP="D:/code/rmmo_runtime/cache/world3d/medieval_town_terrain/map.gltf"
 	CURVE_RESULT="D:/code/rmmo_runtime/review_artifacts/medieval_town_terrain"
+	if "--furrows" in OS.get_cmdline_user_args():
+		CURVE_MAP="D:/code/rmmo_runtime/cache/world3d/medieval_town_furrows/map.gltf"
+		CURVE_RESULT="D:/code/rmmo_runtime/review_artifacts/terrain_furrows/town"
 	await super.run()
 
 func river_probe(road: Array,a: Vector3,b: Vector3) -> Vector3:

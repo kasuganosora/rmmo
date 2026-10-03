@@ -25,7 +25,7 @@ func run() -> void:
 	probe.stop(); check(editor.start_mcp(port).ok,"start actual HTTP MCP")
 	var discovery:=await rpc("tools/list")
 	var config: Array=discovery.result.tools.filter(func(t): return t.name=="configure_transform")
-	check(discovery.result.tools.size()==113 and config[0].inputSchema.properties.has("component_edit"),"discover explicit component-edit schema in current 3D MCP")
+	check(discovery.result.tools.size()==114 and config[0].inputSchema.properties.has("component_edit"),"discover explicit component-edit schema in current 3D MCP")
 	var made:=await call_tool("generate_buildings",{"parameters":{"layout":"urban_village","floors":3},"placements":[{"position":[0,0,0]}]})
 	var id: String=made.building_ids[0]; var value: Dictionary=editor._buildings.instances()[id]
 	var part: String=value.parts.values()[0]; var part_count: int=value.parts.size()

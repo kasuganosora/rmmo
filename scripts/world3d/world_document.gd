@@ -11,6 +11,9 @@ var _next := 1
 var _disk_path := ""
 var _disk_signature := ""
 var editor_dirty := false
+var terrain_neighbors=preload("res://scripts/world3d/terrain_neighbors.gd").new()
+var _save_meshes = preload("res://scripts/world3d/save_mesh_cache.gd").new()
+var last_save_metrics: Dictionary = {}
 
 
 func add_warp(position: Vector3, target_path: String, spawn: Vector3) -> String:
@@ -143,6 +146,16 @@ func has_uuid(uuid: String) -> bool:
 
 
 func build(effects: bool=true) -> Node3D:
+	# effects=false is the off-screen export view; cached meshes can be CPU-only.
+	var world := export_root()
+	terrain_neighbors.update(records)
+	if not effects: _save_meshes.begin(records)
+	for record in records:
+		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
+	return world
+
+
+func export_root() -> Node3D:
 	var world := Node3D.new()
 	world.name = "rmmo_world"
 	var extras := {
@@ -154,47 +167,85 @@ func build(effects: bool=true) -> Node3D:
 		extras[key] = map_meta[key]
 	extras["rmmo_records"] = records.duplicate(true)
 	world.set_meta("extras", extras)
-	for record in records:
-		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
 	return world
 
 
 func save(gltf_path: String) -> Error:
+	var started := Time.get_ticks_usec()
+	last_save_metrics = {}
+	var validation := validate_save()
+	if validation != OK: return validation
+	# glTF stores standard PBR fallbacks; native records restore dynamic shaders.
+	last_save_metrics["validate_ms"] = (Time.get_ticks_usec() - started) / 1000.0
+	var phase := Time.get_ticks_usec()
+	var view := build(false)
+	last_save_metrics["build_ms"] = (Time.get_ticks_usec() - phase) / 1000.0
+	last_save_metrics["geometry_cache_hits"] = _save_meshes.hits
+	last_save_metrics["geometry_cache_misses"] = _save_meshes.misses
+	last_save_metrics["geometry_cache_bytes"] = _save_meshes.bytes
+	for child in view.get_children():
+		if child.has_meta("paint_error") or child.has_meta("tile_error"):
+			view.free()
+			return ERR_INVALID_DATA
+	phase = Time.get_ticks_usec()
+	var err := GltfMapIo.save_scene_atomic(view, gltf_path, save_signature(gltf_path))
+	last_save_metrics["publish_ms"] = (Time.get_ticks_usec() - phase) / 1000.0
+	if err == OK: last_save_metrics["export"] = GltfMapIo.last_export_metrics.duplicate(true)
+	if err == OK: accept_save(gltf_path, str(view.get_meta("published_signature", "")))
+	view.free()
+	last_save_metrics["total_ms"] = (Time.get_ticks_usec() - started) / 1000.0
+	return err
+
+
+func validate_save(progress: Callable = Callable()) -> Error:
+	var err := validate_save_meta()
+	if err != OK: return err
+	var checked := 0
+	for record in records:
+		if progress.is_valid(): progress.call("validate", checked, records.size())
+		err = validate_save_record(record)
+		if err != OK: return err
+		checked += 1
+	return OK
+
+
+func validate_save_meta() -> Error:
 	if not preload("res://scripts/world3d/city_layout.gd").valid(map_meta): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(map_meta): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_ownership(map_meta,records): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(map_meta): return ERR_INVALID_DATA
 	if not missing_assets().is_empty(): return ERR_FILE_NOT_FOUND
 	if not preload("res://scripts/world3d/environment_settings.gd").valid(map_meta): return ERR_INVALID_DATA
-	for record in records:
-		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/channel_surface.gd").valid(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return ERR_INVALID_DATA
-		if not SurfaceMaterials.valid(record): return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return ERR_INVALID_DATA
-	# glTF stores standard PBR fallbacks; native records restore dynamic shaders.
-	var view := build(false)
-	for child in view.get_children():
-		if child.has_meta("paint_error") or child.has_meta("tile_error"):
-			view.free()
-			return ERR_INVALID_DATA
+	return OK
+
+
+func validate_save_record(record: Dictionary) -> Error:
+	if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/road_surface.gd").valid(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/channel_surface.gd").valid(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return ERR_INVALID_DATA
+	if not SurfaceMaterials.valid(record): return ERR_INVALID_DATA
+	if not preload("res://scripts/world3d/wind_response.gd").valid(record): return ERR_INVALID_DATA
+	if record.get("kind") == "asset" and not preload("res://scripts/world3d/map_paths.gd").allowed(str(record.get("asset_path", ""))): return ERR_INVALID_DATA
+	return OK
+
+
+func save_signature(gltf_path: String) -> Variant:
 	var canonical := ProjectSettings.globalize_path(gltf_path).simplify_path()
-	var expected: Variant = _disk_signature if canonical == _disk_path else null
-	var err := GltfMapIo.save_scene_atomic(view, gltf_path, expected)
-	if err == OK:
-		_disk_path = canonical
-		_disk_signature = str(view.get_meta("published_signature", ""))
-		# History restores content, never an obsolete save-conflict baseline after saving.
-		for state in _undo + _redo:
-			if state is Dictionary:
-				state.disk_path = _disk_path
-				state.disk_signature = _disk_signature
-	view.free()
-	return err
+	return _disk_signature if canonical == _disk_path else null
+
+
+func accept_save(gltf_path: String, signature: String) -> void:
+	_disk_path = ProjectSettings.globalize_path(gltf_path).simplify_path()
+	_disk_signature = signature
+	# History restores content, never an obsolete conflict baseline after saving.
+	for state in _undo + _redo:
+		if state is Dictionary:
+			state.disk_path = _disk_path
+			state.disk_signature = _disk_signature
 
 
 static func open_file(gltf_path: String):
@@ -356,6 +407,8 @@ func _find(uuid: String) -> Dictionary:
 func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 	var mesh_node := MeshInstance3D.new()
 	mesh_node.name = str(record.get("uuid", "box"))
+	var signature: String = _save_meshes.key(record, terrain_neighbors.data.get(str(record.uuid), {})) if not effects else ""
+	var cached: Mesh = _save_meshes.get_mesh(str(record.uuid), signature) if not effects else null
 	var box := BoxMesh.new()
 	var size: Array = record.get("size", [1, 1, 1])
 	box.size = Vector3(float(size[0]), float(size[1]), float(size[2]))
@@ -368,16 +421,18 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
-	mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
-	if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
-	if record.has("terrain_mesh"): mesh_node.mesh = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material)
-	if record.has("channel_mesh"):
-		if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
-			box.material.roughness=.22; box.material.metallic=.15
-		mesh_node.mesh = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
-	if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
-	if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
-	if record.get("building_shape")=="roof_prism": mesh_node.mesh = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
+	if cached != null: mesh_node.mesh = cached
+	else:
+		mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
+		if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
+		if record.has("terrain_mesh"): mesh_node.mesh = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material,terrain_neighbors.data.get(str(record.uuid),{}))
+		if record.has("channel_mesh"):
+			if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
+				box.material.roughness=.22; box.material.metallic=.15
+			mesh_node.mesh = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
+		if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
+		if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
+		if record.get("building_shape")=="roof_prism": mesh_node.mesh = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
 	if mesh_node.mesh == null:
 		mesh_node.mesh = box
 		mesh_node.set_meta("tile_error", "自动拼接套件无法读取")
@@ -418,8 +473,11 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 		extras.building=record.get("building",{}).duplicate(true)
 	if record.has("fortification"): extras.fortification=record.fortification.duplicate(true)
 	mesh_node.set_meta("extras", extras)
-	SurfaceMaterials.apply(mesh_node, record)
-	if effects: preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record)
+	if cached == null:
+		SurfaceMaterials.apply(mesh_node, record)
+		if not effects and not mesh_node.has_meta("paint_error") and not mesh_node.has_meta("tile_error"):
+			_save_meshes.put_mesh(str(record.uuid), signature, mesh_node.mesh)
+	if effects: preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record,terrain_neighbors.data.get(str(record.uuid),{}))
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
 	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", record.duplicate(true))
 	return mesh_node

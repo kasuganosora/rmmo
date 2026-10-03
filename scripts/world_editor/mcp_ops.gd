@@ -39,11 +39,13 @@ func state() -> Dictionary:
 		"ground_region_drawing":editor._ground_draw!=null and editor._ground_draw.active,
 		"terrain_brush_active": editor._terrain_brush!=null and editor._terrain_brush.active,
 		"autosave": editor._safety.state(),
+		"save": editor._save_job.state() if editor._save_job != null else {"active":false},
 		"ground_batching": editor._ground_batches.stats() if is_instance_valid(editor._ground_batches) else {},
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"set_terrain_furrows": return preload("res://scripts/world_editor/terrain_furrow_tools.gd").apply(editor,args)
 		"paint_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args)
 		"remove_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args,true)
 		"set_river_materials": return preload("res://scripts/world_editor/river_material_tools.gd").apply(editor,args)
@@ -284,10 +286,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"save_world":
 			var path := str(args.get("path", editor._path))
 			if not allowed_path(path) or path.get_extension().to_lower() != "gltf": return error("Save path must be a .gltf file inside the external content root")
-			var dependencies := validate_assets(editor._doc.records)
-			if not dependencies.is_empty(): return error(dependencies)
-			if not editor._save_to(path): return error(editor._status.text)
-			return ok({"path": path, "saved": true})
+			return editor._save_job.start(path)
 		"open_world":
 			var path: String = args.path
 			if not allowed_path(path) or path.get_extension().to_lower() != "gltf" or not FileAccess.file_exists(path): return error("Open path must be an existing .gltf file inside the external content root")
@@ -303,6 +302,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"discard_editor_draft": return editor._safety.discard(args.draft_id)
 		"close_editor":
 			editor._safety._close_window = true
+			if args.action == "save": return editor._save_job.start(editor._path)
 			return editor._safety.close_action(args.action)
 		"preview_map":
 			if DisplayServer.get_name() == "headless": return error("Preview requires a graphical renderer; use the background desktop host")

@@ -35,6 +35,7 @@ static func prepare(records: Array,args: Dictionary,library,editable: Callable,r
 		if absf(record.rotation[0])>.001 or absf(record.rotation[2])>.001: return Paint.fail("区域绘制暂不支持 X/Z 倾斜地形")
 		var next:=record.duplicate(true); var data: Dictionary=next.get("terrain_regions",{"materials":[],"regions":[]})
 		var previous: Array=data.regions.filter(func(r):return r.id==args.id)
+		if not previous.is_empty() and previous[0].has("furrows"): return Paint.fail("该区域已有垄沟；请先停用垄沟再修改范围或删除区域，避免意外覆盖农田几何")
 		var insertion: int=data.regions.find(previous[0]) if not previous.is_empty() else data.regions.size()
 		data.regions=data.regions.filter(func(r):return r.id!=args.id)
 		if not remove:

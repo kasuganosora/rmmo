@@ -1,8 +1,10 @@
 extends RefCounted
-## Editable local-XZ polygons; compact derived coverage, never extra geometry.
+## Editable local-XZ coverage polygons and optional cultivation recipes.
 const S=preload("res://scripts/world3d/document_schema.gd")
 const Zones=preload("res://scripts/world3d/planning_zones.gd")
 const RESOLUTION=257
+static func furrow_schema() -> Dictionary:
+	return {"type":"object","properties":{"spacing":S.number(.8,4),"height":S.number(.03,.35),"angle":S.number(-360,360),"phase":S.number(-300000,300000),"margin":S.number(.5,8),"setback":S.number(0,12)},"required":["spacing","height","angle","phase","margin"],"additionalProperties":false}
 
 static func polygon_schema() -> Dictionary:
 	return Zones.schema().properties.polygon
@@ -18,6 +20,7 @@ static func valid(record: Dictionary) -> bool:
 	if data.materials.is_empty() or data.materials.size()>2 or data.regions.is_empty() or data.regions.size()>32: return false
 	var ids:={}; var count:=0
 	var schema:={"type":"object","properties":{"id":{"type":"string","maxLength":80},"polygon":polygon_schema(),"feather":S.number(1,24),"opacity":S.number(.01,1),"layer":S.number(0,data.materials.size()-1,true)},"required":["id","polygon","feather","opacity","layer"]}
+	schema.properties.furrows=furrow_schema()
 	for region in data.regions:
 		if not S.validate(region,schema).is_empty() or not str(region.id).is_valid_identifier() or ids.has(region.id) or not polygon_valid(region.polygon): return false
 		ids[region.id]=true; count+=region.polygon.size()

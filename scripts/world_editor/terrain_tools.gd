@@ -83,12 +83,15 @@ func prepare(args: Dictionary) -> Dictionary:
 	var result:=Terrain.stroke(record,args)
 	if not result.ok or not result.changed: return result
 	var next: Dictionary=result.record; var t: Dictionary=record.terrain_mesh; var world:=Terrain.transform(record)
+	var furrows:=preload("res://scripts/world3d/terrain_furrows.gd").generate(next)
+	if not furrows.ok: return furrows
 	var changed_volumes: Array=[]
 	for at in result.cells:
 		var x: int=int(at)%int(t.columns); var z: int=int(at)/int(t.columns)
 		if t.holes[at] and next.terrain_mesh.holes[at]: continue
 		var p:=Terrain.cell(record,x,z); var q:=Terrain.cell(next,x,z); var low:=INF; var high:=-INF
 		for i in 4: low=minf(low,minf(p[i].y,q[i].y)); high=maxf(high,maxf(p[i].y,q[i].y))
+		high+=preload("res://scripts/world3d/terrain_furrows.gd").maximum_height(next)
 		if t.holes[at]!=next.terrain_mesh.holes[at]: low=t.floor*record.size[1]
 		var points: Array[Vector3]=[]
 		for v in p: points.append(world*Vector3(v.x,low-.015,v.z)); points.append(world*Vector3(v.x,high+.15,v.z))

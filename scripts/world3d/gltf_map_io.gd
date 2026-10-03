@@ -1,12 +1,19 @@
 extends RefCounted
 ## Read and write one map glTF with GLTFDocument. The scene tree is a view, not the document.
 
-static func save_scene(root: Node, gltf_path: String) -> Error:
+static var last_export_metrics: Dictionary = {}
+# Benchmark-only comparison path; ordinary UI/MCP always stream supported geometry.
+static var engine_geometry_for_tests := false
+
+static func save_scene(root: Node, gltf_path: String, progress: Callable = Callable()) -> Error:
 	if root == null or gltf_path.is_empty():
 		return ERR_INVALID_PARAMETER
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
+	var started := Time.get_ticks_usec()
+	if progress.is_valid(): progress.call("scene", 0, 0)
 	var err := doc.append_from_scene(root, state)
+	last_export_metrics = {"append_ms": (Time.get_ticks_usec() - started) / 1000.0}
 	if err != OK:
 		return err
 	# GLTF export does not copy per-instance morph weights into GLTFMesh defaults.
@@ -24,7 +31,19 @@ static func save_scene(root: Node, gltf_path: String) -> Error:
 		meshes.append(copy)
 	state.meshes = meshes
 	DirAccess.make_dir_recursive_absolute(gltf_path.get_base_dir())
-	return doc.write_to_filesystem(state, gltf_path)
+	started = Time.get_ticks_usec()
+	var geometry = preload("res://scripts/world3d/gltf_static_geometry.gd").new()
+	if not engine_geometry_for_tests and gltf_path.get_extension().to_lower() == "gltf" and extras_of(root).get("rmmo_format") == "rmmo_gltf_map":
+		geometry.prepare(state)
+	if progress.is_valid(): progress.call("textures", 0, 0)
+	err = doc.write_to_filesystem(state, gltf_path)
+	geometry.restore(state)
+	if err == OK: err = geometry.finish(gltf_path, progress)
+	last_export_metrics["write_ms"] = (Time.get_ticks_usec() - started) / 1000.0
+	last_export_metrics["streamed_meshes"] = geometry.originals.size()
+	last_export_metrics["meshes"] = state.meshes.size()
+	last_export_metrics["materials"] = state.materials.size()
+	return err
 
 
 # Test-only interruption hook; production leaves it empty.
@@ -51,7 +70,7 @@ static func decode_dependency_uri(uri: String) -> String:
 		if decoded.unicode_at(character) < 32: return ""
 	return decoded
 
-static func save_scene_atomic(root: Node, gltf_path: String, expected_signature: Variant = null) -> Error:
+static func save_scene_atomic(root: Node, gltf_path: String, expected_signature: Variant = null, progress: Callable = Callable()) -> Error:
 	if root == null or gltf_path.is_empty(): return ERR_INVALID_PARAMETER
 	gltf_path = ProjectSettings.globalize_path(gltf_path).simplify_path()
 	var err := DirAccess.make_dir_recursive_absolute(gltf_path.get_base_dir())
@@ -61,7 +80,7 @@ static func save_scene_atomic(root: Node, gltf_path: String, expected_signature:
 	if expected_signature != null and FileAccess.get_sha256(gltf_path) != str(expected_signature):
 		err = ERR_BUSY
 	else:
-		err = _save_version(root, gltf_path)
+		err = _save_version(root, gltf_path, progress)
 	_remove_tree(gltf_path + ".save-lock")
 	return err
 
@@ -103,7 +122,7 @@ static func restore_previous(path: String) -> Error:
 	_remove_tree(path + ".save-lock")
 	return err
 
-static func _save_version(root: Node, gltf_path: String) -> Error:
+static func _save_version(root: Node, gltf_path: String, progress: Callable = Callable()) -> Error:
 	var dir := gltf_path.get_base_dir()
 	var file_name := gltf_path.get_file()
 	var version := "%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
@@ -112,11 +131,12 @@ static func _save_version(root: Node, gltf_path: String) -> Error:
 	var err := DirAccess.make_dir_recursive_absolute(staging)
 	if err != OK: return err
 	var staged := staging.path_join(file_name)
-	err = save_scene(root, staged)
+	err = save_scene(root, staged, progress)
 	if err != OK:
 		_remove_tree(staging)
 		return err
 	if save_fault.is_valid() and save_fault.call("resources_ready"): return ERR_FILE_CANT_WRITE
+	if progress.is_valid(): progress.call("publish", 0, 0)
 	if gltf_path.get_extension().to_lower() == "gltf":
 		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(staged))
 		if not parsed is Dictionary: return ERR_FILE_CORRUPT
@@ -263,12 +283,20 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 	# Synchronous native loads use the same effects as the streaming/editor path.
 	var extra:=extras_of(scene)
 	if extra.get("rmmo_format")=="rmmo_gltf_map":
+		var neighbors=preload("res://scripts/world3d/terrain_neighbors.gd").new()
+		neighbors.update(extra.get("rmmo_records",[]))
 		var by_id:={}
 		for visual in preload("res://scripts/world3d/surface_materials.gd").meshes(scene):
 			by_id[str(extras_of(visual).get("uuid",""))]=visual
 		for record in extra.get("rmmo_records",[]):
 			if record is Dictionary and by_id.has(str(record.get("uuid",""))):
-				preload("res://scripts/world3d/river_materials.gd").apply(by_id[str(record.uuid)],record)
+				var node: MeshInstance3D=by_id[str(record.uuid)]
+				if record.has("terrain_mesh"):
+					var fallback: Material=node.get_active_material(0)
+					for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot,null)
+					node.mesh=preload("res://scripts/world3d/terrain_surface.gd").mesh(record,fallback,neighbors.data.get(str(record.uuid),{}))
+					preload("res://scripts/world3d/surface_materials.gd").apply(node,record)
+				preload("res://scripts/world3d/river_materials.gd").apply(node,record,neighbors.data.get(str(record.uuid),{}))
 				if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): by_id[str(record.uuid)].set_meta("ground_batch_record",record.duplicate(true))
 	return scene
 

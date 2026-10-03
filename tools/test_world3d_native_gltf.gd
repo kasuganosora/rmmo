@@ -93,6 +93,48 @@ func run() -> void:
 		var morphed := asset.find_child("Skinned", true, false) as MeshInstance3D
 		check(morphed != null and absf(morphed.get_blend_shape_value(0) - 0.85) < 0.01, "library packaging preserves node weights overriding mesh defaults")
 		asset.free()
+	# Exercise mixed static streaming + engine fallback for a skinned morph mesh.
+	source.set_meta("extras", {"rmmo_format":"rmmo_gltf_map"})
+	var mixed_path := dir.path_join("mixed.gltf")
+	check(Io.save_scene(source, mixed_path) == OK and Io.last_export_metrics.streamed_meshes == 3, "native static streaming leaves skin/morph on engine exporter")
+	var mixed_document := GLTFDocument.new(); var mixed_state := GLTFState.new()
+	check(mixed_document.append_from_file(mixed_path, mixed_state) == OK, "standard glTF importer reads streamed file")
+	var mixed := mixed_document.generate_scene(mixed_state)
+	if mixed != null:
+		var floor_mesh := mixed.find_child("Floor", true, false) as MeshInstance3D
+		var mixed_skin := mixed.find_child("Skinned", true, false) as MeshInstance3D
+		check(floor_mesh != null and floor_mesh.mesh.get_aabb().size.is_equal_approx(Vector3.ONE), "full static mesh replaces export proxy")
+		check(mixed_skin != null and mixed_skin.skin != null and mixed_skin.mesh.get_blend_shape_count() == 1, "standard importer preserves mixed skin and morph geometry")
+		check(mixed_state.meshes.any(func(m): return m.blend_weights.size() == 1 and absf(m.blend_weights[0]-0.65)<0.01), "streamed file retains authored morph defaults")
+		mixed.free()
+	else: check(false, "mixed glTF generates scene")
+	# Godot's generate_scene does not apply mesh defaults; our existing native
+	# wrapper restores them from GLTFState for both old and streamed geometry.
+	var native_mixed := Io.load_scene(mixed_path)
+	if native_mixed != null:
+		var native_skin := native_mixed.find_child("Skinned", true, false) as MeshInstance3D
+		check(native_skin != null and absf(native_skin.get_blend_shape_value(0)-0.65)<0.01, "native wrapper restores mixed morph pose")
+		native_mixed.free()
+	else: check(false, "native mixed scene loads")
+	# The editor's save worker owns a detached scene. Exercise native features on
+	# that path too; record roundtrips alone cannot detect broken skin/animations.
+	var snapshots = preload("res://scripts/world_editor/save_job.gd").new()
+	snapshots._snapshot_materials(source)
+	var worker := Thread.new()
+	var threaded_path := dir.path_join("threaded.gltf")
+	check(worker.start(Io.save_scene.bind(source,threaded_path))==OK,"start detached native export worker")
+	while worker.is_alive(): await process_frame
+	check(worker.wait_to_finish()==OK,"worker exports skin/morph and animations")
+	var threaded_raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(threaded_path))
+	var mixed_raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(mixed_path))
+	check(["nodes","meshes","skins","animations","cameras","extensions"].all(func(key): return threaded_raw.get(key)==mixed_raw.get(key)),"worker preserves standard native scene graph and animation data")
+	var threaded_scene := Io.load_scene(threaded_path)
+	check(threaded_scene!=null,"worker native scene imports")
+	if threaded_scene!=null:
+		var threaded_skin := threaded_scene.find_child("Skinned",true,false) as MeshInstance3D
+		check(threaded_skin!=null and threaded_skin.skin!=null and absf(threaded_skin.get_blend_shape_value(0)-.65)<.01,"worker retains playable skin and morph pose")
+		threaded_scene.free()
+	snapshots.free()
 	source.free()
 	var loader := preload("res://scripts/world3d/map_loader.gd").new()
 	root.add_child(loader)

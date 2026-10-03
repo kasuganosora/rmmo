@@ -101,6 +101,7 @@ uniform float edge_noise = .3;
 uniform float height_blend_strength = .5;
 uniform sampler2D terrain_heights : filter_linear, repeat_disable;
 uniform vec2 terrain_span = vec2(32.);
+uniform vec2 terrain_padding = vec2(0.);
 uniform bool batch_enabled = false;
 uniform sampler2DArray batch_heights : filter_linear, repeat_disable;
 uniform vec4 batch_origins[16];
@@ -163,11 +164,11 @@ vec3 surface_normal(sampler2D tex, vec2 tile, float strength, vec3 geometric_nor
 float terrain_height(vec2 p) {
 	if (batch_enabled) {
 		vec2 resolution=vec2(textureSize(batch_heights,0).xy);
-		vec2 uv=(clamp(p/local_span+.5,0.,1.)*(resolution-1.)+.5)/resolution;
+		vec2 uv=((p/local_span+.5)*(resolution-1.-2.*terrain_padding)+terrain_padding+.5)/resolution;
 		return textureLod(batch_heights,vec3(uv,height_layer),0.).r;
 	}
 	vec2 resolution=vec2(textureSize(terrain_heights,0));
-	vec2 uv=(clamp(p/terrain_span+.5,0.,1.)*(resolution-1.)+.5)/resolution;
+	vec2 uv=((p/terrain_span+.5)*(resolution-1.-2.*terrain_padding)+terrain_padding+.5)/resolution;
 	return textureLod(terrain_heights,uv,0.).r;
 }
 float hash_point(vec3 p) {

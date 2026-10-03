@@ -48,6 +48,9 @@ func _process(_dt: float) -> void:
 	mini.position=Vector2(maxf(0,size.x-mini.size.x-12),12)
 	visible=not city.editor._playtest.active()
 	mini.visible=city.editor._dock_tabs!=null and (city.editor._dock_tabs.current_tab==9 or not city.data.roads.nodes.is_empty() or city.data.has("reference"))
+	# Saving locks the camera and authoring input. Keep the last overlay instead
+	# of projecting the entire road network again for every progress-bar frame.
+	if city.editor.saving(): return
 	queue_redraw(); mini.queue_redraw()
 
 func project(points: Array) -> PackedVector2Array:

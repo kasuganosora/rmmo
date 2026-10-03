@@ -33,7 +33,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real roof HTTP fixture")
 	var discovery:=await rpc("tools/list")
-	check(discovery.result.tools.size()==113,"current 3D material tools remain discoverable")
+	check(discovery.result.tools.size()==114,"current 3D material tools remain discoverable")
 	var catalog:=await call_tool("list_surface_materials",{"category":"屋顶／陶瓦"})
 	var selected: Array=catalog.materials.filter(func(row):return row.material_id=="pack:default:roofs/terracotta_plain/material")
 	check(selected.size()==1,"generated roof discovered in classified default pack")

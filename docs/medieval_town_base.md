@@ -81,3 +81,17 @@
 最终区域版同机位 A/B：30 个区域覆盖 41 块地形。合批调用 2942 → 763（减少 74.1%），几何缓冲 61.25 → 56.00 MiB。贴图分别约 488.75 / 493.48 MiB，合批遮罩数组增加约 4.73 MiB。GPU 中位数为 1.508 / 1.791 ms，P95 为 2.994 / 2.036 ms；本次 GPU 中位数没有改善，因此这里只确认绘制调用和几何缓冲减少，不宣称 GPU 总耗时同比降低。测量视图为无地上建筑、树木的地形底图。
 
 本轮已通过原生原子保存写回 `D:/code/rmmo_runtime/maps/medieval_river_town/map.gltf`，保存后重新打开核对全部物件与地图元数据，并同步 `preview.png`。`review_artifacts/medieval_town_terrain/published.json` 的发布 SHA-256 为 `bd64715a4b5df9dd9529f76bb7a692138578d625f60ab8047563ecc256a7a92c`；区域、河岸材质、无改动零次合批重建、岸线/高度接缝及五桥通行测试均通过。独立地形块法线仍未共享邻块采样，强侧光接缝继续保留在编辑器待办。
+
+## 草地、接缝与农田垄沟（2026-10-03，最新发布）
+
+上述区域版之后，49 块地形的底材已替换为用户指定的 [Quixel Mossy Grass vcjmej0s](https://www.fab.com/listings/dffa11a3-d345-4b88-88bd-8bfd7575500f)。来源为 `mossy_grass_vcjmej0s_2k (1).zip`，默认资源包按「地表／草地」分类，材质 ID 为 `pack:default:terrain/mossy_grass_vcjmej0s/material`。颜色、法线、粗糙度、AO、高度均为 2K；按扫描元数据 4×4 米重复，颜色乘数为白色、饱和度为 1，保留原素材的深橄榄苔藓色。制作配方同步更新，避免重新应用配方时恢复旧短草及 0.45 饱和度。
+
+同分辨率、对齐边界的地形块现已共享边缘法线，并在坡度/河岸材质采样时读取邻块高度。城镇共享顶点最大法线夹角由约 14.875° 降到 0.000002733°；原高度、道路与河道几何不变。该修复包含相同 Y 轴旋转的地形，不覆盖不同网格分辨率、倾斜地形或真实高度缺口，不能将这些情况视为已自动修补。
+
+12 处农田已生成随地形起伏的真实垄沟，避让已有道路，边缘逐渐收平；增加 176,999 个三角形，按地形附加网格面而非逐垄创建物件。配方见 `tools/medieval_town_cultivation.gd`；编辑器地表区域面板与当前 3D MCP 的 `set_terrain_furrows` 共用参数校验、保护检查和撤销事务。工具支持间距、高度、方向、边缘过渡、内缩及关闭；作物、院落精修和进一步美术调整仍未完成。详细范围见 [地形接缝与农田垄沟](world_editor_furrows.md)。
+
+`tools/apply_medieval_town_furrows.gd` 在临时候选中经真实 HTTP 应用材质及垄沟，验证失败无副作用、撤销重做、保存重开、运行时加载和角色通行后发布。独立回归包含地表区域、河岸材质、地面合批、垄沟碰撞与跨块行走；整城五桥双向通行通过。稳定视图下合批与未合批图像的平均 RGB 通道差约 0.00000795。相同总览绘制调用由 763 增至 795，保留地面合批；新增几何并非零成本。重新加载后的性能与显存测量以 `review_artifacts/terrain_furrows/town/performance.json` 为准，发布报告中的早期统计包含同进程旧材质缓存，不作为最终显存结论。整城原生 glTF 保存仍需数分钟，已单列性能待办。
+
+最新正式地图通过原生冲突检测与原子保存写回，并重开核对内容、同步预览；没有额外复制整份用户地图备份。发布 SHA-256 为 `a02a52f5cd4c28bc2869ff420f13fea7e67119f0da9e99e9ccdcaf5cc37d7621`。发布、运行时及图形验证均为零失败，记录位于 `D:/code/rmmo_runtime/review_artifacts/terrain_furrows/town/` 的 `published.json`、`runtime_result.json` 和 `performance.json`；该目录的 `grass_after.png`、`farm_close.png`、`river_seam.png` 和 `overview.png` 为本轮验收图。
+
+随后单独优化原生保存的静态网格序列化及 CPU 几何复用，临时城镇实测首次完整保存约 55 秒、局部地形修改后约 25 秒，正式地图内容未改动。原始文件的构建和导出合计约 244 秒，详细统计口径、完整网格/PBR 对比与真实 HTTP 验证见 [保存性能](world_editor_save_performance.md)。同步保存期间的界面阻塞仍保留为后台保存待办。

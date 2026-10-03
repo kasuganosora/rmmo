@@ -19,7 +19,7 @@ func run() -> void:
 	var definitions: Array=(await rpc("tools/list")).result.tools
 	check(definitions.any(func(d):return d.name=="paint_terrain_region") and definitions.all(func(d):return d.name!="paint_tile"),"current 3D region tool discovered")
 	for r in original:
-		if r.has("terrain_mesh"): await call_tool("set_terrain_material",{"id":r.uuid,"material_id":Ground.GRASS,"saturation":.45})
+		if r.has("terrain_mesh"): await call_tool("set_terrain_material",{"id":r.uuid,"material_id":Ground.GRASS,"saturation":1.})
 	var requests:=Ground.region_requests(editor._doc); var affected:={}
 	if "--grade" in OS.get_cmdline_user_args(): requests=[]
 	if not requests.is_empty(): await reject("paint_terrain_region",{"id":"over_budget","terrain_ids":requests[0].terrain_ids,"polygon":[[-700,-700],[700,-700],[700,700],[-700,700]],"material_id":Ground.DIRT,"feather":4.})
@@ -50,6 +50,6 @@ func run() -> void:
 	await capture("ground_close",{"projection":"perspective","center":[-405,0,130],"distance":22,"pitch":-50,"yaw":22})
 	await call_tool("recall_view_bookmark",{"id":"whole_town"})
 	check(report.source_sha256==FileAccess.get_sha256(SOURCE),"source remains unchanged until publication")
-	report.merge({"failures":failed,"candidate_sha256":FileAccess.get_sha256(CANDIDATE),"grass_material":Ground.GRASS,"regions":requests.size() if not requests.is_empty() else report.get("regions",0),"region_terrain_patches":affected.size() if not requests.is_empty() else report.get("region_terrain_patches",0),"grass_saturation":.45,"merged":merged,"unmerged":separate,"ground_batching":stats},true)
+	report.merge({"failures":failed,"candidate_sha256":FileAccess.get_sha256(CANDIDATE),"grass_material":Ground.GRASS,"regions":requests.size() if not requests.is_empty() else report.get("regions",0),"region_terrain_patches":affected.size() if not requests.is_empty() else report.get("region_terrain_patches",0),"grass_saturation":1.,"merged":merged,"unmerged":separate,"ground_batching":stats},true)
 	var f:=FileAccess.open(OUTPUT.path_join("result.json"),FileAccess.WRITE); f.store_string(JSON.stringify(report,"\t")); f.close()
 	editor._mcp.stop(); editor.queue_free(); await settle(); quit(1 if failed else 0)

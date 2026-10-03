@@ -23,7 +23,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"real HTTP batch verification server")
 	var defs: Array=(await rpc("tools/list")).result.tools
-	check(defs.size()==113 and defs.filter(func(d):return d.name=="editor_state")[0].description.contains("ground_batching"),"3D discovery exposes batching stats without old 2D tools")
+	check(defs.size()==114 and defs.filter(func(d):return d.name=="editor_state")[0].description.contains("ground_batching"),"3D discovery exposes batching stats without old 2D tools")
 	var state:=await call_tool("editor_state",{})
 	check(state.ground_batching.source_objects==6 and state.ground_batching.render_surfaces==1,"HTTP state reports 6 records / 12 surfaces merged into 1 draw surface")
 	check(editor._view.get_node(first).mesh is Cpu,"editor original is CPU-only")

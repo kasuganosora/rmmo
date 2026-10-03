@@ -35,6 +35,9 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 static func valid(record: Dictionary, relative: bool = false, content_root: String = "") -> bool:
 	if not preload("res://scripts/world3d/river_material_data.gd").valid(record): return false
 	if not preload("res://scripts/world3d/terrain_regions.gd").valid(record): return false
+	if preload("res://scripts/world3d/terrain_furrows.gd").maximum_height(record)>0:
+		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return false
+		if not preload("res://scripts/world3d/terrain_furrows.gd").generate(record).ok: return false
 	if record.has("terrain_saturation") and (not record.has("terrain_mesh") or not numbers([record.terrain_saturation],1,0,1)): return false
 	if record.has("terrain_saturation") and record.has("surface_paint"): return false
 	for definition in record.get("terrain_regions",{}).get("materials",[]):

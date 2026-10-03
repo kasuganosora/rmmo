@@ -1,0 +1,25 @@
+{
+  "materials": [{
+    "slug": "mossy_grass_vcjmej0s",
+    "name": "斑驳苔藓草地 · 2K",
+    "title": "Mossy Grass",
+    "listing_id": "dffa11a3-d345-4b88-88bd-8bfd7575500f",
+    "seller": "Quixel Megascans",
+    "archive": "mossy_grass_vcjmej0s_2k (1).zip",
+    "category": "地表／草地",
+    "folder": "terrain",
+    "owned_verified": "2026-10-03",
+    "normal_format": "opengl",
+    "normal_strength": 1.0,
+    "tile_size": [4, 4],
+    "usage": "用户选定的 vcjmej0s 扫描草地。按原始 4×4 米比例铺设，白色乘色、饱和度 1，保留真实苔藓、草和裸地色差。",
+    "normal_validation": {"reference": "Mossy_Grass_vcjmej0s_2K_Bump.jpg", "correlation_x": -0.588773, "correlation_image_y": 0.590209},
+    "maps": {
+      "texture_path": "Mossy_Grass_vcjmej0s_2K_BaseColor.jpg",
+      "normal_path": "Mossy_Grass_vcjmej0s_2K_Normal.jpg",
+      "roughness_path": "Mossy_Grass_vcjmej0s_2K_Roughness.jpg",
+      "ao_path": "Mossy_Grass_vcjmej0s_2K_AO.jpg",
+      "height_path": "Mossy_Grass_vcjmej0s_2K_Bump.jpg"
+    }
+  }]
+}

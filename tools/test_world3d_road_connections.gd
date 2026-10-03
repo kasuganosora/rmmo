@@ -8,7 +8,7 @@ func run() -> void:
 	var probe:=TCPServer.new(); port=30110
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"road connection HTTP starts")
-	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==113 and definitions.any(func(t):return t.name=="get_road_connectivity" and t.annotations.readOnlyHint),"111 tools expose bridge linkage and readonly network checks")
+	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==114 and definitions.any(func(t):return t.name=="get_road_connectivity" and t.annotations.readOnlyHint),"114 tools expose bridge linkage and readonly network checks")
 	await call_tool("generate_waterway",{"id":"river","ground_ids":[ground],"points":[[0,-55],[0,55]],"bridges":[{"id":"crossing","segment":0,"t":.5,"width":5,"approach":3,"rail_height":1.1}]})
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size()
 	var linked:=await call_tool("connect_waterway_bridge",{"waterway_id":"river","bridge_id":"crossing"})

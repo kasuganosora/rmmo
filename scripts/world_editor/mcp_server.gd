@@ -7,6 +7,7 @@ const MAX_CLIENTS := 8
 const CLIENT_IDLE_MS := 10000
 var _ops := Ops.new()
 var _definitions := {}
+var _pending_saves := {}
 
 func server_name() -> String:
 	return "rmmo-world-editor"
@@ -44,6 +45,7 @@ func call_tool(name: String, args: Dictionary) -> Dictionary:
 	if not validation.is_empty(): return {"ok": false, "error": validation}
 	if not is_instance_valid(editor) or editor._selection_tools == null: return {"ok": false, "error": "3D editor is not ready"}
 	if not definition.annotations.readOnlyHint:
+		if editor.saving(): return {"ok":false,"error":"正在保存，请等待当前保存完成；可用 editor_state 查询进度"}
 		if editor._city.busy(): return {"ok":false,"error":"Finish or cancel the road draft/node drag first"}
 		if editor._playtest.active() and name != "stop_playtest": return {"ok":false,"error":"Stop the playtest before editing the document"}
 		if editor._authoring.picking: return {"ok":false,"error":"Finish or cancel spawn picking first"}
@@ -78,6 +80,10 @@ func _process(_dt: float) -> void:
 		var client: Dictionary = _clients[i]
 		var peer: StreamPeerTCP = client.peer
 		peer.poll()
+		# A pending save owns this connection's response, but not the server loop.
+		if _pending_saves.has(peer.get_instance_id()):
+			client.last_active = Time.get_ticks_msec()
+			continue
 		if peer.get_status() == StreamPeerTCP.STATUS_CONNECTED and peer.get_available_bytes() > 0: client.last_active = Time.get_ticks_msec()
 		if Time.get_ticks_msec() - int(client.last_active) > CLIENT_IDLE_MS or not _pump(client):
 			peer.disconnect_from_host()
@@ -101,7 +107,30 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 	if path not in ["/", "/health", "/mcp"]:
 		_write_http(peer, 404, "text/plain", "not found")
 		return
+	if method == "POST":
+		var msg: Variant = JSON.parse_string(body)
+		if msg is Dictionary and msg.get("method") == "tools/call" and msg.has("id") and msg.get("params") is Dictionary:
+			var params: Dictionary = msg.params
+			var args: Variant = params.get("arguments", {})
+			var saving_close: bool = params.get("name") == "close_editor" and args is Dictionary and args.get("action") == "save"
+			if params.get("name") == "save_world" or saving_close:
+				var reply: Dictionary = handle_rpc(msg)
+				var payload: Variant = JSON.parse_string(reply.get("result", {}).get("content", [{"text":"{}"}])[0].text)
+				if payload is Dictionary and payload.get("pending", false) and (saving_close or not args.get("background", false)):
+					_pending_saves[peer.get_instance_id()] = true
+					editor._save_job.finished.connect(_saved_http.bind(peer,msg.id,saving_close), CONNECT_ONE_SHOT)
+				else: _write_http(peer, 200, "application/json", _stringify_rpc(reply))
+				return
 	super._handle_http(peer, method, path, body)
+
+func _saved_http(result: Dictionary, peer: StreamPeerTCP, id: Variant, close_after: bool) -> void:
+	_pending_saves.erase(peer.get_instance_id())
+	var payload := result.duplicate(true)
+	if close_after: payload.closing = result.ok
+	peer.poll()
+	if peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
+		_write_http(peer, 200, "application/json", _stringify_rpc({"jsonrpc":"2.0","id":id,"result":{"isError":not result.ok,"content":[{"type":"text","text":JSON.stringify(payload)}]}}))
+	if close_after and result.ok: editor._safety.call_deferred("_finish_exit")
 
 func _write_http(peer: StreamPeerTCP, code: int, ctype: String, body: String) -> void:
 	var raw := body.to_utf8_buffer()

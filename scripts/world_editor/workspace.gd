@@ -34,7 +34,7 @@ static func build(editor: Node3D) -> void:
 	file.get_popup().id_pressed.connect(func(id: int):
 		match id:
 			0: editor._open_pack_maps()
-			1: editor._save()
+			1: editor._save_async()
 			2: editor._file_dialog(true)
 			3: editor._restore_previous()
 			4: editor._request_exit()
@@ -368,7 +368,20 @@ static func build(editor: Node3D) -> void:
 	editor._status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var status_panel := PanelContainer.new()
 	root.add_child(status_panel)
-	status_panel.add_child(editor._status)
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 12)
+	status_panel.add_child(status_row)
+	editor._status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(editor._status)
+	editor._save_progress = ProgressBar.new()
+	editor._save_progress.name = "SaveProgress"
+	editor._save_progress.custom_minimum_size = Vector2(210, 14)
+	editor._save_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	editor._save_progress.show_percentage = false
+	editor._save_progress.tooltip_text = "当前保存阶段的进度；无法计数的阶段显示活动动画"
+	editor._save_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	editor._save_progress.hide()
+	status_row.add_child(editor._save_progress)
 	editor._thumbnails = preload("res://scripts/world_editor/asset_thumbnails.gd").new()
 	editor.add_child(editor._thumbnails)
 	editor._thumbnails.available.connect(editor._apply_thumbnail)

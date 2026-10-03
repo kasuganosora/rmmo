@@ -17,7 +17,7 @@ func run()->void:
 	probe.stop();check(editor.start_mcp(port).ok,"start real HTTP MCP")
 	var discovery:=await rpc("tools/list")
 	var env_schema:Dictionary=discovery.result.tools.filter(func(t):return t.name=="set_environment")[0].inputSchema
-	check(discovery.result.tools.size()==113 and env_schema.properties.has("interior_cutaway") and env_schema.properties.has("indoor_camera_distance"),"discover current 3D camera settings")
+	check(discovery.result.tools.size()==114 and env_schema.properties.has("interior_cutaway") and env_schema.properties.has("indoor_camera_distance"),"discover current 3D camera settings")
 	var catalog:=await call_tool("list_building_templates")
 	check(catalog.parameters_schema.properties.has("door_height") and catalog.parameters_schema.properties.has("door_width") and catalog.parameters_schema.properties.has("stair_width") and catalog.parameters_schema.properties.has("stair_landing") and catalog.parameters_schema.properties.has("corridor_width"),"discover shared clearance controls")
 	check(catalog.templates.all(func(t):return t.parameters.floor_height==4) and catalog.urban_presets[0].parameters.floor_height==4,"normal and urban defaults are four metres")

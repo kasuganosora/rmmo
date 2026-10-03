@@ -14,7 +14,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"terrain HTTP server starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==113 and definitions.filter(func(t):return t.name=="sculpt_terrain").size()==1 and definitions.all(func(t):return t.name!="paint_tile"),"discover 111 current 3D tools including terrain")
+	check(definitions.size()==114 and definitions.filter(func(t):return t.name=="sculpt_terrain").size()==1 and definitions.all(func(t):return t.name!="paint_tile"),"discover 114 current 3D tools including terrain")
 	var before: Array=editor._doc.records.duplicate(true); var count: int=editor._doc._undo.size()
 	await atomic_reject("create_terrain",{"width":256,"depth":256,"cell_size":.25})
 	await atomic_reject("create_terrain",{"center":[0,0,0]})

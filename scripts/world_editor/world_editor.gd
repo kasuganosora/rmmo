@@ -27,6 +27,8 @@ var _view: Node
 var _bodies_by_uuid := {}
 var _camera: Camera3D
 var _status: Label
+var _save_progress: ProgressBar
+var _save_job: Node
 var _path := ""
 var _load_failed := false
 var _dirty := false:
@@ -143,6 +145,9 @@ func _ready() -> void:
 	_safety = preload("res://scripts/world_editor/document_safety.gd").new()
 	add_child(_safety)
 	_safety.setup(self)
+	_save_job = preload("res://scripts/world_editor/save_job.gd").new()
+	_save_job.editor = self
+	add_child(_save_job)
 	if _load_failed:
 		_status.text = "地图读取失败或格式不支持；已禁止覆盖保存"
 	if _mcp_autostart and (OS.get_environment("RMMO_EDITOR_MCP").strip_edges().to_lower() in ["1", "true", "yes", "on"] or "--mcp" in OS.get_cmdline_user_args()):
@@ -184,6 +189,9 @@ func _show_placement_panel() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if saving():
+		get_viewport().set_input_as_handled()
+		return
 	# Drawer controls overlap the canvas; let GUI consume them before scene tools.
 	if _material_panel != null and _material_panel.drawer_input(event): return
 	if _ground_draw!=null and _ground_draw.input(event): get_viewport().set_input_as_handled(); return
@@ -276,6 +284,7 @@ func _notification(what: int) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if saving(): return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if get_viewport().gui_get_focus_owner() is LineEdit: return
 		var key := (event as InputEventKey).keycode
@@ -298,7 +307,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif key == KEY_B:
 			_toggle_box_select()
 		elif key == KEY_S and event.ctrl_pressed:
-			_save()
+			_save_async()
 			return
 		elif key == KEY_F5:
 			_play()
@@ -584,6 +593,9 @@ func _sync_record_transform(record: Dictionary) -> void:
 
 
 func _refresh_records(ids: Array[String]) -> void:
+	ids=ids.duplicate()
+	for neighbor in _doc.terrain_neighbors.update(_doc.records):
+		if not ids.has(neighbor): ids.append(neighbor)
 	if is_instance_valid(_ground_batches): _ground_batches.release(ids)
 	# Rebuild only cells whose rule variant changed, including erased cells.
 	for uuid in ids:
@@ -653,6 +665,27 @@ func _save() -> bool:
 
 
 func _save_to(path: String, overwrite: bool = false) -> bool:
+	if not _prepare_save(path, overwrite): return false
+	var previous_path := _path
+	path = path.replace("\\", "/").simplify_path()
+	var err: Error = _doc.save(path)
+	_finish_save(err, path, previous_path)
+	return err == OK
+
+
+func saving() -> bool:
+	return _save_job != null and _save_job.active
+
+
+func _save_async(path: String = "", overwrite: bool = false) -> bool:
+	var started: Dictionary = _save_job.start(_path if path.is_empty() else path, overwrite)
+	if not started.ok: return false
+	var result: Dictionary = await _save_job.wait_result()
+	return result.ok
+
+
+func _prepare_save(path: String, overwrite: bool = false) -> bool:
+	if saving(): return false
 	_finish_edits()
 	if _load_failed:
 		_status.text = "读取失败的地图不能覆盖保存；请先恢复草稿或打开有效地图"
@@ -661,12 +694,14 @@ func _save_to(path: String, overwrite: bool = false) -> bool:
 		_status.text = "地图必须保存为工程外内容目录内的 glTF 文件"
 		return false
 	path = path.replace("\\", "/").simplify_path()
-	var previous_path := _path
 	if path != _path and FileAccess.file_exists(path) and not overwrite:
 		_status.text = "另存为目标已存在，请选择新路径"
 		return false
 	Net.session().world3d_editor_doc = _doc
-	var err: Error = _doc.save(path)
+	return true
+
+
+func _finish_save(err: Error, path: String, previous_path: String) -> void:
 	if err == OK:
 		_path = path
 		_dirty = false
@@ -675,8 +710,7 @@ func _save_to(path: String, overwrite: bool = false) -> bool:
 		if previous_path != _path:
 			_load_asset_scope()
 			_refresh_palette()
-	_status.text = "已保存" if err == OK else ("地图已被其他窗口修改或正在保存，请重新打开或另存为" if err == ERR_BUSY else "保存失败：" + error_string(err))
-	return err == OK
+	_status.text = "已保存（%.2f 秒）" % (float(_doc.last_save_metrics.get("total_ms", 0)) / 1000.0) if err == OK else ("地图已被其他窗口修改或正在保存，请重新打开或另存为" if err == ERR_BUSY else "保存失败：" + error_string(err))
 
 
 func _play() -> void:
@@ -706,7 +740,7 @@ func _file_dialog(save_as: bool) -> void:
 			if Paths._confine(Paths.external_root(), path) == "":
 				_status.text = "地图必须保存在工程外内容目录"
 				return
-			_save_to(path, true)
+			_save_async(path, true)
 		else:
 			_request_open(path)
 		dialog.queue_free()
@@ -725,8 +759,8 @@ func _request_open(path: String) -> void:
 	prompt.ok_button_text = "保存并打开"
 	prompt.add_button("放弃修改并打开", true, "discard")
 	prompt.confirmed.connect(func():
-		if _save(): open_document(path)
 		prompt.queue_free()
+		if await _save_async(): open_document(path)
 	)
 	prompt.custom_action.connect(func(_action: String): open_document(path); prompt.queue_free())
 	prompt.canceled.connect(prompt.queue_free)
@@ -735,6 +769,7 @@ func _request_open(path: String) -> void:
 
 
 func open_document(path: String) -> bool:
+	if saving(): return false
 	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel(); _material_tool.clear_target()

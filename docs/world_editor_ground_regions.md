@@ -32,4 +32,4 @@
 
 验收脚本 `tools/test_world3d_terrain_regions.gd` 使用后台 GPU 桌面与临时地图，覆盖真实 HTTP 发现和调用、非法/保护调用无副作用、撤销重做、保存重开后继续绘制、UI 多边形与矩形输入、共享边缘遮罩、预制件贴图依赖、雕刻共存、原生运行时恢复，以及同视角合批/未合批渲染差异。结果位于 `D:/code/rmmo_runtime/review_artifacts/terrain_regions/`。
 
-参考城镇配方在 `tools/medieval_town_layout.json.ground_regions`，图像坐标换算后调用这些正式操作；`tools/apply_medieval_town_regions.gd` 在河道修正候选上通过真实 HTTP 应用区域、保存重开并检查几何不变。区域是农田和空院的地表基底，垄沟、作物和地上物后续另做。
+参考城镇配方在 `tools/medieval_town_layout.json.ground_regions`，图像坐标换算后调用这些正式操作；`tools/apply_medieval_town_regions.gd` 在河道修正候选上通过真实 HTTP 应用区域、保存重开并检查几何不变。区域是农田和空院的地表基底。[农田垄沟和地形接缝](world_editor_furrows.md) 已增加真实几何与碰撞；作物和地上物后续另做。
