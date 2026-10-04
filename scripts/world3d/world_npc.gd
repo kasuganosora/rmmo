@@ -64,4 +64,4 @@ func _sense_surface() -> void:
 	var query := PhysicsRayQueryParameters3D.create(global_position, global_position - Vector3(0, 1.4, 0))
 	query.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	surface_id = "" if hit.is_empty() else str(hit.collider.get_meta("uuid", ""))
+	surface_id = preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)

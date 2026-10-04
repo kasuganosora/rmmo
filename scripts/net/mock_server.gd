@@ -14,9 +14,26 @@ func mount_world3d_sky(map_id: String, path: String) -> void:
 	if sky_authority.maps.has(map_id): return
 	var settings := preload("res://scripts/world3d/environment_settings.gd").defaults()
 	if preload("res://scripts/world3d/map_paths.gd").allowed(path) and FileAccess.file_exists(path):
-		var document = preload("res://scripts/world3d/world_document.gd").open_file(path)
-		if document != null: settings = preload("res://scripts/world3d/environment_settings.gd").resolve(document.map_meta)
+		# Weather only needs server-owned environment metadata. Reopening the
+		# complete editor document here revalidates every painted face on the
+		# main thread after the runtime loader has already finished the map.
+		var Doc=preload("res://scripts/world3d/world_document.gd")
+		var EnvironmentSettings=preload("res://scripts/world3d/environment_settings.gd")
+		var native: Dictionary=Doc.authoritative_extras(path)
+		if native.has("extras"):
+			if EnvironmentSettings.valid(native.extras): settings=EnvironmentSettings.resolve(native.extras)
+		elif not native.has("error"):
+			var document=Doc.open_file(path)
+			if document!=null: settings=EnvironmentSettings.resolve(document.map_meta)
 	sky_authority.ensure_map(map_id,settings)
+
+## Local loader handoff, not a client RPC. The loader validated this immutable snapshot.
+func register_loaded_world3d_environment(path:String, extras:Dictionary)->void:
+	var id:=str(extras.get("map_ref",""))
+	if not preload("res://scripts/world3d/world_location.gd").map_ref_ok(id):id="prototype/map_"+path.sha256_text().substr(0,16)
+	if sky_authority.maps.has(id):return
+	var settings=preload("res://scripts/world3d/environment_settings.gd")
+	if settings.valid(extras):sky_authority.ensure_map(id,settings.resolve(extras))
 
 func snapshot_world3d_sky(map_id: String) -> Dictionary:
 	return sky_authority.snapshot(map_id,Time.get_ticks_msec()/1000.0)
@@ -573,8 +590,8 @@ var world3d_events = preload("res://scripts/world3d/world_events.gd").new(self)
 var world3d_authority = preload("res://scripts/world3d/world_authority.gd").new()
 
 
-func try_move_world(sequence: int, direction: Vector3, speed_mps: float) -> Dictionary:
-	return world3d_authority.move_intent(sequence, direction, speed_mps)
+func try_move_world(sequence: int, direction: Vector3, speed_mps: float, jump:bool=false) -> Dictionary:
+	return world3d_authority.move_intent(sequence, direction, speed_mps,jump)
 
 
 func _exit_tree() -> void:

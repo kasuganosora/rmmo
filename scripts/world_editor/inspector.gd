@@ -114,7 +114,7 @@ func select(uuid: String) -> void:
 	refresh()
 
 
-func refresh() -> void:
+func refresh(refresh_scene: bool=true) -> void:
 	_updating = true
 	var record: Dictionary = editor._doc._find(selection)
 	if record.is_empty(): selection = ""
@@ -166,7 +166,8 @@ func refresh() -> void:
 		elif key == "multi_scale": show = false
 		for control in rows[key]: control.visible = show
 	for key in ["hostile", "ally"]: fields[key].button_pressed = bool(record.get(key, false))
-	editor._refresh_selection()
+	# Transform callers already updated outlines, visual nodes and collision bodies.
+	if refresh_scene: editor._refresh_selection()
 	if wind_panel != null: wind_panel.refresh()
 	_updating = false
 

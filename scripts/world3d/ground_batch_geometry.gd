@@ -4,9 +4,24 @@ const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const TERRAIN_SHADER = preload("res://scripts/world3d/river_terrain.gdshader")
 const MAX_MEMBERS := 16
 const MAX_VERTICES := 65536
+const MAX_FORTIFICATION_MEMBERS := 256
+
+static func category(record: Dictionary) -> String:
+	return "fortification" if record.has("fortification") else ("building" if record.has("building") else "ground")
+
+static func member_limit(record: Dictionary) -> int:
+	return MAX_FORTIFICATION_MEMBERS if record.has("fortification") or record.has("building") else MAX_MEMBERS
 
 static func candidate(record: Dictionary) -> bool:
 	if record.get("kind") != "box" or record.get("invisible", false): return false
+	if record.has("building"):
+		for field in ["fortification","event","event_template","hostile","ally","seat"]:
+			if record.has(field):return false
+		return record.get("wind_response",{}).get("profile","off")=="off"
+	if record.has("fortification"):
+		for field in ["building", "fixture", "event", "event_template", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
+			if record.has(field): return false
+		return record.get("wind_response", {}).get("profile", "off") == "off"
 	for field in ["building", "fixture", "fortification", "channel_mesh", "tile3d", "event", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
 		if record.has(field): return false
 	if record.get("wind_response", {}).get("profile", "off") != "off": return false
@@ -36,7 +51,9 @@ static func material_key(material: Material) -> String:
 				var value: Variant = material.get(property.name)
 				values.append([property.name, value.get_instance_id() if value is Resource else value])
 	else: return ""
-	return var_to_str(values)
+	# Group keys repeat once per source object. Keep the full material comparison
+	# in this digest rather than repeatedly serializing kilobytes of properties.
+	return var_to_str(values).sha256_text()
 
 static func vertex_count(mesh: Mesh) -> int:
 	var total := 0
@@ -51,6 +68,7 @@ static func height_image(record: Dictionary) -> Image:
 	return Image.create_from_data(int(t.columns)+1, int(t.rows)+1, false, Image.FORMAT_RF, heights.to_byte_array())
 
 static func build(members: Array, origin: Vector3, defer_upload: bool = false) -> Dictionary:
+	if (members[0].record.has("fortification") or members[0].record.has("building")) and not members[0].materials.any(func(material):return material is ShaderMaterial): return build_fortification(members,origin,defer_upload)
 	var slots := {}
 	var before := 0
 	var before_vertices := 0
@@ -88,7 +106,31 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 				st.index(); arrays = st.commit_to_arrays()
 			append_arrays(row, arrays, local, layer)
 	for row: Dictionary in slots.values(): render_vertices+=row.arrays[Mesh.ARRAY_VERTEX].size()
-	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices}
+	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices,"compressed":members[0].record.has("fortification")}
+	return data if defer_upload else upload(data)
+
+static func build_fortification(members: Array, origin: Vector3, defer_upload: bool) -> Dictionary:
+	# Native append_from transforms positions/normals/tangents and rebases indices
+	# in C++, avoiding millions of interpreted per-vertex operations. The source
+	# is a worker-owned CPU Mesh, so this never downloads or uploads GPU buffers.
+	var slots: Dictionary={}; var before:=0; var vertices:=0; var after:=0
+	for source: Dictionary in members:
+		var cpu:=Cpu.new(); cpu.surfaces=source.surfaces
+		var pose: Transform3D=source.transform; pose.origin-=origin
+		for slot in source.surfaces.size():
+			var arrays: Array=source.surfaces[slot]; var layout:=0
+			for channel in Mesh.ARRAY_INDEX:
+				if arrays[channel]!=null and not arrays[channel].is_empty(): layout|=1<<channel
+			# Keep indexed/non-indexed buffers separate: native append_from cannot
+			# mix implicit triangles and explicit index buffers in the same surface.
+			var indexed: bool=arrays[Mesh.ARRAY_INDEX]!=null and not arrays[Mesh.ARRAY_INDEX].is_empty()
+			var key: String=source.keys[slot]+":layout="+str(layout)+":"+str(indexed)
+			if not slots.has(key): slots[key]={"builder":SurfaceTool.new(),"material":source.materials[slot],"layered":false}
+			slots[key].builder.append_from(cpu,slot,pose)
+			before+=1; vertices+=arrays[Mesh.ARRAY_VERTEX].size()
+	for row: Dictionary in slots.values():
+		row.arrays=row.builder.commit_to_arrays(); row.erase("builder"); after+=row.arrays[Mesh.ARRAY_VERTEX].size()
+	var data:={"slots":slots.values(),"images":[],"masks":[],"origins":PackedVector4Array(),"spans":PackedVector4Array(),"source_surfaces":before,"source_vertices":vertices,"render_vertices":after,"compressed":true}
 	return data if defer_upload else upload(data)
 
 static func upload(data: Dictionary) -> Dictionary:
@@ -116,6 +158,7 @@ static func upload(data: Dictionary) -> Dictionary:
 			material.set_shader_parameter("batch_origins",origins)
 			material.set_shader_parameter("batch_spans",spans)
 		var flags:=Mesh.ARRAY_CUSTOM_R_FLOAT<<Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT if row.layered else 0
+		if data.get("compressed",false) and row.arrays[Mesh.ARRAY_NORMAL]!=null and row.arrays[Mesh.ARRAY_TANGENT]!=null: flags|=Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],{},flags)
 		result.surface_set_material(result.get_surface_count()-1,material)
 	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}

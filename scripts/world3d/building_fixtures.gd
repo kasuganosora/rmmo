@@ -8,12 +8,20 @@ static func arr(v: Vector3) -> Array: return [v.x,v.y,v.z]
 
 static func valid(record: Dictionary) -> bool:
 	if not record.has("fixture"): return true
-	var schema := {"type":"object","properties":{
-		"id":{"type":"string","minLength":1,"maxLength":180},
-		"kind":{"type":"string","enum":["door","window","shutter"]},
-		"pivot":Schema.vector(-100,100),"angle":Schema.number(-180,180),
-		"open":Schema.number(0,1)},"required":["id","kind","pivot","angle","open"],"additionalProperties":false}
-	return record.get("kind")=="box" and Schema.validate(record.fixture,schema).is_empty() and not str(record.fixture.id).is_empty()
+	# The fixed five-field schema is checked directly. Rebuilding and walking
+	# a JSON schema for every hinge/handle costs hundreds of ms per house map.
+	var fixture:Variant=record.fixture
+	if record.get("kind")!="box" or not fixture is Dictionary or fixture.size()!=5:return false
+	if not fixture.get("id") is String or fixture.id.is_empty() or fixture.id.length()>180:return false
+	if not fixture.get("kind") is String or fixture.kind not in ["door","window","shutter"]:return false
+	var pivot:Variant=fixture.get("pivot")
+	if not pivot is Array or pivot.size()!=3:return false
+	for number in pivot:
+		if not _bounded(number,-100,100):return false
+	return _bounded(fixture.get("angle"),-180,180) and _bounded(fixture.get("open"),0,1)
+
+static func _bounded(value:Variant,low:float,high:float)->bool:
+	return (value is int or value is float) and is_finite(float(value)) and value>=low and value<=high
 
 static func pose(closed: Transform3D, fixture: Dictionary, amount: float) -> Transform3D:
 	var pivot := vec(fixture.pivot)

@@ -79,7 +79,7 @@ func in_range(id: String, range_units: int) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(world._player.global_position, target_feet + Vector3(0, 0.9, 0))
 	query.exclude = [world._player.get_rid()]
 	var hit := world.get_world_3d().direct_space_state.intersect_ray(query)
-	return hit.is_empty() or str(hit.collider.get_meta("uuid", "")) == id
+	return hit.is_empty() or preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit) == id
 
 func attack(id: String) -> Dictionary:
 	if world.furniture.active():world.furniture.cancel()
@@ -362,7 +362,7 @@ func _clear_ray(from: Vector3, to: Vector3, target_id: String = "") -> bool:
 	var query := PhysicsRayQueryParameters3D.create(from + Vector3(0, 0.9, 0), to + Vector3(0, 0.9, 0))
 	query.exclude = [world._player.get_rid()]
 	var hit := world.get_world_3d().direct_space_state.intersect_ray(query)
-	return hit.is_empty() or (target_id != "" and str(hit.collider.get_meta("uuid", "")) == target_id)
+	return hit.is_empty() or (target_id != "" and preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit) == target_id)
 
 func valid_ground(range_units: int) -> bool:
 	if not ground_target is Vector3 or not ground_target.is_finite(): return false

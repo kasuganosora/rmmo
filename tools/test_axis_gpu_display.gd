@@ -12,7 +12,16 @@ func run()->void:
  var body=Body.new();root.add_child(body);body.initialize();assert(body.enable_compute());assert(body.gpu_display!=null)
  var reference=GPU.new();assert(reference.initialize(Art.path("characters/base/female_base_v2")))
  var max_error:=0.0
+ var destination:=Node3D.new();root.add_child(destination)
+ var original_positions=body.positions_texture
+ var original_normals=body.normals_texture
  for i in 12:
+  if i%3==0:
+   body.get_parent().remove_child(body)
+   assert(body.gpu!=null and body.gpu_display!=null,"Detaching a live body released its GPU state")
+   body.set_angles({"rThigh":Vector3(i+1,0,0)})
+   (destination if i%2==0 else root).add_child(body)
+   assert(body.positions_texture==original_positions and body.normals_texture==original_normals)
   assert(body.set_shape_values({"height":float(i%3-1)*.3,"bust_size":.2}))
   assert(body.set_expressions({"blink":float(i%3)*.5,"smile":float(i%2)*.7}))
   var pose:Dictionary={"lShldr":Vector3(i*2,0,0),"rThigh":Vector3(i,0,0)} if i<9 else Body.POSES[["sit","lie_relaxed","elbow"][i-9]]
@@ -37,5 +46,5 @@ func run()->void:
  assert(automatic.initialize(Art.path("characters/base/female_base_v2")))
  automatic=null
  for i in 4:await process_frame
- print("PASS GPU display 12 shape/expression/pose/offset cases, exact positions/contact/bounds, normal max error=",max_error," detached texture lifetime");quit()
+ print("PASS GPU display 12 shape/expression/pose/offset cases, four live reparentings, exact positions/contact/bounds, normal max error=",max_error," final texture disposal");quit()
 

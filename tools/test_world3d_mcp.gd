@@ -32,6 +32,7 @@ func equivalent(a: Variant, b: Variant) -> bool:
 		return true
 	return a == b
 
+var rpc_timeout_ms:=5000
 func rpc(method: String, params: Dictionary = {}) -> Dictionary:
 	serial += 1
 	var body := JSON.stringify({"jsonrpc": "2.0", "id": serial, "method": method, "params": params}).to_utf8_buffer()
@@ -42,7 +43,7 @@ func rpc(method: String, params: Dictionary = {}) -> Dictionary:
 	# Saving now yields the main loop instead of accidentally suspending this
 	# client's timeout too. Keep ordinary RPCs strict; allow long map publication.
 	var save_call: bool = method == "tools/call" and params.get("name") in ["save_world", "close_editor"]
-	var deadline := Time.get_ticks_msec() + (180000 if save_call else 5000)
+	var deadline := Time.get_ticks_msec() + (180000 if save_call else rpc_timeout_ms)
 	var sent := false
 	var received := PackedByteArray()
 	while Time.get_ticks_msec() < deadline:

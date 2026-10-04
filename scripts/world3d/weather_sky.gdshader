@@ -84,7 +84,7 @@ void sky() {
 		vec2 uv = (POSITION.xz+EYEDIR.xz*t-drift/.0006)/cloud_scale*2.+cloud_seed_offset.xz*7.;
 		vec2 warp = vec2(fbm(uv*.6),fbm(uv*.6+vec2(17.1,9.2)));
 		float n = fbm(uv+warp*1.6);
-		float opacity = smoothstep(.71-cloud_cover*.54,.91-cloud_cover*.4,n)*smoothstep(0.,.13,height)*.94;
+		float opacity = smoothstep(.71-cloud_cover*.54,.91-cloud_cover*.4,n)*smoothstep(.025,.18,height)*(1.-smoothstep(7000.,22000.,t))*.94;
 		vec3 shade = cloud_tint*mix(.63,1.,smoothstep(.15,.9,fbm(uv*.72+warp)));
 		shade = mix(shade,vec3(.78,.40,.24),dusk_amount*(.25+.4*pow(sun,3.)));
 		volume = vec4(shade*opacity,opacity);

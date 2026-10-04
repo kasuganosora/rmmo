@@ -33,7 +33,7 @@ func _ready() -> void:
 	Net.session().last_loading_profile={"started_ms":Time.get_ticks_msec()}
 	var mode: String = str(Net.session().loading_mode)
 	Net.session().world3d_loading = mode == "world3d_preview" or (mode != "transfer" and Net.session().use_world3d())
-	ResourceLoader.load_threaded_request(Net.session().world_scene(),"PackedScene")
+	Net.session().prepare_world_resources()
 	if mode == "world3d_preview":
 		if not Net.session().has_active_character():
 			status_label.text = "请先选择角色，试玩不会生成替代人物"
@@ -136,6 +136,7 @@ func _run_transfer() -> void:
 
 
 func _show_transfer_fail_actions() -> void:
+	Net.session().clear_prepared_world_actor()
 	bar.visible=false
 	Net.session().map_bake={}
 	## Avoid infinite stuck loading: offer return to character select.
@@ -226,6 +227,7 @@ func _prepare_world3d() -> void:
 	_map_loader.finished.connect(_on_world3d_loaded)
 	_map_loader.progress.connect(func(stage: String, done: int, total: int): _stage(stage, done, total))
 	_map_loader.start(path)
+	Net.session().prepare_world_actor()
 
 
 func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
@@ -237,7 +239,7 @@ func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
 		status_label.text = error
 		_show_transfer_fail_actions()
 		return
-	Net.session().clear_prepared_world3d()
+	Net.session().clear_prepared_world3d(true)
 	Net.session().prepared_world3d = scene
 	Net.session().world3d_map_path = path
 	Net.session().loading_mode = ""

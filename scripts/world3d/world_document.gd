@@ -13,6 +13,13 @@ var _disk_signature := ""
 var editor_dirty := false
 var terrain_neighbors=preload("res://scripts/world3d/terrain_neighbors.gd").new()
 var _save_meshes = preload("res://scripts/world3d/save_mesh_cache.gd").new()
+# Only the immutable runtime loader supplies these operation-scoped caches.
+# Editable documents leave them null so later edits recheck paths and textures.
+var load_paint_validation: Variant=null
+var load_texture_checks: Variant=null
+var load_box_meshes: Variant=null
+var load_box_hits:=0
+var load_immutable_records:=false
 var last_save_metrics: Dictionary = {}
 
 
@@ -147,11 +154,16 @@ func has_uuid(uuid: String) -> bool:
 
 func build(effects: bool=true) -> Node3D:
 	# effects=false is the off-screen export view; cached meshes can be CPU-only.
+	# One immutable rebuild shares validation and painted primitive geometry;
+	# restore the ordinary edit context afterwards so later edits revalidate files.
+	var previous_context:Array=[load_paint_validation,load_texture_checks,load_box_meshes]
+	load_paint_validation={};load_texture_checks={};load_box_meshes={}
 	var world := export_root()
 	terrain_neighbors.update(records)
 	if not effects: _save_meshes.begin(records)
 	for record in records:
 		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
+	load_paint_validation=previous_context[0];load_texture_checks=previous_context[1];load_box_meshes=previous_context[2]
 	return world
 
 
@@ -409,11 +421,24 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 	mesh_node.name = str(record.get("uuid", "box"))
 	var signature: String = _save_meshes.key(record, terrain_neighbors.data.get(str(record.uuid), {})) if not effects else ""
 	var cached: Mesh = _save_meshes.get_mesh(str(record.uuid), signature) if not effects else null
-	var box := BoxMesh.new()
+	var box_key:Array=[]
+	if effects and load_box_meshes!=null and not ["tile3d","road_mesh","terrain_mesh","channel_mesh"].any(func(field):return record.has(field)) and record.get("building_shape","") in ["","cylinder","gable","wall_grid","draped_cloth","joined_box","roof_prism","candle_sconce"]:
+		# Native Variant hashing/equality handles collisions without serializing
+		# every repeated material and face to an indented string on every object.
+		box_key=[record.get("building_shape",""),record.get("size",[1,1,1]),record.get("color",[]),record.get("invisible",false),record.get("surface_paint",[])]
+		# Repeated houses also share immutable custom geometry. Include every
+		# topology/UV input, never UUID, floor identity or fixture state/pose.
+		for field in ["wall_grid","cloth","box_faces","roof_mesh"]:
+			box_key.append(record.get(field))
+		if record.get("building_shape")=="roof_prism" and not record.roof_mesh.has("uv_origin"):box_key.append(record.position)
+		if load_box_meshes.has(box_key): cached=load_box_meshes[box_key].mesh; load_box_hits+=1
+	var box:BoxMesh
 	var size: Array = record.get("size", [1, 1, 1])
-	box.size = Vector3(float(size[0]), float(size[1]), float(size[2]))
+	if cached==null or record.get("building_shape")=="joined_box":
+		box=BoxMesh.new()
+		box.size=Vector3(float(size[0]),float(size[1]),float(size[2]))
 	var color: Array = record.get("color", [])
-	if color.size() >= 3:
+	if color.size() >= 3 and cached==null:
 		var mat := StandardMaterial3D.new()
 		mat.roughness = 0.92
 		mat.albedo_color = Color(float(color[0]), float(color[1]), float(color[2]))
@@ -421,7 +446,13 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
-	if cached != null: mesh_node.mesh = cached
+	if cached != null:
+		mesh_node.mesh = cached
+		if not box_key.is_empty():
+			var original:Mesh=load_box_meshes[box_key].source
+			var originals:Array=[]
+			for slot in original.get_surface_count():originals.append(original.surface_get_material(slot))
+			mesh_node.set_meta("paint_source",original);mesh_node.set_meta("paint_source_materials",originals)
 	else:
 		mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
 		if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
@@ -430,6 +461,10 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 			if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
 				box.material.roughness=.22; box.material.metallic=.15
 			mesh_node.mesh = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
+		if record.get("building_shape")=="wall_grid": mesh_node.mesh = preload("res://scripts/world3d/house_wall_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="draped_cloth":mesh_node.mesh=preload("res://scripts/world3d/curtain_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="joined_box":mesh_node.mesh=preload("res://scripts/world3d/joined_box_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="candle_sconce":mesh_node.mesh=preload("res://scripts/world3d/candle_sconce_mesh.gd").mesh(record,box.material)
 		if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
 		if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
 		if record.get("building_shape")=="roof_prism": mesh_node.mesh = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
@@ -470,16 +505,19 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 	if record.get("seat") is Dictionary:extras["seat"]=record.seat.duplicate(true)
 	if record.has("fixture"):
 		extras.fixture=record.fixture.duplicate(true)
-		extras.building=record.get("building",{}).duplicate(true)
+	if record.has("building"):extras.building=record.building.duplicate(true)
 	if record.has("fortification"): extras.fortification=record.fortification.duplicate(true)
 	mesh_node.set_meta("extras", extras)
+	if record.get("building_shape")=="joined_box":mesh_node.set_meta("collision_solid",box)
 	if cached == null:
-		SurfaceMaterials.apply(mesh_node, record)
+		SurfaceMaterials.apply(mesh_node, record, load_paint_validation, load_texture_checks)
+		if not box_key.is_empty() and load_box_meshes.size()<4096 and not mesh_node.has_meta("paint_error"):
+			load_box_meshes[box_key]={"mesh":mesh_node.mesh,"source":mesh_node.get_meta("paint_source",mesh_node.mesh)}
 		if not effects and not mesh_node.has_meta("paint_error") and not mesh_node.has_meta("tile_error"):
 			_save_meshes.put_mesh(str(record.uuid), signature, mesh_node.mesh)
 	if effects: preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record,terrain_neighbors.data.get(str(record.uuid),{}))
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
-	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", record.duplicate(true))
+	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", (record if load_immutable_records else record.duplicate(true)))
 	return mesh_node
 
 

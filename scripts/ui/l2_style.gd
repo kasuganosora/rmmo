@@ -34,8 +34,9 @@ static func hud_theme() -> Theme:
 	theme.default_font_size = 12
 	var font := SystemFont.new()
 	font.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "sans-serif"])
-	font.multichannel_signed_distance_field = true
-	font.msdf_size = 64
+	# Pixel-sized HUD text uses the native glyph cache. Generating 64px MSDFs
+	# for hundreds of Chinese UI glyphs stalls every fresh process for seconds.
+	font.multichannel_signed_distance_field = false
 	font.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
 	font.disable_embedded_bitmaps = true
 	theme.default_font = font

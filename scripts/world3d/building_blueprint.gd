@@ -2,7 +2,7 @@ extends "res://scripts/world3d/building_geometry.gd"
 ## A shared spatial plan drives both sides of every wall, its openings and collision.
 const Schema = preload("res://scripts/world3d/document_schema.gd")
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
-const VERSION := 7
+const VERSION := 8
 const MAX_PARTS := 4096
 const LABELS := {"house":"民居", "shop":"商住楼", "inn":"旅馆"}
 const DOOR_H := 2.2
@@ -12,13 +12,14 @@ static func legacy_defaults() -> Dictionary:
 	return {"template":"house", "width":12.0, "depth":14.0, "floors":2, "floor_height":3.0, "rooms_per_floor":2, "roof":"gable", "roof_height":2.0, "style":"timber", "seed":1}
 
 static func medieval_defaults() -> Dictionary:
-	return legacy_defaults().merged({"layout":"standard","roof_axis":"depth","roof_pitch":40.0,"eaves":.4,"jetty":0.0,"bay_width":2.8,"shutters":true,"compound":"none","annex_width":4.0,"annex_depth":6.0,"left_wall":"open","right_wall":"open","timber_width":.24,"chimney":true,"front_canopy":true,"dormers":0})
+	return legacy_defaults().merged({"layout":"standard","roof_axis":"depth","roof_pitch":40.0,"eaves":.4,"jetty":0.0,"bay_width":2.8,"shutters":true,"compound":"none","annex_width":5.0,"annex_depth":7.0,"left_wall":"open","right_wall":"open","timber_width":.24,"chimney":true,"front_canopy":true,"dormers":0})
 
 static func defaults() -> Dictionary:
-	return medieval_defaults().merged({"roof_solver":"unified","annex_floors":1,"floor_height":4.0,"door_height":2.5,"door_width":1.5,"stair_width":1.7,"stair_landing":2.0,"corridor_width":2.2,"foundation_depth":1.0,"bedrooms":2,"balcony":"front","balcony_depth":1.6,"roof_canopy":true,"roof_tank":true,"ground_canopy":true,"facade_color":"white"},true)
+	return medieval_defaults().merged({"roof_solver":"unified","annex_floors":1,"stair_layout":"switchback","base_height":.45,"curtains":true,"floor_height":4.0,"door_height":2.5,"door_width":1.5,"stair_width":1.7,"stair_landing":2.0,"corridor_width":2.2,"foundation_depth":1.0,"bedrooms":2,"balcony":"front","balcony_depth":1.6,"roof_canopy":true,"roof_tank":true,"ground_canopy":true,"facade_color":"white"},true)
 
 static func instance_parameters(instance: Dictionary) -> Dictionary:
 	var p: Dictionary=instance.parameters.duplicate(true)
+	if int(instance.get("version",1))<8: p.merge({"stair_layout":"straight","base_height":0.0,"curtains":false},false)
 	if int(instance.get("version",1))<7: p.merge({"roof_solver":"legacy","annex_floors":1},false)
 	# Opening an old map or changing its colour must not silently resize its rooms.
 	if int(instance.get("version",1))<6:
@@ -35,18 +36,19 @@ static func urban_presets() -> Array:
 
 static func medieval_presets() -> Array:
 	return [
-		{"id":"townhouse","name":"灰泥石墙店屋","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":8.2,"depth":14.0,"style":"plaster","jetty":0.0},true)},
-		{"id":"workshop","name":"木构后院作坊","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":8.0,"depth":14.0,"compound":"rear_workshop","jetty":.3},true)},
+		{"id":"townhouse","name":"灰泥石墙店屋","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":11.0,"depth":14.0,"style":"plaster","jetty":0.0},true)},
+		{"id":"workshop","name":"木构后院作坊","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":11.0,"depth":14.0,"compound":"rear_workshop","jetty":.3},true)},
 		{"id":"courtyard","name":"围院旅馆","parameters":defaults().merged({"layout":"townhouse","template":"inn","width":13.0,"depth":14.0,"compound":"courtyard","roof_axis":"width","roof_pitch":35.0,"dormers":3,"style":"plaster"},true)},
-		{"id":"hall","name":"大厅住宅","parameters":defaults().merged({"layout":"hall","width":9.0,"depth":15.0,"front_canopy":false},true)},
-		{"id":"cottage","name":"单层石墙小店","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":7.0,"depth":10.0,"floors":1,"style":"plaster","roof_pitch":48.0},true)},
-		{"id":"tall_house","name":"三层窄面住宅","parameters":defaults().merged({"layout":"townhouse","width":6.4,"depth":14.0,"floors":3,"style":"plaster","roof_pitch":48.0,"dormers":2,"shutters":false},true)},
-		{"id":"wing_house","name":"L 形翼楼住宅","parameters":defaults().merged({"layout":"townhouse","width":8.0,"depth":14.0,"compound":"left_wing","annex_width":4.0,"annex_depth":6.5,"style":"plaster","roof_axis":"width","roof_pitch":32.0,"dormers":2},true)}]
+		{"id":"hall","name":"大厅住宅","parameters":defaults().merged({"layout":"hall","width":11.0,"depth":15.0,"front_canopy":false},true)},
+		{"id":"cottage","name":"单层石墙小店","parameters":defaults().merged({"layout":"townhouse","template":"shop","width":9.0,"depth":12.0,"floors":1,"style":"plaster","roof_pitch":48.0},true)},
+		{"id":"tall_house","name":"三层街巷住宅","parameters":defaults().merged({"layout":"townhouse","width":10.5,"depth":14.0,"floors":3,"style":"plaster","roof_pitch":48.0,"dormers":2,"shutters":false},true)},
+		{"id":"wing_house","name":"L 形翼楼住宅","parameters":defaults().merged({"layout":"townhouse","width":11.0,"depth":14.0,"compound":"left_wing","annex_width":5.5,"annex_depth":7.0,"style":"plaster","roof_axis":"width","roof_pitch":32.0,"dormers":2},true)}]
 
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
 		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(10,30),
 		"floors":{"type":"integer","minimum":1,"maximum":6}, "floor_height":Schema.number(3,4),
+		"stair_layout":{"type":"string","enum":["straight","switchback"]},"base_height":Schema.number(0,.9),"curtains":{"type":"boolean"},
 		"door_height":Schema.number(2.2,2.6),"door_width":Schema.number(1.3,1.8),"stair_width":Schema.number(1.4,2.0),"stair_landing":Schema.number(1.4,2.6),"corridor_width":Schema.number(1.6,2.4),
 		"rooms_per_floor":{"type":"integer","minimum":1,"maximum":4}, "roof":{"type":"string","enum":["gable","hip","shed","flat"]},
 		"roof_height":Schema.number(.5,4), "style":{"type":"string","enum":["timber","plaster"]},
@@ -180,9 +182,13 @@ static func room_label(type: String, floor_: int, index: int) -> String:
 
 static func geometry_signature(record: Dictionary) -> String:
 	var fields := {}
-	for key in ["kind","position","rotation","size","building_shape","roof_mesh","collision"]:
+	for key in ["kind","position","rotation","size","building_shape","roof_mesh","wall_grid","cloth","box_faces","collision"]:
 		if not record.has(key): continue
-		if record[key] is Array:
+		if key=="cloth":
+			fields[key]=record[key].duplicate();fields[key].side=int(fields[key].side)
+		elif key=="box_faces":
+			fields[key]=record[key].map(func(patch):return patch.map(func(value):return snappedf(float(value),.000001)+0.0))
+		elif record[key] is Array:
 			# glTF/JSON roundtrips must not turn binary floating-point noise into a hand edit.
 			# New prisms use micrometre coordinates: half of a 10um signature bin
 			# must round identically before and after JSON's binary float conversion.
@@ -192,9 +198,16 @@ static func geometry_signature(record: Dictionary) -> String:
 
 static func valid_record(record: Dictionary) -> bool:
 	if not Fixtures.valid(record): return false
-	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder","roof_prism"] or record.get("kind")!="box" or record.has("tile3d")): return false
+	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder","roof_prism","wall_grid","draped_cloth","joined_box","candle_sconce"] or record.get("kind")!="box" or record.has("tile3d")): return false
+	if record.get("building_shape")=="joined_box" and not preload("res://scripts/world3d/joined_box_mesh.gd").valid(record):return false
+	if record.has("box_faces") and record.get("building_shape")!="joined_box":return false
+	if record.get("building_shape")=="candle_sconce" and not preload("res://scripts/world3d/candle_sconce_mesh.gd").valid(record):return false
+	if record.get("building_shape")=="draped_cloth" and not preload("res://scripts/world3d/curtain_mesh.gd").valid(record):return false
+	if record.has("cloth") and record.get("building_shape")!="draped_cloth":return false
 	if record.get("building_shape")=="roof_prism" and not preload("res://scripts/world3d/roof_mesh.gd").valid(record): return false
 	if record.has("roof_mesh") and record.get("building_shape")!="roof_prism": return false
+	if record.get("building_shape")=="wall_grid" and not preload("res://scripts/world3d/house_wall_mesh.gd").valid(record): return false
+	if record.has("wall_grid") and record.get("building_shape")!="wall_grid": return false
 	if not record.has("building"): return true
 	var b: Variant = record.building
 	return b is Dictionary and b.get("id") is String and b.get("part") is String and b.get("role") is String and (b.get("floor") is int or b.get("floor") is float) and b.floor>=0 and b.floor<=6 and b.floor==floor(b.floor) and (b.get("floor_y") is int or b.get("floor_y") is float) and is_finite(float(b.floor_y))
@@ -205,11 +218,12 @@ static func valid_meta(meta: Dictionary) -> bool:
 	for id in meta.building_instances:
 		var b: Variant = meta.building_instances[id]
 		# JSON stores numbers as floats; Array.has/in distinguishes 4 from 4.0.
-		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=2 and b.get("version")!=3 and b.get("version")!=4 and b.get("version")!=5 and b.get("version")!=6 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
+		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=2 and b.get("version")!=3 and b.get("version")!=4 and b.get("version")!=5 and b.get("version")!=6 and b.get("version")!=7 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
 		if not Schema.validate(b.parameters,schema()).is_empty(): return false
 		for key in (legacy_defaults() if b.version==1 else (medieval_defaults() if b.version==2 else defaults())):
 			if b.version<4 and key in ["timber_width","chimney"]: continue
 			if b.version<5 and key in ["foundation_depth","front_canopy","dormers"]: continue
+			if b.version<8 and key in ["stair_layout","base_height","curtains"]: continue
 			if b.version<7 and key in ["roof_solver","annex_floors"]: continue
 			if b.version<6 and key in ["door_height","door_width","stair_width","stair_landing","corridor_width"]: continue
 			if not b.parameters.has(key): return false

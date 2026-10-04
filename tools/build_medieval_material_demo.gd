@@ -4,15 +4,17 @@ const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
 const Settings = preload("res://scripts/world3d/environment_settings.gd")
 const Review = preload("res://scripts/asset/art_paths.gd")
 const IDS = {
-	"plaster":"pack:default:walls/exterior_limewash/material",
+	"plaster":"pack:default:walls/earthen_plaster/material",
 	"interior":"pack:default:walls/interior_limewash/material",
 	"timber":"pack:default:wood/solid_timber/material",
 	"wood":"pack:default:wood/worn_planks/material",
-	"shutter":"pack:default:wood/natural_joinery/material",
+	"shutter":"pack:default:wood/structural_oak/material",
 	"roof":"pack:default:roofs/terracotta_plain/material",
 	"stone":"pack:default:walls/castle_rubble/material",
 	"street":"pack:default:paving/historic_cobble/material",
 	"steps":"pack:default:paving/sandstone_floor/material",
+	"hardware":"pack:default:details/forged_iron/material",
+	"cloth":"pack:default:details/linen_curtain/material",
 	"glass":"pack:default:details/window_glass/material"
 }
 var assignments: Dictionary={}
@@ -22,7 +24,7 @@ var review_directory := "material_house"
 
 class CatalogSnapshot extends "res://scripts/world_editor/surface_material_library.gd":
 	var rows: Array=[]
-	func entries() -> Array: return rows
+	func entries(_content_root: String="") -> Array: return rows
 
 func material_role(record: Dictionary, face: Dictionary) -> String:
 	if assignments.has(record.uuid): return assignments[record.uuid]
@@ -32,6 +34,9 @@ func material_role(record: Dictionary, face: Dictionary) -> String:
 	if record.get("building_shape")=="roof_prism":
 		if record.roof_mesh.semantic=="gable": return "plaster" if int(face.target.surface)==0 else "interior"
 		return "roof" if int(face.target.surface)==0 else "wood"
+	if role=="hardware": return "hardware"
+	if role=="curtain": return "cloth"
+	if role=="entry_step": return "steps"
 	if role=="foundation": return "stone"
 	if part=="yard/floor": return "steps"
 	if part=="porch/canopy": return "wood"
@@ -42,7 +47,7 @@ func material_role(record: Dictionary, face: Dictionary) -> String:
 		var recipe: Dictionary=editor._buildings.instances().get(building.get("id",""),{})
 		var outward:=Vector3.ZERO
 		for side in {"/north/":Vector3.FORWARD,"/south/":Vector3.BACK,"/west/":Vector3.LEFT,"/east/":Vector3.RIGHT}:
-			if part.contains(side):outward={"/north/":Vector3.FORWARD,"/south/":Vector3.BACK,"/west/":Vector3.LEFT,"/east/":Vector3.RIGHT}[side]
+			if part.contains(side) or part.ends_with(side.trim_suffix("/")):outward={"/north/":Vector3.FORWARD,"/south/":Vector3.BACK,"/west/":Vector3.LEFT,"/east/":Vector3.RIGHT}[side]
 		if part.contains("/gable"):
 			if part.contains("dormer"): outward=Vector3.RIGHT if recipe.get("parameters",{}).get("roof_axis")=="width" else Vector3.LEFT
 			else: outward=Vector3.FORWARD if part.ends_with("-1") else Vector3.BACK
@@ -61,6 +66,7 @@ func material_role(record: Dictionary, face: Dictionary) -> String:
 	return "timber"
 
 func settings_for(record: Dictionary, face: Dictionary, role: String) -> Dictionary:
+	if role in ["hardware","cloth"]:return {"mapping":"uv","scale":[1,1],"offset":[0,0],"rotation":0}
 	var settings: Dictionary={"mapping":"meters"}
 	var node: MeshInstance3D=editor._view.get_node(NodePath(record.uuid))
 	var data: Dictionary=Paint.geometry(node).surfaces[int(face.target.surface)]

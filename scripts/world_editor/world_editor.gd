@@ -435,7 +435,7 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 		hit = {"position": point}
 	if _mode == 1:
 		if fresh:
-			var id := str(hit.collider.get_meta("uuid", ""))
+			var id := FortCollision.hit_uuid(hit)
 			if not _selection_tools.ids.has(id): _selection_tools.choose(id)
 			if _transform_mode == 0:
 				_transform_drag.begin(self, screen, 3)
@@ -479,18 +479,40 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 
 
 var _ground_batches: Node3D
+const FortCollision=preload("res://scripts/world3d/fortification_collision_batcher.gd")
+var _fortification_collisions: Node3D
 var _ground_sync_suspended := false
+var _ground_sync_pending := false
 
 func _sync_ground_batches() -> void:
-	if _view == null or _ground_sync_suspended: return
+	if _view == null: return
+	if _ground_sync_suspended: _ground_sync_pending=true; return
 	if not is_instance_valid(_ground_batches):
 		_ground_batches = preload("res://scripts/world3d/ground_batcher.gd").new()
 		add_child(_ground_batches)
 	_ground_batches.sync(_view.get_children(), _selection_tools.ids if _selection_tools != null else [])
+	_sync_fortification_collisions()
+
+func _sync_fortification_collisions() -> void:
+	if not is_instance_valid(_fortification_collisions):
+		_fortification_collisions=FortCollision.new(); add_child(_fortification_collisions)
+	var entries: Array=[]
+	for visual in _view.get_children():
+		if not visual is MeshInstance3D or not FortCollision.candidate(visual.get_meta("ground_batch_record",{})): continue
+		var uuid:=str(visual.name)
+		var visible_: bool=visual.is_visible_in_tree() and not visual.get_meta("editor_floor_excluded",false)
+		if visible_ and _selection_tools!=null and uuid in _selection_tools.ids:
+			if not _bodies_by_uuid.has(uuid): _add_bodies(visual)
+			continue
+		for body in _bodies_by_uuid.get(uuid,[]): body.free()
+		_bodies_by_uuid.erase(uuid)
+		if visible_: entries.append(FortCollision.entry(visual.mesh,visual.global_transform,uuid,visual.get_meta("extras",{})))
+	_fortification_collisions.sync(entries)
 
 func _rebuild() -> void:
 	_bridges.clear_preview()
 	if is_instance_valid(_ground_batches): _ground_batches.clear(false)
+	if is_instance_valid(_fortification_collisions): _fortification_collisions.clear()
 	if _terrain_panel!=null: _terrain_panel.refresh()
 	if _building_panel != null:
 		_building_panel.clear_preview()
@@ -526,6 +548,7 @@ func _add_bodies(node: Node) -> void:
 	if node is Node3D and not node.visible: return
 	if node is MeshInstance3D and node.mesh != null:
 		var visual := node as MeshInstance3D
+		if FortCollision.candidate(visual.get_meta("ground_batch_record",{})) and (_selection_tools==null or str(visual.name) not in _selection_tools.ids): return
 		var body := StaticBody3D.new()
 		body.name = "%s_body" % str(visual.name)
 		var asset: Node = visual
@@ -536,13 +559,14 @@ func _add_bodies(node: Node) -> void:
 		if not _bodies_by_uuid.has(uuid): _bodies_by_uuid[uuid] = []
 		_bodies_by_uuid[uuid].append(body)
 		var shape := CollisionShape3D.new()
-		if visual.mesh is BoxMesh:
+		var collision_mesh:Mesh=visual.get_meta("paint_source",visual.mesh)
+		if collision_mesh is BoxMesh:
 			var box := BoxShape3D.new()
 			box.size = visual.get_aabb().size
 			shape.shape = box
 			shape.position = visual.get_aabb().get_center()
 		else:
-			shape.shape = visual.mesh.create_trimesh_shape()
+			shape.shape = preload("res://scripts/world3d/ground_cpu_mesh.gd").capture(collision_mesh).create_trimesh_shape()
 		body.transform = visual.global_transform
 		body.add_child(shape)
 		add_child(body)
@@ -557,9 +581,15 @@ func _sync_selected_transform() -> void:
 		_rebuild()
 		return
 	_ground_sync_suspended = true
-	for record in _selection_tools.records(): _sync_record_transform(record)
+	_ground_sync_pending = false
+	var selected: Array = _selection_tools.records()
+	for record in selected: _sync_record_transform(record)
 	_ground_sync_suspended = false
-	_refresh_selection()
+	# Selected meshes/colliders already left the batches when selection changed.
+	# A pure drag only moves those independent nodes. Geometry/terrain-neighbor
+	# rebuilds request a full resync explicitly through _refresh_records.
+	_refresh_selection(not _transform_drag.active or _ground_sync_pending, selected)
+	_ground_sync_pending = false
 
 
 func _sync_record_transform(record: Dictionary) -> void:
@@ -569,11 +599,13 @@ func _sync_record_transform(record: Dictionary) -> void:
 	if _city.panel!=null and _city.panel.scatter_panel!=null and not _scatter.overlay_plan.is_empty(): _city.panel.scatter_panel.invalidate()
 	if _city.panel!=null and _city.panel.waterway_panel!=null and not _waterways.overlay_plan.is_empty(): _city.panel.waterway_panel.invalidate()
 	if _city.panel!=null and _city.panel.fortification_panel!=null and not _fortifications.overlay_plan.is_empty(): _city.panel.fortification_panel.invalidate()
-	if (record.has("surface_paint") or record.has("terrain_mesh")) and record.get("kind") != "asset":
-		_refresh_records([str(record.uuid)])
-		return
 	var visual := _view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
 	if visual == null: return
+	var previous: Dictionary=visual.get_meta("ground_batch_record",{})
+	var same_fortification_mesh: bool=record.has("fortification") and previous.get("size",[])==record.get("size",[])
+	if (record.has("terrain_mesh") or (record.has("surface_paint") and not same_fortification_mesh) or (record.has("fortification_art") and not same_fortification_mesh)) and record.get("kind") != "asset":
+		_refresh_records([str(record.uuid)])
+		return
 	var helper = preload("res://scripts/world_editor/transform_gizmo.gd")
 	visual.position = helper.vector(record, "position")
 	visual.rotation_degrees = helper.vector(record, "rotation")
@@ -592,7 +624,7 @@ func _sync_record_transform(record: Dictionary) -> void:
 			shape.shape.size = mesh.get_aabb().size
 			shape.position = mesh.get_aabb().get_center()
 		body.force_update_transform()
-	_sync_ground_batches()
+	if not _ground_sync_suspended: _sync_ground_batches()
 
 
 func _refresh_records(ids: Array[String]) -> void:
@@ -627,14 +659,14 @@ func _finish_auto_stroke(cancel: bool = false) -> void:
 	if _status != null: _status.text = "已取消自动铺设" if cancel else _hint()
 
 
-func _detach_selected_tile() -> void:
+func _detach_selected_tile(refresh_inspector: bool=true) -> void:
 	var changed := false
 	for record in _selection_tools.records():
 		if AutoRules.attached(record):
 			AutoRules.detach(record)
 			changed = true
 	if changed: _refresh_records(AutoRules.refresh_all(_doc.records))
-	_inspector.refresh()
+	if refresh_inspector: _inspector.refresh()
 
 
 func _update_auto_controls() -> void:
@@ -1040,15 +1072,18 @@ func _add_grid() -> void:
 	add_child(_grid)
 
 
-func _refresh_selection() -> void:
-	_sync_ground_batches()
+func _refresh_selection(sync_batches: bool=true, selected_records: Variant=null) -> void:
+	if sync_batches: _sync_ground_batches()
 	if is_instance_valid(_selection_box):
 		_selection_box.free()
-	if _selection_tools == null or _selection_tools.records().is_empty(): return
+	if _selection_tools == null: return
+	# Operation-local snapshot only: undo and regeneration replace record dictionaries.
+	var selected: Array = _selection_tools.records() if selected_records == null else selected_records
+	if selected.is_empty(): return
 	var lines := ImmediateMesh.new()
 	lines.surface_begin(Mesh.PRIMITIVE_LINES)
 	var outlines: Array = []; var buildings := {}
-	for record in _selection_tools.records():
+	for record in selected:
 		if _selection_tools.whole and record.has("building"):
 			var id: String = record.building.id
 			if not buildings.has(id): buildings[id]=[]
@@ -1080,7 +1115,7 @@ func _pick_object(screen: Vector2) -> String:
 	var origin := _camera.project_ray_origin(screen)
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + _camera.project_ray_normal(screen) * _camera.far)
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	return "" if hit.is_empty() else str(hit.collider.get_meta("uuid", ""))
+	return FortCollision.hit_uuid(hit)
 
 
 func _toggle_box_select() -> void:

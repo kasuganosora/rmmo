@@ -21,6 +21,8 @@ func run()->void:
 	var catalog:=await call_tool("list_building_templates")
 	check(catalog.parameters_schema.properties.has("door_height") and catalog.parameters_schema.properties.has("door_width") and catalog.parameters_schema.properties.has("stair_width") and catalog.parameters_schema.properties.has("stair_landing") and catalog.parameters_schema.properties.has("corridor_width"),"discover shared clearance controls")
 	check(catalog.templates.all(func(t):return t.parameters.floor_height==4) and catalog.urban_presets[0].parameters.floor_height==4,"normal and urban defaults are four metres")
+	check(not Settings.resolve(doc.map_meta).interior_cutaway,"default cutaway is disabled")
+	await call_tool("set_environment",{"interior_cutaway":true})
 	var before:=doc.recovery_snapshot();var history:int=doc._undo.size()
 	await call_tool("set_environment",{"interior_cutaway":"yes"},false)
 	await call_tool("set_environment",{"indoor_camera_distance":20},false)

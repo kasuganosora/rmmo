@@ -6,7 +6,16 @@ const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var _textures := {}
+static var prepared_images:Dictionary={}
 static var _materials := {}
+
+static func prepare_images(images:Dictionary)->void:
+	var changed:=false
+	for key in images:
+		if _textures.has(key) and _textures[key].get_meta("runtime_source_sha256","")!=images[key].get_meta("runtime_source_sha256",""):
+			_textures.erase(key);changed=true
+	if changed:_materials.clear()
+	prepared_images.merge(images,true)
 
 static func fail(message: String) -> Dictionary: return {"ok": false, "error": message}
 
@@ -16,7 +25,12 @@ static func numbers(value: Variant, count: int, low: float, high: float) -> bool
 		if not (n is int or n is float) or not is_finite(float(n)) or n < low or n > high: return false
 	return true
 
-static func material_valid(value: Variant, relative: bool = false, content_root: String = "") -> bool:
+static func material_valid(value: Variant, relative: bool = false, content_root: String = "", validation_cache: Variant = null) -> bool:
+	# Callers may share this only within one immutable document validation.
+	# Never persist it across loads, edits, or filesystem operations.
+	if validation_cache==null: validation_cache={}
+	var cache_key:Array=[relative,content_root,value]
+	if validation_cache.has(cache_key): return true
 	if not value is Dictionary or not value.get("name") is String: return false
 	if not numbers(value.get("color"), 4, 0, 1) or not numbers([value.get("roughness")], 1, 0, 1): return false
 	if value.get("pattern", "") not in ["", "checker"]: return false
@@ -30,14 +44,16 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 		if path.is_empty(): continue
 		if path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"]: return false
 		if not Paths.allowed(path,content_root) and not (relative and not path.is_absolute_path() and not path.contains(":") and not ".." in path.replace("\\", "/").split("/")): return false
+	validation_cache[cache_key]=true
 	return true
 
-static func valid(record: Dictionary, relative: bool = false, content_root: String = "") -> bool:
+static func valid(record: Dictionary, relative: bool = false, content_root: String = "", validation_cache: Variant = null, immutable_paint_id:Variant=null) -> bool:
+	if validation_cache==null: validation_cache={}
 	if not preload("res://scripts/world3d/bridge_data.gd").valid(record): return false
 	if record.has("bridge_mesh"):
 		if not record.get("bridge_materials") is Dictionary or record.bridge_materials.size()!=3: return false
 		for role in ["deck","masonry","trim"]:
-			if not material_valid(record.bridge_materials.get(role),relative,content_root): return false
+			if not material_valid(record.bridge_materials.get(role),relative,content_root,validation_cache): return false
 			if record.bridge_materials[role].color[3]!=1: return false
 	if not preload("res://scripts/world3d/river_material_data.gd").valid(record): return false
 	if not preload("res://scripts/world3d/terrain_regions.gd").valid(record): return false
@@ -47,19 +63,25 @@ static func valid(record: Dictionary, relative: bool = false, content_root: Stri
 	if record.has("terrain_saturation") and (not record.has("terrain_mesh") or not numbers([record.terrain_saturation],1,0,1)): return false
 	if record.has("terrain_saturation") and record.has("surface_paint"): return false
 	for definition in record.get("terrain_regions",{}).get("materials",[]):
-		if not material_valid(definition,relative,content_root) or definition.color[3]!=1: return false
+		if not material_valid(definition,relative,content_root,validation_cache) or definition.color[3]!=1: return false
 	if record.has("terrain_depth_blend"):
 		for key in ["sand_material","rock_material"]:
-			if not material_valid(record.terrain_depth_blend[key],relative,content_root): return false
+			if not material_valid(record.terrain_depth_blend[key],relative,content_root,validation_cache): return false
 			if record.terrain_depth_blend[key].color[3]!=1: return false
-	if record.has("terrain_material") and not material_valid(record.terrain_material,relative,content_root): return false
+	if record.has("terrain_material") and not material_valid(record.terrain_material,relative,content_root,validation_cache): return false
 	if record.has("terrain_slope_blend"):
-		if not material_valid(record.terrain_slope_blend.rock_material,relative,content_root) or record.terrain_slope_blend.rock_material.color[3]!=1: return false
+		if not material_valid(record.terrain_slope_blend.rock_material,relative,content_root,validation_cache) or record.terrain_slope_blend.rock_material.color[3]!=1: return false
 	for field in ["terrain_depth_blend","terrain_slope_blend"]:
 		if record.get(field,{}).has("transition_material"):
 			var definition: Variant=record[field].transition_material
-			if not material_valid(definition,relative,content_root) or definition.color[3]!=1: return false
+			if not material_valid(definition,relative,content_root,validation_cache) or definition.color[3]!=1: return false
 	if (record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation")) and record.has("terrain_material") and record.terrain_material.color[3]!=1: return false
+	# Cache only the repeated face-paint portion, after all terrain/bridge/river
+	# constraints above. Caller cache lifetime is one immutable operation.
+	# MapMetadataCache can supply its operation-local paint table index. That
+	# avoids deeply hashing the same shared array once for every wall fragment.
+	var paint_key:Array=["paint_record",relative,content_root,record.has("bank_wetness"),immutable_paint_id if immutable_paint_id!=null else record.get("surface_paint",[])]
+	if validation_cache.has(paint_key):return true
 	var entries: Variant = record.get("surface_paint", [])
 	if not entries is Array or entries.size() > MAX_OVERRIDES: return false
 	var seen := {}
@@ -70,7 +92,7 @@ static func valid(record: Dictionary, relative: bool = false, content_root: Stri
 		if entry.surface != floor(entry.surface) or entry.face != floor(entry.face): return false
 		var definition: Variant = entry.get("material")
 		if not definition in checked_materials:
-			if not material_valid(definition, relative, content_root): return false
+			if not material_valid(definition, relative, content_root,validation_cache): return false
 			checked_materials.append(definition)
 		if record.has("bank_wetness") and definition.color[3]!=1: return false
 		if not numbers(entry.get("scale"), 2, 0.01, 100) or not numbers(entry.get("offset"), 2, -100, 100): return false
@@ -78,6 +100,7 @@ static func valid(record: Dictionary, relative: bool = false, content_root: Stri
 		var key := face_key(entry)
 		if seen.has(key): return false
 		seen[key] = true
+	validation_cache[paint_key]=true
 	return true
 
 static func face_key(entry: Dictionary) -> String:
@@ -107,7 +130,7 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 	var surfaces: Array = []
 	for slot in mesh.get_surface_count():
 		if mesh is ArrayMesh and mesh.surface_get_primitive_type(slot) != Mesh.PRIMITIVE_TRIANGLES: return fail("仅支持三角网格表面")
-		var arrays := mesh.surface_get_arrays(slot)
+		var arrays: Array = mesh.get_meta("ground_cpu_cache").surfaces[slot] if mesh.has_meta("ground_cpu_cache") else CpuMesh.primitive_arrays(mesh,slot)
 		if arrays[Mesh.ARRAY_BONES] != null and arrays[Mesh.ARRAY_BONES].size() > 0: return fail("蒙皮模型暂不支持表面绘制")
 		for channel in range(Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM3 + 1):
 			if arrays[channel] != null and arrays[channel].size() > 0: return fail("含自定义顶点通道的模型暂不支持表面绘制")
@@ -163,7 +186,9 @@ static func texture(material: Dictionary, field: String = "texture_path") -> Tex
 	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
 	var cache_key := key + ("|flip_y" if flip_normal else "")
 	if key.is_empty(): return null
-	if _textures.has(cache_key): return _textures[cache_key]
+	if _textures.has(cache_key):
+		prepared_images.erase(cache_key)
+		return _textures[cache_key]
 	var image: Image
 	if key == "checker":
 		image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
@@ -171,15 +196,15 @@ static func texture(material: Dictionary, field: String = "texture_path") -> Tex
 			for x in 64: image.set_pixel(x, y, Color("cba574") if (x / 16 + y / 16) % 2 == 0 else Color("526477"))
 	else:
 		if not Paths.allowed(path) or not FileAccess.file_exists(path): return null
-		image = Image.load_from_file(path)
-		if image == null or image.is_empty() or image.get_width() > 4096 or image.get_height() > 4096: return null
-	if flip_normal:
-		image.convert(Image.FORMAT_RGBA8)
-		var bytes := image.get_data()
-		for at in range(1, bytes.size(), 4): bytes[at] = 255 - bytes[at]
-		image = Image.create_from_data(image.get_width(), image.get_height(), false, Image.FORMAT_RGBA8, bytes)
-	image.generate_mipmaps()
+		image = prepared_images.get(cache_key)
+		prepared_images.erase(cache_key)
+		if image==null:image = preload("res://scripts/world3d/runtime_texture_cache.gd").image(path,flip_normal)
+		if image==null:return null
+	if not image.has_mipmaps():image.generate_mipmaps()
+	var has_alpha:bool=image.detect_alpha()!=Image.ALPHA_NONE
 	var result := ImageTexture.create_from_image(image)
+	result.set_meta("surface_has_alpha",has_alpha)
+	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
 	_textures[cache_key] = result
 	return result
@@ -208,8 +233,9 @@ static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CUL
 	result.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	result.texture_repeat = true
 	result.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	if result.albedo_color.a < 1 or (result.albedo_texture != null and result.albedo_texture.get_image().detect_alpha() != Image.ALPHA_NONE): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if result.albedo_color.a < 1 or (result.albedo_texture != null and bool(result.albedo_texture.get_meta("surface_has_alpha",false))): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if _materials.size() >= 128: _materials.erase(_materials.keys()[0])
+	result.set_meta("runtime_paint_definition",value.duplicate(true))
 	_materials[key] = result
 	return result
 
@@ -269,7 +295,8 @@ static func source_material(node: MeshInstance3D, slot: int) -> Material:
 		return node.mesh.surface_get_material(slot)
 	return node.get_active_material(slot)
 
-static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
+static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null) -> Dictionary:
+	if keep_cpu: CpuMesh.capture(source(node))
 	var geo := geometry(node)
 	if not geo.ok: return geo
 	var mesh := source(node)
@@ -278,17 +305,22 @@ static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
 	for entry in entries:
 		var slot := int(entry.surface)
 		if slot >= geo.surfaces.size() or not geo.surfaces[slot].faces.has(int(entry.face)) or geo.surfaces[slot].signature != entry.geometry: return fail("模型几何已改变，请先清除旧面材质再重新绘制")
-		# Only deduplicate within this synchronous operation: every later paint
-		# still checks file existence and resource-root containment afresh.
+		# The optional cache belongs to one immutable runtime load. Ordinary
+		# editor paint operations still check paths/textures afresh every time.
 		if not entry.material in checked_materials:
-			for field in MAP_FIELDS:
-				if not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
+			var material_key:=var_to_str(entry.material)
+			if texture_checks==null or not texture_checks.has(material_key):
+				for field in MAP_FIELDS:
+					if not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
+				if texture_checks!=null: texture_checks[material_key]=true
 			checked_materials.append(entry.material)
 		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
 		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
 		overrides["%d:%d" % [slot, entry.face]] = entry
 	if mesh.get_surface_count() + entries.size() > 256: return fail("绘制后材质槽超过 256 个，请拆分模型")
 	var output := ArrayMesh.new()
+	var cpu_arrays: Array=[]
+	var merged:Dictionary={}
 	for slot in mesh.get_surface_count():
 		var data: Dictionary = geo.surfaces[slot]
 		var groups := {}
@@ -323,25 +355,41 @@ static func painted_mesh(node: MeshInstance3D, entries: Array) -> Dictionary:
 				material = painted
 			var compact := _compact(arrays)
 			if key != "original" and material is BaseMaterial3D and material.normal_enabled:
-				var temporary := ArrayMesh.new()
-				temporary.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, compact)
+				# SurfaceTool reads Mesh arrays. Keep this temporary on the CPU:
+				# uploading then reading every painted face stalls the render queue.
+				var temporary := CpuMesh.new()
+				temporary.surfaces = [compact]
+				temporary.materials = [material]
 				var builder := SurfaceTool.new()
 				builder.create_from(temporary, 0); builder.generate_tangents()
 				compact = builder.commit_to_arrays()
-			output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, compact)
-			output.surface_set_material(output.get_surface_count() - 1, material)
+			# UVs/tangents are already baked per face. Their identical materials
+			# now share one GPU surface instead of allocating a RID for every face.
+			var layout:=0
+			for channel in Mesh.ARRAY_MAX:
+				if compact[channel]!=null and not compact[channel].is_empty():layout|=1<<channel
+			var merge_key:=str(material.get_instance_id() if material!=null else 0)+":"+str(layout)
+			if not merged.has(merge_key):merged[merge_key]={"builder":SurfaceTool.new(),"material":material}
+			var cpu:=CpuMesh.new();cpu.surfaces=[compact];cpu.materials=[material]
+			merged[merge_key].builder.append_from(cpu,0,Transform3D.IDENTITY)
+	for row in merged.values():
+		var arrays:Array=row.builder.commit_to_arrays()
+		output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+		output.surface_set_material(output.get_surface_count()-1,row.material)
+		if keep_cpu:cpu_arrays.append(arrays)
+	if keep_cpu: CpuMesh.remember(output,cpu_arrays)
 	return {"ok": true, "mesh": output}
 
-static func apply(root: Node3D, record: Dictionary) -> void:
+static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null) -> void:
 	if not record.has("surface_paint"): return
-	if not valid(record): root.set_meta("paint_error", "表面材质记录损坏"); return
+	if not valid(record,false,"",validation_cache): root.set_meta("paint_error", "表面材质记录损坏"); return
 	var unresolved: Array = record.surface_paint.duplicate()
 	for node in meshes(root):
 		var path := str(root.get_path_to(node))
 		var entries: Array = record.surface_paint.filter(func(entry): return entry.mesh == path)
 		if entries.is_empty(): continue
 		for entry in entries: unresolved.erase(entry)
-		var result := painted_mesh(node, entries)
+		var result := painted_mesh(node, entries, true, texture_checks)
 		if not result.ok: root.set_meta("paint_error", result.error); continue
 		var originals: Array = []
 		for slot in node.mesh.get_surface_count(): originals.append(source_material(node,slot))
@@ -352,11 +400,12 @@ static func apply(root: Node3D, record: Dictionary) -> void:
 		for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot, null)
 	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
 
-static func definitions(record: Dictionary) -> Array:
+static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
 	var result: Array=[]
 	result.append_array(record.get("bridge_materials",{}).values())
 	result.append_array(record.get("terrain_regions",{}).get("materials",[]))
-	for entry in record.get("surface_paint",[]): result.append(entry.material)
+	if include_paint:
+		for entry in record.get("surface_paint",[]): result.append(entry.material)
 	if record.has("terrain_material"): result.append(record.terrain_material)
 	if record.has("terrain_depth_blend"):
 		for key in ["sand_material","rock_material"]: result.append(record.terrain_depth_blend[key])

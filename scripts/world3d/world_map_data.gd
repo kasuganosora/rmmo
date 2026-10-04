@@ -12,6 +12,11 @@ func build(root:Node)->void:
 	var first:=true
 	for spec in root.get_meta("stream_library",[]):
 		if not spec.get("mesh") is Mesh:continue
+		var extra:Dictionary=spec.get("extras",{})
+		var building:Dictionary=extra.get("building",{})
+		# A map shows occupied ground-floor footprints, not every hinge, tread,
+		# roof tile and upper-storey surface. Separate slabs preserve courtyard holes.
+		if not building.is_empty() and (building.get("role")!="floor" or int(building.get("floor",0))!=0):continue
 		var box:AABB=spec.mesh.get_aabb()
 		var transform:Transform3D=spec.transform
 		var projected:=PackedVector2Array()
@@ -22,7 +27,6 @@ func build(root:Node)->void:
 		var rect:=Rect2(projected[0],Vector2.ZERO)
 		for p in projected:rect=rect.expand(p)
 		bounds=rect if first else bounds.merge(rect);first=false
-		var extra:Dictionary=spec.get("extras",{})
 		var kind:=str(extra.get("kind",""))
 		var center:=rect.get_center()
 		if kind in ["npc","warp","gather"] or extra.get("hostile",false) or extra.get("ally",false):
@@ -31,6 +35,7 @@ func build(root:Node)->void:
 		if polygon.size()<4:continue
 		var world_box:AABB=transform*box
 		var color:=Color("68765b") if world_box.size.y<.6 else Color("8c8374")
+		if not building.is_empty():color=Color("8c8374")
 		if kind=="water":color=Color("4b7888")
 		shapes.append({"polygon":polygon,"bounds":rect,"color":color,"height":world_box.end.y})
 	shapes.sort_custom(func(a,b):return a.height<b.height)

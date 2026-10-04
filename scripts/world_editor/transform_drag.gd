@@ -136,7 +136,7 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 		if value.is_equal_approx(Gizmo.vector(record, field)): return
 		record[field] = [value.x, value.y, value.z]
 	editor._sync_selected_transform()
-	editor._inspector.refresh()
+	editor._inspector.refresh(false)
 
 
 func finish(cancel: bool = false) -> void:
@@ -154,7 +154,7 @@ func finish(cancel: bool = false) -> void:
 			var record: Dictionary = editor._doc._find(str(previous.uuid))
 			for field in ["position", "rotation", "size"]: record[field] = previous[field].duplicate()
 		editor._sync_selected_transform()
-		editor._inspector.refresh()
+		editor._inspector.refresh(false)
 		if building_drag and changed and not cancel:
 			result = editor._selection_tools.motion.move(building_delta,building_rotation,1.0,center)
 	else:

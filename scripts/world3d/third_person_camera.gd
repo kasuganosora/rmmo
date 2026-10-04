@@ -59,7 +59,7 @@ func follow(pivot: Vector3, delta: float) -> void:
 	var room:Dictionary=cutaway.locate(feet)
 	var target_distance:=minf(_want_distance,indoor_distance) if not room.is_empty() else _want_distance
 	distance = lerpf(distance, target_distance, 1.0 - exp(-8.0 * delta))
-	var arm := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * distance
+	var arm := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * minf(distance,target_distance)
 	pivot_height=clampf(actor_height*.84,1.4,1.7)-.9
 	var focus := pivot + Vector3(0.0, pivot_height, 0.0)
 	if not _initialized or _focus.distance_to(focus)>4:
@@ -70,16 +70,19 @@ func follow(pivot: Vector3, delta: float) -> void:
 	focus=_focus
 	var wanted := focus + arm
 	last_focus=focus;last_desired=wanted
-	cutaway.update(room,focus,wanted,get_world_3d().direct_space_state,occluder_exclude,delta)
+	var probe:=focus+arm.normalized()*minf(arm.length(),_arm_length)
+	cutaway.update(room,focus,probe,get_world_3d().direct_space_state,occluder_exclude,delta)
 	wanted = _shorten(focus, wanted)
 	var safe_length:=focus.distance_to(wanted)
 	_arm_length=safe_length if safe_length<_arm_length else lerpf(_arm_length,safe_length,1-exp(-6*delta))
 	global_position = focus+arm.normalized()*maxf(.05,_arm_length)
+	# Validate the actual shortened camera segment; a distant ideal orbit is not visibility.
+	cutaway.update(room,focus,global_position,get_world_3d().direct_space_state,occluder_exclude,delta)
 	camera.look_at(focus, Vector3.UP)
 
 func bind_map(map_root:Node,settings:Dictionary)->void:
 	cutaway.bind(map_root)
-	cutaway.enabled=bool(settings.get("interior_cutaway",true))
+	cutaway.enabled=bool(settings.get("interior_cutaway",false))
 	indoor_distance=float(settings.get("indoor_camera_distance",3.2))
 	_initialized=false
 

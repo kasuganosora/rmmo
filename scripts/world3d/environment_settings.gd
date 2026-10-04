@@ -17,13 +17,13 @@ static func schema() -> Dictionary:
 	return {"type": "object", "properties": fields, "additionalProperties": false}
 
 static func defaults() -> Dictionary:
-	var result := {"preset": "day", "sun_shadows": true, "ambient_occlusion": true, "fog_enabled": false, "fog_density": .01, "fog_color": [.65, .72, .8], "outline_enabled": true, "outline_color": [1, .78, .25], "outline_width": 2.0, "interior_cutaway": true, "indoor_camera_distance": 3.2}
+	var result := {"preset": "day", "sun_shadows": true, "ambient_occlusion": true, "fog_enabled": false, "fog_density": .01, "fog_color": [.65, .72, .8], "outline_enabled": true, "outline_color": [1, .78, .25], "outline_width": 2.0, "interior_cutaway": false, "indoor_camera_distance": 3.2}
 	result.merge(PRESETS.day.duplicate(true))
 	result.merge({"weather":"clear", "weather_intensity":.7, "wind_speed":2.5, "wind_direction":25.0, "weather_transition":3.0, "lightning_enabled":true, "sky_enabled":true})
 	result.merge({"star_intensity":1.0,"meteors_enabled":true,"meteor_frequency":3.0})
 	result.merge({"time_hours":12.0,"time_speed":0.0})
 	result.merge({"celestial_cycle":false,"surface_wetness":true,"initial_wetness":0.0,"wetting_seconds":90.0,"drying_seconds":300.0,"puddle_strength":.7,"environment_audio":true,"thunder_enabled":true,"lightning_center":[0.,0.,0.],"lightning_radius":800.0})
-	result.merge({"cloud_altitude":600.0,"cloud_thickness":550.0,"cloud_scale":2400.0,"cirrus_amount":.22})
+	result.merge({"cloud_altitude":1500.0,"cloud_thickness":450.0,"cloud_scale":1800.0,"cirrus_amount":.22})
 	return result
 
 static func resolve(meta: Dictionary) -> Dictionary:
@@ -63,8 +63,10 @@ static func apply(values: Dictionary, sun: DirectionalLight3D, environment: Envi
 		sun.rotation_degrees = Vector3(values.sun_rotation[0], values.sun_rotation[1], values.sun_rotation[2])
 		sun.light_color = color(values.sun_color); sun.light_energy = values.sun_energy
 		sun.shadow_enabled = bool(values.get("sun_shadows", true))
-		# Thin plaster infill needs enough depth bias to avoid shadow acne.
-		sun.shadow_bias = .4; sun.shadow_normal_bias = 2.0
+		# Cascades retain near-wall precision without pushing eave shadows far
+		# down the facade. A tiny normal bias alone causes stippled self-shadowing.
+		sun.directional_shadow_mode=DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+		sun.shadow_bias = .1; sun.shadow_normal_bias = .65
 		sun.directional_shadow_max_distance = 120.0
 	if environment != null:
 		environment.background_mode = Environment.BG_COLOR

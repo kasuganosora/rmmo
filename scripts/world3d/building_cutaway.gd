@@ -7,12 +7,15 @@ var buildings:Dictionary={}
 var index:Dictionary={}
 var hidden:Dictionary={}
 var excluded:Array[RID]=[]
-var enabled:=true
+var enabled:=false
 var active_key:=""
 var clear_time:=0.0
+var target_cache:Dictionary={}
+var applied_key:=""
+var applied_revision:=-1
 
 func bind(root:Node)->void:
-	restore();map_root=root;buildings.clear();index.clear()
+	restore();map_root=root;buildings.clear();index.clear();target_cache.clear()
 	if not is_instance_valid(root):return
 	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
 	var records:Dictionary={}
@@ -49,7 +52,8 @@ func locate(feet:Vector3)->Dictionary:
 		var b:Dictionary=buildings[id];var p:Dictionary=b.parameters
 		var at:Vector3=b.frame.affine_inverse()*feet
 		if at.y<-.15:continue
-		var floor_id:=floori((at.y+.08)/float(p.floor_height))
+		var base:float=p.get("base_height",0.0) if p.get("layout") in ["townhouse","hall"] else 0.0
+		var floor_id:=maxi(0,floori((at.y-base+.08)/float(p.floor_height)))
 		var head:Dictionary=b.headhouse
 		if floor_id==int(p.floors) and not head.is_empty() and at.y<head.top and head.rect.grow(-.12).has_point(Vector2(at.x,at.z)):
 			return {"id":id,"floor":floor_id,"key":id+":headhouse","ceiling_y":b.frame.origin.y+head.top,"ceiling_id":head.ceiling_id}
@@ -60,7 +64,7 @@ func locate(feet:Vector3)->Dictionary:
 			if i==0 and floor_id==0:rect=Rect2(-p.width/2,-p.depth/2,p.width,p.depth)
 			if floor_id >= (int(p.floors) if i==0 else int(p.get("annex_floors",1))):continue
 			if rect.grow(-.12).has_point(Vector2(at.x,at.z)):
-				return {"id":id,"floor":floor_id,"key":id+":"+str(floor_id),"ceiling_y":b.frame.origin.y+(floor_id+1)*p.floor_height}
+				return {"id":id,"floor":floor_id,"key":id+":"+str(floor_id),"ceiling_y":b.frame.origin.y+base+(floor_id+1)*p.floor_height}
 	return {}
 
 func update(room:Dictionary,focus:Vector3,wanted:Vector3,space:PhysicsDirectSpaceState3D,ignore:Array[RID],delta:float)->void:
@@ -71,23 +75,26 @@ func update(room:Dictionary,focus:Vector3,wanted:Vector3,space:PhysicsDirectSpac
 	# Querying only visible meshes would toggle hiding on/off every frame.
 	var hit:=space.intersect_ray(query)
 	var b:Dictionary=buildings[room.id]
-	var first_id:String=str(hit.collider.get_meta("uuid","")) if not hit.is_empty() else ""
+	var first_id:String=preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 	var first:Dictionary=b.parts.get(first_id,{})
 	var first_info:Dictionary=first.get("building",{})
 	# Only the first camera-to-person obstruction counts. Walls, props, stairs,
 	# gables and other buildings never trigger a cutaway, even with a slab behind.
 	var ceiling:bool=first_info.get("role")=="floor" or str(first_info.get("part","")).ends_with("/ceiling")
 	var blocked:bool=ceiling and (int(first_info.get("floor",0))>room.floor or first_id==room.get("ceiling_id","_none"))
-	if blocked:active_key=room.key;clear_time=0
-	else:
-		clear_time+=delta
-		if active_key!=room.key or clear_time>.2:restore();return
-	var targets:Dictionary={}
-	for id:String in b.parts:
-		var record:Dictionary=b.parts[id];var info:Dictionary=record.get("building",{})
-		if int(info.get("floor",0))>room.floor:targets[id]=true
-		elif info.get("role")=="roof" and float(record.position[1])>=float(room.ceiling_y)-.3:targets[id]=true
-	apply_hidden(targets)
+	if not blocked:restore();return
+	active_key=room.key;clear_time=0
+	if not target_cache.has(room.key):
+		var targets:Dictionary={}
+		for id:String in b.parts:
+			var record:Dictionary=b.parts[id];var info:Dictionary=record.get("building",{})
+			if int(info.get("floor",0))>room.floor:targets[id]=true
+			elif info.get("role")=="roof" and float(record.position[1])>=float(room.ceiling_y)-.3:targets[id]=true
+			elif id==room.get("ceiling_id",""):targets[id]=true
+		target_cache[room.key]=targets
+	var revision:int=map_root.get_meta("stream_visibility_revision",0)
+	if applied_key==room.key and applied_revision==revision:return
+	apply_hidden(target_cache[room.key]);applied_key=room.key;applied_revision=revision
 
 func apply_hidden(targets:Dictionary)->void:
 	for id:String in hidden.keys():
@@ -108,4 +115,5 @@ func apply_hidden(targets:Dictionary)->void:
 		if is_instance_valid(body):excluded.append(body.get_rid())
 
 func restore()->void:
-	apply_hidden({});active_key="";clear_time=0
+	if not hidden.is_empty() or not excluded.is_empty():apply_hidden({})
+	active_key="";clear_time=0;applied_key="";applied_revision=-1

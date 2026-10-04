@@ -94,6 +94,20 @@ func _run() -> void:
 	_view = document.export_root()
 	document.terrain_neighbors.update(document.records)
 	document._save_meshes.begin(document.records)
+	# The editor already owns the authoritative painted building arrays. Reuse
+	# them for the first export too; don't rebuild/upload every face a second time.
+	var reused:=0
+	if is_instance_valid(editor._view):
+		for record in document.records:
+			if not record.has("building"):continue
+			var visual:MeshInstance3D=editor._view.get_node_or_null(NodePath(str(record.uuid))) as MeshInstance3D
+			if visual==null or visual.mesh==null or visual.material_override!=null or visual.has_meta("paint_error"):continue
+			var clean:=true
+			for slot in visual.mesh.get_surface_count():
+				if visual.get_surface_override_material(slot)!=null:clean=false;break
+			if not clean:continue
+			document._save_meshes.put_mesh(str(record.uuid),document._save_meshes.key(record,{}),visual.mesh);reused+=1
+	document.last_save_metrics.live_building_meshes_reused=reused
 	slice = Time.get_ticks_usec()
 	count = 0
 	for record in document.records:

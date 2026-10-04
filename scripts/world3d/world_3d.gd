@@ -27,13 +27,24 @@ var _env: Environment
 var _weather: Node3D
 var _outline: CanvasLayer
 var _lamps: Array = []
+var _house_candles:Node3D
 var _night := false
 var _check_map := false
 var _actor_host: Node3D
 var _failed_warp := ""
+var _warp_candidates:Array[Node]=[]
+var _warp_cache_dirty:=true
 var _transfer_pending := false
 var _transfer_loader: Node
 var _ready_for_play := false
+var loading_profile: Dictionary={}
+var loading_state: Dictionary={"stage":"准备三维场景","done":0,"total":0}
+
+func loading_progress() -> Dictionary:
+	return loading_state
+
+func _loading_stage(stage: String, done: int=0, total: int=0) -> void:
+	loading_state={"stage":stage,"done":done,"total":total}
 var _combat: Node
 var _pending_ground_skill := ""
 var _revive: Button
@@ -175,6 +186,8 @@ func _exit_tree() -> void:
 
 
 func _ready() -> void:
+	loading_profile.ready_started=Time.get_ticks_msec()
+	child_order_changed.connect(func():_warp_cache_dirty=true)
 	_travel = Net.session().world3d_travel()
 	_add_light()
 	_add_hud()
@@ -187,6 +200,7 @@ func _ready() -> void:
 		_status.text = "角色资源缺失：请检查外部素材包，未使用替代模型"
 		_ready_for_play = true
 		return
+	loading_profile.setup=Time.get_ticks_msec()
 	var map_root := _load_or_fail()
 	if map_root == null:
 		_ready_for_play = true
@@ -194,31 +208,51 @@ func _ready() -> void:
 	add_child(map_root)
 	_map_root = map_root
 	if Net.session().world3d_loading:
+		map_root.set_meta("defer_source_upload",true)
 		while not map_root.has_meta("stream_chunk"):
-			Stream.sync(map_root, self, Net.session().world3d_spawn, Stream.FRAME_BUDGET)
+			Stream.sync(map_root, self, Net.session().world3d_spawn, Stream.LOAD_BUDGET)
+			_loading_stage("准备附近物件与碰撞",int(map_root.get_meta("stream_cursor",0)),map_root.get_meta("stream_jobs",[]).size())
 			await get_tree().process_frame
+		map_root.remove_meta("defer_source_upload")
 	else:
 		_add_collision(map_root)
+	loading_profile.stream=Time.get_ticks_msec()
+	_loading_stage("准备角色")
+	await get_tree().process_frame
 	_add_player()
 	_player.movement_intent.connect(_on_movement_intent)
-	await _prepare_navigation()
+	loading_profile.player=Time.get_ticks_msec()
 	_add_town_lamps(map_root)
 	_apply_map_environment()
+	loading_profile.environment=Time.get_ticks_msec()
+	Net.session().prepare_world_first_frame()
+	await _prepare_navigation()
+	loading_profile.navigation=Time.get_ticks_msec()
+	_loading_stage("准备环境与交互")
+	await get_tree().process_frame
 	_mount_events()
+	loading_profile.events=Time.get_ticks_msec()
 	if not Net.session().active_character().is_empty():
 		_add_game_hud()
+	loading_profile.hud=Time.get_ticks_msec()
 	_previous_feet = _player.global_position - Vector3(0, 0.9, 0)
 	apply_actions(Net.server().world3d_events.runtime.collect_autorun(Net.server().world3d_events.context()))
 	await get_tree().process_frame
+	var batches:Node=map_root.get_node_or_null("GroundRenderBatches")
+	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()):
+		_loading_stage("准备建筑渲染")
+		await get_tree().process_frame
+	if batches!=null:batches.work_budget_usec=2000
+	loading_profile.batches=Time.get_ticks_msec()
 	_player.input_locked = Net.session()._world_transition_active
 	_ready_for_play = true
 	if _check_map:
 		_status.text = "检查用白模，不是正式地图 · WASD 走 · N 切换路灯"
 	elif _lamps.is_empty():
-		_status.text = "WASD 走 · 右键转动 · E 对话 · 走到北边的垫子会去另一张图"
+		_status.text = "WASD 走 · 空格跳跃 · 右键转动 · E 对话 · 走到北边的垫子会去另一张图"
 	else:
-		_status.text = "WASD 走 · 右键转动 · N 切换路灯"
-	if is_instance_valid(Net.session().editor_playtest): _status.text = "WASD 移动 · 右键转动 · E 交互 · 临时试玩"
+		_status.text = "WASD 走 · 空格跳跃 · 右键转动 · N 切换路灯"
+	if is_instance_valid(Net.session().editor_playtest): _status.text = "WASD 移动 · 空格跳跃 · 右键转动 · E 交互 · 临时试玩"
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -235,7 +269,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 					return
 				var body: Object = hit.collider
-				var id := str(body.get_meta("uuid", ""))
+				var id := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 				if _combat.targets.has(id):
 					_combat.attack(id)
 					get_viewport().set_input_as_handled()
@@ -264,7 +298,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
-	if _player == null or _camera == null:
+	if _player == null or _camera == null or not _ready_for_play:
 		return
 	furniture.tick()
 	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
@@ -307,8 +341,16 @@ func _prepare_navigation() -> void:
 	_navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(_navigation)
 	_player.navigation = _navigation
+	_navigation.runtime_geometry_key=_map_root.get_meta("runtime_geometry_key","")
 	_navigation.build(_map_root.get_meta("stream_library", []), _player.position)
 	while not _navigation.ready_for_queries:
+		# Navigation bakes on the engine worker. Build the unchanged HUD while
+		# that worker runs, then bind it once combat/navigation are mounted.
+		if _navigation._phase.is_empty() and not is_instance_valid(_hud):_create_game_hud()
+		var batches:Node=_map_root.get_node_or_null("GroundRenderBatches")
+		if batches!=null and batches.pending.is_empty() and batches._workers.is_empty():Net.session().prepare_world_first_frame()
+		var phase_name: String={"bounds":"计算范围","source":"收集通行表面"}.get(_navigation._phase,"烘焙")
+		_loading_stage("准备通行导航 · "+phase_name,_navigation._cursor,_navigation._specs.size() if not _navigation._phase.is_empty() else 0)
 		await get_tree().process_frame
 	Net.server().world3d_authority.mount(_player, _navigation, _map_ref())
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
@@ -397,7 +439,7 @@ func _add_player() -> void:
 	shape.height = 1.8
 	capsule.shape = shape
 	body.add_child(capsule)
-	var model := preload("res://scripts/char/character_model_3d.gd").create(str(body.character.gender), body.character.get("customization", {}), body.equipment_parts)
+	var model:Node3D = Net.session().take_world_actor(str(body.character.gender), body.character.get("customization", {}), body.equipment_parts)
 	model.name = "CharacterModel3D"
 	model.position = Vector3(0, -0.9, 0)
 	body.add_child(model)
@@ -486,6 +528,9 @@ func _apply_map_environment() -> void:
 	if sky_server.has_method("mount_world3d_sky"): sky_server.mount_world3d_sky(_map_ref(),_map_path)
 	if sky_server.has_method("snapshot_world3d_sky"): _weather.bind_sky(_map_ref(),Callable(sky_server,"snapshot_world3d_sky").bind(_map_ref()))
 	_weather.configure(values, true)
+	if not is_instance_valid(_house_candles):
+		_house_candles=preload("res://scripts/world3d/house_candle_lights.gd").new();add_child(_house_candles)
+	_house_candles.bind_map(_map_root,_player,_weather)
 	values = _weather.values
 	_night = values.preset == "night"
 	if is_instance_valid(_outline): _outline.configure(values)
@@ -587,9 +632,13 @@ func _apply_residency(budget: int = 0) -> void:
 func _poll_warp() -> void:
 	if _player == null or _map_path == "" or _player.input_locked:
 		return
-	for child in get_children():
-		if str(child.get_meta("kind", "")) != "warp":
-			continue
+	if _warp_cache_dirty:
+		_warp_candidates.clear()
+		for child in get_children():
+			if str(child.get_meta("kind", ""))=="warp":_warp_candidates.append(child)
+		_warp_cache_dirty=false
+	for child in _warp_candidates:
+		if not is_instance_valid(child):continue
 		var center: Vector3 = child.get_meta("center")
 		if not Travel.near(_player.global_position, center, 1.2):
 			continue
@@ -641,12 +690,21 @@ func _mount_events() -> void:
 	Net.server().world3d_events.mount(_map_ref(), _map_root.get_meta("stream_library", []), GltfMapIo.extras_of(_map_root).get("rmmo_records", []))
 
 
-func _add_game_hud() -> void:
+func _create_game_hud()->void:
 	var layer := CanvasLayer.new()
 	layer.layer = 20
 	add_child(layer)
-	_hud = load("res://scenes/ui/game_hud.tscn").instantiate()
+	var path:="res://scenes/ui/game_hud.tscn"
+	var status:=ResourceLoader.load_threaded_get_status(path)
+	var packed:PackedScene=ResourceLoader.load_threaded_get(path) if status in [ResourceLoader.THREAD_LOAD_LOADED,ResourceLoader.THREAD_LOAD_IN_PROGRESS] else load(path)
+	_hud = packed.instantiate()
+	loading_profile.hud_instantiated=Time.get_ticks_msec()
 	layer.add_child(_hud)
+	loading_profile.hud_added=Time.get_ticks_msec()
+
+
+func _add_game_hud() -> void:
+	if not is_instance_valid(_hud):_create_game_hud()
 	_hud.bind_character(Net.session().active_character())
 	_hud.bind_world_combat(self)
 	var data: Dictionary = Net.session().spawn_data
@@ -656,6 +714,7 @@ func _add_game_hud() -> void:
 	_hud.apply_quest_snapshot(data.get("quests", []))
 	_hud.apply_skill_catalog(Net.server().snapshot_skill_catalog())
 	_hud.apply_skill_book(data.get("skill_book", {}))
+	loading_profile.hud_bound=Time.get_ticks_msec()
 	_refresh_world_map()
 	_status.position.y = 106
 
@@ -825,11 +884,12 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	viewport.add_child(stage)
 	stage.add_child(prepared)
 	while not prepared.has_meta("stream_chunk"):
-		Stream.sync(prepared, stage, destination, Stream.FRAME_BUDGET)
+		Stream.sync(prepared, stage, destination, Stream.LOAD_BUDGET)
 		await get_tree().process_frame
 	var navigation = preload("res://scripts/world3d/world_navigation.gd").new()
 	navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(navigation)
+	navigation.runtime_geometry_key=prepared.get_meta("runtime_geometry_key","")
 	navigation.build(prepared.get_meta("stream_library", []), destination)
 	while not navigation.ready_for_queries: await get_tree().process_frame
 	await get_tree().physics_frame

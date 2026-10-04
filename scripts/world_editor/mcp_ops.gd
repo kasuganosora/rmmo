@@ -41,7 +41,9 @@ func state() -> Dictionary:
 		"terrain_brush_active": editor._terrain_brush!=null and editor._terrain_brush.active,
 		"autosave": editor._safety.state(),
 		"save": editor._save_job.state() if editor._save_job != null else {"active":false},
-		"ground_batching": editor._ground_batches.stats() if is_instance_valid(editor._ground_batches) else {},
+		"ground_batching": editor._ground_batches.stats("ground") if is_instance_valid(editor._ground_batches) else {},
+		"fortification_batching": editor._ground_batches.stats("fortification") if is_instance_valid(editor._ground_batches) else {},
+		"fortification_collision_batching": editor._fortification_collisions.stats() if is_instance_valid(editor._fortification_collisions) else {},
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:

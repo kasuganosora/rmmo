@@ -50,6 +50,7 @@ func resolve(id: String, target: Dictionary) -> Dictionary:
 func list_faces(id: String, offset: int = 0, limit: int = 50) -> Dictionary:
 	var root := _visual(id)
 	if root == null: return Paint.fail("物件不存在")
+	var record:Dictionary=editor._doc._find(id)
 	var rows: Array = []
 	var warnings: Array = []
 	for node in Paint.meshes(root):
@@ -61,7 +62,7 @@ func list_faces(id: String, offset: int = 0, limit: int = 50) -> Dictionary:
 				var target := {"mesh": str(root.get_path_to(node)), "surface": slot, "face": face, "geometry": data.signature}
 				var center: Vector3 = node.global_transform * data.faces[face].center
 				var normal: Vector3 = (node.global_basis.inverse().transposed() * data.faces[face].normal).normalized()
-				var applied: Array = editor._doc._find(id).get("surface_paint", []).filter(func(entry): return Paint.face_key(entry) == Paint.face_key(target))
+				var applied: Array = record.get("surface_paint", []).filter(func(entry): return Paint.face_key(entry) == Paint.face_key(target))
 				rows.append({"target": target, "center": [center.x, center.y, center.z], "normal": [normal.x, normal.y, normal.z], "triangle_count": data.faces[face].triangles.size(), "paint": applied[0] if not applied.is_empty() else {}})
 	return {"ok": true, "id": id, "faces": rows.slice(offset, offset + limit), "total": rows.size(), "warnings": warnings}
 
@@ -73,10 +74,10 @@ func pick(screen: Vector2) -> Dictionary:
 	query.hit_back_faces = false
 	var hit: Dictionary = editor.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty(): return Paint.fail("没有命中可绘制表面")
-	var id := str(hit.collider.get_meta("uuid", ""))
+	var id := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 	var record: Dictionary = editor._doc._find(id)
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"] or record.get("invisible", false): return Paint.fail("目标隐藏、锁定、不在当前楼层或不是可绘制物件")
-	var node: MeshInstance3D = hit.collider.get_meta("visual")
+	var node: MeshInstance3D = editor._view.get_node_or_null(NodePath(id)) if hit.collider.has_meta("fortification_collision_ranges") else hit.collider.get_meta("visual")
 	var geo := Paint.geometry(node)
 	if not geo.ok: return geo
 	var local_origin := node.global_transform.affine_inverse() * origin

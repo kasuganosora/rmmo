@@ -80,7 +80,7 @@ func can_interact(id: String, body: CharacterBody3D, target: CollisionObject3D =
 	if target != null: ray.exclude = [body.get_rid(), target.get_rid()]
 	var hit := body.get_world_3d().direct_space_state.intersect_ray(ray)
 	if not hit.is_empty():
-		var uuid := str(hit.collider.get_meta("uuid", ""))
+		var uuid := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 		if uuid != id and not uuid.begins_with(id + "__"): return false
 	return true
 

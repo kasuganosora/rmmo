@@ -25,11 +25,13 @@ func setup(owner: Node3D) -> void:
 
 
 func records() -> Array:
+	if ids.is_empty(): return []
 	var wanted := {}
 	for id in ids: wanted[id] = true
 	var found := {}
 	for record in editor._doc.records:
 		if wanted.has(str(record.uuid)): found[str(record.uuid)] = record
+		if found.size() == wanted.size(): break
 	var result: Array = []
 	for id in ids:
 		var record: Dictionary = found.get(id, {})
@@ -69,7 +71,7 @@ func set_ids(values: Array) -> void:
 	refresh()
 
 
-func refresh() -> void:
+func refresh(refresh_scene: bool=true) -> void:
 	invalidate_pivot()
 	var available := {}
 	for record in editor._doc.records:
@@ -84,7 +86,7 @@ func refresh() -> void:
 			if record.has("building") and ids.has(str(record.uuid)): whole = true; break
 	if editor._inspector != null:
 		editor._inspector.selection = ids.back() if not ids.is_empty() else ""
-		editor._inspector.refresh()
+		editor._inspector.refresh(refresh_scene)
 	if editor._object_list != null: editor._object_list.sync_selection()
 	if editor._event_panel != null: editor._event_panel.refresh()
 	if editor._space_button != null: editor._update_space_button()
@@ -209,10 +211,10 @@ func ungroup() -> void:
 	changed()
 
 
-func changed() -> void:
+func changed(refresh_scene: bool=true) -> void:
 	editor._dirty = true
 	if editor._object_list != null: editor._object_list.refresh()
-	refresh()
+	refresh(refresh_scene)
 
 
 func remove() -> void:
@@ -266,9 +268,9 @@ func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Di
 		record.position = [position.x, position.y, position.z]
 		record.rotation = [angles.x, angles.y, angles.z] if not rotation.is_equal_approx(Basis.IDENTITY) else record.rotation
 		record.size = [size_.x, size_.y, size_.z]
-	editor._detach_selected_tile()
+	editor._detach_selected_tile(false)
 	editor._sync_selected_transform()
-	changed()
+	changed(false)
 	return {"ok":true,"changed":true}
 
 
@@ -305,11 +307,12 @@ func set_object_transform(id: String, properties: Dictionary) -> bool:
 	if not changed_: return true
 	editor._doc.checkpoint()
 	for field in properties: record[field] = properties[field].duplicate()
-	set_ids([id])
-	editor._detach_selected_tile()
+	if ids != [id]: set_ids([id])
+	elif editor._placement_tools != null: editor._placement_tools.cancel()
+	editor._detach_selected_tile(false)
 	editor._dirty = true
 	editor._sync_selected_transform()
-	refresh()
+	refresh(false)
 	return true
 
 

@@ -1,5 +1,9 @@
 extends Node
 ## A separate meter-space navigation map; bridges and ground remain separate polygons.
+var loading_profile:Dictionary={}
+var runtime_geometry_key:=""
+var _cache_key:=""
+var _cache_hit:=false
 var ready_for_queries := false
 var agent_height:=1.8
 var map := RID()
@@ -34,6 +38,7 @@ func resize_agent(height:float,specs:Array,origin:Vector3)->void:
 	if _resizing or not fully_ready or is_equal_approx(height,agent_height):return
 	_resizing=true
 	var replacement=get_script().new();replacement.agent_height=height;add_child(replacement)
+	replacement.runtime_geometry_key=runtime_geometry_key
 	replacement.build(specs,origin)
 	while not replacement.fully_ready:await get_tree().process_frame
 	NavigationServer3D.free_rid(region);NavigationServer3D.free_rid(map)
@@ -61,14 +66,20 @@ func build(specs: Array, origin: Variant = null) -> void:
 	mesh.agent_max_slope = 40.0
 	mesh.filter_walkable_low_height_spans = true
 	_specs = specs
-	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door")
+	# Hinges and handles follow the door but are not navigation obstacles.
+	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none")
 	_origin = origin
 	_phase = "bounds"
+	if not runtime_geometry_key.is_empty():
+		_cache_key=runtime_geometry_key+str(mesh.agent_height)+FileAccess.get_sha256(get_script().resource_path)+FileAccess.get_sha256("res://scripts/world3d/navigation_cache.gd")
+		_cache_hit=preload("res://scripts/world3d/navigation_cache.gd").restore(_cache_key,mesh)
+		loading_profile.cache_hit=_cache_hit
+		if _cache_hit:_phase="";_baked()
 
 func _process(_delta: float) -> void:
 	if _phase.is_empty(): return
 	var started := Time.get_ticks_usec()
-	while _cursor < _specs.size() and Time.get_ticks_usec() - started < 3000:
+	while _cursor < _specs.size() and Time.get_ticks_usec() - started < (12000 if not ready_for_queries else 3000):
 		var spec: Dictionary = _specs[_cursor]
 		_cursor += 1
 		if not _collides(spec): continue
@@ -79,7 +90,7 @@ func _process(_delta: float) -> void:
 		else:
 			if _clip.has_volume() and not _clip.intersects(box): continue
 			var shape: Shape3D = spec.get("shape")
-			var geometry: Resource = shape if shape is ConcavePolygonShape3D else spec["mesh"]
+			var geometry: Resource = shape if shape is ConcavePolygonShape3D else spec.get("collision_mesh", spec["mesh"])
 			if geometry is BoxMesh and not geometry.flip_faces:
 				# Generated buildings contain thousands of differently sized boxes. Their
 				# exact navigation hull is one unit cube; avoid one GPU readback per box.
@@ -101,8 +112,10 @@ func _process(_delta: float) -> void:
 			_staged = true
 			_clip = AABB(Vector3(_origin.x - 80, _bounds.position.y - 2, _origin.z - 80), Vector3(160, _bounds.size.y + 4, 160))
 			mesh.filter_baking_aabb = _clip
+		loading_profile.bounds=Time.get_ticks_msec()
 		_phase = "source"
 		return
+	loading_profile.source=Time.get_ticks_msec()
 	_phase = ""
 	var owner_ref: WeakRef = weakref(self)
 	if not ready_for_queries:
@@ -125,6 +138,7 @@ func _collides(spec: Dictionary) -> bool:
 
 
 func _baked() -> void:
+	loading_profile.baked=Time.get_ticks_msec()
 	region = NavigationServer3D.region_create()
 	NavigationServer3D.region_set_use_async_iterations(region, false)
 	NavigationServer3D.region_set_map(region, map)
@@ -145,6 +159,7 @@ func _physics_process(_delta: float) -> void:
 	ready_for_queries = true
 	fully_ready = _publish_final
 	if fully_ready:
+		if not _cache_hit:preload("res://scripts/world3d/navigation_cache.gd").store_mesh(_cache_key,mesh)
 		source.clear()
 		_specs = []
 		_faces.clear()
@@ -172,11 +187,14 @@ func near_surface(point: Vector3, horizontal_tolerance: float = 0.18, vertical_t
 	return Vector2(nearest.x, nearest.z).distance_to(Vector2(point.x, point.z)) <= horizontal_tolerance and absf(nearest.y - point.y) <= vertical_tolerance
 
 
-func find_path(start: Vector3, goal: Vector3) -> Dictionary:
+func find_path(start: Vector3, goal: Vector3, goal_tolerance:float=.18) -> Dictionary:
 	if not ready_for_queries:
 		return {"ok": false, "reason": "not_ready", "path": PackedVector3Array()}
-	if not near_surface(start, 0.35) or not near_surface(goal):
+	if not near_surface(start, 0.35) or not near_surface(goal,goal_tolerance):
 		return {"ok": false, "reason": "unreachable", "path": PackedVector3Array()}
+	# Recast erodes polygons by the agent radius. Visible floor beside a wall
+	# remains a valid click; stop on the nearby walkable point, on this storey.
+	if not near_surface(goal):goal=NavigationServer3D.map_get_closest_point(map,goal)
 	var points := NavigationServer3D.map_get_path(map, start, goal, true)
 	if points.is_empty() or points[-1].distance_to(goal) > 0.4:
 		return {"ok": false, "reason": "unreachable", "path": PackedVector3Array()}
@@ -201,7 +219,12 @@ func find_path(start: Vector3, goal: Vector3) -> Dictionary:
 	return {"ok":false,"reason":"door_blocked","path":PackedVector3Array()}
 
 func _door_obstruction(points: PackedVector3Array) -> Dictionary:
+	if points.is_empty():return {}
+	var route_bounds:=AABB(points[0]+Vector3.UP*.9,Vector3.ZERO)
+	for point in points:route_bounds=route_bounds.expand(point+Vector3.UP*.9)
 	for door in _doors:
+		var bounds:AABB=door.transform*door.mesh.get_aabb().grow(.32)
+		if not bounds.grow(.001).intersects(route_bounds.grow(.001)):continue
 		var segment:=_door_segment(points,door)
 		if segment>=0:return {"door":door,"segment":segment}
 	return {}

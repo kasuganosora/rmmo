@@ -42,7 +42,7 @@ func pick(screen: Vector2) -> Vector3:
 	var query:=PhysicsRayQueryParameters3D.create(origin,origin+direction*editor._camera.far)
 	query.hit_back_faces=false
 	var hit: Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty() and str(hit.collider.get_meta("uuid",""))==target_id and hit.normal.y>.01: return hit.position
+	if not hit.is_empty() and preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)==target_id and hit.normal.y>.01: return hit.position
 	# A hole has no hit; retain the original plane so fill remains possible.
 	var at: Variant=Plane(Vector3.UP,float(record.position[1])).intersects_ray(origin,direction)
 	if at==null: return Vector3(INF,INF,INF)

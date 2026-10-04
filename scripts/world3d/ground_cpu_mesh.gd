@@ -4,15 +4,52 @@ var surfaces: Array = []
 var materials: Array[Material] = []
 var bounds := AABB()
 var box_size := Vector3.ZERO
+var source_reference: WeakRef
+var _collision_faces:=PackedVector3Array()
+static var _unit_box_arrays: Array=[]
+
+static func primitive_arrays(source: Mesh, slot: int) -> Array:
+	# PrimitiveMesh.surface_get_arrays also reads through RenderingServer.
+	# An ordinary box has invariant topology/UVs; scale one canonical CPU copy.
+	if source is BoxMesh and not source.flip_faces and not source.add_uv2 and source.subdivide_width==0 and source.subdivide_height==0 and source.subdivide_depth==0 and source.size.x>0 and source.size.y>0 and source.size.z>0:
+		if _unit_box_arrays.is_empty():
+			var unit:=BoxMesh.new(); unit.size=Vector3.ONE
+			_unit_box_arrays=unit.surface_get_arrays(0)
+		var arrays: Array=_unit_box_arrays.duplicate()
+		var vertices: PackedVector3Array=arrays[Mesh.ARRAY_VERTEX].duplicate()
+		for i in vertices.size(): vertices[i]*=source.size
+		arrays[Mesh.ARRAY_VERTEX]=vertices
+		return arrays
+	return source.surface_get_arrays(slot)
+
+static func remember(source: Mesh, arrays: Array) -> Mesh:
+	# Procedural meshers already own these CPU arrays. Retain them at upload time
+	# instead of synchronously downloading thousands of GPU buffers on first use.
+	var result=load("res://scripts/world3d/ground_cpu_mesh.gd").new()
+	result.source_reference=weakref(source); result.bounds=source.get_aabb(); result.surfaces=arrays
+	for slot in source.get_surface_count(): result.materials.append(source.surface_get_material(slot))
+	source.set_meta("ground_cpu_cache",result)
+	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
+	return result
+
+func geometry_key() -> String:
+	if not has_meta("static_batch_geometry_signature"):
+		var context:=HashingContext.new(); context.start(HashingContext.HASH_SHA256); context.update(var_to_bytes(surfaces)); set_meta("static_batch_geometry_signature",context.finish().hex_encode())
+	return get_meta("static_batch_geometry_signature")
+
+func collision_faces() -> PackedVector3Array:
+	if _collision_faces.is_empty(): _collision_faces=get_faces()
+	return _collision_faces
 
 static func capture(source: Mesh) -> Mesh:
 	if source.get_script() == load("res://scripts/world3d/ground_cpu_mesh.gd"): return source
 	if source.has_meta("ground_cpu_cache"): return source.get_meta("ground_cpu_cache")
 	var result = load("res://scripts/world3d/ground_cpu_mesh.gd").new()
+	result.source_reference = weakref(source)
 	result.bounds = source.get_aabb()
 	if source is BoxMesh: result.box_size = source.size
 	for slot in source.get_surface_count():
-		result.surfaces.append(source.surface_get_arrays(slot))
+		result.surfaces.append(primitive_arrays(source,slot))
 		result.materials.append(source.surface_get_material(slot))
 	source.set_meta("ground_cpu_cache",result)
 	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
@@ -23,13 +60,26 @@ static func invalidate(reference: WeakRef) -> void:
 	if source != null and source.has_meta("ground_cpu_cache"): source.remove_meta("ground_cpu_cache")
 
 func restore() -> Mesh:
+	var original: Mesh=source_reference.get_ref() if source_reference!=null else null
+	if original!=null:
+		var compatible:=original.get_surface_count()==materials.size()
+		for slot in materials.size():
+			if not compatible or original.surface_get_material(slot)!=materials[slot]: compatible=false; break
+		if compatible: return original
 	if box_size != Vector3.ZERO:
 		var box := BoxMesh.new(); box.size = box_size; box.material = materials[0]
+		source_reference=weakref(box)
 		return box
 	var result := ArrayMesh.new()
 	for slot in surfaces.size():
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surfaces[slot])
 		result.surface_set_material(slot, materials[slot])
+	var cached: Mesh=remember(result,surfaces)
+	# Repeated instances share this CPU object after loading. Remember the first
+	# restored GPU mesh weakly so each instance does not upload the same buffers.
+	source_reference=weakref(result)
+	cached._collision_faces=_collision_faces
+	if has_meta("static_batch_geometry_signature"): cached.set_meta("static_batch_geometry_signature",geometry_key())
 	return result
 
 func _get_aabb() -> AABB: return bounds

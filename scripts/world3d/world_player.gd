@@ -14,6 +14,7 @@ var equipment_parts: Dictionary = {}
 var navigation: Node
 var _route := PackedVector3Array()
 var _sequence := 0
+var _jump_was_pressed:=false
 signal movement_intent
 const Net = preload("res://scripts/net/net.gd")
 const REST_ACTIONS:=["sit_ground","sit_down_ground","stand_up_ground","sit_chair","sit_chair_hold","stand_up_chair","lie_down","lie","get_up"]
@@ -42,6 +43,10 @@ func _physics_process(delta: float) -> void:
 func _step(dt: float) -> void:
 	var yaw := _camera_yaw()
 	var stick := _stick()
+	var focus:=get_viewport().gui_get_focus_owner()
+	var jump_pressed:=Input.is_key_pressed(KEY_SPACE) and not (focus is LineEdit or focus is TextEdit)
+	var jump:=jump_pressed and not _jump_was_pressed
+	_jump_was_pressed=jump_pressed
 	if stick.length_squared()>.01 or click_target is Vector3:movement_intent.emit()
 	if _model.action in REST_ACTIONS:
 		if stick.length_squared()>.01 or click_target is Vector3:
@@ -81,7 +86,7 @@ func _step(dt: float) -> void:
 	var before := global_position
 	_sequence += 1
 	var desired_speed := wish.length() * speed
-	Net.server().try_move_world(_sequence, wish.normalized(), desired_speed)
+	Net.server().try_move_world(_sequence, wish.normalized(), desired_speed,jump)
 	var actual_speed := Vector2(global_position.x - before.x, global_position.z - before.z).length() / maxf(dt, 0.0001)
 	if Vector2(velocity.x, velocity.z).length() > 0.2:
 		var facing := atan2(velocity.x, velocity.z)
@@ -111,10 +116,12 @@ func location() -> RefCounted:
 
 func set_click_target(point: Vector3, target_surface: String) -> void:
 	_route.clear()
-	if target_surface == "block" or navigation == null:
+	# A solid building component can still have a walkable top (stairs,
+	# landings and imported floors). Navigation decides reachability.
+	if navigation == null:
 		click_target = null
 		return
-	var result: Dictionary = navigation.find_path(global_position - Vector3(0, 0.9, 0), point)
+	var result: Dictionary = navigation.find_path(global_position - Vector3(0, 0.9, 0), point, .65)
 	if not bool(result.get("ok", false)):
 		click_target = null
 		return
@@ -138,7 +145,8 @@ func _sense_surface() -> void:
 		return
 	var body: Object = hit.collider
 	if body is CollisionObject3D and (body as CollisionObject3D).has_meta("surface_id"):
-		surface_id = str((body as CollisionObject3D).get_meta("uuid", body.get_meta("surface_id")))
+		var uuid:=preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
+		surface_id = uuid if not uuid.is_empty() else str(body.get_meta("surface_id"))
 
 
 func _stick() -> Vector2:

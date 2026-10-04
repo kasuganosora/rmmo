@@ -98,7 +98,10 @@ func enable_compute()->bool:
 				var material=mesh_instance.get_surface_override_material(i)
 				material.set_shader_parameter("body_positions",positions_texture);material.set_shader_parameter("body_normals",normals_texture)
 	use_compute=true;return true
-func _exit_tree()->void:
+func _notification(what:int)->void:
+	# Loading reparents the live actor from an offscreen viewport into the world.
+	# Its textures belong to the body instance, not to a particular scene tree.
+	if what!=NOTIFICATION_PREDELETE:return
 	if gpu_display:gpu_display.close();gpu_display=null
 	if gpu:gpu.close();gpu=null
 func read_gpu_points()->PackedVector3Array:

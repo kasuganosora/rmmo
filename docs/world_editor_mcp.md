@@ -1,5 +1,7 @@
 # 当前 3D 地图编辑器 MCP
 
+2026-10-04 房屋加载性能修复：工具仍为 **118 项**，schema、编辑事务及旧二维下线状态不变。CPU 刷面几何/切线实现由 UI、MCP 和运行时共用；不可变地图加载专用的校验及等价方块缓存不用于后续编辑事务，避免跨编辑复用过期校验。`paint_surface`、锁定保护、撤销重做、保存重开及非法调用通过真实 HTTP 回归；性能记录见 [房屋加载修复验证](world_editor_todo.md#房屋加载修复验证2026-10-04)。
+
 2026-10-03 程序化写实石桥：当前 **118 项** 3D 工具。新增桥型列表、预览、生成及保存桥型；Blender 模块按长度装配，支持平直/拱起、三组 PBR、合并网格与 LOD。河道桥梁也可选择桥型，继续支持道路绑定。见 [石桥说明](world_editor_stone_bridges.md)。
 
 2026-10-03 城镇地表收尾：`set_river_materials` 增加 `wet_darkening`（0～0.8，默认 0），与 `wet_height` 一起控制天然岸沙/土/岩的湿痕；UI 同步提供参数，旧图不自动改变外观。当时为 114 个 3D 工具；泥路软边和逐面铺装分别复用 `paint_terrain_region` / `paint_surface`。
@@ -37,7 +39,7 @@
 
 2026-10-02 蓝图 V6：仍为 **69 项** 3D 工具。建筑 schema 新增 `door_height`（默认 2.5）、`door_width`（门洞最小宽，默认 1.5）、`stair_width`（默认 1.7）、`stair_landing`（转角平台深度，默认 2.0）、`corridor_width`（默认 2.2），单位米；新建及区域随机层高默认 4 米。全部沿用现有生成/预览/更新事务，旧配方更新补旧尺寸，不静默放大。
 
-`get_environment` / `set_environment` 新增 `interior_cutaway` 和 `indoor_camera_distance`（2～5 米）。隐藏仅在第三人称角色室内，且相机到角色射线第一次碰到其上方楼板/天花板时触发。无障碍或先碰普通物体/墙不触发；第一人称和 VR 禁用。UI/MCP 共享 schema、环境记录和撤销，保存重开有效。相机效果需进入试玩；MCP 编辑的是配置，不强制更改玩家实时视角。详情见 [环境与相机](world_editor_events_environment.md)。
+`get_environment` / `set_environment` 新增 `interior_cutaway` 和 `indoor_camera_distance`（2～5 米）。2026-10-04 按用户要求，`interior_cutaway` 默认关闭，当前七款样房也显式保存为 false；开启该选项后，隐藏仅在第三人称角色室内，且相机到角色射线第一次碰到其上方楼板/天花板时触发。无障碍或先碰普通物体/墙不触发；第一人称和 VR 禁用。UI/MCP 共享 schema、环境记录和撤销，保存重开有效。相机效果需进入试玩；MCP 编辑的是配置，不强制更改玩家实时视角。详情见 [环境与相机](world_editor_events_environment.md)。
 
 `tools/test_world3d_interior_camera.gd` 通过真实 HTTP 验证发现、合法/非法尺寸和环境调用、原子失败、UI 同步、撤销重做、保存重开，并运行相机、导航与 GPU 验收。楼梯矩阵见 `tools/audit_building_player_metrics.gd`，转角平台与普通梯段共用真实碰撞测试。
 
@@ -202,3 +204,23 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 ### 地面绘制合并统计（2026-10-03）
 
 当前 `editor_state` 增加只读 `ground_batching`：合并组数、待处理组数、来源物件/材质面/顶点数、合并后的材质面/顶点数、累计重建次数及构建/提交耗时。使用原 `sculpt_terrain`、变换、材质、隐藏、楼层隔离、撤销和保存工具，自动更新同一派生缓存；没有额外合并事务或改变 UUID。返回材质面数不是整帧 GPU draw calls，首次后台构建完成前 `pending_groups` 可以非零。新增统计不增加工具，该批交付时为 111 个 3D 工具；详见 [地面分块合并](world_editor_terrain_sculpt.md#地面分块合并2026-10-03)。
+
+
+### 2026-10-04：住宅 v8
+
+`list_building_templates` 返回的共享参数 schema 新增 `stair_layout: straight | switchback`、`base_height: 0..0.9`、`curtains: boolean`。`preview_buildings` / `generate_buildings` / `update_building` 与当前 3D 建筑表单使用同一校验和事务。中世纪默认样房采用折返楼梯、0.45 m 台基和窗帘；旧配方继续保留原尺寸与布局。门窗五金属于原有 fixture 身份，固定轴座不随门扇转动。保存的 `wall_grid` 是带真实门窗洞口的结构网格，不能当作实心包围盒处理碰撞。
+
+新增参数的真实 HTTP、非法调用无副作用、撤销重做、保存重开验证见 `tools/test_house_revision_mcp.gd`。本次没有重新启用二维 MCP。
+
+2026-10-04 后续样房修订：同一建筑生成业务现在包含圆杆布套安装、墙面支架、统一楼层立柱、共面接缝裁面和夜间烛台壁灯。`joined_box` 保存裁剪后的可见面片，游戏碰撞仍使用原完整实体；`candle_sconce` 保存壁灯造型。两者属于生成构件内部数据，不另增 UI/MCP 参数，旧地图打开时不自动重建。灯位按房间墙面生成，与窗帘至少相隔 1 米；运行时根据地图时钟启闭。真实 HTTP 已覆盖生成、非法输入无副作用、撤销重做、保存重开及内部形状签名稳定。详见 [样房修订](house_revision_20261004.md) 和 [烛台壁灯](house_candle_sconce_20261004.md)。
+
+
+### 共用静态合批与命中映射
+
+同轮城防静态网格合并自动用于 UI 与运行时：`editor_state.fortification_batching` 返回城防源对象数、源/结果渲染面及顶点数、`instanced_groups`；`ground_batching` 保留地面统计。同空间块内重复几何实例化，其余兼容构件合并。活动门、交互构件独立；碰撞、选择、刷面、原生保存和撤销仍使用原始记录。工具数仍为 118。合并不是有损文档操作，无需独立 MCP 写入命令；城防合批专项回归 覆盖真实 HTTP 查询、非法原子失败、编辑保护、选取、城门、撤销和保存重开，并检查同模型不同材质恢复互不影响。
+
+同轮补齐首次缓存和碰撞分块：`editor_state.fortification_collision_batching` 返回 `source_objects/bodies/shapes/triangles/rebuild_count/last_sync_ms/max_group_ms` 及分阶段 `profile`。渲染统计增加 `last_sync_ms/max_commit_ms/sync_profile_us`；`max_build_ms` 含后台排队时间，不能当作主线程阻塞时间。UI 与 MCP 自动更新同一缓存，选中构件退出合并碰撞，射线按命中三角面返回原 UUID，门扇/事件仍独立；隐藏、隔层、变换和刷面沿用原事务。派生缓存不写入地图，不增加工具或启用二维适配器。
+
+拖动/驻留优化补充：渲染统计提供 `sync_count/release_groups_visited`，碰撞统计提供 `shape_cache_groups/shape_cache_triangles/shape_cache_hits/shape_cache_misses`。城防纯位移/旋转复用原网格，选中件拖动不反复同步无关批次；有几何变化仍走完整失效逻辑。最近碰撞形状缓存最多 64 组 / 262144 个三角面，缓存形状不等于活动碰撞体，离开分块时 `bodies` 仍归零；文档重建清空缓存。现有变换、选择、刷面、隔层、撤销和保存工具保持相同业务校验。
+
+后续刷新链修复：`set_object_transform` 与 `transform_selection` 和 UI 共用的变换操作完成后，面板只更新数值，避免重复触发全场景合批；当前已选城防件的数值变换仅同步一次，切换选中对象或几何变化仍保留必要失效。工具清单、参数 schema、返回值、保护规则与撤销/保存语义均不变。城防合批专项回归 同时覆盖实际拖拽入口（包含面板更新）与真实 HTTP 数值变换，不能再用仅调用 `_sync_selected_transform` 的测试替代整条刷新链。

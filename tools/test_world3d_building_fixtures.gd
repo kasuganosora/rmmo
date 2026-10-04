@@ -17,11 +17,13 @@ func run() -> void:
 	check(recipes.presets.size()==7 and recipes.parameters_schema.properties.has("foundation_depth") and recipes.parameters_schema.properties.has("dormers"),"discover foundations and varied architectural recipes")
 	for preset in Blueprint.medieval_presets()+Blueprint.urban_presets():
 		var plan:=Blueprint.generate(preset.parameters)
-		check(plan.ok and plan.records.size()<2000,"recipe valid and within part limit: "+preset.id)
+		check(plan.ok and plan.records.size()<=Blueprint.MAX_PARTS,"recipe valid and within schema part limit: "+preset.id)
 		if not plan.ok: continue
 		for slab in plan.records.filter(func(r):return r.building.floor==0 and r.building.role=="floor"):
 			var foot: Array=plan.records.filter(func(r):return r.building.part==slab.building.part+"/foundation")
-			check(foot.size()==1 and is_equal_approx(foot[0].position[1]+foot[0].size[1]/2,slab.position[1]-slab.size[1]/2) and is_equal_approx(foot[0].size[1],1),"foundation extends exactly 1m below existing slab")
+			if slab.position[1]-slab.size[1]/2>slab.building.floor_y+.05:
+				check(foot.is_empty(),"elevated landing has no floating foundation");continue
+			check(foot.size()==1 and is_equal_approx(foot[0].position[1]+foot[0].size[1]/2,slab.position[1]-slab.size[1]/2) and foot[0].position[1]-foot[0].size[1]/2<=-float(plan.parameters.get("foundation_depth",1.0)),"foundation joins raised slab and reaches required depth below terrain")
 		for record in plan.records:
 			if not record.has("fixture"):continue
 			check(Fixtures.valid(record),"generated hinge metadata valid")
@@ -41,7 +43,7 @@ func run() -> void:
 	doc.remove(obstacle)
 	var listing:=await call_tool("list_building_components",{"id":id})
 	var door: Dictionary=listing.components.filter(func(c):return c.id=="f0/north/entrance/door")[0]
-	var window: Dictionary=listing.components.filter(func(c):return c.kind=="window" and c.id.begins_with("f0/north"))[0]
+	var window: Dictionary=listing.components.filter(func(c):return c.kind=="window" and c.id.begins_with("f0/"))[0]
 	var shutter: Dictionary=listing.components.filter(func(c):return c.kind=="shutter")[0]
 	var before:=doc.recovery_snapshot(); var history: int=doc._undo.size()
 	for args in [{"id":id,"component_id":door.id,"open":1.1},{"id":id,"component_id":"missing","open":0},{"id":"missing","component_id":door.id,"open":0}]: await call_tool("set_building_component_state",args,false)

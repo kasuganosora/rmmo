@@ -95,6 +95,10 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 	labels.merge({"door_height":"门洞高度（米）","door_width":"门洞最小宽度（米）","stair_width":"楼梯净宽（米）","stair_landing":"楼梯转角平台深度（米）","corridor_width":"通道最小净宽（米）"})
 	ordered.foundation_depth=parameters.get("foundation_depth",1.0)
 	labels.foundation_depth="地基向下延伸（米）"
+	if layout in ["townhouse","hall"]:
+		for key in ["stair_layout","base_height","curtains"]: ordered[key]=parameters.get(key,Blueprint.defaults()[key])
+		labels.merge({"stair_layout":"楼梯布局","base_height":"室内地面抬高（米）","curtains":"室内窗帘"})
+		choices.stair_layout=[{"id":"switchback","name":"双跑折返"},{"id":"straight","name":"直跑"}]
 	labels.front_canopy="临街遮檐"; labels.dormers="主屋老虎窗数量"
 	if layout!="urban_village": ordered.roof_solver=parameters.get("roof_solver","unified")
 	if layout in ["townhouse","hall"]: ordered.annex_floors=parameters.get("annex_floors",1)

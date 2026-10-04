@@ -6,9 +6,9 @@ uniform sampler3D cloud_base_noise : filter_linear, repeat_enable;
 uniform sampler3D cloud_detail_noise : filter_linear, repeat_enable;
 uniform vec3 cloud_seed_offset = vec3(0.);
 uniform int cloud_quality = 1;
-uniform float cloud_altitude = 600.;
-uniform float cloud_thickness = 550.;
-uniform float cloud_scale = 2400.;
+uniform float cloud_altitude = 1500.;
+uniform float cloud_thickness = 450.;
+uniform float cloud_scale = 1800.;
 uniform float cirrus_amount = .22;
 uniform float cloud_storm = 0.;
 uniform vec4 cloud_flash = vec4(0.);
@@ -95,7 +95,7 @@ vec4 march_clouds(vec3 origin, vec3 ray, bool reflection) {
 		transmittance *= 1.-opacity;
 	}
 	// Atmospheric perspective suppresses long, undersampled horizon paths.
-	float distance_fade = (1.-smoothstep(7000.,22000.,near_t))*smoothstep(.01,.09,abs(ray.y));
+	float distance_fade = (1.-smoothstep(7000.,22000.,near_t))*smoothstep(.025,.18,abs(ray.y));
 	float opacity = (1.-transmittance)*distance_fade;
 	radiance = mix(radiance,horizon*(1.-transmittance),smoothstep(2500.,18000.,near_t)*.75)*distance_fade;
 	return vec4(radiance,opacity);
