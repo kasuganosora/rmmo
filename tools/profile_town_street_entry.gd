@@ -16,6 +16,37 @@ var support_probes:Dictionary={}
 var script_frame_start:=0
 var draw_frame_start:=0
 var engine_frame:Dictionary={}
+var preparation_report_at:=0
+var expect_shadow_gating:=false
+var force_legacy_shadows:=false
+var shadow_comparison:Array=[]
+func compare_shadow_work()->void:
+	# Stationary ABBA in the same loaded scene removes route/residency differences.
+	# Keep graphics settings and all geometry/lights; only restore the old unused
+	# directional shadow flags during legacy samples. Never used by the game.
+	for hour in [12.,0.]:
+		for legacy in [true,false,false,true]:
+			force_legacy_shadows=legacy
+			world._request_environment({"time_hours":hour,"time_speed":0.0})
+			world._weather._apply()
+			for i in 30:await process_frame
+			var rows:Array=[];var previous:=Time.get_ticks_usec()
+			for i in 60:
+				await process_frame
+				var now:=Time.get_ticks_usec()
+				rows.append({"ms":(now-previous)/1000.0,"view":viewport_stats(root),"cpu":RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid()),"gpu":RenderingServer.viewport_get_measured_render_time_gpu(root.get_viewport_rid())})
+				previous=now
+			shadow_comparison.append({"hour":hour,"legacy":legacy,"position":world._player.position,"samples":rows})
+	force_legacy_shadows=false
+	world._request_environment({"time_hours":0.0 if night else 12.0,"time_speed":0.0})
+	world._weather._apply()
+func report_preparation(stage:String)->void:
+	if Time.get_ticks_msec()<preparation_report_at:return
+	preparation_report_at=Time.get_ticks_msec()+10000
+	var batches=world._map_root.get_node_or_null("GroundRenderBatches") if is_instance_valid(world._map_root) else null
+	print("PROFILE_PREP ",stage," stages=",world.loading_profile," nav=",world._navigation.loading_profile if is_instance_valid(world._navigation) else {}," batches_pending=",batches.pending.size() if batches!=null else -1," batch_workers=",batches._workers.size() if batches!=null else -1)
+func viewport_stats(view:Viewport)->Dictionary:
+	return {"visible_calls":view.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),"shadow_calls":view.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),"visible_objects":view.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_OBJECTS_IN_FRAME),"shadow_objects":view.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW,Viewport.RENDER_INFO_OBJECTS_IN_FRAME)}
 func stress_toggle()->void:
 	if not "--toggle" in OS.get_cmdline_user_args() or Time.get_ticks_msec()<toggle_at:return
 	night=not night;var began:=Time.get_ticks_usec()
@@ -26,6 +57,9 @@ func stress_toggle()->void:
 	if not result.get("ok",false):failures+=1
 	var lights:Array=world._weather.streetlamps.lights
 	if lights.size()!=33 or not lights.all(func(light):return light.visible==night):failures+=1;print("FAIL toggle lights ",toggle_count)
+	if expect_shadow_gating:
+		for light:DirectionalLight3D in [world._weather.sun,world._weather.moon]:
+			if light.shadow_enabled!=(bool(world._weather.values.sun_shadows) and light.light_energy>0):failures+=1;print("FAIL celestial shadow state ",toggle_count)
 func tour()->Array:
 	var graph:Dictionary=world._map_root.get_meta("extras").editor_layout.roads
 	var nodes:Dictionary={}
@@ -69,10 +103,17 @@ func sample(previous:int)->int:
 	r["render_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid())
 	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
 	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	r["main_view"]=viewport_stats(root)
+	r["outline_view"]=viewport_stats(world._outline.mask)
+	r["outline_active"]=world._outline.occluded
+	r["outline_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(world._outline.mask.get_viewport_rid())
+	r["outline_gpu"]=RenderingServer.viewport_get_measured_render_time_gpu(world._outline.mask.get_viewport_rid())
+	r["celestial_lights"]={"sun_energy":world._weather.sun.light_energy,"moon_energy":world._weather.moon.light_energy,"sun_visible":world._weather.sun.visible,"moon_visible":world._weather.moon.visible,"sun_shadow":world._weather.sun.shadow_enabled,"moon_shadow":world._weather.moon.shadow_enabled}
 	# Keep the hot path free of synchronous console/JSON output. Printing a
 	# large hitch record here would itself inflate the following frame.
 	return now
 func run()->void:
+	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
 	create_timer(1200 if "--soak" in OS.get_cmdline_user_args() else 540).timeout.connect(func():quit(2));Engine.max_fps=60;root.size=Vector2i(1280,800)
 	if "--no-vsync" in OS.get_cmdline_user_args():DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -89,9 +130,11 @@ func run()->void:
 		session.prepared_world3d=loaded[0];session.world3d_loading=true
 	world=load("res://scenes/world_3d.tscn").instantiate();root.add_child(world)
 	if "--unshared-budget" in OS.get_cmdline_user_args():world.set_meta("profile_unshared_stream_budget",true)
-	while not world.is_world_ready():await process_frame
+	while not world.is_world_ready():
+		report_preparation("world");await process_frame
 	if "--wait-nav" in OS.get_cmdline_user_args():
-		while not world._navigation.fully_ready or world._navigation._surface_index==null:await process_frame
+		while not world._navigation.fully_ready or world._navigation._surface_index==null:
+			report_preparation("navigation");await process_frame
 		print("PASS premeasurement full navigation and support index ready")
 	if "--validate-index" in OS.get_cmdline_user_args():
 		var nav=world._navigation;var rng:=RandomNumberGenerator.new();rng.seed=910237
@@ -116,8 +159,13 @@ func run()->void:
 	world._map_root.set_meta("profile_frame",true)
 	world._map_root.get_node("GroundRenderBatches").set_meta("profile_frame",true)
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(),true)
+	RenderingServer.viewport_set_measure_render_time(world._outline.mask.get_viewport_rid(),true)
 	process_frame.connect(func():script_frame_start=Time.get_ticks_usec())
-	RenderingServer.frame_pre_draw.connect(func():draw_frame_start=Time.get_ticks_usec())
+	RenderingServer.frame_pre_draw.connect(func():
+		if force_legacy_shadows:
+			world._weather.sun.shadow_enabled=bool(world._weather.values.sun_shadows)
+			world._weather.moon.shadow_enabled=bool(world._weather.values.sun_shadows)
+		draw_frame_start=Time.get_ticks_usec())
 	RenderingServer.frame_post_draw.connect(func():engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0})
 	world._request_environment({"time_hours":12.0,"time_speed":0.0})
 	for i in 40:await process_frame
@@ -142,6 +190,7 @@ func run()->void:
 				await process_frame;previous=sample(previous)
 				if Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.45:break
 			check(Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.5,"walk "+str(pass_)+" to "+str(target))
+			if "--shadow-ab" in OS.get_cmdline_user_args() and pass_==0 and target==Vector3(-333,0,8):await compare_shadow_work()
 	if "--drain-nav" in OS.get_cmdline_user_args():
 		var previous:=Time.get_ticks_usec()
 		while not world._navigation.fully_ready:
@@ -154,6 +203,8 @@ func run()->void:
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
 	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()
 	report["shared_stream_budget"]=not "--unshared-budget" in OS.get_cmdline_user_args()
+	report["checked_shadow_gating"]=expect_shadow_gating
+	report["shadow_comparison"]=shadow_comparison
 	report["navigation_drain_frames"]=drain_frames
 	report["navigation_profile"]=world._navigation.loading_profile.duplicate(true)
 	report["surface_queries"]=world._navigation.surface_query_count
@@ -178,4 +229,4 @@ func run()->void:
 	for row:Dictionary in samples:
 		if row.ms>50:hitches.store_line(JSON.stringify(row))
 	hitches.close()
-	report.erase("samples");report.erase("worst");report.erase("toggle_timings");report.erase("click_timings");print("ENTRY_PROFILE ",JSON.stringify(report));world.free();quit(1 if failures else 0)
+	report.erase("samples");report.erase("worst");report.erase("toggle_timings");report.erase("click_timings");report.erase("shadow_comparison");print("ENTRY_PROFILE ",JSON.stringify(report));world.free();quit(1 if failures else 0)

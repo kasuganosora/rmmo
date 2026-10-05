@@ -249,9 +249,14 @@ func _apply() -> void:
 		sun.look_at(sun.global_position-celestial.sun_direction,Vector3.FORWARD)
 		moon.look_at(moon.global_position-celestial.moon_direction,Vector3.FORWARD)
 		sun.light_color = celestial.sun_color; sun.light_energy = celestial.sun_energy*strength
-		moon.light_energy = celestial.moon_energy*strength; moon.shadow_enabled = values.sun_shadows
+		moon.light_energy = celestial.moon_energy*strength
 		environment.ambient_light_color = celestial.ambient_color
 		environment.ambient_light_energy = celestial.ambient_energy*lerpf(.78,1,strength)
+	# A zero-energy directional light still enters Godot's shadow cull/render
+	# passes. Keep the light (and sky direction) but skip its unused shadow map.
+	# Use exact zero: even faint dawn/dusk lighting retains its authored shadows.
+	sun.shadow_enabled = bool(values.sun_shadows) and sun.light_energy > 0.0
+	moon.shadow_enabled = bool(values.sun_shadows) and moon.light_energy > 0.0
 	var cloud_color := background.lerp(Color(.61,.66,.72)*night, .62)
 	var overcast: float = maxf(current.rain*.35, current.storm*.8)
 	var sky_color := background.lerp(Color(.23,.28,.35)*night,overcast)

@@ -6,6 +6,7 @@ Writes a reviewable sibling .md; the original per-frame JSON stays intact.
 
 import argparse
 import json
+import statistics
 from pathlib import Path
 
 
@@ -60,6 +61,28 @@ def main():
             f"{key} {before[key]:.0f} → {after[key]:.0f}" for key in before) + "。",
             "这些计数只用于区分编译阶段；不能将后台 specialization 增加直接等同于同步编译尖峰。"]
     toggles = report.get("toggle_timings", [])
+    if samples and "main_view" in samples[0]:
+        lines += ["", "## 视口绘制工作", "",
+                  "计数为采样附近的一帧；包含阴影级联重复绘制，不能当作房屋或网格总数。",
+                  "", "|视口|可见绘制均值|阴影绘制均值|阴影绘制最大值|",
+                  "|---|---:|---:|---:|"]
+        for key, name in [("main_view", "主视口"), ("outline_view", "角色轮廓")]:
+            lines.append(f"|{name}|{statistics.mean(r[key]['visible_calls'] for r in samples):.1f}|"
+                         f"{statistics.mean(r[key]['shadow_calls'] for r in samples):.1f}|"
+                         f"{max(r[key]['shadow_calls'] for r in samples)}|")
+    if report.get("shadow_comparison"):
+        lines += ["", "## 同位置方向光阴影 ABBA", "",
+                  "仅在诊断阶段恢复旧的零亮度灯阴影；此阶段不计入行走帧统计。",
+                  "", "|时刻|旧阴影|可见绘制均值|阴影绘制均值|帧中位数 ms|渲染 CPU 中位数 ms|GPU 中位数 ms|",
+                  "|---:|---|---:|---:|---:|---:|---:|"]
+        for phase in report["shadow_comparison"]:
+            rows = phase["samples"]
+            lines.append(f"|{phase['hour']}|{phase['legacy']}|"
+                         f"{statistics.mean(r['view']['visible_calls'] for r in rows):.1f}|"
+                         f"{statistics.mean(r['view']['shadow_calls'] for r in rows):.1f}|"
+                         f"{statistics.median(r['ms'] for r in rows):.3f}|"
+                         f"{statistics.median(r['cpu'] for r in rows):.3f}|"
+                         f"{statistics.median(r['gpu'] for r in rows):.3f}|")
     if toggles:
         durations = sorted(row["ms"] for row in toggles)
         lines += ["", "## 连续昼夜切换", "",
