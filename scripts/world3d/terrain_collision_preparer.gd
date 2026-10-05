@@ -1,6 +1,6 @@
 extends RefCounted
 ## Exact triangle slices are cooked and attached with collision disabled. Publish
-## the whole terrain body only after all slices exist, preserving holes and seams.
+## the whole static body only after all slices exist, preserving holes and seams.
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const SLICE_VERTICES:=3072 # A multiple of three: never split a triangle.
 var _thread:Thread
@@ -13,18 +13,25 @@ var _cursor:=0
 var _cached:=false
 var _ready_spec:Dictionary={}
 
-func cancel()->void:
+func cancel(defer_free:bool=false)->void:
 	var pending=_ready_spec.get("prepared_body")
-	if is_instance_valid(pending):pending.free()
+	if is_instance_valid(pending):
+		if defer_free:pending.queue_free()
+		else:pending.free()
 	_ready_spec.erase("prepared_body");_ready_spec={}
-	if is_instance_valid(_body):_body.free()
+	if is_instance_valid(_body):
+		if defer_free:_body.queue_free()
+		else:_body.free()
 	_body=null;_spec={};_faces=PackedVector3Array();_shapes=[];_cursor=0
 	# A CPU-only worker can finish without blocking this frame. Its result is
 	# discarded or joined on the next request/scene exit.
 	if _thread==null:_mesh=null
 
 func finish()->void:
-	cancel()
+	# On tree exit the host may be removing its children, including these sibling
+	# bodies. Do not synchronously remove another child while that parent is busy.
+	# Bodies remain disabled; the host or the deletion queue releases them once.
+	cancel(true)
 	if _thread!=null:_thread.wait_to_finish()
 	_thread=null;_mesh=null
 

@@ -44,12 +44,14 @@ func hint_line()->String:
 
 func _draw()->void:
 	if not is_instance_valid(world) or world._map_data==null:return
+	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	var drawn_shapes:=0
 	draw_rect(Rect2(Vector2.ZERO,size),Color("202b30"))
 	var visible_rect:=Rect2(to_world(Vector2.ZERO),size/scale_factor())
 	var scale:=scale_factor()
 	draw_set_transform(size*.5-center*scale,0,Vector2.ONE*scale)
-	for shape in world._map_data.shapes:
-		if not visible_rect.intersects(shape.bounds):continue
+	for shape in world._map_data.visible_shapes(visible_rect):
+		drawn_shapes+=1
 		draw_colored_polygon(shape.polygon,shape.color)
 		draw_polyline(shape.polygon,shape.color.darkened(.25),1/scale,true)
 	draw_set_transform(Vector2.ZERO)
@@ -88,6 +90,7 @@ func _draw()->void:
 	draw_colored_polygon(PackedVector2Array([p+direction*8,p-direction*5+side*5,p-direction*5-side*5]),Color("fff1ad"))
 	draw_string(ThemeDB.fallback_font,Vector2(8,18),"N ↑",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
 	if not radar:draw_string(ThemeDB.fallback_font,Vector2(8,size.y-8),"绿：友方  红：敌方  紫：传送  青：标记",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
+	if started>0:set_meta("draw_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"shapes":drawn_shapes,"candidates":world._map_data.last_query_candidates,"indexed":world._map_data.last_query_indexed})
 
 func _input_map(event:InputEvent)->void:
 	if not is_instance_valid(world):return

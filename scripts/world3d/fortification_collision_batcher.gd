@@ -15,6 +15,8 @@ var _shape_cache: Dictionary={}
 var _cache_triangles:=0
 var cache_hits:=0
 var cache_misses:=0
+var last_sync_frame:=-1
+var sync_count:=0
 
 static func candidate(record: Dictionary) -> bool:
 	for field in ["target_path","npc_id","node_id"]:
@@ -53,6 +55,7 @@ func _remember(key: String,value: Dictionary) -> void:
 	_shape_cache[key]=value; _cache_triangles+=value.triangles
 
 func sync(entries: Array) -> void:
+	last_sync_frame=Engine.get_process_frames();sync_count+=1
 	var started:=Time.get_ticks_usec(); var desired: Dictionary={}
 	profile={"prepare_ms":0.,"faces_us":0,"shape_us":0,"install_us":0}
 	entries=entries.duplicate()

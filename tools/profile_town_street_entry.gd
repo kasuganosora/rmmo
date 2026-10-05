@@ -20,6 +20,17 @@ var preparation_report_at:=0
 var expect_shadow_gating:=false
 var force_legacy_shadows:=false
 var shadow_comparison:Array=[]
+class PhysicsMeter extends Node:
+	var began:=0
+	var ended:=0
+	var total_ms:=0.0
+	var max_ms:=0.0
+	var steps:=0
+	func _physics_process(_delta:float)->void:
+		ended=Time.get_ticks_usec()
+		var elapsed:float=(ended-began)/1000.0
+		total_ms+=elapsed;max_ms=maxf(max_ms,elapsed);steps+=1
+var physics_meter:PhysicsMeter
 func compare_shadow_work()->void:
 	# Stationary ABBA in the same loaded scene removes route/residency differences.
 	# Keep graphics settings and all geometry/lights; only restore the old unused
@@ -88,12 +99,18 @@ func sample(previous:int)->int:
 	var r:Dictionary={"ms":(now-previous)/1000.0,"position":world._player.position,"gpu":RenderingServer.viewport_get_measured_render_time_gpu(root.get_viewport_rid()),"process":Performance.get_monitor(Performance.TIME_PROCESS)*1000,"physics":Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000,"parts":world.get_meta("frame_timings",{}),"batch_count":batcher.sync_count,"batch_ms":batcher.last_sync_ms,"batch_profile":batcher.sync_profile.duplicate(),"batch_slice":batcher.last_prepare_slice_ms,"batch_commit":batcher.last_commit_ms,"nav":world._navigation.loading_profile.get("nearby_refreshes",0)}
 	samples.append(r)
 	r["pass"]=pass_index;r["night"]=night
+	r["physics_work"]={"script_ms":physics_meter.total_ms,"max_step_ms":physics_meter.max_ms,"steps":physics_meter.steps,"tail_ms":(now-physics_meter.ended)/1000.0,"frame":Engine.get_physics_frames()}
+	r["motion"]=world._player.get_meta("motion_timing",{})
+	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
 	r["nav_background"]=world._navigation.get_meta("background_timing",{})
 	r["nav_publication"]=world._navigation.get_meta("publication_timing",{})
 	r["nav_full"]=world._navigation.fully_ready
 	r["tiles_remaining"]=world._navigation.loading_profile.get("tiles_remaining",-1)
 	r["surface_query"]=world._navigation.get_meta("surface_query_timing",{})
 	r["body_count"]=world._map_root.get_meta("stream_bodies",{}).size()
+	r["residency"]={"meshes":world._map_root.get_meta("stream_meshes",{}).size(),"fort_sources":world._map_root.get_meta("fortification_collision_sources",{}).size(),"cursor":world._map_root.get_meta("stream_cursor",0),"jobs":world._map_root.get_meta("stream_jobs",[]).size(),"settled":world._map_root.has_meta("stream_chunk")}
+	var fort=world._map_root.get_node_or_null("FortificationCollisionBatches")
+	if fort!=null:r["fort_collision"]={"frame":fort.last_sync_frame,"ms":fort.last_sync_ms,"syncs":fort.sync_count,"rebuilds":fort.rebuild_count,"groups":fort.groups.size(),"profile":fort.profile.duplicate()}
 	r["nodes"]=Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
 	r["memory_mib"]=Performance.get_monitor(Performance.MEMORY_STATIC)/1048576.0
 	r["weather"]=world._weather.get_meta("frame_timing",{})
@@ -101,8 +118,10 @@ func sample(previous:int)->int:
 	r["toggles"]=toggle_count
 	r["engine"]=engine_frame
 	r["render_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid())
+	r["render_setup_cpu"]=RenderingServer.get_frame_setup_time_cpu()
 	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
 	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	r["radar"]=world._hud._radar.get_meta("draw_timing",{})
 	r["main_view"]=viewport_stats(root)
 	r["outline_view"]=viewport_stats(world._outline.mask)
 	r["outline_active"]=world._outline.occluded
@@ -112,6 +131,33 @@ func sample(previous:int)->int:
 	# Keep the hot path free of synchronous console/JSON output. Printing a
 	# large hitch record here would itself inflate the following frame.
 	return now
+func probe_collision_candidates()->void:
+	# Isolate each resident collision candidate using a temporary physics bit.
+	# No map records are edited; restore every body layer before returning.
+	var player:CharacterBody3D=world._player
+	var pose:=player.global_transform;pose.origin=Vector3(-336.487,.90083,15.96885)
+	var old_mask:=player.collision_mask
+	var baseline:=Time.get_ticks_usec()
+	for i in 30:player.test_move(pose,Vector3(.015,-.003,.06))
+	print("COLLISION_ALL_MS ",(Time.get_ticks_usec()-baseline)/30000.0)
+	player.collision_mask=1<<19
+	var rows:Array=[]
+	var bodies:Dictionary=world._map_root.get_meta("stream_bodies",{})
+	for spec:Dictionary in world._map_root.get_meta("stream_library",[]):
+		var body:StaticBody3D=bodies.get(str(spec.uuid))
+		if body==null:continue
+		var source:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+		if source==null or not source.get_aabb().grow(1).has_point(body.global_transform.affine_inverse()*pose.origin):continue
+		var layer:=body.collision_layer;body.collision_layer=1<<19
+		var began:=Time.get_ticks_usec()
+		for i in 30:player.test_move(pose,Vector3(.015,-.003,.06))
+		var elapsed:float=(Time.get_ticks_usec()-began)/30000.0
+		body.collision_layer=layer
+		rows.append({"uuid":spec.uuid,"ms":elapsed,"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
+	player.collision_mask=old_mask
+	rows.sort_custom(func(a,b):return a.ms>b.ms)
+	print("COLLISION_CANDIDATES ",JSON.stringify(rows))
+	FileAccess.open(OUT.path_join(label_+"_collision_candidates.json"),FileAccess.WRITE).store_string(JSON.stringify(rows,"  "))
 func run()->void:
 	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
@@ -122,6 +168,8 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(OUT)
 	preload("res://tools/world3d_test_character.gd").ensure(self)
 	var session=root.get_node("GameSession");session.world3d_map_path=MAP;session.world3d_spawn=Vector3(-114.9,.9,-1.7)
+	if "--street-end" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-333,.9,-24)
+	if "--fortifications" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-575,.9,-96)
 	if "--native" in OS.get_cmdline_user_args():
 		var loader=preload("res://scripts/world3d/map_loader.gd").new();root.add_child(loader);loader.start(MAP)
 		var loaded:Array=await loader.finished
@@ -132,6 +180,30 @@ func run()->void:
 	if "--unshared-budget" in OS.get_cmdline_user_args():world.set_meta("profile_unshared_stream_budget",true)
 	while not world.is_world_ready():
 		report_preparation("world");await process_frame
+	var flat_live:=0
+	for spec:Dictionary in world._map_root.get_meta("stream_library",[]):
+		var body:Node=world._map_root.get_meta("stream_bodies",{}).get(str(spec.uuid))
+		if body==null:continue
+		var flat:Dictionary=preload("res://scripts/world3d/flat_terrain_collision.gd").descriptor(spec)
+		if not flat.is_empty():
+			flat_live+=1
+			check(body.get_child_count()==1 and body.get_child(0) is CollisionShape3D and body.get_child(0).shape is BoxShape3D,"resident flat terrain primitive "+str(spec.uuid))
+		if str(spec.uuid)=="town_terrain_1_3":print("HOTSPOT_COLLISION ",{"flat":not flat.is_empty(),"record":spec.get("ground_batch_record",{}).keys(),"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
+	print("FLAT_TERRAIN_RESIDENT ",flat_live)
+	if "--collision-probe" in OS.get_cmdline_user_args():
+		probe_collision_candidates();world.free();quit(1 if failures else 0);return
+	if "--slice-resident" in OS.get_cmdline_user_args():
+		# Diagnostic replacement of the measured hotspot's initially loaded body.
+		# Keep exact triangles and leave the old collider active until ready.
+		var spec:Dictionary=world._map_root.get_meta("stream_library").filter(func(s):return str(s.uuid)=="town_terrain_1_3")[0]
+		var bodies:Dictionary=world._map_root.get_meta("stream_bodies")
+		var old:Node=bodies[spec.uuid]
+		var preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new();world._map_root.add_child(preparer)
+		while not preparer.prepare(spec,world):await process_frame
+		bodies[spec.uuid]=preload("res://scripts/world3d/world_stream.gd")._make_body(world,spec)
+		old.free()
+		await physics_frame;await physics_frame
+		print("PASS diagnostic resident exact slices ",bodies[spec.uuid].get_child_count())
 	if "--wait-nav" in OS.get_cmdline_user_args():
 		while not world._navigation.fully_ready or world._navigation._surface_index==null:
 			report_preparation("navigation");await process_frame
@@ -153,14 +225,18 @@ func run()->void:
 		check(mismatches==0 and accepted>0,"actual town surface certificates agree with engine: "+str(support_probes))
 	if "--pause-nav" in OS.get_cmdline_user_args():world._navigation.set_process(false)
 	world.set_meta("profile_frame",true)
+	world._player.set_meta("profile_frame",true)
 	world._navigation.set_meta("profile_frame",true)
 	world._weather.set_meta("profile_frame",true)
 	world._weather.streetlamps.set_meta("profile_frame",true)
 	world._map_root.set_meta("profile_frame",true)
+	world._hud._radar.set_meta("profile_frame",true)
 	world._map_root.get_node("GroundRenderBatches").set_meta("profile_frame",true)
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(),true)
 	RenderingServer.viewport_set_measure_render_time(world._outline.mask.get_viewport_rid(),true)
 	process_frame.connect(func():script_frame_start=Time.get_ticks_usec())
+	physics_meter=PhysicsMeter.new();physics_meter.process_physics_priority=1000000;root.add_child(physics_meter)
+	physics_frame.connect(func():physics_meter.began=Time.get_ticks_usec())
 	RenderingServer.frame_pre_draw.connect(func():
 		if force_legacy_shadows:
 			world._weather.sun.shadow_enabled=bool(world._weather.values.sun_shadows)
@@ -169,7 +245,10 @@ func run()->void:
 	RenderingServer.frame_post_draw.connect(func():engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0})
 	world._request_environment({"time_hours":12.0,"time_speed":0.0})
 	for i in 40:await process_frame
+	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
 	var paths:Array=[Vector3(-144,0,-9),Vector3(-175,0,-16),Vector3(-206,0,-24),Vector3(-238,0,-32),Vector3(-269,0,-40),Vector3(-300,0,-47),Vector3(-329,0,-54.6),Vector3(-333,0,-24),Vector3(-333,0,8),Vector3(-327,0,40)]
+	if "--street-end" in OS.get_cmdline_user_args():paths=[Vector3(-333,0,8),Vector3(-327,0,40),Vector3(-333,0,8),Vector3(-333,0,-24)]
+	if "--fortifications" in OS.get_cmdline_user_args():paths=[Vector3(-584,0,-64),Vector3(-590,0,-32),Vector3(-591,0,0),Vector3(-591,0,32),Vector3(-587,0,64),Vector3(-582,0,96),Vector3(-574,0,128),Vector3(-566,0,160)]
 	if "--short" in OS.get_cmdline_user_args():paths=paths.slice(0,2)
 	var passes:=10 if "--explore" in OS.get_cmdline_user_args() else (8 if "--soak" in OS.get_cmdline_user_args() else (1 if "--short" in OS.get_cmdline_user_args() else 2))
 	for arg in OS.get_cmdline_user_args():
@@ -201,6 +280,10 @@ func run()->void:
 	var report:={"loader":"native" if "--native" in OS.get_cmdline_user_args() else "direct_gltf","short_route":"--short" in OS.get_cmdline_user_args(),"navigation_paused":"--pause-nav" in OS.get_cmdline_user_args(),"failures":failures,"samples":samples,"median":sorted[sorted.size()/2],"p95":sorted[int(sorted.size()*.95)],"p99":sorted[int(sorted.size()*.99)],"max":sorted.back(),"over50":sorted.filter(func(x):return x>50).size(),"worst":worst.slice(0,20),"map":FileAccess.get_sha256(MAP)}
 	report["navigation_fully_ready"]=world._navigation.fully_ready
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
+	report["script_debugger_active"]=EngineDebugger.is_active()
+	report["surface_query_frame_domain"]="physics" # Other instrumented frame IDs use process frames.
+	report["route"]="fortifications" if "--fortifications" in OS.get_cmdline_user_args() else ("street_end" if "--street-end" in OS.get_cmdline_user_args() else "streets")
+	report["resident_slice_probe"]="--slice-resident" in OS.get_cmdline_user_args()
 	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()
 	report["shared_stream_budget"]=not "--unshared-budget" in OS.get_cmdline_user_args()
 	report["checked_shadow_gating"]=expect_shadow_gating

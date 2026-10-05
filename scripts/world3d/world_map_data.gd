@@ -5,6 +5,55 @@ var shapes:Array=[]
 var markers:Array=[]
 var title:="三维地图"
 var pins:Array[Vector2]=[]
+const SHAPE_CELL_SIZE:=64.0
+const MAX_SHAPE_CELLS:=64
+var _shape_cells:Dictionary={}
+var _large_shapes:Array[int]=[]
+var _indexed_shape_count:=-1
+var last_query_candidates:=0
+var last_query_indexed:=false
+
+func rebuild_shape_index()->void:
+	_shape_cells.clear();_large_shapes.clear()
+	_indexed_shape_count=shapes.size()
+	for i in shapes.size():
+		var rect:Rect2=shapes[i].bounds
+		var low:=Vector2i((rect.position/SHAPE_CELL_SIZE).floor())
+		var high:=Vector2i((rect.end/SHAPE_CELL_SIZE).floor())
+		# Large terrain pieces remain a short shared list rather than creating
+		# thousands of cells. The index never clips or changes their footprints.
+		if (high.x-low.x+1)*(high.y-low.y+1)>MAX_SHAPE_CELLS:
+			_large_shapes.append(i);continue
+		for y in range(low.y,high.y+1):
+			for x in range(low.x,high.x+1):
+				var cell:=Vector2i(x,y)
+				if not _shape_cells.has(cell):_shape_cells[cell]=[]
+				_shape_cells[cell].append(i)
+
+func visible_shapes(rect:Rect2)->Array:
+	last_query_candidates=0;last_query_indexed=false
+	if not rect.position.is_finite() or not rect.size.is_finite() or rect.size.x<=0 or rect.size.y<=0:return []
+	var low:=Vector2i((rect.position/SHAPE_CELL_SIZE).floor())
+	var high:=Vector2i((rect.end/SHAPE_CELL_SIZE).floor())
+	var cell_count:=(high.x-low.x+1)*(high.y-low.y+1)
+	# Full-map overview and unindexed test data are cheaper to scan once than
+	# probing a very large rectangle of cells. Exact intersection is identical.
+	if _indexed_shape_count!=shapes.size() or cell_count>mini(4096,_shape_cells.size()):
+		last_query_candidates=shapes.size()
+		return shapes.filter(func(shape):return rect.intersects(shape.bounds))
+	last_query_indexed=true
+	var candidates:Dictionary={}
+	for i in _large_shapes:candidates[i]=true
+	for y in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			for i in _shape_cells.get(Vector2i(x,y),[]):candidates[i]=true
+	last_query_candidates=candidates.size()
+	var ordered:Array=candidates.keys();ordered.sort()
+	var result:Array=[]
+	# Shape IDs are their original painter order, including equal-height ties.
+	for i:int in ordered:
+		if rect.intersects(shapes[i].bounds):result.append(shapes[i])
+	return result
 
 func build(root:Node)->void:
 	shapes.clear();markers.clear()
@@ -39,6 +88,7 @@ func build(root:Node)->void:
 		if kind=="water":color=Color("4b7888")
 		shapes.append({"polygon":polygon,"bounds":rect,"color":color,"height":world_box.end.y})
 	shapes.sort_custom(func(a,b):return a.height<b.height)
+	rebuild_shape_index()
 	if first:bounds=Rect2(-10,-10,20,20)
 	bounds=bounds.grow(2)
 

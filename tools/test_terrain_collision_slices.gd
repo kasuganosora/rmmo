@@ -21,6 +21,10 @@ func run()->void:
 	var host:=Node3D.new();root.add_child(host)
 	var preparer:=Preparer.new();root.add_child(preparer)
 	var spec:={"uuid":"terrain","mesh":cpu,"ground_batch_record":{"terrain_mesh":{}},"transform":Transform3D(Basis.IDENTITY,Vector3(100,0,100))}
+	if "--baked-static" in OS.get_cmdline_user_args():
+		spec.erase("ground_batch_record")
+		spec.extras={"fortification":{"role":"prefab"},"rmmo_collision":"walk"}
+		print("FIXTURE baked static collision without a terrain authoring record")
 	var deadline:=Time.get_ticks_msec()+15000;var hidden:=true;var steps:=0
 	while not preparer.prepare(spec,host) and Time.get_ticks_msec()<deadline:
 		steps+=1

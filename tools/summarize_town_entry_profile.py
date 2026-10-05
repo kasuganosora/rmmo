@@ -26,6 +26,8 @@ def main():
         f"整图导航完成：{report.get('navigation_fully_ready', '未记录')}；"
         f"诊断暂停导航：{report.get('navigation_paused', False)}。",
         "",
+        f"路线：{report.get('route', 'streets')}；昼夜切换次数：{report.get('toggle_count', 0)}。",
+        "",
         f"共 {len(samples):,} 帧；中位数 {report['median']:.3f} ms，"
         f"P95 {report['p95']:.3f} ms，P99 {report['p99']:.3f} ms，"
         f"最长 {report['max']:.3f} ms，超过 50 ms 共 {report['over50']} 帧。",
@@ -49,9 +51,25 @@ def main():
             f"{row['median']:.3f}|{row['p95']:.3f}|{row['p99']:.3f}|"
             f"{row['max']:.3f}|{row['over50']}|"
         )
+    if report.get("script_debugger_active"):
+        lines += ["", "本次启用了脚本调试器，仅用于热点诊断，不与普通运行比较帧时间。"]
+    # A radar draw can remain in metadata for several frames. Count its engine
+    # frame once, rather than weighting slow redraws by repeated stale samples.
+    radar = {row["radar"]["frame"]: row["radar"] for row in samples
+             if row.get("radar") and "frame" in row["radar"]}
+    if radar:
+        events = list(radar.values())
+        durations = sorted(row["ms"] for row in events)
+        lines += ["", "## 小地图重绘", "",
+                  f"按引擎帧去重后 {len(events)} 次；中位数 {statistics.median(durations):.3f} ms，"
+                  f"P99 {durations[int(len(durations)*.99)]:.3f} ms，最长 {durations[-1]:.3f} ms。",
+                  f"候选形状中位数 {statistics.median(row['candidates'] for row in events):g}，"
+                  f"实际绘制中位数 {statistics.median(row['shapes'] for row in events):g}；"
+                  f"空间索引查询 {sum(bool(row.get('indexed')) for row in events)} 次。",
+                  "重绘记录可能来自较早帧，不能直接归因于同一行采样的整帧尖峰。"]
     if "terrain_slicing" in report:
         streams = sorted(row.get("parts", {}).get("stream", 0) for row in samples)
-        lines += ["", f"地形碰撞分片：{report['terrain_slicing']}；"
+        lines += ["", f"碰撞分片开关：{report['terrain_slicing']}；"
                   f"流式/合批共享预算：{report.get('shared_stream_budget', False)}。",
                   f"采样中的流式阶段 P99 {streams[int(len(streams)*.99)]:.3f} ms，"
                   f"最长 {streams[-1]:.3f} ms。分段监视器可能来自邻近帧，不能相加。"]

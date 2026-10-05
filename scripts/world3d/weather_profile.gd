@@ -47,11 +47,17 @@ static func drift_at(state: Dictionary, now: float) -> Vector2:
 	var start: float = state.transition_at
 	var end := minf(now,start+float(state.environment.weather_transition))
 	var displacement := Vector3.ZERO
+	var duration:float=state.environment.weather_transition
+	var target_wind:Vector3=sample(state.environment).wind
 	# Fixed quadrature is shared by server and clients, independent of frame rate.
 	if end > start:
+		var source_wind:Vector3=decode(state.source_profile).wind
 		var step := (end-start)/16.0
 		for i in 16:
 			var t := start+(i+.5)*step
-			displacement += at(state,t).wind*gust(t)*step
-	if now > end: displacement += sample(state.environment).wind*gust_integral(maxf(start,end),now)
+			# Only wind participates in this integral. Reuse the two endpoints
+			# instead of rebuilding and blending entire weather dictionaries 16 times.
+			var weight:=clampf((t-start)/maxf(.001,duration),0,1) if duration>0 else 1.0
+			displacement += source_wind.lerp(target_wind,weight*weight*(3-2*weight))*gust(t)*step
+	if now > end: displacement += target_wind*gust_integral(maxf(start,end),now)
 	return Vector2(state.wind_origin[0],state.wind_origin[1])+Vector2(displacement.x,displacement.z)*.0006

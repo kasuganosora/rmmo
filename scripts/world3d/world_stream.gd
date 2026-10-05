@@ -171,6 +171,7 @@ static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dic
 	if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):return true
 	var extras:Dictionary=spec.get("extras",{})
 	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
+	if not preload("res://scripts/world3d/flat_terrain_collision.gd").descriptor(spec).is_empty():return true
 	if FortCollision.candidate(spec.get("ground_batch_record",{})):return true
 	var preparer:Node=map_root.get_node_or_null("StreamCollisionPreparer")
 	if preparer==null:
@@ -566,6 +567,12 @@ static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> Stat
 	if mesh == null:
 		body.free()
 		return null
+	var flat:Dictionary=preload("res://scripts/world3d/flat_terrain_collision.gd").descriptor(spec)
+	if not flat.is_empty():
+		shape.shape=flat.shape;shape.position=flat.offset;body.add_child(shape)
+		host.add_child(body);body.global_transform=spec.get("transform",body.transform)
+		if profile:spec.profile_body={"flat_box_ms":(Time.get_ticks_usec()-profile_started)/1000.0}
+		return body
 	# A bounding box is not a collision mesh: it would fill arches and stairs.
 	# Cache the static shape in the document view spec across residency changes.
 	if not spec.has("shape"):

@@ -42,6 +42,9 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 		return {"ok": false, "reason": "duplicate_tick"}
 	_last_tick = Engine.get_physics_frames()
 	_sequence = sequence
+	var profiling:bool=body.has_meta("profile_frame")
+	var started:=Time.get_ticks_usec() if profiling else 0
+	var landing_done:=started
 	var dt: float = body.get_physics_process_delta_time()
 	var multiplier := clampf(float(speed_multiplier.call()), 0.0, 3.0) if speed_multiplier.is_valid() else 1.0
 	var wish := Vector3(direction.x, 0, direction.z).limit_length(1.0) * clampf(speed, 0, Motion.RUN_MPS) * multiplier
@@ -52,20 +55,33 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 	if wish.length_squared()>0:
 		var next:=feet+wish*dt
 		var landing:=_landing_below(body,next+wish.normalized()*.32)
+		if profiling:landing_done=Time.get_ticks_usec()
 		if landing.is_empty():
 			wish=Vector3.ZERO # No supporting map surface below: retain edge protection.
 		elif not navigation.near_surface(next,.35,.65) and not navigation.near_surface(landing.position,.55,.65):
 			wish=Vector3.ZERO
+	var support_done:=Time.get_ticks_usec() if profiling else 0
 	if jump and body.is_on_floor():body.velocity.y=4.8
 	if body.velocity.y<=0 and wish.length_squared() > 0.0 and body.test_move(body.global_transform, wish * dt):
 		_step_up(body, feet, wish, dt)
 		feet = body.global_position - Vector3(0, 0.9, 0)
+	var step_done:=Time.get_ticks_usec() if profiling else 0
 	body.velocity.x = wish.x
 	body.velocity.z = wish.z
 	body.velocity.y -= 9.8 * dt
 	body.move_and_slide()
+	var move_done:=Time.get_ticks_usec() if profiling else 0
 	body._sense_surface()
 	_publish(body)
+	if profiling:
+		var timing:={"frame":Engine.get_physics_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"support_ms":(support_done-started)/1000.0,"landing_ms":(landing_done-started)/1000.0,"navigation_ms":(support_done-landing_done)/1000.0,"step_ms":(step_done-support_done)/1000.0,"move_ms":(move_done-step_done)/1000.0,"sense_ms":(Time.get_ticks_usec()-move_done)/1000.0}
+		if timing.ms>2.0:
+			timing.contacts=[]
+			for i in body.get_slide_collision_count():
+				var hit:KinematicCollision3D=body.get_slide_collision(i)
+				var collider:Object=hit.get_collider()
+				timing.contacts.append({"uuid":collider.get_meta("uuid","") if is_instance_valid(collider) else "","normal":hit.get_normal(),"position":hit.get_position(),"shape":str(hit.get_collider_shape()),"shape_type":hit.get_collider_shape().shape.get_class() if hit.get_collider_shape() is CollisionShape3D else ""})
+		body.set_meta("motion_timing",timing)
 	return {"ok": true, "sequence": sequence, "location": snapshot.duplicate(true)}
 
 
