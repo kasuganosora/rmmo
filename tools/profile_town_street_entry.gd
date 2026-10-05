@@ -67,10 +67,13 @@ func sample(previous:int)->int:
 	r["toggles"]=toggle_count
 	r["engine"]=engine_frame
 	r["render_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid())
+	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
+	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
 	# Keep the hot path free of synchronous console/JSON output. Printing a
 	# large hitch record here would itself inflate the following frame.
 	return now
 func run()->void:
+	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
 	create_timer(1200 if "--soak" in OS.get_cmdline_user_args() else 540).timeout.connect(func():quit(2));Engine.max_fps=60;root.size=Vector2i(1280,800)
 	if "--no-vsync" in OS.get_cmdline_user_args():DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	for arg in OS.get_cmdline_user_args():
@@ -85,6 +88,7 @@ func run()->void:
 		if loaded[0]==null:quit(1);return
 		session.prepared_world3d=loaded[0];session.world3d_loading=true
 	world=load("res://scenes/world_3d.tscn").instantiate();root.add_child(world)
+	if "--unshared-budget" in OS.get_cmdline_user_args():world.set_meta("profile_unshared_stream_budget",true)
 	while not world.is_world_ready():await process_frame
 	if "--wait-nav" in OS.get_cmdline_user_args():
 		while not world._navigation.fully_ready or world._navigation._surface_index==null:await process_frame
@@ -148,6 +152,8 @@ func run()->void:
 	var report:={"loader":"native" if "--native" in OS.get_cmdline_user_args() else "direct_gltf","short_route":"--short" in OS.get_cmdline_user_args(),"navigation_paused":"--pause-nav" in OS.get_cmdline_user_args(),"failures":failures,"samples":samples,"median":sorted[sorted.size()/2],"p95":sorted[int(sorted.size()*.95)],"p99":sorted[int(sorted.size()*.99)],"max":sorted.back(),"over50":sorted.filter(func(x):return x>50).size(),"worst":worst.slice(0,20),"map":FileAccess.get_sha256(MAP)}
 	report["navigation_fully_ready"]=world._navigation.fully_ready
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
+	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()
+	report["shared_stream_budget"]=not "--unshared-budget" in OS.get_cmdline_user_args()
 	report["navigation_drain_frames"]=drain_frames
 	report["navigation_profile"]=world._navigation.loading_profile.duplicate(true)
 	report["surface_queries"]=world._navigation.surface_query_count

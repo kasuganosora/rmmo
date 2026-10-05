@@ -25,6 +25,8 @@ var _audit_keys:Array=[]
 var _building_meshes:Dictionary={}
 var building_mesh_hits:=0
 var work_budget_usec:=2000
+var residency_budget_frame:=-1
+var residency_budget_remaining_usec:=2000
 # Residency requests prepare on the main thread in bounded slices. Existing
 # batches stay visible until replacement membership is ready; workers still only
 # receive immutable geometry snapshots. Editor sync/flush remain synchronous.
@@ -281,8 +283,13 @@ func _process(_delta: float) -> void:
 	# Several cheap instance groups fit in one frame; one group per frame adds
 	# seconds of artificial latency to a city even when no CPU work is pending.
 	var started:=Time.get_ticks_usec()
-	_prepare_step(work_budget_usec)
-	while Time.get_ticks_usec()-started<work_budget_usec:
+	var allowed:=work_budget_usec
+	if residency_budget_frame==Engine.get_process_frames():allowed=mini(allowed,residency_budget_remaining_usec)
+	# Runtime collision/residency and batch upload share a frame allowance.
+	# Source visuals and current batches remain valid while this work is deferred.
+	if allowed<=0:return
+	_prepare_step(allowed)
+	while Time.get_ticks_usec()-started<allowed:
 		var ready: int=_workers.find_custom(func(job):return not job.thread.is_alive())
 		if ready>=0: _finish_worker(ready); continue
 		if _workers.size()>=MAX_WORKERS:

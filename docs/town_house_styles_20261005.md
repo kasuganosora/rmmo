@@ -173,3 +173,46 @@ CPU 碰撞三角面直接按原索引展开，避免为了读取面列表额外�
 最终日志：`town_toggle_index_final.log`、`town_toggle_index_final_live.log`；几何/缓存回归分别为 `toggle_surface_index_final_test.log`、`toggle_surface_cache_final_test.log`，均通过，6,000 点合成对照零错误放行。键盘另经后台 GPU 复测，90 个物理帧前进 2.373 米并保持落地，失败数 0，见 `toggle_acceptance/keyboard_result.json` 和 `town_toggle_keyboard_live.log`。本轮未重复宣称上一轮十户全套美术/功能验收，未关闭已有导航边重叠警告。
 
 正式地图 SHA-256 再次核对为 `c2cff683fc01291c1cc35b3a7ccaed3853c03298d2de665aa3f938135450dedb`，未写入内容修改。运行中的旧游戏进程需要重启才能使用新脚本。
+
+## 推送检查点后的碰撞与区块调度优化（2026-10-05）
+
+按用户要求，先将当前源码和文档检查点 `95e87b93` 推送到 `origin/codex/3d-world`，再继续性能修改。资源包、原图和运行日志遵循仓库既有忽略规则，未当作源码提交；同期另一个桥梁场景制作脚本保留在工作区。
+
+上一轮日志的明确热点是 `town_terrain_*`：约 50,688 个碰撞顶点整块 `set_faces` 可到 25.473 ms，接入物理世界另约 11 ms。新增 `terrain_collision_preparer.gd` 保留原始三角面顺序和绕序，每片最多 3,072 个顶点，先在线程提取不可变 CPU 数据，再在主线程按约 1.5 ms 预算构建并接入切片。准备中的整个 StaticBody 碰撞层和掩码均为 0，全部切片完成后由原流式操作一次性启用；UUID、位置、地表身份和作者留下的洞口不变。折返取消清理未发布物理体，线程结束结果不写入新目标，退出会回收；返回相同地块复用已完成的不可变形状，替代后释放 spec 原先保留的整块形状引用。同步编辑器/加载调用保持立即完成。
+
+独立形状试验 `tools/benchmark_collision_slices.gd`：50,784 个顶点整块准备与接入合计 24.838 ms；切片后单次最高 2.785 ms、累计 21.699 ms，最终启用 0.008 ms。这只验证细分操作的可行性，不能代替场景帧率。`test_terrain_collision_slices.gd` 验证逐顶点一致、切片接缝与洞口射线、未发布体不碰撞、身份和变换、缓存复用、两种取消时机及线程退出，全部通过；`test_stream_delta.gd` 的中途折返与同步收尾集合对照也通过。
+
+### Minecraft 与 Godot 大型场景资料核对
+
+这里的 MC 按 Minecraft 理解。参考一手项目资料与代码，不把第三方渲染模组等同于原版引擎，也不直接搬用其实现：
+
+- [Sodium 的 RenderSectionManager](https://github.com/CaffeineMC/sodium/blob/dev/common/src/main/java/net/caffeinemc/mods/sodium/client/render/chunk/RenderSectionManager.java)：区块构建区分紧急与延迟任务，CPU 任务容量和上传开销分别受预算约束。适用结论是后台计算完成不等于可以不受限制地在一帧提交；不照搬其具体常量或 Minecraft 距离。
+- [Voxel Tools 性能文档](https://voxel-tools.readthedocs.io/en/latest/performance/)：说明主线程任务时间预算、碰撞形状加速结构成本，以及大量 Vulkan 网格释放可能集中到帧末。它对部分旧版本的观察不能直接证明本项目当前驱动的原因；碰撞问题已用本机测量复现，网格释放仅保留为待证实的定位方向。
+- [VoxelEngine 调度实现](https://github.com/Zylann/godot_voxel/blob/master/engine/voxel_engine.cpp)：完成队列与 `TimeSpreadTaskRunner` 分离，并用主线程时间预算推进任务。借鉴的是统一计量接入成本的原则，未引入该扩展或改变项目物理线程模式。
+- [Godot 线程安全说明](https://docs.godotengine.org/en/4.6/tutorials/performance/thread_safe_apis.html)：活动场景树和默认物理服务器不能随意从工作线程操作。因此本轮线程只展开私有 CPU 几何，Shape/StaticBody 仍在主线程分片处理。
+- [Godot 3D 性能指南](https://docs.godotengine.org/en/stable/tutorials/performance/optimizing_3d_performance.html)：按空间粒度组织渲染与减少提交开销适用于城镇，但整栋合并会破坏既定楼层/屋顶遮挡和活动门窗，仍保留现有分组语义。
+
+据此追加共享预算：正常游戏的流式接入耗时从 3 ms 后台额度中扣除，`GroundRenderBatches` 只使用剩余额度且自身不超过原有 2 ms。这不是全引擎硬性 3 ms 上限：不可拆单次操作和导航/其他逻辑仍独立计时。余额不足时保留原有画面并推迟合批准备/上传；编辑器 `sync/flush` 不受运行时预算影响。生命周期回归新增余额耗尽不隐藏旧画面、同步重建忽略运行时额度等检查，全部通过。
+
+压力测试工具新增诊断参数 `--legacy-collision` 与 `--unshared-budget`，用于在同一份当前代码、同一导航缓存条件下关闭这两项优化做 A/B；正常游戏默认启用，两参数不会改项目配置。原始报告记录开关值，测试结束后再写逐帧和尖峰日志。
+
+### 分片、共享预算的完整实测与限制
+
+以下四次完整测试均为原生加载、全图导航就绪、正常 VSync、两轮共 20 段点击行走，每次切换检查全部 33 盏灯，功能失败均为 0。测试依次运行，期间未并行启动本任务其他 GPU/逻辑回归，但未控制用户其他应用。报告在同一 `town_street_entry_20261005` 目录，原始数据均保留：
+
+| 报告 | 配置 | 昼夜切换 | 帧中位数 / P95 / P99 ms | 最长帧 ms | >50 ms | 最长流式阶段 ms |
+| --- | --- | ---: | --- | ---: | ---: | ---: |
+| `terrain_slices_warm` | 仅地形分片 | 1,303 | 18.083 / 34.199 / 52.715 | 151.469 | 84 | 5.626 |
+| `terrain_legacy_ab` | A/B 关闭分片与共享预算 | 1,298 | 18.919 / 35.071 / 41.312 | 72.896 | 10 | 33.277 |
+| `terrain_budget_ab` | 分片与共享预算开启 | 1,302 | 18.585 / 33.735 / 46.500 | 138.527 | 52 | 7.405 |
+| `terrain_pipeline_probe` | 同样开启，并记录管线/绘制调用 | 1,295 | 19.550 / 35.550 / 41.068 | 57.825 | 7 | 7.005 |
+
+流式单次大操作下降明确，但整帧尾延迟仍波动，不能仅挑最后一次 57.825 ms 宣称整体卡顿已解决。共享预算版第一轮有 52 个 >50 ms 帧、第二轮为 0（最长 49.831 ms）；后续复测分别为 5 和 2。需要区分首次经过、缓存、环境争用及引擎绘制/提交等待，当前数据尚不足以唯一归因，也没有承诺平均 FPS 提升。全部四次累计 5,198 次切换、80 段行走零功能失败。
+
+早先 `town_toggle_sliced.log` 因源码使缓存失效，准备全图导航后才开始行走，最终达到 420 秒测试时限；不列为通过结果，也不把目录中同名旧 JSON 当成本次结果。随后三次对照明确记录导航缓存命中。性能 manifest 为 `terrain_implementation_manifest.json`，对应当前五个生产脚本和两个采样/汇总工具。
+
+依据 [Godot 管线编译监测说明](https://docs.godotengine.org/en/stable/tutorials/performance/pipeline_compilations.html) 新增采样：最终复测 Mesh 计数 0→0、Surface 153→153、Draw 0→0；Specialization 36→72，为后台专用管线优化。此次可排除采样期间新增 Draw/Surface 同步编译这一解释，不能反推此前未采集计数的测试。最慢帧位于约 (-336.56,16.15)，流式 0.068 ms，绘制墙钟区间 25.008 ms，全局绘制调用 8,225；绘制调用含场景、阴影及其他视口，并非房屋数量。剩余工作应继续按主视口可见/阴影提交细分，不能直接削减作者设置的画面质量。
+
+另用 `test_outline_mask_render.gd` 做独立 GPU 对照：角色层遮罩的普通/无光照模式均为 1 次可见绘制、0 次阴影绘制，662 个非透明像素的 Alpha 全部一致。该试验不支持“轮廓遮罩重复绘制整镇阴影”的猜测，所以未修改正式轮廓代码。日志为 `outline_mask_probe.log`。当前修改也未改变房屋分层、活动门窗、灯光强度/距离、阴影配置和正式地图内容。
+
+最终回归日志：`terrain_collision_slices_final_test.log`、`terrain_shared_batch_test.log`、`terrain_collision_delta_test.log`；GPU 路线日志为各报告名对应的 `town_..._live.log`。正式地图哈希仍为 `c2cff683fc01291c1cc35b3a7ccaed3853c03298d2de665aa3f938135450dedb`。

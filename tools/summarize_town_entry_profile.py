@@ -48,6 +48,17 @@ def main():
             f"{row['median']:.3f}|{row['p95']:.3f}|{row['p99']:.3f}|"
             f"{row['max']:.3f}|{row['over50']}|"
         )
+    if "terrain_slicing" in report:
+        streams = sorted(row.get("parts", {}).get("stream", 0) for row in samples)
+        lines += ["", f"地形碰撞分片：{report['terrain_slicing']}；"
+                  f"流式/合批共享预算：{report.get('shared_stream_budget', False)}。",
+                  f"采样中的流式阶段 P99 {streams[int(len(streams)*.99)]:.3f} ms，"
+                  f"最长 {streams[-1]:.3f} ms。分段监视器可能来自邻近帧，不能相加。"]
+    if samples and "pipelines" in samples[0]:
+        before, after = samples[0]["pipelines"], samples[-1]["pipelines"]
+        lines += ["", "管线计数（采样起点 → 终点）：" + "；".join(
+            f"{key} {before[key]:.0f} → {after[key]:.0f}" for key in before) + "。",
+            "这些计数只用于区分编译阶段；不能将后台 specialization 增加直接等同于同步编译尖峰。"]
     toggles = report.get("toggle_timings", [])
     if toggles:
         durations = sorted(row["ms"] for row in toggles)

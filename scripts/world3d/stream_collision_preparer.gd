@@ -5,12 +5,17 @@ extends Node
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var _thread:Thread
 var _mesh:Mesh
+var _terrain=preload("res://scripts/world3d/terrain_collision_preparer.gd").new()
+static var terrain_slicing_enabled:=true # Diagnostic A/B override; normal play keeps it on.
 
 func _ready()->void:
 	name="StreamCollisionPreparer"
 	set_meta("stream_instance",true)
 
-func prepare(spec:Dictionary)->bool:
+func prepare(spec:Dictionary,host:Node=null)->bool:
+	var source:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+	if terrain_slicing_enabled and host!=null and spec.get("ground_batch_record",{}).has("terrain_mesh") and (source is Cpu or (source!=null and source.has_meta("ground_cpu_cache"))):
+		return _terrain.prepare(spec,host)
 	if spec.has("shape"):return true
 	var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
 	if mesh==null or mesh is BoxMesh or (mesh is Cpu and mesh.box_size!=Vector3.ZERO):return true
@@ -41,5 +46,9 @@ static func build_faces(surfaces:Array)->PackedVector3Array:
 	return snapshot.collision_faces()
 
 func _exit_tree()->void:
+	_terrain.finish()
 	if _thread!=null:_thread.wait_to_finish()
 	_thread=null;_mesh=null
+
+func cancel_pending()->void:
+	_terrain.cancel()

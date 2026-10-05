@@ -36,6 +36,9 @@ static func ring(origin: Vector3, radius: int) -> Dictionary:
 
 static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -> void:
 	var sync_started:=Time.get_ticks_usec()
+	if budget<=0 or budget>=LOAD_BUDGET:
+		var pending=map_root.get_node_or_null("StreamCollisionPreparer")
+		if pending!=null:pending.cancel_pending()
 	var library: Array = _library(map_root)
 	var known := _dict(map_root, &"stream_known")
 	var meshes := _dict(map_root, &"stream_meshes")
@@ -68,6 +71,8 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		child_count = map_root.get_child_count()
 		map_root.remove_meta(&"stream_target")
 	if not _chunk_is(map_root, &"stream_target", target):
+		var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
+		if preparer!=null:preparer.cancel_pending()
 		map_root.set_meta(&"stream_target", target)
 		map_root.remove_meta(&"stream_chunk")
 		jobs.clear()
@@ -103,7 +108,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var apply_started := Time.get_ticks_usec()
 	while left > 0 and cursor < jobs.size():
 		var prepare_started:=Time.get_ticks_usec()
-		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,jobs[cursor],solid,bodies)
+		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,host,jobs[cursor],solid,bodies)
 		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000:print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0)
 		if not collision_ready:break
 		# Finishing a large terrain shape can consume this frame's budget by
@@ -162,8 +167,8 @@ static func _profile_load(map_root:Node,timings:Dictionary)->void:
 	map_root.set_meta("stream_load_profile_us",profile)
 
 
-static func _prepare_collision(map_root:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
-	if bodies.has(str(spec.uuid)) or spec.has("shape") or not _overlaps(spec,solid):return true
+static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
+	if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):return true
 	var extras:Dictionary=spec.get("extras",{})
 	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
 	if FortCollision.candidate(spec.get("ground_batch_record",{})):return true
@@ -171,7 +176,7 @@ static func _prepare_collision(map_root:Node,spec:Dictionary,solid:Dictionary,bo
 	if preparer==null:
 		preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new()
 		preparer.name="StreamCollisionPreparer";map_root.add_child(preparer)
-	return preparer.prepare(spec)
+	return preparer.prepare(spec,host)
 
 
 static func _library(map_root: Node) -> Array:
@@ -524,11 +529,8 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 	return visual
 
 
-static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> StaticBody3D:
-	var profile_started:=Time.get_ticks_usec()
+static func _body_shell(spec:Dictionary)->StaticBody3D:
 	var extras: Dictionary = spec.get("extras", {})
-	if str(extras.get("rmmo_collision", "")) == "none" or (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):
-		return null
 	var body := StaticBody3D.new()
 	body.name = "%s_body" % str(spec.get("uuid", "chunk"))
 	body.set_meta("uuid", str(spec["uuid"]))
@@ -545,6 +547,20 @@ static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> Stat
 	body.position = position
 	body.rotation = spec.get("rotation", Vector3.ZERO)
 	body.transform = spec.get("transform", body.transform)
+	return body
+
+
+static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> StaticBody3D:
+	var profile_started:=Time.get_ticks_usec()
+	var extras:Dictionary=spec.get("extras",{})
+	if str(extras.get("rmmo_collision", "")) == "none" or (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):return null
+	var prepared=spec.get("prepared_body")
+	if is_instance_valid(prepared):
+		spec.erase("prepared_body")
+		prepared.collision_layer=1;prepared.collision_mask=1
+		if profile:spec.profile_body={"publish_ms":(Time.get_ticks_usec()-profile_started)/1000.0,"slices":prepared.get_child_count()}
+		return prepared
+	var body:=_body_shell(spec)
 	var shape := CollisionShape3D.new()
 	var mesh: Mesh = spec.get("collision_mesh", spec.get("mesh", null)) as Mesh
 	if mesh == null:

@@ -60,6 +60,10 @@ func run()->void:
 	var streamed:=sources(host);batch.sync(streamed);batch.flush()
 	var retained:Node=batch.groups.values()[0].visual
 	batch.request_sync(streamed)
+	batch.residency_budget_frame=Engine.get_process_frames();batch.residency_budget_remaining_usec=0
+	batch._process(0)
+	check(batch._preparation.get("cursor")==0 and is_instance_valid(retained),"exhausted shared runtime budget defers preparation without hiding the existing draw")
+	batch.residency_budget_frame=-1
 	batch._prepare_step(1)
 	check(not batch._preparation.is_empty() and is_instance_valid(retained),"budgeted preparation retains visible existing batch")
 	streamed[1].free()
@@ -75,8 +79,10 @@ func run()->void:
 	batch.release([str(streamed[0].name)])
 	check(batch._preparation.is_empty() and batch.groups.is_empty(),"editor release cancels pending snapshot before mutation")
 	streamed[0].position.x+=3
+	batch.residency_budget_frame=Engine.get_process_frames();batch.residency_budget_remaining_usec=0
 	batch.sync(streamed);batch.flush()
-	check(batch.groups.size()==1,"synchronous editor rebuild reflects changed sources")
+	check(batch.groups.size()==1,"synchronous editor rebuild ignores runtime budget and reflects changed sources")
+	batch.residency_budget_frame=-1
 	var paint:=StandardMaterial3D.new();paint.albedo_color=Color.RED
 	streamed[0].material_override=paint
 	batch.sync(streamed);batch.flush()

@@ -644,7 +644,13 @@ func _apply_actor_view() -> void:
 func _apply_residency(budget: int = 0) -> void:
 	if _map_root == null or _player == null:
 		return
+	var started:=Time.get_ticks_usec()
 	Stream.sync(_map_root, self, _player.global_position, budget)
+	if budget>0 and budget<Stream.LOAD_BUDGET and not has_meta("profile_unshared_stream_budget"):
+		var batcher=_map_root.get_node_or_null("GroundRenderBatches")
+		if batcher!=null:
+			batcher.residency_budget_frame=Engine.get_process_frames()
+			batcher.residency_budget_remaining_usec=maxi(0,3000-(Time.get_ticks_usec()-started))
 
 
 func _poll_warp() -> void:
