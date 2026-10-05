@@ -69,7 +69,14 @@ func _draw() -> void:
 		if wall.settings.closed and not points.is_empty(): points.append(points[0])
 		var pixels:=project(points)
 		if pixels.size()>1: draw_polyline(pixels,Color("dcc49a"),4,true)
-		for gate in wall.gates:
+		for zone in wall.get("layout_zones",[]):
+			var ring: Array=[]
+			for i in 65:
+				var angle: float=TAU*i/64
+				ring.append(Vector3(zone.center[0]+cos(angle)*zone.radius,wall.settings.base_height+.3,zone.center[1]+sin(angle)*zone.radius))
+			var projected:=project(ring)
+			if projected.size()>1: draw_polyline(projected,Color(.95,.45,.25,.55),1.5,true)
+		for gate in wall.get("gates",[]):
 			var at:=Data.vec(gate.center)
 			if not camera.is_position_behind(at): draw_circle(camera.unproject_position(at),7,Color("91dbb6"))
 	var river: Dictionary=city.editor._waterways.overlay_plan

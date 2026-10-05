@@ -14,7 +14,9 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"terrain HTTP server starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==118 and definitions.filter(func(t):return t.name=="sculpt_terrain").size()==1 and definitions.all(func(t):return t.name!="paint_tile"),"discover 118 current 3D tools including terrain")
+	var expected_tools:Array=preload("res://scripts/world_editor/mcp_schema.gd").tools().map(func(t):return t.name);expected_tools.sort()
+	var actual_tools:Array=definitions.map(func(t):return t.name);actual_tools.sort()
+	check(actual_tools==expected_tools and definitions.filter(func(t):return t.name=="sculpt_terrain").size()==1 and not actual_tools.has("paint_tile"),"HTTP discovery matches current 3D schema including terrain, legacy 2D disabled")
 	var before: Array=editor._doc.records.duplicate(true); var count: int=editor._doc._undo.size()
 	await atomic_reject("create_terrain",{"width":256,"depth":256,"cell_size":.25})
 	await atomic_reject("create_terrain",{"center":[0,0,0]})

@@ -2,6 +2,10 @@
 
 2026-10-04 房屋加载性能修复：工具仍为 **118 项**，schema、编辑事务及旧二维下线状态不变。CPU 刷面几何/切线实现由 UI、MCP 和运行时共用；不可变地图加载专用的校验及等价方块缓存不用于后续编辑事务，避免跨编辑复用过期校验。`paint_surface`、锁定保护、撤销重做、保存重开及非法调用通过真实 HTTP 回归；性能记录见 [房屋加载修复验证](world_editor_todo.md#房屋加载修复验证2026-10-04)。
 
+2026-10-03 石桥通航净空：`preview_bridge/generate_bridge.auto_clearance` 缺省为 `true`，按实际水面自动增加拱高；主通航孔须保留 **2 米宽、至少 2.5 米高**的连续通道，靠岸小孔可较低。关闭自动调整仍校验硬下限，所需拱高超过 15% 坡度限制时原子拒绝。预览返回最终 `camber` 及 `navigation` 实测值。河道入口的石桥按填写拱高校验同一规则，当前仍为 118 项，旧二维保持下线。
+
+2026-10-03 已有道路石桥转换：`preview_bridge/generate_bridge` 新增 `road_edge_id`，UI 可从已有桥梁道路读取、选择桥型并转换旧桥板；同事务保留引道、逐面 UV 材质和原道路拓扑。支持接路桥型/拱高/深度修改，增量刷新受影响物件，旧预览/保护/手改明确拒绝，当前仍为 118 项。见 [石桥与道路转换](world_editor_stone_bridges.md)。
+
 2026-10-03 程序化写实石桥：当前 **118 项** 3D 工具。新增桥型列表、预览、生成及保存桥型；Blender 模块按长度装配，支持平直/拱起、三组 PBR、合并网格与 LOD。河道桥梁也可选择桥型，继续支持道路绑定。见 [石桥说明](world_editor_stone_bridges.md)。
 
 2026-10-03 城镇地表收尾：`set_river_materials` 增加 `wet_darkening`（0～0.8，默认 0），与 `wet_height` 一起控制天然岸沙/土/岩的湿痕；UI 同步提供参数，旧图不自动改变外观。当时为 114 个 3D 工具；泥路软边和逐面铺装分别复用 `paint_terrain_region` / `paint_surface`。
@@ -104,7 +108,7 @@
 | 指定或拾取试玩出生脚点 | `set_playtest_spawn`、`pick_playtest_spawn` |
 | 临时副本试玩、结束、查询状态 | `start_playtest`、`stop_playtest`、`playtest_state` |
 | 参数化建筑模板、批量预览/生成、实例列表 | `list_building_templates`、`preview_buildings`、`generate_buildings`、`list_buildings` |
-| 建筑参数更新、删除、解除生成关联 | `update_building`、`delete_building`、`detach_building` |
+| 固定建筑烘焙；旧建筑参数更新、删除、解除关联 | `bake_building`、`update_building`、`delete_building`、`detach_building` |
 | 沿街普通、中世纪、城中村建筑规划与生成 | `preview_street_buildings`、`generate_street_buildings` |
 | 矩形区域内随机单栋/成片建筑，避让已有物体 | `preview_region_buildings`、`generate_region_buildings` |
 
@@ -206,6 +210,29 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 当前 `editor_state` 增加只读 `ground_batching`：合并组数、待处理组数、来源物件/材质面/顶点数、合并后的材质面/顶点数、累计重建次数及构建/提交耗时。使用原 `sculpt_terrain`、变换、材质、隐藏、楼层隔离、撤销和保存工具，自动更新同一派生缓存；没有额外合并事务或改变 UUID。返回材质面数不是整帧 GPU draw calls，首次后台构建完成前 `pending_groups` 可以非零。新增统计不增加工具，该批交付时为 111 个 3D 工具；详见 [地面分块合并](world_editor_terrain_sculpt.md#地面分块合并2026-10-03)。
 
 
+### 写实城墙与城门净高（2026-10-03）
+
+`preview_fortification` / `generate_fortification` 同步支持 `style=medieval_stone|plain`、`trim_material_id`；新建默认写实石城墙、墙高 7.5 米。现有 stone/door 材质字段继续使用。城门 `gates[].height` 最低 5 米，表示拱圈两侧最低通行净高而非拱顶；低于 5 米的请求在事务前拒绝。旧 plain 文档可读取，升级写实样式时同时提高旧门高度。开度控制仍使用 `set_fortification_gate`，包括铁箍和木板的视觉网格与碰撞一起运动。工具总数仍为 118，详见 `docs/world_editor_fortifications.md`。
+
+新写实城墙默认墙厚 3.5 米，`wall_access` 启用中空圆楼、内侧门、楼内旋梯和可行走楼顶；城墙本身不设外置登墙梯。`arrow_slits` 控制圆楼外向射击孔，`tower_door_open` 控制圆楼内门初始开度，`interior_side` 指定开放路径城内侧。至少墙高 7.5 米、墙厚 3.2 米并保留塔楼；圆楼因游戏通行尺寸扩大，占地参与统一碰撞保护。预览 `access_routes` 返回入口/屋顶、门 ID、内部楼梯及射击孔位置。旧配方不自动升级；真实 HTTP、角色通行、撤销重做和保存重开验证使用 `tools/test_world3d_fortification_access.gd`。
+
+城门铰链包含随门套筒与固定轴销/铁板：现有开度工具一并驱动，保存、撤销和运行时接口复用；固定件不参与旋转。旧 plain 门的仅开关操作保留历史尺寸。
+
+
+2026-10-04 城墙生成参数：`tower_layout=automatic|manual`（新建默认 automatic，旧配方默认 manual）、`tower_spacing`（自动环形目标米数，默认 60）、`tower_count=0`（自动计算；手动模式为八座）、`floor_material_id`（圆楼石铺地面）。**50 米塔心距离和 10 米塔门保守净距仅限制自动布局，手动部署不受约束。** 自动规则覆盖不同城墙组；基础几何/物件保护检查仍共用。预览返回 `tower_count/layout_rules/layout_zones`，UI 展示相同禁放圈。新圆楼地基下延 foundation、石铺面抬高 3 厘米，入口保留 5 米净高，材质、模式、地面随原事务撤销和保存。工具数仍为 118，详见 [自动布局禁区与圆楼地面](world_editor_fortifications.md#自动布局禁区与圆楼地面2026-10-04)。
+
+
+2026-10-04 不规则城墙描图扩展：工具数仍为 118。`preview_fortification` / `generate_fortification` 同步支持 `tower_indices`、`terrain_foundation` 与 `gates.kind=land|water`；细则、预算、保护语义见 [城防文档](world_editor_fortifications.md#不规则参考图描墙2026-10-04)。参考图的等比缩放、透明度和标定复用已有 3D 工具，不注册二维适配器。真实 HTTP 回归为 `tools/test_world3d_wall_trace.gd`。
+
+同轮城防静态网格合并自动用于 UI 与运行时：`editor_state.fortification_batching` 返回城防源对象数、源/结果渲染面及顶点数、`instanced_groups`；`ground_batching` 保留地面统计。同空间块内重复几何实例化，其余兼容构件合并。活动门、交互构件独立；碰撞、选择、刷面、原生保存和撤销仍使用原始记录。工具数仍为 118。合并不是有损文档操作，无需独立 MCP 写入命令；`test_world3d_fortification_batching.gd` 覆盖真实 HTTP 查询、非法原子失败、编辑保护、选取、城门、撤销和保存重开，并检查同模型不同材质恢复互不影响。
+
+同轮补齐首次缓存和碰撞分块：`editor_state.fortification_collision_batching` 返回 `source_objects/bodies/shapes/triangles/rebuild_count/last_sync_ms/max_group_ms` 及分阶段 `profile`。渲染统计增加 `last_sync_ms/max_commit_ms/sync_profile_us`；`max_build_ms` 含后台排队时间，不能当作主线程阻塞时间。UI 与 MCP 自动更新同一缓存，选中构件退出合并碰撞，射线按命中三角面返回原 UUID，门扇/事件仍独立；隐藏、隔层、变换和刷面沿用原事务。派生缓存不写入地图，不增加工具或启用二维适配器。
+
+拖动/驻留优化补充：渲染统计提供 `sync_count/release_groups_visited`，碰撞统计提供 `shape_cache_groups/shape_cache_triangles/shape_cache_hits/shape_cache_misses`。城防纯位移/旋转复用原网格，选中件拖动不反复同步无关批次；有几何变化仍走完整失效逻辑。最近碰撞形状缓存最多 64 组 / 262144 个三角面，缓存形状不等于活动碰撞体，离开分块时 `bodies` 仍归零；文档重建清空缓存。现有变换、选择、刷面、隔层、撤销和保存工具保持相同业务校验。
+
+后续刷新链修复：`set_object_transform` 与 `transform_selection` 和 UI 共用的变换操作完成后，面板只更新数值，避免重复触发全场景合批；当前已选城防件的数值变换仅同步一次，切换选中对象或几何变化仍保留必要失效。工具清单、参数 schema、返回值、保护规则与撤销/保存语义均不变。`test_world3d_fortification_batching.gd` 同时覆盖实际拖拽入口（包含面板更新）与真实 HTTP 数值变换，不能再用仅调用 `_sync_selected_transform` 的测试替代整条刷新链。
+
+
 ### 2026-10-04：住宅 v8
 
 `list_building_templates` 返回的共享参数 schema 新增 `stair_layout: straight | switchback`、`base_height: 0..0.9`、`curtains: boolean`。`preview_buildings` / `generate_buildings` / `update_building` 与当前 3D 建筑表单使用同一校验和事务。中世纪默认样房采用折返楼梯、0.45 m 台基和窗帘；旧配方继续保留原尺寸与布局。门窗五金属于原有 fixture 身份，固定轴座不随门扇转动。保存的 `wall_grid` 是带真实门窗洞口的结构网格，不能当作实心包围盒处理碰撞。
@@ -215,12 +242,46 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 2026-10-04 后续样房修订：同一建筑生成业务现在包含圆杆布套安装、墙面支架、统一楼层立柱、共面接缝裁面和夜间烛台壁灯。`joined_box` 保存裁剪后的可见面片，游戏碰撞仍使用原完整实体；`candle_sconce` 保存壁灯造型。两者属于生成构件内部数据，不另增 UI/MCP 参数，旧地图打开时不自动重建。灯位按房间墙面生成，与窗帘至少相隔 1 米；运行时根据地图时钟启闭。真实 HTTP 已覆盖生成、非法输入无副作用、撤销重做、保存重开及内部形状签名稳定。详见 [样房修订](house_revision_20261004.md) 和 [烛台壁灯](house_candle_sconce_20261004.md)。
 
 
-### 共用静态合批与命中映射
+### 2026-10-04：生成后烘焙为固定建筑预制件
 
-同轮城防静态网格合并自动用于 UI 与运行时：`editor_state.fortification_batching` 返回城防源对象数、源/结果渲染面及顶点数、`instanced_groups`；`ground_batching` 保留地面统计。同空间块内重复几何实例化，其余兼容构件合并。活动门、交互构件独立；碰撞、选择、刷面、原生保存和撤销仍使用原始记录。工具数仍为 118。合并不是有损文档操作，无需独立 MCP 写入命令；城防合批专项回归 覆盖真实 HTTP 查询、非法原子失败、编辑保护、选取、城门、撤销和保存重开，并检查同模型不同材质恢复互不影响。
+此约定替代上文新生成房屋可以逐件编辑或重新调整参数的说明。生成阶段的蓝图/参数/拼接保持可配置，`generate_buildings`、街道、区域及街区生成在提交时自动烘焙；落地后只允许整栋移动、Y 轴旋转、复制、删除，活动门窗仍用 `set_building_component_state`。保持逐楼层、屋顶/天花板和相机遮挡隐藏语义。
 
-同轮补齐首次缓存和碰撞分块：`editor_state.fortification_collision_batching` 返回 `source_objects/bodies/shapes/triangles/rebuild_count/last_sync_ms/max_group_ms` 及分阶段 `profile`。渲染统计增加 `last_sync_ms/max_commit_ms/sync_profile_us`；`max_build_ms` 含后台排队时间，不能当作主线程阻塞时间。UI 与 MCP 自动更新同一缓存，选中构件退出合并碰撞，射线按命中三角面返回原 UUID，门扇/事件仍独立；隐藏、隔层、变换和刷面沿用原事务。派生缓存不写入地图，不增加工具或启用二维适配器。
+新增当前 **3D** 工具 `bake_building {id}`，与 UI“烘焙旧建筑为固定预制件”共用业务、保护校验和一次恢复事务。`list_buildings` 提供 `baked`、烘焙后的 `part_count` 与原 `source_part_count`；预览返回 `source_part_count`，不将它描述为落地组件数。`update_building` 和 `detach_building` 仅适用于未烘焙的旧建筑，固定预制件的内部变换、材质修改或解组均拒绝，`component_edit` 不会解锁它。`get_object` 返回几何摘要、版本、字节数，不返回不可编辑的 Base64。
 
-拖动/驻留优化补充：渲染统计提供 `sync_count/release_groups_visited`，碰撞统计提供 `shape_cache_groups/shape_cache_triangles/shape_cache_hits/shape_cache_misses`。城防纯位移/旋转复用原网格，选中件拖动不反复同步无关批次；有几何变化仍走完整失效逻辑。最近碰撞形状缓存最多 64 组 / 262144 个三角面，缓存形状不等于活动碰撞体，离开分块时 `bodies` 仍归零；文档重建清空缓存。现有变换、选择、刷面、隔层、撤销和保存工具保持相同业务校验。
+`save_prefab` 支持完整固定房屋的资源包打包，保留建筑身份、地基标高和活动门窗；`place_asset` 创建独立固定实例并做保留区/已有物件碰撞检查。不能只保存固定房屋的部分组件。旧的普通物件预制件仍可编辑。撤销重做与保存重开保留这些语义。实现和实测见 [固定房屋预制件](house_prefab_20261004.md)，真实 HTTP 验收为 `tools/test_house_prefab_mcp.gd`，未启用旧二维适配器。
+# 城防 / 桥梁固定预制件补充（2026-10-04）
 
-后续刷新链修复：`set_object_transform` 与 `transform_selection` 和 UI 共用的变换操作完成后，面板只更新数值，避免重复触发全场景合批；当前已选城防件的数值变换仅同步一次，切换选中对象或几何变化仍保留必要失效。工具清单、参数 schema、返回值、保护规则与撤销/保存语义均不变。城防合批专项回归 同时覆盖实际拖拽入口（包含面板更新）与真实 HTTP 数值变换，不能再用仅调用 `_sync_selected_transform` 的测试替代整条刷新链。
+当前 **3D** 工具新增 `bake_fortification {id}` 和 `bake_bridge {id}`，旧二维入口不注册。UI 与 HTTP MCP 共用业务操作、保护检查、原子事务及原生保存。`generate_fortification`、`generate_bridge` 和河道生成的石桥在应用后自动烘焙；预览不冻结，不产生写入。烘焙失败不提交半成品。
+
+固定城防不能重生成、解除关联拆件、缩放或移动路径；`remove_fortification` 必须传 `keep_objects:false` 整体删除。城门通过 `set_fortification_gate` 修改保存姿态，不触发结构生成。固定桥的跨度、拱孔、材质不可重新调整。`list_fortifications` 增加 `baked`、`source_part_count`，`count` 是实际存储组件数。
+
+真实 loopback HTTP 回归：`tools/test_structure_prefab_mcp.gd`，覆盖工具发现、合法/非法转换、无副作用失败、双门扇转轴、活动门状态与签名、原生保存重开、撤销重做、隐藏/锁定保护以及新放置自动烘焙。大型地图通行使用 `test_medieval_town_walls.gd` / `test_medieval_town_stone_bridges.gd --map=... --out=...` 在后台桌面验证。
+
+## 参考城镇样式（2026-10-05）
+
+`list_building_templates` 增加 `town_presets`，八款参数与编辑器按钮一致；用 `preview_buildings`、`generate_buildings` 原有参数和事务调用，无新增二维入口。旋转占地检查修正也由 UI、生成和预制件放置共同使用。真实 HTTP 验收入口：`tools/test_town_styles_mcp.gd`，覆盖发现、合法旋转生成、实际重叠无副作用失败、撤销重做及保存重开；材质库烘焙验收见 `tools/build_town_style_library.gd`。
+
+
+### 2026-10-05 整栋窗口方案与三层商住楼
+
+`list_building_templates.town_presets` 现为十一款，新增两款三层商住楼和紧凑双层住宅。`window_styles` 与共享参数 schema 公开 `window_style`：`casement`（旧式）、`cross_lattice`（细长斜撑）、`diamond_lattice`（菱格及托架窗台）、`round_arch`（圆拱分格）、`tall_shutter`（细长格窗及窗板）、`random`。房屋面板的“整栋窗口方案”与 3D MCP 使用同一蓝图、验证和撤销事务。
+
+一个建筑实例只选一个窗口方案，含所有楼层、翼楼与老虎窗；老虎窗按空间缩小。`random` 以该实例 `seed_offset` 只抽取一次，保存解析后的明确方案。批量请求需要给实例不同 seed_offset 才能获得变化；没有逐窗随机。省略参数仍使用旧式，不强制改写已有房屋。新式仅 tall_shutter 配窗板。生成后可沿用 bake_building 冻结；冻结实例依旧遵守原有不可参数更新规则。
+
+真实 HTTP 验收 `tools/test_town_styles_mcp.gd` 覆盖发现、圆拱三层楼旋转生成并冻结、非法窗口枚举/重叠失败无副作用、撤销重做、保存重开。结构和参考见 [窗口及街景实施记录](town_frontage_rhythm_20261005.md)。本图街区候选评分脚本仍是离线制作工具，不等于通用 UI/MCP 自动排布功能。
+
+
+### 2026-10-05：木门与可换旗路灯
+
+`generate_buildings` 与 UI 共用木门生成：外门为 846 三角面铁饰斜拼门，室内门为 576 三角面黄铜圆钮斜拼门扇及独立 36 三角面固定木框。室内门依据房间边界朝房间内开启，连接翼楼的门朝附属房开启；外门保持向室内开启。`set_building_component_state` 沿用原 schema 与事务，保存/复制/打包保留顶点色。无需额外门样式参数，固定旧建筑不会因加载自动重建。详见 [外门交付](timber_door_20261005.md)与[室内门交付](interior_timber_door_20261005.md)。真实 HTTP 回归 `test_house_prefab_mcp.gd` 已涵盖室内门状态、非法值无副作用、锁定、撤销重做、素材库打包和保存重开。
+
+新增 3D 工具 `set_streetlamp_banner`（旧二维入口不注册）：
+
+```json
+{"ids":["obj_1","obj_2"],"settings":{"shape":"pointed","design":"emblem","color":[0.31,0.016,0.026],"texture_path":"D:/code/rmmo_runtime/assets/banner_streetlamp/designs/festival.png","wind_enabled":true}}
+```
+
+`shape`: pointed/rectangle/swallowtail；`design`: original/plain/flag/emblem。`flag` 为整面设计，`emblem` 为保留底色的独立图案；`trim_color` 为原版刺绣 RGB。批量 1～256 个，必须有独立旗帜插槽且可编辑；缺图、非法形状、越界路径、锁定/隐藏/隔层均无副作用失败。UI「路灯旗帜」与 MCP 调用同一业务方法，一次撤销并随地图保存；图片纳入依赖和素材库打包。用 `tools/test_streetlamp_banner_mcp.gd` 验证真实 HTTP、保存重开、资源重定位与 Vulkan 风场。
+
+
+2026-10-05 旗幡路灯昼夜接入：现有 `set_environment` 直接驱动游戏/编辑器共用的 `streetlamp_lights`，20:00–06:00 开启蓝色晶石、轻微光晕及所有已加载路灯的无阴影蓝灯（已取消按距离选最近两盏的限制）。工具清单和 schema 无新增；环境事务、撤销重做和保存语义不变。`tools/test_streetlamp_banner_mcp.gd` 已通过真实 HTTP 夜间切换、撤销熄灭、重做恢复及保存重开点亮检查，原换旗操作检查继续通过。详见 `banner_streetlamp_20261005.md`。

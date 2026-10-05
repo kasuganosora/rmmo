@@ -82,9 +82,15 @@ func follow(pivot: Vector3, delta: float) -> void:
 
 func bind_map(map_root:Node,settings:Dictionary)->void:
 	cutaway.bind(map_root)
-	cutaway.enabled=bool(settings.get("interior_cutaway",false))
-	indoor_distance=float(settings.get("indoor_camera_distance",3.2))
+	configure_environment(settings)
 	_initialized=false
+
+func configure_environment(settings:Dictionary)->void:
+	# Time/weather changes do not change building topology or camera focus.
+	var enabled:=bool(settings.get("interior_cutaway",false))
+	if cutaway.enabled and not enabled:cutaway.restore()
+	cutaway.enabled=enabled
+	indoor_distance=float(settings.get("indoor_camera_distance",3.2))
 
 func visual_exclusions()->Array[RID]:
 	var result:Array[RID]=occluder_exclude.duplicate()

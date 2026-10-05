@@ -30,6 +30,7 @@ func setup(panel: VBoxContainer) -> void:
 		for entry in editor._material_tool.library.entries(): menu.add_item(str(entry.material.name)); menu.set_item_metadata(menu.item_count-1,entry.material_id)
 		menu.item_selected.connect(func(_i):invalidate())
 	host.note(body,"桥梁垂直穿过选定直线段，两端桥头与岸面齐平。段号从 0 起；0.5 表示该段中点。避开转角，净宽为桥宽减两侧 0.3 米栏杆。")
+	host.note(body,"石桥主通航孔必须有 2 米净宽、距水面至少 2.5 米净高。此河道面板按填写的拱高校验；不足时请增加拱高、引道长度或水面落差。")
 	bridge_choice=OptionButton.new(); body.add_child(bridge_choice); bridge_choice.item_selected.connect(func(i):bridge_form(current.bridges[i]))
 	bridge_fields=Form.new(); body.add_child(bridge_fields)
 	host.button(body,"新增桥梁",func():current.bridges.append(bridge_fields.values().merged({"id":"bridge_"+Crypto.new().generate_random_bytes(4).hex_encode()})); sync_bridges(); invalidate())

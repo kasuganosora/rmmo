@@ -20,6 +20,7 @@ static func subtract(a:Rect2,b:Rect2)->Array:
 	return result
 static func apply(plan:Dictionary)->void:
 	var rows:Array=[];var bins:Dictionary={}
+	var walls:=preload("res://scripts/world3d/house_wall_contacts.gd").solids(plan.records)
 	for r:Dictionary in plan.records:
 		if r.has("building_shape") or r.has("fixture") or r.building.role not in ROLES or not v(r.rotation).is_zero_approx():continue
 		var bounds:=AABB(v(r.position)-v(r.size)/2,v(r.size));var index:=rows.size()
@@ -38,6 +39,16 @@ static func apply(plan:Dictionary)->void:
 			var u:=(axis+1)%3;var w:=(axis+2)%3
 			var plane:float=a.position[axis] if sign_<0 else a.end[axis]
 			var fragments:Array=[Rect2(Vector2(a.position[u],a.position[w]),Vector2(a.size[u],a.size[w]))]
+			# End faces of corner dressings can coincide with perpendicular walls.
+			# Remove only their buried part; keep the wall, silhouette and collision.
+			if row.record.building.role!="floor":
+				for cut:Rect2 in preload("res://scripts/world3d/house_wall_contacts.gd").cuts(walls,axis,plane,int(row.record.building.floor),fragments[0]):
+					var next:Array=[]
+					for f:Rect2 in fragments:
+						var pieces:=subtract(f,cut)
+						if pieces.size()!=1 or pieces[0]!=f:changed=true
+						next.append_array(pieces)
+					fragments=next
 			for j:int in candidates:
 				var b:AABB=rows[j].bounds
 				var other_face:float=b.position[axis] if sign_<0 else b.end[axis]

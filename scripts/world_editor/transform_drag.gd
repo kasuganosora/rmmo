@@ -31,6 +31,8 @@ func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
 	original = editor._doc._find(uuid).duplicate(true)
 	if original.is_empty(): return false
 	originals = editor._selection_tools.records().duplicate(true)
+	if originals.any(func(r):return r.get("prefab_locked",false) and (r.has("fortification") or editor._transform_mode==2)):
+		editor._status.text="固定预制件不能缩放或拆改城防结构";return false
 	building_drag = editor._selection_tools.whole
 	building_delta = Vector3.ZERO; building_rotation = Basis.IDENTITY
 	if building_drag and (editor._transform_mode==2 or (editor._transform_mode==1 and handle!=1)):

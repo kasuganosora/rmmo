@@ -13,6 +13,7 @@ func load_map(path:String)->Array:
 func run()->void:
 	var directory:=preload("res://scripts/world3d/map_paths.gd").cache_directory("metadata_test_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)
+	check_prefab_table(directory.path_join("prefab_metadata.gltf"))
 	var path:=directory.path_join("map.gltf")
 	var doc=preload("res://scripts/world3d/world_document.gd").new()
 	doc.add_box("ground",Vector3.ZERO,Vector3(4,.2,4))
@@ -54,3 +55,27 @@ func run()->void:
 	DirAccess.remove_absolute(Cache.cache_path(path))
 	print("MAP_METADATA_CACHE_FINISHED failures=",failed)
 	quit(1 if failed else 0)
+
+func write_envelope(path:String,body:Dictionary)->void:
+	var bytes:=var_to_bytes(body);var file:=FileAccess.open(Cache.cache_path(path),FileAccess.WRITE)
+	file.store_buffer(Cache.MAGIC.to_ascii_buffer());file.store_64(bytes.size());file.store_buffer(Cache.checksum(bytes));file.store_buffer(bytes);file.close()
+
+func check_prefab_table(path:String)->void:
+	var payload:={"version":1,"length":15,"sha256":"untrusted_digest","data":"first_payload"}
+	var other:=payload.duplicate();other.data="different_payload"
+	var records:Array=[{"uuid":"a","house_prefab":payload},{"uuid":"b","house_prefab":payload.duplicate()},{"uuid":"c","house_prefab":other},{"uuid":"d"}]
+	var extras:={"rmmo_records":records};var before:=var_to_bytes(extras)
+	Cache.write(path,"test",extras)
+	var file:=FileAccess.open(Cache.cache_path(path),FileAccess.READ);file.seek(49)
+	var body:Dictionary=bytes_to_var(file.get_buffer(file.get_length()-49));file.close()
+	var context:={};var loaded:=Cache.read(path,"test",context)
+	check(body.prefabs.size()==2 and body.prefab_ids==[0,0,1,-1],"deduplicate exact prefab payloads, never merge different data with the same claimed digest")
+	check(loaded==extras and var_to_bytes(extras)==before and not context.upgrade,"pooled metadata round trip preserves every record without modifying source")
+	var invalid:=body.duplicate(true);invalid.prefab_ids[2]=999;write_envelope(path,invalid)
+	check(Cache.read(path,"test").is_empty(),"out of range prefab reference rejects derived metadata")
+	invalid=body.duplicate(true);invalid.extras.rmmo_records[0].house_prefab=other;write_envelope(path,invalid)
+	check(Cache.read(path,"test").is_empty(),"conflicting inline and pooled prefab definitions are rejected")
+	write_envelope(path,{"version":1,"sha256":"test","extras":extras,"paints":[],"paint_ids":[-1,-1,-1,-1]})
+	context={};loaded=Cache.read(path,"test",context)
+	check(loaded==extras and context.upgrade,"legacy cache still reads exactly and requests an asynchronous upgrade")
+	DirAccess.remove_absolute(Cache.cache_path(path))

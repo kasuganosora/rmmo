@@ -21,6 +21,7 @@ static func slab(plan: Dictionary, key: String, x0: float, x1: float, z0: float,
 
 static func wall(plan: Dictionary, key: String, axis: String, fixed: float, start: float, end: float, y: float, height: float, openings: Array, colors: Dictionary, floor_: int) -> void:
 	for opening in openings:
+		if plan.parameters.get("window_style","casement")!="casement":load("res://scripts/world3d/house_window_styles.gd").prepare(plan,opening,height)
 		if opening.type=="door":
 			opening.height=plan.parameters.get("door_height",2.2)
 			opening.width=maxf(opening.width,plan.parameters.get("door_width",1.3))
@@ -36,6 +37,9 @@ static func wall(plan: Dictionary, key: String, axis: String, fixed: float, star
 	for opening in openings:
 		var o: Dictionary = opening.duplicate(true); o.wall = key; o.axis = axis; o.fixed = fixed; o.floor_y = y
 		plan.openings.append(o)
+		if o.type=="window" and plan.parameters.get("window_style","casement")!="casement":
+			load("res://scripts/world3d/house_window_styles.gd").build(plan,key,axis,fixed,o,y,colors,floor_)
+			continue
 		var prefix := key+"/"+str(o.id)
 		# Seat the jamb over the opening edge. A flush inner face coincides with
 		# the wall reveal and flickers once the two receive different materials.
@@ -75,13 +79,13 @@ static func wall(plan: Dictionary, key: String, axis: String, fixed: float, star
 			var hinge_side:=1 if o.id=="balcony_door" else -1
 			hinges(plan,prefix+"/door",axis,fixed,o.u+hinge_side*width/2,center,h,hinge_side,floor_,false)
 			var first:int=plan.records.size()
-			wall_box(plan,prefix+"/door/leaf",axis,fixed,o.u,center,width,h,.065,colors.trim,floor_,"door")
-			for level in [-1,1]: wall_box(plan,prefix+"/door/rail"+str(level),axis,fixed-.05,o.u,center+level*h*.32,width-.08,.12,.045,colors.trim,floor_,"door")
-			handles(plan,prefix+"/door",axis,fixed,o.u-hinge_side*width*.35,y+o.bottom+1.05,.065,floor_)
-			hinges(plan,prefix+"/door",axis,fixed,o.u+hinge_side*width/2,center,h,hinge_side,floor_,true)
+			var leaf_yaw:=0.0 if axis=="x" else -90.0
+			if hinge_side==1:leaf_yaw+=180.0
+			box(plan,prefix+"/door/leaf",wall_position(axis,fixed,o.u,center),Vector3(width,h,.065),colors.trim,floor_,"door",Vector3(0,leaf_yaw,0))
+			plan.records.back().building_shape="timber_door"
 			var turn:=hinge_sign(key,axis,hinge_side)*90
-			# A leaf opening across a shallow balcony can seal its entire width.
-			if o.id in ["balcony_door","living_side"]:turn=-turn
+			# Exterior leaves open into the room, keeping steps and balconies clear.
+			if key.get_slice("/",key.get_slice_count("/")-1) in ["north","south","east","west"] or o.id in ["balcony_door","living_side"]:turn=-turn
 			Fixtures.attach(plan,first,prefix+"/door","door",wall_position(axis,fixed,o.u+hinge_side*width/2,center),turn,1)
 
 static func wall_position(axis: String, fixed: float, u: float, y: float) -> Vector3:
@@ -210,6 +214,7 @@ static func finish_plan(plan: Dictionary) -> Dictionary:
 			box(plan,record.building.part+"/foundation",at,size,[.43,.42,.36],0,"foundation",vec(record.rotation))
 			plan.records.back().building.floor_y=record.building.floor_y
 	preload("res://scripts/world3d/house_candle_layout.gd").add_to_plan(plan)
+	preload("res://scripts/world3d/interior_door_layout.gd").apply(plan)
 	plan.version=8
 	return plan
 

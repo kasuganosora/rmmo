@@ -82,6 +82,9 @@ func refresh() -> void:
 			_row(parent, members, label, group)
 			_group_items[group] = parent
 			parent.collapsed = bool(collapsed.get(group, record.has("building")))
+			if record.get("prefab_locked",false):
+				for member in members:_items[str(member.uuid)]=parent
+				continue
 			for member in members:
 				var item := tree.create_item(parent)
 				_row(item, [member], Geometry.label(member))

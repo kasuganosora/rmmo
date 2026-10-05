@@ -9,6 +9,8 @@ const Equipment = preload("res://scripts/net/combat/equipment.gd")
 
 func try_use_item(item_id: String) -> Dictionary:
 	item_id = item_id.strip_edges()
+	if item_id==preload("res://scripts/world3d/day_night_review_item.gd").ID:
+		return preload("res://scripts/world3d/day_night_review_item.gd").failure("请进入三维地图后使用昼夜切换仪。")
 	# Pet whistle: summon companion (does not consume).
 	if item_id == "pet_whistle":
 		if ctrl.inventory == null or not ctrl.inventory.has_item("pet_whistle", 1):

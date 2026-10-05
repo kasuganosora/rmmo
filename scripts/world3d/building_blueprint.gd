@@ -44,8 +44,29 @@ static func medieval_presets() -> Array:
 		{"id":"tall_house","name":"三层街巷住宅","parameters":defaults().merged({"layout":"townhouse","width":10.5,"depth":14.0,"floors":3,"style":"plaster","roof_pitch":48.0,"dormers":2,"shutters":false},true)},
 		{"id":"wing_house","name":"L 形翼楼住宅","parameters":defaults().merged({"layout":"townhouse","width":11.0,"depth":14.0,"compound":"left_wing","annex_width":5.5,"annex_depth":7.0,"style":"plaster","roof_axis":"width","roof_pitch":32.0,"dormers":2},true)}]
 
+static func town_presets() -> Array:
+	# Authored silhouette families, shared by the editor, MCP and town recipe.
+	# Dimensions retain the existing accessible stair/door clearances.
+	var base:=defaults().merged({"layout":"townhouse","style":"plaster","depth":14.0,"floor_height":3.5,"roof_pitch":40.0,"base_height":.3},true)
+	var rows:Array=[
+		{"id":"town_narrow_shop","name":"窄面山墙店屋","parameters":{"template":"shop","width":8.5,"roof_pitch":48.0,"jetty":.15,"bay_width":2.2}},
+		{"id":"town_long_shop","name":"长檐双窗商铺","parameters":{"template":"shop","width":14.0,"roof_axis":"width","roof_pitch":38.0,"dormers":2,"shutters":false}},
+		{"id":"town_low_shop","name":"低檐单层小铺","parameters":{"template":"shop","width":9.0,"depth":11.0,"floors":1,"roof_axis":"width","roof_pitch":36.0,"chimney":false}},
+		{"id":"town_timber_shop","name":"木构挑层店屋","parameters":{"template":"shop","width":10.0,"style":"timber","jetty":.35,"roof_pitch":43.0,"bay_width":2.4,"timber_width":.22}},
+		{"id":"town_hip_shop","name":"四坡街角商铺","parameters":{"template":"shop","width":11.5,"roof":"hip","roof_pitch":35.0,"front_canopy":false}},
+		{"id":"town_tall_home","name":"窄巷三层住宅","parameters":{"width":9.5,"floors":3,"roof_pitch":44.0,"shutters":false,"front_canopy":false}},
+		{"id":"town_low_home","name":"长檐庭前住宅","parameters":{"width":12.5,"depth":11.0,"floors":1,"roof_axis":"width","roof_pitch":34.0,"dormers":1,"front_canopy":false}},
+		{"id":"town_wing_home","name":"低翼楼住宅","parameters":{"width":11.0,"compound":"left_wing","annex_width":4.0,"annex_depth":6.0,"roof_axis":"width","roof_pitch":32.0,"dormers":1,"front_canopy":false}},
+		{"id":"town_tall_shop","name":"三层窄面商住楼","parameters":{"template":"shop","width":9.0,"floors":3,"floor_height":3.3,"roof_pitch":44.0,"shutters":false,"jetty":.15,"bay_width":2.2}},
+		{"id":"town_tall_eaves_shop","name":"三层长檐商住楼","parameters":{"template":"shop","width":12.0,"floors":3,"floor_height":3.4,"roof_axis":"width","roof_pitch":36.0,"dormers":1,"shutters":false,"front_canopy":false}},
+		{"id":"town_compact_home","name":"紧凑双层住宅","parameters":{"width":10.0,"depth":12.0,"floor_height":3.15,"roof_pitch":38.0,"front_canopy":false,"shutters":false}}
+	]
+	for row:Dictionary in rows:row.parameters=base.merged(row.parameters,true)
+	return rows
+
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
+		"window_style":{"type":"string","enum":["casement","random","cross_lattice","diamond_lattice","round_arch","tall_shutter"]},
 		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(10,30),
 		"floors":{"type":"integer","minimum":1,"maximum":6}, "floor_height":Schema.number(3,4),
 		"stair_layout":{"type":"string","enum":["straight","switchback"]},"base_height":Schema.number(0,.9),"curtains":{"type":"boolean"},
@@ -80,6 +101,10 @@ static func generate(parameters: Dictionary) -> Dictionary:
 	var issue := Schema.validate(parameters,schema())
 	if not issue.is_empty(): return fail(issue)
 	var p := layout_defaults(str(parameters.get("layout","standard"))); p.merge(parameters,true)
+	if p.get("window_style","casement")=="random":
+		var random:=RandomNumberGenerator.new();random.seed=int(p.seed)
+		p.window_style=preload("res://scripts/world3d/house_window_styles.gd").IDS[random.randi_range(0,3)]
+	if p.get("window_style","casement")!="casement":p.shutters=p.window_style=="tall_shutter"
 	if p.roof_solver=="legacy" and (p.roof not in ["gable","flat"] or p.annex_floors!=1 or p.compound=="rear_wing"): return fail("旧版屋顶不支持新样式或同高翼楼，请选择统一屋面")
 	if p.layout=="urban_village": return finish_plan(preload("res://scripts/world3d/urban_building.gd").generate(p))
 	if p.floors>3: return fail("普通及中世纪布局最多三层；城中村自建房支持六层")
@@ -197,8 +222,9 @@ static func geometry_signature(record: Dictionary) -> String:
 	return JSON.stringify(fields)
 
 static func valid_record(record: Dictionary) -> bool:
+	if not preload("res://scripts/world3d/house_prefab.gd").valid(record):return false
 	if not Fixtures.valid(record): return false
-	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder","roof_prism","wall_grid","draped_cloth","joined_box","candle_sconce"] or record.get("kind")!="box" or record.has("tile3d")): return false
+	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder","roof_prism","wall_grid","draped_cloth","joined_box","candle_sconce","timber_door","interior_door","interior_door_frame"] or record.get("kind")!="box" or record.has("tile3d")): return false
 	if record.get("building_shape")=="joined_box" and not preload("res://scripts/world3d/joined_box_mesh.gd").valid(record):return false
 	if record.has("box_faces") and record.get("building_shape")!="joined_box":return false
 	if record.get("building_shape")=="candle_sconce" and not preload("res://scripts/world3d/candle_sconce_mesh.gd").valid(record):return false
@@ -217,6 +243,7 @@ static func valid_meta(meta: Dictionary) -> bool:
 	if not meta.building_instances is Dictionary or meta.building_instances.size()>4096: return false
 	for id in meta.building_instances:
 		var b: Variant = meta.building_instances[id]
+		if b is Dictionary and b.has("baked") and not b.baked is bool:return false
 		# JSON stores numbers as floats; Array.has/in distinguishes 4 from 4.0.
 		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=2 and b.get("version")!=3 and b.get("version")!=4 and b.get("version")!=5 and b.get("version")!=6 and b.get("version")!=7 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false
 		if not Schema.validate(b.parameters,schema()).is_empty(): return false
@@ -245,6 +272,7 @@ static func valid_ownership(meta: Dictionary, records: Array) -> bool:
 	for id in registry:
 		for part in registry[id].parts:
 			var uuid: String = registry[id].parts[part]
+			if registry[id].get("baked",false) and (not by_id.has(uuid) or by_id[uuid].get("prefab_locked")!=true):return false
 			# Missing parts may be intentional hand edits; regeneration then reports a conflict.
 			if by_id.has(uuid) and (by_id[uuid].get("building",{}).get("id")!=id or by_id[uuid].building.part!=part): return false
 	return true

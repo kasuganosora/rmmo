@@ -11,7 +11,7 @@ func run() -> void:
 	probe.stop(); check(editor.start_mcp(port).ok,"fortification HTTP starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools; check(definitions.size()==118 and definitions.any(func(t):return t.name=="preview_fortification" and t.annotations.readOnlyHint),"118 tools expose fortification generation and gate control")
 	await call_tool("create_road_path",{"points":[[0,0,-55],[0,0,0]],"width":4}); await call_tool("generate_road_surface",{})
-	var args:={"id":"city_wall","points":[[-30,-30],[30,-30],[30,30],[-30,30]],"closed":true,"gates":[{"id":"north","segment":0,"t":.5,"width":6,"height":4.5,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
+	var args:={"id":"city_wall","points":[[-30,-30],[30,-30],[30,30],[-30,30]],"closed":true,"gates":[{"id":"north","segment":0,"t":.5,"width":6,"height":5.0,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size()
 	var preview:=await call_tool("preview_fortification",args)
 	if not preview.get("ok",false): quit(1); return
@@ -51,7 +51,7 @@ func run() -> void:
 	var copied_gate: Dictionary=editor._doc._find(copy_result.selection[0]); check(not copied_gate.has("fortification") and not copied_gate.has("fixture") and Fixtures.transform(copied_gate).basis.is_equal_approx(gate_pose.basis),"ordinary gate copy bakes pose and has independent ownership"); await call_tool("undo")
 	# Shared UI drawing and generation on an independent second wall.
 	editor._dock_tabs.current_tab=9; await call_tool("set_editor_camera",{"projection":"top","center":[0,0,0],"span":160})
-	var panel: VBoxContainer=editor._city.panel.fortification_panel; panel.new_region(); check(editor._city.begin_fortification(0).ok and (await call_tool("editor_state")).fortification_drawing,"UI begins wall path and MCP exposes drawing state")
+	var panel: VBoxContainer=editor._city.panel.fortification_panel; panel.new_region(); panel.fields.fields.tower_layout.select(1); check(editor._city.begin_fortification(0).ok and (await call_tool("editor_state")).fortification_drawing,"UI begins wall path and MCP exposes drawing state")
 	for p in [Vector3(55,0,-25),Vector3(55,0,25)]:
 		var click:=InputEventMouseButton.new(); click.button_index=MOUSE_BUTTON_LEFT; click.pressed=true; click.position=editor._camera.unproject_position(p)+editor._canvas.global_position; Input.parse_input_event(click); await settle(); click=click.duplicate(); click.pressed=false; Input.parse_input_event(click); await settle()
 	var enter:=InputEventKey.new(); enter.pressed=true; enter.keycode=KEY_ENTER; Input.parse_input_event(enter); await settle(); check(not editor._city.busy() and panel.current.points.size()==2,"Enter commits wall draft")

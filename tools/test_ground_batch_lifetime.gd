@@ -53,4 +53,35 @@ func run()->void:
 	batch.flush();check(batch.groups.values()[0].members[0]==replacement[0],"replacement generation builds normally")
 	replacement[1].queue_free();await process_frame;await process_frame
 	batch._process(0);check(batch.groups.is_empty(),"queued deletion invalidates before next process")
+	for node in replacement:
+		if is_instance_valid(node):node.free()
+	# Residency preparation yields, retains the old draw, and never resurrects
+	# removed sources when a newer residency request arrives mid-preparation.
+	var streamed:=sources(host);batch.sync(streamed);batch.flush()
+	var retained:Node=batch.groups.values()[0].visual
+	batch.request_sync(streamed)
+	batch._prepare_step(1)
+	check(not batch._preparation.is_empty() and is_instance_valid(retained),"budgeted preparation retains visible existing batch")
+	streamed[1].free()
+	check(not is_instance_valid(retained),"unload invalidates old draw during preparation")
+	batch.request_sync(streamed)
+	var slices:=0
+	while not batch._preparation.is_empty() and slices<1000:
+		batch._prepare_step(1);slices+=1
+	batch.flush()
+	check(slices>1 and slices<1000 and batch.groups.size()==1,"superseding residency converges across bounded slices")
+	check(batch.groups.values()[0].members.size()==2 and batch._member_groups.size()==2,"freed source excluded from replacement and identity index")
+	batch.request_sync(streamed);batch._prepare_step(1)
+	batch.release([str(streamed[0].name)])
+	check(batch._preparation.is_empty() and batch.groups.is_empty(),"editor release cancels pending snapshot before mutation")
+	streamed[0].position.x+=3
+	batch.sync(streamed);batch.flush()
+	check(batch.groups.size()==1,"synchronous editor rebuild reflects changed sources")
+	var paint:=StandardMaterial3D.new();paint.albedo_color=Color.RED
+	streamed[0].material_override=paint
+	batch.sync(streamed);batch.flush()
+	check(batch.groups.is_empty(),"editor material mutation invalidates runtime descriptors and splits incompatible sources")
+	batch.request_sync(streamed);batch.clear()
+	batch._process(0)
+	check(batch._preparation.is_empty() and batch.groups.is_empty(),"clear cannot publish stale preparation")
 	host.free();print("GROUND_BATCH_LIFETIME ","PASS" if failed==0 else "FAIL");quit(0 if failed==0 else 1)

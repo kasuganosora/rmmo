@@ -10,7 +10,9 @@ const MAGIC:="RMMOMESH1"
 
 static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
-	for file in ["world_document.gd","surface_materials.gd","ground_cpu_mesh.gd","runtime_mesh_cache.gd","world_stream.gd","building_fixtures.gd","wind_response.gd","building_blueprint.gd","house_wall_mesh.gd","curtain_mesh.gd","linen_curtain_data.gd","joined_box_mesh.gd","candle_sconce_mesh.gd","candle_sconce_data.gd","roof_mesh.gd"]:
+	for file in ["house_prefab.gd","world_document.gd","surface_materials.gd","ground_cpu_mesh.gd","runtime_mesh_cache.gd","world_stream.gd","stream_index.gd","stream_landscape.gd","streetlamp_banner.gd","streetlamp_lights.gd","building_fixtures.gd","wind_response.gd","building_blueprint.gd","house_wall_mesh.gd","curtain_mesh.gd","linen_curtain_data.gd","joined_box_mesh.gd","candle_sconce_mesh.gd","candle_sconce_data.gd","timber_door_mesh.gd","interior_door_mesh.gd","interior_door_layout.gd","roof_mesh.gd","fortification_art.gd","fortification_stair_mesh.gd"]:
+		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
+	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","channel_surface.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
 	return str(hashes).sha256_text()
 
@@ -38,6 +40,7 @@ static func valid_data(data:Dictionary)->bool:
 		if not value is Dictionary:return false
 		if value.has("paint"):
 			if not value.paint is Dictionary or not value.get("cull") is int or value.cull<0 or value.cull>2:return false
+			if value.has("vertex_color") and not value.vertex_color is bool:return false
 		elif value.has("values"):
 			if not value["values"] is Dictionary or value["values"].has("script") or value["values"].has("resource_path"):return false
 		elif value.get("null")!=true:return false
@@ -65,14 +68,19 @@ static func valid_data(data:Dictionary)->bool:
 					if not channel is PackedVector2Array or channel.size()!=count:return false
 				elif slot==Mesh.ARRAY_INDEX:
 					if not channel is PackedInt32Array or channel.size()%3!=0:return false
-					for id in channel:
-						if id<0 or id>=count:return false
+					# Bounds are a native reduction, not millions of interpreted iterations.
+					if not channel.is_empty():
+						var bounds:Array=Array(channel)
+						if bounds.min()<0 or bounds.max()>=count:return false
 				else:return false # Static authoring geometry has no skin/custom channels.
 	for entry in data.entries:
 		if not entry is Array or entry.size()!=2 or not entry[0] is Array or not entry[1] is Array or entry[1].size()!=2:return false
 		for id in entry[1]:
 			if not index_valid(id,data.meshes.size()):return false
 	for row in data.get("specs",[]):
+		if row is Dictionary and row.get("fallback")==true:
+			if not row.get("uuid") is String:return false
+			continue
 		if not row is Dictionary or not row.get("spec") is Dictionary or not row.get("batch") is bool or not index_valid(row.get("mesh"),data.meshes.size()):return false
 		var spec:Dictionary=row.spec
 		if not spec.get("uuid") is String or not spec.get("extras") is Dictionary or not spec.get("native_visual") is bool or not spec.get("cast_shadow") is int:return false
@@ -91,7 +99,9 @@ static func material_data(material:Material)->Dictionary:
 	if material==null:return {"null":true}
 	if not material is StandardMaterial3D:return {}
 	if material.has_meta("runtime_paint_definition"):
-		return {"paint":material.get_meta("runtime_paint_definition"),"cull":material.cull_mode}
+		var result:={"paint":material.get_meta("runtime_paint_definition"),"cull":material.cull_mode}
+		if material.vertex_color_use_as_albedo:result.vertex_color=true
+		return result
 	var values:Dictionary={}
 	for property in material.get_property_list():
 		if not property.usage & PROPERTY_USAGE_STORAGE or property.name in ["script","resource_path"] or str(property.name).begins_with("metadata/"):continue
@@ -123,37 +133,49 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 				meshes.append({"surfaces":cpu.surfaces,"materials":slots,"bounds":cpu.bounds,"box_size":cpu.box_size})
 			ids.append(mesh_ids[mid])
 		if supported:entries.append([key,ids])
-	var specs:Array=[]
+	var specs:Array=[];var skipped:=""
 	for spec:Dictionary in library:
-		if spec.get("material_override")!=null or spec.surface_overrides.any(func(value):return value!=null) or not mesh_ids.has(spec.mesh.get_instance_id()):specs.clear();break
-		var copy:=spec.duplicate();copy.erase("mesh");copy.erase("collision_mesh");copy.erase("ground_batch_record")
+		if spec.get("material_override")!=null or spec.surface_overrides.any(func(value):return value!=null) or not mesh_ids.has(spec.mesh.get_instance_id()):skipped="render:"+str(spec.uuid);specs.append({"fallback":true,"uuid":spec.uuid});continue
+		var copy:=spec.duplicate()
+		for field in ["mesh","collision_mesh","ground_batch_record","render_bounds","render_supports","render_dependents","render_building"]:copy.erase(field)
 		var row:={"spec":copy,"mesh":mesh_ids[spec.mesh.get_instance_id()],"batch":spec.has("ground_batch_record")}
 		var collision:Mesh=spec.get("collision_mesh")
 		if collision is BoxMesh:row.box=collision.size
 		elif collision!=null:
-			if not mesh_ids.has(collision.get_instance_id()):specs.clear();break
+			if not mesh_ids.has(collision.get_instance_id()):skipped="collision:"+str(spec.uuid);specs.append({"fallback":true,"uuid":spec.uuid});continue
 			row.collision=mesh_ids[collision.get_instance_id()]
 		specs.append(row)
-	return {"digest":digest,"generator":generator,"materials":materials,"meshes":meshes,"entries":entries,"specs":specs}
+	return {"digest":digest,"generator":generator,"materials":materials,"meshes":meshes,"entries":entries,"specs":specs,"specs_skip_reason":skipped}
 
 
-static func restore(data:Dictionary)->Dictionary:
+static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null)->Dictionary:
 	if data.is_empty():return {}
+	# A pool belongs to one immutable runtime load. Editor restores remain local.
+	if material_pool==null:material_pool={}
 	var materials:Array[Material]=[];var meshes:Array=[];var result:Dictionary={}
-	var allowed:Dictionary={};var prototype:=StandardMaterial3D.new()
-	for property in prototype.get_property_list():
-		if property.usage & PROPERTY_USAGE_STORAGE and property.name not in ["script","resource_path"]:allowed[property.name]=property.type
 	for value:Dictionary in data.materials:
+		var identity:Array=[value]
+		if material_pool.has(identity):materials.append(material_pool[identity]);continue
 		var material:StandardMaterial3D
 		if value.has("paint"):
-			if not Paint.material_valid(value.paint):data.clear();return {}
+			if not Paint.material_valid(value.paint,false,"",paint_validation):data.clear();return {}
 			material=Paint.make_material(value.paint,value.cull)
+			if value.get("vertex_color",false):
+				# Do not change the shared un-tinted paint used by walls and other assets.
+				material=material.duplicate();material.vertex_color_use_as_albedo=true
 		elif value.has("values"):
+			if not material_pool.has("schema"):
+				var schema:Dictionary={};var prototype:=StandardMaterial3D.new()
+				for property in prototype.get_property_list():
+					if property.usage & PROPERTY_USAGE_STORAGE and property.name not in ["script","resource_path"]:schema[property.name]=property.type
+				material_pool.schema=schema
+			var allowed:Dictionary=material_pool.schema
 			material=StandardMaterial3D.new()
 			for key in value["values"]:
 				var property:Variant=value["values"][key]
 				if not allowed.has(key) or (typeof(property)!=allowed[key] and not (property==null and allowed[key]==TYPE_OBJECT)):data.clear();return {}
 				material.set(key,property)
+		material_pool[identity]=material
 		materials.append(material)
 	for value:Dictionary in data.meshes:
 		var mesh:=Cpu.new();mesh.surfaces=value.surfaces;mesh.bounds=value.bounds;mesh.box_size=value.box_size
@@ -167,8 +189,18 @@ static func restore_specs(data:Dictionary,records:Array)->Array:
 	var rows:Array=data.get("specs",[])
 	if rows.size()!=records.size() or not data.has("_restored_meshes"):return []
 	var result:Array=[];var solids:Dictionary={};var meshes:Array=data._restored_meshes
-	for i in rows.size():
-		var row:Dictionary=rows[i];var spec:Dictionary=row.spec.duplicate(true)
+	var by_id:Dictionary={}
+	for row:Dictionary in rows:
+		var id:String=row.uuid if row.get("fallback")==true else row.spec.uuid
+		if by_id.has(id):return []
+		by_id[id]=row
+	for i in records.size():
+		if not by_id.has(records[i].uuid):return []
+		var row:Dictionary=by_id[records[i].uuid]
+		if row.get("fallback")==true:
+			if row.uuid!=records[i].uuid:return []
+			result.append({});continue
+		var spec:Dictionary=row.spec.duplicate(true)
 		if spec.uuid!=records[i].uuid:return []
 		spec.mesh=meshes[row.mesh]
 		if row.has("box"):

@@ -21,13 +21,13 @@ func templates() -> Dictionary:
 		var value := Blueprint.defaults(); value.template = id
 		if id=="inn": value.rooms_per_floor = 3
 		rows.append({"id":id,"name":Blueprint.LABELS[id],"parameters":value})
-	return {"ok":true,"templates":rows,"presets":Blueprint.medieval_presets(),"roof_presets":Blueprint.roof_presets(),"urban_presets":Blueprint.urban_presets(),"parameters_schema":Blueprint.schema(),"region_schema":Region.schema(),"max_batch":16}
+	return {"ok":true,"templates":rows,"presets":Blueprint.medieval_presets(),"town_presets":Blueprint.town_presets(),"window_styles":preload("res://scripts/world3d/house_window_styles.gd").choices(),"roof_presets":Blueprint.roof_presets(),"urban_presets":Blueprint.urban_presets(),"parameters_schema":Blueprint.schema(),"region_schema":Region.schema(),"max_batch":16,"placement_mode":"baked_prefab"}
 
 func list_buildings() -> Dictionary:
 	var rows: Array = []
 	for id in instances():
 		var value: Dictionary = instances()[id]
-		rows.append({"id":id,"parameters":value.parameters,"position":value.position,"yaw":value.yaw,"part_count":value.parts.size(),"conflicts":conflicts(id)})
+		rows.append({"id":id,"parameters":value.parameters,"position":value.position,"yaw":value.yaw,"part_count":value.parts.size(),"baked":value.get("baked",false),"source_part_count":value.get("source_part_count",value.parts.size()),"conflicts":conflicts(id)})
 	return {"ok":true,"buildings":rows}
 
 func conflicts(id: String) -> Array:
@@ -50,6 +50,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 	if not replacing.is_empty():
 		if args.placements.size()!=1: return Blueprint.fail("更新预览只能包含一栋建筑")
 		if not instances().has(replacing): return Blueprint.fail("建筑不存在")
+		if instances()[replacing].get("baked",false):return Blueprint.fail("预制件已经烘焙，不能再修改生成参数；请生成新的预制件")
 		var blocked := conflicts(replacing)
 		if not blocked.is_empty(): return {"ok":false,"error":"建筑存在修改或保护冲突；请先解决，或解除生成关联后手工编辑","conflicts":blocked}
 		excluded = instances()[replacing].parts.values()
@@ -92,16 +93,14 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 				var decorated: bool = record.has("surface_paint") or record.has("event_template") or record.has("event")
 				if decorated and (not new_parts.has(part) or Blueprint.geometry_signature(new_parts[part])!=old.signatures[part]): return {"ok":false,"error":"修改会影响已绘制材质或挂载事件的构件，原建筑已保留","conflicts":[record.uuid]}
 		prepared.append(plan)
-	var total: int = editor._doc.records.size()-excluded.size()
-	for plan in prepared: total += plan.records.size()
-	if total>100000: return Blueprint.fail("生成后超过地图 100000 个物件限制，请拆分地图")
+	# The placement limit counts baked components, checked atomically at commit.
 	return {"ok":true,"plans":prepared}
 
 func summary(result: Dictionary) -> Dictionary:
 	if not result.ok: return result
 	var rows: Array = []
 	for plan in result.plans:
-		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"part_count":plan.records.size(),"entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs,"courtyards":plan.get("courtyards",[]),"connections":plan.get("connections",[]),"terraces":plan.get("terraces",[]),"service_zones":plan.get("service_zones",[])})
+		rows.append({"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"bounds":plan.bounds,"source_part_count":plan.records.size(),"placement_mode":"baked_prefab","entrance":plan.entrance,"rooms":plan.rooms,"openings":plan.openings,"stairs":plan.stairs,"courtyards":plan.get("courtyards",[]),"connections":plan.get("connections",[]),"terraces":plan.get("terraces",[]),"service_zones":plan.get("service_zones",[])})
 	for i in rows.size():
 		rows[i].frame_joints=result.plans[i].get("frame_joints",[])
 		rows[i].roof_plan=result.plans[i].get("roof_plan",{})
@@ -161,7 +160,43 @@ func update(id: String, changes: Dictionary, position: Variant = null, yaw: Vari
 	if parameters==old.parameters and placement.position==old.position and placement.yaw==old.yaw: return {"ok":true,"changed":false,"building_ids":[id]}
 	return commit(result.plans,id)
 
+func freeze_plan(plan:Dictionary)->Dictionary:
+	var origin:=Blueprint.vec(plan.position);var basis:=Basis(Vector3.UP,deg_to_rad(float(plan.yaw)))
+	var local:Array=plan.records.duplicate(true)
+	for r:Dictionary in local:
+		r.position=Blueprint.arr(basis.inverse()*(Blueprint.vec(r.position)-origin))
+		r.rotation=Blueprint.arr((basis.inverse()*Basis.from_euler(Blueprint.vec(r.rotation)*PI/180)).get_euler()*180/PI)
+		r.building.floor_y-=origin.y
+	var frozen:=preload("res://scripts/world3d/house_prefab.gd").bake(local)
+	if not frozen.ok:return frozen
+	for r:Dictionary in frozen.records:
+		r.position=Blueprint.arr(origin+basis*Blueprint.vec(r.position))
+		r.rotation=Blueprint.arr((basis*Basis.from_euler(Blueprint.vec(r.rotation)*PI/180)).get_euler()*180/PI)
+		r.building.floor_y+=origin.y
+	plan.records=frozen.records;plan.source_part_count=frozen.source_count
+	return {"ok":true}
+
+func bake_existing(id:String)->Dictionary:
+	var ready:Dictionary=editor._gameplay.guard()
+	if not ready.ok:return ready
+	if not instances().has(id):return Blueprint.fail("建筑不存在")
+	var old:Dictionary=instances()[id]
+	if old.get("baked",false):return {"ok":true,"changed":false,"building_ids":[id]}
+	var blocked:=conflicts(id)
+	if not blocked.is_empty():return {"ok":false,"error":"建筑存在修改或保护冲突，未烘焙","conflicts":blocked}
+	var records:Array=[]
+	for uuid in old.parts.values():records.append(editor._doc._find(uuid))
+	return commit([{"parameters":old.parameters,"position":old.position,"yaw":old.yaw,"records":records,"recipe_version":old.version}],id)
+
 func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Dictionary:
+	# Bake before checkpoint or mutation: failure leaves document/history untouched.
+	plans=plans.duplicate(true)
+	for plan:Dictionary in plans:
+		var frozen:=freeze_plan(plan)
+		if not frozen.ok:return frozen
+	var total:int=editor._doc.records.size()-(instances()[replacing].parts.size() if instances().has(replacing) else 0)
+	for plan:Dictionary in plans:total+=plan.records.size()
+	if total>100000:return Blueprint.fail("烘焙后超过地图 100000 个物件限制")
 	var doc = editor._doc
 	doc.checkpoint_recovery()
 	var registry: Dictionary = instances().duplicate(true)
@@ -172,7 +207,7 @@ func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Di
 	var ids: Array = []
 	for plan in plans:
 		var id: String = replacing if not replacing.is_empty() else plan.get("instance_id","building_"+Crypto.new().generate_random_bytes(10).hex_encode())
-		var value := {"version":Blueprint.VERSION,"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"parts":{},"signatures":{}}
+		var value := {"version":plan.get("recipe_version",Blueprint.VERSION),"parameters":plan.parameters,"position":plan.position,"yaw":plan.yaw,"parts":{},"signatures":{},"baked":true,"source_part_count":plan.source_part_count}
 		for generated in plan.records:
 			var record: Dictionary = generated.duplicate(true); var part: String = record.building.part
 			var previous_id: String = old.get("parts",{}).get(part,"")
@@ -182,6 +217,7 @@ func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Di
 				record.uuid = previous_id
 				if record.has("fixture") and previous[previous_id].has("fixture"): record.fixture.open=previous[previous_id].fixture.open
 				for key in ["surface_paint","event_template","event","editor_name"]:
+					if key=="surface_paint" and record.has("house_prefab"):continue
 					if previous[previous_id].has(key): record[key] = previous[previous_id][key]
 			record.building.id = id; record.editor_group = id; record.editor_group_name = Blueprint.LABELS[plan.parameters.template]
 			value.parts[part] = record.uuid; value.signatures[part] = Blueprint.geometry_signature(record)
@@ -197,6 +233,7 @@ func remove(id: String, detach := false) -> Dictionary:
 	var ready: Dictionary = editor._gameplay.guard()
 	if not ready.ok: return ready
 	if not instances().has(id): return Blueprint.fail("建筑不存在")
+	if detach and instances()[id].get("baked",false):return Blueprint.fail("烘焙预制件不能拆成可编辑零件")
 	var owned: Array = instances()[id].parts.values()
 	for record in editor._doc.records:
 		if not owned.has(record.uuid): continue

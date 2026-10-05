@@ -10,6 +10,7 @@ static func restore(key:String,mesh:NavigationMesh)->bool:
 	if Envelope.checksum(bytes)!=hash:return false
 	var data:Variant=bytes_to_var(bytes)
 	if not data is Dictionary or not data.get("vertices") is PackedVector3Array or not data.get("polygons") is Array:return false
+	if data.polygons.is_empty():return false
 	for vertex:Vector3 in data.vertices:
 		if not vertex.is_finite():return false
 	for polygon in data.polygons:
@@ -21,6 +22,7 @@ static func restore(key:String,mesh:NavigationMesh)->bool:
 	return true
 
 static func store_mesh(key:String,mesh:NavigationMesh)->void:
+	if mesh.get_polygon_count()==0:return
 	if key.is_empty() or DirAccess.make_dir_recursive_absolute(DIR)!=OK:return
 	var polygons:Array=[]
 	for i in mesh.get_polygon_count():polygons.append(mesh.get_polygon(i))

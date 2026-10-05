@@ -1,9 +1,11 @@
 extends "res://tools/test_ground_batching.gd"
 const Stream=preload("res://scripts/world3d/world_stream.gd")
 const B=preload("res://scripts/world3d/building_blueprint.gd")
-const OUT="D:/code/rmmo_runtime/review_artifacts/house_district"
+var OUT="D:/code/rmmo_runtime/review_artifacts/house_district"
 func run()->void:
 	create_timer(1200).timeout.connect(func():quit(2))
+	var frozen:bool="--prefab" in OS.get_cmdline_user_args()
+	if frozen:OUT+="_prefab"
 	DirAccess.make_dir_recursive_absolute(OUT);Engine.max_fps=0;DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	var count:=36
 	for arg in OS.get_cmdline_user_args():
@@ -15,6 +17,13 @@ func run()->void:
 		if id.is_empty():continue
 		if not templates.has(id):templates[id]=[]
 		templates[id].append(r)
+	if frozen:
+		var compiler=preload("res://scripts/world_editor/building_tools.gd").new()
+		for house:Dictionary in checkpoint.houses:
+			var plan:={"records":templates[house.building_id],"position":house.position,"yaw":house.get("yaw",0)}
+			var compiled:Dictionary=compiler.freeze_plan(plan)
+			if not compiled.ok:push_error(str(compiled));quit(1);return
+			templates[house.building_id]=plan.records
 	var doc:=Doc.new();doc.add_box("ground",Vector3(80,-.25,80),Vector3(260,.5,260))
 	for i in count:
 		var house:Dictionary=checkpoint.houses[i%checkpoint.houses.size()]
@@ -29,6 +38,16 @@ func run()->void:
 	RenderingServer.viewport_set_measure_render_time(viewport.get_viewport_rid(),true)
 	var started:=Time.get_ticks_msec();var scene:=doc.build();viewport.add_child(scene)
 	var build_ms:=Time.get_ticks_msec()-started
+	if frozen:
+		var mesh_surfaces:=0;var stats:Dictionary={}
+		for node in scene.get_children():
+			if not node is MeshInstance3D:continue
+			mesh_surfaces+=node.mesh.get_surface_count()
+			var record:Dictionary=node.get_meta("ground_batch_record",{})
+			var key:String=record.get("fixture",{}).get("kind",record.get("building",{}).get("role","other"))
+			if not stats.has(key):stats[key]=[0,0]
+			stats[key][0]+=1;stats[key][1]+=node.mesh.get_surface_count()
+		print("PREFAB_SURFACES ",mesh_surfaces," groups=",JSON.stringify(stats))
 	print("DISTRICT_BUILT houses=",count," records=",doc.records.size()," ms=",build_ms," box_hits=",doc.load_box_hits)
 	started=Time.get_ticks_msec();Stream.sync(scene,viewport,Vector3(70,0,30));var stream_ms:=Time.get_ticks_msec()-started
 	var batch:Node=scene.get_node("GroundRenderBatches")
@@ -60,6 +79,6 @@ func run()->void:
 		samples.sort();gpu.sort();swaps.sort()
 		results.append({"night":night,"frame_median_ms":samples[75],"frame_p95_ms":samples[142],"frame_max_ms":samples.back(),"gpu_median_ms":gpu[75],"stream_median_ms":swaps[75],"stream_p95_ms":swaps[142],"stream_max_ms":swaps.back(),"draw_calls":viewport.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)})
 		print("DISTRICT_PASS ",JSON.stringify(results.back()))
-	var result:Dictionary={"houses":count,"records":doc.records.size(),"build_ms":build_ms,"stream_ms":stream_ms,"navigation_ms":nav_ms,"batch_process_ms":batch_process_us/100000.0,"batches":batch.stats(),"results":results,"texture_bytes":Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED),"buffer_bytes":Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED)}
+	var result:Dictionary={"houses":count,"records":doc.records.size(),"stream_meshes":scene.get_meta("stream_meshes",{}).size(),"physics_bodies":scene.get_meta("stream_bodies",{}).size(),"build_ms":build_ms,"stream_ms":stream_ms,"navigation_ms":nav_ms,"batch_process_ms":batch_process_us/100000.0,"batches":batch.stats(),"results":results,"texture_bytes":Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED),"buffer_bytes":Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED)}
 	var file:=FileAccess.open(OUT.path_join("benchmark.json"),FileAccess.WRITE);file.store_string(JSON.stringify(result,"\t"));file.close()
 	print("DISTRICT_FINISHED ",JSON.stringify(result));quit()

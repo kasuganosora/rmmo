@@ -78,8 +78,9 @@ func _run() -> void:
 	if err != OK: _complete(err, previous_path); return
 	var slice := Time.get_ticks_usec()
 	var count := 0
+	var material_validation:Dictionary={}
 	for record in document.records:
-		err = document.validate_save_record(record)
+		err = document.validate_save_record(record,material_validation)
 		if err != OK: _complete(err, previous_path); return
 		count += 1
 		report("validate", count, document.records.size())

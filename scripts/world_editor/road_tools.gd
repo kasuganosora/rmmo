@@ -54,6 +54,10 @@ func prepare(args: Dictionary) -> Dictionary:
 	if not binding.ok: return binding
 	for portal in binding.portals:
 		if absf(settings.lift-.025)>.000001: return Data.fail("接桥道路须使用 0.025 米铺面偏移以保持桥头齐平")
+		if portal.get("road_stone",false):
+			var checked: Dictionary=preload("res://scripts/world_editor/bridge_road_tools.gd").verify(editor,portal)
+			if not checked.ok: return checked
+			continue
 		for region in data.get("waterways",[]):
 			if region.settings.id==portal.reference.waterway_id:
 				var owner: Dictionary=editor._waterways.owned(region)

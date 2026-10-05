@@ -157,6 +157,12 @@ func clear_world_map_pins()->void:
 func request_world_map_move(point:Vector2)->bool:
 	if _player.input_locked or not point.is_finite() or not _map_data.bounds.has_point(point):return false
 	var desired:=Vector3(point.x,_player.position.y-.9,point.y)
+	if not _navigation.fully_ready and not _navigation._inside_local(desired,2):
+		var pending:Dictionary=_navigation.find_path(_player.position-Vector3.UP*.9,desired)
+		if pending.get("reason")=="pending":
+			_player.set_click_target(desired,"ground")
+			_hud.append_system("正在规划路线。")
+			return true
 	var goal:=NavigationServer3D.map_get_closest_point(_navigation.map,desired)
 	if Vector2(goal.x,goal.z).distance_to(point)>1.5:
 		_hud.append_system("此处暂无可用路径；远处导航可能仍在准备。")
@@ -277,8 +283,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				var surface_id := "ground"
 				if body is CollisionObject3D and (body as CollisionObject3D).has_meta("surface_id"):
 					surface_id = str((body as CollisionObject3D).get_meta("surface_id"))
-				if not _navigation.fully_ready and not _navigation.near_surface(hit.position):
-					_status.text = "远处导航仍在准备，请稍后再试。"
 				_player.set_click_target(hit.position, surface_id)
 				get_viewport().set_input_as_handled()
 	elif event is InputEventKey:
@@ -297,17 +301,28 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	var profiling:bool=has_meta("profile_frame")
+	var marks:Variant=null
+	if profiling:marks=[Time.get_ticks_usec()]
 	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
 	if _player == null or _camera == null or not _ready_for_play:
 		return
 	furniture.tick()
+	if profiling:marks.append(Time.get_ticks_usec())
 	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
+		_navigation.follow(_player.position)
 		_navigation.resize_agent(float(_player.get_meta("standing_height",1.9)),_map_root.get_meta("stream_library",[]),_player.position)
+	if profiling:marks.append(Time.get_ticks_usec())
 	_apply_residency(Stream.FRAME_BUDGET)
+	if profiling:marks.append(Time.get_ticks_usec())
 	_camera.follow(_player.global_position, delta)
 	if is_instance_valid(_outline):_outline.visual_exclusions=_camera.visual_exclusions()
+	if profiling:marks.append(Time.get_ticks_usec())
 	_apply_actor_view()
 	_poll_warp()
+	if profiling:
+		marks.append(Time.get_ticks_usec())
+		set_meta("frame_timings",{"frame":Engine.get_process_frames(),"actions":(marks[1]-marks[0])/1000.0,"navigation":(marks[2]-marks[1])/1000.0,"stream":(marks[3]-marks[2])/1000.0,"camera":(marks[4]-marks[3])/1000.0,"actors":(marks[5]-marks[4])/1000.0})
 
 func _update_cloth_scene()->void:
 	if not is_instance_valid(_map_root):return
@@ -497,14 +512,17 @@ func set_night(on: bool) -> void:
 func _request_environment(changes: Dictionary) -> Dictionary:
 	var server = Net.server()
 	if not is_instance_valid(_weather) or not server.has_method("try_set_world3d_environment"): return {"ok":false,"error":"环境服务未就绪"}
+	var began:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	var result: Dictionary = server.try_set_world3d_environment(_map_ref(),changes)
+	var server_end:=Time.get_ticks_usec() if began>0 else 0
 	if result.get("ok",false): _weather.sky_poll = 0; _weather._process(0)
+	if began>0:set_meta("environment_timing",{"server_ms":(server_end-began)/1000.0,"weather_ms":(Time.get_ticks_usec()-server_end)/1000.0})
 	return result
 
 func _on_server_environment(config: Dictionary) -> void:
 	_night = config.preset == "night"; _refresh_lamps()
 	if is_instance_valid(_outline): _outline.configure(config)
-	if is_instance_valid(_camera): _camera.bind_map(_map_root,config)
+	if is_instance_valid(_camera): _camera.configure_environment(config)
 
 ## Runtime weather changes are transient; editor/MCP author the map's initial weather.
 func set_weather(kind: String, intensity := .7) -> Dictionary:

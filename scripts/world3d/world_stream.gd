@@ -1,5 +1,5 @@
 extends RefCounted
-## City view loads 32 m chunks around the player. The document keeps every record.
+## Small residency cells index near physics and kilometre-scale landscape views.
 
 const Location = preload("res://scripts/world3d/world_location.gd")
 const CHUNK_M := 32.0
@@ -15,6 +15,7 @@ const LOAD_BUDGET := 512
 const GroundBatcher = preload("res://scripts/world3d/ground_batcher.gd")
 const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const FortCollision = preload("res://scripts/world3d/fortification_collision_batcher.gd")
+const Landscape = preload("res://scripts/world3d/stream_landscape.gd")
 
 
 static func chunk_key(position: Vector3) -> Vector2i:
@@ -45,6 +46,12 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var child_count := map_root.get_child_count()
 	var previous_chunk:Variant=map_root.get_meta(&"stream_chunk") if map_root.has_meta(&"stream_chunk") else null
 	var unfinished:Array=[]
+	if map_root.has_meta("stream_candidate_work"):
+		var work:RefCounted=map_root.get_meta("stream_candidate_work")
+		# No residency has changed while this candidate selection is pending.
+		# An interrupted turn starts from the same settled/pending base, not from
+		# a destination whose jobs have never been applied.
+		previous_chunk=work.previous;unfinished=work.unfinished.duplicate()
 	if previous_chunk==null and map_root.has_meta(&"stream_target") and not _chunk_is(map_root,&"stream_target",target):
 		previous_chunk=map_root.get_meta(&"stream_target")
 		unfinished.append_array(jobs.slice(int(map_root.get_meta(&"stream_cursor",0))))
@@ -55,6 +62,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		return
 	if not _child_count_is(map_root, child_count):
 		previous_chunk=null
+		map_root.remove_meta("stream_candidate_work")
 		_adopt(map_root, library, known)
 		_index_buildings(map_root,library)
 		child_count = map_root.get_child_count()
@@ -63,14 +71,30 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		map_root.set_meta(&"stream_target", target)
 		map_root.remove_meta(&"stream_chunk")
 		jobs.clear()
-		map_root.set_meta(&"stream_candidates", _changed_candidates(map_root,previous_chunk,target,unfinished) if previous_chunk is Vector2i else _candidates(map_root, target, meshes, bodies))
+		if previous_chunk is Vector2i and budget>0 and budget<LOAD_BUDGET:
+			map_root.set_meta("stream_candidate_work",preload("res://scripts/world3d/stream_candidate_plan.gd").new(map_root,previous_chunk,target,unfinished,load("res://scripts/world3d/world_stream.gd")))
+			map_root.remove_meta("stream_candidates")
+		else:
+			map_root.remove_meta("stream_candidate_work")
+			map_root.set_meta(&"stream_candidates", _changed_candidates(map_root,previous_chunk,target,unfinished) if previous_chunk is Vector2i else _candidates(map_root, target, meshes, bodies))
 		map_root.set_meta(&"stream_plan_cursor", 0)
 		map_root.set_meta(&"stream_plan_bins", [[], [], [], [], []])
 		map_root.set_meta(&"stream_cursor", 0)
 	map_root.set_meta(&"stream_children", map_root.get_child_count())
 	map_root.set_meta(&"stream_library", library)
 	var plan_started:=Time.get_ticks_usec()
+	if map_root.has_meta("stream_candidate_work"):
+		var work:RefCounted=map_root.get_meta("stream_candidate_work")
+		if budget<=0:
+			while not work.advance(12000):pass
+		elif not work.advance(12000 if budget>=LOAD_BUDGET else 1500):return
+		map_root.set_meta("stream_candidates",work.selected.values())
+		map_root.remove_meta("stream_candidate_work")
+		# Selection used this frame's budget. Planning/attachment starts next frame.
+		if budget>0 and budget<LOAD_BUDGET:return
 	if not _plan_jobs(map_root, jobs, meshes, bodies, target, budget):
+		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PLAN_SLOW ",{"index":(plan_started-sync_started)/1000.0,"plan":(Time.get_ticks_usec()-plan_started)/1000.0})
+		if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":Time.get_ticks_usec()-plan_started})
 		return
 	var cursor := int(map_root.get_meta(&"stream_cursor", 0))
 	var left := 1000000 if budget <= 0 else budget
@@ -78,8 +102,17 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var solid := _ring_at(target, COLLISION_RADIUS)
 	var apply_started := Time.get_ticks_usec()
 	while left > 0 and cursor < jobs.size():
+		var prepare_started:=Time.get_ticks_usec()
+		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,jobs[cursor],solid,bodies)
+		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000:print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0)
+		if not collision_ready:break
+		# Finishing a large terrain shape can consume this frame's budget by
+		# itself. Keep the prepared shape and attach its body on the next frame.
+		if budget>0 and budget<LOAD_BUDGET and Time.get_ticks_usec()-apply_started>=3000:break
+		var item_started:=Time.get_ticks_usec()
 		if _apply(map_root, host, jobs[cursor], draw, solid, meshes, bodies):
 			map_root.set_meta("stream_visibility_revision",int(map_root.get_meta("stream_visibility_revision",0))+1)
+		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-item_started>10000:print("STREAM_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-item_started)/1000.0," ms ",jobs[cursor].get("profile_body",{}))
 		cursor += 1
 		left -= 1
 		if budget > 0 and Time.get_ticks_usec() - apply_started >= (24000 if budget>=LOAD_BUDGET else 3000):
@@ -95,7 +128,9 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	# after every twelve objects (which repeatedly sorts the growing scene).
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)
 	if cursor >= jobs.size() and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
-		batcher.sync(meshes.values());map_root.set_meta("stream_batch_revision",revision)
+		if budget>0 and budget<LOAD_BUDGET:batcher.request_sync(meshes.values())
+		else:batcher.sync(meshes.values())
+		map_root.set_meta("stream_batch_revision",revision)
 		# During the covered initial load, only upload the final combined draws.
 		# Transparent/ineligible/singleton sources still need their own GPU mesh.
 		for source in meshes.values():
@@ -109,14 +144,34 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var entries: Array=[]
 	for spec: Dictionary in _dict(map_root,&"fortification_collision_sources").values(): entries.append(FortCollision.entry(spec.mesh,spec.transform,spec.uuid,spec.extras))
 	collision_batches.sync(entries)
+	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":collision_batches.last_sync_ms})
 	map_root.set_meta(&"stream_library", library)
 	map_root.set_meta(&"stream_children", map_root.get_child_count())
 	if budget<=0:map_root.set_meta("stream_profile_ms",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0})
+	if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":apply_started-plan_started,"apply":batch_started-apply_started,"batch":Time.get_ticks_usec()-batch_started})
 	if cursor < jobs.size():
 		return
 	jobs.clear()
 	map_root.set_meta(&"stream_cursor", 0)
 	map_root.set_meta(&"stream_chunk", target)
+
+
+static func _profile_load(map_root:Node,timings:Dictionary)->void:
+	var profile:Dictionary=map_root.get_meta("stream_load_profile_us",{})
+	for key:String in timings:profile[key]=int(profile.get(key,0))+timings[key]
+	map_root.set_meta("stream_load_profile_us",profile)
+
+
+static func _prepare_collision(map_root:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
+	if bodies.has(str(spec.uuid)) or spec.has("shape") or not _overlaps(spec,solid):return true
+	var extras:Dictionary=spec.get("extras",{})
+	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
+	if FortCollision.candidate(spec.get("ground_batch_record",{})):return true
+	var preparer:Node=map_root.get_node_or_null("StreamCollisionPreparer")
+	if preparer==null:
+		preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new()
+		preparer.name="StreamCollisionPreparer";map_root.add_child(preparer)
+	return preparer.prepare(spec)
 
 
 static func _library(map_root: Node) -> Array:
@@ -243,18 +298,18 @@ static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bo
 		selected[key] = by_id[key]
 	for key in _dict(map_root,&"fortification_collision_sources"):
 		selected[key]=by_id[key]
-	var radius:=maxi(COLLISION_RADIUS,BUILDING_RENDER_RADIUS)
+	var radius:=maxi(COLLISION_RADIUS,RENDER_RADIUS)
 	for z in range(target.y - radius, target.y + radius + 1):
 		for x in range(target.x - radius, target.x + radius + 1):
 			for key in index.get(Vector2i(x, z), []):
 				selected[key] = by_id[key]
 	var groups:=_dict(map_root,&"stream_building_groups")
-	var seen:Dictionary={}
-	for spec:Dictionary in selected.values():
-		var id:String=spec.get("render_building","")
-		if id.is_empty() or seen.has(id):continue
-		seen[id]=true
-		for member:Dictionary in groups[id]:selected[member.uuid]=member
+	var draw:=_ring_at(target,RENDER_RADIUS)
+	for members:Array in groups.values():
+		if not _draws(members[0],draw):continue
+		for member:Dictionary in members:selected[member.uuid]=member
+	for spec:Dictionary in map_root.get_meta("stream_landscape",[]):
+		if _draws(spec,draw):selected[spec.uuid]=spec
 	return selected.values()
 
 static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,unfinished:Array=[])->Array:
@@ -277,43 +332,25 @@ static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,
 	for members:Array in _dict(map_root,&"stream_building_groups").values():
 		if _draws(members[0],old_draw)==_draws(members[0],next_draw):continue
 		for spec:Dictionary in members:selected[spec.uuid]=spec
+	for spec:Dictionary in map_root.get_meta("stream_landscape",[]):
+		if _draws(spec,old_draw)!=_draws(spec,next_draw):selected[spec.uuid]=spec
 	return selected.values()
 
 
 static func _index_buildings(map_root:Node,library:Array)->void:
 	if int(map_root.get_meta("stream_building_count",-1))==library.size():return
-	var groups:Dictionary={}
-	var props:Dictionary={};var collisions:Dictionary={}
-	for spec:Dictionary in library:
-		var id:String=spec.get("ground_batch_record",{}).get("building",{}).get("id","")
-		var solid:bool=spec.get("extras",{}).get("rmmo_collision","")!="none"
-		if id.is_empty() or solid:
-			for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
-				for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
-					var key:=Vector2i(x,z)
-					if id.is_empty():
-						if not props.has(key):props[key]=[]
-						props[key].append(spec)
-					if solid:
-						if not collisions.has(key):collisions[key]=[]
-						collisions[key].append(spec)
-		if id.is_empty():continue
-		if not groups.has(id):groups[id]=[]
-		groups[id].append(spec)
-	for id:String in groups:
-		var low:=Vector2i(2147483647,2147483647);var high:=-low
-		for spec:Dictionary in groups[id]:low=low.min(spec.chunk_min);high=high.max(spec.chunk_max)
-		for spec:Dictionary in groups[id]:
-			spec.render_building=id;spec.render_bounds={"chunk":low,"chunk_min":low,"chunk_max":high}
-	map_root.set_meta("stream_building_groups",groups)
-	map_root.set_meta("stream_prop_index",props);map_root.set_meta("stream_collision_index",collisions)
-	map_root.set_meta("stream_building_count",library.size())
+	var data:Dictionary=preload("res://scripts/world3d/stream_index.gd").build(library)
+	for key:String in data:map_root.set_meta(key,data[key])
 
 
 static func _draws(spec:Dictionary,draw:Dictionary)->bool:
 	if not spec.has("render_bounds"):return _overlaps(spec,draw)
 	var extra:=BUILDING_RENDER_RADIUS-RENDER_RADIUS
-	return _overlaps(spec.render_bounds,{"low":draw.low-Vector2i(extra,extra),"high":draw.high+Vector2i(extra,extra)})
+	var far:={"low":draw.low-Vector2i(extra,extra),"high":draw.high+Vector2i(extra,extra)}
+	if _overlaps(spec.render_bounds,far):return true
+	for bounds:Dictionary in spec.get("render_dependents",[]):
+		if _overlaps(bounds,far):return true
+	return false
 
 
 static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: Dictionary, target: Vector2i, budget: int) -> bool:
@@ -329,10 +366,12 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 		var item: Dictionary = candidates[cursor]
 		cursor += 1
 		if _needs_work(item, draw, solid, meshes, bodies, _dict(map_root,&"fortification_collision_sources")):
-			var bin := 4
-			if _overlaps(item, solid):
-				var key: Vector2i = item["chunk"]
-				bin = mini(maxi(absi(key.x - target.x), absi(key.y - target.y)), 3)
+			# Ground first on arrival, buildings first on departure. Even budgeted
+			# swaps must never expose a house before its supporting land exists.
+			var visible:=_draws(item,draw)
+			var bin:=1 if _overlaps(item,solid) else 3
+			if Landscape.ground(item):bin=0 if visible else 4
+			elif item.has("render_building"):bin=2 if visible else 0
 			bins[bin].append(item)
 		if budget > 0 and Time.get_ticks_usec() - started >= (12000 if budget>=LOAD_BUDGET else 2000):
 			map_root.set_meta(&"stream_plan_cursor", cursor)
@@ -383,7 +422,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 		if FortCollision.candidate(spec.get("ground_batch_record",{})):
 			_dict(map_root,&"fortification_collision_sources")[uuid]=spec
 		elif body == null:
-			body = _make_body(host, spec)
+			body = _make_body(host, spec, map_root.has_meta("profile_frame"))
 			if body != null:
 				bodies[uuid] = body
 	elif body != null:
@@ -431,8 +470,11 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 		collision_source=collision_source.get_meta("runtime_solid")
 	if collision_source is BoxMesh and not collision_source.flip_faces:
 		spec["collision_mesh"] = collision_source
-	elif visual.mesh.has_meta("ground_cpu_cache"):
-		spec["collision_mesh"] = CpuMesh.capture(visual.mesh)
+	elif collision_source is ArrayMesh or collision_source is CpuMesh or visual.has_meta("collision_solid") or visual.mesh.has_meta("ground_cpu_cache"):
+		# Direct glTF/editor playtests lack the cooked loader's CPU spec. Capture
+		# their immutable triangles during adoption too, so walking into a house
+		# never needs a GPU readback and synchronous TriangleMesh construction.
+		spec["collision_mesh"] = CpuMesh.capture(collision_source)
 	if visual.has_meta("ground_batch_record"):
 		spec.ground_batch_record = visual.get_meta("ground_batch_record")
 		# Off-screen terrain keeps CPU collision/authoring data, not GPU buffers.
@@ -446,7 +488,7 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 	visual.name = str(spec.get("uuid", "chunk"))
 	visual.mesh = spec.get("mesh")
 	if visual.mesh is CpuMesh:
-		if defer_upload and spec.has("ground_batch_record") and spec.get("material_override")==null and not spec.get("surface_overrides",[]).any(func(value):return value!=null):visual.set_meta("deferred_gpu",true)
+		if defer_upload and spec.has("ground_batch_record") and not spec.ground_batch_record.has("house_prefab") and spec.get("material_override")==null and not spec.get("surface_overrides",[]).any(func(value):return value!=null):visual.set_meta("deferred_gpu",true)
 		else:visual.mesh = visual.mesh.restore()
 	if spec.has("ground_batch_record"): visual.set_meta("ground_batch_record",spec.ground_batch_record)
 	visual.material_override = spec.get("material_override")
@@ -461,6 +503,7 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 	if not extras.is_empty():
 		visual.set_meta("extras", extras)
 	preload("res://scripts/world3d/wind_response.gd").register(visual)
+	preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
 	if bool(extras.get("invisible", false)):
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):
@@ -481,7 +524,8 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 	return visual
 
 
-static func _make_body(host: Node, spec: Dictionary) -> StaticBody3D:
+static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> StaticBody3D:
+	var profile_started:=Time.get_ticks_usec()
 	var extras: Dictionary = spec.get("extras", {})
 	if str(extras.get("rmmo_collision", "")) == "none" or (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):
 		return null
@@ -518,12 +562,22 @@ static func _make_body(host: Node, spec: Dictionary) -> StaticBody3D:
 				box=BoxShape3D.new();box.size=size_;mesh.set_meta("runtime_box_shape",box)
 			spec["shape"] = box
 		else:
-			spec["shape"] = mesh.create_trimesh_shape()
+			if spec.get("ground_batch_record",{}).has("house_prefab"):
+				if not mesh.has_meta("runtime_concave_shape"):mesh.set_meta("runtime_concave_shape",_triangle_shape(mesh))
+				spec["shape"] = mesh.get_meta("runtime_concave_shape")
+			else:spec["shape"] = _triangle_shape(mesh)
+	var shape_ready:=Time.get_ticks_usec()
 	shape.shape = spec["shape"]
 	body.add_child(shape)
 	host.add_child(body)
 	body.global_transform = spec.get("transform", body.transform)
+	if profile:spec.profile_body={"shape_ms":(shape_ready-profile_started)/1000.0,"attach_ms":(Time.get_ticks_usec()-shape_ready)/1000.0,"cpu":mesh is CpuMesh,"faces":spec["shape"].get_faces().size() if spec["shape"] is ConcavePolygonShape3D else 0}
 	return body
+
+
+static func _triangle_shape(mesh:Mesh)->ConcavePolygonShape3D:
+	if not mesh is CpuMesh:return mesh.create_trimesh_shape()
+	var shape:=ConcavePolygonShape3D.new();shape.set_faces(mesh.collision_faces());return shape
 
 
 static func _overlaps(spec: Dictionary, chunks: Dictionary) -> bool:

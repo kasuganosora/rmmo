@@ -1,0 +1,12 @@
+{
+  "post_height_m": 1.02,
+  "rail_top_m": 0.88,
+  "min_clearance_m": 0.50,
+  "rail_width_m": 0.33,
+  "max_post_spacing_m": 1.8,
+  "samples": [
+    {"name": "01_short_straight", "length_m": 1.8},
+    {"name": "02_long_straight", "length_m": 3.6},
+    {"name": "03_corner", "length_m": 1.8, "return_m": 1.8}
+  ]
+}

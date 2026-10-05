@@ -337,6 +337,8 @@ func use_item(id: String) -> Dictionary:
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var server = Net.server()
 	var definition: Dictionary = server.item_catalog.get_item(id)
+	if id==preload("res://scripts/world3d/day_night_review_item.gd").ID:
+		return _apply(preload("res://scripts/world3d/day_night_review_item.gd").use(server,world._map_ref(),Callable(world,"_request_environment")))
 	if id == "pet_whistle": return summons.pet_summon()
 	if str(definition.get("use_effect", "")) == "party_summon": return summons.party_start(id)
 	if str(definition.get("type", "")) == "equipment": return _apply(server.try_toggle_equip(id))

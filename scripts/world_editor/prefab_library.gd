@@ -6,7 +6,7 @@ const SurfacePaint = preload("res://scripts/world3d/surface_materials.gd")
 const MapPaths = preload("res://scripts/world3d/map_paths.gd")
 
 
-static func capture(records: Array, library, label: String) -> Dictionary:
+static func capture(records: Array, library, label: String, registry:Dictionary={}) -> Dictionary:
 	if records.is_empty() or label.strip_edges().is_empty(): return {"ok": false, "error": "请选择物件并填写预制件名称"}
 	for record in records:
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return {"ok": false, "error": "预制件事件模板无效"}
@@ -15,12 +15,28 @@ static func capture(records: Array, library, label: String) -> Dictionary:
 		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return {"ok":false,"error":"预制件地形损坏"}
 		if not SurfacePaint.valid(record): return {"ok": false, "error": "预制件表面材质无效"}
 	if not SurfacePaint.missing(records).is_empty(): return {"ok": false, "error": "预制件引用的表面贴图缺失"}
+	var baked:Dictionary={}
+	var selected:Dictionary={}
+	for record in records:selected[record.uuid]=true
+	for record in records:
+		if not record.get("prefab_locked",false):continue
+		var id:String=record.get("building",{}).get("id","")
+		if not registry.get(id,{}).get("baked",false):return {"ok":false,"error":"请从完整建筑选择中保存固定预制件"}
+		if not registry[id].parts.values().all(func(uuid):return selected.has(uuid)):return {"ok":false,"error":"不能将固定建筑的一部分另存为预制件"}
+		baked[id]=registry[id].duplicate(true)
+	if not baked.is_empty() and records.any(func(r):return not r.get("prefab_locked",false)):return {"ok":false,"error":"固定建筑请与普通物件分别保存"}
 	var bounds := Geometry.bounds(records)
 	var pivot := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
+	if not baked.is_empty():
+		pivot.y=INF
+		for value:Dictionary in baked.values():pivot.y=minf(pivot.y,float(value.position[1]))
 	var copies: Array = records.duplicate(true)
+	for value:Dictionary in baked.values():value.position=preload("res://scripts/world3d/house_prefab.gd").arr(preload("res://scripts/world3d/house_prefab.gd").vec(value.position)-pivot)
 	for record in copies:
-		preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(record)
-		record.erase("building") # Snapshot prefabs retain meshes, not a live building recipe.
+		if baked.is_empty():
+			preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(record)
+			record.erase("building")
+		else:record.building.floor_y-=pivot.y
 		record.erase("road_source")
 		var position := Geometry.vector(record, "position") - pivot
 		record.position = [position.x, position.y, position.z]
@@ -44,6 +60,8 @@ static func capture(records: Array, library, label: String) -> Dictionary:
 				if error == OK and not FileAccess.file_exists(destination): error = preload("res://scripts/world_editor/surface_material_library.gd")._write(destination, FileAccess.get_file_as_bytes(source))
 				if error != OK: return {"ok": false, "error": "预制件贴图打包失败"}
 				definition[field] = destination.trim_prefix(library.directory.trim_suffix("/") + "/")
+		preload("res://scripts/world3d/house_prefab.gd").retarget_materials(record)
+		if not baked.is_empty():baked[record.building.id].signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
 		if record.get("kind") == "asset":
 			var original_path := str(record.get("asset_path", ""))
 			var imported: Dictionary = library.import_file(original_path)
@@ -64,7 +82,7 @@ static func capture(records: Array, library, label: String) -> Dictionary:
 				record.surface_paint = mapped.entries
 			record.asset_path = str(imported.entry.asset_path).trim_prefix(library.directory.trim_suffix("/") + "/")
 			record.erase("thumbnail_path")
-	var payload := JSON.stringify({"format": "rmmo_prefab", "version": 1, "records": copies}, "\t")
+	var payload := JSON.stringify({"format": "rmmo_prefab", "version": 1, "records": copies,"building_instances":baked}, "\t")
 	var hash := (label + "\n" + payload).sha256_text()
 	var path: String = library.directory.path_join("prefabs").path_join(hash + ".json")
 	for entry in library.entries:
@@ -134,13 +152,19 @@ static func read(entry: Dictionary) -> Dictionary:
 			if not asset.is_absolute_path(): asset = path.get_base_dir().get_base_dir().path_join(asset).simplify_path()
 			if not FileAccess.file_exists(asset): return {"ok": false, "error": "预制件模型缺失：" + asset.get_file()}
 			record.asset_path = asset
-	return {"ok": true, "records": raw.records}
+	var registry:Dictionary=raw.get("building_instances",{})
+	var meta:={"building_instances":registry}
+	var buildings=preload("res://scripts/world3d/building_blueprint.gd")
+	for record:Dictionary in raw.records:preload("res://scripts/world3d/house_prefab.gd").retarget_materials(record)
+	if not buildings.valid_meta(meta) or not buildings.valid_ownership(meta,raw.records):return {"ok":false,"error":"预制件建筑归属损坏"}
+	return {"ok": true, "records": raw.records,"building_instances":registry}
 
 
 static func place(doc, entry: Dictionary, position: Vector3) -> Dictionary:
 	var loaded := read(entry)
 	if not loaded.ok: return loaded
 	if not position.is_finite(): return {"ok": false, "error": "放置位置不合法"}
+	if not loaded.building_instances.is_empty():return place_buildings(doc,loaded,position,str(entry.get("label","建筑预制件")))
 	doc.checkpoint()
 	var ids := Geometry.duplicate_records(doc, loaded.records, position, str(entry.get("label", "预制件")))
 	return {"ok": true, "ids": ids}
@@ -151,4 +175,40 @@ static func preview(entry: Dictionary) -> Node3D:
 	if not loaded.ok: return null
 	var doc = load("res://scripts/world3d/world_document.gd").new()
 	doc.records = loaded.records
+	doc.map_meta.building_instances=loaded.building_instances
 	return doc.build()
+
+
+static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)->Dictionary:
+	var registry:Dictionary=doc.map_meta.get("building_instances",{}).duplicate(true)
+	if registry.size()+loaded.building_instances.size()>4096 or doc.records.size()+loaded.records.size()>100000:return {"ok":false,"error":"超过地图建筑或物件限制"}
+	var remap:Dictionary={};var records:Array=loaded.records.duplicate(true);var next:int=doc._next;var ids:Array[String]=[]
+	for id:String in loaded.building_instances:
+		var fresh:="building_"+Crypto.new().generate_random_bytes(10).hex_encode();remap[id]=fresh
+		var value:Dictionary=loaded.building_instances[id].duplicate(true)
+		value.position=preload("res://scripts/world3d/house_prefab.gd").arr(preload("res://scripts/world3d/house_prefab.gd").vec(value.position)+position)
+		value.parts={};value.signatures={};registry[fresh]=value
+	for record:Dictionary in records:
+		record.uuid="obj_%d"%next;next+=1;ids.append(record.uuid)
+		record.building.id=remap[record.building.id];record.building.floor_y+=position.y
+		record.position=preload("res://scripts/world3d/house_prefab.gd").arr(Geometry.vector(record,"position")+position)
+		record.editor_group=record.building.id;record.editor_group_name=label
+		var value:Dictionary=registry[record.building.id]
+		value.parts[record.building.part]=record.uuid;value.signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
+	var Footprint=preload("res://scripts/world_editor/building_footprint.gd")
+	var occupied:Array=[]
+	for fresh:String in remap.values():
+		var shape:Array=Footprint.components(records.filter(func(r):return r.building.id==fresh),Vector3.ZERO,Basis.IDENTITY)
+		if Footprint.batches_overlap(shape,occupied) or Footprint.batches_overlap(shape,preload("res://scripts/world3d/planning_zones.gd").obstacles(doc.map_meta)):return {"ok":false,"error":"预制件进入保留区或另一栋建筑"}
+		for r:Dictionary in doc.records:
+			# Broad phase before expanding every cell of distant terrain patches.
+			# Roads and doors retain their vertical-clearance / full-swing checks.
+			if r.has("terrain_mesh"):
+				var bounds:=Geometry.bounds([r])
+				if not shape.any(func(s):return s.bounds.grow(.01).intersects(bounds.grow(.01))):continue
+			for obstacle:Dictionary in Footprint.record_shapes(r):
+				if Footprint.supporting_ground(r,obstacle.bounds.end.y,float(registry[fresh].position[1])):continue
+				if Footprint.batches_overlap(shape,[obstacle]):return {"ok":false,"error":"预制件与已有物件重叠","conflicts":[str(r.uuid)]}
+		occupied.append_array(shape)
+	doc.checkpoint_recovery();doc._next=next;doc.records.append_array(records);doc.map_meta.building_instances=registry
+	return {"ok":true,"ids":ids}

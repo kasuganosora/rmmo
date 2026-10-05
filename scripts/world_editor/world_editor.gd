@@ -1166,7 +1166,7 @@ func _save_prefab_dialog() -> void:
 	dialog.confirmed.connect(func():
 		var root_path := str(packs[packs_control.selected].root)
 		var library = preload("res://scripts/world_editor/asset_library.gd").new(root_path.path_join("assets"))
-		var result := Prefabs.capture(records, library, name_edit.text)
+		var result := Prefabs.capture(records, library, name_edit.text,_doc.map_meta.get("building_instances",{}))
 		if result.ok:
 			if root_path == _asset_pack_root: _assets = library
 			else:

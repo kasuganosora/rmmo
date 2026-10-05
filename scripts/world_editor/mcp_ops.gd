@@ -48,9 +48,11 @@ func state() -> Dictionary:
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"set_streetlamp_banner":return preload("res://scripts/world_editor/banner_tools.gd").apply(editor,args.ids,args.settings)
 		"list_bridge_prefabs": return editor._bridges.catalog()
 		"preview_bridge": return editor._bridges.summary(args)
 		"generate_bridge": return editor._bridges.generate(args)
+		"bake_bridge": return editor._bridges.bake(args.id)
 		"save_bridge_prefab": return editor._bridges.save_prefab(args.id,args.name)
 		"set_terrain_furrows": return preload("res://scripts/world_editor/terrain_furrow_tools.gd").apply(editor,args)
 		"paint_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args)
@@ -70,6 +72,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"list_fortifications": return editor._fortifications.catalog()
 		"preview_fortification": return editor._fortifications.summary(args)
 		"generate_fortification": return editor._fortifications.generate(args)
+		"bake_fortification": return editor._fortifications.bake(args.id)
 		"remove_fortification": return editor._fortifications.remove(args.id,args.get("keep_objects",true))
 		"set_fortification_gate": return editor._fortifications.set_gate(args.id,args.gate_id,args.open)
 		"preview_waterway": return editor._waterways.summary(args)
@@ -111,6 +114,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"generate_street_buildings": return editor._buildings.generate_street(args)
 		"update_building": return editor._buildings.update(args.id,args.get("parameters",{}),args.get("position"),args.get("yaw"))
 		"delete_building": return editor._buildings.remove(args.id)
+		"bake_building": return editor._buildings.bake_existing(args.id)
 		"detach_building": return editor._buildings.remove(args.id,true)
 		"get_editor_view": return ok({"view": editor._authoring.settings.duplicate(true)})
 		"set_floor_view": return editor._authoring.set_settings(args)
@@ -162,7 +166,9 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			return ok({"objects": rows, "total": records.size()})
 		"get_object":
 			var record: Dictionary = editor._doc._find(args.id)
-			return error("Object not found") if record.is_empty() else ok({"record": record.duplicate(true), "wind_meshes":editor._wind_tools.catalog(args.id)})
+			var snapshot:Dictionary=record.duplicate(true)
+			if snapshot.has("house_prefab"):snapshot.house_prefab.erase("data")
+			return error("Object not found") if record.is_empty() else ok({"record": snapshot, "wind_meshes":editor._wind_tools.catalog(args.id)})
 		"select_objects":
 			if not args.has("ids") and not args.has("group_id"): return error("ids or group_id is required")
 			var target := targets(args)
@@ -368,7 +374,7 @@ func save_prefab(args: Dictionary) -> Dictionary:
 	var invalid := validate_assets(records)
 	if not invalid.is_empty(): return error(invalid)
 	var library := Library.new(destination)
-	var result := Prefabs.capture(records, library, args.name)
+	var result := Prefabs.capture(records, library, args.name,editor._doc.map_meta.get("building_instances",{}))
 	if not result.ok: return result
 	if pack_root == editor._asset_pack_root: editor._assets = library
 	else:

@@ -31,7 +31,7 @@ func material_role(record: Dictionary, face: Dictionary) -> String:
 	var building: Dictionary=record.get("building",{})
 	var role:=str(building.get("role","")); var part:=str(building.get("part",""))
 	var normal:=Vector3(face.normal[0],face.normal[1],face.normal[2])
-	if record.get("building_shape")=="roof_prism":
+	if record.get("building_shape")=="roof_prism" and role=="roof":
 		if record.roof_mesh.semantic=="gable": return "plaster" if int(face.target.surface)==0 else "interior"
 		return "roof" if int(face.target.surface)==0 else "wood"
 	if role=="hardware": return "hardware"
@@ -55,6 +55,8 @@ func material_role(record: Dictionary, face: Dictionary) -> String:
 		if part.contains("/cheek"): outward=Vector3.FORWARD if part.contains("/cheek-1") else Vector3.BACK
 		if part.begins_with("roof/") and recipe.get("parameters",{}).get("roof_axis")=="width":outward=Basis(Vector3.UP,PI/2)*outward
 		outward=Basis(Vector3.UP,deg_to_rad(float(recipe.get("yaw",0))))*outward
+		# Exposed ends of exterior side walls are exterior plaster, not limewash.
+		if role=="wall" and not outward.is_zero_approx() and absf(normal.y)<.9 and normal.dot(outward)>-.1:return "plaster"
 		return "plaster" if normal.dot(outward)>.9 else "interior"
 	if part.contains("/slope"): return "roof" if normal.y>0 else "wood"
 	if role=="floor":

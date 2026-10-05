@@ -2,7 +2,9 @@ extends "res://tools/test_world3d_buildings.gd"
 ## Unpainted isolated geometry: character clearance and closed wall apertures.
 func run()->void:
 	var capsule:=CapsuleShape3D.new();capsule.radius=.3;capsule.height=2.1
-	for preset in Blueprint.medieval_presets():
+	var presets:Array=Blueprint.town_presets() if "--town-styles" in OS.get_cmdline_user_args() else Blueprint.medieval_presets()
+	if "--skyline" in OS.get_cmdline_user_args():presets=Blueprint.town_presets().filter(func(p):return p.id in ["town_tall_shop","town_tall_eaves_shop","town_compact_home"])
+	for preset in presets:
 		var plan:=Blueprint.generate(preset.parameters)
 		check(plan.ok,"recipe "+preset.id)
 		var doc:=Doc.new();doc.add_box("ground",Vector3(0,-.25,0),Vector3(60,.5,60))

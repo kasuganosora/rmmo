@@ -111,11 +111,25 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 			for j in 24: poly.append(Vector2(path[i].x,path[i].z)+Vector2(cos(TAU*j/24),sin(TAU*j/24))*radius)
 			sources.append({"polygon":poly,"plane":Vector3(0,0,path[i].y),"kind":edge.kind,"edge":edge})
 	if sources.size()>8192: return Data.fail("路面源轮廓超过 8192，请分区规划")
+	var clipped_sources: Array=[]
+	for source in sources:
+		var fragments: Array=[source.polygon]
+		for portal in portals:
+			if not portal.get("road_stone",false) or absf(source.plane.x)+absf(source.plane.y)>.000001 or absf(source.plane.z+settings.lift-portal.endpoints[0][1])>.08: continue
+			var remaining: Array=[]
+			for fragment in fragments:
+				if intersection(fragment,portal.polygon).is_empty(): remaining.append(fragment)
+				else: remaining.append_array(Poly.subtract(fragment,portal.polygon))
+			fragments=remaining
+		for fragment in fragments: clipped_sources.append(source.merged({"polygon":fragment},true))
+		if clipped_sources.size()>16384: return Data.fail("石桥裁切路面超过预算")
+	sources=clipped_sources
 	var operations:=0
 	for source in sources:
 		# Flat-cut the cap at a linked deck boundary. Approaching roads keep their
 		# own identity/material and never overlap the bridge's walking surface.
 		for portal in portals:
+			if portal.get("road_stone",false): continue
 			for at in 2:
 				if portal.nodes[at] not in [source.edge.from,source.edge.to]: continue
 				var endpoint: Vector3=Data.vec(portal.endpoints[at]); var opposite: Vector3=Data.vec(portal.endpoints[1-at]); var n:=Vector2(endpoint.x-opposite.x,endpoint.z-opposite.z).normalized()

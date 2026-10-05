@@ -1,0 +1,9 @@
+{
+  "01_wall_hedge": {"length_m": 3.2, "depth_m": 0.9},
+  "02_window_flowers": {"length_m": 2.1, "depth_m": 0.8},
+  "03_corner_garden": {"length_m": 2.5, "depth_m": 2.5, "arm_width_m": 0.87},
+  "04_octagon_flowers": {"length_m": 1.9, "depth_m": 1.9},
+  "05_brick_leaf_border": {"length_m": 3.1, "depth_m": 0.85},
+  "06_brick_leaf_corner": {"length_m": 2.5, "depth_m": 2.5, "arm_width_m": 0.87},
+  "07_tall_hedge_corner": {"length_m": 2.5, "depth_m": 2.5, "arm_width_m": 0.87}
+}

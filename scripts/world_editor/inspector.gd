@@ -11,6 +11,7 @@ var multi_scale: SpinBox
 var component_toggle: CheckButton
 var building_note: Label
 var wind_panel: VBoxContainer
+var banner_panel: VBoxContainer
 
 
 func setup(owner: Node) -> void:
@@ -104,6 +105,8 @@ func setup(owner: Node) -> void:
 	select("")
 	wind_panel = preload("res://scripts/world_editor/wind_panel.gd").new()
 	add_child(wind_panel); wind_panel.setup(editor); wind_panel.refresh()
+	banner_panel=preload("res://scripts/world_editor/banner_panel.gd").new()
+	add_child(banner_panel);banner_panel.setup(editor);banner_panel.refresh()
 
 
 func select(uuid: String) -> void:
@@ -121,12 +124,18 @@ func refresh(refresh_scene: bool=true) -> void:
 	var count: int = editor._selection_tools.ids.size()
 	var multi := count > 1
 	var whole: bool = editor._selection_tools.whole
-	component_toggle.visible = record.has("building") or editor._selection_tools.component_edit
+	component_toggle.visible = (record.has("building") or editor._selection_tools.component_edit) and not record.get("prefab_locked",false)
 	component_toggle.button_pressed = editor._selection_tools.component_edit
 	building_note.visible = component_toggle.visible
 	building_note.text = "整栋选择 · XYZ 移动 / Y 轴旋转\n改宽深、层数请用建筑参数；移动会检查碰撞。" if whole else "构件编辑已开启：点击单独构件。手工改动后，重新生成会提示冲突。"
 	title.text = "已选择 %d 件 · 共同中心" % count if multi else ("选择物件编辑" if record.is_empty() else "%s · %s" % [selection, record.get("kind", "")])
 	if whole: title.text="整栋建筑 · %d 个构件"%count
+	if record.get("prefab_locked",false):
+		title.text="固定预制件";building_note.visible=true
+		building_note.text="已烘焙 · 整栋移动、旋转、复制、删除
+内部结构与材质固定；门窗仍可开合。"
+		if record.has("fortification"):building_note.text="城防结构已固定，不能拆改。\n通过城防面板整体删除或开合城门。"
+		elif record.has("bridge_mesh"):building_note.text="桥梁网格已固定，加载时不重新生成。\n跨度、拱孔与材质不可修改。"
 	tile_note.visible = not multi and record.has("tile3d")
 	if tile_note.visible:
 		var tile: Dictionary = record.tile3d
@@ -169,6 +178,7 @@ func refresh(refresh_scene: bool=true) -> void:
 	# Transform callers already updated outlines, visual nodes and collision bodies.
 	if refresh_scene: editor._refresh_selection()
 	if wind_panel != null: wind_panel.refresh()
+	if banner_panel != null:banner_panel.refresh()
 	_updating = false
 
 

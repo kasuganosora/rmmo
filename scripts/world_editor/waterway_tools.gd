@@ -40,6 +40,7 @@ func prepare(args: Dictionary) -> Dictionary:
 	var old: Dictionary={}
 	for region in regions():
 		if region.settings.id==args.id: old=region
+	if old.get("parts",[]).any(func(p):return editor._doc._find(p.id).has("house_prefab")):return Data.fail("河道含固定桥梁预制件，不能重生成并修改桥梁结构")
 	if old.is_empty() and regions().size()>=32: return Data.fail("河道最多 32 条")
 	var settings:=W.defaults(); settings.merge(old.get("settings",{}),true); var changes:=args.duplicate(true); changes.erase("plan_token"); settings.merge(changes,true)
 	if not W.valid_settings(settings): return Data.fail("请提供河道中心线及要挖开的平地 ID，检查参数和桥梁位置")
@@ -116,6 +117,8 @@ func prepare(args: Dictionary) -> Dictionary:
 				if material.is_empty(): return Data.fail("默认石桥 PBR 材质缺失")
 				r.bridge_materials[role]=material
 			if preload("res://scripts/world3d/bridge_mesh.gd").kit(r.asset_path).is_empty(): return Data.fail("Blender 石桥模块库缺失")
+			var navigation:=preload("res://scripts/world_editor/bridge_clearance.gd").fit(r,result.records,false)
+			if not navigation.ok: return navigation
 		if not ownership.ids.has(r.uuid) and editor._doc.has_uuid(r.uuid): return Data.fail("河道构件 ID 已被其他物件占用")
 		var role: String=result.roles[r.uuid]; var material_role: String="bridge" if role=="rail" else role
 		if materials.has(material_role) and not r.has("bridge_mesh"):
@@ -140,6 +143,12 @@ func generate(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)
 	if not result.ok: return result
 	if Data.token(result.metadata)==Data.token(Data.resolve(editor._doc.map_meta)): return {"ok":true,"changed":false,"chunks":result.records.size()}
+	for i in result.records.size():
+		if not result.records[i].has("bridge_mesh"):continue
+		var frozen:=preload("res://scripts/world3d/structure_prefab.gd").bridge(result.records[i])
+		if not frozen.ok:return frozen
+		result.records[i]=frozen.record
+	preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings({"editor_layout":result.metadata},result.records)
 	editor._doc.checkpoint_recovery(); editor._doc.records=editor._doc.records.filter(func(r):return not result.excluded.has(r.uuid)); editor._doc.records.append_array(result.records)
 	editor._doc.map_meta.editor_layout=result.metadata; editor._dirty=true; editor._rebuild()
 	return {"ok":true,"changed":true,"chunks":result.records.size(),"ids":result.records.map(func(r):return r.uuid)}

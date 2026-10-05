@@ -14,6 +14,16 @@
 
 编辑器「环境」面板选择晴朗、下雨、雷暴、飘雪、浓雾，点「应用环境设置」。实时预览、单次撤销、保存重开和 F5 临时试玩共用地图 `extras.environment`。旧地图未写天气字段时为晴朗。切换日夜保留天气；进入另一张地图立即采用目标地图设置并清理旧粒子。
 
+### 昼夜切换验收道具（2026-10-05）
+
+背包「全部」中新增 **昼夜切换仪（验收）**，物品 ID `day_night_review_dial`。双击在白天 12:00 与夜晚 00:00 间切换，将时间倍率设为 0，固定当前时段便于检查。单击只选中；物品可重复使用、不消耗，聊天栏与场景提示显示结果。新角色默认持有一个，恢复旧角色背包后缺少时补发一个，已有时不重复发放；背包满时不覆盖其他道具或擅自增加容量。
+
+通过现有 `InvSlot.activated → InventoryPanel → world.request_use_item → world_combat → _request_environment` 路径执行，读取服务器当前小时判断下一时段，经权威环境请求刷新天气控制器；保留风、天气和过渡参数。只影响本次运行当前地图的服务器环境，不写地图默认配置，也不改其他地图的时钟。转图中、物品缺失、地图环境未就绪或请求失败时不切换、不消耗。旧二维入口明确提示进入三维地图后使用。
+
+这不是新增编辑器能力；编辑器与 3D MCP 仍使用现有 `get_environment` / `set_environment` 编辑初始环境。道具不绕过或改写这些保存事务。当前实现沿用本地 MockServer，未新增远程服务器授权接口。
+
+`tools/test_day_night_review_item.gd` 在后台独立桌面的实际游戏场景中验证背包单击/双击、往返切换、现有运行时夜灯联动、不消耗、重复发放保护、旧角色恢复、失败无副作用、天气保留、其他地图隔离与原文件不变。报告及日夜截图：`D:/code/rmmo_runtime/review_artifacts/day_night_review_item/`，失败数 0。此测试使用临时地图与已有运行时灯光，不将其等同于旗幡路灯 GLB 的夜间光源接入验收。
+
 HTTP MCP 沿用当前 `get_environment` / `set_environment`，工具数量不变。发现 schema、参数校验及文档事务全部复用环境业务；返回的是保存的目标设置，过渡动画不会持续改写地图或产生撤销记录。
 
 | 字段 | 范围 / 默认 | 说明 |
@@ -92,3 +102,6 @@ python tools/run_godot_background.py --timeout 200 --log D:/code/rmmo_runtime/we
 测试日志的 `weather CPU step` 是每次 30 Hz 脚本模拟（含碰撞和实例更新）的采样耗时，不含整个游戏或 GPU 渲染，不能换算为整体 FPS 提升。共享编辑器的图形回归还包括 `test_world3d_groups_ui.gd`、`test_world3d_transform.gd`、`test_world3d_editor.gd`，环境及事件回归为 `test_world3d_gameplay.gd`。
 
 2026-10-02 实测：Godot 4.7.2、Forward+、RX 7900 XTX；天气 headless / 后台 GPU、环境事件 headless、分组 / 变换 / 编辑器后台 GPU 均通过，无脚本或着色器错误。90% 强度、684 雨滴的每步脚本中位数约 3.65 ms（雨）/ 3.96 ms（雷暴），270 雪片约 1.44 ms；P95 分别约 9.11 / 7.27 / 3.22 ms。这是带编辑器和临时房屋的短期采样，尚不是大城镇性能承诺。五种材质房屋实景见外部 `review_artifacts/weather3d/art_*.png`。
+
+
+2026-10-05 路灯补验：旗幡路灯 GLB 已接入共用天气控制器，不再依赖独立 TSCN 的预览脚本。`tools/test_town_streetlamp_night.gd` 在真实城镇通过背包双击切换，逐盏检查 23 盏发光/光晕和道路朝向、原地整街同时点亮、相机距离不影响开关、白天关闭与流式卸载/重入。报告 `D:/code/rmmo_runtime/review_artifacts/town_streetlamps_20261005/night.json`；该检查补足早期仅验证昼夜道具而未覆盖此 GLB 灯具的缺口。

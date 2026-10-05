@@ -19,7 +19,9 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"furrow HTTP server")
 	var definitions: Array=(await rpc("tools/list")).result.tools
-	check(definitions.size()==118 and definitions.any(func(d):return d.name=="set_terrain_furrows") and definitions.all(func(d):return d.name!="paint_tile"),"118 current 3D tools, legacy 2D disabled")
+	var expected_tools:Array=preload("res://scripts/world_editor/mcp_schema.gd").tools().map(func(d):return d.name);expected_tools.sort()
+	var actual_tools:Array=definitions.map(func(d):return d.name);actual_tools.sort()
+	check(actual_tools==expected_tools and actual_tools.has("set_terrain_furrows") and not actual_tools.has("paint_tile"),"HTTP discovery matches current 3D schema, legacy 2D disabled")
 	var ids: Array=[]
 	for x in [16,48]:
 		var result:=await call_tool("create_terrain",{"center":[x,0,16],"width":32,"depth":32,"cell_size":2.,"material_id":"pack:default:terrain/mossy_grass_vcjmej0s/material"})

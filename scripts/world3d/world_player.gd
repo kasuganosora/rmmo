@@ -7,12 +7,19 @@ const WorldLocation = preload("res://scripts/world3d/world_location.gd")
 var map_ref := "p1/yard"
 var surface_id := "ground"
 var input_locked := true
-var click_target: Variant = null
+var click_target: Variant = null:
+	set(value):
+		click_target=value
+		# Existing combat, transfer and rest callers cancel by assigning null.
+		# Cancel deferred clicks too, so a later bake cannot restart movement.
+		if value==null:_pending_click=null
 var click_surface := ""
 var character: Dictionary = {}
 var equipment_parts: Dictionary = {}
 var navigation: Node
 var _route := PackedVector3Array()
+var _pending_click:Variant=null
+var _pending_version:=-1
 var _sequence := 0
 var _jump_was_pressed:=false
 signal movement_intent
@@ -43,6 +50,9 @@ func _physics_process(delta: float) -> void:
 func _step(dt: float) -> void:
 	var yaw := _camera_yaw()
 	var stick := _stick()
+	if stick.length_squared()>.01:_pending_click=null
+	elif _pending_click is Vector3 and navigation!=null and navigation.version!=_pending_version:
+		set_click_target(_pending_click,click_surface)
 	var focus:=get_viewport().gui_get_focus_owner()
 	var jump_pressed:=Input.is_key_pressed(KEY_SPACE) and not (focus is LineEdit or focus is TextEdit)
 	var jump:=jump_pressed and not _jump_was_pressed
@@ -97,7 +107,7 @@ func _step(dt: float) -> void:
 func request_rest(action:String)->bool:
 	if input_locked or not Net.server().combat_stats.player_alive():return false
 	if action not in REST_ACTIONS or _model.axis_rig==null or not _model.axis_rig.supports(action):return false
-	click_target=null;_route.clear();velocity.x=0;velocity.z=0
+	click_target=null;_pending_click=null;_route.clear();velocity.x=0;velocity.z=0
 	if action=="stand_up_ground":_begin_ground_exit()
 	else:_model.play(action,"front",true)
 	return true
@@ -115,6 +125,8 @@ func location() -> RefCounted:
 
 
 func set_click_target(point: Vector3, target_surface: String) -> void:
+	_pending_click=null
+	click_surface=target_surface
 	_route.clear()
 	# A solid building component can still have a walkable top (stairs,
 	# landings and imported floors). Navigation decides reachability.
@@ -124,6 +136,8 @@ func set_click_target(point: Vector3, target_surface: String) -> void:
 	var result: Dictionary = navigation.find_path(global_position - Vector3(0, 0.9, 0), point, .65)
 	if not bool(result.get("ok", false)):
 		click_target = null
+		if result.get("reason")=="pending":
+			_pending_click=point;_pending_version=navigation.version
 		return
 	_route = result["path"]
 	if not _route.is_empty():

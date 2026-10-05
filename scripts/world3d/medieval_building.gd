@@ -179,11 +179,11 @@ static func framed_wall(plan: Dictionary, key: String, axis: String, fixed: floa
 	for o in openings:
 		var prefix: String=key+"/"+o.id
 		# Stone surrounds sit outside the cut; narrow wood joinery remains inset.
-		if not timber:
+		if not timber and (o.type!="window" or p.get("window_style","casement")=="casement"):
 			wall_box(plan,prefix+"/stone_head",axis,skin,o.u,y+o.bottom+o.height+.09,o.width+.34,.18,.17,colors.stone,f,"stone_trim")
 			if o.type=="window": wall_box(plan,prefix+"/stone_sill",axis,skin,o.u,y+o.bottom-.07,o.width+.38,.14,.25,colors.stone,f,"stone_trim")
 		if o.type!="window": continue
-	if p.shutters:
+	if p.shutters and p.get("window_style","casement") in ["casement","tall_shutter"]:
 		for o in openings:
 			if o.type!="window": continue
 			# Full half-width leaves close the real opening, then rotate on outer hinges.

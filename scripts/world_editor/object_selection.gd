@@ -56,7 +56,7 @@ func set_component_edit(enabled: bool) -> void:
 func set_ids(values: Array) -> void:
 	if editor._placement_tools != null: editor._placement_tools.cancel()
 	var requested := values.duplicate()
-	if not component_edit and not requested.is_empty():
+	if not requested.is_empty():
 		var expanded: Dictionary = motion.expand(requested,false,true)
 		if not expanded.ok: return
 		requested = expanded.ids
@@ -78,12 +78,12 @@ func refresh(refresh_scene: bool=true) -> void:
 		if editor._record_editable(record): available[str(record.uuid)] = true
 	ids = ids.filter(func(id): return available.has(id))
 	whole = false
-	if not component_edit and not ids.is_empty():
+	if not ids.is_empty():
 		var expanded: Dictionary = motion.expand(ids,false,true)
 		if not expanded.ok: ids.clear()
 		else: ids.assign(expanded.ids)
 		for record in editor._doc.records:
-			if record.has("building") and ids.has(str(record.uuid)): whole = true; break
+			if record.has("building") and (not component_edit or record.get("prefab_locked",false)) and ids.has(str(record.uuid)): whole = true; break
 	if editor._inspector != null:
 		editor._inspector.selection = ids.back() if not ids.is_empty() else ""
 		editor._inspector.refresh(refresh_scene)
@@ -97,7 +97,7 @@ func members(id: String) -> Array[String]:
 	var record: Dictionary = editor._doc._find(id)
 	if record.is_empty(): return []
 	if record.has("building"):
-		if component_edit: return [id] if editor._record_editable(record) else []
+		if component_edit and not record.get("prefab_locked",false): return [id] if editor._record_editable(record) else []
 		var expanded: Dictionary = motion.expand([id])
 		if expanded.ok: result.assign(expanded.ids)
 		return result
@@ -179,6 +179,7 @@ func finish_box(cancel: bool = false) -> void:
 
 
 func group() -> void:
+	if records().any(func(r):return r.get("prefab_locked",false)):motion.fail("固定建筑预制件不能拆改或重新分组");return
 	if whole: motion.fail("生成建筑已按整栋管理；需要组合构件时先解除生成关联"); return
 	if editor._load_failed or ids.size() < 2: return
 	editor._transform_drag.finish()
@@ -194,6 +195,7 @@ func group() -> void:
 
 
 func ungroup() -> void:
+	if records().any(func(r):return r.get("prefab_locked",false)):motion.fail("固定建筑预制件不能拆改或解除分组");return
 	if whole: motion.fail("生成建筑保持整栋关联；修改单个组件请开启构件编辑"); return
 	if editor._load_failed: return
 	var groups := {}
@@ -219,6 +221,14 @@ func changed(refresh_scene: bool=true) -> void:
 
 func remove() -> void:
 	if editor._load_failed or ids.is_empty(): return
+	var structures:Array=records().filter(func(r):return r.get("prefab_locked",false) and r.has("fortification"))
+	if not structures.is_empty():
+		var owner:String=structures[0].fortification.id
+		if structures.size()!=ids.size() or not structures.all(func(r):return r.fortification.id==owner):motion.fail("请单独选择一组固定城防进行整体删除");return
+		var result:Dictionary=editor._fortifications.remove(owner,false)
+		if not result.ok:motion.fail(result.error)
+		else:set_ids([])
+		return
 	editor._transform_drag.finish()
 	if whole: motion.remove(); return
 	editor._doc.checkpoint()
@@ -232,6 +242,7 @@ func remove() -> void:
 
 func duplicate_selected() -> void:
 	if editor._load_failed or ids.is_empty(): return
+	if records().any(func(r):return r.get("prefab_locked",false) and r.has("fortification")):motion.fail("固定城防不支持复制现有路径身份；请在城防面板新建独立布局");return
 	editor._transform_drag.finish()
 	if whole: motion.duplicate_selected(); return
 	editor._doc.checkpoint()
@@ -257,6 +268,8 @@ func transform_numeric(field: String, axis: int, value: float) -> void:
 
 func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Dictionary:
 	if editor._load_failed or ids.is_empty(): return {"ok":false,"error":"请先选择可编辑物件"}
+	if records().any(func(r):return r.get("prefab_locked",false) and r.has("fortification")):return {"ok":false,"error":"固定城防结构不可拆改；请使用城防面板的整体删除或城门开合"}
+	if not is_equal_approx(factor,1.0) and records().any(func(r):return r.get("prefab_locked",false)):return {"ok":false,"error":"固定预制件不可缩放内部结构"}
 	var origin := pivot()
 	if whole: return motion.move(translation,rotation,factor,origin)
 	if translation.is_zero_approx() and rotation.is_equal_approx(Basis.IDENTITY) and is_equal_approx(factor, 1.0): return {"ok":true,"changed":false}
@@ -297,8 +310,11 @@ func set_object_transform(id: String, properties: Dictionary) -> bool:
 	last_error = "物件不存在、已隐藏、锁定或不在当前楼层"
 	var record: Dictionary = editor._doc._find(id)
 	if editor._load_failed or not editor._record_editable(record): return false
-	if record.has("building") and not component_edit:
+	if record.get("prefab_locked",false) and (record.has("fortification") or properties.has("size")):
+		last_error="固定预制件不可修改结构或单个城防构件";return false
+	if record.has("building") and (not component_edit or record.get("prefab_locked",false)):
 		last_error = "生成建筑默认按整栋操作；请用 transform_selection，编辑单个组件需先开启 component_edit"
+		if record.get("prefab_locked",false):last_error="固定预制件不能修改内部组件；请用 transform_selection 整栋移动或旋转"
 		editor._status.text = last_error
 		return false
 	var changed_ := false

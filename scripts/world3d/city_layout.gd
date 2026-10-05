@@ -20,7 +20,7 @@ static func reference_schema() -> Dictionary:
 static func node_schema() -> Dictionary:
 	return object({"id":text(), "position":S.vector(-100000,100000), "locked":{"type":"boolean"}, "hidden":{"type":"boolean"}}, ["id","position"])
 static func edge_schema() -> Dictionary:
-	return object({"id":text(), "from":text(), "to":text(), "name":text(120), "width_start":S.number(1,60), "width_end":S.number(1,60), "kind":choice(["ground","bridge"]), "controls":array(S.vector(-100000,100000),2,2), "bridge_ref":object({"waterway_id":text(),"bridge_id":text()},["waterway_id","bridge_id"]), "locked":{"type":"boolean"}, "hidden":{"type":"boolean"}}, ["id","from","to","width_start","width_end","kind"])
+	return object({"id":text(), "from":text(), "to":text(), "name":text(120), "width_start":S.number(1,60), "width_end":S.number(1,60), "kind":choice(["ground","bridge"]), "controls":array(S.vector(-100000,100000),2,2), "stone_bridge":object({"id":text(100),"start":S.vector(-10000,10000),"end":S.vector(-10000,10000),"width":S.number(3,16),"signature":text(64),"source_token":text(64)},["id","start","end","width","signature","source_token"]), "bridge_ref":object({"waterway_id":text(),"bridge_id":text()},["waterway_id","bridge_id"]), "locked":{"type":"boolean"}, "hidden":{"type":"boolean"}}, ["id","from","to","width_start","width_end","kind"])
 static func graph_schema() -> Dictionary:
 	return object({"nodes":array(node_schema(),256), "edges":array(edge_schema(),512)}, ["nodes","edges"])
 static func schema() -> Dictionary:

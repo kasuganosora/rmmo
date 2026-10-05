@@ -44,11 +44,19 @@ static func vertices(record: Dictionary) -> Array[Vector3]:
 	return out
 
 static func mesh(record: Dictionary, material: Material) -> ArrayMesh:
-	var polys:=local_polygons(record); var result:=ArrayMesh.new(); var drop:=Vector3.DOWN*float(record.size[1])
+	var result:=ArrayMesh.new()
+	var built:=arrays(record)
+	for surface in built.size():
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,built[surface])
+		result.surface_set_material(surface,material if material!=null else StandardMaterial3D.new())
+		result.surface_set_name(surface,["pavement","underside","edge"][surface])
+	return result
+
+static func arrays(record:Dictionary)->Array:
+	var result:Array=[];var polys:=local_polygons(record);var drop:=Vector3.DOWN*float(record.size[1])
 	var uv:=Poly.vec(record.road_mesh.uv_origin)
 	for surface in 3:
 		var st:=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		st.set_material(material if material!=null else StandardMaterial3D.new())
 		for p in polys:
 			var triangles: Array=[]
 			if surface<2:
@@ -63,7 +71,7 @@ static func mesh(record: Dictionary, material: Material) -> ArrayMesh:
 				if normal.length()<.5: continue
 				for point in triangle:
 					st.set_normal(normal); st.set_uv(Vector2(point.x+uv.x,point.z+uv.z) if surface<2 else Vector2((point+uv).dot(Vector3.UP.cross(normal)),point.y+uv.y)); st.add_vertex(point)
-		st.generate_tangents(); st.commit(result); result.surface_set_name(surface,["pavement","underside","edge"][surface])
+		st.generate_tangents(); result.append(st.commit_to_arrays())
 	return result
 
 static func signature(record: Dictionary) -> String:

@@ -49,6 +49,14 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 
 static func valid(record: Dictionary, relative: bool = false, content_root: String = "", validation_cache: Variant = null, immutable_paint_id:Variant=null) -> bool:
 	if validation_cache==null: validation_cache={}
+	if not preload("res://scripts/world3d/streetlamp_banner.gd").valid(record):return false
+	if record.has("banner") and not material_valid(record.banner.get("material"),relative,content_root,validation_cache):return false
+	if record.has("fortification_art"):
+		if not record.get("fortification_materials") is Dictionary or record.fortification_materials.size()!=4: return false
+		for role in ["stone","trim","door","iron"]:
+			if not material_valid(record.fortification_materials.get(role),relative,content_root,validation_cache): return false
+			if record.fortification_materials[role].color[3]!=1: return false
+	elif record.has("fortification_materials"): return false
 	if not preload("res://scripts/world3d/bridge_data.gd").valid(record): return false
 	if record.has("bridge_mesh"):
 		if not record.get("bridge_materials") is Dictionary or record.bridge_materials.size()!=3: return false
@@ -179,9 +187,13 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 	node.set_meta("paint_geometry", result)
 	return result
 
-static func texture(material: Dictionary, field: String = "texture_path") -> Texture2D:
+static func texture(material: Dictionary, field: String = "texture_path",path_checks:Variant=null) -> Texture2D:
 	var path := str(material.get(field, ""))
-	if not path.is_empty() and (not Paths.allowed(path) or not FileAccess.file_exists(path)): return null
+	# A caller-owned immutable-load scope checks each path once, never across
+	# separate loads or edits. Texture cache hits alone do not authorize a path.
+	if not path.is_empty() and (path_checks==null or not path_checks.has(path)):
+		if not Paths.allowed(path) or not FileAccess.file_exists(path):return null
+		if path_checks!=null:path_checks[path]=true
 	var key := path if not path.is_empty() else (str(material.get("pattern", "")) if field == "texture_path" else "")
 	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
 	var cache_key := key + ("|flip_y" if flip_normal else "")
@@ -195,7 +207,6 @@ static func texture(material: Dictionary, field: String = "texture_path") -> Tex
 		for y in 64:
 			for x in 64: image.set_pixel(x, y, Color("cba574") if (x / 16 + y / 16) % 2 == 0 else Color("526477"))
 	else:
-		if not Paths.allowed(path) or not FileAccess.file_exists(path): return null
 		image = prepared_images.get(cache_key)
 		prepared_images.erase(cache_key)
 		if image==null:image = preload("res://scripts/world3d/runtime_texture_cache.gd").image(path,flip_normal)
@@ -401,8 +412,11 @@ static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=nu
 	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
 
 static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
+	if record.has("house_prefab"):return record.get("prefab_materials",[])
 	var result: Array=[]
+	if record.has("banner"):result.append(record.banner.material)
 	result.append_array(record.get("bridge_materials",{}).values())
+	result.append_array(record.get("fortification_materials",{}).values())
 	result.append_array(record.get("terrain_regions",{}).get("materials",[]))
 	if include_paint:
 		for entry in record.get("surface_paint",[]): result.append(entry.material)
@@ -417,6 +431,7 @@ static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
 static func missing(records: Array) -> Array:
 	var paths: Array = []
 	for record in records:
+		if record.has("fortification_art") and not FileAccess.file_exists(record.fortification_art.asset_path): paths.append(record.fortification_art.asset_path)
 		for definition in definitions(record):
 			for field in MAP_FIELDS:
 				var path := str(definition.get(field, ""))

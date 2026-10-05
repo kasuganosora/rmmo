@@ -21,7 +21,7 @@ func expand(values: Array, allow_protected := false, skip_unavailable := false) 
 			return fail("物件不存在："+id)
 		var building: String = by_id[id].get("building",{}).get("id","")
 		var members: Array = [id]
-		if not building.is_empty() and not editor._selection_tools.component_edit:
+		if not building.is_empty() and (not editor._selection_tools.component_edit or registry().get(building,{}).get("baked",false)):
 			if buildings.has(building): continue
 			buildings[building] = true
 			if not registry().has(building):
@@ -44,7 +44,7 @@ func selection_limit(values: Array) -> bool:
 	for record in editor._doc.records:
 		if not wanted.has(record.uuid): continue
 		var id: String = record.get("building",{}).get("id","")
-		if registry().has(id) and not editor._selection_tools.component_edit: buildings[id] = true
+		if registry().has(id) and (not editor._selection_tools.component_edit or registry()[id].get("baked",false)): buildings[id] = true
 		else: loose += 1
 	return loose <= 256 and buildings.size() <= 16
 

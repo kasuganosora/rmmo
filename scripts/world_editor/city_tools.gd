@@ -297,7 +297,7 @@ func update_roads(args: Dictionary) -> Dictionary:
 			if not nodes.has(id) or nodes[id].position!=before.position: return Data.fail("节点连接着锁定或隐藏的道路，请先解除保护")
 	graph.nodes=nodes.values(); graph.edges=edges.values()
 	for old in original.edges:
-		if not old.has("bridge_ref"): continue
+		if not old.has("bridge_ref") and not old.has("stone_bridge"): continue
 		if not edges.has(old.id): return Data.fail("桥梁连线需使用解除路网绑定操作删除")
 		var before: Dictionary=old.duplicate(true); var after: Dictionary=edges[old.id].duplicate(true)
 		for flag in ["locked","hidden","name"]: before.erase(flag); after.erase(flag)
@@ -474,7 +474,7 @@ func input(event: InputEvent) -> bool:
 					if editor._camera.is_position_behind(p): continue
 					var distance: float=editor._camera.unproject_position(p).distance_to(screen)
 					if distance<closest: closest=distance; hit=p
-				if pending.size()<64: pending.append(Data.xyz(hit))
+				if pending.size()<(128 if fortification_draft else 64): pending.append(Data.xyz(hit))
 		return true
 	return false
 

@@ -1,6 +1,7 @@
 extends RefCounted
 const F=preload("res://scripts/world3d/fortification_data.gd")
 const Data=preload("res://scripts/world3d/city_layout.gd")
+const Spacing=preload("res://scripts/world3d/fortification_spacing.gd")
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 var records: Array=[]
 var settings: Dictionary={}
@@ -10,13 +11,26 @@ static func point_distance(p: Vector2,a: Vector2,b: Vector2) -> float:
 func box(part: String,center: Vector3,size: Vector3,yaw: float,role: String="wall") -> Dictionary:
 	var r:={"uuid":prefix+"_"+part,"kind":"box","surface_id":"block","position":Data.xyz(center),"rotation":[0,yaw,0],"size":Data.xyz(size),"color":[.53,.50,.44] if role!="door" else [.28,.19,.11],"collision":"block","editor_group":prefix,"editor_group_name":settings.name,"editor_name":settings.name+" · "+role,"fortification":{"id":settings.id,"part":part,"role":role}}
 	records.append(r); return r
+func hinges(door: Dictionary) -> void:
+	if settings.style!="medieval_stone": return
+	var basis:=Basis.from_euler(Data.vec(door.rotation)*PI/180)
+	var pivot: Vector3=Data.vec(door.position)+basis*Data.vec(door.fixture.pivot)
+	for module in ["hinge","hinge_mount"]:
+		var r:=box(door.fortification.part+"_"+module,pivot,Vector3(.28,door.size[1],.36),door.rotation[1],module)
+		if module=="hinge":
+			r.fixture=door.fixture.duplicate(true); r.fixture.pivot=[0,0,0]
 func strip(part: String,a: Vector2,b: Vector2,bottom: float,top: float,width: float,role: String="wall") -> void:
 	if a.distance_to(b)<.01: return
+	if settings.wall_access and role=="wall" and a.distance_to(b)>12:
+		var n:=ceili(a.distance_to(b)/12)
+		for i in n: strip(part+"_chunk%d"%i,a.lerp(b,float(i)/n),a.lerp(b,float(i+1)/n),bottom,top,width,role)
+		return
 	var center: Vector2=(a+b)*.5; box(part,Vector3(center.x,(top+bottom)*.5,center.y),Vector3(a.distance_to(b),top-bottom,width),-rad_to_deg((b-a).angle()),role)
 func build(value: Dictionary) -> Dictionary:
 	settings=F.defaults().merged(value,true); records=[]; prefix="wall_"+settings.id.sha256_text().left(16)
 	if not F.valid_settings(settings): return Data.fail("城墙或城门参数无效，门洞顶需低于墙顶至少 0.5 米")
-	if settings.shape=="ellipse": return preload("res://scripts/world3d/fortification_ring.gd").new().build(self)
+	if settings.has("tower_indices"): settings.tower_indices=settings.tower_indices.map(func(v):return int(v))
+	if settings.shape=="ellipse": return preload("res://scripts/world3d/fortification_access.gd").new().apply(self,preload("res://scripts/world3d/fortification_ring.gd").new().build(self))
 	var points: Array=settings.points.map(func(p):return Vector2(p[0],p[1])); var segments: int=points.size()-(0 if settings.closed else 1); var length_:=0.0; var paths: Array=[]; var gates: Array=[]
 	for i in segments:
 		var a: Vector2=points[i]; var b: Vector2=points[(i+1)%points.size()]; var length: float=a.distance_to(b)
@@ -30,7 +44,11 @@ func build(value: Dictionary) -> Dictionary:
 		if i>0 and (a-paths[-1].a).normalized().dot((b-a).normalized())<-.5: return Data.fail("城墙折角过尖，请放宽转角")
 		paths.append({"a":a,"b":b,"index":i})
 	if settings.closed and (points[0]-points[-1]).normalized().dot((points[1]-points[0]).normalized())<-.5: return Data.fail("城墙闭合处折角过尖，请放宽转角")
-	if length_>1000: return Data.fail("单组城墙最长 1000 米，请分段生成")
+	if length_>(5000 if settings.has("tower_indices") else 1000): return Data.fail("单组城墙最长 1000 米；指定塔楼节点的描图路径支持 5000 米")
+	var layout:={"ok":true,"layout_zones":[]}
+	if settings.layout_version==1 and settings.tower_layout=="automatic":
+		layout=Spacing.validate(points.filter(func(p):return not settings.has("tower_indices") or points.find(p) in settings.tower_indices) if settings.corner_towers else [],Spacing.gates(settings),Spacing.radius(settings))
+		if not layout.ok: return layout
 	var y: float=settings.base_height; var top: float=y+settings.height; var half: float=settings.thickness*.5
 	for path in paths:
 		var a: Vector2=path.a; var b: Vector2=path.b; var tangent: Vector2=(b-a).normalized(); var normal:=Vector2(-tangent.y,tangent.x); var length: float=a.distance_to(b)
@@ -48,10 +66,11 @@ func build(value: Dictionary) -> Dictionary:
 			var gate: Dictionary=opening.gate; var id: String=gate.id.sha256_text().left(10); var center: Vector2=a+tangent*gate.t*length
 			strip("s%d_%s"%[path.index,id],a+tangent*start,a+tangent*opening.lo,y-settings.foundation,top,settings.thickness)
 			strip("lintel_"+id,a+tangent*opening.lo,a+tangent*opening.hi,y+gate.height,top,settings.thickness,"gate_lintel")
-			for side in [-1,1]:
+			for side in ([] if gate.get("kind","land")=="water" else [-1,1]):
 				var c: Vector2=center+tangent*side*gate.width*.25-normal*(half+.12)
 				var r:=box("door_%s_%s"%[id,str(side).replace("-","m")],Vector3(c.x,y+gate.height*.5,c.y),Vector3(gate.width*.5-.06,gate.height-.1,.18),-rad_to_deg(tangent.angle()),"door")
 				r.fixture={"id":gate.id,"kind":"door","pivot":[side*gate.width*.25,0,0],"angle":-side*100.0,"open":gate.open}
+				hinges(r)
 			gates.append({"id":gate.id,"center":[center.x,y,center.y],"width":gate.width,"height":gate.height,"open":gate.open}); start=opening.hi
 		strip("s%d_end"%path.index,a+tangent*start,b,y-settings.foundation,top,settings.thickness)
 		# Continuous inner/outer parapets with evenly spaced raised merlons.
@@ -65,7 +84,7 @@ func build(value: Dictionary) -> Dictionary:
 					strip("merlon_%d_%s_%d"%[path.index,str(side).replace("-","m"),j],c-tangent*span*.5,c+tangent*span*.5,top+.45,top+1.15,.4,"battlement")
 	for i in points.size():
 		var p: Vector2=points[i]
-		if settings.corner_towers:
+		if settings.corner_towers and (not settings.has("tower_indices") or i in settings.tower_indices):
 			var width: float=settings.thickness*2; var tower_top: float=top+1.8
 			box("tower_%d"%i,Vector3(p.x,(tower_top+y-settings.foundation)*.5,p.y),Vector3(width,tower_top-y+settings.foundation,width),0,"corner_tower")
 			if settings.battlements:
@@ -76,5 +95,5 @@ func build(value: Dictionary) -> Dictionary:
 						var at: Vector2=c+tangent*(j-1)*width/3
 						strip("tower_merlon_%d_%d_%d"%[i,side,j],at-tangent*width/12,at+tangent*width/12,tower_top+.45,tower_top+1.15,.4,"battlement")
 		else: box("joint_%d"%i,Vector3(p.x,(top+y-settings.foundation)*.5,p.y),Vector3(settings.thickness,top-y+settings.foundation,settings.thickness),0,"joint")
-	if records.size()>4096: return Data.fail("城墙构件超过 4096，请缩短路径或关闭垛口")
-	return {"ok":true,"records":records,"length":length_,"gates":gates}
+	if records.size()>8192: return Data.fail("城墙构件超过 8192，请缩短路径或关闭垛口")
+	return preload("res://scripts/world3d/fortification_access.gd").new().apply(self,{"ok":true,"records":records,"length":length_,"gates":gates,"layout_zones":layout.layout_zones})

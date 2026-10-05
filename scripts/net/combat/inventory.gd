@@ -35,6 +35,7 @@ func grant_starter() -> void:
 	add_item("pet_whistle", 1)
 	add_item("scroll_town", 2)
 	add_item("bait_worm", 10)
+	preload("res://scripts/world3d/day_night_review_item.gd").grant(self)
 
 
 func get_gold() -> int:

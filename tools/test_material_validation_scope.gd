@@ -23,4 +23,16 @@ func _initialize() -> void:
 	check(not loader._valid_records(extra),"new validation rejects deleted texture despite previous success")
 	image.save_png(path); doc.records[1].terrain_material=material.merged({"texture_path":"D:/outside_allowed_root.png"},true)
 	check(not loader._valid_records(extra),"one escaping material rejects whole document")
+	doc.records[1].terrain_material=material
+	for i in 10:
+		var r:Dictionary=doc.records[0].duplicate(true);r.uuid="batch_%d"%i;doc.records.append(r)
+	check(loader._valid_records(extra),"all parallel validation batches accept valid records")
+	doc.records.back().terrain_mesh.heights[0]=NAN
+	check(not loader._valid_records(extra),"one malformed terrain rejects the whole parallel snapshot")
+	doc.records.back().terrain_mesh.heights[0]=0.
+	doc.records.back().uuid=doc.records[0].uuid
+	check(not loader._valid_records(extra),"duplicate UUID across worker batches is rejected")
+	doc.records.back().uuid="fixed"
+	doc.records.back().house_prefab={"version":0,"sha256":"bad","length":4,"data":"bad"}
+	check(not loader._valid_records(extra),"invalid prefab rejects snapshot after all validation workers retire")
 	loader.free(); print("MATERIAL_VALIDATION_SCOPE_FINISHED failures=",failed); quit(1 if failed else 0)

@@ -23,7 +23,10 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"real HTTP batch verification server")
 	var defs: Array=(await rpc("tools/list")).result.tools
-	check(defs.size()==118 and defs.filter(func(d):return d.name=="editor_state")[0].description.contains("ground_batching"),"3D discovery exposes batching stats without old 2D tools")
+	var expected: Array=preload("res://scripts/world_editor/mcp_schema.gd").tools().map(func(d):return d.name)
+	var discovered: Array=defs.map(func(d):return d.name)
+	expected.sort(); discovered.sort()
+	check(discovered==expected and defs.filter(func(d):return d.name=="editor_state")[0].description.contains("ground_batching"),"3D discovery matches current schema and exposes batching stats")
 	var state:=await call_tool("editor_state",{})
 	check(state.ground_batching.source_objects==6 and state.ground_batching.render_surfaces==1,"HTTP state reports 6 records / 12 surfaces merged into 1 draw surface")
 	check(editor._view.get_node(first).mesh is Cpu,"editor original is CPU-only")
@@ -66,7 +69,7 @@ func run() -> void:
 		var build_count: int=batcher.rebuild_count
 		for i in 10: Stream.sync(map,host,Vector3(32,0,16))
 		check(batcher.rebuild_count==build_count,"stationary streaming does not rebuild batches")
-		Stream.sync(map,host,Vector3(1000,0,1000)); await settle()
+		Stream.sync(map,host,Vector3(2000,0,2000)); await settle()
 		check(batcher.stats().groups==0 and map.get_meta("stream_meshes").is_empty(),"leaving region drops source and combined GPU meshes")
 		Stream.sync(map,host,Vector3(32,0,16)); await physics()
 		check(batcher.stats().source_objects>1,"returning region recreates spatial batch")

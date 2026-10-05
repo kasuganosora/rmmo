@@ -13,6 +13,7 @@ static func member_limit(record: Dictionary) -> int:
 	return MAX_FORTIFICATION_MEMBERS if record.has("fortification") or record.has("building") else MAX_MEMBERS
 
 static func candidate(record: Dictionary) -> bool:
+	if record.has("house_prefab"):return false
 	if record.get("kind") != "box" or record.get("invisible", false): return false
 	if record.has("building"):
 		for field in ["fortification","event","event_template","hostile","ally","seat"]:
@@ -53,7 +54,8 @@ static func material_key(material: Material) -> String:
 	else: return ""
 	# Group keys repeat once per source object. Keep the full material comparison
 	# in this digest rather than repeatedly serializing kilobytes of properties.
-	return var_to_str(values).sha256_text()
+	var digest:=HashingContext.new();digest.start(HashingContext.HASH_SHA256)
+	digest.update(var_to_bytes(values));return digest.finish().hex_encode()
 
 static func vertex_count(mesh: Mesh) -> int:
 	var total := 0

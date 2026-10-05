@@ -17,12 +17,17 @@ static func make_record(args: Dictionary,prefab: Dictionary) -> Dictionary:
 	var dimensions:=D.dimensions(data)
 	var path: String=prefab.get("asset_path",preload("res://scripts/world3d/map_paths.gd").external_root().path_join("packs/default/assets/bridges/medieval_stone/stone_"+recipe.style+".glb"))
 	return {"uuid":args.id,"kind":"asset","asset_path":path,"surface_id":"bridge_deck","collision":"walk","position":Data.xyz(position),"rotation":[0,rad_to_deg(-atan2(b.z-a.z,b.x-a.x)),0],"size":[1,1,1],"bounds_position":[-dimensions.x*.5,-data.depth,-dimensions.z*.5],"bounds_size":Data.xyz(dimensions),"editor_name":args.get("name",prefab.name),"bridge_mesh":data,"bridge_materials":prefab.get("materials",{}).duplicate(true)}
-func prepare(args: Dictionary) -> Dictionary:
+func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 	var error:=D.S.validate(args,D.request_schema())
 	if not error.is_empty(): return Data.fail(error)
+	if args.has("road_edge_id"): return preload("res://scripts/world_editor/bridge_road_tools.gd").prepare(editor,args)
+	if not binding_update:
+		for e in Data.resolve(editor._doc.map_meta).roads.edges:
+			if e.get("stone_bridge",{}).get("id","")==args.id: return Data.fail("这座桥已接入道路，请带 road_edge_id 或从道路桥型入口修改")
 	if args.id.is_empty() or not args.id.is_valid_identifier(): return Data.fail("桥梁 ID 必须为有效标识符")
 	if absf(args.start[1]-args.end[1])>.01: return Data.fail("当前石桥的两端须同高，请先整平桥头或增设引道")
 	var old: Dictionary=editor._doc._find(args.id)
+	if old.get("prefab_locked",false):return Data.fail("固定桥梁预制件不能再修改跨度、拱孔或材质；请新建桥梁")
 	if not old.is_empty():
 		if not old.has("bridge_mesh") or not editor._record_editable(old): return Data.fail("ID 被其他物件占用，或桥梁已隐藏 / 锁定 / 隔层")
 		if editor._selection_tools.members(args.id).is_empty(): return Data.fail("桥梁所在组合含受保护物件")
@@ -54,6 +59,8 @@ func prepare(args: Dictionary) -> Dictionary:
 			if material.is_empty(): return Data.fail("默认石桥材质缺失："+str(defaults[role]))
 			record.bridge_materials[role]=material
 	if not Paint.valid(record) or not Paint.missing([record]).is_empty(): return Data.fail("桥梁材质依赖缺失")
+	var navigation:=preload("res://scripts/world_editor/bridge_clearance.gd").fit(record,editor._doc.records,args.get("auto_clearance",true))
+	if not navigation.ok: return navigation
 	# Ground/river surfaces are support. All other objects, including hidden ones,
 	# are checked against the entire bridge and its walkable clearance envelope.
 	var shape:=Foot.record_shape(record); shape.bounds.size.y+=3
@@ -82,7 +89,7 @@ func prepare(args: Dictionary) -> Dictionary:
 			if is_finite(h) and h>p.y+.08: return Data.fail("地形或既有路面穿过桥面，请调整桥头高度或先整平")
 	var token:=Data.token([record,editor._doc.records,editor._doc.map_meta,editor._authoring.settings])
 	if args.has("plan_token") and args.plan_token!=token: return Data.fail("桥梁预览已过期，请重新预览")
-	return {"ok":true,"record":record,"plan_token":token}
+	return {"ok":true,"record":record,"plan_token":token,"navigation":navigation}
 static func ground_height(records: Array,p: Vector3) -> float:
 	var height:=-INF
 	for r in records:
@@ -102,7 +109,7 @@ static func ground_height(records: Array,p: Vector3) -> float:
 func summary(args: Dictionary) -> Dictionary:
 	var p:=prepare(args)
 	if not p.ok: return p
-	return {"ok":true,"plan_token":p.plan_token,"id":p.record.uuid,"prefab_id":p.record.bridge_mesh.prefab_id,"arches":p.record.bridge_mesh.arches,"length":p.record.bridge_mesh.length,"camber":p.record.bridge_mesh.camber,"max_grade":p.record.bridge_mesh.camber*PI/p.record.bridge_mesh.length,"clear_width":p.record.bridge_mesh.width-1.16,"mesh_instances":1,"material_surfaces":3}
+	return {"ok":true,"plan_token":p.plan_token,"id":p.record.uuid,"prefab_id":p.record.bridge_mesh.prefab_id,"arches":p.record.bridge_mesh.arches,"length":p.record.bridge_mesh.length,"camber":p.record.bridge_mesh.camber,"max_grade":p.record.bridge_mesh.camber*PI/p.record.bridge_mesh.length,"clear_width":p.record.bridge_mesh.width-1.16,"mesh_instances":1,"material_surfaces":3,"road_edge_id":p.get("road_edge_id",""),"trimmed_roads":p.get("trimmed_roads",[]),"navigation":p.navigation}
 func show_preview(args: Dictionary) -> Dictionary:
 	clear_preview(); var p:=prepare(args)
 	if not p.ok: return p
@@ -117,11 +124,45 @@ func generate(args: Dictionary) -> Dictionary:
 	var p:=prepare(args)
 	if not p.ok: return p
 	var old: Dictionary=editor._doc._find(args.id)
-	if Data.token(old)==Data.token(p.record): return {"ok":true,"changed":false,"id":args.id}
+	if Data.token(old)==Data.token(p.record) and (not p.has("layout") or Data.token(p.layout)==Data.token(Data.resolve(editor._doc.map_meta)) and p.trimmed_roads.is_empty()): return {"ok":true,"changed":false,"id":args.id}
+	var frozen:=preload("res://scripts/world3d/structure_prefab.gd").bridge(p.record)
+	if not frozen.ok:return frozen
+	p.record=frozen.record
+	if p.has("layout"):
+		for i in p.records.size():
+			if p.records[i].uuid==args.id:p.records[i]=p.record
+		preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings({"editor_layout":p.layout},p.records)
 	clear_preview(); editor._doc.checkpoint_recovery(); editor._doc.records=editor._doc.records.filter(func(r):return r.uuid!=args.id); editor._doc.records.append(p.record)
-	editor._dirty=true; editor._rebuild()
+	if p.has("layout"): editor._doc.records=p.records; editor._doc.map_meta.editor_layout=p.layout
+	editor._dirty=true
+	var changed: Array[String]=[str(args.id)]
+	for id in p.get("trimmed_roads",[]): changed.append(str(id))
+	# A bridge edit must not rebuild all 49 terrain patches in a kilometre-scale town.
+	editor._refresh_records(changed); editor._city.refresh(); editor._selection_tools.refresh(); editor._object_list.refresh(); editor._refresh_selection()
 	return {"ok":true,"changed":true,"id":args.id,"arches":p.record.bridge_mesh.arches}
 func save_prefab(id: String,label: String) -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
 	if not ready.ok: return ready
 	return library.save(editor._doc._find(id),label)
+
+func bake(id:String)->Dictionary:
+	var ready:Dictionary=editor._city.guard()
+	if not ready.ok:return ready
+	var old:Dictionary=editor._doc._find(id)
+	if not old.has("bridge_mesh") or not editor._record_editable(old) or editor._selection_tools.members(id).is_empty():return Data.fail("桥梁不存在或受保护")
+	for region in editor._waterways.regions():
+		if region.parts.any(func(p):return p.id==id):
+			var owner:Dictionary=editor._waterways.owned(region)
+			if not owner.ok:return owner
+	for edge in Data.resolve(editor._doc.map_meta).roads.edges:
+		if edge.get("stone_bridge",{}).get("id","")==id:
+			if edge.get("locked",false) or edge.get("hidden",false) or edge.stone_bridge.signature!=Data.token(old):return Data.fail("桥梁道路受保护或桥梁已被手改")
+			for node in Data.resolve(editor._doc.map_meta).roads.nodes:
+				if node.id in [edge.from,edge.to] and (node.get("locked",false) or node.get("hidden",false)):return Data.fail("桥头道路节点受保护")
+	var frozen:=preload("res://scripts/world3d/structure_prefab.gd").bridge(old)
+	if not frozen.ok:return frozen
+	editor._doc.checkpoint_recovery()
+	for i in editor._doc.records.size():
+		if editor._doc.records[i].uuid==id:editor._doc.records[i]=frozen.record
+	preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings(editor._doc.map_meta,editor._doc.records)
+	editor._dirty=true;editor._rebuild();return {"ok":true,"id":id,"component_count":1}

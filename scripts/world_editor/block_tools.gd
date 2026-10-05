@@ -112,9 +112,7 @@ func prepare(args: Dictionary) -> Dictionary:
 				accepted=true; break
 			if not accepted and lot.status=="vacant": lot.status="too_small"
 	if bindings.size()>4096 or editor._buildings.instances().size()+plans.size()>4096: return Data.fail("地块关联或建筑数量超过 4096")
-	var total: int=editor._doc.records.size()
-	for plan in plans: total+=plan.records.size()
-	if total>100000: return Data.fail("生成后超过地图物件上限")
+	# BuildingTools.commit checks the baked component count, not source pieces.
 	var token:=Data.token([settings,selected,data,editor._doc.records,editor._doc.map_meta.get("building_instances",{})])
 	if args.has("plan_token") and args.plan_token!=token: return Data.fail("预览后地图或参数已变化，请重新预览")
 	return {"ok":true,"plans":plans,"lots":lots,"blocks":selected_blocks,"skipped_corners":skipped,"settings":settings,"plan_token":token,"manifest":{"version":1,"settings":settings,"lots":bindings},"orphaned_blocks":catalog_.orphaned_blocks}

@@ -15,6 +15,9 @@ func run()->void:
 		Stream.sync(scene,host,Vector3.ZERO,1)
 		if scene.has_meta("stream_chunk"):break
 	check(scene.has_meta("stream_chunk"),"interrupted stream settles")
+	Stream.sync(scene,host,Vector3(33,0,0),1)
+	Stream.sync(scene,host,Vector3.ZERO)
+	check(scene.has_meta("stream_chunk") and scene.get_meta("stream_chunk")==Vector2i.ZERO and not scene.has_meta("stream_candidate_work"),"synchronous flush completes an interrupted candidate selection")
 	var expected_host:=Node3D.new();root.add_child(expected_host);var expected:=doc.build();expected_host.add_child(expected)
 	Stream.sync(expected,expected_host,Vector3.ZERO)
 	for bag in ["stream_meshes","stream_bodies"]:

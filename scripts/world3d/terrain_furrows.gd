@@ -41,6 +41,9 @@ static func _generate(record: Dictionary) -> Dictionary:
 		var f: Dictionary=region.furrows
 		var polygons:=Geometry2D.offset_polygon(Regions.points(region),-float(f.get("setback",0.)))
 		for polygon in polygons:
+			# Shared clipped corners recur across triangles and cultivation bands.
+			# Distance depends only on this polygon and the exact 2D point, not height.
+			var edge_distances:Dictionary={};var profile:Array=[0.,.6,1.,.6,0.]
 			var axis:=Vector2(cos(deg_to_rad(f.angle)),sin(deg_to_rad(f.angle))); var along:=Vector2(-axis.y,axis.x)
 			var box:=Regions.bounds(polygon); var span:=Vector2(record.size[0],record.size[2])
 			var lo:=Vector2i(((box.position+span*.5)/step).floor()).clamp(Vector2i.ZERO,Vector2i(t.columns-1,t.rows-1))
@@ -71,10 +74,12 @@ static func _generate(record: Dictionary) -> Dictionary:
 										var indices:=Geometry2D.triangulate_polygon(cell)
 										var raised:=PackedVector3Array(); var offsets:=PackedFloat32Array()
 										for p in cell:
-											var d:=INF
-											for i in polygon.size(): d=minf(d,p.distance_to(Geometry2D.get_closest_point_to_segment(p,polygon[i],polygon[(i+1)%polygon.size()])))
+											if not edge_distances.has(p):
+												var distance:=INF
+												for i in polygon.size():distance=minf(distance,p.distance_to(Geometry2D.get_closest_point_to_segment(p,polygon[i],polygon[(i+1)%polygon.size()])))
+												edge_distances[p]=distance
+											var d:float=edge_distances[p]
 											var u:=clampf((p.dot(axis)-left)/(right-left),0.,1.)
-											var profile: Array=[0.,.6,1.,.6,0.]
 											var height: float=lerpf(profile[band],profile[band+1],u)*f.height*smoothstep(0.,f.margin,d)
 											var y: float=(plane.d-plane.normal.x*p.x-plane.normal.z*p.y)/plane.normal.y
 											raised.append(Vector3(p.x,y+height,p.y)); offsets.append(height)
@@ -87,13 +92,20 @@ static func _generate(record: Dictionary) -> Dictionary:
 											if vertices.size()/3>MAX_TRIANGLES: return {"ok":false,"error":"单块垄沟超过 48000 三角面，请扩大垄距或拆分农田"}
 	return {"ok":true,"vertices":vertices,"triangles":vertices.size()/3,"clips":clips}
 static func append_to(mesh: ArrayMesh, record: Dictionary,material: Material) -> void:
+	var data:=arrays(record)
+	if data.is_empty():return
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,data)
+	mesh.surface_set_material(mesh.get_surface_count()-1,material)
+	mesh.surface_set_name(mesh.get_surface_count()-1,"cultivation")
+
+static func arrays(record:Dictionary)->Array:
 	var result:=generate(record)
 	if not result.ok:
-		push_error("Invalid cultivation geometry: "+str(result.error)); return
-	if result.vertices.is_empty(): return
-	var st:=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES); st.set_material(material)
+		push_error("Invalid cultivation geometry: "+str(result.error)); return []
+	if result.vertices.is_empty(): return []
+	var st:=SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var vertices: PackedVector3Array=result.vertices
 	for i in range(0,vertices.size(),3):
 		var n: Vector3=(vertices[i+2]-vertices[i]).cross(vertices[i+1]-vertices[i]).normalized()
 		for j in 3: st.set_normal(n); st.set_uv(Vector2(vertices[i+j].x,vertices[i+j].z)/2.); st.add_vertex(vertices[i+j])
-	st.index(); st.generate_tangents(); st.commit(mesh); mesh.surface_set_name(mesh.get_surface_count()-1,"cultivation")
+	st.index(); st.generate_tangents(); return st.commit_to_arrays()

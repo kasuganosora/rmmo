@@ -194,6 +194,8 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 	if not saved.is_empty():
 		ctrl.inventory.restore_session_state(saved.inventory)
 		ctrl.equipment.restore_session_state(saved.equipment)
+	if world3d:
+		preload("res://scripts/world3d/day_night_review_item.gd").grant(ctrl.inventory)
 	if ctrl.quest_journal != null:
 		ctrl.quest_journal.clear()
 		ctrl.quest_journal.grant_starter()

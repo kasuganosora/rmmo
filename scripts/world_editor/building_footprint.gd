@@ -31,14 +31,22 @@ static func record_shapes(record: Dictionary) -> Array:
 				out.append(from_points(points).merged({"top_min_y":top_low,"top_max_y":top_high}))
 		return out
 	if record.has("fixture") and record.has("fortification"):
-		var closed:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position")); var pivot: Vector3=closed*Vector3(record.fixture.pivot[0],record.fixture.pivot[1],record.fixture.pivot[2]); var radius:=0.0
-		var size:=Geometry.vector(record,"size"); var local:=AABB(-size*.5,size)
-		for i in 8:
-			var offset: Vector3=closed*local.get_endpoint(i)-pivot; radius=maxf(radius,Vector2(offset.x,offset.z).length())
-		var points: Array[Vector3]=[]
-		var bounds:=AABB(Vector3(pivot.x-radius,record.position[1]-size.y*.5,pivot.z-radius),Vector3(radius*2,size.y,radius*2))
-		for i in 8: points.append(bounds.get_endpoint(i))
-		return [from_points(points)]
+		var closed:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
+		var local:=AABB(-Geometry.vector(record,"size")*.5,Geometry.vector(record,"size")); var pivot: Vector3=closed*Vector3(record.fixture.pivot[0],record.fixture.pivot[1],record.fixture.pivot[2]); var radius:=0.0
+		for i in 8: radius=maxf(radius,(closed*local.get_endpoint(i)).distance_to(pivot))
+		var steps:=maxi(1,ceili(absf(record.fixture.angle)/5.0)); var points: Array[Vector3]=[]
+		for step in steps+1:
+			var pose:=preload("res://scripts/world3d/building_fixtures.gd").pose(closed,record.fixture,float(step)/steps)
+			for i in 8: points.append(pose*local.get_endpoint(i))
+		var shape:=from_points(points)
+		# Bound the missing arc between samples by its maximum sagitta. This
+		# reserves the actual full opening sweep, not an unrelated 360-degree box.
+		var padding:=radius*(1.0-cos(deg_to_rad(absf(record.fixture.angle)/steps)*.5))+.002
+		var expanded:=Geometry2D.offset_polygon(shape.polygon,padding,Geometry2D.JOIN_ROUND)
+		if not expanded.is_empty():
+			shape.polygon=expanded[0]; shape.polygon.append(shape.polygon[0])
+		shape.bounds=shape.bounds.grow(padding)
+		return [shape]
 	if not record.has("road_mesh") and not record.has("channel_mesh"): return [record_shape(record)]
 	var transform:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
 	var shapes: Array=[]
@@ -80,8 +88,11 @@ static func components(records: Array, origin: Vector3, basis: Basis) -> Array:
 		if not groups.has(key): groups[key]=[]
 		groups[key].append(record)
 	for group in groups.values():
-		var bounds := Geometry.bounds(group); var points: Array[Vector3]=[]
+		# Preserve oriented component corners. An intermediate world AABB fills
+		# empty corners of a rotated house and incorrectly blocks nearby roads.
+		var points: Array[Vector3]=[]
 		for record in group:
+			for point:Vector3 in Geometry.corners(record):points.append(origin+basis*point)
 			if not record.has("fixture"): continue
 			var closed:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
 			var pivot: Vector3=closed*Vector3(record.fixture.pivot[0],record.fixture.pivot[1],record.fixture.pivot[2])
@@ -89,9 +100,12 @@ static func components(records: Array, origin: Vector3, basis: Basis) -> Array:
 			for i in 8:
 				var offset:=closed*local.get_endpoint(i)-pivot
 				radius=maxf(radius,Vector2(offset.x,offset.z).length())
-			# Reserve a complete hinge sweep against other houses and props.
-			bounds=bounds.expand(pivot+Vector3(radius,0,radius)).expand(pivot-Vector3(radius,0,radius))
-		for i in 8: points.append(origin+basis*bounds.get_endpoint(i))
+			# A circumscribed circle reserves every hinge angle, independent of
+			# building orientation; no part of the old full sweep is discarded.
+			var sweep_radius:=radius/cos(PI/16.0)
+			for step in 16:
+				var angle:=TAU*step/16.0
+				points.append(origin+basis*(pivot+Vector3(cos(angle)*sweep_radius,0,sin(angle)*sweep_radius)))
 		result.append(from_points(points))
 	return result
 

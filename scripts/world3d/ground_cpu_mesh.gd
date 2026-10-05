@@ -38,7 +38,24 @@ func geometry_key() -> String:
 	return get_meta("static_batch_geometry_signature")
 
 func collision_faces() -> PackedVector3Array:
-	if _collision_faces.is_empty(): _collision_faces=get_faces()
+	if _collision_faces.is_empty():
+		# Mesh.get_faces() builds a TriangleMesh (including a BVH) first. Physics
+		# and Recast only need the existing triangle soup, not that extra tree.
+		var count:=0
+		for arrays:Array in surfaces:
+			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
+			count+=indices.size() if indices!=null and not indices.is_empty() else arrays[Mesh.ARRAY_VERTEX].size()
+		_collision_faces.resize(count)
+		var offset:=0
+		for arrays:Array in surfaces:
+			var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
+			if indices!=null and not indices.is_empty():
+				for index in indices:
+					_collision_faces[offset]=vertices[index];offset+=1
+			else:
+				for vertex in vertices:
+					_collision_faces[offset]=vertex;offset+=1
 	return _collision_faces
 
 static func capture(source: Mesh) -> Mesh:

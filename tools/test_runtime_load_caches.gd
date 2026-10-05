@@ -45,6 +45,32 @@ func run()->void:
 		if specs[i].get("collision_mesh") is BoxMesh:equal_=equal_ and loaded[i].collision_mesh is BoxMesh and loaded[i].collision_mesh.size==specs[i].collision_mesh.size
 		if specs[i].has("closed_transform"):equal_=equal_ and loaded[i].closed_transform==specs[i].closed_transform
 	check(equal_,"positions, UVs, tangents, materials, solid hulls and hinge pivots stay exact")
+	var prefab_cache:Dictionary={};var first_key:Array=doc.load_box_meshes.keys()[0]
+	prefab_cache[first_key]=doc.load_box_meshes[first_key]
+	var prefab_data:=Cook.pack(prefab_cache,"test","prefab")
+	var prefab_bytes:=var_to_bytes(prefab_data)
+	var prefab_value:={"version":1,"sha256":Cook.Envelope.checksum(prefab_bytes).hex_encode(),"length":prefab_bytes.size(),"data":Marshalls.raw_to_base64(prefab_bytes.compress(FileAccess.COMPRESSION_ZSTD))}
+	var Prefab=preload("res://scripts/world3d/house_prefab.gd")
+	var decoder:=Thread.new();decoder.start(Prefab.decode.bind(prefab_value))
+	var decoded:Dictionary=decoder.wait_to_finish()
+	var geometry:=Prefab.geometry({"house_prefab":prefab_value})
+	check(not decoded.is_empty() and var_to_bytes(decoded)==prefab_bytes,"background prefab identities do not alter frozen payload")
+	check(geometry.mesh.geometry_key()==Cook.Envelope.checksum(var_to_bytes(geometry.mesh.surfaces)).hex_encode() and geometry.source.geometry_key()==Cook.Envelope.checksum(var_to_bytes(geometry.source.surfaces)).hex_encode(),"worker-prepared render and collision identities match exact geometry")
+	var corrupt_value:=prefab_value.duplicate();corrupt_value.length+=1
+	check(Prefab.decode(corrupt_value).is_empty(),"prepared prefab identity cannot bypass changed payload length")
+	var reordered:Array=records.duplicate();reordered.reverse()
+	var reordered_specs:=Cook.restore_specs(restored,reordered)
+	check(reordered_specs.size()==records.size() and reordered_specs[0].uuid==reordered[0].uuid,"worker scheduling order does not invalidate UUID-matched cooked records")
+	# One dynamic/unsupported row must not discard the other cooked entries.
+	var mixed_specs:Array=specs.duplicate(true)
+	mixed_specs[1].material_override=ShaderMaterial.new()
+	var mixed:=Cook.pack(doc.load_box_meshes,"source","generator",mixed_specs)
+	check(Cook.valid_data(mixed) and mixed.specs.size()==records.size(),"mixed cache retains every record position")
+	Cook.restore(mixed)
+	var partial:=Cook.restore_specs(mixed,records)
+	check(partial.size()==records.size() and partial[1].is_empty() and not partial[0].is_empty(),"unsupported row falls back independently without invalidating its neighbor")
+	mixed.specs[1].uuid="wrong"
+	check(Cook.restore_specs(mixed,records).is_empty(),"fallback record identity mismatch rejects cache")
 	var bad:=data.duplicate(true);bad.entries[0][1][0]=999999
 	check(not Cook.valid_data(bad),"reject out of range geometry reference")
 	bad=data.duplicate(true);bad.specs[0].spec.transform="invalid"

@@ -10,14 +10,14 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"round wall HTTP starts")
 	var definitions: Array=(await rpc("tools/list")).result.tools; var schema: Dictionary=definitions.filter(func(t):return t.name=="generate_fortification")[0].inputSchema
-	check(definitions.size()==118 and schema.properties.shape.enum.has("ellipse") and schema.properties.gates.items.properties.has("angle"),"discovery exposes circle / ellipse dimensions and gate angles")
+	check(definitions.size()==118 and schema.properties.shape.enum.has("ellipse") and schema.properties.gates.items.properties.has("angle") and schema.properties.style.enum.has("medieval_stone") and schema.properties.has("trim_material_id"),"discovery exposes circle / ellipse dimensions and gate angles")
 	await call_tool("create_road_path",{"points":[[0,0,-60],[0,0,0]],"width":4}); await call_tool("generate_road_surface",{"material_id":"pack:default:paving/historic_cobble/material"})
-	var args:={"id":"ring","shape":"ellipse","radius_x":40,"radius_z":40,"gates":[{"id":"north","angle":270,"width":6,"height":4.5,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
+	var args:={"id":"ring","tower_layout":"manual","shape":"ellipse","radius_x":40,"radius_z":40,"gates":[{"id":"north","angle":270,"width":6,"height":5.0,"open":1}],"stone_material_id":"pack:default:walls/castle_rubble/material","door_material_id":"pack:default:wood/worn_planks/material"}
 	var before: Dictionary=editor._doc.recovery_snapshot(); var history: int=editor._doc._undo.size(); var preview:=await call_tool("preview_fortification",args)
 	if not preview.get("ok",false): quit(1); return
 	check(preview.outline.size()==256 and equivalent(before,editor._doc.recovery_snapshot()) and history==editor._doc._undo.size(),"ring preview readonly with sampled curved outline")
-	await atomic_reject("generate_fortification",args.merged({"plan_token":"stale"})); await atomic_reject("generate_fortification",args.merged({"radius_x":200,"radius_z":15},true))
-	await atomic_reject("generate_fortification",args.merged({"gates":[{"id":"bad","angle":22.5,"width":6,"height":4.5,"open":1}]},true))
+	await atomic_reject("generate_fortification",args.merged({"gates":[{"id":"low","angle":270,"width":6,"height":4.99,"open":1}]},true)); await atomic_reject("generate_fortification",args.merged({"style":"unknown"})); await atomic_reject("generate_fortification",args.merged({"trim_material_id":"missing"})); await atomic_reject("generate_fortification",args.merged({"plan_token":"stale"})); await atomic_reject("generate_fortification",args.merged({"radius_x":200,"radius_z":15},true))
+	await atomic_reject("generate_fortification",args.merged({"gates":[{"id":"bad","angle":22.5,"width":6,"height":5.0,"open":1}]},true))
 	await atomic_reject("generate_fortification",args.merged({"gates":[]},true))
 	var obstacle: String=editor._doc.add_box("block",Vector3(40,2,0),Vector3(3,4,3)); editor._doc._find(obstacle).editor_hidden=true; editor._doc._find(obstacle).editor_locked=true; editor._rebuild()
 	await atomic_reject("generate_fortification",args); editor._doc.records=editor._doc.records.filter(func(r):return r.uuid!=obstacle); editor._rebuild()
@@ -25,12 +25,13 @@ func run() -> void:
 	if not generated.get("ok",false): quit(1); return
 	var after: Dictionary=editor._doc.recovery_snapshot(); await call_tool("undo"); check(equivalent(before.records,editor._doc.records) and equivalent(before.map_meta,editor._doc.map_meta),"ring undo preserves inner objects and road"); await call_tool("redo"); check(equivalent(after,editor._doc.recovery_snapshot()),"ring redo exact")
 	var curved: Dictionary=editor._doc.records.filter(func(r):return r.has("fortification") and r.has("channel_mesh"))[0]; var node: MeshInstance3D=editor._doc._mesh(curved)
-	check(node.mesh.surface_get_material(0).normal_enabled and node.mesh.surface_get_material(0).normal_texture!=null,"curved wall has actual PBR normals"); check(node.mesh.get_surface_count()==3,"identical UV paint keeps curved wall at three render surfaces"); node.free()
+	check(node.mesh.surface_get_material(0).normal_enabled and node.mesh.surface_get_material(0).normal_texture!=null,"curved wall has actual PBR normals"); check(node.mesh.get_surface_count()==2,"curved masonry and coping share only two render surfaces"); node.free()
 	await call_tool("set_object_properties",{"ids":[curved.uuid],"locked":true}); await atomic_reject("generate_fortification",{"id":"ring","radius_x":50}); await call_tool("undo")
 	await call_tool("set_fortification_gate",{"id":"ring","gate_id":"north","open":0}); await call_tool("undo")
 	await call_tool("set_editor_camera",{"projection":"perspective","center":[0,2,0],"distance":122,"pitch":-48,"yaw":20}); editor._grid.hide(); await shot("circle.png")
 	await call_tool("generate_fortification",{"id":"ring","radius_x":55,"radius_z":35}); check(editor._fortifications.regions()[0].settings.radius_x==55,"existing circle updates into ellipse")
 	await shot("ellipse.png")
+	await call_tool("set_editor_camera",{"projection":"perspective","center":[0,3,-35],"distance":20,"pitch":-12,"yaw":15}); await shot("gate_close.png")
 	await call_tool("save_editor_draft"); await call_tool("save_world"); var saved: Dictionary=editor._doc.recovery_snapshot(); await call_tool("open_world",{"path":map_path}); check(equivalent(saved.records,editor._doc.records) and equivalent(saved.map_meta,editor._doc.map_meta),"ellipse mesh, doors, recipes and PBR survive reopen"); await call_tool("save_world")
 	# UI two-corner shortcut uses the same request / schema, without overwriting the map.
 	var panel: VBoxContainer=editor._city.panel.fortification_panel; panel.new_region(); panel.fields.fields.shape.select(1); panel.fields.fields.shape.item_selected.emit(1)
@@ -60,6 +61,9 @@ func runtime_ring(scene: Node3D) -> void:
 			if body.position.z> -28: break
 		check(grounded and (body.position.z< -35 if amount==0 else body.position.z> -28),"2.1m capsule obeys curved gate collision: %d"%amount)
 	var space:=host.get_world_3d().direct_space_state
+	for x in [-2.8,0.0,2.8]:
+		check(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(x,4.99,-40),Vector3(x,4.99,-30))).is_empty(),"gate full-width 5m clearance remains open at x=%s"%x)
+	check(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(0,3.5,-40),Vector3(0,3.5,-30))).is_empty(),"3.5m third-person camera corridor clear")
 	check(not space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(65,2,0),Vector3(45,2,0))).is_empty(),"ellipse wall collision follows curved perimeter")
 	check(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(-10,2,0),Vector3(10,2,0))).is_empty(),"ellipse interior has no phantom solid fill")
 	host.free()

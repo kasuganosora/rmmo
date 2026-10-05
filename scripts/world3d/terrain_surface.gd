@@ -13,17 +13,27 @@ static func create_schema() -> Dictionary:
 	return {"type":"object","properties":{"source_id":{"type":"string","maxLength":128},"name":{"type":"string","maxLength":128},"center":S.vector(-100000,100000),"width":S.number(2,256),"depth":S.number(2,256),"cell_size":S.number(.25,8),"bedrock_depth":S.number(1,100),"material_id":{"type":"string","maxLength":512}},"additionalProperties":false}
 static func valid(record: Dictionary) -> bool:
 	if not record.has("terrain_mesh"): return not record.has("terrain_material")
-	if record.get("kind")!="box": return false
+	if not record.get("kind") is String or record.kind!="box": return false
 	for key in ["tile3d","building","building_shape","fixture","road_mesh","channel_mesh","road_source","fortification","waterway"]:
 		if record.has(key): return false
-	var schema:={"type":"object","properties":{"version":{"const":1,"type":"integer","minimum":1,"maximum":1},"columns":integer(2,MAX_CELLS),"rows":integer(2,MAX_CELLS),"floor":S.number(-100,-1),"heights":{"type":"array","minItems":9,"maxItems":4225,"items":S.number(-100,1000)},"holes":{"type":"array","minItems":4,"maxItems":4096,"items":{"type":"boolean"}}},"required":["version","columns","rows","floor","heights","holes"],"additionalProperties":false}
-	if not S.validate(record.terrain_mesh,schema).is_empty(): return false
-	if not S.validate(record.get("size"),S.vector(.01,100000)).is_empty(): return false
+	# The fixed persisted shape needs a single pass over heights/holes. Avoid
+	# recursive schema dispatch and error-path construction for every grid value.
+	if not record.terrain_mesh is Dictionary:return false
 	var t: Dictionary=record.terrain_mesh
+	if t.size()!=6 or not ["version","columns","rows","floor","heights","holes"].all(func(key):return t.has(key)):return false
+	if not Paint.numbers([t.version],1,1,1):return false
+	for count in [t.columns,t.rows]:
+		if not (count is int or count is float) or not is_finite(float(count)) or count!=floorf(count) or count<2 or count>MAX_CELLS:return false
+	if not Paint.numbers([t.floor],1,-100,-1) or not Paint.numbers(record.get("size"),3,.01,100000):return false
+	if not t.heights is Array or not t.holes is Array:return false
 	if t.heights.size()!=(int(t.columns)+1)*(int(t.rows)+1) or t.holes.size()!=int(t.columns)*int(t.rows): return false
 	for height in t.heights:
-		if height<t.floor+.1: return false
-	return t.holes.has(false) # Empty terrain is deleted with the ordinary object tool.
+		if not (height is int or height is float) or not is_finite(float(height)) or height < -100 or height>1000 or height<t.floor+.1:return false
+	var solid:=false
+	for hole in t.holes:
+		if not hole is bool:return false
+		if not hole:solid=true
+	return solid # Empty terrain is deleted with the ordinary object tool.
 
 static func transform(record: Dictionary) -> Transform3D:
 	return Transform3D(Basis.from_euler(Vector3(record.rotation[0],record.rotation[1],record.rotation[2])*PI/180),Vector3(record.position[0],record.position[1],record.position[2]))
@@ -63,12 +73,20 @@ static func normal(record: Dictionary, x: int, z: int) -> Vector3:
 	var dz:=point(record,x,mini(z+1,t.rows))-point(record,x,maxi(z-1,0))
 	return dz.cross(dx).normalized()
 static func mesh(record: Dictionary, fallback: Material, context: Dictionary={}) -> ArrayMesh:
-	var t: Dictionary=record.terrain_mesh; var result:=ArrayMesh.new()
+	var result:=ArrayMesh.new()
 	var material: Material=Paint.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") else fallback
 	if material==null: material=StandardMaterial3D.new()
+	var built:=arrays(record,context)
+	for slot in built.size():
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,built[slot]);result.surface_set_material(slot,material)
+		result.surface_set_name(slot,["terrain","bedrock_and_cut_edges","cultivation"][slot])
+	return result
+
+static func arrays(record:Dictionary,context:Dictionary={})->Array:
+	var t:Dictionary=record.terrain_mesh
 	var tile: Array=record.get("terrain_material",{}).get("tile_size",[2,2]); var uv_scale:=Vector2(tile[0],tile[1])
-	var top:=SurfaceTool.new(); top.begin(Mesh.PRIMITIVE_TRIANGLES); top.set_material(material)
-	var sides:=SurfaceTool.new(); sides.begin(Mesh.PRIMITIVE_TRIANGLES); sides.set_material(material)
+	var top:=SurfaceTool.new(); top.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var sides:=SurfaceTool.new(); sides.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# Each shared grid vertex used to recompute its position/normal for every
 	# adjacent cell. Cache once without changing triangle order or paint signatures.
 	var grid:=PackedVector3Array(); var grid_normals:=PackedVector3Array()
@@ -98,9 +116,11 @@ static func mesh(record: Dictionary, fallback: Material, context: Dictionary={})
 				var j: int=(i+1)%4
 				triangle(sides,[p[i],bottom[i],bottom[j]],uv_scale,false)
 				triangle(sides,[p[i],bottom[j],p[j]],uv_scale,false)
-	top.index(); top.generate_tangents(); top.commit(result); result.surface_set_name(0,"terrain")
-	sides.index(); sides.generate_tangents(); sides.commit(result); result.surface_set_name(1,"bedrock_and_cut_edges")
-	preload("res://scripts/world3d/terrain_furrows.gd").append_to(result,record,material)
+	top.index(); top.generate_tangents()
+	sides.index(); sides.generate_tangents()
+	var result:Array=[top.commit_to_arrays(),sides.commit_to_arrays()]
+	var furrows:=preload("res://scripts/world3d/terrain_furrows.gd").arrays(record)
+	if not furrows.is_empty():result.append(furrows)
 	return result
 static func triangle(st: SurfaceTool, points: Array, tile: Vector2, horizontal: bool) -> void:
 	var n: Vector3=(points[2]-points[0]).cross(points[1]-points[0]).normalized()

@@ -2,6 +2,7 @@ extends RefCounted
 ## Sampled offset curves produce shared-edge convex slabs, never overlapping box chains.
 const Data=preload("res://scripts/world3d/city_layout.gd")
 const Channel=preload("res://scripts/world3d/channel_surface.gd")
+const Spacing=preload("res://scripts/world3d/fortification_spacing.gd")
 var plan: RefCounted
 var s: Dictionary
 var center: Vector2
@@ -13,6 +14,15 @@ func point(angle: float,offset:=0.0) -> Vector2:
 	var n:=Vector2(cos(angle)/radii.x,sin(angle)/radii.y).normalized()
 	return center+(p+n*offset).rotated(turn)
 func tangent(angle: float) -> Vector2: return Vector2(-radii.x*sin(angle),radii.y*cos(angle)).rotated(turn)
+func spaced_points(count: int,length_: float,phase: float) -> Array:
+	# Equal arc distances, not equal angles on an ellipse.
+	var result: Array=[]; var walked:=0.0; var step: float=length_/count; var next: float=step*phase
+	for i in 256:
+		var a:=point(TAU*i/256); var b:=point(TAU*(i+1)/256); var span:=a.distance_to(b)
+		while next<=walked+span+.00001 and result.size()<count:
+			result.append(a.lerp(b,clampf((next-walked)/span,0,1))); next+=step
+		walked+=span
+	return result
 func slab(part: String,polygons: Array,bottom: float,top: float,role: String) -> void:
 	var bounds:=Rect2(polygons[0][0],Vector2.ZERO)
 	for poly in polygons:
@@ -42,10 +52,26 @@ func build(owner: RefCounted) -> Dictionary:
 		var p:=point(TAU*i/256); outline.append([p.x,p.y]); length_+=p.distance_to(point(TAU*(i+1)/256))
 	if length_>1000: return Data.fail("单组环形城墙最长 1000 米，请减小半径")
 	var gates: Array=[]; var openings: Array=[]; var tower_points: Array=[]
+	var layout:={"ok":true,"layout_zones":[]}
 	if s.corner_towers:
-		for i in int(s.tower_count): tower_points.append(point(TAU*(i+.5)/s.tower_count))
+		if s.layout_version==1 and s.tower_layout=="automatic":
+			var count: int=int(s.tower_count) if s.tower_count>0 else mini(24,floori(length_/s.tower_spacing))
+			var doors:=Spacing.gates(s); var found:=false
+			while count>=3:
+				for attempt in (1 if s.tower_count>0 else 32):
+					var candidate:=spaced_points(count,length_,fposmod(.5+attempt/32.0,1.0))
+					layout=Spacing.validate(candidate,doors,Spacing.radius(s))
+					if layout.ok: tower_points=candidate; found=true; break
+				if found or s.tower_count>0: break
+				count-=1
+			if not found:
+				if not layout.ok: return layout
+				return Data.fail("范围不足以按目标间距布置至少三座普通塔楼，请扩大半径或降低目标间距（不低于 50 米）")
+		else:
+			var count: int=int(s.tower_count) if s.tower_count>0 else 8
+			for i in count: tower_points.append(point(TAU*(i+.5)/count))
 		for i in tower_points.size():
-			if tower_points[i].distance_to(tower_points[(i+1)%tower_points.size()])<s.thickness*2+.5: return Data.fail("环形塔楼间距不足，请减少塔楼数量、减小墙厚或增大半径")
+			if tower_points.size()>1 and tower_points[i].distance_to(tower_points[(i+1)%tower_points.size()])<s.thickness*2+.5: return Data.fail("环形塔楼间距不足，请减少塔楼数量、减小墙厚或增大半径")
 	var y: float=s.base_height; var top: float=y+s.height; var half: float=s.thickness*.5
 	for gate in s.gates:
 		var angle:=deg_to_rad(gate.angle); var delta:=asin(gate.width*.5/tangent(angle).length())
@@ -60,13 +86,14 @@ func build(owner: RefCounted) -> Dictionary:
 			var p: Vector2=c+direction*side*gate.width*.25-normal*(half+.12)
 			var r: Dictionary=plan.box("door_%s_%s"%[id,str(side).replace("-","m")],Vector3(p.x,y+gate.height*.5,p.y),Vector3(gate.width*.5-.06,gate.height-.1,.18),-rad_to_deg(direction.angle()),"door")
 			r.fixture={"id":gate.id,"kind":"door","pivot":[side*gate.width*.25,0,0],"angle":-side*100.0,"open":gate.open}
+			plan.hinges(r)
+		band("lintel_"+id,angle-delta,angle+delta,-half,half,y+gate.height,top,"gate_lintel")
 		gates.append({"id":gate.id,"center":[c.x,y,c.y],"width":gate.width,"height":gate.height,"open":gate.open,"angle":gate.angle})
 	openings.sort_custom(func(a,b):return a.lo<b.lo)
 	var start:=0.0; var index:=0
 	for opening in openings:
 		if opening.lo<start-.000001: return Data.fail("环形城门洞口重叠")
 		band("arc_%d"%index,start,opening.lo,-half,half,y-s.foundation,top,"wall")
-		band("lintel_%d"%index,opening.lo,opening.hi,-half,half,y+opening.gate.height,top,"gate_lintel")
 		start=opening.hi; index+=1
 	band("arc_%d"%index,start,TAU,-half,half,y-s.foundation,top,"wall")
 	if s.battlements:
@@ -92,4 +119,4 @@ func build(owner: RefCounted) -> Dictionary:
 	if plan.records.size()>4096: return Data.fail("环形城墙构件超过 4096，请缩小半径或减少塔楼 / 垛口")
 	for r in plan.records:
 		if not Channel.valid(r): return Data.fail("环形墙体生成了无效网格，请调整半径和墙厚")
-	return {"ok":true,"records":plan.records,"length":length_,"gates":gates,"outline":outline}
+	return {"ok":true,"records":plan.records,"length":length_,"gates":gates,"outline":outline,"layout_zones":layout.layout_zones}

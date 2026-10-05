@@ -42,11 +42,11 @@ func setup(host: Node3D) -> void:
 			chooser.select(0); set_values(values,placement_values().position,placement_values().yaw)
 		)
 	var medieval := GridContainer.new(); medieval.columns=2; add_child(medieval)
-	for preset in Blueprint.medieval_presets()+Blueprint.roof_presets()+Blueprint.urban_presets():
+	for preset in Blueprint.medieval_presets()+Blueprint.town_presets()+Blueprint.roof_presets()+Blueprint.urban_presets():
 		var control:=Button.new(); control.text=preset.name; control.size_flags_horizontal=Control.SIZE_EXPAND_FILL; medieval.add_child(control)
 		control.pressed.connect(func(): chooser.select(0); set_values(preset.parameters,placement_values().position,placement_values().yaw))
 	var actions := HBoxContainer.new(); add_child(actions)
-	for entry in [["预览",preview],["生成一批",generate],["更新建筑",update_building]]:
+	for entry in [["预览",preview],["生成并烘焙",generate],["更新建筑",update_building]]:
 		var action := Button.new(); action.text = entry[0]; action.pressed.connect(entry[1]); action.size_flags_horizontal = Control.SIZE_EXPAND_FILL; actions.add_child(action)
 	form = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(form)
 	placement = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(placement)
@@ -56,7 +56,8 @@ func setup(host: Node3D) -> void:
 	count = spin(batch,"数量",1,16,1); columns = spin(batch,"列",1,16,4); gap = spin(batch,"间距",1,30,2)
 	button("聚焦所选建筑",focus)
 	fixtures=preload("res://scripts/world_editor/building_fixture_panel.gd").new(); fixtures.setup(self); add_child(fixtures)
-	button("解除关联，门窗固定为当前姿态",func(): remove(true))
+	button("烘焙旧建筑为固定预制件",func(): report(editor._buildings.bake_existing(selected_id())))
+	button("解除旧建筑关联，门窗固定为当前姿态",func(): remove(true))
 	button("删除所选建筑",func(): remove(false))
 	button("清除预览",clear_preview)
 	report_label = Label.new(); report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(report_label)
@@ -100,6 +101,8 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 		labels.merge({"stair_layout":"楼梯布局","base_height":"室内地面抬高（米）","curtains":"室内窗帘"})
 		choices.stair_layout=[{"id":"switchback","name":"双跑折返"},{"id":"straight","name":"直跑"}]
 	labels.front_canopy="临街遮檐"; labels.dormers="主屋老虎窗数量"
+	ordered.window_style=parameters.get("window_style","casement");labels.window_style="整栋窗口方案"
+	choices.window_style=preload("res://scripts/world3d/house_window_styles.gd").choices()
 	if layout!="urban_village": ordered.roof_solver=parameters.get("roof_solver","unified")
 	if layout in ["townhouse","hall"]: ordered.annex_floors=parameters.get("annex_floors",1)
 	labels.roof_solver="屋面生成方式"; labels.annex_floors="翼楼层数（与主屋连通）"

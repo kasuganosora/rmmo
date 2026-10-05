@@ -39,8 +39,8 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/sile
 
 textures/canvas_textures/default_texture_filter=0
 anti_aliasing/quality/msaa_3d=2
-anti_aliasing/quality/use_taa=true
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
+anti_aliasing/quality/use_taa=true
 
 [rmmo]
 

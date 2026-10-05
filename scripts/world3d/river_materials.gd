@@ -4,13 +4,13 @@ const Data=preload("res://scripts/world3d/river_material_data.gd")
 static var cache: Dictionary={}
 static var hidden_slab: ShaderMaterial
 
-static func bind(material: ShaderMaterial, prefix: String, definition: Dictionary) -> void:
+static func bind(material: ShaderMaterial, prefix: String, definition: Dictionary,path_checks:Variant=null) -> void:
 	var c: Array=definition.color
 	material.set_shader_parameter(prefix+"_color",Color(c[0],c[1],c[2],c[3]))
 	var tile: Array=definition.get("tile_size",[2,2])
 	material.set_shader_parameter(prefix+"_tile",Vector2(tile[0],tile[1]))
 	for pair in [["albedo","texture_path"],["normal","normal_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"],["height","height_path"]]:
-		material.set_shader_parameter(prefix+"_"+pair[0],Paint.texture(definition,pair[1]))
+		material.set_shader_parameter(prefix+"_"+pair[0],Paint.texture(definition,pair[1],path_checks))
 	material.set_shader_parameter(prefix+"_has_height",not str(definition.get("height_path","")).is_empty())
 	for pair in [["albedo","texture_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"]]:
 		material.set_shader_parameter(prefix+"_has_"+pair[0],not str(definition.get(pair[1],"")).is_empty() or (pair[0]=="albedo" and definition.get("pattern","")=="checker"))
@@ -34,8 +34,9 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	var result:=ShaderMaterial.new(); result.shader=preload("res://scripts/world3d/river_terrain.gdshader")
 	result.set_meta("terrain_signature",signature.duplicate(true))
 	result.resource_name="River depth blend" if depth_enabled else ("Terrain slope blend" if record.has("terrain_slope_blend") else "Terrain PBR")
-	bind(result,"base",base); bind(result,"sand",config.sand_material if depth_enabled else base); bind(result,"rock",config.get("rock_material",base))
-	bind(result,"soil",config.get("transition_material",base))
+	var checks:Variant=context.get("texture_checks")
+	bind(result,"base",base,checks); bind(result,"sand",config.sand_material if depth_enabled else base,checks); bind(result,"rock",config.get("rock_material",base),checks)
+	bind(result,"soil",config.get("transition_material",base),checks)
 	result.set_shader_parameter("transition_width",config.get("transition_width",0) if transition_enabled else 0.)
 	for param in ["edge_noise","height_blend_strength"]: result.set_shader_parameter(param,config.get(param,0.))
 	if transition_enabled:
@@ -52,11 +53,12 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	if record.has("terrain_regions"):
 		var regions: Dictionary=record.terrain_regions
 		result.set_shader_parameter("terrain_span",Vector2(record.size[0],record.size[2]))
-		var image:=preload("res://scripts/world3d/terrain_regions.gd").mask(record)
+		var image:Image=context.get("region_mask")
+		if image==null:image=preload("res://scripts/world3d/terrain_regions.gd").mask(record)
 		result.set_meta("ground_mask_image",image)
 		result.set_shader_parameter("ground_mask",ImageTexture.create_from_image(image))
-		bind(result,"region_a",regions.materials[0])
-		bind(result,"region_b",regions.materials[1] if regions.materials.size()>1 else base)
+		bind(result,"region_a",regions.materials[0],checks)
+		bind(result,"region_b",regions.materials[1] if regions.materials.size()>1 else base,checks)
 	if depth_enabled:
 		for param in ["water_level","shore_start","shore_end","rock_start","rock_end"]: result.set_shader_parameter(param,config[param])
 		result.set_shader_parameter("wet_height",config.get("wet_height",.3))
@@ -94,9 +96,13 @@ static func bank(config: Dictionary, source: StandardMaterial3D) -> ShaderMateri
 	for pair in [["albedo_tex","albedo_texture"],["normal_tex","normal_texture"],["rough_tex","roughness_texture"],["metal_tex","metallic_texture"],["ao_tex","ao_texture"]]: result.set_shader_parameter(pair[0],source.get(pair[1]))
 	return remember(key,result)
 
-static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={}) -> void:
+static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={},validation_cache:Variant=null,validated:bool=false) -> void:
 	if not record.has("terrain_depth_blend") and not record.has("terrain_slope_blend") and not record.has("terrain_regions") and not record.has("terrain_saturation") and not record.has("water_depth_effect") and not record.has("bank_wetness"): return
-	if not Data.valid(record) or not Paint.valid(record): node.set_meta("paint_error","地形/河道材质参数无效"); return
+	if not validated and (not Data.valid(record) or not Paint.valid(record,false,"",validation_cache)): node.set_meta("paint_error","地形/河道材质参数无效"); return
+	# Cooked source geometry is CPU-only. Instance material overrides require a
+	# real mesh RID with surface slots, even during immutable runtime indexing.
+	if node.mesh.get_script()==preload("res://scripts/world3d/ground_cpu_mesh.gd"):
+		node.mesh=node.mesh.restore()
 	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"):
 		var material:=terrain(record,context)
 		node.set_surface_override_material(0,material)

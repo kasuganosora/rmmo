@@ -71,6 +71,10 @@ func audit() -> Dictionary:
 			if r.get("collision","")=="none" or r.has("road_mesh"): continue
 			if r.get("surface_id") not in ["ground","grass","dirt","stone","sand","bridge_deck","river_bank"]: continue
 			if absf(r.rotation[0])+absf(r.rotation[2])>.001: continue
+			if r.has("bridge_mesh"):
+				var local: Vector3=Transform3D(Basis.from_euler(Data.vec(r.rotation)*PI/180),Data.vec(r.position)).affine_inverse()*p
+				if absf(local.x)<=r.bridge_mesh.length*.5 and absf(local.z)<=(r.bridge_mesh.width-1.16)*.5 and absf(local.y-preload("res://scripts/world3d/bridge_mesh.gd").height_at(local.x,r.bridge_mesh))<.06: supported=true; break
+				continue
 			if r.has("terrain_mesh"):
 				var terrain=preload("res://scripts/world3d/terrain_surface.gd")
 				var h: float=terrain.sample(r,terrain.transform(r).affine_inverse()*p)

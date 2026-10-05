@@ -16,6 +16,7 @@ func set_settings(ids: Array, changes: Dictionary) -> Dictionary:
 	for id in ids:
 		var record: Dictionary = editor._doc._find(str(id))
 		if record.is_empty() or not editor._record_editable(record): return {"ok":false,"error":"物件不存在、隐藏、锁定或不在当前楼层"}
+		if record.get("prefab_locked",false):return {"ok":false,"error":"固定预制件不能修改内部网格受风方式"}
 		if record.get("kind") not in ["asset","box"] or record.has("building") or record.has("tile3d"): return {"ok":false,"error":"受风用于独立装饰网格；生成建筑、自动地形和角色不能直接设为柔性物件"}
 		var config := Response.resolve(record).merged(changes,true)
 		if config.profile != "off":

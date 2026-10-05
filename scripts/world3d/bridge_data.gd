@@ -18,7 +18,7 @@ static func preset(id: String) -> Dictionary:
 static func schema() -> Dictionary:
 	return obj({"version":S.number(1,1,true),"prefab_id":text(256),"length":S.number(6,120),"width":S.number(3,16),"depth":S.number(1.5,15),"camber":S.number(0,5),"arches":S.number(1,20,true),"recipe":recipe_schema()},["version","prefab_id","length","width","depth","camber","arches","recipe"])
 static func request_schema() -> Dictionary:
-	return obj({"id":text(100),"name":text(),"prefab_id":text(256),"start":S.vector(-10000,10000),"end":S.vector(-10000,10000),"width":S.number(3,16),"depth":S.number(1.5,15),"camber":S.number(0,5),"arches":S.number(0,20,true),"deck_material_id":text(256),"masonry_material_id":text(256),"trim_material_id":text(256),"plan_token":text(64)},["id","start","end"])
+	return obj({"id":text(100),"name":text(),"prefab_id":text(256),"start":S.vector(-10000,10000),"end":S.vector(-10000,10000),"width":S.number(3,16),"depth":S.number(1.5,15),"camber":S.number(0,5),"auto_clearance":{"type":"boolean"},"arches":S.number(0,20,true),"deck_material_id":text(256),"masonry_material_id":text(256),"trim_material_id":text(256),"plan_token":text(64),"road_edge_id":text(80)},["id","start","end"])
 static func valid(record: Dictionary) -> bool:
 	if not record.has("bridge_mesh"): return not record.has("bridge_materials")
 	var d: Variant=record.bridge_mesh

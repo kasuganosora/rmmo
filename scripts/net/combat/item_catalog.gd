@@ -16,6 +16,8 @@ func _list_key() -> String:
 
 
 func _after_load() -> void:
+	var review=preload("res://scripts/world3d/day_night_review_item.gd")
+	if not has_item(review.ID):register_item(review.DEFINITION)
 	for definition in preload("res://scripts/char/source_garment_equipment.gd").ITEMS:
 		if not has_item(str(definition["id"])):register_item(definition)
 	for definition in preload("res://scripts/char/underwear_equipment.gd").ITEMS:

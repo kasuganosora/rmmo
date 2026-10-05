@@ -12,6 +12,7 @@ var environment: Environment
 var observer: Node3D
 var precipitation: Node3D
 var wind_objects: Node3D
+var streetlamps:Node3D
 var wind_time := 0.0
 var wind_velocity := Vector3.ZERO
 var sky_material: ShaderMaterial
@@ -62,6 +63,7 @@ func bind(view: Camera3D, light: DirectionalLight3D, env: Environment, actor: No
 	if precipitation != null:
 		precipitation.camera = view
 		wind_objects.camera = view
+		streetlamps.camera=view
 		wet_surfaces.camera = view
 		return
 	rng.seed = 39517
@@ -69,6 +71,8 @@ func bind(view: Camera3D, light: DirectionalLight3D, env: Environment, actor: No
 	add_child(precipitation); precipitation.camera = camera
 	wind_objects = preload("res://scripts/world3d/wind_runtime.gd").new()
 	add_child(wind_objects); wind_objects.camera = camera
+	streetlamps=preload("res://scripts/world3d/streetlamp_lights.gd").new()
+	streetlamps.weather=self;streetlamps.camera=camera;add_child(streetlamps)
 	wet_surfaces = preload("res://scripts/world3d/wet_surface_runtime.gd").new()
 	add_child(wet_surfaces); wet_surfaces.camera = camera
 	wet_surfaces.scene_root = light.get_parent()
@@ -129,7 +133,9 @@ func _settings_changed() -> void:
 
 func _process(delta: float) -> void:
 	if values.is_empty() or environment == null: return
+	var profile_start:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	_tick_night_sky(delta)
+	var sky_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	var synchronized: bool = night_sky.ready and sky_provider.is_valid() and not editor_preview
 	var cloud_synchronized: bool = night_sky.ready and (editor_preview or synchronized)
 	if synchronized:
@@ -165,6 +171,7 @@ func _process(delta: float) -> void:
 	precipitation.wind = wind_velocity
 	wind_objects.advance(wind_velocity if visuals_enabled else Vector3.ZERO,wind_time)
 	_sync_audio()
+	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"sky_ms":(sky_end-profile_start)/1000.0,"ms":(Time.get_ticks_usec()-profile_start)/1000.0})
 
 func _physics_process(delta: float) -> void:
 	if precipitation == null or not is_instance_valid(camera): return
@@ -202,6 +209,7 @@ func _tick_night_sky(delta: float) -> void:
 				current = Profile.at(packet,now+night_sky.clock_offset)
 				Settings.apply(values,sun,environment); server_environment_dirty = true
 				environment_changed.emit(values.duplicate(true))
+				streetlamps.refresh()
 		sky_poll = 1
 	night_sky.sample(now+night_sky.clock_offset)
 	var hour: float = Cycle.hours(night_sky.snapshot,now+night_sky.clock_offset) if night_sky.ready else values.time_hours

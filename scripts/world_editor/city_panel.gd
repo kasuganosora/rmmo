@@ -118,6 +118,7 @@ func refresh() -> void:
 	if block_panel!=null: block_panel.invalidate()
 	if scatter_panel!=null: scatter_panel.refresh()
 	if waterway_panel!=null: waterway_panel.refresh()
+	if bridge_panel!=null: bridge_panel.refresh()
 	if fortification_panel!=null: fortification_panel.refresh()
 	var labels:={"unconnected_crossing":"交叉处未连接节点","grade_separated_crossing":"桥梁跨越（未连接）","height_conflict":"地面道路交叉标高不一致","self_crossing":"曲线自身交叉","overlapping_centerlines":"中心线重叠","steep_grade":"道路坡度超过 15%"}
 	var lines:=PackedStringArray()
