@@ -1,6 +1,7 @@
 extends Node3D
 ## Spatial render cache. The source nodes, UUIDs, physics and records remain independent.
 const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
+static var canonical_buildings_enabled:=true
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var groups: Dictionary = {}
 var pending: Array[String] = []
@@ -313,6 +314,8 @@ func _build_next(background: bool = false) -> void:
 		if not is_instance_valid(node): _drop(group); groups.erase(key); return
 	var started := Time.get_ticks_usec()
 	if group.category=="building":group.origin=group.members[0].global_position
+	group.render_pose=Transform3D(Basis.IDENTITY,group.origin)
+	group.reference_pose=group.members[0].global_transform
 	var snapshot: Array = []
 	group.cpu = []
 	for node: MeshInstance3D in group.members:
@@ -321,18 +324,28 @@ func _build_next(background: bool = false) -> void:
 		for slot in node.mesh.get_surface_count(): materials.append(node.get_active_material(slot))
 		snapshot.append({"record":node.get_meta("ground_batch_record"),"transform":node.global_transform,"surfaces":cpu.surfaces,"materials":materials,"keys":group.keys})
 	if group.category=="building" and not snapshot[0].materials.any(func(material):return material is ShaderMaterial):
+		# Reuse geometry across rotated copies as well as translated ones. Each
+		# floor/fixture still owns its own instance, visibility and pose watcher.
+		if canonical_buildings_enabled:
+			group.render_pose=group.reference_pose
+			var inverse:Transform3D=group.reference_pose.affine_inverse()
+			for source:Dictionary in snapshot:source.transform=inverse*source.transform
+			group.origin=Vector3.ZERO
+		group.cache_poses=[];group.cache_bounds=[]
 		var identity:Array=[]
 		for i in snapshot.size():
 			var pose:Transform3D=snapshot[i].transform;pose.origin-=group.origin
+			group.cache_poses.append(pose);group.cache_bounds.append(group.cpu[i].get_aabb())
 			# World float cancellation differs between translated copies. Render
 			# cache comparisons tolerate at most 0.1 mm, without editing records.
 			pose.origin=pose.origin.snapped(Vector3.ONE*.0001)
+			pose.basis=Basis(pose.basis.x.snapped(Vector3.ONE*.000001),pose.basis.y.snapped(Vector3.ONE*.000001),pose.basis.z.snapped(Vector3.ONE*.000001))
 			identity.append([group.cpu[i].geometry_key(),pose,group.keys])
 		group.mesh_cache_key=_fingerprint(identity)
 		if _building_meshes.has(group.mesh_cache_key):
 			var entry:Dictionary=_building_meshes[group.mesh_cache_key]
 			var shared:Mesh=entry.reference.get_ref()
-			if shared!=null:
+			if shared!=null and _compatible_poses(group,entry):
 				var data:Dictionary=entry.data.duplicate();data.mesh=shared;building_mesh_hits+=1
 				_commit(group,data,started);return
 	# Repeated stone modules should share one vertex buffer. Flattening them
@@ -345,6 +358,22 @@ func _build_next(background: bool = false) -> void:
 		var origin: Vector3=group.origin
 		if job.thread.start(func():return Geometry.build(snapshot,origin,true)) == OK: _workers.append(job); return
 	_commit(group,Geometry.build(snapshot,group.origin),started)
+
+func _compatible_poses(group:Dictionary,entry:Dictionary)->bool:
+	# Hash rounding is only a candidate lookup. Bound the world-position error
+	# over every source AABB, including very large authored parts, before reuse.
+	if group.cache_poses.size()!=entry.poses.size():return false
+	for i in group.cache_poses.size():
+		var a:Transform3D=group.cache_poses[i];var b:Transform3D=entry.poses[i]
+		var box:AABB=group.cache_bounds[i]
+		var extent:Vector3=box.position.abs().max(box.end.abs())
+		var error:=a.origin.distance_to(b.origin)
+		error+=(a.basis.x-b.basis.x).length()*extent.x+(a.basis.y-b.basis.y).length()*extent.y+(a.basis.z-b.basis.z).length()*extent.z
+		# Frobenius norm bounds amplification by nonuniform scale or shear.
+		var basis:Basis=group.render_pose.basis
+		error*=sqrt(basis.x.length_squared()+basis.y.length_squared()+basis.z.length_squared())
+		if error>.0001:return false
+	return true
 
 func _identical_geometry(meshes: Array) -> bool:
 	var expected: String=""
@@ -403,16 +432,16 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	if data.is_empty() or data.mesh.get_surface_count()==0: return
 	if group.has("mesh_cache_key"):
 		var info:Dictionary=data.duplicate();info.erase("mesh");info.erase("slots")
-		_building_meshes[group.mesh_cache_key]={"reference":weakref(data.mesh),"data":info}
+		_building_meshes[group.mesh_cache_key]={"reference":weakref(data.mesh),"data":info,"poses":group.cache_poses}
 	var visual := MeshInstance3D.new(); visual.mesh = data.mesh
 	visual.cast_shadow = group.members[0].cast_shadow; visual.layers = group.members[0].layers
 	visual.set_meta("ground_render_batch", true)
 	if group.category=="ground" and data.source_surfaces == group.members.size(): visual.set_meta("extras", {"kind":"ground"})
-	add_child(visual); visual.global_position = group.origin
+	add_child(visual)
 	group.visual = visual; group.data = data
-	group.reference_pose=group.members[0].global_transform
-	group.last_source_pose=group.reference_pose
-	group.relative_pose=group.reference_pose.affine_inverse()*Transform3D(Basis.IDENTITY,group.origin)
+	group.relative_pose=group.reference_pose.affine_inverse()*group.render_pose
+	group.last_source_pose=group.members[0].global_transform
+	visual.global_transform=group.last_source_pose*group.relative_pose if group.category=="building" else group.render_pose
 	if group.get("moving",false):
 		var watcher:=preload("res://scripts/world3d/batch_transform_watch.gd").new()
 		watcher.changed=_sync_pose.bind(_member_groups[str(group.members[0].name)],group.generation)

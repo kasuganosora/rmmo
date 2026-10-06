@@ -12,8 +12,10 @@ var _large_shapes:Array[int]=[]
 var _indexed_shape_count:=-1
 var last_query_candidates:=0
 var last_query_indexed:=false
+var shape_revision:=0
 
 func rebuild_shape_index()->void:
+	shape_revision+=1
 	_shape_cells.clear();_large_shapes.clear()
 	_indexed_shape_count=shapes.size()
 	for i in shapes.size():

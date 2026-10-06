@@ -126,7 +126,7 @@ func sample(previous:int)->int:
 	r["render_setup_cpu"]=RenderingServer.get_frame_setup_time_cpu()
 	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
 	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
-	r["radar"]=world._hud._radar.get_meta("draw_timing",{})
+	r["radar"]=world._hud._radar.get_draw_timing()
 	r["main_view"]=viewport_stats(root)
 	r["outline_view"]=viewport_stats(world._outline.mask)
 	r["outline_active"]=world._outline.occluded
@@ -221,8 +221,50 @@ func replay_slow_motion()->void:
 	bare.free()
 	print("MOTION_REPLAY ",JSON.stringify(results))
 	FileAccess.open(OUT.path_join(label_+"_motion_replay.json"),FileAccess.WRITE).store_string(JSON.stringify(results,"  "))
+func mesh_inventory()->void:
+	const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+	var rows:Array=[];var resources:Dictionary={};var nodes:Array=[world._map_root]
+	while not nodes.is_empty():
+		var node:Node=nodes.pop_back();nodes.append_array(node.get_children())
+		if not node is MeshInstance3D or node.mesh==null or node.mesh is Cpu:continue
+		var mesh:Mesh=node.mesh;var id:=str(mesh.get_rid().get_id())
+		var record:Dictionary=node.get_meta("ground_batch_record",{})
+		if not resources.has(id):
+			var materials:Array=[]
+			for i in mesh.get_surface_count():materials.append(str(node.get_active_material(i).get_rid().get_id()) if node.get_active_material(i)!=null else "null")
+			resources[id]={"surfaces":mesh.get_surface_count(),"materials":materials,"instances":0,"visible":0,"sample":str(node.name),"prefab":record.has("house_prefab"),"building":record.get("building",{})}
+		resources[id].instances+=1
+		resources[id].visible+=int(node.is_visible_in_tree())
+		rows.append({"node":str(node.name),"mesh":id,"visible":node.is_visible_in_tree(),"position":node.global_position,"building":record.get("building",{}),"fixture":record.get("fixture",{})})
+	FileAccess.open(OUT.path_join(label_+"_meshes.json"),FileAccess.WRITE).store_string(JSON.stringify({"resources":resources,"instances":rows},"  "))
+	print("MESH_INVENTORY resources=",resources.size()," instances=",rows.size())
+func shadow_visual_compare()->void:
+	Engine.time_scale=0;world.process_mode=Node.PROCESS_MODE_DISABLED;world._hud.hide();root.use_taa=false
+	var sources:Array=[]
+	for source in world._map_root.get_meta("stream_meshes",{}).values():
+		if source.has_meta("building_shadow_proxy"):sources.append(source)
+	check(not sources.is_empty(),"shadow comparison has runtime proxies")
+	var camera:=root.get_camera_3d();var reports:Array=[]
+	for angle in 3:
+		camera.global_position=Vector3(-329+angle*3,3+angle,-18+angle*15)
+		camera.look_at(Vector3(-330,2,22-angle*15))
+		for night_ in [false,true]:
+			world._request_environment({"time_hours":0.0 if night_ else 12.0,"time_speed":0.0})
+			for mode in ["original","proxy"]:
+				for source:MeshInstance3D in sources:
+					source.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_ON if mode=="original" else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					source.get_meta("building_shadow_proxy").visible=mode=="proxy"
+				for i in 12:await process_frame
+				await RenderingServer.frame_post_draw
+				var path:=OUT.path_join(label_+"_%d_%s_%s.png"%[angle,"night" if night_ else "day",mode])
+				root.get_texture().get_image().save_png(path)
+				reports.append(path)
+	print("SHADOW_VISUAL ",JSON.stringify({"sources":sources.size(),"images":reports,"stats":preload("res://scripts/world3d/building_shadow_proxy.gd").stats()}))
 func run()->void:
+	preload("res://scripts/ui/world_map_view_3d.gd").terrain_cache_enabled=not "--legacy-radar-draw" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/building_shadow_proxy.gd").enabled=not "--legacy-building-shadows" in OS.get_cmdline_user_args()
 	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/ground_batcher.gd").canonical_buildings_enabled=not "--world-space-buildings" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
 	create_timer(1200 if "--soak" in OS.get_cmdline_user_args() else 540).timeout.connect(func():quit(2));Engine.max_fps=60;root.size=Vector2i(1280,800)
 	if "--no-vsync" in OS.get_cmdline_user_args():DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
@@ -312,6 +354,11 @@ func run()->void:
 	RenderingServer.frame_post_draw.connect(func():engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0})
 	world._request_environment({"time_hours":12.0,"time_speed":0.0})
 	for i in 40:await process_frame
+	var shadow_before_route:=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
+	if "--shadow-visual" in OS.get_cmdline_user_args():
+		await shadow_visual_compare();world.free();quit(1 if failures else 0);return
+	if "--mesh-inventory" in OS.get_cmdline_user_args():
+		mesh_inventory();world.free();quit(0);return
 	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
 	var paths:Array=[Vector3(-144,0,-9),Vector3(-175,0,-16),Vector3(-206,0,-24),Vector3(-238,0,-32),Vector3(-269,0,-40),Vector3(-300,0,-47),Vector3(-329,0,-54.6),Vector3(-333,0,-24),Vector3(-333,0,8),Vector3(-327,0,40)]
 	if "--street-end" in OS.get_cmdline_user_args():paths=[Vector3(-333,0,8),Vector3(-327,0,40),Vector3(-333,0,8),Vector3(-333,0,-24)]
@@ -350,6 +397,10 @@ func run()->void:
 	report["navigation_fully_ready"]=world._navigation.fully_ready
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
 	report["aligned_capsule_yaw"]=not "--legacy-capsule-yaw" in OS.get_cmdline_user_args()
+	report["canonical_buildings"]=preload("res://scripts/world3d/ground_batcher.gd").canonical_buildings_enabled
+	report["shadow_proxy"]=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
+	report["shadow_proxy_before_route"]=shadow_before_route
+	report["building_batch_stats"]=world._map_root.get_node("GroundRenderBatches").stats("building")
 	report["actual_vsync_mode"]=DisplayServer.window_get_vsync_mode()
 	report["unix_offset"]=unix_offset
 	report["script_debugger_active"]=EngineDebugger.is_active()

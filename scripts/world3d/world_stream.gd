@@ -258,6 +258,7 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 		if mesh.get_parent()==map_root and spec.has("ground_batch_record") and not spec.ground_batch_record.has("fortification") and not spec.native_visual:
 			mesh.set_meta("stream_instance",true);_dict(map_root,&"stream_meshes")[adopted]=mesh
 			preload("res://scripts/world3d/wind_response.gd").register(mesh)
+			preload("res://scripts/world3d/building_shadow_proxy.gd").attach(mesh)
 			reused_count+=1
 		_dict(map_root, &"stream_by_id")[adopted] = spec
 		var index := _dict(map_root, &"stream_index")
@@ -527,6 +528,7 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.pixel_size = 0.003
 		visual.add_child(label)
+	preload("res://scripts/world3d/building_shadow_proxy.gd").attach(visual)
 	return visual
 
 

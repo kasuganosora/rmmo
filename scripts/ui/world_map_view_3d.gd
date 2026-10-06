@@ -1,5 +1,25 @@
 extends Control
 ## North-up X/Z projection, shared by radar and resizable overview.
+static var terrain_cache_enabled:=true
+class TerrainLayer extends Node2D:
+	var shapes:Array=[]
+	var line_width:=1.0
+	var redraws:=0
+	var timing:Dictionary={}
+	func _draw()->void:
+		var began:=Time.get_ticks_usec() if get_parent().has_meta("profile_frame") else 0
+		for shape:Dictionary in shapes:
+			draw_colored_polygon(shape.polygon,shape.color)
+			draw_polyline(shape.polygon,shape.color.darkened(.25),line_width,true)
+		redraws+=1
+		if began>0:timing={"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-began)/1000.0}
+var _terrain:TerrainLayer
+var _background:ColorRect
+var _coverage:=Rect2()
+var _cached_data:RefCounted
+var _cached_revision:=-1
+var _cached_scale:=-1.0
+var _cached_count:=-1
 var world:Node
 var radar:=false
 var radius:=22.0
@@ -12,6 +32,9 @@ var press_position:=Vector2.ZERO
 
 func _ready()->void:
 	clip_contents=true
+	_background=ColorRect.new();_background.color=Color("202b30");_background.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	_background.show_behind_parent=true;add_child(_background);_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_terrain=TerrainLayer.new();_terrain.show_behind_parent=true;add_child(_terrain)
 	mouse_filter=Control.MOUSE_FILTER_STOP
 	gui_input.connect(_input_map)
 	tooltip_text="左键：寻路 · 右键 / Shift+左键：标记 · 滚轮：缩放 · 拖动：平移 · 双击：回到角色"
@@ -42,19 +65,40 @@ func hint_line()->String:
 	if not is_instance_valid(world):return ""
 	return "%s  (%.1f, %.1f) m"%[world._map_data.title,world._player.position.x,world._player.position.z]
 
+func _update_terrain(rect:Rect2,scale:float)->void:
+	var data:RefCounted=world._map_data
+	if _cached_data!=data or _cached_revision!=data.shape_revision or _cached_count!=data.shapes.size() or _cached_scale!=scale or not _coverage.encloses(rect):
+		# Retain native canvas commands across movement; the margin avoids a
+		# rebuild at every pixel while keeping the radar's GPU coverage bounded.
+		_coverage=rect.grow(minf(8,maxf(rect.size.x,rect.size.y)*.25))
+		_terrain.shapes=data.visible_shapes(_coverage);_terrain.line_width=1/scale
+		_cached_data=data;_cached_revision=data.shape_revision;_cached_count=data.shapes.size();_cached_scale=scale
+		_terrain.queue_redraw()
+	_terrain.position=size*.5-center*scale;_terrain.scale=Vector2.ONE*scale
+
+func get_draw_timing()->Dictionary:
+	var result:Dictionary=get_meta("draw_timing",{}).duplicate()
+	if not result.is_empty() and terrain_cache_enabled and _terrain.timing.get("frame",-1)==result.frame:
+		result.terrain_ms=_terrain.timing.ms;result.ms+=_terrain.timing.ms
+	return result
+
 func _draw()->void:
 	if not is_instance_valid(world) or world._map_data==null:return
 	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	var drawn_shapes:=0
-	draw_rect(Rect2(Vector2.ZERO,size),Color("202b30"))
 	var visible_rect:=Rect2(to_world(Vector2.ZERO),size/scale_factor())
 	var scale:=scale_factor()
-	draw_set_transform(size*.5-center*scale,0,Vector2.ONE*scale)
-	for shape in world._map_data.visible_shapes(visible_rect):
-		drawn_shapes+=1
-		draw_colored_polygon(shape.polygon,shape.color)
-		draw_polyline(shape.polygon,shape.color.darkened(.25),1/scale,true)
-	draw_set_transform(Vector2.ZERO)
+	_background.visible=terrain_cache_enabled;_terrain.visible=terrain_cache_enabled
+	if terrain_cache_enabled:
+		_update_terrain(visible_rect,scale);drawn_shapes=_terrain.shapes.size()
+	else:
+		draw_rect(Rect2(Vector2.ZERO,size),Color("202b30"))
+		draw_set_transform(size*.5-center*scale,0,Vector2.ONE*scale)
+		for shape in world._map_data.visible_shapes(visible_rect):
+			drawn_shapes+=1
+			draw_colored_polygon(shape.polygon,shape.color)
+			draw_polyline(shape.polygon,shape.color.darkened(.25),1/scale,true)
+		draw_set_transform(Vector2.ZERO)
 	var drawn:Dictionary={}
 	for marker in world._map_data.markers:
 		drawn[marker.id]=true
@@ -90,7 +134,7 @@ func _draw()->void:
 	draw_colored_polygon(PackedVector2Array([p+direction*8,p-direction*5+side*5,p-direction*5-side*5]),Color("fff1ad"))
 	draw_string(ThemeDB.fallback_font,Vector2(8,18),"N ↑",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
 	if not radar:draw_string(ThemeDB.fallback_font,Vector2(8,size.y-8),"绿：友方  红：敌方  紫：传送  青：标记",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
-	if started>0:set_meta("draw_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"shapes":drawn_shapes,"candidates":world._map_data.last_query_candidates,"indexed":world._map_data.last_query_indexed})
+	if started>0:set_meta("draw_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"shapes":drawn_shapes,"candidates":world._map_data.last_query_candidates,"indexed":world._map_data.last_query_indexed,"terrain_cached":terrain_cache_enabled,"terrain_redraws":_terrain.redraws})
 
 func _input_map(event:InputEvent)->void:
 	if not is_instance_valid(world):return
