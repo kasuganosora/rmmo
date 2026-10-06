@@ -38,6 +38,15 @@ func run()->void:
 		if aligned.global_transform!=body_pose or aligned.get_node("Visual").global_transform!=visual:failures+=1
 	check(mismatches==0,"1440 capsule surface rays preserve positions/normals across actor yaw: "+str(mismatches))
 	check(failures==0,"visual facing, body transform, capsule offset and world axes preserved")
+	var drift_failures:=0
+	for turn in 18000:
+		aligned.rotation.y=lerp_angle(aligned.rotation.y,-.35 if turn%200<100 else 2.4,.15)
+		var original:=aligned.global_transform
+		var saved:Variant=Clearance.begin_capsule_motion(aligned)
+		if not saved is Vector3 or aligned.global_basis!=Basis.IDENTITY:drift_failures+=1
+		Clearance.end_capsule_motion(aligned,saved)
+		if aligned.scale!=Vector3.ONE or aligned.global_transform!=original:drift_failures+=1
+	check(drift_failures==0,"18000 authority turns preserve exact scale/pose and never disable capsule alignment: "+str(drift_failures))
 	for variant in ["tilted_body","scaled_body","tilted_shape","offset_shape","compound_shape","box"]:
 		aligned.transform=Transform3D.IDENTITY;collider.transform=Transform3D.IDENTITY
 		match variant:
@@ -51,5 +60,10 @@ func run()->void:
 		var saved:Variant=Clearance.begin_capsule_motion(aligned)
 		check(saved==null and collider.transform==before and aligned.global_transform==before_body,"leave non-equivalent shape unchanged: "+variant)
 		if variant=="compound_shape":aligned.shape_owner_remove_shape(aligned.get_shape_owners()[0],1)
+	var parent:=Node3D.new();root.add_child(parent);parent.rotation.y=.4
+	var guarded:=actor(4);guarded.reparent(parent,false);guarded.rotation.y=.3
+	var guarded_pose:=guarded.global_transform
+	check(Clearance.begin_capsule_motion(guarded)==null and guarded.global_transform==guarded_pose,"transformed parent preserves original collision path")
+	parent.free()
 	legacy.free();aligned.free()
 	print("CAPSULE_YAW_ALIGNMENT failures=",failures," rays=",rays);quit(1 if failures else 0)

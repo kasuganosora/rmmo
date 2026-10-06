@@ -31,10 +31,16 @@ static func begin_capsule_motion(body:CharacterBody3D)->Variant:
 	var owners:=body.get_shape_owners()
 	if owners.size()!=1 or body.shape_owner_get_shape_count(owners[0])!=1:return null
 	if body.shape_owner_get_owner(owners[0])!=collider:return null
-	var original:=body.global_basis
-	if original==Basis.IDENTITY or not original.y.is_equal_approx(Vector3.UP) or not original.get_scale().is_equal_approx(Vector3.ONE):return null
-	body.global_basis=Basis.IDENTITY
+	# Setting/restoring a Basis decomposes scale on every turn. Float roundoff
+	# accumulated until the unit-scale guard stopped accepting the live player.
+	# Preserve Node3D's rotation/scale components instead. A rotated/scaled parent
+	# needs a different coordinate conversion and stays on the original path.
+	var parent:=body.get_parent_node_3d()
+	if parent!=null and parent.global_basis!=Basis.IDENTITY:return null
+	var original:=body.rotation
+	if original==Vector3.ZERO or original.x!=0 or original.z!=0 or body.scale!=Vector3.ONE:return null
+	body.rotation=Vector3.ZERO
 	return original
 
 static func end_capsule_motion(body:CharacterBody3D,original:Variant)->void:
-	if original is Basis:body.global_basis=original
+	if original is Vector3:body.rotation=original
