@@ -1,0 +1,31 @@
+{
+  "source_folder": "wood/wood_material_pack3",
+  "package_folder": "WoodMaterial3",
+  "owned_verified": "2026-10-02",
+  "materials": [
+    {
+      "folder": "wood/solid_timber", "name": "棕色整木梁柱", "category": "木材／梁柱",
+      "unreal_material": "/Game/WoodMaterial3/Materials/MI_Wood8.MI_Wood8",
+      "channels": {"texture_path": "BaseColor", "normal_path": "Normal", "roughness_path": "Roughness"},
+      "normal_format": "opengl", "normal_strength": 0.45, "tile_size": [0.8, 2.4],
+      "usage": "连续纵向整木纹，用于梁、柱和门框；不含地板拼缝。",
+      "adaptation": "保留原始颜色、OpenGL法线、粗糙度；采用非金属木材参数和按米重复。原材质的Grunge、粗糙度重映射与UV倍率完整记录但未烘焙。"
+    },
+    {
+      "folder": "wood/natural_joinery", "name": "浅色天然木作", "category": "木材／门窗木作",
+      "unreal_material": "/Game/WoodMaterial3/Materials/MI_Wood2.MI_Wood2",
+      "channels": {"texture_path": "BaseColor", "normal_path": "Normal", "roughness_path": "Roughness"},
+      "normal_format": "opengl", "normal_strength": 0.35, "tile_size": [0.8, 2.4],
+      "usage": "室内楼梯、门窗扇和家具木作；木纹沿构件长轴。",
+      "adaptation": "使用原始PBR图和白色Tint；木材金属度设为0。原引擎UV倍率改为建议米制尺寸，不宣称原实测尺寸。"
+    },
+    {
+      "folder": "wood/weathered_solid", "name": "灰褐风化整木", "category": "木材／梁柱",
+      "unreal_material": "/Game/WoodMaterial3/Materials/MI_Wood3.MI_Wood3",
+      "channels": {"texture_path": "BaseColor", "normal_path": "Normal", "roughness_path": "Roughness"},
+      "normal_format": "opengl", "normal_strength": 0.45, "tile_size": [0.8, 2.4],
+      "usage": "外露老木梁、木桥支架和围栏的灰褐色替代款。",
+      "adaptation": "使用原始PBR图，非金属木材与建议米制尺寸；材质图来自原生导出，未进行任意着色器烘焙。"
+    }
+  ]
+}

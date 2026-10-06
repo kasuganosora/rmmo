@@ -44,6 +44,9 @@ static func _clear_npc_selection(ctrl) -> void:
 	if prev != null and prev.has_method("set_selected"):
 		prev.set_selected(false)
 	ctrl._selected_npc_id = ""
+	# Drop any enemy cast bar tied to the previous target.
+	if ctrl.hud != null and ctrl.hud.has_method("clear_target_cast"):
+		ctrl.hud.clear_target_cast()
 
 static func clear_target_selection(ctrl) -> void:
 	## HUD × / explicit clear: drop foot ring + top target frame.
@@ -76,6 +79,11 @@ static func _push_target_hud(ctrl, npc, display_name: String, ratio: float, thre
 			threat_snap = ctrl._fetch_threat_snapshot(str(npc.npc_id) if npc != null and "npc_id" in npc else "")
 		threat_you = bool(threat_snap.get("threat_you", false))
 	ctrl.hud.show_target(display_name, ratio, world_pos, ctrl._npc_shows_target_hp(npc), mp_ratio, show_threat, threat_you)
+	if ctrl.hud.has_method("apply_target_distance"):
+		var dist_cells := -1
+		if ctrl.player != null and "cell" in ctrl.player and npc != null and "cell" in npc:
+			dist_cells = GridUtil.chebyshev(ctrl.player.cell, npc.cell)
+		ctrl.hud.apply_target_distance(dist_cells)
 
 static func _fetch_threat_snapshot(ctrl, npc_id: String) -> Dictionary:
 	npc_id = npc_id.strip_edges()

@@ -18,7 +18,7 @@ Set `rmmo/content_root` in `project.godot` (or let `AssetManager` fall back to `
 - `data/combat`, `data/map`, `data/rtp` — catalogs (`content://data/…`)
 - `assets/fx`, `assets/icon`, `assets/tilesheet`, `assets/charset`, …
 
-Commercial RTP / other games' `www/img` may be junctioned as `mv_img/` **on your machine only**.
+The MV image library is a local copy at `{content_root}/packs/mv_img`. Keep it out of git and out of `res://`.
 
 ## Run
 

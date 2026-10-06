@@ -5,6 +5,10 @@ extends RefCounted
 const MAX_PER_TARGET := 8
 const DURATION_SEC := 1.0
 const RISE_PX := 40.0
+## Base offset of the first floater above the target, then fan-out for concurrent ones.
+const BASE_OFFSET := Vector2(-12, -48)
+const FAN_STEP_X := 16.0  ## horizontal spread per tier
+const FAN_STEP_Y := 9.0   ## vertical stagger per concurrent floater
 
 const COLOR_DAMAGE := Color(1.0, 0.38, 0.32, 1.0)
 const COLOR_DAMAGE_OUT := Color(1.0, 0.95, 0.92, 1.0)  ## outgoing / NPC hit — pale white-red
@@ -29,6 +33,15 @@ static func color_for(kind: String, crit: bool = false) -> Color:
 			return COLOR_DAMAGE_OUT
 		_:
 			return COLOR_DAMAGE
+
+
+## Spread concurrent floaters on the same target so they don't stack on one spot.
+## index 0 = centered; higher indices fan out horizontally (alternating) and stagger up.
+static func fan_offset(index: int) -> Vector2:
+	index = maxi(index, 0)
+	var side := 1 if (index % 2 == 0) else -1
+	var tier := (index + 1) / 2  # 0,1,1,2,2,3,3,...
+	return BASE_OFFSET + Vector2(side * tier * FAN_STEP_X, -index * FAN_STEP_Y)
 
 
 static func text_for(kind: String, amount: int = 0, crit: bool = false) -> String:
@@ -65,6 +78,8 @@ static func spawn(
 	while bucket.size() >= MAX_PER_TARGET:
 		var old = bucket.pop_front()
 		_free_floater(old)
+	# Fan-out index = how many live floaters this target already has.
+	var fan_index := bucket.size()
 	var col := color_for(kind, crit)
 	var lab := Label.new()
 	lab.text = text
@@ -75,7 +90,7 @@ static func spawn(
 	lab.add_theme_color_override("font_color", col)
 	lab.add_theme_constant_override("outline_size", 4)
 	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	lab.position = world_pos + Vector2(-12, -48)
+	lab.position = world_pos + fan_offset(fan_index)
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lab.set_meta("combat_floater_key", key)
 	parent.add_child(lab)

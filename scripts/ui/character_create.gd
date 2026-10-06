@@ -2,6 +2,10 @@ extends Control
 const Net = preload("res://scripts/net/net.gd")
 const MV = preload("res://scripts/char/mv_generator.gd")
 const LookCatalog = preload("res://scripts/char/look_catalog.gd")
+const CharacterView3D = preload("res://scripts/char/character_view_3d.gd")
+const Hairstyles = preload("res://scripts/char/character_hairstyles.gd")
+var _view_3d: Node2D
+var _portrait_3d: Node2D
 
 @onready var name_edit: LineEdit = %NewName
 @onready var class_option: OptionButton = %ClassOption
@@ -17,10 +21,8 @@ const LookCatalog = preload("res://scripts/char/look_catalog.gd")
 
 @onready var skin_on: CheckButton = %SkinOn
 @onready var hair_on: CheckButton = %HairOn
-@onready var cloth_on: CheckButton = %ClothOn
 @onready var skin_color_btn: Button = %SkinColor
 @onready var hair_color_btn: Button = %HairColor
-@onready var cloth_color_btn: Button = %ClothColor
 @onready var palette_popup: PopupPanel = %PalettePopup
 @onready var popup_grid: GridContainer = %PopupGrid
 @onready var random_btn: Button = %RandomButton
@@ -31,8 +33,12 @@ var _palette_group: String = ""
 var _gender: String = LookCatalog.GENDER_FEMALE
 var _part_ids: Dictionary = {}
 var _custom := Customization.new()
+var _female_body_model:="female_base_v2"
 var _thumb_token: int = 0
 var _recompose_gen: int = 0
+var _preview_direction := "front"
+var _preview_action := "walk"
+var _preview_variant := ""
 
 
 func _ready() -> void:
@@ -42,10 +48,24 @@ func _ready() -> void:
 	class_option.add_item("战士", 2); class_option.set_item_metadata(2, "warrior")
 
 	gender_option.clear()
-	gender_option.add_item("女", 0); gender_option.set_item_metadata(0, LookCatalog.GENDER_FEMALE)
-	gender_option.add_item("男", 1); gender_option.set_item_metadata(1, LookCatalog.GENDER_MALE)
-	gender_option.add_item("儿童", 2); gender_option.set_item_metadata(2, LookCatalog.GENDER_KID)
+	gender_option.add_item("成年女性", 0); gender_option.set_item_metadata(0, LookCatalog.GENDER_FEMALE)
+	gender_option.add_item("成年男性", 1); gender_option.set_item_metadata(1, LookCatalog.GENDER_MALE)
+	gender_option.add_item("青年男性", 2); gender_option.set_item_metadata(2, LookCatalog.GENDER_YOUNG_MALE)
+	gender_option.add_item("青年女性", 3); gender_option.set_item_metadata(3, LookCatalog.GENDER_YOUNG_FEMALE)
 	gender_option.select(0)
+	_custom.equipment = preload("res://scripts/char/starter_equipment.gd").PARTS.duplicate()
+	_setup_animation_controls()
+	if CharacterView3D.enabled():
+		_view_3d=CharacterView3D.new()
+		preview_host.add_child(_view_3d)
+		_view_3d.scale=Vector2.ONE*2.6
+		_portrait_3d=CharacterView3D.new()
+		_portrait_3d.portrait_mode=true
+		add_child(_portrait_3d)
+		_portrait_3d.display.visible=false
+		portrait.texture=_portrait_3d.viewport.get_texture()
+		preview.visible=false
+		_custom.skin_on=false;_custom.hair_on=true
 
 	create_btn.pressed.connect(_on_create)
 	back_btn.pressed.connect(func(): Net.session().go_character_select())
@@ -61,12 +81,10 @@ func _ready() -> void:
 	_sync_customization_ui()
 	skin_on.toggled.connect(func(on): _custom.skin_on = on; _recompose())
 	hair_on.toggled.connect(func(on): _custom.hair_on = on; _recompose())
-	cloth_on.toggled.connect(func(on): _custom.cloth_on = on; _recompose())
 	skin_color_btn.pressed.connect(func(): _open_palette("skin", skin_color_btn))
 	hair_color_btn.pressed.connect(func(): _open_palette("hair", hair_color_btn))
-	cloth_color_btn.pressed.connect(func(): _open_palette("cloth", cloth_color_btn))
 
-	status_label.text = "选性别 / 职业，逐个部件捏脸，可实时预览"
+	status_label.text = "选体型 / 职业，逐个部件捏脸，可切换方向和动作"
 	name_edit.grab_focus()
 	_set_gender(LookCatalog.GENDER_FEMALE)
 	call_deferred("_center_preview")
@@ -76,6 +94,7 @@ func _ready() -> void:
 func _center_preview() -> void:
 	if preview and preview_host:
 		preview.position = preview_host.size * 0.5
+		if _view_3d!=null:_view_3d.position=preview_host.size*Vector2(.5,.82)
 
 
 func _on_gender_selected() -> void:
@@ -90,8 +109,14 @@ func _current_gender() -> String:
 
 
 func _set_gender(gender: String) -> void:
+	var previous_hair:=int(_part_ids.get("FrontHair1",1))
+	if _custom.body_model=="female_base_v2":_female_body_model=_custom.body_model
+	_custom.body_model=_female_body_model if gender=="female" else ""
 	_gender = gender
 	_part_ids = MV.default_parts(gender)
+	if CharacterView3D.enabled():_part_ids={"Body":1,"FrontHair1":2 if gender.ends_with("female") else 1,"Eyes":1}
+	if CharacterView3D.enabled() and gender in ["male","female"] and previous_hair in [10,11,12,13,14,15]:_part_ids.FrontHair1=previous_hair
+	if CharacterView3D.enabled() and _custom.body_model=="female_base_v2":_part_ids.FrontHair1=Hairstyles.initial(gender,_custom.body_model,previous_hair)
 	_rebuild_slot_ui()
 	_recompose()
 
@@ -102,6 +127,24 @@ func _rebuild_slot_ui() -> void:
 	_thumb_token += 1
 	for c in slot_list.get_children():
 		c.queue_free()
+	if CharacterView3D.enabled():
+		var row:=HBoxContainer.new()
+		var label:=Label.new();label.text="发型";row.add_child(label)
+		if _custom.body_model=="female_base_v2" or preload("res://scripts/char/character_imported_rig.gd").available(_gender):
+			var imported_select:=OptionButton.new();imported_select.name="HairstyleSelect"
+			imported_select.set_meta("slot_cat","FrontHair1")
+			var choices:Dictionary=Hairstyles.options(_gender,_custom.body_model)
+			for id in choices:imported_select.add_item(choices[id],id)
+			imported_select.select(maxi(0,imported_select.get_item_index(int(_part_ids.get("FrontHair1",1)))))
+			imported_select.item_selected.connect(func(i):_part_ids["FrontHair1"]=imported_select.get_item_id(i);_recompose())
+			row.add_child(imported_select);slot_list.add_child(row)
+			_add_imported_customization_controls()
+			return
+		var select:=OptionButton.new();select.add_item("短发",1);select.add_item("齐耳发",2)
+		select.select(int(_part_ids.get("FrontHair1",1))-1)
+		select.item_selected.connect(func(i):_part_ids["FrontHair1"]=i+1;_recompose())
+		row.add_child(select);slot_list.add_child(row)
+		return
 
 	for slot: Dictionary in MV.slots_for(_gender):
 		var row := HBoxContainer.new()
@@ -152,6 +195,67 @@ func _rebuild_slot_ui() -> void:
 	# 选中项图标很少，一次填完；整表缩略图仍等打开下拉再懒加载
 	_fill_selected_slot_icons(_thumb_token)
 
+func _add_imported_customization_controls()->void:
+	var eye_row:=HBoxContainer.new();slot_list.add_child(eye_row)
+	var label:=Label.new();label.text="瞳孔颜色";eye_row.add_child(label)
+	var picker:=ColorPickerButton.new();picker.name="EyeColor";picker.edit_alpha=false
+	picker.custom_minimum_size=Vector2(96,32)
+	picker.color=Color.from_string(_custom.eye_color,Color("86a66b"))
+	picker.color_changed.connect(func(color):_custom.eye_color="#"+color.to_html(false);_recompose())
+	eye_row.add_child(picker)
+	var reset:=Button.new();reset.text="原色";eye_row.add_child(reset)
+	reset.pressed.connect(func():
+		_custom.eye_color="";picker.set_block_signals(true);picker.color=Color("86a66b");picker.set_block_signals(false);_recompose()
+	)
+	if _gender!="female":return
+	if _custom.body_model=="female_base_v2":
+		_add_native_shape_controls();return
+	var title:=Label.new();title.text="胸部大小";slot_list.add_child(title)
+	var row:=HBoxContainer.new();slot_list.add_child(row)
+	var slider:=HSlider.new();slider.name="BustSize";slider.min_value=0;slider.max_value=100;slider.step=1
+	slider.value=_custom.bust_size*100;slider.custom_minimum_size=Vector2(190,32);slider.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var value:=Label.new();value.text=str(int(slider.value));value.custom_minimum_size.x=34;row.add_child(value)
+	slider.value_changed.connect(func(number):_custom.bust_size=number/100.0;value.text=str(int(number));_recompose())
+	var restore:=Button.new();restore.text="默认";restore.pressed.connect(func():slider.value=50);row.add_child(restore)
+
+func _add_native_shape_controls()->void:
+	var reset_all:=Button.new();reset_all.name="ResetBodyShapes";reset_all.text="重置全部体型参数"
+	slot_list.add_child(reset_all)
+	reset_all.pressed.connect(func():
+		_custom.body_shapes.clear()
+		_sync_native_shape_controls()
+		_recompose()
+	)
+	var names:Dictionary={"bust_size":"胸部大小","waist_width":"腰部宽度","hip_size":"臀部大小","nose_width":"鼻部宽度","height":"身高（相对默认）"}
+	for key:String in names:
+		var label:=Label.new();label.text=names[key];slot_list.add_child(label)
+		var row:=HBoxContainer.new();slot_list.add_child(row)
+		var slider:=HSlider.new();slider.name="Shape_"+key
+		var limits:Vector2=Customization.Shapes.RANGES[key]
+		# The original Height morph's positive weight makes the body shorter.
+		# Keep source weights in the recipe, but make the UI increase mean taller.
+		var direction:float=-1.0 if key=="height" else 1.0
+		slider.min_value=limits.x*100;slider.max_value=limits.y*100;slider.step=1
+		slider.value=float(_custom.body_shapes.get(key,0.0))*100*direction
+		slider.custom_minimum_size=Vector2(170,32);slider.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(slider)
+		var value:=Label.new();value.text=str(int(slider.value));value.custom_minimum_size.x=38;row.add_child(value)
+		slider.value_changed.connect(func(number):
+			if number==0:_custom.body_shapes.erase(key)
+			else:_custom.body_shapes[key]=number/100.0*direction
+			value.text=str(int(number));_recompose()
+		)
+		var reset:=Button.new();reset.text="默认";reset.pressed.connect(func():slider.value=0);row.add_child(reset)
+
+
+func _sync_native_shape_controls()->void:
+	for key:String in Customization.Shapes.RANGES:
+		var slider:=slot_list.find_child("Shape_"+key,true,false) as HSlider
+		if slider==null:continue
+		var direction:float=-1.0 if key=="height" else 1.0
+		slider.set_value_no_signal(float(_custom.body_shapes.get(key,0))*100*direction)
+		var label:=slider.get_parent().get_child(1) as Label
+		if label:label.text=str(int(slider.value))
 
 func _fill_selected_slot_icons(token: int) -> void:
 	if token != _thumb_token:
@@ -222,15 +326,86 @@ func _recompose() -> void:
 func _recompose_run(gen: int) -> void:
 	if gen != _recompose_gen:
 		return
+	if _view_3d!=null:
+		_custom.part_ids=_part_ids.duplicate()
+		_view_3d.configure(_gender,_custom.to_dict(),_custom.equipment)
+		_portrait_3d.configure(_gender,_custom.to_dict(),_custom.equipment)
+		for view in [_view_3d,_portrait_3d]:
+			if view.model.imported_rig!=null:view.model.imported_rig.prepare_hair_choices(view.model)
+		preview.sprite_frames=CharacterView3D.control_frames()
+		_center_preview();_play_preview(false)
+		return
 	var parts := MV.apply_equipment(_part_ids, _custom.equipment)
 	var res := MV.compose_preview(_gender, parts, _custom.colors())
 	preview.sprite_frames = res["frames"]
 	preview.scale = Vector2(3, 3)
 	call_deferred("_center_preview")
-	if preview.sprite_frames.has_animation("walk_front"):
-		preview.play("walk_front")
-	preview_label.text = "走动预览"
+	_play_preview()
 	portrait.texture = res["portrait"]
+
+
+func _setup_animation_controls() -> void:
+	var row := HBoxContainer.new()
+	preview_label.get_parent().add_child(row)
+	var direction := OptionButton.new()
+	var names := ["正面", "左侧", "右侧", "背面", "左前", "右前", "左后", "右后"]
+	for label in names:
+		direction.add_item(label)
+	direction.item_selected.connect(func(i): _preview_direction = MV.DIRECTIONS[i]; _play_preview())
+	row.add_child(direction)
+	var action := OptionButton.new()
+	for label in ["站立", "走动", "攻击", "冲刺", "施法", "死亡", "坐地", "坐椅子"]:
+		action.add_item(label)
+	action.select(1)
+	var choices:Array=[]
+	for id in MV.ACTIONS:choices.append([id,""])
+	var library=preload("res://scripts/char/character_animation_library.gd")
+	for id in library.ATTACKS:
+		action.add_item(library.ATTACKS[id]);choices.append(["attack",id])
+	for id in library.CASTS:
+		action.add_item(library.CASTS[id]);choices.append(["cast",id])
+	action.name="ActionPreview"
+	action.item_selected.connect(func(i):
+		_preview_action=choices[i][0];_preview_variant=choices[i][1]
+		if _preview_variant.begins_with("attack_"):
+			_custom.equipment["WeaponMain"]=1 if _preview_variant.begins_with("attack_sword") else null
+			_recompose()
+		_play_preview()
+	)
+	row.add_child(action)
+	var replay := Button.new()
+	replay.text = "重播"
+	replay.pressed.connect(_play_preview)
+	row.add_child(replay)
+	var equipment_row := HBoxContainer.new()
+	equipment_row.name = "EquipmentPreview"
+	preview_label.get_parent().add_child(equipment_row)
+	for entry in [["Clothing1", "上衣"], ["Clothing2", "下装"], ["Boots", "鞋子"], ["Belt", "腰带"]]:
+		var toggle := CheckButton.new()
+		var category: String = entry[0]
+		toggle.text = entry[1]
+		toggle.name = category
+		toggle.button_pressed = true
+		toggle.toggled.connect(func(on):
+			_custom.equipment[category] = 1 if on else null
+			_recompose()
+		)
+		equipment_row.add_child(toggle)
+
+
+func _play_preview(restart:bool=true) -> void:
+	if _view_3d!=null:
+		_view_3d.play(_preview_action,_preview_direction,restart,_preview_variant)
+		_portrait_3d.play("idle","front")
+		preview_label.text="3D 人物 · 动作与换装预览"
+		return
+	if preview.sprite_frames == null:
+		return
+	var animation := _preview_action + "_" + _preview_direction
+	if preview.sprite_frames.has_animation(animation):
+		preview.stop()
+		preview.play(animation)
+		preview_label.text = "八向动作预览"
 
 
 # ---- 校验 / 创建 ----
@@ -273,6 +448,10 @@ func _on_create() -> void:
 		return
 	create_btn.disabled = true
 	_custom.part_ids = _part_ids.duplicate()
+	if CharacterView3D.enabled():
+		_custom.mv_sheet=""
+		Net.server().create_character(name_edit.text,class_id,"",_gender,_custom.to_dict())
+		return
 	var res := MV.compose_all(_gender, _custom.effective_part_ids(), _custom.colors())
 	var dir := "user://rmmo/mv_chars"
 	MV.ensure_dir(dir)
@@ -288,6 +467,7 @@ func _on_create() -> void:
 func _open_palette(group: String, btn: Button) -> void:
 	_pick_group = group
 	if _palette_group != group:
+		popup_grid.columns=15 if group=="hair" else 14
 		_fill_palette(popup_grid, MV.palette_for(group), _on_pick_swatch)
 		_palette_group = group
 	var gp := btn.get_global_position()
@@ -327,6 +507,7 @@ func _set_btn_color(btn: Button, col: Color) -> void:
 
 func _fill_palette(grid: GridContainer, entries: Array, on_pick: Callable) -> void:
 	for c in grid.get_children():
+		grid.remove_child(c)
 		c.queue_free()
 	for e in entries:
 		_add_swatch(grid, e as Dictionary, on_pick)
@@ -335,9 +516,9 @@ func _fill_palette(grid: GridContainer, entries: Array, on_pick: Callable) -> vo
 func _add_swatch(grid: GridContainer, entry: Dictionary, on_pick: Callable) -> void:
 	var col: Color = entry["color"]
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(16, 16)
+	b.custom_minimum_size = Vector2(26, 24) if entry.has("label") else Vector2(16,16)
 	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = "色带 %d (#%s)" % [int(entry["index"]), col.to_html(false)]
+	b.tooltip_text = "%s (#%s)" % [str(entry.get("label","色带 %d"%int(entry["index"]))),col.to_html(false)]
 	# 注意：flat 按钮不绘制 normal 底色，色块会全隐形，必须用普通按钮 + StyleBox。
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = col
@@ -355,15 +536,20 @@ func _add_swatch(grid: GridContainer, entry: Dictionary, on_pick: Callable) -> v
 func _sync_customization_ui() -> void:
 	skin_on.button_pressed = _custom.skin_on
 	hair_on.button_pressed = _custom.hair_on
-	cloth_on.button_pressed = _custom.cloth_on
 	_set_btn_color(skin_color_btn, MV.row_color(_custom.skin_row))
 	_set_btn_color(hair_color_btn, MV.row_color(_custom.hair_row))
-	_set_btn_color(cloth_color_btn, MV.row_color(_custom.cloth_row))
 
 
 func _on_random() -> void:
 	_custom.randomize_colors()
+	if _custom.body_model=="female_base_v2":
+		var rng:=RandomNumberGenerator.new();rng.randomize()
+		_custom.body_shapes=Customization.Shapes.random_values(rng)
+		_sync_native_shape_controls()
+	_custom.cloth_on=false
 	_part_ids = MV.random_parts(_gender)
+	if CharacterView3D.enabled():_part_ids={"Body":1,"FrontHair1":([10,11,12,13,14,15].pick_random() if _gender in ["male","female"] else randi_range(1,2)),"Eyes":1}
+	if CharacterView3D.enabled() and _custom.body_model=="female_base_v2":_part_ids.FrontHair1=Hairstyles.random_choice(_gender,_custom.body_model)
 	_sync_customization_ui()
 	if slot_list.get_child_count() == 0:
 		_rebuild_slot_ui()

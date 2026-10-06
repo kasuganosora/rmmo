@@ -2,44 +2,25 @@ extends RefCounted
 ## UI panel: friends list and whispers.
 
 var ctrl
+var _selected_friend := ""
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _build_friends_panel() -> void:
 	ctrl._friends_panel = PanelContainer.new()
 	ctrl._friends_panel.name = "FriendsPanel"
-	ctrl._friends_panel.set_script(HudDrag)
+	ctrl._friends_panel.set_script(GameWindow)
 	ctrl._friends_panel.screen_margin = 4.0
 	ctrl._friends_panel.min_size = Vector2(280, 220)
 	ctrl._friends_panel.default_size = Vector2(340, 420)
 	ctrl._friends_panel.initial_dock = "none"
 	ctrl._friends_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._friends_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._friends_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "FriendsTitle"
-	title.text = "好友"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._friends_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._friends_panel, "好友", func(): ctrl._friends_panel.visible = false, "FriendsTitle")
 	var add_row = HBoxContainer.new()
 	add_row.add_theme_constant_override("separation", 6)
 	outer.add_child(add_row)
@@ -54,6 +35,7 @@ func _build_friends_panel() -> void:
 	add_btn.pressed.connect(func(): _on_friend_add(ctrl._friends_add_input.text if ctrl._friends_add_input else ""))
 	add_row.add_child(add_btn)
 	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 280)
 	outer.add_child(scroll)
@@ -74,7 +56,7 @@ func _nudge_friends() -> void:
 		return
 	ctrl._friends_panel.size = Vector2(340, 420)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._friends_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96)
+	ctrl._window_manager_logic.place_at(ctrl._friends_panel, Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96))
 
 
 
@@ -143,6 +125,7 @@ func _refresh_friends_panel() -> void:
 	if ctrl._friends_body == null:
 		return
 	for c in ctrl._friends_body.get_children():
+		ctrl._friends_body.remove_child(c)
 		c.queue_free()
 	var friends_v: Variant = ctrl._friends_state.get("friends", [])
 	var friends: Array = friends_v if typeof(friends_v) == TYPE_ARRAY else []
@@ -163,29 +146,38 @@ func _refresh_friends_panel() -> void:
 		var name_row = HBoxContainer.new()
 		name_row.add_theme_constant_override("separation", 6)
 		row.add_child(name_row)
-		var nl = Label.new()
-		nl.text = "%s（%s）" % [fname, "在线" if online else "离线"]
-		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		nl.add_theme_font_size_override("font_size", 12)
-		nl.add_theme_color_override("font_color", Color(0.75, 0.95, 0.75) if online else Color(0.65, 0.65, 0.7))
-		name_row.add_child(nl)
+		var contact := Button.new()
+		contact.text = "%s · %s" % [fname, "在线" if online else "离线"]
+		contact.tooltip_text = fname
+		contact.custom_minimum_size.y = 32
+		contact.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		L2Style.style_row_button(contact, _selected_friend == fid)
+		contact.pressed.connect(func():
+			_selected_friend = "" if _selected_friend == fid else fid
+			_refresh_friends_panel()
+		)
+		name_row.add_child(contact)
+		if _selected_friend != fid: continue
 		var btn_row = HBoxContainer.new()
 		btn_row.add_theme_constant_override("separation", 4)
 		row.add_child(btn_row)
 		var whisper_btn = Button.new()
 		whisper_btn.text = "私聊"
+		whisper_btn.disabled = not online
 		whisper_btn.focus_mode = Control.FOCUS_NONE
 		whisper_btn.custom_minimum_size = Vector2(48, 24)
 		whisper_btn.pressed.connect(_on_friend_whisper.bind(fname))
 		btn_row.add_child(whisper_btn)
 		var invite_btn = Button.new()
 		invite_btn.text = "邀请入队"
+		invite_btn.disabled = not online
 		invite_btn.focus_mode = Control.FOCUS_NONE
 		invite_btn.custom_minimum_size = Vector2(72, 24)
 		invite_btn.pressed.connect(_on_friend_invite.bind(fname))
 		btn_row.add_child(invite_btn)
 		var ginv_btn = Button.new()
 		ginv_btn.text = "邀请入会"
+		ginv_btn.disabled = not online
 		ginv_btn.focus_mode = Control.FOCUS_NONE
 		ginv_btn.custom_minimum_size = Vector2(72, 24)
 		ginv_btn.pressed.connect(ctrl._on_guild_invite.bind(fname))

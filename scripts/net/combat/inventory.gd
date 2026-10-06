@@ -35,6 +35,7 @@ func grant_starter() -> void:
 	add_item("pet_whistle", 1)
 	add_item("scroll_town", 2)
 	add_item("bait_worm", 10)
+	preload("res://scripts/world3d/day_night_review_item.gd").grant(self)
 
 
 func get_gold() -> int:
@@ -601,3 +602,13 @@ func apply_tool_repair_full() -> Dictionary:
 
 func snapshot_state() -> Dictionary:
 	return {"items": snapshot(), "gold": get_gold()}
+
+
+# Internal mocker checkpoint, not an untrusted network/save-file decoder.
+func capture_session_state() -> Dictionary:
+	return {"stacks":_stacks.duplicate(true),"gold":gold,"max_slots":max_slots}
+
+func restore_session_state(state:Dictionary) -> void:
+	_stacks=state.stacks.duplicate(true)
+	gold=int(state.gold);max_slots=int(state.max_slots)
+	locked.clear()

@@ -2,6 +2,7 @@ extends RefCounted
 ## Loads a tilemap_pack_v1 folder (pack.json + map + tileset + tile sheets).
 
 const MapCollision = preload("res://scripts/map/map_collision.gd")
+const TileId = preload("res://scripts/map/tile_id.gd")
 const MapExt = preload("res://scripts/map/map_ext.gd")
 const MapChunkStore = preload("res://scripts/map/map_chunk_store.gd")
 const JsonUtil = preload("res://scripts/util/json_util.gd")
@@ -15,6 +16,8 @@ var flags: PackedInt32Array = PackedInt32Array()
 var tileset_names: PackedStringArray = PackedStringArray()
 ## Array of 9 Image (may contain nulls)
 var sheets: Array = []
+## Optional pack-authored surface channels; absent profiles preserve legacy rendering.
+var render_profile: Dictionary = {}
 var collision: RefCounted = null
 var map_id: String = ""
 ## Warp entries from pack.json (from_cell -> to_pack/to_cell/facing).
@@ -37,6 +40,20 @@ var streaming: bool = false
 var chunk_map_dir: String = ""
 var chunk_dir: String = ""
 var overview_path: String = ""
+
+## Runtime renderer shares immutable map data and sheets with the already
+## loaded server pack, but owns collision streaming/occupancy independently.
+func render_snapshot() -> RefCounted:
+	var copy=get_script().new()
+	for property in get_property_list():
+		if (int(property.usage)&PROPERTY_USAGE_SCRIPT_VARIABLE)!=0 and property.name!="collision":
+			copy.set(property.name,get(property.name))
+	if collision!=null:
+		copy.collision=collision.get_script().new()
+		for key in ["width","height","data","flags","void_tile_id","ext","streaming","chunk_cells"]:
+			copy.collision.set(key,collision.get(key))
+		copy.collision._stream_chunks=collision._stream_chunks.duplicate()
+	return copy
 
 
 static func load_pack(p_pack_dir: String, p_map_id: String = "") -> RefCounted:
@@ -109,6 +126,7 @@ func _load() -> bool:
 
 	var map_data: Dictionary = _read_json("%s/%s" % [pack_dir, map_rel])
 	var tileset_data: Dictionary = _read_json("%s/%s" % [pack_dir, tileset_rel])
+	render_profile = tileset_data.renderProfile.duplicate(true) if typeof(tileset_data.get("renderProfile")) == TYPE_DICTIONARY else {}
 	if map_data.is_empty() or tileset_data.is_empty():
 		return false
 
@@ -134,14 +152,14 @@ func _load() -> bool:
 			data.resize(need)
 	flags = _to_int32_array(tileset_data.get("flags", []))
 	tileset_names = PackedStringArray()
-	var names_v: Variant = tileset_data.get("tilesetNames", [])
+	var names_v: Variant = TileId.sheet_names(tileset_data)
 	if typeof(names_v) == TYPE_ARRAY:
 		for n in names_v:
 			tileset_names.append(str(n))
 
 	sheets.clear()
-	sheets.resize(9)
-	for i in range(mini(9, tileset_names.size())):
+	sheets.resize(tileset_names.size())
+	for i in range(tileset_names.size()):
 		var name: String = tileset_names[i]
 		if name.is_empty():
 			sheets[i] = null
@@ -430,7 +448,7 @@ func _load_sheet_image(sheet_name: String, tiles_rel: String) -> Image:
 	if via_am != null:
 		return via_am
 	# Soft-miss: null sheet (map still loads); avoid Image.load ERROR spam.
-	push_warning("tilemap_pack: missing tilesheet '%s' (pack + mv_img)" % sheet_name)
+	push_warning("tilemap_pack: missing tilesheet '%s' (map pack + packs/mv_img)" % sheet_name)
 	return null
 
 
@@ -489,6 +507,14 @@ func _asset_manager() -> Node:
 
 
 static func _load_image(path: String, warn_missing: bool = true) -> Image:
+	# Pack-local PNGs used to bypass the existing budgeted image cache, decoding
+	# them again for editor, loading and server collision-pack setup.
+	var loop=Engine.get_main_loop()
+	if loop is SceneTree and not path.begins_with("res://"):
+		var am=(loop as SceneTree).root.get_node_or_null("AssetManager")
+		if am!=null and am.has_method("load_image"):
+			var cached: Image=am.load_image(path)
+			if cached!=null:return cached
 	# Prefer imported Texture2D when available; fall back to raw file load.
 	if ResourceLoader.exists(path):
 		var res: Resource = ResourceLoader.load(path)

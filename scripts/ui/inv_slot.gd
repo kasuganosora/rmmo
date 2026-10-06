@@ -18,6 +18,8 @@ var icon_index: int = -1
 var icon_ref: String = ""
 ## Locked / beyond capacity — darker than empty usable, no interact.
 var disabled: bool = false
+var selected := false
+var hovered := false
 
 var _avatar_label: Label
 var _icon_rect: TextureRect
@@ -35,6 +37,18 @@ func _ready() -> void:
 	_ensure_styles()
 	_ensure_children()
 	_apply_visual()
+	mouse_entered.connect(func(): hovered = true; queue_redraw())
+	mouse_exited.connect(func(): hovered = false; queue_redraw())
+
+
+func _draw() -> void:
+	if not disabled and (selected or hovered or has_focus()):
+		draw_style_box(L2Style.slot_outline(selected), Rect2(Vector2.ZERO, size))
+
+
+func _set_selected(value: bool) -> void:
+	selected = value
+	queue_redraw()
 
 
 func setup(p_item_id: String, p_qty: int, p_display_name: String, p_index: int = -1, p_icon_index: int = -1, p_icon_ref: String = "") -> void:
@@ -92,7 +106,7 @@ func _ensure_styles() -> void:
 	if _filled_sb == null:
 		_filled_sb = L2Style.slot_box(true)
 	if _disabled_sb == null:
-		_disabled_sb = L2Style.slot_box(false)
+		_disabled_sb = preload("res://scripts/ui/l2_chrome.gd").box("disabled", 3, 3)
 
 
 func _ensure_children() -> void:
@@ -104,6 +118,7 @@ func _ensure_children() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 	_icon_rect = TextureRect.new()
+	_icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_icon_rect.name = "Icon"
 	_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -127,7 +142,13 @@ func _ensure_children() -> void:
 	_qty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_qty_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_qty_label.add_theme_font_size_override("font_size", 11)
-	_qty_label.add_theme_color_override("font_color", Color(0.98, 0.94, 0.55))
+	_qty_label.add_theme_color_override("font_color", Color.WHITE)
+	_qty_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_qty_label.add_theme_constant_override("outline_size", 2)
+	var badge := StyleBoxFlat.new()
+	badge.bg_color = Color(0.02, 0.03, 0.04, 0.88)
+	badge.set_content_margin_all(1)
+	_qty_label.add_theme_stylebox_override("normal", badge)
 	_qty_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_qty_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_qty_label.anchor_left = 1.0
@@ -146,13 +167,14 @@ func _apply_visual() -> void:
 	_ensure_children()
 	if disabled:
 		add_theme_stylebox_override("panel", _disabled_sb)
-		modulate = Color(0.45, 0.42, 0.38, 1)
+		modulate = Color.WHITE
 		_avatar_label.text = ""
 		_avatar_label.visible = true
 		if _icon_rect != null:
 			_icon_rect.texture = null
 			_icon_rect.visible = false
 		_qty_label.text = ""
+		_qty_label.hide()
 		tooltip_text = "未解锁栏位"
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
 		return
@@ -161,6 +183,8 @@ func _apply_visual() -> void:
 	add_theme_stylebox_override("panel", _filled_sb if occupied else _empty_sb)
 	if occupied:
 		_qty_label.text = str(qty) if qty > 1 else ""
+		_qty_label.visible = qty > 1
+		_qty_label.offset_left = -maxf(14, str(qty).length() * 7 + 4)
 		if bool(get_meta("locked", false)):
 			tooltip_text = "%s\n%s\n已锁定（右键解锁）" % [display_name, item_id]
 			modulate = Color(0.85, 0.78, 0.55, 1)
@@ -174,6 +198,7 @@ func _apply_visual() -> void:
 			_icon_rect.texture = null
 			_icon_rect.visible = false
 		_qty_label.text = ""
+		_qty_label.hide()
 		tooltip_text = ""
 
 
@@ -197,6 +222,7 @@ func _apply_icon_visual() -> void:
 
 
 func _resolve_icon_texture() -> Texture2D:
+	if not is_inside_tree(): return null
 	var am: Node = get_node_or_null("/root/AssetManager")
 	if am == null:
 		return null
@@ -242,6 +268,8 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			for sibling in get_parent().get_children():
+				if sibling.has_method("_set_selected"): sibling._set_selected(sibling == self and not item_id.is_empty())
 			if not item_id.is_empty() and qty > 0 and mb.ctrl_pressed and qty > 1:
 				split_requested.emit(item_id, qty)
 				accept_event()

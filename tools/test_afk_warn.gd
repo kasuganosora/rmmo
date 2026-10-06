@@ -189,7 +189,9 @@ func _test_hud_toast_api() -> int:
 	var hud_src := FileAccess.get_file_as_string("res://scripts/ui/game_hud.gd")
 	failed += _expect(hud_src.find("_tick_afk_warn") >= 0, "hud ticks afk warn")
 	failed += _expect(hud_src.find("_note_player_input") >= 0, "hud notes input")
-	failed += _expect(hud_src.find("挂机提醒(分钟)") >= 0, "settings label in source")
+	# Settings form (incl. the 挂机提醒 row) now lives in the system_panel module.
+	var sys_src := FileAccess.get_file_as_string("res://scripts/ui/panels/system_panel.gd")
+	failed += _expect(sys_src.find("挂机提醒(分钟)") >= 0, "settings label in source")
 
 	hud.queue_free()
 	return failed

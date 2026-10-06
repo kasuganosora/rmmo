@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: map CRUD (create/delete/rename/duplicate/resize/reparent).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const MAP_MAX_SIDE := 16384
 

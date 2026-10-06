@@ -111,17 +111,10 @@ static func _try_step(ctrl, d: int) -> void:
 		var ts: float = 48.0
 		target = Vector2(float(nx) * ts + ts * 0.5, float(ny) * ts + ts * 0.5)
 	ctrl.moving = true
+	ctrl._step_running = ctrl._sprinting() and not bool(result.get("no_dash", false))
 	ctrl._play_walk()
-	var dur = ctrl.step_duration
-	if ctrl._sprinting() and not bool(result.get("no_dash", false)):
-		dur = ctrl.run_duration
-	var mul = float(result.get("move_speed_mul", 1.0))
-	if mul < 0.25:
-		mul = 0.25
-	elif mul > 3.0:
-		mul = 3.0
-	if mul != 1.0:
-		dur = dur / mul
+	var base_duration:float=ctrl.run_duration if ctrl._step_running else ctrl.step_duration
+	var dur:float=step_duration_with_mul(ctrl,base_duration,float(result.get("move_speed_mul",1.0)))
 	var tw = ctrl.create_tween()
 	tw.set_trans(Tween.TRANS_LINEAR)
 	tw.tween_property(ctrl, "global_position", target, dur)
@@ -129,6 +122,7 @@ static func _try_step(ctrl, d: int) -> void:
 
 static func _on_step_finished(ctrl) -> void:
 	ctrl.moving = false
+	ctrl._step_running = false
 	if not ctrl._move_path.is_empty() and ctrl._move_path[0] == ctrl.cell:
 		ctrl._move_path.remove_at(0)
 	# Warp check after arriving on a cell (keyboard or pathfinding).
@@ -170,6 +164,9 @@ static func step_duration_with_mul(ctrl, base_duration: float, move_speed_mul: f
 	return float(base_duration) / mul
 
 static func _sprinting(ctrl) -> bool:
+	# Mouse paths run by default; keyboard cancels the path before starting a step.
+	if not ctrl._move_path.is_empty():
+		return true
 	if GameSettingsScript.flag("always_run", false):
 		return true
 	return Input.is_physical_key_pressed(KEY_SHIFT)

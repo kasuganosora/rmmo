@@ -26,6 +26,8 @@ _l2_inspect/
 **/*.import
 
 # Exports / local junk
+__pycache__/
+*.py[cod]
 export.cfg
 *.apk
 *.aab
@@ -40,6 +42,10 @@ Desktop.ini
 .DS_Store
 
 # Scratch
+artifacts/*
+!artifacts/.gdignore
+.grok/*
+!.grok/.gdignore
 *.tmp
 *.log
 ._*

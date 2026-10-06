@@ -2,6 +2,8 @@ extends RefCounted
 ## Domain module: session/auth (login, characters, enter_world, logout).
 
 var ctrl
+var _character_gear:Dictionary={}
+var _session_revision:=0
 func _init(c):
 	ctrl = c
 
@@ -32,6 +34,11 @@ func login(username: String, password: String, server: String) -> void:
 	elif str(ctrl._accounts[username].get("password", "")) != password:
 		ctrl.login_finished.emit(false, "用户名或密码错误")
 		return
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
+	ctrl.furniture.release_actor(ctrl._party_self_id())
+	ctrl._session_character_id = ""
+	_session_revision+=1
 	ctrl._session_user = username
 	ctrl._session_server = server
 	ctrl.login_finished.emit(true, "登录成功 · %s" % server)
@@ -42,12 +49,21 @@ func fetch_characters() -> void:
 	if ctrl._fetch_inflight:
 		return
 	ctrl._fetch_inflight = true
+	var request_revision:=_session_revision
 	await ctrl.get_tree().create_timer(LATENCY_SEC * 0.6).timeout
 	ctrl._fetch_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.characters_ready.emit([])
+		return
 	if not ctrl.is_logged_in():
 		ctrl.characters_ready.emit([])
 		return
+	_checkpoint_gear()
+	for ch:Dictionary in ctrl._accounts[ctrl._session_user]["characters"]:
+		preload("res://scripts/char/character_body_migration.gd").apply(ch)
 	var list: Array = ctrl._accounts[ctrl._session_user]["characters"].duplicate(true)
+	for ch:Dictionary in list:
+		ch["equipment"]=_preview_gear(str(ch.id))
 	ctrl.characters_ready.emit(list)
 
 
@@ -56,23 +72,28 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	if ctrl._create_inflight:
 		return
 	ctrl._create_inflight = true
+	var request_revision:=_session_revision
+	# Capture at request time, before simulated network latency.
+	customization = customization.duplicate(true)
 	await ctrl.get_tree().create_timer(LATENCY_SEC).timeout
 	ctrl._create_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.character_created.emit(false, "会话已变更，请重试", {})
+		return
 	if not ctrl.is_logged_in():
 		ctrl.character_created.emit(false, "未登录", {})
 		return
 	char_name = char_name.strip_edges()
 	look_id = look_id.strip_edges()
-	gender = gender.strip_edges().to_lower()
-	if gender != "male":
-		gender = "female"
+	gender = preload("res://scripts/char/look_catalog.gd").normalize_gender(gender)
 	if char_name.is_empty():
 		ctrl.character_created.emit(false, "请输入角色名", {})
 		return
 	if char_name.length() > 12:
 		ctrl.character_created.emit(false, "名字太长（最多 12 字）", {})
 		return
-	var pid: Dictionary = customization.get("part_ids", {}) if typeof(customization) == TYPE_DICTIONARY else {}
+	customization["body_shapes"] = preload("res://scripts/char/character_body_shapes.gd").normalize(customization.get("body_shapes",{}))
+	var pid: Dictionary = customization.get("part_ids", {}) if customization.get("part_ids", {}) is Dictionary else {}
 	if look_id.is_empty() and (typeof(pid) != TYPE_DICTIONARY or (pid as Dictionary).is_empty()):
 		ctrl.character_created.emit(false, "请选择外观", {})
 		return
@@ -90,17 +111,22 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 		"customization": customization if typeof(customization) == TYPE_DICTIONARY else {},
 	}
 	ctrl._next_char_id += 1
+	preload("res://scripts/char/character_body_migration.gd").apply(ch)
 	ctrl._accounts[ctrl._session_user]["characters"].append(ch)
-	ctrl.character_created.emit(true, "创建成功", ch)
+	ctrl.character_created.emit(true, "创建成功", ch.duplicate(true))
 
 
 
-func enter_world(character_id: int) -> void:
+func enter_world(character_id: int, world3d: bool = false) -> void:
 	if ctrl._enter_inflight:
 		return
 	ctrl._enter_inflight = true
+	var request_revision:=_session_revision
 	await ctrl.get_tree().create_timer(LATENCY_SEC * 1.2).timeout
 	ctrl._enter_inflight = false
+	if request_revision!=_session_revision:
+		ctrl.enter_world_ready.emit(false, "会话已变更，请重试", {})
+		return
 	if not ctrl.is_logged_in():
 		ctrl.enter_world_ready.emit(false, "未登录", {})
 		return
@@ -112,15 +138,26 @@ func enter_world(character_id: int) -> void:
 	if found.is_empty():
 		ctrl.enter_world_ready.emit(false, "找不到该角色", {})
 		return
-	# Always start the session on the home demo pack.
-	ctrl._load_pack(ctrl.start_map_pack_path())
+	preload("res://scripts/char/character_body_migration.gd").apply(found)
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
+	var saved:Dictionary=_character_gear.get(ctrl._session_user,{}).get(str(character_id),{})
+	# Load the configured home pack and use its configured spawn when present.
+	if not world3d:
+		ctrl._load_pack(ctrl.start_map_pack_path())
 	var spawn_cell = Vector2i(0, 0)
-	if ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
-		spawn_cell = ctrl.map_collision.find_spawn_near()
+	if not world3d and ctrl.map_collision != null and ctrl.map_collision.has_method("find_spawn_near"):
+		var am = ctrl.get_node_or_null("/root/AssetManager")
+		var preferred := Vector2i(-1, -1)
+		if am != null and am.content_config().has("start_spawn"):
+			preferred = am.start_spawn_cell()
+		spawn_cell = ctrl.map_collision.find_spawn_near(preferred.x, preferred.y)
 	var ts: float = float(ctrl.map_tile_size)
 	# Reset combat for this character session.
 	ctrl.awaiting_respawn = false
+	ctrl.facial_expressions.reset()
 	var lv: int = int(found.get("level", 1))
+	ctrl.furniture.release_actor(ctrl._party_self_id())
 	ctrl._session_character_id = str(found.get("id", "")).strip_edges()
 	if ctrl.combat_stats != null:
 		if ctrl.combat_stats.has_method("set_player_actor_id"):
@@ -136,11 +173,29 @@ func enter_world(character_id: int) -> void:
 	if ctrl.inventory != null:
 		ctrl.inventory.clear()
 		ctrl.inventory.grant_starter()
+		for item in preload("res://scripts/char/starter_equipment.gd").GIFT_ITEMS:
+			ctrl.inventory.add_item(item["id"],1)
+		if str(found.get("gender","female"))=="female":
+			for item in preload("res://scripts/char/underwear_equipment.gd").ITEMS:
+				ctrl.inventory.add_item(item["id"],1)
+		if found.get("customization",{}).get("body_model","")=="female_base_v2":
+			for item in preload("res://scripts/char/source_garment_equipment.gd").ITEMS:
+				ctrl.inventory.add_item(item.id,1)
 	if ctrl.warehouse != null:
 		ctrl.warehouse.clear()
 	ctrl._shop_buyback.clear()
 	if ctrl.equipment != null:
 		ctrl.equipment.clear()
+		if ctrl.inventory != null:
+			for item in preload("res://scripts/char/starter_equipment.gd").ITEMS:
+				var iid: String = item["id"]
+				ctrl.inventory.add_item(iid, 1)
+				ctrl.equipment.try_equip_from_bag(ctrl.inventory, iid)
+	if not saved.is_empty():
+		ctrl.inventory.restore_session_state(saved.inventory)
+		ctrl.equipment.restore_session_state(saved.equipment)
+	if world3d:
+		preload("res://scripts/world3d/day_night_review_item.gd").grant(ctrl.inventory)
 	if ctrl.quest_journal != null:
 		ctrl.quest_journal.clear()
 		ctrl.quest_journal.grant_starter()
@@ -150,7 +205,8 @@ func enter_world(character_id: int) -> void:
 	if ctrl.combat_engine != null and ctrl.combat_engine.has_method("reset_dps_fight"):
 		ctrl.combat_engine.reset_dps_fight()
 	ctrl._pending_tick_actions.clear()
-	ctrl._collect_autorun()
+	if not world3d:
+		ctrl._collect_autorun()
 	# Party shell: fresh session, no persistence.
 	ctrl._party_clear()
 	ctrl._party_poll_pending = false
@@ -190,7 +246,7 @@ func enter_world(character_id: int) -> void:
 		combat_snap["mounted"] = ctrl.player_is_mounted()
 		combat_snap["move_speed_mul"] = ctrl.player_move_speed_mul()
 	var spawn = {
-		"character": found,
+		"character": found.duplicate(true),
 		"map_id": ctrl.map_pack_id,
 		"pack_path": ctrl.map_pack_path if ctrl.map_pack_path != "" else ctrl.start_map_pack_path(),
 		"content_id": ctrl.map_content_id,
@@ -233,6 +289,15 @@ func enter_world(character_id: int) -> void:
 		"gather_xp": ctrl.gather_xp,
 		"gather_xp_to_next": ctrl.gather_xp_to_next,
 	}
+	if world3d:
+		ctrl.world3d_events.runtime.clear_session()
+		ctrl.world3d_state.clear()
+		ctrl.player_cell = Vector2i(-9999, -9999)
+		for field in ["map_id", "pack_path", "content_id", "content_version", "cell", "position", "remote_players", "ground_bags", "map_pins"]:
+			spawn.erase(field)
+		spawn["world_mode"] = "world3d"
+		ctrl.enter_world_ready.emit(true, "正在准备三维世界", spawn)
+		return
 	ctrl.respawn_cell = spawn_cell
 	ctrl.last_safe_cell = spawn_cell
 	ctrl._safe_zone_known = false
@@ -252,8 +317,27 @@ func enter_world(character_id: int) -> void:
 
 
 func logout() -> void:
+	ctrl.furniture.release_actor(ctrl._party_self_id())
+	_session_revision+=1
+	ctrl._trade_force_cancel_silent()
+	_checkpoint_gear()
 	ctrl._session_user = ""
 	ctrl._session_server = ""
 	ctrl._session_character_id = ""
 
 
+
+
+func _checkpoint_gear()->void:
+	if ctrl._session_user.is_empty() or ctrl._session_character_id.is_empty():return
+	if ctrl.inventory==null or ctrl.equipment==null:return
+	if not _character_gear.has(ctrl._session_user):_character_gear[ctrl._session_user]={}
+	_character_gear[ctrl._session_user][ctrl._session_character_id]={"inventory":ctrl.inventory.capture_session_state(),"equipment":ctrl.equipment.capture_session_state(),"preview":ctrl.equipment.snapshot().duplicate(true)}
+
+func _preview_gear(id:String)->Array:
+	var saved:Dictionary=_character_gear.get(ctrl._session_user,{}).get(id,{})
+	if not saved.is_empty():return saved.preview.duplicate(true)
+	var initial:Array=[]
+	for item:Dictionary in preload("res://scripts/char/starter_equipment.gd").ITEMS:
+		initial.append({"slot":item.equip_slot,"item_id":item.id})
+	return initial

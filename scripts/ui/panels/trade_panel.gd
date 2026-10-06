@@ -2,11 +2,15 @@ extends RefCounted
 ## UI panel: trade window with item/gold exchange.
 
 var ctrl
+var _selected_item := ""
+var _selected_source := "bag"
+var _quantity: SpinBox
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _on_trade_open_with(partner_name: String) -> void:
@@ -24,33 +28,14 @@ func _on_trade_open_with(partner_name: String) -> void:
 func _build_trade_panel() -> void:
 	ctrl._trade_panel = PanelContainer.new()
 	ctrl._trade_panel.name = "TradePanel"
-	ctrl._trade_panel.set_script(HudDrag)
+	ctrl._trade_panel.set_script(GameWindow)
 	ctrl._trade_panel.screen_margin = 4.0
 	ctrl._trade_panel.min_size = Vector2(360, 260)
-	ctrl._trade_panel.default_size = Vector2(520, 400)
+	ctrl._trade_panel.default_size = Vector2(520, 490)
 	ctrl._trade_panel.initial_dock = "none"
 	ctrl._trade_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._trade_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 6)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._trade_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "TradeTitle"
-	title.text = "交易"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(_on_trade_cancel)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._trade_panel, "交易", _on_trade_cancel, "TradeTitle")
 	ctrl._trade_body = VBoxContainer.new()
 	ctrl._trade_body.name = "TradeBody"
 	ctrl._trade_body.add_theme_constant_override("separation", 6)
@@ -65,9 +50,9 @@ func _build_trade_panel() -> void:
 
 func _nudge_trade() -> void:
 	if ctrl._trade_panel:
-		ctrl._trade_panel.size = Vector2(520, 400)
+		ctrl._trade_panel.size = Vector2(520, 490)
 		var vp = ctrl.get_viewport_rect().size
-		ctrl._trade_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 260)), 80)
+		ctrl._window_manager_logic.place_at(ctrl._trade_panel, Vector2(maxi(8, int(vp.x * 0.5 - 260)), 80))
 
 
 
@@ -112,9 +97,11 @@ func hide_trade() -> void:
 
 
 func _refresh_trade_panel() -> void:
+	var previous_quantity := _quantity.value if is_instance_valid(_quantity) else 1.0
 	if ctrl._trade_body == null:
 		return
 	for c in ctrl._trade_body.get_children():
+		ctrl._trade_body.remove_child(c)
 		c.queue_free()
 	ctrl._trade_gold_spin = null
 	if not bool(ctrl._trade_state.get("active", false)):
@@ -160,52 +147,64 @@ func _refresh_trade_panel() -> void:
 	ctrl._add_label(their_col, "对方报价", 11, L2Style.COL_MUTED)
 	_fill_trade_item_list(my_col, ctrl._trade_state.get("my_items", []), true)
 	_fill_trade_item_list(their_col, ctrl._trade_state.get("their_items", []), false)
-	ctrl._add_label(my_col, "Adena  %d" % int(ctrl._trade_state.get("my_gold", 0)), 12, L2Style.COL_GOLD)
-	ctrl._add_label(their_col, "Adena  %d" % int(ctrl._trade_state.get("their_gold", 0)), 12, L2Style.COL_GOLD)
+	ctrl._add_label(my_col, "金币  %d" % int(ctrl._trade_state.get("my_gold", 0)), 12, L2Style.COL_GOLD)
+	ctrl._add_label(their_col, "金币  %d" % int(ctrl._trade_state.get("their_gold", 0)), 12, L2Style.COL_GOLD)
 	var ready_me = bool(ctrl._trade_state.get("my_ready", false))
 	var ready_them = bool(ctrl._trade_state.get("their_ready", false))
 	ctrl._add_label(
 		ctrl._trade_body,
-		"锁定：你[%s] / 对方[%s]" % ["是" if ready_me else "否", "是" if ready_them else "否"],
+		"你：%s    对方：%s" % ["已锁定" if ready_me else "调整报价中", "已锁定" if ready_them else "调整报价中"],
 		11,
 		L2Style.COL_TEXT
 	)
 	if not ready_me:
-		# Put items from bag (first few stacks as quick buttons)
-		ctrl._add_label(ctrl._trade_body, "从背包放入（×1）：", 10, L2Style.COL_MUTED)
-		var bag_row = HFlowContainer.new()
-		bag_row.add_theme_constant_override("h_separation", 4)
-		bag_row.add_theme_constant_override("v_separation", 4)
-		ctrl._trade_body.add_child(bag_row)
-		var added = 0
-		for it in ctrl._server_inventory:
-			if typeof(it) != TYPE_DICTIONARY:
-				continue
-			var iid = str(it.get("id", "")).strip_edges()
-			var q: int = int(it.get("qty", 0))
-			if iid.is_empty() or q <= 0:
-				continue
-			var b = Button.new()
-			b.text = "%s×%d" % [ctrl._item_label(iid), q]
-			b.focus_mode = Control.FOCUS_NONE
-			b.pressed.connect(_on_trade_put_item.bind(iid))
-			L2Style.style_compact_button(b)
-			bag_row.add_child(b)
-			added += 1
-			if added >= 8:
-				break
-		if added == 0:
-			ctrl._add_label(bag_row, "（背包为空）", 10, L2Style.COL_MUTED)
+		ctrl._add_label(ctrl._trade_body, "从背包选择物品", 11, L2Style.COL_MUTED)
+		var bag = ItemGrid.create(ctrl, ctrl._trade_body, "TradeBag", 80)
+		bag.size_flags_vertical = Control.SIZE_FILL
+		bag.fill_inventory(ctrl._server_inventory)
+		bag.select_key(_selected_item if _selected_source == "bag" else "", false)
+		bag.item_selected.connect(func(item): _select_trade_item(item, "bag"))
+		var selected_qty := 0
+		var source: Array = ctrl._server_inventory if _selected_source == "bag" else ctrl._trade_state.get("my_items", [])
+		for item in source:
+			if _selected_source == "bag" and (item.get("locked", false) or item.get("bound", false)): continue
+			if str(item.get("item_id", item.get("id", ""))) == _selected_item: selected_qty += int(item.get("qty", 0))
+		var item_actions := HBoxContainer.new()
+		item_actions.add_theme_constant_override("separation", 6)
+		ctrl._trade_body.add_child(item_actions)
+		ctrl._add_label(item_actions, "数量", 11, L2Style.COL_MUTED)
+		_quantity = SpinBox.new()
+		_quantity.min_value = 1
+		_quantity.max_value = maxi(1, selected_qty)
+		_quantity.value = previous_quantity
+		_quantity.editable = selected_qty > 0
+		_quantity.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		_quantity.custom_minimum_size.x = 100
+		item_actions.add_child(_quantity)
+		var all := Button.new()
+		all.text = "全部"
+		all.disabled = selected_qty == 0
+		all.pressed.connect(func(): _quantity.value = _quantity.max_value)
+		item_actions.add_child(all)
+		var transfer := Button.new()
+		transfer.text = "放入报价" if _selected_source == "bag" else "移回背包"
+		transfer.disabled = selected_qty == 0
+		transfer.pressed.connect(func():
+			if _selected_source == "bag": _on_trade_put_item(_selected_item)
+			else: _on_trade_take_item(_selected_item)
+		)
+		item_actions.add_child(transfer)
 		var gold_row = HBoxContainer.new()
 		gold_row.add_theme_constant_override("separation", 6)
 		ctrl._trade_body.add_child(gold_row)
-		ctrl._add_label(gold_row, "放入 Adena", 11, L2Style.COL_TEXT)
+		ctrl._add_label(gold_row, "放入金币", 11, L2Style.COL_TEXT)
 		var spin = SpinBox.new()
 		spin.min_value = 0
 		spin.max_value = maxi(ctrl._server_gold + int(ctrl._trade_state.get("my_gold", 0)), 0)
 		spin.value = int(ctrl._trade_state.get("my_gold", 0))
 		spin.rounded = true
-		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spin.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		spin.custom_minimum_size.x = 100
 		gold_row.add_child(spin)
 		ctrl._trade_gold_spin = spin
 		var setg = Button.new()
@@ -224,7 +223,7 @@ func _refresh_trade_panel() -> void:
 	L2Style.style_action_button(cancel)
 	btn_row.add_child(cancel)
 	var ready_btn = Button.new()
-	ready_btn.text = "取消锁定" if ready_me else "锁定"
+	ready_btn.text = "修改报价" if ready_me else "锁定报价"
 	ready_btn.focus_mode = Control.FOCUS_NONE
 	ready_btn.pressed.connect(ctrl._on_trade_ready.bind(not ready_me))
 	L2Style.style_action_button(ready_btn)
@@ -233,45 +232,26 @@ func _refresh_trade_panel() -> void:
 	conf.text = "确认交易"
 	conf.focus_mode = Control.FOCUS_NONE
 	conf.disabled = not (ready_me and ready_them)
+	conf.tooltip_text = "双方锁定报价后才能确认交易"
 	conf.pressed.connect(_on_trade_confirm)
 	L2Style.style_action_button(conf)
 	btn_row.add_child(conf)
 
 
 
-func _fill_trade_item_list(parent: Node, items_v: Variant, mine: bool) -> void:
-	var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
-	if items.is_empty():
-		ctrl._add_label(parent, "（空）", 10, L2Style.COL_MUTED)
-		return
-	for it in items:
-		if typeof(it) != TYPE_DICTIONARY:
-			continue
-		var md: Dictionary = it
-		var iid = str(md.get("item_id", ""))
-		var nm = str(md.get("name", "")).strip_edges()
-		if nm.is_empty():
-			nm = ctrl._item_label(iid)
-		var q: int = int(md.get("qty", 0))
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 4)
-		parent.add_child(row)
-		var lab = Button.new()
-		lab.text = "%s ×%d" % [nm, q]
-		lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lab.focus_mode = Control.FOCUS_NONE
-		lab.custom_minimum_size = Vector2(0, 28)
-		L2Style.style_row_button(lab, false)
-		row.add_child(lab)
-		if mine and not bool(ctrl._trade_state.get("my_ready", false)):
-			var rm = Button.new()
-			rm.text = "−"
-			rm.focus_mode = Control.FOCUS_NONE
-			rm.custom_minimum_size = Vector2(28, 28)
-			rm.pressed.connect(_on_trade_take_item.bind(iid))
-			L2Style.style_compact_button(rm)
-			row.add_child(rm)
+func _select_trade_item(item: Dictionary, source: String) -> void:
+	if is_instance_valid(_quantity): _quantity.value = 1
+	_selected_item = str(item.get("item_id", ""))
+	_selected_source = source
+	_refresh_trade_panel()
 
+
+func _fill_trade_item_list(parent: Node, items_v: Variant, mine: bool) -> void:
+	var grid = ItemGrid.create(ctrl, parent, "TradeMyOffer" if mine else "TradeTheirOffer", 104)
+	grid.set_items(items_v if items_v is Array else [])
+	grid.select_key(_selected_item if mine and _selected_source == "offer" else "", false)
+	if mine and not ctrl._trade_state.get("my_ready", false):
+		grid.item_selected.connect(func(item): _select_trade_item(item, "offer"))
 
 
 func _on_trade_open() -> void:
@@ -296,21 +276,21 @@ func _on_trade_cancel() -> void:
 
 func _on_trade_put_item(item_id: String) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_trade_put_item"):
-		ctrl._world_combat.request_trade_put_item(item_id, 1)
+		ctrl._world_combat.request_trade_put_item(item_id, int(_quantity.value) if _quantity else 1)
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_trade_put_item"):
-		_apply_trade_result_locally(srv.try_trade_put_item(item_id, 1))
+		_apply_trade_result_locally(srv.try_trade_put_item(item_id, int(_quantity.value) if _quantity else 1))
 
 
 
 func _on_trade_take_item(item_id: String) -> void:
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_trade_take_item"):
-		ctrl._world_combat.request_trade_take_item(item_id, 1)
+		ctrl._world_combat.request_trade_take_item(item_id, int(_quantity.value) if _quantity else 1)
 		return
 	var srv = Net.server()
 	if srv != null and srv.has_method("try_trade_take_item"):
-		_apply_trade_result_locally(srv.try_trade_take_item(item_id, 1))
+		_apply_trade_result_locally(srv.try_trade_take_item(item_id, int(_quantity.value) if _quantity else 1))
 
 
 
@@ -358,5 +338,3 @@ func _apply_trade_result_locally(result: Dictionary) -> void:
 				var msg = str(action.get("text", "")).strip_edges()
 				if not msg.is_empty():
 					ctrl.append_system(msg)
-
-

@@ -1,0 +1,5 @@
+# Offline geometry validation tools only; not a client/runtime dependency.
+numpy==2.4.2
+scipy==1.17.0
+# Required for cloth self-intersection audit; winding alone has a NumPy fallback.
+libigl==2.6.3

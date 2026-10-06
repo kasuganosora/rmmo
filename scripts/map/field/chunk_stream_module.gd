@@ -2,6 +2,17 @@ extends RefCounted
 ## Domain module: chunk streaming (JIT load/unload HD chunks around camera/observer).
 
 var ctrl
+var last_bake_profile: Dictionary = {}
+const BakeWorker = preload("res://scripts/map/field/chunk_bake_worker.gd")
+var worker = BakeWorker.new()
+var texture_pool = preload("res://scripts/map/field/chunk_texture_pool.gd").new()
+var retired: Dictionary = {}
+var retired_bytes: int = 0
+var last_view := Vector3(-1,-1,-1)
+var pending_upload: Dictionary = {}
+var last_pump_frame: int = -1
+const RETIRED_BUDGET := 96 * 1024 * 1024
+var stream_stats := {"baked":0,"restored":0,"discarded":0,"max_commit_ms":0.0,"max_upload_ms":0.0,"max_worker_ms":0.0}
 func _init(c):
 	ctrl = c
 
@@ -62,6 +73,7 @@ func _prioritize_chunk(ch: Vector2i) -> void:
 func rebake_loaded_chunks() -> void:
 	if not ctrl._stream_ready:
 		return
+	shutdown()
 	for key in ctrl._chunks.keys():
 		var parts: PackedStringArray = str(key).split(",")
 		if parts.size() < 2:
@@ -186,6 +198,8 @@ func _rebuild_chunks_around(cell: Vector2i, bake_sync: bool) -> void:
 
 
 func _clear_chunks() -> void:
+	shutdown()
+	last_view=Vector3(-1,-1,-1)
 	for key in ctrl._chunks.keys():
 		var n: Node = ctrl._chunks[key]
 		if n != null and is_instance_valid(n):
@@ -211,6 +225,16 @@ func _refresh_chunk_set() -> void:
 	for key in wanted.keys():
 		if ctrl._chunks.has(key):
 			continue
+		if retired.has(key):
+			var cached: Dictionary=retired[key]
+			retired.erase(key);retired_bytes-=int(cached.bytes)
+			cached.node.visible=true
+			ctrl._chunks[key]=cached.node
+			ctrl._surface_materials._update_night(cached.node,ctrl._surface_materials._night_factor())
+			stream_stats.restored+=1
+			continue
+		if worker.task_id>=0 and _chunk_key(worker.coordinate)==str(key):continue
+		if not pending_upload.is_empty() and _chunk_key(pending_upload.coordinate)==str(key):continue
 		var already = false
 		for q in ctrl._chunk_queue:
 			if _chunk_key(q) == key:
@@ -237,7 +261,35 @@ func _refresh_chunk_set() -> void:
 		var node: Node = ctrl._chunks.get(dk)
 		ctrl._chunks.erase(dk)
 		if node != null and is_instance_valid(node):
-			node.queue_free()
+			if not ctrl.edit_mode:
+				node.visible=false
+				var bytes:=_node_bytes(node)
+				retired[dk]={"node":node,"bytes":bytes};retired_bytes+=bytes
+				while retired_bytes>RETIRED_BUDGET and not retired.is_empty():
+					var oldest=retired.keys()[0]
+					retired_bytes-=int(retired[oldest].bytes)
+					texture_pool.offer(retired[oldest].node.get_meta("stream_gpu",{}))
+					retired[oldest].node.queue_free();retired.erase(oldest)
+			else:node.queue_free()
+	# A teleport must not spend frames baking the old camera's queued chunks.
+	# Bake the player's current region before distant facing-direction prefetch.
+	var fresh: Array[Vector2i] = []
+	for queued in ctrl._chunk_queue:
+		var queued_key := _chunk_key(queued)
+		if wanted.has(queued_key) or ctrl._chunks.has(queued_key):
+			fresh.append(queued)
+	var visible_rect:=visible_chunk_rect()
+	fresh.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var av:=visible_rect.has_point(a)
+		var bv:=visible_rect.has_point(b)
+		if av!=bv:return av
+		var da := a.distance_squared_to(obs_ch)
+		var db := b.distance_squared_to(obs_ch)
+		if da != db:
+			return da < db
+		return _chunk_is_ahead(a) and not _chunk_is_ahead(b)
+	)
+	ctrl._chunk_queue = fresh
 
 
 
@@ -313,6 +365,7 @@ func _bake_next_chunk(full_anim: bool = true) -> void:
 		ctrl._chunk_root.name = "Chunks"
 		ctrl.add_child(ctrl._chunk_root)
 	var c: Vector2i = ctrl._chunk_queue.pop_front()
+	var started := Time.get_ticks_usec()
 	var key = _chunk_key(c)
 	var x0 = c.x * CHUNK_CELLS
 	var y0 = c.y * CHUNK_CELLS
@@ -347,6 +400,7 @@ func _bake_next_chunk(full_anim: bool = true) -> void:
 			ctrl._paint_cell(ground, upper, col, sheets, flags, void_id, gx, gy, dx, dy)
 			ctrl._paint_ext_cell(below, ground, upper, roof, fx, col, sheets, flags, gx, gy, dx, dy)
 	var node: Node2D = ctrl._chunks.get(key) as Node2D
+	var painted := Time.get_ticks_usec()
 	if node == null or not is_instance_valid(node):
 		node = MapChunk.new()
 		node.setup(c, Vector2(x0 * ts, y0 * ts))
@@ -359,6 +413,8 @@ func _bake_next_chunk(full_anim: bool = true) -> void:
 	node.apply_bucket("Upper", upper, 10)
 	node.apply_bucket("Roof", roof, 12)
 	node.apply_bucket("Fx", fx, 16, true)
+	ctrl._surface_materials.apply_chunk(node,x0,y0,cw,ch)
+	var materials_done := Time.get_ticks_usec()
 	ctrl._finish_anim_bake(node, full_anim)
 	if node.has_method("set_fx_modulate"):
 		node.set_fx_modulate(ctrl.light_fx_color())
@@ -368,5 +424,128 @@ func _bake_next_chunk(full_anim: bool = true) -> void:
 	if not full_anim:
 		ctrl._publish_lofi_atlas()
 	ctrl._ensure_edit_overlay()
+	last_bake_profile = {"chunk":key,"paint_ms":(painted-started)/1000.0,"upload_material_ms":(materials_done-painted)/1000.0,"tail_ms":(Time.get_ticks_usec()-materials_done)/1000.0,"total_ms":(Time.get_ticks_usec()-started)/1000.0}
+
+func _node_bytes(node: Node) -> int:
+	var bytes:=0
+	for child in node.get_children():
+		if child is Sprite2D and child.texture!=null:
+			bytes+=child.texture.get_width()*child.texture.get_height()*4
+			if child.material is ShaderMaterial:
+				for channel in ["normal_tex","height_tex","emission_tex"]:
+					var tex=child.material.get_shader_parameter(channel)
+					if tex is Texture2D:bytes+=tex.get_width()*tex.get_height()*4
+	return bytes
+
+func shutdown() -> void:
+	worker.shutdown()
+	pending_upload.clear()
+	for entry in retired.values():
+		if is_instance_valid(entry.node):entry.node.queue_free()
+	retired.clear();retired_bytes=0
+	texture_pool.clear()
+
+func busy() -> bool:
+	return worker.task_id>=0 or not ctrl._chunk_queue.is_empty() or not pending_upload.is_empty()
+
+func view_changed() -> bool:
+	var size: Vector2=ctrl.get_viewport().get_visible_rect().size
+	var camera=ctrl.get_viewport().get_camera_2d()
+	var state:=Vector3(size.x,size.y,camera.zoom.x if camera!=null else 1.0)
+	var changed:=state!=last_view
+	last_view=state
+	return changed
+
+func visible_chunk_rect() -> Rect2i:
+	var size: Vector2=ctrl.get_viewport().get_visible_rect().size
+	var camera=ctrl.get_viewport().get_camera_2d()
+	var zoom: float=maxf(camera.zoom.x,.05) if camera!=null else 1.0
+	var half: Vector2=size/(float(ctrl.tile_size)*zoom)*.5
+	var lo:=cell_to_chunk(ctrl._obs_cell-Vector2i(ceil(half.x),ceil(half.y)))
+	var hi:=cell_to_chunk(ctrl._obs_cell+Vector2i(ceil(half.x),ceil(half.y)))
+	return Rect2i(lo,hi-lo+Vector2i.ONE)
+
+func visible_progress() -> Dictionary:
+	var rect:=visible_chunk_rect()
+	var wanted:=_wanted_chunks(ctrl._obs_cell,ctrl._obs_facing)
+	var done:=0
+	var total:=0
+	for key in wanted:
+		var c: Vector2i=wanted[key]
+		if rect.has_point(c):
+			total+=1
+			if ctrl._chunks.has(key):done+=1
+	return {"done":done,"total":total}
+
+func visible_ready() -> bool:
+	var progress:=visible_progress()
+	return progress.total>0 and progress.done==progress.total
+
+func pump() -> void:
+	var frame:=Engine.get_process_frames()
+	if frame==last_pump_frame:return
+	last_pump_frame=frame
+	if not pending_upload.is_empty():
+		var upload_started:=Time.get_ticks_usec()
+		if not _wanted_chunks(ctrl._obs_cell,ctrl._obs_facing).has(_chunk_key(pending_upload.coordinate)):
+			texture_pool.offer(pending_upload.gpu)
+			pending_upload.clear();stream_stats.discarded+=1
+		else:
+			var job: Dictionary=pending_upload.jobs.pop_front()
+			pending_upload.gpu[job.key]=texture_pool.upload(job.image)
+			stream_stats["texture_reused"]=texture_pool.reused
+			stream_stats["texture_created"]=texture_pool.created
+			stream_stats.max_upload_ms=maxf(float(stream_stats.get("max_upload_ms",0)),(Time.get_ticks_usec()-upload_started)/1000.0)
+			if pending_upload.jobs.is_empty():
+				_commit(pending_upload.coordinate,pending_upload.payload,pending_upload.gpu)
+				pending_upload.clear()
+		return
+	if worker.ready():
+		var c: Vector2i=worker.coordinate
+		var payload: Dictionary=worker.take()
+		if _wanted_chunks(ctrl._obs_cell,ctrl._obs_facing).has(_chunk_key(c)):
+			var jobs: Array=[]
+			for bucket in payload.images:jobs.append({"key":"color_"+bucket,"image":payload.images[bucket]})
+			for bucket in payload.anim_images:jobs.append({"key":"anim_"+bucket,"image":payload.anim_images[bucket]})
+			if not payload.materials.is_empty():
+				jobs.append({"key":"height","image":payload.materials.height})
+				for bucket in ["Ground","Upper"]:
+					if not payload.images.has(bucket):continue
+					jobs.append({"key":"normal_"+bucket,"image":payload.materials.normals[bucket]})
+					var glow: Image=payload.materials.emissions[bucket]
+					if glow.get_size()!=Vector2i.ONE or not glow.is_invisible():
+						jobs.append({"key":"emission_"+bucket,"image":glow})
+			if jobs.is_empty():_commit(c,payload,{})
+			else:pending_upload={"coordinate":c,"payload":payload,"jobs":jobs,"gpu":{}}
+		else:stream_stats.discarded+=1
+	if worker.task_id<0 and not ctrl._chunk_queue.is_empty():
+		var c: Vector2i=ctrl._chunk_queue.pop_front()
+		worker.start(ctrl,c)
+
+func _commit(c: Vector2i, payload: Dictionary, gpu: Dictionary) -> void:
+	var started:=Time.get_ticks_usec()
+	var key:=_chunk_key(c)
+	var node: Node2D=ctrl._chunks.get(key) as Node2D
+	if node==null:
+		node=MapChunk.new();node.setup(c,Vector2(c.x*16*ctrl.tile_size,c.y*16*ctrl.tile_size))
+		ctrl._chunk_root.add_child(node);ctrl._chunks[key]=node
+	node.clear_visuals()
+	node.set_meta("stream_gpu",gpu)
+	var layers={"Below":-20,"Ground":0,"Upper":10,"Roof":12,"Fx":16}
+	for bucket in payload.images:
+		node.apply_texture(bucket,gpu["color_"+bucket],layers[bucket],bucket=="Fx")
+	ctrl._surface_materials.apply_chunk(node,c.x*16,c.y*16,int(payload.cw),int(payload.ch),payload.materials,gpu)
+	node.set_anim_data(payload.jobs,payload.shadows,payload.anim_images)
+	for bucket in payload.anim_images:
+		node.apply_texture(bucket+"Anim",gpu["anim_"+bucket],ctrl._anim_layer_z(bucket),bucket=="Fx")
+	node.set_fx_modulate(ctrl.light_fx_color())
+	node.set_roof_visible(not ctrl._roof_hidden)
+	# The offline overview already represents this map. Avoid GPU readback and
+	# re-upload of the whole minimap for each streamed HD chunk.
+	stream_stats.baked+=1
+	var elapsed: float=(Time.get_ticks_usec()-started)/1000.0
+	stream_stats.max_commit_ms=maxf(stream_stats.max_commit_ms,elapsed)
+	stream_stats.max_worker_ms=maxf(stream_stats.max_worker_ms,float(payload.worker_ms))
+	last_bake_profile={"chunk":key,"worker_ms":payload.worker_ms,"commit_ms":elapsed}
 
 

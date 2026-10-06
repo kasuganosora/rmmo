@@ -53,7 +53,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			ctrl._dup_map(ctrl.current_map_id)
 			_mark_handled()
 		elif k.keycode == KEY_ESCAPE:
-			if ctrl._poly_pts.size() > 0:
+			if ctrl._selection_move.dragging or ctrl._selection_move.drawing or (ctrl.paint and ctrl.paint.tool==PaintTools.Tool.SELECT and ctrl.paint.rect_start.x>=0):
+				ctrl._selection_move.cancel(not ctrl._selection_move.dragging)
+				ctrl._status.text="已取消选区操作"
+				_mark_handled()
+			elif ctrl._poly_pts.size() > 0:
 				ctrl._poly_pts.clear()
 				ctrl._status.text = "已取消折线"
 				_mark_handled()
@@ -180,6 +184,12 @@ func _on_canvas_input(event: InputEvent) -> void:
 		if mb.button_index == MOUSE_BUTTON_MIDDLE or (ctrl._space_down and mb.button_index == MOUSE_BUTTON_LEFT):
 			ctrl._panning = mb.pressed
 			return
+		if ctrl.paint and ctrl.paint.tool==PaintTools.Tool.SELECT and ctrl._mode==0 and not ctrl._placing_start and ctrl.doc:
+			if mb.button_index==MOUSE_BUTTON_LEFT:
+				if mb.pressed:ctrl._selection_move.press(_mouse_cell(mb.position),mb.shift_pressed)
+				else:ctrl._selection_move.release(_mouse_cell(mb.position))
+			elif mb.button_index==MOUSE_BUTTON_RIGHT and mb.pressed:ctrl._selection_move.cancel(true)
+			return
 		if not mb.pressed:
 			if ctrl.paint.rect_start.x >= 0 and ctrl.doc and not ctrl._placing_start:
 				var cell = _mouse_cell(mb.position)
@@ -277,6 +287,9 @@ func _on_canvas_input(event: InputEvent) -> void:
 			ctrl._update_edit_observer()
 			return
 		if ctrl._placing_start:
+			return
+		if ctrl.paint and ctrl.paint.tool==PaintTools.Tool.SELECT and ctrl._mode==0:
+			ctrl._selection_move.motion(hover)
 			return
 		if (ctrl.paint.tool == PaintTools.Tool.RECT or ctrl.paint.tool == PaintTools.Tool.SELECT or ctrl.paint.tool == PaintTools.Tool.LINE or ctrl.paint.tool == PaintTools.Tool.ELLIPSE or ctrl.paint.tool == PaintTools.Tool.RING) and ctrl.paint.rect_start.x >= 0 and ctrl.map_field:
 			ctrl.map_field.edit_rect_b = hover

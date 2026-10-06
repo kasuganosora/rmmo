@@ -49,6 +49,7 @@ var show_item_floats: bool = true
 var screen_shake: bool = true
 var combat_camera_frame: bool = true
 var always_run: bool = false
+var cloud_quality: String = "medium"
 var weather_fx: bool = true
 var auto_pickup: bool = false
 ## Auto-loot filter when auto_pickup is on: all | no_equip | consumable_gold
@@ -59,6 +60,10 @@ var auto_potion_hp_pct: int = 40
 var auto_potion_mp: bool = false
 var auto_potion_mp_pct: int = 30
 var hud_locked: bool = false
+var hotbar_rows: int = 1
+var hotbar_locked: bool = false
+## Saved by server/account/character; isolated from content-editor settings.
+var hotbar_profiles: Dictionary = {}
 var show_quest_tracker: bool = true
 var show_dps_meter: bool = true
 var show_chat_timestamps: bool = true
@@ -293,6 +298,12 @@ func set_vsync(on: bool) -> void:
 	_persist_and_notify()
 
 
+func set_cloud_quality(value: String) -> void:
+	if value not in ["low", "medium", "high"] or value == cloud_quality: return
+	cloud_quality = value
+	_persist_and_notify()
+
+
 func set_max_fps(cap: int) -> void:
 	if cap not in FPS_CAPS:
 		cap = 0
@@ -478,6 +489,7 @@ func reset_defaults() -> void:
 	screen_shake = true
 	combat_camera_frame = true
 	always_run = false
+	cloud_quality = "medium"
 	weather_fx = true
 	auto_pickup = false
 	auto_pickup_filter = "all"
@@ -486,6 +498,8 @@ func reset_defaults() -> void:
 	auto_potion_mp = false
 	auto_potion_mp_pct = 30
 	hud_locked = false
+	hotbar_rows = 1
+	hotbar_locked = false
 	show_quest_tracker = true
 	show_dps_meter = true
 	show_chat_timestamps = true
@@ -542,6 +556,8 @@ func load_from_disk() -> void:
 	screen_shake = bool(cfg.get_value("game", "screen_shake", screen_shake))
 	combat_camera_frame = bool(cfg.get_value("game", "combat_camera_frame", combat_camera_frame))
 	always_run = bool(cfg.get_value("game", "always_run", always_run))
+	cloud_quality = str(cfg.get_value("display", "cloud_quality", cloud_quality))
+	if cloud_quality not in ["low", "medium", "high"]: cloud_quality = "medium"
 	weather_fx = bool(cfg.get_value("game", "weather_fx", weather_fx))
 	auto_pickup = bool(cfg.get_value("game", "auto_pickup", auto_pickup))
 	auto_pickup_filter = _clamp_auto_pickup_filter(str(cfg.get_value("game", "auto_pickup_filter", auto_pickup_filter)))
@@ -550,6 +566,10 @@ func load_from_disk() -> void:
 	auto_potion_mp = bool(cfg.get_value("game", "auto_potion_mp", auto_potion_mp))
 	auto_potion_mp_pct = clampi(int(cfg.get_value("game", "auto_potion_mp_pct", auto_potion_mp_pct)), 1, 90)
 	hud_locked = bool(cfg.get_value("game", "hud_locked", hud_locked))
+	hotbar_rows = clampi(int(cfg.get_value("hud", "hotbar_rows", hotbar_rows)), 1, 3)
+	hotbar_locked = bool(cfg.get_value("hud", "hotbar_locked", hotbar_locked))
+	var profiles: Variant = cfg.get_value("hud", "hotbar_profiles", {})
+	hotbar_profiles = profiles.duplicate(true) if profiles is Dictionary else {}
 	show_quest_tracker = bool(cfg.get_value("game", "show_quest_tracker", show_quest_tracker))
 	show_dps_meter = bool(cfg.get_value("game", "show_dps_meter", show_dps_meter))
 	show_chat_timestamps = bool(cfg.get_value("game", "show_chat_timestamps", show_chat_timestamps))
@@ -582,6 +602,7 @@ func save_to_disk() -> void:
 	cfg.set_value("display", "vsync", vsync)
 	cfg.set_value("display", "max_fps", max_fps)
 	cfg.set_value("display", "ui_scale", ui_scale)
+	cfg.set_value("display", "cloud_quality", cloud_quality)
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "bgm", bgm_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
@@ -617,6 +638,9 @@ func save_to_disk() -> void:
 	cfg.set_value("game", "nameplate_distance", nameplate_distance)
 	cfg.set_value("game", "radar_view_radius", radar_view_radius)
 	cfg.set_value("game", "afk_warn_minutes", afk_warn_minutes)
+	cfg.set_value("hud", "hotbar_rows", hotbar_rows)
+	cfg.set_value("hud", "hotbar_locked", hotbar_locked)
+	cfg.set_value("hud", "hotbar_profiles", hotbar_profiles.duplicate(true))
 	cfg.set_value("hud", "layouts", window_layouts.duplicate(true))
 	cfg.set_value("hud", "keybinds", keybinds.duplicate(true))
 	cfg.save(persist_path)
@@ -652,6 +676,7 @@ func snapshot() -> Dictionary:
 		"combat_camera_frame": combat_camera_frame,
 		"always_run": always_run,
 		"weather_fx": weather_fx,
+		"cloud_quality": cloud_quality,
 		"auto_pickup": auto_pickup,
 		"auto_pickup_filter": auto_pickup_filter,
 		"auto_potion_hp": auto_potion_hp,
@@ -680,6 +705,8 @@ func set_keybind(action: String, keycode: int) -> String:
 		return "unknown"
 	if keycode == KEY_ESCAPE or keycode == KEY_ENTER:
 		return "reserved"
+	if (keycode >= KEY_0 and keycode <= KEY_9) or keycode in [KEY_MINUS, KEY_EQUAL] or (keycode >= KEY_F1 and keycode <= KEY_F12):
+		return "快捷栏"
 	for other in keybinds.keys():
 		if str(other) != action and int(keybinds[other]) == keycode:
 			return str(other)

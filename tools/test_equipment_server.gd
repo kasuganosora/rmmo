@@ -34,7 +34,7 @@ func _run() -> void:
 			has_inv = true
 		if t == "equipment_update":
 			has_eq = true
-			failed += _expect((a.get("equipment") as Array).size() == 12, "eq snapshot 12")
+			failed += _expect((a.get("equipment") as Array).size() == preload("res://scripts/net/combat/equipment.gd").SLOT_IDS.size(), "equipment snapshot includes all slots")
 			failed += _expect(int((a.get("bonuses") as Dictionary).get("p_atk", 0)) == 3, "bonus p_atk")
 	failed += _expect(has_inv and has_eq, "emits inv+eq updates")
 	failed += _expect(srv.equipment.get_item_in("weapon_main") == "wooden_sword", "server slot set")

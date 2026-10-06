@@ -210,6 +210,15 @@ func _run() -> void:
 		if typeof(block) == TYPE_DICTIONARY and str(block.get("type", "")) == "image":
 			has_img = str(block.get("mimeType", "")) == "image/png" and str(block.get("data", "")).length() > 80
 	failed += _expect(has_img, "rpc preview image content")
+	var native: Dictionary = mcp.call_tool("preview_map", {"x":6,"y":6,"w":4,"h":4,"cell_px":48,"grid":false,"cursor":false,"entities":false})
+	var reduced: Dictionary = mcp.call_tool("preview_map", {"x":6,"y":6,"w":4,"h":4,"cell_px":12,"grid":false,"cursor":false,"entities":false})
+	var full_im := Image.new()
+	var small_im := Image.new()
+	full_im.load_png_from_buffer(Marshalls.base64_to_raw(str(native.get("png_base64",""))))
+	small_im.load_png_from_buffer(Marshalls.base64_to_raw(str(reduced.get("png_base64",""))))
+	full_im.resize(48,48,Image.INTERPOLATE_NEAREST)
+	failed += _expect(small_im.get_size()==Vector2i(48,48),"cell_px controls preview density")
+	failed += _expect(full_im.get_data()==small_im.get_data(),"scaled preview samples correct sheet regions")
 
 	var info: Dictionary = mcp.start(18765)
 	failed += _expect(bool(info.get("ok", false)), "mcp listen")

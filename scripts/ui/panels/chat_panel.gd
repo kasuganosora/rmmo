@@ -6,7 +6,7 @@ func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
 const CombatLogScript = preload("res://scripts/game/combat_log.gd")
@@ -36,11 +36,11 @@ func _ensure_npc_chat() -> void:
 	if ctrl._npc_chat != null and is_instance_valid(ctrl._npc_chat):
 		return
 	var panel = PanelContainer.new()
-	panel.set_script(HudDrag)
+	panel.set_script(GameWindow)
 	panel.name = "NpcChat"
 	panel.screen_margin = 4.0
 	panel.min_size = Vector2(280, 220)
-	panel.default_size = Vector2(380, 400)
+	panel.default_size = Vector2(380, 320)
 	panel.initial_dock = "none"
 	panel.drag_anywhere = true
 	panel.visible = false
@@ -75,10 +75,10 @@ func _ensure_npc_chat() -> void:
 	head.add_child(close_btn)
 	vbox.add_child(L2Style.hairline())
 	var name_l = Label.new()
-	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_l.add_theme_font_size_override("font_size", 15)
 	name_l.add_theme_color_override("font_color", L2Style.COL_TITLE)
-	name_l.add_theme_constant_override("outline_size", 3)
+	name_l.add_theme_constant_override("outline_size", 0)
 	name_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(name_l)
@@ -115,14 +115,14 @@ func _ensure_npc_chat() -> void:
 	opts.add_theme_constant_override("separation", 4)
 	opts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	opts.size_flags_vertical = Control.SIZE_SHRINK_END
-	opts.custom_minimum_size = Vector2(0, 88)
+	opts.custom_minimum_size = Vector2.ZERO
 	vbox.add_child(opts)
 	var foot = Control.new()
 	foot.name = "FiligreePad"
-	foot.custom_minimum_size = Vector2(0, 12)
+	foot.custom_minimum_size = Vector2(0, 2)
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(foot)
-	panel.set_meta("base_size", Vector2(380, 400))
+	panel.set_meta("base_size", Vector2(380, 320))
 	ctrl._npc_chat = panel
 	ctrl._npc_chat_name = name_l
 	ctrl._npc_chat_body = body_rtl
@@ -136,11 +136,11 @@ func _place_npc_chat() -> void:
 	if ctrl._npc_chat == null or not ctrl._npc_chat.visible:
 		return
 	var vp = ctrl.get_viewport().get_visible_rect().size
-	var base: Vector2 = ctrl._npc_chat.get_meta("base_size", Vector2(380, 400))
+	var base: Vector2 = ctrl._npc_chat.get_meta("base_size", Vector2(380, 320))
 	if ctrl._npc_chat.size.x < 64.0 or ctrl._npc_chat.size.y < 64.0:
 		ctrl._npc_chat.size = base
 	# Fixed left-ish like classic L2 Chat
-	ctrl._npc_chat.global_position = Vector2(24, clampf((vp.y - ctrl._npc_chat.size.y) * 0.35, 48, vp.y - ctrl._npc_chat.size.y - 24))
+	ctrl._window_manager_logic.place_at(ctrl._npc_chat, Vector2(24, maxf(48, (vp.y - ctrl._npc_chat.size.y) * 0.35)))
 
 
 
@@ -345,7 +345,7 @@ func _build_chat_tabs() -> void:
 		btn.text = str(item[0])
 		btn.toggle_mode = false
 		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(52, 24)
+		btn.custom_minimum_size = Vector2(40, L2Style.TAB_HEIGHT)
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		var channel = str(item[1])
 		btn.pressed.connect(_on_chat_tab.bind(channel))
@@ -366,7 +366,7 @@ func _highlight_chat_tab(channel: String) -> void:
 			continue
 		var id = str(CHAT_CHANNELS[i][1])
 		var on = id == channel
-		btn.modulate = Color(1.15, 1.05, 0.75) if on else Color(0.85, 0.85, 0.9)
+		L2Style.style_tab_button(btn, on)
 		btn.disabled = false
 
 
@@ -399,7 +399,7 @@ func _build_dps_meter() -> void:
 		return
 	ctrl._dps_meter_panel = PanelContainer.new()
 	ctrl._dps_meter_panel.name = "DpsMeterPanel"
-	ctrl._dps_meter_panel.set_script(HudDrag)
+	ctrl._dps_meter_panel.set_script(GameWindow)
 	ctrl._dps_meter_panel.screen_margin = 4.0
 	ctrl._dps_meter_panel.min_size = Vector2(88, 28)
 	ctrl._dps_meter_panel.default_size = Vector2(110, 32)
@@ -435,7 +435,7 @@ func _nudge_dps_meter() -> void:
 	ctrl._dps_meter_panel.size = Vector2(110, 32)
 	var vp = ctrl.get_viewport_rect().size
 	# Near combat log / bottom-left.
-	ctrl._dps_meter_panel.global_position = Vector2(12, maxf(8.0, vp.y - 120.0))
+	ctrl._window_manager_logic.place_at(ctrl._dps_meter_panel, Vector2(12, maxf(8.0, vp.y - 120.0)))
 
 
 
@@ -449,7 +449,7 @@ func _build_combat_log_panel() -> void:
 	_ensure_combat_log()
 	ctrl._combat_log_panel = PanelContainer.new()
 	ctrl._combat_log_panel.name = "CombatLogPanel"
-	ctrl._combat_log_panel.set_script(HudDrag)
+	ctrl._combat_log_panel.set_script(GameWindow)
 	ctrl._combat_log_panel.screen_margin = 4.0
 	ctrl._combat_log_panel.min_size = Vector2(280, 200)
 	ctrl._combat_log_panel.default_size = Vector2(320, 290)
@@ -509,7 +509,7 @@ func _nudge_combat_log() -> void:
 		return
 	ctrl._combat_log_panel.size = Vector2(320, 290)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._combat_log_panel.global_position = Vector2(12, maxi(8, int(vp.y * 0.35)))
+	ctrl._window_manager_logic.place_at(ctrl._combat_log_panel, Vector2(12, maxi(8, int(vp.y * 0.35))))
 
 
 
@@ -537,8 +537,12 @@ func _on_combat_log_clear() -> void:
 func _refresh_combat_log_panel() -> void:
 	if ctrl._combat_log_body == null:
 		return
+	var old_scroll: int = ctrl._combat_log_scroll.scroll_vertical
+	var bar: VScrollBar = ctrl._combat_log_scroll.get_v_scroll_bar()
+	var follow_latest: bool = old_scroll >= bar.max_value - bar.page - 8
 	_ensure_combat_log()
 	for c in ctrl._combat_log_body.get_children():
+		ctrl._combat_log_body.remove_child(c)
 		c.queue_free()
 	var flags = _combat_log_filter_flags()
 	var rows: PackedStringArray = ctrl._combat_log.filtered_lines(flags)
@@ -559,8 +563,10 @@ func _refresh_combat_log_panel() -> void:
 			lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			ctrl._combat_log_body.add_child(lab)
 	# Scroll to bottom after layout.
-	if ctrl._combat_log_scroll != null:
+	if ctrl._combat_log_scroll != null and follow_latest:
 		ctrl.call_deferred("_combat_log_scroll_to_end")
+	elif ctrl._combat_log_scroll != null:
+		ctrl._combat_log_scroll.set_deferred("scroll_vertical", old_scroll)
 
 
 

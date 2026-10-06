@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "styles": {
+    "saffron_border": {"base_color": [0.80, 0.47, 0.045], "ink_color": [0.62, 0.12, 0.035], "pattern": "border"},
+    "crimson_gold_fork": {"base_color": [0.48, 0.025, 0.037], "ink_color": [0.94, 0.62, 0.08], "pattern": "fork"},
+    "ivory_gold_border": {"base_color": [0.80, 0.75, 0.53], "ink_color": [0.70, 0.43, 0.08], "pattern": "border"},
+    "green_white_panel": {"base_color": [0.09, 0.36, 0.11], "ink_color": [0.94, 0.91, 0.72], "pattern": "panel"},
+    "blue_plain": {"base_color": [0.04, 0.14, 0.48], "ink_color": [0.80, 0.75, 0.53], "pattern": "plain"}
+  }
+}

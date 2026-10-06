@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: stamps (set/paint/from_tileset/save/apply_named/list).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const PaintTools = preload("res://scripts/editor/domain/paint_tools.gd")
 const TilePalette = preload("res://scripts/editor/interface/tile_palette.gd")
@@ -31,7 +34,7 @@ func paint_stamp(args: Dictionary) -> Dictionary:
 		return ctrl.mcp._err("no map")
 	ctrl._apply_layer(args)
 	var paint = ctrl._ensure_paint()
-	if not paint.has_stamp():
+	if not paint.has_stamp() and paint.stamp_tiles.is_empty():
 		return ctrl.mcp._err("no stamp")
 	paint.tool = PaintTools.Tool.PENCIL
 	var c: Vector2i = ctrl.mcp._cell(args)
@@ -112,10 +115,28 @@ func apply_stamp_named(args: Dictionary) -> Dictionary:
 	for v in st.get("tiles", []):
 		tiles.append(int(v))
 	ctrl._ensure_paint().set_stamp(int(st.get("w", 1)), int(st.get("h", 1)), tiles)
-	return paint_stamp(args)
+	var paint_args := args.duplicate()
+	if not paint_args.has("z") and not paint_args.has("ext"):
+		if str(st.get("ext", "")) != "":
+			paint_args["ext"] = str(st.ext)
+		else:
+			paint_args["z"] = int(st.get("z", 0))
+	return paint_stamp(paint_args)
+
+func delete_stamp(args: Dictionary) -> Dictionary:
+	var p = ctrl.pack()
+	if p == null:
+		return ctrl.mcp._err("no pack")
+	var name := str(args.get("name", "")).strip_edges()
+	if name.is_empty():
+		return ctrl.mcp._err("name required")
+	var removed: bool = p.stamps.erase(name)
+	if removed:
+		p.dirty = true
+	return ctrl.mcp._ok({"name":name, "removed":removed})
 
 func op_names() -> Array:
-	return ["set_stamp", "paint_stamp", "stamp_from_tileset", "save_stamp", "apply_stamp_named", "list_stamps"]
+	return ["set_stamp", "paint_stamp", "stamp_from_tileset", "save_stamp", "apply_stamp_named", "list_stamps", "delete_stamp"]
 
 func tools() -> Array:
 	return [
@@ -132,4 +153,5 @@ func tools() -> Array:
 		}, ["col", "row"]),
 		ctrl.mcp._tool("save_stamp", "把当前图章存成命名图章。", {"name": {"type": "string"}}, ["name"]),
 		ctrl.mcp._tool("list_stamps", "列出命名图章。", {}),
+		ctrl.mcp._tool("delete_stamp", "删除指定命名图章，不改变地图。", {"name":{"type":"string"}}, ["name"]),
 	]

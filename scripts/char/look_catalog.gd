@@ -4,9 +4,15 @@ extends RefCounted
 const GENDER_FEMALE := "female"
 const GENDER_MALE := "male"
 const GENDER_KID := "kid"
+const GENDER_YOUNG_MALE := "young_male"
+const GENDER_YOUNG_FEMALE := "young_female"
 
 static func normalize_gender(gender: String) -> String:
 	var g := gender.strip_edges().to_lower()
+	if g == GENDER_YOUNG_MALE or g == "青年男性":
+		return GENDER_YOUNG_MALE
+	if g == GENDER_YOUNG_FEMALE or g == "青年女性":
+		return GENDER_YOUNG_FEMALE
 	if g == GENDER_MALE or g == "m" or g == "男":
 		return GENDER_MALE
 	if g == GENDER_KID or g == "k" or g == "儿童" or g == "小孩":

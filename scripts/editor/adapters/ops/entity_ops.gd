@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain ops: entities (update_entity, place_chest).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 const EventCommands = preload("res://scripts/editor/domain/event_commands.gd")
 

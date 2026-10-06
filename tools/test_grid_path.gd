@@ -6,8 +6,12 @@ const TileId = preload("res://scripts/map/tile_id.gd")
 const MapCollision = preload("res://scripts/map/map_collision.gd")
 
 func _init() -> void:
+	call_deferred("_run")
+
+func _run() -> void:
 	_test_dirs()
 	_test_synthetic_8dir()
+	_test_search_passage_snapshot()
 	_test_demo_map()
 	print("ALL PATH TESTS OK")
 	quit(0)
@@ -28,6 +32,25 @@ func _test_dirs() -> void:
 	assert(TileId.cardinal_facing(3) == 2)
 	assert(TileId.cardinal_facing(9) == 8)
 	assert(TileId.is_dir(3) and not TileId.is_dir(5) and not TileId.is_dir(0))
+
+
+func _test_search_passage_snapshot() -> void:
+	var col=_open_grid(9,9)
+	for y in range(9):
+		for x in range(9):
+			var tid:=3+(x+y*9)%16
+			_set_tile(col,x,y,3,tid)
+			_set_flag(col,tid,tid-3)
+	col.set_extra_blocked(4,4,true)
+	for z in range(4):_set_tile(col,0,0,z,0)
+	var cache: Dictionary={}
+	for y in range(-1,10):
+		for x in range(-1,10):
+			for d in [2,4,6,8]:
+				assert(GridPath._cached_pass(col,cache,9,x,y,d)==col.can_pass(x,y,d),"search cache changes directional/void/occupancy rules")
+	col.set_extra_blocked(4,4,false)
+	cache.clear()
+	assert(GridPath._cached_pass(col,cache,9,4,3,2)==col.can_pass(4,3,2))
 
 
 func _open_grid(w: int, h: int) -> RefCounted:
@@ -123,7 +146,7 @@ func _test_synthetic_8dir() -> void:
 
 
 func _test_demo_map() -> void:
-	var pack = TilemapPack.load_pack("res://demo_map")
+	var pack = TilemapPack.load_pack(root.get_node("AssetManager").resolve_map_pack_path("res://demo_map"))
 	if pack == null or pack.collision == null:
 		push_error("TEST FAIL: no collision")
 		quit(1)

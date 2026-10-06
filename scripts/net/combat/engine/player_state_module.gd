@@ -1,9 +1,12 @@
 extends RefCounted
 ## Domain module: player combat state (stealth, mount, in-combat, chase breaking).
 
-var ctrl
+var _owner: WeakRef
+var ctrl:
+	get:
+		return _owner.get_ref()
 func _init(c):
-	ctrl = c
+	_owner = weakref(c)
 
 func player_has_stealth() -> bool:
 	return ctrl.stats != null and ctrl.stats.statuses != null and ctrl.stats.statuses.has_status("player", "stealth")
@@ -25,6 +28,8 @@ func player_is_mounted() -> bool:
 
 
 func player_in_combat() -> bool:
+	if ctrl.spatial_in_combat.is_valid() and ctrl.spatial_in_combat.call():
+		return true
 	if bool(ctrl._dps_fight.get("active", false)):
 		return true
 	if ctrl.stats == null:

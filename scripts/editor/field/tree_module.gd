@@ -51,7 +51,7 @@ func _on_tree_sel() -> void:
 		return
 	var mid = str(it.get_meta("map_id"))
 	if mid != ctrl.current_map_id:
-		ctrl._select_map(mid)
+		ctrl._select_map.call_deferred(mid)
 
 
 
@@ -64,7 +64,7 @@ func _on_tree_mouse(pos: Vector2, button: int) -> void:
 	var mid = str(it.get_meta("map_id"))
 	ctrl._ctx_map_id = mid
 	if mid != ctrl.current_map_id:
-		ctrl._select_map(mid)
+		ctrl._select_map.call_deferred(mid)
 	var last: bool = ctrl.pack != null and ctrl.pack.maps.size() <= 1
 	ctrl._map_ctx.set_item_disabled(ctrl._map_ctx.get_item_index(ctrl.CTX_DEL), last)
 	ctrl._map_ctx.position = Vector2i(ctrl._tree.get_global_mouse_position())
@@ -99,6 +99,7 @@ func _fill_layer_tree() -> void:
 		head.set_text(1, str(g["label"]))
 		head.set_selectable(0, false)
 		head.set_selectable(1, false)
+		head.set_selectable(2, false)
 		head.set_custom_color(1, Color(0.65, 0.68, 0.72, 1))
 		for row in g["rows"]:
 			var it = ctrl._layer_tree.create_item(head)
@@ -106,7 +107,12 @@ func _fill_layer_tree() -> void:
 			it.set_checked(0, true)
 			it.set_editable(0, true)
 			it.set_text(1, str(row["name"]))
+			it.set_tooltip_text(1, str(row["name"]))
 			it.set_metadata(0, row)
+			it.set_cell_mode(2, TreeItem.CELL_MODE_CHECK)
+			it.set_editable(2, true)
+			it.set_checked(2, int(row.z) in [1,2,3] or str(row.ext)=="meta")
+			it.set_tooltip_text(2, "参与选区拖动；独立于显示和当前绘制图层")
 			if first == null:
 				first = it
 	if first:
@@ -134,5 +140,3 @@ func _on_layer_tree() -> void:
 	var vis: String = "显示" if it.is_checked(0) else "隐藏"
 	if ctrl._status:
 		ctrl._status.text = "绘制 %s（%s）" % [str(meta.get("name", "")), vis]
-
-

@@ -44,13 +44,9 @@ func _on_menu(id: int) -> void:
 		ctrl.MENU_FILE_LEAVE:
 			ctrl._leave()
 		ctrl.MENU_EDIT_UNDO:
-			if ctrl.doc:
-				ctrl.doc.undo()
-				ctrl._reload_field()
+			ctrl._undo_edit()
 		ctrl.MENU_EDIT_REDO:
-			if ctrl.doc:
-				ctrl.doc.redo()
-				ctrl._reload_field()
+			ctrl._redo_edit()
 		ctrl.MENU_EDIT_COPY:
 			ctrl._copy_tiles()
 		ctrl.MENU_EDIT_CUT:
@@ -136,8 +132,9 @@ func _on_file(path: String) -> void:
 func _undo_edit() -> void:
 	if ctrl.doc == null or not ctrl.doc.has_method("undo_cells"):
 		return
+	var exact: bool=not ctrl.doc._undo.is_empty() and bool(ctrl.doc._undo[-1].get("selection_move",false))
 	var cells: Array[Vector2i] = ctrl.doc.undo_cells()
-	if ctrl.paint and ctrl.paint.has_method("refresh_autotiles"):
+	if not exact and ctrl.paint and ctrl.paint.has_method("refresh_autotiles"):
 		ctrl.paint.refresh_autotiles(ctrl.doc, cells, cells)
 	if cells.is_empty():
 		cells.append(ctrl._cursor)
@@ -148,8 +145,9 @@ func _undo_edit() -> void:
 func _redo_edit() -> void:
 	if ctrl.doc == null or not ctrl.doc.has_method("redo_cells"):
 		return
+	var exact: bool=not ctrl.doc._redo.is_empty() and bool(ctrl.doc._redo[-1].get("selection_move",false))
 	var cells: Array[Vector2i] = ctrl.doc.redo_cells()
-	if ctrl.paint and ctrl.paint.has_method("refresh_autotiles"):
+	if not exact and ctrl.paint and ctrl.paint.has_method("refresh_autotiles"):
 		ctrl.paint.refresh_autotiles(ctrl.doc, cells, cells)
 	if cells.is_empty():
 		cells.append(ctrl._cursor)

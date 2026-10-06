@@ -7,6 +7,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+	root.get_node("GameSettings").persist_enabled = false
 	var failed := 0
 	var L2Style = load("res://scripts/ui/l2_style.gd")
 	failed += _expect(L2Style != null, "l2_style loads")
@@ -31,8 +32,8 @@ func _run() -> void:
 	failed += _expect(L2Style.panel_box() != null, "panel_box")
 	failed += _expect(L2Style.slot_box(false) is StyleBoxTexture, "slot empty texture")
 	failed += _expect(L2Style.slot_box(true) is StyleBoxTexture, "slot filled texture")
-	failed += _expect(L2Style.tab_box(true) is StyleBoxTexture, "tab on texture")
-	failed += _expect(L2Style.row_box(false) is StyleBoxTexture, "row idle texture")
+	failed += _expect(L2Style.tab_box(true) is StyleBoxFlat, "tab uses quiet underline")
+	failed += _expect(L2Style.row_box(false) is StyleBoxFlat, "row uses quiet separator")
 
 	var packed: PackedScene = load("res://scenes/ui/game_hud.tscn")
 	failed += _expect(packed != null, "game_hud.tscn loads")
@@ -54,7 +55,7 @@ func _run() -> void:
 	failed += _expect(title_bar != null, "character TitleBar")
 	hud._character = {"name": "测试", "class_id": "warrior", "level": 5}
 	hud._server_quests = [
-		{"id": "q1", "title": "新手的第一步", "status": "in_progress", "desc": "打假人", "objectives": [{"text": "训练假人", "cur": 1, "max": 3}], "rewards": "Adena 100"},
+		{"id": "q1", "title": "新手的第一步", "status": "in_progress", "desc": "打假人", "objectives": [{"text": "训练假人", "cur": 1, "max": 3}], "rewards": "金币 100"},
 		{"id": "q2", "title": "旧日委托", "status": "completed", "desc": "完成", "objectives": [], "rewards": ""},
 	]
 	hud._fill_window("character")
@@ -68,19 +69,19 @@ func _run() -> void:
 		for c in canvas.get_children():
 			if c is PanelContainer:
 				slots += 1
-		failed += _expect(slots == 12, "12 paperdoll slots got %d" % slots)
+		failed += _expect(slots == preload("res://scripts/net/combat/equipment.gd").SLOT_IDS.size(), "paperdoll exposes every equipment slot, got %d" % slots)
 	hud._fill_window("quest")
 	await process_frame
 	var tabs: HBoxContainer = quest_p.get_meta("quest_tabs", null) if quest_p.has_meta("quest_tabs") else null
 	failed += _expect(tabs != null and tabs.get_child_count() == 2, "quest tabs")
 	if tabs != null and tabs.get_child_count() > 0:
 		var t0 := tabs.get_child(0) as Button
-		failed += _expect(t0 != null and t0.get_theme_stylebox("normal") is StyleBoxTexture, "tab uses texture style")
+		failed += _expect(t0 != null and t0.get_theme_stylebox("normal") is StyleBoxFlat, "tab uses shared underline")
 	var body: VBoxContainer = quest_p.get_meta("body")
 	failed += _expect(body != null and body.get_child_count() >= 1, "quest rows")
 	if body != null and body.get_child_count() > 0:
 		var row := body.get_child(0) as Button
-		failed += _expect(row != null and row.get_theme_stylebox("normal") is StyleBoxTexture, "quest row texture")
+		failed += _expect(row != null and row.get_theme_stylebox("normal") is StyleBoxFlat, "quest row uses shared separator")
 	hud._selected_quest_id = "q1"
 	hud._ensure_quest_drawer()
 	hud._refresh_quest_drawer_content()
@@ -113,7 +114,7 @@ func _run() -> void:
 	var shop_tabs: HBoxContainer = hud._shop_panel.get_meta("shop_tabs", null)
 	failed += _expect(shop_tabs != null and shop_tabs.get_child_count() == 3, "shop L2 tabs")
 	var buy_cat := hud._shop_panel.find_child("BuyCatalog", true, false) as VBoxContainer
-	failed += _expect(buy_cat != null and buy_cat.get_child_count() >= 1, "shop catalog rows")
+	failed += _expect(buy_cat != null and buy_cat.items.size() == 2, "shop catalog item grid")
 
 	hud._trade_state = {
 		"active": true,

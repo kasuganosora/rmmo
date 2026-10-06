@@ -62,7 +62,8 @@ static func build_menu_bar(ctrl) -> MenuBar:
 	])
 	ctrl._mcp_popup = PopupMenu.new()
 	ctrl._mcp_popup.name = "工具"
-	ctrl._mcp_popup.add_check_item("启用 MCP 服务", ctrl.MENU_MCP_TOGGLE)
+	ctrl._mcp_popup.add_item("二维 MCP 已停用，请使用三维编辑器", ctrl.MENU_MCP_TOGGLE)
+	ctrl._mcp_popup.set_item_disabled(0, true)
 	ctrl._mcp_popup.id_pressed.connect(ctrl._on_menu)
 	bar.add_child(ctrl._mcp_popup)
 	return bar
@@ -107,6 +108,7 @@ static func build_toolbar(ctrl) -> Control:
 	row.add_child(ctrl._zoom_lbl)
 	ctrl._tb_btn(row, "+", func(): ctrl._set_zoom(ctrl._zoom * 1.25))
 	ctrl._tb_btn(row, "适应", ctrl._zoom_fit)
+	ctrl._tb_btn(row, "住宅…", func(): preload("res://scripts/editor/interface/building_dialog.gd").open(ctrl))
 	row.add_child(ctrl._vsep())
 	ctrl._add_lbl(row, "光照")
 	ctrl._light_bar = OptionButton.new()

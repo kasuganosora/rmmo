@@ -112,7 +112,7 @@ theme_override_constants/separation = 4
 [node name="GenderLabel" type="Label" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/GenderCol"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "性别"
+text = "体型"
 
 [node name="GenderOption" type="OptionButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/ClassGenderRow/GenderCol"]
 unique_name_in_owner = true
@@ -159,24 +159,6 @@ button_pressed = true
 text = "发色"
 
 [node name="HairColor" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/HairRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 32)
-layout_mode = 2
-focus_mode = 0
-text = ""
-
-[node name="ClothRow" type="HBoxContainer" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="ClothOn" type="CheckButton" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/ClothRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-button_pressed = false
-text = "服装"
-
-[node name="ClothColor" type="Button" parent="Margin/Outer/MainHBox/BasicCard/BasicPad/Form/PaletteBox/ClothRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(72, 32)
 layout_mode = 2

@@ -177,7 +177,7 @@ func _apply_visual() -> void:
 		if _icon_rect != null:
 			_icon_rect.texture = null
 			_icon_rect.visible = false
-		_hint_label.text = hint_label
+		_hint_label.text = {"underwear_top": "内衣", "underwear_bottom": "内裤"}.get(slot_id, hint_label)
 		tooltip_text = hint_label if not hint_label.is_empty() else slot_id
 		if _dur_label != null:
 			_dur_label.text = ""
@@ -204,6 +204,8 @@ func _apply_icon_visual() -> void:
 
 
 func _resolve_icon_texture() -> Texture2D:
+	# setup() can run before the cell is parented; _ready() refreshes it again.
+	if not is_inside_tree():return null
 	var am: Node = get_node_or_null("/root/AssetManager")
 	if am == null:
 		return null

@@ -1,0 +1,76 @@
+# 当前内容编辑器：3D / U2U 布局
+
+运行入口为 `scenes/world_editor.tscn`，布局由 `scripts/world_editor/workspace.gd` 构建。
+`GameSession.go_content_editor()`、旧的 `SCENE_EDITOR` 常量和
+`scenes/content_editor.tscn` 兼容路径均进入 3D 编辑器。
+旧 `scripts/editor/content_editor.gd` 的 `_ready()` 仅转到 3D，不再创建 2D 编辑界面。
+旧 2D 领域代码保留供数据兼容；旧 2D 界面测试不再代表当前产品验收。
+
+参考：[U2U 官方功能页](https://u2u.rpgmakerofficial.com/en/feature/)、
+[官方 Steam 页面中的 P2D Map Editor 截图](https://store.steampowered.com/app/4856440/RPG_MAKER_U2U/)。
+对齐布局和配色，不复制其品牌或图标资源。
+
+- 顶部菜单和项目操作；绘制模式、吸附与视角工具放在 3D 视口上方。
+- “文件 → 资源包地图…”打开独立选择窗口，按资源包枚举 maps 下的 glTF 地图，沿用未保存修改确认。
+- 资源包根目录必须含有效的 `metadata.json`（JSON 对象）。只含 `pack.json` 或 `maps` 不算资源包；无效 JSON、数组也不算。支持内容目录下的包文件夹以及 packs、packs/map_pack 和版本子目录，所有布局使用相同判定。
+- 名称、ID、版本从 metadata.json 读取；完整 metadata 和自定义设置原样保留。默认包的地图全局可选，始终标注所属包，避免同名地图混淆。
+- 左侧全高素材 / 属性分页，素材以三列模型缩略图显示，保留搜索、导入和预览。
+- 左右分隔条可拖动；属性不再永久占据右侧画布。
+- 深灰面板、青蓝选中框、灰色视口背景。地图数据与材质不随 UI 主题改变。
+- 缩略图使用独立 3D 世界并缓存；关闭编辑器时渲染回调自动解除。
+
+验证：`tools/test_world3d_editor.gd`（含图形模式下实际鼠标选中、拖动和撤销）、
+`tools/test_world3d_assets.gd`、`tools/test_world3d_workspace.gd`。
+最后一项验证旧入口转向、工具与分页同步、缩略图搜索、1024×720 / 1280×800 布局，
+并把测试白模截图保存到工程外的 `review_artifacts/world3d_u2u_*.png`。
+
+资源包示例（目录名可为 A；默认包可命名为 `默认` 或使用 `id: "default"`）：
+
+```text
+rrname/
+  A/
+    metadata.json
+    maps/
+    npc/
+    assets/
+  默认/
+    metadata.json
+    maps/
+    npc/
+    assets/
+```
+
+```json
+{
+  "id": "A",
+  "name": "A 资源包",
+  "version": "1.0.0",
+  "settings": {
+    "start_map": "town"
+  }
+}
+```
+
+metadata.json 可包含其他资源包设置，识别器不删除或重写这些字段。
+缺少该文件的旧目录不会自动注册或自动迁移。
+
+
+## 大素材库与导入缩略图
+
+素材区采用连续滚动的虚拟网格，只有可见行和上下各一行缓冲拥有控件、图片引用。
+滚动会复用控件并释放旧图引用，离屏等待任务立即替换；关闭素材分页时停止列表加载。
+内存缩略图缓存采用 LRU，上限 96 张；搜索输入合并 180 ms，绘制时读取已筛选结果，不重复扫描目录。
+
+模型导入目标必须是带 metadata.json 的资源包。地图已有所属包时使用该包；否则先弹窗选择目标包。
+模型和素材目录清单位于 `<资源包>/assets/`，导入时生成
+`assets/thumbnails/<模型内容哈希>.png`，采用临时文件加原子替换发布。
+素材清单中的模型/缩略图路径以资源目录为基准存储，读取时解析，便于复制整个包。
+默认包的素材也加入当前包可用素材列表。
+
+浏览外部模型列表只加载这些 PNG，不实例化模型；缺失缩略图显示占位，重新导入同一模型可补生成。
+基础模块为少量内置几何体，首次可见时生成小图。显式选中模型才加载单个 3D 预览；
+预览和导入不向长期运行时 PackedScene 缓存添加模型。
+
+`tools/test_asset_browser_scale.gd` 使用实际模型导入和 10000 条合成元数据检查：
+包内 PNG 生成、清单重载、滚动/缓存淘汰/回滚读取、搜索释放、零浏览模型加载。
+这验证的是大目录和缩略图加载路径；单个超大模型的显式导入与预览仍取决于模型复杂度。

@@ -1,0 +1,15 @@
+{
+  "height_m": 3.05,
+  "radius_m": 0.24,
+  "connect_distance_m": 4.0,
+  "rope_sag_m": 0.16,
+  "flag_length_m": 1.05,
+  "flag_fill_ratio": 0.93,
+  "flag_styles_file": "town_festival_flag_styles.json",
+  "flag_style_sequence": ["saffron_border", "crimson_gold_fork", "ivory_gold_border", "green_white_panel", "blue_plain"],
+  "posts": [
+    {"id": "natural", "position": [-3.7, -2.0], "color": [0.62, 0.30, 0.105]},
+    {"id": "blue", "position": [-1.7, 1.8], "color": [0.035, 0.32, 0.58]},
+    {"id": "red", "position": [1.7, 1.8], "color": [0.46, 0.055, 0.032]}
+  ]
+}

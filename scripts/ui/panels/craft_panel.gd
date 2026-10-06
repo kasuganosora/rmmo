@@ -6,8 +6,9 @@ func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const RecipeCatalog = preload("res://scripts/net/combat/recipe_catalog.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _ensure_craft_recipes_loaded() -> void:
@@ -29,34 +30,14 @@ func _ensure_craft_recipes_loaded() -> void:
 func _build_craft_panel() -> void:
 	ctrl._craft_panel = PanelContainer.new()
 	ctrl._craft_panel.name = "CraftPanel"
-	ctrl._craft_panel.set_script(HudDrag)
+	ctrl._craft_panel.set_script(GameWindow)
 	ctrl._craft_panel.screen_margin = 4.0
 	ctrl._craft_panel.min_size = Vector2(360, 280)
 	ctrl._craft_panel.default_size = Vector2(480, 420)
 	ctrl._craft_panel.initial_dock = "none"
 	ctrl._craft_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._craft_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._craft_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "CraftTitle"
-	title.text = "制作"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._craft_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._craft_panel, "制作", func(): ctrl._craft_panel.visible = false, "CraftTitle")
 	ctrl._craft_body = VBoxContainer.new()
 	ctrl._craft_body.name = "CraftBody"
 	ctrl._craft_body.add_theme_constant_override("separation", 6)
@@ -75,7 +56,7 @@ func _nudge_craft() -> void:
 		return
 	ctrl._craft_panel.size = Vector2(480, 420)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._craft_panel.global_position = Vector2(maxi(8, int(vp.x * 0.55 - 240)), 64)
+	ctrl._window_manager_logic.place_at(ctrl._craft_panel, Vector2(maxi(8, int(vp.x * 0.55 - 240)), 64))
 
 
 
@@ -95,97 +76,77 @@ func _toggle_craft_panel(force_open: bool = false) -> void:
 
 
 func _refresh_craft_panel() -> void:
-	if ctrl._craft_body == null:
-		return
-	for c in ctrl._craft_body.get_children():
-		c.queue_free()
+	if ctrl._craft_body == null: return
+	for child in ctrl._craft_body.get_children():
+		ctrl._craft_body.remove_child(child)
+		child.queue_free()
 	ctrl._craft_qty_spin = null
 	_ensure_craft_recipes_loaded()
-	ctrl._add_label(ctrl._craft_body, "选择配方后点击制作（任意地点）", 11, L2Style.COL_MUTED)
-	ctrl._add_label(ctrl._craft_body, "金币 %d" % int(ctrl._server_gold), 12, L2Style.COL_TITLE)
-
-	var scroll = ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 240)
-	ctrl._craft_body.add_child(scroll)
-	var list = VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 6)
-	scroll.add_child(list)
-
-	if ctrl._craft_recipes.is_empty():
-		ctrl._add_label(list, "（暂无配方）", 11, L2Style.COL_MUTED)
-	else:
-		for rec in ctrl._craft_recipes:
-			if typeof(rec) != TYPE_DICTIONARY:
-				continue
-			var rid = str(rec.get("id", "")).strip_edges()
-			if rid.is_empty():
-				continue
-			var selected = rid == ctrl._craft_selected_id
-			var box = VBoxContainer.new()
-			box.add_theme_constant_override("separation", 2)
-			list.add_child(box)
-			var head_btn = Button.new()
-			var rname = str(rec.get("name", rid))
-			var out_v: Variant = rec.get("output", {})
-			var out_id = ""
-			var out_q = 1
-			if typeof(out_v) == TYPE_DICTIONARY:
-				out_id = str(out_v.get("id", "")).strip_edges()
-				out_q = maxi(int(out_v.get("qty", 1)), 1)
-			var out_label = ctrl._item_label(out_id) if not out_id.is_empty() else "?"
-			head_btn.text = ("%s → %s×%d" % [rname, out_label, out_q]) if not selected else ("▸ %s → %s×%d" % [rname, out_label, out_q])
-			head_btn.focus_mode = Control.FOCUS_NONE
-			head_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			head_btn.pressed.connect(_on_craft_select.bind(rid))
-			box.add_child(head_btn)
-			var ings_v: Variant = rec.get("ingredients", [])
-			var mats_ok = true
-			if typeof(ings_v) == TYPE_ARRAY:
-				for ing in ings_v:
-					if typeof(ing) != TYPE_DICTIONARY:
-						continue
-					var iid = str(ing.get("id", "")).strip_edges()
-					var need: int = maxi(int(ing.get("qty", 0)), 0)
-					if iid.is_empty() or need <= 0:
-						continue
-					var have: int = ctrl._inv_qty(iid)
-					if have < need:
-						mats_ok = false
-					var col = L2Style.COL_TITLE if have >= need else Color(0.95, 0.45, 0.45)
-					ctrl._add_label(box, "  %s  %d / %d" % [ctrl._item_label(iid), have, need], 11, col)
-			var gcost: int = maxi(int(rec.get("gold_cost", 0)), 0)
-			if gcost > 0:
-				var gcol = L2Style.COL_MUTED if int(ctrl._server_gold) >= gcost else Color(0.95, 0.45, 0.45)
-				ctrl._add_label(box, "  金币 %d" % gcost, 11, gcol)
-				if int(ctrl._server_gold) < gcost:
-					mats_ok = false
-			if selected:
-				var row = HBoxContainer.new()
-				row.add_theme_constant_override("separation", 6)
-				box.add_child(row)
-				ctrl._add_label(row, "数量", 12, L2Style.COL_TEXT)
-				ctrl._craft_qty_spin = SpinBox.new()
-				ctrl._craft_qty_spin.min_value = 1
-				ctrl._craft_qty_spin.max_value = 99
-				ctrl._craft_qty_spin.value = 1
-				ctrl._craft_qty_spin.custom_minimum_size = Vector2(72, 0)
-				row.add_child(ctrl._craft_qty_spin)
-				var craft_btn = Button.new()
-				craft_btn.text = "制作"
-				craft_btn.focus_mode = Control.FOCUS_NONE
-				craft_btn.disabled = not mats_ok
-				craft_btn.pressed.connect(_on_craft_pressed.bind(rid))
-				row.add_child(craft_btn)
-
-	ctrl._add_label(
-		ctrl._craft_body,
-		"制作 Lv.%d (%d/%d)" % [ctrl._craft_level, ctrl._craft_xp, ctrl._craft_xp_to_next],
-		11,
-		L2Style.COL_MUTED
-	)
-
+	ctrl._add_label(ctrl._craft_body, "制作 Lv.%d · %d/%d    金币 %d" % [ctrl._craft_level, ctrl._craft_xp, ctrl._craft_xp_to_next, ctrl._server_gold], 11, L2Style.COL_MUTED)
+	var columns := HBoxContainer.new()
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_theme_constant_override("separation", 12)
+	ctrl._craft_body.add_child(columns)
+	var recipe_grid = ItemGrid.create(ctrl, columns, "CraftRecipes", 180)
+	recipe_grid.custom_minimum_size.x = 150
+	recipe_grid.size_flags_stretch_ratio = 0.8
+	var recipe_items: Array = []
+	var detail := VBoxContainer.new()
+	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail.add_theme_constant_override("separation", 10)
+	columns.add_child(detail)
+	var selected: Dictionary = {}
+	for rec in ctrl._craft_recipes:
+		if not rec is Dictionary: continue
+		var id := str(rec.get("id", ""))
+		if id.is_empty(): continue
+		if ctrl._craft_selected_id.is_empty(): ctrl._craft_selected_id = id
+		var entry: Dictionary = rec.get("output", {}).duplicate(true)
+		entry["key"] = id
+		entry["name"] = str(rec.get("name", id))
+		recipe_items.append(entry)
+		if id == ctrl._craft_selected_id: selected = rec
+	recipe_grid.set_items(recipe_items)
+	recipe_grid.select_key(ctrl._craft_selected_id, false)
+	recipe_grid.item_selected.connect(func(item): _on_craft_select(str(item.get("key", ""))))
+	if selected.is_empty():
+		ctrl._add_label(detail, "暂无可用配方", 12, L2Style.COL_MUTED)
+		return
+	var output: Dictionary = selected.get("output", {})
+	ctrl._add_label(detail, "%s ×%d" % [ctrl._item_label(str(output.get("id", ""))), int(output.get("qty", 1))], 14, L2Style.COL_TITLE)
+	ItemGrid.display_cell(ctrl, detail, output)
+	detail.add_child(L2Style.hairline())
+	ctrl._add_label(detail, "所需材料 · 持有 / 每份", 11, L2Style.COL_MUTED)
+	var ingredients: Array = []
+	var max_craft := 99
+	for ingredient in selected.get("ingredients", []):
+		var id := str(ingredient.get("id", ""))
+		var need := maxi(1, int(ingredient.get("qty", 1)))
+		var have: int = ctrl._inv_qty(id)
+		max_craft = mini(max_craft, int(have / need))
+		ingredients.append({"id": id, "qty": need, "hint": "持有 %d / 需要 %d%s" % [have, need, " · 不足" if have < need else ""]})
+	var material_grid = ItemGrid.create(ctrl, detail, "CraftMaterials", 90)
+	material_grid.minimum_cells = 0
+	material_grid.set_items(ingredients)
+	if not ingredients.is_empty(): material_grid.select_key(str(ingredients[0].id), false)
+	var cost := maxi(0, int(selected.get("gold_cost", 0)))
+	if cost > 0: max_craft = mini(max_craft, int(ctrl._server_gold / cost))
+	ctrl._add_label(detail, "每份 %d 金币" % cost, 11, L2Style.COL_MUTED)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail.add_child(spacer)
+	ctrl._craft_qty_spin = SpinBox.new()
+	ctrl._craft_qty_spin.min_value = 1
+	ctrl._craft_qty_spin.max_value = maxi(1, max_craft)
+	ctrl._craft_qty_spin.editable = max_craft > 0
+	GameWindow.field(detail, "制作数量", ctrl._craft_qty_spin)
+	var craft := Button.new()
+	craft.text = "制作" if max_craft > 0 else "材料或金币不足"
+	craft.disabled = max_craft <= 0
+	craft.custom_minimum_size.y = 32
+	L2Style.style_primary_button(craft)
+	craft.pressed.connect(_on_craft_pressed.bind(str(selected.get("id", ""))))
+	detail.add_child(craft)
 
 
 func _on_craft_select(recipe_id: String) -> void:

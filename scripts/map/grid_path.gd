@@ -51,6 +51,9 @@ static func find_path_near(
 
 
 static func _is_standable_goal(collision, goal: Vector2i) -> bool:
+	if collision.has_method("path_cell_flags"):
+		var state: int=collision.path_cell_flags(goal.x,goal.y)
+		return (state & (16|32|64))==0 and (state & 15)!=0
 	if not collision.is_valid(goal.x, goal.y):
 		return false
 	if collision.has_method("is_extra_blocked") and collision.is_extra_blocked(goal.x, goal.y):
@@ -92,7 +95,8 @@ static func _find_path_heap(collision, start: Vector2i, goal: Vector2i) -> Array
 	return _find_path_heap_any(collision, start, goals, goal)
 
 
-## Binary-heap A* to any cell in `goals`. `anchor` + slack keeps the heuristic admissible.
+## Distance to the goal bounding rectangle is a consistent lower bound.
+## Unlike anchor-minus-radius it does not collapse to zero far outside the goals.
 static func _find_path_heap_any(
 	collision,
 	start: Vector2i,
@@ -107,16 +111,15 @@ static func _find_path_heap_any(
 		return empty
 
 	var goal_set: Dictionary = {}
-	var slack: int = 0
+	var bounds := Vector4i(2147483647,2147483647,-2147483647,-2147483647)
 	for g in goals:
 		if not collision.is_valid(g.x, g.y):
 			continue
 		if g == start:
 			continue
 		goal_set[_cid(g, w)] = true
-		var og: int = _heuristic(g, anchor)
-		if og > slack:
-			slack = og
+		bounds.x=mini(bounds.x,g.x);bounds.y=mini(bounds.y,g.y)
+		bounds.z=maxi(bounds.z,g.x);bounds.w=maxi(bounds.w,g.y)
 	if goal_set.is_empty():
 		return empty
 
@@ -126,7 +129,7 @@ static func _find_path_heap_any(
 	var came_from: Dictionary = {}
 	var g_score: Dictionary = {start_cid: 0}
 	var closed: Dictionary = {}
-	var h0: int = maxi(0, _heuristic(start, anchor) - slack)
+	var h0: int = _bounds_heuristic(start, bounds)
 	_heap_push(open_heap, Vector4i(start.x, start.y, 0, h0))
 
 	var max_iters: int = 80000
@@ -157,13 +160,13 @@ static func _find_path_heap_any(
 		var pass6: bool = _cached_pass(collision, pass_cache, w, cx, cy, 6)
 		var pass8: bool = _cached_pass(collision, pass_cache, w, cx, cy, 8)
 		if pass2:
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx, cy + 1, known_g + COST_CARD, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx, cy + 1, known_g + COST_CARD, anchor, bounds)
 		if pass4:
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy, known_g + COST_CARD, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy, known_g + COST_CARD, anchor, bounds)
 		if pass6:
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy, known_g + COST_CARD, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy, known_g + COST_CARD, anchor, bounds)
 		if pass8:
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx, cy - 1, known_g + COST_CARD, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx, cy - 1, known_g + COST_CARD, anchor, bounds)
 		# Diagonals: both origin cardinals + both side entries (same as MapCollision._can_pass_diagonal).
 		if (
 			pass2
@@ -171,38 +174,54 @@ static func _find_path_heap_any(
 			and _cached_pass(collision, pass_cache, w, cx + 1, cy, 2)
 			and _cached_pass(collision, pass_cache, w, cx, cy + 1, 6)
 		):
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy + 1, known_g + COST_DIAG, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy + 1, known_g + COST_DIAG, anchor, bounds)
 		if (
 			pass2
 			and pass4
 			and _cached_pass(collision, pass_cache, w, cx - 1, cy, 2)
 			and _cached_pass(collision, pass_cache, w, cx, cy + 1, 4)
 		):
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy + 1, known_g + COST_DIAG, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy + 1, known_g + COST_DIAG, anchor, bounds)
 		if (
 			pass8
 			and pass6
 			and _cached_pass(collision, pass_cache, w, cx + 1, cy, 8)
 			and _cached_pass(collision, pass_cache, w, cx, cy - 1, 6)
 		):
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy - 1, known_g + COST_DIAG, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx + 1, cy - 1, known_g + COST_DIAG, anchor, bounds)
 		if (
 			pass8
 			and pass4
 			and _cached_pass(collision, pass_cache, w, cx - 1, cy, 8)
 			and _cached_pass(collision, pass_cache, w, cx, cy - 1, 4)
 		):
-			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy - 1, known_g + COST_DIAG, anchor, slack)
+			_relax(open_heap, came_from, g_score, closed, w, cid, cx - 1, cy - 1, known_g + COST_DIAG, anchor, bounds)
 	return empty
 
 
 static func _cached_pass(collision, cache: Dictionary, w: int, x: int, y: int, d: int) -> bool:
+	if collision.has_method("path_cell_flags"):
+		var delta: Vector2i=TileId.dir_delta(d)
+		# Vector2i keys prevent out-of-bounds coordinates aliasing valid rows.
+		var origin:=Vector2i(x,y)
+		var target:=origin+delta
+		if not cache.has(origin):cache[origin]=collision.path_cell_flags(x,y)
+		if not cache.has(target):cache[target]=collision.path_cell_flags(target.x,target.y)
+		var a: int=cache[origin];var b: int=cache[target]
+		if (b & (16|32|64))!=0:return false
+		var bit:=1 << (int(d/2)-1)
+		var reverse_bit:=1 << (int(TileId.reverse_dir(d)/2)-1)
+		return ((a & 16)!=0 or (a & bit)!=0) and (b & reverse_bit)!=0
 	var k: int = (y * w + x) * 16 + d
 	if cache.has(k):
 		return bool(cache[k])
 	var ok: bool = bool(collision.can_pass(x, y, d))
 	cache[k] = ok
 	return ok
+
+
+static func _bounds_heuristic(cell: Vector2i, bounds: Vector4i) -> int:
+	return _heuristic(cell,Vector2i(clampi(cell.x,bounds.x,bounds.z),clampi(cell.y,bounds.y,bounds.w)))
 
 
 static func _cid(c: Vector2i, w: int) -> int:
@@ -220,7 +239,7 @@ static func _relax(
 	ny: int,
 	tentative: int,
 	anchor: Vector2i,
-	slack: int
+	bounds: Vector4i
 ) -> void:
 	var nid: int = ny * w + nx
 	if closed.has(nid):
@@ -229,7 +248,7 @@ static func _relax(
 		return
 	came_from[nid] = from_cid
 	g_score[nid] = tentative
-	var h: int = maxi(0, _heuristic(Vector2i(nx, ny), anchor) - slack)
+	var h: int = _bounds_heuristic(Vector2i(nx, ny), bounds)
 	_heap_push(heap, Vector4i(nx, ny, tentative, tentative + h))
 
 

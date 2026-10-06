@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-05",
+  "file": "user_reference.png",
+  "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-c3dc57e3-3eb1-4c65-ba04-73133e1fe917.png",
+  "sha256": "740fcaf5b5a43fbde5c0f7167cf465696dbd2e3fcaaea15c309512b6e4735af0",
+  "description": "用户提供的古铜细杆灯笼、卷曲支架、红底金边尖底旗幡参考；仅用于原创建模参考。",
+  "additional_images": [
+    {"file":"joint_correction.png","source":"C:/Users/luna/AppData/Local/Temp/codex-clipboard-94b5e554-3dba-436b-84e7-c7c826b260d2.png","sha256":"cc8bf949beefa7498d83d37f3bb2b993cd76893dc36bce43b6474495fad18ae9","description":"用户标记上卷花连接与灯笼下框未对齐，要求修复。"},
+    {"file":"blue_crystal_light.png","source":"C:/Users/luna/AppData/Local/Temp/codex-clipboard-3924ab5d-842e-4a5a-8b0e-15185e673003.png","sha256":"df268d32600c9eee1da7308cb357bf8a00ef5cab33c86c2f1c3e8baa2da74210","description":"用户要求改为菱形幽蓝魔法石，夜间蓝白亮芯和青蓝外晕参考。"}
+  ]
+}

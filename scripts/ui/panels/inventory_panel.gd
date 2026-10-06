@@ -92,6 +92,17 @@ func apply_inventory_snapshot(items: Array, gold: int = -1) -> void:
 	# Refresh craft have/need while open.
 	if ctrl._craft_panel != null and ctrl._craft_panel.visible:
 		ctrl._refresh_craft_panel()
+	# Every open item surface follows the same authoritative bag snapshot.
+	if ctrl._mail_panel != null and ctrl._mail_panel.visible:
+		ctrl._mail_panel_logic._refresh_attachment_choices()
+	if ctrl._auction_panel != null and ctrl._auction_panel.visible and not ctrl._auction_panel_logic._listing:
+		ctrl._auction_item_id_input.fill_inventory(ctrl._server_inventory)
+		ctrl._auction_panel_logic._sync_listing_quantity()
+		ctrl._refresh_auction_panel()
+	if ctrl._warehouse_panel != null and ctrl._warehouse_panel.visible:
+		ctrl._refresh_warehouse_panel()
+	if ctrl._trade_panel != null and ctrl._trade_panel.visible:
+		ctrl._refresh_trade_panel()
 
 
 
@@ -131,14 +142,14 @@ func _ensure_inventory_gold_bar(panel: PanelContainer) -> void:
 	row.name = "GoldBar"
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.custom_minimum_size = Vector2(0, 28)
+	row.custom_minimum_size = Vector2(0, 22)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var pad_l = Control.new()
-	pad_l.custom_minimum_size = Vector2(48, 0)
+	pad_l.custom_minimum_size = Vector2(4, 0)
 	pad_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(pad_l)
 	var tag = Label.new()
-	tag.text = "Adena"
+	tag.text = "金币"
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	L2Style.style_gold_amount(tag)
 	row.add_child(tag)
@@ -150,7 +161,7 @@ func _ensure_inventory_gold_bar(panel: PanelContainer) -> void:
 	L2Style.style_gold_amount(amt)
 	row.add_child(amt)
 	var pad_r = Control.new()
-	pad_r.custom_minimum_size = Vector2(48, 0)
+	pad_r.custom_minimum_size = Vector2(4, 0)
 	pad_r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(pad_r)
 	vbox.add_child(row)
@@ -192,18 +203,28 @@ func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	# Body is only the grid so ScrollContainer chrome is just title + scroll viewport.
 	body.add_theme_constant_override("separation", 4)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var scroll: ScrollContainer = panel.find_child("Scroll", true, false)
+	var outer: VBoxContainer = scroll.get_parent()
+	var toolbar := outer.get_node_or_null("InventoryToolbar") as VBoxContainer
+	if toolbar == null:
+		toolbar = VBoxContainer.new()
+		toolbar.name = "InventoryToolbar"
+		toolbar.add_theme_constant_override("separation", 6)
+		outer.add_child(toolbar)
+		outer.move_child(toolbar, scroll.get_index())
+	for child in toolbar.get_children():
+		toolbar.remove_child(child)
+		child.queue_free()
 	var tools = HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 4)
-	body.add_child(tools)
+	toolbar.add_child(tools)
 	for spec in [["全部", "all"], ["消耗", "consumable"], ["装备", "equipment"], ["材料", "material"]]:
 		var fb = Button.new()
 		fb.text = str(spec[0])
 		fb.focus_mode = Control.FOCUS_NONE
 		fb.custom_minimum_size = Vector2(48, 24)
 		var fid = str(spec[1])
-		L2Style.style_compact_button(fb)
-		if ctrl._inv_filter == fid:
-			fb.modulate = Color(1.15, 1.05, 0.7)
+		L2Style.style_tab_button(fb, ctrl._inv_filter == fid)
 		fb.pressed.connect(func():
 			ctrl._inv_filter = fid
 			ctrl._fill_window("inventory")
@@ -228,10 +249,10 @@ func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	search.text = ctrl._inv_search_query
 	search.clear_button_enabled = true
 	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	search.custom_minimum_size = Vector2(0, 28)
+	search.custom_minimum_size = Vector2(0, 24)
 	search.focus_mode = Control.FOCUS_CLICK
 	search.text_changed.connect(_on_inv_search_text_changed)
-	body.add_child(search)
+	toolbar.add_child(search)
 	var grid = GridContainer.new()
 	grid.name = "InvGrid"
 	grid.columns = cols

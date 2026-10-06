@@ -1,5 +1,6 @@
 extends Node
-## Content-editor MCP: JSON-RPC 2.0 over HTTP. Off until 工具菜单 enables it.
+## Retired 2D MCP adapter. Historical operations remain for reference only.
+## The 3D subclass reuses HTTP framing; only it may register production tools.
 
 const DEFAULT_HOST := "127.0.0.1"
 const DEFAULT_PORT := 18765
@@ -32,7 +33,19 @@ func url() -> String:
 	return "http://%s:%d/mcp" % [host, port]
 
 
-func start(p_port: int = DEFAULT_PORT) -> Dictionary:
+func server_name() -> String:
+	return SERVER_NAME
+
+
+func instructions() -> String:
+	return "RMMO legacy 2D content editor. The current 3D host is tools/editor_mcp_host.gd (port 18766)."
+
+
+func start(_p_port: int = DEFAULT_PORT) -> Dictionary:
+	return {"ok": false, "error": "Legacy 2D editor MCP is retired. Use the 3D editor service on port 18766."}
+
+
+func _legacy_start(p_port: int = DEFAULT_PORT) -> Dictionary:
 	stop()
 	port = p_port
 	_tcp = TCPServer.new()
@@ -223,7 +236,7 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 	if method == "GET" and (path.begins_with("/health") or path == "/"):
 		_write_http(peer, 200, "application/json", JSON.stringify({
 			"ok": true,
-			"server": SERVER_NAME,
+			"server": server_name(),
 			"url": url(),
 			"running": running,
 			"map": _map_id(),
@@ -318,8 +331,8 @@ func handle_rpc(msg: Dictionary) -> Variant:
 			result = {
 				"protocolVersion": ver,
 				"capabilities": {"tools": {"listChanged": false}},
-				"serverInfo": {"name": SERVER_NAME, "version": "1.0.0"},
-				"instructions": "RMMO content editor. Enable via 工具 → 启用 MCP 服务, or run tools/editor_mcp_host.gd.",
+				"serverInfo": {"name": server_name(), "version": "1.0.0"},
+				"instructions": instructions(),
 			}
 		"ping":
 			result = {}
@@ -361,6 +374,10 @@ func handle_rpc(msg: Dictionary) -> Variant:
 
 
 func tools_list() -> Array:
+	return []
+
+
+func _legacy_tools_list() -> Array:
 	var listed: Array = [
 		_tool("editor_state", "当前内容包、地图、光标、图层。", {}),
 		_tool("list_maps", "列出包内地图。", {}),
@@ -408,6 +425,7 @@ func tools_list() -> Array:
 			"w": {"type": "integer"}, "h": {"type": "integer"},
 			"x2": {"type": "integer"}, "y2": {"type": "integer"},
 			"grid": {"type": "boolean"},
+			"cursor": {"type": "boolean", "description": "false hides the editing cursor for visual acceptance"},
 			"entities": {"type": "boolean"},
 			"overview": {"type": "boolean"},
 			"chunk": {"type": "boolean"},
@@ -448,7 +466,11 @@ func _tool(name: String, desc: String, props: Dictionary, required: Array = []) 
 	}
 
 
-func call_tool(name: String, args: Dictionary) -> Dictionary:
+func call_tool(_name: String, _args: Dictionary) -> Dictionary:
+	return _err("Legacy 2D editor MCP tools are retired; use the 3D service")
+
+
+func _legacy_call_tool(name: String, args: Dictionary) -> Dictionary:
 	if editor == null:
 		return _err("no editor")
 	match name:
@@ -505,12 +527,12 @@ func call_tool(name: String, args: Dictionary) -> Dictionary:
 			var EventCommands = load("res://scripts/editor/domain/event_commands.gd")
 			return _ok({"switches": EventCommands.collect_switch_ids(editor.pack)})
 		"save":
-			if editor.has_method("_save"):
-				editor._save()
-			return _ok({"saved": true, "root": str(editor.pack.root) if editor.pack else ""})
+			if editor.pack == null or not editor.pack.save_dir():
+				return _err("pack save failed")
+			return _ok({"saved": true, "root": str(editor.pack.root)})
 		"playtest":
 			if editor.has_method("_playtest"):
-				editor._playtest(bool(args.get("from_cursor", false)))
+				editor._playtest.call_deferred(bool(args.get("from_cursor", false)))
 			return _ok({"playtest": true, "from_cursor": bool(args.get("from_cursor", false))})
 		"preview_map":
 			return _preview_map(args)
@@ -766,7 +788,14 @@ func _preview_map(args: Dictionary) -> Dictionary:
 		y0 = int(rect.y)
 		cw = int(rect.w)
 		ch = int(rect.h)
-		img = field.render_preview(x0, y0, cw, ch)
+		var requested_px := clampi(int(args.get("cell_px", 0)), 0, 48)
+		if requested_px > 0:
+			if cw * ch * requested_px * requested_px > 16777216:
+				return _err("preview exceeds 16 megapixels; reduce cell_px or rectangle")
+			ts = requested_px
+			img = field.render_preview(x0, y0, cw, ch, requested_px)
+		else:
+			img = field.render_preview(x0, y0, cw, ch)
 		if img != null:
 			cw = img.get_width() / ts
 			ch = img.get_height() / ts
@@ -779,7 +808,7 @@ func _preview_map(args: Dictionary) -> Dictionary:
 		entities = _blit_preview_entities(img, x0, y0, cw, ch, ts)
 	if do_grid:
 		_blit_preview_grid(img, cw, ch, ts)
-	if not overview:
+	if not overview and bool(args.get("cursor", true)):
 		_blit_preview_cursor(img, x0, y0, cw, ch, ts)
 	var max_px: int = int(args.get("max_px", PREVIEW_MAX_PX))
 	if max_px <= 0:
@@ -792,7 +821,7 @@ func _preview_map(args: Dictionary) -> Dictionary:
 		img.resize(maxi(1, int(ow * sc)), maxi(1, int(oh * sc)), Image.INTERPOLATE_NEAREST)
 	var save_path := str(args.get("path", "")).strip_edges()
 	if save_path == "":
-		save_path = ProjectSettings.globalize_path("res://.grok/mcp_preview.png")
+		save_path = ProjectSettings.globalize_path(preload("res://scripts/asset/art_paths.gd").review_path("editor/mcp_preview.png"))
 	DirAccess.make_dir_recursive_absolute(save_path.get_base_dir())
 	var save_err := img.save_png(save_path)
 	var png: PackedByteArray = img.save_png_to_buffer()
@@ -896,8 +925,9 @@ func _preview_rect(args: Dictionary, gw: int, gh: int) -> Dictionary:
 			x1 = int(args.get("x2", x0))
 			y1 = int(args.get("y2", y0))
 		else:
-			var cw := clampi(int(args.get("w", 16)), 1, PREVIEW_MAX_CELLS)
-			var ch := clampi(int(args.get("h", 16)), 1, PREVIEW_MAX_CELLS)
+			var limit := 256 if int(args.get("cell_px", 0)) > 0 else PREVIEW_MAX_CELLS
+			var cw := clampi(int(args.get("w", 16)), 1, limit)
+			var ch := clampi(int(args.get("h", 16)), 1, limit)
 			x1 = x0 + cw - 1
 			y1 = y0 + ch - 1
 	elif field != null and int(field.edit_rect_a.x) >= 0 and int(field.edit_rect_b.x) >= 0:
@@ -919,8 +949,9 @@ func _preview_rect(args: Dictionary, gw: int, gh: int) -> Dictionary:
 	y0 = clampi(y0, 0, gh - 1)
 	x1 = clampi(x1, 0, gw - 1)
 	y1 = clampi(y1, 0, gh - 1)
-	var w := mini(x1 - x0 + 1, PREVIEW_MAX_CELLS)
-	var h := mini(y1 - y0 + 1, PREVIEW_MAX_CELLS)
+	var limit := 256 if int(args.get("cell_px", 0)) > 0 else PREVIEW_MAX_CELLS
+	var w := mini(x1 - x0 + 1, limit)
+	var h := mini(y1 - y0 + 1, limit)
 	return {"x": x0, "y": y0, "w": w, "h": h}
 
 

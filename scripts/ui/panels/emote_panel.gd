@@ -2,11 +2,13 @@ extends RefCounted
 ## UI panel: emote picker.
 
 var ctrl
+var _mode := 0
+var _tabs: HBoxContainer
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _on_remote_debug_spawn() -> void:
@@ -26,39 +28,30 @@ func _on_remote_debug_spawn() -> void:
 func _build_emote_panel() -> void:
 	ctrl._emote_panel = PanelContainer.new()
 	ctrl._emote_panel.name = "EmotePanel"
-	ctrl._emote_panel.set_script(HudDrag)
+	ctrl._emote_panel.set_script(GameWindow)
 	ctrl._emote_panel.screen_margin = 4.0
 	ctrl._emote_panel.min_size = Vector2(280, 200)
 	ctrl._emote_panel.default_size = Vector2(340, 280)
 	ctrl._emote_panel.initial_dock = "none"
 	ctrl._emote_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._emote_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._emote_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "EmoteTitle"
-	title.text = "表情"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._emote_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._emote_panel, "表情", func(): ctrl._emote_panel.visible = false, "EmoteTitle")
+	_tabs = GameWindow.add_tabs(outer, ["动作", "面部"], func(index):
+		_mode = index
+		GameWindow.highlight_tabs(_tabs, index)
+		_refresh_emote_panel()
+	)
+	GameWindow.highlight_tabs(_tabs, 0)
+	var scroll:=ScrollContainer.new()
+	scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode=ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size.y=160
+	outer.add_child(scroll)
 	ctrl._emote_body = VBoxContainer.new()
 	ctrl._emote_body.name = "EmoteBody"
 	ctrl._emote_body.add_theme_constant_override("separation", 6)
 	ctrl._emote_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	outer.add_child(ctrl._emote_body)
+	scroll.add_child(ctrl._emote_body)
 	ctrl._emote_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._emote_panel)
 	_refresh_emote_panel()
@@ -71,7 +64,7 @@ func _nudge_emote() -> void:
 		return
 	ctrl._emote_panel.size = Vector2(340, 280)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._emote_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96)
+	ctrl._window_manager_logic.place_at(ctrl._emote_panel, Vector2(maxi(8, int(vp.x * 0.5 - 170)), 96))
 
 
 
@@ -117,8 +110,35 @@ func _refresh_emote_panel() -> void:
 	if ctrl._emote_body == null:
 		return
 	for c in ctrl._emote_body.get_children():
+		ctrl._emote_body.remove_child(c)
 		c.queue_free()
-	ctrl._add_label(ctrl._emote_body, "选择表情（服务器冷却）", 11, L2Style.COL_MUTED)
+	if _mode == 1 and ctrl._world_combat!=null and ctrl._world_combat.has_method("facial_expression_catalog"):
+		var face_rows:Array=ctrl._world_combat.facial_expression_catalog()
+		if not face_rows.is_empty():
+			ctrl._add_label(ctrl._emote_body,"面部表情 · 分类组合，再点取消",11,L2Style.COL_MUTED)
+			var buttons:Array[Button]=[]
+			var groups:Dictionary={}
+			var state:Dictionary=ctrl._world_combat.facial_expression_state()
+			for row:Dictionary in face_rows:
+				var group:String=str(row.get("group",""))
+				if not groups.has(group):
+					if not group.is_empty():ctrl._add_label(ctrl._emote_body,group,11,L2Style.COL_MUTED)
+					var face_grid:=GridContainer.new();face_grid.columns=3
+					ctrl._emote_body.add_child(face_grid);groups[group]=face_grid
+				var button:=Button.new();button.text=str(row.label);button.tooltip_text=str(row.tag)
+				button.set_meta("expression_id",str(row.id))
+				button.toggle_mode=str(row.id)!="neutral"
+				button.set_pressed_no_signal(state.has(str(row.id)))
+				button.custom_minimum_size=Vector2(96,32);button.focus_mode=Control.FOCUS_NONE
+				button.pressed.connect(func():
+					ctrl._world_combat.request_facial_expression(str(row.id),true)
+					var current:Dictionary=ctrl._world_combat.facial_expression_state()
+					for item:Button in buttons:item.set_pressed_no_signal(current.has(str(item.get_meta("expression_id")))))
+				groups[group].add_child(button);buttons.append(button)
+	if _mode == 1:
+		if ctrl._emote_body.get_child_count() == 0: ctrl._add_label(ctrl._emote_body, "进入游戏后可使用面部表情。", 11, L2Style.COL_MUTED)
+		return
+	ctrl._add_label(ctrl._emote_body, "点击播放动作", 11, L2Style.COL_MUTED)
 	var grid = GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 6)

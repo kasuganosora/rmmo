@@ -99,6 +99,46 @@ func _run() -> void:
 	failed += _expect(float(b2.get("snow_weight", 0.0)) > 0.5, "snow wins")
 	failed += _expect(float(b2.get("rain_weight", 1.0)) < 0.05, "rain faded")
 	failed += _expect(bool(fx._snow.emitting), "snow emitting after blend")
+	for layer in [fx._snow_far, fx._snow_near, fx._snow_crystal]:
+		failed += _expect(layer.emitting and layer.visible, "snow depth layer active " + str(layer.name))
+	fx.set_eaves(true)
+	for layer in [fx._snow, fx._snow_far, fx._snow_near, fx._snow_crystal]:
+		failed += _expect(not layer.visible and not layer.is_processing_internal(), "snow shelter suspends " + str(layer.name))
+	fx.set_eaves(false)
+	# Retarget from a mixed state without losing either live particle weight.
+	field.set_atmosphere(0, "rain", 1.0)
+	fx._process(Weather.transition_sec() * 0.4)
+	var interrupted: Dictionary = fx.blended()
+	field.set_atmosphere(0, "storm", 1.0)
+	var retargeted: Dictionary = fx.blended()
+	for key in ["rain_weight", "snow_weight", "fog_weight"]:
+		failed += _expect(is_equal_approx(float(interrupted[key]), float(retargeted[key])), "retarget preserves " + key)
+	fx._process(0.5)
+	var progress: float = fx.mix_t()
+	field.set_atmosphere(0, "storm", 1.0)
+	failed += _expect(is_equal_approx(progress, fx.mix_t()), "repeated target does not restart blend")
+	fx._process(Weather.transition_sec())
+	fx._flash_left = 0.12
+	fx.set_eaves(true)
+	failed += _expect(not fx._storm.visible and not fx._storm.is_processing_internal(), "shelter suspends hidden particles")
+	failed += _expect(fx._flash_left == 0.0 and fx._flash.color.a == 0.0, "shelter clears lightning")
+	fx.set_eaves(false)
+	var gs: Node = root.get_node("GameSettings")
+	var enabled: bool = gs.weather_fx
+	gs.weather_fx = false
+	gs.changed.emit()
+	failed += _expect(not fx._storm.emitting and not fx._storm.visible, "settings immediately hide weather")
+	failed += _expect(not fx._sfx.playing and not fx._sfx2.playing, "settings immediately stop audio")
+	gs.weather_fx = true
+	gs.changed.emit()
+	failed += _expect(fx._storm.emitting and fx._storm.is_processing_internal(), "settings resume current weather")
+	field.set_atmosphere(0, "storm", 1.0)
+	doc.environment = MapExt.ENV_INDOOR
+	field.set_atmosphere(0, "storm", 1.0)
+	failed += _expect(not fx._storm.visible, "indoor hides storm before fade completes")
+	doc.environment = MapExt.ENV_OUTDOOR
+	gs.weather_fx = enabled
+	gs.changed.emit()
 
 	var srv = MockServer.new()
 	root.add_child(srv)

@@ -10,6 +10,8 @@ const Customization = preload("res://scripts/char/customization.gd")
 const SLOT_MV_CAT := {
 	"chest": "Clothing1",
 	"legs": "Clothing2",
+	"feet": "Boots",
+	"belt": "Belt",
 	"necklace": "AccA",
 	"earring_l": "AccB",
 	"earring_r": "AccB",
@@ -22,6 +24,7 @@ static func standing_texture(ch: Dictionary, equipment: Array, catalog = null) -
 	var parts: Dictionary = cust.part_ids.duplicate()
 	if parts.is_empty():
 		parts = MV.default_parts(gender)
+	parts = MV.appearance_parts(parts)
 	var mv_eq := equipment_to_mv_parts(gender, equipment, catalog)
 	parts = MV.apply_equipment(parts, mv_eq)
 	parts = MV.validate_parts(gender, parts)
@@ -62,11 +65,34 @@ static func equipment_to_mv_parts(gender: String, equipment: Array, catalog = nu
 	return out
 
 
+## Versioned surface assets share the same inventory items and slot snapshot.
+## Missing/empty slots stay absent; never restore defaults after an unequip.
+static func equipment_to_surface_parts(body_id:String,equipment:Array,catalog=null)->Dictionary:
+	var result:Dictionary={}
+	for entry in equipment:
+		if not entry is Dictionary:continue
+		var id:String=str(entry.get("item_id",entry.get("id",""))).strip_edges()
+		if id.is_empty():continue
+		var definition:Dictionary=_item_def(catalog,id)
+		var by_body:Variant=definition.get("surface_parts",{})
+		if not by_body is Dictionary:continue
+		var parts:Variant=by_body.get(body_id,{})
+		if parts is Dictionary:result.merge(parts,true)
+	# Resolve full-length outerwear after merging, independent of slot order.
+	for entry in equipment:
+		if not entry is Dictionary:continue
+		var definition:Dictionary=_item_def(catalog,str(entry.get("item_id",entry.get("id",""))))
+		for part in definition.get("surface_hidden_parts",{}).get(body_id,[]):result.erase(part)
+	return result
+
+
 static func _compose_standing(gender: String, parts: Dictionary, colors: Dictionary) -> Texture2D:
 	if parts.is_empty():
 		return null
 	var res: Dictionary = MV.compose_preview(gender, parts, colors)
 	var frames: SpriteFrames = res.get("frames", null)
+	if frames != null and frames.has_animation("idle_front"):
+		return frames.get_frame_texture("idle_front", 0)
 	if frames != null and frames.has_animation("walk_front"):
 		var n: int = frames.get_frame_count("walk_front")
 		if n > 0:

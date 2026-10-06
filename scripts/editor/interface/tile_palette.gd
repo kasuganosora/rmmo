@@ -11,6 +11,7 @@ signal flags_changed(tileset_id: String, flags: PackedInt32Array)
 signal stamp_changed(width: int, height: int, tiles: PackedInt32Array)
 
 var tileset_id: String = "outside"
+var pack_root: String = ""
 var tileset: Dictionary = {}
 var sheets: Array = []
 var tab: String = "A"
@@ -18,6 +19,7 @@ var selected_id: int = 2816
 var tile_px: int = 48
 
 var _ts_opt: OptionButton
+var _extra_opt: OptionButton
 var _tab_btns: Dictionary = {}
 var _info: Label
 var _scroll: ScrollContainer
@@ -62,6 +64,10 @@ func _ready() -> void:
 		b.pressed.connect(_on_tab.bind(t))
 		tabs.add_child(b)
 		_tab_btns[t] = b
+	_extra_opt = OptionButton.new()
+	_extra_opt.visible = false
+	_extra_opt.item_selected.connect(func(i: int): _on_tab("X%d" % i))
+	add_child(_extra_opt)
 	_info = Label.new()
 	_info.text = "图块 2816"
 	add_child(_info)
@@ -231,6 +237,9 @@ func _on_tab(t: String) -> void:
 
 
 func _sync_tab_buttons() -> void:
+	if _extra_opt != null and tab.begins_with("X"):
+		var page := int(tab.substr(1))
+		if page >= 0 and page < _extra_opt.item_count:_extra_opt.select(page)
 	for t in _tab_btns.keys():
 		var b: Button = _tab_btns[t]
 		b.set_pressed_no_signal(str(t) == tab)
@@ -239,10 +248,18 @@ func _sync_tab_buttons() -> void:
 func _load_sheets() -> void:
 	sheets.clear()
 	sheets.resize(9)
-	var names_v: Variant = tileset.get("tilesetNames", [])
+	var names_v: Variant = TileId.sheet_names(tileset)
 	var names: Array = names_v if typeof(names_v) == TYPE_ARRAY else []
+	sheets.resize(names.size())
+	if _extra_opt != null:
+		_extra_opt.clear()
+		for i in range(9, names.size()):
+			_extra_opt.add_item("扩展 %d · %s" % [i-9, str(names[i])])
+		_extra_opt.visible = names.size() > 9
+	if tab.begins_with("X") and _sheet_index_for_tab(tab) >= names.size():
+		tab = "A"
 	var am = Engine.get_main_loop().root.get_node_or_null("/root/AssetManager")
-	for i in range(9):
+	for i in range(names.size()):
 		var n := str(names[i]) if i < names.size() else ""
 		if n.strip_edges() == "":
 			sheets[i] = null
@@ -268,6 +285,11 @@ func _load_sheet(am, sheet_name: String) -> Image:
 		var img2 := Image.new()
 		if img2.load(fallback) == OK:
 			return _sheet_rgba(img2)
+	if not pack_root.is_empty():
+		var local := "%s/assets/tilesheet/%s.png" % [pack_root, sheet_name.get_basename()]
+		if FileAccess.file_exists(local):
+			var img3 := Image.new()
+			if img3.load(local) == OK:return _sheet_rgba(img3)
 	return null
 
 
@@ -546,6 +568,8 @@ func _cell_for_id(id: int) -> Vector2i:
 
 
 func _tab_for_id(id: int) -> String:
+	if TileId.is_extra(id):
+		return "X%d" % ((id - TileId.TILE_ID_EXTRA) / 256)
 	if TileId.is_autotile(id) or TileId.is_tile_a5(id):
 		return "A"
 	if id < TileId.TILE_ID_C:
@@ -560,6 +584,8 @@ func _tab_for_id(id: int) -> String:
 
 
 func _base_for_tab(t: String) -> int:
+	if t.begins_with("X"):
+		return TileId.TILE_ID_EXTRA + int(t.substr(1)) * 256
 	match t:
 		"B":
 			return TileId.TILE_ID_B
@@ -574,6 +600,8 @@ func _base_for_tab(t: String) -> int:
 
 
 func _sheet_index_for_tab(t: String) -> int:
+	if t.begins_with("X"):
+		return 9 + int(t.substr(1))
 	match t:
 		"B":
 			return 5
@@ -646,6 +674,8 @@ func _ensure_flags() -> void:
 
 func _write_flag(id: int, flag: int) -> void:
 	_ensure_flags()
+	if TileId.is_extra(id) and id >= _flags.size():
+		_flags.resize(id + 1)
 	var ids: PackedInt32Array = TileId.passage_ids_for(id)
 	if ids.is_empty():
 		return
@@ -737,4 +767,3 @@ func _rebuild_passage_marks() -> void:
 			kinds[row * cols + col] = TileId.passage_kind(_flag_of(id))
 	_pass_layer.set_grid(cols, tile_px, kinds)
 	_pass_layer.size = _host.size if _host else Vector2(cols * tile_px, rows * tile_px)
-

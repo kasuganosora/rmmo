@@ -12,7 +12,7 @@ game art, audio, fonts, JSON catalogs, or content packs.
 | `data/` | Combat / map / RTP JSON (`content://data/…`) |
 | `assets/` | Local art (gitignored) |
 | RPG Maker MV RTP images | Kadokawa / Degica license — user must own MV |
-| 苍蓝星 / other commercial `www/img` | Commercial game art — hot-load from a local install only |
+| `{content_root}/packs/mv_img` | Local MV image library — content root only, never `res://` |
 | Third-party UI kits (IndigoLay, L2-inspired chrome, fonts) | Redistribution of those files is not allowed by their licenses |
 
 `.gitignore` already excludes images, audio, fonts, `rmmo_runtime/`, and `packs/`.
@@ -33,7 +33,7 @@ game art, audio, fonts, JSON catalogs, or content packs.
   packs/ui/default/<version>/
   data/combat, data/map, data/rtp     — catalogs (`content://data/…`)
   assets/fx, icon, tilesheet, charset, audio, look, system
-  mv_img/          optional junction to an MV www/img you own
+  packs/mv_img/    local MV image library (characters, tilesets, …)
 ```
 
 Address content with `content://…` refs. Never copy third-party PNGs into `res://`.

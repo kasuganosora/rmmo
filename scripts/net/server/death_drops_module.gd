@@ -41,7 +41,7 @@ func _death_drop_type_blocked(item_id: String) -> bool:
 
 
 
-func _apply_death_drops(actions: Array) -> void:
+func _apply_death_drops(actions: Array, place_drop: Callable = Callable()) -> void:
 	if ctrl.inventory == null:
 		return
 	var dropped_items: Array = []  # [{item_id, qty}, ...]
@@ -130,7 +130,8 @@ func _apply_death_drops(actions: Array) -> void:
 	var cell = {"x": ctrl.death_cell.x, "y": ctrl.death_cell.y}
 	if ctrl.death_cell.x <= -9990:
 		cell = {"x": ctrl.player_cell.x, "y": ctrl.player_cell.y}
-	actions.append_array(ctrl._add_items_to_ground(cell, dropped_items, "death", ""))
+	if place_drop.is_valid(): place_drop.call(dropped_items)
+	else: actions.append_array(ctrl._add_items_to_ground(cell, dropped_items, "death", ""))
 	actions.append({
 		"type": "inventory_update",
 		"items": ctrl.inventory.snapshot(),

@@ -2,12 +2,13 @@ extends RefCounted
 ## UI panel: party roster, shared target, invites.
 
 var ctrl
+var _actions: VBoxContainer
 func _init(c):
 	ctrl = c
 
 const StatusIconBar = preload("res://scripts/ui/status_icon_bar.gd")
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 
 func _sync_party_self_statuses_from_player() -> void:
@@ -45,41 +46,28 @@ func _build_party_stub() -> void:
 	## Live party shell panel (debug stubs via MockServer try_party_*).
 	ctrl._party_panel = PanelContainer.new()
 	ctrl._party_panel.name = "PartyPanel"
-	ctrl._party_panel.set_script(HudDrag)
+	ctrl._party_panel.set_script(GameWindow)
 	ctrl._party_panel.screen_margin = 4.0
 	ctrl._party_panel.min_size = Vector2(180, 100)
 	ctrl._party_panel.default_size = Vector2(260, 300)
 	ctrl._party_panel.initial_dock = "top_left"
 	ctrl._party_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._party_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 10)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 10)
-	marg.add_theme_constant_override("margin_bottom", 12)
-	marg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ctrl._party_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 4)
-	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	outer.add_child(head)
-	var title = Label.new()
-	title.text = "队伍"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._party_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._party_panel, "队伍", func(): ctrl._party_panel.visible = false, "WindowTitle")
 	ctrl._party_body = VBoxContainer.new()
 	ctrl._party_body.name = "PartyBody"
 	ctrl._party_body.add_theme_constant_override("separation", 4)
 	ctrl._party_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	outer.add_child(ctrl._party_body)
+	var scroll := ScrollContainer.new()
+	scroll.name = "PartyScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer.add_child(scroll)
+	ctrl._party_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(ctrl._party_body)
+	_actions = VBoxContainer.new()
+	_actions.add_theme_constant_override("separation", 6)
+	outer.add_child(_actions)
 	ctrl._party_panel.visible = false
 	ctrl._apply_l2_chrome(ctrl._party_panel)
 	_refresh_party_panel()
@@ -89,7 +77,7 @@ func _build_party_stub() -> void:
 
 func _nudge_party() -> void:
 	if ctrl._party_panel:
-		ctrl._party_panel.global_position = Vector2(8, 160)
+		ctrl._window_manager_logic.place_at(ctrl._party_panel, Vector2(8, 160))
 
 
 
@@ -182,8 +170,10 @@ func _sync_radar_party_stubs() -> void:
 func _refresh_party_panel() -> void:
 	if ctrl._party_body == null:
 		return
-	for c in ctrl._party_body.get_children():
-		c.queue_free()
+	for host in [ctrl._party_body, _actions]:
+		for c in host.get_children():
+			host.remove_child(c)
+			c.queue_free()
 	var self_id = _party_self_id_for_ui()
 	var leader = str(ctrl._party_state.get("leader", ""))
 	if not _party_in_party():
@@ -209,7 +199,7 @@ func _refresh_party_panel() -> void:
 		stl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		stl.add_theme_font_size_override("font_size", 11)
 		stl.add_theme_color_override("font_color", Color(0.95, 0.75, 0.35))
-		stl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		stl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		st_row.add_child(stl)
 		var clr = Button.new()
 		clr.text = "清除"
@@ -250,6 +240,7 @@ func _refresh_party_panel() -> void:
 		var nl = Label.new()
 		nl.text = nm
 		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.add_theme_font_size_override("font_size", 11)
 		nl.add_theme_color_override("font_color", Color(0.85, 0.9, 0.85))
 		nl.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -310,7 +301,7 @@ func _refresh_party_panel() -> void:
 	# Invite row
 	var inv_row = HBoxContainer.new()
 	inv_row.add_theme_constant_override("separation", 4)
-	ctrl._party_body.add_child(inv_row)
+	_actions.add_child(inv_row)
 	var inv_edit = LineEdit.new()
 	inv_edit.name = "PartyInviteEdit"
 	inv_edit.placeholder_text = "右键玩家，或输入名字"
@@ -329,7 +320,7 @@ func _refresh_party_panel() -> void:
 	# Loot mode (leader-only control)
 	var loot_row = HBoxContainer.new()
 	loot_row.add_theme_constant_override("separation", 4)
-	ctrl._party_body.add_child(loot_row)
+	_actions.add_child(loot_row)
 	var loot_lab = Label.new()
 	loot_lab.text = "拾取"
 	loot_lab.add_theme_font_size_override("font_size", 10)
@@ -376,7 +367,7 @@ func _refresh_party_panel() -> void:
 	leave_btn.focus_mode = Control.FOCUS_NONE
 	leave_btn.custom_minimum_size = Vector2(0, 26)
 	leave_btn.pressed.connect(_on_party_leave)
-	ctrl._party_body.add_child(leave_btn)
+	_actions.add_child(leave_btn)
 
 
 

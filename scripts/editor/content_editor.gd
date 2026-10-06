@@ -74,6 +74,7 @@ var _cam: Camera2D
 var _tree: Tree
 var _status: Label
 var _layer_tree: Tree
+var _selection_move = preload("res://scripts/editor/field/selection_module.gd").new(self)
 var _tool_opt: OptionButton
 var _palette
 var _space_down: bool = false
@@ -201,15 +202,10 @@ enum {
 
 
 func _ready() -> void:
-	_grab_window_scale()
-	paint = PaintTools.new()
-	paint.tile_id = 2816
-	_build_ui()
-	Rtp.ensure_runtime_assets()
-	_open_or_create_default()
-	call_deferred("_fit_layout")
-	if _want_mcp_autostart():
-		call_deferred("_toggle_mcp")
+	# Retired runtime: even direct script/legacy scene launches go to 3D.
+	set_process_input(false)
+	set_process_unhandled_input(false)
+	Net.session().go_world_editor.call_deferred()
 
 
 func _exit_tree() -> void:
@@ -376,16 +372,23 @@ func _build_ui() -> void:
 	right.custom_minimum_size = Vector2(400, 0)
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	mid.add_child(right)
-	_add_lbl(right, "图层（勾选显示）")
+	_add_lbl(right, "图层（显示 / 移动）")
 	_layer_tree = Tree.new()
-	_layer_tree.columns = 2
+	_layer_tree.columns = 3
+	_layer_tree.set_column_title(2, "移动")
+	_layer_tree.set_column_title(1, "图层")
+	_layer_tree.column_titles_visible = true
+	_layer_tree.set_column_expand(2, false)
+	_layer_tree.set_column_custom_minimum_width(2, 44)
 	_layer_tree.hide_root = true
 	_layer_tree.hide_folding = true
 	_layer_tree.select_mode = Tree.SELECT_SINGLE
 	_layer_tree.custom_minimum_size = Vector2(0, 220)
 	_layer_tree.set_column_expand(0, false)
 	_layer_tree.set_column_custom_minimum_width(0, 28)
-	_layer_tree.set_column_expand(1, true)
+	_layer_tree.set_column_expand(1, false)
+	_layer_tree.set_column_custom_minimum_width(1, 210)
+	_layer_tree.set_column_clip_content(1, true)
 	_layer_tree.item_selected.connect(_on_layer_tree)
 	_layer_tree.item_edited.connect(_on_layer_vis)
 	right.add_child(_layer_tree)
@@ -512,6 +515,7 @@ func _playtest(from_cursor: bool = false) -> void:
 
 
 func _select_map(id: String) -> void:
+	_selection_move.cancel(true)
 	EditorSession.select_map(self, id)
 
 
@@ -693,6 +697,7 @@ func _on_layer_tree() -> void:
 func _sync_spec_panel(spec: String, layer_name: String) -> void:
 	_spec_module_logic._sync_spec_panel(spec, layer_name)
 func _on_layer_vis() -> void:
+	if _layer_tree != null and _layer_tree.get_edited_column()==2:return
 	if _layer_tree == null or map_field == null:
 		return
 	var it := _layer_tree.get_edited()
@@ -804,8 +809,10 @@ func _on_palette_tileset(ts_id: String) -> void:
 func _set_hover(cell: Vector2i) -> void:
 	_canvas_module_logic._set_hover(cell)
 func _undo_edit() -> void:
+	_selection_move.cancel()
 	_menu_dialog_module_logic._undo_edit()
 func _redo_edit() -> void:
+	_selection_move.cancel()
 	_menu_dialog_module_logic._redo_edit()
 func _selection_bounds() -> Array[Vector2i]:
 	var a := _cursor
@@ -1153,6 +1160,7 @@ func _on_win_resize() -> void:
 func _fit_layout() -> void:
 	EditorCanvas.fit_layout(self)
 func _set_mode(mode: int) -> void:
+	_selection_move.cancel(true)
 	_mode = mode
 	_placing_start = false
 	if _mode_map_btn:
@@ -1176,6 +1184,7 @@ func _set_mode(mode: int) -> void:
 
 
 func _set_tool(tool_id: int) -> void:
+	_selection_move.cancel(true)
 	paint.tool = tool_id
 	_placing_start = false
 	_poly_pts.clear()
@@ -1187,7 +1196,7 @@ func _set_tool(tool_id: int) -> void:
 	if _start_btn:
 		_start_btn.set_pressed_no_signal(false)
 	if tool_id == PaintTools.Tool.SELECT:
-		_status.text = "选区：拖拽后 Ctrl+C 复制、Ctrl+X 剪切、Ctrl+V 粘贴、Delete 清除"
+		_status.text = "选区：框选后在框内拖动 · 右侧勾选移动图层 · Shift重选 · Esc取消"
 	if _tool_opt:
 		for i in range(_tool_opt.item_count):
 			if _tool_opt.get_item_id(i) == tool_id:

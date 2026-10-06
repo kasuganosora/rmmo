@@ -1,0 +1,101 @@
+{
+  "source": "User-provided images in the 2026-10-04 project conversation. Exact byte copies; no external source URL supplied.",
+  "images": [
+    {
+      "file": "01_current_repetition.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-a7e22f2f-83e8-4256-adba-e434dd12a87b.png",
+      "sha256": "10661df0fdf2ffa6d2a8691e4d9b6d4675edfe715e75ac6837606bd4f432bd3b",
+      "bytes": 1606168
+    },
+    {
+      "file": "02_long_stone_building.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-64e7bbf7-9e57-4a98-8c50-51e4d0a73db1.png",
+      "sha256": "0a10feb83ab0032b9f823403eba101d1a6b16a34c810f7e6012dabd0b3378b7e",
+      "bytes": 1922755
+    },
+    {
+      "file": "03_door_and_steps.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-17e87dfc-803b-4ea2-9266-5d5a4c1388b8.png",
+      "sha256": "5a3fa3deff6df055e7329492ffb18eec27da5c8ed0e949c2d2918e8143d43922",
+      "bytes": 1785085
+    },
+    {
+      "file": "04_riverside_street.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-ef7e8307-1075-479f-8158-a21bd7cf5b85.png",
+      "sha256": "2ca6a8805887717bb79d61aeaee1c473973bf4d039b1ca5cb410515ea277dc09",
+      "bytes": 1979720
+    },
+    {
+      "file": "05_bridgefront_street.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-2f7967fa-6c0f-45fc-a20a-960240d789f7.png",
+      "sha256": "dbc3add99af56f9e972f9d68661d84e9b1e93a4ca7667c2569c14a3b1b8e78b9",
+      "bytes": 1927250
+    },
+    {
+      "file": "06_riverside_courtyards.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-10b5994d-d49c-4780-87ed-84b5b3404597.png",
+      "sha256": "514ae1112983a93d0a6fc881d58206be376c64b4042da6f6d394777aabdffc0d",
+      "bytes": 2028474
+    },
+    {
+      "file": "07_room_and_wall_sconce.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-7ea3f174-c013-4f40-bb08-0a6a773b4fcc.png",
+      "sha256": "243f388c26ee89db442f708d386614c8180f209aae98183f227ebd523cc394b3",
+      "bytes": 1289576
+    },
+    {
+      "file": "08_market_cloth_canopies.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-b16f16c4-8719-4559-963b-fe46cb28984e.png",
+      "sha256": "15b8902bf1a0f248441d922d6b7ff10f4e23915631491c48c6bcb91d8220fa73",
+      "bytes": 1206257
+    },
+    {
+      "file": "09_dense_shopfronts.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-46ff03e0-d6a0-41eb-b58d-3bdc3240a30f.png",
+      "sha256": "1d940074b347631642a84232977f4ad397a466e651f8350af4a638413e9ea707",
+      "bytes": 1521231
+    },
+    {
+      "file": "10_landmark_and_square.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-80b08f09-850d-4810-b54c-d9491a5e5a2a.png",
+      "sha256": "9ec9778b6b4c5b5ae6e7250a9b1cabdb391c021bd173728042fbce78c3066173",
+      "bytes": 1584550
+    },
+    {
+      "file": "11_city_overview.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-2a703206-6140-4387-abe5-a1bc8ca9c745.png",
+      "sha256": "65237d35495ba551b58c7d55d557592493248443574c560f31c67d7841db4af7",
+      "bytes": 1740502
+    },
+    {
+      "file": "12_open_riverbank.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-f03a1c65-7dd0-4d68-bfb2-129d66045172.png",
+      "sha256": "2bac8bdd6f04683a602f908103cb295a0b3c00c0c94225b6b4c0edb088eb095b",
+      "bytes": 1478813
+    },
+    {
+      "file": "13_market_street_overview.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-c0b0afd6-0a7d-4e6b-8570-94cdfb7dc4aa.png",
+      "sha256": "ddd7ea32e40fdd4af2328ffe8b9a7e2e2244cba7d3d0105019299830ed64b8c2",
+      "bytes": 1682387
+    },
+    {
+      "file": "14_residential_garden.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-d1050c86-9348-4375-98cb-7d3379e62dfd.png",
+      "sha256": "a83db37fe2088d0492756bbeab6f20e4dcd5152380c87a5710bb9c417a93c9cd",
+      "bytes": 1599897
+    },
+    {
+      "file": "15_original_town_plan.webp",
+      "source": "C:\\Users\\luna\\Desktop\\m.webp",
+      "sha256": "2d5c6d03838a4fc3d140180e15e4b2bf55403312a8d7dd7e9e009d71f8406381",
+      "bytes": 433876
+    },
+    {
+      "file": "16_reserved_landmarks.png",
+      "source": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-d36810ed-8f63-44c3-9dee-6b18c09b7ecc.png",
+      "sha256": "42c88b1e77dd93d0d7aee4e69991818b6837a5a166f329258685252a7fde4c16",
+      "bytes": 1956029
+    }
+  ]
+}

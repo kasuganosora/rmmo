@@ -76,6 +76,9 @@ static func _as_color(v: Variant, fallback: Color = Color.WHITE) -> Color:
 
 
 static func particle_weight(atm: Dictionary, kind: String) -> float:
+	# A transition can itself become the source of the next transition.
+	if atm.has(kind + "_weight"):
+		return maxf(float(atm[kind + "_weight"]), 0.0)
 	var k := str(atm.get("kind", "")).strip_edges()
 	var p := str(atm.get("particles", "")).strip_edges()
 	var amt := maxf(float(atm.get("particle_amount", 0.0)), 0.0)
@@ -104,6 +107,7 @@ static func blend(from_atm: Dictionary, to_atm: Dictionary, t: float) -> Diction
 	var fcb := _as_color(to_atm.get("fog_color", mb), mb)
 	var pick: Dictionary = to_atm if t >= 0.5 else from_atm
 	var out: Dictionary = pick.duplicate(true)
+	out["wind"] = wind_vector(from_atm).lerp(wind_vector(to_atm),t)
 	out["modulate"] = ma.lerp(mb, t)
 	out["fog"] = lerpf(float(from_atm.get("fog", 0.0)), float(to_atm.get("fog", 0.0)), t)
 	out["fog_color"] = fca.lerp(fcb, t)
@@ -136,6 +140,7 @@ static func compose(light_id: int, kind: String, intensity: float, map_indoor: b
 	var fog_a := float(def.get("fog", 0.0)) * vis_i
 	var amount := float(def.get("particle_amount", 1.0)) * vis_i
 	return {
+		"wind": Vector2.ZERO if map_indoor else _configured_wind(def,vis_kind)*vis_i,
 		"kind": vis_kind,
 		"logical_kind": normalize(kind),
 		"intensity": vis_i,
@@ -172,3 +177,20 @@ static func _ensure() -> void:
 		"cycle": ["clear"],
 		"duration_sec": [45, 80],
 	}
+
+
+# Map-space vector points TOWARD the destination of the wind (x east, y south).
+static func _configured_wind(def:Dictionary,kind:String)->Vector2:
+	var direction:Variant=def.get("wind_direction",[1.0,0.0])
+	var axis:=Vector2(float(direction[0]),float(direction[1])) if direction is Array and direction.size()>=2 else Vector2.RIGHT
+	var strength:=float(def.get("wind_strength",{"clear":.08,"rain":.3,"storm":1.0,"snow":.25,"fog":.05}.get(kind,.08)))
+	return axis.normalized()*clampf(strength,0,1)
+
+static func wind_vector(atm:Dictionary)->Vector2:
+	if bool(atm.get("map_indoor",false)):return Vector2.ZERO
+	var value:Variant=atm.get("wind",Vector2.ZERO)
+	return value if value is Vector2 else Vector2.ZERO
+
+static func sample_wind(atm:Dictionary,time:float)->Vector2:
+	# One shared gust phase for particles and every actor, including stationary NPCs.
+	return wind_vector(atm)*(0.78+0.15*sin(time*1.7)+0.07*sin(time*4.1))

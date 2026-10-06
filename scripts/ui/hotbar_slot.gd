@@ -1,11 +1,14 @@
 extends Button
-## Hotbar cell: drag bind, right-click clear. CD clock chrome is owned by the skill cell.
+## Click to use; thresholded drag to rearrange; right-click opens a safe menu.
 
 signal item_dropped(page: int, slot: int, item_id: String)
 signal skill_dropped(page: int, slot: int, skill_id: String)
 signal binding_cleared(page: int, slot: int)
+signal activated(page: int, slot: int, key: String)
+signal binding_dropped(page: int, slot: int, data: Dictionary)
 
 const CdChrome = preload("res://scripts/ui/cd_chrome.gd")
+const HotbarStyle = preload("res://scripts/ui/hotbar_style.gd")
 
 var page: int = 0
 var slot_num: int = 0
@@ -22,12 +25,26 @@ var icon_ref: String = ""
 ## Bound skill/item id for CD matching.
 var bound_kind: String = ""
 var bound_id: String = ""
+var editing_locked := false
+var drop_validator: Callable
+var _click_armed := false
+var _suppress_click := false
+var _press_position := Vector2.ZERO
+var _drop_target := false
+var _menu: PopupMenu
 
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	add_theme_stylebox_override("normal", HotbarStyle.slot("empty"))
+	add_theme_stylebox_override("hover", HotbarStyle.slot("hover"))
+	add_theme_stylebox_override("pressed", HotbarStyle.slot("pressed"))
 	_ensure_badges()
+	mouse_exited.connect(_clear_drop_target)
+	_menu = PopupMenu.new()
+	add_child(_menu)
+	_menu.id_pressed.connect(_on_menu_action)
 
 
 func configure(p_page: int, p_slot: int) -> void:
@@ -40,6 +57,7 @@ func _ensure_badges() -> void:
 		_ensure_cd()
 		return
 	_icon_rect = TextureRect.new()
+	_icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_icon_rect.name = "Icon"
 	_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -82,20 +100,20 @@ func _ensure_badges() -> void:
 	_key.name = "KeyHint"
 	_key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_key.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_key.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	_key.add_theme_font_size_override("font_size", 9)
-	_key.add_theme_color_override("font_color", Color(0.75, 0.78, 0.88, 0.95))
+	_key.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_key.add_theme_font_size_override("font_size", 10)
+	_key.add_theme_color_override("font_color", Color(0.96, 0.95, 0.89))
 	_key.add_theme_constant_override("outline_size", 2)
 	_key.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
-	_key.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_key.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_key.anchor_left = 0.0
-	_key.anchor_top = 1.0
+	_key.anchor_top = 0.0
 	_key.anchor_right = 0.0
-	_key.anchor_bottom = 1.0
+	_key.anchor_bottom = 0.0
 	_key.offset_left = 2
-	_key.offset_top = -12
-	_key.offset_right = 28
-	_key.offset_bottom = -1
+	_key.offset_top = -2
+	_key.offset_right = 38
+	_key.offset_bottom = 12
 	add_child(_key)
 	_ensure_cd()
 
@@ -119,6 +137,7 @@ func set_binding_visual(kind: String, letter: String, qty: int, tip: String, p_i
 	_ensure_badges()
 	tooltip_text = tip
 	bound_kind = kind.strip_edges()
+	add_theme_stylebox_override("normal", HotbarStyle.slot("filled" if kind in ["item", "skill"] else "empty"))
 	icon_index = p_icon_index
 	icon_ref = p_icon_ref.strip_edges()
 	if kind == "item" or kind == "skill":
@@ -230,31 +249,83 @@ func tick_cooldown(delta: float) -> void:
 		_cd.tick_cooldown(delta)
 
 
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	if editing_locked or bound_id.is_empty():
+		return null
+	_suppress_click = true
+	_click_armed = false
+	# Distinct payload: world/inventory drop targets must never consume an item.
+	var data := {"kind": "hotbar", "source_page": page, "source_slot": slot_num,
+		"binding": {"kind": bound_kind, "id": bound_id}, "copy": Input.is_key_pressed(KEY_CTRL)}
+	set_drag_preview(preload("res://scripts/ui/icon_preview.gd").make_drag_preview(
+		_avatar.text if _avatar != null else bound_id, icon_index, icon_ref))
+	modulate.a = 0.45
+	return data
+
+
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	if typeof(data) != TYPE_DICTIONARY:
-		return false
-	var kind := str((data as Dictionary).get("kind", ""))
-	return kind == "item" or kind == "skill"
+	_drop_target = drop_validator.is_valid() and bool(drop_validator.call(page, slot_num, data))
+	queue_redraw()
+	return _drop_target
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
-	if typeof(data) != TYPE_DICTIONARY:
+	if not _can_drop_data(_at_position, data):
 		return
-	var d: Dictionary = data
-	var kind := str(d.get("kind", ""))
-	if kind == "item":
-		var iid := str(d.get("item_id", "")).strip_edges()
-		if not iid.is_empty():
-			item_dropped.emit(page, slot_num, iid)
-	elif kind == "skill":
-		var sid := str(d.get("skill_id", d.get("id", ""))).strip_edges()
-		if not sid.is_empty():
-			skill_dropped.emit(page, slot_num, sid)
+	binding_dropped.emit(page, slot_num, data)
+	_clear_drop_target()
 
 
 func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and _click_armed:
+		if event.position.distance_to(_press_position) > 8.0:
+			_suppress_click = true
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.pressed:
+				_press_position = mb.position
+				_click_armed = true
+				_suppress_click = false
+			else:
+				if _click_armed and not _suppress_click and not get_viewport().gui_is_dragging() and Rect2(Vector2.ZERO, size).has_point(mb.position):
+					activated.emit(page, slot_num, _key.text)
+				_click_armed = false
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
-			binding_cleared.emit(page, slot_num)
+			if bound_id.is_empty():
+				return
+			_menu.clear()
+			_menu.add_item("使用", 0)
+			_menu.add_separator()
+			_menu.add_item("从快捷栏移除" if not editing_locked else "已锁定 · 解锁后可移除", 1)
+			_menu.set_item_disabled(_menu.get_item_index(1), editing_locked)
+			var point := get_global_transform_with_canvas() * mb.position
+			_menu.position = Vector2i(point if _menu.is_embedded() else get_viewport().get_screen_transform() * point)
+			_menu.popup()
 			accept_event()
+
+
+func _on_menu_action(id: int) -> void:
+	if id == 0:
+		activated.emit(page, slot_num, _key.text)
+	elif id == 1 and not editing_locked:
+		binding_cleared.emit(page, slot_num)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_BEGIN:
+		_click_armed = false
+		_suppress_click = true
+	elif what == NOTIFICATION_DRAG_END:
+		modulate.a = 1.0
+		_clear_drop_target()
+
+
+func _clear_drop_target() -> void:
+	_drop_target = false
+	queue_redraw()
+
+
+func _draw() -> void:
+	if _drop_target:
+		draw_rect(Rect2(Vector2.ONE, size - Vector2(2, 2)), Color(0.8, 0.72, 0.48), false, 2.0)

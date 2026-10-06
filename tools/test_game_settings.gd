@@ -32,6 +32,7 @@ func _run() -> void:
 	failed += _expect(AudioServer.get_bus_index("BGM") >= 0, "BGM bus")
 	failed += _expect(AudioServer.get_bus_index("SFX") >= 0, "SFX bus")
 	failed += _expect(AudioServer.get_bus_index("Ambient") >= 0, "Ambient bus")
+	gs.set_cloud_quality("high")
 	gs.set_master_volume(40)
 	gs.set_flag("always_run", true)
 	gs.set_flag("show_npc_names", false)
@@ -48,6 +49,7 @@ func _run() -> void:
 	gs2.persist_enabled = false
 	root.add_child(gs2)
 	gs2.load_from_disk()
+	failed += _expect(gs2.cloud_quality == "high", "reload local cloud quality")
 	failed += _expect(gs2.master_volume == 40, "reload master")
 	failed += _expect(gs2.always_run, "reload always_run")
 	failed += _expect(not gs2.show_npc_names, "reload npc names")
@@ -103,43 +105,16 @@ func _run() -> void:
 	failed += _expect(tabs != null and tabs.get_child_count() == 5, "5 system tabs")
 	var body: VBoxContainer = sys.get_meta("body")
 	failed += _expect(body != null, "system body")
-	var has_opt := false
-	if body:
-		for c in body.get_children():
-			if c is HBoxContainer:
-				for cc in c.get_children():
-					if cc is OptionButton:
-						has_opt = true
-	failed += _expect(has_opt, "video tab has option")
+	failed += _expect(not body.find_children("*", "OptionButton", true, false).is_empty(), "video tab has option")
 	hud._on_system_tab("audio")
 	await process_frame
-	body = sys.get_meta("body")
-	var sliders := 0
-	if body:
-		for c in body.get_children():
-			if c is HBoxContainer:
-				for cc in c.get_children():
-					if cc is HSlider:
-						sliders += 1
-	failed += _expect(sliders >= 4, "audio tab 4 sliders got %d" % sliders)
+	failed += _expect(body.find_children("*", "HSlider", true, false).size() == 4, "audio tab has four sliders")
 	hud._on_system_tab("game")
 	await process_frame
-	body = sys.get_meta("body")
-	var checks := 0
-	if body:
-		for c in body.get_children():
-			if c is CheckBox:
-				checks += 1
-	failed += _expect(checks >= 6, "game tab checks got %d" % checks)
+	failed += _expect(body.find_children("*", "CheckBox", true, false).size() >= 6, "display section retains visibility options")
 	hud._on_system_tab("system")
 	await process_frame
-	body = sys.get_meta("body")
-	var nav_btns := 0
-	if body:
-		for c in body.get_children():
-			if c is Button:
-				nav_btns += 1
-	failed += _expect(nav_btns >= 3, "system nav buttons got %d" % nav_btns)
+	failed += _expect(body.find_children("*", "Button", true, false).size() >= 3, "system action groups retain navigation")
 
 	var Npc = load("res://scripts/game/npc_actor.gd")
 	if live != null and Npc != null:

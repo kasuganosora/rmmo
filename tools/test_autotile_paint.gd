@@ -282,9 +282,21 @@ func _run() -> void:
 		field._bake_next_chunk()
 	failed += _expect(_chunk_has_pixels(field), "autotile patch is visible")
 	field.free()
-	var ed_src := FileAccess.get_file_as_string("res://scripts/editor/content_editor.gd")
-	failed += _expect(ed_src.find("地面 z0（先铺草地）") >= 0, "z0 labeled starter grass")
-	failed += _expect(ed_src.find("叠层 z1（路/沙盖在草上）") >= 0, "z1 labeled overlay")
+	# Check the actual layer tree, independent of source-file refactors.
+	var layer_editor = load("res://scripts/editor/content_editor.gd").new()
+	var layer_tree := Tree.new()
+	layer_tree.columns = 2
+	layer_editor._layer_tree = layer_tree
+	var tree_logic = load("res://scripts/editor/field/tree_module.gd").new(layer_editor)
+	tree_logic._fill_layer_tree()
+	var mv_group := layer_tree.get_root().get_first_child()
+	var ground := mv_group.get_first_child()
+	var overlay := ground.get_next()
+	failed += _expect(ground.get_text(1) == "地面 z0（先铺草地）" and ground.get_metadata(0).z == 0, "z0 labeled starter grass")
+	failed += _expect(overlay.get_text(1) == "叠层 z1（路/沙盖在草上）" and overlay.get_metadata(0).z == 1, "z1 labeled overlay")
+	layer_editor._layer_tree = null
+	layer_tree.free()
+	layer_editor.free()
 	if failed == 0:
 		print("ALL PASS")
 		quit(0)

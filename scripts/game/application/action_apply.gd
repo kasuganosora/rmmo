@@ -8,9 +8,34 @@ const NpcActor = preload("res://scripts/game/npc_actor.gd")
 const CombatFloater = preload("res://scripts/game/combat_floater.gd")
 const CombatLogScript = preload("res://scripts/game/combat_log.gd")
 
+## Server action opcodes seen but not handled here, deduped so each is warned once.
+## Surfaces gaps when a new (Go) server emits an opcode the client doesn't apply yet.
+static var _unknown_action_types: Dictionary = {}
+
+
+## Warn once per unhandled action type; keep a record for telemetry / tests.
+static func _note_unknown_action(atype: String) -> void:
+	atype = atype.strip_edges()
+	if atype == "" or _unknown_action_types.has(atype):
+		return
+	_unknown_action_types[atype] = true
+	push_warning("action_apply: unhandled server action type '%s' (ignored)" % atype)
+
+
+## Distinct unhandled action types seen this session.
+static func unknown_action_types() -> Array:
+	return _unknown_action_types.keys()
+
+
+static func reset_unknown_action_types() -> void:
+	_unknown_action_types.clear()
+
+
 static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 	## Execute MockServer/GameServer action opcodes. Chat opens only via show_npc_dialogue.
 	## A wait action parks the rest of this batch until tick_event_wait elapses.
+	if ctrl == null:
+		return
 	if ctrl.hud == null:
 		ctrl.hud = ctrl.get_node_or_null("CanvasLayer/GameHud")
 	ctrl.last_applied_action_types = []
@@ -82,6 +107,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 				ctrl._auto_attack = false
 				if ctrl.player != null:
 					ctrl.player.input_locked = true
+					if ctrl.player.has_method("play_character_action"):
+						ctrl.player.play_character_action("death", true)
 					if ctrl.player.has_method("clear_move_path"):
 						ctrl.player.clear_move_path()
 				if ctrl.hud != null and ctrl.hud.has_method("clear_target"):
@@ -159,6 +186,9 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						"kind": ckind,
 						"skill_id": str(action.get("skill_id", "")),
 					})
+					# Show the enemy's cast bar on the target frame when it's our target.
+					if npc_caster == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_start"):
+						ctrl.hud.apply_target_cast_start(npc_caster, action)
 			"cast_update":
 				var npc_cu = str(action.get("npc_id", "")).strip_edges()
 				if npc_cu.is_empty():
@@ -167,6 +197,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_cu = c1
 				if npc_cu.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_update"):
 					ctrl.hud.apply_cast_update(action)
+				elif npc_cu == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_update"):
+					ctrl.hud.apply_target_cast_update(npc_cu, action)
 			"cast_end":
 				var npc_ce = str(action.get("npc_id", "")).strip_edges()
 				if npc_ce.is_empty():
@@ -175,6 +207,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 						npc_ce = c2
 				if npc_ce.is_empty() and ctrl.hud != null and ctrl.hud.has_method("apply_cast_end"):
 					ctrl.hud.apply_cast_end(action)
+				elif npc_ce == ctrl._selected_npc_id and ctrl.hud != null and ctrl.hud.has_method("apply_target_cast_end"):
+					ctrl.hud.apply_target_cast_end(npc_ce)
 			"skill_fx":
 				apply_skill_fx(ctrl, action)
 			"skill_anim":
@@ -292,6 +326,8 @@ static func apply_server_actions(ctrl, actions: Array, npc = null) -> void:
 					ctrl.hud.append_system(msg)
 			"weather":
 				apply_weather_action(ctrl, action)
+			_:
+				_note_unknown_action(atype)
 
 static func apply_npc_move(ctrl, action: Dictionary) -> void:
 	var npc_id = str(action.get("npc_id", "")).strip_edges()
@@ -877,7 +913,7 @@ static func apply_recall(ctrl, action: Dictionary) -> void:
 static func apply_sit(ctrl, action: Dictionary) -> void:
 	var on = bool(action.get("on", false))
 	if ctrl.player != null and ctrl.player.has_method("set_sitting"):
-		ctrl.player.set_sitting(on)
+		ctrl.player.set_sitting(on, str(action.get("seat", "ground")) == "chair")
 
 static func apply_respawn(ctrl, action: Dictionary) -> void:
 	ctrl._clear_pending_engage()
@@ -1089,6 +1125,16 @@ static func apply_skill_anim(ctrl, action: Dictionary) -> void:
 		node = ctrl._find_npc_by_id(actor)
 	if node == null:
 		return
+	if node.has_method("play_character_action"):
+		var pose: String = "attack" if kind in ["strike", "spin", "attack"] else kind
+		var variant:String=str(action.get("motion", ""))
+		if variant.is_empty():
+			match str(action.get("skill_id","")):
+				"power_strike","execute":variant="attack_sword_heavy" if node==ctrl.player and ctrl.player.character_3d!=null and ctrl.player.character_3d.model.equipment.get("WeaponMain")!=null and int(ctrl.player.character_3d.model.equipment.get("WeaponMain",0))>0 else "attack_hook"
+				"heal_light","regen_mist","revive","channel_beam":variant="cast_charge"
+				"flame_burst","arcane_bolt":variant="cast_quick"
+		if node==ctrl.player:node.play_character_action(pose,false,variant)
+		else:node.play_character_action(pose)
 	if ctrl._skill_fx.has_method("play_action"):
 		ctrl._skill_fx.play_action(kind, node, facing)
 	else:

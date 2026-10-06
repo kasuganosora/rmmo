@@ -6,6 +6,15 @@ extends RefCounted
 var _by_target: Dictionary = {}
 
 
+func save_runtime(target_key: String) -> Array:
+	return _by_target.get(target_key, []).duplicate(true)
+
+
+func restore_runtime(target_key: String, records: Array) -> void:
+	clear_all(target_key)
+	if not records.is_empty(): _by_target[target_key] = records.duplicate(true)
+
+
 func apply_status(target_key: String, def: Dictionary, duration: float = -1.0, source_id: String = "") -> Dictionary:
 	target_key = target_key.strip_edges()
 	if target_key.is_empty() or def.is_empty():
@@ -270,6 +279,8 @@ func get_mods(target_key: String) -> Dictionary:
 func move_speed_mul(target_key: String) -> float:
 	var m: Dictionary = get_mods(target_key)
 	var v: float = float(m.get("move_speed_mul", 1.0))
+	if v <= 0.0:
+		return 0.0
 	if v < 0.25:
 		return 0.25
 	if v > 3.0:

@@ -7,6 +7,51 @@ signal characters_ready(list: Array)
 signal character_created(ok: bool, message: String, character: Dictionary)
 signal enter_world_ready(ok: bool, message: String, spawn: Dictionary)
 
+var sky_authority := preload("res://scripts/net/server/sky_module.gd").new()
+
+## Local scaffold map registry hook; not a client RPC or a seed-setting request.
+func mount_world3d_sky(map_id: String, path: String) -> void:
+	if sky_authority.maps.has(map_id): return
+	var settings := preload("res://scripts/world3d/environment_settings.gd").defaults()
+	if preload("res://scripts/world3d/map_paths.gd").allowed(path) and FileAccess.file_exists(path):
+		# Weather only needs server-owned environment metadata. Reopening the
+		# complete editor document here revalidates every painted face on the
+		# main thread after the runtime loader has already finished the map.
+		var Doc=preload("res://scripts/world3d/world_document.gd")
+		var EnvironmentSettings=preload("res://scripts/world3d/environment_settings.gd")
+		var native: Dictionary=Doc.authoritative_extras(path)
+		if native.has("extras"):
+			if EnvironmentSettings.valid(native.extras): settings=EnvironmentSettings.resolve(native.extras)
+		elif not native.has("error"):
+			var document=Doc.open_file(path)
+			if document!=null: settings=EnvironmentSettings.resolve(document.map_meta)
+	sky_authority.ensure_map(map_id,settings)
+
+## Local loader handoff, not a client RPC. The loader validated this immutable snapshot.
+func register_loaded_world3d_environment(path:String, extras:Dictionary)->void:
+	var id:=str(extras.get("map_ref",""))
+	if not preload("res://scripts/world3d/world_location.gd").map_ref_ok(id):id="prototype/map_"+path.sha256_text().substr(0,16)
+	if sky_authority.maps.has(id):return
+	var settings=preload("res://scripts/world3d/environment_settings.gd")
+	if settings.valid(extras):sky_authority.ensure_map(id,settings.resolve(extras))
+
+func snapshot_world3d_sky(map_id: String) -> Dictionary:
+	return sky_authority.snapshot(map_id,Time.get_ticks_msec()/1000.0)
+
+## Trusted gameplay/GM request in this scaffold. Real transports must authorize it.
+func try_set_world3d_environment(map_id: String, changes: Dictionary) -> Dictionary:
+	return sky_authority.set_environment(map_id,changes,Time.get_ticks_msec()/1000.0)
+
+## Trusted server-script commands, deliberately absent from the client request API.
+func issue_world3d_meteor(map_id: String, event: Dictionary) -> bool:
+	return sky_authority.meteor(map_id,event)
+
+func issue_world3d_meteor_shower(map_id: String, command: Dictionary) -> bool:
+	return sky_authority.meteor_shower(map_id,command)
+
+func issue_world3d_lightning(map_id: String, event: Dictionary) -> bool:
+	return sky_authority.lightning(map_id,event)
+
 const LATENCY_SEC := 0.35
 const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")
@@ -470,6 +515,9 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	_session_module_logic.create_character(char_name, class_id, look_id, gender, customization)
 func enter_world(character_id: int) -> void:
 	_session_module_logic.enter_world(character_id)
+
+func enter_world3d(character_id: int) -> void:
+	_session_module_logic.enter_world(character_id, true)
 ## Sync player occupancy into map_collision.extra_blocked.
 func set_player_cell(x: int, y: int) -> void:
 	_movement_module_logic.set_player_cell(x, y)
@@ -533,6 +581,51 @@ func try_mount() -> Dictionary:
 	return _movement_module_logic.try_mount()
 func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 	return _movement_module_logic.try_move(from_x, from_y, dir)
+
+
+var _world3d_worker = null
+var world3d_summons: WeakRef
+var world3d_state = preload("res://scripts/world3d/world_state.gd").new()
+var world3d_events = preload("res://scripts/world3d/world_events.gd").new(self)
+var world3d_authority = preload("res://scripts/world3d/world_authority.gd").new()
+
+
+func try_move_world(sequence: int, direction: Vector3, speed_mps: float, jump:bool=false) -> Dictionary:
+	return world3d_authority.move_intent(sequence, direction, speed_mps,jump)
+
+
+func _exit_tree() -> void:
+	world3d_release_actors()
+
+
+## Mounts the whole map, but replies only ever contain the player's current chunk.
+func world3d_mount_actors(table) -> void:
+	world3d_release_actors()
+	var worker = load("res://scripts/world3d/chunk_actor_worker.gd").new()
+	worker.start(table)
+	_world3d_worker = worker
+
+
+func world3d_release_actors() -> void:
+	if _world3d_worker != null:
+		_world3d_worker.stop()
+		_world3d_worker = null
+
+
+func world3d_actor_generation() -> int:
+	if _world3d_worker == null:
+		return 0
+	return int(_world3d_worker.latest().get("generation", 0))
+
+
+## Kicks the coordinate worker and returns the last published chunk packet.
+## `actors` is the whole current chunk. `view` is the subset inside the camera.
+func try_world3d_chunk(player_x: float, player_z: float, view_m: float = -1.0) -> Dictionary:
+	if _world3d_worker == null:
+		return {"ok": false, "actors": [], "view": [], "sent": 0, "visible": 0, "total": 0}
+	var radius := 12.0 if view_m < 0.0 else view_m
+	_world3d_worker.kick(Vector3(player_x, 0.0, player_z), radius)
+	return _world3d_worker.latest()
 ## Authoritative NPC grid step (server AI only — client must not call).
 ## Blocks player_cell; updates extra_blocked + AI facing on success.
 ## Returns {ok, x, y, facing, npc_id}.
@@ -771,6 +864,7 @@ func _best_auto_potion(effect: String) -> String:
 func _maybe_auto_potion_msg(text: String) -> void:
 	_combat_module_logic._maybe_auto_potion_msg(text)
 func try_use_item(item_id: String) -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().use_item(item_id)
 	return _inventory_module_logic.try_use_item(item_id)
 ## Pre-consume checks for recall / teleport_home items (Chinese messages).
 func _gate_recall_item_use() -> Dictionary:
@@ -1631,6 +1725,7 @@ func try_party_clear_target() -> Dictionary:
 ## --- Party summon stone「集结石」(same-map thin v1) ---
 
 func snapshot_party_summon() -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.snapshot_party()
 	return _party_module_logic.snapshot_party_summon()
 ## Use consumable party_summon: require same-map party N>1 + free adjacent cell.
 func _try_party_summon_item(item_id: String, def: Dictionary) -> Dictionary:
@@ -1642,11 +1737,19 @@ func _party_summon_cell_free(x: int, y: int) -> bool:
 	return _party_module_logic._party_summon_cell_free(x, y)
 ## Member accepts pending summon (MockServer API / headless). member_id required for stubs.
 func try_party_summon_accept(member_id: String = "") -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.party_accept(member_id)
 	return _party_module_logic.try_party_summon_accept(member_id)
 func try_party_summon_decline(member_id: String = "") -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.party_decline(member_id)
 	return _party_module_logic.try_party_summon_decline(member_id)
 ## Debug/headless: accept all pending invites (stubs).
 func try_party_summon_accept_all() -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null:
+		var summons = world3d_summons.get_ref().summons
+		var accepted := 0
+		for id in summons.pending.get("invites", {}).keys():
+			if summons.party_accept(str(id)).get("ok", false): accepted += 1
+		return {"ok": accepted > 0, "accepted": accepted, "actions": []}
 	return _party_module_logic.try_party_summon_accept_all()
 func _party_summon_apply_member_cell(member_id: String, dest: Vector2i, actions: Array) -> void:
 	_party_module_logic._party_summon_apply_member_cell(member_id, dest, actions)
@@ -2126,6 +2229,7 @@ func try_auction_buy(listing_id: String) -> Dictionary:
 func try_auction_cancel(listing_id: String) -> Dictionary:
 	return _auction_module_logic.try_auction_cancel(listing_id)
 func snapshot_pet() -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.snapshot_pet()
 	return _pet_module_logic.snapshot_pet()
 func _pet_reset() -> void:
 	_pet_module_logic._pet_reset()
@@ -2138,8 +2242,10 @@ func _pet_pick_spawn_cell(pc: Vector2i) -> Vector2i:
 func _pet_snap_near_player() -> void:
 	_pet_module_logic._pet_snap_near_player()
 func try_pet_summon(pet_id: String = "default") -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.pet_summon(pet_id)
 	return _pet_module_logic.try_pet_summon(pet_id)
 func try_pet_dismiss() -> Dictionary:
+	if world3d_summons != null and world3d_summons.get_ref() != null: return world3d_summons.get_ref().summons.pet_dismiss()
 	return _pet_module_logic.try_pet_dismiss()
 ## Tick: move toward player when Chebyshev distance > PET_LAG_MAX; stay in lag 1–2.
 func _tick_pet_follow(dt: float) -> Array:
@@ -2186,3 +2292,11 @@ func try_dungeon_enter() -> Dictionary:
 	return _dungeon_module_logic.try_dungeon_enter()
 func try_dungeon_exit() -> Dictionary:
 	return _dungeon_module_logic.try_dungeon_exit()
+
+var facial_expressions=preload("res://scripts/net/server/facial_expression_module.gd").new(self)
+func try_facial_expression(weights:Dictionary)->Dictionary:
+	return facial_expressions.request(weights)
+func try_remote_facial_expression(actor_id:String,weights:Dictionary)->Dictionary:
+	return facial_expressions.debug_remote(actor_id,weights)
+
+var furniture=preload("res://scripts/net/server/furniture_module.gd").new()

@@ -2,46 +2,38 @@ extends RefCounted
 ## UI panel: titles, daily board, achievements.
 
 var ctrl
+var _title_tabs: HBoxContainer
+var _achievement_tabs: HBoxContainer
+var _titles_filter := 0
+var _achievements_filter := 0
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
-const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const GameWindow = preload("res://scripts/ui/game_window.gd")
+const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
 const StatusPanel = preload("res://scripts/ui/panels/status_panel.gd")
 
 func _build_titles_panel() -> void:
 	ctrl._titles_panel = PanelContainer.new()
 	ctrl._titles_panel.name = "TitlesPanel"
-	ctrl._titles_panel.set_script(HudDrag)
+	ctrl._titles_panel.set_script(GameWindow)
 	ctrl._titles_panel.screen_margin = 4.0
 	ctrl._titles_panel.min_size = Vector2(300, 240)
 	ctrl._titles_panel.default_size = Vector2(360, 440)
 	ctrl._titles_panel.initial_dock = "none"
 	ctrl._titles_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._titles_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._titles_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "TitlesTitle"
-	title.text = "称号"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._titles_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._titles_panel, "称号", func(): ctrl._titles_panel.visible = false, "TitlesTitle")
+	_title_tabs = GameWindow.add_tabs(outer, ["全部", "已解锁"], func(index):
+		_titles_filter = index
+		GameWindow.highlight_tabs(_title_tabs, index)
+		_refresh_titles_panel()
+	)
+	GameWindow.highlight_tabs(_title_tabs, 0)
 	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 320)
 	outer.add_child(scroll)
@@ -62,7 +54,7 @@ func _nudge_titles() -> void:
 		return
 	ctrl._titles_panel.size = Vector2(360, 440)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._titles_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 180)), 88)
+	ctrl._window_manager_logic.place_at(ctrl._titles_panel, Vector2(maxi(8, int(vp.x * 0.5 - 180)), 88))
 
 
 
@@ -106,40 +98,21 @@ func apply_title_update(action: Dictionary) -> void:
 func _build_daily_panel() -> void:
 	ctrl._daily_panel = PanelContainer.new()
 	ctrl._daily_panel.name = "DailyQuestPanel"
-	ctrl._daily_panel.set_script(HudDrag)
+	ctrl._daily_panel.set_script(GameWindow)
 	ctrl._daily_panel.screen_margin = 4.0
 	ctrl._daily_panel.min_size = Vector2(280, 180)
 	ctrl._daily_panel.default_size = Vector2(340, 280)
 	ctrl._daily_panel.initial_dock = "none"
 	ctrl._daily_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._daily_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._daily_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "DailyTitle"
-	title.text = "日常任务"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._daily_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._daily_panel, "日常任务", func(): ctrl._daily_panel.visible = false, "DailyTitle")
 	var date_lbl = Label.new()
 	date_lbl.name = "DailyDateLabel"
 	date_lbl.text = ""
 	date_lbl.add_theme_color_override("font_color", L2Style.COL_MUTED)
 	outer.add_child(date_lbl)
 	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 180)
 	outer.add_child(scroll)
@@ -160,7 +133,7 @@ func _nudge_daily() -> void:
 		return
 	ctrl._daily_panel.size = Vector2(340, 280)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._daily_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 170)), 100)
+	ctrl._window_manager_logic.place_at(ctrl._daily_panel, Vector2(maxi(8, int(vp.x * 0.5 - 170)), 100))
 
 
 
@@ -211,7 +184,7 @@ func _refresh_daily_panel() -> void:
 	var rows: Array = ctrl._daily_state.get("daily", [])
 	if rows.is_empty():
 		var empty = Label.new()
-		empty.text = "今日暂无日常。"
+		empty.text = "今日暂无委托，请稍后再来。"
 		empty.add_theme_color_override("font_color", L2Style.COL_MUTED)
 		ctrl._daily_body.add_child(empty)
 		return
@@ -230,6 +203,7 @@ func _refresh_daily_panel() -> void:
 		var name_lbl = Label.new()
 		name_lbl.text = str(row.get("title", qid))
 		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		line.add_child(name_lbl)
 		var state_lbl = Label.new()
 		var btn_text = "接取"
@@ -246,7 +220,7 @@ func _refresh_daily_panel() -> void:
 				state_lbl.text = "可接"
 				state_lbl.add_theme_color_override("font_color", L2Style.COL_TITLE)
 				btn_text = "接取"
-		line.add_child(state_lbl)
+		state_lbl.free()
 		var btn = Button.new()
 		btn.text = btn_text
 		btn.focus_mode = Control.FOCUS_NONE
@@ -263,12 +237,7 @@ func _refresh_daily_panel() -> void:
 			_refresh_daily_panel()
 		)
 		line.add_child(btn)
-		var rewards = str(row.get("rewards", "")).strip_edges()
-		if rewards != "":
-			var rlab = Label.new()
-			rlab.text = rewards
-			rlab.add_theme_color_override("font_color", L2Style.COL_MUTED)
-			box.add_child(rlab)
+		ItemGrid.show_rewards(ctrl, box, row.get("reward", {}), str(row.get("rewards", "")))
 
 
 
@@ -381,6 +350,7 @@ func _refresh_titles_panel() -> void:
 	if ctrl._titles_body == null:
 		return
 	for c in ctrl._titles_body.get_children():
+		ctrl._titles_body.remove_child(c)
 		c.queue_free()
 	var ctr: Dictionary = ctrl._titles_state.get("counters", {}) if typeof(ctrl._titles_state.get("counters", {})) == TYPE_DICTIONARY else {}
 	var kills: int = int(ctr.get("kills", ctrl._titles_state.get("kills", 0)))
@@ -391,11 +361,12 @@ func _refresh_titles_panel() -> void:
 	if active.is_empty():
 		ctrl._add_label(ctrl._titles_body, "当前：无（点击已解锁称号装备）", 12, L2Style.COL_TEXT)
 	else:
-		ctrl._add_label(ctrl._titles_body, "当前：%s（再点卸下）" % _active_title_display_name(), 12, L2Style.COL_GOLD)
+		ctrl._add_label(ctrl._titles_body, "当前：%s" % _active_title_display_name(), 12, L2Style.COL_GOLD)
 	var unequip = Button.new()
 	unequip.text = "卸下"
 	unequip.focus_mode = Control.FOCUS_NONE
-	unequip.disabled = active.is_empty()
+	unequip.visible = not active.is_empty()
+	unequip.size_flags_horizontal = Control.SIZE_SHRINK_END
 	unequip.pressed.connect(func(): ctrl._on_title_equip(""))
 	ctrl._titles_body.add_child(unequip)
 	var rows: Array = ctrl._titles_state.get("titles", [])
@@ -414,10 +385,12 @@ func _refresh_titles_panel() -> void:
 		if tid.is_empty():
 			continue
 		var unlocked: bool = bool(row.get("unlocked", false))
+		if _titles_filter == 1 and not unlocked: continue
 		var is_active: bool = bool(row.get("active", false)) or tid == active
 		var box = VBoxContainer.new()
 		box.add_theme_constant_override("separation", 2)
 		ctrl._titles_body.add_child(box)
+		box.add_child(L2Style.hairline())
 		var display = str(row.get("name", tid))
 		if unlocked:
 			var btn = Button.new()
@@ -437,17 +410,19 @@ func _refresh_titles_panel() -> void:
 				ctrl._add_label(box, desc, 11, L2Style.COL_MUTED)
 		else:
 			var nm = Label.new()
-			nm.text = "🔒 %s" % display
+			nm.text = "%s · 未解锁" % display
 			nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			nm.add_theme_font_size_override("font_size", 13)
 			nm.add_theme_color_override("font_color", L2Style.COL_MUTED)
-			nm.modulate = Color(0.72, 0.72, 0.72, 1.0)
 			box.add_child(nm)
 			var hint = _title_unlock_hint(row)
 			if not hint.is_empty():
 				ctrl._add_label(box, hint, 11, L2Style.COL_MUTED)
 
 
+
+	if _titles_filter == 1 and not rows.any(func(row): return row is Dictionary and bool(row.get("unlocked", false))):
+		ctrl._add_label(ctrl._titles_body, "还没有解锁，切换到全部可查看条件。", 11, L2Style.COL_MUTED)
 
 func _apply_title_result_locally(result: Dictionary) -> void:
 	var actions_v: Variant = result.get("actions", [])
@@ -470,35 +445,22 @@ func _apply_title_result_locally(result: Dictionary) -> void:
 func _build_achievements_panel() -> void:
 	ctrl._achievements_panel = PanelContainer.new()
 	ctrl._achievements_panel.name = "AchievementsPanel"
-	ctrl._achievements_panel.set_script(HudDrag)
+	ctrl._achievements_panel.set_script(GameWindow)
 	ctrl._achievements_panel.screen_margin = 4.0
 	ctrl._achievements_panel.min_size = Vector2(300, 240)
 	ctrl._achievements_panel.default_size = Vector2(360, 440)
 	ctrl._achievements_panel.initial_dock = "none"
 	ctrl._achievements_panel.drag_anywhere = true
 	ctrl.add_child(ctrl._achievements_panel)
-	var marg = MarginContainer.new()
-	marg.add_theme_constant_override("margin_left", 12)
-	marg.add_theme_constant_override("margin_top", 8)
-	marg.add_theme_constant_override("margin_right", 12)
-	marg.add_theme_constant_override("margin_bottom", 10)
-	ctrl._achievements_panel.add_child(marg)
-	var outer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 6)
-	marg.add_child(outer)
-	var head = HBoxContainer.new()
-	outer.add_child(head)
-	var title = Label.new()
-	title.name = "AchievementsTitle"
-	title.text = "成就"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close_btn = Button.new()
-	close_btn.text = "×"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.pressed.connect(func(): ctrl._achievements_panel.visible = false)
-	head.add_child(close_btn)
+	var outer = GameWindow.build_body(ctrl._achievements_panel, "成就", func(): ctrl._achievements_panel.visible = false, "AchievementsTitle")
+	_achievement_tabs = GameWindow.add_tabs(outer, ["全部", "已解锁"], func(index):
+		_achievements_filter = index
+		GameWindow.highlight_tabs(_achievement_tabs, index)
+		_refresh_achievements_panel()
+	)
+	GameWindow.highlight_tabs(_achievement_tabs, 0)
 	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.custom_minimum_size = Vector2(0, 320)
 	outer.add_child(scroll)
@@ -519,7 +481,7 @@ func _nudge_achievements() -> void:
 		return
 	ctrl._achievements_panel.size = Vector2(360, 440)
 	var vp = ctrl.get_viewport_rect().size
-	ctrl._achievements_panel.global_position = Vector2(maxi(8, int(vp.x * 0.5 - 180)), 100)
+	ctrl._window_manager_logic.place_at(ctrl._achievements_panel, Vector2(maxi(8, int(vp.x * 0.5 - 180)), 100))
 
 
 
@@ -583,6 +545,7 @@ func _refresh_achievements_panel() -> void:
 	if ctrl._achievements_body == null:
 		return
 	for c in ctrl._achievements_body.get_children():
+		ctrl._achievements_body.remove_child(c)
 		c.queue_free()
 	var ctr: Dictionary = ctrl._achievements_state.get("counters", {}) if typeof(ctrl._achievements_state.get("counters", {})) == TYPE_DICTIONARY else {}
 	var kills: int = int(ctr.get("kills", ctrl._achievements_state.get("kills", 0)))
@@ -606,21 +569,22 @@ func _refresh_achievements_panel() -> void:
 		if aid.is_empty():
 			continue
 		var unlocked: bool = bool(row.get("unlocked", false))
+		if _achievements_filter == 1 and not unlocked: continue
 		var box = VBoxContainer.new()
 		box.add_theme_constant_override("separation", 2)
 		ctrl._achievements_body.add_child(box)
+		box.add_child(L2Style.hairline())
 		var letter = str(row.get("letter", "")).strip_edges()
 		var display = str(row.get("name", aid))
 		if not letter.is_empty():
-			display = "[%s] %s" % [letter, display]
+			display = display
 		var nm = Label.new()
 		if unlocked:
 			nm.text = "✓ %s" % display
 			nm.add_theme_color_override("font_color", L2Style.COL_GOLD)
 		else:
-			nm.text = "🔒 %s" % display
+			nm.text = "%s · 未解锁" % display
 			nm.add_theme_color_override("font_color", L2Style.COL_MUTED)
-			nm.modulate = Color(0.72, 0.72, 0.72, 1.0)
 		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		nm.add_theme_font_size_override("font_size", 13)
 		box.add_child(nm)
@@ -628,20 +592,13 @@ func _refresh_achievements_panel() -> void:
 			var desc = str(row.get("desc", "")).strip_edges()
 			if not desc.is_empty():
 				ctrl._add_label(box, desc, 11, L2Style.COL_MUTED)
-			var rew_v: Variant = row.get("reward", {})
-			if typeof(rew_v) == TYPE_DICTIONARY:
-				var rg: int = int(rew_v.get("gold", 0))
-				var re: int = int(rew_v.get("exp", 0))
-				if rg > 0 or re > 0:
-					var bits: PackedStringArray = PackedStringArray()
-					if rg > 0:
-						bits.append("金 %d" % rg)
-					if re > 0:
-						bits.append("经验 %d" % re)
-					ctrl._add_label(box, "奖励：" + " · ".join(bits), 11, L2Style.COL_MUTED)
+			ItemGrid.show_rewards(ctrl, box, row.get("reward", {}))
 		else:
 			var hint = _achievement_unlock_hint(row)
 			if not hint.is_empty():
 				ctrl._add_label(box, hint, 11, L2Style.COL_MUTED)
 
 
+
+	if _achievements_filter == 1 and not rows.any(func(row): return row is Dictionary and bool(row.get("unlocked", false))):
+		ctrl._add_label(ctrl._achievements_body, "还没有解锁，切换到全部可查看条件。", 11, L2Style.COL_MUTED)

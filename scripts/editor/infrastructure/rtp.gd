@@ -14,6 +14,7 @@ const DISPLAY_NAMES := {
 	"dungeon": "迷宫",
 	"sf_outside": "科幻室外",
 	"sf_inside": "科幻室内",
+	"village": "村落",
 }
 
 

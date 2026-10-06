@@ -129,7 +129,7 @@ func _ready() -> void:
 		var pack_path: String = str(spawn.get("pack_path", ""))
 		var content_id: String = str(spawn.get("content_id", "")).strip_edges()
 		var am: Node = _asset_mgr
-		if am != null and am.has_method("resolve_map_pack_path"):
+		if not FileAccess.file_exists(pack_path.path_join("pack.json")) and am != null and am.has_method("resolve_map_pack_path"):
 			var resolved := ""
 			if content_id != "":
 				resolved = str(am.resolve_map_pack_path(content_id))
@@ -158,10 +158,11 @@ func _ready() -> void:
 
 	var sv = Net.server()
 	if sv != null and sv.has_method("load_world_pack"):
-		var cur := str(sv.get("map_pack_path")).rstrip("/").replace("\\", "/")
+		var cur := ProjectSettings.globalize_path(str(sv.get("map_pack_path"))).rstrip("/").replace("\\", "/")
 		var want := str(spawn.get("pack_path", "")).rstrip("/").replace("\\", "/")
 		if map_field != null:
 			want = str(map_field.pack_path).rstrip("/").replace("\\", "/")
+		if not want.is_empty():want=ProjectSettings.globalize_path(want).rstrip("/").replace("\\","/")
 		var want_map := str(spawn.get("map_id", "")).strip_edges()
 		if want != "" and (cur != want or (want_map != "" and str(sv.get("map_pack_id")) != want_map)):
 			sv.load_world_pack(want, want_map, cell)

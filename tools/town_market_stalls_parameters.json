@@ -1,0 +1,10 @@
+{
+  "valance_extension_m": 0.05,
+  "variants": [
+    {"id": "01_blue_grey_vendor", "canopy_color": [0.13, 0.22, 0.27], "trim_color": [0.60, 0.45, 0.18], "contents": "none"},
+    {"id": "02_plum_vendor", "canopy_color": [0.26, 0.13, 0.28], "trim_color": [0.72, 0.63, 0.40], "contents": "pottery"},
+    {"id": "03_potion_vendor", "canopy_color": [0.045, 0.24, 0.21], "trim_color": [0.66, 0.52, 0.21], "contents": "potions"},
+    {"id": "04_scroll_vendor", "canopy_color": [0.31, 0.13, 0.09], "trim_color": [0.70, 0.61, 0.40], "contents": "scrolls"},
+    {"id": "05_ore_vendor", "canopy_color": [0.10, 0.15, 0.25], "trim_color": [0.59, 0.60, 0.55], "contents": "ores"}
+  ]
+}
