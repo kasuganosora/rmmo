@@ -509,6 +509,7 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 	var extras: Dictionary = spec.get("extras", {})
 	if not extras.is_empty():
 		visual.set_meta("extras", extras)
+	preload("res://scripts/world3d/asset_visibility_range.gd").register(visual)
 	preload("res://scripts/world3d/wind_response.gd").register(visual)
 	preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
 	if bool(extras.get("invisible", false)):

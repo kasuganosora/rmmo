@@ -34,7 +34,7 @@ func create(args: Dictionary) -> Dictionary:
 		source=editor._doc._find(args.source_id)
 		if not editor._record_editable(source): return Terrain.fail("请先显示、解锁并选择当前楼层的地面")
 		if source.get("kind")!="box" or source.get("surface_id") not in ["ground","grass","dirt","sand","stone"] or source.get("invisible",false): return Terrain.fail("仅可转换普通地面方块")
-		for key in ["terrain_mesh","channel_mesh","road_mesh","road_source","building","building_shape","tile3d","fortification","fixture","event","event_template","surface_paint"]:
+		for key in ["terrain_mesh","channel_mesh","rock_bank","road_mesh","road_source","building","building_shape","tile3d","fortification","fixture","event","event_template","surface_paint"]:
 			if source.has(key): return Terrain.fail("不能转换已有生成关联、事件或手刷材质的地面；请另建地形或先处理关联")
 		if absf(source.rotation[0])>.0001 or absf(source.rotation[2])>.0001: return Terrain.fail("转换地面需要水平表面")
 		next=source.duplicate(true); next.position[1]+=float(source.size[1])*.5; next.size[1]=1.0

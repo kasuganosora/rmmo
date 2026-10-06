@@ -48,6 +48,10 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 	return true
 
 static func valid(record: Dictionary, relative: bool = false, content_root: String = "", validation_cache: Variant = null, immutable_paint_id:Variant=null) -> bool:
+	if not preload("res://scripts/world3d/rock_bank_mesh.gd").valid(record):return false
+	for definition in record.get("rock_bank_materials",{}).values():
+		if not material_valid(definition,relative,content_root,validation_cache):return false
+		if definition.color[3]!=1:return false
 	if validation_cache==null: validation_cache={}
 	if not preload("res://scripts/world3d/streetlamp_banner.gd").valid(record):return false
 	if record.has("banner") and not material_valid(record.banner.get("material"),relative,content_root,validation_cache):return false
@@ -416,6 +420,7 @@ static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
 	var result: Array=[]
 	if record.has("banner"):result.append(record.banner.material)
 	result.append_array(record.get("bridge_materials",{}).values())
+	result.append_array(record.get("rock_bank_materials",{}).values())
 	result.append_array(record.get("fortification_materials",{}).values())
 	result.append_array(record.get("terrain_regions",{}).get("materials",[]))
 	if include_paint:

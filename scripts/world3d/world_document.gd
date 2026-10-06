@@ -237,6 +237,7 @@ func validate_save_meta() -> Error:
 
 
 func validate_save_record(record: Dictionary, material_validation:Variant=null) -> Error:
+	if not preload("res://scripts/world3d/parametric_tree.gd").valid(record):return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/auto_tile_rules.gd").valid(record): return ERR_INVALID_DATA
@@ -302,6 +303,7 @@ static func open_file(gltf_path: String):
 		if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return null
 		if not SurfaceMaterials.valid(record,false,"",material_validation): return null
 		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return null
+		if not preload("res://scripts/world3d/parametric_tree.gd").valid(record):return null
 		var uuid := str(record.get("uuid", ""))
 		if uuid.is_empty() or ids.has(uuid):
 			return null
@@ -437,7 +439,7 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 	var cached: Mesh = _save_meshes.get_mesh(str(record.uuid), signature) if not effects else null
 	var box_key:Array=[]
 	if effects and load_box_meshes!=null and not record.has("fortification_art"):
-		for field in ["terrain_mesh","road_mesh","channel_mesh"]:
+		for field in ["terrain_mesh","road_mesh","channel_mesh","rock_bank"]:
 			if not record.has(field):continue
 			# Cache editable source geometry before dynamic water/slope overlays.
 			# Context normals cover shared terrain edges; the full record includes
@@ -445,7 +447,7 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 			box_key=[field,record,terrain_neighbors.data.get(str(record.uuid),{}).get("normals",{})]
 			if load_box_meshes.has(box_key):cached=load_box_meshes[box_key].mesh;load_box_hits+=1
 			break
-	if effects and load_box_meshes!=null and not ["tile3d","road_mesh","terrain_mesh","channel_mesh","fortification_art"].any(func(field):return record.has(field)) and record.get("building_shape","") in ["","cylinder","gable","wall_grid","draped_cloth","joined_box","roof_prism","candle_sconce","timber_door","interior_door","interior_door_frame"]:
+	if effects and load_box_meshes!=null and not ["tile3d","road_mesh","terrain_mesh","channel_mesh","rock_bank","fortification_art"].any(func(field):return record.has(field)) and record.get("building_shape","") in ["","cylinder","gable","wall_grid","draped_cloth","joined_box","roof_prism","candle_sconce","timber_door","interior_door","interior_door_frame"]:
 		# Native Variant hashing/equality handles collisions without serializing
 		# every repeated material and face to an indented string on every object.
 		box_key=[record.get("building_shape",""),record.get("size",[1,1,1]),record.get("color",[]),record.get("invisible",false),record.get("surface_paint",[])]
@@ -481,6 +483,8 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 			var originals:Array=[]
 			for slot in original.get_surface_count():originals.append(original.surface_get_material(slot))
 			mesh_node.set_meta("paint_source",original);mesh_node.set_meta("paint_source_materials",originals)
+	elif record.has("rock_bank") and load_surface_arrays.has(str(record.uuid)):
+		mesh_node.mesh=preload("res://scripts/world3d/rock_bank_mesh.gd").mesh(record,load_surface_arrays[str(record.uuid)])
 	elif load_surface_arrays.has(str(record.uuid)):
 		var prepared:=ArrayMesh.new()
 		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") else box.material
@@ -494,6 +498,7 @@ func _mesh(record: Dictionary, effects: bool=true) -> MeshInstance3D:
 		mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
 		if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
 		if record.has("terrain_mesh"): mesh_node.mesh = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material,terrain_neighbors.data.get(str(record.uuid),{}))
+		if record.has("rock_bank"): mesh_node.mesh = preload("res://scripts/world3d/rock_bank_mesh.gd").mesh(record)
 		if record.has("channel_mesh") and not record.has("fortification_art"):
 			if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
 				box.material.roughness=.22; box.material.metallic=.15
@@ -603,10 +608,15 @@ func _asset(record: Dictionary) -> Node3D:
 		holder.set_meta("missing_asset", true)
 	else:
 		holder.add_child(model)
+		var tree_error:=preload("res://scripts/world3d/parametric_tree.gd").apply(model,record)
+		if not tree_error.is_empty():holder.set_meta("paint_error",tree_error)
 		_namespace_asset(model, str(record.uuid), model, str(record.get("collision","")))
 	preload("res://scripts/world3d/streetlamp_banner.gd").apply(holder,record)
 	SurfaceMaterials.apply(holder, record)
 	preload("res://scripts/world3d/wind_response.gd").annotate(holder,record)
+	for visual in SurfaceMaterials.meshes(holder):
+		preload("res://scripts/world3d/wind_response.gd").register(visual)
+		preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
 	return holder
 
 func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:

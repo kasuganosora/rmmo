@@ -12,6 +12,7 @@ var component_toggle: CheckButton
 var building_note: Label
 var wind_panel: VBoxContainer
 var banner_panel: VBoxContainer
+var tree_panel: VBoxContainer
 
 
 func setup(owner: Node) -> void:
@@ -104,6 +105,7 @@ func setup(owner: Node) -> void:
 		)
 	select("")
 	wind_panel = preload("res://scripts/world_editor/wind_panel.gd").new()
+	tree_panel=preload("res://scripts/world_editor/tree_panel.gd").new();add_child(tree_panel);tree_panel.setup(editor);tree_panel.refresh()
 	add_child(wind_panel); wind_panel.setup(editor); wind_panel.refresh()
 	banner_panel=preload("res://scripts/world_editor/banner_panel.gd").new()
 	add_child(banner_panel);banner_panel.setup(editor);banner_panel.refresh()
@@ -178,6 +180,7 @@ func refresh(refresh_scene: bool=true) -> void:
 	# Transform callers already updated outlines, visual nodes and collision bodies.
 	if refresh_scene: editor._refresh_selection()
 	if wind_panel != null: wind_panel.refresh()
+	if tree_panel != null: tree_panel.refresh()
 	if banner_panel != null:banner_panel.refresh()
 	_updating = false
 

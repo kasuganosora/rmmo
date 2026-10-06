@@ -24,12 +24,16 @@ func set_settings(ids: Array, changes: Dictionary) -> Dictionary:
 			if root == null: return {"ok":false,"error":"物件视图尚未就绪"}
 			error = Response.validate_target(root,config)
 			if not error.is_empty(): return {"ok":false,"error":error}
-		if config != Response.resolve(record): updates[id] = config
+		var imported_default:=false
+		if config.profile=="off" and not record.has("wind_response"):
+			var view:Node=editor._view.get_node_or_null(NodePath(str(id)))
+			if view!=null:imported_default=Response.Paint.meshes(view).any(func(n):return n.get_meta("extras",{}).has("rmmo_wind"))
+		if config != Response.resolve(record) or imported_default: updates[id] = config
 	if updates.is_empty(): return {"ok":true,"changed_ids":[]}
 	editor._doc.checkpoint()
 	for id in updates:
 		var record: Dictionary = editor._doc._find(str(id))
-		if updates[id].profile == "off": record.erase("wind_response")
-		else: record.wind_response = updates[id]
+		# Keep an explicit off override: erasing it would restore authored GLB wind.
+		record.wind_response = updates[id]
 	editor._dirty = true; editor._rebuild()
 	return {"ok":true,"changed_ids":updates.keys()}

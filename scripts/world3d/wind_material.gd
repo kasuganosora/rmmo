@@ -8,7 +8,7 @@ static func channel(value: int) -> Vector4:
 
 static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB) -> ShaderMaterial:
 	if source == null: source = StandardMaterial3D.new()
-	var key := "%d/%d/%d/%s/%d" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter]
+	var key := "%d/%d/%d/%s/%d/%s" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter,source.backlight_enabled]
 	if not shaders.has(key):
 		var code: String = preload("res://scripts/world3d/wind_material.gdshader").code
 		var cull: String = ["cull_back","cull_front","cull_disabled"][source.cull_mode]
@@ -21,6 +21,7 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB) -
 		if source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA: alpha = "ALPHA = base.a;"
 		elif source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR: alpha = "ALPHA = base.a; ALPHA_SCISSOR_THRESHOLD = alpha_cut;"
 		code = code.replace("// ALPHA_INSERT",alpha)
+		code = code.replace("// BACKLIGHT_INSERT","BACKLIGHT = backlight + texture(backlight_tex,UV).rgb;" if source.backlight_enabled else "")
 		var shader := Shader.new(); shader.code = code; shaders[key] = shader
 	var result := ShaderMaterial.new(); result.shader = shaders[key]; result.render_priority = source.render_priority
 	var params := {"tint":source.albedo_color,"uv_scale":source.uv1_scale,"uv_offset":source.uv1_offset,
@@ -30,6 +31,7 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB) -
 		"emission":source.emission if source.emission_enabled else Color.BLACK, "emission_energy":source.emission_energy_multiplier if source.emission_enabled else 0.0,
 		"emission_multiply":source.emission_operator == BaseMaterial3D.EMISSION_OP_MULTIPLY,"alpha_cut":source.alpha_scissor_threshold,
 		"emission_texture_present":source.emission_texture != null,
+		"backlight_enabled":source.backlight_enabled,"backlight":source.backlight,
 		"amplitude":config.amplitude,"stiffness":config.stiffness,"cloth":config.profile == "cloth",
 		"anchor_reverse":config.anchor in ["top","right"]}
 	var axis := 1 if config.anchor in ["top","bottom"] else 0
@@ -39,4 +41,5 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB) -
 	for pair in [["albedo_tex","albedo_texture"],["normal_tex","normal_texture"],["rough_tex","roughness_texture"],["metal_tex","metallic_texture"],["ao_tex","ao_texture"],["emission_tex","emission_texture"]]:
 		var texture: Texture2D = source.get(pair[1])
 		if texture != null: result.set_shader_parameter(pair[0],texture)
+	if source.backlight_texture!=null:result.set_shader_parameter("backlight_tex",source.backlight_texture)
 	return result

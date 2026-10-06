@@ -215,6 +215,15 @@ func remove(id: String,keep: bool) -> Dictionary:
 static func freeze(records:Array,manifest:Dictionary)->Dictionary:
 	var result:=preload("res://scripts/world3d/structure_prefab.gd").fortification(records)
 	if not result.ok:return result
+	var floor_texture:=""
+	for source:Dictionary in records:
+		if source.fortification.role!="access_floor":continue
+		for paint_:Dictionary in source.get("surface_paint",[]):
+			floor_texture=paint_.get("material",{}).get("texture_path","")
+			if not floor_texture.is_empty():break
+		if not floor_texture.is_empty():break
+	var cleanup:=preload("res://scripts/world3d/fortification_deck_cleanup.gd").apply(result.records,manifest.settings.base_height+manifest.settings.height,floor_texture)
+	if not cleanup.ok:return cleanup
 	manifest.baked=true;manifest.source_part_count=records.size();manifest.parts=[]
 	for r in result.records:manifest.parts.append({"id":r.uuid,"signature":Data.token(r)})
 	return result

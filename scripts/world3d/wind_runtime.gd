@@ -7,6 +7,8 @@ var receivers := {}
 var scan_left := 0.0
 var velocity := Vector3.ZERO
 var elapsed := 0.0
+var active_rows: Array = []
+var range_camera_position := Vector3(INF,INF,INF)
 
 func _physics_process(delta: float) -> void:
 	scan_left -= delta
@@ -16,6 +18,7 @@ func _physics_process(delta: float) -> void:
 
 func refresh() -> void:
 	var alive := {}
+	active_rows.clear()
 	for node in get_tree().get_nodes_in_group(Response.GROUP):
 		if not node is MeshInstance3D or node.get_world_3d() != get_world_3d() or not node.is_visible_in_tree(): continue
 		if node.global_position.distance_squared_to(camera.global_position) > 90*90: continue
@@ -23,6 +26,10 @@ func refresh() -> void:
 		if not receivers.has(id): _bind(node)
 		if receivers.has(id):
 			var row: Dictionary = receivers[id]
+			# Keep bindings warm across LOD boundaries, but hidden levels need
+			# neither shelter queries nor per-frame uniform updates.
+			if not _range_active(node): continue
+			active_rows.append(row)
 			row.exposure = 1.0
 			if row.config.shelter:
 				var bounds: AABB = node.global_transform * node.get_aabb()
@@ -31,6 +38,7 @@ func refresh() -> void:
 				if not get_world_3d().direct_space_state.intersect_ray(query).is_empty(): row.exposure = 0.0
 	for id in receivers.keys():
 		if not alive.has(id): _restore(receivers[id]); receivers.erase(id)
+	if is_instance_valid(camera): range_camera_position = camera.global_position
 	advance(velocity,elapsed)
 
 func _bind(node: MeshInstance3D) -> void:
@@ -49,10 +57,34 @@ func _bind(node: MeshInstance3D) -> void:
 
 func advance(wind: Vector3, time: float) -> void:
 	velocity = wind; elapsed = time
-	for row: Dictionary in receivers.values():
+	# A sub-metre camera cache stays safely inside the extra 1 m guard band.
+	if is_instance_valid(camera) and camera.global_position.distance_squared_to(range_camera_position) > .25*.25: _update_active_rows()
+	for row: Dictionary in active_rows:
+		var force := wind*float(row.exposure)
+		var force_changed: bool = row.get("last_velocity",Vector3(INF,INF,INF)) != force
 		for material: ShaderMaterial in row.materials:
-			material.set_shader_parameter("wind_velocity",wind*float(row.exposure))
+			if force_changed: material.set_shader_parameter("wind_velocity",force)
 			material.set_shader_parameter("wind_time",time)
+		row.last_velocity = force
+
+func _update_active_rows() -> void:
+	active_rows.clear()
+	if is_instance_valid(camera): range_camera_position = camera.global_position
+	for row: Dictionary in receivers.values():
+		var node: MeshInstance3D = row.node.get_ref()
+		if node != null and _range_active(node): active_rows.append(row)
+
+func _range_active(node: MeshInstance3D) -> bool:
+	if not is_instance_valid(camera): return true
+	var begin := node.visibility_range_begin
+	var end := node.visibility_range_end
+	if begin == 0.0 and end == 0.0: return true
+	# Same transformed AABB center as renderer range tests. Keep both levels
+	# updating within the hysteresis band so a camera crossing never freezes.
+	var bounds := node.custom_aabb
+	if bounds.size == Vector3.ZERO: bounds = node.get_aabb()
+	var distance := camera.global_position.distance_to(node.global_transform * bounds.get_center())
+	return (begin == 0.0 or distance >= begin-node.visibility_range_begin_margin-1.0) and (end == 0.0 or distance <= end+node.visibility_range_end_margin+1.0)
 
 func _restore(row: Dictionary) -> void:
 	var node: MeshInstance3D = row.node.get_ref()
@@ -64,3 +96,4 @@ func _restore(row: Dictionary) -> void:
 func _exit_tree() -> void:
 	for row in receivers.values(): _restore(row)
 	receivers.clear()
+	active_rows.clear()

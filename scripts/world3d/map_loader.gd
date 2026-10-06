@@ -159,7 +159,7 @@ func _prepare_record_assets()->void:
 		# Coverage masks are CPU images; build them off the scene thread too.
 		var buckets:Array=[[],[],[],[]];var at:=0;var workers:Array[Thread]=[]
 		for record:Dictionary in _record_meta.rmmo_records:
-			if build_geometry and (record.has("terrain_mesh") or record.has("road_mesh")):
+			if build_geometry and (record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank")):
 				buckets[at%4].append({"record":record,"image":null,"surfaces":[]});at+=1
 		for bucket:Array in buckets:
 			if bucket.is_empty():continue
@@ -170,6 +170,7 @@ func _prepare_record_assets()->void:
 					if build_geometry:
 						if record.has("terrain_mesh"):entry.surfaces=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,context.data.get(record.uuid,{}))
 						elif record.has("road_mesh"):entry.surfaces=preload("res://scripts/world3d/road_surface.gd").arrays(record)
+						elif record.has("rock_bank"):entry.surfaces=preload("res://scripts/world3d/rock_bank_mesh.gd").arrays(record)
 			if worker.start(task)==OK:workers.append(worker)
 			else:task.call()
 		for worker:Thread in workers:worker.wait_to_finish()
@@ -427,7 +428,7 @@ func _build_records() -> void:
 	# Keep a deterministic partition so per-record cache identities stay exact.
 	var records:Array=[];var landscape:Array=[]
 	for record:Dictionary in _record_meta.rmmo_records:
-		if record.has("terrain_mesh") or record.has("road_mesh"):landscape.append(record)
+		if record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"):landscape.append(record)
 		else:records.append(record)
 	records.append_array(landscape)
 	var doc = preload("res://scripts/world3d/world_document.gd").new()
@@ -454,7 +455,7 @@ func _build_records() -> void:
 	while cursor < records.size():
 		var start := Time.get_ticks_usec()
 		while cursor < records.size() and Time.get_ticks_usec() - start < 24000:
-			if _terrain_thread!=null and (records[cursor].has("terrain_mesh") or records[cursor].has("road_mesh")):
+			if _terrain_thread!=null and (records[cursor].has("terrain_mesh") or records[cursor].has("road_mesh") or records[cursor].has("rock_bank")):
 				progress.emit("准备地形数据（后台）",cursor,records.size())
 				await _finish_terrain()
 				if _cancelled:root.free();_prepared=null;await _retire();return

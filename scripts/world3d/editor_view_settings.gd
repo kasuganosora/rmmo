@@ -13,6 +13,7 @@ static func resolve(meta: Dictionary) -> Dictionary:
 	return value
 static func elevation(record: Dictionary) -> float:
 	if record.has("terrain_mesh"): return float(record.position[1])
+	if record.has("rock_bank"):return Geometry.bounds([record]).end.y
 	if record.has("building"): return float(record.building.floor_y)
 	if record.has("tile3d"): return float(record.tile3d.elevation)
 	var bounds := Geometry.bounds([record])

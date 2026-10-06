@@ -14,6 +14,9 @@ static func corners(record: Dictionary) -> Array[Vector3]:
 	var transform := Transform3D(Basis.from_euler(vector(record, "rotation") * PI / 180.0), vector(record, "position"))
 	if record.has("fixture"): transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
 	var result: Array[Vector3] = []
+	if record.has("rock_bank"):
+		for p in preload("res://scripts/world3d/rock_bank_mesh.gd").vertices(record):result.append(transform*p)
+		return result
 	if record.has("terrain_mesh"):
 		var terrain_bounds:=preload("res://scripts/world3d/terrain_surface.gd").bounds(record)
 		for i in 8: result.append(transform*terrain_bounds.get_endpoint(i))

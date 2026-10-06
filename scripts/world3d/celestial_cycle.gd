@@ -24,5 +24,5 @@ static func sample(hour: float) -> Dictionary:
 	result.day=day; result.night=1.-smoothstep(-.20,.06,direction.y)
 	result.dusk=(1.-smoothstep(.04,.4,absf(direction.y)))*(1.-result.night*.7)
 	result.sun_energy*=smoothstep(-.04,.12,direction.y)
-	result.moon_energy=.04*smoothstep(.02,.25,-direction.y)
+	result.moon_energy=.16*smoothstep(.02,.25,-direction.y)
 	return result

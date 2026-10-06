@@ -125,12 +125,18 @@ func build(specs: Array, origin: Variant = null) -> void:
 	map = NavigationServer3D.map_create()
 	NavigationServer3D.map_set_use_async_iterations(map, true)
 	NavigationServer3D.map_set_active(map, true)
-	NavigationServer3D.map_set_cell_size(map, 0.1)
-	NavigationServer3D.map_set_cell_height(map, 0.1)
+	# Bake voxels remain 10 cm; connecting already-baked polygon edges needs
+	# the 1 cm precision used by tile assembly. At voxel precision, distinct
+	# cliff/riverbed edges can collapse into a non-manifold four-edge bucket.
+	NavigationServer3D.map_set_cell_size(map, 0.01)
+	NavigationServer3D.map_set_cell_height(map, 0.01)
 	# A 28cm tread needs at least two horizontal cells at every grid phase;
 	# 15cm voxels can collapse a tread and disconnect an otherwise valid stair.
 	mesh.cell_size = 0.1
 	mesh.cell_height = 0.1
+	# Use the same contour tolerance for nearby and tiled bakes. The default
+	# 1.3-cell simplification can overlap riverbed triangles at clipped banks.
+	mesh.edge_max_error = 1.0
 	# Extra clearance beyond the capsule avoids polygon simplification
 	# placing ramp corner waypoints on the rounded capsule's contact boundary.
 	mesh.agent_radius = 0.5

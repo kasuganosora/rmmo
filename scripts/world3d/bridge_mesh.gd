@@ -27,16 +27,20 @@ func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation
 	var mesh: Mesh=piece.mesh
 	for slot in mesh.get_surface_count():
 		var mat: Material=mesh.surface_get_material(slot); var name_: String=mat.resource_name if mat!=null else ""
-		var role:=0 if name_.contains("deck") else (2 if name_.contains("trim") else 1)
-		var st: SurfaceTool=streams[role]; var arrays: Array=mesh.surface_get_arrays(slot)
+		var source_role:=0 if name_.contains("deck") else (2 if name_.contains("trim") else 1)
+		var arrays: Array=mesh.surface_get_arrays(slot)
 		var vertices: PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]; var normals: PackedVector3Array=arrays[Mesh.ARRAY_NORMAL]; var uvs: PackedVector2Array=arrays[Mesh.ARRAY_TEX_UV]
 		var colors: PackedColorArray=arrays[Mesh.ARRAY_COLOR] if arrays[Mesh.ARRAY_COLOR]!=null else PackedColorArray()
 		var indices: PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
 		if indices.is_empty():
 			for i in vertices.size(): indices.append(i)
+		var triangle:Array=[]
 		for index in indices:
 			var p: Vector3=piece.transform*vertices[index]; var normal: Vector3=piece.transform.basis*normals[index]
 			p=p*scale_+position; normal=(normal/scale_).normalized()
+			# The deck module is a solid slab. Only its upward walking surface
+			# is paving; side/end/underside faces belong to supporting masonry.
+			var role:int=1 if source_role==0 and normal.y<.7 else source_role
 			if foundation: p.y+=(scale_.y-1)*.25
 			# Continuous metre-scale paving/masonry avoids one texture restart per module.
 			var uv: Vector2=uvs[index]*2/tiles[role]
@@ -46,7 +50,9 @@ func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation
 			var f: float=clampf((p.y+data.depth)/(data.depth-.25),0,1) if foundation else 1.0
 			var stretch: float=1+height_at(p.x,data)/(data.depth-.25) if foundation and f<1 else 1.0
 			normal=Vector3(normal.x-slope_at(p.x,data)*f*normal.y/stretch,normal.y/stretch,normal.z).normalized(); p.y+=height_at(p.x,data)*f
-			st.set_normal(normal); st.set_uv(uv); st.set_color(colors[index] if index<colors.size() else Color.WHITE); st.add_vertex(p)
+			triangle.append({"p":p,"n":normal,"uv":uv,"color":colors[index] if index<colors.size() else Color.WHITE})
+			if triangle.size()==3:
+				preload("res://scripts/world3d/bridge_deck_rim.gd").emit(streams,triangle,role,data.width,tiles[1]);triangle=[]
 func build(record: Dictionary) -> ArrayMesh:
 	var started:=Time.get_ticks_usec()
 	streams.clear(); materials.clear(); tiles.clear()

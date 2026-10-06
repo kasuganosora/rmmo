@@ -9,6 +9,7 @@ const MapPaths = preload("res://scripts/world3d/map_paths.gd")
 static func capture(records: Array, library, label: String, registry:Dictionary={}) -> Dictionary:
 	if records.is_empty() or label.strip_edges().is_empty(): return {"ok": false, "error": "请选择物件并填写预制件名称"}
 	for record in records:
+		if not preload("res://scripts/world3d/parametric_tree.gd").valid(record):return {"ok":false,"error":"预制件树形参数无效"}
 		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return {"ok": false, "error": "预制件事件模板无效"}
 		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return {"ok":false,"error":"预制件受风配置无效"}
 		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return {"ok": false, "error": "预制件表面材质无效"}
@@ -124,6 +125,7 @@ static func read(entry: Dictionary) -> Dictionary:
 		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return {"ok": false, "error": "预制件表面材质损坏"}
 		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return {"ok":false,"error":"预制件地形损坏"}
 		if not SurfacePaint.valid(record, true): return {"ok": false, "error": "预制件表面材质损坏"}
+		if not preload("res://scripts/world3d/parametric_tree.gd").valid(record):return {"ok":false,"error":"预制件树形参数损坏"}
 		var id := str(record.get("uuid", ""))
 		if id.is_empty() or ids.has(id) or not record.get("kind") in ["box", "asset", "npc", "gather", "warp", "seat", "event"]:
 			return {"ok": false, "error": "预制件物件标识不合法"}

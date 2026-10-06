@@ -12,6 +12,7 @@ var region_list: OptionButton
 var furrow_fields: VBoxContainer
 var info: Label
 var tasks: TabContainer
+var rock_banks
 var begin_button: Button
 var end_button: Button
 var river_fields: VBoxContainer
@@ -106,8 +107,10 @@ func setup(value: Node3D) -> void:
 	for index in range(creation_start, brush_start): existing[index].reparent(create)
 	for index in range(brush_start, existing.size()): existing[index].reparent(sculpt)
 	sculpt.move_child(begin_button, 0); sculpt.move_child(end_button, 1)
+	rock_banks=preload("res://scripts/world_editor/rock_bank_panel.gd").new();tasks.add_child(rock_banks);rock_banks.setup(editor)
 	refresh()
 func refresh(preferred: String="") -> void:
+	if rock_banks!=null:rock_banks.refresh()
 	if choice==null: return
 	var id:=preferred if not preferred.is_empty() else selected(); choice.clear()
 	for row in editor._terrain.catalog().terrains:

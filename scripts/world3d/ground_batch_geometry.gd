@@ -26,7 +26,7 @@ static func candidate(record: Dictionary) -> bool:
 	for field in ["building", "fixture", "fortification", "channel_mesh", "tile3d", "event", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
 		if record.has(field): return false
 	if record.get("wind_response", {}).get("profile", "off") != "off": return false
-	if record.has("terrain_mesh") or record.has("road_mesh"): return true
+	if record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"): return true
 	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
 
 static func material_key(material: Material) -> String:

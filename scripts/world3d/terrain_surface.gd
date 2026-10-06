@@ -14,7 +14,7 @@ static func create_schema() -> Dictionary:
 static func valid(record: Dictionary) -> bool:
 	if not record.has("terrain_mesh"): return not record.has("terrain_material")
 	if not record.get("kind") is String or record.kind!="box": return false
-	for key in ["tile3d","building","building_shape","fixture","road_mesh","channel_mesh","road_source","fortification","waterway"]:
+	for key in ["tile3d","building","building_shape","fixture","road_mesh","channel_mesh","rock_bank","road_source","fortification","waterway"]:
 		if record.has(key): return false
 	# The fixed persisted shape needs a single pass over heights/holes. Avoid
 	# recursive schema dispatch and error-path construction for every grid value.

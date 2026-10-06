@@ -61,7 +61,7 @@ vec4 march_clouds(vec3 origin, vec3 ray, bool reflection) {
 	vec3 lunar_dir = normalize(moon_direction);
 	float solar_phase = max(cloud_phase(dot(ray,solar_dir),.55),cloud_phase(dot(ray,solar_dir),-.2));
 	float lunar_phase = max(cloud_phase(dot(ray,lunar_dir),.55),cloud_phase(dot(ray,lunar_dir),-.2));
-	vec3 ambient = mix(mix(horizon,zenith,.45)*.60,vec3(.018,.027,.05),night_amount);
+	vec3 ambient = mix(mix(horizon,zenith,.45)*.60,vec3(.0018,.0027,.005),night_amount);
 	vec3 radiance = vec3(0.);
 	float transmittance = 1.;
 	// Deterministic angular dither breaks horizontal slice bands without frame-time
@@ -87,7 +87,7 @@ vec4 march_clouds(vec3 origin, vec3 ray, bool reflection) {
 		float lunar_scatter = exp(-lunar_depth*extinction)+.22*exp(-lunar_depth*extinction*.22);
 		vec3 lighting = ambient*mix(.50,1.35,h);
 		lighting += sun_tint*daylight*(1.-night_amount)*solar_scatter*(.55+solar_phase*2.5);
-		lighting += vec3(.19,.25,.40)*night_amount*lunar_scatter*(.55+lunar_phase*2.5);
+		lighting += vec3(.006,.008,.012)*night_amount*smoothstep(0.,.25,lunar_dir.y)*lunar_scatter*(.35+lunar_phase*2.5);
 		vec2 flash_delta = (p.xz-cloud_flash.xz)/900.;
 		lighting += vec3(.65,.78,1.)*cloud_flash.w*4.*exp(-dot(flash_delta,flash_delta)*2.);
 		float opacity = 1.-exp(-density*extinction*step_size);
@@ -110,6 +110,6 @@ vec4 thin_clouds(vec3 origin, vec3 ray) {
 	float wisps = fbm(p*vec2(.85,1.8)+bend);
 	float patch = smoothstep(.40,.68,fbm(p*.15+vec2(4.,10.)));
 	float opacity = smoothstep(.48,.72,wisps)*patch*cirrus_amount*.4*smoothstep(.025,.18,ray.y);
-	vec3 tint = mix(mix(vec3(.82,.88,.96),sun_tint,dusk_amount*.7),vec3(.06,.085,.13),night_amount);
+	vec3 tint = mix(mix(vec3(.82,.88,.96),sun_tint,dusk_amount*.7),vec3(.006,.0085,.013),night_amount);
 	return vec4(tint*opacity,opacity);
 }

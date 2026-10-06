@@ -127,6 +127,8 @@ func sample(previous:int)->int:
 	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
 	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
 	r["radar"]=world._hud._radar.get_draw_timing()
+	if is_instance_valid(world._hud._map_overview) and world._hud._map_overview.has_method("get_draw_timing"):r["overview"]=world._hud._map_overview.get_draw_timing()
+	r["stream_cell"]=preload("res://scripts/world3d/world_stream.gd").chunk_key(world._player.position)
 	r["main_view"]=viewport_stats(root)
 	r["outline_view"]=viewport_stats(world._outline.mask)
 	r["outline_active"]=world._outline.occluded
@@ -273,6 +275,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(OUT)
 	preload("res://tools/world3d_test_character.gd").ensure(self)
 	var session=root.get_node("GameSession");session.world3d_map_path=MAP;session.world3d_spawn=Vector3(-114.9,.9,-1.7)
+	if "--entry-road" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-35,.9,-2.5)
 	if "--street-end" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-333,.9,-24)
 	if "--fortifications" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-575,.9,-96)
 	if "--native" in OS.get_cmdline_user_args():
@@ -285,6 +288,8 @@ func run()->void:
 	if "--unshared-budget" in OS.get_cmdline_user_args():world.set_meta("profile_unshared_stream_budget",true)
 	while not world.is_world_ready():
 		report_preparation("world");await process_frame
+	if "--entry-road" in OS.get_cmdline_user_args():world._camera.yaw=PI*.5
+	if "--map-open" in OS.get_cmdline_user_args():world._hud._toggle_window("map")
 	var flat_live:=0
 	for spec:Dictionary in world._map_root.get_meta("stream_library",[]):
 		var body:Node=world._map_root.get_meta("stream_bodies",{}).get(str(spec.uuid))
@@ -361,6 +366,7 @@ func run()->void:
 		mesh_inventory();world.free();quit(0);return
 	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
 	var paths:Array=[Vector3(-144,0,-9),Vector3(-175,0,-16),Vector3(-206,0,-24),Vector3(-238,0,-32),Vector3(-269,0,-40),Vector3(-300,0,-47),Vector3(-329,0,-54.6),Vector3(-333,0,-24),Vector3(-333,0,8),Vector3(-327,0,40)]
+	if "--entry-road" in OS.get_cmdline_user_args():paths=[Vector3(-60,0,-2.5),Vector3(-85,0,-2.5),Vector3(-110,0,-2.5),Vector3(-135,0,-2.5)]
 	if "--street-end" in OS.get_cmdline_user_args():paths=[Vector3(-333,0,8),Vector3(-327,0,40),Vector3(-333,0,8),Vector3(-333,0,-24)]
 	if "--fortifications" in OS.get_cmdline_user_args():paths=[Vector3(-584,0,-64),Vector3(-590,0,-32),Vector3(-591,0,0),Vector3(-591,0,32),Vector3(-587,0,64),Vector3(-582,0,96),Vector3(-574,0,128),Vector3(-566,0,160)]
 	if "--short" in OS.get_cmdline_user_args():paths=paths.slice(0,2)
@@ -406,12 +412,15 @@ func run()->void:
 	report["script_debugger_active"]=EngineDebugger.is_active()
 	report["surface_query_frame_domain"]="physics" # Other instrumented frame IDs use process frames.
 	report["route"]="fortifications" if "--fortifications" in OS.get_cmdline_user_args() else ("street_end" if "--street-end" in OS.get_cmdline_user_args() else "streets")
+	if "--entry-road" in OS.get_cmdline_user_args():report["route"]="entry_road"
+	report["map_open"]="--map-open" in OS.get_cmdline_user_args()
 	report["resident_slice_probe"]="--slice-resident" in OS.get_cmdline_user_args()
 	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()
 	report["shared_stream_budget"]=not "--unshared-budget" in OS.get_cmdline_user_args()
 	report["checked_shadow_gating"]=expect_shadow_gating
 	report["shadow_comparison"]=shadow_comparison
 	report["navigation_drain_frames"]=drain_frames
+	report["loading_profile"]=world.loading_profile.duplicate(true)
 	report["navigation_profile"]=world._navigation.loading_profile.duplicate(true)
 	report["surface_queries"]=world._navigation.surface_query_count
 	report["surface_cache_hits"]=world._navigation.surface_cache_hits

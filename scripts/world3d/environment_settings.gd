@@ -3,7 +3,7 @@ const Schema = preload("res://scripts/world3d/document_schema.gd")
 const PRESETS = {
 	"day": {"sun_rotation": [-48, 32, 0], "sun_color": [1, .97, .9], "sun_energy": 1.15, "ambient_color": [.72, .76, .82], "ambient_energy": .42, "background_color": [.55, .68, .78]},
 	"sunset": {"sun_rotation": [-12, -65, 0], "sun_color": [1, .55, .3], "sun_energy": .8, "ambient_color": [.5, .4, .5], "ambient_energy": .3, "background_color": [.52, .29, .28]},
-	"night": {"sun_rotation": [-40, 32, 0], "sun_color": [.45, .55, .82], "sun_energy": .04, "ambient_color": [.25, .32, .5], "ambient_energy": .03, "background_color": [.02, .03, .07]},
+	"night": {"sun_rotation": [-40, 32, 0], "sun_color": [.68, .74, .88], "sun_energy": .16, "ambient_color": [.25, .32, .5], "ambient_energy": .03, "background_color": [.02, .03, .07]},
 }
 
 static func schema() -> Dictionary:

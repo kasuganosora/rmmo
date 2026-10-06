@@ -1,5 +1,29 @@
 # 当前 3D 地图编辑器 MCP
 
+2026-10-06 地图入口修正：资源包窗口的默认共享列表也收录内容根 `maps/` 中的既有 glTF（如 `medieval_river_town`），直接引用原路径，不复制／迁移／保存地图。`list_resource_packs` 的每个包新增 `maps: [{name,path}]`，与 UI 使用同一目录枚举；输入仍为空对象，非法参数无副作用。`open_world` 沿用原有内容根约束和未保存修改保护。正在运行的编辑器需重新启动编辑器运行实例加载新脚本，然后在“文件 → 资源包地图…”选择默认包并搜索地图名。`test_resource_pack_browser.gd` 验证发现、搜索、当前选择、原路径打开及未保存修改提示；`test_root_map_discovery_mcp.gd` 通过真实 loopback HTTP 验证发现与非法调用。此次未更改任何场景内容，彩柱和道路侧边纠正仍等待用户完成微调后再实施。
+
+2026-10-06 大团灌木：圆团、横向铺展、高冠三款已加入默认预制件库；20m 内保留完整母版，远处使用约半面数枝簇，沿用现有 LOD、叶片背光、风场及非阻挡语义。真实 HTTP 工具发现、放置、非法调用无副作用、撤销重做和保存重开通过，游戏加载和无阻挡体检查通过。未新增 UI/schema 或在线株形参数。见 [灌木发布记录](street_shrub_mounds_20261006.md)。
+
+2026-10-06 住宅石围墙与方柱：1.5m 墙高版本六款预制件已加入默认资源包，沿用 3D `save_prefab`、`list_assets`、`place_asset`、撤销/重做及保存重开，真实 HTTP 验证失败数 0。游戏加载与阻挡碰撞通过，修正静态合并时的石材 UV 通道；无新 UI/schema。见 [围墙发布记录](garden_boundary_20261006.md)。
+
+2026-10-06 朱红苏联徽记燕尾长旗：用户授权后已通过既有 `save_prefab` 加入默认资源包，12,944 个三角面，独立刚性支架/布料，目录仅一个预制件。真实 HTTP 工具发现、放置、非法调用无副作用、撤销重做与保存重开通过；原生 PBR、风动和游戏加载通过，发布验证失败数 0。沿用既有 UI/MCP，没有新增徽记参数面板或 schema。见 [垂旗记录](wall_guild_banners_20261006.md)。
+
+2026-10-06 写实路缘边石与踏步石：11 款用户批准的预制件通过既有 `save_prefab` 发布到默认资源包，复用 `list_assets`、`place_asset`、撤销/重做和保存重开；逐款真实 HTTP 和游戏碰撞体加载验证失败数 0。无新增工具/schema，离线长度/曲率配方不是编辑器在线参数接口。修复材质命名中的 Windows 非法路径字符，见 [发布记录](street_edge_stones_20261006.md)。
+
+2026-10-06 写实宽冠粗干橡树：用户验收后通过现有 `save_prefab` 发布到默认资源包，沿用 `list_assets`、`place_asset`、撤销/重做和保存重开。真实 HTTP 验证通过，三级 LOD 与风动保留；未新增橡树参数 schema，不能将松树的树形接口适用范围扩大到此橡树。见 [橡树发布记录](street_oak_game_20261006.md)。
+
+2026-10-06 写实草丛：11 个矮草/野草预制件沿用当前 `place_asset`、`save_prefab`、撤销及保存接口。带显式 `rmmo_grass` 元数据的扫描素材在原生 glTF 加载时按像素内容共享纹理，UI、MCP 和原生运行加载共用；三档 LOD、风动、非阻挡碰撞保留。真实 HTTP 与保存重开通过，详见 [草丛验收](town_grass_20261006.md)。未新增草地自动生成 API。
+
+2026-10-06 参数化松树：当前 3D 接口新增 `get_tree_parameters {id}`（返回 supported/settings/schema）与 `set_tree_parameters {ids, settings}`（部分参数，1～32 棵）。参数有 `height`、`crown_scale`、`trunk_scale`、`bare_trunk`、`lean`、`density`、`seed`，范围见 [树形参数](parametric_baltic_pine_20261006.md)。只接受显式带 v1 枝簇配方的模型；使用“参数化松树”新版预制件。UI 属性面板与 MCP 共用 `tree_tools.gd`，整批预检、锁定/隐藏/固定建筑保护、一次撤销、保存重开和依赖打包一致。修改同步生成三级 LOD、包围盒与树干碰撞；材质/风动保留，不启用二维工具。`test_parametric_tree.gd` 真实 HTTP、原生 UI 和游戏运行时测试失败数 0。文内较早的工具总数是当时版本记录。
+
+2026-10-06 密集植被运行优化：共享风场跳过 LOD 隐藏层的逐帧更新，镜头返回恢复当前风动时间，保留避风、材质恢复和原生保存语义；UI 与 3D MCP 无新参数或工具。`test_pine_runtime.gd -- --game-cards --reuse-imports` 真实 HTTP 回归失败数 0，独立风动测试覆盖流式卸载/重载。256 棵压力测试、视觉对照与适用范围见 [松树密集场景记录](pine_editor_integration_20261006.md)。
+
+2026-10-06 资源 LOD：网格节点可携带 `extras.rmmo_visibility_range`，字段为 `begin`、`end`、`bounds`（六个有限数：位置 xyz 和正尺寸 xyz）。距离须为 0～100000 有限数，`end=0` 表示无上限，否则必须大于 `begin`；非法配置整体忽略，无副作用。统一导入与运行时流式加载恢复可见范围及共同包围盒中心，使用 1 m 滞回、无渐变。UI/MCP 沿用相同放置、撤销与保存流程，无新工具或参数面板。`test_asset_visibility_range.gd` 和 `test_pine_runtime.gd -- --game-cards` 已通过，后者含真实 HTTP 发现/放置/非法调用/撤销重做/保存重开，失败数 0。详见 [松树 V6 验收](pine_editor_integration_20261006.md)。
+
+2026-10-06 松树薄叶材质：资源节点可携带 `extras.rmmo_leaf_backlight`（长度与表面槽相同，逐槽线性强度 0～1，0 表示不处理）。统一 glTF 场景加载路径恢复叶片背光，风场保留该设置及背光纹理；不以文件名猜测叶子，也不为树皮自动加透光。非法数组整体忽略且无材质修改。沿用现有 3D `list_assets`、`place_asset`、`get_object`、`set_object_properties.wind`、保存及撤销，无新工具/schema；这是带光学参数的资源转换，不新增 UI 参数面板。验收入口为 `tools/test_leaf_backlight.gd` 和 `tools/test_pine_runtime.gd -- --fine-clusters`，实际通过状态以测试日志为准。背光为实时近似，不等同于 Blender 的体积散射。
+
+2026-10-06 街景道具接入：复用 `list_assets`、`place_asset`、`set_object_properties.wind`、`set_environment` 及保存/撤销操作，不新增工具或恢复二维入口。含自带风场标记的 GLB，显式 `wind.profile="off"` 现在保存关闭覆盖，避免删除配置后重新启用模型默认受风。UI 与 MCP 共用 `wind_tools.set_settings`。小壁灯随既有游戏时钟发暖光；接入范围、真实 HTTP 与游戏验证记录见 [街景道具接入](town_props_integration_20261006.md)。
+
 2026-10-04 房屋加载性能修复：工具仍为 **118 项**，schema、编辑事务及旧二维下线状态不变。CPU 刷面几何/切线实现由 UI、MCP 和运行时共用；不可变地图加载专用的校验及等价方块缓存不用于后续编辑事务，避免跨编辑复用过期校验。`paint_surface`、锁定保护、撤销重做、保存重开及非法调用通过真实 HTTP 回归；性能记录见 [房屋加载修复验证](world_editor_todo.md#房屋加载修复验证2026-10-04)。
 
 2026-10-03 石桥通航净空：`preview_bridge/generate_bridge.auto_clearance` 缺省为 `true`，按实际水面自动增加拱高；主通航孔须保留 **2 米宽、至少 2.5 米高**的连续通道，靠岸小孔可较低。关闭自动调整仍校验硬下限，所需拱高超过 15% 坡度限制时原子拒绝。预览返回最终 `camber` 及 `navigation` 实测值。河道入口的石桥按填写拱高校验同一规则，当前仍为 118 项，旧二维保持下线。
@@ -285,3 +309,11 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 
 
 2026-10-05 旗幡路灯昼夜接入：现有 `set_environment` 直接驱动游戏/编辑器共用的 `streetlamp_lights`，20:00–06:00 开启蓝色晶石、轻微光晕及所有已加载路灯的无阴影蓝灯（已取消按距离选最近两盏的限制）。工具清单和 schema 无新增；环境事务、撤销重做和保存语义不变。`tools/test_streetlamp_banner_mcp.gd` 已通过真实 HTTP 夜间切换、撤销熄灭、重做恢复及保存重开点亮检查，原换旗操作检查继续通过。详见 `banner_streetlamp_20261005.md`。
+
+2026-10-06 城防墙顶接缝：`generate_fortification` / `bake_fortification` 与 UI 共用的烘焙路径会裁除墙顶重复覆盖面，保留碰撞及活动门。没有新增工具或 schema；真实 HTTP 生成、非法调用无副作用、撤销重做和保存重开由 `tools/test_fortification_decks_mcp.gd` 验证。已烘焙地图不自动重生成；本次既有城镇修复通过专用维护脚本及原生原子保存完成，详见 `world_editor_fortifications.md`。
+# 岩岸扩展（2026-10-06）
+
+新增 `list_rock_banks`、`preview_rock_bank`、`set_rock_bank`、`remove_rock_bank`，同步地形面板“岩岸 / 岩壁”。参数、保护规则、保存及限制见 [原生岩岸说明](world_editor_rock_banks.md)。这些是当前 3D 服务工具，不启用旧二维适配器。
+# 2026-10-06 红顶尖塔资源发布验证
+
+“写实方形红顶尖塔·三层窗”复用当前 3D 的 `place_asset`、`select_objects`、`save_prefab`、`list_assets`、`undo`、`redo`、`save_world`、`open_world`，未增加新接口或参数面板。真实 HTTP 工具发现、合法与非法调用、无副作用失败、撤销重做和保存重开通过。报告 `D:/code/rmmo_runtime/review_artifacts/street_spire/publication.json`，失败 0，测试不修改用户地图。预制件为闭合外观地标，无内部楼梯及开门交互。

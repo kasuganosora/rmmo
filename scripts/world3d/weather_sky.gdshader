@@ -43,7 +43,10 @@ void sky() {
 	float sun = max(dot(EYEDIR, normalize(sun_direction)), 0.);
 	float sunset_glow = pow(sun,6.) * exp(-height*3.) * dusk_amount;
 	base += vec3(.28,.095,.025)*sunset_glow;
-	base += sun_tint * (pow(sun, 80.)*.14 + smoothstep(.9995,.99985,sun)*1.8) * daylight * (1.-night_amount);
+	float solar_radius = length(EYEDIR-normalize(sun_direction));
+	float solar_edge = max(fwidth(solar_radius),.00015);
+	float solar_disc = 1.-smoothstep(.009-solar_edge,.009+solar_edge,solar_radius);
+	base += sun_tint * (pow(sun, 80.)*.14 + solar_disc*12.) * daylight * (1.-night_amount);
 	// Celestial details stay fixed in world directions; only cloud coordinates drift.
 	float horizon_fade = smoothstep(.02,.22,height);
 	if (night_amount > 0. && EYEDIR.y > 0.) {
@@ -71,8 +74,18 @@ void sky() {
 			}
 		}
 	}
-	float moon = smoothstep(.99952,.9997,max(dot(EYEDIR,normalize(moon_direction)),0.));
-	base += vec3(.48,.61,.86) * moon * night_amount;
+	vec3 lunar_axis = normalize(moon_direction);
+	vec3 lunar_reference = abs(lunar_axis.z)>.95 ? vec3(0.,1.,0.) : vec3(0.,0.,1.);
+	vec3 lunar_right = normalize(cross(lunar_axis,lunar_reference));
+	vec3 lunar_up = cross(lunar_right,lunar_axis);
+	vec2 lunar_uv = vec2(dot(EYEDIR,lunar_right),dot(EYEDIR,lunar_up))/.018;
+	float lunar_radius = length(EYEDIR-lunar_axis)/.018;
+	float lunar_edge = max(fwidth(lunar_radius),.015);
+	float moon = 1.-smoothstep(1.-lunar_edge,1.+lunar_edge,lunar_radius);
+	// Fixed surface markings and limb shading, independent of cloud drift.
+	float maria = smoothstep(.30,.68,fbm(lunar_uv*3.+vec2(8.,19.)));
+	float lunar_shade = sqrt(max(0.,1.-min(dot(lunar_uv,lunar_uv),1.)));
+	base += vec3(.88,.90,1.) * moon * mix(.48,1.,maria) * mix(.55,1.,lunar_shade) * night_amount;
 	vec4 thin = thin_clouds(POSITION,EYEDIR);
 	base = base*(1.-thin.a)+thin.rgb;
 	vec4 volume;

@@ -22,6 +22,13 @@ func _init(folder: String = "") -> void:
 
 func import_file(path: String) -> Dictionary:
 	if path.get_extension().to_lower() not in ["gltf", "glb"] or not FileAccess.file_exists(path): return {"ok": false, "error": "请选择存在的 glTF / GLB 文件"}
+	# Prefab capture may re-import the exact immutable model just added here.
+	# Only reuse a catalogued, content-addressed file after verifying its bytes.
+	var normalized:=path.simplify_path().replace("\\","/")
+	if normalized.get_base_dir()==directory.simplify_path().replace("\\","/") and normalized.get_extension()=="glb":
+		for entry in entries:
+			if str(entry.get("asset_path","")).simplify_path().replace("\\","/")==normalized and FileAccess.get_sha256(path)==normalized.get_file().get_basename():
+				return {"ok":true,"entry":entry}
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
 	var err := doc.append_from_file(path, state, 0, path.get_base_dir())

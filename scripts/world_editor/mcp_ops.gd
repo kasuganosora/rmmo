@@ -48,6 +48,12 @@ func state() -> Dictionary:
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"set_tree_parameters":return preload("res://scripts/world_editor/tree_tools.gd").apply(editor,args.ids,args.settings)
+		"get_tree_parameters":return ok(preload("res://scripts/world_editor/tree_tools.gd").describe(editor,args.id))
+		"list_rock_banks":return preload("res://scripts/world_editor/rock_bank_tools.gd").catalog(editor)
+		"preview_rock_bank":return preload("res://scripts/world_editor/rock_bank_tools.gd").apply(editor,args,true)
+		"set_rock_bank":return preload("res://scripts/world_editor/rock_bank_tools.gd").apply(editor,args)
+		"remove_rock_bank":return preload("res://scripts/world_editor/rock_bank_tools.gd").remove(editor,args.id)
 		"set_streetlamp_banner":return preload("res://scripts/world_editor/banner_tools.gd").apply(editor,args.ids,args.settings)
 		"list_bridge_prefabs": return editor._bridges.catalog()
 		"preview_bridge": return editor._bridges.summary(args)
@@ -286,7 +292,12 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var rows: Array = []
 			for entry in page(entries, args): rows.append({"asset_id": asset_id(entry), "name": entry.get("label", ""), "category": entry.get("category", ""), "prefab": entry.has("prefab_path"), "part_count": entry.get("part_count", 1), "auto_family": entry.get("auto_family", "")})
 			return ok({"assets": rows, "total": entries.size()})
-		"list_resource_packs": return ok({"packs": Catalog.new().packs()})
+		"list_resource_packs":
+			var catalog := Catalog.new()
+			var packs := catalog.packs()
+			for pack:Dictionary in packs:
+				pack["maps"]=catalog.maps_in(pack).map(func(row):return {"name":row.name,"path":row.path})
+			return ok({"packs": packs})
 		"save_prefab": return save_prefab(args)
 		"place_asset": return place_asset(args)
 		"paint_auto_tiles": return paint(args)

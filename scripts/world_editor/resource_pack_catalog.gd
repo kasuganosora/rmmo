@@ -55,6 +55,13 @@ func maps_in(pack: Dictionary) -> Array[Dictionary]:
 	for folder in ["maps", "地图"]:
 		var base: String = str(pack.root).path_join(folder)
 		_collect_maps(base, base, pack, result, 0)
+	# Existing authored worlds also live directly under the content root.
+	# Expose their original paths through the shared pack; never copy them.
+	if bool(pack.shared):
+		var base := root.path_join("maps")
+		var directory := DirAccess.open(root)
+		if directory != null and not directory.is_link("maps"):
+			_collect_maps(base, base, pack, result, 0)
 	return result
 
 func _collect_maps(path: String, base: String, pack: Dictionary, result: Array[Dictionary], depth: int) -> void:
@@ -82,4 +89,7 @@ func owner_of(path: String, all_packs: Array[Dictionary]) -> int:
 	var normalized := path.replace("\\", "/").simplify_path()
 	for index in all_packs.size():
 		if normalized.begins_with(str(all_packs[index].root).trim_suffix("/") + "/"): return index
+	if normalized.begins_with(root.trim_suffix("/") + "/maps/"):
+		for index in all_packs.size():
+			if bool(all_packs[index].shared):return index
 	return -1

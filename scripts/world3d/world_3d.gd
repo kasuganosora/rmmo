@@ -250,6 +250,8 @@ func _ready() -> void:
 		await get_tree().process_frame
 	if batches!=null:batches.work_budget_usec=2000
 	loading_profile.batches=Time.get_ticks_msec()
+	_loading_stage("准备受风材质")
+	loading_profile.wind_materials=await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(_map_root.get_meta("stream_library",[]),get_tree())
 	_player.input_locked = Net.session()._world_transition_active
 	_ready_for_play = true
 	if _check_map:
@@ -916,6 +918,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	navigation.runtime_geometry_key=prepared.get_meta("runtime_geometry_key","")
 	navigation.build(prepared.get_meta("stream_library", []), destination)
 	while not navigation.ready_for_queries: await get_tree().process_frame
+	await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(prepared.get_meta("stream_library",[]),get_tree())
 	await get_tree().physics_frame
 	await get_tree().process_frame
 	var feet := destination - Vector3(0, 0.9, 0)

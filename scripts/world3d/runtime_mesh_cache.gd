@@ -12,7 +12,7 @@ static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
 	for file in ["house_prefab.gd","world_document.gd","surface_materials.gd","ground_cpu_mesh.gd","runtime_mesh_cache.gd","world_stream.gd","stream_index.gd","stream_landscape.gd","streetlamp_banner.gd","streetlamp_lights.gd","building_fixtures.gd","wind_response.gd","building_blueprint.gd","house_wall_mesh.gd","curtain_mesh.gd","linen_curtain_data.gd","joined_box_mesh.gd","candle_sconce_mesh.gd","candle_sconce_data.gd","timber_door_mesh.gd","interior_door_mesh.gd","interior_door_layout.gd","roof_mesh.gd","fortification_art.gd","fortification_stair_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
-	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","channel_surface.gd"]:
+	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","channel_surface.gd","rock_bank_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
 	return str(hashes).sha256_text()
 

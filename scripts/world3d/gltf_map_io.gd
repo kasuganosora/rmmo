@@ -298,6 +298,9 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 					preload("res://scripts/world3d/surface_materials.gd").apply(node,record)
 				preload("res://scripts/world3d/river_materials.gd").apply(node,record,neighbors.data.get(str(record.uuid),{}))
 				if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): by_id[str(record.uuid)].set_meta("ground_batch_record",record.duplicate(true))
+	preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/leaf_backlight.gd").apply(scene)
+	preload("res://scripts/world3d/asset_visibility_range.gd").apply(scene)
 	return scene
 
 

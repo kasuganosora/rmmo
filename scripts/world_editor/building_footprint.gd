@@ -10,6 +10,15 @@ static func from_points(points: Array[Vector3]) -> Dictionary:
 static func record_shape(record: Dictionary) -> Dictionary: return from_points(Geometry.corners(record))
 
 static func record_shapes(record: Dictionary) -> Array:
+	if record.has("rock_bank"):
+		var data=preload("res://scripts/world3d/rock_bank_mesh.gd");var rows:Array=data.sections(record);var result:Array=[]
+		var pose:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"));var scale:=Geometry.vector(record,"size")
+		for i in rows.size()-1:
+			var points:Array[Vector3]=[]
+			for row in [rows[i],rows[i+1]]:
+				for p:Vector3 in [row.outer,row.inner]:points.append(pose*(p*scale));points.append(pose*((p+Vector3.DOWN*record.rock_bank.height)*scale))
+			result.append(from_points(points))
+		return result
 	if record.has("terrain_mesh"):
 		var terrain=preload("res://scripts/world3d/terrain_surface.gd"); var t: Dictionary=record.terrain_mesh
 		var world: Transform3D=terrain.transform(record); var out: Array=[]

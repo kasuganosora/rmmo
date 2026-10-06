@@ -24,6 +24,9 @@ uniform vec3 emission : source_color = vec3(0.);
 uniform float emission_energy = 1.;
 uniform bool emission_multiply = false;
 uniform bool emission_texture_present = false;
+uniform bool backlight_enabled = false;
+uniform vec3 backlight : source_color = vec3(0.);
+uniform sampler2D backlight_tex : hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float alpha_cut = .5;
 uniform vec3 wind_velocity = vec3(0.);
 uniform float wind_time = 0.;
@@ -55,12 +58,14 @@ void vertex() {
 		float phase = dot(MODEL_MATRIX[3].xyz,vec3(.37,.13,.29));
 		vec3 d = bend(VERTEX,local_force,local_flutter,phase,speed);
 		float e = .005;
-		mat3 jacobian = mat3(vec3(1.,0.,0.)+(bend(VERTEX+vec3(e,0.,0.),local_force,local_flutter,phase,speed)-d)/e,
-			vec3(0.,1.,0.)+(bend(VERTEX+vec3(0.,e,0.),local_force,local_flutter,phase,speed)-d)/e,
-			vec3(0.,0.,1.)+(bend(VERTEX+vec3(0.,0.,e),local_force,local_flutter,phase,speed)-d)/e);
-		if (abs(determinant(jacobian)) > .0001) NORMAL = normalize(transpose(inverse(jacobian))*NORMAL);
-		if (length(TANGENT) > .001) TANGENT = normalize(jacobian*TANGENT);
-		if (length(BINORMAL) > .001) BINORMAL = normalize(jacobian*BINORMAL);
+		// bend depends only on the authored X/Y anchor coordinate. The Jacobian
+		// is I + slope * axis^T; its rank-one inverse preserves bent lighting
+		// without three samples and a general matrix inverse per vertex.
+		vec3 slope = (bend(VERTEX+anchor_axis*e,local_force,local_flutter,phase,speed)-d)/e;
+		float det = 1. + dot(anchor_axis,slope);
+		if (abs(det) > .0001) NORMAL = normalize(NORMAL-anchor_axis*dot(slope,NORMAL)/det);
+		if (length(TANGENT) > .001) TANGENT = normalize(TANGENT+slope*dot(anchor_axis,TANGENT));
+		if (length(BINORMAL) > .001) BINORMAL = normalize(BINORMAL+slope*dot(anchor_axis,BINORMAL));
 		VERTEX += d;
 	}
 }
@@ -75,5 +80,6 @@ void fragment() {
 	if (ao_enabled) { AO = dot(texture(ao_tex,UV),ao_channel); AO_LIGHT_AFFECT = ao_light; }
 	vec3 glow = texture(emission_tex,UV).rgb;
 	EMISSION = (emission_texture_present ? (emission_multiply ? emission*glow : emission+glow) : emission) * emission_energy;
+	// BACKLIGHT_INSERT
 	// ALPHA_INSERT
 }

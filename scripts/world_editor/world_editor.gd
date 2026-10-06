@@ -196,6 +196,7 @@ func _input(event: InputEvent) -> void:
 		return
 	# Drawer controls overlap the canvas; let GUI consume them before scene tools.
 	if _material_panel != null and _material_panel.drawer_input(event): return
+	if _terrain_panel!=null and _terrain_panel.rock_banks!=null and _terrain_panel.rock_banks.input(event):get_viewport().set_input_as_handled();return
 	if _ground_draw!=null and _ground_draw.input(event): get_viewport().set_input_as_handled(); return
 	if _terrain_brush!=null and _terrain_brush.input(event): get_viewport().set_input_as_handled(); return
 	if _city.input(event): get_viewport().set_input_as_handled(); return
@@ -678,6 +679,7 @@ func _building_area_busy() -> bool:
 	return _building_panel!=null and _building_panel.region!=null and _building_panel.region.drawing
 
 func _finish_edits() -> void:
+	if _terrain_panel!=null and _terrain_panel.rock_banks!=null:_terrain_panel.rock_banks.cancel()
 	_city.finish_draw(true)
 	if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 	_authoring.picking = false

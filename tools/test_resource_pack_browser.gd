@@ -87,6 +87,16 @@ func run() -> void:
 		prompt.hide()
 		prompt.custom_action.emit("discard")
 	check(editor._path == shared_map, "opening global map uses its real owning pack path")
+	var legacy_map := base.path_join("maps/medieval_river_town/map.gltf")
+	check(Doc.new().save(legacy_map)==OK,"create root-level authored map")
+	var before := FileAccess.get_sha256(legacy_map)
+	check(catalog.owner_of(legacy_map,packs)==0,"root-level authored map belongs to shared browser entry")
+	check(catalog.available_maps(packs[bi],packs).any(func(row):return row.path==legacy_map),"root-level authored map visible from every pack at original path")
+	dialog.show_maps(legacy_map)
+	check(dialog._map_list.get_selected().get_metadata(0)==legacy_map,"root-level current map is selected in picker")
+	dialog._search.text="medieval_river_town";dialog._fill_maps()
+	check(dialog._map_list.get_root().get_child_count()==1,"root-level map searchable by directory name")
+	check(FileAccess.get_sha256(legacy_map)==before,"map discovery never rewrites map contents")
 	editor.free()
 	session.world3d_editor_doc = null
 	session.world3d_editor_path = ""

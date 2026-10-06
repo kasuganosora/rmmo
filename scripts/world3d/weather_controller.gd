@@ -86,7 +86,7 @@ func bind(view: Camera3D, light: DirectionalLight3D, env: Environment, actor: No
 	lightning = preload("res://scripts/world3d/lightning_runtime.gd").new(); add_child(lightning)
 	flash = lightning.light
 	moon = DirectionalLight3D.new(); moon.name = "WeatherMoon"; moon.shadow_enabled = true
-	moon.directional_shadow_max_distance = 90.; moon.light_color = Color(.45,.55,.82); moon.light_energy = 0.; add_child(moon)
+	moon.directional_shadow_max_distance = 90.; moon.light_color = Color(.68,.74,.88); moon.light_energy = 0.; add_child(moon)
 	audio = AudioStreamPlayer.new(); audio.bus = "Ambient"; add_child(audio)
 	wind_audio = AudioStreamPlayer.new(); wind_audio.bus = "Ambient"; add_child(wind_audio)
 	roof_audio = AudioStreamPlayer.new(); roof_audio.bus = "Ambient"; add_child(roof_audio)
@@ -162,16 +162,20 @@ func _process(delta: float) -> void:
 	enclosure = lerpf(enclosure,enclosure_target,1.-exp(-delta*3.))
 	roof_sound_mix = lerpf(roof_sound_mix,roof_cover,1.-exp(-delta*3.))
 	if not cloud_synchronized: drift += Vector2(wind_velocity.x,wind_velocity.z)*delta*.0006
+	var simulation_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	_tick_lightning(delta)
+	var lightning_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	if values.sky_enabled:
 		var flash_position: Vector3 = lightning.light.global_position
 		sky_material.set_shader_parameter("cloud_flash",Vector4(flash_position.x,flash_position.y,flash_position.z,lightning.light.light_energy/8.))
 	if transitioning or server_environment_dirty or values.celestial_cycle: server_environment_dirty = false; _apply()
 	elif values.sky_enabled: sky_material.set_shader_parameter("drift", drift)
+	var apply_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	precipitation.wind = wind_velocity
 	wind_objects.advance(wind_velocity if visuals_enabled else Vector3.ZERO,wind_time)
+	var wind_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	_sync_audio()
-	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"sky_ms":(sky_end-profile_start)/1000.0,"ms":(Time.get_ticks_usec()-profile_start)/1000.0})
+	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"sky_ms":(sky_end-profile_start)/1000.0,"simulation_ms":(simulation_end-sky_end)/1000.0,"lightning_ms":(lightning_end-simulation_end)/1000.0,"apply_ms":(apply_end-lightning_end)/1000.0,"wind_ms":(wind_end-apply_end)/1000.0,"audio_ms":(Time.get_ticks_usec()-wind_end)/1000.0,"ms":(Time.get_ticks_usec()-profile_start)/1000.0})
 
 func _physics_process(delta: float) -> void:
 	if precipitation == null or not is_instance_valid(camera): return
@@ -241,7 +245,8 @@ func _apply() -> void:
 	sun.light_energy = float(values.sun_energy) * strength
 	environment.ambient_light_energy = float(values.ambient_energy) * lerpf(.78,1,strength)
 	var background := Settings.color(values.background_color)
-	var night := clampf(float(values.sun_energy)/.8, .035, 1)
+	# Manual night light energy must not turn the sky/clouds back into daytime.
+	var night := .035 if values.preset == "night" else clampf(float(values.sun_energy)/.8, .035, 1)
 	moon.light_energy = 0.
 	if values.celestial_cycle:
 		if celestial.is_empty(): celestial = Cycle.sample(float(values.time_hours))
