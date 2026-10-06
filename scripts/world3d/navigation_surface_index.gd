@@ -37,16 +37,40 @@ static func build(mesh:NavigationMesh)->RefCounted:
 	return result
 
 func support(point:Vector3,radius:float)->Vector3:
-	# Only accept an actual point on an actual triangle within the smaller
-	# tolerance sphere. A globally closer point must then satisfy both original
-	# horizontal/vertical limits too. No certificate => use the engine query.
-	if radius<=0 or not point.is_finite():return Vector3.INF
-	for id:int in cells.get(Vector2i(floori(point.x/CELL),floori(point.z/CELL)),[]):
+	# A real triangle point inside the smaller tolerance sphere proves that
+	# even the globally closest point satisfies both original axis limits.
+	if radius<=0 or not is_finite(radius) or not point.is_finite():return Vector3.INF
+	var center:=Vector2i(floori(point.x/CELL),floori(point.z/CELL))
+	var found:=_support_cell(point,radius,center)
+	if found.is_finite():return found
+	# Edge/corner certificates can sit across a cell boundary. Common interior
+	# queries keep their one-cell fast path; oversized queries use engine fallback.
+	var low:=Vector2i(floori((point.x-radius)/CELL),floori((point.z-radius)/CELL))
+	var high:=Vector2i(floori((point.x+radius)/CELL),floori((point.z+radius)/CELL))
+	if (high.x-low.x+1)*(high.y-low.y+1)>16:return Vector3.INF
+	for x in range(low.x,high.x+1):
+		for z in range(low.y,high.y+1):
+			var key:=Vector2i(x,z)
+			if key==center:continue
+			found=_support_cell(point,radius,key)
+			if found.is_finite():return found
+	return Vector3.INF
+
+func _support_cell(point:Vector3,radius:float,key:Vector2i)->Vector3:
+	var limit:=radius*.99999
+	for id:int in cells.get(key,[]):
 		var a:=vertices[triangles[id*3]];var normal:=normals[id]
 		var distance:=normal.dot(point-a)
-		if absf(distance)>radius*.99999:continue
+		if absf(distance)>limit:continue
 		var at:=point-normal*distance
 		var b:=vertices[triangles[id*3+1]];var c:=vertices[triangles[id*3+2]]
-		if (b-a).cross(at-a).dot(normal)<0 or (c-b).cross(at-b).dot(normal)<0 or (a-c).cross(at-c).dot(normal)<0:continue
-		return at
+		if (b-a).cross(at-a).dot(normal)>=0 and (c-b).cross(at-b).dot(normal)>=0 and (a-c).cross(at-c).dot(normal)>=0:return at
+		# Only actual points on triangle edges qualify, not a grown AABB or an
+		# independently expanded horizontal/vertical acceptance rectangle.
+		var nearest:=Geometry3D.get_closest_point_to_segment(point,a,b)
+		if nearest.distance_squared_to(point)<limit*limit:return nearest
+		nearest=Geometry3D.get_closest_point_to_segment(point,b,c)
+		if nearest.distance_squared_to(point)<limit*limit:return nearest
+		nearest=Geometry3D.get_closest_point_to_segment(point,c,a)
+		if nearest.distance_squared_to(point)<limit*limit:return nearest
 	return Vector3.INF

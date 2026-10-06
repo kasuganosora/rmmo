@@ -31,6 +31,18 @@ func run()->void:
 	if index.support(Vector3(12,0,0),.2).is_finite():failures+=1
 	if index.support(Vector3(-7,.5,4),.2).is_finite():failures+=1
 	if not index.support(Vector3(16,.55,0),.2).is_finite():failures+=1
+	# An edge on x=16 lies in the neighbouring cell for x=15.9; include a
+	# negative-coordinate corner and stacked floor separation as well.
+	var edge_mesh:=NavigationMesh.new()
+	edge_mesh.set_vertices(PackedVector3Array([Vector3(16,0,0),Vector3(20,0,0),Vector3(16,0,4),Vector3(-20,3,-20),Vector3(-16,3,-20),Vector3(-16,3,-16)]))
+	edge_mesh.add_polygon(PackedInt32Array([0,1,2]));edge_mesh.add_polygon(PackedInt32Array([3,4,5]))
+	var edge_index:=Index.build(edge_mesh)
+	for point:Vector3 in [Vector3(15.9,.05,1),Vector3(15.9,.05,-.1),Vector3(-15.9,3.05,-15.9)]:
+		if not edge_index.support(point,.2).is_finite():failures+=1;print("FAIL missing edge/corner certificate ",point)
+	for point:Vector3 in [Vector3(15.81,.19,-.19),Vector3(16,1,1),Vector3(-15.9,0,-15.9)]:
+		if edge_index.support(point,.2).is_finite():failures+=1;print("FAIL invalid sphere/floor certificate ",point)
+	for radius:float in [NAN,INF,0.,-1.]:
+		if edge_index.support(Vector3(16,0,1),radius).is_finite():failures+=1
 	NavigationServer3D.free_rid(region);NavigationServer3D.free_rid(map)
 	print("NAVIGATION_SURFACE_INDEX samples=6000 accepted=",accepted," false_positives=",failures)
 	quit(1 if failures else 0)

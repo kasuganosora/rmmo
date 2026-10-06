@@ -14,7 +14,7 @@ func run()->void:
 		var host:=Node3D.new();root.add_child(host);var scene:=doc.build();host.add_child(scene)
 		Stream.sync(scene,host,Vector3.ZERO);await physics()
 		var body:=WalkBody.new();body.floor_snap_length=.2
-		var shape:=CollisionShape3D.new();shape.shape=capsule;shape.position.y=.15;body.add_child(shape);host.add_child(body)
+		var shape:=CollisionShape3D.new();shape.name="CollisionShape3D";shape.shape=capsule;shape.position.y=.15;body.add_child(shape);host.add_child(body)
 		var walk_nav:=WalkNavigation.new();host.add_child(walk_nav)
 		var authority:=preload("res://scripts/world3d/world_authority.gd").new()
 		if preset.parameters.get("compound")=="courtyard":
@@ -31,7 +31,9 @@ func run()->void:
 					for tick in 400:
 						var flat:=Vector3(target.x-body.position.x,0,target.z-body.position.z)
 						if flat.length()<.17 and absf(body.position.y-.9-target.y)<.15:break
-						await physics_frame;authority.move_intent(tick,flat.normalized(),2.5)
+						await physics_frame
+						if flat.length_squared()>.0001:body.rotation.y=atan2(flat.x,flat.z)
+						authority.move_intent(tick,flat.normalized(),2.5)
 					check(Vector2(body.position.x-target.x,body.position.z-target.z).length()<.3 and absf(body.position.y-.9-target.y)<.2,preset.id+" stair="+str(stair.floor)+" reverse="+str(reverse)+" target="+str(target)+" actual="+str(body.position))
 					authority.release()
 		print("HOUSE_WALK ",preset.id," failures=",failed)

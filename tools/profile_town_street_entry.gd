@@ -17,6 +17,7 @@ var script_frame_start:=0
 var draw_frame_start:=0
 var engine_frame:Dictionary={}
 var preparation_report_at:=0
+var unix_offset:=0.0
 var expect_shadow_gating:=false
 var force_legacy_shadows:=false
 var shadow_comparison:Array=[]
@@ -26,9 +27,12 @@ class PhysicsMeter extends Node:
 	var total_ms:=0.0
 	var max_ms:=0.0
 	var steps:=0
+	var player:Node
+	var worst_motion:Dictionary={}
 	func _physics_process(_delta:float)->void:
 		ended=Time.get_ticks_usec()
 		var elapsed:float=(ended-began)/1000.0
+		if elapsed>max_ms and is_instance_valid(player):worst_motion=player.get_meta("motion_timing",{})
 		total_ms+=elapsed;max_ms=maxf(max_ms,elapsed);steps+=1
 var physics_meter:PhysicsMeter
 func compare_shadow_work()->void:
@@ -97,11 +101,12 @@ func check(ok:bool,label:String)->void:
 func sample(previous:int)->int:
 	var now:=Time.get_ticks_usec();var batcher=world._map_root.get_node("GroundRenderBatches")
 	var r:Dictionary={"ms":(now-previous)/1000.0,"position":world._player.position,"gpu":RenderingServer.viewport_get_measured_render_time_gpu(root.get_viewport_rid()),"process":Performance.get_monitor(Performance.TIME_PROCESS)*1000,"physics":Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000,"parts":world.get_meta("frame_timings",{}),"batch_count":batcher.sync_count,"batch_ms":batcher.last_sync_ms,"batch_profile":batcher.sync_profile.duplicate(),"batch_slice":batcher.last_prepare_slice_ms,"batch_commit":batcher.last_commit_ms,"nav":world._navigation.loading_profile.get("nearby_refreshes",0)}
+	r["ticks_usec"]=now
 	samples.append(r)
 	r["pass"]=pass_index;r["night"]=night
-	r["physics_work"]={"script_ms":physics_meter.total_ms,"max_step_ms":physics_meter.max_ms,"steps":physics_meter.steps,"tail_ms":(now-physics_meter.ended)/1000.0,"frame":Engine.get_physics_frames()}
+	r["physics_work"]={"script_ms":physics_meter.total_ms,"max_step_ms":physics_meter.max_ms,"steps":physics_meter.steps,"worst_motion":physics_meter.worst_motion,"tail_ms":(now-physics_meter.ended)/1000.0,"frame":Engine.get_physics_frames()}
 	r["motion"]=world._player.get_meta("motion_timing",{})
-	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
+	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0;physics_meter.worst_motion={}
 	r["nav_background"]=world._navigation.get_meta("background_timing",{})
 	r["nav_publication"]=world._navigation.get_meta("publication_timing",{})
 	r["nav_full"]=world._navigation.fully_ready
@@ -128,6 +133,7 @@ func sample(previous:int)->int:
 	r["outline_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(world._outline.mask.get_viewport_rid())
 	r["outline_gpu"]=RenderingServer.viewport_get_measured_render_time_gpu(world._outline.mask.get_viewport_rid())
 	r["celestial_lights"]={"sun_energy":world._weather.sun.light_energy,"moon_energy":world._weather.moon.light_energy,"sun_visible":world._weather.sun.visible,"moon_visible":world._weather.moon.visible,"sun_shadow":world._weather.sun.shadow_enabled,"moon_shadow":world._weather.moon.shadow_enabled}
+	r["sampling_ms"]=(Time.get_ticks_usec()-now)/1000.0
 	# Keep the hot path free of synchronous console/JSON output. Printing a
 	# large hitch record here would itself inflate the following frame.
 	return now
@@ -135,10 +141,22 @@ func probe_collision_candidates()->void:
 	# Isolate each resident collision candidate using a temporary physics bit.
 	# No map records are edited; restore every body layer before returning.
 	var player:CharacterBody3D=world._player
-	var pose:=player.global_transform;pose.origin=Vector3(-336.487,.90083,15.96885)
+	var pose:=Transform3D(Basis.from_euler(Vector3(0,-.394761,0)),Vector3(-336.485748,.900826,15.965792))
 	var old_mask:=player.collision_mask
+	if "--collision-grid" in OS.get_cmdline_user_args():
+		var grid:Array=[]
+		for x in 9:
+			for z in 13:
+				var at:=pose;at.origin=Vector3(-336.9+x*.1,.90083,15.7+z*.1)
+				for motion:Vector3 in [Vector3(-.026,0,.06),Vector3(.026,0,-.06),Vector3.DOWN*.2]:
+					var began:=Time.get_ticks_usec()
+					for i in 3:player.test_move(at,motion)
+					grid.append({"position":at.origin,"motion":motion,"ms":(Time.get_ticks_usec()-began)/3000.0})
+		grid.sort_custom(func(a,b):return a.ms>b.ms)
+		print("COLLISION_GRID ",JSON.stringify(grid.slice(0,10)))
+		FileAccess.open(OUT.path_join(label_+"_collision_grid.json"),FileAccess.WRITE).store_string(JSON.stringify(grid,"  "))
 	var baseline:=Time.get_ticks_usec()
-	for i in 30:player.test_move(pose,Vector3(.015,-.003,.06))
+	for i in 30:player.test_move(pose,Vector3(-1.514282,-.163333,3.701992)/60.0)
 	print("COLLISION_ALL_MS ",(Time.get_ticks_usec()-baseline)/30000.0)
 	player.collision_mask=1<<19
 	var rows:Array=[]
@@ -150,7 +168,7 @@ func probe_collision_candidates()->void:
 		if source==null or not source.get_aabb().grow(1).has_point(body.global_transform.affine_inverse()*pose.origin):continue
 		var layer:=body.collision_layer;body.collision_layer=1<<19
 		var began:=Time.get_ticks_usec()
-		for i in 30:player.test_move(pose,Vector3(.015,-.003,.06))
+		for i in 30:player.test_move(pose,Vector3(-1.514282,-.163333,3.701992)/60.0)
 		var elapsed:float=(Time.get_ticks_usec()-began)/30000.0
 		body.collision_layer=layer
 		rows.append({"uuid":spec.uuid,"ms":elapsed,"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
@@ -158,6 +176,51 @@ func probe_collision_candidates()->void:
 	rows.sort_custom(func(a,b):return a.ms>b.ms)
 	print("COLLISION_CANDIDATES ",JSON.stringify(rows))
 	FileAccess.open(OUT.path_join(label_+"_collision_candidates.json"),FileAccess.WRITE).store_string(JSON.stringify(rows,"  "))
+func replay_slow_motion()->void:
+	var input_path:=OUT.path_join("hitch_vsync_control_20261006.json")
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--replay-source="):input_path=arg.trim_prefix("--replay-source=")
+	var parsed:Variant=JSON.parse_string(FileAccess.get_file_as_string(input_path))
+	if not parsed is Dictionary or not parsed.get("samples") is Array:
+		check(false,"motion replay requires a completed profile JSON: "+input_path);return
+	var report:Dictionary=parsed
+	var motions:Array=[]
+	for row:Dictionary in report.samples:
+		var motion:Dictionary=row.get("physics_work",{}).get("worst_motion",row.get("motion",{}))
+		if motion.has("move_from"):motions.append(motion)
+	motions.sort_custom(func(a,b):return a.move_ms>b.move_ms)
+	var player:CharacterBody3D=world._player
+	player.set_physics_process(false)
+	var bare:=CharacterBody3D.new();bare.collision_layer=0;bare.collision_mask=player.collision_mask
+	for property:String in ["safe_margin","floor_snap_length","floor_max_angle","floor_stop_on_slope","floor_constant_speed","floor_block_on_wall","max_slides","up_direction","wall_min_slide_angle","motion_mode"]:bare.set(property,player.get(property))
+	var shape:=CollisionShape3D.new();shape.shape=player.get_node("CollisionShape3D").shape;shape.transform=player.get_node("CollisionShape3D").transform;bare.add_child(shape)
+	world.add_child(bare);bare.add_collision_exception_with(player)
+	var results:Array=[];var seen:Dictionary={}
+	for motion:Dictionary in motions:
+		var key:=str(motion.move_from)
+		if seen.has(key):continue
+		seen[key]=true
+		var vector_text:String=motion.move_velocity
+		var values:=vector_text.trim_prefix("(").trim_suffix(")").split(",")
+		var velocity:=Vector3(float(values[0]),float(values[1]),float(values[2]))
+		values=str(motion.move_rotation).trim_prefix("(").trim_suffix(")").split(",")
+		var basis:=Basis.from_euler(Vector3(float(values[0]),float(values[1]),float(values[2])))
+		var position:=Vector3(motion.move_from[0],motion.move_from[1],motion.move_from[2])
+		var times:Array=[];var bare_times:Array=[];var query_times:Array=[];var aligned_times:Array=[]
+		for i in 6:
+			await physics_frame
+			player.global_transform=Transform3D(basis,position);player.velocity=velocity
+			var began:=Time.get_ticks_usec();player.test_move(player.global_transform,velocity/60.0);query_times.append((Time.get_ticks_usec()-began)/1000.0)
+			began=Time.get_ticks_usec();player.move_and_slide();times.append((Time.get_ticks_usec()-began)/1000.0)
+			bare.global_transform=Transform3D(basis,position);bare.velocity=velocity
+			began=Time.get_ticks_usec();bare.move_and_slide();bare_times.append((Time.get_ticks_usec()-began)/1000.0)
+			bare.global_transform=Transform3D(Basis.IDENTITY,position);bare.velocity=velocity
+			began=Time.get_ticks_usec();bare.move_and_slide();aligned_times.append((Time.get_ticks_usec()-began)/1000.0)
+		results.append({"position":position,"velocity":velocity,"original_ms":motion.move_ms,"replay_ms":times,"bare_ms":bare_times,"query_ms":query_times,"aligned_ms":aligned_times})
+		if results.size()>=12:break
+	bare.free()
+	print("MOTION_REPLAY ",JSON.stringify(results))
+	FileAccess.open(OUT.path_join(label_+"_motion_replay.json"),FileAccess.WRITE).store_string(JSON.stringify(results,"  "))
 func run()->void:
 	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
@@ -190,6 +253,8 @@ func run()->void:
 			check(body.get_child_count()==1 and body.get_child(0) is CollisionShape3D and body.get_child(0).shape is BoxShape3D,"resident flat terrain primitive "+str(spec.uuid))
 		if str(spec.uuid)=="town_terrain_1_3":print("HOTSPOT_COLLISION ",{"flat":not flat.is_empty(),"record":spec.get("ground_batch_record",{}).keys(),"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
 	print("FLAT_TERRAIN_RESIDENT ",flat_live)
+	if "--motion-replay" in OS.get_cmdline_user_args():
+		await replay_slow_motion();world.free();quit(1 if failures else 0);return
 	if "--collision-probe" in OS.get_cmdline_user_args():
 		probe_collision_candidates();world.free();quit(1 if failures else 0);return
 	if "--slice-resident" in OS.get_cmdline_user_args():
@@ -224,8 +289,10 @@ func run()->void:
 		support_probes={"samples":2000,"accepted":accepted,"false_positives":mismatches}
 		check(mismatches==0 and accepted>0,"actual town surface certificates agree with engine: "+str(support_probes))
 	if "--pause-nav" in OS.get_cmdline_user_args():world._navigation.set_process(false)
+	unix_offset=Time.get_unix_time_from_system()-Time.get_ticks_usec()/1000000.0
 	world.set_meta("profile_frame",true)
 	world._player.set_meta("profile_frame",true)
+	if "--legacy-capsule-yaw" in OS.get_cmdline_user_args():world._player.set_meta("profile_legacy_capsule_yaw",true)
 	world._navigation.set_meta("profile_frame",true)
 	world._weather.set_meta("profile_frame",true)
 	world._weather.streetlamps.set_meta("profile_frame",true)
@@ -235,7 +302,7 @@ func run()->void:
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(),true)
 	RenderingServer.viewport_set_measure_render_time(world._outline.mask.get_viewport_rid(),true)
 	process_frame.connect(func():script_frame_start=Time.get_ticks_usec())
-	physics_meter=PhysicsMeter.new();physics_meter.process_physics_priority=1000000;root.add_child(physics_meter)
+	physics_meter=PhysicsMeter.new();physics_meter.player=world._player;physics_meter.process_physics_priority=1000000;root.add_child(physics_meter)
 	physics_frame.connect(func():physics_meter.began=Time.get_ticks_usec())
 	RenderingServer.frame_pre_draw.connect(func():
 		if force_legacy_shadows:
@@ -270,6 +337,8 @@ func run()->void:
 				if Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.45:break
 			check(Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.5,"walk "+str(pass_)+" to "+str(target))
 			if "--shadow-ab" in OS.get_cmdline_user_args() and pass_==0 and target==Vector3(-333,0,8):await compare_shadow_work()
+		var checkpoint:=FileAccess.open(OUT.path_join(label_+"_checkpoint.json"),FileAccess.WRITE)
+		checkpoint.store_string(JSON.stringify({"completed_pass":pass_,"failures":failures,"unix_offset":unix_offset,"slow_frames":samples.filter(func(row):return row.ms>50)}));checkpoint.close()
 	if "--drain-nav" in OS.get_cmdline_user_args():
 		var previous:=Time.get_ticks_usec()
 		while not world._navigation.fully_ready:
@@ -280,6 +349,9 @@ func run()->void:
 	var report:={"loader":"native" if "--native" in OS.get_cmdline_user_args() else "direct_gltf","short_route":"--short" in OS.get_cmdline_user_args(),"navigation_paused":"--pause-nav" in OS.get_cmdline_user_args(),"failures":failures,"samples":samples,"median":sorted[sorted.size()/2],"p95":sorted[int(sorted.size()*.95)],"p99":sorted[int(sorted.size()*.99)],"max":sorted.back(),"over50":sorted.filter(func(x):return x>50).size(),"worst":worst.slice(0,20),"map":FileAccess.get_sha256(MAP)}
 	report["navigation_fully_ready"]=world._navigation.fully_ready
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
+	report["aligned_capsule_yaw"]=not "--legacy-capsule-yaw" in OS.get_cmdline_user_args()
+	report["actual_vsync_mode"]=DisplayServer.window_get_vsync_mode()
+	report["unix_offset"]=unix_offset
 	report["script_debugger_active"]=EngineDebugger.is_active()
 	report["surface_query_frame_domain"]="physics" # Other instrumented frame IDs use process frames.
 	report["route"]="fortifications" if "--fortifications" in OS.get_cmdline_user_args() else ("street_end" if "--street-end" in OS.get_cmdline_user_args() else "streets")

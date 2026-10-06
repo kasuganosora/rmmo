@@ -45,6 +45,8 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 	var profiling:bool=body.has_meta("profile_frame")
 	var started:=Time.get_ticks_usec() if profiling else 0
 	var landing_done:=started
+	var actor_basis:Variant=null
+	if not body.has_meta("profile_legacy_capsule_yaw"):actor_basis=preload("res://scripts/world3d/player_clearance.gd").begin_capsule_motion(body)
 	var dt: float = body.get_physics_process_delta_time()
 	var multiplier := clampf(float(speed_multiplier.call()), 0.0, 3.0) if speed_multiplier.is_valid() else 1.0
 	var wish := Vector3(direction.x, 0, direction.z).limit_length(1.0) * clampf(speed, 0, Motion.RUN_MPS) * multiplier
@@ -69,13 +71,19 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 	body.velocity.x = wish.x
 	body.velocity.z = wish.z
 	body.velocity.y -= 9.8 * dt
+	var move_from:Transform3D=body.global_transform if profiling else Transform3D.IDENTITY
+	var move_velocity:Vector3=body.velocity if profiling else Vector3.ZERO
 	body.move_and_slide()
 	var move_done:=Time.get_ticks_usec() if profiling else 0
 	body._sense_surface()
+	preload("res://scripts/world3d/player_clearance.gd").end_capsule_motion(body,actor_basis)
 	_publish(body)
 	if profiling:
 		var timing:={"frame":Engine.get_physics_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"support_ms":(support_done-started)/1000.0,"landing_ms":(landing_done-started)/1000.0,"navigation_ms":(support_done-landing_done)/1000.0,"step_ms":(step_done-support_done)/1000.0,"move_ms":(move_done-step_done)/1000.0,"sense_ms":(Time.get_ticks_usec()-move_done)/1000.0}
 		if timing.ms>2.0:
+			timing.move_from=[move_from.origin.x,move_from.origin.y,move_from.origin.z]
+			timing.move_rotation=move_from.basis.get_euler()
+			timing.move_velocity=move_velocity
 			timing.contacts=[]
 			for i in body.get_slide_collision_count():
 				var hit:KinematicCollision3D=body.get_slide_collision(i)
