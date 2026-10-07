@@ -29,15 +29,30 @@ func import_file(path: String) -> Dictionary:
 		for entry in entries:
 			if str(entry.get("asset_path","")).simplify_path().replace("\\","/")==normalized and FileAccess.get_sha256(path)==normalized.get_file().get_basename():
 				return {"ok":true,"entry":entry}
-	var doc := GLTFDocument.new()
-	var state := GLTFState.new()
-	var err := doc.append_from_file(path, state, 0, path.get_base_dir())
-	if err != OK: return {"ok": false, "error": "模型或依赖读取失败：" + error_string(err)}
 	DirAccess.make_dir_recursive_absolute(directory)
 	var staging := directory.path_join("import_%d.glb" % Time.get_ticks_usec())
-	Io.preserve_node_morph_defaults(state)
-	err = doc.write_to_filesystem(state, staging)
-	if err != OK: return {"ok": false, "error": error_string(err)}
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	var err: Error
+	if preload("res://scripts/world3d/embedded_glb.gd").can_copy(path):
+		# Validate the copy, not an earlier version of a concurrently replaced source.
+		err = DirAccess.copy_absolute(path, staging)
+		if err == OK and not preload("res://scripts/world3d/embedded_glb.gd").can_copy(staging): err = ERR_FILE_CORRUPT
+		if err == OK: err = doc.append_from_file(staging, state, 0, staging.get_base_dir())
+		# Godot can report OK while an embedded PNG failed to decode. Never
+		# publish that partially loaded model with a missing material texture.
+		if err == OK:
+			if state.images.size() != state.json.get("images", []).size(): err = ERR_FILE_CORRUPT
+			for texture in state.images:
+				if texture == null or texture.get_width() <= 0 or texture.get_height() <= 0: err = ERR_FILE_CORRUPT
+	else:
+		err = doc.append_from_file(path, state, 0, path.get_base_dir())
+		if err == OK:
+			Io.preserve_node_morph_defaults(state)
+			err = doc.write_to_filesystem(state, staging)
+	if err != OK:
+		if FileAccess.file_exists(staging): DirAccess.remove_absolute(staging)
+		return {"ok": false, "error": "模型或依赖读取失败：" + error_string(err)}
 	var hash := FileAccess.get_sha256(staging)
 	var target := directory.path_join(hash + ".glb")
 	if FileAccess.file_exists(target): DirAccess.remove_absolute(staging)

@@ -126,10 +126,10 @@ func choose(id: String, add: bool = false) -> void:
 	set_ids(next)
 
 
-func pivot() -> Vector3:
+func pivot(live_records: Variant = null) -> Vector3:
 	if editor._transform_drag.active and editor._transform_drag.mode != 0: return editor._transform_drag.center
 	if _pivot_valid: return _pivot
-	var selected := records()
+	var selected: Array = records() if live_records == null else live_records
 	_pivot = Geometry.vector(selected[0], "position") if selected.size() == 1 else Geometry.bounds(selected).get_center()
 	_pivot_valid = true
 	return _pivot

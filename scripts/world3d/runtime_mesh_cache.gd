@@ -12,7 +12,7 @@ static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
 	for file in ["house_prefab.gd","world_document.gd","surface_materials.gd","ground_cpu_mesh.gd","runtime_mesh_cache.gd","world_stream.gd","stream_index.gd","stream_landscape.gd","streetlamp_banner.gd","streetlamp_lights.gd","building_fixtures.gd","wind_response.gd","building_blueprint.gd","house_wall_mesh.gd","curtain_mesh.gd","linen_curtain_data.gd","joined_box_mesh.gd","candle_sconce_mesh.gd","candle_sconce_data.gd","timber_door_mesh.gd","interior_door_mesh.gd","interior_door_layout.gd","roof_mesh.gd","fortification_art.gd","fortification_stair_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
-	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","channel_surface.gd","rock_bank_mesh.gd"]:
+	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","road_kerb.gd","channel_surface.gd","rock_bank_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
 	return str(hashes).sha256_text()
 
@@ -148,7 +148,8 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 	return {"digest":digest,"generator":generator,"materials":materials,"meshes":meshes,"entries":entries,"specs":specs,"specs_skip_reason":skipped}
 
 
-static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null)->Dictionary:
+static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->Dictionary:
+	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	if data.is_empty():return {}
 	# A pool belongs to one immutable runtime load. Editor restores remain local.
 	if material_pool==null:material_pool={}
@@ -177,12 +178,14 @@ static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:
 				material.set(key,property)
 		material_pool[identity]=material
 		materials.append(material)
+	if timings!=null:timings.materials_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	for value:Dictionary in data.meshes:
 		var mesh:=Cpu.new();mesh.surfaces=value.surfaces;mesh.bounds=value.bounds;mesh.box_size=value.box_size
 		for id:int in value.materials:mesh.materials.append(materials[id])
 		meshes.append(mesh)
 	for entry:Array in data.entries:result[entry[0]]={"mesh":meshes[entry[1][0]],"source":meshes[entry[1][1]]}
 	data["_restored_meshes"]=meshes
+	if timings!=null:timings.cpu_meshes_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return result
 
 static func restore_specs(data:Dictionary,records:Array)->Array:

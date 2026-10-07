@@ -225,6 +225,7 @@ func focus() -> void:
 	frame({"position":Blueprint.arr(bounds.position),"size":Blueprint.arr(bounds.size)})
 
 func frame(bounds: Dictionary) -> void:
+	if editor._walk_mode!=null and editor._walk_mode.active:editor._walk_mode.stop()
 	var box := AABB(Blueprint.vec(bounds.position),Blueprint.vec(bounds.size)); editor._orbit_center = box.get_center()
 	var extent := maxf(box.size.x,maxf(box.size.y,box.size.z))
 	editor._camera.position = editor._orbit_center+Vector3(1, .85, -1).normalized()*extent*1.8

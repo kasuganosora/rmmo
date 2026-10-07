@@ -4,9 +4,9 @@ const Poly=preload("res://scripts/world3d/roof_plan.gd")
 const CELL:=32.0
 
 static func settings_schema() -> Dictionary:
-	return Data.object({"thickness":Data.S.number(.1,.5),"lift":Data.S.number(.005,.05),"clearance":Data.S.number(2.5,10),"material_id":Data.text(256)})
+	return Data.object({"thickness":Data.S.number(.1,.5),"lift":Data.S.number(.005,.05),"clearance":Data.S.number(2.5,10),"material_id":Data.text(256)}.merged(preload("res://scripts/world3d/road_kerb.gd").settings()))
 static func defaults() -> Dictionary:
-	return {"thickness":.2,"lift":.025,"clearance":3.0,"material_id":""}
+	return {"thickness":.2,"lift":.025,"clearance":3.0,"material_id":""}.merged(preload("res://scripts/world3d/road_kerb.gd").defaults())
 
 static func intersection(a: Array,b: Array) -> Array:
 	var result: Array=a
@@ -194,4 +194,6 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 		record.road_clearance=settings.clearance
 		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return Data.fail("道路裁切产生无效网格，已取消")
 		records.append(record)
-	return {"ok":true,"records":records,"area":area,"chunks":records.size(),"operations":operations}
+	var kerbs:=preload("res://scripts/world3d/road_kerb.gd").attach(records,defaults().merged(settings,true),portals)
+	if not kerbs.ok:return kerbs
+	return {"ok":true,"records":records,"area":area,"chunks":records.size(),"operations":operations,"kerb_length":kerbs.length}

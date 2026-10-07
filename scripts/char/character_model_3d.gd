@@ -248,6 +248,13 @@ func play(next_action:String,next_direction:String,restart:bool=false,variant:St
 	_apply_blend(0)
 
 func _process(delta:float)->void:
+	if not has_meta("profile_frame"):
+		_tick_frame(delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(delta:float)->void:
 	_step_expressions(delta)
 	elapsed+=delta*(locomotion_rate if action in ["walk","dash"] else 1.0)
 	if axis_rig!=null and REST_NEXT.has(action) and elapsed>=action_duration() and axis_rig.supports(REST_NEXT[action]):

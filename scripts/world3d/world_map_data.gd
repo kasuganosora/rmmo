@@ -19,6 +19,7 @@ func rebuild_shape_index()->void:
 	_shape_cells.clear();_large_shapes.clear()
 	_indexed_shape_count=shapes.size()
 	for i in shapes.size():
+		shapes[i].draw_id=i
 		var rect:Rect2=shapes[i].bounds
 		var low:=Vector2i((rect.position/SHAPE_CELL_SIZE).floor())
 		var high:=Vector2i((rect.end/SHAPE_CELL_SIZE).floor())

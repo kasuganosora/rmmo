@@ -10,6 +10,33 @@ var material_builds:=0
 static var night_materials:Dictionary={}
 static var halo_mesh:QuadMesh
 
+func prepare_materials(library:Array,tree:SceneTree)->Dictionary:
+	# Distant lamps can have a different StandardMaterial shader variant. Resolve
+	# their emissive RID under the loading cover, before first residency entry.
+	var started:=Time.get_ticks_usec();var slice:=started;var seen:Dictionary={}
+	var report:={"materials":0,"max_make_ms":0.0}
+	for spec:Dictionary in library:
+		if Time.get_ticks_usec()-slice>=2000:await tree.process_frame;slice=Time.get_ticks_usec()
+		var extra:Dictionary=spec.get("extras",{})
+		var warm:bool=extra.get("rmmo_small_wall_lantern",false)
+		if not warm and not extra.get("rmmo_streetlamp_crystal",false):continue
+		var mesh:Mesh=spec.get("mesh")
+		if mesh==null:continue
+		var overrides:Array=spec.get("surface_overrides",[])
+		for slot in mesh.get_surface_count():
+			var source:Material=spec.get("material_override")
+			if source==null and slot<overrides.size():source=overrides[slot]
+			if source==null:source=mesh.surface_get_material(slot)
+			if not source is StandardMaterial3D:continue
+			var key:=str(source.get_instance_id())+str(warm)
+			if seen.has(key):continue
+			seen[key]=true
+			var mark:=Time.get_ticks_usec()
+			_night_material(source,warm)
+			report.materials+=1;report.max_make_ms=maxf(report.max_make_ms,(Time.get_ticks_usec()-mark)/1000.0)
+	report.elapsed_ms=(Time.get_ticks_usec()-started)/1000.0
+	return report
+
 func _night_material(original:Material,warm:bool=false)->Material:
 	if not original is StandardMaterial3D:return original
 	var key:String=str(original.get_instance_id())+("_warm" if warm else "_blue")
@@ -81,6 +108,7 @@ func refresh()->void:
 		var id:int=node.get_instance_id();active[id]=true
 		if not fixtures.has(id):
 			var warm:bool=node.get_meta("extras",{}).get("rmmo_small_wall_lantern",false)
+			var original_override:Material=node.material_override
 			var originals:Array=[]
 			var emission:Array=[]
 			for slot in node.mesh.get_surface_count():
@@ -89,17 +117,21 @@ func refresh()->void:
 				# Prepare both states on fixture discovery, while initial map loading
 				# is covered. Switching the clock only swaps already built resources.
 				# Retain them per fixture even if the bounded shared cache evicts one.
-				emission.append(_night_material(override if override!=null else node.mesh.surface_get_material(slot),warm))
+				emission.append(_night_material(node.get_active_material(slot),warm))
 			var glow:=MeshInstance3D.new();glow.name="StreetlampHalo";glow.mesh=halo();glow.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			glow.position=node.get_aabb().get_center();glow.visible=false;node.add_child(glow)
 			var light:=_new_light()
 			if warm:light.light_color=Color(1,.52,.22);light.light_energy=1.2;light.omni_range=3.5
-			fixtures[id]={"node":weakref(node),"originals":originals,"emission":emission,"glow":glow,"light":light,"lit":false,"warm":warm}
+			fixtures[id]={"node":weakref(node),"original_override":original_override,"originals":originals,"emission":emission,"glow":glow,"light":light,"lit":false,"warm":warm}
 		var row:Dictionary=fixtures[id]
 		var at:Vector3=node.global_transform*node.get_aabb().get_center()
 		# Night lighting belongs to the fixture, never to the observer's distance/rank.
 		var enabled:bool=night and node.is_visible_in_tree()
 		if enabled!=row.lit:
+			# A global override wins over every surface override. Emission derives
+			# from that active source, then temporarily replaces it per surface;
+			# restore both levels of authored overrides when daylight returns.
+			node.material_override=null if enabled else row.original_override
 			for slot in node.mesh.get_surface_count():
 				node.set_surface_override_material(slot,row.emission[slot] if enabled else row.originals[slot])
 			row.lit=enabled
@@ -115,7 +147,8 @@ func refresh()->void:
 func _restore(row:Dictionary)->void:
 	var node=row.node.get_ref()
 	if is_instance_valid(node):
-		for slot in row.originals.size():node.set_surface_override_material(slot,row.originals[slot])
+		node.material_override=row.original_override
+		for slot in mini(node.mesh.get_surface_count(),row.originals.size()):node.set_surface_override_material(slot,row.originals[slot])
 	if is_instance_valid(row.glow):row.glow.queue_free()
 	if is_instance_valid(row.light):
 		row.light.hide();lights.erase(row.light);row.light.queue_free()

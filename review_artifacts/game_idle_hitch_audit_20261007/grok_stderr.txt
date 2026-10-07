@@ -1,0 +1,36 @@
+2026-10-07T04:04:46.789419Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-login
+2026-10-07T04:04:46.789858Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-process_resource_limits
+2026-10-07T04:04:46.795560Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-agent_connect
+2026-10-07T04:04:46.798215Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_new
+2026-10-07T04:04:47.134754Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-startup_subtimers
+2026-10-07T04:04:47.135042Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-startup_completed
+2026-10-07T04:04:47.144679Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-model_switched
+2026-10-07T04:04:47.144981Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-trace_upload_skipped
+2026-10-07T04:04:47.145920Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_started
+2026-10-07T04:04:47.147295Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-subagent_model_presentation_applied
+2026-10-07T04:04:47.147919Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-prompt_submitted
+2026-10-07T04:04:47.150192Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_harness
+2026-10-07T04:04:47.151451Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-memory_injection
+2026-10-07T04:04:47.153304Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-turn
+2026-10-07T04:04:48.992648Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_context_snapshot
+2026-10-07T04:05:09.783419Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-model_response_received
+2026-10-07T04:05:09.804980Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_prompted
+2026-10-07T04:05:09.833359Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_decision
+2026-10-07T04:05:09.833604Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_decision
+2026-10-07T04:05:09.833738Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_prompted
+2026-10-07T04:05:09.837106Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-tool_call_completed
+2026-10-07T04:05:09.920317Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-tool_call_completed
+2026-10-07T04:05:16.230389Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-process_resource_usage
+2026-10-07T04:05:30.491618Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_prompted
+2026-10-07T04:05:30.491962Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-model_response_received
+2026-10-07T04:05:30.494734Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-permission_decision
+Max turns reached
+2026-10-07T04:05:30.800473Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-tool_call_completed
+2026-10-07T04:05:30.800671Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-prompt_latency
+2026-10-07T04:05:30.850444Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-turn_completed
+2026-10-07T04:05:30.906618Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-long_reasoning_reminder
+2026-10-07T04:05:30.908713Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-turn_completed_lifecycle
+2026-10-07T04:05:30.983594Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-memory_session_summary
+2026-10-07T04:05:30.989553Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_ended
+2026-10-07T04:05:32.427406Z  WARN mixpanel track failed error=HTTP request failed: error sending request for url (https://api.mixpanel.com/track?verbose=1) event=grok-shell-session_end_timings
+Error: max turns reached

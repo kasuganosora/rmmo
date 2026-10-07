@@ -43,6 +43,9 @@ static func save_scene(root: Node, gltf_path: String, progress: Callable = Calla
 	last_export_metrics["streamed_meshes"] = geometry.originals.size()
 	last_export_metrics["meshes"] = state.meshes.size()
 	last_export_metrics["materials"] = state.materials.size()
+	last_export_metrics["mode"] = "full_export"
+	last_export_metrics["texture_export_passes"] = 1
+	last_export_metrics["images_written"] = state.json.get("images",[]).size()
 	return err
 
 
@@ -80,7 +83,7 @@ static func save_scene_atomic(root: Node, gltf_path: String, expected_signature:
 	if expected_signature != null and FileAccess.get_sha256(gltf_path) != str(expected_signature):
 		err = ERR_BUSY
 	else:
-		err = _save_version(root, gltf_path, progress)
+		err = _save_version(root, gltf_path, progress, expected_signature)
 	_remove_tree(gltf_path + ".save-lock")
 	return err
 
@@ -122,7 +125,7 @@ static func restore_previous(path: String) -> Error:
 	_remove_tree(path + ".save-lock")
 	return err
 
-static func _save_version(root: Node, gltf_path: String, progress: Callable = Callable()) -> Error:
+static func _save_version(root: Node, gltf_path: String, progress: Callable = Callable(), expected_signature: Variant = null) -> Error:
 	var dir := gltf_path.get_base_dir()
 	var file_name := gltf_path.get_file()
 	var version := "%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
@@ -149,14 +152,16 @@ static func _save_version(root: Node, gltf_path: String, progress: Callable = Ca
 				if dependency.is_empty() or ".." in dependency.split("/"): return ERR_INVALID_DATA
 				if not FileAccess.file_exists(staging.path_join(dependency)): return ERR_FILE_NOT_FOUND
 				item["uri"] = (relative + "/" + dependency).uri_encode()
+		preload("res://scripts/world3d/pose_save.gd").install_manifest(parsed,gltf_path,root.get_meta("save_sources",{}),str(root.get_meta("save_content_root","")),load("res://scripts/world3d/gltf_map_io.gd"))
 		var file := FileAccess.open(staged, FileAccess.WRITE)
 		if file == null: return FileAccess.get_open_error()
-		file.store_string(JSON.stringify(parsed))
+		file.store_buffer(preload("res://scripts/world3d/pose_save.gd").serialize_bytes(parsed))
 		file.flush()
 		err = file.get_error()
 		file.close()
 		if err != OK: return err
 	if save_fault.is_valid() and save_fault.call("before_publish"): return ERR_FILE_CANT_WRITE
+	if expected_signature != null and FileAccess.get_sha256(gltf_path) != str(expected_signature): return ERR_BUSY
 	# Dependencies are immutable and remain available to the current/previous map.
 	# A crash anywhere above leaves the currently published map untouched.
 	root.set_meta("published_signature", FileAccess.get_sha256(staged))
@@ -263,6 +268,10 @@ static func extras_of(node: Node) -> Dictionary:
 
 
 static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
+	# An external model can be replaced with malformed but parseable JSON while
+	# the editor is open. Reject its invalid mesh references before scene creation.
+	for node:GLTFNode in state.nodes:
+		if node.mesh>=state.meshes.size():return null
 	var scene := document.generate_scene(state)
 	if scene == null: return null
 	var raw_nodes: Array = state.json.get("nodes", [])

@@ -1,0 +1,3815 @@
+Read-only static analysis. User authorizes local Grok initial performance review; no production changes, no GPU or commands. Provided RMMO Godot 4.7 sources and measured trace. Find unmeasured process-frame work potentially explaining a 72.774ms frame at x49.83,z42.48: main_process62.264ms but world/ weather/nav summed measured work tiny. Prior same vicinity had216ms. Do not assume navigation, allocator, wind cause without evidence. Audit autoload/UI/character/timer/deferred/queued cleanup and especially measurement scope boundaries. Rank exact uninstrumented callbacks, state reachable in 3D game, propose precise low-overhead time anchors and disconfirming evidence. This is not permission to optimize or remove semantics. AGENTS: preserve visuals/collision/game behavior; GPU tests only tools/run_godot_background.py, temporary fixtures, no official map write. Analyze supplied text only (tools disabled), admit omitted evidence.
+
+FILE: project.godot
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="rmmo"
+run/main_scene="res://scenes/login.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[autoload]
+
+MockServer="*res://scripts/net/mock_server.gd"
+GameSession="*res://scripts/net/game_session.gd"
+AssetManager="*res://scripts/asset/asset_manager.gd"
+GameSettings="*res://scripts/game/game_settings.gd"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=2560
+window/size/window_height_override=1440
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/silence_type_safe_gutter/plugin.cfg")
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+anti_aliasing/quality/msaa_3d=2
+environment/defaults/default_clear_color=Color(0, 0, 0, 1)
+anti_aliasing/quality/use_taa=true
+
+[rmmo]
+
+content_root="/workspace/rmmo_runtime"
+charset_root="/workspace/rmmo_runtime/assets/charset"
+default_pack="default"
+entry_map="medieval_material_house"
+ui_pack="default"
+characters_3d=true
+startup_profile="world3d"
+
+FILE: scripts/world3d/occlusion_outline.gd
+extends CanvasLayer
+## Render the same player geometry (including skinning and GPU deformation) to
+## an isolated mask. Visual layer 20 is reserved for this local-player mask.
+const MASK_LAYER := 1 << 19
+var player: CharacterBody3D
+var source: Camera3D
+var mask: SubViewport
+var camera: Camera3D
+var overlay: ColorRect
+var enabled := true
+var occluded := false
+var tagged: Array[GeometryInstance3D] = []
+var scan_time := 0.0
+var visual_exclusions:Array[RID]=[]
+
+func bind(body: CharacterBody3D, view: Camera3D) -> void:
+	player = body; source = view; layer = 5
+	mask = SubViewport.new()
+	mask.transparent_bg = true
+	mask.world_3d = player.get_world_3d()
+	mask.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(mask)
+	camera = Camera3D.new(); camera.cull_mask = MASK_LAYER
+	camera.environment = Environment.new()
+	camera.environment.background_mode = Environment.BG_COLOR
+	camera.environment.background_color = Color(0, 0, 0, 0)
+	camera.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	camera.environment.ambient_light_color = Color.WHITE
+	camera.environment.ambient_light_energy = 1.0
+	mask.add_child(camera); camera.current = true
+	overlay = ColorRect.new(); overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://scripts/world3d/occlusion_outline.gdshader")
+	material.set_shader_parameter("player_mask", mask.get_texture())
+	overlay.material = material; overlay.hide(); add_child(overlay)
+	_tag(player)
+
+func configure(settings: Dictionary) -> void:
+	enabled = bool(settings.outline_enabled)
+	if overlay != null:
+		overlay.material.set_shader_parameter("outline_color", preload("res://scripts/world3d/environment_settings.gd").color(settings.outline_color))
+		overlay.material.set_shader_parameter("width", float(settings.outline_width))
+		if not enabled: overlay.hide(); mask.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+func _tag(node: Node) -> void:
+	if node is GeometryInstance3D and (node.layers & MASK_LAYER) == 0:
+		node.layers |= MASK_LAYER; tagged.append(node)
+	for child in node.get_children(): _tag(child)
+
+func _process(delta: float) -> void:
+	if not is_instance_valid(source) or not is_instance_valid(player): return
+	scan_time -= delta
+	if scan_time <= 0:
+		_tag(player); scan_time = .5
+		for i in range(tagged.size() - 1, -1, -1):
+			if not is_instance_valid(tagged[i]): tagged.remove_at(i)
+	occluded = enabled and _blocked()
+	overlay.visible = occluded
+	mask.render_target_update_mode = SubViewport.UPDATE_ALWAYS if occluded else SubViewport.UPDATE_DISABLED
+	if not occluded: return
+	mask.size = Vector2i(source.get_viewport().get_texture().get_size())
+	overlay.size = source.get_viewport().get_visible_rect().size
+	camera.global_transform = source.global_transform
+	camera.projection = source.projection; camera.fov = source.fov
+	camera.size = source.size; camera.near = source.near; camera.far = source.far
+	camera.keep_aspect = source.keep_aspect; camera.frustum_offset = source.frustum_offset
+	camera.h_offset = source.h_offset; camera.v_offset = source.v_offset
+
+func _blocked() -> bool:
+	if source.is_position_behind(player.global_position): return false
+	for height in [-.65, 0, .65]:
+		var destination := player.global_position + Vector3(0, height, 0)
+		var ray := PhysicsRayQueryParameters3D.create(source.global_position, destination)
+		ray.exclude = visual_exclusions.duplicate()
+		ray.exclude.append(player.get_rid())
+		if not player.get_world_3d().direct_space_state.intersect_ray(ray).is_empty(): return true
+	return false
+
+func _exit_tree() -> void:
+	for geometry in tagged:
+		if is_instance_valid(geometry): geometry.layers &= ~MASK_LAYER
+
+FILE: scripts/char/character_model_3d.gd
+extends Node3D
+signal identity_shapes_changed
+const Shapes = preload("res://scripts/char/character_mesh_shapes.gd")
+const ImportedRig = preload("res://scripts/char/character_imported_rig.gd")
+const AxisRig = preload("res://scripts/char/character_axis_rig.gd")
+const Motion = preload("res://scripts/char/character_motion_3d.gd")
+## Uses imported weighted adult models when present; young types keep the blockout.
+## Clothing remains separate geometry sharing the character skeleton.
+const ACTIONS := ["idle","walk","attack","dash","cast","death","sit_ground","sit_down_ground","stand_up_ground","sit_chair","sit_chair_hold","stand_up_chair","lie_down","lie","get_up"]
+const REST_NEXT:={"sit_down_ground":"sit_ground","stand_up_ground":"idle","sit_chair":"sit_chair_hold","stand_up_chair":"idle","lie_down":"lie","get_up":"idle"}
+const YAW := {"front":0.0,"left":-PI/2,"right":PI/2,"back":PI,"front_left":-PI/4,"front_right":PI/4,"back_left":-3*PI/4,"back_right":3*PI/4}
+var environment_wind:=Vector2.ZERO
+var skeleton: Skeleton3D
+var bones := {}
+var gear := {}
+var body_meshes := {}
+var action := "idle"
+var animation_clip:=""
+var direction := "front"
+var elapsed := 0.0
+# Map views supply actual displacement; isolated previews retain authored timing.
+var locomotion_rate:=1.0
+var body_type := "male"
+var appearance := {}
+var equipment := {}
+var auto_configure:=true
+var rig: Node3D
+var imported_rig:RefCounted
+var axis_rig:RefCounted
+var _from_axis_angles:Dictionary={}
+var _from_rotations:Array[Quaternion]=[]
+var _from_positions:Array[Vector3]=[]
+var _from_position:=Vector3.ZERO
+var _from_rotation:=Quaternion.IDENTITY
+var _blend_elapsed:=0.0
+var _blend_duration:=.16
+var _expression_from:Dictionary={}
+var _expression_target:Dictionary={}
+var _expression_time:=0.0
+var _expression_duration:=0.0
+
+func _ready()->void:
+	if auto_configure:configure(body_type,appearance,equipment)
+
+func set_expressions(values:Dictionary)->bool:
+	if axis_rig==null or not axis_rig.body.set_expressions(values):return false
+	_expression_duration=0.0
+	return true
+
+func set_mmd_expressions(weights:Dictionary)->bool:
+	var values:=preload("res://scripts/char/character_expressions.gd").from_mmd(weights)
+	if values.has("invalid"):return false
+	return set_expressions(values)
+
+func expression_target()->Dictionary:
+	if axis_rig==null:return {}
+	return (_expression_target if _expression_duration>0 else axis_rig.body.expression_values).duplicate()
+
+func transition_expressions(values:Dictionary,duration:float=.18)->bool:
+	var normalized:=preload("res://scripts/char/character_expressions.gd").normalize(values)
+	if axis_rig==null or normalized.has("invalid") or not is_finite(duration):return false
+	if duration<=0:return set_expressions(normalized)
+	_expression_from=axis_rig.body.expression_values.duplicate()
+	_expression_target=normalized;_expression_time=0;_expression_duration=duration
+	return true
+
+func _step_expressions(delta:float)->void:
+	if _expression_duration<=0 or axis_rig==null:return
+	_expression_time+=maxf(delta,0)
+	var amount:=smoothstep(0,_expression_duration,_expression_time)
+	var values:Dictionary={}
+	for key in preload("res://scripts/char/character_expressions.gd").CHANNELS:
+		values[key]=lerpf(float(_expression_from.get(key,0)),float(_expression_target.get(key,0)),amount)
+	if _expression_time>=_expression_duration:values=_expression_target;_expression_duration=0
+	if not axis_rig.body.set_expressions(values):_expression_duration=0;push_error("Expression transition failed")
+
+func configure(gender:String,custom:Dictionary,parts:Dictionary)->void:
+	custom=custom.duplicate(true)
+	custom.erase("equipment");custom.erase("mv_sheet")
+	var use_axis:bool=custom.get("body_model","")=="female_base_v2"
+	if use_axis and gender!="female":push_error("female_base_v2 requires female body type");return
+	if axis_rig!=null and use_axis and gender==body_type:
+		var previous:Dictionary=appearance
+		appearance=custom.duplicate(true)
+		if not axis_rig.update_appearance(self):appearance=previous;return
+		set_equipment(parts);return
+	if rig!=null and gender==body_type and custom==appearance:
+		set_equipment(parts)
+		return
+	if imported_rig!=null and gender==body_type and _structural_appearance(custom)==_structural_appearance(appearance):
+		var previous:Dictionary=appearance
+		appearance=custom.duplicate(true)
+		imported_rig.update_appearance(self,previous)
+		set_equipment(parts)
+		return
+	body_type=gender;appearance=custom.duplicate(true);equipment=parts.duplicate(true)
+	# A replacement rig cannot inherit clips or blending state from its predecessor.
+	action="idle";elapsed=0.0;animation_clip=""
+	_blend_elapsed=0.0;locomotion_rate=1.0
+	if rig!=null:identity_shapes_changed.emit()
+	_expression_duration=0.0;_expression_time=0.0
+	_expression_from.clear();_expression_target.clear()
+	if rig != null:
+		remove_child(rig)
+		rig.queue_free()
+	bones.clear();gear.clear();body_meshes.clear()
+	_from_rotations.clear()
+	_from_positions.clear()
+	imported_rig=null
+	axis_rig=null;_from_axis_angles.clear()
+	animation_clip=""
+	rig=Node3D.new();rig.name="Rig";add_child(rig)
+	skeleton=Skeleton3D.new();skeleton.name="Skeleton3D";rig.add_child(skeleton)
+	if use_axis:
+		var adapter:=AxisRig.new()
+		if not adapter.install(self):push_error(adapter.last_error);return
+		axis_rig=adapter;set_equipment(parts);pose_at(elapsed);return
+	if ImportedRig.available(gender):
+		var adapter:=ImportedRig.new()
+		if adapter.install(self):
+			imported_rig=adapter
+			set_equipment(parts)
+			pose_at(elapsed)
+			return
+	if gender in ["male", "female"]:
+		push_error("Cannot load approved character resource: " + ImportedRig.source_path(gender))
+		return
+	var young:=gender.begins_with("young")
+	var female:=gender.ends_with("female")
+	rig.scale=Vector3(0.91 if female else 1.0,0.92 if young else 1.0,0.96 if female else 1.0)
+	_bone("hips","",Vector3(0,.79,0))
+	_bone("spine","hips",Vector3(0,.20,0))
+	_bone("head","spine",Vector3(0,.53,0))
+	for side in ["L","R"]:
+		var sign_x:float=-1.0 if side=="L" else 1.0
+		_bone("thigh"+side,"hips",Vector3(sign_x*.145,-.04,0))
+		_bone("shin"+side,"thigh"+side,Vector3(0,-.34,0))
+		_bone("foot"+side,"shin"+side,Vector3(0,-.32,0))
+		_bone("arm"+side,"spine",Vector3(sign_x*(.245 if female else .27),.22,0))
+		_bone("forearm"+side,"arm"+side,Vector3(0,-.26,0))
+		_bone("hand"+side,"forearm"+side,Vector3(0,-.24,0))
+	var skin:=_material(_color(custom,"skin",Color("f9ddc8")))
+	var hair:=_material(_color(custom,"hair",Color("48312b")))
+	hair.cull_mode=BaseMaterial3D.CULL_DISABLED
+	var cloth:=_material(_color(custom,"cloth",Color("42576a")))
+	var dark:=_material(Color("303944"))
+	var leather:=_material(Color("493023"))
+	var gold:=_material(Color("c9a567"))
+	var eye:=_material(Color("292735"))
+	var torso:=Shapes.profile([Vector4(-.20,.17,.11,0),Vector4(-.10,.17 if female else .20,.12,0),Vector4(.10,.22 if female else .245,.14,0),Vector4(.24,.235 if female else .265,.13,0),Vector4(.31,.105,.085,0)])
+	_mesh("spine",torso,Vector3.ZERO,skin,"Body")
+	_mesh("hips",_ellipsoid(Vector3(.22,.15,.145)),Vector3.ZERO,dark,"Body")
+	_mesh("spine",_ellipsoid(Vector3(.085,.13,.085)),Vector3(0,.37,0),skin,"Body")
+	_mesh("head",Shapes.profile([Vector4(-.28,.015,.025,.045),Vector4(-.245,.10,.11,.035),Vector4(-.17,.18 if female else .20,.18,.01),Vector4(-.06,.25,.23,0),Vector4(.08,.27,.25,0),Vector4(.22,.25,.225,0),Vector4(.32,.18,.16,0),Vector4(.37,.005,.005,0)]),Vector3(0,.06,0),skin,"Body")
+	var whites:=_material(Color("fff8eb"));whites.cull_mode=BaseMaterial3D.CULL_DISABLED
+	eye.cull_mode=BaseMaterial3D.CULL_DISABLED
+	var iris:=_material(Color("567b79"))
+	for x in [-1,1]:
+		_mesh("head",_ellipsoid(Vector3(.034,.056,.028)),Vector3(x*.265,.045,0),skin,"Body")
+		var edge:=_mesh("head",Shapes.almond(.072,.041),Vector3(x*.112,.047,.235),eye,"Eyes");edge.rotation.y=x*.28
+		var white:=_mesh("head",Shapes.almond(.065,.031),Vector3(x*.112,.043,.24),whites,"Eyes");white.rotation.y=x*.28
+		_mesh("head",_ellipsoid(Vector3(.025,.031,.01)),Vector3(x*.109,.043,.255),iris,"Eyes")
+		_mesh("head",_ellipsoid(Vector3(.011,.023,.005)),Vector3(x*.109,.044,.265),eye,"Eyes")
+		_mesh("head",_ellipsoid(Vector3(.008,.009,.004)),Vector3(x*.109-.008,.055,.270),whites,"Eyes")
+		_mesh("head",Shapes.lock([Vector3(x*.05,.135,.238),Vector3(x*.105,.148,.237),Vector3(x*.17,.132,.218)],.009,.004),Vector3.ZERO,hair,"Eyes")
+	_mesh("head",_ellipsoid(Vector3(.017,.028,.018)),Vector3(0,-.025,.238),skin,"Body")
+	_mesh("head",Shapes.lock([Vector3(-.036,-.10,.218),Vector3(0,-.106,.226),Vector3(.036,-.10,.218)],.006,.003),Vector3.ZERO,_material(Color("9b6058")),"Eyes")
+	# Open-bottom hair cap, with separate locks. Face stays exposed.
+	_mesh("head",_hair_cap(),Vector3(0,.06,0),hair,"Hair")
+	var ids:Dictionary=custom.get("part_ids",{})
+	var variant:int=int(ids.get("FrontHair1",2 if female else 1))
+	for i in range(7):
+		var x:float=(i-3)*.077
+		var tip_y:=.12+absf(x)*.22+(.04 if i%2==0 else 0.0)
+		var strand:=Shapes.lock([Vector3(x-.075,.42,.16),Vector3(x-.035,.35,.265),Vector3(x+.02,.24,.28),Vector3(x+.045,tip_y,.25)],.071,.032)
+		_mesh("head",strand,Vector3.ZERO,hair,"Hair")
+	for side in [-1,1]:
+		_mesh("head",Shapes.lock([Vector3(side*.18,.32,.02),Vector3(side*.28,.19,.07),Vector3(side*.265,-.06,.10)],.07,.048),Vector3.ZERO,hair,"Hair")
+	if variant==2:
+		for x in [-1,1]:_mesh("head",Shapes.lock([Vector3(x*.22,.25,-.04),Vector3(x*.30,.06,-.05),Vector3(x*.32,-.18,-.025),Vector3(x*.25,-.32,.055)],.11,.12),Vector3.ZERO,hair,"Hair")
+	var jacket:=_mesh("spine",torso,Vector3.ZERO,cloth,"Clothing1");jacket.scale=Vector3(1.06,1.04,1.10)
+	for x in [-1,1]:
+		var lapel:=_mesh("spine",_box(Vector3(.066,.20,.025)),Vector3(x*.065,.20,.14),leather,"Clothing1");lapel.rotation.z=x*.32
+		var seam:=_mesh("spine",_box(Vector3(.018,.32,.015)),Vector3(x*.155,.04,.149),gold,"Clothing1");seam.rotation.z=-x*.10
+	for y in [-.08,.02,.12]:_mesh("spine",_ellipsoid(Vector3(.012,.012,.008)),Vector3(0,y,.158),gold,"Clothing1")
+	_mesh("hips",_ellipsoid(Vector3(.228,.158,.153)),Vector3.ZERO,dark,"Clothing2")
+	_mesh("hips",Shapes.profile([Vector4(.015,.223,.162,0),Vector4(.075,.223,.162,0)]),Vector3.ZERO,leather,"Belt")
+	_mesh("hips",_box(Vector3(.07,.06,.025)),Vector3(0,.045,.165),gold,"Belt")
+	for side in ["L","R"]:
+		_mesh("arm"+side,Shapes.profile([Vector4(-.28,.060,.059,0),Vector4(-.13,.075,.073,0),Vector4(.02,.070,.070,0)]),Vector3.ZERO,skin,"Body")
+		_mesh("forearm"+side,Shapes.profile([Vector4(-.25,.043,.046,0),Vector4(-.10,.061,.060,0),Vector4(.015,.061,.059,0)]),Vector3.ZERO,skin,"Body")
+		_mesh("hand"+side,_ellipsoid(Vector3(.07,.082,.06)),Vector3(0,-.025,0),skin,"Body")
+		_mesh("thigh"+side,Shapes.profile([Vector4(-.36,.073,.077,0),Vector4(-.20,.090,.093,0),Vector4(.02,.100,.095,0)]),Vector3.ZERO,skin,"Body")
+		_mesh("shin"+side,Shapes.profile([Vector4(-.33,.052,.056,0),Vector4(-.13,.072,.077,0),Vector4(.02,.074,.078,0)]),Vector3.ZERO,skin,"Body")
+		_mesh("foot"+side,_ellipsoid(Vector3(.085,.07,.14)),Vector3(0,-.025,.065),skin,"Body")
+		_mesh("arm"+side,Shapes.profile([Vector4(-.15,.086,.086,0),Vector4(.02,.099,.099,0),Vector4(.075,.008,.008,0)]),Vector3.ZERO,cloth,"Clothing1")
+		_mesh("thigh"+side,Shapes.profile([Vector4(-.36,.083,.09,0),Vector4(-.23,.10,.105,0),Vector4(-.07,.116,.115,0),Vector4(.055,.10,.10,0)]),Vector3.ZERO,dark,"Clothing2")
+		_mesh("shin"+side,Shapes.profile([Vector4(-.32,.07,.074,0),Vector4(-.12,.085,.09,0),Vector4(.035,.09,.095,0)]),Vector3.ZERO,dark,"Clothing2")
+		_mesh("foot"+side,_ellipsoid(Vector3(.10,.092,.16)),Vector3(0,-.02,.065),leather,"Boots")
+		_mesh("shin"+side,_limb(.096,.13),Vector3(0,-.265,0),leather,"Boots")
+	_mesh("handR",_box(Vector3(.038,.20,.04)),Vector3(0,-.02,.02),leather,"WeaponMain")
+	_mesh("handR",_box(Vector3(.23,.035,.07)),Vector3(0,.09,.02),gold,"WeaponMain")
+	_mesh("handR",_box(Vector3(.075,.49,.025)),Vector3(0,.35,.02),_material(Color("b9c5d0")),"WeaponMain")
+	set_equipment(parts)
+	pose_at(elapsed)
+
+func set_equipment(parts:Dictionary)->void:
+	if axis_rig!=null:
+		if axis_rig.set_equipment(parts):equipment=parts.duplicate(true)
+		else:push_error(axis_rig.last_error)
+		return
+	equipment=parts.duplicate(true)
+	for category in ["Clothing1","Clothing2","Boots","Belt","WeaponMain","HeadAccessory"]:
+		for mesh:MeshInstance3D in gear.get(category,[]):
+			var variant:int=int(parts.get(category,0)) if parts.get(category)!=null else 0
+			mesh.visible=variant>0 and (imported_rig==null or variant in mesh.get_meta("equipment_variants",[int(mesh.get_meta("equipment_variant",1))]))
+	if imported_rig!=null:imported_rig.set_base_layers(self)
+
+func play(next_action:String,next_direction:String,restart:bool=false,variant:String="")->void:
+	if next_action not in ACTIONS:next_action="idle"
+	# Repeated state packets and turning must not consume the next attack clip.
+	if not restart and next_action==action and next_direction==direction and (variant.is_empty() or variant==animation_clip):return
+	if axis_rig!=null and not restart and next_action==action and variant.is_empty():variant=animation_clip
+	if axis_rig!=null:variant=axis_rig.select_clip(next_action,variant)
+	if axis_rig!=null and not axis_rig.supports(variant if not variant.is_empty() else next_action):
+		axis_rig.report_unsupported(variant if not variant.is_empty() else next_action);return
+	_from_rotations.clear()
+	_from_positions.clear()
+	_from_axis_angles.clear()
+	if axis_rig!=null:
+		for node:Dictionary in axis_rig.body.nodes:_from_axis_angles[node.name]=node.angles
+	if skeleton!=null:
+		for i in range(skeleton.get_bone_count()):
+			_from_rotations.append(skeleton.get_bone_pose_rotation(i))
+			_from_positions.append(skeleton.get_bone_pose_position(i))
+		_from_position=rig.position;_from_rotation=rig.quaternion
+	_blend_elapsed=0.0;_blend_duration=.09 if next_action=="death" else .16
+	var gait_phase:float=-1.0
+	if next_action!=action or restart:
+		if not restart and action in ["walk","dash"] and next_action in ["walk","dash"]:
+			gait_phase=fposmod(elapsed/maxf(action_duration(),.001),1.0)
+		else:elapsed=0.0
+	action=next_action;direction=next_direction
+	if imported_rig!=null:animation_clip=imported_rig.animations.select_clip(self,action,variant,true)
+	if axis_rig!=null:animation_clip=variant if not variant.is_empty() else action
+	if gait_phase>=0.0:elapsed=gait_phase*action_duration()
+	pose_at(elapsed)
+	_apply_blend(0)
+
+func _process(delta:float)->void:
+	_step_expressions(delta)
+	elapsed+=delta*(locomotion_rate if action in ["walk","dash"] else 1.0)
+	if axis_rig!=null and REST_NEXT.has(action) and elapsed>=action_duration() and axis_rig.supports(REST_NEXT[action]):
+		play(REST_NEXT[action],direction,true)
+	pose_at(elapsed)
+	_apply_blend(delta)
+	if axis_rig!=null:axis_rig.finish_frame(self,delta)
+	if imported_rig!=null:
+		if action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+		imported_rig.apply_weapon_grip(self)
+		imported_rig.soft_motion.update(action,elapsed,delta,action_duration())
+		imported_rig.hair_motion.update(self,delta)
+		imported_rig.garment_motion.update(self,delta)
+
+func _apply_blend(delta:float)->void:
+	if _from_rotations.is_empty():return
+	_blend_elapsed+=delta
+	var weight:=smoothstep(0,_blend_duration,_blend_elapsed)
+	for i in range(skeleton.get_bone_count()):
+		skeleton.set_bone_pose_rotation(i,_from_rotations[i].slerp(skeleton.get_bone_pose_rotation(i),weight))
+		skeleton.set_bone_pose_position(i,_from_positions[i].lerp(skeleton.get_bone_pose_position(i),weight))
+	rig.position=_from_position.lerp(rig.position,weight)
+	rig.quaternion=_from_rotation.slerp(rig.quaternion,weight)
+	if axis_rig!=null and not axis_rig.sync_blend(self,_from_axis_angles,weight):push_error(axis_rig.last_error)
+	if weight>=1.0:_from_rotations.clear()
+
+func pose_at(time:float)->void:
+	_pose_base(time)
+	if imported_rig!=null:imported_rig.apply_weapon_grip(self)
+	if imported_rig!=null and action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+	if imported_rig!=null:imported_rig.garment_motion.update(self,0)
+
+func _pose_base(time:float)->void:
+	if skeleton==null:return
+	rig.rotation=Vector3(0,float(YAW.get(direction,0.0)),0)
+	rig.position=Vector3.ZERO
+	if axis_rig!=null:
+		if not axis_rig.pose(self,time):push_error(axis_rig.last_error)
+		return
+	skeleton.reset_bone_poses()
+	if imported_rig!=null:imported_rig.reset_pose(self)
+	if imported_rig!=null and imported_rig.animations.apply(self,time):return
+	if imported_rig!=null and Motion.apply(self,time):return
+	var wave:=sin(time*(12.0 if action=="dash" else 7.0))
+	match action:
+		"idle":_rotate("spine",Vector3(sin(time*2)*.015,0,0))
+		"walk","dash":
+			var amp:=.85 if action=="dash" else .52
+			_rotate("thighL",Vector3(wave*amp,0,0));_rotate("thighR",Vector3(-wave*amp,0,0))
+			_rotate("shinL",Vector3(maxf(0,-wave)*.8,0,0));_rotate("shinR",Vector3(maxf(0,wave)*.8,0,0))
+			_rotate("armL",Vector3(-wave*amp,0,-.10));_rotate("armR",Vector3(wave*amp,0,.10))
+			if action=="dash":_rotate("spine",Vector3(.20,0,0))
+			rig.position.y=absf(wave)*.025
+		"attack":
+			var p:=clampf(time/.65,0,1)
+			var strike:=sin(p*PI)
+			_rotate("spine",Vector3(0,-strike*.45,0));_rotate("armR",Vector3(-strike*1.8,0,-.15))
+			_rotate("forearmR",Vector3(-.35*(1-strike),0,0))
+		"cast":
+			_rotate("armL",Vector3(-1.25,0,-.45));_rotate("armR",Vector3(-1.25,0,.45))
+			_rotate("forearmL",Vector3(-.3,0,0));_rotate("forearmR",Vector3(-.3,0,0))
+		"death":
+			var p:=smoothstep(0,.65,time)
+			rig.rotation.z=-PI/2*p
+			rig.position=Vector3(-.65*p,.24*p,0)
+		"sit_chair","sit_ground":
+			var ground:=action=="sit_ground"
+			rig.position.y=-.58 if ground else -.34
+			for side in ["L","R"]:
+				var sign_z:float=-1.0 if side=="L" else 1.0
+				_rotate("thigh"+side,Vector3(-1.25 if ground else -PI/2,0,sign_z*.7 if ground else 0))
+				_rotate("shin"+side,Vector3(2.0 if ground else PI/2,0,-sign_z*.5 if ground else 0))
+				_rotate("arm"+side,Vector3(-.65,0,sign_z*.15))
+				_rotate("forearm"+side,Vector3(-.65,0,0))
+				if ground and imported_rig==null:
+					# Place both knees outwards and both feet inwards, just above the floor.
+					var upper:=Quaternion(Vector3.DOWN,Vector3(sign_z*.25,-.08,.216).normalized())
+					var lower:=Quaternion(Vector3.DOWN,Vector3(-sign_z*.31,-.02,.07).normalized())
+					skeleton.set_bone_pose_rotation(bones["thigh"+side],upper)
+					skeleton.set_bone_pose_rotation(bones["shin"+side],upper.inverse()*lower)
+					skeleton.set_bone_pose_rotation(bones["foot"+side],lower.inverse())
+	if imported_rig!=null:imported_rig.finish_pose(self)
+
+func _bone(id:String,parent:String,origin:Vector3)->void:
+	var index:=skeleton.get_bone_count();skeleton.add_bone(id);bones[id]=index
+	if not parent.is_empty():skeleton.set_bone_parent(index,bones[parent])
+	skeleton.set_bone_rest(index,Transform3D(Basis.IDENTITY,origin))
+func _rotate(id:String,euler:Vector3)->void:
+	if imported_rig!=null:imported_rig.rotate(self,id,Quaternion.from_euler(euler))
+	else:skeleton.set_bone_pose_rotation(bones[id],Quaternion.from_euler(euler))
+func _mesh(bone:String,shape:Mesh,origin:Vector3,mat:Material,category:String)->MeshInstance3D:
+	var attachment:=BoneAttachment3D.new();attachment.bone_name=bone;skeleton.add_child(attachment)
+	var mesh:=MeshInstance3D.new();mesh.mesh=shape;mesh.material_override=mat;mesh.position=origin;attachment.add_child(mesh)
+	if not gear.has(category):gear[category]=[]
+	gear[category].append(mesh)
+	return mesh
+func _material(color:Color)->StandardMaterial3D:
+	var mat:=StandardMaterial3D.new();mat.albedo_color=color;mat.roughness=.92
+	return mat
+func _ellipsoid(size:Vector3)->ArrayMesh:
+	var st:=SurfaceTool.new();st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var sphere:=SphereMesh.new();sphere.radius=1;sphere.height=2;sphere.radial_segments=16;sphere.rings=10
+	st.create_from(sphere,0)
+	var arrays:=st.commit().surface_get_arrays(0)
+	var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+	var normals:PackedVector3Array=arrays[Mesh.ARRAY_NORMAL]
+	for i in range(vertices.size()):vertices[i]*=size;normals[i]=(normals[i]/size).normalized()
+	arrays[Mesh.ARRAY_VERTEX]=vertices;arrays[Mesh.ARRAY_NORMAL]=normals
+	var result:=ArrayMesh.new();result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays);return result
+func _limb(radius:float,height:float)->CapsuleMesh:
+	var mesh:=CapsuleMesh.new();mesh.radius=radius;mesh.height=maxf(height,radius*2);mesh.radial_segments=12;mesh.rings=4;return mesh
+func _box(size:Vector3)->BoxMesh:
+	var mesh:=BoxMesh.new();mesh.size=size;return mesh
+func _hair_cap()->ArrayMesh:
+	var st:=SurfaceTool.new();st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for y in range(8):
+		for x in range(24):
+			for uv in [Vector2(x,y),Vector2(x+1,y+1),Vector2(x+1,y),Vector2(x,y),Vector2(x,y+1),Vector2(x+1,y+1)]:
+				var az:float=uv.x/24*TAU
+				var end:=1.12 if cos(az)>.4 else 1.95
+				var polar:float=uv.y/8*end
+				var n:=Vector3(sin(polar)*sin(az),cos(polar),sin(polar)*cos(az))
+				st.set_normal(n);st.add_vertex(n*Vector3(.33,.43,.31))
+	return st.commit()
+func _color(custom:Dictionary,group:String,fallback:Color)->Color:
+	if not bool(custom.get(group+"_on",false)):return fallback
+	var mv=load("res://scripts/char/mv_generator.gd")
+	var row:int=int(custom.get(group+"_row",-1))
+	return mv.row_color(row) if row>=0 else fallback
+
+
+
+
+static func _structural_appearance(value:Dictionary)->Dictionary:
+	var result:=value.duplicate(true)
+	for key in ["hair_row","hair_on","bust_size","skin_row","skin_on","eye_color","cloth_row","cloth_on"]:result.erase(key)
+	if result.has("part_ids"):result.part_ids.erase("FrontHair1")
+	return result
+
+func action_duration()->float:
+	if axis_rig!=null:return axis_rig.duration(animation_clip if not animation_clip.is_empty() else action)
+	return imported_rig.animations.duration(self) if imported_rig!=null else float(Motion.DURATION.get(action,1.0))
+
+static func source_available(gender:String,custom:Dictionary)->bool:
+	if custom.get("body_model","")=="female_base_v2":return gender=="female" and AxisRig.available()
+	return ImportedRig.available(gender) if gender in ["male","female"] else true
+
+
+static func create(gender: String, custom: Dictionary, parts: Dictionary) -> Node3D:
+	var model = load("res://scripts/char/character_model_3d.gd").new()
+	model.body_type = gender
+	model.appearance = custom.duplicate(true)
+	model.equipment = parts.duplicate(true)
+	return model
+
+static func create_npc(recipe: Dictionary) -> Node3D:
+	recipe=recipe.duplicate(true)
+	preload("res://scripts/char/character_body_migration.gd").apply(recipe)
+	return create(str(recipe.get("gender", "male")), recipe.get("customization", {}), recipe.get("equipment", {"Clothing1": 1, "Clothing2": 1, "Boots": 1}))
+
+FILE: scripts/char/character_source_hair.gd
+extends Node3D
+## Source hair is an attachment with its own native rig, not replacement body bones.
+const Art = preload("res://scripts/asset/art_paths.gd")
+const Spring = preload("res://scripts/char/character_source_hair_spring.gd")
+const OPTIONS = preload("res://scripts/char/character_hairstyles.gd").SOURCE_OPTIONS
+const SOURCE_NUMBERS = {201:1,202:3,203:6}
+static var cache: Dictionary = {}
+var body: Node3D
+var source: Node3D
+var selected := 0
+var fit := Transform3D.IDENTITY
+var error := ""
+var materials: Array[ShaderMaterial] = []
+var head_index := -1
+var spring:RefCounted
+var dynamics_enabled:=false
+var fit_bake_error:=0.0
+var key_light:DirectionalLight3D
+
+func _process(_delta:float)->void:
+	if materials.is_empty():return
+	if not is_instance_valid(key_light) or key_light.get_world_3d()!=get_world_3d():
+		key_light=null
+		for node in get_tree().get_nodes_in_group("character_key_light"):
+			if node is DirectionalLight3D and node.get_world_3d()==get_world_3d():
+				key_light=node;break
+	var enabled:bool=is_instance_valid(key_light) and key_light.is_visible_in_tree() and key_light.light_energy>0.0
+	for mat in materials:
+		mat.set_shader_parameter("source_key_enabled",enabled)
+		if enabled:mat.set_shader_parameter("source_key_direction",key_light.global_transform.basis.z.normalized())
+
+func configure_body(value: Node3D) -> void:
+	body = value
+	head_index = body.skeleton.find_bone("head")
+	body.surface_updated.connect(sync_head)
+	refit_body()
+
+func refit_body()->void:
+	var previous_fit:Transform3D=fit
+	# Fit the source's original head reference, not the hairstyle silhouette:
+	# a ponytail/long tip must never influence the head scale.
+	var ref_path: String = Art.path("characters/source_hair/koikatu/head_reference.json")
+	if not FileAccess.file_exists(ref_path):error="Missing native hair head reference";return
+	var reference: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(ref_path))
+	var src := AABB()
+	var first := true
+	for point: Array in reference.vertices:
+		var p := Vector3(-point[0],point[1],point[2])
+		if first:src=AABB(p,Vector3.ZERO);first=false
+		else:src=src.expand(p)
+	var cutoff: float = lerpf(body.rests.neck.origin.y,body.rests.head.origin.y,.5)
+	var dst := AABB()
+	first=true
+	for point: Vector3 in body.rest_points:
+		if point.y<cutoff:continue
+		if first:dst=AABB(point,Vector3.ZERO);first=false
+		else:dst=dst.expand(point)
+	var scale_: Vector3 = dst.size/src.size
+	fit=Transform3D(Basis.from_scale(scale_),dst.position-src.position*scale_)
+	fit=fit*Transform3D(Basis(Vector3.UP,PI),Vector3.ZERO)
+	# Hair prefab coordinates are relative to HairParent, not the head prefab.
+	# Restore the original complete parent chain before fitting to our head.
+	var source_parent:=Transform3D.IDENTITY
+	for t:Dictionary in reference.hair_parent_chain_leaf_first:
+		var q:Dictionary=t.m_LocalRotation
+		var s:Dictionary=t.m_LocalScale
+		var p:Dictionary=t.m_LocalPosition
+		var local:=Transform3D(Basis(Quaternion(-q.x,-q.y,q.z,q.w)).scaled(Vector3(s.x,s.y,s.z)),Vector3(p.x,p.y,-p.z))
+		source_parent=local*source_parent
+	fit=fit*source_parent
+	if source!=null and not fit.is_equal_approx(previous_fit):
+		fit_bake_error=Spring.bake_fit(source,fit)
+		assert(fit_bake_error<.00001)
+		if spring!=null:spring.set_enabled(dynamics_enabled)
+	sync_head()
+
+func apply(model: Node3D) -> bool:
+	var choice: int = int(model.appearance.get("part_ids",{}).get("FrontHair1",0))
+	if choice != 0 and not SOURCE_NUMBERS.has(choice):
+		error="Native hair resource not mapped for ID %d"%choice
+		return false
+	if choice!=selected:
+		var next: Node3D
+		if choice!=0:
+			var path: String = Art.path("characters/hair/female_base_v2/source_%02d.scn"%SOURCE_NUMBERS[choice])
+			if not FileAccess.file_exists(path):error="Missing native hair: "+path;return false
+			if not cache.has(path):cache[path]=load(path)
+			next=cache[path].instantiate()
+		if source!=null:remove_child(source);source.queue_free()
+		source=next;selected=choice;materials.clear();spring=null
+		if source!=null:
+			add_child(source)
+			fit_bake_error=Spring.bake_fit(source,fit)
+			assert(fit_bake_error<0.00001,"Native hair fit changed the rest shape")
+			spring=Spring.new();spring.install(source);spring.install_contacts(body);spring.set_enabled(dynamics_enabled)
+			for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
+				for i in mesh.mesh.get_surface_count():
+					var mat: Material=mesh.get_active_material(i)
+					if mat is ShaderMaterial:
+						var local: ShaderMaterial=mat.duplicate()
+						mesh.set_surface_override_material(i,local);materials.append(local)
+	for mat in materials:
+		for parameter in ["hair_color","hair_color2","hair_color3"]:
+			var key:String="source_"+parameter
+			if not mat.has_meta(key):mat.set_meta(key,mat.get_shader_parameter(parameter))
+			mat.set_shader_parameter(parameter,model._color(model.appearance,"hair",mat.get_meta(key)))
+	error="";sync_head();return true
+
+func sync_head() -> void:
+	if body==null or head_index<0 or body.solved_bones.size()<=head_index:return
+	var delta: Transform3D=body.solved_bones[head_index]*body.rests.head.affine_inverse()
+	transform=delta
+	position+=body.root_offset
+	if spring!=null:spring.sync_contacts(body)
+
+func projected_top(direction: Vector3, include_motion_margin:bool=true) -> float:
+	var top: float=-INF
+	if source==null:return top
+	for mesh: MeshInstance3D in source.find_children("*","MeshInstance3D",true,false):
+		var box: AABB=mesh.custom_aabb
+		if not include_motion_margin:box=mesh.get_meta("native_fitted_rest_bounds",box)
+		for corner in 8:top=maxf(top,(mesh.global_transform*box.get_endpoint(corner)).dot(direction))
+	return top
+
+FILE: scripts/char/character_overhead_label.gd
+extends Label3D
+## One model-aware anchor for names and cast text; no fixed actor height.
+var model:Node3D
+var clearance:=.16
+
+func _ready()->void:
+	billboard=BaseMaterial3D.BILLBOARD_ENABLED
+	vertical_alignment=VERTICAL_ALIGNMENT_BOTTOM
+	process_priority=50
+
+func _process(_delta:float)->void:
+	if not is_visible_in_tree():return
+	update_anchor()
+
+func update_anchor()->void:
+	if not is_instance_valid(model) or model.skeleton==null or not model.bones.has("head"):return
+	var skeleton:Skeleton3D=model.skeleton
+	var index:int=model.bones.head
+	var pose:Transform3D=skeleton.global_transform*skeleton.get_bone_global_pose(index)
+	var camera:=get_viewport().get_camera_3d()
+	var up:=camera.global_basis.y.normalized() if camera!=null else Vector3.UP
+	var top:=pose.origin.dot(up)
+	if model.axis_rig!=null:top=maxf(top,model.axis_rig.head_top(up))
+	for category in ["Body","Hair","HeadAccessory"]:
+		for mesh in model.gear.get(category,[]):
+			if not mesh is MeshInstance3D or mesh.mesh==null or not mesh.is_visible_in_tree():continue
+			var box:AABB=mesh.mesh.get_aabb()
+			var transform:Transform3D=mesh.global_transform
+			if mesh.skin!=null:
+				for binding in mesh.skin.get_bind_count():
+					if mesh.skin.get_bind_name(binding)==skeleton.get_bone_name(index) or (mesh.skin.get_bind_name(binding).is_empty() and mesh.skin.get_bind_bone(binding)==index):
+						transform=pose*mesh.skin.get_bind_pose(binding)
+						break
+			# The combined Body bounds include extended arms. Only its crown
+			# contributes; face, hair and headwear use their full bounds.
+			var combined:bool=mesh.name=="Body"
+			for corner in (1 if combined else 8):
+				var point:Vector3=transform*box.get_endpoint(corner)
+				if combined:
+					var world_box:AABB=transform*box
+					point=Vector3(pose.origin.x,world_box.end.y,pose.origin.z)
+				top=maxf(top,point.dot(up))
+	global_position=pose.origin+up*(top-pose.origin.dot(up)+clearance*model.global_basis.get_scale().abs().y)
+
+FILE: scripts/ui/world_map_view_3d.gd
+extends Control
+## North-up X/Z projection, shared by radar and resizable overview.
+static var terrain_cache_enabled:=true
+const TerrainLayer=preload("res://scripts/ui/world_map_terrain_layer.gd")
+var _terrain:TerrainLayer
+var _background:ColorRect
+var _coverage:=Rect2()
+var _cached_data:RefCounted
+var _cached_revision:=-1
+var _cached_scale:=-1.0
+var _cached_count:=-1
+var world:Node
+var radar:=false
+var radius:=22.0
+var center:=Vector2.ZERO
+var span:=40.0
+var elapsed:=0.0
+var pressed:=false
+var dragged:=false
+var press_position:=Vector2.ZERO
+
+func _ready()->void:
+	clip_contents=true
+	_background=ColorRect.new();_background.color=Color("202b30");_background.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	_background.show_behind_parent=true;add_child(_background);_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_terrain=TerrainLayer.new();_terrain.show_behind_parent=true;add_child(_terrain)
+	mouse_filter=Control.MOUSE_FILTER_STOP
+	gui_input.connect(_input_map)
+	tooltip_text="左键：寻路 · 右键 / Shift+左键：标记 · 滚轮：缩放 · 拖动：平移 · 双击：回到角色"
+
+func bind_world(value:Node,small:bool=false)->void:
+	world=value;radar=small
+	center=world._map_data.bounds.get_center()
+	if radar:center=Vector2(world._player.position.x,world._player.position.z)
+	span=maxf(world._map_data.bounds.size.x,world._map_data.bounds.size.y)*1.1
+	# Normal gameplay binds behind the loading cover. Prepare distant commands
+	# too, so first entry to a dense river bank only toggles existing items.
+	_terrain.prepare(world._map_data,1/scale_factor())
+	queue_redraw()
+
+func set_view_radius(value:float)->void:
+	radius=maxf(2,value*2);queue_redraw()
+
+func _process(delta:float)->void:
+	if not is_instance_valid(world) or not is_visible_in_tree():return
+	elapsed+=delta
+	if elapsed<.1:return
+	elapsed=0
+	if radar:center=Vector2(world._player.position.x,world._player.position.z)
+	queue_redraw()
+	world._hud._refresh_map_window_info()
+
+func scale_factor()->float:return maxf(1,minf(size.x,size.y))/(radius*2 if radar else maxf(span,1))
+func to_screen(point:Vector2)->Vector2:return size*.5+(point-center)*scale_factor()
+func to_world(point:Vector2)->Vector2:return center+(point-size*.5)/scale_factor()
+func hint_line()->String:
+	if not is_instance_valid(world):return ""
+	return "%s  (%.1f, %.1f) m"%[world._map_data.title,world._player.position.x,world._player.position.z]
+
+func _update_terrain(rect:Rect2,scale:float)->void:
+	var data:RefCounted=world._map_data
+	var invalid:bool=_cached_data!=data or _cached_revision!=data.shape_revision or _cached_count!=data.shapes.size() or _terrain._data==null
+	if invalid:_terrain.prepare(data,1/scale)
+	if invalid or _cached_scale!=scale or not _coverage.encloses(rect):
+		# Retain native canvas commands across movement; the margin avoids a
+		# rebuild at every pixel while keeping the radar's GPU coverage bounded.
+		_coverage=rect.grow(minf(8,maxf(rect.size.x,rect.size.y)*.25))
+		_terrain.show_shapes(data.visible_shapes(_coverage),1/scale)
+		_cached_data=data;_cached_revision=data.shape_revision;_cached_count=data.shapes.size();_cached_scale=scale
+	_terrain.position=size*.5-center*scale;_terrain.scale=Vector2.ONE*scale
+
+func get_draw_timing()->Dictionary:
+	var result:Dictionary=get_meta("draw_timing",{}).duplicate()
+	if not result.is_empty() and terrain_cache_enabled and _terrain.timing.get("frame",-1)==result.frame:
+		# show_shapes now runs inside _draw; its time is already in result.ms.
+		result.terrain_ms=_terrain.timing.ms
+	return result
+
+func _draw()->void:
+	if not is_instance_valid(world) or world._map_data==null:return
+	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	var drawn_shapes:=0
+	var visible_rect:=Rect2(to_world(Vector2.ZERO),size/scale_factor())
+	var scale:=scale_factor()
+	_background.visible=terrain_cache_enabled;_terrain.visible=terrain_cache_enabled
+	if terrain_cache_enabled:
+		_update_terrain(visible_rect,scale);drawn_shapes=_terrain.shapes.size()
+	else:
+		draw_rect(Rect2(Vector2.ZERO,size),Color("202b30"))
+		draw_set_transform(size*.5-center*scale,0,Vector2.ONE*scale)
+		for shape in world._map_data.visible_shapes(visible_rect):
+			drawn_shapes+=1
+			draw_colored_polygon(shape.polygon,shape.color)
+			draw_polyline(shape.polygon,shape.color.darkened(.25),1/scale,true)
+		draw_set_transform(Vector2.ZERO)
+	var drawn:Dictionary={}
+	for marker in world._map_data.markers:
+		drawn[marker.id]=true
+		var position:Vector2=marker.position
+		if world._combat.actors.has(marker.id):
+			var actor=world._combat.actors[marker.id]
+			if not is_instance_valid(actor) or actor.respawn_remaining>=0:continue
+			position=Vector2(actor.position.x,actor.position.z)
+		var color:=Color("e88170") if marker.hostile else Color("80d6a4")
+		if marker.kind=="warp":color=Color("c1a1ff")
+		if marker.kind=="gather":color=Color("f4ce72")
+		draw_circle(to_screen(position),3 if radar else 5,color)
+	# Summons enter the actor registry after the map document has loaded.
+	for id in world._combat.actors:
+		if drawn.has(id):continue
+		var actor=world._combat.actors[id]
+		if not is_instance_valid(actor) or actor.respawn_remaining>=0:continue
+		var color:=Color("80d6a4") if actor.spec.extras.get("ally",false) else Color("e88170")
+		draw_circle(to_screen(Vector2(actor.position.x,actor.position.z)),3 if radar else 5,color)
+	for point in world._map_data.pins:
+		var p:=to_screen(point)
+		draw_line(p-Vector2(5,0),p+Vector2(5,0),Color.CYAN,2)
+		draw_line(p-Vector2(0,5),p+Vector2(0,5),Color.CYAN,2)
+	var player=world._player
+	var p:=to_screen(Vector2(player.position.x,player.position.z))
+	if player.click_target is Vector3:
+		var route:=PackedVector2Array([p,to_screen(Vector2(player.click_target.x,player.click_target.z))])
+		for waypoint in player._route:route.append(to_screen(Vector2(waypoint.x,waypoint.z)))
+		draw_polyline(route,Color("f3dc85"),2,true)
+	var facing:Vector3=player.global_basis.z
+	var direction:=Vector2(facing.x,facing.z).normalized()
+	var side:=direction.orthogonal()
+	draw_colored_polygon(PackedVector2Array([p+direction*8,p-direction*5+side*5,p-direction*5-side*5]),Color("fff1ad"))
+	draw_string(ThemeDB.fallback_font,Vector2(8,18),"N ↑",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
+	if not radar:draw_string(ThemeDB.fallback_font,Vector2(8,size.y-8),"绿：友方  红：敌方  紫：传送  青：标记",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
+	if started>0:set_meta("draw_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0,"shapes":drawn_shapes,"candidates":world._map_data.last_query_candidates,"indexed":world._map_data.last_query_indexed,"terrain_cached":terrain_cache_enabled,"terrain_redraws":_terrain.redraws})
+
+func _input_map(event:InputEvent)->void:
+	if not is_instance_valid(world):return
+	if event is InputEventMouseButton:
+		if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP,MOUSE_BUTTON_WHEEL_DOWN]:
+			var factor:=.8 if event.button_index==MOUSE_BUTTON_WHEEL_UP else 1.25
+			if radar:radius=clampf(radius*factor,4,256)
+			else:span=clampf(span*factor,4,maxf(world._map_data.bounds.size.x,world._map_data.bounds.size.y)*4)
+		elif event.pressed and (event.button_index==MOUSE_BUTTON_RIGHT or (event.button_index==MOUSE_BUTTON_LEFT and event.shift_pressed)):
+			var point:=to_world(event.position)
+			for pin in world._map_data.pins:
+				if to_screen(pin).distance_to(event.position)<10:point=pin;break
+			world.toggle_world_map_pin(point);pressed=false
+		elif event.button_index==MOUSE_BUTTON_LEFT:
+			if event.double_click:center=Vector2(world._player.position.x,world._player.position.z);pressed=false
+			elif event.pressed:pressed=true;dragged=false;press_position=event.position
+			elif pressed:
+				pressed=false
+				if not dragged:world.request_world_map_move(to_world(event.position))
+		accept_event();queue_redraw()
+	elif event is InputEventMouseMotion and pressed:
+		if event.position.distance_to(press_position)>5:dragged=true
+		if dragged and not radar:center-=event.relative/scale_factor()
+		accept_event();queue_redraw()
+
+FILE: scripts/ui/panels/minimap_panel.gd
+extends RefCounted
+## UI panel: minimap, radar blips, pins, zoom.
+
+var ctrl
+func _init(c):
+	ctrl = c
+
+const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
+const RadarView = preload("res://scripts/ui/radar_view.gd")
+const L2Style = preload("res://scripts/ui/l2_style.gd")
+const GameSettingsScript = preload("res://scripts/game/game_settings.gd")
+const RADAR_BLIPS_INTERVAL_MS: int = 100
+const RADAR_ENABLED := true
+
+func set_minimap_hint(text: String) -> void:
+	ctrl.minimap_label.text = text
+
+
+
+func _sync_radar(force_hint: bool = false) -> void:
+	if not RADAR_ENABLED:
+		return
+	if ctrl._radar == null or ctrl._radar_player == null:
+		return
+	var center: Vector2 = ctrl._radar_player.global_position
+	var yaw: float = PI * 0.5
+	if ctrl._radar_player.has_method("facing_angle"):
+		yaw = float(ctrl._radar_player.facing_angle())
+	if ctrl._radar.has_method("update_view"):
+		ctrl._radar.update_view(center, yaw)
+	ctrl._update_target_angle()
+	var cell = Vector2i.ZERO
+	if "cell" in ctrl._radar_player:
+		cell = ctrl._radar_player.cell
+	elif ctrl._radar_map_field != null and ctrl._radar_map_field.has_method("world_to_cell"):
+		cell = ctrl._radar_map_field.world_to_cell(center)
+	# Blips: throttle (wander NPCs); hint / map-window text only when cell changes.
+	var now_ms: int = Time.get_ticks_msec()
+	if force_hint or now_ms - ctrl._radar_blips_msec >= RADAR_BLIPS_INTERVAL_MS:
+		ctrl._radar_blips_msec = now_ms
+		_sync_radar_blips()
+	if force_hint or cell != ctrl._radar_hint_cell:
+		ctrl._radar_hint_cell = cell
+		if ctrl.minimap_label != null and ctrl._radar.has_method("hint_text"):
+			ctrl.minimap_label.text = str(ctrl._radar.hint_text())
+		ctrl._refresh_map_window_info()
+
+
+
+func _sync_radar_blips() -> void:
+	if ctrl._radar == null or not ctrl._radar.has_method("set_entity_blips"):
+		return
+	var blips: Array = []
+	if typeof(ctrl._radar_blip_source) == TYPE_CALLABLE:
+		var result: Variant = ctrl._radar_blip_source.call()
+		if typeof(result) == TYPE_ARRAY:
+			blips = result
+	elif ctrl._radar_blip_source is Node and is_instance_valid(ctrl._radar_blip_source):
+		if ctrl._radar_blip_source.has_method("get_radar_blips"):
+			var result2: Variant = ctrl._radar_blip_source.get_radar_blips()
+			if typeof(result2) == TYPE_ARRAY:
+				blips = result2
+	ctrl._radar.set_entity_blips(blips)
+	ctrl._sync_map_poi_markers()
+
+
+
+func _setup_radar() -> void:
+	if not RADAR_ENABLED:
+		var panel = ctrl.get_node_or_null("MinimapPanel")
+		if panel:
+			panel.visible = false
+		ctrl.set_process(false)
+		return
+	for c in ctrl.minimap_view_host.get_children():
+		c.queue_free()
+	ctrl.minimap_view_host.mouse_filter = Control.MOUSE_FILTER_STOP
+	ctrl._radar = Control.new()
+	ctrl._radar.set_script(RadarView)
+	ctrl._radar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ctrl._radar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ctrl._radar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ctrl._radar.mouse_filter = Control.MOUSE_FILTER_STOP
+	ctrl.minimap_view_host.add_child(ctrl._radar)
+	_setup_radar_zoom_buttons()
+	_apply_radar_view_radius_from_settings()
+	_connect_radar_nav()
+
+
+
+func _connect_radar_nav() -> void:
+	if ctrl._radar == null or not is_instance_valid(ctrl._radar):
+		return
+	if ctrl._radar.has_signal("cell_clicked") and not ctrl._radar.cell_clicked.is_connected(ctrl._on_map_nav_cell):
+		ctrl._radar.cell_clicked.connect(ctrl._on_map_nav_cell)
+	if ctrl._radar.has_signal("cell_pinned") and not ctrl._radar.cell_pinned.is_connected(_on_map_pin_cell):
+		ctrl._radar.cell_pinned.connect(_on_map_pin_cell)
+
+
+
+func _setup_radar_zoom_buttons() -> void:
+	if ctrl.minimap_view_host == null:
+		return
+	var row = HBoxContainer.new()
+	row.name = "RadarZoomBtns"
+	row.mouse_filter = Control.MOUSE_FILTER_STOP
+	row.add_theme_constant_override("separation", 2)
+	row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	row.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	row.offset_left = -44
+	row.offset_top = -22
+	row.offset_right = -2
+	row.offset_bottom = -2
+	var mk = func(label: String, dir: int) -> void:
+		var b = Button.new()
+		b.text = label
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(20, 18)
+		b.mouse_filter = Control.MOUSE_FILTER_STOP
+		b.tooltip_text = "缩小" if dir > 0 else "放大"
+		b.pressed.connect(func():
+			var gs = GameSettingsScript.get_i()
+			if gs != null and gs.has_method("cycle_radar_view_radius"):
+				gs.cycle_radar_view_radius(dir)
+		)
+		row.add_child(b)
+	# "-" = zoom out (larger radius); "+" = zoom in (smaller radius)
+	mk.call("-", 1)
+	mk.call("+", -1)
+	ctrl.minimap_view_host.add_child(row)
+
+
+
+func _apply_radar_view_radius_from_settings() -> void:
+	if ctrl._radar == null or not is_instance_valid(ctrl._radar):
+		return
+	var gs = GameSettingsScript.get_i()
+	if gs == null:
+		return
+	var r: float = 11.0
+	if "radar_view_radius" in gs:
+		r = float(gs.radar_view_radius)
+	if ctrl._radar.has_method("set_view_radius"):
+		ctrl._radar.set_view_radius(r)
+	elif "view_radius_tiles" in ctrl._radar:
+		ctrl._radar.view_radius_tiles = r
+
+
+
+func set_map_pin(cell: Vector2i) -> void:
+	ctrl._map_pin_cell = cell
+	if ctrl._radar != null and is_instance_valid(ctrl._radar) and ctrl._radar.has_method("set_pin_cell"):
+		ctrl._radar.set_pin_cell(cell)
+	if ctrl._map_overview != null and is_instance_valid(ctrl._map_overview) and ctrl._map_overview.has_method("set_pin_cell"):
+		ctrl._map_overview.set_pin_cell(cell)
+
+
+
+func apply_map_pins_update(action: Dictionary) -> void:
+	var snap_v: Variant = action.get("map_pins", action)
+	var pins: Array = []
+	if typeof(snap_v) == TYPE_DICTIONARY:
+		var pv: Variant = snap_v.get("pins", [])
+		if typeof(pv) == TYPE_ARRAY:
+			pins = pv
+	elif typeof(snap_v) == TYPE_ARRAY:
+		pins = snap_v
+	ctrl._map_pins = pins.duplicate(true)
+	# Personal pins render via RadarPoi kind=pin; keep legacy cyan overlay off.
+	ctrl._map_pin_cell = Vector2i(-9999, -9999)
+	set_map_pin(ctrl._map_pin_cell)
+	ctrl._sync_map_poi_markers()
+
+
+
+func _on_map_pin_cell(cell: Vector2i) -> void:
+	if ctrl._world_combat != null and ctrl._world_combat.has_method("toggle_map_pin"):
+		ctrl._world_combat.toggle_map_pin(cell)
+	else:
+		if ctrl._map_pin_cell == cell:
+			set_map_pin(Vector2i(-9999, -9999))
+		else:
+			set_map_pin(cell)
+
+
+
+func _on_clear_map_pins() -> void:
+	if is_instance_valid(ctrl._world_map_source):
+		ctrl._world_map_source.clear_world_map_pins()
+		return
+	if ctrl._world_combat != null and ctrl._world_combat.has_method("clear_map_pins"):
+		ctrl._world_combat.clear_map_pins()
+	else:
+		ctrl._map_pins.clear()
+		set_map_pin(Vector2i(-9999, -9999))
+		ctrl.append_system("已清除全部标记")
+
+
+
+func _sync_map_overview_layout(panel: PanelContainer, mount: Control, host: Control) -> void:
+	if panel == null or mount == null or host == null:
+		return
+	if not is_instance_valid(panel) or not is_instance_valid(mount) or not is_instance_valid(host):
+		return
+	# Never raise custom_minimum_size to current avail — that locks grow-only resize.
+	host.custom_minimum_size = Vector2.ZERO
+	host.clip_contents = true
+	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	if ctrl._map_overview != null and is_instance_valid(ctrl._map_overview):
+		ctrl._map_overview.custom_minimum_size = Vector2.ZERO
+		ctrl._map_overview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ctrl._map_overview.queue_redraw()
+	# Keep panel floor at intended base min (HudDrag.min_size), not enlarged content.
+	const MAP_MIN := Vector2(300, 280)
+	if panel.min_size != MAP_MIN:
+		panel.min_size = MAP_MIN
+	if panel.custom_minimum_size != MAP_MIN:
+		panel.custom_minimum_size = MAP_MIN
+
+
+
+func _make_radar_zoom_option(gs: Node) -> OptionButton:
+	var opt = OptionButton.new()
+	L2Style.style_option(opt)
+	var radii: Array = GameSettingsScript.RADAR_VIEW_RADII
+	var cur: int = 11
+	if gs != null and "radar_view_radius" in gs:
+		cur = int(gs.radar_view_radius)
+	var sel = 1
+	for i in range(radii.size()):
+		var r: int = int(radii[i])
+		var label = "%d 格" % r
+		match r:
+			8:
+				label = "近 (8)"
+			11:
+				label = "默认 (11)"
+			16:
+				label = "中 (16)"
+			22:
+				label = "远 (22)"
+		opt.add_item(label, i)
+		opt.set_item_metadata(i, r)
+		if r == cur:
+			sel = i
+	opt.select(sel)
+	opt.item_selected.connect(func(idx: int):
+		if gs != null and gs.has_method("set_radar_view_radius"):
+			gs.set_radar_view_radius(int(opt.get_item_metadata(idx)))
+	)
+	return opt
+
+
+
+FILE: scripts/world3d/world_3d.gd
+extends Node3D
+## Meter-space world used by the world3d login profile and editor playtests.
+
+const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
+const WorldMapPaths = preload("res://scripts/world3d/map_paths.gd")
+const Travel = preload("res://scripts/world3d/world_travel.gd")
+const Stream = preload("res://scripts/world3d/world_stream.gd")
+const Net = preload("res://scripts/net/net.gd")
+
+var _player: CharacterBody3D
+var _camera: Node3D
+var _status: Label
+var _travel = null
+var _map_path := ""
+var _map_root: Node
+
+## Program-controlled doors, glazed casements and shutters. Runtime changes persist
+## across chunk residency; authored defaults are changed through editor/MCP tools.
+func list_building_components(building_id: String) -> Array:
+	return preload("res://scripts/world3d/building_fixtures.gd").list_runtime(_map_root,building_id) if is_instance_valid(_map_root) else []
+
+func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
+	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
+	return preload("res://scripts/world3d/building_fixtures.gd").set_runtime(_map_root,building_id,component_id,open,duration)
+var _sun: DirectionalLight3D
+var _env: Environment
+var _weather: Node3D
+var _outline: CanvasLayer
+var _lamps: Array = []
+var _house_candles:Node3D
+var _night := false
+var _check_map := false
+var _actor_host: Node3D
+var _failed_warp := ""
+var _warp_candidates:Array[Node]=[]
+var _warp_cache_dirty:=true
+var _transfer_pending := false
+var _transfer_loader: Node
+var _ready_for_play := false
+var loading_profile: Dictionary={}
+var loading_state: Dictionary={"stage":"准备三维场景","done":0,"total":0}
+
+func loading_progress() -> Dictionary:
+	return loading_state
+
+func _loading_stage(stage: String, done: int=0, total: int=0) -> void:
+	loading_state={"stage":stage,"done":done,"total":total}
+var _combat: Node
+var _pending_ground_skill := ""
+var _revive: Button
+var _hud: Control
+var _navigation: Node
+var _previous_feet := Vector3.ZERO
+var _map_data = preload("res://scripts/world3d/world_map_data.gd").new()
+var _map_pin_sets:Dictionary={}
+var _sit_revision:=0
+var _sit_preparing:=false
+var furniture=preload("res://scripts/world3d/world_furniture.gd").new(self)
+var remote_players=preload("res://scripts/world3d/world_remote_players.gd").new(self)
+
+func facial_expression_catalog()->Array:
+	if not is_instance_valid(_player) or _player._model.axis_rig==null:return []
+	var catalog=preload("res://scripts/char/character_expressions.gd")
+	var rows:Array=[{"id":"neutral","label":"恢复自然","tag":""}]
+	for id in catalog.NAMES:rows.append({"id":id,"label":catalog.NAMES[id],"tag":catalog.LABELS[id],"group":catalog.group_for(id)})
+	return rows
+
+func facial_expression_state()->Dictionary:
+	if not is_instance_valid(_player):return {}
+	return _player._model.expression_target()
+
+func request_facial_expression(id:String,combine:bool=false)->bool:
+	if not is_instance_valid(_player) or _player.input_locked:return false
+	if id=="neutral":return _send_facial_expression({})
+	var catalog=preload("res://scripts/char/character_expressions.gd")
+	if not catalog.CHANNELS.has(id):return false
+	if not combine:return _send_facial_expression({id:1.0})
+	# Use the pending target so rapid clicks do not lose a category mid-transition.
+	var values:Dictionary=facial_expression_state()
+	var selected:bool=values.has(id)
+	for peer:String in catalog.GROUPS[catalog.group_for(id)]:values.erase(peer)
+	if not selected:values[id]=1.0
+	return _send_facial_expression(values)
+
+func request_remote_debug_spawn(display_name:String="")->void:
+	var feet:Vector3=_player.global_position-Vector3(0,.9,0)+Vector3(2,0,0)
+	var result:Dictionary=Net.server().facial_expressions.spawn_peer(display_name,_map_path,feet)
+	apply_actions(result.get("actions",[]))
+
+
+func _send_facial_expression(weights:Dictionary)->bool:
+	var result:Dictionary=Net.server().try_facial_expression(weights)
+	apply_actions(result.get("actions",[]))
+	return bool(result.get("ok",false))
+
+func _on_identity_shapes_changed()->void:
+	call_deferred("_refresh_player_clearance")
+	furniture.cancel()
+	cancel_sit_preparation()
+	if Net.server().sitting:
+		apply_actions(Net.server().try_sit(false).get("actions",[]))
+
+func cancel_sit_preparation()->void:
+	_sit_revision+=1
+
+func _on_movement_intent()->void:
+	if furniture.active():furniture.stand()
+	cancel_sit_preparation()
+	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
+
+func request_sit(on:Variant=null)->void:
+	if furniture.active():
+		furniture.stand();return
+	var want:bool=bool(on) if on is bool else not (Net.server().sitting or _sit_preparing)
+	if want and _sit_preparing:return
+	cancel_sit_preparation()
+	if not want:
+		apply_actions(Net.server().try_sit(false).get("actions",[]));return
+	if _sit_preparing or _transfer_pending or not is_instance_valid(_player) or _player.input_locked:return
+	if not Net.server().combat_stats.player_alive():return
+	var model=_player._model
+	if model.axis_rig==null:return
+	if model.action in _player.REST_ACTIONS:return
+	_player.click_target=null;_player._route.clear()
+	var revision:int=_sit_revision
+	_sit_preparing=true
+	var requested_rig=model.axis_rig
+	var bundle:AnimationLibrary=await requested_rig.prepare_ground_actions()
+	_sit_preparing=false
+	if revision!=_sit_revision or not is_instance_valid(_player) or not is_instance_valid(model):return
+	if model!=_player._model or model.axis_rig!=requested_rig:return
+	if _transfer_pending or _player.input_locked or not Net.server().combat_stats.player_alive():return
+	if bundle==null:
+		apply_actions([{"type":"system_message","text":"坐下动作准备失败："+model.axis_rig.last_error}]);return
+	var library:AnimationLibrary=model.axis_rig.animations.library.duplicate()
+	for clip:StringName in bundle.get_animation_list():
+		if library.has_animation(clip):library.remove_animation(clip)
+		library.add_animation(clip,bundle.get_animation(clip))
+	if not model.axis_rig.animations.install(model.skeleton,library):return
+	apply_actions(Net.server().try_sit(true).get("actions",[]))
+
+func _refresh_world_map()->void:
+	_map_data.build(_map_root)
+	_map_data.pins.assign(_map_pin_sets.get(_map_path,[]))
+	if is_instance_valid(_hud):
+		_hud.bind_world_map_3d(self)
+		if is_instance_valid(_hud._map_overview) and _hud._map_overview.has_method("bind_world"):_hud._map_overview.bind_world(self)
+
+func toggle_world_map_pin(point:Vector2)->void:
+	if not point.is_finite() or not _map_data.bounds.has_point(point):return
+	_map_data.toggle_pin(point)
+	_map_pin_sets[_map_path]=_map_data.pins.duplicate()
+
+func clear_world_map_pins()->void:
+	_map_data.pins.clear();_map_pin_sets[_map_path]=[]
+
+func request_world_map_move(point:Vector2)->bool:
+	if _player.input_locked or not point.is_finite() or not _map_data.bounds.has_point(point):return false
+	var desired:=Vector3(point.x,_player.position.y-.9,point.y)
+	if not _navigation.fully_ready and not _navigation._inside_local(desired,2):
+		var pending:Dictionary=_navigation.find_path(_player.position-Vector3.UP*.9,desired)
+		if pending.get("reason")=="pending":
+			_player.set_click_target(desired,"ground")
+			_hud.append_system("正在规划路线。")
+			return true
+	var goal:=NavigationServer3D.map_get_closest_point(_navigation.map,desired)
+	if Vector2(goal.x,goal.z).distance_to(point)>1.5:
+		_hud.append_system("此处暂无可用路径；远处导航可能仍在准备。")
+		return false
+	var result:Dictionary=_navigation.find_path(_player.position-Vector3(0,.9,0),goal)
+	if not result.get("ok",false):
+		_hud.append_system("无法到达此处。")
+		return false
+	_player.set_click_target(goal,"ground")
+	return true
+
+
+func is_world_ready() -> bool:
+	return _ready_for_play
+
+
+func _exit_tree() -> void:
+	furniture.cancel()
+	cancel_sit_preparation()
+	if is_instance_valid(_transfer_loader): _transfer_loader.cancel()
+	var server = Net.server()
+	if server != null and server.sitting:server.try_sit(false)
+	if server != null and server.get("world3d_authority") != null:
+		server.world3d_authority.release()
+	if server != null and server.has_method("world3d_release_actors"):
+		server.world3d_release_actors()
+
+
+func _ready() -> void:
+	loading_profile.ready_started=Time.get_ticks_msec()
+	child_order_changed.connect(func():_warp_cache_dirty=true)
+	_travel = Net.session().world3d_travel()
+	_add_light()
+	_add_hud()
+	if not Net.session().has_active_character():
+		_status.text = "缺少角色数据：请登录并选择角色后进入三维世界"
+		_ready_for_play = true
+		return
+	var body_type := str(Net.session().active_character().gender)
+	if not preload("res://scripts/char/character_model_3d.gd").source_available(body_type,Net.session().active_character().get("customization",{})):
+		_status.text = "角色资源缺失：请检查外部素材包，未使用替代模型"
+		_ready_for_play = true
+		return
+	loading_profile.setup=Time.get_ticks_msec()
+	var map_root := _load_or_fail()
+	if map_root == null:
+		_ready_for_play = true
+		return
+	add_child(map_root)
+	_map_root = map_root
+	if Net.session().world3d_loading:
+		map_root.set_meta("defer_source_upload",true)
+		while not map_root.has_meta("stream_chunk"):
+			Stream.sync(map_root, self, Net.session().world3d_spawn, Stream.LOAD_BUDGET)
+			_loading_stage("准备附近物件与碰撞",int(map_root.get_meta("stream_cursor",0)),map_root.get_meta("stream_jobs",[]).size())
+			await get_tree().process_frame
+		map_root.remove_meta("defer_source_upload")
+	else:
+		_add_collision(map_root)
+	loading_profile.stream=Time.get_ticks_msec()
+	_loading_stage("准备角色")
+	await get_tree().process_frame
+	_add_player()
+	_player.movement_intent.connect(_on_movement_intent)
+	loading_profile.player=Time.get_ticks_msec()
+	_add_town_lamps(map_root)
+	_apply_map_environment()
+	loading_profile.environment=Time.get_ticks_msec()
+	Net.session().prepare_world_first_frame()
+	await _prepare_navigation()
+	loading_profile.navigation=Time.get_ticks_msec()
+	_loading_stage("准备环境与交互")
+	await get_tree().process_frame
+	_mount_events()
+	loading_profile.events=Time.get_ticks_msec()
+	if not Net.session().active_character().is_empty():
+		_add_game_hud()
+	loading_profile.hud=Time.get_ticks_msec()
+	_previous_feet = _player.global_position - Vector3(0, 0.9, 0)
+	apply_actions(Net.server().world3d_events.runtime.collect_autorun(Net.server().world3d_events.context()))
+	await get_tree().process_frame
+	var batches:Node=map_root.get_node_or_null("GroundRenderBatches")
+	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()):
+		_loading_stage("准备建筑渲染")
+		await get_tree().process_frame
+	if batches!=null:batches.work_budget_usec=2000
+	loading_profile.batches=Time.get_ticks_msec()
+	_loading_stage("准备受风材质")
+	loading_profile.wind_materials=await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(_map_root.get_meta("stream_library",[]),get_tree())
+	_loading_stage("准备灯光材质")
+	loading_profile.lamp_materials=await _weather.streetlamps.prepare_materials(_map_root.get_meta("stream_library",[]),get_tree())
+	_player.input_locked = Net.session()._world_transition_active
+	_ready_for_play = true
+	if _check_map:
+		_status.text = "检查用白模，不是正式地图 · WASD 走 · N 切换路灯"
+	elif _lamps.is_empty():
+		_status.text = "WASD 走 · 空格跳跃 · 右键转动 · E 对话 · 走到北边的垫子会去另一张图"
+	else:
+		_status.text = "WASD 走 · 空格跳跃 · 右键转动 · N 切换路灯"
+	if is_instance_valid(Net.session().editor_playtest): _status.text = "WASD 移动 · 空格跳跃 · 右键转动 · E 交互 · 临时试玩"
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _player == null or _player.input_locked:
+		return
+	if event is InputEventMouseButton:
+		var button := event as InputEventMouseButton
+		if button.pressed and button.button_index == MOUSE_BUTTON_LEFT and not _camera.captured:
+			var hit := _pick(button.position)
+			if not hit.is_empty():
+				if _pending_ground_skill != "":
+					_combat.use_skill(_pending_ground_skill, hit.position)
+					_pending_ground_skill = ""
+					get_viewport().set_input_as_handled()
+					return
+				var body: Object = hit.collider
+				var id := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
+				if _combat.targets.has(id):
+					_combat.attack(id)
+					get_viewport().set_input_as_handled()
+					return
+				var surface_id := "ground"
+				if body is CollisionObject3D and (body as CollisionObject3D).has_meta("surface_id"):
+					surface_id = str((body as CollisionObject3D).get_meta("surface_id"))
+				_player.set_click_target(hit.position, surface_id)
+				get_viewport().set_input_as_handled()
+	elif event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+			if _pending_ground_skill != "":
+				_pending_ground_skill = ""
+				_status.text = "已取消地点选择。"
+				return
+			_leave()
+		elif key.pressed and not key.echo and key.keycode == KEY_N and not _lamps.is_empty():
+			set_night(not _night)
+			get_viewport().set_input_as_handled()
+		elif key.pressed and not key.echo and key.keycode == KEY_E:
+			if not _combat.pickup_nearby(): _talk()
+
+
+func _process(delta: float) -> void:
+	var profiling:bool=has_meta("profile_frame")
+	var marks:Variant=null
+	if profiling:marks=[Time.get_ticks_usec()]
+	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
+	if _player == null or _camera == null or not _ready_for_play:
+		return
+	furniture.tick()
+	if profiling:marks.append(Time.get_ticks_usec())
+	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
+		_navigation.follow(_player.position)
+		_navigation.resize_agent(float(_player.get_meta("standing_height",1.9)),_map_root.get_meta("stream_library",[]),_player.position)
+	if profiling:marks.append(Time.get_ticks_usec())
+	_apply_residency(Stream.FRAME_BUDGET)
+	if profiling:marks.append(Time.get_ticks_usec())
+	_camera.follow(_player.global_position, delta)
+	if is_instance_valid(_outline):_outline.visual_exclusions=_camera.visual_exclusions()
+	if profiling:marks.append(Time.get_ticks_usec())
+	_apply_actor_view()
+	_poll_warp()
+	if profiling:
+		marks.append(Time.get_ticks_usec())
+		set_meta("frame_timings",{"frame":Engine.get_process_frames(),"actions":(marks[1]-marks[0])/1000.0,"navigation":(marks[2]-marks[1])/1000.0,"stream":(marks[3]-marks[2])/1000.0,"camera":(marks[4]-marks[3])/1000.0,"actors":(marks[5]-marks[4])/1000.0})
+
+func _update_cloth_scene()->void:
+	if not is_instance_valid(_map_root):return
+	var objects:Array=[]
+	var bodies:Dictionary=_map_root.get_meta("stream_bodies",{})
+	var meshes:Dictionary=_map_root.get_meta("stream_meshes",{})
+	for id in meshes:
+		if bodies.has(id) and is_instance_valid(bodies[id]):objects.append(meshes[id])
+	var model=_player._model
+	if model.axis_rig!=null:model.axis_rig.cloth.set_scene_colliders(objects)
+	if is_instance_valid(_combat):
+		for actor in _combat.actors.values():
+			if is_instance_valid(actor) and actor.model.axis_rig!=null:actor.model.axis_rig.cloth.set_scene_colliders(objects)
+
+
+func _physics_process(_delta: float) -> void:
+	if _player == null or _player.input_locked or not _ready_for_play:
+		return
+	var feet := _player.global_position - Vector3(0, 0.9, 0)
+	apply_actions(Net.server().world3d_events.touch_segment(_previous_feet, feet))
+	_previous_feet = feet
+
+
+func _prepare_navigation() -> void:
+	if is_instance_valid(_combat):
+		_combat.free()
+	_player.input_locked = true
+	if is_instance_valid(_navigation):
+		_navigation.free()
+	_navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	_navigation.agent_height=float(_player.get_meta("standing_height",1.9))
+	add_child(_navigation)
+	_player.navigation = _navigation
+	_navigation.runtime_geometry_key=_map_root.get_meta("runtime_geometry_key","")
+	_navigation.build(_map_root.get_meta("stream_library", []), _player.position)
+	while not _navigation.ready_for_queries:
+		# Navigation bakes on the engine worker. Build the unchanged HUD while
+		# that worker runs, then bind it once combat/navigation are mounted.
+		if _navigation._phase.is_empty() and not is_instance_valid(_hud):_create_game_hud()
+		var batches:Node=_map_root.get_node_or_null("GroundRenderBatches")
+		if batches!=null and batches.pending.is_empty() and batches._workers.is_empty():Net.session().prepare_world_first_frame()
+		var phase_name: String={"bounds":"计算范围","source":"收集通行表面"}.get(_navigation._phase,"烘焙")
+		_loading_stage("准备通行导航 · "+phase_name,_navigation._cursor,_navigation._specs.size() if not _navigation._phase.is_empty() else 0)
+		await get_tree().process_frame
+	Net.server().world3d_authority.mount(_player, _navigation, _map_ref())
+	_combat = preload("res://scripts/world3d/world_combat.gd").new()
+	add_child(_combat)
+	_combat.setup(self)
+	remote_players.refresh()
+
+
+func _load_or_fail() -> Node:
+	if is_instance_valid(Net.session().prepared_world3d):
+		var prepared: Node = Net.session().prepared_world3d
+		Net.session().prepared_world3d = null
+		_map_path = Net.session().world3d_map_path
+		_note_map(prepared)
+		_use_map_spawn(prepared)
+		return prepared
+	var authored := str(Net.session().world3d_map_path)
+	if authored != "":
+		var loaded_authored := GltfMapIo.load_scene(authored)
+		if loaded_authored == null:
+			_status.text = "外部地图读取失败"
+			return null
+		_map_path = authored
+		_note_map(loaded_authored)
+		_use_map_spawn(loaded_authored)
+		return loaded_authored
+	var yard_dir := WorldMapPaths.cache_directory("p4_yard")
+	var inn_dir := WorldMapPaths.cache_directory("p4_inn")
+	if yard_dir.is_empty() or inn_dir.is_empty():
+		_status.text = "没有工程外的 content_root，不能进入 3D 世界"
+		return null
+	var path := yard_dir.path_join("map.gltf")
+	var inn_path := inn_dir.path_join("map.gltf")
+	var docs = load("res://scripts/world3d/world_document.gd")
+	var err: Error = docs.sample_yard(inn_path).save(path)
+	if err != OK:
+		_status.text = "外部地图写入失败"
+		return null
+	err = docs.make_inn(path).save(inn_path)
+	if err != OK:
+		_status.text = "外部地图写入失败"
+		return null
+	var loaded := GltfMapIo.load_scene(path)
+	if loaded == null:
+		_status.text = "外部地图读取失败"
+		return null
+	_map_path = path
+	_use_map_spawn(loaded)
+	return loaded
+
+
+func _note_map(map_root: Node) -> void:
+	var extras := GltfMapIo.extras_of(map_root)
+	var name := str(extras.get("map_name", ""))
+	_check_map = str(extras.get("rmmo_role", "")) == "check" or name.contains("白模")
+
+
+func _use_map_spawn(map_root: Node) -> void:
+	var spawn: Variant = GltfMapIo.extras_of(map_root).get("spawn", [])
+	if typeof(spawn) != TYPE_ARRAY or (spawn as Array).size() < 3:
+		return
+	var current: Vector3 = Net.session().world3d_spawn
+	if current != Vector3(0, 0.9, 4):
+		return
+	var coords: Array = spawn
+	Net.session().world3d_spawn = Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
+
+
+func _add_collision(map_root: Node) -> void:
+	Stream.sync(map_root, self, Net.session().world3d_spawn)
+
+
+func _add_player() -> void:
+	var body := CharacterBody3D.new()
+	body.name = "Player"
+	body.set_script(load("res://scripts/world3d/world_player.gd"))
+	body.map_ref = _map_ref()
+	body.character = Net.session().active_character()
+	var equipment: Array = Net.session().spawn_data.get("equipment", [])
+	body.equipment_parts = preload("res://scripts/char/character_view_3d.gd").equipment_parts(str(body.character.gender), equipment, Net.server().item_catalog)
+	body.position = Net.session().world3d_spawn
+	var capsule := CollisionShape3D.new()
+	capsule.name="CollisionShape3D"
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.3
+	shape.height = 1.8
+	capsule.shape = shape
+	body.add_child(capsule)
+	var model:Node3D = Net.session().take_world_actor(str(body.character.gender), body.character.get("customization", {}), body.equipment_parts)
+	model.name = "CharacterModel3D"
+	model.position = Vector3(0, -0.9, 0)
+	body.add_child(model)
+	add_child(body)
+	_player = body
+	model.identity_shapes_changed.connect(_on_identity_shapes_changed)
+	var rig := Node3D.new()
+	rig.name = "FollowCamera"
+	rig.set_script(load("res://scripts/world3d/third_person_camera.gd"))
+	var camera := Camera3D.new()
+	camera.name = "Camera3D"
+	camera.current = true
+	camera.fov = 55.0
+	rig.add_child(camera)
+	add_child(rig)
+	_camera = rig
+	_refresh_player_clearance()
+	_camera.exclude_body(_player.get_rid())
+	_player.camera_path = _camera.get_path()
+	_outline = preload("res://scripts/world3d/occlusion_outline.gd").new()
+	add_child(_outline)
+	_outline.bind(_player, camera)
+
+func _refresh_player_clearance()->void:
+	if not is_instance_valid(_player) or not is_instance_valid(_camera):return
+	_camera.actor_height=preload("res://scripts/world3d/player_clearance.gd").apply(_player,_player.get_node("CharacterModel3D"))
+
+## Perspective controllers must switch this before taking over camera/head pose.
+## First-person/VR controllers own their movement; this does not simulate an HMD.
+func set_camera_mode(mode:String)->bool:
+	return is_instance_valid(_camera) and _camera.set_view_mode(mode)
+
+
+func _add_light() -> void:
+	_sun = DirectionalLight3D.new()
+	_sun.rotation_degrees = Vector3(-48, 32, 0)
+	_sun.light_energy = 1.15
+	_sun.light_color = Color(1.0, 0.97, 0.9)
+	add_child(_sun)
+	_sun.add_to_group("character_key_light")
+	var env := WorldEnvironment.new()
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_COLOR
+	_env.background_color = Color(0.55, 0.68, 0.78)
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.ambient_light_color = Color(0.72, 0.76, 0.82)
+	_env.ambient_light_energy = 0.42
+	env.environment = _env
+	add_child(env)
+
+
+func set_night(on: bool) -> void:
+	_request_environment({"preset":"night" if on else "day"})
+
+func _request_environment(changes: Dictionary) -> Dictionary:
+	var server = Net.server()
+	if not is_instance_valid(_weather) or not server.has_method("try_set_world3d_environment"): return {"ok":false,"error":"环境服务未就绪"}
+	var began:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	var result: Dictionary = server.try_set_world3d_environment(_map_ref(),changes)
+	var server_end:=Time.get_ticks_usec() if began>0 else 0
+	if result.get("ok",false): _weather.sky_poll = 0; _weather._process(0)
+	if began>0:set_meta("environment_timing",{"server_ms":(server_end-began)/1000.0,"weather_ms":(Time.get_ticks_usec()-server_end)/1000.0})
+	return result
+
+func _on_server_environment(config: Dictionary) -> void:
+	_night = config.preset == "night"; _refresh_lamps()
+	if is_instance_valid(_outline): _outline.configure(config)
+	if is_instance_valid(_camera): _camera.configure_environment(config)
+
+## Runtime weather changes are transient; editor/MCP author the map's initial weather.
+func set_weather(kind: String, intensity := .7) -> Dictionary:
+	var changes := {"weather":kind, "weather_intensity":intensity}
+	var settings = preload("res://scripts/world3d/environment_settings.gd")
+	var invalid: String = settings.Schema.validate(changes, settings.schema())
+	if not invalid.is_empty(): return {"ok":false, "error":invalid}
+	if not is_instance_valid(_weather): return {"ok":false, "error":"地图天气尚未就绪"}
+	return _request_environment(changes)
+
+func _apply_map_environment() -> void:
+	var settings = preload("res://scripts/world3d/environment_settings.gd")
+	var values: Dictionary = settings.resolve(GltfMapIo.extras_of(_map_root))
+	settings.apply(values, _sun, _env)
+	if not is_instance_valid(_weather):
+		_weather = preload("res://scripts/world3d/weather_controller.gd").new()
+		add_child(_weather)
+		_weather.bind(_camera.camera, _sun, _env, _player)
+		_weather.environment_changed.connect(_on_server_environment)
+	var sky_server = Net.server()
+	if sky_server.has_method("mount_world3d_sky"): sky_server.mount_world3d_sky(_map_ref(),_map_path)
+	if sky_server.has_method("snapshot_world3d_sky"): _weather.bind_sky(_map_ref(),Callable(sky_server,"snapshot_world3d_sky").bind(_map_ref()))
+	_weather.configure(values, true)
+	if not is_instance_valid(_house_candles):
+		_house_candles=preload("res://scripts/world3d/house_candle_lights.gd").new();add_child(_house_candles)
+	_house_candles.bind_map(_map_root,_player,_weather)
+	values = _weather.values
+	_night = values.preset == "night"
+	if is_instance_valid(_outline): _outline.configure(values)
+	if is_instance_valid(_camera):_camera.bind_map(_map_root,values)
+	_refresh_lamps()
+
+func _refresh_lamps() -> void:
+	for lamp in _lamps:
+		if lamp is OmniLight3D:
+			(lamp as OmniLight3D).light_energy = 1.8 if _night else 0.0
+	if _status != null and not _lamps.is_empty():
+		var prefix := "检查用白模 · " if _check_map else ""
+		_status.text = prefix + ("夜晚 · 路灯亮着" if _night else "白天 · 路灯关掉")
+
+
+func _add_town_lamps(map_root: Node) -> void:
+	var extras := GltfMapIo.extras_of(map_root)
+	var raw: Variant = extras.get("lamps", [])
+	if typeof(raw) != TYPE_ARRAY:
+		return
+	var coords: Array = raw
+	var i := 0
+	while i + 2 < coords.size():
+		var lamp := OmniLight3D.new()
+		lamp.name = "TownLamp%d" % _lamps.size()
+		lamp.position = Vector3(float(coords[i]), float(coords[i + 1]), float(coords[i + 2]))
+		lamp.light_color = Color(1.0, 0.78, 0.48)
+		lamp.omni_range = 11.0
+		lamp.omni_attenuation = 1.35
+		lamp.shadow_enabled = false
+		lamp.light_energy = 0.0
+		add_child(lamp)
+		_lamps.append(lamp)
+		i += 3
+
+
+func _add_hud() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	_revive = Button.new()
+	_revive.text = "返回出生点复活"
+	_revive.position = Vector2(530, 80)
+	_revive.visible = false
+	_revive.pressed.connect(func():
+		if _combat.respawn(): _revive.hide()
+	)
+	layer.add_child(_revive)
+	_status = Label.new()
+	_status.position = Vector2(16, 12)
+	_status.text = "正在读取外部地图…"
+	layer.add_child(_status)
+	if is_instance_valid(Net.session().editor_playtest): return
+	var back := Button.new()
+	back.text = "返回登录"
+	back.anchor_left = 0.5
+	back.anchor_right = 0.5
+	back.position = Vector2(-110, 12)
+	back.pressed.connect(_leave)
+	layer.add_child(back)
+	if Net.session().editor_return:
+		var edit := Button.new()
+		edit.text = "返回编辑"
+		edit.anchor_left = 0.5
+		edit.anchor_right = 0.5
+		edit.position = Vector2(0, 12)
+		edit.pressed.connect(_back_to_editor)
+		layer.add_child(edit)
+
+
+func _pick(screen: Vector2) -> Dictionary:
+	var camera := _camera.get_node("Camera3D") as Camera3D
+	var origin := camera.project_ray_origin(screen)
+	var end := origin + camera.project_ray_normal(screen) * 80.0
+	var query := PhysicsRayQueryParameters3D.create(origin, end)
+	query.exclude = _camera.visual_exclusions()
+	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+func _apply_actor_view() -> void:
+	var server = Net.server()
+	if server == null or not server.has_method("try_world3d_chunk"):
+		return
+	var packet: Dictionary = server.try_world3d_chunk(_player.global_position.x, _player.global_position.z)
+	if not bool(packet.get("ok", false)):
+		return
+	if _actor_host == null:
+		_actor_host = Node3D.new()
+		_actor_host.name = "ActorView"
+		add_child(_actor_host)
+	load("res://scripts/world3d/view_actors.gd").apply(_actor_host, packet.get("view", []))
+
+
+func _apply_residency(budget: int = 0) -> void:
+	if _map_root == null or _player == null:
+		return
+	var started:=Time.get_ticks_usec()
+	Stream.sync(_map_root, self, _player.global_position, budget)
+	if budget>0 and budget<Stream.LOAD_BUDGET and not has_meta("profile_unshared_stream_budget"):
+		var batcher=_map_root.get_node_or_null("GroundRenderBatches")
+		if batcher!=null:
+			batcher.residency_budget_frame=Engine.get_process_frames()
+			batcher.residency_budget_remaining_usec=maxi(0,3000-(Time.get_ticks_usec()-started))
+
+
+func _poll_warp() -> void:
+	if _player == null or _map_path == "" or _player.input_locked:
+		return
+	if _warp_cache_dirty:
+		_warp_candidates.clear()
+		for child in get_children():
+			if str(child.get_meta("kind", ""))=="warp":_warp_candidates.append(child)
+		_warp_cache_dirty=false
+	for child in _warp_candidates:
+		if not is_instance_valid(child):continue
+		var center: Vector3 = child.get_meta("center")
+		if not Travel.near(_player.global_position, center, 1.2):
+			continue
+		var target := str(child.get_meta("target_path", ""))
+		if target == _failed_warp:
+			return
+		var spawn: Array = child.get_meta("spawn", [])
+		if spawn.size() != 3: return
+		var destination := Vector3(float(spawn[0]), float(spawn[1]), float(spawn[2]))
+		if not await transfer_map(target, destination): _failed_warp = target
+		return
+	_failed_warp = ""
+
+
+func _map_ref() -> String:
+	var authored := str(GltfMapIo.extras_of(_map_root).get("map_ref", ""))
+	if preload("res://scripts/world3d/world_location.gd").map_ref_ok(authored):
+		return authored
+	return "prototype/map_" + _map_path.sha256_text().substr(0, 16)
+
+
+func _talk() -> void:
+	if furniture.active():
+		furniture.stand();return
+	if _player == null or _travel == null:
+		return
+	var bodies: Array = []
+	for child in get_children():
+		if child.has_meta("seat"):
+			bodies.append(child)
+	var closest: StaticBody3D
+	var distance := 2.0
+	for body in bodies:
+		var center: Vector3 = body.get_meta("center")
+		var flat := Vector2(_player.global_position.x, _player.global_position.z).distance_to(Vector2(center.x, center.z))
+		if absf(_player.global_position.y - center.y) <= 1.0 and flat < distance:
+			closest = body
+			distance = flat
+	if closest != null:
+		if closest.has_meta("seat"):
+			if not furniture.interact(closest):_status.text="无法使用这张椅子。"
+			return
+	var events = Net.server().world3d_events
+	var id: String = events.nearest(_player)
+	if not id.is_empty(): apply_actions(events.interact(id, _player))
+
+
+func _mount_events() -> void:
+	Net.server().world3d_events.mount(_map_ref(), _map_root.get_meta("stream_library", []), GltfMapIo.extras_of(_map_root).get("rmmo_records", []))
+
+
+func _create_game_hud()->void:
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var path:="res://scenes/ui/game_hud.tscn"
+	var status:=ResourceLoader.load_threaded_get_status(path)
+	var packed:PackedScene=ResourceLoader.load_threaded_get(path) if status in [ResourceLoader.THREAD_LOAD_LOADED,ResourceLoader.THREAD_LOAD_IN_PROGRESS] else load(path)
+	_hud = packed.instantiate()
+	loading_profile.hud_instantiated=Time.get_ticks_msec()
+	layer.add_child(_hud)
+	loading_profile.hud_added=Time.get_ticks_msec()
+
+
+func _add_game_hud() -> void:
+	if not is_instance_valid(_hud):_create_game_hud()
+	_hud.bind_character(Net.session().active_character())
+	_hud.bind_world_combat(self)
+	var data: Dictionary = Net.session().spawn_data
+	_hud.apply_combat_stats(data.get("combat", {}))
+	_hud.apply_inventory_snapshot(data.get("inventory", []), int(data.get("gold", 0)))
+	_hud.apply_equipment_snapshot(data.get("equipment", []), data.get("equipment_bonuses", {}))
+	_hud.apply_quest_snapshot(data.get("quests", []))
+	_hud.apply_skill_catalog(Net.server().snapshot_skill_catalog())
+	_hud.apply_skill_book(data.get("skill_book", {}))
+	loading_profile.hud_bound=Time.get_ticks_msec()
+	_refresh_world_map()
+	_status.position.y = 106
+
+
+func apply_actions(actions: Array) -> void:
+	for action in actions:
+		match str(action.get("type", "")):
+			"open_shop":
+				if _hud != null:
+					_hud.show_shop(str(action.get("shop_id", "")), str(action.get("title", "")), action.get("listings", []), int(action.get("gold", 0)), int(action.get("vendor_rep", -1)))
+					_hud.apply_shop_buyback(action.get("buyback", []))
+			"shop_buyback":
+				if _hud != null: _hud.apply_shop_buyback(action.get("buyback", []))
+			"facial_expression":remote_players.receive(action)
+			"remote_spawn":remote_players.spawn(action.get("player",{}))
+			"remote_despawn":remote_players.despawn(str(action.get("id",action.get("player_id",""))))
+			"sit":
+				if furniture.active():
+					if not bool(action.get("on",false)):furniture.stand()
+					continue
+				if bool(action.get("on",false)):
+					if _player._model.action not in ["sit_down_ground","sit_ground"]:_player.request_rest("sit_down_ground")
+				elif _player._model.action in ["sit_down_ground","sit_ground"]:
+					_player._begin_ground_exit()
+			"player_died":
+				furniture.cancel(true)
+				cancel_sit_preparation()
+				Net.server().sitting=false
+				Net.server().awaiting_respawn = true
+				_player.input_locked = true
+				_player.velocity = Vector3.ZERO
+				_player.click_target = null
+				_player._route.clear()
+				_player.get_node("CharacterModel3D").play("death", "front")
+				_revive.show()
+			"skill_cd":
+				if _hud != null: _hud.note_skill_cooldown(str(action.skill_id), float(action.remaining), float(action.get("cooldown", 0)))
+			"cast_start":
+				if _hud != null and str(action.get("caster", "player")) == "player": _hud.apply_cast_start(action)
+			"cast_update":
+				if _hud != null and str(action.get("caster", "player")) == "player": _hud.apply_cast_update(action)
+			"cast_end":
+				if _hud != null and str(action.get("caster", "player")) == "player": _hud.apply_cast_end(action)
+			"show_npc_dialogue":
+				_status.text = str(action.get("body", ""))
+				if _hud != null:
+					_hud.show_npc_dialogue(str(action.get("npc_name", "")), str(action.get("body", "")), action.get("options", []))
+			"system_message":
+				_status.text = str(action.get("text", ""))
+				if _hud != null:
+					_hud.append_system(_status.text)
+			"inventory_update":
+				Net.session().spawn_data["inventory"] = action.get("items", [])
+				Net.session().spawn_data["gold"] = action.get("gold", 0)
+				if _hud != null:
+					_hud.apply_inventory_snapshot(action.get("items", []), int(action.get("gold", 0)))
+			"equipment_update":
+				var equipment: Array = action.get("equipment", [])
+				Net.session().spawn_data["equipment"] = equipment
+				var gender := str(_player.character.gender)
+				_player.get_node("CharacterModel3D").set_equipment(preload("res://scripts/char/character_view_3d.gd").equipment_parts(gender, equipment, Net.server().item_catalog))
+				if _hud != null:
+					_hud.apply_equipment_snapshot(equipment, action.get("bonuses", {}))
+			"quest_update":
+				if _hud != null:
+					_hud.apply_quest_snapshot(Net.server().snapshot_quest_journal())
+			"world3d_transfer":
+				var loc = preload("res://scripts/world3d/world_location.gd").from_dictionary(action["location"])
+				var warp := StaticBody3D.new()
+				warp.set_meta("kind", "warp")
+				warp.set_meta("center", _player.global_position)
+				warp.set_meta("target_path", action["path"])
+				warp.set_meta("spawn", [loc.position_m.x, loc.position_m.y + 0.9, loc.position_m.z])
+				add_child(warp)
+				_poll_warp()
+				warp.queue_free()
+
+
+func request_event_choice(option_id: String, option_index: int) -> void:
+	apply_actions(Net.server().world3d_events.choice(option_id, option_index))
+
+func request_shop_buy(shop_id: String, item_id: String, quantity: int = 1) -> void:
+	apply_actions(Net.server().try_shop_buy(shop_id, item_id, quantity).get("actions", []))
+
+func request_shop_sell(item_id: String, quantity: int = 1) -> void:
+	apply_actions(Net.server().try_shop_sell(item_id, quantity).get("actions", []))
+
+func request_shop_sell_junk() -> void:
+	apply_actions(Net.server().try_shop_sell_junk().get("actions", []))
+
+func request_shop_buyback(index: int) -> void:
+	apply_actions(Net.server().try_shop_buyback(index).get("actions", []))
+
+func request_shop_close() -> void:
+	apply_actions(Net.server().try_shop_close().get("actions", []))
+
+
+func request_equip_item(item_id: String, slot: String = "") -> void:
+	apply_actions(Net.server().try_equip_item(item_id, slot).get("actions", []))
+
+
+func request_unequip_item(slot: String) -> void:
+	apply_actions(Net.server().try_unequip_item(slot).get("actions", []))
+
+
+func _leave() -> void:
+	if _camera != null and _camera.has_method("release_capture"):
+		_camera.release_capture()
+	Net.session().editor_return = false
+	Net.session().go_login()
+
+
+func _back_to_editor() -> void:
+	if _camera != null and _camera.has_method("release_capture"):
+		_camera.release_capture()
+	Net.session().go_world_editor()
+
+
+func request_use_skill(skill_id: String) -> void:
+	var definition: Dictionary = Net.server().skill_catalog.get_skill(skill_id)
+	if Net.server().combat_engine.skill_target_mode(definition) == "ground":
+		_pending_ground_skill = skill_id
+		_status.text = "点击地面选择施法位置。"
+		return
+	_combat.use_skill(skill_id)
+
+
+func request_use_item(item_id: String) -> void:
+	_combat.use_item(item_id)
+
+
+func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:
+	if is_instance_valid(Net.session().editor_playtest): target = Net.session().editor_playtest.resolve_map(target)
+	if _transfer_pending or not destination.is_finite() or target.is_empty(): return false
+	if not Net.server().combat_stats.player_alive(): return false
+	cancel_sit_preparation()
+	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
+	furniture.cancel()
+	_transfer_pending = true
+	_combat._save_map_state()
+	var combat_processing: bool = _combat.is_physics_processing()
+	_combat.set_physics_process(false)
+	var was_locked: bool = _player.input_locked
+	_player.input_locked = true
+	_status.text = "读取目标地图…"
+	var loader = preload("res://scripts/world3d/map_loader.gd").new()
+	_transfer_loader = loader
+	loader.progress.connect(func(stage: String, done: int, total: int): _status.text = "%s %d/%d" % [stage, done, total])
+	Net.session().add_child(loader)
+	loader.start(target)
+	var result: Array = await loader.finished
+	_transfer_loader = null
+	var prepared: Node = result[0]
+	if prepared == null:
+		_combat.set_physics_process(combat_processing)
+		_transfer_pending = false
+		_player.input_locked = was_locked
+		_status.text = str(result[2])
+		return false
+	# Prepare and validate in an isolated physics world. The current map and
+	# inventory stay intact until navigation and the destination capsule fit.
+	var viewport := SubViewport.new()
+	viewport.own_world_3d = true
+	viewport.disable_3d = true
+	add_child(viewport)
+	var stage := Node3D.new()
+	viewport.add_child(stage)
+	stage.add_child(prepared)
+	while not prepared.has_meta("stream_chunk"):
+		Stream.sync(prepared, stage, destination, Stream.LOAD_BUDGET)
+		await get_tree().process_frame
+	var navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	navigation.agent_height=float(_player.get_meta("standing_height",1.9))
+	add_child(navigation)
+	navigation.runtime_geometry_key=prepared.get_meta("runtime_geometry_key","")
+	navigation.build(prepared.get_meta("stream_library", []), destination)
+	while not navigation.ready_for_queries: await get_tree().process_frame
+	await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(prepared.get_meta("stream_library",[]),get_tree())
+	await _weather.streetlamps.prepare_materials(prepared.get_meta("stream_library",[]),get_tree())
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	var feet := destination - Vector3(0, 0.9, 0)
+	var query := PhysicsShapeQueryParameters3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.29
+	capsule.height = float(_player.get_meta("standing_height",1.9))-.02
+	query.shape = capsule
+	query.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0, capsule.height/2+.02, 0))
+	var fits: bool = navigation.near_surface(feet, 0.35, 0.4) and stage.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
+	# Dynamic actors are deliberately absent from static navigation/collision.
+	# Check their authored occupancy before committing, including cached poses.
+	var saved: Dictionary = Net.server().world3d_state.read_map(target.simplify_path())
+	for spec in prepared.get_meta("stream_library", []):
+		var data: Dictionary = spec.get("extras", {})
+		if not bool(data.get("hostile", false)) and not bool(data.get("ally", false)): continue
+		var bounds: AABB = spec.transform * spec.mesh.get_aabb()
+		var actor_feet := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
+		var cached: Dictionary = saved.get("actors", {}).get(str(spec.uuid), {})
+		if not cached.is_empty() and cached.get("signature", "") == _combat._signature(spec):
+			if cached.get("stats", {}).is_empty() or int(cached.stats.get("hp", 0)) <= 0: continue
+			actor_feet = cached.position - Vector3(0, 0.9, 0)
+		if absf(actor_feet.y - feet.y) < 1.8 and Vector2(actor_feet.x - feet.x, actor_feet.z - feet.z).length() < 0.6: fits = false
+	if not fits or (before_commit.is_valid() and not before_commit.call()):
+		_combat.set_physics_process(combat_processing)
+		navigation.free()
+		viewport.queue_free()
+		_transfer_pending = false
+		_player.input_locked = was_locked
+		_status.text = "目标出生点不可用，或操作条件已变化；保留当前地图。"
+		return false
+	# Commit after preparation. Save the outgoing mock map state before freeing it.
+	_combat.free()
+	for body in _map_root.get_meta("stream_bodies", {}).values():
+		if is_instance_valid(body): body.free()
+	_map_root.free()
+	_navigation.free()
+	for lamp in _lamps: lamp.free()
+	_lamps.clear()
+	Net.server().world3d_release_actors()
+	if is_instance_valid(_actor_host): _actor_host.free()
+	_actor_host = null
+	_map_root = prepared
+	prepared.reparent(self)
+	for body in prepared.get_meta("stream_bodies", {}).values():
+		if is_instance_valid(body): body.reparent(self)
+	_navigation = navigation
+	viewport.queue_free()
+	_map_path = target
+	Net.session().world3d_map_path = target
+	Net.session().world3d_spawn = destination
+	_player.global_position = destination
+	_player.velocity = Vector3.ZERO
+	_player.click_target = null
+	_player._route.clear()
+	_previous_feet = feet
+	_player.map_ref = _map_ref()
+	_player.navigation = navigation
+	Net.server().world3d_authority.mount(_player, navigation, _map_ref())
+	_combat = preload("res://scripts/world3d/world_combat.gd").new()
+	add_child(_combat)
+	_combat.setup(self)
+	remote_players.refresh()
+	_add_town_lamps(prepared)
+	_note_map(prepared)
+	_mount_events()
+	_refresh_world_map()
+	_apply_map_environment()
+	await get_tree().physics_frame
+	_player.input_locked = false
+	_transfer_pending = false
+	_status.text = "已进入目标地图。"
+	return true
+
+
+func request_pet_summon(id: String = "default") -> void:
+	_combat.summons.pet_summon(id)
+
+func request_pet_dismiss() -> void:
+	_combat.summons.pet_dismiss()
+
+FILE: scripts/world3d/ground_batcher.gd
+extends Node3D
+## Spatial render cache. The source nodes, UUIDs, physics and records remain independent.
+const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
+static var canonical_buildings_enabled:=true
+const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+var groups: Dictionary = {}
+var pending: Array[String] = []
+var enabled := true
+var rebuild_count := 0
+var last_build_ms := 0.0
+var max_build_ms := 0.0
+var _material_keys: Dictionary = {}
+var _instance_meshes: Dictionary = {}
+var _workers: Array = []
+const MAX_WORKERS=3
+var _generation := 0
+var last_commit_ms := 0.0
+var max_commit_ms := 0.0
+var last_sync_ms := 0.0
+var sync_profile: Dictionary={}
+var sync_count:=0
+var release_groups_visited:=0
+var _member_groups: Dictionary={}
+var _audit_cursor:=0
+var _audit_keys:Array=[]
+var _building_meshes:Dictionary={}
+var building_mesh_hits:=0
+var work_budget_usec:=2000
+var residency_budget_frame:=-1
+var residency_budget_remaining_usec:=2000
+# Residency requests prepare on the main thread in bounded slices. Existing
+# batches stay visible until replacement membership is ready; workers still only
+# receive immutable geometry snapshots. Editor sync/flush remain synchronous.
+var _preparation:Dictionary={}
+var _residency_descriptors:Dictionary={}
+var last_prepare_slice_ms:=0.0
+var max_prepare_slice_ms:=0.0
+
+static func _fingerprint(value:Variant)->String:
+	var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256)
+	hash.update(var_to_bytes(value));return hash.finish().hex_encode()
+
+func _ready() -> void:
+	name = "GroundRenderBatches"
+	set_meta("stream_instance", true)
+
+static func freeze(node: MeshInstance3D, captured: Mesh = null) -> void:
+	if node.mesh is Cpu: return
+	var cpu: Mesh = captured if captured != null else Cpu.capture(node.mesh)
+	var materials: Array[Material]=[]
+	for slot in node.mesh.get_surface_count(): materials.append(node.get_active_material(slot))
+	# Geometry can be shared, but per-instance paint must not overwrite another
+	# source's materials when the original GPU mesh is shared by both objects.
+	if cpu.materials!=materials:
+		var local:=Cpu.new(); local.surfaces=cpu.surfaces; local.bounds=cpu.bounds; local.box_size=cpu.box_size; local.source_reference=cpu.source_reference; local.materials=materials
+		if cpu.has_meta("static_batch_geometry_signature"): local.set_meta("static_batch_geometry_signature",cpu.geometry_key())
+		local._collision_faces=cpu._collision_faces; cpu=local
+	for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot,null)
+	# Empty the instance's override list before assigning a CPU mesh (no RS base).
+	node.mesh = null; node.material_override = null; node.mesh = cpu
+	if node.has_meta("paint_source"): node.set_meta("paint_source", Cpu.capture(node.get_meta("paint_source")))
+
+static func restore(node: MeshInstance3D) -> void:
+	if node.mesh is Cpu: node.mesh = node.mesh.restore()
+
+func clear(restore_sources: bool = true) -> void:
+	_preparation.clear();_residency_descriptors.clear()
+	for group: Dictionary in groups.values(): _drop(group,restore_sources)
+	groups.clear(); pending.clear(); _material_keys.clear(); _instance_meshes.clear(); _member_groups.clear();_building_meshes.clear()
+	_audit_keys.clear();_audit_cursor=0
+
+func release(ids: Array) -> void:
+	_preparation.clear();_residency_descriptors.clear() # Editor mutations invalidate captured descriptors.
+	_release_groups(ids)
+
+func _release_groups(ids: Array) -> void:
+	# Editing is synchronous: remove the old combined draw before changing a source.
+	var affected: Dictionary={}
+	for id in ids:
+		if _member_groups.has(str(id)): affected[_member_groups[str(id)]]=true
+	for key: String in affected:
+		if not groups.has(key): continue
+		release_groups_visited+=1
+		_drop(groups[key]); groups.erase(key); pending.erase(key)
+
+func _drop(group: Dictionary, restore_sources: bool = true) -> void:
+	var watcher=group.get("pose_watcher")
+	if is_instance_valid(watcher):
+		watcher.changed=Callable();watcher.set_notify_transform(false);watcher.queue_free()
+	for id in group.get("member_ids",[]):_member_groups.erase(id)
+	for node in group.members:
+		if not is_instance_valid(node):continue
+		_member_groups.erase(str(node.name))
+		var callback:Callable=group.get("exit_callback",Callable())
+		if callback.is_valid() and node.tree_exiting.is_connected(callback):node.tree_exiting.disconnect(callback)
+		var visible_callback:Callable=group.get("visible_callback",Callable())
+		if visible_callback.is_valid() and node.visibility_changed.is_connected(visible_callback):node.visibility_changed.disconnect(visible_callback)
+	if is_instance_valid(group.get("visual")): group.visual.free()
+	if not restore_sources: return
+	for node in group.members:
+		if is_instance_valid(node) and not node.is_queued_for_deletion(): restore(node)
+
+func _invalidate_group(key:String,generation:int)->void:
+	if not groups.has(key) or groups[key].generation!=generation:return
+	var group:Dictionary=groups[key]
+	groups.erase(key);pending.erase(key)
+	_drop(group)
+
+func _watch_group(key:String,group:Dictionary)->void:
+	# Residency can free sources before the next sync. Invalidate the combined
+	# visual immediately, including when a non-leading member leaves the tree.
+	var callback:=_invalidate_group.bind(key,group.generation)
+	group.exit_callback=callback;group.member_ids=[]
+	group.moving=group.category=="building" and group.members[0].get_meta("ground_batch_record",{}).has("fixture")
+	if group.category=="building":
+		group.visible_callback=_sync_visibility.bind(key,group.generation)
+		group.members[0].visibility_changed.connect(group.visible_callback)
+	for node in group.members:
+		group.member_ids.append(str(node.name))
+		node.tree_exiting.connect(callback)
+
+func _sync_visibility(key:String,generation:int)->void:
+	if not groups.has(key) or groups[key].generation!=generation:return
+	var group:Dictionary=groups[key]
+	if is_instance_valid(group.get("visual")) and is_instance_valid(group.members[0]):
+		group.visual.visible=group.members[0].is_visible_in_tree()
+
+func _sync_pose(key:String,generation:int)->void:
+	if not groups.has(key) or groups[key].generation!=generation:return
+	var group:Dictionary=groups[key]
+	if not is_instance_valid(group.get("visual")) or group.members.is_empty() or not is_instance_valid(group.members[0]):return
+	var pose:Transform3D=group.members[0].global_transform
+	if pose!=group.last_source_pose:
+		group.visual.global_transform=pose*group.relative_pose;group.last_source_pose=pose
+
+func sync(nodes: Array, excluded: Array = []) -> void:
+	_residency_descriptors.clear() # Editor callers may have changed any material/geometry.
+	request_sync(nodes,excluded)
+	while not _preparation.is_empty(): _prepare_step(0)
+
+func sync_selection(nodes: Array, excluded: Array) -> void:
+	# Selection changes no source geometry/materials. Restore selected sources
+	# immediately, then regroup remaining sources within the normal frame budget.
+	_preparation.clear()
+	_release_groups(excluded)
+	request_sync(nodes,excluded)
+
+func invalidate_source(node: MeshInstance3D) -> void:
+	# An excluded source may change size/materials without changing its pose.
+	# Its next selection release must recapture its own descriptor only.
+	_residency_descriptors.erase(node.get_instance_id())
+
+func request_sync(nodes:Array,excluded:Array=[])->void:
+	# New residency supersedes unfinished preparation. No source has been hidden
+	# by preparation; lifetime signals immediately remove already-built stale draws.
+	for id in _residency_descriptors.keys():
+		if _residency_descriptors[id].reference.get_ref()==null:_residency_descriptors.erase(id)
+	sync_count+=1
+	sync_profile={"material_us":0,"geometry_us":0,"capture_us":0}
+	_material_keys.clear()
+	_preparation={"phase":"collect","cursor":0,"items":nodes,"named":{},"desired":{},"excluded":excluded,"cpu_us":0}
+	for cached:String in _instance_meshes.keys():
+		if _instance_meshes[cached].get_ref()==null:_instance_meshes.erase(cached)
+	for cached:String in _building_meshes.keys():
+		if _building_meshes[cached].reference.get_ref()==null:_building_meshes.erase(cached)
+
+func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
+	if not node is MeshInstance3D or not node.has_meta("ground_batch_record") or str(node.name) in excluded: return
+	if not node.is_visible_in_tree() or node.transparency > 0 or node.material_overlay != null or node.skin != null: return
+	var record: Dictionary = node.get_meta("ground_batch_record")
+	if not Geometry.candidate(record) or not node.global_basis.is_conformal() or not node.global_basis.get_scale().is_equal_approx(Vector3.ONE) or node.global_basis.determinant() < 0: return
+	# Runtime residency only adds/removes immutable sources. Their captured
+	# grouping data survives chunk crossings and CPU/GPU mesh substitution.
+	# sync/release clear this cache before editor changes; no material is pinned.
+	var identity:=node.get_instance_id()
+	if _residency_descriptors.has(identity):
+		var cached:Dictionary=_residency_descriptors[identity]
+		if cached.reference.get_ref()==node and cached.pose==node.global_transform:
+			_append_descriptor(node,cached,desired);return
+	var keys: Array = []; var eligible := true
+	var mark:=Time.get_ticks_usec()
+	for slot in node.mesh.get_surface_count():
+		var material: Material = node.get_active_material(slot)
+		if not _material_keys.has(material): _material_keys[material] = Geometry.material_key(material)
+		var key: String = _material_keys[material]
+		if key.is_empty(): eligible = false; break
+		keys.append(key)
+		if material is ShaderMaterial and (absf(node.global_basis.y.x) > .00001 or absf(node.global_basis.y.z) > .00001): eligible = false
+	if not eligible: return
+	sync_profile.material_us+=Time.get_ticks_usec()-mark
+	# Small surfaces use 128 m bins; a 200 m terrain uses 512 m bins. Never
+	# merge a whole city, so culling and local edits stay spatially bounded.
+	var extent: Vector3 = node.get_aabb().size
+	var kind:=Geometry.category(record)
+	var cell := maxf(32. if kind=="fortification" else 128., pow(2., ceil(log(maxf(1., maxf(extent.x,extent.z))) / log(2.))) * (1. if kind=="fortification" else 2.))
+	var center: Vector3 = node.global_position
+	var shape: Array = [record.terrain_mesh.columns,record.terrain_mesh.rows] if record.has("terrain_mesh") else []
+	if kind=="building":
+		var b:Dictionary=record.building
+		var presentation:String="ceiling" if str(b.part).ends_with("/ceiling") else ("roof" if b.role=="roof" else "body")
+		shape=[b.id,b.floor,presentation,record.get("fixture",{}).get("id","")]
+	var merge_base:=_fingerprint([kind,floor(center.x/cell),floor(center.z/cell),cell,keys,shape,node.cast_shadow,node.layers])
+	# Keep repeated modules together even when a spatial cell also contains
+	# other stone shapes. Mixing shapes defeats vertex-buffer sharing.
+	mark=Time.get_ticks_usec()
+	var cpu:=Cpu.capture(node.mesh)
+	sync_profile.capture_us+=Time.get_ticks_usec()-mark; mark=Time.get_ticks_usec()
+	if kind=="fortification": shape=[_geometry_signature(cpu)]
+	sync_profile.geometry_us+=Time.get_ticks_usec()-mark
+	var base:String = _fingerprint([kind,floor(center.x/cell),floor(center.z/cell),cell,keys,shape,node.cast_shadow,node.layers]) if kind=="fortification" else merge_base
+	var vertices := Geometry.vertex_count(node.mesh)
+	if vertices > Geometry.MAX_VERTICES: return
+	var descriptor:={"reference":weakref(node),"pose":node.global_transform,"base":base,"merge_base":merge_base,"category":kind,"vertices":vertices,"keys":keys,"limit":Geometry.member_limit(record),"origin":Vector3((floor(center.x/cell)+.5)*cell,0,(floor(center.z/cell)+.5)*cell)}
+	_residency_descriptors[identity]=descriptor
+	_append_descriptor(node,descriptor,desired)
+
+func _append_descriptor(node:Node,descriptor:Dictionary,desired:Dictionary)->void:
+	var bin:=0;var key:String=descriptor.base+":0"
+	while desired.has(key) and (desired[key].members.size()>=descriptor.limit or desired[key].vertices+descriptor.vertices>Geometry.MAX_VERTICES):
+		bin+=1;key=descriptor.base+":"+str(bin)
+	if not desired.has(key):desired[key]={"merge_base":descriptor.merge_base,"category":descriptor.category,"members":[],"vertices":0,"keys":descriptor.keys,"signature":[],"origin":descriptor.origin}
+	desired[key].members.append(node);desired[key].vertices+=descriptor.vertices
+	desired[key].signature.append([node.get_instance_id(),node.global_transform])
+
+func _prepare_step(budget_usec:int)->void:
+	if _preparation.is_empty():return
+	var started:=Time.get_ticks_usec()
+	while not _preparation.is_empty():
+		var item_started:=Time.get_ticks_usec()
+		var stage:String=_preparation.phase
+		var state:Dictionary=_preparation
+		var desired:Dictionary=state.desired
+		if state.cursor>=state.items.size():
+			state.cursor=0
+			match state.phase:
+				"collect":
+					state.items=state.named.keys();state.items.sort();state.phase="prepare"
+				"prepare":state.items=desired.keys();state.named.clear();state.phase="unique"
+				"unique":state.items=desired.keys();state.phase="filter"
+				"filter":state.items=groups.keys();state.phase="drop"
+				"drop":state.items=desired.keys();state.phase="add"
+				"add":
+					_material_keys.clear()
+					_audit_keys=groups.keys();_audit_cursor=0
+					last_sync_ms=(state.cpu_us+Time.get_ticks_usec()-started)/1000.0
+					_preparation={}
+		else:
+			var item:Variant=state.items[state.cursor];state.cursor+=1
+			match state.phase:
+				"collect":
+					if enabled and is_instance_valid(item):state.named[str(item.name)]=item
+				"prepare":
+					var node:Variant=state.named[item]
+					if is_instance_valid(node) and not node.is_queued_for_deletion():_prepare_node(node,desired,state.excluded)
+				"unique":
+					var source:Dictionary=desired[item]
+					if source.category=="fortification" and source.members.size()==1:
+						desired.erase(item)
+						var bin:=0;var target:String="unique:"+source.merge_base+":0"
+						while desired.has(target) and (desired[target].members.size()>=Geometry.MAX_FORTIFICATION_MEMBERS or desired[target].vertices+source.vertices>Geometry.MAX_VERTICES):
+							bin+=1;target="unique:"+source.merge_base+":"+str(bin)
+						if not desired.has(target):desired[target]=source
+						else:
+							desired[target].members.append_array(source.members);desired[target].signature.append_array(source.signature);desired[target].vertices+=source.vertices
+				"filter":
+					if desired[item].members.size()<2:desired.erase(item)
+				"drop":
+					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
+						_drop(groups[item]);groups.erase(item);pending.erase(item)
+				"add":
+					if not groups.has(item):
+						var group:Dictionary=desired[item]
+						# A source can leave residency between preparation slices.
+						if group.members.all(func(node):return is_instance_valid(node) and not node.is_queued_for_deletion()):
+							_generation+=1;group.generation=_generation
+							groups[item]=group;pending.append(item);_watch_group(item,group)
+							for node in group.members:_member_groups[str(node.name)]=item
+		if has_meta("profile_frame") and Time.get_ticks_usec()-item_started>10000:print("BATCH_SLOW ",stage," ",(Time.get_ticks_usec()-item_started)/1000.0," ms")
+		if budget_usec>0 and Time.get_ticks_usec()-started>=budget_usec:break
+	var elapsed:=Time.get_ticks_usec()-started
+	if not _preparation.is_empty():_preparation.cpu_us+=elapsed
+	last_prepare_slice_ms=elapsed/1000.0
+	max_prepare_slice_ms=maxf(max_prepare_slice_ms,last_prepare_slice_ms)
+
+func _process(_delta: float) -> void:
+	# Lifetime signals are immediate. A bounded audit also repairs stale caches
+	# without polling thousands of static/closed fixtures every frame.
+	for i in mini(32,_audit_keys.size()):
+		_audit_cursor%=_audit_keys.size()
+		var key:String=_audit_keys[_audit_cursor];_audit_cursor+=1
+		if not groups.has(key):continue
+		var group:Dictionary=groups[key]
+		if group.category!="building" or not is_instance_valid(group.get("visual")):continue
+		# Check the Variant before typed assignment: casting a freed Object fails
+		# before an is_instance_valid() check on the typed local can run.
+		if group.members.is_empty() or not is_instance_valid(group.members[0]):
+			_invalidate_group(key,group.generation);continue
+	# The worker only owns immutable arrays/material snapshots, never scene nodes.
+	# Several cheap instance groups fit in one frame; one group per frame adds
+	# seconds of artificial latency to a city even when no CPU work is pending.
+	var started:=Time.get_ticks_usec()
+	var allowed:=work_budget_usec
+	if residency_budget_frame==Engine.get_process_frames():allowed=mini(allowed,residency_budget_remaining_usec)
+	# Runtime collision/residency and batch upload share a frame allowance.
+	# Source visuals and current batches remain valid while this work is deferred.
+	if allowed<=0:return
+	_prepare_step(allowed)
+	while Time.get_ticks_usec()-started<allowed:
+		var ready: int=_workers.find_custom(func(job):return not job.thread.is_alive())
+		if ready>=0: _finish_worker(ready); continue
+		if _workers.size()>=MAX_WORKERS:
+			# A loading screen can spend its 24 ms slice joining a tiny job.
+			# Returning here otherwise limits hundreds of fixtures to 3 per frame.
+			if work_budget_usec>=24000:_finish_worker(0);continue
+			return
+		if pending.is_empty(): return
+		_build_next(true)
+
+func flush() -> void:
+	while not _preparation.is_empty():_prepare_step(0)
+	while not _workers.is_empty(): _finish_worker(0)
+	while not pending.is_empty(): _build_next()
+
+func _build_next(background: bool = false) -> void:
+	var key: String = pending.pop_front()
+	if not groups.has(key): return
+	var group: Dictionary = groups[key]
+	for node in group.members:
+		if not is_instance_valid(node): _drop(group); groups.erase(key); return
+	var started := Time.get_ticks_usec()
+	if group.category=="building":group.origin=group.members[0].global_position
+	group.render_pose=Transform3D(Basis.IDENTITY,group.origin)
+	group.reference_pose=group.members[0].global_transform
+	var snapshot: Array = []
+	group.cpu = []
+	for node: MeshInstance3D in group.members:
+		var cpu: Mesh = Cpu.capture(node.mesh); var materials: Array = []
+		group.cpu.append(cpu)
+		for slot in node.mesh.get_surface_count(): materials.append(node.get_active_material(slot))
+		snapshot.append({"record":node.get_meta("ground_batch_record"),"transform":node.global_transform,"surfaces":cpu.surfaces,"materials":materials,"keys":group.keys})
+	if group.category=="building" and not snapshot[0].materials.any(func(material):return material is ShaderMaterial):
+		# Reuse geometry across rotated copies as well as translated ones. Each
+		# floor/fixture still owns its own instance, visibility and pose watcher.
+		if canonical_buildings_enabled:
+			group.render_pose=group.reference_pose
+			var inverse:Transform3D=group.reference_pose.affine_inverse()
+			for source:Dictionary in snapshot:source.transform=inverse*source.transform
+			group.origin=Vector3.ZERO
+		group.cache_poses=[];group.cache_bounds=[]
+		var identity:Array=[]
+		for i in snapshot.size():
+			var pose:Transform3D=snapshot[i].transform;pose.origin-=group.origin
+			group.cache_poses.append(pose);group.cache_bounds.append(group.cpu[i].get_aabb())
+			# World float cancellation differs between translated copies. Render
+			# cache comparisons tolerate at most 0.1 mm, without editing records.
+			pose.origin=pose.origin.snapped(Vector3.ONE*.0001)
+			pose.basis=Basis(pose.basis.x.snapped(Vector3.ONE*.000001),pose.basis.y.snapped(Vector3.ONE*.000001),pose.basis.z.snapped(Vector3.ONE*.000001))
+			identity.append([group.cpu[i].geometry_key(),pose,group.keys])
+		group.mesh_cache_key=_fingerprint(identity)
+		if _building_meshes.has(group.mesh_cache_key):
+			var entry:Dictionary=_building_meshes[group.mesh_cache_key]
+			var shared:Mesh=entry.reference.get_ref()
+			if shared!=null and _compatible_poses(group,entry):
+				var data:Dictionary=entry.data.duplicate();data.mesh=shared;building_mesh_hits+=1
+				_commit(group,data,started);return
+	# Repeated stone modules should share one vertex buffer. Flattening them
+	# all into a combined mesh trades fewer draws for duplicated GPU geometry.
+	if group.category=="fortification" and _identical_geometry(group.cpu):
+		_commit_instances(group,snapshot,started)
+		return
+	if background:
+		var job:={"key":key,"generation":group.generation,"started":started,"thread":Thread.new()}
+		var origin: Vector3=group.origin
+		if job.thread.start(func():return Geometry.build(snapshot,origin,true)) == OK: _workers.append(job); return
+	_commit(group,Geometry.build(snapshot,group.origin),started)
+
+func _compatible_poses(group:Dictionary,entry:Dictionary)->bool:
+	# Hash rounding is only a candidate lookup. Bound the world-position error
+	# over every source AABB, including very large authored parts, before reuse.
+	if group.cache_poses.size()!=entry.poses.size():return false
+	for i in group.cache_poses.size():
+		var a:Transform3D=group.cache_poses[i];var b:Transform3D=entry.poses[i]
+		var box:AABB=group.cache_bounds[i]
+		var extent:Vector3=box.position.abs().max(box.end.abs())
+		var error:=a.origin.distance_to(b.origin)
+		error+=(a.basis.x-b.basis.x).length()*extent.x+(a.basis.y-b.basis.y).length()*extent.y+(a.basis.z-b.basis.z).length()*extent.z
+		# Frobenius norm bounds amplification by nonuniform scale or shear.
+		var basis:Basis=group.render_pose.basis
+		error*=sqrt(basis.x.length_squared()+basis.y.length_squared()+basis.z.length_squared())
+		if error>.0001:return false
+	return true
+
+func _identical_geometry(meshes: Array) -> bool:
+	var expected: String=""
+	for mesh: Mesh in meshes:
+		var signature:=_geometry_signature(mesh)
+		if expected.is_empty(): expected=signature
+		elif signature!=expected: return false
+	return true
+
+func _geometry_signature(mesh: Mesh) -> String:
+	return mesh.geometry_key()
+
+func _commit_instances(group: Dictionary,snapshot: Array,started: int) -> void:
+	var key: String=(str(group.cpu[0].get_meta("static_batch_geometry_signature"))+var_to_str(group.keys)).sha256_text()
+	var mesh: Mesh=_instance_meshes[key].get_ref() if _instance_meshes.has(key) else null
+	if mesh==null:
+		var original: Mesh=group.cpu[0].source_reference.get_ref() if group.cpu[0].source_reference!=null else null
+		var compatible:=original!=null
+		if compatible:
+			for slot in original.get_surface_count():
+				if original.surface_get_material(slot)!=snapshot[0].materials[slot]: compatible=false; break
+		mesh=original if compatible else group.cpu[0].restore()
+		if not compatible:
+			if mesh is PrimitiveMesh: mesh.material=snapshot[0].materials[0]
+			else:
+				for slot in mesh.get_surface_count(): mesh.surface_set_material(slot,snapshot[0].materials[slot])
+		_instance_meshes[key]=weakref(mesh)
+	var multi:=MultiMesh.new(); multi.transform_format=MultiMesh.TRANSFORM_3D; multi.mesh=mesh; multi.instance_count=snapshot.size()
+	for i in snapshot.size():
+		var pose: Transform3D=snapshot[i].transform; pose.origin-=group.origin; multi.set_instance_transform(i,pose)
+	var visual:=MultiMeshInstance3D.new(); visual.multimesh=multi; visual.cast_shadow=group.members[0].cast_shadow; visual.layers=group.members[0].layers; visual.set_meta("ground_render_batch",true)
+	add_child(visual); visual.global_position=group.origin
+	var vertices:=Geometry.vertex_count(mesh)
+	group.visual=visual; group.data={"mesh":mesh,"source_surfaces":mesh.get_surface_count()*snapshot.size(),"source_vertices":vertices*snapshot.size(),"render_vertices":vertices,"instanced":true}
+	for i in group.members.size(): freeze(group.members[i],group.cpu[i])
+	group.erase("cpu"); rebuild_count+=1
+	last_build_ms=(Time.get_ticks_usec()-started)/1000.; max_build_ms=maxf(max_build_ms,last_build_ms); last_commit_ms=last_build_ms
+	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
+
+func _finish_worker(index: int) -> void:
+	var job: Dictionary=_workers[index]; _workers.remove_at(index)
+	var data: Dictionary = job.thread.wait_to_finish()
+	if groups.has(job.key) and groups[job.key].generation == job.generation:
+		_commit(groups[job.key],data,job.started)
+
+func _exit_tree() -> void:
+	for job: Dictionary in _workers: job.thread.wait_to_finish()
+	_workers.clear()
+
+func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
+	if data.is_empty(): return
+	for node in group.members:
+		if not is_instance_valid(node): return
+	var commit_started := Time.get_ticks_usec()
+	if not data.has("mesh"): data=Geometry.upload(data)
+	if data.is_empty() or data.mesh.get_surface_count()==0: return
+	if group.has("mesh_cache_key"):
+		var info:Dictionary=data.duplicate();info.erase("mesh");info.erase("slots")
+		_building_meshes[group.mesh_cache_key]={"reference":weakref(data.mesh),"data":info,"poses":group.cache_poses}
+	var visual := MeshInstance3D.new(); visual.mesh = data.mesh
+	visual.cast_shadow = group.members[0].cast_shadow; visual.layers = group.members[0].layers
+	visual.set_meta("ground_render_batch", true)
+	if group.category=="ground" and data.source_surfaces == group.members.size(): visual.set_meta("extras", {"kind":"ground"})
+	add_child(visual)
+	group.visual = visual; group.data = data
+	group.relative_pose=group.reference_pose.affine_inverse()*group.render_pose
+	group.last_source_pose=group.members[0].global_transform
+	visual.global_transform=group.last_source_pose*group.relative_pose if group.category=="building" else group.render_pose
+	if group.get("moving",false):
+		var watcher:=preload("res://scripts/world3d/batch_transform_watch.gd").new()
+		watcher.changed=_sync_pose.bind(_member_groups[str(group.members[0].name)],group.generation)
+		group.pose_watcher=watcher;group.members[0].add_child(watcher)
+	visual.visible=group.members[0].is_visible_in_tree()
+	for i in group.members.size(): freeze(group.members[i],group.cpu[i])
+	group.erase("cpu")
+	rebuild_count += 1
+	last_build_ms = (Time.get_ticks_usec()-started)/1000.; max_build_ms = maxf(max_build_ms,last_build_ms)
+	last_commit_ms = (Time.get_ticks_usec()-commit_started)/1000.
+	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
+
+func stats(category: String="") -> Dictionary:
+	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
+	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
+	result.building_mesh_hits=building_mesh_hits
+	for group: Dictionary in groups.values():
+		if not category.is_empty() and group.category!=category: continue
+		if not group.has("data"): continue
+		result.groups += 1; result.source_objects += group.members.size()
+		if group.data.get("instanced",false): result.instanced_groups+=1
+		result.source_surfaces += group.data.source_surfaces
+		result.render_surfaces += group.data.mesh.get_surface_count()
+		result.source_vertices += group.data.source_vertices; result.render_vertices += group.data.render_vertices
+	return result
+
+FILE: scripts/world3d/world_navigation.gd
+extends Node
+const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+# Bound Recast's temporary voxel allocation while gameplay is already running.
+# 350 m tiles at 10 cm precision created 12.25 million cells in one bake.
+const TILE_SIZE:=128.0
+## A separate meter-space navigation map; bridges and ground remain separate polygons.
+var loading_profile:Dictionary={}
+var runtime_geometry_key:=""
+var _cache_key:=""
+var _cache_hit:=false
+var _initial_cache_key:=""
+var _initial_cache_hit:=false
+var ready_for_queries := false
+var agent_height:=1.8
+var map := RID()
+var region := RID()
+var mesh := NavigationMesh.new()
+var source := NavigationMeshSourceGeometryData3D.new()
+var version := 0
+var fully_ready := false
+var _staged := false
+var _full_mesh: NavigationMesh
+var _disposed := false
+var _specs: Array = []
+var _faces := {}
+var _box_faces := PackedVector3Array()
+var nearby_source_count := 0
+var full_source_count := 0
+var face_extractions := 0
+var _phase := ""
+var _cursor := 0
+var _origin: Variant
+var _bounds := AABB()
+var _has_bounds := false
+var _clip := AABB()
+var _publish_wait := 0
+var _publish_final := true
+var _publish_iteration:=0
+var _publish_region_iteration:=0
+var _nearby_iteration:=0
+var _nearby_region_iteration:=0
+var _nearby_mesh:NavigationMesh
+var _nearby_clip:=AABB()
+var _deferred_full_publish:=false
+var _doors: Array=[]
+var _resizing:=false
+var _tiles:Array[AABB]=[]
+var _tile_mesh:NavigationMesh
+var _tile_vertices:=PackedVector3Array()
+var _tile_polygons:Array[PackedInt32Array]=[]
+var _merge_vertices:=PackedVector3Array()
+var _merge_offset:=0
+var _local_clip:=AABB()
+var _nearby:RefCounted
+var _nearby_publish_wait:=0
+var _final_pending:=false
+var _bake_pending:=""
+var _baking_mesh:NavigationMesh
+var _cache_writer:Thread
+var _surface_point:=Vector3.INF
+var _surface_iteration:=-1
+var _surface_map:=RID()
+var surface_query_count:=0
+var surface_cache_hits:=0
+var surface_index_hits:=0
+var _surface_profile_samples:Array=[]
+var _surface_profile_dropped:=0
+var _surface_index:RefCounted
+var _surface_index_worker:Thread
+var _surface_index_mesh:NavigationMesh
+var _surface_index_map:=RID()
+var _surface_index_iteration:=-1
+var _face_worker:Thread
+var _face_worker_key:=0
+var _source_jobs:Dictionary={}
+var _orphan_sources:Array=[]
+
+func follow(position:Vector3,goal:Variant=null)->void:
+	if not ready_for_queries or fully_ready or _final_pending or not _staged or _nearby!=null or _nearby_publish_wait>0:return
+	if goal==null and _inside_local(position,48):return
+	if goal is Vector3 and _inside_local(position,2) and _inside_local(goal,2):return
+	if goal is Vector3 and Vector2(goal.x-position.x,goal.z-position.z).length()>160 and _inside_local(position,48):return
+	var area:=AABB(Vector3(position.x-96,_bounds.position.y-2,position.z-96),Vector3(192,_bounds.size.y+4,192))
+	# Foreground clicks cover nearby destinations; map-wide routes wait for
+	# the full mesh rather than allocating an unbounded foreground bake.
+	if goal is Vector3 and Vector2(goal.x-position.x,goal.z-position.z).length()<=160:
+		area=area.expand(Vector3(goal.x-16,area.position.y,goal.z-16)).expand(Vector3(goal.x+16,area.end.y,goal.z+16))
+	_nearby=preload("res://scripts/world3d/nearby_navigation.gd").new(mesh,area)
+
+func _inside_local(point:Vector3,margin:float)->bool:
+	return point.x>=_local_clip.position.x+margin and point.x<=_local_clip.end.x-margin and point.z>=_local_clip.position.z+margin and point.z<=_local_clip.end.z-margin
+
+func _step_nearby()->void:
+	if _nearby==null:return
+	if fully_ready or _final_pending:_discard_source(_nearby.source);_nearby=null;return
+	_nearby.step(self)
+	if not _nearby.complete:return
+	if _nearby.mesh.get_polygon_count()>0:
+		_nearby_mesh=_nearby.mesh;_nearby_clip=_nearby.clip
+		NavigationServer3D.region_set_use_async_iterations(region,true)
+		_nearby_iteration=NavigationServer3D.map_get_iteration_id(map)
+		_nearby_region_iteration=NavigationServer3D.region_get_iteration_id(region)
+		NavigationServer3D.region_set_navigation_mesh(region,_nearby_mesh)
+		_nearby_publish_wait=2
+		loading_profile.nearby_refreshes=int(loading_profile.get("nearby_refreshes",0))+1
+		loading_profile.nearby_last_ms=Time.get_ticks_msec()-_nearby.started_ms
+	_nearby=null
+
+
+func resize_agent(height:float,specs:Array,origin:Vector3)->void:
+	# Keep this Node stable: player, NPC and summon authorities hold weak refs.
+	# Bake in a child map and swap only a complete result; never reset combat.
+	if _resizing or not fully_ready or is_equal_approx(height,agent_height):return
+	_resizing=true
+	var replacement=get_script().new();replacement.agent_height=height;add_child(replacement)
+	replacement.runtime_geometry_key=runtime_geometry_key
+	replacement.build(specs,origin)
+	while not replacement.fully_ready:await get_tree().process_frame
+	NavigationServer3D.free_rid(region);NavigationServer3D.free_rid(map)
+	map=replacement.map;region=replacement.region;mesh=replacement.mesh
+	replacement.map=RID();replacement.region=RID()
+	_doors=replacement._doors;agent_height=height;version+=1
+	replacement.queue_free();_resizing=false
+
+
+func build(specs: Array, origin: Variant = null) -> void:
+	map = NavigationServer3D.map_create()
+	NavigationServer3D.map_set_use_async_iterations(map, true)
+	NavigationServer3D.map_set_active(map, true)
+	# Bake voxels remain 10 cm; connecting already-baked polygon edges needs
+	# the 1 cm precision used by tile assembly. At voxel precision, distinct
+	# cliff/riverbed edges can collapse into a non-manifold four-edge bucket.
+	NavigationServer3D.map_set_cell_size(map, 0.01)
+	NavigationServer3D.map_set_cell_height(map, 0.01)
+	# A 28cm tread needs at least two horizontal cells at every grid phase;
+	# 15cm voxels can collapse a tread and disconnect an otherwise valid stair.
+	mesh.cell_size = 0.1
+	mesh.cell_height = 0.1
+	# Use the same contour tolerance for nearby and tiled bakes. The default
+	# 1.3-cell simplification can overlap riverbed triangles at clipped banks.
+	mesh.edge_max_error = 1.0
+	# Extra clearance beyond the capsule avoids polygon simplification
+	# placing ramp corner waypoints on the rounded capsule's contact boundary.
+	mesh.agent_radius = 0.5
+	mesh.agent_height = ceilf(agent_height/mesh.cell_height)*mesh.cell_height
+	mesh.agent_max_climb = 0.4
+	mesh.agent_max_slope = 40.0
+	mesh.filter_walkable_low_height_spans = true
+	_specs = specs
+	# Hinges and handles follow the door but are not navigation obstacles.
+	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none")
+	_origin = origin
+	_phase = "bounds"
+	if not runtime_geometry_key.is_empty():
+		_cache_key=runtime_geometry_key+str(mesh.agent_height)+FileAccess.get_sha256(get_script().resource_path)+FileAccess.get_sha256("res://scripts/world3d/navigation_cache.gd")
+		_cache_hit=preload("res://scripts/world3d/navigation_cache.gd").restore(_cache_key,mesh)
+		loading_profile.cache_hit=_cache_hit
+		if _cache_hit:_phase="";_baked()
+
+func _process(_delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_step_background();return
+	var started:=Time.get_ticks_usec();var phase:=_phase
+	_step_background()
+	set_meta("background_timing",{"frame":Engine.get_process_frames(),"phase":phase,"ms":(Time.get_ticks_usec()-started)/1000.0})
+
+func _step_background()->void:
+	_step_surface_index()
+	for i in range(_orphan_sources.size()-1,-1,-1):
+		if _orphan_sources[i].poll():_orphan_sources.remove_at(i)
+	if _cache_writer!=null and not _cache_writer.is_alive():
+		_cache_writer.wait_to_finish();_cache_writer=null
+	if not _bake_pending.is_empty() and not NavigationServer3D.is_baking_navigation_mesh(_baking_mesh):
+		var completed:=_bake_pending;_bake_pending="";_baking_mesh=null
+		if completed=="initial":_baked()
+		elif completed=="tile":_tile_baked()
+		else:_full_baked()
+	_step_nearby()
+	if _phase.is_empty(): return
+	if _phase=="prepare_source":
+		var prepared:=_prepare_source(source)
+		if prepared==null:return
+		source=prepared;_phase="";_submit_bake();return
+	if _phase in ["tile_vertices","tile_polygons","assemble"]:
+		_step_merge();return
+	var started := Time.get_ticks_usec()
+	while _cursor < _specs.size() and Time.get_ticks_usec() - started < (12000 if not ready_for_queries else 3000):
+		var spec: Dictionary = _specs[_cursor]
+		_cursor += 1
+		if not _collides(spec): continue
+		var box: AABB = spec["transform"] * spec["mesh"].get_aabb()
+		if _phase == "bounds":
+			_bounds = _bounds.merge(box) if _has_bounds else box
+			_has_bounds = true
+		else:
+			if _clip.has_volume() and not _clip.intersects(box): continue
+			if not _add_source(source,spec):_cursor-=1;return
+			full_source_count += 1
+	if _cursor < _specs.size(): return
+	_cursor = 0
+	if _phase == "bounds":
+		if _origin is Vector3 and (_bounds.size.x > 192 or _bounds.size.z > 192):
+			_staged = true
+			_clip = AABB(Vector3(_origin.x - 80, _bounds.position.y - 2, _origin.z - 80), Vector3(160, _bounds.size.y + 4, 160))
+			mesh.filter_baking_aabb = _clip
+			_local_clip=_clip
+		loading_profile.bounds=Time.get_ticks_msec()
+		if _staged and not _cache_key.is_empty():
+			# The small spawn mesh is useful even when the player leaves before
+			# the full-town bake finishes. Its exact clip is part of its identity.
+			_initial_cache_key=_cache_key+"|initial|"+preload("res://scripts/world3d/map_metadata_cache.gd").checksum(var_to_bytes(_clip)).hex_encode()
+			_initial_cache_hit=preload("res://scripts/world3d/navigation_cache.gd").restore(_initial_cache_key,mesh)
+			loading_profile.initial_cache_hit=_initial_cache_hit
+			if _initial_cache_hit:
+				_phase="";_baked();return
+		_phase = "source"
+		return
+	loading_profile.source=Time.get_ticks_msec()
+	if ready_for_queries:
+		_phase="prepare_source";return
+	_phase = ""
+	_submit_bake()
+
+func _submit_bake()->void:
+	# Poll completion on this live Node. A queued script callback must not
+	# outlive the scene when leaving during a background bake.
+	if not ready_for_queries:
+		nearby_source_count = full_source_count
+		_bake_pending="initial";_baking_mesh=mesh
+	else:
+		_bake_pending="tile" if _tile_mesh!=null else "full"
+		_baking_mesh=_tile_mesh if _tile_mesh!=null else _full_mesh
+	var submitted:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	NavigationServer3D.bake_from_source_geometry_data_async(_baking_mesh,source)
+	if submitted>0 and Time.get_ticks_usec()-submitted>5000:print("NAV_SUBMIT_SLOW ",(Time.get_ticks_usec()-submitted)/1000.0)
+
+func _queue_faces(target:NavigationMeshSourceGeometryData3D,faces:PackedVector3Array,pose:Transform3D)->void:
+	if not ready_for_queries:target.add_faces(faces,pose);return
+	if not target.has_meta("pending_faces"):target.set_meta("pending_faces",[])
+	var chunks:Array=target.get_meta("pending_faces")
+	chunks.append([faces,pose])
+
+func _prepare_source(target:NavigationMeshSourceGeometryData3D)->NavigationMeshSourceGeometryData3D:
+	if not target.has_meta("pending_faces"):return target
+	if not _source_jobs.has(target):
+		var job:=preload("res://scripts/world3d/navigation_source_job.gd").new()
+		job.start(target.get_meta("pending_faces"));_source_jobs[target]=job
+	var job:RefCounted=_source_jobs[target]
+	if not job.poll():return null
+	var result:NavigationMeshSourceGeometryData3D=job.result
+	_source_jobs.erase(target);target.remove_meta("pending_faces")
+	return result
+
+func _discard_source(target:NavigationMeshSourceGeometryData3D)->void:
+	if _source_jobs.has(target):
+		_orphan_sources.append(_source_jobs[target]);_source_jobs.erase(target)
+
+
+func _add_source(target:NavigationMeshSourceGeometryData3D,spec:Dictionary)->bool:
+	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	var shape: Shape3D = spec.get("shape")
+	var geometry: Resource = shape if shape is ConcavePolygonShape3D else spec.get("collision_mesh", spec["mesh"])
+	if geometry is BoxMesh and not geometry.flip_faces:
+		# Generated buildings contain thousands of differently sized boxes. Their
+		# exact navigation hull is one unit cube; avoid one GPU readback per box.
+		if _box_faces.is_empty():
+			var cube := BoxMesh.new(); cube.size = Vector3.ONE
+			_box_faces = cube.get_faces(); face_extractions += 1
+		_queue_faces(target,_box_faces,spec["transform"] * Transform3D(Basis.from_scale(geometry.size),Vector3.ZERO))
+	else:
+		var key := geometry.get_instance_id()
+		if _face_worker!=null and not _face_worker.is_alive():
+			_faces[_face_worker_key]=_face_worker.wait_to_finish();_face_worker=null
+			face_extractions+=1
+		if not _faces.has(key):
+			var large_cpu:=false
+			if geometry is CpuMesh:
+				var count:=0
+				for surface:Array in geometry.surfaces:
+					var indices:Variant=surface[Mesh.ARRAY_INDEX]
+					count+=indices.size() if indices!=null and not indices.is_empty() else surface[Mesh.ARRAY_VERTEX].size()
+				large_cpu=count>1536
+			if ready_for_queries and large_cpu:
+				if _face_worker!=null:return false
+				# Copy only immutable array references; the worker never touches the
+				# live CPU mesh cache, scene, physics or RenderingServer.
+				var arrays:Array=geometry.surfaces
+				_face_worker=Thread.new();_face_worker_key=key
+				if _face_worker.start(func():return preload("res://scripts/world3d/stream_collision_preparer.gd").build_faces(arrays))==OK:return false
+				_face_worker=null
+			_faces[key] = geometry.collision_faces() if geometry is CpuMesh else geometry.get_faces()
+			if started>0 and Time.get_ticks_usec()-started>5000:print("NAV_FACES_SLOW ",spec.get("uuid","")," ",geometry.get_class()," cpu=",geometry is CpuMesh," ",(Time.get_ticks_usec()-started)/1000.0)
+			face_extractions += 1
+		_queue_faces(target,_faces[key],spec["transform"])
+	if started>0 and Time.get_ticks_usec()-started>5000:print("NAV_SOURCE_SLOW ",spec.get("uuid","")," ",(Time.get_ticks_usec()-started)/1000.0)
+	return true
+
+func _collides(spec: Dictionary) -> bool:
+	var extras: Dictionary = spec.get("extras", {})
+	if extras.get("fixture",{}).get("kind")=="door": return false
+	return str(extras.get("rmmo_collision", "")) != "none" and not bool(extras.get("hostile", false)) and not bool(extras.get("ally", false))
+
+
+func _baked() -> void:
+	loading_profile.baked=Time.get_ticks_msec()
+	if _staged and not _initial_cache_hit:
+		preload("res://scripts/world3d/navigation_cache.gd").store_mesh(_initial_cache_key,mesh)
+	region = NavigationServer3D.region_create()
+	NavigationServer3D.region_set_use_async_iterations(region, false)
+	_publish_region_iteration=NavigationServer3D.region_get_iteration_id(region)
+	_publish_iteration=NavigationServer3D.map_get_iteration_id(map)
+	NavigationServer3D.region_set_map(region, map)
+	NavigationServer3D.region_set_navigation_mesh(region, mesh)
+	call_deferred("_publish", not _staged)
+
+
+func _publish(final: bool = true) -> void:
+	_publish_wait = 2
+	_publish_final = final
+
+func _physics_process(_delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_step_publication();return
+	var started:=Time.get_ticks_usec()
+	_step_publication()
+	set_meta("publication_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0})
+
+func _step_publication()->void:
+	if _nearby_publish_wait>0:
+		_nearby_publish_wait=maxi(1,_nearby_publish_wait-1)
+		if NavigationServer3D.region_get_iteration_id(region)!=_nearby_region_iteration and NavigationServer3D.map_get_iteration_id(map)!=_nearby_iteration:
+			mesh=_nearby_mesh;_local_clip=_nearby_clip;_nearby_mesh=null
+			_nearby_publish_wait=0;version+=1
+	if _deferred_full_publish and _nearby_publish_wait==0:_publish_full_mesh()
+	if _publish_wait <= 0: return
+	_publish_wait=maxi(1,_publish_wait-1)
+	# Keep the previous queryable map while the server builds its replacement.
+	# force_update() would join that job here and stall gameplay for seconds.
+	if NavigationServer3D.region_get_iteration_id(region)==_publish_region_iteration or NavigationServer3D.map_get_iteration_id(map)==_publish_iteration:return
+	_publish_wait=0
+	version += 1
+	ready_for_queries = true
+	fully_ready = _publish_final
+	if fully_ready:
+		if not _cache_hit and not _cache_key.is_empty():
+			# The published NavigationMesh is immutable. Retain it until the
+			# worker finishes serializing/checksumming the atomic cache write.
+			var snapshot:=mesh;var key:=_cache_key
+			_cache_writer=Thread.new()
+			if _cache_writer.start(func():preload("res://scripts/world3d/navigation_cache.gd").store_mesh(key,snapshot))!=OK:_cache_writer=null
+		source.clear()
+		_specs = []
+		_faces.clear()
+	else:
+		_full_mesh = mesh.duplicate()
+		_full_mesh.clear()
+		_full_mesh.filter_baking_aabb = AABB()
+		if _bounds.size.x*_bounds.size.z/(mesh.cell_size*mesh.cell_size)<=25000000:
+			source=NavigationMeshSourceGeometryData3D.new();_clip=AABB();_cursor=0;_phase="source"
+			return
+		# Preserve 10 cm stair precision without rasterizing a kilometre-wide
+		# grid in one allocation. These are bake jobs, not render/stream chunks.
+		var size:=TILE_SIZE
+		for z in range(floori(_bounds.position.z/size),ceili(_bounds.end.z/size)):
+			for x in range(floori(_bounds.position.x/size),ceili(_bounds.end.x/size)):
+				_tiles.append(AABB(Vector3(x*size,_bounds.position.y-2,z*size),Vector3(size,_bounds.size.y+4,size)))
+		_tiles.sort_custom(func(a,b):return a.get_center().distance_squared_to(_origin)<b.get_center().distance_squared_to(_origin))
+		loading_profile.tile_count=_tiles.size()
+		_next_tile()
+
+func _next_tile()->void:
+	if _tiles.is_empty():
+		_full_mesh.set_vertices(_tile_vertices)
+		_cursor=0;_phase="assemble";return
+	var box:AABB=_tiles.pop_front()
+	# The border clips away agent erosion at aligned tile edges. Include the
+	# adjacent geometry in the source so a seam cannot create a false obstacle.
+	# A power-of-two multiple remains exact when stored as float32; decimal
+	# 2.0 / 0.1 otherwise trips Recast's border rounding warning on every tile.
+	var border:float=_full_mesh.cell_size*16
+	_clip=AABB(box.position-Vector3(border,0,border),box.size+Vector3(border*2,0,border*2))
+	_tile_mesh=_full_mesh.duplicate();_tile_mesh.clear()
+	_tile_mesh.filter_baking_aabb=_clip;_tile_mesh.border_size=border;_tile_mesh.edge_max_error=1.0
+	source=NavigationMeshSourceGeometryData3D.new();_cursor=0;_phase="source"
+
+func _tile_baked()->void:
+	_merge_offset=_tile_vertices.size();_merge_vertices=_tile_mesh.get_vertices()
+	_cursor=0;_phase="tile_vertices"
+
+func _step_merge()->void:
+	# Recast runs in the background; its result must not bring a whole tile's
+	# vertex/polygon loops back onto one gameplay frame. Preserve the exact
+	# snapping, polygon order and indices used by the synchronous assembler.
+	var deadline:=Time.get_ticks_usec()+2000
+	if _phase=="tile_vertices":
+		while _cursor<_merge_vertices.size() and Time.get_ticks_usec()<deadline:
+			_merge_vertices[_cursor]=_merge_vertices[_cursor].snappedf(.01);_cursor+=1
+		if _cursor<_merge_vertices.size():return
+		_tile_vertices.append_array(_merge_vertices);_merge_vertices=PackedVector3Array()
+		_cursor=0;_phase="tile_polygons"
+	if _phase=="tile_polygons":
+		while _cursor<_tile_mesh.get_polygon_count() and Time.get_ticks_usec()<deadline:
+			var polygon:=_tile_mesh.get_polygon(_cursor)
+			for j in polygon.size():polygon[j]+=_merge_offset
+			_tile_polygons.append(polygon);_cursor+=1
+		if _cursor<_tile_mesh.get_polygon_count():return
+		loading_profile.tiles_remaining=_tiles.size();_next_tile();return
+	if _phase=="assemble":
+		while _cursor<_tile_polygons.size() and Time.get_ticks_usec()<deadline:
+			_full_mesh.add_polygon(_tile_polygons[_cursor]);_cursor+=1
+		if _cursor<_tile_polygons.size():return
+		_tile_vertices=PackedVector3Array();_tile_polygons.clear();_tile_mesh=null
+		_phase="";_full_baked()
+
+
+func _full_baked() -> void:
+	if _full_mesh.get_polygon_count()==0:
+		loading_profile.error="Full navigation bake produced no polygons; retaining nearby navigation"
+		push_error(loading_profile.error);return
+	if _nearby!=null:_discard_source(_nearby.source)
+	_final_pending=true;_nearby=null
+	_deferred_full_publish=true
+	if _nearby_publish_wait==0:_publish_full_mesh()
+
+func _publish_full_mesh()->void:
+	_deferred_full_publish=false
+	mesh = _full_mesh
+	# The previous nearby publication has settled before this submission.
+	# Build the much larger region graph off-thread as well as the map graph.
+	NavigationServer3D.region_set_use_async_iterations(region,true)
+	_publish_region_iteration=NavigationServer3D.region_get_iteration_id(region)
+	_publish_iteration=NavigationServer3D.map_get_iteration_id(map)
+	NavigationServer3D.region_set_navigation_mesh(region, mesh)
+	_publish(true)
+
+
+func take_surface_profile() -> Dictionary:
+	var result:={"queries":_surface_profile_samples,"dropped":_surface_profile_dropped}
+	_surface_profile_samples=[];_surface_profile_dropped=0
+	return result
+
+func _record_surface_profile(point:Vector3, stamps:Array, route:String, accepted:bool)->void:
+	# Explicit diagnostic only. Keep every query (including the first failed
+	# support test), bounded between render samples, with absolute intervals.
+	if _surface_profile_samples.size()>=64:
+		_surface_profile_dropped+=1;return
+	_surface_profile_samples.append({"frame":Engine.get_physics_frames(),"point":point,"route":route,"accepted":accepted,"begin_us":stamps[0],"iteration_us":stamps[1],"index_us":stamps[2],"end_us":Time.get_ticks_usec()})
+
+func near_surface(point: Vector3, horizontal_tolerance: float = 0.18, vertical_tolerance: float = 0.4) -> bool:
+	var detailed:=has_meta("profile_surface_details")
+	var stamps:Array=[Time.get_ticks_usec(),0,0] if detailed else []
+	if not ready_for_queries or mesh.get_polygon_count() == 0 or not point.is_finite():
+		if detailed:
+			stamps[1]=Time.get_ticks_usec();stamps[2]=stamps[1]
+			_record_surface_profile(point,stamps,"rejected",false)
+		return false
+	var iteration:=NavigationServer3D.map_get_iteration_id(map)
+	if detailed:stamps[1]=Time.get_ticks_usec();stamps[2]=stamps[1]
+	# A previously queried point remains a real point on this immutable map.
+	# Inside the smaller tolerance sphere, even a closer point must satisfy
+	# BOTH original limits. Outside it, retain the exact nearest-point query;
+	# a rectangular tolerance check would not provide that guarantee.
+	var proven_radius:=minf(horizontal_tolerance,vertical_tolerance)
+	if proven_radius>=0 and map==_surface_map and iteration==_surface_iteration and point.distance_squared_to(_surface_point)<=proven_radius*proven_radius:
+		if detailed:_record_surface_profile(point,stamps,"point_cache",true)
+		surface_cache_hits+=1;return true
+	if _surface_index!=null and _surface_index_mesh==mesh and _surface_index_map==map and _surface_index_iteration==iteration:
+		var support:Vector3=_surface_index.support(point,proven_radius)
+		if detailed:stamps[2]=Time.get_ticks_usec()
+		if support.is_finite():
+			_surface_point=support;_surface_iteration=iteration;_surface_map=map
+			if detailed:_record_surface_profile(point,stamps,"triangle_index",true)
+			surface_index_hits+=1;return true
+	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	var nearest := NavigationServer3D.map_get_closest_point(map, point)
+	surface_query_count+=1
+	if started>0:set_meta("surface_query_timing",{"frame":Engine.get_physics_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0})
+	_surface_point=nearest;_surface_iteration=iteration;_surface_map=map
+	var accepted:=Vector2(nearest.x, nearest.z).distance_to(Vector2(point.x, point.z)) <= horizontal_tolerance and absf(nearest.y - point.y) <= vertical_tolerance
+	if detailed:_record_surface_profile(point,stamps,"nearest",accepted)
+	return accepted
+
+func _step_surface_index()->void:
+	if _surface_index_worker!=null:
+		if _surface_index_worker.is_alive():return
+		_surface_index=_surface_index_worker.wait_to_finish();_surface_index_worker=null
+	if not fully_ready:return
+	var iteration:=NavigationServer3D.map_get_iteration_id(map)
+	if _surface_index_mesh==mesh and _surface_index_map==map and _surface_index_iteration==iteration:return
+	_surface_index=null;_surface_index_mesh=mesh;_surface_index_map=map;_surface_index_iteration=iteration
+	var snapshot:=mesh
+	_surface_index_worker=Thread.new()
+	if _surface_index_worker.start(func():return preload("res://scripts/world3d/navigation_surface_index.gd").build(snapshot),Thread.PRIORITY_LOW)!=OK:
+		_surface_index_worker=null;_surface_index_mesh=null
+
+
+func find_path(start: Vector3, goal: Vector3, goal_tolerance:float=.18) -> Dictionary:
+	if not ready_for_queries:
+		return {"ok": false, "reason": "not_ready", "path": PackedVector3Array()}
+	# Recast rounds span heights up by a cell. At a rotated low doorstep its
+	# simplified surface can be just above the physical climb height; do not
+	# strand a grounded actor for that voxel rounding. Still reject other floors.
+	var vertical_tolerance:float=maxf(.4,mesh.agent_max_climb+mesh.cell_height+.01)
+	if not near_surface(start, 0.35,vertical_tolerance) or not near_surface(goal,goal_tolerance,vertical_tolerance):
+		if _staged and not fully_ready and (not _inside_local(start,2) or not _inside_local(goal,2)):
+			follow(start,goal)
+			return {"ok":false,"reason":"pending","path":PackedVector3Array()}
+		return {"ok": false, "reason": "unreachable", "path": PackedVector3Array()}
+	# Recast erodes polygons by the agent radius. Visible floor beside a wall
+	# remains a valid click; stop on the nearby walkable point, on this storey.
+	if not near_surface(goal):goal=NavigationServer3D.map_get_closest_point(map,goal)
+	var points := NavigationServer3D.map_get_path(map, start, goal, true)
+	if points.is_empty() or points[-1].distance_to(goal) > 0.4:
+		return {"ok": false, "reason": "unreachable", "path": PackedVector3Array()}
+	points[0] = start
+	points[-1] = goal
+	for attempt in 8:
+		var obstruction:=_door_obstruction(points)
+		if obstruction.is_empty():return {"ok":true,"reason":"","path":points,"version":version}
+		var door: Dictionary=obstruction.door
+		var replacement:=PackedVector3Array()
+		var first:int=obstruction.segment;var last:=first+1
+		var inverse:Transform3D=door.transform.affine_inverse()
+		var blocked_bounds:AABB=door.mesh.get_aabb().grow(.32)
+		# Navmesh tessellation can put several consecutive waypoints inside the
+		# open leaf's clearance envelope. Detour the whole span, not a segment
+		# whose destination is itself inside the obstacle.
+		while first>0 and blocked_bounds.has_point(inverse*(points[first]+Vector3.UP*.9)):first-=1
+		while last<points.size()-1 and blocked_bounds.has_point(inverse*(points[last]+Vector3.UP*.9)):last+=1
+		if float(door.extras.fixture.open)>.95: replacement=_around_open_leaf(points[first],points[last],door)
+		if replacement.is_empty():return {"ok":false,"reason":"door_blocked","component_id":door.extras.fixture.id,"path":PackedVector3Array()}
+		var amended:=points.slice(0,first);amended.append_array(replacement);amended.append_array(points.slice(last+1));points=amended
+	return {"ok":false,"reason":"door_blocked","path":PackedVector3Array()}
+
+func _door_obstruction(points: PackedVector3Array) -> Dictionary:
+	if points.is_empty():return {}
+	var route_bounds:=AABB(points[0]+Vector3.UP*.9,Vector3.ZERO)
+	for point in points:route_bounds=route_bounds.expand(point+Vector3.UP*.9)
+	for door in _doors:
+		var bounds:AABB=door.transform*door.mesh.get_aabb().grow(.32)
+		if not bounds.grow(.001).intersects(route_bounds.grow(.001)):continue
+		var segment:=_door_segment(points,door)
+		if segment>=0:return {"door":door,"segment":segment}
+	return {}
+
+func _door_segment(points:PackedVector3Array,door:Dictionary)->int:
+	var inverse:Transform3D=door.transform.affine_inverse()
+	var bounds:AABB=door.mesh.get_aabb().grow(.32)
+	for i in points.size()-1:
+		if bounds.intersects_segment(inverse*(points[i]+Vector3.UP*.9),inverse*(points[i+1]+Vector3.UP*.9))!=null:return i
+	return -1
+
+func _around_open_leaf(a: Vector3, b: Vector3, door: Dictionary) -> PackedVector3Array:
+	# A fully open leaf is a small movable obstacle. Keep the static walk mesh
+	# connected (especially narrow rotated doorways) and route around its corners.
+	var candidates: Array[Vector3]=[]
+	# A single generous offset can land beyond a narrow hall's opposite wall.
+	# Sample clearance rings and snap to the actual walk surface before routing.
+	for margin in [.37,.45,.55,.7]:
+		var bounds:AABB=door.mesh.get_aabb().grow(margin)
+		for x in [bounds.position.x,bounds.end.x]:
+			for z in [bounds.position.z,bounds.end.z]:
+				var point:Vector3=door.transform*Vector3(x,0,z);point.y=a.y
+				if not near_surface(point,.2,.4):continue
+				point=NavigationServer3D.map_get_closest_point(map,point)
+				if not candidates.has(point):candidates.append(point)
+	var best:=PackedVector3Array();var shortest:=INF
+	for first in candidates:
+		for last in candidates:
+			var route:=PackedVector3Array();var valid:=true
+			var stops: Array[Vector3]=[a,first,last,b]
+			for i in 3:
+				if stops[i].distance_to(stops[i+1])<.001:continue
+				var segment:=NavigationServer3D.map_get_path(map,stops[i],stops[i+1],true)
+				if segment.is_empty() or segment[-1].distance_to(stops[i+1])>.4:valid=false;break
+				segment[0]=stops[i];segment[-1]=stops[i+1]
+				# Resolve one leaf at a time; another leaf later on the candidate
+				# route is handled by the outer loop, not grounds to reject this bend.
+				if _door_segment(segment,door)>=0:valid=false;break
+				route.append_array(segment)
+			if not valid:continue
+			var length:=0.0
+			for i in route.size()-1:length+=route[i].distance_to(route[i+1])
+			if length<shortest:shortest=length;best=route
+	return best
+
+
+func _exit_tree() -> void:
+	_disposed = true
+	if _surface_index_worker!=null:_surface_index_worker.wait_to_finish();_surface_index_worker=null
+	for job:RefCounted in _source_jobs.values():job.finish()
+	for job:RefCounted in _orphan_sources:job.finish()
+	_source_jobs.clear();_orphan_sources.clear()
+	if _face_worker!=null:_face_worker.wait_to_finish();_face_worker=null
+	if _cache_writer!=null:_cache_writer.wait_to_finish();_cache_writer=null
+	if region.is_valid():
+		NavigationServer3D.free_rid(region)
+	if map.is_valid():
+		NavigationServer3D.free_rid(map)
+
+FILE: scripts/net/mock_server.gd excerpt
+func _init_combat_layers() -> void:
+	_combat_module_logic._init_combat_layers()
+func _process(delta: float) -> void:
+	_tick_weather(delta)
+	if combat_engine == null or combat_stats == null:
+		return
+	if player_cell.x <= -9990:
+		return
+	# Cast / channel advances every frame (finer than ambient combat tick).
+	if combat_engine.has_method("tick_cast") and combat_engine.is_casting():
+		var cast_actions: Array = combat_engine.tick_cast(delta)
+		if not cast_actions.is_empty():
+			var cast_result := {"ok": true, "actions": cast_actions}
+			cast_result = _finalize_combat_result(cast_result)
+			var ca_v: Variant = cast_result.get("actions", [])
+			if typeof(ca_v) == TYPE_ARRAY and not (ca_v as Array).is_empty():
+				_pending_tick_actions.append_array(ca_v)
+	# NPC casts (hostile cast_time skills).
+	if combat_engine.has_method("tick_npc_casts"):
+		var npc_cast_actions: Array = combat_engine.tick_npc_casts(delta)
+		if not npc_cast_actions.is_empty():
+			_patch_npc_cast_skill_names(npc_cast_actions)
+			var npc_cast_result := {"ok": true, "actions": npc_cast_actions}
+			npc_cast_result = _finalize_combat_result(npc_cast_result)
+			var nca_v: Variant = npc_cast_result.get("actions", [])
+			if typeof(nca_v) == TYPE_ARRAY and not (nca_v as Array).is_empty():
+				_pending_tick_actions.append_array(nca_v)
+	# Mob AI ticks (idle wander / chase / return_home / npc_move).
+	_ai_tick_acc += delta
+	if _ai_tick_acc >= AI_TICK_INTERVAL:
+		var ai_dt: float = _ai_tick_acc
+		_ai_tick_acc = 0.0
+		var ai_actions: Array = _tick_mob_ai(ai_dt)
+		if not ai_actions.is_empty():
+			_pending_tick_actions.append_array(ai_actions)
+		var remote_acts: Array = _tick_remote_patrol(ai_dt)
+		if not remote_acts.is_empty():
+			_pending_tick_actions.append_array(remote_acts)
+		var pet_acts: Array = _tick_pet_follow(ai_dt)
+		pet_acts.append_array(_tick_pet_combat(ai_dt))
+		if not pet_acts.is_empty():
+			_pending_tick_actions.append_array(pet_acts)
+	# Dead-mob respawn timers (independent of AI step rate).
+	var respawn_actions: Array = _tick_npc_respawns()
+	if not respawn_actions.is_empty():
+		_pending_tick_actions.append_array(respawn_actions)
+	var gather_respawn_actions: Array = _tick_gather_respawns()
+	if not gather_respawn_actions.is_empty():
+		_pending_tick_actions.append_array(gather_respawn_actions)
+	var fish_respawn_actions: Array = _tick_fish_respawns()
+	if not fish_respawn_actions.is_empty():
+		_pending_tick_actions.append_array(fish_respawn_actions)
+	_tick_sit(delta)
+	_tick_auto_potion(delta)
+	_tick_dps_meter(delta)
+	_combat_tick_acc += delta
+	if _combat_tick_acc < COMBAT_TICK_INTERVAL:
+		return
+	_combat_tick_acc = 0.0
+	# Tick result is buffered; client polls via poll_combat_tick().
+	var result: Dictionary = combat_engine.tick(player_cell.x, player_cell.y, COMBAT_TICK_INTERVAL)
+	result = _finalize_combat_result(result)
+	var actions_v: Variant = result.get("actions", [])
+	if typeof(actions_v) == TYPE_ARRAY and not (actions_v as Array).is_empty():
+		_pending_tick_actions.append_array(actions_v)
+
+
+var _pending_tick_actions: Array = []
+
+
+## Client drains ambient combat actions (counter-attack ticks).
+func poll_combat_tick() -> Array:
+	return _combat_module_logic.poll_combat_tick()
+func get_weather() -> Dictionary:
+	return _world_module_logic.get_weather()
+func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) -> Dictionary:
+	return _world_module_logic.set_weather(kind, intensity, duration)
+func _map_indoor() -> bool:
+	return _world_module_logic._map_indoor()
+func _weather_action() -> Dictionary:
+	return _world_module_logic._weather_action()
+func _reset_weather_for_map() -> void:
+	_world_module_logic._reset_weather_for_map()
+func _tick_weather(delta: float) -> void:
+	_world_module_logic._tick_weather(delta)
+func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Vector2i(-1, -1)) -> bool:
+	return _world_module_logic.load_world_pack(pack_path, map_id, cell)
+func _load_pack(pack_path: String, map_id: String = "") -> bool:
+	return _world_module_logic._load_pack(pack_path, map_id)
+func _load_demo_map() -> void:
+
+FILE: tools/profile_town_street_entry.gd
+extends SceneTree
+var MAP="D:/code/rmmo_runtime/cache/world3d/town_second_street_20261005/map.gltf"
+const OUT="D:/code/rmmo_runtime/review_artifacts/town_street_entry_20261005"
+var world:Node
+var samples:Array=[]
+var failures:=0
+var label_:="baseline"
+var pass_index:=0
+var night:=false
+var toggle_at:=0
+var toggle_count:=0
+var toggle_timings:Array=[]
+var click_timings:Array=[]
+var drain_frames:=0
+var support_probes:Dictionary={}
+var script_frame_start:=0
+var draw_frame_start:=0
+var engine_frame:Dictionary={}
+var preparation_report_at:=0
+var unix_offset:=0.0
+var expect_shadow_gating:=false
+var force_legacy_shadows:=false
+var shadow_comparison:Array=[]
+var source_hash:=""
+var collision_details:=false
+class PhysicsMeter extends Node:
+	var began:=0
+	var ended:=0
+	var total_ms:=0.0
+	var max_ms:=0.0
+	var steps:=0
+	var player:Node
+	var worst_motion:Dictionary={}
+	func _physics_process(_delta:float)->void:
+		ended=Time.get_ticks_usec()
+		var elapsed:float=(ended-began)/1000.0
+		if elapsed>max_ms and is_instance_valid(player):worst_motion=player.get_meta("motion_timing",{})
+		total_ms+=elapsed;max_ms=maxf(max_ms,elapsed);steps+=1
+var physics_meter:PhysicsMeter
+class ProcessMeter extends Node:
+	var ended:=0
+	var frame:=-1
+	func _process(_delta:float)->void:
+		ended=Time.get_ticks_usec();frame=Engine.get_process_frames()
+var process_meter:ProcessMeter
+func compare_shadow_work()->void:
+	# Stationary ABBA in the same loaded scene removes route/residency differences.
+	# Keep graphics settings and all geometry/lights; only restore the old unused
+	# directional shadow flags during legacy samples. Never used by the game.
+	for hour in [12.,0.]:
+		for legacy in [true,false,false,true]:
+			force_legacy_shadows=legacy
+			world._request_environment({"time_hours":hour,"time_speed":0.0})
+			world._weather._apply()
+			for i in 30:await process_frame
+			var rows:Array=[];var previous:=Time.get_ticks_usec()
+			for i in 60:
+				await process_frame
+				var now:=Time.get_ticks_usec()
+				rows.append({"ms":(now-previous)/1000.0,"view":viewport_stats(root),"cpu":RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid()),"gpu":RenderingServer.viewport_get_measured_render_time_gpu(root.get_viewport_rid())})
+				previous=now
+			shadow_comparison.append({"hour":hour,"legacy":legacy,"position":world._player.position,"samples":rows})
+	force_legacy_shadows=false
+	world._request_environment({"time_hours":0.0 if night else 12.0,"time_speed":0.0})
+	world._weather._apply()
+func report_preparation(stage:String)->void:
+	if Time.get_ticks_msec()<preparation_report_at:return
+	preparation_report_at=Time.get_ticks_msec()+10000
+	var batches=world._map_root.get_node_or_null("GroundRenderBatches") if is_instance_valid(world._map_root) else null
+	print("PROFILE_PREP ",stage," stages=",world.loading_profile," nav=",world._navigation.loading_profile if is_instance_valid(world._navigation) else {}," batches_pending=",batches.pending.size() if batches!=null else -1," batch_workers=",batches._workers.size() if batches!=null else -1)
+func viewport_stats(view:Viewport)->Dictionary:
+	return {"visible_calls":view.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),"shadow_calls":view.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME),"visible_objects":view.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_OBJECTS_IN_FRAME),"shadow_objects":view.get_render_info(Viewport.RENDER_INFO_TYPE_SHADOW,Viewport.RENDER_INFO_OBJECTS_IN_FRAME)}
+func stress_toggle()->void:
+	if not "--toggle" in OS.get_cmdline_user_args() or Time.get_ticks_msec()<toggle_at:return
+	night=not night;var began:=Time.get_ticks_usec()
+	var result:Dictionary=world._request_environment({"time_hours":0.0 if night else 12.0,"time_speed":0.0})
+	var duration:=(Time.get_ticks_usec()-began)/1000.0
+	toggle_count+=1;toggle_at=Time.get_ticks_msec()+100
+	toggle_timings.append({"frame":Engine.get_process_frames(),"ms":duration,"night":night,"environment":world.get_meta("environment_timing",{}),"weather":world._weather.get_meta("frame_timing",{}),"lamps":world._weather.streetlamps.get_meta("frame_timing",{})})
+	if not result.get("ok",false):failures+=1
+	var lights:Array=world._weather.streetlamps.lights
+	if lights.size()!=33 or not lights.all(func(light):return light.visible==night):failures+=1;print("FAIL toggle lights ",toggle_count)
+	if expect_shadow_gating:
+		for light:DirectionalLight3D in [world._weather.sun,world._weather.moon]:
+			if light.shadow_enabled!=(bool(world._weather.values.sun_shadows) and light.light_energy>0):failures+=1;print("FAIL celestial shadow state ",toggle_count)
+func tour()->Array:
+	var graph:Dictionary=world._map_root.get_meta("extras").editor_layout.roads
+	var nodes:Dictionary={}
+	for node:Dictionary in graph.nodes:nodes[node.id]=Vector3(node.position[0],node.position[1],node.position[2])
+	var chain:=["n_405_495","n_475_501","n_468_445","n_475_501","n_532_476","n_475_501","n_405_495"]
+	if "--river-bridge" in OS.get_cmdline_user_args():chain=["n_475_501","n_528_527","n_578_547","n_625_558","junction_1ba95b5ea4ed6090","n_666_570","n_722_617"]
+	var result:Array=[nodes[chain[0]]]
+	for i in chain.size()-1:
+		var matches:Array=graph.edges.filter(func(edge):return (edge.from==chain[i] and edge.to==chain[i+1]) or (edge.to==chain[i] and edge.from==chain[i+1]))
+		assert(matches.size()==1,"tour follows an existing authored road")
+		var edge:Dictionary=matches[0];var a:Vector3=nodes[edge.from];var b:Vector3=nodes[edge.to]
+		var c0:Vector3=a.lerp(b,1./3);var c1:Vector3=a.lerp(b,2./3)
+		if edge.has("controls"):
+			c0=Vector3(edge.controls[0][0],edge.controls[0][1],edge.controls[0][2]);c1=Vector3(edge.controls[1][0],edge.controls[1][1],edge.controls[1][2])
+		var steps:=ceili((a.distance_to(c0)+c0.distance_to(c1)+c1.distance_to(b))/25.)
+		for step in range(1,steps+1):
+			var t:=float(step)/steps
+			if edge.from!=chain[i]:t=1.-t
+			result.append(a.bezier_interpolate(c0,c1,b,t))
+	return result
+func _initialize()->void:call_deferred("run")
+func check(ok:bool,label:String)->void:
+	print("PASS " if ok else "FAIL ",label)
+	if not ok:failures+=1
+func sample(previous:int)->int:
+	var now:=Time.get_ticks_usec();var batcher=world._map_root.get_node("GroundRenderBatches")
+	var r:Dictionary={"ms":(now-previous)/1000.0,"position":world._player.position,"gpu":RenderingServer.viewport_get_measured_render_time_gpu(root.get_viewport_rid()),"process":Performance.get_monitor(Performance.TIME_PROCESS)*1000,"physics":Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000,"parts":world.get_meta("frame_timings",{}),"batch_count":batcher.sync_count,"batch_ms":batcher.last_sync_ms,"batch_profile":batcher.sync_profile.duplicate(),"batch_slice":batcher.last_prepare_slice_ms,"batch_commit":batcher.last_commit_ms,"nav":world._navigation.loading_profile.get("nearby_refreshes",0)}
+	r["ticks_usec"]=now
+	samples.append(r)
+	r["pass"]=pass_index;r["night"]=night
+	r["physics_work"]={"script_ms":physics_meter.total_ms,"max_step_ms":physics_meter.max_ms,"steps":physics_meter.steps,"worst_motion":physics_meter.worst_motion,"tail_ms":(now-physics_meter.ended)/1000.0,"frame":Engine.get_physics_frames()}
+	r["motion"]=world._player.get_meta("motion_timing",{})
+	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0;physics_meter.worst_motion={}
+	r["nav_background"]=world._navigation.get_meta("background_timing",{})
+	r["nav_publication"]=world._navigation.get_meta("publication_timing",{})
+	r["nav_full"]=world._navigation.fully_ready
+	r["tiles_remaining"]=world._navigation.loading_profile.get("tiles_remaining",-1)
+	r["surface_query"]=world._navigation.get_meta("surface_query_timing",{})
+	r["body_count"]=world._map_root.get_meta("stream_bodies",{}).size()
+	r["residency"]={"meshes":world._map_root.get_meta("stream_meshes",{}).size(),"fort_sources":world._map_root.get_meta("fortification_collision_sources",{}).size(),"cursor":world._map_root.get_meta("stream_cursor",0),"jobs":world._map_root.get_meta("stream_jobs",[]).size(),"settled":world._map_root.has_meta("stream_chunk")}
+	var fort=world._map_root.get_node_or_null("FortificationCollisionBatches")
+	if fort!=null:r["fort_collision"]={"frame":fort.last_sync_frame,"ms":fort.last_sync_ms,"syncs":fort.sync_count,"rebuilds":fort.rebuild_count,"groups":fort.groups.size(),"profile":fort.profile.duplicate()}
+	r["nodes"]=Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	r["memory_mib"]=Performance.get_monitor(Performance.MEMORY_STATIC)/1048576.0
+	r["weather"]=world._weather.get_meta("frame_timing",{})
+	r["wind"]=world._weather.wind_objects.get_meta("refresh_timing",{})
+	r["wind_advance"]=world._weather.wind_objects.get_meta("advance_timing",{})
+	if collision_details:
+		r["surface_details"]=world._navigation.take_surface_profile()
+		r["collision_prepare"]=world._map_root.get_meta("collision_prepare_timing",{})
+		r["stream_phases"]=world._map_root.get_meta("stream_phase_timing",{})
+	r["lamps"]=world._weather.streetlamps.get_meta("frame_timing",{})
+	r["toggles"]=toggle_count
+	r["engine"]=engine_frame
+	r["render_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(root.get_viewport_rid())
+	r["render_setup_cpu"]=RenderingServer.get_frame_setup_time_cpu()
+	r["pipelines"]={"mesh":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH),"surface":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE),"draw":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW),"specialization":Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SPECIALIZATION)}
+	r["draw_calls"]=Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	r["radar"]=world._hud._radar.get_draw_timing()
+	if is_instance_valid(world._hud._map_overview) and world._hud._map_overview.has_method("get_draw_timing"):r["overview"]=world._hud._map_overview.get_draw_timing()
+	r["stream_cell"]=preload("res://scripts/world3d/world_stream.gd").chunk_key(world._player.position)
+	r["main_view"]=viewport_stats(root)
+	r["outline_view"]=viewport_stats(world._outline.mask)
+	r["outline_active"]=world._outline.occluded
+	r["outline_cpu"]=RenderingServer.viewport_get_measured_render_time_cpu(world._outline.mask.get_viewport_rid())
+	r["outline_gpu"]=RenderingServer.viewport_get_measured_render_time_gpu(world._outline.mask.get_viewport_rid())
+	r["celestial_lights"]={"sun_energy":world._weather.sun.light_energy,"moon_energy":world._weather.moon.light_energy,"sun_visible":world._weather.sun.visible,"moon_visible":world._weather.moon.visible,"sun_shadow":world._weather.sun.shadow_enabled,"moon_shadow":world._weather.moon.shadow_enabled}
+	r["sampling_ms"]=(Time.get_ticks_usec()-now)/1000.0
+	# Keep the hot path free of synchronous console/JSON output. Printing a
+	# large hitch record here would itself inflate the following frame.
+	return now
+func probe_collision_candidates()->void:
+	# Isolate each resident collision candidate using a temporary physics bit.
+	# No map records are edited; restore every body layer before returning.
+	var player:CharacterBody3D=world._player
+	var pose:=Transform3D(Basis.from_euler(Vector3(0,-.394761,0)),Vector3(-336.485748,.900826,15.965792))
+	var old_mask:=player.collision_mask
+	if "--collision-grid" in OS.get_cmdline_user_args():
+		var grid:Array=[]
+		for x in 9:
+			for z in 13:
+				var at:=pose;at.origin=Vector3(-336.9+x*.1,.90083,15.7+z*.1)
+				for motion:Vector3 in [Vector3(-.026,0,.06),Vector3(.026,0,-.06),Vector3.DOWN*.2]:
+					var began:=Time.get_ticks_usec()
+					for i in 3:player.test_move(at,motion)
+					grid.append({"position":at.origin,"motion":motion,"ms":(Time.get_ticks_usec()-began)/3000.0})
+		grid.sort_custom(func(a,b):return a.ms>b.ms)
+		print("COLLISION_GRID ",JSON.stringify(grid.slice(0,10)))
+		FileAccess.open(OUT.path_join(label_+"_collision_grid.json"),FileAccess.WRITE).store_string(JSON.stringify(grid,"  "))
+	var baseline:=Time.get_ticks_usec()
+	for i in 30:player.test_move(pose,Vector3(-1.514282,-.163333,3.701992)/60.0)
+	print("COLLISION_ALL_MS ",(Time.get_ticks_usec()-baseline)/30000.0)
+	player.collision_mask=1<<19
+	var rows:Array=[]
+	var bodies:Dictionary=world._map_root.get_meta("stream_bodies",{})
+	for spec:Dictionary in world._map_root.get_meta("stream_library",[]):
+		var body:StaticBody3D=bodies.get(str(spec.uuid))
+		if body==null:continue
+		var source:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+		if source==null or not source.get_aabb().grow(1).has_point(body.global_transform.affine_inverse()*pose.origin):continue
+		var layer:=body.collision_layer;body.collision_layer=1<<19
+		var began:=Time.get_ticks_usec()
+		for i in 30:player.test_move(pose,Vector3(-1.514282,-.163333,3.701992)/60.0)
+		var elapsed:float=(Time.get_ticks_usec()-began)/30000.0
+		body.collision_layer=layer
+		rows.append({"uuid":spec.uuid,"ms":elapsed,"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
+	player.collision_mask=old_mask
+	rows.sort_custom(func(a,b):return a.ms>b.ms)
+	print("COLLISION_CANDIDATES ",JSON.stringify(rows))
+	FileAccess.open(OUT.path_join(label_+"_collision_candidates.json"),FileAccess.WRITE).store_string(JSON.stringify(rows,"  "))
+func replay_slow_motion()->void:
+	var input_path:=OUT.path_join("hitch_vsync_control_20261006.json")
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--replay-source="):input_path=arg.trim_prefix("--replay-source=")
+	var parsed:Variant=JSON.parse_string(FileAccess.get_file_as_string(input_path))
+	if not parsed is Dictionary or not parsed.get("samples") is Array:
+		check(false,"motion replay requires a completed profile JSON: "+input_path);return
+	var report:Dictionary=parsed
+	var motions:Array=[]
+	for row:Dictionary in report.samples:
+		var motion:Dictionary=row.get("physics_work",{}).get("worst_motion",row.get("motion",{}))
+		if motion.has("move_from"):motions.append(motion)
+	motions.sort_custom(func(a,b):return a.move_ms>b.move_ms)
+	var player:CharacterBody3D=world._player
+	player.set_physics_process(false)
+	var bare:=CharacterBody3D.new();bare.collision_layer=0;bare.collision_mask=player.collision_mask
+	for property:String in ["safe_margin","floor_snap_length","floor_max_angle","floor_stop_on_slope","floor_constant_speed","floor_block_on_wall","max_slides","up_direction","wall_min_slide_angle","motion_mode"]:bare.set(property,player.get(property))
+	var shape:=CollisionShape3D.new();shape.shape=player.get_node("CollisionShape3D").shape;shape.transform=player.get_node("CollisionShape3D").transform;bare.add_child(shape)
+	world.add_child(bare);bare.add_collision_exception_with(player)
+	var results:Array=[];var seen:Dictionary={}
+	for motion:Dictionary in motions:
+		var key:=str(motion.move_from)
+		if seen.has(key):continue
+		seen[key]=true
+		var vector_text:String=motion.move_velocity
+		var values:=vector_text.trim_prefix("(").trim_suffix(")").split(",")
+		var velocity:=Vector3(float(values[0]),float(values[1]),float(values[2]))
+		values=str(motion.move_rotation).trim_prefix("(").trim_suffix(")").split(",")
+		var basis:=Basis.from_euler(Vector3(float(values[0]),float(values[1]),float(values[2])))
+		var position:=Vector3(motion.move_from[0],motion.move_from[1],motion.move_from[2])
+		var times:Array=[];var bare_times:Array=[];var query_times:Array=[];var aligned_times:Array=[]
+		for i in 6:
+			await physics_frame
+			player.global_transform=Transform3D(basis,position);player.velocity=velocity
+			var began:=Time.get_ticks_usec();player.test_move(player.global_transform,velocity/60.0);query_times.append((Time.get_ticks_usec()-began)/1000.0)
+			began=Time.get_ticks_usec();player.move_and_slide();times.append((Time.get_ticks_usec()-began)/1000.0)
+			bare.global_transform=Transform3D(basis,position);bare.velocity=velocity
+			began=Time.get_ticks_usec();bare.move_and_slide();bare_times.append((Time.get_ticks_usec()-began)/1000.0)
+			bare.global_transform=Transform3D(Basis.IDENTITY,position);bare.velocity=velocity
+			began=Time.get_ticks_usec();bare.move_and_slide();aligned_times.append((Time.get_ticks_usec()-began)/1000.0)
+		results.append({"position":position,"velocity":velocity,"original_ms":motion.move_ms,"replay_ms":times,"bare_ms":bare_times,"query_ms":query_times,"aligned_ms":aligned_times})
+		if results.size()>=12:break
+	bare.free()
+	print("MOTION_REPLAY ",JSON.stringify(results))
+	FileAccess.open(OUT.path_join(label_+"_motion_replay.json"),FileAccess.WRITE).store_string(JSON.stringify(results,"  "))
+func mesh_inventory()->void:
+	const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+	var rows:Array=[];var resources:Dictionary={};var nodes:Array=[world._map_root]
+	while not nodes.is_empty():
+		var node:Node=nodes.pop_back();nodes.append_array(node.get_children())
+		if not node is MeshInstance3D or node.mesh==null or node.mesh is Cpu:continue
+		var mesh:Mesh=node.mesh;var id:=str(mesh.get_rid().get_id())
+		var record:Dictionary=node.get_meta("ground_batch_record",{})
+		if not resources.has(id):
+			var materials:Array=[]
+			for i in mesh.get_surface_count():materials.append(str(node.get_active_material(i).get_rid().get_id()) if node.get_active_material(i)!=null else "null")
+			resources[id]={"surfaces":mesh.get_surface_count(),"materials":materials,"instances":0,"visible":0,"sample":str(node.name),"prefab":record.has("house_prefab"),"building":record.get("building",{})}
+		resources[id].instances+=1
+		resources[id].visible+=int(node.is_visible_in_tree())
+		rows.append({"node":str(node.name),"mesh":id,"visible":node.is_visible_in_tree(),"position":node.global_position,"building":record.get("building",{}),"fixture":record.get("fixture",{})})
+	FileAccess.open(OUT.path_join(label_+"_meshes.json"),FileAccess.WRITE).store_string(JSON.stringify({"resources":resources,"instances":rows},"  "))
+	print("MESH_INVENTORY resources=",resources.size()," instances=",rows.size())
+func shadow_visual_compare()->void:
+	Engine.time_scale=0;world.process_mode=Node.PROCESS_MODE_DISABLED;world._hud.hide();root.use_taa=false
+	var sources:Array=[]
+	for source in world._map_root.get_meta("stream_meshes",{}).values():
+		if source.has_meta("building_shadow_proxy"):sources.append(source)
+	check(not sources.is_empty(),"shadow comparison has runtime proxies")
+	var camera:=root.get_camera_3d();var reports:Array=[]
+	for angle in 3:
+		camera.global_position=Vector3(-329+angle*3,3+angle,-18+angle*15)
+		camera.look_at(Vector3(-330,2,22-angle*15))
+		for night_ in [false,true]:
+			world._request_environment({"time_hours":0.0 if night_ else 12.0,"time_speed":0.0})
+			for mode in ["original","proxy"]:
+				for source:MeshInstance3D in sources:
+					source.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_ON if mode=="original" else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					source.get_meta("building_shadow_proxy").visible=mode=="proxy"
+				for i in 12:await process_frame
+				await RenderingServer.frame_post_draw
+				var path:=OUT.path_join(label_+"_%d_%s_%s.png"%[angle,"night" if night_ else "day",mode])
+				root.get_texture().get_image().save_png(path)
+				reports.append(path)
+	print("SHADOW_VISUAL ",JSON.stringify({"sources":sources.size(),"images":reports,"stats":preload("res://scripts/world3d/building_shadow_proxy.gd").stats()}))
+func run()->void:
+	collision_details="--collision-details" in OS.get_cmdline_user_args()
+	if "--river-bridge" in OS.get_cmdline_user_args():MAP="D:/code/rmmo_runtime/cache/world3d/bridge_perf_20261006/map.gltf"
+	source_hash=FileAccess.get_sha256(MAP)
+	preload("res://scripts/ui/world_map_view_3d.gd").terrain_cache_enabled=not "--legacy-radar-draw" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/building_shadow_proxy.gd").enabled=not "--legacy-building-shadows" in OS.get_cmdline_user_args()
+	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/ground_batcher.gd").canonical_buildings_enabled=not "--world-space-buildings" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/stream_collision_preparer.gd").terrain_slicing_enabled=not "--legacy-collision" in OS.get_cmdline_user_args()
+	create_timer(1200 if "--soak" in OS.get_cmdline_user_args() else 540).timeout.connect(func():quit(2));Engine.max_fps=60;root.size=Vector2i(1280,800)
+	if "--no-vsync" in OS.get_cmdline_user_args():DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--label="):label_=arg.trim_prefix("--label=")
+	DirAccess.make_dir_recursive_absolute(OUT)
+	preload("res://tools/world3d_test_character.gd").ensure(self)
+	var session=root.get_node("GameSession");session.world3d_map_path=MAP;session.world3d_spawn=Vector3(-114.9,.9,-1.7)
+	if "--river-bridge" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-35,1.1,1.4)
+	if "--entry-road" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-35,.9,-2.5)
+	if "--street-end" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-333,.9,-24)
+	if "--fortifications" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-575,.9,-96)
+	if "--native" in OS.get_cmdline_user_args():
+		var loader=preload("res://scripts/world3d/map_loader.gd").new();root.add_child(loader);loader.start(MAP)
+		var loaded:Array=await loader.finished
+		check(loaded[0]!=null,"native async loader prepared map")
+		if loaded[0]==null:quit(1);return
+		session.prepared_world3d=loaded[0];session.world3d_loading=true
+	world=load("res://scenes/world_3d.tscn").instantiate();root.add_child(world)
+	if "--unshared-budget" in OS.get_cmdline_user_args():world.set_meta("profile_unshared_stream_budget",true)
+	while not world.is_world_ready():
+		report_preparation("world");await process_frame
+	if "--entry-road" in OS.get_cmdline_user_args():world._camera.yaw=PI*.5
+	if "--map-open" in OS.get_cmdline_user_args():world._hud._toggle_window("map")
+	var flat_live:=0
+	for spec:Dictionary in world._map_root.get_meta("stream_library",[]):
+		var body:Node=world._map_root.get_meta("stream_bodies",{}).get(str(spec.uuid))
+		if body==null:continue
+		var flat:Dictionary=preload("res://scripts/world3d/flat_terrain_collision.gd").descriptor(spec)
+		if not flat.is_empty():
+			flat_live+=1
+			check(body.get_child_count()==1 and body.get_child(0) is CollisionShape3D and body.get_child(0).shape is BoxShape3D,"resident flat terrain primitive "+str(spec.uuid))
+		if str(spec.uuid)=="town_terrain_1_3":print("HOTSPOT_COLLISION ",{"flat":not flat.is_empty(),"record":spec.get("ground_batch_record",{}).keys(),"shapes":body.get_children().map(func(n):return n.shape.get_class() if n is CollisionShape3D else n.get_class())})
+	print("FLAT_TERRAIN_RESIDENT ",flat_live)
+	if "--motion-replay" in OS.get_cmdline_user_args():
+		await replay_slow_motion();world.free();quit(1 if failures else 0);return
+	if "--collision-probe" in OS.get_cmdline_user_args():
+		probe_collision_candidates();world.free();quit(1 if failures else 0);return
+	if "--slice-resident" in OS.get_cmdline_user_args():
+		# Diagnostic replacement of the measured hotspot's initially loaded body.
+		# Keep exact triangles and leave the old collider active until ready.
+		var spec:Dictionary=world._map_root.get_meta("stream_library").filter(func(s):return str(s.uuid)=="town_terrain_1_3")[0]
+		var bodies:Dictionary=world._map_root.get_meta("stream_bodies")
+		var old:Node=bodies[spec.uuid]
+		var preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new();world._map_root.add_child(preparer)
+		while not preparer.prepare(spec,world):await process_frame
+		bodies[spec.uuid]=preload("res://scripts/world3d/world_stream.gd")._make_body(world,spec)
+		old.free()
+		await physics_frame;await physics_frame
+		print("PASS diagnostic resident exact slices ",bodies[spec.uuid].get_child_count())
+	if "--wait-nav" in OS.get_cmdline_user_args():
+		while not world._navigation.fully_ready or world._navigation._surface_index==null:
+			report_preparation("navigation");await process_frame
+		print("PASS premeasurement full navigation and support index ready")
+	if "--validate-index" in OS.get_cmdline_user_args():
+		var nav=world._navigation;var rng:=RandomNumberGenerator.new();rng.seed=910237
+		var vertices:PackedVector3Array=nav.mesh.get_vertices();var accepted:=0;var mismatches:=0
+		for i in 2000:
+			var poly:PackedInt32Array=nav.mesh.get_polygon(rng.randi_range(0,nav.mesh.get_polygon_count()-1));var point:=Vector3.ZERO
+			for index in poly:point+=vertices[index]
+			point/=poly.size();point+=Vector3(rng.randf_range(-.5,.5),rng.randf_range(-.2,.2),rng.randf_range(-.5,.5))
+			if i%10==0:point.y+=2
+			var support:Vector3=nav._surface_index.support(point,.18)
+			if support.is_finite():
+				accepted+=1;var nearest:=NavigationServer3D.map_get_closest_point(nav.map,point)
+				if Vector2(point.x-nearest.x,point.z-nearest.z).length()>.18 or absf(point.y-nearest.y)>.4:mismatches+=1
+			if i%8==0:await process_frame
+		support_probes={"samples":2000,"accepted":accepted,"false_positives":mismatches}
+		check(mismatches==0 and accepted>0,"actual town surface certificates agree with engine: "+str(support_probes))
+	if "--pause-nav" in OS.get_cmdline_user_args():world._navigation.set_process(false)
+	unix_offset=Time.get_unix_time_from_system()-Time.get_ticks_usec()/1000000.0
+	world.set_meta("profile_frame",true)
+	world._player.set_meta("profile_frame",true)
+	if "--legacy-capsule-yaw" in OS.get_cmdline_user_args():world._player.set_meta("profile_legacy_capsule_yaw",true)
+	world._navigation.set_meta("profile_frame",true)
+	world._weather.set_meta("profile_frame",true)
+	world._weather.wind_objects.set_meta("profile_frame",true)
+	if "--legacy-wind-state" in OS.get_cmdline_user_args():world._weather.wind_objects.set_shared_state_enabled(false)
+	elif "--shared-wind-state" in OS.get_cmdline_user_args():world._weather.wind_objects.set_shared_state_enabled(true)
+	if "--wind-range-detail" in OS.get_cmdline_user_args():world._weather.wind_objects.set_meta("profile_wind_range_detail",true)
+	world._weather.streetlamps.set_meta("profile_frame",true)
+	world._map_root.set_meta("profile_frame",true)
+	if collision_details:
+		world._navigation.set_meta("profile_surface_details",true)
+		world._map_root.set_meta("profile_collision_details",true)
+		world._weather.wind_objects.set_meta("profile_wind_timeline",true)
+	world._hud._radar.set_meta("profile_frame",true)
+	world._map_root.get_node("GroundRenderBatches").set_meta("profile_frame",true)
+	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(),true)
+	RenderingServer.viewport_set_measure_render_time(world._outline.mask.get_viewport_rid(),true)
+	process_frame.connect(func():script_frame_start=Time.get_ticks_usec())
+	process_meter=ProcessMeter.new();process_meter.process_priority=1000000;root.add_child(process_meter)
+	physics_meter=PhysicsMeter.new();physics_meter.player=world._player;physics_meter.process_physics_priority=1000000;root.add_child(physics_meter)
+	physics_frame.connect(func():physics_meter.began=Time.get_ticks_usec())
+	RenderingServer.frame_pre_draw.connect(func():
+		if force_legacy_shadows:
+			world._weather.sun.shadow_enabled=bool(world._weather.values.sun_shadows)
+			world._weather.moon.shadow_enabled=bool(world._weather.values.sun_shadows)
+		draw_frame_start=Time.get_ticks_usec())
+	RenderingServer.frame_post_draw.connect(func():
+		engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"main_process_ms":(process_meter.ended-script_frame_start)/1000.0 if process_meter.frame==Engine.get_process_frames() else -1.0,"after_process_to_draw_ms":(draw_frame_start-process_meter.ended)/1000.0 if process_meter.frame==Engine.get_process_frames() else -1.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0}
+		if collision_details:
+			engine_frame["process_begin_usec"]=script_frame_start;engine_frame["process_end_usec"]=process_meter.ended
+			engine_frame["draw_begin_usec"]=draw_frame_start;engine_frame["draw_end_usec"]=Time.get_ticks_usec())
+	world._request_environment({"time_hours":12.0,"time_speed":0.0})
+	for i in 40:await process_frame
+	var shadow_before_route:=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
+	if "--shadow-visual" in OS.get_cmdline_user_args():
+		await shadow_visual_compare();world.free();quit(1 if failures else 0);return
+	if "--mesh-inventory" in OS.get_cmdline_user_args():
+		mesh_inventory();world.free();quit(0);return
+	physics_meter.total_ms=0;physics_meter.max_ms=0;physics_meter.steps=0
+	var paths:Array=[Vector3(-144,0,-9),Vector3(-175,0,-16),Vector3(-206,0,-24),Vector3(-238,0,-32),Vector3(-269,0,-40),Vector3(-300,0,-47),Vector3(-329,0,-54.6),Vector3(-333,0,-24),Vector3(-333,0,8),Vector3(-327,0,40)]
+	if "--entry-road" in OS.get_cmdline_user_args():paths=[Vector3(-60,0,-2.5),Vector3(-85,0,-2.5),Vector3(-110,0,-2.5),Vector3(-135,0,-2.5)]
+	if "--street-end" in OS.get_cmdline_user_args():paths=[Vector3(-333,0,8),Vector3(-327,0,40),Vector3(-333,0,8),Vector3(-333,0,-24)]
+	if "--fortifications" in OS.get_cmdline_user_args():paths=[Vector3(-584,0,-64),Vector3(-590,0,-32),Vector3(-591,0,0),Vector3(-591,0,32),Vector3(-587,0,64),Vector3(-582,0,96),Vector3(-574,0,128),Vector3(-566,0,160)]
+	if "--river-bridge" in OS.get_cmdline_user_args():paths=tour()
+	if "--short" in OS.get_cmdline_user_args():paths=paths.slice(0,2)
+	var passes:=10 if "--explore" in OS.get_cmdline_user_args() else (8 if "--soak" in OS.get_cmdline_user_args() else (1 if "--short" in OS.get_cmdline_user_args() else 2))
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--passes="):passes=clampi(arg.trim_prefix("--passes=").to_int(),1,20)
+	for pass_ in passes:
+		pass_index=pass_;night="--night" in OS.get_cmdline_user_args() or (pass_>=4 and pass_!=8)
+		world._request_environment({"time_hours":0.0 if night else 12.0,"time_speed":0.0})
+		if pass_==8:paths=tour()
+		elif pass_>0:paths.reverse()
+		print("PROFILE_PASS ",pass_," night=",night," full_navigation=",world._navigation.fully_ready)
+		for target:Vector3 in paths:
+			if "--river-bridge" in OS.get_cmdline_user_args() and target.x>250 and target.x<310:
+				# Follow the actual collision deck, including the arch above y=0.
+				var query:=PhysicsRayQueryParameters3D.create(target+Vector3.UP*50,target-Vector3.UP*20)
+				query.exclude=[world._player.get_rid()]
+				var ground:Dictionary=world._player.get_world_3d().direct_space_state.intersect_ray(query)
+				if not ground.is_empty():target.y=ground.position.y
+			var previous:=Time.get_ticks_usec()
+			world._player.set_click_target(target,"ground")
+			click_timings.append({"pass":pass_,"target":target,"ms":(Time.get_ticks_usec()-previous)/1000.0})
+			var deadline:=Time.get_ticks_msec()+20000
+			while Time.get_ticks_msec()<deadline:
+				stress_toggle()
+				await process_frame;previous=sample(previous)
+				if Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.45:break
+			check(Vector2(world._player.position.x-target.x,world._player.position.z-target.z).length()<.5,"walk "+str(pass_)+" to "+str(target))
+			if "--shadow-ab" in OS.get_cmdline_user_args() and pass_==0 and target==Vector3(-333,0,8):await compare_shadow_work()
+		var checkpoint:=FileAccess.open(OUT.path_join(label_+"_checkpoint.json"),FileAccess.WRITE)
+		checkpoint.store_string(JSON.stringify({"completed_pass":pass_,"failures":failures,"unix_offset":unix_offset,"slow_frames":samples.filter(func(row):return row.ms>50)}));checkpoint.close()
+	if "--drain-nav" in OS.get_cmdline_user_args():
+		var previous:=Time.get_ticks_usec()
+		while not world._navigation.fully_ready:
+			stress_toggle();await process_frame;previous=sample(previous);drain_frames+=1
+		print("PASS navigation drain frames=",drain_frames)
+	var sorted:Array=samples.map(func(r):return r.ms);sorted.sort()
+	var worst:Array=samples.duplicate();worst.sort_custom(func(a,b):return a.ms>b.ms)
+	var report:={"loader":"native" if "--native" in OS.get_cmdline_user_args() else "direct_gltf","short_route":"--short" in OS.get_cmdline_user_args(),"navigation_paused":"--pause-nav" in OS.get_cmdline_user_args(),"failures":failures,"samples":samples,"median":sorted[sorted.size()/2],"p95":sorted[int(sorted.size()*.95)],"p99":sorted[int(sorted.size()*.99)],"max":sorted.back(),"over50":sorted.filter(func(x):return x>50).size(),"worst":worst.slice(0,20),"map":FileAccess.get_sha256(MAP)}
+	report["navigation_fully_ready"]=world._navigation.fully_ready
+	report["source_unchanged"]=FileAccess.get_sha256(MAP)==source_hash
+	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
+	report["wind_range_detail"]="--wind-range-detail" in OS.get_cmdline_user_args()
+	report["shared_wind_state"]=world._weather.wind_objects.shared_state_enabled
+	report["collision_details"]=collision_details
+	if collision_details:
+		report["physics_configuration"]={"server_class":PhysicsServer3D.get_class(),"engine":ProjectSettings.get_setting("physics/3d/physics_engine","DEFAULT"),"separate_thread":ProjectSettings.get_setting("physics/3d/run_on_separate_thread",false)}
+	report["aligned_capsule_yaw"]=not "--legacy-capsule-yaw" in OS.get_cmdline_user_args()
+	report["canonical_buildings"]=preload("res://scripts/world3d/ground_batcher.gd").canonical_buildings_enabled
+	report["shadow_proxy"]=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
+	report["shadow_proxy_before_route"]=shadow_before_route
+	report["building_batch_stats"]=world._map_root.get_node("GroundRenderBatches").stats("building")
+	report["actual_vsync_mode"]=DisplayServer.window_get_vsync_mode()
+	report["unix_offset"]=unix_offset
+	report["script_debugger_active"]=EngineDebugger.is_active()
+	report["surface_query_frame_domain"]="physics" # Other instrumented frame IDs use process frames.
+	report["route"]="fortifications" if "--fortifications" in OS.get_cmdline_user_args() else ("street_end" if "--street-end" in OS.get_cmdline_user_args() else "streets")
+	if "--entry-road" in OS.get_cmdline_user_args():report["route"]="entry_road"
+	if "--river-bridge" in OS.get_cmdline_user_args():report["route"]="spawn_to_river_bridge"
+	report["map_open"]="--map-open" in OS.get_cmdline_user_args()
+	report["resident_slice_probe"]="--slice-resident" in OS.get_cmdline_user_args()
+	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()
+	report["shared_stream_budget"]=not "--unshared-budget" in OS.get_cmdline_user_args()
+	report["checked_shadow_gating"]=expect_shadow_gating
+	report["shadow_comparison"]=shadow_comparison
+	report["navigation_drain_frames"]=drain_frames
+	report["loading_profile"]=world.loading_profile.duplicate(true)
+	report["navigation_profile"]=world._navigation.loading_profile.duplicate(true)
+	report["surface_queries"]=world._navigation.surface_query_count
+	report["surface_cache_hits"]=world._navigation.surface_cache_hits
+	report["surface_index_hits"]=world._navigation.surface_index_hits
+	report["support_probes"]=support_probes
+	report["waited_for_navigation"]="--wait-nav" in OS.get_cmdline_user_args()
+	report["toggle_count"]=toggle_count
+	report["toggle_timings"]=toggle_timings
+	report["click_timings"]=click_timings
+	report["material_builds"]=world._weather.streetlamps.material_builds
+	report["passes"]=pass_index+1
+	var pass_reports:Array=[]
+	for index in pass_index+1:
+		var values:Array=samples.filter(func(r):return r["pass"]==index).map(func(r):return r.ms);values.sort()
+		pass_reports.append({"pass":index,"night":"--night" in OS.get_cmdline_user_args() or (index>=4 and index!=8),"median":values[values.size()/2],"p95":values[int(values.size()*.95)],"p99":values[int(values.size()*.99)],"max":values.back(),"over50":values.filter(func(ms):return ms>50).size()})
+	report["per_pass"]=pass_reports
+	if "--soak" in OS.get_cmdline_user_args():check(world._navigation.fully_ready,"soak includes complete background navigation publication")
+	report["failures"]=failures
+	var f:=FileAccess.open(OUT+"/"+label_+".json",FileAccess.WRITE);f.store_string(JSON.stringify(report,"\t"));f.close()
+	var hitches:=FileAccess.open(OUT+"/"+label_+"_hitches.jsonl",FileAccess.WRITE)
+	for row:Dictionary in samples:
+		if row.ms>50:hitches.store_line(JSON.stringify(row))
+	hitches.close()
+	report.erase("samples");report.erase("worst");report.erase("toggle_timings");report.erase("click_timings");report.erase("shadow_comparison");print("ENTRY_PROFILE ",JSON.stringify(report));world.free();quit(1 if failures else 0)

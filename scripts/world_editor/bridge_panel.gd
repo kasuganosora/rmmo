@@ -27,8 +27,7 @@ func setup(panel: VBoxContainer) -> void:
 	for role in ["deck","masonry","trim"]:
 		host.note(body,{"deck":"桥面铺装","masonry":"桥身砌石","trim":"拱券 / 压顶"}[role])
 		var menu:=OptionButton.new(); body.add_child(menu); materials[role]=menu; menu.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
-		menu.add_item("跟随预制件 / 已有材质"); menu.set_item_metadata(0,"")
-		for entry in editor._material_tool.library.entries(): menu.add_item(entry.material.name); menu.set_item_metadata(menu.item_count-1,entry.material_id)
+		preload("res://scripts/world_editor/material_choice.gd").bind_menu(menu,editor._material_panel,"跟随预制件 / 已有材质")
 		menu.item_selected.connect(func(_i):invalidate())
 	host.button(body,"预览实际石桥外观",show_preview)
 	host.button(body,"应用桥梁",apply)

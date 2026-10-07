@@ -72,6 +72,21 @@ func _run() -> void:
 	var previous_path: String = editor._path
 	document.last_save_metrics = {}
 	var phase := Time.get_ticks_usec()
+	var reuse=preload("res://scripts/world3d/pose_save.gd")
+	var content_root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
+	thread=Thread.new()
+	var probe_error:=thread.start(reuse.attempt.bind(_path,document.save_signature(_path),document.records,document.map_meta,content_root,Io,report))
+	if probe_error!=OK:thread=null;_complete(probe_error,previous_path);return
+	while thread.is_alive():await get_tree().process_frame
+	var attempt:Dictionary=thread.wait_to_finish();thread=null
+	document.last_save_metrics.reuse_check_ms=attempt.get("reuse_check_ms",0)
+	if attempt.handled:
+		document.last_save_metrics.export=attempt.duplicate(true)
+		if attempt.error==OK:document.accept_save(_path,attempt.signature)
+		_complete(attempt.error,previous_path);return
+	document.last_save_metrics.reuse_fallback=attempt.reason
+	report("validate")
+	phase=Time.get_ticks_usec()
 	# Resource-root validation can consult the active AssetManager. Keep it on
 	# main and yield between records, using exactly the synchronous validators.
 	var err: Error = document.validate_save_meta()
@@ -89,18 +104,21 @@ func _run() -> void:
 			slice = Time.get_ticks_usec()
 	document.last_save_metrics.validate_ms = (Time.get_ticks_usec()-phase)/1000.0
 	if err != OK: _complete(err, previous_path); return
+	if attempt.refresh_sources:reuse.refresh_export_sources(document)
 	report("build", 0, document.records.size())
 	await get_tree().process_frame
 	phase = Time.get_ticks_usec()
 	_view = document.export_root()
+	_view.set_meta("save_sources",attempt.sources)
+	_view.set_meta("save_content_root",content_root)
 	document.terrain_neighbors.update(document.records)
 	document._save_meshes.begin(document.records)
 	# The editor already owns the authoritative painted building arrays. Reuse
 	# them for the first export too; don't rebuild/upload every face a second time.
 	var reused:=0
-	if is_instance_valid(editor._view):
+	if not attempt.refresh_sources and is_instance_valid(editor._view):
 		for record in document.records:
-			if not record.has("building"):continue
+			if not record.has("building") or record.has("house_prefab"):continue
 			var visual:MeshInstance3D=editor._view.get_node_or_null(NodePath(str(record.uuid))) as MeshInstance3D
 			if visual==null or visual.mesh==null or visual.material_override!=null or visual.has_meta("paint_error"):continue
 			var clean:=true
@@ -114,7 +132,7 @@ func _run() -> void:
 	for record in document.records:
 		var child: Node3D = document._asset(record) if record.get("kind") == "asset" else document._mesh(record, false)
 		_view.add_child(child)
-		if child.has_meta("paint_error") or child.has_meta("tile_error"):
+		if child.has_meta("paint_error") or child.has_meta("tile_error") or child.has_meta("missing_asset"):
 			_complete(ERR_INVALID_DATA, previous_path); return
 		_snapshot_materials(child)
 		if _snapshot_error: _complete(ERR_INVALID_DATA, previous_path); return
@@ -225,7 +243,7 @@ func _restore_viewports() -> void:
 func _process(_delta: float) -> void:
 	if not active: return
 	var value := state()
-	var labels := {"validate":"检查地图与素材", "build":"准备地图网格", "scene":"整理场景", "textures":"导出材质与贴图", "geometry":"写入网格数据", "publish":"完成原子保存"}
+	var labels := {"reuse":"核验并复用已保存资源", "validate":"检查地图与素材", "build":"准备地图网格", "scene":"整理场景", "textures":"导出材质与贴图", "geometry":"写入网格数据", "publish":"完成原子保存"}
 	editor._save_progress.indeterminate = int(value.total) <= 0
 	if int(value.total) > 0:
 		editor._save_progress.max_value = value.total

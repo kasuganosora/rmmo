@@ -1,18 +1,8 @@
 extends Control
 ## North-up X/Z projection, shared by radar and resizable overview.
 static var terrain_cache_enabled:=true
-class TerrainLayer extends Node2D:
-	var shapes:Array=[]
-	var line_width:=1.0
-	var redraws:=0
-	var timing:Dictionary={}
-	func _draw()->void:
-		var began:=Time.get_ticks_usec() if get_parent().has_meta("profile_frame") else 0
-		for shape:Dictionary in shapes:
-			draw_colored_polygon(shape.polygon,shape.color)
-			draw_polyline(shape.polygon,shape.color.darkened(.25),line_width,true)
-		redraws+=1
-		if began>0:timing={"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-began)/1000.0}
+static var preparation_profile_enabled:=false
+const TerrainLayer=preload("res://scripts/ui/world_map_terrain_layer.gd")
 var _terrain:TerrainLayer
 var _background:ColorRect
 var _coverage:=Rect2()
@@ -20,6 +10,10 @@ var _cached_data:RefCounted
 var _cached_revision:=-1
 var _cached_scale:=-1.0
 var _cached_count:=-1
+var terrain_preparation_timing:Dictionary={}
+var _preparation_size:=Vector2.ZERO
+var _preparation_scale:=-1.0
+var _preparation_frame:=-1
 var world:Node
 var radar:=false
 var radius:=22.0
@@ -31,10 +25,13 @@ var dragged:=false
 var press_position:=Vector2.ZERO
 
 func _ready()->void:
+	if preparation_profile_enabled:set_meta("profile_frame",true)
 	clip_contents=true
 	_background=ColorRect.new();_background.color=Color("202b30");_background.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	_background.show_behind_parent=true;add_child(_background);_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_terrain=TerrainLayer.new();_terrain.show_behind_parent=true;add_child(_terrain)
+	_terrain=TerrainLayer.new();_terrain.show_behind_parent=true;add_child(_terrain);_terrain.set_process(false)
+	resized.connect(_terrain_layout_changed)
+	visibility_changed.connect(_terrain_layout_changed)
 	mouse_filter=Control.MOUSE_FILTER_STOP
 	gui_input.connect(_input_map)
 	tooltip_text="左键：寻路 · 右键 / Shift+左键：标记 · 滚轮：缩放 · 拖动：平移 · 双击：回到角色"
@@ -44,10 +41,13 @@ func bind_world(value:Node,small:bool=false)->void:
 	center=world._map_data.bounds.get_center()
 	if radar:center=Vector2(world._player.position.x,world._player.position.z)
 	span=maxf(world._map_data.bounds.size.x,world._map_data.bounds.size.y)*1.1
-	queue_redraw()
+	# A container may still resize again after its first draw. Preparation is
+	# budgeted and restarts at the final size; gameplay waits for completion.
+	_preparation_frame=-1
+	_terrain_layout_changed()
 
 func set_view_radius(value:float)->void:
-	radius=maxf(2,value*2);queue_redraw()
+	radius=maxf(2,value*2);_terrain_layout_changed()
 
 func _process(delta:float)->void:
 	if not is_instance_valid(world) or not is_visible_in_tree():return
@@ -65,21 +65,64 @@ func hint_line()->String:
 	if not is_instance_valid(world):return ""
 	return "%s  (%.1f, %.1f) m"%[world._map_data.title,world._player.position.x,world._player.position.z]
 
-func _update_terrain(rect:Rect2,scale:float)->void:
+func _terrain_layout_changed()->void:
+	_preparation_frame=-1
+	if is_instance_valid(_terrain):
+		if not _prepare_terrain():_terrain.set_process(false)
+	queue_redraw()
+
+func _prepare_terrain()->bool:
+	if not terrain_cache_enabled or not is_inside_tree() or not is_visible_in_tree() or size.x<=0 or size.y<=0:return false
+	if not is_instance_valid(world) or world._map_data==null or not is_instance_valid(_terrain):return false
 	var data:RefCounted=world._map_data
-	if _cached_data!=data or _cached_revision!=data.shape_revision or _cached_count!=data.shapes.size() or _cached_scale!=scale or not _coverage.encloses(rect):
-		# Retain native canvas commands across movement; the margin avoids a
-		# rebuild at every pixel while keeping the radar's GPU coverage bounded.
+	var scale:=scale_factor()
+	var generation_changed:bool=_terrain._data!=data or _terrain._revision!=data.shape_revision or _terrain._items.size()!=data.shapes.size() or _preparation_size!=size or _preparation_scale!=scale or _preparation_frame<0
+	if generation_changed:
+		_preparation_size=size;_preparation_scale=scale;_preparation_frame=Engine.get_process_frames()
+		if has_meta("profile_frame"):
+			terrain_preparation_timing={"frame":_preparation_frame,"begin_usec":Time.get_ticks_usec(),"end_usec":0,"size":size,"radius":radius,"width":1.0/scale,"ready_for_play":bool(world.get("_ready_for_play")) if "_ready_for_play" in world else false}
+	if _terrain.prepare(data,1.0/scale):
+		_cached_data=null
+		queue_redraw()
+	return true
+
+func _terrain_preparation_finished()->void:
+	if has_meta("profile_frame") and not terrain_preparation_timing.is_empty() and int(terrain_preparation_timing.end_usec)==0:
+		terrain_preparation_timing.end_usec=Time.get_ticks_usec()
+		terrain_preparation_timing.commands_recorded=_terrain.commands_recorded
+		terrain_preparation_timing.warm_slices=_terrain.warm_slices
+		terrain_preparation_timing.max_warm_slice_ms=_terrain.max_warm_slice_ms
+
+func terrain_is_prepared()->bool:
+	# A hidden/zero-size radar has no drawing requirement and must not hold
+	# world loading or a removed HUD open. Showing/resizing restarts warming.
+	if not _prepare_terrain():return true
+	var ready:bool=_terrain.is_prepared() and Engine.get_process_frames()-_preparation_frame>=2
+	if ready:_terrain_preparation_finished()
+	return ready
+
+func terrain_preparation_progress()->Vector2i:
+	return Vector2i(_terrain._warm_cursor,_terrain._items.size()) if is_instance_valid(_terrain) else Vector2i.ZERO
+
+func _update_terrain(rect:Rect2,scale:float)->void:
+	if not _prepare_terrain():return
+	var data:RefCounted=world._map_data
+	var invalid:bool=_cached_data!=data or _cached_revision!=data.shape_revision or _cached_count!=data.shapes.size()
+	if invalid or _cached_scale!=scale or not _coverage.encloses(rect):
+		# Only the visible coverage needs immediate exact outlines. Offscreen
+		# commands are completed by the layer's one-millisecond idle slices.
 		_coverage=rect.grow(minf(8,maxf(rect.size.x,rect.size.y)*.25))
-		_terrain.shapes=data.visible_shapes(_coverage);_terrain.line_width=1/scale
+		_terrain.show_shapes(data.visible_shapes(_coverage),1/scale)
 		_cached_data=data;_cached_revision=data.shape_revision;_cached_count=data.shapes.size();_cached_scale=scale
-		_terrain.queue_redraw()
 	_terrain.position=size*.5-center*scale;_terrain.scale=Vector2.ONE*scale
 
 func get_draw_timing()->Dictionary:
 	var result:Dictionary=get_meta("draw_timing",{}).duplicate()
 	if not result.is_empty() and terrain_cache_enabled and _terrain.timing.get("frame",-1)==result.frame:
-		result.terrain_ms=_terrain.timing.ms;result.ms+=_terrain.timing.ms
+		# show_shapes now runs inside _draw; its time is already in result.ms.
+		result.terrain_ms=_terrain.timing.ms
+		for key in ["recorded_delta","visible_added","visible_removed","width","prepared_width","commands_recorded"]:
+			result["terrain_"+key]=_terrain.timing.get(key,0)
 	return result
 
 func _draw()->void:

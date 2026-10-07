@@ -21,6 +21,8 @@ static func array3(value: Vector3) -> Array:
 
 func state() -> Dictionary:
 	return ok({"editor": "world3d", "map_path": editor._path, "units": "meters", "up_axis": "Y",
+		"wind_preview":editor._wind_tools.preview_enabled,
+		"walk":editor._walk_mode.state(),
 		"object_count": editor._doc.records.size(), "selection": editor._selection_tools.ids.duplicate(),
 		"dirty": editor._dirty, "read_only": editor._load_failed, "undo_count": editor._doc._undo.size(), "redo_count": editor._doc._redo.size(),
 		"editor_view": editor._authoring.settings.duplicate(true), "playtest":editor._playtest.state(), "spawn_picking":editor._authoring.picking,
@@ -41,6 +43,7 @@ func state() -> Dictionary:
 		"terrain_brush_active": editor._terrain_brush!=null and editor._terrain_brush.active,
 		"autosave": editor._safety.state(),
 		"save": editor._save_job.state() if editor._save_job != null else {"active":false},
+		"load": editor._load_job.state() if editor._load_job != null else {"active":false},
 		"ground_batching": editor._ground_batches.stats("ground") if is_instance_valid(editor._ground_batches) else {},
 		"fortification_batching": editor._ground_batches.stats("fortification") if is_instance_valid(editor._ground_batches) else {},
 		"fortification_collision_batching": editor._fortification_collisions.stats() if is_instance_valid(editor._fortification_collisions) else {},
@@ -48,6 +51,12 @@ func state() -> Dictionary:
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"set_editor_walk_mode":return editor._walk_mode.set_enabled(args)
+		"move_editor_walk":return editor._walk_mode.move(args)
+		"set_editor_walk_view":return editor._walk_mode.set_view(args)
+		"repair_asset_thumbnails":return repair_thumbnails(args.asset_ids)
+		"move_editor_camera":return editor._city.move_camera(xyz(args.offset))
+		"set_editor_wind_preview":return editor._wind_tools.set_preview(args.enabled)
 		"set_tree_parameters":return preload("res://scripts/world_editor/tree_tools.gd").apply(editor,args.ids,args.settings)
 		"get_tree_parameters":return ok(preload("res://scripts/world_editor/tree_tools.gd").describe(editor,args.id))
 		"list_rock_banks":return preload("res://scripts/world_editor/rock_bank_tools.gd").catalog(editor)
@@ -287,11 +296,13 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			if properties.is_empty(): return error("No properties supplied")
 			if not editor._selection_tools.set_properties(target.ids, properties): return error("Cannot rename hidden, locked or off-floor objects")
 			return ok({"affected_ids": target.ids, "selection": editor._selection_tools.ids.duplicate()})
+		"list_building_windows": return preload("res://scripts/world_editor/building_window_tools.gd").list_windows(editor,args.building_id)
+		"set_building_window_style": return preload("res://scripts/world_editor/building_window_tools.gd").replace(editor,args.building_id,args.window_id,args.style)
 		"list_assets":
-			var entries := assets(str(args.get("query", "")))
+			var entries: Array = editor.asset_items(str(args.get("query", "")), str(args.get("category", "")))
 			var rows: Array = []
-			for entry in page(entries, args): rows.append({"asset_id": asset_id(entry), "name": entry.get("label", ""), "category": entry.get("category", ""), "prefab": entry.has("prefab_path"), "part_count": entry.get("part_count", 1), "auto_family": entry.get("auto_family", "")})
-			return ok({"assets": rows, "total": entries.size()})
+			for entry in page(entries, args): rows.append({"asset_id": asset_id(entry), "name": entry.get("label", ""), "category": entry.get("category", ""), "prefab": entry.has("prefab_path"), "part_count": entry.get("part_count", 1), "auto_family": entry.get("auto_family", ""),"thumbnail":editor._thumbnails.state(entry)})
+			return ok({"assets": rows, "total": entries.size(), "categories": editor.asset_categories()})
 		"list_resource_packs":
 			var catalog := Catalog.new()
 			var packs := catalog.packs()
@@ -315,10 +326,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			var path: String = args.path
 			if not allowed_path(path) or path.get_extension().to_lower() != "gltf" or not FileAccess.file_exists(path): return error("Open path must be an existing .gltf file inside the external content root")
 			if editor._dirty and not args.get("discard_changes", false): return error("Unsaved changes: save first or explicitly set discard_changes")
-			var checked := validate_map_file(path)
-			if not checked.is_empty(): return error(checked)
-			if not editor.open_document(path): return error(editor._status.text)
-			return state()
+			return editor._load_job.start(path)
 		"configure_autosave": return editor._safety.configure(args.get("enabled", editor._safety.enabled), args.get("interval_seconds", editor._safety.interval_seconds))
 		"list_editor_drafts": return editor._safety.store.list_drafts(int(args.get("offset", 0)), int(args.get("limit", 50)))
 		"save_editor_draft": return editor._safety.save_draft()
@@ -365,12 +373,23 @@ func page(items: Array, args: Dictionary) -> Array:
 	return items.slice(start, mini(start + int(args.get("limit", 100)), items.size()))
 
 func assets(query: String = "") -> Array:
-	var result: Array = preload("res://scripts/world3d/world_modules.gd").search(query) + editor._assets.search(query)
-	for library in editor._shared_assets: result.append_array(library.search(query))
-	return result
+	return editor.asset_items(query)
 
 func asset_id(entry: Dictionary) -> String:
 	return preload("res://scripts/world_editor/asset_thumbnails.gd").key_for(entry)
+
+func repair_thumbnails(ids: Array) -> Dictionary:
+	var ready: Dictionary=editor._gameplay.guard()
+	if not ready.ok: return ready
+	if DisplayServer.get_name()=="headless": return error("缩略图需要图形编辑器渲染")
+	var entries:=assets(); var jobs: Array=[]
+	for id in ids:
+		var found:=entries.filter(func(entry):return asset_id(entry)==id)
+		if found.is_empty() or not (found[0].has("asset_path") or found[0].has("prefab_path")): return error("请选择库内模型或预制件")
+		if not allowed_path(str(id)) or not FileAccess.file_exists(str(id)) or editor._thumbnails.thumbnail_path(found[0]).is_empty(): return error("缩略图资源路径不可用")
+		jobs.append(found[0])
+	for entry in jobs: editor._thumbnails.queue_import(entry)
+	return ok({"queued":jobs.size(),"asset_ids":ids})
 
 func save_prefab(args: Dictionary) -> Dictionary:
 	if str(args.name).strip_edges().is_empty(): return error("Prefab name must not be empty")
@@ -456,35 +475,23 @@ func paint(args: Dictionary) -> Dictionary:
 func allowed_path(value: String) -> bool:
 	return preload("res://scripts/world3d/map_paths.gd").allowed(value)
 
-func validate_assets(records: Array) -> String:
-	for record in records:
-		if not record is Dictionary: return "Invalid object record"
-		if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return "Invalid building component"
-		if not preload("res://scripts/world3d/wind_response.gd").valid(record): return "Invalid wind response"
-		if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return "Invalid 3D event template"
-		if not Rules.valid(record): return "Invalid auto tile or kit outside the allowed content root"
-		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return "Invalid surface material record or texture outside the allowed content root"
-		if not preload("res://scripts/world3d/terrain_surface.gd").valid(record): return "Invalid terrain mesh"
-		if not preload("res://scripts/world3d/surface_materials.gd").valid(record): return "Invalid surface material record or texture outside the allowed content root"
-		if record.get("kind") == "asset" and not allowed_path(str(record.get("asset_path", ""))): return "Model reference is outside the allowed content root"
+func validate_assets(records: Array, progress: Callable = Callable()) -> String:
+	# Records are immutable during this validation; never retain permission or
+	# material results across calls, edits, or filesystem operations.
+	var material_validation: Dictionary = {}
+	for i in records.size():
+		var record: Variant=records[i]
+		if progress.is_valid(): progress.call("validate",i,records.size())
+		var issue:String=preload("res://scripts/world3d/document_open_cursor.gd").asset_record_issue(record,material_validation)
+		if not issue.is_empty():return issue
 	return ""
 
 func validate_map_file(path: String) -> String:
 	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not raw is Dictionary: return "Invalid glTF document"
-	for section in ["buffers", "images"]:
-		if not raw.get(section, []) is Array: return "Invalid glTF " + section
-		for item in raw.get(section, []):
-			if not item is Dictionary: return "Invalid glTF dependency"
-			var uri := str(item.get("uri", ""))
-			if uri.is_empty() or uri.begins_with("data:"): continue
-			var dependency := preload("res://scripts/world3d/gltf_map_io.gd").decode_dependency_uri(uri)
-			if dependency.is_empty() or not allowed_path(path.get_base_dir().path_join(dependency)): return "glTF dependency is outside the allowed content root"
-	if not raw.get("nodes", []) is Array: return "Invalid glTF nodes"
-	for node in raw.get("nodes", []):
-		if not node is Dictionary or not node.get("extras", {}) is Dictionary: return "Invalid glTF node"
-		var records: Variant = node.get("extras", {}).get("rmmo_records", [])
-		if not records is Array: return "Invalid glTF object records"
-		var invalid := validate_assets(records)
-		if not invalid.is_empty(): return invalid
-	return ""
+	return validate_map_data(path,raw)
+
+func validate_map_data(path: String, raw: Variant, progress: Callable = Callable()) -> String:
+	var cursor=preload("res://scripts/world3d/document_open_cursor.gd").new()
+	cursor.begin_map_validation(path,raw,progress)
+	while not cursor.done:cursor.advance()
+	return cursor.error

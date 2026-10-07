@@ -25,8 +25,8 @@ func setup(panel: VBoxContainer) -> void:
 	host.button(body,"点选路径 / 环形范围",func():host.report(editor._city.begin_fortification(float(fields.values().base_height))))
 	for role in ["stone","trim","door","floor"]:
 		host.note(body,{"floor":"圆楼石铺地面","stone":"墙身石材","trim":"压顶与拱圈石材","door":"城门木材"}[role])
-		var menu:=OptionButton.new(); menu.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(menu); materials[role]=menu; menu.add_item("原色"); menu.set_item_metadata(0,"")
-		for entry in editor._material_tool.library.entries(): menu.add_item(str(entry.material.name)); menu.set_item_metadata(menu.item_count-1,entry.material_id)
+		var menu:=OptionButton.new(); menu.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(menu); materials[role]=menu
+		preload("res://scripts/world_editor/material_choice.gd").bind_menu(menu,editor._material_panel,"原色")
 		menu.item_selected.connect(func(_i):invalidate())
 	host.note(body,"折线城门用段号和比例；环形城门用角度：0° 东、90° 南、180° 西、270° 北，再随城墙旋转。切换形状后需更新或移除原城门方案。开度 0 关闭、1 打开。")
 	gate_choice=OptionButton.new(); body.add_child(gate_choice); gate_choice.item_selected.connect(func(i):gate_form(current.gates[i]))
@@ -51,9 +51,7 @@ func form() -> void:
 		elif control is LineEdit: control.text_changed.connect(func(_v):invalidate())
 		elif control is OptionButton: control.item_selected.connect(func(_i):gate_form(); invalidate())
 	for role in materials:
-		var menu: OptionButton=materials[role]; menu.select(0)
-		for i in menu.item_count:
-			if menu.get_item_metadata(i)==current[role+"_material_id"]: menu.select(i)
+		preload("res://scripts/world_editor/material_choice.gd").choose(materials[role],str(current[role+"_material_id"]))
 	sync_gates()
 func gate_form(value: Dictionary={}) -> void:
 	var schema:=F.gate_schema(5.0); schema.properties.erase("id"); schema.required=[]

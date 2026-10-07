@@ -4,6 +4,12 @@ const Library=preload("res://scripts/world_editor/asset_library.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const OUT="D:/code/rmmo_runtime/review_artifacts/banner_streetlamp"
 
+func material_wind(runtime:Node3D,material:ShaderMaterial)->Vector3:
+	if not material.get_shader_parameter("wind_state_enabled"):return material.get_shader_parameter("wind_velocity")
+	check(material.get_shader_parameter("wind_state")==runtime._shared_state.texture,"cloth samples its runtime state texture")
+	var state:Color=runtime._shared_state.image.get_pixel(0,0)
+	return Vector3(state.r,state.g,state.b)*float(material.get_shader_parameter("wind_exposure"))
+
 func run()->void:
 	create_timer(180).timeout.connect(func():quit(2))
 	var directory:=Paths.external_root().path_join("__banner_mcp_%d"%Time.get_ticks_usec())
@@ -78,7 +84,7 @@ func run()->void:
 	var wind_ok:=true
 	for row:Dictionary in wind.receivers.values():
 		wind_ok=wind_ok and row.config.anchor=="top" and row.config.profile=="cloth"
-		for material:ShaderMaterial in row.materials:wind_ok=wind_ok and material.get_shader_parameter("wind_velocity")==Vector3(8,0,0) and material.get_shader_parameter("anchor_reverse")
+		for material:ShaderMaterial in row.materials:wind_ok=wind_ok and material_wind(wind,material)==Vector3(8,0,0) and material.get_shader_parameter("anchor_reverse")
 	check(wind_ok,"game wind vector drives top-anchored cloth shader")
 	wind.set_physics_process(false)
 	for mode in ["still","wind_a","wind_b"]:
@@ -86,7 +92,7 @@ func run()->void:
 		for i in 4:await process_frame
 		await RenderingServer.frame_post_draw;viewport.get_texture().get_image().save_png(OUT+"/banner_"+mode+".png")
 	wind.advance(Vector3(0,0,-7),3)
-	check(wind.receivers.values().all(func(row):return row.materials[0].get_shader_parameter("wind_velocity")==Vector3(0,0,-7)),"changed game wind direction reaches cloth")
+	check(wind.receivers.values().all(func(row):return material_wind(wind,row.materials[0])==Vector3(0,0,-7)),"changed game wind direction reaches cloth")
 	viewport.free()
 	await call_tool("set_streetlamp_banner",{"ids":ids,"settings":{"wind_enabled":false}})
 	var node:Node3D=doc._asset(doc._find(ids[0]));check(not Banner.slot(node).get_meta("extras").has("rmmo_wind"),"wind can be disabled without changing design");node.free()

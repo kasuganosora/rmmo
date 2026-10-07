@@ -12,6 +12,27 @@ static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
 const DECODE_BUDGET=536870912
 
+static func invalidate_texture_materials(keys:Dictionary)->void:
+	# Drop only cache references. Existing instances keep their immutable materials
+	# and geometry until their owning view is replaced normally.
+	if keys.is_empty():return
+	for key in _meshes.keys():
+		var entry:Dictionary=_meshes[key]
+		if _uses_textures(entry.mesh,keys) or _uses_textures(entry.source,keys):_meshes.erase(key)
+	for key in _render_meshes.keys():
+		if _uses_textures(_render_meshes[key],keys):_render_meshes.erase(key)
+
+static func _uses_textures(mesh:Mesh,keys:Dictionary)->bool:
+	for material in mesh.materials:
+		if material==null or not material.has_meta("runtime_paint_definition"):continue
+		var definition:Dictionary=material.get_meta("runtime_paint_definition")
+		for field in Cook.Paint.MAP_FIELDS:
+			var path:=str(definition.get(field,""))
+			if path.is_empty():continue
+			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
+			if keys.has(path+("|flip_y" if flip else "")):return true
+	return false
+
 static func vec(a:Array)->Vector3:return Vector3(a[0],a[1],a[2])
 static func arr(v:Vector3)->Array:return [v.x,v.y,v.z]
 
@@ -44,7 +65,8 @@ static func decode(value:Dictionary)->Dictionary:
 static func valid(record:Dictionary)->bool:
 	if not record.has("house_prefab"):return true
 	var owner:bool=record.has("building") or record.has("fortification") or record.has("bridge_mesh")
-	if record.get("kind") not in ["box","asset"] or not record.house_prefab is Dictionary or not owner or record.get("prefab_locked")!=true or record.has("building_shape") or record.has("surface_paint"):return false
+	if record.get("kind") not in ["box","asset"] or not record.house_prefab is Dictionary or not owner or record.get("prefab_locked")!=true or record.has("building_shape"):return false
+	if record.has("surface_paint") and not record.has("building"):return false
 	var data:=decode(record.house_prefab)
 	if data.is_empty():return false
 	# Texture dependencies remain visible to native validation, packs and prefetch.
@@ -53,12 +75,31 @@ static func valid(record:Dictionary)->bool:
 		if material.has("paint") and not paints.has(material.paint):paints.append(material.paint)
 	return record.get("prefab_materials",[])==paints
 
-static func geometry(record:Dictionary,paint_validation:Variant=null,material_pool:Variant=null)->Dictionary:
+static func geometry(record:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->Dictionary:
+	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	var key:String=record.house_prefab.sha256
-	if _meshes.has(key):return _meshes[key]
+	if not record.get("surface_paint",[]).is_empty():
+		key += ":paint:"+var_to_str(record.surface_paint).sha256_text()
+		if _meshes.has(key):return _meshes[key]
+		var plain:=record.duplicate();plain.erase("surface_paint")
+		var original:=geometry(plain,paint_validation,material_pool,timings)
+		if original.is_empty():return {}
+		var node:=MeshInstance3D.new();node.mesh=original.mesh
+		var painted:=Cook.Paint.painted_mesh(node,record.surface_paint,true)
+		node.free()
+		if not painted.ok:return {}
+		var decorated:={"mesh":Cpu.capture(painted.mesh),"source":original.source}
+		if _meshes.size()>=512:_meshes.erase(_meshes.keys()[0])
+		_meshes[key]=decorated
+		return decorated
+	if _meshes.has(key):
+		if timings!=null:timings.geometry_cache_hit=true
+		return _meshes[key]
 	var data:=decode(record.house_prefab)
+	if timings!=null:timings.decode_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	if data.is_empty():return {}
-	var restored:=Cook.restore(data.duplicate(),paint_validation,material_pool)
+	var restored:=Cook.restore(data.duplicate(),paint_validation,material_pool,timings)
+	if timings!=null:timings.cook_restore_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	if restored.is_empty():return {}
 	var entry:Dictionary=restored.values()[0]
 	_decode_mutex.lock()
@@ -77,6 +118,7 @@ static func geometry(record:Dictionary,paint_validation:Variant=null,material_po
 	# Bounded resource cache; live instances retain their own shared references.
 	if _meshes.size()>=512:_meshes.erase(_meshes.keys()[0])
 	_meshes[key]=entry
+	if timings!=null:timings.render_identity_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return entry
 
 static func retarget_materials(record:Dictionary)->void:
@@ -90,11 +132,18 @@ static func retarget_materials(record:Dictionary)->void:
 	var bytes:=var_to_bytes(data)
 	record.house_prefab={"version":1,"sha256":Cook.Envelope.checksum(bytes).hex_encode(),"length":bytes.size(),"data":Marshalls.raw_to_base64(bytes.compress(FileAccess.COMPRESSION_ZSTD))}
 
-static func visual(record:Dictionary,effects:bool,paint_validation:Variant=null,material_pool:Variant=null)->MeshInstance3D:
+static func visual(record:Dictionary,effects:bool,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->MeshInstance3D:
 	var node:=MeshInstance3D.new();node.name=record.uuid
-	var entry:=geometry(record,paint_validation,material_pool)
+	var entry:=geometry(record,paint_validation,material_pool,timings)
 	if entry.is_empty():node.set_meta("paint_error","无效的房屋预制件数据");node.mesh=BoxMesh.new();return node
+	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	node.mesh=entry.mesh.restore() if effects else entry.mesh
+	if not record.get("surface_paint",[]).is_empty():
+		var plain:=record.duplicate();plain.erase("surface_paint")
+		var original:=geometry(plain,paint_validation,material_pool)
+		node.set_meta("paint_source",original.mesh)
+		node.set_meta("paint_source_materials",original.mesh.materials)
+	if timings!=null:timings.gpu_restore_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	node.set_meta("collision_solid",entry.source)
 	node.transform=Fixtures.transform(record)
 	if record.get("kind")=="asset":node.scale=vec(record.size)
@@ -104,6 +153,7 @@ static func visual(record:Dictionary,effects:bool,paint_validation:Variant=null,
 	if record.has("fixture"):node.get_meta("extras").fixture=record.fixture.duplicate(true)
 	node.set_meta("house_prefab",true)
 	node.set_meta("ground_batch_record",record)
+	if timings!=null:timings.node_metadata_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return node
 
 static func bake(records:Array)->Dictionary:

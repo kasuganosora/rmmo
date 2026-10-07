@@ -1,0 +1,1 @@
+The spike is mostly unmeasured process time, so I am reading the rest of the supplied sources and the trace before ranking callbacks.The source continues through the profiler, but the 72.774 ms sample is not in that span. I am locating the measured row in the supplied text.

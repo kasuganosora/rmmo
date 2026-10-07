@@ -5,6 +5,7 @@ const Form=preload("res://scripts/world_editor/settings_form.gd")
 var host: VBoxContainer
 var editor: Node3D
 var settings: VBoxContainer
+var kerb_material_select:OptionButton
 var material_select: OptionButton
 var status: Label
 var choice: OptionButton
@@ -21,10 +22,10 @@ func setup(value: VBoxContainer) -> void:
 	settings=Form.new(); roads.add_child(settings)
 	sync_settings(preload("res://scripts/world3d/road_plan.gd").defaults())
 	material_select=OptionButton.new(); material_select.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; roads.add_child(material_select)
-	material_select.add_item("原色 · 不绑定材质"); material_select.set_item_metadata(0,"")
-	for entry in editor._material_tool.library.entries():
-		material_select.add_item(str(entry.material.name)); material_select.set_item_metadata(material_select.item_count-1,entry.material_id)
-		if entry.material_id=="pack:default:paving/historic_cobble/material": material_select.select(material_select.item_count-1)
+	preload("res://scripts/world_editor/material_choice.gd").bind_menu(material_select,editor._material_panel,"原色 · 不绑定材质","pack:default:paving/historic_cobble/material")
+	kerb_material_select=OptionButton.new();roads.add_child(kerb_material_select)
+	preload("res://scripts/world_editor/material_choice.gd").bind_menu(kerb_material_select,editor._material_panel,"选择路缘材质","pack:default:paving/automatic_limestone_kerb/material")
+	host.note(roads,"自动路缘：只沿道路外露边界铺设；路口内部及分块接缝留空。启用后修改道路同步更新；同层交叉自动拆分接点。宽度占用道路内侧空间。")
 	status=host.note(roads,"")
 	host.button(roads,"预览铺面变化",preview)
 	host.button(roads,"应用铺面方案",apply_surface)
@@ -56,7 +57,7 @@ func setup(value: VBoxContainer) -> void:
 	fill_zone()
 
 func args() -> Dictionary:
-	var result: Dictionary=settings.values(); result.material_id=material_select.get_item_metadata(material_select.selected); return result
+	var result: Dictionary=settings.values(); result.material_id=material_select.get_item_metadata(material_select.selected);result.kerb_material_id=kerb_material_select.get_item_metadata(kerb_material_select.selected); return result
 func preview() -> void:
 	var result: Dictionary=editor._roads.summary(args()); host.report(result)
 	if result.ok:
@@ -79,8 +80,8 @@ func refresh() -> void:
 	status.text="尚未生成铺面" if manifest.is_empty() else ("骨架已变更，请更新铺面" if manifest.graph_token!=Data.token(data.roads) else "铺面与骨架一致 · %d 块"%manifest.parts.size())
 	if not manifest.is_empty():
 		sync_settings(manifest.settings)
-		for i in material_select.item_count:
-			if material_select.get_item_metadata(i)==manifest.settings.material_id: material_select.select(i)
+		preload("res://scripts/world_editor/material_choice.gd").choose(kerb_material_select,str(manifest.settings.get("kerb_material_id","pack:default:paving/automatic_limestone_kerb/material")))
+		preload("res://scripts/world_editor/material_choice.gd").choose(material_select,str(manifest.settings.material_id))
 	var id: String="" if choice.item_count==0 else str(choice.get_item_metadata(choice.selected)); choice.clear()
 	for zone in data.get("zones",[]):
 		choice.add_item(str(zone.get("name",zone.id))+ (" [锁]" if zone.get("locked",false) else "")+ (" [隐藏]" if zone.get("hidden",false) else "")); choice.set_item_metadata(choice.item_count-1,zone.id)
@@ -88,8 +89,9 @@ func refresh() -> void:
 	fill_zone()
 func sync_settings(value: Dictionary) -> void:
 	var schema: Dictionary=preload("res://scripts/world3d/road_plan.gd").settings_schema(); schema.properties.erase("material_id")
-	var values:=value.duplicate(true); values.erase("material_id")
-	settings.build(schema,values,{"thickness":"铺面厚度（米）","lift":"高于地面（米）","clearance":"通行净空（米）"})
+	schema.properties.erase("kerb_material_id")
+	var values:Dictionary=preload("res://scripts/world3d/road_plan.gd").defaults().merged(value,true); values.erase("material_id");values.erase("kerb_material_id")
+	settings.build(schema,values,{"thickness":"铺面厚度（米）","lift":"高于地面（米）","clearance":"通行净空（米）","kerb_enabled":"自动路缘与道路同步更新","kerb_width":"路缘宽度（米）","kerb_height":"路缘高出路面（米）"})
 func selected() -> Dictionary:
 	return host.selected(Data.resolve(editor._doc.map_meta).get("zones",[]),choice)
 func zone_token() -> String: return JSON.stringify(Data.resolve(editor._doc.map_meta).get("zones",[])).sha256_text()

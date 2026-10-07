@@ -19,6 +19,8 @@ var river_fields: VBoxContainer
 var river_loaded:=""
 var slope_fields: VBoxContainer
 var slope_loaded:=""
+var _river_bound_values:Dictionary={}
+var _slope_bound_values:Dictionary={}
 const River=preload("res://scripts/world3d/river_material_data.gd")
 func note(text: String) -> Label:
 	var label:=Label.new(); label.text=text; label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; add_child(label); return label
@@ -152,20 +154,32 @@ func _refresh_furrows() -> void:
 				break
 	for key in values: furrow_fields.fields[key].value=values[key]
 
-func _refresh_slope() -> void:
+func _pending_values(form: VBoxContainer, bound: Dictionary) -> Dictionary:
+	var pending:Dictionary={}
+	var current:Dictionary=form.values()
+	for key in current:
+		var value:Variant=current[key]
+		if bound.has(key) and value!=bound[key]:pending[key]=value
+	return pending
+
+func _refresh_slope(catalog_changed: bool = false) -> void:
 	if slope_fields==null: return
 	var config: Dictionary=editor._doc._find(selected()).get("terrain_slope_blend",{})
 	var key:=selected()+JSON.stringify(config)
-	if key==slope_loaded: return
+	if key==slope_loaded and not catalog_changed: return
+	var pending: Dictionary=_pending_values(slope_fields,_slope_bound_values) if catalog_changed and key==slope_loaded else {}
 	slope_loaded=key
 	var values:={"steep_start":config.get("steep_start",40.0),"steep_end":config.get("steep_end",65.0),"rock_material_id":"pack:default:terrain/icelandic_jagged_slate/material"}
 	for key_ in River.TRANSITION_DEFAULTS: values[key_]=config.get(key_,River.TRANSITION_DEFAULTS[key_] if config.is_empty() else 0.)
 	values.transition_material_id=River.TRANSITION_MATERIAL
 	var options: Array=[]
-	for entry in editor._material_tool.library.entries():
+	# Reuse the material browser's validated, asynchronously published catalog.
+	for entry in editor._material_panel._entries:
 		options.append({"id":entry.material_id,"name":entry.material.name})
 		if config.get("rock_material",{})==entry.material: values.rock_material_id=entry.material_id
 		if config.get("transition_material",{})==entry.material: values.transition_material_id=entry.material_id
+	_slope_bound_values=values.duplicate(true)
+	values.merge(pending,true)
 	slope_fields.build(River.slope_schema(),values,{"steep_start":"开始露岩坡度（度）","steep_end":"完全露岩坡度（度）","rock_material_id":"陡坡岩石材质","transition_material_id":"边缘土层 / 碎石材质","transition_width":"自然交错范围（米；0 关闭）","edge_noise":"边界不规则程度","height_blend_strength":"贴图高度混合强度"},{"rock_material_id":options,"transition_material_id":options})
 
 func _apply_furrows(enabled: bool) -> void:
@@ -189,7 +203,7 @@ func _apply_slope(enabled: bool) -> void:
 		args.terrain_ids.append(record.uuid)
 	report(preload("res://scripts/world_editor/river_material_tools.gd").apply_slope(editor,args))
 
-func _refresh_river() -> void:
+func _refresh_river(catalog_changed: bool = false) -> void:
 	if river_fields==null: return
 	var record: Dictionary=editor._doc._find(selected())
 	var config: Dictionary=record.get("terrain_depth_blend",{})
@@ -200,7 +214,8 @@ func _refresh_river() -> void:
 	for r in editor._selection_tools.records():
 		if r.has("bank_wetness"): bank_config=r.bank_wetness; break
 	var key:=selected()+JSON.stringify([config,water_config,bank_config])
-	if key==river_loaded: return
+	if key==river_loaded and not catalog_changed: return
+	var pending: Dictionary=_pending_values(river_fields,_river_bound_values) if catalog_changed and key==river_loaded else {}
 	river_loaded=key
 	var values:=River.DEFAULTS.duplicate(true)
 	values.wet_darkening=config.get("wet_darkening",0.)
@@ -214,10 +229,12 @@ func _refresh_river() -> void:
 	var options: Array=[]
 	values.sand_material_id="pack:default:terrain/bright_desert_sand/material"
 	values.rock_material_id="pack:default:terrain/icelandic_jagged_slate/material"
-	for entry in editor._material_tool.library.entries():
+	for entry in editor._material_panel._entries:
 		options.append({"id":entry.material_id,"name":entry.material.name})
 		for layer in ["sand","rock","transition"]:
 			if config.get(layer+"_material",{})==entry.material: values[layer+"_material_id"]=entry.material_id
+	_river_bound_values=values.duplicate(true)
+	values.merge(pending,true)
 	river_fields.build(River.request_schema(),values,{"water_level":"水面世界标高（米）","shore_start":"岸上开始接回底材（米）","shore_end":"岸上完全恢复底材（米）","rock_start":"水下开始混入岩石（米）","rock_end":"水下完全转为岩石（米）","bank_profile":"自然河岸算法","steep_start":"开始露岩坡度（度）","steep_end":"完全露岩坡度（度）","wet_height":"河岸 / 岸墙湿痕高度（米）","wet_darkening":"自然河岸湿润变暗（0 关闭）","absorption":"河水浑浊 / 吸收系数","shallow_color":"浅水颜色","deep_color":"深水颜色","sand_material_id":"浅水沙地材质","rock_material_id":"深水岩石材质","transition_material_id":"边缘土层 / 碎石材质","transition_width":"自然交错范围（米；0 关闭）","edge_noise":"边界不规则程度","height_blend_strength":"贴图高度混合强度"},{"sand_material_id":options,"rock_material_id":options,"transition_material_id":options,"bank_profile":[{"id":"natural","name":"水深 + 坡度 · 三向投影"},{"id":"depth","name":"仅水深 · 旧版对照"}]})
 
 func _apply_river(enabled: bool) -> void:
@@ -253,3 +270,7 @@ func _refresh_material_choices() -> void:
 	for entry in editor._material_panel._entries:
 		materials.add_item(str(entry.material.name)); materials.set_item_metadata(materials.item_count - 1, entry.material_id)
 		if entry.material_id == chosen: materials.select(materials.item_count - 1)
+	# Catalog publication must not discard a partly edited form or the selected
+	# material. Document/selection changes still load the actual stored values.
+	_refresh_river(true)
+	_refresh_slope(true)

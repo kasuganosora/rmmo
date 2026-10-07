@@ -12,6 +12,9 @@ static func button(parent: Node, text: String, action: Callable) -> Button:
 
 
 static func build(editor: Node3D) -> void:
+	var measured:=Time.get_ticks_usec()
+	var startup:Dictionary={}
+	var profile:bool=editor.has_meta("profile_startup")
 	var layer := CanvasLayer.new()
 	editor.add_child(layer)
 	var panel := PanelContainer.new()
@@ -89,9 +92,14 @@ static func build(editor: Node3D) -> void:
 	resource_menu.text = "资源"; menubar.add_child(resource_menu)
 	resource_menu.get_popup().add_item("导入模型…", 0)
 	resource_menu.get_popup().add_item("素材管理…", 1)
+	resource_menu.get_popup().add_item("重新生成选中素材缩略图", 2)
 	resource_menu.get_popup().id_pressed.connect(func(id: int):
 		if id == 0: editor._import_asset()
 		elif id == 1: editor._manage_asset()
+		elif id == 2:
+			var ops=preload("res://scripts/world_editor/mcp_ops.gd").new(); ops.editor=editor
+			var result: Dictionary=ops.repair_thumbnails([ops.asset_id(editor._selected())])
+			editor._status.text="已排队生成缩略图" if result.ok else result.error
 	)
 	var play_menu := MenuButton.new(); play_menu.name = "WorkspacePlayMenu"
 	play_menu.text = "试玩"; menubar.add_child(play_menu)
@@ -156,6 +164,14 @@ static func build(editor: Node3D) -> void:
 	search.text_changed.connect(func(_text): editor._search_timer.start())
 	editor._search_timer.timeout.connect(func(): editor._on_search(search.text))
 	library.add_child(search)
+	editor._asset_category_picker = OptionButton.new()
+	editor._asset_category_picker.name = "AssetCategory"
+	library.add_child(editor._asset_category_picker)
+	editor._asset_category_picker.item_selected.connect(func(index):
+		editor._asset_category = str(editor._asset_category_picker.get_item_metadata(index))
+		editor._pick = 0
+		editor._refresh_palette()
+	)
 	var assets := HBoxContainer.new()
 	library.add_child(assets)
 	label = Label.new()
@@ -193,6 +209,9 @@ static func build(editor: Node3D) -> void:
 		editor._mode_buttons.append(mode)
 	modes.add_child(VSeparator.new())
 	button(modes, "网格", func(): editor._grid.visible = not editor._grid.visible)
+	editor._walk_button=button(modes,"胶囊行走 F6",editor._toggle_walk_mode)
+	editor._walk_button.name="CapsuleWalkButton";editor._walk_button.toggle_mode=true
+	editor._walk_button.tooltip_text="以可见胶囊体在当前地图行走；仍可选择、移动和摆放物件。F6 / Esc 退出并恢复视角。"
 	transforms.add_child(VSeparator.new())
 	var transform_group := ButtonGroup.new()
 	for index in 3:
@@ -263,6 +282,7 @@ static func build(editor: Node3D) -> void:
 	editor._auto_toolbar.visible = false
 	editor._canvas = SubViewportContainer.new()
 	editor._canvas.stretch = true
+	editor._canvas.tooltip_text="中键拖动平移 · 按住中键 + WASD 水平移动 · ↑ / ↓ 垂直移动 · Shift 加速"
 	editor._canvas.mouse_filter = Control.MOUSE_FILTER_PASS
 	editor._canvas.set_drag_forwarding(Callable(), editor._can_drop_palette, editor._drop_palette)
 	editor._canvas.custom_minimum_size = Vector2(240, 200)
@@ -321,6 +341,7 @@ static func build(editor: Node3D) -> void:
 	editor._material_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	material_scroll.add_child(editor._material_panel)
 	editor._material_panel.setup(editor)
+	if profile:startup["base_and_material_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var auto_scroll := ScrollContainer.new()
 	auto_scroll.name = "拼接"
 	auto_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -329,10 +350,12 @@ static func build(editor: Node3D) -> void:
 	editor._auto_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	auto_scroll.add_child(editor._auto_panel)
 	editor._auto_panel.setup(editor)
+	if profile:startup["auto_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var event_scroll := ScrollContainer.new(); event_scroll.name = "事件"; event_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	editor._dock_tabs.add_child(event_scroll)
 	editor._event_panel = preload("res://scripts/world_editor/event_panel.gd").new(); editor._event_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	event_scroll.add_child(editor._event_panel); editor._event_panel.setup(editor)
+	if profile:startup["event_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var environment_page := VBoxContainer.new(); environment_page.name = "环境"
 	editor._dock_tabs.add_child(environment_page)
 	button(environment_page, "应用环境设置", func(): editor._environment_panel.apply())
@@ -341,18 +364,22 @@ static func build(editor: Node3D) -> void:
 	environment_page.add_child(environment_scroll)
 	editor._environment_panel = preload("res://scripts/world_editor/environment_panel.gd").new(); editor._environment_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	environment_scroll.add_child(editor._environment_panel); editor._environment_panel.setup(editor)
+	if profile:startup["environment_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var view_scroll := ScrollContainer.new(); view_scroll.name = "楼层/试玩"; view_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	editor._dock_tabs.add_child(view_scroll)
 	editor._view_panel = preload("res://scripts/world_editor/view_panel.gd").new(); editor._view_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_scroll.add_child(editor._view_panel); editor._view_panel.setup(editor)
+	if profile:startup["view_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var building_scroll := ScrollContainer.new(); building_scroll.name = "建筑"; building_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	editor._dock_tabs.add_child(building_scroll)
 	editor._building_panel = preload("res://scripts/world_editor/building_panel.gd").new(); editor._building_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	building_scroll.add_child(editor._building_panel); editor._building_panel.setup(editor)
+	if profile:startup["building_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	var city_scroll := ScrollContainer.new(); city_scroll.name = "城镇布局"; city_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	editor._dock_tabs.add_child(city_scroll)
 	var city_panel := preload("res://scripts/world_editor/city_panel.gd").new(); city_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	city_scroll.add_child(city_panel); city_panel.setup(editor)
+	if profile:startup["city_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	editor._ground_draw=preload("res://scripts/world_editor/terrain_region_draw.gd").new()
 	editor._canvas.add_child(editor._ground_draw); editor._ground_draw.setup(editor)
 	editor._terrain_brush=preload("res://scripts/world_editor/terrain_brush.gd").new()
@@ -361,6 +388,7 @@ static func build(editor: Node3D) -> void:
 	editor._dock_tabs.add_child(terrain_scroll)
 	editor._terrain_panel=preload("res://scripts/world_editor/terrain_panel.gd").new(); editor._terrain_panel.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	terrain_scroll.add_child(editor._terrain_panel); editor._terrain_panel.setup(editor)
+	if profile:startup["terrain_panel_ms"]=(Time.get_ticks_usec()-measured)/1000.;measured=Time.get_ticks_usec()
 	for index in editor._dock_tabs.get_tab_count(): navigator.add_item("工作面板 · " + editor._dock_tabs.get_tab_title(index))
 	navigator.select(editor._dock_tabs.current_tab)
 	editor._status = Label.new()
@@ -386,8 +414,11 @@ static func build(editor: Node3D) -> void:
 	editor.add_child(editor._thumbnails)
 	editor._thumbnails.available.connect(editor._apply_thumbnail)
 	editor._thumbnails.import_finished.connect(func(_key, path, error):
-		editor._status.text = "素材和缩略图已保存到资源包" if error == OK else "素材已保存，但缩略图保存失败：" + path
+		editor._status.text = "素材缩略图已生成" if error == OK else "缩略图生成失败，可从资源菜单重试：" + path
 	)
 	editor._palette.visible_entries_changed.connect(editor._update_visible_thumbnails)
 	editor._refresh_palette()
 	editor._add_grid()
+	if profile:
+		startup["finish_ms"]=(Time.get_ticks_usec()-measured)/1000.
+		editor.set_meta("startup_workspace",startup)

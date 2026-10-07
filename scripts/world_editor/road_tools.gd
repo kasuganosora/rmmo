@@ -40,9 +40,9 @@ func zones(args: Dictionary) -> Dictionary:
 	if not preload("res://scripts/world3d/planning_zones.gd").valid(value.zones): return Data.fail("保留区需为无自交的简单多边形，面积至少 1 平方米，且高度范围有效")
 	return editor._city.commit(value)
 
-func prepare(args: Dictionary) -> Dictionary:
+func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	var settings:=Plan.defaults(); settings.merge(Data.resolve(editor._doc.map_meta).get("road_surface",{}).get("settings",{}),true); var changes:=args.duplicate(true); changes.erase("plan_token"); settings.merge(changes,true)
-	var data:=Data.resolve(editor._doc.map_meta); var old: Dictionary=data.get("road_surface",{}); var by_key:={}; var excluded:={}
+	var data:=Data.resolve(editor._doc.map_meta) if override_data.is_empty() else override_data; var old: Dictionary=data.get("road_surface",{}); var by_key:={}; var excluded:={}
 	for part in old.get("parts",[]):
 		var record: Dictionary=editor._doc._find(part.id)
 		if record.is_empty() or record.get("road_source","")!=part.key or Surface.signature(record)!=part.signature: return Data.fail("道路铺面已被手改或删除；请恢复修改，或解除铺面关联后自行处理")
@@ -50,6 +50,10 @@ func prepare(args: Dictionary) -> Dictionary:
 		by_key[part.key]=part; excluded[part.id]=true
 	for edge in data.roads.edges+data.roads.nodes:
 		if edge.get("hidden",false) or edge.get("locked",false): return Data.fail("生成前请显示并解锁道路骨架")
+	if settings.kerb_enabled:
+		var connected:=preload("res://scripts/world3d/road_intersections.gd").split(data.roads)
+		if not connected.ok:return connected
+		data=data.duplicate(true);data.roads=connected.graph
 	var binding:=preload("res://scripts/world3d/road_bridges.gd").resolve(data)
 	if not binding.ok: return binding
 	for portal in binding.portals:
@@ -68,6 +72,10 @@ func prepare(args: Dictionary) -> Dictionary:
 	if not settings.material_id.is_empty():
 		material=editor._material_tool.library.find(settings.material_id)
 		if material.is_empty(): return Data.fail("所选铺路材质不存在")
+	var kerb_material:Dictionary={}
+	if settings.kerb_enabled:
+		kerb_material=editor._material_tool.library.find(settings.kerb_material_id)
+		if kerb_material.is_empty() or not Paint.material_valid(kerb_material) or kerb_material.color[3]!=1 or not Paint.missing([{"road_kerb_material":kerb_material}]).is_empty():return Data.fail("路缘材质不存在或贴图依赖缺失")
 	var manifest:={"version":1,"settings":settings,"graph_token":Data.token(data.roads),"parts":[]}
 	var seen:={}; var added:=0; var updated:=0; var unchanged:=0
 	for record in result.records:
@@ -75,6 +83,7 @@ func prepare(args: Dictionary) -> Dictionary:
 		var key: String=record.road_source; seen[key]=true
 		record.uuid=by_key[key].id if by_key.has(key) else "pavement_"+key.sha256_text().left(20)
 		if not by_key.has(key) and editor._doc.has_uuid(record.uuid): return Data.fail("道路构件 ID 已被其他物件占用")
+		if record.road_mesh.has("kerbs"):record.road_kerb_material=kerb_material.duplicate(true)
 		if not material.is_empty():
 			var painted:=paint_default(record,material)
 			if not painted.ok: return painted
@@ -117,7 +126,7 @@ func prepare(args: Dictionary) -> Dictionary:
 			if support: continue
 			if Footprint.batches_overlap(occupancy,[obstacle.shape]): return {"ok":false,"error":"路面或通行净空与现有物件重叠","conflicts":[obstacle.record.uuid]}
 	if editor._doc.records.size()-excluded.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")
-	result.manifest=manifest; result.excluded=excluded
+	result.manifest=manifest; result.excluded=excluded;result.graph=data.roads
 	result.diff={"added":added,"updated":updated,"unchanged":unchanged,"removed":by_key.size()+added-result.records.size()}
 	result.plan_token=JSON.stringify([settings,data.roads,editor._doc.records,old]).sha256_text()
 	return result
@@ -135,7 +144,7 @@ func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:
 func summary(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)
 	if not result.ok: return result
-	return {"ok":true,"chunks":result.chunks,"area":result.area,"diff":result.diff,"plan_token":result.plan_token,"graph_token":result.manifest.graph_token}
+	return {"ok":true,"chunks":result.chunks,"area":result.area,"kerb_length":result.kerb_length,"diff":result.diff,"plan_token":result.plan_token,"graph_token":result.manifest.graph_token}
 
 func generate(args: Dictionary) -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
@@ -145,10 +154,8 @@ func generate(args: Dictionary) -> Dictionary:
 	if args.has("plan_token") and args.plan_token!=result.plan_token: return Data.fail("道路方案或现有物件已改变，请重新预览")
 	if result.diff.added==0 and result.diff.updated==0 and result.diff.removed==0 and Data.resolve(editor._doc.map_meta).get("road_surface",{})==result.manifest: return {"ok":true,"changed":false,"diff":result.diff}
 	editor._doc.checkpoint_recovery()
-	editor._doc.records=editor._doc.records.filter(func(r):return not result.excluded.has(r.uuid))
-	editor._doc.records.append_array(result.records)
-	var data:=Data.resolve(editor._doc.map_meta); data.road_surface=result.manifest; editor._doc.map_meta.editor_layout=data
-	editor._dirty=true; editor._rebuild()
+	var data:=Data.resolve(editor._doc.map_meta)
+	apply_prepared(result,data)
 	return {"ok":true,"changed":true,"chunks":result.chunks,"diff":result.diff,"ids":result.records.map(func(r):return r.uuid)}
 
 func detach() -> Dictionary:
@@ -165,3 +172,24 @@ func detach() -> Dictionary:
 		if not record.is_empty(): record.erase("road_source")
 	data.erase("road_surface"); editor._doc.map_meta.editor_layout=data; editor._dirty=true; editor._city.refresh()
 	return {"ok":true}
+
+func apply_prepared(result:Dictionary,data:Dictionary)->void:
+	var changed:Array[String]=[]
+	for record in result.records:
+		if record!=editor._doc._find(record.uuid):changed.append(record.uuid)
+	var present:Dictionary={}
+	for record in result.records:present[record.uuid]=true
+	for id in result.excluded:
+		if not present.has(id):changed.append(id)
+	editor._doc.records=editor._doc.records.filter(func(r):return not result.excluded.has(r.uuid))
+	editor._doc.records.append_array(result.records)
+	data.roads=result.graph;data.road_surface=result.manifest;editor._doc.map_meta.editor_layout=data
+	editor._dirty=true;editor._refresh_records(changed)
+	editor._selection_tools.invalidate_pivot();editor._refresh_selection(false)
+	editor._object_list.refresh();editor._city.refresh()
+
+func geometry_token(graph:Dictionary)->String:
+	var copy:=graph.duplicate(true)
+	for item in copy.nodes+copy.edges:
+		for field in ["name","locked","hidden"]:item.erase(field)
+	return Data.token(copy)

@@ -127,9 +127,9 @@ func bind_world_map_3d(world:Node)->void:
 	_radar=preload("res://scripts/ui/world_map_view_3d.gd").new()
 	minimap_view_host.add_child(_radar)
 	_radar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_apply_radar_view_radius_from_settings()
 	_radar.bind_world(world,true)
 	minimap_view_host.move_child(_radar,0)
-	_apply_radar_view_radius_from_settings()
 	get_node("MinimapPanel").visible=true
 	minimap_label.text=world._map_data.title
 var _radar_player: Node2D
@@ -895,6 +895,13 @@ func _apply_chat_result_locally(result: Dictionary) -> void:
 func _on_remote_debug_spawn() -> void:
 	_emote_panel_logic._on_remote_debug_spawn()
 func _process(_delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_tick_frame(_delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(_delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(_delta:float)->void:
 	_tick_duel_banner(_delta)
 	_tick_level_toast(_delta)
 	_tick_quest_toast(_delta)

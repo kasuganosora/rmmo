@@ -40,6 +40,13 @@ func guard() -> Dictionary:
 func commit(value: Dictionary) -> Dictionary:
 	if not Data.valid({"editor_layout":value}): return Data.fail("城市布局数据无效")
 	if value == Data.resolve(editor._doc.map_meta): return {"ok":true,"changed":false}
+	var previous:=Data.resolve(editor._doc.map_meta)
+	if previous.get("road_surface",{}).get("settings",{}).get("kerb_enabled",false) and editor._roads.geometry_token(previous.roads)!=editor._roads.geometry_token(value.roads):
+		var prepared:Dictionary=editor._roads.prepare({},value)
+		if not prepared.ok:return prepared
+		editor._doc.checkpoint_recovery()
+		editor._roads.apply_prepared(prepared,value)
+		return {"ok":true,"changed":true,"surface_updated":true,"diff":prepared.diff}
 	editor._doc.checkpoint_recovery()
 	editor._doc.map_meta.editor_layout = value
 	editor._dirty = true
@@ -66,6 +73,7 @@ func set_camera(changes: Dictionary) -> Dictionary:
 	return {"ok":true,"camera":camera_state()}
 
 func apply_camera(value: Dictionary) -> void:
+	if editor._walk_mode!=null and editor._walk_mode.active:editor._walk_mode.stop()
 	_distance=value.distance
 	editor._orbit_center = Data.vec(value.center)
 	_angles = Vector2(value.pitch,value.yaw)
@@ -94,8 +102,18 @@ func pan(relative: Vector2) -> void:
 	var height: float = maxf(editor._canvas.size.y,1)
 	var span: float = editor._camera.size if editor._camera.projection == Camera3D.PROJECTION_ORTHOGONAL else 2*editor._camera.position.distance_to(editor._orbit_center)*tan(deg_to_rad(editor._camera.fov*.5))
 	var offset: Vector3 = (-editor._camera.global_basis.x*relative.x+editor._camera.global_basis.y*relative.y)*span/height
-	editor._camera.position += offset; editor._orbit_center += offset
+	editor._camera.position+=offset; editor._orbit_center+=offset
 	update_grid()
+
+func move_camera(offset: Vector3) -> Dictionary:
+	var ready:=guard()
+	if not ready.ok: return ready
+	if editor._walk_mode!=null and editor._walk_mode.active:return Data.fail("胶囊行走中请使用行走控制，或先退出再平移自由镜头")
+	var center: Vector3=editor._orbit_center+offset
+	if not offset.is_finite() or center.abs()[center.abs().max_axis_index()]>100000: return Data.fail("镜头位置超出范围")
+	editor._camera.position+=offset; editor._orbit_center=center
+	update_grid()
+	return {"ok":true,"camera":camera_state()}
 
 func orbit(relative: Vector2) -> void:
 	if editor._camera.projection == Camera3D.PROJECTION_ORTHOGONAL:
@@ -420,6 +438,7 @@ func input(event: InputEvent) -> bool:
 					if node.id==drag_node.id: node.position=Data.xyz(position); analysis.nodes[node.id]=node
 				for edge in data.roads.edges:
 					if drag_node.id in [edge.from,edge.to]: analysis.paths[edge.id]=Data.samples(edge,analysis.nodes)
+				if overlay!=null: overlay.refresh_roads()
 				drag_moved=true
 			return true
 		return event is InputEventKey or event is InputEventMouseButton

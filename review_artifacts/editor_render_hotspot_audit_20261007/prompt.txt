@@ -1,0 +1,1011 @@
+You are auditing RMMO editor rendering, READ ONLY. Do not execute commands or edit files; available tools disabled. Return at most two concrete verifiable major opportunities, and label uncertain hypotheses. Chinese response. User permits static analysis only, no GPU tests, maps unchanged. Windows GPU tests must use tools/run_godot_background.py later. UI/3D MCP semantics must preserve independent selection, collision, undo/save and authoring. Wind defaults disabled in editor but can enable. Existing frozen house same-floor batch candidate reduced 285 surfaces but total draws 9082->9115 and scene CPU 13.988->13.970 ms, so rejected. Minimap texture cache reduced782 draws but no stable frame gain, rejected. Fulltown overview has ~9000draws, 4372records:2276 house_prefab,867assets with750grass at14paths,162water,1009original batched sources. No claim all grass static without inspecting GLB metadata. Focus safe per-cell instancing of repeated imported assets or narrow accurate sampling needed before implementation. Consider authored per-child LOD ranges, wind per-instance material/exposure/local-space bends, alpha sorting, shadow/culling, runtime resources shared by PackedScene, imported assets have UUID child semantics. Identify why simple MultiMesh may be unsafe and minimal viable prototype.
+FILE: scripts/world3d/asset_visibility_range.gd
+extends RefCounted
+## Authored asset LOD ranges shared by native import, editor and streaming.
+## Metadata survives glTF save/reopen; invalid ranges have no side effects.
+static func apply(root: Node) -> void:
+	for mesh in preload("res://scripts/world3d/surface_materials.gd").meshes(root): register(mesh)
+
+static func register(mesh: MeshInstance3D) -> void:
+	var raw: Variant = mesh.get_meta("extras", {}).get("rmmo_visibility_range")
+	if not raw is Dictionary: return
+	var begin: Variant = raw.get("begin")
+	var end: Variant = raw.get("end")
+	for value in [begin, end]:
+		if typeof(value) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(value)) or float(value) < 0.0 or float(value) > 100000.0: return
+	if float(end) != 0.0 and float(end) <= float(begin): return
+	var bounds: Variant = raw.get("bounds")
+	if not bounds is Array or bounds.size() != 6: return
+	for value in bounds:
+		if typeof(value) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(value)): return
+	if float(bounds[3]) <= 0.0 or float(bounds[4]) <= 0.0 or float(bounds[5]) <= 0.0: return
+	mesh.custom_aabb = AABB(Vector3(bounds[0], bounds[1], bounds[2]), Vector3(bounds[3], bounds[4], bounds[5]))
+	mesh.visibility_range_begin = float(begin)
+	mesh.visibility_range_end = float(end)
+	mesh.visibility_range_begin_margin = 1.0 if float(begin) > 0.0 else 0.0
+	mesh.visibility_range_end_margin = 1.0 if float(end) > 0.0 else 0.0
+	mesh.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+
+FILE: scripts/world3d/wind_response.gd
+extends RefCounted
+## Authored response only. Never infer flexibility from a material or file name.
+const Schema = preload("res://scripts/world3d/document_schema.gd")
+const Paint = preload("res://scripts/world3d/surface_materials.gd")
+const GROUP := "world3d_wind_receivers"
+
+static func schema() -> Dictionary:
+	return {"type":"object", "additionalProperties":false, "properties":{
+		"profile":{"type":"string","enum":["off","foliage","cloth"]},
+		"mesh":{"type":"string","maxLength":512},
+		"amplitude":Schema.number(0,1.5), "stiffness":Schema.number(0,1),
+		"anchor":{"type":"string","enum":["bottom","top","left","right"]},
+		"shelter":{"type":"boolean"}}}
+
+static func defaults() -> Dictionary:
+	return {"profile":"off", "mesh":"*", "amplitude":.35, "stiffness":.5, "anchor":"bottom", "shelter":true}
+
+static func resolve(record: Dictionary) -> Dictionary:
+	return defaults().merged(record.get("wind_response",{}),true)
+
+static func valid(record: Dictionary) -> bool:
+	if not record.has("wind_response"): return true
+	return record.get("kind") in ["box","asset"] and not record.has("building") and not record.has("tile3d") and Schema.validate(record.wind_response,schema()).is_empty()
+
+static func material_error(material: Material) -> String:
+	if material == null: return ""
+	if not material is StandardMaterial3D: return "仅支持 StandardMaterial3D；自定义着色器 / ORM 材质需单独适配风场"
+	if material.next_pass != null or material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return "多 Pass 或公告板材质暂不支持受风"
+	if material.transparency not in [BaseMaterial3D.TRANSPARENCY_DISABLED,BaseMaterial3D.TRANSPARENCY_ALPHA,BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR]: return "此透明模式暂不支持受风"
+	if material.shading_mode == BaseMaterial3D.SHADING_MODE_PER_VERTEX: return "逐顶点光照材质暂不支持受风"
+	if material.diffuse_mode != BaseMaterial3D.DIFFUSE_BURLEY or material.specular_mode != BaseMaterial3D.SPECULAR_SCHLICK_GGX: return "此漫反射 / 高光模型暂不支持受风"
+	if material.blend_mode != BaseMaterial3D.BLEND_MODE_MIX or material.no_depth_test or material.disable_receive_shadows or material.disable_ambient_light: return "此混合 / 深度 / 光照设置暂不支持受风"
+	if material.ao_on_uv2 or material.emission_on_uv2: return "第二套 UV 的 AO / 自发光暂不支持受风"
+	for feature in ["uv1_triplanar","uv2_triplanar","detail_enabled","heightmap_enabled","refraction_enabled","rim_enabled","clearcoat_enabled","subsurf_scatter_enabled","grow_enabled","proximity_fade_enabled"]:
+		if material.get(feature): return "材质特性 %s 暂不支持受风" % feature
+	if material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return "距离淡出材质暂不支持受风"
+	return ""
+
+static func mesh_error(node: MeshInstance3D) -> String:
+	if node.skin != null or (node.mesh is ArrayMesh and node.mesh.get_blend_shape_count() > 0): return "骨骼 / 变形网格已有动画，不能叠加此地图风变形"
+	if node.mesh.get_surface_count() > 32: return "单网格最多支持 32 个材质槽"
+	for slot in node.mesh.get_surface_count():
+		var error := material_error(base_material(node,slot))
+		if not error.is_empty(): return error
+	return ""
+
+static func base_material(node: MeshInstance3D, slot: int) -> Material:
+	# Wind preview is an instance-only override. Authoring reads the original material.
+	return Paint.source_material(node,slot)
+
+static func catalog(root: Node3D) -> Array:
+	var rows: Array = []
+	if root == null: return rows
+	for node in Paint.meshes(root):
+		var reason := mesh_error(node)
+		rows.append({"mesh":str(root.get_path_to(node)), "supported":reason.is_empty(), "reason":reason})
+	return rows
+
+static func validate_target(root: Node3D, config: Dictionary) -> String:
+	var count := 0
+	for node in Paint.meshes(root):
+		if config.mesh != "*" and str(root.get_path_to(node)) != config.mesh: continue
+		count += 1
+		var error := mesh_error(node)
+		if not error.is_empty(): return str(root.get_path_to(node))+"："+error
+		var axis := 1 if config.anchor in ["top","bottom"] else 0
+		if node.get_aabb().size[axis] < .001: return "固定轴没有长度，请更换固定边或网格"
+	return "未找到此物件内的网格" if count == 0 else ""
+
+static func annotate(root: Node3D, record: Dictionary) -> void:
+	if not valid(record): return
+	var config := resolve(record)
+	if config.profile == "off":
+		if record.has("wind_response"):
+			for node in Paint.meshes(root):
+				if config.mesh != "*" and str(root.get_path_to(node)) != config.mesh:continue
+				var extras:Dictionary=node.get_meta("extras",{}).duplicate(true)
+				extras.erase("rmmo_wind");node.set_meta("extras",extras)
+				if node.is_in_group(GROUP):node.remove_from_group(GROUP)
+		return
+	for node in Paint.meshes(root):
+		if config.mesh != "*" and str(root.get_path_to(node)) != config.mesh: continue
+		var extras: Dictionary = node.get_meta("extras",{}).duplicate(true)
+		extras.rmmo_wind = config.duplicate(true)
+		node.set_meta("extras",extras)
+		register(node)
+
+static func register(node: MeshInstance3D) -> void:
+	var config: Variant = node.get_meta("extras",{}).get("rmmo_wind")
+	if config is Dictionary and Schema.validate(config,schema()).is_empty() and config.get("profile","off") != "off": node.add_to_group(GROUP)
+
+FILE: scripts/world3d/wind_material.gd
+extends RefCounted
+const Response = preload("res://scripts/world3d/wind_response.gd")
+static var shaders := {}
+
+static func channel(value: int) -> Vector4:
+	if value == BaseMaterial3D.TEXTURE_CHANNEL_GRAYSCALE: return Vector4(1.0/3,1.0/3,1.0/3,0)
+	var out := Vector4.ZERO; out[clampi(value,0,3)] = 1; return out
+
+static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB) -> ShaderMaterial:
+	if source == null: source = StandardMaterial3D.new()
+	var key := "%d/%d/%d/%s/%d/%s" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter,source.backlight_enabled]
+	if not shaders.has(key):
+		var code: String = preload("res://scripts/world3d/wind_material.gdshader").code
+		var cull: String = ["cull_back","cull_front","cull_disabled"][source.cull_mode]
+		if source.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED: cull += ", unshaded"
+		code = code.replace("render_mode cull_back;", "render_mode "+cull+";")
+		if not source.texture_repeat: code = code.replace("repeat_enable","repeat_disable")
+		var filters := ["filter_nearest","filter_linear","filter_nearest_mipmap","filter_linear_mipmap","filter_nearest_mipmap_anisotropic","filter_linear_mipmap_anisotropic"]
+		code = code.replace("filter_linear_mipmap_anisotropic",filters[source.texture_filter])
+		var alpha := ""
+		if source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA: alpha = "ALPHA = base.a;"
+		elif source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR: alpha = "ALPHA = base.a; ALPHA_SCISSOR_THRESHOLD = alpha_cut;"
+		code = code.replace("// ALPHA_INSERT",alpha)
+		code = code.replace("// BACKLIGHT_INSERT","BACKLIGHT = backlight + texture(backlight_tex,UV).rgb;" if source.backlight_enabled else "")
+		var shader := Shader.new(); shader.code = code; shaders[key] = shader
+	var result := ShaderMaterial.new(); result.shader = shaders[key]; result.render_priority = source.render_priority
+	var params := {"tint":source.albedo_color,"uv_scale":source.uv1_scale,"uv_offset":source.uv1_offset,
+		"vertex_color":source.vertex_color_use_as_albedo, "roughness":source.roughness,"metallic":source.metallic,"specular":source.metallic_specular,
+		"normal_enabled":source.normal_enabled,"normal_scale":source.normal_scale,"ao_enabled":source.ao_enabled,"ao_light":source.ao_light_affect,
+		"rough_channel":channel(source.roughness_texture_channel),"metal_channel":channel(source.metallic_texture_channel),"ao_channel":channel(source.ao_texture_channel),
+		"emission":source.emission if source.emission_enabled else Color.BLACK, "emission_energy":source.emission_energy_multiplier if source.emission_enabled else 0.0,
+		"emission_multiply":source.emission_operator == BaseMaterial3D.EMISSION_OP_MULTIPLY,"alpha_cut":source.alpha_scissor_threshold,
+		"emission_texture_present":source.emission_texture != null,
+		"backlight_enabled":source.backlight_enabled,"backlight":source.backlight,
+		"amplitude":config.amplitude,"stiffness":config.stiffness,"cloth":config.profile == "cloth",
+		"anchor_reverse":config.anchor in ["top","right"]}
+	var axis := 1 if config.anchor in ["top","bottom"] else 0
+	var axis_vector := Vector3.ZERO; axis_vector[axis] = 1
+	params.anchor_axis = axis_vector; params.anchor_min = bounds.position[axis]; params.anchor_span = maxf(.001,bounds.size[axis])
+	for uniform_name in params: result.set_shader_parameter(uniform_name,params[uniform_name])
+	for pair in [["albedo_tex","albedo_texture"],["normal_tex","normal_texture"],["rough_tex","roughness_texture"],["metal_tex","metallic_texture"],["ao_tex","ao_texture"],["emission_tex","emission_texture"]]:
+		var texture: Texture2D = source.get(pair[1])
+		if texture != null: result.set_shader_parameter(pair[0],texture)
+	if source.backlight_texture!=null:result.set_shader_parameter("backlight_tex",source.backlight_texture)
+	return result
+
+FILE: scripts/world3d/wind_material.gdshader
+shader_type spatial;
+render_mode cull_back;
+uniform vec4 tint : source_color = vec4(1.);
+uniform sampler2D albedo_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D rough_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D metal_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D ao_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D emission_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec3 uv_scale = vec3(1.);
+uniform vec3 uv_offset = vec3(0.);
+uniform bool vertex_color = false;
+uniform float roughness = 1.;
+uniform float metallic = 0.;
+uniform float specular = .5;
+uniform vec4 rough_channel = vec4(1.,0.,0.,0.);
+uniform vec4 metal_channel = vec4(1.,0.,0.,0.);
+uniform vec4 ao_channel = vec4(1.,0.,0.,0.);
+uniform bool normal_enabled = false;
+uniform float normal_scale = 1.;
+uniform bool ao_enabled = false;
+uniform float ao_light = 0.;
+uniform vec3 emission : source_color = vec3(0.);
+uniform float emission_energy = 1.;
+uniform bool emission_multiply = false;
+uniform bool emission_texture_present = false;
+uniform bool backlight_enabled = false;
+uniform vec3 backlight : source_color = vec3(0.);
+uniform sampler2D backlight_tex : hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float alpha_cut = .5;
+uniform vec3 wind_velocity = vec3(0.);
+uniform float wind_time = 0.;
+uniform sampler2D wind_state : filter_nearest, repeat_disable;
+uniform bool wind_state_enabled = false;
+uniform float wind_exposure = 1.;
+uniform float amplitude = .35;
+uniform float stiffness = .5;
+uniform bool cloth = false;
+uniform vec3 anchor_axis = vec3(0.,1.,0.);
+uniform float anchor_min = 0.;
+uniform float anchor_span = 1.;
+uniform bool anchor_reverse = false;
+
+vec3 bend(vec3 point, vec3 local_force, vec3 local_flutter, float phase, float speed, float current_time) {
+	float u = clamp((dot(point,anchor_axis)-anchor_min)/anchor_span,0.,1.);
+	if (anchor_reverse) u = 1.-u;
+	float weight = pow(u, mix(1.4,3.8,stiffness));
+	float wave = sin(current_time*mix(2.,4.5,float(cloth)) - u*7. + phase);
+	float flutter = sin(current_time*8. - u*13. + phase*1.7);
+	float gain = amplitude * clamp(speed/12.,0.,1.5) * (1.-stiffness*.65) * weight;
+	return gain * (local_force*(.68+.16*wave) + local_flutter*(wave*(.12+float(cloth)*.5)+flutter*.06*u));
+}
+void vertex() {
+	UV = UV*uv_scale.xy + uv_offset.xy;
+	vec3 current_wind = wind_velocity;
+	float current_time = wind_time;
+	if (wind_state_enabled) {
+		vec4 state = textureLod(wind_state,vec2(.5),0.);
+		current_wind = state.xyz*wind_exposure;
+		current_time = state.w;
+	}
+	float speed = length(current_wind);
+	if (speed > .0001) {
+		vec3 direction = current_wind/speed;
+		mat3 inv_model = inverse(mat3(MODEL_MATRIX));
+		vec3 local_force = inv_model*direction;
+		vec3 local_flutter = inv_model*(vec3(-direction.z, .12, direction.x));
+		float phase = dot(MODEL_MATRIX[3].xyz,vec3(.37,.13,.29));
+		vec3 d = bend(VERTEX,local_force,local_flutter,phase,speed,current_time);
+		float e = .005;
+		// bend depends only on the authored X/Y anchor coordinate. The Jacobian
+		// is I + slope * axis^T; its rank-one inverse preserves bent lighting
+		// without three samples and a general matrix inverse per vertex.
+		vec3 slope = (bend(VERTEX+anchor_axis*e,local_force,local_flutter,phase,speed,current_time)-d)/e;
+		float det = 1. + dot(anchor_axis,slope);
+		if (abs(det) > .0001) NORMAL = normalize(NORMAL-anchor_axis*dot(slope,NORMAL)/det);
+		if (length(TANGENT) > .001) TANGENT = normalize(TANGENT+slope*dot(anchor_axis,TANGENT));
+		if (length(BINORMAL) > .001) BINORMAL = normalize(BINORMAL+slope*dot(anchor_axis,BINORMAL));
+		VERTEX += d;
+	}
+}
+void fragment() {
+	vec4 base = texture(albedo_tex,UV)*tint;
+	if (vertex_color) base *= COLOR;
+	ALBEDO = base.rgb;
+	ROUGHNESS = roughness*dot(texture(rough_tex,UV),rough_channel);
+	METALLIC = metallic*dot(texture(metal_tex,UV),metal_channel);
+	SPECULAR = specular;
+	if (normal_enabled) { NORMAL_MAP = texture(normal_tex,UV).rgb; NORMAL_MAP_DEPTH = normal_scale; }
+	if (ao_enabled) { AO = dot(texture(ao_tex,UV),ao_channel); AO_LIGHT_AFFECT = ao_light; }
+	vec3 glow = texture(emission_tex,UV).rgb;
+	EMISSION = (emission_texture_present ? (emission_multiply ? emission*glow : emission+glow) : emission) * emission_energy;
+	// BACKLIGHT_INSERT
+	// ALPHA_INSERT
+}
+
+FILE: scripts/world3d/wind_runtime.gd
+extends Node3D
+## Receivers are scoped to this World3D, including isolated editor playtest worlds.
+const Response = preload("res://scripts/world3d/wind_response.gd")
+const Materials = preload("res://scripts/world3d/wind_material.gd")
+const SharedState = preload("res://scripts/world3d/wind_shared_state.gd")
+var camera: Camera3D
+var receivers := {}
+var scan_left := 0.0
+var velocity := Vector3.ZERO
+var elapsed := 0.0
+var active_rows: Array = []
+var range_camera_position := Vector3(INF,INF,INF)
+var enabled := true
+# One private world-state texel keeps every rendered LOD current without a
+# synchronous camera-range sweep. The uniform path remains an A/B reference.
+var shared_state_enabled:=true
+var _shared_state:RefCounted
+const REFRESH_BUDGET_USEC := 2000
+var _active_indices:Dictionary={}
+var _scan_pending:=false
+var _scan_nodes:Array=[]
+var _scan_cleanup:Array=[]
+var _scan_cursor:=0
+var _cleanup_cursor:=0
+var _scan_cleaning:=false
+var _scan_slices:=0
+var _scan_cpu_usec:=0
+var _scan_begin_usec:=0
+var _last_slice_frame:=-1
+var _cancel_nodes_usec:=0
+var _cancel_keys_usec:=0
+var _cancel_timeline:Dictionary={}
+
+func set_shared_state_enabled(value:bool)->void:
+	if shared_state_enabled==value:return
+	shared_state_enabled=value
+	for id:int in receivers:_configure_shared_row(receivers[id])
+	# The retained uniform path is also the same-camera/time A/B reference.
+	if not value:_update_active_rows()
+	advance(velocity,elapsed)
+
+func _configure_shared_row(row:Dictionary)->void:
+	if shared_state_enabled:
+		if _shared_state==null:_shared_state=SharedState.new()
+		_shared_state.update(velocity,elapsed)
+	for material:ShaderMaterial in row.materials:
+		material.set_shader_parameter("wind_state_enabled",shared_state_enabled)
+		if shared_state_enabled:
+			material.set_shader_parameter("wind_state",_shared_state.texture)
+			material.set_shader_parameter("wind_exposure",float(row.exposure))
+	row.shared_exposure=float(row.exposure)
+
+func set_enabled(value: bool) -> void:
+	if enabled==value: return
+	enabled=value; set_physics_process(value); scan_left=0
+	range_camera_position=Vector3(INF,INF,INF)
+	if not enabled:
+		_cancel_refresh()
+		for row in receivers.values(): _restore(row)
+		_clear_active(); receivers.clear()
+
+func _physics_process(delta: float) -> void:
+	if not enabled: return
+	scan_left -= delta
+	if not is_instance_valid(camera): _cancel_refresh(); return
+	# Catch-up physics ticks share one render frame; do not spend the budget
+	# repeatedly before the player gets another visible frame.
+	var frame:=Engine.get_process_frames()
+	if _last_slice_frame==frame:return
+	if not _scan_pending:
+		if scan_left>0:return
+		scan_left=.35
+		_begin_refresh()
+	_last_slice_frame=frame
+	_advance_refresh(REFRESH_BUDGET_USEC)
+
+func refresh() -> void:
+	_cancel_refresh()
+	if not enabled or not is_instance_valid(camera):return
+	# Explicit callers (load, editor preview and tests) retain synchronous semantics.
+	_begin_refresh()
+	_advance_refresh(0)
+
+func _begin_refresh()->void:
+	_scan_begin_usec=Time.get_ticks_usec()
+	_scan_nodes=get_tree().get_nodes_in_group(Response.GROUP)
+	_scan_cursor=0;_cleanup_cursor=0;_scan_cleaning=false
+	_scan_slices=0;_scan_cpu_usec=0;_scan_pending=true
+
+func _cancel_refresh()->void:
+	var profiling:=has_meta("profile_frame")
+	_scan_pending=false
+	var mark:=Time.get_ticks_usec() if profiling else 0
+	_scan_nodes.clear()
+	_cancel_nodes_usec=Time.get_ticks_usec()-mark if profiling else 0
+	var nodes_begin:=mark
+	mark=Time.get_ticks_usec() if profiling else 0
+	_scan_cleanup.clear()
+	_cancel_keys_usec=Time.get_ticks_usec()-mark if profiling else 0
+	if has_meta("profile_wind_timeline"):
+		_cancel_timeline={"nodes_begin_usec":nodes_begin,"nodes_end_usec":nodes_begin+_cancel_nodes_usec,"keys_begin_usec":mark,"keys_end_usec":mark+_cancel_keys_usec}
+	_scan_cursor=0;_cleanup_cursor=0;_scan_cleaning=false
+
+func _eligible(node:Variant,world:World3D,camera_position:Vector3)->bool:
+	return is_instance_valid(node) and node is MeshInstance3D and not node.is_queued_for_deletion() and node.is_inside_tree() and node.is_in_group(Response.GROUP) and node.get_world_3d()==world and node.is_visible_in_tree() and node.global_position.distance_squared_to(camera_position)<=90*90
+
+func _advance_refresh(budget_usec:int)->void:
+	if not _scan_pending:return
+	if not enabled or not is_instance_valid(camera):_cancel_refresh();return
+	var started:=_scan_begin_usec if _scan_slices==0 else Time.get_ticks_usec()
+	var camera_position:=camera.global_position;var world:=get_world_3d()
+	var bind_usec:=0;var bound:=0;var scan_usec:=0;var restore_usec:=0;var erase_usec:=0;var advance_usec:=0;var processed:=0;var removed:=0
+	var profiling:=has_meta("profile_frame")
+	var cleanup_check_usec:=0;var cleanup_keys_usec:=0;var cancel_nodes_usec:=0;var cancel_keys_usec:=0
+	while _scan_cursor<_scan_nodes.size():
+		var mark:=Time.get_ticks_usec()
+		var node:Variant=_scan_nodes[_scan_cursor];_scan_cursor+=1;processed+=1
+		if _eligible(node,world,camera_position):
+			var id:int=node.get_instance_id()
+			if not receivers.has(id):
+				var began:=Time.get_ticks_usec();_bind(node)
+				bind_usec+=Time.get_ticks_usec()-began;bound+=1
+			if receivers.has(id):_refresh_receiver(id,node,camera_position,world)
+		scan_usec+=Time.get_ticks_usec()-mark
+		if budget_usec>0 and Time.get_ticks_usec()-started>=budget_usec:break
+	if _scan_cursor>=_scan_nodes.size() and not _scan_cleaning:
+		var mark:=Time.get_ticks_usec() if profiling else 0
+		_scan_cleanup=receivers.keys();_scan_cleaning=true
+		if profiling:cleanup_keys_usec=Time.get_ticks_usec()-mark
+	while _scan_cleaning and _cleanup_cursor<_scan_cleanup.size() and (budget_usec<=0 or processed==0 or Time.get_ticks_usec()-started<budget_usec):
+		var checked:=Time.get_ticks_usec() if profiling else 0
+		var id:int=_scan_cleanup[_cleanup_cursor];_cleanup_cursor+=1;processed+=1
+		if not receivers.has(id):
+			if profiling:cleanup_check_usec+=Time.get_ticks_usec()-checked
+			continue
+		var node:Variant=receivers[id].node.get_ref()
+		# Recheck current residency, never an old "alive" set from another frame.
+		var eligible:=_eligible(node,world,camera_position)
+		if profiling:cleanup_check_usec+=Time.get_ticks_usec()-checked
+		if eligible:continue
+		var mark:=Time.get_ticks_usec();_restore(receivers[id]);restore_usec+=Time.get_ticks_usec()-mark
+		mark=Time.get_ticks_usec();_remove_active(id);receivers.erase(id);erase_usec+=Time.get_ticks_usec()-mark;removed+=1
+	var complete:=_scan_cleaning and _cleanup_cursor>=_scan_cleanup.size()
+	if complete:
+		_cancel_refresh()
+		cancel_nodes_usec=_cancel_nodes_usec;cancel_keys_usec=_cancel_keys_usec
+		# The synchronous interface historically updates every active uniform.
+		# Periodic scans already update visited/new rows and weather advances all
+		# active rows each frame; no extra unbudgeted finish pass is needed.
+		if budget_usec<=0:
+			var mark:=Time.get_ticks_usec();advance(velocity,elapsed);advance_usec=Time.get_ticks_usec()-mark
+	_scan_slices+=1
+	var used:=Time.get_ticks_usec()-started;_scan_cpu_usec+=used
+	if profiling:set_meta("refresh_timing",{"frame":Engine.get_process_frames(),"physics_frame":Engine.get_physics_frames(),"ms":used/1000.0,"cycle_ms":_scan_cpu_usec/1000.0,"slices":_scan_slices,"pending":_scan_pending,"scan_ms":scan_usec/1000.0,"cleanup_check_ms":cleanup_check_usec/1000.0,"cleanup_keys_ms":cleanup_keys_usec/1000.0,"cancel_nodes_ms":cancel_nodes_usec/1000.0,"cancel_keys_ms":cancel_keys_usec/1000.0,"restore_ms":restore_usec/1000.0,"erase_ms":erase_usec/1000.0,"advance_ms":advance_usec/1000.0,"bind_ms":bind_usec/1000.0,"bound":bound,"processed":processed,"removed":removed,"receivers":receivers.size(),"active":active_rows.size()})
+	if profiling and has_meta("profile_wind_timeline"):
+		var timing:Dictionary=get_meta("refresh_timing")
+		timing["begin_usec"]=started;timing["end_usec"]=started+used
+		if complete:timing["cancel_timeline"]=_cancel_timeline
+
+func _refresh_receiver(id:int,node:MeshInstance3D,camera_position:Vector3,world:World3D)->void:
+	var row:Dictionary=receivers[id]
+	if not _in_range(node,camera_position):_remove_active(id);return
+	row.exposure=1.0
+	if row.config.shelter:
+		var bounds:AABB=node.global_transform*node.get_aabb()
+		var top:=Vector3(bounds.get_center().x,bounds.end.y+.05,bounds.get_center().z)
+		var query:=PhysicsRayQueryParameters3D.create(top,top+Vector3.UP*180,1)
+		if not world.direct_space_state.intersect_ray(query).is_empty():row.exposure=0.0
+	_append_active(id,row)
+	_advance_row(row,velocity,elapsed)
+
+func _append_active(id:int,row:Dictionary)->void:
+	if _active_indices.has(id):return
+	row.receiver_id=id;_active_indices[id]=active_rows.size();active_rows.append(row)
+
+func _remove_active(id:int)->void:
+	if not _active_indices.has(id):return
+	var index:int=_active_indices[id];var last:Dictionary=active_rows.back()
+	active_rows[index]=last;_active_indices[last.receiver_id]=index
+	active_rows.pop_back();_active_indices.erase(id)
+
+func _clear_active()->void:
+	active_rows.clear();_active_indices.clear()
+
+func _bind(node: MeshInstance3D) -> void:
+	var error := Response.mesh_error(node)
+	if not error.is_empty(): node.set_meta("wind_error",error); return
+	var config: Dictionary = Response.defaults().merged(node.get_meta("extras").rmmo_wind,true)
+	var original := {"override":node.material_override,"surfaces":[],"margin":node.extra_cull_margin}
+	var materials: Array[ShaderMaterial] = []
+	for slot in node.mesh.get_surface_count():
+		original.surfaces.append(node.get_surface_override_material(slot))
+		materials.append(Materials.make(node.get_active_material(slot),config,node.get_aabb()))
+	node.set_meta("wind_original",original); node.material_override = null
+	for slot in materials.size(): node.set_surface_override_material(slot,materials[slot])
+	node.extra_cull_margin = maxf(node.extra_cull_margin,config.amplitude*3)
+	var row:Dictionary={"node":weakref(node),"original":original,"materials":materials,"config":config,"exposure":1.0}
+	receivers[node.get_instance_id()] = row
+	_configure_shared_row(row)
+
+func advance(wind: Vector3, time: float) -> void:
+	velocity = wind; elapsed = time
+	if not enabled: return
+	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	if shared_state_enabled:
+		if _shared_state!=null:_shared_state.update(wind,time)
+		if started>0:set_meta("advance_timing",{"frame":Engine.get_process_frames(),"range_ms":0.,"uniform_ms":(Time.get_ticks_usec()-started)/1000.,"active":active_rows.size(),"shared_state":true})
+		return
+	# Periodic refresh may test rows at either side of this camera anchor.
+	# Their maximum relative drift is 2 * .45 = .9 m, inside the 1 m guard.
+	var range_updated:=false
+	if is_instance_valid(camera) and camera.global_position.distance_squared_to(range_camera_position) > .45*.45:
+		_update_active_rows();range_updated=true
+	var ranged:=Time.get_ticks_usec() if started>0 else 0
+	for row: Dictionary in active_rows:
+		_advance_row(row,wind,time)
+	if started>0:
+		var timing:Dictionary={"frame":Engine.get_process_frames(),"range_ms":(ranged-started)/1000.0,"uniform_ms":(Time.get_ticks_usec()-ranged)/1000.0,"active":active_rows.size()}
+		if range_updated and has_meta("profile_wind_range_detail"):timing["range_detail"]=get_meta("range_timing",{})
+		set_meta("advance_timing",timing)
+
+func _advance_row(row:Dictionary,wind:Vector3,time:float)->void:
+	if shared_state_enabled:
+		if row.get("shared_exposure",-1.)!=float(row.exposure):
+			for material:ShaderMaterial in row.materials:material.set_shader_parameter("wind_exposure",float(row.exposure))
+			row.shared_exposure=float(row.exposure)
+		return
+	var force:=wind*float(row.exposure)
+	var force_changed:bool=row.get("last_velocity",Vector3(INF,INF,INF))!=force
+	for material:ShaderMaterial in row.materials:
+		if force_changed:material.set_shader_parameter("wind_velocity",force)
+		material.set_shader_parameter("wind_time",time)
+	row.last_velocity=force
+
+func _update_active_rows() -> void:
+	# Per-row clocks and dictionary writes are diagnostic overhead, separate
+	# from the inexpensive aggregate frame timer used by normal route tests.
+	var profiling:=has_meta("profile_wind_range_detail")
+	var detail:Dictionary={"clear_ms":0.0,"values_ms":0.0,"resolve_ms":0.0,"resolve_max_ms":0.0,"test_ms":0.0,"test_max_ms":0.0,"append_ms":0.0,"append_max_ms":0.0,"remove_ms":0.0,"membership_removed":0,"scanned":0} if profiling else {}
+	var mark:=Time.get_ticks_usec() if profiling else 0
+	var has_camera := is_instance_valid(camera)
+	if has_camera: range_camera_position = camera.global_position
+	# Only active membership changes here. Receiver keys stay stable throughout
+	# this synchronous loop, avoiding a temporary values array and full rebuild.
+	for id:int in receivers:
+		var row:Dictionary=receivers[id]
+		if profiling:mark=Time.get_ticks_usec()
+		var node: MeshInstance3D = row.node.get_ref()
+		if profiling:
+			var duration:float=(Time.get_ticks_usec()-mark)/1000.0
+			detail.resolve_ms+=duration;detail.resolve_max_ms=maxf(detail.resolve_max_ms,duration);detail.scanned+=1
+		if profiling:mark=Time.get_ticks_usec()
+		var active:=node!=null and (not has_camera or _in_range(node,range_camera_position))
+		if profiling:
+			var duration:float=(Time.get_ticks_usec()-mark)/1000.0
+			detail.test_ms+=duration;detail.test_max_ms=maxf(detail.test_max_ms,duration)
+		if not active:
+			if profiling:
+				mark=Time.get_ticks_usec()
+				if _active_indices.has(id):detail.membership_removed+=1
+			_remove_active(id)
+			if profiling:detail.remove_ms+=(Time.get_ticks_usec()-mark)/1000.0
+			continue
+		if profiling:mark=Time.get_ticks_usec()
+		_append_active(id,row)
+		if profiling:
+			var duration:float=(Time.get_ticks_usec()-mark)/1000.0
+			detail.append_ms+=duration;detail.append_max_ms=maxf(detail.append_max_ms,duration)
+	if profiling:set_meta("range_timing",detail)
+
+func _range_active(node: MeshInstance3D) -> bool:
+	if not is_instance_valid(camera): return true
+	return _in_range(node,camera.global_position)
+
+func _in_range(node: MeshInstance3D, camera_position: Vector3) -> bool:
+	var begin := node.visibility_range_begin
+	var end := node.visibility_range_end
+	if begin == 0.0 and end == 0.0: return true
+	# Same transformed AABB center as renderer range tests. Keep both levels
+	# updating within the hysteresis band so a camera crossing never freezes.
+	var bounds := node.custom_aabb
+	if bounds.size == Vector3.ZERO: bounds = node.get_aabb()
+	# Sample camera/world once for a whole scan, but keep each receiver's geometry
+	# and transform live. Godot exposes no change signal for the range/custom-AABB
+	# setters; retaining these across scans would miss direct edits or mesh swaps.
+	var distance_squared := camera_position.distance_squared_to(node.global_transform * bounds.get_center())
+	if begin != 0.0:
+		var lower := maxf(0.0,begin-node.visibility_range_begin_margin-1.0)
+		if distance_squared < lower*lower: return false
+	if end != 0.0:
+		var upper := end+node.visibility_range_end_margin+1.0
+		if distance_squared > upper*upper: return false
+	return true
+
+func _restore(row: Dictionary) -> void:
+	var node: MeshInstance3D = row.node.get_ref()
+	if node == null: return
+	node.material_override = row.original.override
+	for slot in mini(node.mesh.get_surface_count(),row.original.surfaces.size()): node.set_surface_override_material(slot,row.original.surfaces[slot])
+	node.extra_cull_margin = row.original.margin; node.remove_meta("wind_original")
+
+func _exit_tree() -> void:
+	_cancel_refresh()
+	for row in receivers.values(): _restore(row)
+	_clear_active();receivers.clear()
+
+FILE: scripts/world3d/ground_batch_geometry.gd
+extends RefCounted
+## Render-only conversion. Never changes authoring topology or collision meshes.
+const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const TERRAIN_SHADER = preload("res://scripts/world3d/river_terrain.gdshader")
+const MAX_MEMBERS := 16
+const MAX_VERTICES := 65536
+const MAX_FORTIFICATION_MEMBERS := 256
+
+static func category(record: Dictionary) -> String:
+	return "fortification" if record.has("fortification") else ("building" if record.has("building") else "ground")
+
+static func member_limit(record: Dictionary) -> int:
+	return MAX_FORTIFICATION_MEMBERS if record.has("fortification") or record.has("building") else MAX_MEMBERS
+
+static func candidate(record: Dictionary) -> bool:
+	if record.has("house_prefab"):return false
+	if record.get("kind") != "box" or record.get("invisible", false): return false
+	if record.has("building"):
+		for field in ["fortification","event","event_template","hostile","ally","seat"]:
+			if record.has(field):return false
+		return record.get("wind_response",{}).get("profile","off")=="off"
+	if record.has("fortification"):
+		for field in ["building", "fixture", "event", "event_template", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
+			if record.has(field): return false
+		return record.get("wind_response", {}).get("profile", "off") == "off"
+	for field in ["building", "fixture", "fortification", "channel_mesh", "tile3d", "event", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
+		if record.has(field): return false
+	if record.get("wind_response", {}).get("profile", "off") != "off": return false
+	if record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"): return true
+	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
+
+static func material_key(material: Material) -> String:
+	if material == null: return "default"
+	if material.next_pass != null: return ""
+	var values: Array = []
+	if material is ShaderMaterial:
+		if material.shader != TERRAIN_SHADER: return ""
+		for property in material.shader.get_shader_uniform_list():
+			var name: String = property.name
+			if name in ["terrain_heights", "terrain_span", "ground_mask"] or name.begins_with("batch_"): continue
+			# Disabled layers are unused. Godot may lazily populate their defaults
+			# when duplicating a material; that must not invalidate an existing batch.
+			if not material.get_shader_parameter("ground_enabled") and (name.begins_with("region_a_") or name.begins_with("region_b_")): continue
+			var value: Variant = material.get_shader_parameter(name)
+			values.append([name, value.get_instance_id() if value is Resource else value])
+	elif material is StandardMaterial3D:
+		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""
+		# Object-local procedural coordinates, growing and fading need separate draws.
+		if material.uv1_triplanar or material.uv2_triplanar or material.grow or material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return ""
+		for property in material.get_property_list():
+			if property.usage & PROPERTY_USAGE_STORAGE and not str(property.name).begins_with("resource_") and property.name != "script":
+				var value: Variant = material.get(property.name)
+				values.append([property.name, value.get_instance_id() if value is Resource else value])
+	else: return ""
+	# Group keys repeat once per source object. Keep the full material comparison
+	# in this digest rather than repeatedly serializing kilobytes of properties.
+	var digest:=HashingContext.new();digest.start(HashingContext.HASH_SHA256)
+	digest.update(var_to_bytes(values));return digest.finish().hex_encode()
+
+static func vertex_count(mesh: Mesh) -> int:
+	var total := 0
+	var cpu: Mesh = Cpu.capture(mesh)
+	for arrays: Array in cpu.surfaces: total += arrays[Mesh.ARRAY_VERTEX].size()
+	return total
+
+static func height_image(record: Dictionary) -> Image:
+	var t: Dictionary = record.terrain_mesh
+	var heights := PackedFloat32Array()
+	for height in t.heights: heights.append(float(height) * record.size[1])
+	return Image.create_from_data(int(t.columns)+1, int(t.rows)+1, false, Image.FORMAT_RF, heights.to_byte_array())
+
+static func build(members: Array, origin: Vector3, defer_upload: bool = false) -> Dictionary:
+	if (members[0].record.has("fortification") or members[0].record.has("building")) and not members[0].materials.any(func(material):return material is ShaderMaterial): return build_fortification(members,origin,defer_upload)
+	var slots := {}
+	var before := 0
+	var before_vertices := 0
+	var render_vertices := 0
+	var origins := PackedVector4Array()
+	var spans := PackedVector4Array()
+	var images: Array[Image] = []
+	var masks: Array[Image] = []
+	for source: Dictionary in members:
+		var record: Dictionary = source.record
+		var local: Transform3D = source.transform
+		local.origin -= origin
+		var layer := origins.size()
+		origins.append(Vector4(local.origin.x, local.origin.y, local.origin.z, 0))
+		spans.append(Vector4(record.size[0], record.size[2], local.basis.x.x, local.basis.z.x))
+		if record.has("terrain_mesh"):
+			images.append(source.materials[0].get_meta("terrain_height_image") if source.materials[0] is ShaderMaterial and source.materials[0].has_meta("terrain_height_image") else height_image(record))
+			if record.has("terrain_regions"):
+				# Snapshot uses the cached image; never rerasterize on the batch worker.
+				masks.append(source.materials[0].get_meta("ground_mask_image"))
+		for slot in source.surfaces.size():
+			var material: Material = source.materials[slot]
+			var key: String = source.keys[slot]
+			var arrays: Array = source.surfaces[slot]
+			var layout := 0
+			for channel in Mesh.ARRAY_INDEX:
+				if arrays[channel] != null and not arrays[channel].is_empty(): layout |= 1 << channel
+			key += ":layout=" + str(layout)
+			if not slots.has(key): slots[key] = {"arrays": [], "material": material, "layered": material is ShaderMaterial}
+			var row: Dictionary = slots[key]
+			before += 1; before_vertices += arrays[Mesh.ARRAY_VERTEX].size()
+			if slot == 1 and record.has("terrain_mesh") and not record.terrain_mesh.holes.has(true) and not record.has("surface_paint"):
+				var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				append_surface(st, arrays, Transform3D.IDENTITY, 0, false, record, slot)
+				st.index(); arrays = st.commit_to_arrays()
+			append_arrays(row, arrays, local, layer)
+	for row: Dictionary in slots.values(): render_vertices+=row.arrays[Mesh.ARRAY_VERTEX].size()
+	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices,"compressed":members[0].record.has("fortification")}
+	return data if defer_upload else upload(data)
+
+static func build_fortification(members: Array, origin: Vector3, defer_upload: bool) -> Dictionary:
+	# Native append_from transforms positions/normals/tangents and rebases indices
+	# in C++, avoiding millions of interpreted per-vertex operations. The source
+	# is a worker-owned CPU Mesh, so this never downloads or uploads GPU buffers.
+	var slots: Dictionary={}; var before:=0; var vertices:=0; var after:=0
+	for source: Dictionary in members:
+		var cpu:=Cpu.new(); cpu.surfaces=source.surfaces
+		var pose: Transform3D=source.transform; pose.origin-=origin
+		for slot in source.surfaces.size():
+			var arrays: Array=source.surfaces[slot]; var layout:=0
+			for channel in Mesh.ARRAY_INDEX:
+				if arrays[channel]!=null and not arrays[channel].is_empty(): layout|=1<<channel
+			# Keep indexed/non-indexed buffers separate: native append_from cannot
+			# mix implicit triangles and explicit index buffers in the same surface.
+			var indexed: bool=arrays[Mesh.ARRAY_INDEX]!=null and not arrays[Mesh.ARRAY_INDEX].is_empty()
+			var key: String=source.keys[slot]+":layout="+str(layout)+":"+str(indexed)
+			if not slots.has(key): slots[key]={"builder":SurfaceTool.new(),"material":source.materials[slot],"layered":false}
+			slots[key].builder.append_from(cpu,slot,pose)
+			before+=1; vertices+=arrays[Mesh.ARRAY_VERTEX].size()
+	for row: Dictionary in slots.values():
+		row.arrays=row.builder.commit_to_arrays(); row.erase("builder"); after+=row.arrays[Mesh.ARRAY_VERTEX].size()
+	var data:={"slots":slots.values(),"images":[],"masks":[],"origins":PackedVector4Array(),"spans":PackedVector4Array(),"source_surfaces":before,"source_vertices":vertices,"render_vertices":after,"compressed":true}
+	return data if defer_upload else upload(data)
+
+static func upload(data: Dictionary) -> Dictionary:
+	# GPU resources must be created on the main thread. Joining a worker during
+	# undo/save/scene exit must never wait for a RenderingServer main-thread call.
+	assert(Thread.is_main_thread())
+	var result:=ArrayMesh.new()
+	var height_array: Texture2DArray
+	if not data.images.is_empty():
+		height_array=Texture2DArray.new()
+		if height_array.create_from_images(data.images)!=OK: return {}
+	var mask_array: Texture2DArray
+	if not data.masks.is_empty():
+		mask_array=Texture2DArray.new()
+		if mask_array.create_from_images(data.masks)!=OK: return {}
+	var origins: PackedVector4Array=data.origins; var spans: PackedVector4Array=data.spans
+	while origins.size()<MAX_MEMBERS: origins.append(Vector4.ZERO); spans.append(Vector4.ONE)
+	for row: Dictionary in data.slots:
+		var material: Material=row.material
+		if row.layered:
+			material=material.duplicate()
+			material.set_shader_parameter("batch_enabled",true)
+			material.set_shader_parameter("batch_heights",height_array)
+			material.set_shader_parameter("batch_ground_masks",mask_array)
+			material.set_shader_parameter("batch_origins",origins)
+			material.set_shader_parameter("batch_spans",spans)
+		var flags:=Mesh.ARRAY_CUSTOM_R_FLOAT<<Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT if row.layered else 0
+		if data.get("compressed",false) and row.arrays[Mesh.ARRAY_NORMAL]!=null and row.arrays[Mesh.ARRAY_TANGENT]!=null: flags|=Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],{},flags)
+		result.surface_set_material(result.get_surface_count()-1,material)
+	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
+
+static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:
+	var arrays := source.duplicate()
+	# Packed arrays are reference values in GDScript. Joining or rebasing an index
+	# buffer must never modify the CPU authoring mesh that the snapshot also owns.
+	for channel in Mesh.ARRAY_MAX:
+		if source[channel] != null: arrays[channel] = source[channel].duplicate()
+	var count: int = arrays[Mesh.ARRAY_VERTEX].size()
+	arrays[Mesh.ARRAY_VERTEX] = transform * arrays[Mesh.ARRAY_VERTEX]
+	if not transform.basis.is_equal_approx(Basis.IDENTITY):
+		arrays[Mesh.ARRAY_NORMAL] = Transform3D(transform.basis,Vector3.ZERO) * arrays[Mesh.ARRAY_NORMAL]
+		if arrays[Mesh.ARRAY_TANGENT] != null:
+			var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]
+			for i in count:
+				var t := transform.basis * Vector3(tangents[i*4],tangents[i*4+1],tangents[i*4+2])
+				tangents[i*4]=t.x; tangents[i*4+1]=t.y; tangents[i*4+2]=t.z
+			arrays[Mesh.ARRAY_TANGENT] = tangents
+	if arrays[Mesh.ARRAY_INDEX] == null or arrays[Mesh.ARRAY_INDEX].is_empty():
+		var indices := PackedInt32Array(); indices.resize(count)
+		for i in count: indices[i]=i
+		arrays[Mesh.ARRAY_INDEX]=indices
+	if row.layered:
+		var layers := PackedFloat32Array(); layers.resize(count); layers.fill(float(layer))
+		arrays[Mesh.ARRAY_CUSTOM0] = layers
+	if row.arrays.is_empty(): row.arrays = arrays; return
+	var output: Array = row.arrays
+	var offset: int = output[Mesh.ARRAY_VERTEX].size()
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for i in indices.size(): indices[i] += offset
+	arrays[Mesh.ARRAY_INDEX] = indices
+	for channel in Mesh.ARRAY_MAX:
+		if arrays[channel] != null:
+			if output[channel] == null: output[channel]=arrays[channel]
+			else:
+				var joined: Variant = output[channel]; joined.append_array(arrays[channel]); output[channel]=joined
+
+static func append_surface(st: SurfaceTool, arrays: Array, transform: Transform3D, layer: int, layered: bool, record: Dictionary, slot: int) -> void:
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	if indices.is_empty():
+		indices.resize(vertices.size())
+		for i in vertices.size(): indices[i] = i
+	# Only the sealed, flat underside can be reduced without changing silhouettes,
+	# painted faces, holes or the top heightfield. Source arrays stay untouched.
+	var compact: bool = slot == 1 and record.has("terrain_mesh") and not record.terrain_mesh.holes.has(true) and not record.has("surface_paint")
+	var bottom_corners := {}
+	var low := Vector3(INF, INF, INF); var high := Vector3(-INF, -INF, -INF)
+	for face in range(0, indices.size(), 3):
+		var a := indices[face]; var b := indices[face+1]; var c := indices[face+2]
+		if compact and normals[a].y < -.999 and normals[b].y < -.999 and normals[c].y < -.999:
+			for at in [a,b,c]:
+				low = low.min(vertices[at]); high = high.max(vertices[at]); bottom_corners[Vector2(vertices[at].x,vertices[at].z)] = at
+			continue
+		for at in [a,b,c]: emit_vertex(st, arrays, at, transform, layer, layered)
+	if not bottom_corners.is_empty():
+		for p in [Vector2(low.x,low.z),Vector2(high.x,high.z),Vector2(high.x,low.z),Vector2(low.x,low.z),Vector2(low.x,high.z),Vector2(high.x,high.z)]:
+			emit_vertex(st, arrays, bottom_corners[p], transform, layer, layered)
+
+static func emit_vertex(st: SurfaceTool, arrays: Array, at: int, transform: Transform3D, layer: int, layered: bool) -> void:
+	st.set_normal((transform.basis * arrays[Mesh.ARRAY_NORMAL][at]).normalized())
+	if arrays[Mesh.ARRAY_TEX_UV] != null: st.set_uv(arrays[Mesh.ARRAY_TEX_UV][at])
+	if arrays[Mesh.ARRAY_TEX_UV2] != null: st.set_uv2(arrays[Mesh.ARRAY_TEX_UV2][at])
+	if arrays[Mesh.ARRAY_COLOR] != null: st.set_color(arrays[Mesh.ARRAY_COLOR][at])
+	if arrays[Mesh.ARRAY_TANGENT] != null:
+		var t: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]; var v := transform.basis * Vector3(t[at*4], t[at*4+1], t[at*4+2])
+		st.set_tangent(Plane(v.normalized(), t[at*4+3]))
+	if layered: st.set_custom(0, Color(float(layer),0,0,0))
+	st.add_vertex(transform * arrays[Mesh.ARRAY_VERTEX][at])
+
+FILE: scripts/world_editor/asset_library.gd
+extends RefCounted
+## Imports become self-contained, immutable GLBs outside the source repository.
+const Io = preload("res://scripts/world3d/gltf_map_io.gd")
+var entries: Array = []
+var directory := ""
+var _revision := ""
+static var _scenes := {}
+
+func _init(folder: String = "") -> void:
+	directory = folder if not folder.is_empty() else preload("res://scripts/world3d/map_paths.gd").cache_directory("asset_library")
+	var path := directory.path_join("library.json")
+	if FileAccess.file_exists(path):
+		_revision = FileAccess.get_sha256(path)
+		var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if raw is Array:
+			for entry in raw:
+				if entry is Dictionary and (entry.get("asset_path") is String or entry.get("prefab_path") is String) and entry.get("label") is String:
+					for key in ["asset_path", "prefab_path", "thumbnail_path"]:
+						if entry.get(key) is String and not str(entry[key]).is_absolute_path():
+							entry[key] = directory.path_join(str(entry[key])).simplify_path()
+					entries.append(entry)
+
+func import_file(path: String) -> Dictionary:
+	if path.get_extension().to_lower() not in ["gltf", "glb"] or not FileAccess.file_exists(path): return {"ok": false, "error": "请选择存在的 glTF / GLB 文件"}
+	# Prefab capture may re-import the exact immutable model just added here.
+	# Only reuse a catalogued, content-addressed file after verifying its bytes.
+	var normalized:=path.simplify_path().replace("\\","/")
+	if normalized.get_base_dir()==directory.simplify_path().replace("\\","/") and normalized.get_extension()=="glb":
+		for entry in entries:
+			if str(entry.get("asset_path","")).simplify_path().replace("\\","/")==normalized and FileAccess.get_sha256(path)==normalized.get_file().get_basename():
+				return {"ok":true,"entry":entry}
+	DirAccess.make_dir_recursive_absolute(directory)
+	var staging := directory.path_join("import_%d.glb" % Time.get_ticks_usec())
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	var err: Error
+	if preload("res://scripts/world3d/embedded_glb.gd").can_copy(path):
+		# Validate the copy, not an earlier version of a concurrently replaced source.
+		err = DirAccess.copy_absolute(path, staging)
+		if err == OK and not preload("res://scripts/world3d/embedded_glb.gd").can_copy(staging): err = ERR_FILE_CORRUPT
+		if err == OK: err = doc.append_from_file(staging, state, 0, staging.get_base_dir())
+		# Godot can report OK while an embedded PNG failed to decode. Never
+		# publish that partially loaded model with a missing material texture.
+		if err == OK:
+			if state.images.size() != state.json.get("images", []).size(): err = ERR_FILE_CORRUPT
+			for texture in state.images:
+				if texture == null or texture.get_width() <= 0 or texture.get_height() <= 0: err = ERR_FILE_CORRUPT
+	else:
+		err = doc.append_from_file(path, state, 0, path.get_base_dir())
+		if err == OK:
+			Io.preserve_node_morph_defaults(state)
+			err = doc.write_to_filesystem(state, staging)
+	if err != OK:
+		if FileAccess.file_exists(staging): DirAccess.remove_absolute(staging)
+		return {"ok": false, "error": "模型或依赖读取失败：" + error_string(err)}
+	var hash := FileAccess.get_sha256(staging)
+	var target := directory.path_join(hash + ".glb")
+	if FileAccess.file_exists(target): DirAccess.remove_absolute(staging)
+	else:
+		err = DirAccess.rename_absolute(staging, target)
+		if err != OK: return {"ok": false, "error": error_string(err)}
+	for entry in entries:
+		if entry.get("asset_path") == target:
+			if not entry.has("thumbnail_path"):
+				entry.thumbnail_path = directory.path_join("thumbnails").path_join(hash + ".png")
+				var saved := save()
+				if saved != OK:
+					entry.erase("thumbnail_path")
+					return {"ok": false, "error": "缩略图信息保存失败"}
+			return {"ok": true, "entry": entry}
+	var instance := instantiate_preview(target)
+	if instance == null: return {"ok": false, "error": "导入结果无法实例化"}
+	var bounds := bounds_of(instance)
+	instance.free()
+	var entry := {"label": path.get_file().get_basename(), "category": "导入模型", "asset_path": target, "thumbnail_path": directory.path_join("thumbnails").path_join(hash + ".png"), "bounds_position": [bounds.position.x, bounds.position.y, bounds.position.z], "bounds_size": [bounds.size.x, bounds.size.y, bounds.size.z]}
+	entries.append(entry)
+	err = save()
+	if err != OK:
+		entries.pop_back()
+		return {"ok": false, "error": "素材库写入失败：" + error_string(err)}
+	return {"ok": true, "entry": entry}
+
+func save() -> Error:
+	var path := directory.path_join("library.json")
+	var err := Io._acquire_save_lock(path)
+	if err != OK: return err
+	var current := FileAccess.get_sha256(path) if FileAccess.file_exists(path) else ""
+	if current != _revision:
+		Io._remove_tree(path + ".save-lock")
+		return ERR_BUSY
+	var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
+	if file == null:
+		err = FileAccess.get_open_error()
+	else:
+		var stored: Array = entries.duplicate(true)
+		for entry in stored:
+			for key in ["asset_path", "prefab_path", "thumbnail_path"]:
+				if entry.get(key) is String and str(entry[key]).begins_with(directory.trim_suffix("/") + "/"):
+					entry[key] = str(entry[key]).trim_prefix(directory.trim_suffix("/") + "/")
+		file.store_string(JSON.stringify(stored, "\t"))
+		file.flush()
+		err = file.get_error()
+		file.close()
+		if err == OK: err = preload("res://scripts/world3d/atomic_file.gd").publish(path + ".tmp", path)
+	if err == OK: _revision = FileAccess.get_sha256(path)
+	Io._remove_tree(path + ".save-lock")
+	return err
+
+func search(query: String) -> Array:
+	var needle := query.strip_edges().to_lower()
+	if needle.is_empty(): return entries
+	return entries.filter(func(entry: Dictionary): return (str(entry.get("label", "")) + " " + str(entry.get("category", ""))).to_lower().contains(needle))
+
+static func instantiate(path: String) -> Node3D:
+	if not FileAccess.file_exists(path): return null
+	if not _scenes.has(path):
+		var scene := Io.load_scene(path) as Node3D
+		if scene == null: return null
+		if not cache_scene(path, scene): return null
+	return _scenes[path].instantiate()
+
+## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
+static func instantiate_preview(path: String) -> Node3D:
+	if not FileAccess.file_exists(path): return null
+	if _scenes.has(path): return _scenes[path].instantiate()
+	return Io.load_scene(path) as Node3D
+
+static func _own(node: Node, root: Node) -> void:
+	for child in node.get_children():
+		child.owner = root
+		_own(child, root)
+
+static func bounds_of(node: Node3D, transform_: Transform3D = Transform3D.IDENTITY) -> AABB:
+	var transform := transform_ * node.transform
+	var bounds := AABB()
+	if node is MeshInstance3D and node.mesh != null: bounds = transform * node.get_aabb()
+	for child in node.get_children():
+		if child is Node3D:
+			var box := bounds_of(child, transform)
+			if box.has_surface(): bounds = bounds.merge(box) if bounds.has_surface() else box
+	return bounds
+
+
+static func cache_scene(path: String, scene: Node) -> bool:
+	if scene == null: return false
+	_own(scene, scene)
+	var packed := PackedScene.new()
+	var err := packed.pack(scene)
+	scene.free()
+	if err != OK: return false
+	_scenes[path] = packed
+	return true
+
+WORLD DOCUMENT ASSET
+	return missing
+
+func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
+	if record.has("house_prefab"):return _mesh(record)
+	var holder := Node3D.new()
+	holder.name = str(record.uuid)
+	holder.set_meta("asset_uuid", str(record.uuid))
+	holder.position = Vector3(record.position[0], record.position[1], record.position[2])
+	holder.rotation_degrees = Vector3(record.rotation[0], record.rotation[1], record.rotation[2])
+	holder.scale = Vector3(record.size[0], record.size[1], record.size[2])
+	var model: Node3D
+	if record.has("bridge_mesh"):
+		var bridge:=MeshInstance3D.new(); bridge.name="StoneBridge"
+		bridge.mesh=preload("res://scripts/world3d/bridge_mesh.gd").new().build(record)
+		if bridge.mesh!=null: model=bridge
+		else: bridge.free()
+	# Async loads pass an independently instantiated scene, including null for a
+	# failed import. No persistent negative cache hides a later repaired file.
+	elif prepared.has("scene"): model = prepared.scene
+	else: model = preload("res://scripts/world_editor/asset_library.gd").instantiate(str(record.get("asset_path", "")))
+	if model == null:
+		var fallback := MeshInstance3D.new()
+		fallback.mesh = BoxMesh.new()
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color.MAGENTA
+		fallback.material_override = material
+		holder.add_child(fallback)
+		holder.set_meta("missing_asset", true)
+	else:
+		holder.add_child(model)
+		var tree_error:=preload("res://scripts/world3d/parametric_tree.gd").apply(model,record)
+		if not tree_error.is_empty():holder.set_meta("paint_error",tree_error)
+		_namespace_asset(model, str(record.uuid), model, str(record.get("collision","")))
+	preload("res://scripts/world3d/streetlamp_banner.gd").apply(holder,record)
+	SurfaceMaterials.apply(holder, record, load_paint_validation, load_texture_checks)
+	preload("res://scripts/world3d/wind_response.gd").annotate(holder,record)
+	for visual in SurfaceMaterials.meshes(holder):
+		preload("res://scripts/world3d/wind_response.gd").register(visual)
+		preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
+	return holder
+
+func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:
+	if node is MeshInstance3D:
+		var extras: Dictionary = node.get_meta("extras", {}).duplicate(true)
+		extras["uuid"] = prefix + "__" + str(asset_root.get_path_to(node)).replace("/", "__")
+		if collision in ["none","walk","block"]: extras["rmmo_collision"]=collision
+		node.set_meta("extras", extras)
+	for child in node.get_children(): _namespace_asset(child, prefix, asset_root, collision)

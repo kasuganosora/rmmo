@@ -1,5 +1,28 @@
 # 当前 3D 地图编辑器 MCP
 
+2026-10-07 房屋外观：新增 `list_building_windows {building_id}`、`set_building_window_style {building_id, window_id, style}`；style 为 `casement` / `cross_lattice` / `diamond_lattice`。UI 与 MCP 共用完整窗口（包含双扇）的事务，保持洞口、固定外框及开合状态；锁定、隐藏和楼层保护一致。`paint_surface` / `clear_surface_material` 同时开放已烘焙房屋的逐面材质替换。不会改变自动生成时的整栋统一窗型。限制、使用和真实 HTTP 验收见 [房屋局部外观](house_appearance_20261007.md)。
+
+2026-10-07 胶囊行走：工具栏「胶囊行走 F6」在当前编辑场景内启用可见的第三人称胶囊，仍可选择、移动、摆放和保存物件。UI 与下列 3D MCP 工具共用 `walk_mode.gd`，胶囊及镜头状态不进入地图或撤销记录：
+
+- `set_editor_walk_mode {enabled:boolean, position?:[x,y,z]}`：进入/退出；可选位置为地面脚点，需有可站立表面和 1.8 m 高、0.6 m 宽净空。省略位置从画布中心、观察中心、出生点附近查找；找不到则保持原视角并报错。退出不接受位置，恢复进入前的镜头。
+- `move_editor_walk {direction:[right,forward], duration:number, fast?:boolean, jump?:boolean}`：沿镜头水平轴行走，方向各分量 −1～1，斜向归一化；持续 0.01～2 秒，普通 3.5 m/s、加速 7 m/s。异步物理运动，不等待走完才返回；新命令替换旧命令，零方向停止水平移动。键盘、失焦、输入框和编辑事务可打断运动。
+- `set_editor_walk_view {yaw?:number, pitch?:number, distance?:number}`：偏航 −360～360°、俯仰 −75～55°、距离 1.5～12 m；遇墙自动收近。后两项工具只在行走模式可用，非法参数无副作用。
+- `editor_state.walk`：`active`、`perspective:"third_person"`、脚点 `position`、`grounded`、`height/radius`、`yaw/pitch/distance` 和 `motion_remaining`。关闭时位置为空数组。
+
+WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离；松开右键继续左键编辑。W 此时用于前进，移动工具仍可点工具栏切换。F6/Esc 退出；画布事务进行中先由 Esc 取消该事务。打开新地图、切换俯视/聚焦/书签或开始 F5 试玩会退出行走；保存暂停运动并保留模式。碰撞复用实时编辑拾取形状和城防碰撞分块，单独掩码排除无碰撞装饰、隐藏/隔层构件，锁定实体仍阻挡；移动物件后同步更新。支持重力、最高 0.4 m 台阶和 45° 可站立坡面；不是游戏战斗、交互门或导航模拟。胶囊不被点选，不触发整城重建/导航烘焙，也不加入静态合批。
+
+后台 GPU 与真实 HTTP 验收入口 `tools/test_editor_walk_mode.gd`：发现、非法调用、碰撞/镜头、台阶/跳跃、输入焦点、UI 拖放、撤销重做、保存重开及退出恢复已通过。`tools/test_editor_walk_town.gd` 对 4372 记录的 `medieval_river_town` 只读验证通过：出生点道路及 `(261.7,125.9)` 附近桥面均可站立行走，地形高度实时跟随；场景节点和碰撞批次未重建，文档/历史/正式源文件均未改变。两项日志在 `D:/code/rmmo_runtime/review_artifacts/editor_walk_mode_20261007.log`、`editor_walk_town_20261007.log`，截图路径见日志。该模式的功能验收不代表编辑器和游戏原有 P0 卡顿问题已解决。
+
+2026-10-07 素材分类：素材面板增加「全部分类」下拉框，`list_assets` 增加可选字符串 `category`（精确匹配）并返回完整 `categories`。与 `query` 组合筛选；未知分类返回空列表，非法类型经 schema 拒绝。UI/MCP 共用 `world_editor.asset_items`，筛选不导入模型、不修改地图和撤销历史。牌匾与旗帜发布到默认共享包的 `牌匾/旗帜` 分类，使用既有 `place_asset`/`save_prefab` 业务事务；没有新增二维入口。发布和 HTTP 验证脚本为 `tools/publish_signs_and_banners.gd`，结果见 `D:/code/rmmo_runtime/review_artifacts/signs_banners_20261007/publication.json`，以结果文件为准。
+
+2026-10-07 打开地图分片校验：UI 与 `open_world` 共用主线程私有校验游标，每批约 8 ms 后让出一帧；文档同步读取与 MCP 仍使用同一组校验规则。`editor_state.load.timings.validation` 提供 `units`（次数/累计/最大耗时）、`max_unit_ms`、`max_slice_ms`、记录复制耗时及公共谓词调用数，另列 `asset_scope_ms` 和 `prepared_release_ms`。末尾 `final_check` 为 `bytes` 或 `sha256`：后台一次读取生成同源 JSON/SHA，256 MiB 以内保留原始字节，发布前同步分块完整比较，超限保留完整 SHA；不会依赖文件大小/时间戳或 JSON 中的成功标记。最终复核到发布之间不新增等待，磁盘冲突签名保持 SHA。单个复杂记录、旧格式导入和末尾复核仍不可抢占，8 ms 不是硬上限。加载期间所有写工具被拒绝，状态查询继续可用；失败保留旧文档、选择、材质目标及历史，成功全部校验后只替换一次。`test_document_source_snapshot.gd` 和真实 HTTP `test_editor_sliced_load.gd` 已通过；工具 schema/分发不变。见 [编辑器性能记录](editor_town_performance_20261006.md)。
+
+2026-10-07 保存资源复用：`save_world` 与 UI Ctrl+S、原子保存共用同一保存操作。同路径未改变内容或仅改变安全物件的位置/旋转时，校验源资源、导出实现版本、已发布 glTF 和资源文件后，复用现有材质、贴图和网格；整栋建筑的楼层高度、生成登记和已打开门窗姿态一并保存。`timings.export.mode` 为 `pose_reuse` 或 `full_export`，`images_written` / `texture_export_passes` 明确实际导出次数；复用路径两项均为 0，进度阶段为 `reuse`。旧地图首次完整保存建立可信基线；改材质/几何/资源、另存为、依赖损坏及无法证明安全的类型自动完整导出。发布前再次检查地图冲突与资源；不会跳过 `.previous`、保存锁和恢复流程。见 [保存复用验收](editor_save_reuse_20261007.md)。
+
+2026-10-06 编辑器补充：`open_world` 接入同 UI 的阶段加载，新增可选 `background`；默认 HTTP 等待完成，后台调用立即返回 `pending/job_id`，`editor_state.load` 返回阶段、计数、耗时及结果。加载中拒绝写操作，失败保留原文档。新增 `move_editor_camera {offset:[x,y,z]}`，与中键键盘导航共用世界坐标位移，Y 为升降；不改文档或撤销。`list_assets.assets[].thumbnail` 返回 `status/path/error`；可见缺图素材空闲时自动补生成，`repair_asset_thumbnails {asset_ids:[...]}` 和资源菜单可显式重试，需图形编辑器，headless 明确拒绝。自动草稿校验分帧、编码/压缩/原子发布后台执行，`editor_state.autosave.active` 可查询；格式和恢复边界见 [草稿说明](world_editor_recovery.md)。真实 HTTP/UI 回归入口 `tools/test_editor_navigation_loading.gd`。
+
+2026-10-06 编辑器操作性能：选择使用保留源对象的增量渲染批次准备，刚性整栋移动更新原节点/碰撞姿态，不再重建整张地图；`select_objects`、`transform_selection` 与 UI 共用同一路径。新增 `set_editor_wind_preview {"enabled":true|false}`，`editor_state.wind_preview` 查询当前值。编辑器环境页的“编辑器风场预览”默认关闭；开关仅属于本次编辑会话，不修改地图风速、物件受风配置、撤销历史或游戏效果。关闭立即恢复原材质并停止受风物件扫描/更新，开启后重新绑定。工具输入只接受必填布尔值 `enabled`。真实 HTTP 和后台 GPU 验证入口为 `test_editor_overlay_cache.gd`、`test_editor_incremental_motion.gd`，详见 [本轮性能记录](editor_town_performance_20261006.md)。
+
 2026-10-06 地图入口修正：资源包窗口的默认共享列表也收录内容根 `maps/` 中的既有 glTF（如 `medieval_river_town`），直接引用原路径，不复制／迁移／保存地图。`list_resource_packs` 的每个包新增 `maps: [{name,path}]`，与 UI 使用同一目录枚举；输入仍为空对象，非法参数无副作用。`open_world` 沿用原有内容根约束和未保存修改保护。正在运行的编辑器需重新启动编辑器运行实例加载新脚本，然后在“文件 → 资源包地图…”选择默认包并搜索地图名。`test_resource_pack_browser.gd` 验证发现、搜索、当前选择、原路径打开及未保存修改提示；`test_root_map_discovery_mcp.gd` 通过真实 loopback HTTP 验证发现与非法调用。此次未更改任何场景内容，彩柱和道路侧边纠正仍等待用户完成微调后再实施。
 
 2026-10-06 大团灌木：圆团、横向铺展、高冠三款已加入默认预制件库；20m 内保留完整母版，远处使用约半面数枝簇，沿用现有 LOD、叶片背光、风场及非阻挡语义。真实 HTTP 工具发现、放置、非法调用无副作用、撤销重做和保存重开通过，游戏加载和无阻挡体检查通过。未新增 UI/schema 或在线株形参数。见 [灌木发布记录](street_shrub_mounds_20261006.md)。
@@ -128,6 +151,10 @@
 | 五类事件模板与物品/商店目录 | `list_event_templates`、`list_event_resources` |
 | 创建、挂载/修改、清除物件事件 | `create_event_template`、`set_event_template`、`clear_event_template` |
 | 地图日夜、光照、雾与人物遮挡轮廓 | `get_environment`、`set_environment` |
+| 编辑器风场预览（会话设置，默认关闭） | `set_editor_wind_preview`；`editor_state.wind_preview` |
+| 中键键盘镜头平移（会话操作） | `move_editor_camera {offset:[x,y,z]}` |
+| 素材缩略图状态与补生成 | `list_assets` 的 `thumbnail`；`repair_asset_thumbnails {asset_ids:[...]}` |
+| 地图加载作业及进度 | `open_world {path,discard_changes?,background?}`；`editor_state.load` |
 | 楼层范围、隐藏/淡化、读取视图配置 | `get_editor_view`、`set_floor_view` |
 | 指定或拾取试玩出生脚点 | `set_playtest_spawn`、`pick_playtest_spawn` |
 | 临时副本试玩、结束、查询状态 | `start_playtest`、`stop_playtest`、`playtest_state` |
@@ -146,6 +173,8 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 
 `configure_transform` 的吸附值与界面一致：位置 `[0, 0.01, 0.1, 0.25, 0.5, 1]` 米；旋转 `[0, 1, 15, 45, 90]` 度；缩放 `[0, 0.1, 0.25, 0.5]`。`0` 表示关闭。状态同时返回选择的 `space` 和实际 `effective_space`：多选使用世界轴，单物件缩放使用局部轴。
 
+2026-10-07 加载准备：UI 与 `open_world` 共用分阶段作业；`terrain` 阶段在私有后台上下文准备地形邻接、网格数组和区域遮罩，`asset` 阶段逐个解析首次使用的模型，场景生成及资源缓存写入仍在主线程。地形阶段使用活动条，不声明未实现的逐物件进度；模型和构建阶段保留记录计数。`timings.build.units` 区分后台 CPU、等待和主线程耗时（`terrain_prepare_wait` 是等待墙钟时间）。加载专用数组和遮罩只在单个物件构建时临时注入并立即恢复；后续雕刻、区域修改和撤销不复用旧快照。`textures` 阶段按需在后台准备地形及冻结预制件图片和法线翻转/多级纹理，主线程只创建纹理资源；Image 交接同样限本次物件构建，修图跨加载会失效对应材质/着色器及依赖这些图片的冻结预制件缓存，已存在但损坏的图片不能沿用旧图或被保存为退化材质。`picking` 阶段准备拾取碰撞：大网格精确三角数组在私有 worker 展开，主线程逐网格发布原单形状，保持独立拾取与原生面索引；隐藏/楼层/城防过滤与同步路径相同。`picking_faces_wait` 区分等待时间，`add_bodies` / `record` 排除这部分等待，单个物理形状原生构建仍不可抢占。地形几何至多四个私有工作线程并行，`terrain_geometry.wall_ms` 与 `worker_elapsed_sum_ms` 分别为墙钟时间及各工作线程计时间隔之和，不应相加或视为严格 CPU 周期。解析失败保持既有缺失素材占位，失败缓存只限本次加载，修复后重开会重新解析。小图真实 HTTP 回归见 `tools/test_editor_asset_preparation.gd`，含修改、撤销重做、保存重开与线程退出清理。
+
 工具调用示例（使用 `list_objects` 返回的真实 ID）：
 
 ```json
@@ -158,6 +187,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 - 隐藏或锁定物件不可选择/变换/改名；`set_object_properties` 可显式解锁或显示它们。先解锁显示，再改名。隐藏只影响编辑器，运行时内容仍保留。
 - 楼层隔离时，范围外物件不能选择、直接变换、改名、刷材质或修改事件。`list_objects` 仍列出全部楼层，并返回 `in_current_floor`；锁定/隐藏标记可独立管理。跨层整组操作需先关闭隔离。`place_asset.ids` 返回全部新建成员，包括当前楼层范围外的成员。
 - `save_prefab` 使用 `list_resource_packs` 返回的 `pack_root`，名称与依赖打包规则同 UI；返回稳定 `asset_id`，供 `place_asset` 重复放置。每次放置有独立的成员和组合 ID。预制件是快照，不包含实例联动更新。
+- 2026-10-07：`save_prefab` 与 UI 共用的模型依赖导入，对严格验证的自包含、无扩展 GLB 保持原字节并按内容哈希复制，避免跨库导入反复导出材质贴图。glTF/外链/不能证明安全的 GLB 仍走既有打包流程。通用源模型文件导入当前仍仅有 UI 入口，3D MCP 本次通过已有 `save_prefab` 覆盖共享业务，未新增通用导入工具。见 [GLB 导入验证](editor_import_bytes_20261007.md)。
 - `place_asset.position` 是表面落点，底面自动对齐。自动瓦片需用 `paint_auto_tiles`，`family` 为 `wall/road/grass/dirt/water/cliff/stairs/roof/bridge`；格宽为 `1/2/4/8` 米。点的 Y 被 `height` 替代。高台同基底自动处理邻格高差，桥/道路按楼梯两端标高连接，其余跨高度独立。`erase=true` 擦除；一笔连同邻居重算共同撤销。自由变换自动块后脱离自动拼接。
 - `save_world` 默认保存当前地图；另存为不覆盖已存在的其他地图。`open_world` 遇到未保存修改时拒绝打开，需先保存或显式传 `discard_changes=true`。
 - `save_world` 默认等待原子保存完成，成功结果附带 `saved:true`、`timings` 保存分段耗时、静态网格写出数量和 CPU 几何缓存命中统计。可传 `background:true` 立即得到 `pending:true/saved:false/job_id/path`，再用 `editor_state.save` 查询 `active/phase/completed/total/elapsed_seconds/result`。`total=0` 表示该阶段不可计数，不是 0% 总进度；完成后保留最后一次结果及耗时。底部状态栏显示同一个任务，见 [保存性能](world_editor_save_performance.md)。
@@ -174,7 +204,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 
 仅绑定 loopback；校验 Host 和 Origin。文件操作限制在配置的外部内容根，拒绝越界路径及链接目录；不提供任意脚本、任意文件读写。请求体上限 4 MiB、最多 8 个连接、空闲连接 10 秒回收；普通选择/变换最多 256 个成员；整栋选择/变换/复制/删除最多 16 栋，不受构件数 256 的限制；MCP 预制件放置仍最多 256 个构件（既有批量限制），更大的房屋请用保留配方的整栋复制；UI 预制件快照可超过该数，尚未统一此限制，笔画最多 256 个控制点、1024 个经过格，分页最多 200 项。
 
-鼠标拖动、框选、点选表面、拾取出生点或画笔事务正在进行时，MCP 修改返回忙碌，避免合并进用户未结束的撤销事务；只读查询仍可用。`editor_state.surface_placement_active` 表示正在点选表面。关闭确认期间只允许 `close_editor` 处理关闭，其余写操作拒绝。读取失败的地图禁止修改，但仍可打开其他地图、管理/恢复草稿或关闭。保存期间拒绝全部写操作（含重复保存、打开、关闭、草稿修改），保留只读查询；默认等待保存的 HTTP 连接不阻塞其他客户端，也不受普通 10 秒空闲超时限制，断开连接不会中断发布。`close_editor action=save` 同样等待后台保存成功才关闭。加载、草稿发布和预制件打包仍同步；当前未提供保存取消接口，试玩的异步准备/加载可用 `stop_playtest` 取消。
+鼠标拖动、框选、点选表面、拾取出生点或画笔事务正在进行时，MCP 修改返回忙碌，避免合并进用户未结束的撤销事务；只读查询仍可用。`editor_state.surface_placement_active` 表示正在点选表面。关闭确认期间只允许 `close_editor` 处理关闭，其余写操作拒绝。读取失败的地图禁止修改，但仍可打开其他地图、管理/恢复草稿或关闭。保存期间拒绝全部写操作（含重复保存、打开、关闭、草稿修改），保留只读查询；默认等待保存的 HTTP 连接不阻塞其他客户端，也不受普通 10 秒空闲超时限制，断开连接不会中断发布。`close_editor action=save` 同样等待后台保存成功才关闭。地图加载为分片校验与后台准备作业，草稿编码/压缩/发布在后台进行；单个复杂构建步骤仍可能阻塞，预制件打包仍同步。当前未提供保存取消接口，试玩的异步准备/加载可用 `stop_playtest` 取消。
 
 当前 MCP 覆盖已交付的材质笔刷、第二批高差拼接、第三批事件模板/环境配置，以及楼层隔离和临时试玩。五类事件可用模板工具配置；旧 NPC/采集/传送记录的其他专有字段、模型资源导入/重命名等尚未提供专门工具。不要使用历史二维工具冒充这些三维接口。
 
@@ -317,3 +347,13 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 # 2026-10-06 红顶尖塔资源发布验证
 
 “写实方形红顶尖塔·三层窗”复用当前 3D 的 `place_asset`、`select_objects`、`save_prefab`、`list_assets`、`undo`、`redo`、`save_world`、`open_world`，未增加新接口或参数面板。真实 HTTP 工具发现、合法与非法调用、无副作用失败、撤销重做和保存重开通过。报告 `D:/code/rmmo_runtime/review_artifacts/street_spire/publication.json`，失败 0，测试不修改用户地图。预制件为闭合外观地标，无内部楼梯及开门交互。
+
+2026-10-07 高大导入构件远景：UI 与 `place_asset` 放置的同一原生实例，在后台空间索引中按完整资产世界包围盒自动识别高度至少 12 米、含实体且无 `rmmo_wind` 的构件，全部子网格共用城镇建筑远景及地形支撑依赖。普通短道具、树叶和布料仍用原驻留规则；碰撞仍在近处加载，独立编辑与保存记录不变。本项仅调整派生可见范围，不合并作者实例或新增 schema。已有运行缓存指纹覆盖 `stream_index.gd`。`tools/test_tall_prop_residency.gd` 真实 HTTP 放置、非法参数无副作用、撤销重做、保存重开和远近驻留检查全部通过；`test_landscape_residency.gd` 地形支撑回归通过。
+
+
+冻结建筑派生阴影优化（2026-10-07）：UI/MCP 生成、重建、打开地图共用作者视图接入，稳定不透明冻结构件自动减少阴影表面提交；未增加工具或 schema。选择、整栋移动、楼层 dim/hide、undo/redo、风预览和保存重开通过真实 HTTP 回归。派生节点不参与拾取/材质枚举/地图导出，材质或几何资源变化即时恢复原投影；不满足稳定合同的构件使用原渲染路径。证据见 [编辑器镜头性能](editor_camera_performance_20261007.md)。
+
+
+## 2026-10-07 连续道路自动路缘
+
+`preview_road_surface` / `generate_road_surface` 新增 `kerb_enabled`（默认 false）、`kerb_width`（0.12–0.4 米，默认 0.28）、`kerb_height`（0.025–0.18 米，默认 0.055）及 `kerb_material_id`。预览返回 `kerb_length`。UI「生成道路铺面与路口」共用业务与参数；开启后 `update_road_graph` 和 UI 道路增删改自动连接同层交叉并更新外露边缘，失败整次回滚，仍支持稳定分块、锁定与手刷保护、一次撤销及原生保存。跨层不连接，桥头开口。默认材质 `pack:default:paving/automatic_limestone_kerb/material`。实际 HTTP/UI、合批和运行时验证见 [实现与验收](automatic_road_kerb_20261007.md)。不启用旧二维接口。

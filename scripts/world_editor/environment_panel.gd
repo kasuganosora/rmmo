@@ -3,16 +3,26 @@ const Settings = preload("res://scripts/world3d/environment_settings.gd")
 var editor: Node3D
 var form: VBoxContainer
 var _key := ""
+var wind_preview: CheckButton
 const LABELS = {"interior_cutaway":"第三人称先被楼板挡住时隐藏天花板及上层", "indoor_camera_distance":"第三人称室内相机最远距离（米）", "preset": "时段（day 白天 / sunset 黄昏 / night 夜晚）", "sun_rotation": "主光方向（度）", "sun_color": "主光颜色", "sun_energy": "主光强度", "sun_shadows": "太阳光投影", "ambient_occlusion": "环境遮蔽（接缝与接触处）", "ambient_color": "环境光颜色", "ambient_energy": "环境光强度", "background_color": "天空背景颜色", "fog_enabled": "雾", "fog_density": "雾浓度", "fog_color": "雾颜色", "outline_enabled": "人物被遮挡时显示轮廓", "outline_color": "遮挡轮廓颜色", "outline_width": "遮挡轮廓宽度（像素）"}
 
 func setup(host: Node3D) -> void:
 	editor = host; add_theme_constant_override("separation", 7)
+	wind_preview=CheckButton.new(); wind_preview.name="EditorWindPreview"; wind_preview.text="编辑器风场预览"
+	wind_preview.tooltip_text="默认关闭。开启后预览树木、旗帜等受风效果；只影响本次编辑会话。"
+	add_child(wind_preview)
+	wind_preview.toggled.connect(func(enabled):
+		var result: Dictionary=editor._wind_tools.set_preview(enabled)
+		wind_preview.set_pressed_no_signal(editor._wind_tools.preview_enabled)
+		editor._status.text=("编辑器风场预览已开启" if enabled else "编辑器风场预览已关闭") if result.ok else str(result.error)
+	)
 	var note := Label.new(); note.text = "按主题调整参数，再点击上方「应用环境设置」。支持撤销。"
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(note)
 	form = preload("res://scripts/world_editor/settings_form.gd").new(); add_child(form)
 	refresh()
 
 func refresh() -> void:
+	if wind_preview!=null: wind_preview.set_pressed_no_signal(editor._wind_tools.preview_enabled)
 	var values := Settings.resolve(editor._doc.map_meta)
 	var key := JSON.stringify(values)
 	if key == _key: return

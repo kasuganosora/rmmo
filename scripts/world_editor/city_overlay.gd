@@ -9,18 +9,61 @@ var bounds := Rect2(-20,-20,40,40)
 var boxes: Array[Rect2] = []
 var invalidated := false
 var age := 0.0
+var mini_marker: Control
+var _view_key: Array = []
+var _marker_key: Array = []
+var _had_preview := false
+var _road_sides := {}
+var draw_count := 0
+var minimap_draw_count := 0
+var _record_bounds := {}
+var _changed_records := {}
+var _camera_inverse := Transform3D.IDENTITY
+var _projection := Projection.IDENTITY
+var _projection_size := Vector2.ONE
+var _near := .05
+var _road_bounds := {}
+var _frustum: Array[Plane] = []
+var last_draw_ms := 0.0
+var _roads_layer: Node2D
+var _foreground: Control
+var _roads_need_redraw := true
+var road_draw_count := 0
+var _road_projection_key: Array = []
+var _road_screen_origin := Vector2.ZERO
+var _road_offset := Vector2.ZERO
+# Opt-in benchmark counters are monotonic: callers take differences, never
+# mistake the duration of a cached draw from an earlier frame for current work.
+var profile_enabled := false
+var profile_cpu_us := {"process":0,"main":0,"roads":0,"foreground":0,"minimap":0,"marker":0,"projection":0}
+var profile_calls := {"process":0,"main":0,"roads":0,"foreground":0,"minimap":0,"marker":0,"projection":0}
+
+func _profile_end(stage: String, started: int) -> void:
+	if not profile_enabled: return
+	profile_cpu_us[stage] += Time.get_ticks_usec() - started
+	profile_calls[stage] += 1
 
 func setup(value: RefCounted) -> void:
 	city=value; mouse_filter=Control.MOUSE_FILTER_IGNORE; clip_contents=true
+	# A zero-size Control can be culled after negative translations even when
+	# its custom drawing overlaps the viewport. Node2D uses the drawn bounds.
+	_roads_layer=Node2D.new()
+	add_child(_roads_layer); _roads_layer.draw.connect(draw_roads)
+	_foreground=Control.new(); _foreground.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	add_child(_foreground); _foreground.draw.connect(draw_foreground)
 	mini=Control.new(); mini.custom_minimum_size=Vector2(200,166); mini.size=Vector2(200,166); add_child(mini)
 	mini.mouse_filter=Control.MOUSE_FILTER_STOP
 	mini.clip_contents=true
 	mini.tooltip_text="城镇概览 · 点击定位；箭头指北（−Z），黄色框为当前正交视野"
 	mini.draw.connect(draw_minimap); mini.gui_input.connect(minimap_input)
+	mini_marker=Control.new(); mini_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	mini.add_child(mini_marker); mini_marker.draw.connect(draw_minimap_marker)
 	refresh()
 
 func refresh() -> void:
 	invalidated=false; age=0
+	_view_key.clear(); _marker_key.clear()
+	refresh_roads()
 	var path: String=city.data.get("reference",{}).get("path","")
 	if path!=_path:
 		_path=path; texture=null; reference_error=""
@@ -29,7 +72,44 @@ func refresh() -> void:
 				var img:=Image.load_from_file(path)
 				if img!=null and not img.is_empty(): texture=ImageTexture.create_from_image(img)
 			if texture==null: reference_error="参考图文件缺失，请重新导入"
-	var world: AABB=city.world_bounds("all")
+	_record_bounds.clear(); _changed_records.clear()
+	for record in city.editor._doc.records:
+		_record_bounds[str(record.uuid)]=city.Geometry.bounds([record])
+	_refresh_bounds()
+	queue_redraw()
+	if mini!=null: mini.queue_redraw()
+
+func refresh_roads() -> void:
+	_road_sides.clear()
+	_road_bounds.clear()
+	_roads_need_redraw=true; _road_projection_key.clear()
+	for edge in city.data.roads.edges:
+		var points: Array=city.analysis.get("paths",{}).get(edge.id,[])
+		var left: Array[Vector3]=[]; var right: Array[Vector3]=[]
+		for i in points.size():
+			var delta: Vector3=points[mini_i(i+1,points.size()-1)]-points[maxi(i-1,0)]
+			var normal:=Vector3(-delta.z,0,delta.x).normalized()
+			var width:=lerpf(edge.width_start,edge.width_end,float(i)/maxi(1,points.size()-1))
+			left.append(points[i]+normal*width*.5); right.append(points[i]-normal*width*.5)
+		_road_sides[edge.id]=[left,right]
+		if not points.is_empty():
+			var box:=AABB(points[0],Vector3.ZERO)
+			for side in [points,left,right]:
+				for point: Vector3 in side: box=box.expand(point)
+			_road_bounds[edge.id]=box
+	queue_redraw()
+	if mini!=null: mini.queue_redraw()
+
+func invalidate_record(record: Dictionary) -> void:
+	_changed_records[str(record.uuid)]=record
+
+func _refresh_bounds() -> void:
+	var world := AABB()
+	var first := true
+	for box: AABB in _record_bounds.values():
+		world=box if first else world.merge(box); first=false
+	for point in city.layout_points():
+		world=AABB(point,Vector3.ZERO) if first else world.expand(point); first=false
 	bounds=Rect2(world.position.x,world.position.z,maxf(world.size.x,1),maxf(world.size.z,1)).grow(10)
 	boxes.clear()
 	# The overview is schematic, capped independently of actual world records.
@@ -37,31 +117,97 @@ func refresh() -> void:
 	for i in range(0,city.editor._doc.records.size(),stride):
 		var r: Dictionary=city.editor._doc.records[i]
 		if r.get("editor_hidden",false): continue
-		var box: AABB=city.Geometry.bounds([r])
+		var box: AABB=_record_bounds[str(r.uuid)]
 		boxes.append(Rect2(box.position.x,box.position.z,box.size.x,box.size.z))
 
 func _process(_dt: float) -> void:
 	if city==null: return
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
 	age+=_dt
 	if invalidated and age>=.2: refresh()
+	elif not _changed_records.is_empty() and age>=.2:
+		for id: String in _changed_records: _record_bounds[id]=city.Geometry.bounds([_changed_records[id]])
+		_changed_records.clear(); age=0; _refresh_bounds(); mini.queue_redraw()
 	size=city.editor._canvas.size
 	mini.position=Vector2(maxf(0,size.x-mini.size.x-12),12)
 	visible=not city.editor._playtest.active()
 	mini.visible=city.editor._dock_tabs!=null and (city.editor._dock_tabs.current_tab==9 or not city.data.roads.nodes.is_empty() or city.data.has("reference"))
 	# Saving locks the camera and authoring input. Keep the last overlay instead
 	# of projecting the entire road network again for every progress-bar frame.
-	if city.editor.saving(): return
-	queue_redraw(); mini.queue_redraw()
+	if city.editor.saving():
+		_profile_end("process", measured)
+		return
+	var camera: Camera3D=city.editor._camera
+	prepare_projection()
+	var view_key: Array=[camera.get_camera_transform(),camera.projection,camera.size,camera.fov,camera.keep_aspect,camera.frustum_offset,camera.near,camera.far,size]
+	var preview: bool=city.busy() or not city.pending.is_empty() or not city.editor._blocks.overlay_plan.is_empty() or not city.editor._scatter.overlay_plan.is_empty() or not city.editor._waterways.overlay_plan.is_empty() or not city.editor._fortifications.overlay_plan.is_empty()
+	var view_changed:bool=view_key!=_view_key
+	if view_changed or preview or _had_preview:
+		_view_key=view_key; queue_redraw(); _foreground.queue_redraw()
+		# Preview geometry belongs to the main/foreground layers. Existing roads
+		# only change with their own cache invalidation or a changed projection.
+		if view_changed and camera.projection!=Camera3D.PROJECTION_ORTHOGONAL: _roads_need_redraw=true
+	_roads_layer.position=_road_offset
+	if _roads_need_redraw:
+		_roads_need_redraw=false; _roads_layer.queue_redraw()
+	_had_preview=preview
+	var marker_key: Array=[city.editor._orbit_center,camera.projection,camera.size,size,mini.size,bounds]
+	if marker_key!=_marker_key:
+		_marker_key=marker_key; mini_marker.queue_redraw()
+	_profile_end("process", measured)
 
 func project(points: Array) -> PackedVector2Array:
+	# The engine transforms the packed vertices in one call. Preserve every
+	# sample and the same homogeneous projection/near-plane rejection.
+	var local_points: PackedVector3Array=_camera_inverse*PackedVector3Array(points)
 	var out:=PackedVector2Array()
-	for point in points:
-		if city.editor._camera.is_position_behind(point): return PackedVector2Array()
-		out.append(city.editor._camera.unproject_position(point))
+	out.resize(local_points.size())
+	for index in local_points.size():
+		var local:=local_points[index]
+		if local.z > -_near: return PackedVector2Array()
+		var clip: Vector4=_projection*Vector4(local.x,local.y,local.z,1.)
+		out[index]=Vector2(clip.x/clip.w*.5+.5,-clip.y/clip.w*.5+.5)*_projection_size
 	return out
+
+func project_local(point: Vector3) -> Vector2:
+	var clip: Vector4=_projection*Vector4(point.x,point.y,point.z,1.)
+	return Vector2(clip.x/clip.w*.5+.5,-clip.y/clip.w*.5+.5)*_projection_size
+
+func prepare_projection() -> void:
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
+	var camera: Camera3D=city.editor._camera
+	_camera_inverse=camera.get_camera_transform().affine_inverse()
+	_projection=camera.get_camera_projection()
+	_projection_size=camera.get_viewport().get_visible_rect().size
+	_near=camera.near
+	_frustum=camera.get_frustum()
+	var key: Array=[camera.global_basis,_projection,_projection_size,_camera_inverse.origin.z]
+	if camera.projection==Camera3D.PROJECTION_ORTHOGONAL:
+		# Orthographic pan is an exact 2D translation at every world height.
+		# Keep projected curve samples until zoom/orientation/depth/data changes.
+		if key!=_road_projection_key:
+			_roads_need_redraw=true; _road_projection_key=key
+			_road_screen_origin=project_local(_camera_inverse*Vector3.ZERO)
+		_road_offset=project_local(_camera_inverse*Vector3.ZERO)-_road_screen_origin
+	else:
+		_road_projection_key.clear(); _road_offset=Vector2.ZERO
+	_profile_end("projection", measured)
+
+func road_in_view(id: String) -> bool:
+	if not _road_bounds.has(id): return false
+	var box: AABB=_road_bounds[id]
+	var center:=box.get_center(); var extent:=box.size*.5
+	for plane: Plane in _frustum:
+		# Include the screen-space stroke fringe even for a far-away camera.
+		var fringe: float=maxf(.01,center.distance_to(city.editor._camera.global_position)*.02)
+		if plane.distance_to(center)>plane.normal.abs().dot(extent)+fringe: return false
+	return true
 
 func _draw() -> void:
 	if city==null: return
+	var started:=Time.get_ticks_usec()
+	draw_count+=1
+	prepare_projection()
 	var camera: Camera3D=city.editor._camera
 	var wall: Dictionary=city.editor._fortifications.overlay_plan
 	if wall.has("settings"):
@@ -132,42 +278,53 @@ func _draw() -> void:
 		if polygon.size()<3: continue
 		var color:=Color("e58c8c") if zone.purpose=="no_build" else (Color("91c396") if zone.purpose=="no_vegetation" else Color("a29fdc"))
 		draw_colored_polygon(polygon,Color(color,.16)); polygon.append(polygon[0]); draw_polyline(polygon,Color(color,.8),2,true)
+	last_draw_ms=(Time.get_ticks_usec()-started)/1000.0
+	_profile_end("main", started)
+
+func draw_roads() -> void:
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
+	road_draw_count+=1
+	var camera: Camera3D=city.editor._camera
+	_roads_layer.draw_set_transform(-_road_offset)
 	for edge in city.data.roads.edges:
 		if edge.get("hidden",false): continue
+		if camera.projection!=Camera3D.PROJECTION_ORTHOGONAL and not road_in_view(str(edge.id)): continue
 		var color:=Color("6dc4df") if edge.kind=="bridge" else Color("efc267")
 		if edge.get("locked",false): color=Color("929cb1")
 		var points: Array=city.analysis.get("paths",{}).get(edge.id,[])
 		var centerline:=project(points)
 		if centerline.size()<2: continue
-		var left: Array[Vector3]=[]; var right: Array[Vector3]=[]
-		for i in points.size():
-			var delta: Vector3=points[mini_i(i+1,points.size()-1)]-points[maxi(i-1,0)]
-			var normal:=Vector3(-delta.z,0,delta.x).normalized()
-			var width:=lerpf(edge.width_start,edge.width_end,float(i)/maxi(1,points.size()-1))
-			left.append(points[i]+normal*width*.5); right.append(points[i]-normal*width*.5)
-		for side in [left,right]:
-			var pixels:=project(side)
-			if pixels.size()>1: draw_polyline(pixels,Color(color,.38),1,true)
-		draw_polyline(centerline,color,2,true)
+		var sides: Array=_road_sides.get(edge.id,[])
+		for index in sides.size():
+			var pixels:=project(sides[index])
+			if pixels.size()>1: _roads_layer.draw_polyline(pixels,Color(color,.38),1,true)
+		_roads_layer.draw_polyline(centerline,color,2,true)
 	for node in city.data.roads.nodes:
 		if node.get("hidden",false): continue
-		var p:=Data.vec(node.position)
-		if camera.is_position_behind(p): continue
-		draw_circle(camera.unproject_position(p),4,Color("b1d7dd") if not node.get("locked",false) else Color("859099"))
+		var p: Vector3=_camera_inverse*Data.vec(node.position)
+		if p.z > -_near: continue
+		_roads_layer.draw_circle(project_local(p),4,Color("b1d7dd") if not node.get("locked",false) else Color("859099"))
+	_profile_end("roads", measured)
+
+func draw_foreground() -> void:
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
+	var camera: Camera3D=city.editor._camera
 	if not city.pending.is_empty():
 		var pixels:=project(city.pending.map(func(p): return Data.vec(p)))
-		if pixels.size()>1: draw_polyline(pixels,Color("99edb2"),3,true)
-		for p in pixels: draw_circle(p,5,Color("99edb2"))
+		if pixels.size()>1: _foreground.draw_polyline(pixels,Color("99edb2"),3,true)
+		for p in pixels: _foreground.draw_circle(p,5,Color("99edb2"))
 	var font:=ThemeDB.fallback_font
 	var note:="正交俯视 · 上方为北（−Z）" if camera.projection==Camera3D.PROJECTION_ORTHOGONAL else "透视视图 · 右键环绕 / 中键平移"
-	draw_string(font,Vector2(14,size.y-14),note,HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
-	if not reference_error.is_empty(): draw_string(font,Vector2(14,22),reference_error,HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("ffb267"))
+	if city.editor._walk_mode!=null and city.editor._walk_mode.active:note="胶囊行走 · WASD / Shift / 空格 · 右键转向 · 左键编辑 · F6 退出"
+	_foreground.draw_string(font,Vector2(14,size.y-14),note,HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
+	if not reference_error.is_empty(): _foreground.draw_string(font,Vector2(14,22),reference_error,HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("ffb267"))
 	if camera.projection==Camera3D.PROJECTION_ORTHOGONAL:
 		var mpp: float=camera.size/maxf(size.y,1)
 		var unit:=pow(10,floor(log(maxf(mpp*100,.001))/log(10)))
 		var length_: float=unit/mpp
-		draw_line(Vector2(14,size.y-45),Vector2(14+length_,size.y-45),Color.WHITE,2)
-		draw_string(font,Vector2(14,size.y-53),str(unit)+" m",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
+		_foreground.draw_line(Vector2(14,size.y-45),Vector2(14+length_,size.y-45),Color.WHITE,2)
+		_foreground.draw_string(font,Vector2(14,size.y-53),str(unit)+" m",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
+	_profile_end("foreground", measured)
 
 func mini_i(a: int,b: int) -> int: return mini(a,b)
 
@@ -179,6 +336,8 @@ func to_mini(point: Vector2) -> Vector2:
 	var rect:=mini_rect()
 	return rect.position+(point-bounds.position)/bounds.size*rect.size
 func draw_minimap() -> void:
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
+	minimap_draw_count+=1
 	mini.draw_style_box(preload("res://scripts/world_editor/workspace_theme.gd").panel(Color(.08,.11,.15,.94),6),Rect2(Vector2.ZERO,mini.size))
 	mini.draw_string(ThemeDB.fallback_font,Vector2(10,18),"城镇概览    ↑ 北",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color("b9cad5"))
 	for box in boxes:
@@ -188,14 +347,19 @@ func draw_minimap() -> void:
 		var pixels:=PackedVector2Array()
 		for p in city.analysis.get("paths",{}).get(edge.id,[]): pixels.append(to_mini(Vector2(p.x,p.z)))
 		if pixels.size()>1: mini.draw_polyline(pixels,Color("6dc4df") if edge.kind=="bridge" else Color("efc267"),1,true)
+	_profile_end("minimap", measured)
+
+func draw_minimap_marker() -> void:
+	var measured := Time.get_ticks_usec() if profile_enabled else 0
 	var camera: Camera3D=city.editor._camera
 	var center: Vector3=city.editor._orbit_center
 	if camera.projection==Camera3D.PROJECTION_ORTHOGONAL:
 		var half:=Vector2(camera.size*size.x/maxf(size.y,1),camera.size)*.5
 		var from:=to_mini(Vector2(center.x,center.z)-half); var to:=to_mini(Vector2(center.x,center.z)+half)
 		var clipped:=Rect2(from,to-from).intersection(Rect2(Vector2(2,25),mini.size-Vector2(4,27)))
-		if clipped.has_area(): mini.draw_rect(clipped,Color("f5e8a0"),false,1.5)
-	mini.draw_circle(to_mini(Vector2(center.x,center.z)),3,Color.WHITE)
+		if clipped.has_area(): mini_marker.draw_rect(clipped,Color("f5e8a0"),false,1.5)
+	mini_marker.draw_circle(to_mini(Vector2(center.x,center.z)),3,Color.WHITE)
+	_profile_end("marker", measured)
 func minimap_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_LEFT:
 		var rect:=mini_rect()

@@ -7,6 +7,7 @@ const Net = preload("res://scripts/net/net.gd")
 var editor: Node3D
 
 func guard() -> Dictionary:
+	if editor.saving(): return {"ok":false,"error":"正在读取或保存地图，请等待完成"}
 	if editor._ground_draw!=null and editor._ground_draw.active: return {"ok":false,"error":"请先完成或取消地表区域绘制"}
 	if editor._city.busy(): return {"ok":false,"error":"请先提交或取消道路草案 / 节点拖动"}
 	if editor._playtest != null and editor._playtest.active(): return {"ok":false,"error":"试玩期间不能修改编辑文档，请先停止试玩"}

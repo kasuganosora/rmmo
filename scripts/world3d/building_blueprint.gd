@@ -222,6 +222,7 @@ static func geometry_signature(record: Dictionary) -> String:
 	return JSON.stringify(fields)
 
 static func valid_record(record: Dictionary) -> bool:
+	if record.has("window_design") and (record.window_design not in ["casement","cross_lattice","diamond_lattice"] or record.get("fixture",{}).get("kind")!="window" or not record.has("house_prefab")):return false
 	if not preload("res://scripts/world3d/house_prefab.gd").valid(record):return false
 	if not Fixtures.valid(record): return false
 	if record.has("building_shape") and (record.building_shape not in ["gable","cylinder","roof_prism","wall_grid","draped_cloth","joined_box","candle_sconce","timber_door","interior_door","interior_door_frame"] or record.get("kind")!="box" or record.has("tile3d")): return false
@@ -261,10 +262,10 @@ static func valid_meta(meta: Dictionary) -> bool:
 			if not part is String or not b.parts[part] is String or not b.signatures.get(part) is String: return false
 	return true
 
-static func valid_ownership(meta: Dictionary, records: Array) -> bool:
+static func valid_ownership(meta: Dictionary, records: Array, records_validated: bool = false) -> bool:
 	var registry: Dictionary = meta.get("building_instances",{}); var by_id := {}
 	for record in records:
-		if not record is Dictionary or not valid_record(record): return false
+		if not record is Dictionary or (not records_validated and not valid_record(record)): return false
 		by_id[str(record.get("uuid",""))] = record
 		if not record.has("building"): continue
 		var b: Dictionary = record.building

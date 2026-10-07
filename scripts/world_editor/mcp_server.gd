@@ -45,7 +45,7 @@ func call_tool(name: String, args: Dictionary) -> Dictionary:
 	if not validation.is_empty(): return {"ok": false, "error": validation}
 	if not is_instance_valid(editor) or editor._selection_tools == null: return {"ok": false, "error": "3D editor is not ready"}
 	if not definition.annotations.readOnlyHint:
-		if editor.saving(): return {"ok":false,"error":"正在保存，请等待当前保存完成；可用 editor_state 查询进度"}
+		if editor.saving(): return {"ok":false,"error":"正在读取或保存地图，请等待完成；可用 editor_state 查询进度"}
 		if editor._city.busy(): return {"ok":false,"error":"Finish or cancel the road draft/node drag first"}
 		if editor._playtest.active() and name != "stop_playtest": return {"ok":false,"error":"Stop the playtest before editing the document"}
 		if editor._authoring.picking: return {"ok":false,"error":"Finish or cancel spawn picking first"}
@@ -112,6 +112,14 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 		if msg is Dictionary and msg.get("method") == "tools/call" and msg.has("id") and msg.get("params") is Dictionary:
 			var params: Dictionary = msg.params
 			var args: Variant = params.get("arguments", {})
+			if params.get("name")=="open_world":
+				var reply: Dictionary=handle_rpc(msg)
+				var payload: Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
+				if payload is Dictionary and payload.get("pending",false) and not args.get("background",false):
+					_pending_saves[peer.get_instance_id()]=true
+					editor._load_job.finished.connect(_opened_http.bind(peer,msg.id),CONNECT_ONE_SHOT)
+				else: _write_http(peer,200,"application/json",_stringify_rpc(reply))
+				return
 			var saving_close: bool = params.get("name") == "close_editor" and args is Dictionary and args.get("action") == "save"
 			if params.get("name") == "save_world" or saving_close:
 				var reply: Dictionary = handle_rpc(msg)
@@ -122,6 +130,13 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 				else: _write_http(peer, 200, "application/json", _stringify_rpc(reply))
 				return
 	super._handle_http(peer, method, path, body)
+
+func _opened_http(result: Dictionary, peer: StreamPeerTCP, id: Variant) -> void:
+	_pending_saves.erase(peer.get_instance_id())
+	peer.poll()
+	if peer.get_status()==StreamPeerTCP.STATUS_CONNECTED:
+		var payload: Dictionary=_ops.state() if result.ok else result
+		_write_http(peer,200,"application/json",_stringify_rpc({"jsonrpc":"2.0","id":id,"result":{"isError":not result.ok,"content":[{"type":"text","text":JSON.stringify(payload)}]}}))
 
 func _saved_http(result: Dictionary, peer: StreamPeerTCP, id: Variant, close_after: bool) -> void:
 	_pending_saves.erase(peer.get_instance_id())

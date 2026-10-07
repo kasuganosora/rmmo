@@ -26,8 +26,7 @@ func setup(panel: VBoxContainer) -> void:
 	for role in ["bank","bed","bridge"]:
 		host.note(body,{"bank":"河岸材质","bed":"河床材质","bridge":"桥面材质（旧式平桥同时用于栏杆）"}[role])
 		var menu:=OptionButton.new(); menu.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(menu); materials[role]=menu
-		menu.add_item("原色"); menu.set_item_metadata(0,"")
-		for entry in editor._material_tool.library.entries(): menu.add_item(str(entry.material.name)); menu.set_item_metadata(menu.item_count-1,entry.material_id)
+		preload("res://scripts/world_editor/material_choice.gd").bind_menu(menu,editor._material_panel,"原色")
 		menu.item_selected.connect(func(_i):invalidate())
 	host.note(body,"桥梁垂直穿过选定直线段，两端桥头与岸面齐平。段号从 0 起；0.5 表示该段中点。避开转角，净宽为桥宽减两侧 0.3 米栏杆。")
 	host.note(body,"石桥主通航孔必须有 2 米净宽、距水面至少 2.5 米净高。此河道面板按填写的拱高校验；不足时请增加拱高、引道长度或水面落差。")
@@ -49,9 +48,7 @@ func form() -> void:
 		if control is SpinBox: control.value_changed.connect(func(_v):invalidate())
 		if control is LineEdit: control.text_changed.connect(func(_v):invalidate())
 	for role in materials:
-		var menu: OptionButton=materials[role]; menu.select(0)
-		for i in menu.item_count:
-			if menu.get_item_metadata(i)==current[role+"_material_id"]: menu.select(i)
+		preload("res://scripts/world_editor/material_choice.gd").choose(materials[role],str(current[role+"_material_id"]))
 	source_info.text="挖河地面："+str(current.ground_ids)+"；中心线 %d 点"%current.points.size()
 	sync_bridges()
 func bridge_form(value: Dictionary={}) -> void:

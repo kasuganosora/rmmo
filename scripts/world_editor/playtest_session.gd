@@ -58,6 +58,7 @@ func start(position: Variant = null) -> Dictionary:
 	if result != OK:
 		if DirAccess.dir_exists_absolute(path): Io._remove_tree(path)
 		return {"ok":false,"error":"创建试玩副本失败："+error_string(result)}
+	if editor._walk_mode!=null:editor._walk_mode.stop()
 	directory = path; map_path = path.path_join("map.gltf"); source_path = editor._path
 	spawn = Vector3(raw[0],raw[1],raw[2]); phase = "preparing"; last_error = ""; _generation += 1
 	_overlay = CanvasLayer.new(); _overlay.layer = 100; add_child(_overlay)

@@ -135,7 +135,7 @@ func refresh(refresh_scene: bool=true) -> void:
 	if record.get("prefab_locked",false):
 		title.text="固定预制件";building_note.visible=true
 		building_note.text="已烘焙 · 整栋移动、旋转、复制、删除
-内部结构与材质固定；门窗仍可开合。"
+结构固定；刷面工具可换墙材质。\n建筑面板可开合门窗、替换单窗格栅。"
 		if record.has("fortification"):building_note.text="城防结构已固定，不能拆改。\n通过城防面板整体删除或开合城门。"
 		elif record.has("bridge_mesh"):building_note.text="桥梁网格已固定，加载时不重新生成。\n跨度、拱孔与材质不可修改。"
 	tile_note.visible = not multi and record.has("tile3d")
@@ -184,6 +184,19 @@ func refresh(refresh_scene: bool=true) -> void:
 	if banner_panel != null:banner_panel.refresh()
 	_updating = false
 
+
+func refresh_transform(live_record: Variant = null) -> void:
+	# A drag only changes these numbers. Resource inspectors and topology/UI
+	# visibility are refreshed on selection/change completion, not mouse motion.
+	_updating=true
+	var record: Dictionary=editor._doc._find(selection) if live_record == null else live_record
+	var multi: bool=editor._selection_tools.ids.size()>1
+	var pivot: Vector3=editor._selection_tools.pivot() if multi else Vector3.ZERO
+	for field in ["position","rotation","size"]:
+		var values: Array=record.get(field,[0,0,0])
+		if multi: values=[pivot.x,pivot.y,pivot.z] if field=="position" else [0,0,0]
+		for axis in 3: fields["%s_%d"%[field,axis]].set_value_no_signal(float(values[axis]))
+	_updating=false
 
 func _number_changed(group: String, axis: int, value: float) -> void:
 	if _updating or editor._load_failed or selection.is_empty() or not is_finite(value):

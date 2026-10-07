@@ -9,6 +9,7 @@ const Net = preload("res://scripts/net/net.gd")
 const AutoRules = preload("res://scripts/world3d/auto_tile_rules.gd")
 const SelectionGeometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Prefabs = preload("res://scripts/world_editor/prefab_library.gd")
+const WalkMode = preload("res://scripts/world_editor/walk_mode.gd")
 
 var _assets = preload("res://scripts/world_editor/asset_library.gd").new()
 var _asset_pack_root := ""
@@ -29,6 +30,7 @@ var _camera: Camera3D
 var _status: Label
 var _save_progress: ProgressBar
 var _save_job: Node
+var _load_job: Node
 var _path := ""
 var _load_failed := false
 var _dirty := false:
@@ -44,6 +46,8 @@ var _preview: SubViewportContainer
 var _palette_items: Array = []
 var _search_timer: Timer
 var _palette: ScrollContainer
+var _asset_category := ""
+var _asset_category_picker: OptionButton
 var _snap := 0.25
 var _rotation_snap := 15.0
 var _orbit_center := Vector3.ZERO
@@ -95,9 +99,13 @@ var _ground_draw: Control
 var _terrain_brush: Control
 var _terrain_panel: VBoxContainer
 var _city = preload("res://scripts/world_editor/city_tools.gd").new()
+var _camera_navigation: Node
+var _walk_mode: Node
+var _walk_button: Button
 
 
 func _ready() -> void:
+	var initial_path := ""
 	var dir := Paths.cache_directory("editor_yard")
 	_path = dir.path_join("map.gltf") if dir != "" else ""
 	if Net.session().world3d_editor_path != "":
@@ -107,10 +115,8 @@ func _ready() -> void:
 		_doc = kept
 		_dirty = kept.editor_dirty
 	elif _path != "" and FileAccess.file_exists(_path):
-		_doc = Document.open_file(_path)
-		_load_failed = _doc == null
-		if _load_failed:
-			_doc = Document.new()
+		initial_path=_path
+		_doc=Document.new()
 	else:
 		_doc = Document.new()
 		_doc.add_box("ground", Vector3(0, -0.1, 0), Vector3(40, 0.2, 40))
@@ -147,9 +153,15 @@ func _ready() -> void:
 	_safety = preload("res://scripts/world_editor/document_safety.gd").new()
 	add_child(_safety)
 	_safety.setup(self)
+	_camera_navigation=preload("res://scripts/world_editor/camera_navigation.gd").new()
+	_camera_navigation.editor=self; add_child(_camera_navigation)
+	_walk_mode=WalkMode.new(); _walk_mode.editor=self; add_child(_walk_mode)
 	_save_job = preload("res://scripts/world_editor/save_job.gd").new()
 	_save_job.editor = self
 	add_child(_save_job)
+	_load_job=preload("res://scripts/world_editor/load_job.gd").new()
+	_load_job.editor=self; add_child(_load_job)
+	if not initial_path.is_empty(): _load_job.start(initial_path,true)
 	if _load_failed:
 		_status.text = "地图读取失败或格式不支持；已禁止覆盖保存"
 	if _mcp_autostart and (OS.get_environment("RMMO_EDITOR_MCP").strip_edges().to_lower() in ["1", "true", "yes", "on"] or "--mcp" in OS.get_cmdline_user_args()):
@@ -194,8 +206,14 @@ func _input(event: InputEvent) -> void:
 	if saving():
 		get_viewport().set_input_as_handled()
 		return
-	# Drawer controls overlap the canvas; let GUI consume them before scene tools.
-	if _material_panel != null and _material_panel.drawer_input(event): return
+	# The material drawer overlays the canvas and must retain its GUI input.
+	if _material_panel != null and _material_panel.drawer_input(event):
+		if _walk_mode!=null:_walk_mode.reset_input()
+		return
+	if _walk_mode!=null and _walk_mode.input(event):
+		get_viewport().set_input_as_handled(); return
+	if _camera_navigation!=null and _camera_navigation.input(event):
+		get_viewport().set_input_as_handled(); return
 	if _terrain_panel!=null and _terrain_panel.rock_banks!=null and _terrain_panel.rock_banks.input(event):get_viewport().set_input_as_handled();return
 	if _ground_draw!=null and _ground_draw.input(event): get_viewport().set_input_as_handled(); return
 	if _terrain_brush!=null and _terrain_brush.input(event): get_viewport().set_input_as_handled(); return
@@ -273,6 +291,9 @@ func _input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if _camera_navigation!=null: _camera_navigation.reset()
+		if _walk_mode!=null: _walk_mode.reset_input()
+		if saving(): return
 		_city.finish_draw(true)
 		if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
 		if _building_panel!=null and _building_panel.street!=null:
@@ -289,7 +310,7 @@ func _notification(what: int) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if saving(): return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if get_viewport().gui_get_focus_owner() is LineEdit: return
+		if get_viewport().gui_get_focus_owner() is LineEdit or get_viewport().gui_get_focus_owner() is TextEdit: return
 		var key := (event as InputEventKey).keycode
 		if key >= KEY_1 and key <= KEY_9:
 			_pick = key - KEY_1
@@ -314,6 +335,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		elif key == KEY_F5:
 			_play()
+		elif key == KEY_F6:
+			_toggle_walk_mode()
 		elif key == KEY_D and event.ctrl_pressed:
 			_duplicate_selected()
 		elif key == KEY_F:
@@ -484,14 +507,17 @@ const FortCollision=preload("res://scripts/world3d/fortification_collision_batch
 var _fortification_collisions: Node3D
 var _ground_sync_suspended := false
 var _ground_sync_pending := false
+var _picking_shapes = preload("res://scripts/world_editor/picking_shape_cache.gd").new()
 
-func _sync_ground_batches() -> void:
+func _sync_ground_batches(selection_only: bool=false) -> void:
 	if _view == null: return
 	if _ground_sync_suspended: _ground_sync_pending=true; return
 	if not is_instance_valid(_ground_batches):
 		_ground_batches = preload("res://scripts/world3d/ground_batcher.gd").new()
 		add_child(_ground_batches)
-	_ground_batches.sync(_view.get_children(), _selection_tools.ids if _selection_tools != null else [])
+	var excluded: Array=_selection_tools.ids if _selection_tools != null else []
+	if selection_only: _ground_batches.sync_selection(_view.get_children(),excluded)
+	else: _ground_batches.sync(_view.get_children(),excluded)
 	_sync_fortification_collisions()
 
 func _sync_fortification_collisions() -> void:
@@ -509,17 +535,31 @@ func _sync_fortification_collisions() -> void:
 		_bodies_by_uuid.erase(uuid)
 		if visible_: entries.append(FortCollision.entry(visual.mesh,visual.global_transform,uuid,visual.get_meta("extras",{})))
 	_fortification_collisions.sync(entries)
+	for group:Dictionary in _fortification_collisions.groups.values():
+		group.body.collision_layer=1 | (WalkMode.WALK_MASK if group.members[0].collision!="none" else 0)
 
-func _rebuild() -> void:
+func _begin_rebuild(timings: Dictionary = {}) -> void:
+	var started := Time.get_ticks_usec()
+	_picking_shapes.clear()
 	_bridges.clear_preview()
 	if is_instance_valid(_ground_batches): _ground_batches.clear(false)
 	if is_instance_valid(_fortification_collisions): _fortification_collisions.clear()
+	timings.clear_batches_ms = (Time.get_ticks_usec()-started)/1000.
+	started = Time.get_ticks_usec()
 	if _terrain_panel!=null: _terrain_panel.refresh()
+	timings.terrain_panel_ms = (Time.get_ticks_usec()-started)/1000.
+	started = Time.get_ticks_usec()
 	if _building_panel != null:
 		_building_panel.clear_preview()
 		_building_panel.refresh_list()
+	timings.building_panel_ms = (Time.get_ticks_usec()-started)/1000.
+	started = Time.get_ticks_usec()
 	_authoring.refresh()
+	timings.authoring_ms = (Time.get_ticks_usec()-started)/1000.
+	started = Time.get_ticks_usec()
 	_city.refresh()
+	timings.city_ms = (Time.get_ticks_usec()-started)/1000.
+	started = Time.get_ticks_usec()
 	_bodies_by_uuid.clear()
 	var doomed: Array = []
 	for child in get_children():
@@ -529,12 +569,19 @@ func _rebuild() -> void:
 		remove_child(child)
 		child.free()
 	_view = null
+	timings.free_previous_ms = (Time.get_ticks_usec()-started)/1000.
+
+func _rebuild() -> void:
+	_begin_rebuild()
 	_view = _doc.build()
 	add_child(_view)
 	for record in _doc.records:
 		var visual := _view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
 		if visual != null: _authoring.decorate(record,visual)
 	_add_bodies(_view)
+	_finish_rebuild()
+
+func _finish_rebuild() -> void:
 	if _selection_tools != null: _selection_tools.refresh()
 	if _object_list != null: _object_list.refresh()
 	_refresh_selection()
@@ -544,18 +591,24 @@ func _rebuild() -> void:
 		Net.session().world3d_editor_doc = _doc
 
 
-func _add_bodies(node: Node) -> void:
-	if node.get_meta("editor_floor_excluded",false): return
-	if node is Node3D and not node.visible: return
+func _picking_node_enabled(node:Node)->bool:
+	if node.get_meta("editor_shadow_proxy",false):return false
+	if node.get_meta("editor_floor_excluded",false):return false
+	if node is Node3D and not node.visible:return false
+	if node is MeshInstance3D and node.mesh!=null and FortCollision.candidate(node.get_meta("ground_batch_record",{})) and (_selection_tools==null or str(node.name) not in _selection_tools.ids):return false
+	return true
+
+func _add_bodies(node: Node, recursive:bool=true) -> void:
+	if not _picking_node_enabled(node):return
 	if node is MeshInstance3D and node.mesh != null:
 		var visual := node as MeshInstance3D
-		if FortCollision.candidate(visual.get_meta("ground_batch_record",{})) and (_selection_tools==null or str(visual.name) not in _selection_tools.ids): return
 		var body := StaticBody3D.new()
 		body.name = "%s_body" % str(visual.name)
 		var asset: Node = visual
 		while asset != null and not asset.has_meta("asset_uuid"): asset = asset.get_parent()
 		body.set_meta("uuid", str(asset.get_meta("asset_uuid")) if asset != null else str(visual.name))
 		body.set_meta("visual", visual)
+		body.collision_layer=1 | (WalkMode.WALK_MASK if WalkMode.physical(visual.get_meta("extras",{})) else 0)
 		var uuid := str(body.get_meta("uuid"))
 		if not _bodies_by_uuid.has(uuid): _bodies_by_uuid[uuid] = []
 		_bodies_by_uuid[uuid].append(body)
@@ -567,55 +620,65 @@ func _add_bodies(node: Node) -> void:
 			shape.shape = box
 			shape.position = visual.get_aabb().get_center()
 		else:
-			shape.shape = preload("res://scripts/world3d/ground_cpu_mesh.gd").capture(collision_mesh).create_trimesh_shape()
+			shape.shape = _picking_shapes.shape_for(collision_mesh)
 		body.transform = visual.global_transform
 		body.add_child(shape)
 		add_child(body)
 		body.force_update_transform()
-	for child in node.get_children():
-		_add_bodies(child)
+	if recursive:
+		for child in node.get_children():_add_bodies(child)
 
 
-func _sync_selected_transform() -> void:
+func _sync_selected_transform(live_records: Variant = null) -> void:
 	_selection_tools.invalidate_pivot()
 	if _authoring.settings.isolation and not _transform_drag.active:
 		_rebuild()
 		return
 	_ground_sync_suspended = true
 	_ground_sync_pending = false
-	var selected: Array = _selection_tools.records()
+	var selected: Array = _selection_tools.records() if live_records == null else live_records
+	_selection_tools.pivot(selected)
 	for record in selected: _sync_record_transform(record)
 	_ground_sync_suspended = false
 	# Selected meshes/colliders already left the batches when selection changed.
 	# A pure drag only moves those independent nodes. Geometry/terrain-neighbor
 	# rebuilds request a full resync explicitly through _refresh_records.
-	_refresh_selection(not _transform_drag.active or _ground_sync_pending, selected)
+	_refresh_selection(_ground_sync_pending, selected)
 	_ground_sync_pending = false
 
 
 func _sync_record_transform(record: Dictionary) -> void:
-	if is_instance_valid(_ground_batches): _ground_batches.release([str(record.uuid)])
-	if _city.overlay!=null: _city.overlay.invalidated=true
+	# Selected nodes were released when selection changed; pure pose updates do
+	# not invalidate the captured geometry of every other object in the town.
+	if _city.overlay!=null: _city.overlay.invalidate_record(record)
 	if _city.panel!=null and _city.panel.block_panel!=null and not _blocks.overlay_plan.is_empty(): _city.panel.block_panel.invalidate()
 	if _city.panel!=null and _city.panel.scatter_panel!=null and not _scatter.overlay_plan.is_empty(): _city.panel.scatter_panel.invalidate()
 	if _city.panel!=null and _city.panel.waterway_panel!=null and not _waterways.overlay_plan.is_empty(): _city.panel.waterway_panel.invalidate()
 	if _city.panel!=null and _city.panel.fortification_panel!=null and not _fortifications.overlay_plan.is_empty(): _city.panel.fortification_panel.invalidate()
 	var visual := _view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
 	if visual == null: return
+	if visual is MeshInstance3D and is_instance_valid(_ground_batches): _ground_batches.invalidate_source(visual)
 	var previous: Dictionary=visual.get_meta("ground_batch_record",{})
 	var same_fortification_mesh: bool=record.has("fortification") and previous.get("size",[])==record.get("size",[])
-	if (record.has("terrain_mesh") or (record.has("surface_paint") and not same_fortification_mesh) or (record.has("fortification_art") and not same_fortification_mesh)) and record.get("kind") != "asset":
+	var same_local_mesh: bool=visual.get_meta("editor_mesh_size",[])==record.get("size",[]) and not ["terrain_mesh","road_mesh","channel_mesh","rock_bank"].any(func(field):return record.has(field))
+	if record.get("building_shape")=="roof_prism" and not record.get("roof_mesh",{}).has("uv_origin"): same_local_mesh=false
+	if (record.has("terrain_mesh") or (record.has("surface_paint") and not same_fortification_mesh and not same_local_mesh) or (record.has("fortification_art") and not same_fortification_mesh)) and record.get("kind") != "asset":
 		_refresh_records([str(record.uuid)])
 		return
 	var helper = preload("res://scripts/world_editor/transform_gizmo.gd")
 	visual.position = helper.vector(record, "position")
 	visual.rotation_degrees = helper.vector(record, "rotation")
 	if record.has("fixture"): visual.transform=preload("res://scripts/world3d/building_fixtures.gd").transform(record)
+	if record.has("building"):
+		var extras: Dictionary=visual.get_meta("extras",{})
+		extras.building=record.building.duplicate(true)
+		visual.set_meta("extras",extras)
 	if record.get("kind") == "asset" or record.has("tile3d"): visual.scale = helper.vector(record, "size")
 	elif visual is MeshInstance3D and visual.mesh is BoxMesh: visual.mesh.size = helper.vector(record, "size")
 	if visual is MeshInstance3D:
 		if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): visual.set_meta("ground_batch_record",record.duplicate(true))
 		elif visual.has_meta("ground_batch_record"): visual.remove_meta("ground_batch_record")
+	visual.set_meta("editor_mesh_size",record.get("size",[]).duplicate())
 	visual.force_update_transform()
 	for body: StaticBody3D in _bodies_by_uuid.get(str(record.uuid), []):
 		var mesh: MeshInstance3D = body.get_meta("visual")
@@ -711,7 +774,7 @@ func _save_to(path: String, overwrite: bool = false) -> bool:
 
 
 func saving() -> bool:
-	return _save_job != null and _save_job.active
+	return (_save_job != null and _save_job.active) or (_load_job != null and _load_job.active)
 
 
 func _save_async(path: String = "", overwrite: bool = false) -> bool:
@@ -755,6 +818,12 @@ func _play() -> void:
 	var result: Dictionary = _playtest.start()
 	_status.text = "正在准备临时试玩…" if result.ok else str(result.error)
 
+func _toggle_walk_mode() -> void:
+	if _walk_mode==null:return
+	var result:Dictionary=_walk_mode.set_enabled({"enabled":not _walk_mode.active})
+	_walk_button.set_pressed_no_signal(_walk_mode.active)
+	_status.text=_hint() if result.ok else str(result.error)
+
 func _record_editable(record: Dictionary) -> bool:
 	return SelectionGeometry.editable(record) and _authoring.includes(record)
 
@@ -789,7 +858,7 @@ func _file_dialog(save_as: bool) -> void:
 
 func _request_open(path: String) -> void:
 	if not _dirty:
-		open_document(path)
+		_load_job.start(path)
 		return
 	var prompt := ConfirmationDialog.new()
 	prompt.dialog_text = "当前地图有未保存修改。"
@@ -797,9 +866,9 @@ func _request_open(path: String) -> void:
 	prompt.add_button("放弃修改并打开", true, "discard")
 	prompt.confirmed.connect(func():
 		prompt.queue_free()
-		if await _save_async(): open_document(path)
+		if await _save_async(): _load_job.start(path)
 	)
-	prompt.custom_action.connect(func(_action: String): open_document(path); prompt.queue_free())
+	prompt.custom_action.connect(func(_action: String): _load_job.start(path); prompt.queue_free())
 	prompt.canceled.connect(prompt.queue_free)
 	add_child(prompt)
 	prompt.popup_centered()
@@ -840,6 +909,7 @@ func _on_search(text: String) -> void:
 
 
 func _hint() -> String:
+	if _walk_mode!=null and _walk_mode.active:return WalkMode.HINT
 	if _mode == 1:
 		var action: String = ["箭头沿轴移动 / 中心沿地面移动", "拖动三轴圆环旋转", "方块沿轴缩放 / 中心等比缩放"][_transform_mode]
 		return "Shift+点选增减 · B 框选 · Ctrl+G 成组 · W/R/T 变换 · %s · Alt 不吸附" % action
@@ -865,6 +935,7 @@ func _apply_environment() -> void:
 			_weather.editor_preview = true
 			_camera.get_parent().add_child(_weather)
 			_weather.bind(_camera, _sun, _camera.environment)
+		_wind_tools.apply_preview()
 		_weather.configure(preload("res://scripts/world3d/environment_settings.gd").resolve(_doc.map_meta), first)
 	if _environment_panel != null: _environment_panel.refresh()
 
@@ -874,6 +945,16 @@ func snap_position(point: Vector3) -> Vector3:
 
 
 func _refresh_palette() -> void:
+	if _asset_category_picker != null:
+		var categories := asset_categories()
+		if not _asset_category.is_empty() and not categories.has(_asset_category): _asset_category = ""
+		_asset_category_picker.clear()
+		_asset_category_picker.add_item("全部分类")
+		_asset_category_picker.set_item_metadata(0, "")
+		for category in categories:
+			_asset_category_picker.add_item(category)
+			_asset_category_picker.set_item_metadata(_asset_category_picker.item_count - 1, category)
+			if category == _asset_category: _asset_category_picker.select(_asset_category_picker.item_count - 1)
 	_palette_items = _library_items()
 	_pick = clampi(_pick, 0, maxi(0, _palette_items.size() - 1))
 	_palette.set_entries(_palette_items, _thumbnails.placeholder)
@@ -958,7 +1039,7 @@ func _undo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.undo():
 		_dirty = true
-		if not _restore_terrain_materials(before,before_meta): _rebuild()
+		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta): _rebuild()
 		_selection_tools.refresh()
 
 
@@ -974,8 +1055,48 @@ func _redo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.redo():
 		_dirty = true
-		if not _restore_terrain_materials(before,before_meta): _rebuild()
+		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta): _rebuild()
 		_selection_tools.refresh()
+
+func _restore_record_poses(before: Array,before_meta: Dictionary) -> bool:
+	# Validate the entire change before touching render state. Geometry, topology,
+	# authoring visibility and non-pose settings retain the existing full restore.
+	if _authoring.settings.isolation or before.size()!=_doc.records.size(): return false
+	var old_meta:=before_meta.duplicate(); var next_meta: Dictionary=_doc.map_meta.duplicate()
+	old_meta.erase("building_instances"); next_meta.erase("building_instances")
+	if old_meta!=next_meta: return false
+	var old_buildings: Dictionary=before_meta.get("building_instances",{})
+	var next_buildings: Dictionary=_doc.map_meta.get("building_instances",{})
+	if old_buildings.size()!=next_buildings.size(): return false
+	for id in old_buildings:
+		if not next_buildings.has(id): return false
+		if old_buildings[id]==next_buildings[id]: continue
+		var a: Dictionary=old_buildings[id].duplicate(); var b: Dictionary=next_buildings[id].duplicate()
+		for field in ["position","yaw","signatures"]: a.erase(field); b.erase(field)
+		if a!=b: return false
+	var changed: Array=[]; var ids: Array[String]=[]
+	for i in before.size():
+		var old: Dictionary=before[i]; var current: Dictionary=_doc.records[i]
+		if old==current: continue
+		if old.uuid!=current.uuid: return false
+		if ["terrain_mesh","road_mesh","channel_mesh","rock_bank"].any(func(field):return current.has(field)): return false
+		var a:=old.duplicate(); var b:=current.duplicate()
+		for field in ["position","rotation"]: a.erase(field); b.erase(field)
+		if a.has("building") and b.has("building"):
+			a.building=a.building.duplicate(); b.building=b.building.duplicate()
+			a.building.erase("floor_y"); b.building.erase("floor_y")
+		if a!=b or _view.get_node_or_null(NodePath(str(current.uuid)))==null: return false
+		changed.append(current); ids.append(str(current.uuid))
+	# The affected objects may no longer be selected. Release their old batches
+	# before moving them, so undo cannot leave a stale merged copy behind.
+	if is_instance_valid(_ground_batches): _ground_batches.release(ids)
+	_ground_sync_suspended=true; _ground_sync_pending=false
+	for record in changed: _sync_record_transform(record)
+	_ground_sync_suspended=false; _ground_sync_pending=false
+	_sync_ground_batches(true)
+	if _building_panel!=null: _building_panel.refresh_list()
+	return true
+
 
 func _restore_terrain_materials(before: Array,before_meta: Dictionary) -> bool:
 	# A small paint undo must not rebuild every road/collision mesh in a town.
@@ -1075,7 +1196,7 @@ func _add_grid() -> void:
 
 
 func _refresh_selection(sync_batches: bool=true, selected_records: Variant=null) -> void:
-	if sync_batches: _sync_ground_batches()
+	if sync_batches: _sync_ground_batches(true)
 	if is_instance_valid(_selection_box):
 		_selection_box.free()
 	if _selection_tools == null: return
@@ -1175,6 +1296,7 @@ func _save_prefab_dialog() -> void:
 				_shared_assets = _shared_assets.filter(func(existing): return existing.directory != library.directory)
 				_shared_assets.append(library)
 			_query = ""
+			_asset_category = ""
 			_refresh_palette()
 			_pick = _palette_items.find(result.entry)
 			_palette.select(_pick)
@@ -1191,8 +1313,20 @@ func _save_prefab_dialog() -> void:
 
 
 func _library_items() -> Array:
-	var result := Modules.search(_query) + _assets.search(_query)
-	for library in _shared_assets: result.append_array(library.search(_query))
+	return asset_items(_query, _asset_category)
+
+func asset_items(query: String = "", category: String = "") -> Array:
+	var result := Modules.search(query) + _assets.search(query)
+	for library in _shared_assets: result.append_array(library.search(query))
+	if not category.is_empty(): result = result.filter(func(e): return str(e.get("category", "")) == category)
+	return result
+
+func asset_categories() -> Array:
+	var result: Array = []
+	for entry in asset_items():
+		var category := str(entry.get("category", ""))
+		if not category.is_empty() and not result.has(category): result.append(category)
+	result.sort()
 	return result
 
 func _load_asset_scope() -> void:
@@ -1260,6 +1394,7 @@ func _import_asset_into_pack(pack_root: String, relink: bool) -> void:
 					_dirty = true
 					_rebuild()
 			_query = ""
+			_asset_category = ""
 			_refresh_palette()
 			var all := _library_items()
 			for i in all.size():

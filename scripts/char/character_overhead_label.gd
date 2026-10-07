@@ -10,7 +10,9 @@ func _ready()->void:
 
 func _process(_delta:float)->void:
 	if not is_visible_in_tree():return
+	var began:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	update_anchor()
+	if began>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
 
 func update_anchor()->void:
 	if not is_instance_valid(model) or model.skeleton==null or not model.bones.has("head"):return

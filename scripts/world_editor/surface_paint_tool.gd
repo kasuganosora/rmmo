@@ -76,7 +76,7 @@ func pick(screen: Vector2) -> Dictionary:
 	if hit.is_empty(): return Paint.fail("没有命中可绘制表面")
 	var id := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 	var record: Dictionary = editor._doc._find(id)
-	if record.get("prefab_locked",false):return Paint.fail("烘焙预制件的材质与几何不可修改")
+	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"] or record.get("invisible", false): return Paint.fail("目标隐藏、锁定、不在当前楼层或不是可绘制物件")
 	var node: MeshInstance3D = editor._view.get_node_or_null(NodePath(id)) if hit.collider.has_meta("fortification_collision_ranges") else hit.collider.get_meta("visual")
 	var geo := Paint.geometry(node)
@@ -101,7 +101,7 @@ func pick(screen: Vector2) -> Dictionary:
 func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")
 	var record: Dictionary = editor._doc._find(id)
-	if record.get("prefab_locked",false):return Paint.fail("烘焙预制件的材质与几何不可修改")
+	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"): return Paint.fail("此地形使用渐变、区域或底材调色；请先停用这些效果再手刷三角面，或使用地表区域工具")
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"]: return Paint.fail("物件不存在、锁定、隐藏或不在当前楼层")
 	var resolved := resolve(id, target)
@@ -125,7 +125,7 @@ func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary 
 func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")
 	var record: Dictionary = editor._doc._find(id)
-	if record.get("prefab_locked",false):return Paint.fail("烘焙预制件的材质与几何不可修改")
+	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if not editor._record_editable(record): return Paint.fail("物件不存在、锁定、隐藏或不在当前楼层")
 	var next := record.duplicate(true)
 	if target.is_empty(): next.erase("surface_paint")
@@ -138,7 +138,7 @@ func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 
 func _commit(id: String, next: Dictionary) -> Dictionary:
 	var record: Dictionary = editor._doc._find(id)
-	if record.get("prefab_locked",false):return Paint.fail("烘焙预制件的材质与几何不可修改")
+	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if record == next: return {"ok": true, "changed_ids": []}
 	# A brush stroke already owns one complete before-image. Copying the whole
 	# town for each painted component makes large architectural sets quadratic.

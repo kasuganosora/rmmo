@@ -33,6 +33,7 @@ func run() -> void:
 	var scene := Node3D.new(); root.add_child(scene)
 	var camera := Camera3D.new(); scene.add_child(camera)
 	var runtime := Runtime.new(); scene.add_child(runtime); runtime.camera = camera
+	runtime.set_shared_state_enabled(false) # Verify legacy uniform compatibility.
 	runtime.set_physics_process(false)
 	var a := MeshInstance3D.new(); a.mesh = mesh; a.material_override = painted; a.set_meta("extras",{"rmmo_wind":config}); scene.add_child(a); Response.register(a)
 	var b := MeshInstance3D.new(); b.mesh = mesh; b.material_override = painted; b.position.x = 1000; b.set_meta("extras",{"rmmo_wind":config}); scene.add_child(b); Response.register(b)

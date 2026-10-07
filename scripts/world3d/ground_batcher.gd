@@ -71,6 +71,9 @@ func clear(restore_sources: bool = true) -> void:
 
 func release(ids: Array) -> void:
 	_preparation.clear();_residency_descriptors.clear() # Editor mutations invalidate captured descriptors.
+	_release_groups(ids)
+
+func _release_groups(ids: Array) -> void:
 	# Editing is synchronous: remove the old combined draw before changing a source.
 	var affected: Dictionary={}
 	for id in ids:
@@ -134,6 +137,18 @@ func sync(nodes: Array, excluded: Array = []) -> void:
 	_residency_descriptors.clear() # Editor callers may have changed any material/geometry.
 	request_sync(nodes,excluded)
 	while not _preparation.is_empty(): _prepare_step(0)
+
+func sync_selection(nodes: Array, excluded: Array) -> void:
+	# Selection changes no source geometry/materials. Restore selected sources
+	# immediately, then regroup remaining sources within the normal frame budget.
+	_preparation.clear()
+	_release_groups(excluded)
+	request_sync(nodes,excluded)
+
+func invalidate_source(node: MeshInstance3D) -> void:
+	# An excluded source may change size/materials without changing its pose.
+	# Its next selection release must recapture its own descriptor only.
+	_residency_descriptors.erase(node.get_instance_id())
 
 func request_sync(nodes:Array,excluded:Array=[])->void:
 	# New residency supersedes unfinished preparation. No source has been hidden

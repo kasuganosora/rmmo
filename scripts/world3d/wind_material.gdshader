@@ -30,6 +30,9 @@ uniform sampler2D backlight_tex : hint_default_black, filter_linear_mipmap_aniso
 uniform float alpha_cut = .5;
 uniform vec3 wind_velocity = vec3(0.);
 uniform float wind_time = 0.;
+uniform sampler2D wind_state : filter_nearest, repeat_disable;
+uniform bool wind_state_enabled = false;
+uniform float wind_exposure = 1.;
 uniform float amplitude = .35;
 uniform float stiffness = .5;
 uniform bool cloth = false;
@@ -38,30 +41,37 @@ uniform float anchor_min = 0.;
 uniform float anchor_span = 1.;
 uniform bool anchor_reverse = false;
 
-vec3 bend(vec3 point, vec3 local_force, vec3 local_flutter, float phase, float speed) {
+vec3 bend(vec3 point, vec3 local_force, vec3 local_flutter, float phase, float speed, float current_time) {
 	float u = clamp((dot(point,anchor_axis)-anchor_min)/anchor_span,0.,1.);
 	if (anchor_reverse) u = 1.-u;
 	float weight = pow(u, mix(1.4,3.8,stiffness));
-	float wave = sin(wind_time*mix(2.,4.5,float(cloth)) - u*7. + phase);
-	float flutter = sin(wind_time*8. - u*13. + phase*1.7);
+	float wave = sin(current_time*mix(2.,4.5,float(cloth)) - u*7. + phase);
+	float flutter = sin(current_time*8. - u*13. + phase*1.7);
 	float gain = amplitude * clamp(speed/12.,0.,1.5) * (1.-stiffness*.65) * weight;
 	return gain * (local_force*(.68+.16*wave) + local_flutter*(wave*(.12+float(cloth)*.5)+flutter*.06*u));
 }
 void vertex() {
 	UV = UV*uv_scale.xy + uv_offset.xy;
-	float speed = length(wind_velocity);
+	vec3 current_wind = wind_velocity;
+	float current_time = wind_time;
+	if (wind_state_enabled) {
+		vec4 state = textureLod(wind_state,vec2(.5),0.);
+		current_wind = state.xyz*wind_exposure;
+		current_time = state.w;
+	}
+	float speed = length(current_wind);
 	if (speed > .0001) {
-		vec3 direction = wind_velocity/speed;
+		vec3 direction = current_wind/speed;
 		mat3 inv_model = inverse(mat3(MODEL_MATRIX));
 		vec3 local_force = inv_model*direction;
 		vec3 local_flutter = inv_model*(vec3(-direction.z, .12, direction.x));
 		float phase = dot(MODEL_MATRIX[3].xyz,vec3(.37,.13,.29));
-		vec3 d = bend(VERTEX,local_force,local_flutter,phase,speed);
+		vec3 d = bend(VERTEX,local_force,local_flutter,phase,speed,current_time);
 		float e = .005;
 		// bend depends only on the authored X/Y anchor coordinate. The Jacobian
 		// is I + slope * axis^T; its rank-one inverse preserves bent lighting
 		// without three samples and a general matrix inverse per vertex.
-		vec3 slope = (bend(VERTEX+anchor_axis*e,local_force,local_flutter,phase,speed)-d)/e;
+		vec3 slope = (bend(VERTEX+anchor_axis*e,local_force,local_flutter,phase,speed,current_time)-d)/e;
 		float det = 1. + dot(anchor_axis,slope);
 		if (abs(det) > .0001) NORMAL = normalize(NORMAL-anchor_axis*dot(slope,NORMAL)/det);
 		if (length(TANGENT) > .001) TANGENT = normalize(TANGENT+slope*dot(anchor_axis,TANGENT));

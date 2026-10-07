@@ -89,8 +89,17 @@ func proposal(rows: Array, delta: Vector3, rotation: Basis, center: Vector3) -> 
 
 func clearance(plans: Array, excluded: Dictionary) -> Dictionary:
 	var obstacles: Array = []
+	var occupancy_bounds := AABB()
+	var first := true
+	for plan in plans:
+		for shape in plan.occupancy:
+			occupancy_bounds=shape.bounds if first else occupancy_bounds.merge(shape.bounds); first=false
 	for record in editor._doc.records:
 		if not excluded.has(record.uuid):
+			# Terrain footprints expand every occupied cell. Reject only patches
+			# provably outside the full proposal bounds (including height/furrows),
+			# then keep the original per-cell narrow phase for nearby terrain.
+			if record.has("terrain_mesh") and not first and not Geometry.bounds([record]).grow(.01).intersects(occupancy_bounds): continue
 			for shape in Footprint.record_shapes(record): obstacles.append({"id":record.uuid,"record":record,"shape":shape})
 	for index in plans.size():
 		var plan: Dictionary = plans[index]
@@ -149,7 +158,14 @@ func commit(plans: Array, copy: bool) -> Dictionary:
 		for index in doc.records.size():
 			if replacements.has(doc.records[index].uuid): doc.records[index]=replacements[doc.records[index].uuid]
 	doc.map_meta.building_instances=next_registry
-	editor._dirty=true; editor._rebuild(); editor._selection_tools.set_ids(selected)
+	editor._dirty=true
+	if copy:
+		editor._rebuild(); editor._selection_tools.set_ids(selected)
+	else:
+		# Rigid motion changes poses and recipe origins, not mesh topology. Keep
+		# unrelated terrain, assets, physics bodies and render groups alive.
+		editor._sync_selected_transform()
+		editor._selection_tools.refresh(false)
 	if editor._building_panel!=null: editor._building_panel.refresh_list()
 	return {"ok":true,"changed":true,"changed_ids":selected}
 

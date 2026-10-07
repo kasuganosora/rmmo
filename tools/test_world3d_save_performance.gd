@@ -15,7 +15,7 @@ func run() -> void:
 	while probe.listen(port, "127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok, "real HTTP save server")
 	var definitions: Array = (await rpc("tools/list")).result.tools
-	check(definitions.size() == 118 and definitions.any(func(d): return d.name == "save_world") and definitions.all(func(d): return d.name != "paint_tile"), "current 3D save tool, no legacy 2D registration")
+	check(definitions.size() == preload("res://scripts/world_editor/mcp_schema.gd").tools().size() and definitions.any(func(d): return d.name == "save_world") and definitions.all(func(d): return d.name != "paint_tile"), "current 3D save tool, no legacy 2D registration")
 	var ids := []
 	for x in [8,24]:
 		var made := await call_tool("create_terrain", {"center":[x,0,8],"width":16,"depth":16,"cell_size":2})
@@ -23,7 +23,7 @@ func run() -> void:
 	var first := await call_tool("save_world")
 	check(first.timings.export.streamed_meshes == 2 and first.timings.geometry_cache_misses == 2, "HTTP reports streamed geometry and first-save timings")
 	var second := await call_tool("save_world")
-	check(second.timings.geometry_cache_hits == 2 and second.timings.geometry_cache_bytes <= 100663296, "unchanged geometry reused in bounded CPU cache")
+	check(second.timings.export.mode == "pose_reuse" and second.timings.export.images_written == 0 and first.timings.geometry_cache_bytes <= 100663296, "unchanged save reuses published geometry and textures without rebuilding")
 	check(editor._status.text.begins_with("已保存（"), "UI reports actual shared-operation time")
 	var initial: Array = doc.records.duplicate(true)
 	await call_tool("sculpt_terrain", {"id":ids[0],"mode":"raise","points":[[14,8]],"radius":1.5,"strength":0.1})

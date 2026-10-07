@@ -1,5 +1,5 @@
 extends RefCounted
-## One drag is a transaction: preview in place, snapshot only when committed.
+## One drag is a transaction: preview in place, transfer its snapshot on commit.
 const Gizmo = preload("res://scripts/world_editor/transform_gizmo.gd")
 var editor: Node3D
 var active := false
@@ -9,6 +9,8 @@ var uuid := ""
 var before: Array = []
 var original: Dictionary = {}
 var originals: Array = []
+var _live_records: Array = []
+var _live_primary: Dictionary = {}
 var center := Vector3.ZERO
 var direction := Vector3.ZERO
 var plane := Plane()
@@ -28,9 +30,11 @@ func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
 	editor = owner
 	if editor._load_failed: return false
 	uuid = editor._inspector.selection
-	original = editor._doc._find(uuid).duplicate(true)
+	_live_primary = editor._doc._find(uuid)
+	original = _live_primary.duplicate(true)
 	if original.is_empty(): return false
-	originals = editor._selection_tools.records().duplicate(true)
+	_live_records = editor._selection_tools.records()
+	originals = _live_records.duplicate(true)
 	if originals.any(func(r):return r.get("prefab_locked",false) and (r.has("fortification") or editor._transform_mode==2)):
 		editor._status.text="固定预制件不能缩放或拆改城防结构";return false
 	building_drag = editor._selection_tools.whole
@@ -65,7 +69,8 @@ func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
 	if mode == 0 and point == null: return false
 	if mode == 1 and (point == null or (point - center).length_squared() < 0.0001): return false
 	anchor = point if point != null else center
-	before = editor._doc.records.duplicate(true)
+	# BuildingMotion owns the commit snapshot; its preview never uses this copy.
+	before = [] if building_drag else editor._doc.records.duplicate(true)
 	active = true
 	editor._gizmo.active = handle
 	return true
@@ -75,7 +80,7 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 	if not active: return
 	if not started and screen.distance_to(start_screen) < 3.0: return
 	started = true
-	var record: Dictionary = editor._doc._find(uuid)
+	var record: Dictionary = _live_primary
 	if record.is_empty(): finish(true); return
 	var value := Vector3.ZERO
 	var field := "position"
@@ -122,10 +127,9 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 		building_delta = value-center if mode==0 else Vector3.ZERO
 		building_rotation = group_rotation
 	if originals.size() > 1:
-		var by_id := {}
-		for member in editor._doc.records: by_id[str(member.uuid)]=member
-		for previous in originals:
-			var member: Dictionary = by_id[str(previous.uuid)]
+		for i in originals.size():
+			var previous: Dictionary = originals[i]
+			var member: Dictionary = _live_records[i]
 			var position := Gizmo.vector(previous, "position")
 			if mode == 0: position += value - center
 			else: position = center + group_rotation * ((position - center) * group_scale)
@@ -137,8 +141,8 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 	else:
 		if value.is_equal_approx(Gizmo.vector(record, field)): return
 		record[field] = [value.x, value.y, value.z]
-	editor._sync_selected_transform()
-	editor._inspector.refresh(false)
+	editor._sync_selected_transform(_live_records)
+	editor._inspector.refresh_transform(_live_primary)
 
 
 func finish(cancel: bool = false) -> void:
@@ -147,26 +151,33 @@ func finish(cancel: bool = false) -> void:
 	editor._gizmo.active = -1
 	var changed := false
 	var result := {"ok":true}
-	for previous in originals:
-		var record: Dictionary = editor._doc._find(str(previous.uuid))
+	for i in originals.size():
+		var previous: Dictionary=originals[i]
+		var record: Dictionary = _live_records[i]
 		for field in ["position", "rotation", "size"]:
 			if not Gizmo.vector(record, field).is_equal_approx(Gizmo.vector(previous, field)): changed = true
 	if cancel or not changed or building_drag:
-		for previous in originals:
-			var record: Dictionary = editor._doc._find(str(previous.uuid))
+		for i in originals.size():
+			var previous: Dictionary=originals[i]
+			var record: Dictionary = _live_records[i]
 			for field in ["position", "rotation", "size"]: record[field] = previous[field].duplicate()
-		editor._sync_selected_transform()
-		editor._inspector.refresh(false)
+		if not editor._authoring.settings.isolation:
+			editor._sync_selected_transform(_live_records)
+			editor._inspector.refresh(false)
 		if building_drag and changed and not cancel:
 			result = editor._selection_tools.motion.move(building_delta,building_rotation,1.0,center)
 	else:
 		editor._detach_selected_tile()
-		editor._doc.commit_change(before)
+		editor._doc.commit_owned_snapshot(before)
 		editor._dirty = true
-	before.clear()
+	# A successful ordinary commit now owns this array in the undo stack.
+	before = []
 	original.clear()
 	originals.clear()
-	if editor._authoring.settings.isolation: editor._rebuild()
+	_live_records.clear()
+	_live_primary = {}
+	# A successful building commit already rebuilt the isolated floor once.
+	if editor._authoring.settings.isolation and not (building_drag and changed and not cancel and result.get("changed",false)): editor._rebuild()
 	if editor._status != null: editor._status.text = ("已取消变换" if cancel else editor._hint()) if result.ok else result.error
 
 

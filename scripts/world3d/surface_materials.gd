@@ -48,6 +48,9 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 	return true
 
 static func valid(record: Dictionary, relative: bool = false, content_root: String = "", validation_cache: Variant = null, immutable_paint_id:Variant=null) -> bool:
+	if record.has("road_kerb_material"):
+		if not record.get("road_mesh",{}).has("kerbs") or not material_valid(record.road_kerb_material,relative,content_root,validation_cache):return false
+		if record.road_kerb_material.color[3]!=1:return false
 	if not preload("res://scripts/world3d/rock_bank_mesh.gd").valid(record):return false
 	for definition in record.get("rock_bank_materials",{}).values():
 		if not material_valid(definition,relative,content_root,validation_cache):return false
@@ -120,6 +123,7 @@ static func face_key(entry: Dictionary) -> String:
 
 static func meshes(root: Node) -> Array[MeshInstance3D]:
 	var result: Array[MeshInstance3D] = []
+	if root.get_meta("editor_shadow_proxy",false):return result
 	if root is MeshInstance3D and root.mesh != null: result.append(root)
 	for child in root.get_children(): result.append_array(meshes(child))
 	return result
@@ -223,6 +227,22 @@ static func texture(material: Dictionary, field: String = "texture_path",path_ch
 	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
 	_textures[cache_key] = result
 	return result
+
+static func texture_error(record: Dictionary, checks: Variant = null) -> String:
+	# A declared image that cannot decode must not silently become an untextured
+	# material in a new export. Cache only within the caller's immutable operation.
+	for definition: Dictionary in definitions(record):
+		for field: String in MAP_FIELDS:
+			var path: String=definition.get(field,"")
+			if path.is_empty():continue
+			var key: Array=["decoded_texture",path,field=="normal_path" and definition.get("normal_format","opengl")=="directx"]
+			var valid_image: bool
+			if checks!=null and checks.has(key):valid_image=checks[key]
+			else:
+				valid_image=texture(definition,field,checks)!=null
+				if checks!=null:checks[key]=valid_image
+			if not valid_image:return "材质贴图无法读取："+path
+	return ""
 
 static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CULL_BACK) -> StandardMaterial3D:
 	# Paint definitions are immutable; UVs live on the mesh. Reuse equivalent
@@ -416,8 +436,13 @@ static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=nu
 	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
 
 static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
-	if record.has("house_prefab"):return record.get("prefab_materials",[])
+	if record.has("house_prefab"):
+		var definitions_:Array=record.get("prefab_materials",[]).duplicate()
+		if include_paint:
+			for entry in record.get("surface_paint",[]):definitions_.append(entry.material)
+		return definitions_
 	var result: Array=[]
+	if record.has("road_kerb_material"):result.append(record.road_kerb_material)
 	if record.has("banner"):result.append(record.banner.material)
 	result.append_array(record.get("bridge_materials",{}).values())
 	result.append_array(record.get("rock_bank_materials",{}).values())

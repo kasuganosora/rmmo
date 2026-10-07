@@ -1,5 +1,6 @@
 extends Node
-## Visible thumbnail IO is bounded. Imported models render only in explicit import jobs.
+## Visible thumbnail IO is bounded. Missing imported thumbnails are repaired
+## one at a time after input settles, and persisted for subsequent visits.
 signal available(key: String, texture: Texture2D)
 signal import_finished(key: String, path: String, error: int)
 const MAX_CACHE := 96
@@ -17,6 +18,23 @@ var _output := ""
 var placeholder: Texture2D
 var model_load_count := 0
 var disk_load_count := 0
+var _missing := {}
+var _attempted := {}
+var _errors := {}
+var _idle := 0.
+
+static func thumbnail_path(entry: Dictionary) -> String:
+	var paths=preload("res://scripts/world3d/map_paths.gd")
+	var path: String=str(entry.get("thumbnail_path",""))
+	if path.is_empty(): path=paths.cache_directory("asset_thumbnails").path_join(key_for(entry).sha256_text()+".png")
+	return path if paths.allowed(path) else ""
+
+func state(entry: Dictionary) -> Dictionary:
+	var key:=key_for(entry); var path:=thumbnail_path(entry)
+	var status:="ready" if not path.is_empty() and FileAccess.file_exists(path) else "missing"
+	if (_busy and key==_key) or _imports.any(func(item):return key_for(item)==key) or _missing.has(key): status="pending"
+	if _errors.has(key): status="failed"
+	return {"status":status,"path":path,"error":_errors.get(key,"")}
 
 static func key_for(entry: Dictionary) -> String:
 	return str(entry.get("prefab_path", entry.get("asset_path", entry.get("id", ""))))
@@ -31,14 +49,25 @@ func lookup(entry: Dictionary) -> Texture2D:
 func set_visible_entries(entries: Array) -> void:
 	_wanted.clear()
 	_pending.clear()
+	_missing.clear()
 	for entry in entries:
 		var key := key_for(entry)
 		_wanted[key] = true
 		if not cache.has(key) and (not _busy or key != _key): _pending.append(entry)
+		if (entry.has("asset_path") or entry.has("prefab_path")) and not _attempted.has(key):
+			var path:=thumbnail_path(entry)
+			if not path.is_empty() and not FileAccess.file_exists(path): _missing[key]=entry
 	# No deferred callback per asset, and scrolling replaces obsolete queued work.
 
 func queue_import(entry: Dictionary) -> void:
-	_imports.append(entry)
+	var key:=key_for(entry)
+	if (_busy and key==_key) or _imports.any(func(item):return key_for(item)==key): return
+	_errors.erase(key); _missing.erase(key)
+	var job:=entry.duplicate(); job.thumbnail_path=thumbnail_path(entry)
+	_imports.append(job)
+
+func _input(_event: InputEvent) -> void:
+	_idle=0
 
 func _remember(key: String, texture: Texture2D) -> void:
 	cache[key] = texture
@@ -49,6 +78,15 @@ func _remember(key: String, texture: Texture2D) -> void:
 	if _wanted.has(key): available.emit(key, texture if texture != null else placeholder)
 
 func _process(_delta: float) -> void:
+	_idle+=_delta
+	if get_parent().has_method("saving") and get_parent().saving(): return
+	if not _busy and _imports.is_empty() and _pending.is_empty() and _idle>=.4 and not _missing.is_empty():
+		var key: String=_missing.keys()[0]
+		var entry: Dictionary=_missing[key]; _missing.erase(key)
+		if _wanted.has(key):
+			_attempted[key]=true
+			var source:=key_for(entry)
+			if preload("res://scripts/world3d/map_paths.gd").allowed(source) and FileAccess.file_exists(source): queue_import(entry)
 	if not _busy: _next()
 
 func _ready() -> void:
@@ -86,8 +124,8 @@ func _next() -> void:
 	_key = key
 	_output = str(entry.get("thumbnail_path", "")) if importing else ""
 	if (entry.has("asset_path") or entry.has("prefab_path")) and not importing:
-		# Browsing never instantiates models, including resources without a thumbnail.
-		var path := str(entry.get("thumbnail_path", ""))
+		# Existing PNGs never instantiate models; missing files use the idle queue.
+		var path := thumbnail_path(entry)
 		var texture: Texture2D
 		if not path.is_empty() and FileAccess.file_exists(path):
 			var image := Image.load_from_file(path)
@@ -98,7 +136,9 @@ func _next() -> void:
 		_remember(key, texture)
 		return
 	if DisplayServer.get_name() == "headless":
-		if importing: import_finished.emit(key, _output, ERR_UNAVAILABLE)
+		if importing:
+			_errors[key]="无图形渲染器，需在图形编辑器生成缩略图"
+			import_finished.emit(key, _output, ERR_UNAVAILABLE)
 		return
 	_busy = true
 	var model: Node3D
@@ -138,7 +178,9 @@ func _next() -> void:
 		get_tree().process_frame.connect(_render, CONNECT_ONE_SHOT)
 		return
 	_busy = false
-	if importing: import_finished.emit(key, _output, ERR_CANT_OPEN)
+	if importing:
+		_errors[key]="无法加载缩略图模型"
+		import_finished.emit(key, _output, ERR_CANT_OPEN)
 
 func _render() -> void:
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
@@ -151,6 +193,7 @@ func _finish() -> void:
 		DirAccess.make_dir_recursive_absolute(_output.get_base_dir())
 		var error := image.save_png(_output + ".tmp")
 		if error == OK: error = preload("res://scripts/world3d/atomic_file.gd").publish(_output + ".tmp", _output)
+		if error!=OK: _errors[_key]=error_string(error)
 		import_finished.emit(_key, _output, error)
 	_remember(_key, texture)
 	_model.free()

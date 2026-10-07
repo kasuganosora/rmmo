@@ -63,6 +63,8 @@ var _surface_map:=RID()
 var surface_query_count:=0
 var surface_cache_hits:=0
 var surface_index_hits:=0
+var _surface_profile_samples:Array=[]
+var _surface_profile_dropped:=0
 var _surface_index:RefCounted
 var _surface_index_worker:Thread
 var _surface_index_mesh:NavigationMesh
@@ -432,28 +434,51 @@ func _publish_full_mesh()->void:
 	_publish(true)
 
 
+func take_surface_profile() -> Dictionary:
+	var result:={"queries":_surface_profile_samples,"dropped":_surface_profile_dropped}
+	_surface_profile_samples=[];_surface_profile_dropped=0
+	return result
+
+func _record_surface_profile(point:Vector3, stamps:Array, route:String, accepted:bool)->void:
+	# Explicit diagnostic only. Keep every query (including the first failed
+	# support test), bounded between render samples, with absolute intervals.
+	if _surface_profile_samples.size()>=64:
+		_surface_profile_dropped+=1;return
+	_surface_profile_samples.append({"frame":Engine.get_physics_frames(),"point":point,"route":route,"accepted":accepted,"begin_us":stamps[0],"iteration_us":stamps[1],"index_us":stamps[2],"end_us":Time.get_ticks_usec()})
+
 func near_surface(point: Vector3, horizontal_tolerance: float = 0.18, vertical_tolerance: float = 0.4) -> bool:
+	var detailed:=has_meta("profile_surface_details")
+	var stamps:Array=[Time.get_ticks_usec(),0,0] if detailed else []
 	if not ready_for_queries or mesh.get_polygon_count() == 0 or not point.is_finite():
+		if detailed:
+			stamps[1]=Time.get_ticks_usec();stamps[2]=stamps[1]
+			_record_surface_profile(point,stamps,"rejected",false)
 		return false
 	var iteration:=NavigationServer3D.map_get_iteration_id(map)
+	if detailed:stamps[1]=Time.get_ticks_usec();stamps[2]=stamps[1]
 	# A previously queried point remains a real point on this immutable map.
 	# Inside the smaller tolerance sphere, even a closer point must satisfy
 	# BOTH original limits. Outside it, retain the exact nearest-point query;
 	# a rectangular tolerance check would not provide that guarantee.
 	var proven_radius:=minf(horizontal_tolerance,vertical_tolerance)
 	if proven_radius>=0 and map==_surface_map and iteration==_surface_iteration and point.distance_squared_to(_surface_point)<=proven_radius*proven_radius:
+		if detailed:_record_surface_profile(point,stamps,"point_cache",true)
 		surface_cache_hits+=1;return true
 	if _surface_index!=null and _surface_index_mesh==mesh and _surface_index_map==map and _surface_index_iteration==iteration:
 		var support:Vector3=_surface_index.support(point,proven_radius)
+		if detailed:stamps[2]=Time.get_ticks_usec()
 		if support.is_finite():
 			_surface_point=support;_surface_iteration=iteration;_surface_map=map
+			if detailed:_record_surface_profile(point,stamps,"triangle_index",true)
 			surface_index_hits+=1;return true
 	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	var nearest := NavigationServer3D.map_get_closest_point(map, point)
 	surface_query_count+=1
 	if started>0:set_meta("surface_query_timing",{"frame":Engine.get_physics_frames(),"ms":(Time.get_ticks_usec()-started)/1000.0})
 	_surface_point=nearest;_surface_iteration=iteration;_surface_map=map
-	return Vector2(nearest.x, nearest.z).distance_to(Vector2(point.x, point.z)) <= horizontal_tolerance and absf(nearest.y - point.y) <= vertical_tolerance
+	var accepted:=Vector2(nearest.x, nearest.z).distance_to(Vector2(point.x, point.z)) <= horizontal_tolerance and absf(nearest.y - point.y) <= vertical_tolerance
+	if detailed:_record_surface_profile(point,stamps,"nearest",accepted)
+	return accepted
 
 func _step_surface_index()->void:
 	if _surface_index_worker!=null:

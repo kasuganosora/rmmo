@@ -1,0 +1,88 @@
+没有重大候选。透视道路回调约 9–10 ms 的主体不在仍可安全替换的投影乘法里；运动中的 `draw_polyline` 也没有能保持线宽、抗锯齿、颜色和交叠顺序的提交缓存。
+
+透视道路回调在批量相机变换之后仍约 9.06 ms（出生点）和 10.45 ms（桥头）。Headless 分项把同一回调拆成约 4.02 ms：剔除 0.57 ms、`project` 1.10 ms、其余约 2.35 ms。这 1.10 ms 已含现有的 `PackedVector3Array` 相机变换、近裁剪、除法和写屏，不能当成 9–10 ms 里“还没做的投影”。全帧有波动，桥头没有稳定下降。下面两项都有源码依据，但收益上界或正确性都到不了这一档。
+
+## 1. 把 `clip.x/y/w` 编成 `Transform3D` 再批乘
+
+具体运算在 `project`。每个样本已经先做 `_camera_inverse * PackedVector3Array(points)`，然后仍在 GDScript 里执行：
+
+```gdscript
+if local.z > -_near: return PackedVector2Array()
+var clip: Vector4 = _projection * Vector4(local.x, local.y, local.z, 1.)
+out[index] = Vector2(clip.x / clip.w * .5 + .5, -clip.y / clip.w * .5 + .5) * _projection_size
+```
+
+`draw_roads` 对每条可见边调用三次（中心线加 `_road_sides` 两侧）。Headless 约 4320 个中心样本，两侧点数相同。`project_local` 用同一组齐次式，道路节点和正交平移原点走这里。
+
+输入齐次坐标固定为 1，所以 `clip.x`、`clip.y`、`clip.w` 都是 `local.xyz` 的仿射函数，可以用一次 `Transform3D * PackedVector3Array` 装下。Godot 4 的 `Basis(x, y, z)` 按列写入，`xform` 是 `row·v + origin`。`prepare_projection` 里用投影矩阵的四列构造：
+
+- 列 0 = `(c0.x, c0.y, c0.w)`，列 1 = `(c1.x, c1.y, c1.w)`，列 2 = `(c2.x, c2.y, c2.w)`，原点 = `(c3.x, c3.y, c3.w)`
+- 批乘结果的 `x/y/z` 分别是 `clip.x`、`clip.y`、`clip.w`
+- 近裁剪仍读相机空间 `local.z > -_near`，任一失败就整条返回空数组
+- 落屏仍是现在这两次除法和同一个 `* 0.5 + 0.5`、Y 翻转、`_projection_size`
+
+这样正交、透视、`frustum_offset` 都还在，因为系数直接来自 `camera.get_camera_projection()`，没有改成“标准透视假定 `clip.w = -local.z`”。曲线采样、宽度、颜色、抗锯齿、节点半径都不变。`draw_roads` 的提交顺序也不变。
+
+它不是重大项。可替换的只有循环里的 `Projection * Vector4`。相机批乘、数组拷贝、近裁剪、除法和 `PackedVector2Array` 写入都还在；透视落屏必须逐点除 `w`，仿射变换表达不了这个除法。Headless 的 1.10 ms 是这些步骤的合计，不是这份乘法单独的时间。已落地的相机批乘也只让真实回调降了约 0.9–1.4 ms，全帧仍不稳定。这里再加一次原生批乘，上界更小，而且净方向无法静态判定：接受的折线要多一次 GDScript 扫描或更瘦的第二次循环，每条线还要分配一块 `PackedVector3Array`；近平面提前整段拒绝时，现在会停掉后续 `Vector4`，批乘若放在拒绝之前会做无用功。
+
+否决条件：
+
+- 与现有 `Projection * Vector4` 不是逐点同一结果。现有对照要求 4644 点在多姿态、正交、透视、frustum 下完全相同；1 ULP 偏差就应放弃。行/列若按 Godot 3 的“构造函数吃行”来写，会整批错位。
+- 近裁剪改用 `clip.w`、NDC z，或改成部分裁剪后仍画剩余点。现在是整条折线丢弃。
+- `project_local` 不走同一系数，节点圆点或正交 `_road_offset` 与折线端点分开。
+- 为省循环把相机逆变换和 clip 合成一个 `Transform3D`。一个三维仿射结果装不下 `clip.x`、`clip.y`、`clip.w` 和 `local.z` 四个量。
+
+## 2. 重画时缓存 `draw_polyline` 提交
+
+`draw_roads` 的热点顺序是固定的。每条未隐藏边在透视下先过 `road_in_view`；然后两侧 `draw_polyline(..., Color(color, .38), 1, true)`，再中心线 `draw_polyline(..., color, 2, true)`；全部边之后才是半径 4 的节点 `draw_circle`。`true` 是抗锯齿，不是闭合。边顺序就是 `city.data.roads.edges`。后画的半透明边线会盖住先画的中心线。
+
+相机不动时，这条命令列表已经留在 `Node2D` 上。`_process` 只有 `view_key` 变化、预览出现或预览结束才把透视道路标成需重画。运动时每个样本的屏坐标都变，而且不同深度的位移不同，不能靠一条二维平移复用命令。
+
+静态上看不到安全缓存：
+
+- 键相同才跳过 `queue_redraw`：运动帧键每次都变，提交仍发生。
+- 把多条路接成更少的 `draw_polyline`：接口没有断点，连接处会多出接头，交叠顺序也会从“每边两侧再中心线”变成别的顺序。
+- 改成 `draw_multiline` 或按边拆成多个 CanvasItem：前者丢掉折线接头；后者即使树序对齐，半透明合批是否与单条命令列表逐像素相同，源码层面不能保证。
+- 缓存展开后的三角形、只改变换：线宽是屏幕像素，透视下每个点的像素位置都要重算，缓存顶不住运动帧。
+- 用自定义着色器或网格在 GPU 上投影：本次没有可证明样式和交叠不变的实现，不能当作建议。
+
+因此这条没有可落地的优化点。正交平移复用已经覆盖“全点共享同一屏幕平移”的情况；透视运动不属于那种情况。
+
+小地图纹理、关闭叠加层、降低采样、把剔除余量提出六平面循环（约 0.18 ms，且未当主优化）、以及已经做好的正交平移缓存和相机 `Packed` 批乘，都不进入候选。
+
+## 附：静态对照稿
+
+只说明系数布局和近裁剪位置。未接入，也没有毫秒预期。`draw_roads` 保持现在的两侧、中心线、节点顺序。
+
+```gdscript
+var _clip_xform := Transform3D.IDENTITY
+
+func prepare_projection() -> void:
+	# ...现有相机逆变换、_projection、_near、正交平移键不变...
+	var c0 := _projection.x
+	var c1 := _projection.y
+	var c2 := _projection.z
+	var c3 := _projection.w
+	# Godot 4 Basis(a, b, c) 写的是列。结果 .z 存放 clip.w，不是 clip.z。
+	_clip_xform = Transform3D(Basis(
+		Vector3(c0.x, c0.y, c0.w),
+		Vector3(c1.x, c1.y, c1.w),
+		Vector3(c2.x, c2.y, c2.w)
+	), Vector3(c3.x, c3.y, c3.w))
+
+func project(points: Array) -> PackedVector2Array:
+	var local_points := _camera_inverse * PackedVector3Array(points)
+	var count := local_points.size()
+	for index in count:
+		if local_points[index].z > -_near:
+			return PackedVector2Array()
+	var clip_points := _clip_xform * local_points
+	var out := PackedVector2Array()
+	out.resize(count)
+	for index in count:
+		var clip := clip_points[index]
+		out[index] = Vector2(clip.x / clip.z * .5 + .5, -clip.y / clip.z * .5 + .5) * _projection_size
+	return out
+```
+
+本次只做了静态阅读，没有改文件，也没有跑 Godot 或 GPU。

@@ -67,7 +67,6 @@ func _step(dt: float) -> void:
 		return
 	var wish := Vector3.ZERO
 	var speed := Motion.WALK_MPS
-	_sense_surface()
 	if stick.length_squared() > 0.01:
 		click_target = null
 		_route.clear()
@@ -96,7 +95,11 @@ func _step(dt: float) -> void:
 	var before := global_position
 	_sequence += 1
 	var desired_speed := wish.length() * speed
-	Net.server().try_move_world(_sequence, wish.normalized(), desired_speed,jump)
+	var moved:Dictionary=Net.server().try_move_world(_sequence, wish.normalized(), desired_speed,jump)
+	# Accepted authority movement already senses the surface at the final pose
+	# before publishing. Rejected intents still refresh the local surface, as
+	# the former pre-move ray did, without doubling successful physics queries.
+	if not moved.get("ok",false):_sense_surface()
 	var actual_speed := Vector2(global_position.x - before.x, global_position.z - before.z).length() / maxf(dt, 0.0001)
 	if Vector2(velocity.x, velocity.z).length() > 0.2:
 		var facing := atan2(velocity.x, velocity.z)

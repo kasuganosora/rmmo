@@ -411,6 +411,13 @@ func start_spawn_cell() -> Vector2i:
 func _init_combat_layers() -> void:
 	_combat_module_logic._init_combat_layers()
 func _process(delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_tick_frame(delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(delta:float)->void:
 	_tick_weather(delta)
 	if combat_engine == null or combat_stats == null:
 		return

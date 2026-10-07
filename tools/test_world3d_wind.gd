@@ -104,6 +104,9 @@ func run() -> void:
 	print("test_world3d_wind: "+("PASS" if failed==0 else "FAIL")); quit(0 if failed==0 else 1)
 
 func visuals(id:String, other:String, mesh_path:String) -> void:
+	# Editor preview is intentionally off on open; enable it through the same
+	# HTTP operation available to users before verifying the rendered response.
+	await call_tool("set_editor_wind_preview",{"enabled":true})
 	editor._camera.position=Vector3(.7,1.6,8); editor._camera.look_at(Vector3(.7,1.6,0)); editor._camera.projection=Camera3D.PROJECTION_ORTHOGONAL; editor._camera.size=5
 	var rig=editor._weather; rig.set_process(false)
 	var runtime=rig.wind_objects; runtime.set_physics_process(false); runtime.refresh()
@@ -148,7 +151,7 @@ func visuals(id:String, other:String, mesh_path:String) -> void:
 	var roof:=StaticBody3D.new(); roof.position=Vector3(.75,3.5,0); editor.add_child(roof)
 	var shape:=CollisionShape3D.new(); var box:=BoxShape3D.new(); box.size=Vector3(3,.2,3); shape.shape=box; roof.add_child(shape)
 	await physics_frame; await physics_frame; runtime.refresh(); runtime.advance(Vector3(16,0,0),2)
-	check(materials[0].get_shader_parameter("wind_velocity")==Vector3.ZERO,"sheltered cloth receives no outdoor wind")
+	check(materials[0].get_shader_parameter("wind_exposure")==0. if runtime.shared_state_enabled else materials[0].get_shader_parameter("wind_velocity")==Vector3.ZERO,"sheltered cloth receives no outdoor wind")
 	roof.free(); await physics_frame; runtime.refresh()
 	# Sky inspection captures stable celestial directions and the three authored times.
 	editor._camera.projection=Camera3D.PROJECTION_PERSPECTIVE; editor._camera.rotation_degrees=Vector3(16,28,0)

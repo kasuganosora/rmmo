@@ -1,0 +1,1336 @@
+{
+  "source": "D:\\code\\rmmo_runtime\\review_artifacts\\town_street_entry_20261005\\river_bridge_radar_warm_20261007.json",
+  "source_unchanged": true,
+  "probe_sources_unchanged": true,
+  "probe_sources_start": {
+    "res://scripts/ui/game_hud.gd": "deb33e3ed0a818198062d567e2693323ced008f37a37bc298c4278771fec00f0",
+    "res://scripts/ui/world_map_terrain_layer.gd": "46575493dfcdf7315351c055605a63b6ae466a97367fde852de212e51ec8082d",
+    "res://scripts/ui/world_map_view_3d.gd": "753565fb7730aa9e384c17b7602cb1c69d5101a160085665554a9f7aa8570aa7",
+    "res://scripts/world3d/weather_controller.gd": "ee650c6b7fb970b5c69df9a3c4abd4f60a8efb777aacc1690799ef876915fb54",
+    "res://scripts/world3d/wind_runtime.gd": "4e58cc6a9d4aafc9410d9d3531890407eafdefdc44362fa759f2cdee9e177584",
+    "res://scripts/world3d/world_3d.gd": "938a636b0b14199022c79af75611b7d523fa3c61605b8ca137294a13c2c519ac",
+    "res://scripts/world3d/world_navigation.gd": "8159db2f4ccfdcbc489e99105ba43241b3c8d30a3b39b7c28e7bf2152147170c",
+    "res://scripts/world3d/world_stream.gd": "196a49076ff03bf12f657197438209bad98c8d3d978c44f988f677b95a58c367"
+  },
+  "failures": 0,
+  "median": 16.706,
+  "p95": 22.825,
+  "p99": 33.067,
+  "max": 153.682,
+  "over50": 3,
+  "radar_startup": {
+    "commands_recorded": 3920,
+    "first_preparation": {
+      "begin_usec": 52928710,
+      "commands_recorded": 3920,
+      "end_usec": 58664621,
+      "frame": 1815,
+      "max_warm_slice_ms": 1.795,
+      "radius": 22.0,
+      "ready_for_play": false,
+      "size": "(146.0, 133.0)",
+      "warm_slices": 309,
+      "width": 0.330827067669173
+    },
+    "first_width": 0.330827067669173,
+    "prepared_width": 0.330827067669173,
+    "radius": 22.0,
+    "scale": 3.02272727272727,
+    "shape_count": 3911,
+    "size": "(146.0, 133.0)",
+    "width": 0.330827067669173,
+    "width_histogram": {
+      "0.33082706766917": 3911
+    }
+  },
+  "loading_profile": {
+    "batches": 52955,
+    "environment": 47332,
+    "events": 51427,
+    "hud": 52911,
+    "hud_added": 52845,
+    "hud_bound": 52857,
+    "hud_instantiated": 52563,
+    "lamp_materials": {
+      "elapsed_ms": 201.142,
+      "materials": 3,
+      "max_make_ms": 141.531
+    },
+    "navigation": 51390,
+    "player": 47169,
+    "radar": 58678,
+    "ready_started": 44424,
+    "setup": 44442,
+    "stream": 46155,
+    "wind_materials": {
+      "elapsed_ms": 1293.447,
+      "make_ms": 527.394,
+      "materials": 39,
+      "max_make_ms": 180.951,
+      "receivers": 1556,
+      "skipped": 0
+    }
+  },
+  "radar_actual_frame_count": 885,
+  "terrain_actual_update_count": 42,
+  "recorded_delta_sum": 0,
+  "command_counts": [
+    3920
+  ],
+  "radar_max": 9.116,
+  "terrain_max": 2.824,
+  "terrain_updates": [
+    {
+      "frame": 2298,
+      "position": "(-26.63593, 0.924062, 4.537852)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2298,
+        "indexed": true,
+        "ms": 0.375,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.034,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 3,
+        "terrain_visible_added": 5,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 2431,
+      "position": "(-18.3343, 0.925834, 7.652298)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2431,
+        "indexed": true,
+        "ms": 0.445,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.026,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 4,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 2571,
+      "position": "(-9.930785, 0.92583, 11.68511)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2571,
+        "indexed": true,
+        "ms": 0.413,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.029,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 5,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 2711,
+      "position": "(-1.638903, 0.925835, 15.96945)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2711,
+        "indexed": true,
+        "ms": 0.314,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.018,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 6,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 2848,
+      "position": "(6.563794, 0.925837, 20.41862)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2848,
+        "indexed": true,
+        "ms": 0.365,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.029,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 7,
+        "terrain_visible_added": 2,
+        "terrain_visible_removed": 3,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 2988,
+      "position": "(14.62886, 0.925837, 24.98198)",
+      "radar": {
+        "candidates": 21,
+        "frame": 2988,
+        "indexed": true,
+        "ms": 0.417,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.026,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 8,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3128,
+      "position": "(22.8098, 0.925826, 29.47047)",
+      "radar": {
+        "candidates": 21,
+        "frame": 3128,
+        "indexed": true,
+        "ms": 0.436,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.026,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 9,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3268,
+      "position": "(31.13036, 0.925751, 33.69895)",
+      "radar": {
+        "candidates": 14,
+        "frame": 3268,
+        "indexed": true,
+        "ms": 0.323,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.024,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 10,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3408,
+      "position": "(39.4661, 0.925816, 37.89543)",
+      "radar": {
+        "candidates": 19,
+        "frame": 3408,
+        "indexed": true,
+        "ms": 0.428,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.028,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 11,
+        "terrain_visible_added": 1,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3541,
+      "position": "(47.57309, 0.925688, 41.48602)",
+      "radar": {
+        "candidates": 19,
+        "frame": 3541,
+        "indexed": true,
+        "ms": 0.437,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.022,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 12,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3674,
+      "position": "(55.6801, 0.924572, 45.07652)",
+      "radar": {
+        "candidates": 19,
+        "frame": 3674,
+        "indexed": true,
+        "ms": 0.421,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.025,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 13,
+        "terrain_visible_added": 1,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3807,
+      "position": "(63.83743, 0.92583, 48.55099)",
+      "radar": {
+        "candidates": 19,
+        "frame": 3807,
+        "indexed": true,
+        "ms": 0.424,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.022,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 14,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 3940,
+      "position": "(71.99737, 0.925823, 52.02004)",
+      "radar": {
+        "candidates": 19,
+        "frame": 3940,
+        "indexed": true,
+        "ms": 0.322,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.024,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 15,
+        "terrain_visible_added": 3,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4073,
+      "position": "(80.23407, 0.925836, 55.30059)",
+      "radar": {
+        "candidates": 19,
+        "frame": 4073,
+        "indexed": true,
+        "ms": 0.3,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.019,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 16,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 1,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4206,
+      "position": "(88.48763, 0.925694, 58.5397)",
+      "radar": {
+        "candidates": 19,
+        "frame": 4206,
+        "indexed": true,
+        "ms": 0.424,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.023,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 17,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4339,
+      "position": "(96.83125, 0.925828, 61.53494)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4339,
+        "indexed": true,
+        "ms": 0.286,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.021,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 18,
+        "terrain_visible_added": 4,
+        "terrain_visible_removed": 1,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4472,
+      "position": "(105.2135, 0.925824, 64.4254)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4472,
+        "indexed": true,
+        "ms": 0.246,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.014,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 19,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 3,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4598,
+      "position": "(113.2529, 0.924342, 66.84077)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4598,
+        "indexed": true,
+        "ms": 0.23,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.015,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 20,
+        "terrain_visible_added": 2,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4724,
+      "position": "(121.3733, 0.92583, 68.98914)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4724,
+        "indexed": true,
+        "ms": 0.43,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.026,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 21,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4850,
+      "position": "(129.4938, 0.925828, 71.13732)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4850,
+        "indexed": true,
+        "ms": 0.454,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.034,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 22,
+        "terrain_visible_added": 3,
+        "terrain_visible_removed": 3,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 4976,
+      "position": "(137.6996, 0.925795, 72.92749)",
+      "radar": {
+        "candidates": 21,
+        "frame": 4976,
+        "indexed": true,
+        "ms": 0.384,
+        "shapes": 7,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.036,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 23,
+        "terrain_visible_added": 1,
+        "terrain_visible_removed": 3,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 5102,
+      "position": "(145.9185, 0.924556, 74.66216)",
+      "radar": {
+        "candidates": 21,
+        "frame": 5102,
+        "indexed": true,
+        "ms": 0.353,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.022,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 24,
+        "terrain_visible_added": 1,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 5228,
+      "position": "(154.1319, 0.925822, 76.42236)",
+      "radar": {
+        "candidates": 21,
+        "frame": 5228,
+        "indexed": true,
+        "ms": 0.415,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.024,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 25,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 5354,
+      "position": "(162.3202, 0.925837, 78.29693)",
+      "radar": {
+        "candidates": 92,
+        "frame": 5354,
+        "indexed": true,
+        "ms": 0.455,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.025,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 26,
+        "terrain_visible_added": 2,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 5480,
+      "position": "(170.5086, 0.925837, 80.1715)",
+      "radar": {
+        "candidates": 92,
+        "frame": 5480,
+        "indexed": true,
+        "ms": 0.515,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.019,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 27,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 5921,
+      "position": "(178.5146, 0.92583, 82.22014)",
+      "radar": {
+        "candidates": 92,
+        "frame": 5921,
+        "indexed": true,
+        "ms": 0.515,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.023,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 28,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6047,
+      "position": "(186.595, 0.925837, 84.51527)",
+      "radar": {
+        "candidates": 92,
+        "frame": 6047,
+        "indexed": true,
+        "ms": 0.397,
+        "shapes": 8,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.015,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 29,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6172,
+      "position": "(194.6661, 0.925837, 86.84189)",
+      "radar": {
+        "candidates": 92,
+        "frame": 6172,
+        "indexed": true,
+        "ms": 0.346,
+        "shapes": 9,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.02,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 30,
+        "terrain_visible_added": 2,
+        "terrain_visible_removed": 1,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6298,
+      "position": "(202.7123, 0.92583, 89.25386)",
+      "radar": {
+        "candidates": 92,
+        "frame": 6298,
+        "indexed": true,
+        "ms": 0.538,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.031,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 31,
+        "terrain_visible_added": 1,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6424,
+      "position": "(210.7591, 0.925941, 91.66303)",
+      "radar": {
+        "candidates": 92,
+        "frame": 6424,
+        "indexed": true,
+        "ms": 0.341,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.012,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 32,
+        "terrain_visible_added": 0,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6550,
+      "position": "(218.8204, 0.923891, 94.02359)",
+      "radar": {
+        "candidates": 83,
+        "frame": 6550,
+        "indexed": true,
+        "ms": 0.911,
+        "shapes": 44,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.098,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 33,
+        "terrain_visible_added": 36,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6676,
+      "position": "(226.882, 0.925825, 96.38429)",
+      "radar": {
+        "candidates": 682,
+        "frame": 6676,
+        "indexed": true,
+        "ms": 1.503,
+        "shapes": 105,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.265,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 34,
+        "terrain_visible_added": 63,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6815,
+      "position": "(235.1877, 0.925831, 100.5148)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 6815,
+        "indexed": true,
+        "ms": 5.033,
+        "shapes": 186,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.332,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 35,
+        "terrain_visible_added": 81,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 6966,
+      "position": "(243.3099, 0.925833, 107.2215)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 6966,
+        "indexed": true,
+        "ms": 3.715,
+        "shapes": 511,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.554,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 36,
+        "terrain_visible_added": 325,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7124,
+      "position": "(251.4593, 0.925831, 113.9996)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 7124,
+        "indexed": true,
+        "ms": 3.596,
+        "shapes": 868,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 0.798,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 37,
+        "terrain_visible_added": 357,
+        "terrain_visible_removed": 0,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7278,
+      "position": "(259.5788, 0.925834, 120.8132)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 7278,
+        "indexed": true,
+        "ms": 9.116,
+        "shapes": 1156,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 2.824,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 38,
+        "terrain_visible_added": 290,
+        "terrain_visible_removed": 2,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7403,
+      "position": "(267.7996, 1.385841, 127.7097)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 7403,
+        "indexed": true,
+        "ms": 8.305,
+        "shapes": 1180,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 1.863,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 39,
+        "terrain_visible_added": 25,
+        "terrain_visible_removed": 1,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7520,
+      "position": "(276.071, 2.472652, 134.652)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 7520,
+        "indexed": true,
+        "ms": 4.045,
+        "shapes": 1483,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 1.31,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 40,
+        "terrain_visible_added": 382,
+        "terrain_visible_removed": 79,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7624,
+      "position": "(284.2909, 2.836572, 141.55)",
+      "radar": {
+        "candidates": 2278,
+        "frame": 7624,
+        "indexed": true,
+        "ms": 6.524,
+        "shapes": 1644,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 2.384,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 41,
+        "terrain_visible_added": 536,
+        "terrain_visible_removed": 375,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7737,
+      "position": "(292.6158, 2.018792, 148.5388)",
+      "radar": {
+        "candidates": 1967,
+        "frame": 7737,
+        "indexed": true,
+        "ms": 5.767,
+        "shapes": 1283,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 2.001,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 42,
+        "terrain_visible_added": 206,
+        "terrain_visible_removed": 567,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7863,
+      "position": "(300.8919, 1.047549, 155.4851)",
+      "radar": {
+        "candidates": 1967,
+        "frame": 7863,
+        "indexed": true,
+        "ms": 4.348,
+        "shapes": 1162,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 1.385,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 43,
+        "terrain_visible_added": 29,
+        "terrain_visible_removed": 150,
+        "terrain_width": 0.330827067669173
+      }
+    },
+    {
+      "frame": 7999,
+      "position": "(309.2146, 0.925823, 162.4697)",
+      "radar": {
+        "candidates": 1448,
+        "frame": 7999,
+        "indexed": true,
+        "ms": 5.681,
+        "shapes": 977,
+        "terrain_cached": true,
+        "terrain_commands_recorded": 3920,
+        "terrain_ms": 1.938,
+        "terrain_prepared_width": 0.330827067669173,
+        "terrain_recorded_delta": 0,
+        "terrain_redraws": 44,
+        "terrain_visible_added": 16,
+        "terrain_visible_removed": 201,
+        "terrain_width": 0.330827067669173
+      }
+    }
+  ],
+  "peaks": [
+    {
+      "position": "(1.7963, 0.925833, 17.74442)",
+      "ms": 73.075,
+      "engine": {
+        "after_process_to_draw_ms": 0.084,
+        "draw_begin_usec": 69452360,
+        "draw_end_usec": 69455336,
+        "draw_ms": 2.968,
+        "frame": 2769,
+        "main_process_ms": 1.226,
+        "process_begin_usec": 69451050,
+        "process_end_usec": 69452276,
+        "process_to_draw_ms": 1.31
+      },
+      "ticks_usec": 69524133,
+      "radar": {
+        "candidates": 21,
+        "frame": 2767,
+        "indexed": true,
+        "ms": 0.202,
+        "shapes": 10,
+        "terrain_cached": true,
+        "terrain_redraws": 6
+      },
+      "weather": {
+        "apply_ms": 0.005,
+        "audio_ms": 0.009,
+        "frame": 2769,
+        "lightning_ms": 0.018,
+        "ms": 0.189,
+        "simulation_ms": 0.062,
+        "sky_ms": 0.088,
+        "wind_ms": 0.007
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 69167580,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.0,
+        "cancel_timeline": {
+          "keys_begin_usec": 69167713,
+          "keys_end_usec": 69167713,
+          "nodes_begin_usec": 69167712,
+          "nodes_end_usec": 69167712
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.001,
+        "cycle_ms": 0.136,
+        "end_usec": 69167716,
+        "erase_ms": 0.0,
+        "frame": 2752,
+        "ms": 0.136,
+        "pending": false,
+        "physics_frame": 3064,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.113,
+        "slices": 1
+      },
+      "physics_work": {
+        "frame": 3082,
+        "max_step_ms": 56.904,
+        "script_ms": 56.904,
+        "steps": 1,
+        "tail_ms": 0.264,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "contacts": [
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(1.756738, 0.025, 17.72398)",
+              "shape": "@CollisionShape3D@29:<CollisionShape3D#972508110284>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_0_0_0"
+            },
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(1.773448, 0.025, 17.73261)",
+              "shape": "@CollisionShape3D@29:<CollisionShape3D#972508110284>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_0_0_0"
+            },
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(1.7963, 0.025, 17.74442)",
+              "shape": "@CollisionShape3D@29:<CollisionShape3D#972508110284>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_0_0_0"
+            }
+          ],
+          "frame": 3082,
+          "landing_ms": 0.072,
+          "move_from": [
+            1.73707246780396,
+            0.925832033157349,
+            17.7138175964355
+          ],
+          "move_ms": 0.181,
+          "move_rotation": "(0.0, 0.0, 0.0)",
+          "move_velocity": "(3.553646, -0.163333, 1.836192)",
+          "ms": 56.559,
+          "navigation_ms": 56.093,
+          "sense_ms": 0.136,
+          "step_ms": 0.078,
+          "support_ms": 56.165
+        }
+      },
+      "nav_background": {
+        "frame": 2769,
+        "ms": 0.012,
+        "phase": ""
+      },
+      "nav_publication": {
+        "frame": 2770,
+        "ms": 0.005
+      },
+      "surface_query": {
+        "frame": 3080,
+        "ms": 0.004
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 69467167,
+            "end_us": 69467175,
+            "frame": 3082,
+            "index_us": 69467171,
+            "iteration_us": 69467171,
+            "point": "(1.7963, 0.025832, 17.74442)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "sampling_ms": 0.464,
+      "render_cpu": 1.53199994564056,
+      "gpu": 1.567999958992
+    },
+    {
+      "position": "(241.2023, 0.925823, 105.4812)",
+      "ms": 153.682,
+      "engine": {
+        "after_process_to_draw_ms": 0.318,
+        "draw_begin_usec": 138929235,
+        "draw_end_usec": 138937818,
+        "draw_ms": 8.566,
+        "frame": 6932,
+        "main_process_ms": 4.138,
+        "process_begin_usec": 138924779,
+        "process_end_usec": 138928917,
+        "process_to_draw_ms": 4.456
+      },
+      "ticks_usec": 139078478,
+      "radar": {
+        "candidates": 2278,
+        "frame": 6926,
+        "indexed": true,
+        "ms": 0.384,
+        "shapes": 186,
+        "terrain_cached": true,
+        "terrain_redraws": 35
+      },
+      "weather": {
+        "apply_ms": 0.024,
+        "audio_ms": 0.023,
+        "frame": 6932,
+        "lightning_ms": 0.088,
+        "ms": 0.923,
+        "simulation_ms": 0.301,
+        "sky_ms": 0.426,
+        "wind_ms": 0.061
+      },
+      "wind": {
+        "active": 72,
+        "advance_ms": 0.0,
+        "begin_usec": 139018122,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.0,
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.0,
+        "cycle_ms": 59.994,
+        "end_usec": 139078116,
+        "erase_ms": 0.0,
+        "frame": 6933,
+        "ms": 59.994,
+        "pending": true,
+        "physics_frame": 7251,
+        "processed": 1,
+        "receivers": 726,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.024,
+        "slices": 1
+      },
+      "physics_work": {
+        "frame": 7251,
+        "max_step_ms": 138.654,
+        "script_ms": 138.654,
+        "steps": 1,
+        "tail_ms": 0.224,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "contacts": [
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(241.1685, 0.025, 105.4534)",
+              "shape": "@CollisionShape3D@1308:<CollisionShape3D#3035602375939>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_7_3_0"
+            },
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(241.1844, 0.025, 105.4665)",
+              "shape": "@CollisionShape3D@1308:<CollisionShape3D#3035602375939>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_7_3_0"
+            },
+            {
+              "normal": "(0.0, 1.0, 0.0)",
+              "position": "(241.2023, 0.025, 105.4812)",
+              "shape": "@CollisionShape3D@1308:<CollisionShape3D#3035602375939>",
+              "shape_type": "ConcavePolygonShape3D",
+              "uuid": "town_road_7_3_0"
+            }
+          ],
+          "frame": 7251,
+          "landing_ms": 0.16,
+          "move_from": [
+            241.150848388672,
+            0.925823152065277,
+            105.438789367676
+          ],
+          "move_ms": 0.27,
+          "move_rotation": "(0.0, 0.0, 0.0)",
+          "move_velocity": "(3.084336, -0.163333, 2.546934)",
+          "ms": 78.197,
+          "navigation_ms": 77.56,
+          "sense_ms": 0.123,
+          "step_ms": 0.085,
+          "support_ms": 77.72
+        }
+      },
+      "nav_background": {
+        "frame": 6932,
+        "ms": 0.03,
+        "phase": ""
+      },
+      "nav_publication": {
+        "frame": 6933,
+        "ms": 0.005
+      },
+      "surface_query": {
+        "frame": 7247,
+        "ms": 0.199
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 138939982,
+            "end_us": 138939994,
+            "frame": 7251,
+            "index_us": 138939987,
+            "iteration_us": 138939987,
+            "point": "(241.2023, 0.025823, 105.4812)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "sampling_ms": 0.426,
+      "render_cpu": 5.6710000038147,
+      "gpu": 1.81700003147125
+    },
+    {
+      "position": "(278.0112, 2.664958, 136.2805)",
+      "ms": 51.292,
+      "engine": {
+        "after_process_to_draw_ms": 1.007,
+        "draw_begin_usec": 150919438,
+        "draw_end_usec": 150949647,
+        "draw_ms": 30.194,
+        "frame": 7542,
+        "main_process_ms": 9.766,
+        "process_begin_usec": 150908665,
+        "process_end_usec": 150918431,
+        "process_to_draw_ms": 10.773
+      },
+      "ticks_usec": 150959975,
+      "radar": {
+        "candidates": 2278,
+        "frame": 7541,
+        "indexed": true,
+        "ms": 0.302,
+        "shapes": 1483,
+        "terrain_cached": true,
+        "terrain_redraws": 40
+      },
+      "weather": {
+        "apply_ms": 0.013,
+        "audio_ms": 0.017,
+        "frame": 7542,
+        "lightning_ms": 0.035,
+        "ms": 0.461,
+        "simulation_ms": 0.15,
+        "sky_ms": 0.202,
+        "wind_ms": 0.044
+      },
+      "wind": {
+        "active": 258,
+        "advance_ms": 0.0,
+        "begin_usec": 150951025,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.0,
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.0,
+        "cycle_ms": 6.024,
+        "end_usec": 150953026,
+        "erase_ms": 0.0,
+        "frame": 7543,
+        "ms": 2.001,
+        "pending": true,
+        "physics_frame": 7969,
+        "processed": 165,
+        "receivers": 1487,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 1.956,
+        "slices": 3
+      },
+      "physics_work": {
+        "frame": 7971,
+        "max_step_ms": 3.437,
+        "script_ms": 8.635,
+        "steps": 3,
+        "tail_ms": 0.211,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 7969,
+          "landing_ms": 0.235,
+          "move_ms": 0.253,
+          "ms": 0.995,
+          "navigation_ms": 0.032,
+          "sense_ms": 0.145,
+          "step_ms": 0.331,
+          "support_ms": 0.267
+        }
+      },
+      "nav_background": {
+        "frame": 7542,
+        "ms": 3.041,
+        "phase": "source"
+      },
+      "nav_publication": {
+        "frame": 7543,
+        "ms": 0.007
+      },
+      "surface_query": {
+        "frame": 7967,
+        "ms": 0.268
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 150950189,
+            "end_us": 150950205,
+            "frame": 7969,
+            "index_us": 150950196,
+            "iteration_us": 150950196,
+            "point": "(277.9091, 1.751967, 136.1948)",
+            "route": "point_cache"
+          },
+          {
+            "accepted": true,
+            "begin_us": 150954774,
+            "end_us": 150954792,
+            "frame": 7970,
+            "index_us": 150954781,
+            "iteration_us": 150954781,
+            "point": "(277.9601, 1.755126, 136.2377)",
+            "route": "point_cache"
+          },
+          {
+            "accepted": true,
+            "begin_us": 150958028,
+            "end_us": 150958043,
+            "frame": 7971,
+            "index_us": 150958034,
+            "iteration_us": 150958034,
+            "point": "(278.0112, 1.760628, 136.2805)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "sampling_ms": 0.483,
+      "render_cpu": 10.3000001907349,
+      "gpu": 4.41599988937378
+    }
+  ]
+}

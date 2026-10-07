@@ -252,6 +252,17 @@ func _ready() -> void:
 	loading_profile.batches=Time.get_ticks_msec()
 	_loading_stage("准备受风材质")
 	loading_profile.wind_materials=await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(_map_root.get_meta("stream_library",[]),get_tree())
+	_loading_stage("准备灯光材质")
+	loading_profile.lamp_materials=await _weather.streetlamps.prepare_materials(_map_root.get_meta("stream_library",[]),get_tree())
+	# Container layout can resize the radar after its first draw. Finish its
+	# budgeted offscreen commands at the final width before movement begins.
+	if not is_inside_tree() or is_queued_for_deletion():return
+	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.terrain_is_prepared():
+		var progress:Vector2i=_hud._radar.terrain_preparation_progress()
+		_loading_stage("准备地图显示",progress.x,progress.y)
+		await get_tree().process_frame
+		if not is_inside_tree() or is_queued_for_deletion():return
+	loading_profile.radar=Time.get_ticks_msec()
 	_player.input_locked = Net.session()._world_transition_active
 	_ready_for_play = true
 	if _check_map:
@@ -919,6 +930,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	navigation.build(prepared.get_meta("stream_library", []), destination)
 	while not navigation.ready_for_queries: await get_tree().process_frame
 	await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(prepared.get_meta("stream_library",[]),get_tree())
+	await _weather.streetlamps.prepare_materials(prepared.get_meta("stream_library",[]),get_tree())
 	await get_tree().physics_frame
 	await get_tree().process_frame
 	var feet := destination - Vector3(0, 0.9, 0)

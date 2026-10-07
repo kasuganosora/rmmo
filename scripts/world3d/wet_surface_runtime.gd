@@ -64,6 +64,7 @@ func refresh() -> void:
 	var alive:Dictionary={}
 	if not is_instance_valid(scene_root): return
 	for node in scene_root.find_children("*","MeshInstance3D",true,false):
+		if node.get_meta("editor_shadow_proxy",false):continue
 		if node.mesh is GroundCpu: continue
 		if receivers.size()>=512 and not receivers.has(node.get_instance_id()): continue
 		if node.get_world_3d()!=get_world_3d() or not node.is_visible_in_tree() or node.mesh==null or node.skin!=null: continue

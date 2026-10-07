@@ -97,7 +97,13 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		map_root.remove_meta("stream_candidate_work")
 		# Selection used this frame's budget. Planning/attachment starts next frame.
 		if budget>0 and budget<LOAD_BUDGET:return
-	if not _plan_jobs(map_root, jobs, meshes, bodies, target, budget):
+	var detailed:=bool(map_root.get_meta("profile_collision_details",false))
+	if detailed:map_root.set_meta("stream_plan_detail",{})
+	var plan_call_started:=Time.get_ticks_usec() if detailed else 0
+	var plan_ready:=_plan_jobs(map_root, jobs, meshes, bodies, target, budget)
+	if detailed:map_root.get_meta("stream_plan_detail")["call_ms"]=(Time.get_ticks_usec()-plan_call_started)/1000.
+	if not plan_ready:
+		if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"planning","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(Time.get_ticks_usec()-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail")})
 		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PLAN_SLOW ",{"index":(plan_started-sync_started)/1000.0,"plan":(Time.get_ticks_usec()-plan_started)/1000.0})
 		if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":Time.get_ticks_usec()-plan_started})
 		return
@@ -105,11 +111,24 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var left := 1000000 if budget <= 0 else budget
 	var draw := _ring_at(target, RENDER_RADIUS)
 	var solid := _ring_at(target, COLLISION_RADIUS)
+	var wrapper_profile:Variant=_collision_wrapper_slots(map_root) if detailed else null
 	var apply_started := Time.get_ticks_usec()
 	while left > 0 and cursor < jobs.size():
+		var wrapper_stamps:Variant=null
+		if detailed and budget>0 and budget<LOAD_BUDGET:
+			if int(wrapper_profile.count)<wrapper_profile.slots.size():
+				var wrapper_row:Dictionary=wrapper_profile.slots[wrapper_profile.count]
+				wrapper_profile.count+=1;wrapper_row.uuid=str(jobs[cursor].uuid)
+				wrapper_stamps=wrapper_row.stamps;wrapper_stamps.fill(0)
+			else:wrapper_profile.dropped+=1
 		var prepare_started:=Time.get_ticks_usec()
-		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,host,jobs[cursor],solid,bodies)
-		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000:print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0)
+		if wrapper_stamps!=null:wrapper_stamps[0]=prepare_started
+		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,host,jobs[cursor],solid,bodies,wrapper_stamps)
+		if wrapper_stamps!=null:wrapper_stamps[7]=Time.get_ticks_usec()
+		# Detailed runs retain absolute endpoints instead of synchronously printing
+		# inside the interval whose unexplained tail is being investigated.
+		if not detailed and map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000:
+			print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0," ",map_root.get_meta("collision_prepare_timing",{}) if map_root.get_meta("profile_collision_details",false) else {})
 		if not collision_ready:break
 		# Finishing a large terrain shape can consume this frame's budget by
 		# itself. Keep the prepared shape and attach its body on the next frame.
@@ -149,6 +168,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var entries: Array=[]
 	for spec: Dictionary in _dict(map_root,&"fortification_collision_sources").values(): entries.append(FortCollision.entry(spec.mesh,spec.transform,spec.uuid,spec.extras))
 	collision_batches.sync(entries)
+	if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"apply","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(apply_started-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail"),"apply_ms":(batch_started-apply_started)/1000.,"batch_ms":(Time.get_ticks_usec()-batch_started)/1000.,"fort_ms":collision_batches.last_sync_ms})
 	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":collision_batches.last_sync_ms})
 	map_root.set_meta(&"stream_library", library)
 	map_root.set_meta(&"stream_children", map_root.get_child_count())
@@ -167,7 +187,57 @@ static func _profile_load(map_root:Node,timings:Dictionary)->void:
 	map_root.set_meta("stream_load_profile_us",profile)
 
 
-static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
+static func _collision_wrapper_slots(map_root:Node)->Dictionary:
+	var state:Dictionary=map_root.get_meta("collision_wrapper_profile",{})
+	if state.is_empty():
+		state={"frame":-1,"count":0,"dropped":0,"slots":[]}
+		for i in 32:
+			var stamps:Array=[];stamps.resize(8);stamps.fill(0)
+			state.slots.append({"uuid":"","stamps":stamps})
+		map_root.set_meta("collision_wrapper_profile",state)
+	if state.frame!=Engine.get_process_frames():
+		state.frame=Engine.get_process_frames();state.count=0;state.dropped=0
+	return state
+
+
+static func collision_wrapper_snapshot(map_root:Node)->Dictionary:
+	if not map_root.get_meta("profile_collision_details",false):return {}
+	var state:Dictionary=map_root.get_meta("collision_wrapper_profile",{})
+	if state.is_empty():return {}
+	var result:Dictionary={"frame":state.frame,"dropped":state.dropped,"calls":[]}
+	const NAMES=["outer_begin_us","wrapper_begin_us","impl_begin_us","impl_end_us","publish_begin_us","publish_end_us","return_begin_us","outer_end_us"]
+	for i in int(state.count):
+		var source:Dictionary=state.slots[i]
+		var row:Dictionary={"uuid":source.uuid}
+		for j in NAMES.size():row[NAMES[j]]=source.stamps[j]
+		result.calls.append(row)
+	return result
+
+
+static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,wrapper_stamps:Variant=null)->bool:
+	if wrapper_stamps!=null:wrapper_stamps[1]=Time.get_ticks_usec()
+	if not map_root.get_meta("profile_collision_details",false):return _prepare_collision_impl(map_root,host,spec,solid,bodies)
+	var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
+	var previous_serial:int=preparer.profile_serial if preparer!=null else -1
+	var started:=Time.get_ticks_usec()
+	if wrapper_stamps!=null:wrapper_stamps[2]=started
+	var ready:=_prepare_collision_impl(map_root,host,spec,solid,bodies)
+	var impl_ended:=Time.get_ticks_usec()
+	if wrapper_stamps!=null:wrapper_stamps[3]=impl_ended
+	var timing:Dictionary={"frame":Engine.get_process_frames(),"physics_frame":Engine.get_physics_frames(),"uuid":str(spec.uuid),"ms":(impl_ended-started)/1000.,"ready":ready}
+	preparer=map_root.get_node_or_null("StreamCollisionPreparer")
+	if preparer!=null and preparer.profile_serial!=previous_serial:timing["preparer"]=preparer.last_profile
+	# Keep the worst call in this render frame, not an unrelated later fast gate.
+	var previous:Dictionary=map_root.get_meta("collision_prepare_timing",{})
+	if wrapper_stamps!=null:wrapper_stamps[4]=Time.get_ticks_usec()
+	if previous.get("frame",-1)!=timing.frame or float(previous.get("ms",0.))<timing.ms:map_root.set_meta("collision_prepare_timing",timing)
+	if wrapper_stamps!=null:
+		wrapper_stamps[5]=Time.get_ticks_usec()
+		wrapper_stamps[6]=Time.get_ticks_usec()
+	return ready
+
+
+static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
 	if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):return true
 	var extras:Dictionary=spec.get("extras",{})
 	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
@@ -177,6 +247,7 @@ static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dic
 	if preparer==null:
 		preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new()
 		preparer.name="StreamCollisionPreparer";map_root.add_child(preparer)
+	preparer.profile_enabled=bool(map_root.get_meta("profile_collision_details",false))
 	return preparer.prepare(spec,host)
 
 
@@ -363,8 +434,11 @@ static func _draws(spec:Dictionary,draw:Dictionary)->bool:
 static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: Dictionary, target: Vector2i, budget: int) -> bool:
 	if not map_root.has_meta(&"stream_candidates"):
 		return true
+	var detailed:=bool(map_root.get_meta("profile_collision_details",false))
+	var entered:=Time.get_ticks_usec() if detailed else 0
 	var candidates: Array = map_root.get_meta(&"stream_candidates")
 	var cursor := int(map_root.get_meta(&"stream_plan_cursor", 0))
+	var cursor_before:=cursor
 	var bins: Array = map_root.get_meta(&"stream_plan_bins")
 	var draw := _ring_at(target, RENDER_RADIUS)
 	var solid := _ring_at(target, COLLISION_RADIUS)
@@ -382,11 +456,15 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 			bins[bin].append(item)
 		if budget > 0 and Time.get_ticks_usec() - started >= (12000 if budget>=LOAD_BUDGET else 2000):
 			map_root.set_meta(&"stream_plan_cursor", cursor)
+			if detailed:map_root.set_meta("stream_plan_detail",{"scan_ms":(Time.get_ticks_usec()-entered)/1000.,"scanned":cursor-cursor_before,"pending":true})
 			return false
+	var scanned:=Time.get_ticks_usec() if detailed else 0
 	for bin in bins:
 		jobs.append_array(bin)
+	var appended:=Time.get_ticks_usec() if detailed else 0
 	map_root.remove_meta(&"stream_candidates")
 	map_root.remove_meta(&"stream_plan_bins")
+	if detailed:map_root.set_meta("stream_plan_detail",{"scan_ms":(scanned-entered)/1000.,"append_ms":(appended-scanned)/1000.,"release_meta_ms":(Time.get_ticks_usec()-appended)/1000.,"scanned":cursor-cursor_before,"pending":false})
 	return true
 
 
@@ -417,7 +495,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 		pass
 	elif _draws(spec, draw):
 		if inst == null:
-			inst = _spawn(spec, bool(map_root.get_meta("defer_source_upload",false)))
+			inst = _spawn(spec, bool(map_root.get_meta("defer_source_upload",false)), map_root.has_meta("profile_frame"))
 			map_root.add_child(inst)
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
@@ -490,13 +568,15 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 	return spec
 
 
-static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
+static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false) -> MeshInstance3D:
+	var started:=Time.get_ticks_usec() if profile else 0
 	var visual := MeshInstance3D.new()
 	visual.name = str(spec.get("uuid", "chunk"))
 	visual.mesh = spec.get("mesh")
 	if visual.mesh is CpuMesh:
 		if defer_upload and spec.has("ground_batch_record") and not spec.ground_batch_record.has("house_prefab") and spec.get("material_override")==null and not spec.get("surface_overrides",[]).any(func(value):return value!=null):visual.set_meta("deferred_gpu",true)
 		else:visual.mesh = visual.mesh.restore()
+	var restored:=Time.get_ticks_usec() if profile else 0
 	if spec.has("ground_batch_record"): visual.set_meta("ground_batch_record",spec.ground_batch_record)
 	visual.material_override = spec.get("material_override")
 	visual.cast_shadow=spec.get("cast_shadow",GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
@@ -530,6 +610,7 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false) -> MeshInstance3D:
 		label.pixel_size = 0.003
 		visual.add_child(label)
 	preload("res://scripts/world3d/building_shadow_proxy.gd").attach(visual)
+	if profile and Time.get_ticks_usec()-started>5000:print("STREAM_VISUAL_SLOW ",spec.uuid," ",{"restore_ms":(restored-started)/1000.0,"setup_ms":(Time.get_ticks_usec()-restored)/1000.0})
 	return visual
 
 
