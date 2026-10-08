@@ -16,9 +16,11 @@ static func snapshot(source:Mesh)->Dictionary:
 	return {"source":source,"cpu":cpu,"surfaces":cpu.surfaces.duplicate(true)}
 
 static func extract(surfaces:Array)->Dictionary:
-	var started:=Time.get_ticks_usec();var private_mesh:=Cpu.new()
+	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.picking_faces_worker");var private_mesh:=Cpu.new()
 	private_mesh.surfaces=surfaces
-	return {"faces":private_mesh.collision_faces(),"elapsed_us":Time.get_ticks_usec()-started}
+	var faces:=private_mesh.collision_faces()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.picking_faces_worker",started,{"face_vertices":faces.size()})
+	return {"faces":faces,"elapsed_us":Time.get_ticks_usec()-started}
 
 static func publish(snapshot:Dictionary,faces:PackedVector3Array)->bool:
 	# A material or geometry edit invalidates capture, even if an old live body

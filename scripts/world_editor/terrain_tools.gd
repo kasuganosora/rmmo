@@ -72,7 +72,7 @@ func create(args: Dictionary) -> Dictionary:
 	editor._doc.checkpoint()
 	if source.is_empty(): editor._doc.records.append(next)
 	else: editor._doc.records[editor._doc.records.find(source)]=next
-	editor._dirty=true; editor._rebuild()
+	editor._commit_records([next.uuid])
 	return {"ok":true,"id":next.uuid,"columns":columns,"rows":rows,"converted":not source.is_empty()}
 func prepare(args: Dictionary) -> Dictionary:
 	var error:=Terrain.S.validate(args,Terrain.stroke_schema())

@@ -7,6 +7,8 @@ const WorldLocation = preload("res://scripts/world3d/world_location.gd")
 var map_ref := "p1/yard"
 var surface_id := "ground"
 var input_locked := true
+## Unlike UI input locks, unfinished geometry must also suspend gravity.
+var geometry_blocked := false
 var click_target: Variant = null:
 	set(value):
 		click_target=value
@@ -36,6 +38,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if geometry_blocked:
+		velocity=Vector3.ZERO
+		return
 	if input_locked:
 		velocity.x = 0.0
 		velocity.z = 0.0

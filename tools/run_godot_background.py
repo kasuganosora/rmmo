@@ -14,7 +14,7 @@ import tempfile
 import time
 
 
-def run_background(command, *, cwd=None, timeout=360):
+def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=None):
     if os.name != 'nt':
         raise RuntimeError('Private-desktop GPU runner currently supports Windows only')
     import msvcrt
@@ -74,10 +74,14 @@ def run_background(command, *, cwd=None, timeout=360):
                                        ctypes.byref(startup), ctypes.byref(process))
             if not ok:
                 raise ctypes.WinError(ctypes.get_last_error())
+            if on_start is not None:
+                on_start(process.pid, process.tid)
             deadline = time.monotonic() + timeout
             # Short native waits also let KeyboardInterrupt cancel the owned engine.
             while True:
                 wait = kernel.WaitForSingleObject(process.process, 200)
+                if on_poll is not None and wait == 258:
+                    on_poll()
                 if wait != 258 or time.monotonic() >= deadline:
                     break
             if wait != 0:

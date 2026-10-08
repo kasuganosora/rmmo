@@ -2,7 +2,8 @@ extends RefCounted
 ## Meter-space pose for one map. y is height. This is not a 2D cell.
 
 const FORMAT := "rmmo_gltf_map"
-const FORMAT_VERSION := 1
+const FORMAT_VERSION := 2
+const STORAGE := "references_v1"
 const POSITION_ROUNDTRIP_M := 0.001
 
 var map_ref: String = ""

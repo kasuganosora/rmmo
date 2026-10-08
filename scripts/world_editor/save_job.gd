@@ -1,6 +1,6 @@
 extends Node
-## One exclusive save. Scene creation/readback stays on main; an off-tree export
-## and its private resources belong to one worker until that worker has joined.
+## One exclusive reference-map save. Validation stays on main; immutable
+## resource encoding and small proxy-map publication run on one worker.
 signal finished(result: Dictionary)
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const CpuTexture = preload("res://scripts/world3d/export_cpu_texture.gd")
@@ -66,97 +66,43 @@ func wait_result() -> Dictionary:
 	return result.duplicate(true)
 
 func _run() -> void:
-	# Let the first status frame paint before any work is started.
 	await get_tree().process_frame
 	var document = editor._doc
 	var previous_path: String = editor._path
 	document.last_save_metrics = {}
 	var phase := Time.get_ticks_usec()
-	var reuse=preload("res://scripts/world3d/pose_save.gd")
-	var content_root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
-	thread=Thread.new()
-	var probe_error:=thread.start(reuse.attempt.bind(_path,document.save_signature(_path),document.records,document.map_meta,content_root,Io,report))
-	if probe_error!=OK:thread=null;_complete(probe_error,previous_path);return
-	while thread.is_alive():await get_tree().process_frame
-	var attempt:Dictionary=thread.wait_to_finish();thread=null
-	document.last_save_metrics.reuse_check_ms=attempt.get("reuse_check_ms",0)
-	if attempt.handled:
-		document.last_save_metrics.export=attempt.duplicate(true)
-		if attempt.error==OK:document.accept_save(_path,attempt.signature)
-		_complete(attempt.error,previous_path);return
-	document.last_save_metrics.reuse_fallback=attempt.reason
-	report("validate")
-	phase=Time.get_ticks_usec()
 	# Resource-root validation can consult the active AssetManager. Keep it on
-	# main and yield between records, using exactly the synchronous validators.
+	# main and yield between records, using the synchronous save validators.
 	var err: Error = document.validate_save_meta()
 	if err != OK: _complete(err, previous_path); return
 	var slice := Time.get_ticks_usec()
 	var count := 0
 	var material_validation:Dictionary={}
+	var asset_validation:Dictionary={}
 	for record in document.records:
-		err = document.validate_save_record(record,material_validation)
+		err = document.validate_save_record(record,material_validation,asset_validation)
 		if err != OK: _complete(err, previous_path); return
 		count += 1
-		report("validate", count, document.records.size())
+		report("validate",count,document.records.size())
 		if Time.get_ticks_usec()-slice >= 8000:
 			await get_tree().process_frame
 			slice = Time.get_ticks_usec()
+	err=document.validate_save_asset_paths(asset_validation)
+	if err!=OK:_complete(err,previous_path);return
 	document.last_save_metrics.validate_ms = (Time.get_ticks_usec()-phase)/1000.0
-	if err != OK: _complete(err, previous_path); return
-	if attempt.refresh_sources:reuse.refresh_export_sources(document)
-	report("build", 0, document.records.size())
-	await get_tree().process_frame
-	phase = Time.get_ticks_usec()
-	_view = document.export_root()
-	_view.set_meta("save_sources",attempt.sources)
-	_view.set_meta("save_content_root",content_root)
-	document.terrain_neighbors.update(document.records)
-	document._save_meshes.begin(document.records)
-	# The editor already owns the authoritative painted building arrays. Reuse
-	# them for the first export too; don't rebuild/upload every face a second time.
-	var reused:=0
-	if not attempt.refresh_sources and is_instance_valid(editor._view):
-		for record in document.records:
-			if not record.has("building") or record.has("house_prefab"):continue
-			var visual:MeshInstance3D=editor._view.get_node_or_null(NodePath(str(record.uuid))) as MeshInstance3D
-			if visual==null or visual.mesh==null or visual.material_override!=null or visual.has_meta("paint_error"):continue
-			var clean:=true
-			for slot in visual.mesh.get_surface_count():
-				if visual.get_surface_override_material(slot)!=null:clean=false;break
-			if not clean:continue
-			document._save_meshes.put_mesh(str(record.uuid),document._save_meshes.key(record,{}),visual.mesh);reused+=1
-	document.last_save_metrics.live_building_meshes_reused=reused
-	slice = Time.get_ticks_usec()
-	count = 0
-	for record in document.records:
-		var child: Node3D = document._asset(record) if record.get("kind") == "asset" else document._mesh(record, false)
-		_view.add_child(child)
-		if child.has_meta("paint_error") or child.has_meta("tile_error") or child.has_meta("missing_asset"):
-			_complete(ERR_INVALID_DATA, previous_path); return
-		_snapshot_materials(child)
-		if _snapshot_error: _complete(ERR_INVALID_DATA, previous_path); return
-		count += 1
-		report("build", count, document.records.size())
-		if Time.get_ticks_usec()-slice >= 8000:
-			await get_tree().process_frame
-			slice = Time.get_ticks_usec()
-	document.last_save_metrics.build_ms = (Time.get_ticks_usec()-phase)/1000.0
-	document.last_save_metrics.geometry_cache_hits = document._save_meshes.hits
-	document.last_save_metrics.geometry_cache_misses = document._save_meshes.misses
-	document.last_save_metrics.geometry_cache_bytes = document._save_meshes.bytes
 	phase = Time.get_ticks_usec()
 	thread = Thread.new()
-	err = thread.start(Io.save_scene_atomic.bind(_view, _path, document.save_signature(_path), report))
-	if err == OK:
-		while thread.is_alive(): await get_tree().process_frame
-		err = thread.wait_to_finish()
+	var writer = preload("res://scripts/world3d/reference_map_save.gd")
+	err = thread.start(writer.save.bind(_path, document.save_signature(_path), document.records,
+		document.map_meta, preload("res://scripts/world3d/map_paths.gd").external_root(), Io, report))
+	if err != OK: thread=null; _complete(err,previous_path); return
+	while thread.is_alive(): await get_tree().process_frame
+	var published:Dictionary = thread.wait_to_finish()
 	thread = null
 	document.last_save_metrics.publish_ms = (Time.get_ticks_usec()-phase)/1000.0
-	if err == OK:
-		document.last_save_metrics.export = Io.last_export_metrics.duplicate(true)
-		document.accept_save(_path, str(_view.get_meta("published_signature", "")))
-	_complete(err, previous_path)
+	document.last_save_metrics.export = published
+	if published.error == OK: document.accept_save(_path,published.signature)
+	_complete(published.error,previous_path)
 
 func _snapshot_materials(node: Node) -> void:
 	if node is MeshInstance3D and node.mesh != null:
@@ -243,7 +189,7 @@ func _restore_viewports() -> void:
 func _process(_delta: float) -> void:
 	if not active: return
 	var value := state()
-	var labels := {"reuse":"核验并复用已保存资源", "validate":"检查地图与素材", "build":"准备地图网格", "scene":"整理场景", "textures":"导出材质与贴图", "geometry":"写入网格数据", "publish":"完成原子保存"}
+	var labels := {"validate":"检查地图与素材", "resources":"保存独立资源", "references":"整理物件引用", "verify":"核验资源完整性", "serialize":"写入位置与实例信息", "publish":"完成原子保存"}
 	editor._save_progress.indeterminate = int(value.total) <= 0
 	if int(value.total) > 0:
 		editor._save_progress.max_value = value.total

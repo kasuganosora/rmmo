@@ -19,7 +19,7 @@ func mount_world3d_sky(map_id: String, path: String) -> void:
 		# main thread after the runtime loader has already finished the map.
 		var Doc=preload("res://scripts/world3d/world_document.gd")
 		var EnvironmentSettings=preload("res://scripts/world3d/environment_settings.gd")
-		var native: Dictionary=Doc.authoritative_extras(path)
+		var native: Dictionary=Doc.authoritative_extras(path,null,true)
 		if native.has("extras"):
 			if EnvironmentSettings.valid(native.extras): settings=EnvironmentSettings.resolve(native.extras)
 		elif not native.has("error"):

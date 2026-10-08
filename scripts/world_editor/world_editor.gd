@@ -475,7 +475,7 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 			3: id = _doc.add_gather(hit.position + Vector3(0, 0.2, 0), "gather")
 			4: id = _doc.add_warp(hit.position + Vector3(0, 0.1, 0), "", Vector3(0, 0.9, 4))
 		_dirty = true
-		_rebuild()
+		_commit_records([id])
 		_inspector.select(id)
 		return
 	if spec.has("prefab_path"):
@@ -487,29 +487,32 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 		var base: Array = spec.get("bounds_position", [0, 0, 0])
 		var id: String = _doc.add_asset(spec, hit.position - Vector3(0, float(base[1]), 0))
 		_dirty = true
-		_rebuild()
+		_commit_records([id])
 		_inspector.select(id)
 		return
 	var size: Vector3 = spec.get("size", Vector3.ONE)
+	var added: String=""
 	if bool(spec.get("paint", false)):
-		_stroke.add(_doc, hit.position + Vector3(0, size.y, 0), spec)
+		added=_stroke.add(_doc, hit.position + Vector3(0, size.y, 0), spec)
 	elif fresh:
 		var rotation: Vector3 = spec.get("rotation", Vector3.ZERO)
-		_doc.add_box(str(spec.get("surface_id", "ground")), hit.position + Vector3(0, size.y * 0.5, 0), size, rotation)
+		added=_doc.add_box(str(spec.get("surface_id", "ground")), hit.position + Vector3(0, size.y * 0.5, 0), size, rotation)
 	else:
 		return
-	_dirty = true
-	_rebuild()
+	if added.is_empty():return # Revisited cell in this stroke is a real no-op.
+	_commit_records([added])
 
 
 var _ground_batches: Node3D
 const FortCollision=preload("res://scripts/world3d/fortification_collision_batcher.gd")
 var _fortification_collisions: Node3D
+var _fortification_collision_valid:=false
+var _fortification_selection:Array=[]
 var _ground_sync_suspended := false
 var _ground_sync_pending := false
 var _picking_shapes = preload("res://scripts/world_editor/picking_shape_cache.gd").new()
 
-func _sync_ground_batches(selection_only: bool=false) -> void:
+func _sync_ground_batches(selection_only: bool=false, incremental: bool=false, fortification_changed: bool=true) -> void:
 	if _view == null: return
 	if _ground_sync_suspended: _ground_sync_pending=true; return
 	if not is_instance_valid(_ground_batches):
@@ -517,10 +520,18 @@ func _sync_ground_batches(selection_only: bool=false) -> void:
 		add_child(_ground_batches)
 	var excluded: Array=_selection_tools.ids if _selection_tools != null else []
 	if selection_only: _ground_batches.sync_selection(_view.get_children(),excluded)
+	elif incremental: _ground_batches.request_sync(_view.get_children(),excluded)
 	else: _ground_batches.sync(_view.get_children(),excluded)
-	_sync_fortification_collisions()
+	_sync_fortification_collisions(not selection_only and fortification_changed)
 
-func _sync_fortification_collisions() -> void:
+func _sync_fortification_collisions(force: bool=true) -> void:
+	var selected:Array=[]
+	if _selection_tools!=null:
+		for uuid in _selection_tools.ids:
+			if _doc._find(uuid).has("fortification"):selected.append(uuid)
+	selected.sort()
+	if not force and _fortification_collision_valid and selected==_fortification_selection:return
+	_fortification_selection=selected;_fortification_collision_valid=true
 	if not is_instance_valid(_fortification_collisions):
 		_fortification_collisions=FortCollision.new(); add_child(_fortification_collisions)
 	var entries: Array=[]
@@ -544,6 +555,7 @@ func _begin_rebuild(timings: Dictionary = {}) -> void:
 	_bridges.clear_preview()
 	if is_instance_valid(_ground_batches): _ground_batches.clear(false)
 	if is_instance_valid(_fortification_collisions): _fortification_collisions.clear()
+	_fortification_collision_valid=false;_fortification_selection.clear()
 	timings.clear_batches_ms = (Time.get_ticks_usec()-started)/1000.
 	started = Time.get_ticks_usec()
 	if _terrain_panel!=null: _terrain_panel.refresh()
@@ -648,6 +660,7 @@ func _sync_selected_transform(live_records: Variant = null) -> void:
 
 
 func _sync_record_transform(record: Dictionary) -> void:
+	if record.has("fortification"):_fortification_collision_valid=false
 	# Selected nodes were released when selection changed; pure pose updates do
 	# not invalidate the captured geometry of every other object in the town.
 	if _city.overlay!=null: _city.overlay.invalidate_record(record)
@@ -691,11 +704,42 @@ func _sync_record_transform(record: Dictionary) -> void:
 	if not _ground_sync_suspended: _sync_ground_batches()
 
 
+func _commit_records(ids: Array) -> void:
+	if ids.is_empty():return
+	var changed:Array[String]=[]
+	var terrain_changed:=false;var building_changed:=false
+	for uuid in ids:
+		if not changed.has(str(uuid)):changed.append(str(uuid))
+		var record:Dictionary=_doc._find(str(uuid))
+		terrain_changed=terrain_changed or record.has("terrain_mesh") or _doc.terrain_neighbors.sources.has(str(uuid))
+		var previous:=_view.get_node_or_null(NodePath(str(uuid)))
+		building_changed=building_changed or record.has("building") or (previous!=null and previous.get_meta("extras",{}).has("building"))
+	_dirty=true
+	_refresh_records(changed)
+	if _selection_tools!=null:_selection_tools.refresh(false)
+	if _object_list!=null:_object_list.refresh_records(changed)
+	_refresh_selection(false)
+	if terrain_changed and _terrain_panel!=null:_terrain_panel.refresh()
+	if building_changed and _building_panel!=null:_building_panel.refresh_list()
+
 func _refresh_records(ids: Array[String]) -> void:
+	if ids.is_empty():return
 	ids=ids.duplicate()
-	for neighbor in _doc.terrain_neighbors.update(_doc.records):
-		if not ids.has(neighbor): ids.append(neighbor)
-	if is_instance_valid(_ground_batches): _ground_batches.release(ids)
+	var terrain_changed:=false
+	for uuid in ids:
+		if _doc._find(uuid).has("terrain_mesh") or _doc.terrain_neighbors.sources.has(uuid):terrain_changed=true;break
+	if terrain_changed:
+		for neighbor in _doc.terrain_neighbors.update(_doc.records):
+			if not ids.has(neighbor): ids.append(neighbor)
+	var old_nodes:Array=[]
+	var fortification_changed:=false
+	for uuid in ids:
+		var previous:=_view.get_node_or_null(NodePath(uuid))
+		if previous!=null:
+			old_nodes.append(previous)
+			if previous.get_meta("ground_batch_record",{}).has("fortification"):fortification_changed=true
+		if _doc._find(uuid).has("fortification"):fortification_changed=true
+	if is_instance_valid(_ground_batches): _ground_batches.release_sources(old_nodes)
 	# Rebuild only cells whose rule variant changed, including erased cells.
 	for uuid in ids:
 		for body in _bodies_by_uuid.get(uuid, []): body.free()
@@ -703,13 +747,16 @@ func _refresh_records(ids: Array[String]) -> void:
 		var previous := _view.get_node_or_null(NodePath(uuid))
 		if previous != null: previous.free()
 		var record: Dictionary = _doc._find(uuid)
-		if record.is_empty(): continue
+		if _city.overlay!=null:_city.overlay.invalidate_uuid(uuid,record)
+		if record.is_empty():
+			_authoring._membership.erase(uuid)
+			continue
 		var visual: Node3D = _doc._asset(record) if record.get("kind") == "asset" else _doc._mesh(record)
 		_authoring.decorate(record,visual)
 		_view.add_child(visual)
 		_add_bodies(visual)
-	if _inspector != null and ids.has(_inspector.selection): _inspector.refresh()
-	_sync_ground_batches()
+	if _inspector != null and ids.has(_inspector.selection): _inspector.refresh(false)
+	_sync_ground_batches(false,true,fortification_changed)
 
 
 func _finish_auto_stroke(cancel: bool = false) -> void:
@@ -1039,7 +1086,7 @@ func _undo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.undo():
 		_dirty = true
-		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta): _rebuild()
+		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
 		_selection_tools.refresh()
 
 
@@ -1055,8 +1102,24 @@ func _redo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.redo():
 		_dirty = true
-		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta): _rebuild()
+		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
 		_selection_tools.refresh()
+
+func _restore_record_changes(before: Array,before_meta: Dictionary) -> bool:
+	# Authoring/environment changes retain their full refresh. Ordinary record
+	# transactions keep unaffected nodes, physics and batches alive across undo.
+	var old_meta:=before_meta.duplicate();var next_meta:Dictionary=_doc.map_meta.duplicate()
+	old_meta.erase("building_instances");next_meta.erase("building_instances")
+	if old_meta!=next_meta:return false
+	var old:Dictionary={};var changed:Array=[]
+	for record in before:old[str(record.uuid)]=record
+	for record in _doc.records:
+		var uuid:=str(record.uuid)
+		if not old.has(uuid) or old[uuid]!=record:changed.append(uuid)
+		old.erase(uuid)
+	changed.append_array(old.keys())
+	_commit_records(changed)
+	return true
 
 func _restore_record_poses(before: Array,before_meta: Dictionary) -> bool:
 	# Validate the entire change before touching render state. Geometry, topology,
@@ -1089,7 +1152,12 @@ func _restore_record_poses(before: Array,before_meta: Dictionary) -> bool:
 		changed.append(current); ids.append(str(current.uuid))
 	# The affected objects may no longer be selected. Release their old batches
 	# before moving them, so undo cannot leave a stale merged copy behind.
-	if is_instance_valid(_ground_batches): _ground_batches.release(ids)
+	if is_instance_valid(_ground_batches):
+		var sources:Array=[]
+		for uuid in ids:
+			var source:=_view.get_node_or_null(NodePath(uuid))
+			if source!=null:sources.append(source)
+		_ground_batches.release_sources(sources)
 	_ground_sync_suspended=true; _ground_sync_pending=false
 	for record in changed: _sync_record_transform(record)
 	_ground_sync_suspended=false; _ground_sync_pending=false
@@ -1254,7 +1322,7 @@ func _place_prefab(entry: Dictionary, point: Vector3) -> bool:
 		_status.text = result.error
 		return false
 	_dirty = true
-	_rebuild()
+	_commit_records(result.ids)
 	_selection_tools.set_ids(result.ids)
 	return true
 

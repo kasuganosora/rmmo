@@ -49,19 +49,33 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var child_count := map_root.get_child_count()
 	var previous_chunk:Variant=map_root.get_meta(&"stream_chunk") if map_root.has_meta(&"stream_chunk") else null
 	var unfinished:Array=[]
+	var additions:Array=map_root.get_meta("stream_append_pending",[])
+	# Finish the current district plan before absorbing more same-target work.
+	# Repeated arrivals must not cancel an in-flight collision preparation or
+	# reset the plan cursor forever; new entries remain explicitly queued.
+	var settling:bool=budget>0 and budget<LOAD_BUDGET and _chunk_is(map_root,&"stream_target",target) and not _chunk_is(map_root,&"stream_chunk",target)
+	if not additions.is_empty() and not settling:
+		# Replan only newly published/unfinished entries, including when the player
+		# has not crossed a chunk boundary. Never re-adopt the live scene graph.
+		unfinished.append_array(additions)
+		unfinished.append_array(jobs.slice(int(map_root.get_meta("stream_cursor",0))))
+		unfinished.append_array(map_root.get_meta("stream_candidates",[]).slice(int(map_root.get_meta("stream_plan_cursor",0))))
+		for bin:Array in map_root.get_meta("stream_plan_bins",[]):unfinished.append_array(bin)
+		map_root.remove_meta("stream_append_pending")
+		map_root.remove_meta("stream_target")
 	if map_root.has_meta("stream_candidate_work"):
 		var work:RefCounted=map_root.get_meta("stream_candidate_work")
 		# No residency has changed while this candidate selection is pending.
 		# An interrupted turn starts from the same settled/pending base, not from
 		# a destination whose jobs have never been applied.
-		previous_chunk=work.previous;unfinished=work.unfinished.duplicate()
+		previous_chunk=work.previous;unfinished.append_array(work.unfinished)
 	if previous_chunk==null and map_root.has_meta(&"stream_target") and not _chunk_is(map_root,&"stream_target",target):
 		previous_chunk=map_root.get_meta(&"stream_target")
 		unfinished.append_array(jobs.slice(int(map_root.get_meta(&"stream_cursor",0))))
 		if map_root.has_meta(&"stream_candidates"):
 			unfinished.append_array(map_root.get_meta(&"stream_candidates").slice(int(map_root.get_meta(&"stream_plan_cursor",0))))
 		for bin:Array in map_root.get_meta(&"stream_plan_bins",[]):unfinished.append_array(bin)
-	if jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and _child_count_is(map_root, child_count):
+	if unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and _child_count_is(map_root, child_count):
 		return
 	if not _child_count_is(map_root, child_count):
 		previous_chunk=null
@@ -179,6 +193,41 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	jobs.clear()
 	map_root.set_meta(&"stream_cursor", 0)
 	map_root.set_meta(&"stream_chunk", target)
+
+
+static func append_specs(map_root:Node,additions:Array)->Dictionary:
+	var data:Dictionary={}
+	for key:StringName in map_root.get_meta_list():
+		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
+	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions)
+	if not result.ok:return result
+	_library(map_root).append_array(additions)
+	for key:String in result.data:
+		if key in ["stream_library","stream_jobs","stream_candidates","stream_plan_bins"]:continue
+		map_root.set_meta(key,result.data[key])
+	var pending:Array=map_root.get_meta("stream_append_pending",[])
+	pending.append_array(additions);pending.append_array(result.get("affected_existing_specs",[]));map_root.set_meta("stream_append_pending",pending)
+	return result
+
+
+static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
+	# Publication and physics attachment are separate stages. Inspect only the
+	# capsule's immediate neighborhood, not unfinished work across the town.
+	var area:=Rect2(origin.x-2,origin.z-2,4,4)
+	var low:=chunk_key(Vector3(area.position.x,0,area.position.y))
+	var high:=chunk_key(Vector3(area.end.x,0,area.end.y))
+	var index:Dictionary=map_root.get_meta("stream_collision_index",{})
+	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
+	var batched:Dictionary=map_root.get_meta("fortification_collision_sources",{})
+	for z in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			for spec:Dictionary in index.get(Vector2i(x,z),[]):
+				var extra:Dictionary=spec.get("extras",{})
+				if spec.get("native_visual",false) or extra.get("hostile",false) or extra.get("ally",false) or extra.get("rmmo_collision","")=="none":continue
+				var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+				if not area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z)):continue
+				if not batched.has(spec.uuid) and not is_instance_valid(bodies.get(spec.uuid)):return false
+	return true
 
 
 static func _profile_load(map_root:Node,timings:Dictionary)->void:
@@ -546,6 +595,7 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 		"chunk": chunk_key(visual.position),
 	}
 	for slot in visual.mesh.get_surface_count(): spec.surface_overrides.append(visual.get_surface_override_material(slot))
+	if visual.has_meta("map_draw_order"):spec.map_draw_order=visual.get_meta("map_draw_order")
 	# Painting changes UVs/materials, never the authored solid. Preserve the
 	# exact box primitive instead of downloading the painted mesh for physics.
 	var collision_source: Mesh = visual.get_meta("collision_solid",visual.get_meta("paint_source", visual.mesh))

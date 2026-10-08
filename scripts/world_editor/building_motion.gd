@@ -160,7 +160,7 @@ func commit(plans: Array, copy: bool) -> Dictionary:
 	doc.map_meta.building_instances=next_registry
 	editor._dirty=true
 	if copy:
-		editor._rebuild(); editor._selection_tools.set_ids(selected)
+		editor._commit_records(selected); editor._selection_tools.set_ids(selected)
 	else:
 		# Rigid motion changes poses and recipe origins, not mesh topology. Keep
 		# unrelated terrain, assets, physics bodies and render groups alive.
@@ -177,6 +177,6 @@ func remove() -> Dictionary:
 	editor._doc.checkpoint_recovery()
 	editor._doc.records=editor._doc.records.filter(func(r): return not removed.has(r.uuid))
 	for unit in ready.units: editor._doc.map_meta.building_instances.erase(unit.id)
-	editor._selection_tools.ids.clear(); editor._dirty=true; editor._rebuild()
+	editor._selection_tools.ids.clear(); editor._commit_records(removed.keys())
 	if editor._building_panel!=null: editor._building_panel.refresh_list()
 	return {"ok":true,"changed":true}

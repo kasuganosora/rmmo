@@ -1,5 +1,11 @@
 # 当前 3D 地图编辑器 MCP
 
+2026-10-07 引用地图 v2：UI 与当前 3D `save_world` 统一保存独立资源引用及实例状态，`timings.export.mode=reference_map`，返回 `resources_written/resources_reused`、`map_bytes_written`、`images_written=0`、`texture_export_passes=0`。新增、删除、移动均不整图导出；`open_world` 后台核验引用并恢复完整模型。通用 glTF 工具仅见定位方块；旧原生图先显式迁移。工具参数不新增二维入口，现有后台作业与冲突保护保持一致；见 [引用格式和迁移验收](reference_maps_20261007.md)。下文 full_export/pose_reuse/incremental_reuse 属迁移前历史记录。
+
+2026-10-08 引用资源复用续修：`timings.export` 另报 `identity_cache_hits`、`serialized_raw_bytes`、`compression_count`、`identity_cache_entries`。冷开后普通移动/删除仍检查当前作者定义与磁盘资源完整 SHA，但不再重压缩未变资源；另存为或缺少目标资源仍按需压缩。UI 与 3D MCP 共用单次保存的路径去重和最终模型路径复核，参数 schema 与工具发现不变。真实 HTTP 整城移动/新增/删除后的保存约 7.158 / 7.441 / 7.250 秒，新增此前未用模型仅写 1 个定义，详见 [续修验收](reference_map_performance_20261008.md)。
+
+2026-10-08 编辑器加载续修：`open_world` 与 UI 共用已验证定义身份复用、单操作模型路径检查及引用读取线程的 prefab CPU 解码预热。`timings.validation` 增加 `verified_paint_ids`、`verified_asset_paths`、`prefab_warm`；末尾资源与地图完整性复核仍保留。作用域建立后提前解析下一个唯一模型，最多一个未消费结果，主线程按原顺序创建场景/写缓存；`timings.asset_lookahead` 提供 `unique_paths/started/consumed/start_failures/ready_on_consume/peak_unconsumed`。`asset_wait` 现在是剩余等待，不能与完整后台 `asset_parse_worker` 相加。整城真实 HTTP 107.679 → 101.237 s，记录/拾取/选择及临时模型解析失败恢复回归通过；仍存在单次约 0.8 s 停顿，不声明 8 ms 为硬上限。
+
 2026-10-07 房屋外观：新增 `list_building_windows {building_id}`、`set_building_window_style {building_id, window_id, style}`；style 为 `casement` / `cross_lattice` / `diamond_lattice`。UI 与 MCP 共用完整窗口（包含双扇）的事务，保持洞口、固定外框及开合状态；锁定、隐藏和楼层保护一致。`paint_surface` / `clear_surface_material` 同时开放已烘焙房屋的逐面材质替换。不会改变自动生成时的整栋统一窗型。限制、使用和真实 HTTP 验收见 [房屋局部外观](house_appearance_20261007.md)。
 
 2026-10-07 胶囊行走：工具栏「胶囊行走 F6」在当前编辑场景内启用可见的第三人称胶囊，仍可选择、移动、摆放和保存物件。UI 与下列 3D MCP 工具共用 `walk_mode.gd`，胶囊及镜头状态不进入地图或撤销记录：
@@ -20,6 +26,8 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 2026-10-07 保存资源复用：`save_world` 与 UI Ctrl+S、原子保存共用同一保存操作。同路径未改变内容或仅改变安全物件的位置/旋转时，校验源资源、导出实现版本、已发布 glTF 和资源文件后，复用现有材质、贴图和网格；整栋建筑的楼层高度、生成登记和已打开门窗姿态一并保存。`timings.export.mode` 为 `pose_reuse` 或 `full_export`，`images_written` / `texture_export_passes` 明确实际导出次数；复用路径两项均为 0，进度阶段为 `reuse`。旧地图首次完整保存建立可信基线；改材质/几何/资源、另存为、依赖损坏及无法证明安全的类型自动完整导出。发布前再次检查地图冲突与资源；不会跳过 `.previous`、保存锁和恢复流程。见 [保存复用验收](editor_save_reuse_20261007.md)。
 
 2026-10-06 编辑器补充：`open_world` 接入同 UI 的阶段加载，新增可选 `background`；默认 HTTP 等待完成，后台调用立即返回 `pending/job_id`，`editor_state.load` 返回阶段、计数、耗时及结果。加载中拒绝写操作，失败保留原文档。新增 `move_editor_camera {offset:[x,y,z]}`，与中键键盘导航共用世界坐标位移，Y 为升降；不改文档或撤销。`list_assets.assets[].thumbnail` 返回 `status/path/error`；可见缺图素材空闲时自动补生成，`repair_asset_thumbnails {asset_ids:[...]}` 和资源菜单可显式重试，需图形编辑器，headless 明确拒绝。自动草稿校验分帧、编码/压缩/原子发布后台执行，`editor_state.autosave.active` 可查询；格式和恢复边界见 [草稿说明](world_editor_recovery.md)。真实 HTTP/UI 回归入口 `tools/test_editor_navigation_loading.gd`。
+
+2026-10-07 普通模型成员增量保存：现有 `save_world`、UI Ctrl+S 和同步文档保存共用增量规划。新增等价实例复用原资源；新增不同素材只导出新子集；删除不重导出未变材质/图片。`timings.export.mode` 增加 `incremental_reuse`，附 `added_instances`、`removed_instances`、`cloned_instances`、`exported_instances`，局部导出附 `partial_export`。增删仍完整业务校验、冲突检查和原子发布；失败保持原地图及脏状态。世界坐标/邻接相关的特殊地形、道路等变更和未知扩展仍报告 `reuse_fallback` 并完整导出；首次/生成器指纹失效也仍需建立基线。当前 3D 工具清单和参数 schema 无变化，真实 HTTP 测试 `test_world3d_incremental_save_http.gd` 145 PASS，见 [增量更新记录](editor_incremental_updates_20261007.md)。
 
 2026-10-06 编辑器操作性能：选择使用保留源对象的增量渲染批次准备，刚性整栋移动更新原节点/碰撞姿态，不再重建整张地图；`select_objects`、`transform_selection` 与 UI 共用同一路径。新增 `set_editor_wind_preview {"enabled":true|false}`，`editor_state.wind_preview` 查询当前值。编辑器环境页的“编辑器风场预览”默认关闭；开关仅属于本次编辑会话，不修改地图风速、物件受风配置、撤销历史或游戏效果。关闭立即恢复原材质并停止受风物件扫描/更新，开启后重新绑定。工具输入只接受必填布尔值 `enabled`。真实 HTTP 和后台 GPU 验证入口为 `test_editor_overlay_cache.gd`、`test_editor_incremental_motion.gd`，详见 [本轮性能记录](editor_town_performance_20261006.md)。
 
@@ -189,6 +197,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 - `save_prefab` 使用 `list_resource_packs` 返回的 `pack_root`，名称与依赖打包规则同 UI；返回稳定 `asset_id`，供 `place_asset` 重复放置。每次放置有独立的成员和组合 ID。预制件是快照，不包含实例联动更新。
 - 2026-10-07：`save_prefab` 与 UI 共用的模型依赖导入，对严格验证的自包含、无扩展 GLB 保持原字节并按内容哈希复制，避免跨库导入反复导出材质贴图。glTF/外链/不能证明安全的 GLB 仍走既有打包流程。通用源模型文件导入当前仍仅有 UI 入口，3D MCP 本次通过已有 `save_prefab` 覆盖共享业务，未新增通用导入工具。见 [GLB 导入验证](editor_import_bytes_20261007.md)。
 - `place_asset.position` 是表面落点，底面自动对齐。自动瓦片需用 `paint_auto_tiles`，`family` 为 `wall/road/grass/dirt/water/cliff/stairs/roof/bridge`；格宽为 `1/2/4/8` 米。点的 Y 被 `height` 替代。高台同基底自动处理邻格高差，桥/道路按楼梯两端标高连接，其余跨高度独立。`erase=true` 擦除；一笔连同邻居重算共同撤销。自由变换自动块后脱离自动拼接。
+- 普通 `place_asset`、`delete_selection`、`create_terrain` 与 UI 共用按 UUID 更新的编辑视图提交；普通增删及其撤销重做保留无关节点和碰撞，自动瓦片更新必要邻居，地形变化刷新实际受影响的地形邻接。派生渲染只失效受影响来源，再按帧准备；未变城防碰撞组保留。工具参数和返回结构不变，不启用二维接口。普通地面 UI 一笔内重复访问同格不再提交空更新。这里优化的是编辑视图，磁盘资源增量保存仍由独立保存流程负责；撤销快照和单个复杂模型/地形的生成成本没有因此消失。
 - `save_world` 默认保存当前地图；另存为不覆盖已存在的其他地图。`open_world` 遇到未保存修改时拒绝打开，需先保存或显式传 `discard_changes=true`。
 - `save_world` 默认等待原子保存完成，成功结果附带 `saved:true`、`timings` 保存分段耗时、静态网格写出数量和 CPU 几何缓存命中统计。可传 `background:true` 立即得到 `pending:true/saved:false/job_id/path`，再用 `editor_state.save` 查询 `active/phase/completed/total/elapsed_seconds/result`。`total=0` 表示该阶段不可计数，不是 0% 总进度；完成后保留最后一次结果及耗时。底部状态栏显示同一个任务，见 [保存性能](world_editor_save_performance.md)。
 - `editor_state.autosave` 返回自动草稿状态。草稿默认每 60 秒保存，与正式地图分开；恢复到内存后保持未保存状态，并继续检查磁盘版本冲突。`restore_editor_draft` 的 `discard_changes=true` 会先备份当前修改。`close_editor` 会关闭当前进程，仅在用户明确要求关闭时调用。
@@ -357,3 +366,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 ## 2026-10-07 连续道路自动路缘
 
 `preview_road_surface` / `generate_road_surface` 新增 `kerb_enabled`（默认 false）、`kerb_width`（0.12–0.4 米，默认 0.28）、`kerb_height`（0.025–0.18 米，默认 0.055）及 `kerb_material_id`。预览返回 `kerb_length`。UI「生成道路铺面与路口」共用业务与参数；开启后 `update_road_graph` 和 UI 道路增删改自动连接同层交叉并更新外露边缘，失败整次回滚，仍支持稳定分块、锁定与手刷保护、一次撤销及原生保存。跨层不连接，桥头开口。默认材质 `pack:default:paving/automatic_limestone_kerb/material`。实际 HTTP/UI、合批和运行时验证见 [实现与验收](automatic_road_kerb_20261007.md)。不启用旧二维接口。
+
+## 2026-10-08 加载诊断探针
+
+`tools/profile_reference_editor_load.gd --monitor` 经真实 3D HTTP `open_world` 采集阶段/线程/模型/拾取构建及视口 CPU/GPU 数据，配合 `profile_load_hardware.py` 记录目标进程硬件数据。监控默认关闭，不改变业务事务、工具清单/schema、保存或撤销语义，不新增二维工具。原有 `editor_state.load` 作业计时继续可用；额外硬件与 trace 仅写探针报告，尚无通用 MCP 硬件仪表接口。整城真实 HTTP 打开、身份、射线和选择验证通过，复现方法及限制见 [本轮报告](reference_map_performance_20261008.md#加载监控实测与方案修订2026-10-08)。

@@ -112,6 +112,37 @@ static func _acquire_save_lock(path: String) -> Error:
 static func restore_previous(path: String) -> Error:
 	path = ProjectSettings.globalize_path(path).simplify_path()
 	if not FileAccess.file_exists(path + ".previous"): return ERR_FILE_NOT_FOUND
+	var paths=load("res://scripts/world3d/map_paths.gd")
+	if not paths.allowed(path) or not paths.allowed(path+".previous"):return ERR_INVALID_PARAMETER
+	var previous_signature:=FileAccess.get_sha256(path+".previous")
+	var expected:=FileAccess.get_sha256(path) if FileAccess.file_exists(path) else ""
+	var parsed:Variant=JSON.parse_string(FileAccess.get_file_as_string(path+".previous"))
+	var cursor=load("res://scripts/world3d/document_open_cursor.gd")
+	var native:int=cursor.native_root(parsed,true)
+	if native>=0:
+		# References are relative to the published map name, not .previous or a
+		# temporary recovery filename. Restoring a v1 migration checkpoint also
+		# publishes v2, so recovery cannot reintroduce the old normal format.
+		var extras:Dictionary=parsed.nodes[native].extras
+		var records:Array=extras.rmmo_records
+		if int(extras.get("rmmo_version",0))==2:
+			var store=load("res://scripts/world3d/map_resource_store.gd")
+			var resolved:Dictionary=store.read_records(records,path,paths.external_root())
+			if not resolved.ok or resolved.dependencies!=extras.get("rmmo_resource_dependencies"):return ERR_FILE_CORRUPT
+			records=resolved.records
+		var ids:Dictionary={};var material_validation:Dictionary={}
+		for record in records:
+			if not cursor.common_record_issue(record,material_validation).is_empty():return ERR_INVALID_DATA
+			if not record is Dictionary or not cursor.document_record_issue(record,ids).is_empty():return ERR_INVALID_DATA
+		var document=load("res://scripts/world3d/world_document.gd").new()
+		document.records=records;document.map_meta=extras.duplicate()
+		for key in ["rmmo_records","rmmo_format","rmmo_version","rmmo_unit","rmmo_storage","rmmo_resource_dependencies"]:document.map_meta.erase(key)
+		var validation:Error=document.validate_save()
+		if validation!=OK:return validation
+		if FileAccess.get_sha256(path+".previous")!=previous_signature:return ERR_BUSY
+		var result:Dictionary=load("res://scripts/world3d/reference_map_save.gd").save(path,expected,records,document.map_meta,paths.external_root(),load("res://scripts/world3d/gltf_map_io.gd"))
+		return result.error
+	if cursor.claims_native(parsed):return ERR_INVALID_DATA
 	var err := _acquire_save_lock(path)
 	if err != OK: return err
 	var staged := path.get_basename() + ".recover." + path.get_extension()

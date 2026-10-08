@@ -100,6 +100,40 @@ func refresh() -> void:
 func _matches(record: Dictionary, needle: String) -> bool:
 	return needle.is_empty() or (Geometry.label(record) + " " + str(record.uuid) + " " + str(record.get("kind", ""))).to_lower().contains(needle)
 
+func refresh_records(ids: Array[String]) -> void:
+	if tree==null or tree.get_root()==null:refresh();return
+	var records:Dictionary={}
+	for uuid in ids:
+		var record:Dictionary=editor._doc._find(uuid)
+		# Group membership/search can expose other children. Keep that existing
+		# list-only refresh until a whole group can be updated as one TreeItem.
+		if not str(record.get("editor_group","")).is_empty() or (_items.has(uuid) and (_items[uuid].get_parent()!=tree.get_root() or not str(_items[uuid].get_metadata(0).group).is_empty())):refresh();return
+		records[uuid]=record
+	_updating=true
+	var needle:=search.text.strip_edges().to_lower()
+	for uuid in ids:
+		var record:Dictionary=records[uuid]
+		if record.is_empty() or not _matches(record,needle):
+			if _items.has(uuid):_items[uuid].free();_items.erase(uuid)
+			continue
+		var item:TreeItem=_items.get(uuid)
+		if item==null:
+			item=tree.create_item(tree.get_root());_items[uuid]=item
+			# Undo may reinsert a record in the middle of document order.
+			var at:int=editor._doc.records.find(record)
+			for index in range(at+1,editor._doc.records.size()):
+				var next:String=str(editor._doc.records[index].uuid)
+				if not _items.has(next):continue
+				var following:TreeItem=_items[next]
+				while following.get_parent()!=tree.get_root():following=following.get_parent()
+				var first:String=str(following.get_metadata(0).ids[0])
+				if editor._doc.records.find(editor._doc._find(first))<=at:continue
+				item.move_before(following);break
+		item.clear_custom_color(0)
+		_row(item,[record],Geometry.label(record))
+	_updating=false
+	sync_selection()
+
 
 func _row(item: TreeItem, records: Array, label: String, group: String = "") -> void:
 	var ids: Array[String] = []

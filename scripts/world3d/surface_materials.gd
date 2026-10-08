@@ -460,12 +460,18 @@ static func definitions(record: Dictionary, include_paint:bool=true) -> Array:
 
 static func missing(records: Array) -> Array:
 	var paths: Array = []
+	var checked:Dictionary={}
 	for record in records:
-		if record.has("fortification_art") and not FileAccess.file_exists(record.fortification_art.asset_path): paths.append(record.fortification_art.asset_path)
+		if record.has("fortification_art"):
+			var model_path:String=record.fortification_art.asset_path
+			if not checked.has(model_path):checked[model_path]=FileAccess.file_exists(model_path)
+			if not checked[model_path]:paths.append(model_path)
 		for definition in definitions(record):
 			for field in MAP_FIELDS:
 				var path := str(definition.get(field, ""))
-				if not path.is_empty() and not FileAccess.file_exists(path) and not paths.has(path): paths.append(path)
+				if path.is_empty():continue
+				if not checked.has(path):checked[path]=FileAccess.file_exists(path)
+				if not checked[path] and not paths.has(path):paths.append(path)
 	return paths
 
 static func _face_shape(data: Dictionary, face: int) -> Array:

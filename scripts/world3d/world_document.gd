@@ -179,7 +179,7 @@ func build(effects: bool=true) -> Node3D:
 	return world
 
 
-func export_root() -> Node3D:
+func export_root(export_records: Variant = null) -> Node3D:
 	var world := Node3D.new()
 	world.name = "rmmo_world"
 	var extras := {
@@ -189,7 +189,7 @@ func export_root() -> Node3D:
 	}
 	for key in map_meta.keys():
 		extras[key] = map_meta[key]
-	extras["rmmo_records"] = records.duplicate(true)
+	extras["rmmo_records"] = (records if export_records==null else export_records).duplicate(true)
 	world.set_meta("extras", extras)
 	return world
 
@@ -197,41 +197,22 @@ func export_root() -> Node3D:
 func save(gltf_path: String) -> Error:
 	var started := Time.get_ticks_usec()
 	last_save_metrics = {}
-	var reuse=preload("res://scripts/world3d/pose_save.gd")
-	var content_root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
-	var attempt:Dictionary=reuse.attempt(gltf_path,save_signature(gltf_path),records,map_meta,content_root,GltfMapIo)
-	last_save_metrics.reuse_check_ms=attempt.get("reuse_check_ms",0)
-	if attempt.handled:
-		last_save_metrics.export=attempt.duplicate(true)
-		last_save_metrics.total_ms=(Time.get_ticks_usec()-started)/1000.0
-		if attempt.error==OK:accept_save(gltf_path,attempt.signature)
-		return attempt.error
-	last_save_metrics.reuse_fallback=attempt.reason
-	var validation := validate_save()
-	if validation != OK: return validation
-	if attempt.refresh_sources:reuse.refresh_export_sources(self)
-	# glTF stores standard PBR fallbacks; native records restore dynamic shaders.
-	last_save_metrics["validate_ms"] = (Time.get_ticks_usec() - started) / 1000.0
+	var err := validate_save()
+	last_save_metrics.validate_ms = (Time.get_ticks_usec()-started)/1000.0
+	if err != OK:
+		last_save_metrics.total_ms = (Time.get_ticks_usec()-started)/1000.0
+		return err
+	# Author records stay editable in memory. Only the persisted representation
+	# contains immutable references and ordinary glTF placement proxies.
 	var phase := Time.get_ticks_usec()
-	var view := build(false)
-	view.set_meta("save_sources",attempt.sources)
-	view.set_meta("save_content_root",content_root)
-	last_save_metrics["build_ms"] = (Time.get_ticks_usec() - phase) / 1000.0
-	last_save_metrics["geometry_cache_hits"] = _save_meshes.hits
-	last_save_metrics["geometry_cache_misses"] = _save_meshes.misses
-	last_save_metrics["geometry_cache_bytes"] = _save_meshes.bytes
-	for child in view.get_children():
-		if child.has_meta("paint_error") or child.has_meta("tile_error") or child.has_meta("missing_asset"):
-			view.free()
-			return ERR_INVALID_DATA
-	phase = Time.get_ticks_usec()
-	var err := GltfMapIo.save_scene_atomic(view, gltf_path, save_signature(gltf_path))
-	last_save_metrics["publish_ms"] = (Time.get_ticks_usec() - phase) / 1000.0
-	if err == OK: last_save_metrics["export"] = GltfMapIo.last_export_metrics.duplicate(true)
-	if err == OK: accept_save(gltf_path, str(view.get_meta("published_signature", "")))
-	view.free()
-	last_save_metrics["total_ms"] = (Time.get_ticks_usec() - started) / 1000.0
-	return err
+	var published:Dictionary = preload("res://scripts/world3d/reference_map_save.gd").save(
+		gltf_path, save_signature(gltf_path), records, map_meta,
+		preload("res://scripts/world3d/map_paths.gd").external_root(), GltfMapIo)
+	last_save_metrics.publish_ms = (Time.get_ticks_usec()-phase)/1000.0
+	last_save_metrics.export = published
+	last_save_metrics.total_ms = (Time.get_ticks_usec()-started)/1000.0
+	if published.error == OK: accept_save(gltf_path,published.signature)
+	return published.error
 
 
 func validate_save(progress: Callable = Callable()) -> Error:
@@ -239,12 +220,13 @@ func validate_save(progress: Callable = Callable()) -> Error:
 	if err != OK: return err
 	var checked := 0
 	var material_validation:Dictionary={}
+	var asset_validation:Dictionary={}
 	for record in records:
 		if progress.is_valid(): progress.call("validate", checked, records.size())
-		err = validate_save_record(record,material_validation)
+		err = validate_save_record(record,material_validation,asset_validation)
 		if err != OK: return err
 		checked += 1
-	return OK
+	return validate_save_asset_paths(asset_validation)
 
 
 func validate_save_meta() -> Error:
@@ -257,7 +239,7 @@ func validate_save_meta() -> Error:
 	return OK
 
 
-func validate_save_record(record: Dictionary, material_validation:Variant=null) -> Error:
+func validate_save_record(record: Dictionary, material_validation:Variant=null, asset_validation:Variant=null) -> Error:
 	if not preload("res://scripts/world3d/parametric_tree.gd").valid(record):return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/event_templates.gd").valid_record(record): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_record(record): return ERR_INVALID_DATA
@@ -268,7 +250,22 @@ func validate_save_record(record: Dictionary, material_validation:Variant=null) 
 	if not preload("res://scripts/world3d/fortification_data.gd").valid_record(record): return ERR_INVALID_DATA
 	if not SurfaceMaterials.valid(record,false,"",material_validation): return ERR_INVALID_DATA
 	if not preload("res://scripts/world3d/wind_response.gd").valid(record): return ERR_INVALID_DATA
-	if record.get("kind") == "asset" and not preload("res://scripts/world3d/map_paths.gd").allowed(str(record.get("asset_path", ""))): return ERR_INVALID_DATA
+	if record.get("kind") == "asset":
+		var path:=str(record.get("asset_path",""))
+		# A caller-owned cache lasts for this immutable validation only. A forest
+		# of instances should not reopen the same path's ancestors per instance.
+		if asset_validation==null or not asset_validation.has(path):
+			if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
+			if asset_validation!=null:asset_validation[path]=true
+	return OK
+
+
+func validate_save_asset_paths(asset_validation:Dictionary) -> Error:
+	# Repeat path authority and existence after any sliced validation yields;
+	# neither a previous save nor a stale in-pass cache authorizes publication.
+	for path:String in asset_validation:
+		if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
+		if not FileAccess.file_exists(path):return ERR_FILE_NOT_FOUND
 	return OK
 
 
@@ -287,29 +284,41 @@ func accept_save(gltf_path: String, signature: String) -> void:
 			state.disk_signature = _disk_signature
 
 
-static func open_file(gltf_path: String, prepared: Dictionary = {}, progress: Callable = Callable()):
+static func open_file(gltf_path: String, prepared: Dictionary = {}, progress: Callable = Callable(), allow_legacy_migration: bool = false):
 	var cursor=preload("res://scripts/world3d/document_open_cursor.gd").new()
-	cursor.begin_document(gltf_path,prepared,false,progress)
+	cursor.begin_document(gltf_path,prepared,false,progress,allow_legacy_migration)
 	while not cursor.done:cursor.advance()
 	return cursor.document
 
 
-static func authoritative_extras(path: String, parsed: Variant = null) -> Dictionary:
+static func authoritative_extras(path: String, parsed: Variant = null, metadata_only: bool = false) -> Dictionary:
 	# Like MapLoader, native editor records are authoritative. Importing thousands
 	# of duplicate exported meshes just to discard them makes reopening a street
 	# take minutes. Legacy/imported/transformed roots retain the GLTF import path.
 	if path.get_extension().to_lower()!="gltf" or not FileAccess.file_exists(path):return {}
+	if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return {"error":"map outside content root"}
+	var signature:=FileAccess.get_sha256(path)
 	var data: Variant=JSON.parse_string(FileAccess.get_file_as_string(path)) if parsed==null else parsed
 	if not data is Dictionary:return {"error":"invalid JSON"}
 	var validation=preload("res://scripts/world3d/document_open_cursor.gd")
 	var root_index:int=validation.native_root(data)
-	if root_index<0:return {}
+	if root_index<0:return {"error":"native map needs explicit migration"} if validation.claims_native(data) else {}
 	for section in ["buffers","images"]:
 		if not data.get(section,[]) is Array:return {"error":"invalid dependencies"}
 		for dependency in data.get(section,[]):
 			var issue:String=validation.dependency_issue(path,dependency,true,section=="buffers")
 			if not issue.is_empty():return {"error":issue}
-	return {"extras":data.nodes[root_index].extras}
+	var extra:Dictionary=data.nodes[root_index].extras
+	if metadata_only:
+		# Weather needs only map metadata; never expose compact records as if
+		# they were complete authoring records to callers of this shared API.
+		extra=extra.duplicate();extra.erase("rmmo_records")
+	else:
+		var restored:Dictionary=validation.hydrate_references(extra,path,preload("res://scripts/world3d/map_paths.gd").external_root())
+		if not restored.get("ok",false):return {"error":str(restored.get("reason","invalid reference map"))}
+		extra=restored.extras
+	if FileAccess.get_sha256(path)!=signature:return {"error":"map changed while reading"}
+	return {"extras":extra}
 
 
 static func _legacy_records(scene: Node) -> Variant:
@@ -547,8 +556,12 @@ func add_asset(entry: Dictionary, position: Vector3) -> String:
 func missing_assets() -> Array:
 	var missing: Array = SurfaceMaterials.missing(records)
 	missing.append_array(preload("res://scripts/world3d/auto_tile_kit.gd").missing(records))
+	var checked:Dictionary={}
 	for record in records:
-		if record.get("kind") == "asset" and not FileAccess.file_exists(str(record.get("asset_path", ""))): missing.append(str(record.get("asset_path", "")))
+		if record.get("kind")!="asset":continue
+		var path:=str(record.get("asset_path",""))
+		if not checked.has(path):checked[path]=FileAccess.file_exists(path)
+		if not checked[path]:missing.append(path)
 	return missing
 
 func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:

@@ -387,9 +387,16 @@ static func _attempt_locked(path: String, expected: String, records: Array, meta
 	if parser.parse(text)==OK and parser.data is Dictionary:data=parser.data
 	var manifest_value:Variant=data.get("extras",{}).get(MANIFEST,{}) if data.get("extras",{}) is Dictionary else {}
 	var manifest:Dictionary=manifest_value if manifest_value is Dictionary else {}
-	var source_match:bool=sources.ok and manifest.get("version")==FORMAT_VERSION and manifest.get("generator")==sources.get("generator") and same(manifest.get("sources"),sources.files)
-	var result:Dictionary={"handled":false,"sources":sources,"reason":"source_changed_or_missing_baseline","refresh_sources":not source_match}
-	if not source_match:return result
+	var baseline:bool=sources.ok and manifest.get("version")==FORMAT_VERSION and manifest.get("generator")==sources.get("generator") and manifest.get("sources") is Dictionary
+	var result:Dictionary={"handled":false,"sources":sources,"reason":"source_changed_or_missing_baseline","refresh_sources":true}
+	if not baseline:return result
+	# Adding or deleting an instance can change the set of dependencies without
+	# changing the bytes of any surviving source. Only intersecting paths must match.
+	for source:String in sources.files:
+		if manifest.sources.has(source) and manifest.sources[source]!=sources.files[source]:return result
+	# A full fallback must refresh newly introduced sources too: they may have
+	# stale preview caches even when no intersecting baseline source changed.
+	result.refresh_sources=not same(manifest.sources,sources.files)
 	if not valid_content_bytes(bytes,text,manifest):result.reason="baseline_content_changed";return result
 	bytes=PackedByteArray();text="";parser=null
 	timings.read_verify_ms=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
@@ -397,9 +404,29 @@ static func _attempt_locked(path: String, expected: String, records: Array, meta
 	if not resources.ok or not same(resources.get("files"),manifest.get("dependencies")):
 		result.reason="published_dependency_changed";return result
 	timings.dependencies_ms=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
+	var incremental=load("res://scripts/world3d/incremental_save.gd")
+	var pose_script=load("res://scripts/world3d/pose_save.gd")
+	if incremental.structural_change(data,records,pose_script):
+		var delta:Dictionary=incremental.plan(data,records,meta,pose_script)
+		if not delta.ok:result.reason=delta.reason;return result
+		delta.sources=sources;delta.resources=resources
+		timings.reconcile_ms=(Time.get_ticks_usec()-phase)/1000.0
+		delta.timings=timings
+		# Membership changes must pass the document's main-thread business
+		# validators, including ownership, even when no new resource is exported.
+		result.reason="incremental_membership";result.refresh_sources=false;result.incremental=delta;return result
+	# A source-set difference without a membership change needs a real rebuild.
+	if not same(manifest.sources,sources.files):result.reason="source_set_changed";result.refresh_sources=true;return result
 	var ready:=update(data,records,meta)
 	if not ready.ok:result.reason=ready.reason;return result
-	timings.pose_compare_ms=(Time.get_ticks_usec()-phase)/1000.0;phase=Time.get_ticks_usec()
+	timings.pose_compare_ms=(Time.get_ticks_usec()-phase)/1000.0
+	return publish_reuse(data,path,expected,content_root,io,progress,sources,resources,timings,{"mode":"pose_reuse","updated_nodes":ready.updated,"texture_export_passes":0,"images_written":0})
+
+## Caller holds the native save lock. All paths retain the same optimistic
+## conflict, source integrity and atomic publication checks as a full save.
+static func publish_reuse(data: Dictionary, path: String, expected: String, content_root: String, io: Script,
+		progress: Callable, sources: Dictionary, resources: Dictionary, timings: Dictionary, metrics: Dictionary) -> Dictionary:
+	var phase:=Time.get_ticks_usec()
 	var staged:=path+".pose.%d.%d.tmp"%[OS.get_process_id(),Time.get_ticks_usec()]
 	if progress.is_valid():progress.call("publish",0,0)
 	var file:=FileAccess.open(staged,FileAccess.WRITE)
@@ -422,7 +449,9 @@ static func _attempt_locked(path: String, expected: String, records: Array, meta
 	if err==OK:err=preload("res://scripts/world3d/atomic_file.gd").publish(staged,path)
 	io._remove_file(staged)
 	timings.atomic_publish_ms=(Time.get_ticks_usec()-phase)/1000.0
-	return {"handled":true,"error":err,"signature":signature,"mode":"pose_reuse","updated_nodes":ready.updated,"reused_images":data.get("images",[]).size(),"reused_buffers":data.get("buffers",[]).size(),"texture_export_passes":0,"images_written":0,"phases":timings}
+	var published:Dictionary={"handled":true,"error":err,"signature":signature,"reused_images":data.get("images",[]).size(),"reused_buffers":data.get("buffers",[]).size(),"phases":timings}
+	published.merge(metrics)
+	return published
 
 static func install_manifest(data: Dictionary, path: String, sources: Dictionary, content_root: String, io: Script) -> void:
 	if not verify_source_files(sources,content_root):return

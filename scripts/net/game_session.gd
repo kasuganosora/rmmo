@@ -167,7 +167,9 @@ func go_loading() -> void:
 	var fade:=create_tween()
 	fade.tween_property(shade,"modulate:a",1.0,.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await fade.finished
+	var scene_started:=Time.get_ticks_usec()
 	var error:=get_tree().change_scene_to_file(SCENE_LOADING)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("game.loading_scene_change",scene_started)
 	if error==OK:
 		await get_tree().scene_changed
 	else:

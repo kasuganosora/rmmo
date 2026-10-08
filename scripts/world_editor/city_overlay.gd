@@ -103,6 +103,9 @@ func refresh_roads() -> void:
 func invalidate_record(record: Dictionary) -> void:
 	_changed_records[str(record.uuid)]=record
 
+func invalidate_uuid(uuid: String, record: Dictionary) -> void:
+	_changed_records[uuid]=record # An empty record removes its cached bounds.
+
 func _refresh_bounds() -> void:
 	var world := AABB()
 	var first := true
@@ -126,7 +129,9 @@ func _process(_dt: float) -> void:
 	age+=_dt
 	if invalidated and age>=.2: refresh()
 	elif not _changed_records.is_empty() and age>=.2:
-		for id: String in _changed_records: _record_bounds[id]=city.Geometry.bounds([_changed_records[id]])
+		for id: String in _changed_records:
+			if _changed_records[id].is_empty():_record_bounds.erase(id)
+			else:_record_bounds[id]=city.Geometry.bounds([_changed_records[id]])
 		_changed_records.clear(); age=0; _refresh_bounds(); mini.queue_redraw()
 	size=city.editor._canvas.size
 	mini.position=Vector2(maxf(0,size.x-mini.size.x-12),12)

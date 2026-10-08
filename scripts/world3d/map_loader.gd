@@ -1,9 +1,11 @@
 extends Node
+const Trace=preload("res://scripts/world3d/load_trace.gd")
 ## Parse external glTF off the scene thread. Generate nodes only on the main thread.
 signal finished(scene: Node, path: String, error: String)
 signal progress(stage: String, done: int, total: int)
 var _record_meta := {}
 var _asset_states := {}
+var _model_preparation := preload("res://scripts/world3d/model_parse_preparation.gd").new()
 var _building := false
 var _prepared: Node
 var _thread: Thread
@@ -29,6 +31,15 @@ var _content_root := ""
 var _cancelled := false
 var _profile: Dictionary = {}
 var _prefab_worker_count:int=4
+var _source_snapshot:RefCounted
+var _reference_dependencies:Dictionary={}
+var _failure_reason:=""
+var near_first:=false
+var _entry_origin:=Vector3(0,.9,4)
+var _deferred_assets:Array=[]
+var _deferred_ids:Dictionary={}
+var _record_order:Dictionary={}
+var _prepared_asset_paths:Dictionary={}
 
 
 static func resolve_path(requested: String) -> String:
@@ -49,8 +60,11 @@ static func resolve_path(requested: String) -> String:
 	return path
 
 
-func start(path: String) -> void:
+func start(path: String,origin:Variant=null) -> void:
 	_path = path
+	var session:=get_node_or_null("/root/GameSession")
+	if origin is Vector3:_entry_origin=origin
+	elif session!=null:_entry_origin=session.world3d_spawn
 	# Snapshot the configured root on the main thread; parsing must not read autoload nodes.
 	_content_root = preload("res://scripts/world3d/map_paths.gd").external_root()
 	_thread = Thread.new()
@@ -62,85 +76,139 @@ func start(path: String) -> void:
 
 func cancel() -> void:
 	_cancelled = true
+	_model_preparation.cancel()
 
 
 func _parse() -> void:
+	var trace_started:=Trace.begin("game.parse")
+	_parse_inner()
+	Trace.elapsed("game.parse",trace_started)
+
+func _parse_inner() -> void:
 	var started:=Time.get_ticks_usec()
-	# Our editor records are the authoritative document; avoid importing their
-	# duplicate glTF mesh export and constructing thousands of temporary nodes.
+	# Native maps are reference documents. The glTF locator nodes are not their
+	# runtime visuals. Resolve and verify definitions before any cache is used.
 	if _path.get_extension().to_lower() == "gltf":
-		var Cache=preload("res://scripts/world3d/map_metadata_cache.gd")
-		# Reading the derived envelope does not depend on hashing the source.
-		# Join and verify its source identity before validation or scene creation.
-		var metadata_thread:=Thread.new()
-		var metadata_started:bool=metadata_thread.start(Cache.read_candidate.bind(_path))==OK
-		var digest:=FileAccess.get_sha256(_path)
-		_source_digest=digest
+		_source_snapshot=preload("res://scripts/world3d/document_source_snapshot.gd").read_file(_path)
+		_profile.source_read_us=Time.get_ticks_usec()-started
+		Trace.elapsed("game.source_read",started)
+		if not _source_snapshot.error.is_empty():
+			_error=ERR_INVALID_DATA;_failure_reason=_source_snapshot.error;return
+		var data:Variant=_source_snapshot._data
+		_source_digest=_source_snapshot._signature
+		var Cursor=preload("res://scripts/world3d/document_open_cursor.gd")
+		var native:int=Cursor.native_root(data)
+		if native<0 and Cursor.claims_native(data):
+			_error=ERR_INVALID_DATA;_failure_reason="旧版或不支持的地图格式，需要显式迁移后才能进入游戏";return
+		if native<0:
+			_document=GLTFDocument.new();_state=GLTFState.new()
+			_error=_document.append_from_file(_path,_state,0,_path.get_base_dir());return
+		# Metadata envelopes previously held hydrated records using map SHA only.
+		# Bypass them until their format also proves definition resource integrity.
+		_profile.metadata_cache_hit=false
+		_profile.metadata_cache_bypassed="reference_integrity"
+		var hydrate_started:=Time.get_ticks_usec()
+		var restored:Dictionary=Cursor.hydrate_references(data.nodes[native].extras,_path,_content_root)
+		_profile.hydrate_us=Time.get_ticks_usec()-hydrate_started
+		Trace.elapsed("game.hydrate",hydrate_started)
+		if not restored.get("ok",false):
+			_error=ERR_INVALID_DATA;_failure_reason=str(restored.get("reason","引用资源无法读取"));return
+		_reference_dependencies=restored.dependencies
+		var extra:Dictionary=restored.extras
+		# These identities are trusted only after read_records verified every
+		# referenced byte and the complete closure. Instance state cannot override
+		# surface_paint. Never derive validation shortcuts from an unchecked header.
+		var compact:Array=data.nodes[native].extras.rmmo_records
+		var verified_paint_ids:Array=[]
+		if compact.size()!=extra.rmmo_records.size():
+			_error=ERR_INVALID_DATA;_failure_reason="引用物件顺序无效";return
+		for i in compact.size():
+			if compact[i].uuid!=extra.rmmo_records[i].uuid:
+				_error=ERR_INVALID_DATA;_failure_reason="引用物件顺序无效";return
+			verified_paint_ids.append(compact[i].rmmo_ref.sha256)
+		_profile.paint_identity_count=verified_paint_ids.size()
+		_profile.parse_us=Time.get_ticks_usec()-started
+		var validate_started:=Time.get_ticks_usec()
+		if not _valid_records(extra,verified_paint_ids):
+			_error=ERR_INVALID_DATA;_failure_reason="引用地图的物件或元数据无效";return
+		_profile.validate_us=Time.get_ticks_usec()-validate_started
+		Trace.elapsed("game.validate",validate_started)
+		var integrity_started:=Time.get_ticks_usec()
+		if not _reference_integrity():
+			_error=ERR_BUSY;_failure_reason="读取期间地图或引用资源已改变";return
+		_profile.initial_integrity_us=Time.get_ticks_usec()-integrity_started
+		_record_meta=extra
+		# Validated, operation-local requests may decode beside terrain/model work.
+		# This preserves all source hashes and does not trust old metadata hints.
+		_start_texture_prefetch(_needed_textures.values())
 		_generator_key=preload("res://scripts/world3d/runtime_mesh_cache.gd").generator_key()
 		_mesh_read_thread=Thread.new()
-		var read_cache:=preload("res://scripts/world3d/runtime_mesh_cache.gd").read.bind(_path,digest,_generator_key)
+		var read_cache:=preload("res://scripts/world3d/runtime_mesh_cache.gd").read.bind(_path,_source_digest,_generator_key)
 		if _mesh_read_thread.start(read_cache)!=OK:
 			_mesh_read_thread=null;_mesh_cache_data=read_cache.call()
-		var candidate:Dictionary=metadata_thread.wait_to_finish() if metadata_started else Cache.read_candidate(_path)
-		var cache_context:Dictionary=candidate.get("context",{})
-		var cached:Dictionary=candidate.get("extras",{}) if candidate.get("source_digest")==digest else {}
-		_profile.metadata_cache_hit=false
-		if not cached.is_empty():
-			_start_texture_prefetch(cache_context.get("textures",[]))
-			_profile.parse_us=Time.get_ticks_usec()-started
-			var checked:=Time.get_ticks_usec()
-			if _valid_records(cached,cache_context.get("paint_ids",[])):
-				_profile.validate_us=Time.get_ticks_usec()-checked
-				_profile.metadata_cache_hit=true
-				_record_meta=cached
-				if cache_context.get("upgrade",false) or (_texture_thread==null and not _needed_textures.is_empty()):
-					_cache_thread=Thread.new()
-					if _cache_thread.start(Cache.write.bind(_path,digest,cached,_needed_textures.values()))!=OK:_cache_thread=null
-				_prepare_record_assets()
-				return
-		var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(_path))
-		_profile.parse_us=Time.get_ticks_usec()-started
-		if data is Dictionary:
-			var nodes: Array = data.get("nodes", [])
-			var scenes: Array = data.get("scenes", [])
-			var scene_index := int(data.get("scene", 0))
-			if scene_index >= 0 and scene_index < scenes.size():
-				var roots: Array = scenes[scene_index].get("nodes", [])
-				if roots.size() == 1 and int(roots[0]) >= 0 and int(roots[0]) < nodes.size():
-					var root: Dictionary = nodes[int(roots[0])]
-					var extra: Dictionary = root.get("extras", {})
-					# Validate this immutable parsed document once. Repeating every
-					# material/root check is expensive for thousands of wall records.
-					var validate_started:=Time.get_ticks_usec()
-					var native_valid:=_valid_records(extra)
-					_profile.validate_us=Time.get_ticks_usec()-validate_started
-					if extra.get("rmmo_format") == "rmmo_gltf_map" and not native_valid:
-						_error = ERR_INVALID_DATA
-						return
-					if not root.has("matrix") and not root.has("translation") and not root.has("rotation") and not root.has("scale") and native_valid:
-						_record_meta = extra
-						if not digest.is_empty() and FileAccess.get_sha256(_path)==digest:
-							# Encoding a disposable cache must not delay first entry. Both
-							# consumers only read this already validated record snapshot.
-							_cache_thread=Thread.new()
-							if _cache_thread.start(Cache.write.bind(_path,digest,extra,_needed_textures.values()))!=OK:_cache_thread=null
-						_prepare_record_assets()
-						return
+		_prepare_record_assets()
+		_profile.parser_total_us=Time.get_ticks_usec()-started
+		return
 
 	_document = GLTFDocument.new()
 	_state = GLTFState.new()
 	_error = _document.append_from_file(_path, _state, 0, _path.get_base_dir())
 
+func _reference_integrity() -> bool:
+	# Hash resources first; the map snapshot observation is the last operation
+	# before publication, so a writer during resource verification is detected.
+	var began:=Time.get_ticks_usec()
+	var valid:bool=_source_snapshot!=null and load("res://scripts/world3d/map_resource_store.gd").verify_dependencies(_reference_dependencies,_path,_content_root) and _source_snapshot.matches_disk()
+	Trace.elapsed("game.reference_integrity",began)
+	return valid
+
 
 func _prepare_record_assets()->void:
+	var trace_started:=Time.get_ticks_usec()
+	_prepare_record_assets_inner()
+	Trace.elapsed("game.asset_preparation",trace_started)
+
+func _prepare_record_assets_inner()->void:
+	# Establish the complete geometry-cache identity before deciding whether its
+	# terrain arrays can be reused. A changed model must not suppress preparation.
+	var paths:Array=[];var first_ids:Dictionary={};var manifests:Dictionary={}
+	if _entry_origin==Vector3(0,.9,4) and _record_meta.get("spawn") is Array and _record_meta.spawn.size()>=3:
+		_entry_origin=Vector3(_record_meta.spawn[0],_record_meta.spawn[1],_record_meta.spawn[2])
+	var near_clip:=AABB(Vector3(_entry_origin.x-96,-100000,_entry_origin.z-96),Vector3(192,200000,192))
+	for i in _record_meta.rmmo_records.size():_record_order[_record_meta.rmmo_records[i].uuid]=i
+	for record:Dictionary in _record_meta.rmmo_records:
+		if record.has("fortification_art"):
+			var path:String=record.fortification_art.asset_path
+			if not _model_signatures.has(path):_model_signatures[path]=FileAccess.get_sha256(path)
+		if record.get("kind")!="asset" or record.has("house_prefab"):continue
+		var path:String=str(record.get("asset_path",""))
+		if near_first:
+			var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
+			if not manifests.has(path):manifests[path]=Manifest.read(path)
+			var footprint:Dictionary=Manifest.apply_record(manifests[path],record)
+			if footprint.get("known",false) and not near_clip.intersects(footprint.world_bounds):
+				# Large distant files are hashed on their preparation worker. The
+				# source JSON bounds snapshot is checked again before import; full
+				# navigation caches stay disabled until every source hash is known.
+				_deferred_assets.append({"record":record,"path":path,"bounds":footprint.world_bounds,"digest":"","manifest":{"json_sha256":manifests[path].json_sha256,"file_length":manifests[path].file_length},"draw_order":int(_record_order[record.uuid])*65536})
+				_deferred_ids[record.uuid]=true
+				continue
+		if not _model_signatures.has(path):_model_signatures[path]=FileAccess.get_sha256(path)
+		if not first_ids.has(path):paths.append(path);first_ids[path]=record.uuid
+	_profile.deferred_asset_instances=_deferred_assets.size();_profile.initial_asset_paths=paths.size()
 	# Joining the cache reader here blocks only this parser worker, never UI.
+	var cache_started:=Time.get_ticks_usec()
 	if _mesh_read_thread!=null:
 		_mesh_cache_data=_mesh_read_thread.wait_to_finish();_mesh_read_thread=null
+	if _mesh_cache_data.get("models",{})!=_model_signatures:_mesh_cache_data.clear()
+	_profile.mesh_cache_read_wait_us=Time.get_ticks_usec()-cache_started
+	Trace.elapsed("game.mesh_cache_wait",cache_started)
+	_profile.mesh_cache_candidate=not _mesh_cache_data.is_empty()
 	var build_geometry:bool=_mesh_cache_data.is_empty()
 	var terrain_snapshot:Variant=_mesh_cache_data.get("terrain_context")
 	_terrain_thread=Thread.new()
 	var prepare_terrain:=func():
-		var began:=Time.get_ticks_usec()
+		var began:=Trace.begin("game.terrain_prepare")
 		var cached=preload("res://scripts/world3d/terrain_context_cache.gd").restore(terrain_snapshot,_record_meta.rmmo_records)
 		if cached!=null:return {"context":cached,"surfaces":{},"elapsed":Time.get_ticks_usec()-began,"cache_hit":true}
 		var mask_buckets:Array=[[],[],[],[]];var mask_workers:Array[Thread]=[];var masks:Dictionary={};var mask_at:=0
@@ -155,7 +223,9 @@ func _prepare_record_assets()->void:
 			if not bucket.is_empty() and worker.start(task)==OK:mask_workers.append(worker)
 			else:masks.merge(task.call())
 		var context=preload("res://scripts/world3d/terrain_neighbors.gd").new()
+		var neighbor_started:=Time.get_ticks_usec()
 		context.update(_record_meta.rmmo_records,true)
+		Trace.elapsed("game.terrain_neighbors",neighbor_started)
 		# Coverage masks are CPU images; build them off the scene thread too.
 		var buckets:Array=[[],[],[],[]];var at:=0;var workers:Array[Thread]=[]
 		for record:Dictionary in _record_meta.rmmo_records:
@@ -165,12 +235,14 @@ func _prepare_record_assets()->void:
 			if bucket.is_empty():continue
 			var worker:=Thread.new()
 			var task:=func():
+				var worker_started:=Time.get_ticks_usec()
 				for entry:Dictionary in bucket:
 					var record:Dictionary=entry.record
 					if build_geometry:
 						if record.has("terrain_mesh"):entry.surfaces=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,context.data.get(record.uuid,{}))
 						elif record.has("road_mesh"):entry.surfaces=preload("res://scripts/world3d/road_surface.gd").arrays(record)
 						elif record.has("rock_bank"):entry.surfaces=preload("res://scripts/world3d/rock_bank_mesh.gd").arrays(record)
+				Trace.elapsed("game.terrain_geometry_worker",worker_started,{"records":bucket.size()})
 			if worker.start(task)==OK:workers.append(worker)
 			else:task.call()
 		for worker:Thread in workers:worker.wait_to_finish()
@@ -182,28 +254,27 @@ func _prepare_record_assets()->void:
 		for id:String in masks:
 			if not context.data.has(id):context.data[id]={}
 			context.data[id].region_mask=masks[id]
+		Trace.elapsed("game.terrain_prepare",began)
 		return {"context":context,"surfaces":surfaces,"elapsed":Time.get_ticks_usec()-began,"cache_hit":false}
 	if _terrain_thread.start(prepare_terrain)!=OK:
 		_terrain_thread=null
 		var terrain:Dictionary=prepare_terrain.call()
 		_terrain_context=terrain.context;_surface_arrays=terrain.surfaces;_profile.terrain_context_worker_us=terrain.elapsed
 		_profile.terrain_context_cache_hit=terrain.cache_hit
-	for record in _record_meta.rmmo_records:
-		if record.has("fortification_art"):
-			var path:String=record.fortification_art.asset_path
-			if not _model_signatures.has(path):_model_signatures[path]=FileAccess.get_sha256(path)
-		if record.get("kind") != "asset" or record.has("house_prefab"): continue
-		var asset_path := str(record.get("asset_path", ""))
-		if _asset_states.has(asset_path): continue
-		if not FileAccess.file_exists(asset_path):
-			_error = ERR_FILE_NOT_FOUND
-			return
-		var asset_document := GLTFDocument.new()
-		var asset_state := GLTFState.new()
-		_error = asset_document.append_from_file(asset_path, asset_state, 0, asset_path.get_base_dir())
-		if _error != OK: return
-		_asset_states[asset_path] = [asset_document, asset_state]
+	_profile.asset_parses=[];_profile.asset_parse_us=0
+	var prepared:Dictionary=_model_preparation.run(paths)
+	_profile.asset_parse_wall_us=prepared.elapsed_us
+	for key:String in ["parallel_eligible_count","parallel_batches","eligibility_us","fallback_count"]:
+		_profile["asset_"+key]=prepared.get(key,0)
+	for entry:Dictionary in prepared.entries:
+		_profile.asset_parse_us+=entry.elapsed_us
+		_profile.asset_parses.append({"path":entry.path,"uuid":first_ids[entry.path],"elapsed_us":entry.elapsed_us,"error":entry.error})
+	_error=prepared.error
+	if _error!=OK:return # The coordinator has joined every worker before returning.
+	for entry:Dictionary in prepared.entries:_asset_states[entry.path]=[entry.document,entry.state]
+	var texture_wait_started:=Time.get_ticks_usec()
 	var decoded:Dictionary=_texture_thread.wait_to_finish() if _texture_thread!=null else _decode_textures(_needed_textures)
+	Trace.elapsed("game.texture_join_wait",texture_wait_started)
 	_texture_thread=null
 	_decoded_images=decoded.images
 	_profile.texture_decode_us=decoded.elapsed
@@ -236,7 +307,7 @@ func _start_texture_prefetch(dependencies:Variant)->void:
 	if _texture_thread.start(_decode_textures.bind(requested))!=OK:_texture_thread=null
 
 func _decode_textures(requested:Dictionary)->Dictionary:
-	var began:=Time.get_ticks_usec()
+	var began:=Trace.begin("game.texture_decode")
 	var buckets:Array=[[],[],[]];var at:=0
 	for key:String in requested:
 		buckets[at%3].append({"key":key,"source":requested[key],"image":null});at+=1
@@ -252,6 +323,7 @@ func _decode_textures(requested:Dictionary)->Dictionary:
 	for bucket:Array in buckets:
 		for entry:Dictionary in bucket:
 			if entry.image!=null:images[entry.key]=entry.image
+	Trace.elapsed("game.texture_decode",began,{"requests":requested.size()})
 	return {"images":images,"elapsed":Time.get_ticks_usec()-began}
 
 
@@ -268,7 +340,7 @@ func _process(_delta: float) -> void:
 		_retire()
 		return
 	if _error != OK:
-		_finish_error("地图读取失败：%s" % error_string(_error))
+		_finish_error(_failure_reason if not _failure_reason.is_empty() else "地图读取失败：%s" % error_string(_error))
 		return
 	if not _record_meta.is_empty():
 		_building = true
@@ -284,7 +356,7 @@ func _process(_delta: float) -> void:
 
 
 func _retire()->void:
-	while (_cache_thread!=null and _cache_thread.is_alive()) or (_mesh_cache_thread!=null and _mesh_cache_thread.is_alive()) or (_terrain_thread!=null and _terrain_thread.is_alive()):
+	while (_cache_thread!=null and _cache_thread.is_alive()) or (_mesh_cache_thread!=null and _mesh_cache_thread.is_alive()) or (_terrain_thread!=null and _terrain_thread.is_alive()) or (_texture_thread!=null and _texture_thread.is_alive()):
 		await get_tree().process_frame
 	queue_free()
 
@@ -297,6 +369,7 @@ func _finish_error(message: String) -> void:
 
 
 func _exit_tree() -> void:
+	_model_preparation.cancel()
 	if is_instance_valid(_prepared): _prepared.free()
 	if _thread != null:
 		_thread.wait_to_finish()
@@ -318,7 +391,8 @@ func _exit_tree() -> void:
 func _valid_records(extra: Dictionary, immutable_paint_ids:Array=[]) -> bool:
 	_needed_textures.clear()
 	if not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extra): return false
-	if extra.get("rmmo_format", "") != "rmmo_gltf_map" or int(extra.get("rmmo_version", 0)) != 1: return false
+	var Format=preload("res://scripts/world3d/world_location.gd")
+	if extra.get("rmmo_format", "") != Format.FORMAT or extra.get("rmmo_version") != Format.FORMAT_VERSION or extra.get("rmmo_storage") != Format.STORAGE: return false
 	if not preload("res://scripts/world3d/environment_settings.gd").valid(extra): return false
 	if not preload("res://scripts/world3d/editor_view_settings.gd").valid(extra): return false
 	var records: Variant = extra.get("rmmo_records")
@@ -419,6 +493,7 @@ func _decode_prefabs(records:Array,worker_count:int=4)->void:
 
 
 func _build_records() -> void:
+	var build_started:=Time.get_ticks_usec()
 	var root := Node3D.new()
 	_prepared = root
 	root.name = "rmmo_world"
@@ -428,9 +503,14 @@ func _build_records() -> void:
 	# Keep a deterministic partition so per-record cache identities stay exact.
 	var records:Array=[];var landscape:Array=[]
 	for record:Dictionary in _record_meta.rmmo_records:
+		if _deferred_ids.has(record.uuid):continue
 		if record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"):landscape.append(record)
 		else:records.append(record)
 	records.append_array(landscape)
+	if near_first:
+		# CPU directory construction also visits the current district first. The
+		# stream retains independent records and the original authoring order.
+		records.sort_custom(func(a,b):return Vector2(a.position[0]-_entry_origin.x,a.position[2]-_entry_origin.z).length_squared()<Vector2(b.position[0]-_entry_origin.x,b.position[2]-_entry_origin.z).length_squared())
 	var doc = preload("res://scripts/world3d/world_document.gd").new()
 	doc.records=records
 	doc.load_immutable_records=true
@@ -443,15 +523,18 @@ func _build_records() -> void:
 	var Cook=preload("res://scripts/world3d/runtime_mesh_cache.gd")
 	preload("res://scripts/world3d/surface_materials.gd").prepare_images(_decoded_images)
 	var restore_started:=Time.get_ticks_usec()
-	doc.load_box_meshes=Cook.restore(_mesh_cache_data,doc.load_paint_validation,doc.load_material_pool)
+	_profile.cooked_restore_parts={}
+	doc.load_box_meshes=Cook.restore(_mesh_cache_data,doc.load_paint_validation,doc.load_material_pool,_profile.cooked_restore_parts)
 	var cooked_specs:Array=Cook.restore_specs(_mesh_cache_data,records)
 	_profile.cooked_specs=cooked_specs.filter(func(spec):return not spec.is_empty()).size()
 	_profile.cooked_meshes=doc.load_box_meshes.size()
 	_profile.cooked_restore_us=Time.get_ticks_usec()-restore_started
+	Trace.elapsed("game.cooked_restore",restore_started)
 
 	var Stream = preload("res://scripts/world3d/world_stream.gd")
 	var cursor := 0
 	_profile.mesh_us=0;_profile.spec_us=0;_profile.frames=0;_profile.hit_us=0;_profile.miss_us=0;_profile.mesh_categories={}
+	_profile.asset_generate_us=0;_profile.asset_instantiate_us=0
 	while cursor < records.size():
 		var start := Time.get_ticks_usec()
 		while cursor < records.size() and Time.get_ticks_usec() - start < 24000:
@@ -471,6 +554,7 @@ func _build_records() -> void:
 					return
 				var asset_path: String = records[cursor].asset_path
 				if _asset_states.has(asset_path):
+					var asset_started:=Time.get_ticks_usec()
 					var imported: Node = preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(_asset_states[asset_path][0], _asset_states[asset_path][1])
 					if imported == null or not preload("res://scripts/world_editor/asset_library.gd").cache_scene(asset_path, imported):
 						root.free()
@@ -478,7 +562,16 @@ func _build_records() -> void:
 						_finish_error("地图素材无法实例化：" + asset_path)
 						return
 					_asset_states.erase(asset_path)
-				root.add_child(doc._asset(records[cursor]))
+					_prepared_asset_paths[asset_path]=true
+					_profile.asset_generate_us+=Time.get_ticks_usec()-asset_started
+					Trace.elapsed("game.asset_generate",asset_started,{"path":asset_path})
+				var instance_started:=Time.get_ticks_usec()
+				var instance:Node=doc._asset(records[cursor])
+				var parts:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(instance)
+				for i in parts.size():parts[i].set_meta("map_draw_order",int(_record_order[records[cursor].uuid])*65536+i)
+				root.add_child(instance)
+				_profile.asset_instantiate_us+=Time.get_ticks_usec()-instance_started
+				Trace.elapsed("game.asset_instantiate",instance_started,{"uuid":records[cursor].uuid,"path":asset_path})
 				cursor += 1
 				continue
 			var spec:Dictionary
@@ -488,6 +581,7 @@ func _build_records() -> void:
 				var mesh_started:=Time.get_ticks_usec()
 				var visual: MeshInstance3D = doc._mesh(records[cursor])
 				var mesh_elapsed:=Time.get_ticks_usec()-mesh_started
+				if Trace.enabled:Trace.elapsed("game.mesh",mesh_started,{"uuid":records[cursor].uuid,"prefab":records[cursor].has("house_prefab"),"terrain":records[cursor].has("terrain_mesh")})
 				var category:String="prefab" if records[cursor].has("house_prefab") else ("terrain" if records[cursor].has("terrain_mesh") else ("road" if records[cursor].has("road_mesh") else "other"))
 				_profile.mesh_categories[category]=int(_profile.mesh_categories.get(category,0))+mesh_elapsed
 				_profile.mesh_us+=mesh_elapsed
@@ -499,8 +593,10 @@ func _build_records() -> void:
 				var spec_started:=Time.get_ticks_usec()
 				spec = Stream._spec(visual)
 				_profile.spec_us+=Time.get_ticks_usec()-spec_started
+				if Trace.enabled:Trace.elapsed("game.spec",spec_started,{"uuid":records[cursor].uuid})
 				visual.free()
 			var id: String = spec.uuid
+			spec.map_draw_order=int(_record_order.get(id,0))*65536
 			library.append(spec)
 			cursor += 1
 		progress.emit("准备地图几何与材质", cursor, records.size())
@@ -513,9 +609,12 @@ func _build_records() -> void:
 			return
 	await _finish_terrain()
 	if (_mesh_cache_data.is_empty() or not _profile.get("terrain_context_cache_hit",false)) and not _source_digest.is_empty():
+		var pack_started:=Time.get_ticks_usec()
 		var snapshot:Dictionary=Cook.pack(doc.load_box_meshes,_source_digest,_generator_key,library)
 		if _terrain_context!=null:snapshot.terrain_context=preload("res://scripts/world3d/terrain_context_cache.gd").pack(_terrain_context)
 		snapshot.models=_model_signatures
+		_profile.cache_pack_us=Time.get_ticks_usec()-pack_started
+		Trace.elapsed("game.cache_pack",pack_started)
 		_mesh_cache_thread=Thread.new()
 		if _mesh_cache_thread.start(Cook.write.bind(_path,snapshot))!=OK:_mesh_cache_thread=null
 	var index_started:=Time.get_ticks_usec()
@@ -529,8 +628,15 @@ func _build_records() -> void:
 	else:
 		_index_thread=null;index_data=index_job.call()
 	_profile.index_worker_us=Time.get_ticks_usec()-index_started
+	Trace.elapsed("game.index_wait",index_started)
 	if _cancelled:
 		root.free();_prepared=null;await _retire();return
+	var integrity_started:=Time.get_ticks_usec()
+	if not _reference_integrity():
+		root.free();_prepared=null;_finish_error("构建期间地图或引用资源已改变");return
+	_profile.final_integrity_us=Time.get_ticks_usec()-integrity_started
+	_profile.build_total_us=Time.get_ticks_usec()-build_started
+	Trace.elapsed("game.build",build_started)
 	root.set_meta("stream_library",library)
 	for key:String in index_data:root.set_meta(key,index_data[key])
 	root.set_meta("stream_children", -1 if root.get_child_count() > 0 else 0)
@@ -538,6 +644,14 @@ func _build_records() -> void:
 	root.set_meta("load_box_cache_hits",doc.load_box_hits)
 	root.set_meta("load_profile",_profile)
 	root.set_meta("runtime_geometry_key",_source_digest+_generator_key+str(_model_signatures))
+	if not _deferred_assets.is_empty():
+		var deferred:=preload("res://scripts/world3d/deferred_asset_loader.gd").new()
+		# Far instances share the same immutable scene already prepared for a
+		# near instance. Do not import that model a second time in the queue.
+		deferred._prepared_paths=_prepared_asset_paths.duplicate()
+		deferred.pending=_deferred_assets;root.add_child(deferred)
+		root.set_meta("deferred_geometry",true)
+		root.set_meta("stream_children",-1) # First adoption skips the marked service.
 	var server=get_node_or_null("/root/MockServer")
 	if server!=null and server.has_method("register_loaded_world3d_environment"):
 		server.register_loaded_world3d_environment(_path,_record_meta)

@@ -232,11 +232,12 @@ func remove() -> void:
 	editor._transform_drag.finish()
 	if whole: motion.remove(); return
 	editor._doc.checkpoint()
+	var changed:Array=ids.duplicate()
 	for id in ids: editor._doc.remove(id)
-	preload("res://scripts/world3d/auto_tile_rules.gd").refresh_all(editor._doc.records)
+	changed.append_array(preload("res://scripts/world3d/auto_tile_rules.gd").refresh_all(editor._doc.records))
 	ids.clear()
 	editor._dirty = true
-	editor._rebuild()
+	editor._commit_records(changed)
 	refresh()
 
 
@@ -249,7 +250,7 @@ func duplicate_selected() -> void:
 	var step: float = editor._snap if editor._snap > 0 else 0.25
 	var added := Geometry.duplicate_records(editor._doc, records(), Vector3(step, 0, 0))
 	editor._dirty = true
-	editor._rebuild()
+	editor._commit_records(added)
 	set_ids(added)
 
 

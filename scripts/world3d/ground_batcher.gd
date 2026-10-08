@@ -73,6 +73,17 @@ func release(ids: Array) -> void:
 	_preparation.clear();_residency_descriptors.clear() # Editor mutations invalidate captured descriptors.
 	_release_groups(ids)
 
+func release_sources(nodes: Array) -> void:
+	# A local editor replacement knows exactly which sources are dirty. Keep
+	# immutable descriptors for every other source; regroup on the frame budget.
+	_preparation.clear()
+	var ids:Array=[]
+	for node in nodes:
+		if not is_instance_valid(node):continue
+		ids.append(str(node.name))
+		_residency_descriptors.erase(node.get_instance_id())
+	_release_groups(ids)
+
 func _release_groups(ids: Array) -> void:
 	# Editing is synchronous: remove the old combined draw before changing a source.
 	var affected: Dictionary={}

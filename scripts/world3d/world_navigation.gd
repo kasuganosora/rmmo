@@ -74,6 +74,88 @@ var _face_worker:Thread
 var _face_worker_key:=0
 var _source_jobs:Dictionary={}
 var _orphan_sources:Array=[]
+var geometry_pending:=false
+var geometry_error:=""
+var _geometry_was_pending:=false
+var _geometry_provider:Callable
+var _spec_ids:Dictionary={}
+var _nearby_request:Variant=null
+var _full_started:=false
+
+## Configure before build. A true provider result promises the complete,
+## immutable geometry across clip's X/Z footprint (all heights) has already
+## been appended on this thread.
+func configure_geometry_provider(provider:Callable)->void:
+	_geometry_provider=provider
+
+func set_geometry_pending(value:bool)->bool:
+	if value and not geometry_pending and map.is_valid():return false
+	if not value and not geometry_error.is_empty():return false
+	geometry_pending=value
+	_geometry_was_pending=_geometry_was_pending or value
+	loading_profile.geometry_pending=value
+	if value:fully_ready=false
+	elif ready_for_queries and _phase=="waiting_geometry":_start_full_bake()
+	return true
+
+func set_geometry_error(reason:String)->void:
+	geometry_error=reason;loading_profile.geometry_error=reason
+
+func _ensure_geometry(clip:AABB)->bool:
+	if not geometry_pending:return true
+	if not geometry_error.is_empty():return false
+	if not _geometry_provider.is_valid():
+		loading_profile.geometry_wait_reason="provider_missing";return false
+	var result:Variant=_geometry_provider.call(clip)
+	var complete:bool=result is bool and result
+	loading_profile.geometry_wait_reason="" if complete else "geometry_pending"
+	return complete
+
+func _expanded_geometry_height(clip:AABB)->AABB:
+	# The provider completes the entire X/Z footprint, including all storeys.
+	# Its append may have raised/lowered bounds while this request was waiting.
+	# Preserve X/Z and only widen Y, so newly available upper floors are baked.
+	if not _has_bounds:return clip
+	var low:float=minf(clip.position.y,_bounds.position.y-2)
+	var high:float=maxf(clip.end.y,_bounds.end.y+2)
+	if not is_finite(low) or not is_finite(high):
+		set_geometry_error("Nonfinite deferred navigation bounds");return clip
+	return AABB(Vector3(clip.position.x,low,clip.position.z),Vector3(clip.size.x,high-low,clip.size.z))
+
+func _complete_initial_geometry()->bool:
+	if not _ensure_geometry(_clip):return false
+	if _geometry_was_pending:
+		_clip=_expanded_geometry_height(_clip)
+		if not geometry_error.is_empty():return false
+		mesh.filter_baking_aabb=_clip;_local_clip=_clip
+	return true
+
+func append_specs(additions:Array)->Dictionary:
+	# Main-thread, append-only loading contract. Do not mutate the caller's
+	# stream_library array or replace existing spec dictionaries/door references.
+	if not geometry_pending or fully_ready:return {"ok":false,"reason":"geometry_not_pending","added":0}
+	if not map.is_valid():return {"ok":false,"reason":"navigation_not_built","added":0}
+	var ids:Dictionary={}
+	for value in additions:
+		if not value is Dictionary or not value.get("uuid") is String or value.uuid.is_empty() or not value.get("mesh") is Mesh or not value.get("transform") is Transform3D or not value.transform.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
+		var extra:Variant=value.get("extras",{})
+		if not extra is Dictionary or not extra.get("fixture",{}) is Dictionary:return {"ok":false,"reason":"invalid_spec","added":0}
+		var bounds:AABB=value.transform*value.mesh.get_aabb()
+		if not bounds.position.is_finite() or not bounds.size.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
+		if ids.has(value.uuid) or _spec_ids.has(value.uuid):return {"ok":false,"reason":"duplicate_uuid","added":0}
+		ids[value.uuid]=true
+	for spec:Dictionary in additions:
+		_specs.append(spec);_spec_ids[spec.uuid]=true
+		if spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none":_doors.append(spec)
+		if _collides(spec):
+			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+			_bounds=_bounds.merge(bounds) if _has_bounds else bounds;_has_bounds=true
+	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
+	return {"ok":true,"reason":"","added":additions.size()}
+
+func _navigation_cache_key()->String:
+	if runtime_geometry_key.is_empty():return ""
+	return runtime_geometry_key+str(mesh.agent_height)+FileAccess.get_sha256(get_script().resource_path)+FileAccess.get_sha256("res://scripts/world3d/navigation_cache.gd")
 
 func follow(position:Vector3,goal:Variant=null)->void:
 	if not ready_for_queries or fully_ready or _final_pending or not _staged or _nearby!=null or _nearby_publish_wait>0:return
@@ -85,12 +167,23 @@ func follow(position:Vector3,goal:Variant=null)->void:
 	# the full mesh rather than allocating an unbounded foreground bake.
 	if goal is Vector3 and Vector2(goal.x-position.x,goal.z-position.z).length()<=160:
 		area=area.expand(Vector3(goal.x-16,area.position.y,goal.z-16)).expand(Vector3(goal.x+16,area.end.y,goal.z+16))
-	_nearby=preload("res://scripts/world3d/nearby_navigation.gd").new(mesh,area)
+	_nearby_request=area
+	_try_nearby_request()
+
+func _try_nearby_request()->void:
+	if not ready_for_queries or not _staged or _nearby_request==null or _nearby!=null or _nearby_publish_wait>0 or fully_ready or _final_pending:return
+	if not _ensure_geometry(_nearby_request):return
+	if _geometry_was_pending:
+		_nearby_request=_expanded_geometry_height(_nearby_request)
+		if not geometry_error.is_empty():return
+	_nearby=preload("res://scripts/world3d/nearby_navigation.gd").new(mesh,_nearby_request)
+	_nearby_request=null
 
 func _inside_local(point:Vector3,margin:float)->bool:
 	return point.x>=_local_clip.position.x+margin and point.x<=_local_clip.end.x-margin and point.z>=_local_clip.position.z+margin and point.z<=_local_clip.end.z-margin
 
 func _step_nearby()->void:
+	_try_nearby_request()
 	if _nearby==null:return
 	if fully_ready or _final_pending:_discard_source(_nearby.source);_nearby=null;return
 	_nearby.step(self)
@@ -124,6 +217,8 @@ func resize_agent(height:float,specs:Array,origin:Vector3)->void:
 
 
 func build(specs: Array, origin: Variant = null) -> void:
+	if geometry_pending and (not origin is Vector3 or not origin.is_finite()):
+		set_geometry_error("Deferred navigation requires a finite spawn origin");return
 	map = NavigationServer3D.map_create()
 	NavigationServer3D.map_set_use_async_iterations(map, true)
 	NavigationServer3D.map_set_active(map, true)
@@ -146,13 +241,16 @@ func build(specs: Array, origin: Variant = null) -> void:
 	mesh.agent_max_climb = 0.4
 	mesh.agent_max_slope = 40.0
 	mesh.filter_walkable_low_height_spans = true
-	_specs = specs
+	_specs = specs.duplicate()
+	_spec_ids.clear()
+	for spec:Dictionary in _specs:
+		if spec.get("uuid") is String and not spec.uuid.is_empty():_spec_ids[spec.uuid]=true
 	# Hinges and handles follow the door but are not navigation obstacles.
 	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none")
 	_origin = origin
 	_phase = "bounds"
-	if not runtime_geometry_key.is_empty():
-		_cache_key=runtime_geometry_key+str(mesh.agent_height)+FileAccess.get_sha256(get_script().resource_path)+FileAccess.get_sha256("res://scripts/world3d/navigation_cache.gd")
+	if not geometry_pending and not runtime_geometry_key.is_empty():
+		_cache_key=_navigation_cache_key()
 		_cache_hit=preload("res://scripts/world3d/navigation_cache.gd").restore(_cache_key,mesh)
 		loading_profile.cache_hit=_cache_hit
 		if _cache_hit:_phase="";_baked()
@@ -177,6 +275,14 @@ func _step_background()->void:
 		else:_full_baked()
 	_step_nearby()
 	if _phase.is_empty(): return
+	if _phase=="waiting_initial_geometry":
+		if not _complete_initial_geometry():return
+		_phase="source";_cursor=0
+	if _phase=="waiting_geometry":
+		if not geometry_pending:_start_full_bake()
+		return
+	if ready_for_queries and geometry_pending:
+		_phase="waiting_geometry";return
 	if _phase=="prepare_source":
 		var prepared:=_prepare_source(source)
 		if prepared==null:return
@@ -199,13 +305,13 @@ func _step_background()->void:
 	if _cursor < _specs.size(): return
 	_cursor = 0
 	if _phase == "bounds":
-		if _origin is Vector3 and (_bounds.size.x > 192 or _bounds.size.z > 192):
+		if _origin is Vector3 and (geometry_pending or _bounds.size.x > 192 or _bounds.size.z > 192):
 			_staged = true
 			_clip = AABB(Vector3(_origin.x - 80, _bounds.position.y - 2, _origin.z - 80), Vector3(160, _bounds.size.y + 4, 160))
 			mesh.filter_baking_aabb = _clip
 			_local_clip=_clip
 		loading_profile.bounds=Time.get_ticks_msec()
-		if _staged and not _cache_key.is_empty():
+		if not geometry_pending and _staged and not _cache_key.is_empty():
 			# The small spawn mesh is useful even when the player leaves before
 			# the full-town bake finishes. Its exact clip is part of its identity.
 			_initial_cache_key=_cache_key+"|initial|"+preload("res://scripts/world3d/map_metadata_cache.gd").checksum(var_to_bytes(_clip)).hex_encode()
@@ -213,7 +319,7 @@ func _step_background()->void:
 			loading_profile.initial_cache_hit=_initial_cache_hit
 			if _initial_cache_hit:
 				_phase="";_baked();return
-		_phase = "source"
+		_phase = "source" if _complete_initial_geometry() else "waiting_initial_geometry"
 		return
 	loading_profile.source=Time.get_ticks_msec()
 	if ready_for_queries:
@@ -222,6 +328,7 @@ func _step_background()->void:
 	_submit_bake()
 
 func _submit_bake()->void:
+	if ready_for_queries and geometry_pending:_phase="waiting_geometry";return
 	# Poll completion on this live Node. A queued script callback must not
 	# outlive the scene when leaving during a background bake.
 	if not ready_for_queries:
@@ -303,7 +410,7 @@ func _collides(spec: Dictionary) -> bool:
 
 func _baked() -> void:
 	loading_profile.baked=Time.get_ticks_msec()
-	if _staged and not _initial_cache_hit:
+	if not geometry_pending and _staged and not _initial_cache_hit:
 		preload("res://scripts/world3d/navigation_cache.gd").store_mesh(_initial_cache_key,mesh)
 	region = NavigationServer3D.region_create()
 	NavigationServer3D.region_set_use_async_iterations(region, false)
@@ -316,7 +423,7 @@ func _baked() -> void:
 
 func _publish(final: bool = true) -> void:
 	_publish_wait = 2
-	_publish_final = final
+	_publish_final = final and not geometry_pending
 
 func _physics_process(_delta: float) -> void:
 	if not has_meta("profile_frame"):
@@ -340,7 +447,7 @@ func _step_publication()->void:
 	_publish_wait=0
 	version += 1
 	ready_for_queries = true
-	fully_ready = _publish_final
+	fully_ready = _publish_final and not geometry_pending
 	if fully_ready:
 		if not _cache_hit and not _cache_key.is_empty():
 			# The published NavigationMesh is immutable. Retain it until the
@@ -351,24 +458,36 @@ func _step_publication()->void:
 		source.clear()
 		_specs = []
 		_faces.clear()
-	else:
-		_full_mesh = mesh.duplicate()
-		_full_mesh.clear()
-		_full_mesh.filter_baking_aabb = AABB()
-		if _bounds.size.x*_bounds.size.z/(mesh.cell_size*mesh.cell_size)<=25000000:
-			source=NavigationMeshSourceGeometryData3D.new();_clip=AABB();_cursor=0;_phase="source"
-			return
-		# Preserve 10 cm stair precision without rasterizing a kilometre-wide
-		# grid in one allocation. These are bake jobs, not render/stream chunks.
-		var size:=TILE_SIZE
-		for z in range(floori(_bounds.position.z/size),ceili(_bounds.end.z/size)):
-			for x in range(floori(_bounds.position.x/size),ceili(_bounds.end.x/size)):
-				_tiles.append(AABB(Vector3(x*size,_bounds.position.y-2,z*size),Vector3(size,_bounds.size.y+4,size)))
-		_tiles.sort_custom(func(a,b):return a.get_center().distance_squared_to(_origin)<b.get_center().distance_squared_to(_origin))
-		loading_profile.tile_count=_tiles.size()
-		_next_tile()
+	else:_start_full_bake()
+
+func _start_full_bake()->void:
+	if geometry_pending:_phase="waiting_geometry";return
+	if _full_started or not ready_for_queries:return
+	_full_started=true
+	_full_mesh = mesh.duplicate()
+	_full_mesh.clear()
+	_full_mesh.filter_baking_aabb = AABB()
+	if _geometry_was_pending:
+		_cache_key=_navigation_cache_key()
+		if not _cache_key.is_empty():
+			_cache_hit=preload("res://scripts/world3d/navigation_cache.gd").restore(_cache_key,_full_mesh)
+			loading_profile.cache_hit=_cache_hit
+			if _cache_hit:_phase="";_full_baked();return
+	if _bounds.size.x*_bounds.size.z/(mesh.cell_size*mesh.cell_size)<=25000000:
+		source=NavigationMeshSourceGeometryData3D.new();_clip=AABB();_cursor=0;_phase="source"
+		return
+	# Preserve 10 cm stair precision without rasterizing a kilometre-wide
+	# grid in one allocation. These are bake jobs, not render/stream chunks.
+	var size:=TILE_SIZE
+	for z in range(floori(_bounds.position.z/size),ceili(_bounds.end.z/size)):
+		for x in range(floori(_bounds.position.x/size),ceili(_bounds.end.x/size)):
+			_tiles.append(AABB(Vector3(x*size,_bounds.position.y-2,z*size),Vector3(size,_bounds.size.y+4,size)))
+	_tiles.sort_custom(func(a,b):return a.get_center().distance_squared_to(_origin)<b.get_center().distance_squared_to(_origin))
+	loading_profile.tile_count=_tiles.size()
+	_next_tile()
 
 func _next_tile()->void:
+	if geometry_pending:_phase="waiting_geometry";return
 	if _tiles.is_empty():
 		_full_mesh.set_vertices(_tile_vertices)
 		_cursor=0;_phase="assemble";return
@@ -414,6 +533,7 @@ func _step_merge()->void:
 
 
 func _full_baked() -> void:
+	if geometry_pending:_phase="waiting_geometry";return
 	if _full_mesh.get_polygon_count()==0:
 		loading_profile.error="Full navigation bake produced no polygons; retaining nearby navigation"
 		push_error(loading_profile.error);return
@@ -423,6 +543,7 @@ func _full_baked() -> void:
 	if _nearby_publish_wait==0:_publish_full_mesh()
 
 func _publish_full_mesh()->void:
+	if geometry_pending:_phase="waiting_geometry";return
 	_deferred_full_publish=false
 	mesh = _full_mesh
 	# The previous nearby publication has settled before this submission.
@@ -496,7 +617,13 @@ func _step_surface_index()->void:
 
 func find_path(start: Vector3, goal: Vector3, goal_tolerance:float=.18) -> Dictionary:
 	if not ready_for_queries:
+		if geometry_pending:return {"ok":false,"reason":"pending" if geometry_error.is_empty() else "geometry_error","error":geometry_error,"path":PackedVector3Array()}
 		return {"ok": false, "reason": "not_ready", "path": PackedVector3Array()}
+	# A nearest-point projection on the old local mesh cannot prove geometry
+	# beyond its complete published clip. Request that closure before querying.
+	if geometry_pending and (not _inside_local(start,2) or not _inside_local(goal,2)):
+		follow(start,goal)
+		return {"ok":false,"reason":"pending" if geometry_error.is_empty() else "geometry_error","error":geometry_error,"path":PackedVector3Array()}
 	# Recast rounds span heights up by a cell. At a rotated low doorstep its
 	# simplified surface can be just above the physical climb height; do not
 	# strand a grounded actor for that voxel rounding. Still reject other floors.

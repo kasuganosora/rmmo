@@ -104,6 +104,21 @@ func terrain_is_prepared()->bool:
 func terrain_preparation_progress()->Vector2i:
 	return Vector2i(_terrain._warm_cursor,_terrain._items.size()) if is_instance_valid(_terrain) else Vector2i.ZERO
 
+func _terrain_warm_budget_usec()->int:
+	# An input lock alone can mean dialogue/combat. Spend the larger slice only
+	# behind the actual entry cover for this current world, never during play.
+	if not radar or not is_inside_tree() or is_queued_for_deletion() or not is_instance_valid(world):return TerrainLayer.WARM_BUDGET_USEC
+	if not world.is_inside_tree() or world.is_queued_for_deletion() or get_tree().current_scene!=world:return TerrainLayer.WARM_BUDGET_USEC
+	var player:Node=world.get("_player")
+	if not is_instance_valid(player) or not "input_locked" in player or not player.input_locked:return TerrainLayer.WARM_BUDGET_USEC
+	var transfer_cover:Node=world.get_node_or_null("TransferLoading")
+	if "_transfer_pending" in world and world._transfer_pending and transfer_cover is CanvasLayer and not transfer_cover.is_queued_for_deletion() and transfer_cover.visible:return TerrainLayer.LOADING_WARM_BUDGET_USEC
+	var session:Node=get_node_or_null("/root/GameSession")
+	if session==null or not session._world_transition_active:return TerrainLayer.WARM_BUDGET_USEC
+	var cover:Node=session.get_node_or_null("WorldTransition")
+	if not cover is CanvasLayer or cover.is_queued_for_deletion() or not cover.visible:return TerrainLayer.WARM_BUDGET_USEC
+	return TerrainLayer.LOADING_WARM_BUDGET_USEC
+
 func _update_terrain(rect:Rect2,scale:float)->void:
 	if not _prepare_terrain():return
 	var data:RefCounted=world._map_data

@@ -47,6 +47,33 @@ func number(spec: Dictionary, value: float) -> SpinBox:
 	spin.value = value
 	return spin
 
+func update_values(next: Dictionary) -> bool:
+	# Reuse an unchanged schema/catalog when only the bound record changes.
+	# Validate every field first so unsupported shapes leave the form untouched.
+	if next.size()!=fields.size():return false
+	for key in next:
+		if not fields.has(key):return false
+		var control:Control=fields[key]
+		if control is OptionButton:
+			var found:=false
+			for i in control.item_count:
+				if control.get_item_metadata(i)==next[key]:found=true;break
+			if not found:return false
+		elif control is HBoxContainer:
+			if not next[key] is Array or control.get_child_count()!=next[key].size():return false
+	for key in next:
+		var control:Control=fields[key]
+		if control is OptionButton:
+			for i in control.item_count:
+				if control.get_item_metadata(i)==next[key]:control.select(i);break
+		elif control is CheckButton:control.set_pressed_no_signal(next[key])
+		elif control is ColorPickerButton:control.color=Color(next[key][0],next[key][1],next[key][2])
+		elif control is SpinBox:control.set_value_no_signal(next[key])
+		elif control is HBoxContainer:
+			for i in control.get_child_count():control.get_child(i).set_value_no_signal(next[key][i])
+		else:control.text=next[key]
+	return true
+
 func group_fields(groups: Array) -> void:
 	for group in groups:
 		var id: String = group.id

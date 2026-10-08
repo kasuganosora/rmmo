@@ -208,8 +208,10 @@ static func build(tile: Dictionary) -> ArrayMesh:
 
 static func missing(records: Array) -> Array:
 	var result: Array = []
+	var checked:Dictionary={}
 	for record in records:
 		var kit: Dictionary = record.get("tile3d", {}).get("options", {}).get("kit", {})
 		for path: String in kit.get("pieces", {}).values():
-			if not Paths.allowed(path) or not FileAccess.file_exists(path): result.append(path)
+			if not checked.has(path):checked[path]=Paths.allowed(path) and FileAccess.file_exists(path)
+			if not checked[path]:result.append(path)
 	return result

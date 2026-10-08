@@ -6,7 +6,16 @@ const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Envelope=preload("res://scripts/world3d/map_metadata_cache.gd")
 const DIR:="user://world3d_meshes"
-const MAGIC:="RMMOMESH1"
+const MAGIC:="RMMOMESH2"
+const HEADER_SIZE:=113 # magic, length, source identity, generator identity, checksum
+
+static func _identity(value:String)->PackedByteArray:
+	return Envelope.checksum(value.to_utf8_buffer())
+
+static func _checksum(source:PackedByteArray,generator:PackedByteArray,bytes:PackedByteArray)->PackedByteArray:
+	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256)
+	context.update(source);context.update(generator);context.update(bytes)
+	return context.finish()
 
 static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
@@ -19,16 +28,27 @@ static func generator_key()->String:
 static func cache_path(path:String)->String:
 	return DIR.path_join(path.replace("\\","/").simplify_path().sha256_text()+".bin")
 
-static func read(path:String,digest:String,generator:String)->Dictionary:
+static func read(path:String,digest:String,generator:String,diagnostics:Variant=null)->Dictionary:
+	if diagnostics!=null:diagnostics.payload_bytes_read=0;diagnostics.reason="missing_or_header"
 	var file:=FileAccess.open(cache_path(path),FileAccess.READ)
-	if file==null or file.get_length()<49 or file.get_buffer(9).get_string_from_ascii()!=MAGIC:return {}
+	# Old envelopes are disposable misses. Reject stale identities before
+	# reading/checksumming/deserializing a potentially 256 MB geometry payload.
+	if file==null or file.get_length()<=HEADER_SIZE or file.get_buffer(9).get_string_from_ascii()!=MAGIC:return {}
 	var length:=file.get_64()
-	if length<=0 or length>268435456 or length+49!=file.get_length():return {}
+	if length<=0 or length>268435456 or length+HEADER_SIZE!=file.get_length():return {}
+	var source_key:=file.get_buffer(32);var generator_key_:=file.get_buffer(32)
+	if source_key!=_identity(digest) or generator_key_!=_identity(generator):
+		if diagnostics!=null:diagnostics.reason="identity_mismatch"
+		return {}
 	var checksum:=file.get_buffer(32);var bytes:=file.get_buffer(length)
-	if Envelope.checksum(bytes)!=checksum:return {}
+	if diagnostics!=null:diagnostics.payload_bytes_read=bytes.size();diagnostics.reason="checksum"
+	if _checksum(source_key,generator_key_,bytes)!=checksum:return {}
 	var data:Variant=bytes_to_var(bytes)
+	if diagnostics!=null:diagnostics.reason="payload_identity"
 	if not data is Dictionary or data.get("digest")!=digest or data.get("generator")!=generator:return {}
+	if diagnostics!=null:diagnostics.reason="invalid_data"
 	if not valid_data(data):return {}
+	if diagnostics!=null:diagnostics.reason="hit"
 	return data
 
 static func index_valid(value:Variant,count:int)->bool:
@@ -190,14 +210,28 @@ static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:
 
 static func restore_specs(data:Dictionary,records:Array)->Array:
 	var rows:Array=data.get("specs",[])
-	if rows.size()!=records.size() or not data.has("_restored_meshes"):return []
+	if not data.has("_restored_meshes"):return []
 	var result:Array=[];var solids:Dictionary={};var meshes:Array=data._restored_meshes
 	var by_id:Dictionary={}
 	for row:Dictionary in rows:
 		var id:String=row.uuid if row.get("fallback")==true else row.spec.uuid
 		if by_id.has(id):return []
 		by_id[id]=row
+	var expected:Dictionary={};var seen:Dictionary={}
+	for record:Dictionary in records:
+		var id:String=record.uuid
+		if seen.has(id):return []
+		seen[id]=true
+		# This is precisely MapLoader's independently imported asset branch.
+		# It never appends to the cooked library. No other missing row is valid.
+		if record.get("kind")=="asset" and not record.has("house_prefab"):continue
+		expected[id]=true
+	if by_id.size()!=expected.size():return []
+	for id:String in by_id:
+		if not expected.has(id):return []
 	for i in records.size():
+		if records[i].get("kind")=="asset" and not records[i].has("house_prefab"):
+			result.append({});continue
 		if not by_id.has(records[i].uuid):return []
 		var row:Dictionary=by_id[records[i].uuid]
 		if row.get("fallback")==true:
@@ -216,11 +250,15 @@ static func restore_specs(data:Dictionary,records:Array)->Array:
 	return result
 
 static func write(path:String,data:Dictionary)->void:
+	if not data.get("digest") is String or not data.get("generator") is String:return
 	if DirAccess.make_dir_recursive_absolute(DIR)!=OK:return
 	var bytes:=var_to_bytes(data)
 	if bytes.size()>268435456:return
 	var target:=cache_path(path);var temporary:=target+".%d.%d.tmp"%[OS.get_process_id(),Time.get_ticks_usec()]
 	var file:=FileAccess.open(temporary,FileAccess.WRITE)
 	if file==null:return
-	file.store_buffer(MAGIC.to_ascii_buffer());file.store_64(bytes.size());file.store_buffer(Envelope.checksum(bytes));file.store_buffer(bytes);file.close()
+	var source_key:=_identity(data.digest);var generator_key_:=_identity(data.generator)
+	file.store_buffer(MAGIC.to_ascii_buffer());file.store_64(bytes.size())
+	file.store_buffer(source_key);file.store_buffer(generator_key_)
+	file.store_buffer(_checksum(source_key,generator_key_,bytes));file.store_buffer(bytes);file.close()
 	if DirAccess.rename_absolute(temporary,target)!=OK:DirAccess.remove_absolute(temporary)

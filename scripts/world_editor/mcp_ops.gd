@@ -438,7 +438,7 @@ func place_asset(args: Dictionary) -> Dictionary:
 			var size_: Vector3 = entry.get("size", Vector3.ONE)
 			id = editor._doc.add_box(str(entry.surface_id), position + Vector3(0, size_.y * 0.5, 0), size_, entry.get("rotation", Vector3.ZERO))
 		editor._dirty = true
-		editor._rebuild()
+		editor._commit_records([id])
 		editor._selection_tools.set_ids([id])
 	# Floor isolation can exclude newly placed components from the selection.
 	return ok({"ids": editor._doc.records.slice(previous_count).map(func(record): return str(record.uuid))})

@@ -31,6 +31,9 @@ func run()->void:
 	check(region.ok,"initial terrain region fixture prepared")
 	if not region.ok:quit(1);return
 	doc.records[2]=region.records[0]
+	var next_asset_path:=directory.path_join("second_fixture.glb")
+	FileAccess.open(next_asset_path,FileAccess.WRITE).store_buffer(original)
+	var third:String=doc.add_asset({"asset_path":next_asset_path},Vector3(10,0,0))
 	var path:=directory.path_join("map.gltf");check(doc.save(path)==OK,"isolated asset and terrain map saved")
 	var session=preload("res://scripts/net/net.gd").session();session.world3d_editor_doc=doc;session.world3d_editor_path=path
 	editor=preload("res://scripts/world_editor/world_editor.gd").new();editor._mcp_autostart=false;editor._draft_directory=directory.path_join("drafts")
@@ -42,7 +45,11 @@ func run()->void:
 	var before:Dictionary=doc._find(first).duplicate(true)
 	await call_tool("open_world",{"path":path})
 	var units:Dictionary=editor._load_job.state().timings.build.units
-	check(units.get("asset_parse_worker",{}).get("count",0)==1,"one background parse for repeated asset")
+	check(units.get("asset_parse_worker",{}).get("count",0)==2,"one background parse per distinct path despite repeated instances")
+	var lookahead:Dictionary=editor._load_job.state().timings.asset_lookahead
+	check(lookahead.unique_paths==2 and lookahead.started==2 and lookahead.consumed==2 and lookahead.peak_unconsumed==1,"ordered lookahead consumes two paths with at most one unconsumed parse")
+	check(editor._load_job._asset_thread==null and editor._load_job._asset_paths.is_empty(),"completed lookahead joins and clears pending paths")
+	check(not editor._view.get_node(third).has_meta("missing_asset"),"next unique model is published normally after lookahead")
 	check(units.get("terrain_neighbors_worker",{}).get("count",0)==1,"terrain preparation ran in private worker")
 	check(units.get("terrain_arrays_worker",{}).get("count",0)==1 and units.get("terrain_masks_worker",{}).get("total_ms",0)>0,"terrain geometry and region mask were prepared off main")
 	check(editor._load_job._thread==null,"completed preparation joined its worker")
@@ -82,5 +89,12 @@ func run()->void:
 	check(editor._view==retained and not editor._load_job.active,"illegal open leaves the completed view available")
 	var job:=Job.new();root.add_child(job);job._thread=Thread.new();job._thread.start(Job._parse_asset.bind(asset_path));var owned_thread:Thread=job._thread
 	job.free();check(not owned_thread.is_started(),"freeing job joins an outstanding private parser")
+	Library._scenes.erase(asset_path)
+	var pending_job:=Job.new();root.add_child(pending_job)
+	pending_job._begin_asset_lookahead([{"kind":"asset","asset_path":asset_path},{"kind":"asset","asset_path":asset_path}])
+	var lookahead_thread:Thread=pending_job._asset_thread
+	check(lookahead_thread!=null and pending_job._asset_paths.size()==1,"lookahead starts immediately and deduplicates before any scene build")
+	pending_job.free()
+	check(not lookahead_thread.is_started() and not Library._scenes.has(asset_path),"exit joins unconsumed lookahead without publishing a shared scene")
 	editor.queue_free();await settle()
 	print("EDITOR_ASSET_PREPARATION_FAILED=",failed);quit(1 if failed else 0)

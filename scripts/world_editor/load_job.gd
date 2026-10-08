@@ -20,6 +20,11 @@ var _started := 0
 var _elapsed := 0.
 var _serial := 0
 var _thread: Thread
+# One private parse result at most. It never writes the shared scene cache.
+var _asset_thread: Thread
+var _asset_paths: Array[String]=[]
+var _asset_path := ""
+var _asset_index := 0
 var _layer: CanvasLayer
 var _label: Label
 var _bar: ProgressBar
@@ -53,7 +58,10 @@ func report(value: String, done: int = 0, count: int = 0) -> void:
 		_paint(); _last_paint=Time.get_ticks_usec()
 
 static func _read(value: String) -> RefCounted:
-	return SourceSnapshot.read_file(value)
+	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.source_read")
+	var result:=SourceSnapshot.read_file(value)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.source_read",started)
+	return result
 
 func _run() -> void:
 	await get_tree().process_frame
@@ -71,6 +79,7 @@ func _run() -> void:
 		if not validation.done:await get_tree().process_frame
 	_timings.validation=validation.metrics
 	_timings.validate_ms=(Time.get_ticks_usec()-validate_started)/1000.
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.validate",validate_started)
 	var document=validation.document
 	if document==null: _complete(false,validation.error); return
 	# Only replace the old document after parsing and all validators succeed.
@@ -84,6 +93,7 @@ func _run() -> void:
 	report("scope"); await get_tree().process_frame
 	var scope_started:=Time.get_ticks_usec()
 	editor._load_asset_scope()
+	_begin_asset_lookahead(document.records)
 	_timings.asset_scope_ms=(Time.get_ticks_usec()-scope_started)/1000.
 	report("build",0,document.records.size()); await get_tree().process_frame
 	var build_started:=Time.get_ticks_usec()
@@ -142,6 +152,7 @@ func _run() -> void:
 	var batch_wait_started:=Time.get_ticks_usec()
 	while editor._ground_batches.stats().pending_groups>0: await get_tree().process_frame
 	_timings.build.batch_wait_ms=(Time.get_ticks_usec()-batch_wait_started)/1000.
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.batch_wait",batch_wait_started)
 	mark=Time.get_ticks_usec()
 	editor._refresh_palette()
 	_build_timing("refresh_palette",mark)
@@ -209,6 +220,7 @@ func _add_record_bodies(visual:Node,uuid:String,slice:int,first_uuid:String)->Di
 func _build_timing(unit:String,started:int,uuid:String="")->void:
 	var used:=Time.get_ticks_usec()-started
 	_build_elapsed(unit,used,uuid)
+	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("editor."+unit,started,{"uuid":uuid})
 
 func _build_elapsed(unit:String,used:int,uuid:String="")->void:
 	var units:Dictionary=_timings.build.units
@@ -239,19 +251,22 @@ func _prepared_mesh(document:RefCounted,record:Dictionary)->MeshInstance3D:
 static func _parse_asset(value:String)->Dictionary:
 	# Same private GLTF state preparation as the game loader. Scene nodes and
 	# the shared PackedScene cache are created only after joining on main.
-	var started:=Time.get_ticks_usec()
+	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
 	var error:=document.append_from_file(value,state,0,value.get_base_dir())
 	if error!=OK:
 		error=document.append_from_buffer(FileAccess.get_file_as_bytes(value),value.get_base_dir(),state)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value})
 	return {"document":document,"state":state,"error":error,"elapsed_us":Time.get_ticks_usec()-started}
 
 static func _terrain_context(records:Array)->Dictionary:
-	var started:=Time.get_ticks_usec()
+	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.terrain_prepare")
 	var context=preload("res://scripts/world3d/terrain_neighbors.gd").new()
 	context.update(records,true)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.terrain_neighbors",started)
 	var neighbor_us:=Time.get_ticks_usec()-started
 	var geometry:=preload("res://scripts/world_editor/terrain_load_preparation.gd").prepare(records,context)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.terrain_prepare",started)
 	return {"context":context,"elapsed_us":neighbor_us,"geometry":geometry}
 
 func _prepare_terrain(records:Array)->RefCounted:
@@ -275,33 +290,69 @@ func _prepare_terrain(records:Array)->RefCounted:
 	report("build",0,records.size())
 	return prepared.context
 
+func _begin_asset_lookahead(records:Array)->void:
+	_clear_asset_lookahead()
+	var seen:Dictionary={}
+	for record:Dictionary in records:
+		if record.get("kind")!="asset" or record.has("house_prefab") or record.has("bridge_mesh"):continue
+		var value:=str(record.get("asset_path",""))
+		if seen.has(value) or AssetLibrary._scenes.has(value):continue
+		seen[value]=true;_asset_paths.append(value)
+	_timings.asset_lookahead={"unique_paths":_asset_paths.size(),"started":0,"consumed":0,"start_failures":0,"ready_on_consume":0,"peak_unconsumed":0}
+	_start_next_asset_parse()
+
+func _start_next_asset_parse()->void:
+	# Dispatch only after the previous GLTF state was consumed and released.
+	# Cache membership and file presence retain the existing main-thread checks.
+	while _asset_index<_asset_paths.size():
+		var value:String=_asset_paths[_asset_index];_asset_index+=1
+		if AssetLibrary._scenes.has(value) or _asset_failures.has(value) or not FileAccess.file_exists(value):continue
+		_asset_thread=Thread.new()
+		if _asset_thread.start(_parse_asset.bind(value),Thread.PRIORITY_LOW)==OK:
+			_asset_path=value
+			_timings.asset_lookahead.started+=1;_timings.asset_lookahead.peak_unconsumed=1
+			return
+		_asset_thread=null
+		_timings.asset_lookahead.start_failures+=1
+		# This path keeps the pre-existing synchronous fallback at its record.
+
+func _clear_asset_lookahead()->void:
+	if _asset_thread!=null and _asset_thread.is_started():
+		var unused:Dictionary=_asset_thread.wait_to_finish()
+		unused.clear()
+	_asset_thread=null;_asset_path="";_asset_paths.clear();_asset_index=0
+
 func _prepare_asset(record:Dictionary)->Dictionary:
 	if record.get("kind")!="asset" or record.has("house_prefab") or record.has("bridge_mesh"):return {}
 	var asset_path:=str(record.get("asset_path",""))
-	if _asset_failures.has(asset_path):return {"scene":null}
-	if AssetLibrary._scenes.has(asset_path):return {}
-	if not FileAccess.file_exists(asset_path):return {"scene":null}
-	_thread=Thread.new()
-	if _thread.start(_parse_asset.bind(asset_path),Thread.PRIORITY_LOW)!=OK:
-		_thread=null
-		return {} # Preserve the synchronous fallback if no worker can start.
+	if _asset_path!=asset_path:
+		if _asset_failures.has(asset_path):return {"scene":null}
+		if AssetLibrary._scenes.has(asset_path):return {}
+		if not FileAccess.file_exists(asset_path):return {"scene":null}
+		return {} # Worker startup failed: retain synchronous fallback.
 	var done:=completed;var count:=total;var uuid:=str(record.get("uuid",""))
 	report("asset",done,count)
-	var wait_started:=Time.get_ticks_usec()
-	while _thread.is_alive():await get_tree().process_frame
-	var parsed:Dictionary=_thread.wait_to_finish();_thread=null
+	var wait_started:=Time.get_ticks_usec();var yielded:=false
+	if not _asset_thread.is_alive():_timings.asset_lookahead.ready_on_consume+=1
+	while _asset_thread.is_alive():
+		yielded=true;await get_tree().process_frame
+	var parsed:Dictionary=_asset_thread.wait_to_finish();_asset_thread=null;_asset_path=""
+	_timings.asset_lookahead.consumed+=1
 	_build_timing("asset_wait",wait_started,uuid)
 	_build_elapsed("asset_parse_worker",parsed.elapsed_us,uuid)
 	var mark:=Time.get_ticks_usec();var scene:Node3D
-	if parsed.error==OK:
-		var imported:Node=Io.generate_scene(parsed.document,parsed.state)
-		if imported!=null and AssetLibrary.cache_scene(asset_path,imported):scene=AssetLibrary.instantiate(asset_path)
-	if scene==null:_asset_failures[asset_path]=true
+	var already_cached:bool=AssetLibrary._scenes.has(asset_path)
+	if not already_cached and FileAccess.file_exists(asset_path):
+		if parsed.error==OK:
+			var imported:Node=Io.generate_scene(parsed.document,parsed.state)
+			if imported!=null and AssetLibrary.cache_scene(asset_path,imported):scene=AssetLibrary.instantiate(asset_path)
+		if scene==null:_asset_failures[asset_path]=true
 	_build_timing("asset_prepare_main",mark,uuid)
 	mark=Time.get_ticks_usec();parsed.clear()
 	_build_timing("asset_prepare_release",mark,uuid)
+	_start_next_asset_parse()
 	report("build",done,count)
-	return {"scene":scene,"yielded":true}
+	return {"yielded":yielded} if already_cached else {"scene":scene,"yielded":yielded}
 
 func _prepare_record_textures(record:Dictionary)->Dictionary:
 	if not record.has("terrain_mesh") and not record.has("house_prefab"):return {}
@@ -364,6 +415,7 @@ func _restore() -> void:
 	if is_instance_valid(_layer): _layer.queue_free()
 
 func _complete(ok: bool, message: String) -> void:
+	_clear_asset_lookahead()
 	_asset_failures.clear()
 	_terrain_texture_checked.clear()
 	_terrain_surfaces.clear();_terrain_masks.clear()
@@ -376,5 +428,6 @@ func _complete(ok: bool, message: String) -> void:
 	finished.emit(result.duplicate(true))
 
 func _exit_tree() -> void:
+	_clear_asset_lookahead()
 	if _thread!=null and _thread.is_started(): _thread.wait_to_finish()
 	_restore()
