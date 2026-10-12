@@ -65,6 +65,11 @@ func run() -> void:
 		check(not Manifest.from_json(modified,36).known,"unknown/eager: "+mutation)
 	modified=data(); modified.materials=[{"extensions":{"KHR_materials_specular":{"specularFactor":.5}}}]; modified.extensionsUsed=["KHR_materials_specular"]
 	check(Manifest.from_json(modified,36).known,"optional static material metadata does not alter geometry eligibility")
+	for extension in ["KHR_materials_clearcoat","KHR_materials_ior"]:
+		modified=data();modified.materials=[{"extensions":{extension:{}}}];modified.extensionsUsed=[extension]
+		check(Manifest.from_json(modified,36).known,"non-geometric material extension: "+extension)
+		modified.nodes[0].extensions={extension:{}}
+		check(not Manifest.from_json(modified,36).known,"material extension cannot masquerade as node geometry: "+extension)
 	modified=data();modified.extensionsUsed=null;modified.extensionsRequired=null
 	check(Manifest.from_json(modified,36).known,"native null extension declarations enable no extensions")
 	modified=data();modified.nodes[0].extras={"rmmo_format":"rmmo_gltf_map","rmmo_records":[]}

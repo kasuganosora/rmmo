@@ -54,7 +54,7 @@ func capture(node: Node) -> Dictionary:
 
 func worker_result(path: String, digest: String, token: RefCounted = null, expected: Dictionary = {}, faces: bool = false) -> Dictionary:
 	var worker := Thread.new()
-	if worker.start(Deferred.prepare_scene.bind(path,digest,token,expected,faces))!=OK:return {"error":"test_worker_start"}
+	if worker.start(Deferred.prepare_scene.bind(path,digest,token,expected,faces,Paths.external_root()))!=OK:return {"error":"test_worker_start"}
 	while worker.is_alive():await process_frame
 	return worker.wait_to_finish()
 
@@ -146,7 +146,7 @@ func run() -> void:
 	# Exercise shared grass canonicalization while main and worker own distinct
 	# imports of the same pixels. Nodes/materials themselves must stay distinct.
 	var overlap_worker:=Thread.new()
-	check(overlap_worker.start(Deferred.prepare_scene.bind(blue,FileAccess.get_sha256(blue)))==OK,"main/worker overlap starts")
+	check(overlap_worker.start(Deferred.prepare_scene.bind(blue,FileAccess.get_sha256(blue),null,{},false,Paths.external_root()))==OK,"main/worker overlap starts")
 	var overlap_document:=GLTFDocument.new();var overlap_state:=GLTFState.new()
 	var overlap_parse:=overlap_document.append_from_file(blue,overlap_state,0,blue.get_base_dir())
 	var overlap_main:Node=Io.generate_scene(overlap_document,overlap_state) if overlap_parse==OK else null
@@ -192,13 +192,13 @@ func run() -> void:
 	# Start then immediately remove the service. _exit_tree must join and free
 	# an unconsumed result without ever publishing it to the shared cache.
 	var service:=Deferred.new();root.add_child(service)
-	service._worker=Thread.new()
-	service._worker_token=Drainer.CancelToken.new()
+	var exit_worker:=Thread.new()
+	var exit_token:=Drainer.CancelToken.new()
+	service._jobs[red]={"worker":exit_worker,"token":exit_token}
 	service._drainer=Drainer.for_tree(self)
-	service._drainer.watch(service._worker,service._worker_token)
+	service._drainer.watch(exit_worker,exit_token)
 	var drainer:Node=service._drainer
-	var exit_worker:Thread=service._worker
-	check(exit_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red),service._worker_token))==OK,"exit cleanup worker starts")
+	check(exit_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red),exit_token,{},false,Paths.external_root()))==OK,"exit cleanup worker starts")
 	var free_started:=Time.get_ticks_usec()
 	service.free()
 	check(Time.get_ticks_usec()-free_started<100000,"service free returns without blocking on live worker")
@@ -208,10 +208,11 @@ func run() -> void:
 	# Force the old deadlock condition deterministically: this independently
 	# owned worker ignores cancellation and completes Io/texture readback while
 	# the service disappears. The root drainer must keep frame progression.
-	service=Deferred.new();root.add_child(service);service._worker=Thread.new()
-	service._drainer=drainer;drainer.watch(service._worker,null)
-	var readback_worker:Thread=service._worker
-	check(readback_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red)))==OK,"uncancellable in-flight readback worker starts")
+	service=Deferred.new();root.add_child(service)
+	var readback_worker:=Thread.new()
+	service._jobs[red]={"worker":readback_worker,"token":Drainer.CancelToken.new()}
+	service._drainer=drainer;drainer.watch(readback_worker,null)
+	check(readback_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red),null,{},false,Paths.external_root()))==OK,"uncancellable in-flight readback worker starts")
 	service.free()
 	deadline=Time.get_ticks_msec()+15000
 	while readback_worker.is_started() and Time.get_ticks_msec()<deadline:await process_frame
@@ -219,13 +220,13 @@ func run() -> void:
 	# Simulate SceneTree shutdown with no frame yields. Native command pumping
 	# must also complete already in-flight readback before joining its thread.
 	var shutdown_worker:=Thread.new()
-	check(shutdown_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red)))==OK,"shutdown-pump worker starts")
+	check(shutdown_worker.start(Deferred.prepare_scene.bind(red,FileAccess.get_sha256(red),null,{},false,Paths.external_root()))==OK,"shutdown-pump worker starts")
 	Drainer.drain_shutdown(shutdown_worker)
 	check(not shutdown_worker.is_started(),"shutdown renderer-command pump joins without future process frames")
 	var staged:Dictionary=await worker_result(red,FileAccess.get_sha256(red))
 	if staged.get("scene") is Node:
 		var node:Node=staged.scene;var id:=node.get_instance_id()
-		service=Deferred.new();root.add_child(service);service._scene=node;service.free()
+		service=Deferred.new();root.add_child(service);service._jobs[red]={"result":{"scene":node},"token":Drainer.CancelToken.new()};service.free()
 		check(not is_instance_id_valid(id),"service exit frees already joined unpublished scene")
 	else:check(false,"staged cleanup fixture prepared")
 	for path in [blue,red,broken,native]:DirAccess.remove_absolute(path)

@@ -207,7 +207,7 @@ func clear_target() -> void:
 	target_changed.emit()
 
 func report(result: Dictionary) -> void:
-	editor._status.text = ("表面材质已更新" + (" · 自动瓦片已冻结为独立物件" if result.get("detached_auto_tile", false) else "")) if result.ok else str(result.error)
+	editor._report_result(result,"表面材质已更新" + (" · 自动瓦片已冻结为独立物件" if result.get("detached_auto_tile", false) else ""),"表面材质")
 
 func _process(_dt: float) -> void:
 	if not active: return

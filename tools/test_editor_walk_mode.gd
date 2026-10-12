@@ -26,6 +26,10 @@ func run() -> void:
 	directory=Paths.cache_directory("editor_walk_%d"%Time.get_ticks_usec()); DirAccess.make_dir_recursive_absolute(directory)
 	var path:=directory.path_join("map.gltf")
 	var doc:=Doc.new()
+	if "--real-planter" in OS.get_cmdline_user_args():
+		var audit:Dictionary=JSON.parse_string(FileAccess.get_file_as_string("D:/code/rmmo_runtime/review_artifacts/nonperformance_fixes_20261012/audit.json"))
+		var planter:Dictionary=audit.records.filter(func(r):return r.uuid=="obj_200935")[0].duplicate(true)
+		planter.uuid="walk_planter";planter.position=[6,0,6];planter.rotation=[0,0,0];doc.records.append(planter)
 	doc.add_box_silent("ground",Vector3(0,-.1,0),Vector3(40,.2,40))
 	var wall:=doc.add_box_silent("block",Vector3(0,2,-3),Vector3(6,4,.4))
 	doc._find(wall).editor_locked=true
@@ -33,6 +37,9 @@ func run() -> void:
 	var hidden:=doc.add_box_silent("block",Vector3(-8,1,-2),Vector3(2,2,.2)); doc._find(hidden).editor_hidden=true
 	var box:=doc.add_box_silent("block",Vector3(2,.5,1),Vector3.ONE)
 	for i in 4:doc.add_box_silent("block",Vector3(-4,(i+1)*.1,2-i),Vector3(2,(i+1)*.2,1))
+	for width in [.12,.24]:
+		var x:float=12 if width==.12 else 16
+		doc.add_box_silent("block",Vector3(x,.0175,0),Vector3(2,.035,width))
 	check(doc.save(path)==OK,"temporary walk fixture saved")
 	var session=preload("res://scripts/net/net.gd").session(); session.world3d_editor_doc=doc; session.world3d_editor_path=path
 	editor=preload("res://scripts/world_editor/world_editor.gd").new(); editor._mcp_autostart=false
@@ -76,6 +83,22 @@ func run() -> void:
 	await enter([-4,0,3.5]); await motion([0,1],1.3)
 	print("WALK_STEPS ",walk.state())
 	check(walk.body.position.y>.75 and walk.body.position.z<-.5,"capsule walks up four normal steps")
+	if "--real-planter" in OS.get_cmdline_user_args():
+		await enter([6,0,8]);walk.body.position=Vector3(6,1.2,6);walk.body.velocity=Vector3.ZERO;await frames(70)
+		check(walk.body.is_on_floor() and walk.body.position.y>.4,"editor capsule physically lands on real planter")
+		var planter_start:Vector3=walk.body.position
+		await motion([1,0],.5)
+		check(walk.body.position.x>planter_start.x+1,"real imported planter permits editor capsule walking without model exceptions")
+		walk.body.position=Vector3(6,1.2,6);walk.body.velocity=Vector3.ZERO;await frames(70)
+		await call_tool("move_editor_walk",{"direction":[1,0],"duration":.5,"jump":true})
+		await frames(8);check(walk.body.position.y>.75,"real imported planter permits editor capsule jumping through HTTP")
+		await frames(70);check(walk.body.is_on_floor() and walk.body.position.y<.1,"editor capsule leaves planter and lands on ground")
+	for x in [12,16]:
+		for fast in [false,true]:
+			await enter([x,0,1.1]);await motion([0,1],.55 if not fast else .3,{"fast":fast})
+			check(walk.body.position.z<-.5,"narrow low kerb crossed toward grass x=%s fast=%s"%[x,fast])
+			await motion([0,-1],.55 if not fast else .3,{"fast":fast})
+			check(walk.body.position.z>.7,"narrow low kerb crossed back x=%s fast=%s"%[x,fast])
 	await enter([0,0,1])
 	await call_tool("move_editor_walk",{"direction":[0,0],"duration":.1,"jump":true}); await frames(8)
 	check(walk.body.position.y>.25,"space/MCP jump lifts a grounded capsule")

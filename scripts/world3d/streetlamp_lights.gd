@@ -58,6 +58,7 @@ func _night_material(original:Material,warm:bool=false)->Material:
 
 static func register(node:MeshInstance3D)->void:
 	var extras:Dictionary=node.get_meta("extras",{})
+	if preload("res://scripts/world3d/model_components.gd").valid_socket(extras.get("rmmo_model_light")):node.add_to_group(GROUP)
 	if extras.get("rmmo_streetlamp_crystal",false) or extras.get("rmmo_small_wall_lantern",false):node.add_to_group(GROUP)
 
 static func annotate(root_:Node,instance_id:String)->void:
@@ -103,9 +104,13 @@ func refresh()->void:
 	if weather.night_sky.ready:hour=preload("res://scripts/world3d/celestial_cycle.gd").hours(weather.night_sky.snapshot,preload("res://scripts/world3d/night_sky.gd").local_time()+weather.night_sky.clock_offset)
 	var night:bool=hour<6.0 or hour>=20.0
 	var active:Dictionary={}
+	var model_candidates:Array=[]
 	for node in get_tree().get_nodes_in_group(GROUP):
 		if not node is MeshInstance3D or node.get_world_3d()!=get_world_3d() or node.is_queued_for_deletion():continue
 		var id:int=node.get_instance_id();active[id]=true
+		if node.get_meta("extras",{}).has("rmmo_model_light"):
+			_refresh_model_light(node,night,model_candidates)
+			continue
 		if not fixtures.has(id):
 			var warm:bool=node.get_meta("extras",{}).get("rmmo_small_wall_lantern",false)
 			var original_override:Material=node.material_override
@@ -142,16 +147,44 @@ func refresh()->void:
 		row.light.visible=enabled
 	for id in fixtures.keys():
 		if not active.has(id):_restore(fixtures[id]);fixtures.erase(id)
+	model_candidates.sort_custom(func(a,b):return a.distance<b.distance)
+	for i in mini(model_candidates.size(),6):
+		var light:OmniLight3D=model_candidates[i].light
+		light.visible=true;light.shadow_enabled=i<2
 	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-profile_start)/1000.0,"material_builds":material_builds,"materials":night_materials.size()})
 
 func _restore(row:Dictionary)->void:
 	var node=row.node.get_ref()
-	if is_instance_valid(node):
+	if is_instance_valid(node) and not row.get("model_socket",false):
 		node.material_override=row.original_override
 		for slot in mini(node.mesh.get_surface_count(),row.originals.size()):node.set_surface_override_material(slot,row.originals[slot])
 	if is_instance_valid(row.glow):row.glow.queue_free()
 	if is_instance_valid(row.light):
 		row.light.hide();lights.erase(row.light);row.light.queue_free()
+
+func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void:
+	var socket:Dictionary=node.get_meta("extras",{}).rmmo_model_light
+	var id:=node.get_instance_id()
+	if not fixtures.has(id):
+		var effect:=MeshInstance3D.new();effect.name="AuthoredLightFlame"
+		if socket.get("flame",false):effect.mesh=preload("res://scripts/world3d/house_candle_lights.gd").flame_mesh()
+		effect.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF;node.add_child(effect)
+		var p:Array=socket.position;effect.position=Vector3(p[0],p[1],p[2])
+		var light:=_new_light();var c:Array=socket.color
+		light.light_color=Color(c[0],c[1],c[2]);light.light_energy=socket.energy;light.omni_range=socket.range
+		light.omni_attenuation=1.5;light.shadow_bias=.035
+		fixtures[id]={"node":weakref(node),"model_socket":true,"glow":effect,"light":light}
+	var row:Dictionary=fixtures[id]
+	var p:Array=socket.position;var at:Vector3=node.global_transform*Vector3(p[0],p[1],p[2])
+	row.light.global_position=at;row.light.visible=false
+	var enabled:bool=node.is_visible_in_tree() and (night or socket.get("indoor",false))
+	row.glow.visible=enabled
+	var observer:Camera3D=camera if is_instance_valid(camera) else get_viewport().get_camera_3d()
+	var distance:float=observer.global_position.distance_squared_to(at) if is_instance_valid(observer) else 0.0
+	var score:=distance
+	# Nearby upstairs candles must not consume the occupied hall's light budget.
+	if is_instance_valid(observer) and absf(observer.global_position.y-at.y)>3.1:score+=10000.0
+	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
 
 func _exit_tree()->void:
 	for row:Dictionary in fixtures.values():_restore(row)

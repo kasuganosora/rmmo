@@ -61,7 +61,7 @@ func set_enabled(args:Dictionary)->Dictionary:
 		body.collision_layer=0;body.collision_mask=WALK_MASK
 		body.floor_snap_length=.35;body.floor_max_angle=deg_to_rad(45);body.safe_margin=.003
 		capsule=_shape()
-		var collider:=CollisionShape3D.new();collider.shape=capsule;collider.position.y=HEIGHT*.5;body.add_child(collider)
+		var collider:=CollisionShape3D.new();collider.name="CollisionShape3D";collider.shape=capsule;collider.position.y=HEIGHT*.5;body.add_child(collider)
 		visual=MeshInstance3D.new();visual.name="CapsuleGuide"
 		var mesh:=CapsuleMesh.new();mesh.radius=RADIUS;mesh.height=HEIGHT;mesh.radial_segments=20;mesh.rings=8
 		visual.mesh=mesh;visual.position.y=HEIGHT*.5
@@ -194,6 +194,7 @@ func _physics_process(delta:float)->void:
 	_seconds=maxf(0.,_seconds-delta)
 	var basis:=Basis(Vector3.UP,deg_to_rad(yaw))
 	var wish:Vector3=(basis.x*direction.x-basis.z*direction.y)*speed*fraction
+	if _jump or not wish.is_zero_approx():preload("res://scripts/world3d/floor_contact_recovery.gd").recover(body)
 	body.velocity.x=wish.x;body.velocity.z=wish.z
 	if _jump and body.is_on_floor():body.velocity.y=5.
 	_jump=false
@@ -209,11 +210,7 @@ func _physics_process(delta:float)->void:
 	_update_camera()
 
 func _step_up(wish:Vector3,delta:float)->void:
-	var ahead:=body.position+wish.normalized()*(RADIUS+.04+wish.length()*delta)
-	var query:=PhysicsRayQueryParameters3D.create(ahead+Vector3.UP*.4,ahead-Vector3.UP*.04,WALK_MASK)
-	var hit:Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty() or hit.normal.y<cos(deg_to_rad(45)):return
-	var rise:float=hit.position.y-body.position.y+.025
+	var rise:=preload("res://scripts/world3d/step_support.gd").rise(body,body.position,wish,delta,RADIUS+.04,WALK_MASK,cos(deg_to_rad(45)),.025)
 	if rise<=.01 or rise>.4 or body.test_move(body.global_transform,Vector3.UP*rise):return
 	var raised:=body.global_transform;raised.origin.y+=rise
 	if not body.test_move(raised,wish*delta):body.global_transform=raised

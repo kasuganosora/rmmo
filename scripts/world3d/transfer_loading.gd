@@ -43,3 +43,13 @@ func finish()->void:
 	update_progress("目标区域已准备好")
 	if DisplayServer.get_name()=="headless":await get_tree().process_frame
 	else:await RenderingServer.frame_post_draw
+
+func retire()->void:
+	# queue_free alone leaves the cover in the tree until the frame's deletion
+	# flush. Transfers return in the same continuation: retire input/visibility
+	# and the transaction's node name synchronously before releasing movement.
+	hide()
+	set_process(false)
+	set_process_input(false)
+	if get_parent()!=null:get_parent().remove_child(self)
+	queue_free()

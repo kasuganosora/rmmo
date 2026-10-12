@@ -8,7 +8,7 @@ static func prepare(records:Array,context:RefCounted)->Dictionary:
 	var started:=Time.get_ticks_usec();var buckets:Array=[];var count:=0
 	for i in 4:buckets.append({"records":[],"result":{}})
 	for record:Dictionary in records:
-		if record.has("terrain_mesh"):buckets[count%4].records.append(record);count+=1
+		if record.has("terrain_mesh") or record.has("terrain_volume"):buckets[count%4].records.append(record);count+=1
 	var workers:Array[Thread]=[]
 	for bucket:Dictionary in buckets:
 		if bucket.records.is_empty():continue
@@ -30,9 +30,9 @@ static func _prepare_bucket(records:Array,context:RefCounted)->Dictionary:
 	var surfaces:Dictionary={};var masks:Dictionary={}
 	var started:=Time.get_ticks_usec();var arrays_us:=0;var masks_us:=0
 	for record:Dictionary in records:
-		if not record.has("terrain_mesh"):continue
+		if not record.has("terrain_mesh") and not record.has("terrain_volume"):continue
 		var id:=str(record.uuid);var mark:=Time.get_ticks_usec()
-		surfaces[id]=Terrain.arrays(record,context.data.get(id,{}))
+		surfaces[id]=preload("res://scripts/world3d/terrain_volume.gd").arrays(record) if record.has("terrain_volume") else Terrain.arrays(record,context.data.get(id,{}))
 		arrays_us+=Time.get_ticks_usec()-mark
 		if record.has("terrain_regions"):
 			mark=Time.get_ticks_usec();masks[id]=Regions.mask(record)

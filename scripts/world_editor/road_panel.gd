@@ -91,7 +91,7 @@ func sync_settings(value: Dictionary) -> void:
 	var schema: Dictionary=preload("res://scripts/world3d/road_plan.gd").settings_schema(); schema.properties.erase("material_id")
 	schema.properties.erase("kerb_material_id")
 	var values:Dictionary=preload("res://scripts/world3d/road_plan.gd").defaults().merged(value,true); values.erase("material_id");values.erase("kerb_material_id")
-	settings.build(schema,values,{"thickness":"铺面厚度（米）","lift":"高于地面（米）","clearance":"通行净空（米）","kerb_enabled":"自动路缘与道路同步更新","kerb_width":"路缘宽度（米）","kerb_height":"路缘高出路面（米）"})
+	settings.build(schema,values,{"follow_terrain":"自动贴合雕刻地形","thickness":"铺面厚度（米）","lift":"高于地面（米）","clearance":"通行净空（米）","kerb_enabled":"自动路缘与道路同步更新","kerb_width":"路缘宽度（米）","kerb_height":"路缘高出路面（米）"})
 func selected() -> Dictionary:
 	return host.selected(Data.resolve(editor._doc.map_meta).get("zones",[]),choice)
 func zone_token() -> String: return JSON.stringify(Data.resolve(editor._doc.map_meta).get("zones",[])).sha256_text()

@@ -183,10 +183,12 @@ func _next() -> void:
 		import_finished.emit(key, _output, ERR_CANT_OPEN)
 
 func _render() -> void:
+	if not is_inside_tree() or not is_instance_valid(_model):return
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	RenderingServer.frame_post_draw.connect(_finish, CONNECT_ONE_SHOT)
 
 func _finish() -> void:
+	if not is_inside_tree() or not is_instance_valid(_model):return
 	var image := _viewport.get_texture().get_image()
 	var texture := ImageTexture.create_from_image(image)
 	if not _output.is_empty():
@@ -196,6 +198,20 @@ func _finish() -> void:
 		if error!=OK: _errors[_key]=error_string(error)
 		import_finished.emit(_key, _output, error)
 	_remember(_key, texture)
-	_model.free()
-	_model = null
+	_dispose_model()
 	_busy = false
+
+func _dispose_model()->void:
+	var owned:=_model;_model=null
+	if not is_instance_valid(owned):return
+	if owned.get_parent()!=null:
+		if owned.get_parent()!=_viewport:return
+		_viewport.remove_child(owned)
+	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(owned)
+
+func _exit_tree()->void:
+	# Stop delayed draws before the retirement sync can deliver renderer events.
+	if get_tree().process_frame.is_connected(_render):get_tree().process_frame.disconnect(_render)
+	if RenderingServer.frame_post_draw.is_connected(_finish):RenderingServer.frame_post_draw.disconnect(_finish)
+	_dispose_model()
+	_busy=false

@@ -4,6 +4,7 @@ const Store=preload("res://scripts/world3d/map_resource_store.gd")
 const Art=preload("res://scripts/asset/art_paths.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Stream=preload("res://scripts/world3d/world_stream.gd")
+const LoadJob=preload("res://scripts/world_editor/load_job.gd")
 const MODEL_NAME="方窗石砌窗套"
 const MODEL_PATH="D:/code/rmmo_runtime/packs/default/assets/f1259543701ac5bf03968f2b2d24913c3a3b722dbea543fe43bd2c823311ea8f.glb"
 const LIBRARY_PATH="D:/code/rmmo_runtime/packs/default/assets/library.json"
@@ -11,6 +12,7 @@ var report:Dictionary={"runs":[]}
 var output_path:String
 var map_path:String
 var directory:String
+var compiled_assets:=false
 
 func persist()->void:
 	report.failures=failed
@@ -131,9 +133,15 @@ func run()->void:
 	map_path=directory.path_join("map.gltf");output_path=Art.review_path("reference_map_http_20261007.json")
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):output_path=arg.trim_prefix("--output=")
+		elif arg=="--compiled-assets":compiled_assets=true
+		elif arg=="--with-parallel-preparation":LoadJob.parallel_preparation_enabled=true
 	if not Paths.allowed(output_path,Art.review_path("")):quit(1);return
 	var model_sha:=FileAccess.get_sha256(MODEL_PATH);var library_sha:=FileAccess.get_sha256(LIBRARY_PATH)
-	report={"runs":[],"map":map_path,"model_sha256":model_sha}
+	report={"runs":[],"map":map_path,"model_sha256":model_sha,"parallel_preparation_enabled":LoadJob.parallel_preparation_enabled}
+	if compiled_assets:
+		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").build(MODEL_PATH)
+		check(compiled.ok and preload("res://scripts/world3d/compiled_asset_cache.gd").read(MODEL_PATH).hit,"real model has a verified compiled product before HTTP placement")
+		report.compiled_fixture=compiled
 	var doc:=Doc.new();doc.add_box("ground",Vector3(0,-.5,0),Vector3(160,1,160))
 	var painted:String=doc.add_box("block",Vector3(-30,1,0),Vector3(2,2,2))
 	await attach_editor(doc)
@@ -179,6 +187,9 @@ func run()->void:
 	var ids:Array=placed.get("ids",[])
 	if ids.size()!=1:check(false,"one real model created");persist();quit(1);return
 	var model_id:String=ids[0]
+	if compiled_assets:
+		var library=preload("res://scripts/world_editor/asset_library.gd")
+		check(library._scenes.has(MODEL_PATH) and library._scenes[MODEL_PATH].get_meta("compiled_asset_validated",false),"real HTTP model placement consumes compiled scene")
 	report.live_model=material_evidence(editor._view.get_node_or_null(NodePath(model_id)))
 	check(report.live_model.valid,"editor displays real textured stone-window GLB")
 	await save_phase("add_real_model")

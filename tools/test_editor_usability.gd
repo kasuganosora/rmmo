@@ -15,19 +15,20 @@ func review_workspace(editor: Node3D) -> void:
 	for control in actions.get_children():
 		if control is Control and control.visible:
 			fits = fits and control.get_global_rect().end.x <= root.size.x and control.get_global_rect().end.y <= toolbar.get_global_rect().end.y
-	check(fits and toolbar.size.y < 45, "scene tools fit one row at 1024 pixels without clipping")
+	check(fits and toolbar.size.y < 100, "grouped scene tools wrap at 1024 pixels without clipping")
 	for index in 3:
 		editor._transform_buttons[index].pressed.emit()
 		check(editor._transform_mode == index, "relocated transform action %d works" % index)
-	check(editor._canvas.global_position.y < 120, "canvas gains vertical space after toolbar consolidation")
-	var nav: OptionButton = editor.find_child("WorkspacePanelPicker", true, false)
-	check(nav != null and nav.item_count == editor._dock_tabs.get_tab_count(), "every dock is directly discoverable in the panel picker")
+	check(editor._canvas.global_position.y < 180, "canvas retains usable height below grouped tools")
+	var nav: MenuButton = editor.find_child("WorkspacePanelPicker", true, false)
+	check(nav != null and nav.get_popup().item_count == editor._dock_tabs.get_tab_count(), "every dock remains discoverable under More")
 	for tab in editor._dock_tabs.get_tab_count():
-		nav.select(tab); nav.item_selected.emit(tab)
+		nav.get_popup().id_pressed.emit(tab)
 		await frames(8)
 		check(editor._dock_tabs.current_tab == tab, "navigation opens panel %d" % tab)
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("editor_usability/after_%d.png" % tab))
+	editor._dock_tabs.current_tab=5; await frames()
 	editor._selection_tools.set_ids([]); editor._event_panel.refresh()
 	check(editor._event_panel.apply_button.disabled and editor._event_panel.remove_button.disabled, "event actions are disabled without a selected object")
 	editor._selection_tools.set_ids([editor._doc.records[0].uuid]); editor._event_panel.refresh()
@@ -47,7 +48,7 @@ func review_workspace(editor: Node3D) -> void:
 	await frames(8); await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("editor_usability/building_details.png"))
 	editor._dock_tabs.current_tab = 6; await frames()
-	check(nav.selected == 6, "toolbar and programmatic navigation update panel picker")
+	check(nav.get_popup().is_item_checked(6) and nav.text=="环境", "navigation reflects secondary task without a duplicate heading")
 	var form = editor._environment_panel.form
 	var before: Dictionary = form.values()
 	var light: Button = form.find_child("Section_light", true, false)
@@ -65,9 +66,9 @@ func review_workspace(editor: Node3D) -> void:
 	check(apply_button.get_global_rect().position.y < 160, "environment apply stays visible while scrolling")
 	editor._dock_tabs.current_tab = 10; await frames()
 	var terrain = editor._terrain_panel
-	check(terrain.tasks.get_tab_count() == 2 and terrain.begin_button.get_global_rect().end.y < 450, "terrain sculpt action comes before creation parameters")
+	check(terrain.tasks.get_tab_count() == 6 and terrain.begin_button.get_global_rect().end.y < editor._status.global_position.y, "terrain tasks keep the sculpt action visible")
 	check(terrain.begin_button.disabled and terrain.choice.text == "暂无可雕刻地形", "missing terrain has an explicit empty state and disabled brush")
-	terrain.tasks.current_tab = 1; await frames()
+	terrain.tasks.current_tab = 5; await frames()
 	check(terrain.create_fields.is_visible_in_tree() and not terrain.brush_fields.is_visible_in_tree(), "creation and sculpting use separate task pages")
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(preload("res://scripts/asset/art_paths.gd").review_path("editor_usability/terrain_create.png"))

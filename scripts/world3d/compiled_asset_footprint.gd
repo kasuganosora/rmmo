@@ -1,0 +1,278 @@
+extends RefCounted
+## Offline native-resource accounting. A candidate is a budget, never permission
+## to deserialize: its consumer must verify payload SHA/closure/type and final
+## source SHA, and must not fall back to GLTF inside the smaller reservation.
+const Compiled = preload("res://scripts/world3d/compiled_asset_cache.gd")
+const Preparation = preload("res://scripts/world3d/compiled_asset_preparation.gd")
+const Paths = preload("res://scripts/world3d/map_paths.gd")
+const Atomic = preload("res://scripts/world3d/atomic_file.gd")
+const Drainer = preload("res://scripts/world3d/asset_worker_drainer.gd")
+const VERSION := 1
+const FLOOR_BYTES := 64 * 1024 * 1024
+const EXCLUSIVE_BYTES := 4 * 1024 * 1024 * 1024
+const MAX_BYTES := 1024 * 1024 * 1024 * 1024
+const MAX_DESCRIPTOR_BYTES := 65536
+const STAT_KEYS := ["nodes", "resources", "materials", "meshes", "textures", "images", "surfaces", "image_mip_bytes", "gpu_rgba_bytes", "mesh_storage_bytes", "mesh_capture_bytes", "collision_face_bytes", "other_packed_bytes", "container_bytes", "native_uncompressed_bytes"]
+
+static func directory(content_root: String) -> String:
+	return Compiled.directory(content_root).path_join("footprints_v1")
+
+static func descriptor_path(path: String, content_root: String) -> String:
+	return directory(content_root).path_join(_path(path).sha256_text() + ".json")
+
+static func generator() -> String:
+	# This invalidates only footprints, never an existing native product.
+	return (str(VERSION) + ":" + FileAccess.get_sha256("res://scripts/world3d/compiled_asset_footprint.gd")).sha256_text()
+
+static func candidate(path: String, content_root: String, expected_source: String = "") -> Dictionary:
+	if content_root.is_empty() or not Compiled.enabled: return {}
+	if not expected_source.is_empty() and not Compiled._sha(expected_source): return {}
+	var identity := _identity(path, content_root)
+	if identity.is_empty() or (not expected_source.is_empty() and identity.source_sha != expected_source): return {}
+	var filename := descriptor_path(path, content_root)
+	if not Paths.allowed(filename, directory(content_root)): return {}
+	var envelope := _read_json(filename, MAX_DESCRIPTOR_BYTES)
+	var body: Variant = envelope.get("body")
+	if envelope.get("version") != VERSION or not body is String or not Compiled._sha(envelope.get("sha256")): return {}
+	if body.sha256_text() != envelope.sha256: return {}
+	var descriptor: Variant = JSON.parse_string(body)
+	if not descriptor is Dictionary or descriptor.get("version") != VERSION or descriptor.get("footprint_generator") != generator(): return {}
+	for key in ["source_path", "source_sha", "payload_sha", "generator", "bytes", "source_bytes"]:
+		if descriptor.get(key) != identity[key]: return {}
+	var stats: Variant = descriptor.get("stats")
+	if not stats is Dictionary: return {}
+	var estimate := estimate_stats(stats)
+	if estimate.is_empty() or descriptor.get("estimated_bytes") != estimate.estimated_bytes or descriptor.get("resident_bytes") != estimate.resident_bytes: return {}
+	# Freeze the exact product identity. Do not derive it from another manifest
+	# read later, and do not mistake these unhashed source bytes for verification.
+	identity.merge(estimate)
+	identity.erase("source_bytes")
+	return identity
+
+static func _identity(path: String, content_root: String) -> Dictionary:
+	path = _path(path)
+	if content_root.is_empty() or not Paths.allowed(path, content_root): return {}
+	var source := FileAccess.open(path, FileAccess.READ)
+	if source == null: return {}
+	var source_bytes := source.get_length(); source.close()
+	var folder := Compiled.directory(content_root)
+	if not Paths.allowed(folder, content_root): return {}
+	var index := Compiled.index_path(path, content_root)
+	if not Paths.allowed(index, folder): return {}
+	var manifest := _read_json(index, 8192)
+	if manifest.get("version") != Compiled.VERSION or manifest.get("generator") != Compiled.generator(): return {}
+	if not Compiled._sha(manifest.get("source_sha")) or not Compiled._sha(manifest.get("payload_sha")) or not _integer(manifest.get("bytes"), Compiled.MAX_FILE_BYTES, 1): return {}
+	var product := folder.path_join(manifest.payload_sha + ".scn")
+	if not Paths.allowed(product, folder): return {}
+	var file := FileAccess.open(product, FileAccess.READ)
+	if file == null: return {}
+	var size := file.get_length(); file.close()
+	if size != int(manifest.bytes): return {}
+	return {"source_path":path, "source_sha":manifest.source_sha, "payload_sha":manifest.payload_sha, "generator":manifest.generator, "bytes":size, "source_bytes":source_bytes, "product":product}
+
+static func build(path: String, content_root: String = "") -> Dictionary:
+	if OS.get_thread_caller_id() != OS.get_main_thread_id() or DisplayServer.get_name() == "headless": return {"ok":false, "reason":"main_graphics_thread_required"}
+	if content_root.is_empty(): content_root = Paths.external_root()
+	var before := _identity(path, content_root)
+	if before.is_empty(): return {"ok":false, "reason":"native_identity_unknown"}
+	# Freeze the payload itself: a manifest A -> B -> A change must never bind
+	# statistics for B to the descriptor for A.
+	var loaded := Preparation.read(before.source_path, before, content_root)
+	if loaded.get("error", FAILED) != OK or loaded.get("fallback_required", false) or loaded.get("packed") == null:
+		var reason := str(loaded.get("cache_reason", loaded.get("error", "unknown")))
+		Drainer.synchronize_transfer(); loaded.clear()
+		return {"ok":false, "reason":"native_read:" + reason}
+	var stats := measure(loaded.packed)
+	Drainer.synchronize_transfer()
+	loaded.clear()
+	if stats.is_empty(): return {"ok":false, "reason":"unsupported_resource_statistics"}
+	var uncompressed := native_uncompressed_bytes(before.product)
+	if uncompressed <= 0: return {"ok":false, "reason":"native_compression_header_unknown"}
+	stats.native_uncompressed_bytes = uncompressed
+	var estimate := estimate_stats(stats)
+	if estimate.is_empty(): return {"ok":false, "reason":"unbounded_estimate"}
+	# Statistics can perform renderer readback. Recheck the complete source and
+	# product afterward, and ensure the index did not change while measuring.
+	if _identity(path, content_root) != before or FileAccess.get_sha256(before.source_path) != before.source_sha or FileAccess.get_sha256(before.product) != before.payload_sha:
+		return {"ok":false, "reason":"identity_changed_during_measurement"}
+	var descriptor := before.duplicate()
+	descriptor.erase("product")
+	descriptor.merge({"version":VERSION, "footprint_generator":generator(), "stats":stats, "estimated_bytes":estimate.estimated_bytes, "resident_bytes":estimate.resident_bytes})
+	var destination := descriptor_path(path, content_root)
+	var result := _publish(descriptor, destination, content_root)
+	if result != OK: return {"ok":false, "reason":"descriptor_write", "error":result}
+	return {"ok":true, "path":before.source_path, "descriptor":destination, "candidate":candidate(path, content_root, before.source_sha), "stats":stats}
+
+static func estimate_stats(stats: Dictionary) -> Dictionary:
+	for key in STAT_KEYS:
+		if not _integer(stats.get(key), MAX_BYTES): return {}
+	if stats.nodes < 1 or stats.native_uncompressed_bytes < 1: return {}
+	# A deliberately overlapping envelope, not measured RSS: two serialized
+	# streams/loader working sets, image decode/readback + upload copies, packed
+	# GPU mesh plus unpacked CpuMesh captures and exact collision faces. No term
+	# derives a decoded bound from compressed .scn size. Keep the full charge
+	# resident until the owning queue explicitly releases it.
+	var peak: int = FLOOR_BYTES + int(stats.native_uncompressed_bytes) * 2
+	peak += int(stats.image_mip_bytes) * 3 + int(stats.gpu_rgba_bytes) * 3
+	peak += int(stats.mesh_storage_bytes) * 4 + int(stats.mesh_capture_bytes) * 4
+	peak += int(stats.collision_face_bytes) * 3 + int(stats.other_packed_bytes) * 3
+	peak += int(stats.container_bytes) * 4 + int(stats.nodes) * 16384 + int(stats.materials) * 8192 + int(stats.resources) * 4096
+	if peak > MAX_BYTES: return {}
+	return {"estimated_bytes":peak, "resident_bytes":peak, "exclusive":peak > EXCLUSIVE_BYTES}
+
+static func measure(packed: PackedScene) -> Dictionary:
+	if packed == null or not packed.get_meta("compiled_asset_validated", false) or not Compiled._valid_packed(packed): return {}
+	var stats := empty_stats()
+	var state := packed.get_state()
+	stats.nodes = state.get_node_count()
+	var context := {"ok":true, "seen":{}, "retained":[], "visits":0}
+	for node in state.get_node_count():
+		for property in state.get_node_property_count(node):
+			_walk(state.get_node_property_value(node, property), stats, context, 0, false)
+	return stats if context.ok else {}
+
+static func empty_stats() -> Dictionary:
+	var result := {}
+	for key in STAT_KEYS: result[key] = 0
+	return result
+
+static func _walk(value: Variant, stats: Dictionary, context: Dictionary, depth: int, mesh_storage: bool) -> void:
+	context.visits += 1
+	if not context.ok: return
+	if depth > 32 or context.visits > 2000000: context.ok = false; return
+	if value is Resource:
+		var id: int = value.get_instance_id()
+		if context.seen.has(id): return
+		context.seen[id] = true; context.retained.append(value)
+		stats.resources += 1
+		if value is Image:
+			var image_stats := image_footprint(value)
+			if image_stats.is_empty(): context.ok = false; return
+			stats.images += 1; stats.image_mip_bytes += image_stats.image_mip_bytes; stats.gpu_rgba_bytes += image_stats.gpu_rgba_bytes
+			return
+		elif value is ImageTexture:
+			stats.textures += 1
+			var image: Image = value.get_image()
+			if image == null: context.ok = false; return
+			_walk(image, stats, context, depth + 1, false)
+		elif value is ArrayMesh:
+			stats.meshes += 1
+			for surface in value.get_surface_count():
+				stats.surfaces += 1
+				var arrays: Array = value.surface_get_arrays(surface)
+				if arrays.size() != Mesh.ARRAY_MAX: context.ok = false; return
+				for array in arrays: stats.mesh_capture_bytes += _packed_bytes(array)
+				var count: int = value.surface_get_array_index_len(surface)
+				if count == 0: count = value.surface_get_array_len(surface)
+				var primitive: int = value.surface_get_primitive_type(surface)
+				# CpuMesh currently captures every surface's indices/vertices;
+				# reserve these even for non-triangle topology, plus a possible
+				# expanded strip. Do not undercount partial/degenerate triangles.
+				var face_vertices := count
+				if primitive == Mesh.PRIMITIVE_TRIANGLE_STRIP: face_vertices = maxi(count, maxi(0, count - 2) * 3)
+				stats.collision_face_bytes += face_vertices * (24 if OS.has_feature("double") else 12)
+		elif value is StandardMaterial3D: stats.materials += 1
+		else: context.ok = false; return
+		for property: Dictionary in value.get_property_list():
+			if int(property.usage) & PROPERTY_USAGE_STORAGE:
+				if value is ImageTexture and property.name == "image": continue
+				_walk(value.get(property.name), stats, context, depth + 1, value is ArrayMesh)
+	elif value is Dictionary:
+		stats.container_bytes += 64 + value.size() * 64
+		for key in value:
+			_walk(key, stats, context, depth + 1, mesh_storage)
+			_walk(value[key], stats, context, depth + 1, mesh_storage)
+	elif value is Array:
+		stats.container_bytes += 32 + value.size() * 32
+		for item in value: _walk(item, stats, context, depth + 1, mesh_storage)
+	elif value is String or value is StringName or value is NodePath: stats.container_bytes += str(value).length() * 4 + 32
+	elif value is Object or value is Callable or value is Signal or value is RID: context.ok = false
+	else:
+		var size := _packed_bytes(value)
+		if mesh_storage: stats.mesh_storage_bytes += size
+		else: stats.other_packed_bytes += size
+
+static func _packed_bytes(value: Variant) -> int:
+	match typeof(value):
+		TYPE_PACKED_BYTE_ARRAY: return value.size()
+		TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_FLOAT32_ARRAY: return value.size() * 4
+		TYPE_PACKED_INT64_ARRAY, TYPE_PACKED_FLOAT64_ARRAY: return value.size() * 8
+		TYPE_PACKED_VECTOR2_ARRAY: return value.size() * (16 if OS.has_feature("double") else 8)
+		TYPE_PACKED_VECTOR3_ARRAY: return value.size() * (24 if OS.has_feature("double") else 12)
+		TYPE_PACKED_VECTOR4_ARRAY: return value.size() * (32 if OS.has_feature("double") else 16)
+		TYPE_PACKED_COLOR_ARRAY: return value.size() * 16
+		TYPE_PACKED_STRING_ARRAY:
+			var size: int = value.size() * 32
+			for item in value: size += item.length() * 4
+			return size
+	return 0
+
+static func image_footprint(image: Image) -> Dictionary:
+	if image == null or image.is_empty() or image.get_width() > 65536 or image.get_height() > 65536: return {}
+	var raw := image.get_data().size()
+	if raw <= 0: return {}
+	# RGBA32F covers all built-in Image channel formats including HDR/compressed
+	# formats. Ordinary LDR uses RGBA8; full mip allocation is reserved even when
+	# the stored image has no mips. Original mip bytes are accounted separately.
+	var format := image.get_format()
+	var bytes_per_pixel := 4 if format <= Image.FORMAT_RGBA8 else 16
+	var width := image.get_width(); var height := image.get_height(); var gpu := 0
+	while true:
+		gpu += width * height * bytes_per_pixel
+		if width == 1 and height == 1: break
+		width = maxi(1, width / 2); height = maxi(1, height / 2)
+	if raw > MAX_BYTES or gpu > MAX_BYTES: return {}
+	return {"image_mip_bytes":raw, "gpu_rgba_bytes":maxi(raw, gpu)}
+
+static func native_uncompressed_bytes(path: String) -> int:
+	# Godot 4.x FileAccessCompressed: magic, LE mode/block_size/total_u32,
+	# (total/block_size + 1) compressed block lengths, payload, trailing magic.
+	# Read only the bounded table, not the decompressed resource. The build path
+	# has already verified and loaded the full content-addressed product.
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null or file.get_length() < 20: return 0
+	var size := file.get_length()
+	var magic := file.get_buffer(4).get_string_from_ascii()
+	if magic == "RSRC": file.close(); return size
+	if magic != "RSCC": file.close(); return 0
+	var mode := file.get_32(); var block := file.get_32(); var total := file.get_32()
+	if mode > 4 or block == 0 or block > 64 * 1024 * 1024 or total == 0: file.close(); return 0
+	var count: int = total / block + 1
+	if count > 1048576 or 16 + count * 4 + 4 > size: file.close(); return 0
+	var end := 16 + count * 4
+	for index in count:
+		end += file.get_32()
+		if end > size - 4: file.close(); return 0
+	if end != size - 4: file.close(); return 0
+	file.seek(end)
+	var valid := file.get_buffer(4).get_string_from_ascii() == "RSCC"
+	file.close()
+	return total if valid else 0
+
+static func _publish(descriptor: Dictionary, destination: String, content_root: String) -> Error:
+	var folder := directory(content_root)
+	if not Paths.allowed(folder, content_root) or not Paths.allowed(destination, folder): return ERR_FILE_BAD_PATH
+	if DirAccess.make_dir_recursive_absolute(folder) != OK: return ERR_CANT_CREATE
+	var body := JSON.stringify(descriptor)
+	var encoded := JSON.stringify({"version":VERSION, "body":body, "sha256":body.sha256_text()})
+	if encoded.to_utf8_buffer().size() > MAX_DESCRIPTOR_BYTES: return ERR_OUT_OF_MEMORY
+	var temporary := destination + ".%d.%d.tmp" % [OS.get_process_id(), Time.get_ticks_usec()]
+	if not Paths.allowed(temporary, folder): return ERR_FILE_BAD_PATH
+	var file := FileAccess.open(temporary, FileAccess.WRITE)
+	if file == null: return FileAccess.get_open_error()
+	file.store_string(encoded); file.flush(); var error := file.get_error(); file.close()
+	if error == OK: error = Atomic.publish(temporary, destination)
+	if FileAccess.file_exists(temporary): DirAccess.remove_absolute(temporary)
+	return error
+
+static func _read_json(path: String, maximum: int) -> Dictionary:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null or file.get_length() > maximum: return {}
+	var data: Variant = JSON.parse_string(file.get_as_text()); file.close()
+	return data if data is Dictionary else {}
+
+static func _integer(value: Variant, maximum: int, minimum: int = 0) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and value >= minimum and value <= maximum and value == int(value)
+
+static func _path(path: String) -> String:
+	return path.replace("\\", "/").simplify_path()

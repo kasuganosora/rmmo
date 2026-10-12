@@ -19,6 +19,11 @@ static func show_panel(editor: Node3D) -> void:
 	var note := Label.new()
 	note.text = "完整组合视为一个整体；每次操作可撤销。\n对齐以最后选中的物件 / 组合为基准。"
 	content.add_child(note)
+	button(content, "按重力落地", func():
+		var outcome: Dictionary = editor._gravity.settle_selection()
+		if outcome.ok: dialog.queue_free()
+		else: editor._placement_tools.report(outcome)
+	, "GravitySettleSelection")
 	var normal := CheckBox.new()
 	normal.name = "AlignSurfaceNormal"
 	normal.text = "旋转物件，贴合表面方向"

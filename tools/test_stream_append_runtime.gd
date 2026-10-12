@@ -11,6 +11,27 @@ class GuardWorld extends "res://scripts/world3d/world_3d.gd":
 	func _process(_delta:float)->void:pass
 	func _physics_process(_delta:float)->void:pass
 	func _exit_tree()->void:pass
+class GateDeferred extends "res://scripts/world3d/deferred_asset_loader.gd":
+	# Only this cancellation fixture holds the real source transactions before
+	# preparation. Dispatch may use several frame slices without a fast first
+	# model publishing before the second task can be admitted.
+	var gate:=Semaphore.new()
+	var gate_started:=0
+	var hold_workers:=true
+	static func _gated_prepare(prepare:Callable,semaphore:Semaphore)->Dictionary:
+		semaphore.wait()
+		return prepare.call()
+	func _start_worker(worker:Thread,prepare:Callable)->int:
+		if not hold_workers:return super._start_worker(worker,prepare)
+		var code:=worker.start(_gated_prepare.bind(prepare,gate))
+		if code==OK:gate_started+=1
+		return code
+	func release_gates()->void:
+		hold_workers=false
+		# Post every successful start even if the two-worker assertion failed.
+		# The cancelled real prepare callable then follows production cleanup.
+		for i in gate_started:gate.post()
+		gate_started=0
 var failures:=0
 func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
@@ -68,8 +89,8 @@ func guards()->void:
 	await physics_frame;await physics_frame;await process_frame
 	check(PhysicsServer3D.body_get_space(player.get_rid())==player.get_world_3d().space,"guard fixture player is attached to the real physics space")
 	var status:=Label.new();world.add_child(status);world._status=status
-	var nearby:Dictionary={"record":{"uuid":"guard_near"},"bounds":AABB(Vector3(3,0,3),Vector3(2,2,2))}
-	var far:Dictionary={"record":{"uuid":"guard_far"},"bounds":AABB(Vector3(24,0,24),Vector3(2,2,2))}
+	var nearby:Dictionary={"record":{"uuid":"guard_near"},"path":"fixture:near","bounds":AABB(Vector3(3,0,3),Vector3(2,2,2))}
+	var far:Dictionary={"record":{"uuid":"guard_far"},"path":"fixture:far","bounds":AABB(Vector3(24,0,24),Vector3(2,2,2))}
 	deferred.pending=[nearby,far];player.input_locked=false;player.velocity=Vector3(3,-7,2)
 	world._guard_deferred_geometry()
 	check(player.geometry_blocked and player.input_locked and world._geometry_wait_locked,"missing nearby asset acquires geometry and input locks")
@@ -142,7 +163,7 @@ func continuous_appends()->void:
 	await ray(world,Vector3(100,1,4),"waiting_near")
 	world.host.free()
 func scheduling_item(id:String,path:String,x:float)->Dictionary:
-	return {"record":{"uuid":id,"kind":"asset","asset_path":path,"position":[x,0,0],"rotation":[0,0,0],"size":[1,1,1]},"path":path,"digest":FileAccess.get_sha256(path),"bounds":AABB(Vector3(x-.5,-.5,-.5),Vector3.ONE)}
+	return {"record":{"uuid":id,"kind":"asset","asset_path":path,"position":[x,0,0],"rotation":[0,0,0],"size":[1,1,1]},"path":path,"digest":FileAccess.get_sha256(path),"memory":preload("res://scripts/world3d/asset_memory_estimate.gd").estimate(path),"bounds":AABB(Vector3(x-.5,-.5,-.5),Vector3.ONE)}
 func scheduler()->void:
 	var paths=preload("res://scripts/world3d/map_paths.gd")
 	var assets=preload("res://scripts/world_editor/asset_library.gd")
@@ -150,18 +171,15 @@ func scheduler()->void:
 	DirAccess.make_dir_recursive_absolute(directory)
 	var path_a:=directory.path_join("a.glb");var path_b:=directory.path_join("b.glb")
 	for path:String in [path_a,path_b]:
-		var source:=MeshInstance3D.new();source.name="Box";source.mesh=BoxMesh.new()
-		var writer:=GLTFDocument.new();var state:=GLTFState.new()
-		var code:=writer.append_from_scene(source,state)
-		if code==OK:code=writer.write_to_filesystem(state,path)
-		source.free();check(code==OK,"create isolated ordinary scheduling model "+path.get_file())
+		var code:int=preload("res://tools/test_transfer_loading_gpu.gd").ordinary_fixture(path)
+		check(code==OK,"create isolated ordinary scheduling model "+path.get_file())
 	var preload_a:Node=preload("res://scripts/world3d/gltf_map_io.gd").load_scene(path_a)
-	check(assets.cache_scene(path_a,preload_a),"model A is already prepared in shared cache")
+	check(assets.cache_scene(path_a,preload_a,FileAccess.get_sha256(path_a)),"model A is already prepared in shared cache")
 	var world:=scene([]);var service:=Deferred.new();world.map.add_child(service)
-	service.pending=[scheduling_item("a_far",path_a,100),scheduling_item("b_near",path_b,10),scheduling_item("b_next",path_b,20)]
-	service._prepared_paths[path_a]=true;service.prioritize(Vector3.ZERO)
+	service.pending=[scheduling_item("a_far",path_a,300),scheduling_item("b_near",path_b,10),scheduling_item("b_next",path_b,20)]
+	service._prepared_paths[path_a]=true;service.source_signatures[path_a]=FileAccess.get_sha256(path_a);service.prioritize(Vector3.ZERO)
 	check(service.pending[service._nearest_index()].record.uuid=="b_near","unprepared nearby model B precedes prepared distant model A")
-	service.prioritize(Vector3(99,0,0))
+	service.prioritize(Vector3(299,0,0))
 	check(service.pending[service._nearest_index()].record.uuid=="a_far","player movement reorders globally across model paths")
 	service.prioritize(Vector3.ZERO)
 	var published:Array=[]
@@ -169,7 +187,7 @@ func scheduler()->void:
 		var id:String=str(specs[0].uuid).get_slice("__",0);published.append(id)
 		# Move after the first actual publication: the prepared A instance must
 		# precede B's second instance, without preparing B a second time later.
-		service.prioritize(Vector3(99,0,0) if id=="b_near" else Vector3.ZERO)
+		service.prioritize(Vector3(299,0,0) if id=="b_near" else Vector3.ZERO)
 	)
 	service.activate(world.host)
 	for i in 1800:
@@ -180,6 +198,56 @@ func scheduler()->void:
 	check(int(service.profile.models)==1 and int(service.profile.instances)==3 and service._prepared_paths.size()==2,"model B is prepared once for both instances; prepared model A is reused")
 	check(service.source_signatures.has(path_b),"single B preparation retains verified source signature")
 	world.host.free();assets._scenes.erase(path_a);assets._scenes.erase(path_b)
+	# The production scheduler admits two private jobs, leaves unrequested
+	# regions dormant, and cancels stale work without publishing its results.
+	world=scene([]);var gated:=GateDeferred.new();service=gated;world.map.add_child(service)
+	service.pending=[scheduling_item("near_a",path_a,10),scheduling_item("near_b",path_b,20),scheduling_item("remote",path_b,2000)]
+	service.activate(world.host)
+	await process_frame;await process_frame
+	check(service.active_workers()==0 and service.profile.models==0,"no ticket means no background import")
+	service.prioritize(Vector3.ZERO)
+	var deadline:=Time.get_ticks_msec()+3000
+	for i in 180:
+		await process_frame
+		if service.active_workers()==2 or not service.error.is_empty() or Time.get_ticks_msec()>=deadline:break
+	var two_alive:=service.active_workers()==2 and service._admission.count()==2 and gated.gate_started==2
+	for job:Dictionary in service._jobs.values():
+		two_alive=two_alive and job.has("worker") and job.worker.is_alive()
+	check(two_alive,"two distinct small chunk dependencies prepare concurrently across bounded dispatch slices")
+	service.release_demand("player")
+	gated.release_gates()
+	for i in 600:
+		await process_frame
+		if service.is_idle():break
+	check(service.is_idle() and service._prepared_paths.is_empty() and service.pending.size()==3 and service._admission.reserved_bytes==0,"withdrawn ticket discards worker results and releases capacity")
+	service.prioritize(Vector3.ZERO)
+	for i in 600:
+		await process_frame
+		if service.is_idle():break
+	check(service.error.is_empty() and service.is_idle() and service.pending.size()==1 and service.pending[0].record.uuid=="remote","near chunk becomes idle while far instance remains dormant")
+	check(service.profile.models==2 and service.profile.peak_jobs==2,"one preparation per shared path and bounded concurrent peak")
+	service.prioritize(Vector3(2000,0,0))
+	for i in 600:
+		await process_frame
+		if service.is_complete():break
+	check(service.is_complete() and service.profile.models==2,"new ticket reuses shared resource without repeated preparation")
+	world.host.free();assets._scenes.erase(path_a);assets._scenes.erase(path_b)
+
+func source_pins()->void:
+	var world:=scene([box("origin",Vector3(4,1,4),Vector3.ONE),box("target",Vector3(2004,1,4),Vector3.ONE),box("between",Vector3(1004,1,4),Vector3.ONE)])
+	Stream.sync(world.map,world.host,Vector3.ZERO)
+	var old_mesh:Node=world.map.get_meta("stream_meshes").origin
+	var old_body:Node=world.map.get_meta("stream_bodies").origin
+	Stream.pin_source(world.map,"origin",Vector3.ZERO)
+	Stream.pin_source(world.map,"target",Vector3(2000,0,0))
+	await settle(world,Vector3(2000,0,0))
+	check(world.map.get_meta("stream_bodies").origin==old_body and world.map.get_meta("stream_meshes").origin==old_mesh,"two source residency preserves original collision/render identities")
+	check(world.map.get_meta("stream_bodies").has("target") and not world.map.get_meta("stream_bodies").has("between"),"destination loads without preparing the region between sources")
+	await ray(world,Vector3(4,1,4),"origin");await ray(world,Vector3(2004,1,4),"target")
+	Stream.release_source(world.map,"target");Stream.release_source(world.map,"origin")
+	await settle(world,Vector3.ZERO)
+	check(world.map.get_meta("stream_bodies").origin==old_body and not world.map.get_meta("stream_bodies").has("target"),"rollback releases target while preserving origin")
+	world.host.free()
 func shared_near_far_model()->void:
 	var paths=preload("res://scripts/world3d/map_paths.gd")
 	var assets=preload("res://scripts/world_editor/asset_library.gd")
@@ -214,6 +282,7 @@ func shared_near_far_model()->void:
 	check(near_specs.size()==1 and map.get_meta("stream_meshes",{}).has(near_specs[0].uuid),"near imported instance is a real resident mesh")
 	if near_specs.size()==1:await ray({"host":host},Vector3(4,.5,4),near_specs[0].uuid)
 	service.activate(host)
+	service.prioritize(Vector3(304,.9,4))
 	for i in 600:
 		await process_frame
 		if service.is_complete() or not service.error.is_empty():break
@@ -303,6 +372,7 @@ func run()->void:
 	reverse.host.free()
 	await guards()
 	await continuous_appends()
+	await source_pins()
 	await scheduler()
 	await shared_near_far_model()
 	print("STREAM_APPEND_RUNTIME_FINISHED failures=",failures);quit(1 if failures else 0)

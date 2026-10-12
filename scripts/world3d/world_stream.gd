@@ -14,8 +14,28 @@ const FRAME_BUDGET := 12
 const LOAD_BUDGET := 512
 const GroundBatcher = preload("res://scripts/world3d/ground_batcher.gd")
 const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const CollisionGeometry = preload("res://scripts/world3d/model_collision_requirements.gd")
 const FortCollision = preload("res://scripts/world3d/fortification_collision_batcher.gd")
 const Landscape = preload("res://scripts/world3d/stream_landscape.gd")
+const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
+
+## Validated query reuse with an A/B fallback. Only candidates/bounds are cached;
+## bodies, collision modes, exact footprints and physics stamps remain live.
+static var collision_candidate_cache_enabled:=true
+## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
+static var collision_readiness_profile_enabled:=false
+const COLLISION_CANDIDATE_RANGES:=8
+const COLLISION_CANDIDATE_CELLS:=64
+const COLLISION_CANDIDATE_LIMIT:=8192
+class CollisionCandidate:
+	extends RefCounted
+	var spec:Dictionary
+	var mesh:Mesh
+	var pose:=Transform3D.IDENTITY
+	var local_bounds:=AABB()
+	var area:=Rect2()
+	var initialized:=false
+	func _init(source:Dictionary)->void:spec=source
 
 
 static func chunk_key(position: Vector3) -> Vector2i:
@@ -35,10 +55,30 @@ static func ring(origin: Vector3, radius: int) -> Dictionary:
 
 
 static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -> void:
+	if budget<=0 or not FrameBudget.enabled:
+		_sync_work(map_root,host,origin,budget)
+		return
+	var allowed:=FrameBudget.allowance("collision",24000 if budget>=LOAD_BUDGET else 3000,budget>=LOAD_BUDGET)
+	if allowed<=0:return
+	var started:=Time.get_ticks_usec()
+	_sync_work(map_root,host,origin,budget,started+allowed)
+	FrameBudget.charge("collision",started)
+
+static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadline:int=0)->void:
 	var sync_started:=Time.get_ticks_usec()
-	if budget<=0 or budget>=LOAD_BUDGET:
+	var source_revision:=int(map_root.get_meta("stream_source_revision",0))
+	if int(map_root.get_meta("stream_applied_source_revision",0))!=source_revision:
+		# A source transaction changes residency independently of player position.
+		# Reconsider live + requested cells, never the rectangle between sources.
+		map_root.remove_meta("stream_target");map_root.remove_meta("stream_chunk")
+		map_root.remove_meta("stream_candidate_work")
+		map_root.set_meta("stream_applied_source_revision",source_revision)
+	if budget<=0:
 		var pending=map_root.get_node_or_null("StreamCollisionPreparer")
 		if pending!=null:pending.cancel_pending()
+	elif budget<LOAD_BUDGET or _entry_clip(map_root)==null or not preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled:
+		var pending=map_root.get_node_or_null("StreamCollisionPreparer")
+		if pending!=null:pending._face_prefetch.cancel()
 	var library: Array = _library(map_root)
 	var known := _dict(map_root, &"stream_known")
 	var meshes := _dict(map_root, &"stream_meshes")
@@ -53,7 +93,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	# Finish the current district plan before absorbing more same-target work.
 	# Repeated arrivals must not cancel an in-flight collision preparation or
 	# reset the plan cursor forever; new entries remain explicitly queued.
-	var settling:bool=budget>0 and budget<LOAD_BUDGET and _chunk_is(map_root,&"stream_target",target) and not _chunk_is(map_root,&"stream_chunk",target)
+	var settling:bool=budget>0 and _chunk_is(map_root,&"stream_target",target) and not _chunk_is(map_root,&"stream_chunk",target)
 	if not additions.is_empty() and not settling:
 		# Replan only newly published/unfinished entries, including when the player
 		# has not crossed a chunk boundary. Never re-adopt the live scene graph.
@@ -90,7 +130,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		map_root.set_meta(&"stream_target", target)
 		map_root.remove_meta(&"stream_chunk")
 		jobs.clear()
-		if previous_chunk is Vector2i and budget>0 and budget<LOAD_BUDGET:
+		if previous_chunk is Vector2i and budget>0 and budget<LOAD_BUDGET and map_root.get_meta("stream_sources",{}).is_empty() and _entry_clip(map_root)==null:
 			map_root.set_meta("stream_candidate_work",preload("res://scripts/world3d/stream_candidate_plan.gd").new(map_root,previous_chunk,target,unfinished,load("res://scripts/world3d/world_stream.gd")))
 			map_root.remove_meta("stream_candidates")
 		else:
@@ -106,7 +146,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		var work:RefCounted=map_root.get_meta("stream_candidate_work")
 		if budget<=0:
 			while not work.advance(12000):pass
-		elif not work.advance(12000 if budget>=LOAD_BUDGET else 1500):return
+		elif not work.advance(mini(12000 if budget>=LOAD_BUDGET else 1500,maxi(1,deadline-Time.get_ticks_usec())) if deadline>0 else (12000 if budget>=LOAD_BUDGET else 1500)):return
 		map_root.set_meta("stream_candidates",work.selected.values())
 		map_root.remove_meta("stream_candidate_work")
 		# Selection used this frame's budget. Planning/attachment starts next frame.
@@ -114,20 +154,28 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var detailed:=bool(map_root.get_meta("profile_collision_details",false))
 	if detailed:map_root.set_meta("stream_plan_detail",{})
 	var plan_call_started:=Time.get_ticks_usec() if detailed else 0
-	var plan_ready:=_plan_jobs(map_root, jobs, meshes, bodies, target, budget)
+	# A positive outer allowance must advance a pending plan even when fixed
+	# metadata checks consumed a tiny slice. Planning itself stops after a unit.
+	var planned_work:=map_root.has_meta("stream_candidates")
+	var plan_ready:=_plan_jobs(map_root, jobs, meshes, bodies, target, budget,deadline)
 	if detailed:map_root.get_meta("stream_plan_detail")["call_ms"]=(Time.get_ticks_usec()-plan_call_started)/1000.
 	if not plan_ready:
 		if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"planning","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(Time.get_ticks_usec()-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail")})
 		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PLAN_SLOW ",{"index":(plan_started-sync_started)/1000.0,"plan":(Time.get_ticks_usec()-plan_started)/1000.0})
 		if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":Time.get_ticks_usec()-plan_started})
 		return
+	if planned_work and deadline>0 and Time.get_ticks_usec()>=deadline:return
 	var cursor := int(map_root.get_meta(&"stream_cursor", 0))
+	var initial_cursor:=cursor
 	var left := 1000000 if budget <= 0 else budget
-	var draw := _ring_at(target, RENDER_RADIUS)
-	var solid := _ring_at(target, COLLISION_RADIUS)
+	var draw := _source_ring(map_root,target, RENDER_RADIUS)
+	var solid := _source_ring(map_root,target, COLLISION_RADIUS)
 	var wrapper_profile:Variant=_collision_wrapper_slots(map_root) if detailed else null
 	var apply_started := Time.get_ticks_usec()
+	if budget>=LOAD_BUDGET and _entry_clip(map_root)!=null:
+		_prefetch_collisions(map_root,host,jobs,cursor,solid,bodies)
 	while left > 0 and cursor < jobs.size():
+		if deadline>0 and Time.get_ticks_usec()>=deadline and cursor>initial_cursor:break
 		var wrapper_stamps:Variant=null
 		if detailed and budget>0 and budget<LOAD_BUDGET:
 			if int(wrapper_profile.count)<wrapper_profile.slots.size():
@@ -137,7 +185,11 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 			else:wrapper_profile.dropped+=1
 		var prepare_started:=Time.get_ticks_usec()
 		if wrapper_stamps!=null:wrapper_stamps[0]=prepare_started
-		var collision_ready:bool=budget<=0 or budget>=LOAD_BUDGET or _prepare_collision(map_root,host,jobs[cursor],solid,bodies,wrapper_stamps)
+		# Covered entry and walking use identical exact collision geometry. A
+		# larger loading budget must not silently select a monolithic collider.
+		var collision_budget:=maxi(1,24000-int(Time.get_ticks_usec()-apply_started)) if budget>=LOAD_BUDGET else 1500
+		if deadline>0:collision_budget=mini(collision_budget,maxi(1,deadline-Time.get_ticks_usec()))
+		var collision_ready:bool=budget<=0 or _prepare_collision(map_root,host,jobs[cursor],solid,bodies,wrapper_stamps,collision_budget)
 		if wrapper_stamps!=null:wrapper_stamps[7]=Time.get_ticks_usec()
 		# Detailed runs retain absolute endpoints instead of synchronously printing
 		# inside the interval whose unexplained tail is being investigated.
@@ -146,7 +198,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 		if not collision_ready:break
 		# Finishing a large terrain shape can consume this frame's budget by
 		# itself. Keep the prepared shape and attach its body on the next frame.
-		if budget>0 and budget<LOAD_BUDGET and Time.get_ticks_usec()-apply_started>=3000:break
+		if budget>0 and Time.get_ticks_usec()-apply_started>=(24000 if budget>=LOAD_BUDGET else 3000):break
 		var item_started:=Time.get_ticks_usec()
 		if _apply(map_root, host, jobs[cursor], draw, solid, meshes, bodies):
 			map_root.set_meta("stream_visibility_revision",int(map_root.get_meta("stream_visibility_revision",0))+1)
@@ -190,17 +242,31 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":apply_started-plan_started,"apply":batch_started-apply_started,"batch":Time.get_ticks_usec()-batch_started})
 	if cursor < jobs.size():
 		return
+	var collision_preparer=map_root.get_node_or_null("StreamCollisionPreparer")
+	if collision_preparer!=null:collision_preparer._face_prefetch.cancel()
 	jobs.clear()
 	map_root.set_meta(&"stream_cursor", 0)
 	map_root.set_meta(&"stream_chunk", target)
 
 
 static func append_specs(map_root:Node,additions:Array)->Dictionary:
+	# Collision-only instances do not enter the visual index. Validate their full
+	# namespace before Index.append mutates its shared dictionaries, then transfer
+	# the existing bodies in the same synchronous publication transaction.
+	var collision_residency=map_root.get_node_or_null("CollisionInstanceResidency")
+	# Cancellation returns an empty store to the ordinary loading path. A
+	# terminated optional optimization must not reject unrelated visual batches.
+	if collision_residency!=null and not collision_residency.has_instances():collision_residency=null
+	var promotion:Dictionary={}
+	if collision_residency!=null:
+		promotion=collision_residency.preflight_promotion(additions)
+		if not promotion.ok:return promotion
 	var data:Dictionary={}
 	for key:StringName in map_root.get_meta_list():
 		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
 	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions)
 	if not result.ok:return result
+	if collision_residency!=null:collision_residency.commit_promotion(promotion.token)
 	_library(map_root).append_array(additions)
 	for key:String in result.data:
 		if key in ["stream_library","stream_jobs","stream_candidates","stream_plan_bins"]:continue
@@ -208,6 +274,170 @@ static func append_specs(map_root:Node,additions:Array)->Dictionary:
 	var pending:Array=map_root.get_meta("stream_append_pending",[])
 	pending.append_array(additions);pending.append_array(result.get("affected_existing_specs",[]));map_root.set_meta("stream_append_pending",pending)
 	return result
+
+
+static func _resident_index_data(map_root:Node)->Dictionary:
+	var data:Dictionary={}
+	for key:StringName in map_root.get_meta_list():
+		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
+	return data
+
+static func can_retire_specs(map_root:Node,ids:Array)->Dictionary:
+	# Entry temporarily masks distant demand; it never withdraws existing leases.
+	if _entry_clip(map_root)!=null:return {"ok":false,"error":"entry_scope"}
+	# Retire only between residency plans. No candidate cursor or batch worker
+	# may still own the removed specs. Busy is a retry, never a blocking join.
+	if not map_root.has_meta("stream_chunk") or not _jobs(map_root).is_empty() or map_root.has_meta("stream_candidate_work") or not map_root.get_meta("stream_append_pending",[]).is_empty():return {"ok":false,"error":"stream_busy"}
+	var batcher=map_root.get_node_or_null("GroundRenderBatches")
+	if batcher!=null and (not batcher._workers.is_empty() or not batcher.pending.is_empty() or not batcher._preparation.is_empty()):return {"ok":false,"error":"batch_leased"}
+	var checked:Dictionary=preload("res://scripts/world3d/stream_index.gd").validate_retire(_resident_index_data(map_root),_library(map_root),ids)
+	if not checked.ok:return checked
+	var target:Vector2i=map_root.get_meta("stream_chunk")
+	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
+	var specs:Array=[];var by_id:Dictionary=map_root.get_meta("stream_by_id",{})
+	for id:String in ids:
+		var spec:Dictionary=by_id[id]
+		if _draws(spec,draw) or _overlaps(spec,solid):return {"ok":false,"error":"source_pinned"}
+		specs.append(spec)
+	var collision=map_root.get_node_or_null("StreamCollisionPreparer")
+	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
+	return {"ok":true,"error":""}
+
+static func retire_specs(map_root:Node,ids:Array)->Dictionary:
+	var checked:=can_retire_specs(map_root,ids)
+	if not checked.ok:return checked
+	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").retire(_resident_index_data(map_root),_library(map_root),ids)
+	if not result.ok:return result
+	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
+	var nodes:Array=[]
+	for id:String in ids:
+		if is_instance_valid(meshes.get(id)):nodes.append(meshes[id])
+	var batcher=map_root.get_node_or_null("GroundRenderBatches")
+	if batcher!=null:batcher.release_sources(nodes)
+	for id:String in ids:
+		_drop(meshes,id,meshes.get(id));_drop(bodies,id,bodies.get(id))
+	for key:String in result.data:map_root.set_meta(key,result.data[key])
+	# Index retirement cannot leave transient planning or debug ownership.
+	map_root.remove_meta("stream_candidates");map_root.remove_meta("stream_plan_bins")
+	map_root.set_meta("stream_children",map_root.get_child_count())
+	return {"ok":true,"error":"","removed":result.removed,"removed_ids":result.removed_ids}
+
+
+static func pin_source(map_root:Node,id:String,origin:Vector3)->void:
+	if id.is_empty() or not origin.is_finite():return
+	var sources:Dictionary=map_root.get_meta("stream_sources",{})
+	var cell:=chunk_key(origin)
+	if sources.get(id)==cell:return
+	sources[id]=cell;map_root.set_meta("stream_sources",sources)
+	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
+
+static func release_source(map_root:Node,id:String)->void:
+	var sources:Dictionary=map_root.get_meta("stream_sources",{})
+	if not sources.erase(id):return
+	map_root.set_meta("stream_sources",sources)
+	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
+
+## Covered entry/transfer only. XZ bounds include the capsule and camera safety
+## margin supplied by the caller; height is conservatively not culled here.
+## Existing sources and live collision objects survive this temporary mask.
+static func set_entry_scope(map_root:Node,clip:AABB)->bool:
+	if not _valid_entry_clip(clip):return false
+	if _entry_clip(map_root)==clip:return true
+	map_root.set_meta("entry_stream_clip",clip)
+	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
+	return true
+
+
+static func clear_entry_scope(map_root:Node)->void:
+	if not map_root.has_meta("entry_stream_clip"):return
+	map_root.remove_meta("entry_stream_clip")
+	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
+
+
+static func _valid_entry_clip(clip:AABB)->bool:
+	return clip.position.is_finite() and clip.size.is_finite() and clip.end.is_finite() and clip.size.x>0 and clip.size.z>0 and clip.size.y>=0
+
+
+static func _entry_clip(map_root:Node)->Variant:
+	if not map_root.has_meta("entry_stream_clip"):return null
+	var clip:Variant=map_root.get_meta("entry_stream_clip")
+	return clip if clip is AABB and _valid_entry_clip(clip) else null
+
+
+static func _entry_area(clip:AABB)->Dictionary:
+	return {"low":chunk_key(clip.position),"high":chunk_key(clip.end),"entry_clip":clip}
+
+
+static func _in_entry_scope(spec:Dictionary,clip:AABB)->bool:
+	# Use the actual visual and collision bounds, never the compact author proxy
+	# or whole-building render_bounds (which may include distant supports).
+	if spec.get("extras",{}).has("fixture"):
+		# Fixture index bounds include the full hinge sweep, not only today's pose.
+		return _overlaps(spec,{"low":chunk_key(clip.position),"high":chunk_key(clip.end)})
+	var found:=false
+	for mesh:Variant in [spec.get("mesh"),spec.get("collision_mesh")]:
+		if not mesh is Mesh or not spec.get("transform") is Transform3D:continue
+		var local:AABB=AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb()
+		var bounds:AABB=spec.transform*local
+		if not bounds.position.is_finite() or not bounds.size.is_finite():return true
+		found=true
+		if bounds.position.x<=clip.end.x and bounds.end.x>=clip.position.x and bounds.position.z<=clip.end.z and bounds.end.z>=clip.position.z:return true
+	if found:return false
+	# Older CPU-only index consumers may have no Mesh. Their cell bounds are a
+	# conservative fallback; uncertainty must not hide a required source.
+	if not spec.get("chunk_min",spec.get("chunk")) is Vector2i:return true
+	return _overlaps(spec,{"low":chunk_key(clip.position),"high":chunk_key(clip.end)})
+
+
+static func _entry_candidates(map_root:Node,clip:AABB)->Array:
+	var index:=_dict(map_root,&"stream_index");var by_id:=_dict(map_root,&"stream_by_id")
+	var area:=_entry_area(clip);var selected:Dictionary={}
+	for z in range(area.low.y,area.high.y+1):
+		for x in range(area.low.x,area.high.x+1):
+			for id:Variant in index.get(Vector2i(x,z),[]):
+				if selected.has(id):continue
+				var spec:Dictionary=by_id[id]
+				if _in_entry_scope(spec,clip):selected[id]=spec
+	return selected.values()
+
+
+## Checks only entry-visible/collidable resident specs, not unrelated batch
+## queues. The caller must separately gate unpublished dependency/terrain work.
+static func entry_scope_ready(map_root:Node)->bool:
+	var clip:Variant=_entry_clip(map_root)
+	if clip==null:return false
+	if not map_root.has_meta("stream_by_id") or int(map_root.get_meta("stream_applied_source_revision",-1))!=int(map_root.get_meta("stream_source_revision",0)):return false
+	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
+	var batcher=map_root.get_node_or_null("GroundRenderBatches")
+	var collision_batches=map_root.get_node_or_null("FortificationCollisionBatches")
+	var batched:Dictionary={}
+	if collision_batches!=null:
+		for group:Dictionary in collision_batches.groups.values():
+			if not is_instance_valid(group.get("body")):continue
+			for member:Dictionary in group.members:batched[member.uuid]=true
+	var area:=_entry_area(clip)
+	for spec:Dictionary in _entry_candidates(map_root,clip):
+		if _needs_work(spec,area,area,meshes,bodies,batched):return false
+		if bool(spec.get("native_visual",false)):continue
+		var source:MeshInstance3D=_live(meshes,str(spec.uuid))
+		# A deferred/frozen CPU mesh is not a rendered source. Its own batch must
+		# exist; other pending batch groups have no bearing on this entry gate.
+		if source!=null and source.mesh is CpuMesh:
+			if batcher==null:return false
+			var key:String=str(batcher._member_groups.get(str(spec.uuid),""))
+			if key.is_empty() or not batcher.groups.has(key) or not is_instance_valid(batcher.groups[key].get("visual")):return false
+	return true
+
+
+static func _source_ring(map_root:Node,target:Vector2i,radius:int)->Dictionary:
+	var clip:Variant=_entry_clip(map_root)
+	if clip!=null:return _entry_area(clip)
+	var area:=_ring_at(target,radius)
+	var rings:Array=[]
+	for cell:Vector2i in map_root.get_meta("stream_sources",{}).values():
+		if cell!=target:rings.append(_ring_at(cell,radius))
+	if not rings.is_empty():area.sources=rings
+	return area
 
 
 static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
@@ -228,6 +458,137 @@ static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
 				if not area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z)):continue
 				if not batched.has(spec.uuid) and not is_instance_valid(bodies.get(spec.uuid)):return false
 	return true
+
+## Exact residency and physics-publication evidence for one swept footprint.
+## The caller separately proves unpublished reference dependencies are ready.
+## Never accept the fortification source catalogue as an installed physics body.
+static func collision_readiness(map_root:Node,clip:AABB)->Dictionary:
+	var profile:Dictionary={"candidates":0,"intersections":0,"bounds_us":0,"body_us":0,"bounds_updates":0} if collision_readiness_profile_enabled else {}
+	var began:=Time.get_ticks_usec() if collision_readiness_profile_enabled else 0
+	var result:=_collision_readiness_impl(map_root,clip,profile)
+	if not profile.is_empty() and is_instance_valid(map_root):
+		profile.total_us=Time.get_ticks_usec()-began
+		# The remainder includes bucket enumeration/de-duplication/cache lookup,
+		# mode checks, exact-area intersection and receipt bookkeeping.
+		profile.candidate_us=maxi(0,profile.total_us-profile.bounds_us-profile.body_us)
+		var totals:Dictionary=map_root.get_meta("stream_collision_readiness_profile",{})
+		totals.calls=int(totals.get("calls",0))+1
+		for key:String in profile:totals[key]=int(totals.get(key,0))+int(profile[key])
+		totals.max_call_us=maxi(int(totals.get("max_call_us",0)),profile.total_us)
+		totals.last=profile;map_root.set_meta("stream_collision_readiness_profile",totals)
+	return result
+
+static func _collision_readiness_impl(map_root:Node,clip:AABB,profile:Dictionary)->Dictionary:
+	var result:={"ok":false,"reason":"collision_pending","physics_published_frame":-1}
+	if not is_instance_valid(map_root) or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.y<0 or clip.size.z<0:return result
+	if not map_root.has_meta("stream_collision_index"):return result
+	var low:=chunk_key(clip.position);var high:=chunk_key(clip.end)
+	var index:Dictionary=map_root.get_meta("stream_collision_index",{})
+	if collision_candidate_cache_enabled and map_root.has_meta("stream_collision_revision") and (high.x-low.x+1)*(high.y-low.y+1)<=COLLISION_CANDIDATE_CELLS:
+		return _cached_collision_readiness(map_root,clip,index,low,high,result,profile)
+	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
+	var fort:Node=map_root.get_node_or_null("FortificationCollisionBatches")
+	var seen:Dictionary={}
+	var area:=Rect2(clip.position.x,clip.position.z,clip.size.x,clip.size.z)
+	for z in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			for spec:Dictionary in index.get(Vector2i(x,z),[]):
+				if seen.has(spec.uuid):continue
+				seen[spec.uuid]=true
+				if not profile.is_empty():profile.candidates+=1
+				var extra:Dictionary=spec.get("extras",{})
+				if spec.get("native_visual",false) or extra.get("hostile",false) or extra.get("ally",false) or extra.get("rmmo_collision","")=="none":continue
+				var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+				if mesh==null or not spec.get("transform") is Transform3D:return result
+				var began:=Time.get_ticks_usec() if not profile.is_empty() else 0
+				var bounds:AABB=spec.transform*(AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb())
+				if not profile.is_empty():profile.bounds_us+=Time.get_ticks_usec()-began;profile.bounds_updates+=1
+				if not area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z),true):continue
+				if not profile.is_empty():profile.intersections+=1
+				began=Time.get_ticks_usec() if not profile.is_empty() else 0
+				var body:Variant=bodies.get(spec.uuid)
+				if not is_instance_valid(body) and fort!=null:body=fort.body_for(str(spec.uuid))
+				var valid:bool=is_instance_valid(body) and body.is_inside_tree() and not body.is_queued_for_deletion() and body.collision_layer!=0 and body.has_meta("stream_physics_published_frame")
+				if not profile.is_empty():profile.body_us+=Time.get_ticks_usec()-began
+				if not valid:return result
+				result.physics_published_frame=maxi(result.physics_published_frame,int(body.get_meta("stream_physics_published_frame")))
+	# With no intersecting solids, landing still fails its actual support ray.
+	result.ok=Engine.get_physics_frames()>int(result.physics_published_frame)
+	result.reason="" if result.ok else "physics_sync_pending"
+	return result
+
+## Static specs retain their indexed cells until Index.build/append/retire.
+## Runtime fixtures instead index their whole hinge sweep. Never exact-filter
+## this list by the query footprint or current pose: either may move on a hit.
+static func _collision_candidates(map_root:Node,index:Dictionary,low:Vector2i,high:Vector2i)->Array:
+	var revision:=int(map_root.get_meta("stream_collision_revision"))
+	var cache:Dictionary=map_root.get_meta("stream_collision_candidate_cache",{})
+	if int(cache.get("revision",-1))!=revision or not is_same(cache.get("index"),index):
+		cache.clear();cache.merge({"revision":revision,"index":index,"ranges":{},"serial":0,"hits":0,"misses":0})
+		map_root.set_meta("stream_collision_candidate_cache",cache)
+	var key:=Vector4i(low.x,low.y,high.x,high.y)
+	cache.serial+=1
+	if cache.ranges.has(key):
+		cache.hits+=1;cache.ranges[key].stamp=cache.serial
+		return cache.ranges[key].items
+	cache.misses+=1
+	var seen:Dictionary={};var items:Array=[]
+	for z in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			for spec:Dictionary in index.get(Vector2i(x,z),[]):
+				if seen.has(spec.uuid):continue
+				seen[spec.uuid]=true;items.append(CollisionCandidate.new(spec))
+	# Large one-off queries stay correct without retaining another scene-sized
+	# owner. Range count and retained candidate references are both bounded.
+	if items.size()>COLLISION_CANDIDATE_LIMIT:return items
+	while cache.ranges.size()>=COLLISION_CANDIDATE_RANGES:
+		var oldest:Variant=null;var stamp:=9223372036854775807
+		for existing:Vector4i in cache.ranges:
+			if int(cache.ranges[existing].stamp)<stamp:oldest=existing;stamp=cache.ranges[existing].stamp
+		cache.ranges.erase(oldest)
+	cache.ranges[key]={"stamp":cache.serial,"items":items}
+	return items
+
+static func collision_candidate_cache_stats(map_root:Node)->Dictionary:
+	var cache:Dictionary=map_root.get_meta("stream_collision_candidate_cache",{})
+	var count:=0
+	for row:Dictionary in cache.get("ranges",{}).values():count+=row.items.size()
+	return {"enabled":collision_candidate_cache_enabled,"revision":int(map_root.get_meta("stream_collision_revision",0)),"hits":cache.get("hits",0),"misses":cache.get("misses",0),"ranges":cache.get("ranges",{}).size(),"candidate_references":count,"profile":map_root.get_meta("stream_collision_readiness_profile",{}).duplicate(true)}
+
+static func _cached_collision_readiness(map_root:Node,clip:AABB,index:Dictionary,low:Vector2i,high:Vector2i,result:Dictionary,profile:Dictionary)->Dictionary:
+	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
+	var fort:Node=map_root.get_node_or_null("FortificationCollisionBatches")
+	var area:=Rect2(clip.position.x,clip.position.z,clip.size.x,clip.size.z)
+	for candidate:CollisionCandidate in _collision_candidates(map_root,index,low,high):
+		if not profile.is_empty():profile.candidates+=1
+		var spec:Dictionary=candidate.spec
+		var extra:Dictionary=spec.get("extras",{})
+		if spec.get("native_visual",false) or extra.get("hostile",false) or extra.get("ally",false) or extra.get("rmmo_collision","")=="none":continue
+		var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+		if mesh==null or not spec.get("transform") is Transform3D:return result
+		var pose:Transform3D=spec.transform
+		var began:=Time.get_ticks_usec() if not profile.is_empty() else 0
+		# Bounds access is CPU metadata, not surface readback. Read it every time:
+		# custom CPU meshes can replace bounds without emitting Resource.changed.
+		var local_bounds:=AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb()
+		if not candidate.initialized or candidate.mesh!=mesh or candidate.pose!=pose or candidate.local_bounds!=local_bounds:
+			var bounds:AABB=pose*local_bounds
+			candidate.mesh=mesh;candidate.pose=pose;candidate.local_bounds=local_bounds
+			candidate.area=Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z);candidate.initialized=true
+			if not profile.is_empty():profile.bounds_updates+=1
+		if not profile.is_empty():profile.bounds_us+=Time.get_ticks_usec()-began
+		if not area.intersects(candidate.area,true):continue
+		if not profile.is_empty():profile.intersections+=1
+		began=Time.get_ticks_usec() if not profile.is_empty() else 0
+		var body:Variant=bodies.get(spec.uuid)
+		if not is_instance_valid(body) and fort!=null:body=fort.body_for(str(spec.uuid))
+		var valid:bool=is_instance_valid(body) and body.is_inside_tree() and not body.is_queued_for_deletion() and body.collision_layer!=0 and body.has_meta("stream_physics_published_frame")
+		if not profile.is_empty():profile.body_us+=Time.get_ticks_usec()-began
+		if not valid:return result
+		result.physics_published_frame=maxi(result.physics_published_frame,int(body.get_meta("stream_physics_published_frame")))
+	result.ok=Engine.get_physics_frames()>int(result.physics_published_frame)
+	result.reason="" if result.ok else "physics_sync_pending"
+	return result
 
 
 static func _profile_load(map_root:Node,timings:Dictionary)->void:
@@ -263,14 +624,14 @@ static func collision_wrapper_snapshot(map_root:Node)->Dictionary:
 	return result
 
 
-static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,wrapper_stamps:Variant=null)->bool:
+static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,wrapper_stamps:Variant=null,work_budget_usec:int=1500)->bool:
 	if wrapper_stamps!=null:wrapper_stamps[1]=Time.get_ticks_usec()
-	if not map_root.get_meta("profile_collision_details",false):return _prepare_collision_impl(map_root,host,spec,solid,bodies)
+	if not map_root.get_meta("profile_collision_details",false):return _prepare_collision_impl(map_root,host,spec,solid,bodies,work_budget_usec)
 	var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
 	var previous_serial:int=preparer.profile_serial if preparer!=null else -1
 	var started:=Time.get_ticks_usec()
 	if wrapper_stamps!=null:wrapper_stamps[2]=started
-	var ready:=_prepare_collision_impl(map_root,host,spec,solid,bodies)
+	var ready:=_prepare_collision_impl(map_root,host,spec,solid,bodies,work_budget_usec)
 	var impl_ended:=Time.get_ticks_usec()
 	if wrapper_stamps!=null:wrapper_stamps[3]=impl_ended
 	var timing:Dictionary={"frame":Engine.get_process_frames(),"physics_frame":Engine.get_physics_frames(),"uuid":str(spec.uuid),"ms":(impl_ended-started)/1000.,"ready":ready}
@@ -286,7 +647,30 @@ static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dic
 	return ready
 
 
-static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
+static func _prefetch_collisions(map_root:Node,host:Node,jobs:Array,cursor:int,solid:Dictionary,bodies:Dictionary)->void:
+	var Preparer=preload("res://scripts/world3d/stream_collision_preparer.gd")
+	if not Preparer.prefetch_enabled or cursor>=jobs.size() or host==null or not host.is_inside_tree():return
+	var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
+	if preparer==null:
+		preparer=Preparer.new();preparer.name="StreamCollisionPreparer";map_root.add_child(preparer)
+	var requests:Array=[];var seen:Dictionary={}
+	# Scan only a bounded prefix of the actual collision/residency plan. A very
+	# sparse prefix simply falls back to the existing per-object preparation.
+	for at in range(cursor,mini(jobs.size(),cursor+256)):
+		if requests.size()>=16:break
+		var spec:Dictionary=jobs[at]
+		if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):continue
+		var extra:Dictionary=spec.get("extras",{})
+		if extra.get("rmmo_collision","")=="none" or extra.get("hostile",false) or extra.get("ally",false):continue
+		if not preload("res://scripts/world3d/flat_terrain_collision.gd").descriptor(spec).is_empty() or FortCollision.candidate(spec.get("ground_batch_record",{})):continue
+		var request:Dictionary=preparer.prefetch_request(spec)
+		if request.is_empty():continue
+		var id:String=preparer._face_prefetch.key(request.source,request.cpu,request.basis)
+		if seen.has(id):continue
+		seen[id]=true;requests.append(request)
+	preparer._face_prefetch.request(requests,host.get_tree())
+
+static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,work_budget_usec:int=1500)->bool:
 	if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):return true
 	var extras:Dictionary=spec.get("extras",{})
 	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
@@ -297,7 +681,7 @@ static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,soli
 		preparer=preload("res://scripts/world3d/stream_collision_preparer.gd").new()
 		preparer.name="StreamCollisionPreparer";map_root.add_child(preparer)
 	preparer.profile_enabled=bool(map_root.get_meta("profile_collision_details",false))
-	return preparer.prepare(spec,host)
+	return preparer.prepare(spec,host,work_budget_usec)
 
 
 static func _library(map_root: Node) -> Array:
@@ -352,9 +736,14 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 	var started:=Time.get_ticks_usec();var spec_us:=0;var free_us:=0;var freed_count:=0
 	preload("res://scripts/world3d/scene_integrity.gd").prepare(map_root)
 	var incoming: Array = []
+	var compiled_holders:Dictionary={}
 	var reused_count:=0
 	_collect_meshes(map_root, incoming)
 	for mesh in incoming:
+		var ancestor:Node=mesh
+		while ancestor!=null and ancestor!=map_root:
+			if ancestor.has_meta("_compiled_resource_owner"):compiled_holders[ancestor.get_instance_id()]=weakref(ancestor)
+			ancestor=ancestor.get_parent()
 		var spec_started:=Time.get_ticks_usec()
 		var spec := _spec(mesh as MeshInstance3D)
 		spec_us+=Time.get_ticks_usec()-spec_started
@@ -402,8 +791,21 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 		mesh.get_parent().remove_child(mesh)
 		(mesh as Node).free()
 		freed_count+=1
+	# Imported transform-only ancestors survive adoption. Their preview owner
+	# must not retain the entire PackedScene after specs have taken ownership of
+	# its resources. Preserve any real native graph or behavioural descendant.
+	for reference:WeakRef in compiled_holders.values():
+		var holder:Node=reference.get_ref()
+		if is_instance_valid(holder) and _empty_compiled_holder(holder):holder.remove_meta("_compiled_resource_owner")
 	free_us=Time.get_ticks_usec()-free_started
 	map_root.set_meta("stream_adopt_ms",{"total":(Time.get_ticks_usec()-started)/1000.0,"spec":spec_us/1000.0,"free":free_us/1000.0,"freed_count":freed_count,"reused_count":reused_count})
+
+
+static func _empty_compiled_holder(node:Node)->bool:
+	if node.get_class()!="Node3D" or node.get_script()!=null or node.has_meta("native_visual") or node.has_meta("native_dynamic"):return false
+	for child:Node in node.get_children():
+		if not _empty_compiled_holder(child):return false
+	return true
 
 
 static func _collect_meshes(node: Node, result: Array) -> void:
@@ -416,6 +818,8 @@ static func _collect_meshes(node: Node, result: Array) -> void:
 
 
 static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bodies: Dictionary) -> Array:
+	var clip:Variant=_entry_clip(map_root)
+	if clip!=null:return _entry_candidates(map_root,clip)
 	var index := _dict(map_root, &"stream_index")
 	var by_id := _dict(map_root, &"stream_by_id")
 	var selected := {}
@@ -426,12 +830,15 @@ static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bo
 	for key in _dict(map_root,&"fortification_collision_sources"):
 		selected[key]=by_id[key]
 	var radius:=maxi(COLLISION_RADIUS,RENDER_RADIUS)
-	for z in range(target.y - radius, target.y + radius + 1):
-		for x in range(target.x - radius, target.x + radius + 1):
-			for key in index.get(Vector2i(x, z), []):
-				selected[key] = by_id[key]
+	var centers:Array=[target]
+	centers.append_array(map_root.get_meta("stream_sources",{}).values())
+	for center:Vector2i in centers:
+		for z in range(center.y - radius, center.y + radius + 1):
+			for x in range(center.x - radius, center.x + radius + 1):
+				for key in index.get(Vector2i(x, z), []):
+					selected[key] = by_id[key]
 	var groups:=_dict(map_root,&"stream_building_groups")
-	var draw:=_ring_at(target,RENDER_RADIUS)
+	var draw:=_source_ring(map_root,target,RENDER_RADIUS)
 	for members:Array in groups.values():
 		if not _draws(members[0],draw):continue
 		for member:Dictionary in members:selected[member.uuid]=member
@@ -440,6 +847,12 @@ static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bo
 	return selected.values()
 
 static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,unfinished:Array=[])->Array:
+	var clip:Variant=_entry_clip(map_root)
+	if clip!=null:return _entry_candidates(map_root,clip)
+	if not map_root.get_meta("stream_sources",{}).is_empty():
+		var selected:Dictionary={}
+		for spec:Dictionary in _candidates(map_root,target,_dict(map_root,&"stream_meshes"),_dict(map_root,&"stream_bodies"))+unfinished:selected[spec.uuid]=spec
+		return selected.values()
 	# After a settled swap, only the entering/leaving spatial strips can change
 	# residency. Whole-building visibility is compared once per building.
 	var selected:Dictionary={}
@@ -471,6 +884,9 @@ static func _index_buildings(map_root:Node,library:Array)->void:
 
 
 static func _draws(spec:Dictionary,draw:Dictionary)->bool:
+	if draw.has("entry_clip"):return _in_entry_scope(spec,draw.entry_clip)
+	for area:Dictionary in draw.get("sources",[]):
+		if _draws(spec,area):return true
 	if not spec.has("render_bounds"):return _overlaps(spec,draw)
 	var extra:=BUILDING_RENDER_RADIUS-RENDER_RADIUS
 	var far:={"low":draw.low-Vector2i(extra,extra),"high":draw.high+Vector2i(extra,extra)}
@@ -480,7 +896,7 @@ static func _draws(spec:Dictionary,draw:Dictionary)->bool:
 	return false
 
 
-static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: Dictionary, target: Vector2i, budget: int) -> bool:
+static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: Dictionary, target: Vector2i, budget: int,deadline:int=0) -> bool:
 	if not map_root.has_meta(&"stream_candidates"):
 		return true
 	var detailed:=bool(map_root.get_meta("profile_collision_details",false))
@@ -489,8 +905,8 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 	var cursor := int(map_root.get_meta(&"stream_plan_cursor", 0))
 	var cursor_before:=cursor
 	var bins: Array = map_root.get_meta(&"stream_plan_bins")
-	var draw := _ring_at(target, RENDER_RADIUS)
-	var solid := _ring_at(target, COLLISION_RADIUS)
+	var draw := _source_ring(map_root,target, RENDER_RADIUS)
+	var solid := _source_ring(map_root,target, COLLISION_RADIUS)
 	var started := Time.get_ticks_usec()
 	while cursor < candidates.size():
 		var item: Dictionary = candidates[cursor]
@@ -503,7 +919,7 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 			if Landscape.ground(item):bin=0 if visible else 4
 			elif item.has("render_building"):bin=2 if visible else 0
 			bins[bin].append(item)
-		if budget > 0 and Time.get_ticks_usec() - started >= (12000 if budget>=LOAD_BUDGET else 2000):
+		if budget > 0 and (Time.get_ticks_usec() - started >= (12000 if budget>=LOAD_BUDGET else 2000) or (deadline>0 and Time.get_ticks_usec()>=deadline)):
 			map_root.set_meta(&"stream_plan_cursor", cursor)
 			if detailed:map_root.set_meta("stream_plan_detail",{"scan_ms":(Time.get_ticks_usec()-entered)/1000.,"scanned":cursor-cursor_before,"pending":true})
 			return false
@@ -518,6 +934,7 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 
 
 static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary, batched: Dictionary={}) -> bool:
+	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
 	var has_mesh := _live(meshes, uuid) != null
@@ -532,6 +949,7 @@ static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, m
 
 
 static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary) -> bool:
+	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
 	var inst = _live(meshes, uuid) as MeshInstance3D
@@ -558,6 +976,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 		elif body == null:
 			body = _make_body(host, spec, map_root.has_meta("profile_frame"))
 			if body != null:
+				body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
 				bodies[uuid] = body
 	elif body != null:
 		_drop(bodies, uuid, body)
@@ -594,18 +1013,26 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 		"extras": extras,
 		"chunk": chunk_key(visual.position),
 	}
-	for slot in visual.mesh.get_surface_count(): spec.surface_overrides.append(visual.get_surface_override_material(slot))
+	var cpu_overrides_key:StringName=preload("res://scripts/world3d/river_materials.gd").CPU_SURFACE_OVERRIDES_META
+	var cpu_overrides:Variant=visual.get_meta(cpu_overrides_key) if visual.has_meta(cpu_overrides_key) else null
+	if visual.mesh is CpuMesh and cpu_overrides is Array:
+		# Immutable indexing has no GPU surface slots. Preserve the same per-slot
+		# materials for _spawn without uploading the disposable directory visual.
+		spec.surface_overrides=cpu_overrides.duplicate()
+	else:
+		for slot in visual.mesh.get_surface_count(): spec.surface_overrides.append(visual.get_surface_override_material(slot))
 	if visual.has_meta("map_draw_order"):spec.map_draw_order=visual.get_meta("map_draw_order")
 	# Painting changes UVs/materials, never the authored solid. Preserve the
 	# exact box primitive instead of downloading the painted mesh for physics.
 	var collision_source: Mesh = visual.get_meta("collision_solid",visual.get_meta("paint_source", visual.mesh))
-	if collision_source is CpuMesh and collision_source.box_size!=Vector3.ZERO:
+	var needs_collision:=CollisionGeometry.needs_adopted_collision(extras)
+	if needs_collision and collision_source is CpuMesh and collision_source.box_size!=Vector3.ZERO:
 		if not collision_source.has_meta("runtime_solid"):
 			var solid:=BoxMesh.new();solid.size=collision_source.box_size;collision_source.set_meta("runtime_solid",solid)
 		collision_source=collision_source.get_meta("runtime_solid")
-	if collision_source is BoxMesh and not collision_source.flip_faces:
+	if needs_collision and collision_source is BoxMesh and not collision_source.flip_faces:
 		spec["collision_mesh"] = collision_source
-	elif collision_source is ArrayMesh or collision_source is CpuMesh or visual.has_meta("collision_solid") or visual.mesh.has_meta("ground_cpu_cache"):
+	elif needs_collision and (collision_source is ArrayMesh or collision_source is CpuMesh or visual.has_meta("collision_solid") or visual.mesh.has_meta("ground_cpu_cache")):
 		# Direct glTF/editor playtests lack the cooked loader's CPU spec. Capture
 		# their immutable triangles during adoption too, so walking into a house
 		# never needs a GPU readback and synchronous TriangleMesh construction.
@@ -738,6 +1165,9 @@ static func _triangle_shape(mesh:Mesh)->ConcavePolygonShape3D:
 
 
 static func _overlaps(spec: Dictionary, chunks: Dictionary) -> bool:
+	if chunks.has("entry_clip"):return _in_entry_scope(spec,chunks.entry_clip)
+	for area:Dictionary in chunks.get("sources",[]):
+		if _overlaps(spec,area):return true
 	var low: Vector2i = spec.get("chunk_min", spec["chunk"])
 	var high: Vector2i = spec.get("chunk_max", spec["chunk"])
 	var ring_low: Vector2i = chunks["low"]

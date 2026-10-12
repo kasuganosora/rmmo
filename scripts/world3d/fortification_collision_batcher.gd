@@ -17,6 +17,11 @@ var cache_hits:=0
 var cache_misses:=0
 var last_sync_frame:=-1
 var sync_count:=0
+var _member_bodies:Dictionary={}
+
+func body_for(uuid:String)->Variant:
+	var body:Variant=_member_bodies.get(uuid)
+	return body if is_instance_valid(body) else null
 
 static func candidate(record: Dictionary) -> bool:
 	for field in ["target_path","npc_id","node_id"]:
@@ -46,6 +51,7 @@ func _ready() -> void:
 func clear() -> void:
 	for group: Dictionary in groups.values(): group.body.free()
 	groups.clear()
+	_member_bodies.clear()
 	_shape_cache.clear(); _cache_triangles=0
 
 func _remember(key: String,value: Dictionary) -> void:
@@ -95,6 +101,7 @@ func sync(entries: Array) -> void:
 		var mark:=Time.get_ticks_usec()
 		var collision:=CollisionShape3D.new(); collision.shape=shape
 		var body:=StaticBody3D.new(); body.add_child(collision)
+		body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
 		body.set_meta("fortification_collision_ranges",ranges); body.set_meta("surface_id",group.members[0].surface_id); body.set_meta("kind","box")
 		body.transform=global_transform.affine_inverse()*Transform3D(Basis.IDENTITY,group.origin)
 		add_child(body)
@@ -103,6 +110,9 @@ func sync(entries: Array) -> void:
 		group.body=body; groups[key]=group; rebuild_count+=1
 		profile.install_us+=Time.get_ticks_usec()-mark
 		max_group_ms=maxf(max_group_ms,(Time.get_ticks_usec()-begin)/1000.)
+	_member_bodies.clear()
+	for group:Dictionary in groups.values():
+		for member:Dictionary in group.members:_member_bodies[member.uuid]=group.body
 	last_sync_ms=(Time.get_ticks_usec()-started)/1000.
 
 func stats() -> Dictionary:

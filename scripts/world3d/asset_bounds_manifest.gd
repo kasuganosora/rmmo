@@ -4,7 +4,7 @@ extends RefCounted
 const MAX_JSON := 4 * 1024 * 1024
 const MAX_NODES := 65536
 const MAX_COORD := 1.0e12
-const MATERIAL_EXTENSIONS := ["KHR_materials_specular", "KHR_materials_transmission", "KHR_materials_unlit", "KHR_materials_emissive_strength", "KHR_materials_pbrSpecularGlossiness"]
+const MATERIAL_EXTENSIONS := ["KHR_materials_specular", "KHR_materials_transmission", "KHR_materials_unlit", "KHR_materials_emissive_strength", "KHR_materials_pbrSpecularGlossiness", "KHR_materials_clearcoat", "KHR_materials_ior"]
 
 static func unknown(reason: String) -> Dictionary:
 	return {"known": false, "reason": reason}

@@ -24,9 +24,37 @@ func run()->void:
 	for normal:Vector3 in mesh.surfaces[0][Mesh.ARRAY_NORMAL]:upward=upward and normal.y>.7
 	for point:Vector3 in mesh.surfaces[0][Mesh.ARRAY_VERTEX]:upward=upward and absf(point.z)<=2.0001
 	check(upward and mesh.get_surface_count()==3,"paving only on walking top; three material surfaces")
+	if "--missing-authoring-kit" in OS.get_cmdline_user_args():
+		record.asset_path=path.get_base_dir()+"/missing_authoring_kit.glb"
+		check(not FileAccess.file_exists(record.asset_path),"source kit absent in isolated frozen bridge fixture")
 	var after:Array=doc.records.duplicate(true)
 	await call_tool("undo",{});check(doc._find("surface_bridge").is_empty(),"undo corrected bridge")
 	await call_tool("redo",{});check(equivalent(doc.records,after),"redo preserves frozen appearance")
 	await call_tool("save_world",{});var reopened=Doc.open_file(path)
 	check(reopened!=null and equivalent(reopened.records,doc.records),"corrected bridge survives save reopen")
+	if reopened!=null:
+		var Frozen=preload("res://scripts/world3d/house_prefab.gd")
+		# Discard both caches so this exercises the actual serialized frozen
+		# payload, never the generation-time mesh/bridge_lods metadata.
+		Frozen._meshes.clear();Frozen._render_meshes.clear()
+		var saved:Dictionary=reopened._find("surface_bridge")
+		var data:=Frozen.decode(saved.house_prefab);var row:Dictionary=data.meshes[data.entries[0][1][0]]
+		var materials:Mesh=Frozen.geometry(saved).mesh
+		var colors_preserved:=true
+		for slot in materials.get_surface_count():
+			var flags:Dictionary=data.materials[row.materials[slot]]
+			colors_preserved=colors_preserved and materials.surface_get_material(slot).vertex_color_use_as_albedo==flags.get("vertex_color",false)
+		check(colors_preserved,"frozen material color policy matches restored rendering, without implicit enablement")
+		var has_lods:bool=row.get("lods",[]).size()==3 and not row.lods[1].is_empty() and not row.lods[2].is_empty()
+		check(has_lods,"saved frozen bridge keeps masonry and detail LOD buffers")
+		if has_lods:
+			var restored:Mesh=Frozen.geometry(saved).mesh.restore()
+			check(preload("res://tools/bridge_lod_assertions.gd").matches(restored,row.lods),"reopened bridge actual GPU LOD buffers and thresholds equal saved data")
+	if "--missing-authoring-kit" in OS.get_cmdline_user_args():
+		var saved_hash:=FileAccess.get_sha256(path)
+		var frozen:Dictionary=doc._find("surface_bridge");var original:Dictionary=frozen.house_prefab.duplicate(true)
+		frozen.house_prefab.sha256="0".repeat(64)
+		await call_tool("save_world",{},false)
+		check(FileAccess.get_sha256(path)==saved_hash,"invalid frozen save has no published side effects")
+		frozen.house_prefab=original
 	editor.queue_free();await settle();print("BRIDGE_SURFACE_MCP failures=",failed);quit(1 if failed else 0)

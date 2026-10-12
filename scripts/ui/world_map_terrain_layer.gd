@@ -50,6 +50,14 @@ func prepare(data:RefCounted,width:float)->bool:
 
 func is_prepared()->bool:return _data!=null and _warm_cursor>=_source.size() and _priority_cursor>=_priority.size()
 
+func are_shapes_prepared(required:Array,width:float)->bool:
+	# Append-only preparation elsewhere must not invalidate commands that are
+	# already complete for this view. A real revision/zoom still fails below.
+	for shape:Dictionary in required:
+		var id:int=shape.get("draw_id",-1)
+		if id<0 or id>=_items.size() or not _items[id].is_valid() or _widths[id]!=width:return false
+	return true
+
 func _process(_delta:float)->void:
 	# Layout, revision and visibility can change while a slice is pending.
 	if not get_parent()._prepare_terrain():
@@ -79,15 +87,8 @@ func _record(i:int,width:float)->void:
 		_items[i]=item
 	var shape:Dictionary=_source[i]
 	var polygon:PackedVector2Array=shape.polygon
-	var count:=polygon.size()
-	if count>1 and polygon[0]==polygon[count-1]:count-=1
-	# WorldMapData footprints are convex hulls. A fan is exact and also avoids
-	# the ear-clipping failure on extremely thin projected grass footprints.
-	var indices:=PackedInt32Array()
-	for corner in range(1,count-1):indices.append_array(PackedInt32Array([0,corner,corner+1]))
 	RenderingServer.canvas_item_clear(_items[i])
-	if not indices.is_empty():RenderingServer.canvas_item_add_triangle_array(_items[i],indices,polygon,PackedColorArray([shape.color]))
-	RenderingServer.canvas_item_add_polyline(_items[i],polygon,PackedColorArray([shape.color.darkened(.25)]),width,true)
+	preload("res://scripts/ui/world_map_footprint.gd").draw(_items[i],polygon,shape.color,width)
 	RenderingServer.canvas_item_set_visible(_items[i],_visible.has(i))
 	_widths[i]=width;commands_recorded+=1
 

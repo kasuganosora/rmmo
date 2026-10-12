@@ -13,11 +13,11 @@ func ground(id:String,low:Vector2i,high:Vector2i)->Dictionary:
 func house(id:String,group:String,at:Vector2i,floor_id:int=0)->Dictionary:
 	return spec(id,at,at,{"building":{"id":group,"floor":floor_id,"role":"floor"}},{"building":{"id":group,"floor":floor_id,"role":"floor"}})
 func public_index(data:Dictionary)->Dictionary:
-	var result:=data.duplicate(true);result.erase("stream_append_state");return result
+	var result:=data.duplicate(true);result.erase("stream_append_state");result.erase("stream_collision_revision");result.erase("stream_collision_candidate_cache");return result
 func same_full(actual:Dictionary,all:Array,label:String)->void:
 	var expected:=Index.build(all.duplicate(true))
 	for key:String in expected:
-		if key=="stream_append_state":continue
+		if key in ["stream_append_state","stream_collision_revision","stream_collision_candidate_cache"]:continue
 		check(actual[key]==expected[key],label+" matches full build: "+key)
 func rejected(existing:Dictionary,items:Array,label:String)->void:
 	var before:=existing.duplicate(true);var input:=items.duplicate(true)

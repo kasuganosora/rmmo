@@ -28,13 +28,16 @@ var building_rotation := Basis.IDENTITY
 
 func begin(owner: Node3D, screen: Vector2, handle: int) -> bool:
 	editor = owner
-	if editor._load_failed: return false
+	if editor._load_failed or editor._gravity.falling: return false
 	uuid = editor._inspector.selection
 	_live_primary = editor._doc._find(uuid)
 	original = _live_primary.duplicate(true)
 	if original.is_empty(): return false
 	_live_records = editor._selection_tools.records()
 	originals = _live_records.duplicate(true)
+	if editor._gravity.enabled and (not editor._gravity.supported(originals) or not editor._gravity.clear_pose(originals)):
+		editor._status.text = "重力放置仅支持未重叠的普通物件；地形、建筑请使用专用工具或关闭此选项"
+		return false
 	if originals.any(func(r):return r.get("prefab_locked",false) and (r.has("fortification") or editor._transform_mode==2)):
 		editor._status.text="固定预制件不能缩放或拆改城防结构";return false
 	building_drag = editor._selection_tools.whole
@@ -126,6 +129,7 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 	if building_drag:
 		building_delta = value-center if mode==0 else Vector3.ZERO
 		building_rotation = group_rotation
+	var accepted_before: Array = _live_records.duplicate(true) if editor._gravity.enabled else []
 	if originals.size() > 1:
 		for i in originals.size():
 			var previous: Dictionary = originals[i]
@@ -141,6 +145,10 @@ func update(screen: Vector2, unsnapped: bool = false) -> void:
 	else:
 		if value.is_equal_approx(Gizmo.vector(record, field)): return
 		record[field] = [value.x, value.y, value.z]
+	if editor._gravity.enabled:
+		var accepted: Array = editor._gravity.constrain(accepted_before, _live_records)
+		for i in _live_records.size():
+			for key in ["position", "rotation", "size"]: _live_records[i][key] = accepted[i][key].duplicate()
 	editor._sync_selected_transform(_live_records)
 	editor._inspector.refresh_transform(_live_primary)
 
@@ -156,7 +164,14 @@ func finish(cancel: bool = false) -> void:
 		var record: Dictionary = _live_records[i]
 		for field in ["position", "rotation", "size"]:
 			if not Gizmo.vector(record, field).is_equal_approx(Gizmo.vector(previous, field)): changed = true
-	if cancel or not changed or building_drag:
+	var gravity_started := false
+	if not cancel and changed and not building_drag and editor._gravity.enabled:
+		result = editor._gravity.start(_live_records, before, originals)
+		gravity_started = result.ok
+		if not result.ok: cancel = true
+	if gravity_started:
+		pass # The fall owns the original drag snapshot and commits once on landing.
+	elif cancel or not changed or building_drag:
 		for i in originals.size():
 			var previous: Dictionary=originals[i]
 			var record: Dictionary = _live_records[i]
@@ -177,8 +192,8 @@ func finish(cancel: bool = false) -> void:
 	_live_records.clear()
 	_live_primary = {}
 	# A successful building commit already rebuilt the isolated floor once.
-	if editor._authoring.settings.isolation and not (building_drag and changed and not cancel and result.get("changed",false)): editor._rebuild()
-	if editor._status != null: editor._status.text = ("已取消变换" if cancel else editor._hint()) if result.ok else result.error
+	if not gravity_started and editor._authoring.settings.isolation and not (building_drag and changed and not cancel and result.get("changed",false)): editor._rebuild()
+	if not gravity_started and editor._status != null: editor._status.text = ("已取消变换" if cancel else editor._hint()) if result.ok else result.error
 
 
 func _intersection(screen: Vector2) -> Variant:

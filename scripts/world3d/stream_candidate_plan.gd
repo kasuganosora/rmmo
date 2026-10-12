@@ -30,8 +30,11 @@ func _init(root:Node,from:Vector2i,to:Vector2i,pending:Array,stream:Script)->voi
 	landscape=root.get_meta("stream_landscape",[])
 
 func advance(budget_usec:int)->bool:
+	if budget_usec<=0:return false
 	var deadline:=Time.get_ticks_usec()+budget_usec
-	while Time.get_ticks_usec()<deadline:
+	var advanced:=false
+	while not advanced or Time.get_ticks_usec()<deadline:
+		advanced=true
 		if stage==0:
 			if bin_cursor>=bins.size():stage=1;cursor=0;continue
 			var bin:Array=bins[bin_cursor]

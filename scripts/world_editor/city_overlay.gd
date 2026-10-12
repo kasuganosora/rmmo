@@ -5,6 +5,8 @@ var texture: Texture2D
 var _path := ""
 var reference_error := ""
 var mini: Control
+var mini_toggle: Button
+var mini_collapsed := false
 var bounds := Rect2(-20,-20,40,40)
 var boxes: Array[Rect2] = []
 var invalidated := false
@@ -43,6 +45,10 @@ func _profile_end(stage: String, started: int) -> void:
 	profile_cpu_us[stage] += Time.get_ticks_usec() - started
 	profile_calls[stage] += 1
 
+func gui_contains(point: Vector2) -> bool:
+	if not is_visible_in_tree(): return false
+	return (mini != null and mini.is_visible_in_tree() and mini.get_global_rect().has_point(point)) or (mini_toggle != null and mini_toggle.is_visible_in_tree() and mini_toggle.get_global_rect().has_point(point))
+
 func setup(value: RefCounted) -> void:
 	city=value; mouse_filter=Control.MOUSE_FILTER_IGNORE; clip_contents=true
 	# A zero-size Control can be culled after negative translations even when
@@ -58,6 +64,13 @@ func setup(value: RefCounted) -> void:
 	mini.draw.connect(draw_minimap); mini.gui_input.connect(minimap_input)
 	mini_marker=Control.new(); mini_marker.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	mini.add_child(mini_marker); mini_marker.draw.connect(draw_minimap_marker)
+	mini_collapsed=bool(city.editor._workspace_preferences.read("minimap_collapsed",false))
+	mini_toggle=Button.new(); mini_toggle.name="ToggleCityOverview"; add_child(mini_toggle)
+	mini_toggle.tooltip_text="展开或收起城镇概览"
+	mini_toggle.pressed.connect(func():
+		mini_collapsed=not mini_collapsed
+		city.editor._workspace_preferences.write("minimap_collapsed",mini_collapsed)
+	)
 	refresh()
 
 func refresh() -> void:
@@ -134,9 +147,17 @@ func _process(_dt: float) -> void:
 			else:_record_bounds[id]=city.Geometry.bounds([_changed_records[id]])
 		_changed_records.clear(); age=0; _refresh_bounds(); mini.queue_redraw()
 	size=city.editor._canvas.size
-	mini.position=Vector2(maxf(0,size.x-mini.size.x-12),12)
+	var compact := size.x < 600
+	var mini_size := Vector2(160,132) if compact else Vector2(200,166)
+	if mini.size != mini_size:
+		mini.custom_minimum_size=mini_size; mini.size=mini_size; mini.queue_redraw()
+	mini.position=Vector2(maxf(0,size.x-mini.size.x-12),44)
 	visible=not city.editor._playtest.active()
-	mini.visible=city.editor._dock_tabs!=null and (city.editor._dock_tabs.current_tab==9 or not city.data.roads.nodes.is_empty() or city.data.has("reference"))
+	var available:bool=city.editor._dock_tabs!=null and (city.editor._dock_tabs.current_tab in [9,11] or not city.data.roads.nodes.is_empty() or city.data.has("reference"))
+	mini_toggle.visible=available
+	mini_toggle.text="展开概览" if mini_collapsed else "收起概览"
+	mini_toggle.position=Vector2(maxf(0,size.x-mini_toggle.size.x-12),8)
+	mini.visible=available and not mini_collapsed
 	# Saving locks the camera and authoring input. Keep the last overlay instead
 	# of projecting the entire road network again for every progress-bar frame.
 	if city.editor.saving():

@@ -74,17 +74,32 @@ func create(args: Dictionary) -> Dictionary:
 	else: editor._doc.records[editor._doc.records.find(source)]=next
 	editor._commit_records([next.uuid])
 	return {"ok":true,"id":next.uuid,"columns":columns,"rows":rows,"converted":not source.is_empty()}
-func prepare(args: Dictionary) -> Dictionary:
+func prepare(args: Dictionary,defer_fortifications:bool=false) -> Dictionary:
 	var error:=Terrain.S.validate(args,Terrain.stroke_schema())
 	if not error.is_empty(): return Terrain.fail(error)
 	var record: Dictionary=editor._doc._find(args.id)
 	if not record.has("terrain_mesh") or not editor._record_editable(record): return Terrain.fail("目标必须是可见、解锁且在当前楼层的地形")
 	if record.has("surface_paint"): return Terrain.fail("地形上有手刷表面；请先清除表面绘制再雕刻，以免覆盖手工材质。整体地形材质不受影响")
-	var result:=Terrain.stroke(record,args)
-	if not result.ok or not result.changed: return result
-	var next: Dictionary=result.record; var t: Dictionary=record.terrain_mesh; var world:=Terrain.transform(record)
+	var result:=preload("res://scripts/world3d/terrain_stroke_batch.gd").prepare(editor._doc.records,record,args)
+	if not result.ok or not result.changed:return result
+	var ids:Array=result.entries.map(func(entry):return entry.record.uuid)
+	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").affected(editor._doc.records,ids).map(func(r):return r.uuid))
+	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").fort_ids(editor,result.entries))
+	for entry:Dictionary in result.entries:
+		var source:Dictionary=editor._doc._find(entry.record.uuid)
+		if not editor._record_editable(source):return Terrain.fail("跨块笔刷触及锁定、隐藏或隔层地形，整笔取消")
+		if source.has("surface_paint"):return Terrain.fail("跨块笔刷触及手刷表面，整笔取消")
+		var checked:=validate_change(source,entry,ids)
+		if not checked.ok:return checked
+	var followed:=preload("res://scripts/world_editor/terrain_follow_tools.gd").prepare(editor,result.entries,defer_fortifications)
+	if not followed.ok:return followed
+	result.entries.append_array(followed.entries);result.map_meta=followed.map_meta;result.removed=followed.removed
+	return result
+
+func validate_change(record:Dictionary,result:Dictionary,participants:Array)->Dictionary:
+	var next:Dictionary=result.record;var t:Dictionary=record.terrain_mesh;var world:=Terrain.transform(record)
 	var furrows:=preload("res://scripts/world3d/terrain_furrows.gd").generate(next)
-	if not furrows.ok: return furrows
+	if not furrows.ok:return furrows
 	var changed_volumes: Array=[]
 	for at in result.cells:
 		var x: int=int(at)%int(t.columns); var z: int=int(at)/int(t.columns)
@@ -96,15 +111,17 @@ func prepare(args: Dictionary) -> Dictionary:
 		var points: Array[Vector3]=[]
 		for v in p: points.append(world*Vector3(v.x,low-.015,v.z)); points.append(world*Vector3(v.x,high+.15,v.z))
 		changed_volumes.append(Foot.from_points(points))
+	if Foot.batches_overlap(changed_volumes,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)):
+		return Terrain.fail("笔刷会改变建筑保留区或保留通道，整笔已拒绝")
 	for obstacle in editor._doc.records:
-		if obstacle.uuid==record.uuid: continue
+		if obstacle.uuid in participants: continue
 		# River water is a non-solid overlay; sculpting the bed through its level is
 		# expected. Keep all other props/linings (including hidden ones) protected.
 		if obstacle.get("surface_id")=="water" and obstacle.has("channel_mesh") and obstacle.get("collision")=="none": continue
 		var bounds:=Foot.record_shape(obstacle)
 		if not Foot.batches_overlap(changed_volumes,[bounds]): continue
 		if Foot.batches_overlap(changed_volumes,Foot.record_shapes(obstacle)): return {"ok":false,"error":"笔刷会侵入现有物件或移除其地面承托，整笔已拒绝","conflicts":[obstacle.uuid]}
-	return result
+	return {"ok":true}
 func summary(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)
 	if not result.ok: return result
@@ -113,17 +130,44 @@ func sculpt(args: Dictionary, interactive: bool=false) -> Dictionary:
 	if not interactive:
 		var ready: Dictionary=editor._gameplay.guard()
 		if not ready.ok: return ready
-	var result:=prepare(args)
+	var result:=prepare(args,interactive)
 	if not result.ok: return result
 	if not result.changed: return {"ok":true,"changed":false,"changed_cells":0,"samples":result.samples}
-	if not interactive: editor._doc.checkpoint()
-	var previous: Dictionary=editor._doc._find(args.id); editor._doc.records[editor._doc.records.find(previous)]=result.record
-	var refresh_ids: Array[String]=[str(args.id)]
+	if not interactive: editor._doc.checkpoint_recovery()
+	var refresh_ids:Array[String]=[]
+	for id:String in result.get("removed",[]):refresh_ids.append(id)
+	editor._doc.records=editor._doc.records.filter(func(r):return r.uuid not in result.get("removed",[]))
+	for entry:Dictionary in result.entries:
+		var previous:Dictionary=editor._doc._find(entry.record.uuid)
+		if previous.is_empty():editor._doc.records.append(entry.record)
+		else:editor._doc.records[editor._doc.records.find(previous)]=entry.record
+		refresh_ids.append(str(entry.record.uuid))
+	editor._doc.map_meta=result.map_meta
 	editor._dirty=true; editor._refresh_records(refresh_ids)
 	if not interactive:
 		editor._refresh_selection()
 		if editor._terrain_panel!=null: editor._terrain_panel.refresh(str(args.id))
-	return {"ok":true,"changed":true,"changed_cells":result.cells.size(),"samples":result.samples}
+	return {"ok":true,"changed":true,"changed_cells":result.cells.size(),"samples":result.samples,"changed_ids":refresh_ids}
+func finish_followers(ids:Array)->Dictionary:
+	var changes:Array=[]
+	for id:String in ids:
+		var r:Dictionary=editor._doc._find(id)
+		if r.has("terrain_mesh"):changes.append({"record":r})
+	if changes.is_empty():return {"ok":true,"ids":[]}
+	var followed:=preload("res://scripts/world_editor/terrain_follow_tools.gd").prepare(editor,changes)
+	if not followed.ok:return followed
+	var refreshed:Array=followed.removed.duplicate()
+	editor._doc.records=editor._doc.records.filter(func(r):return r.uuid not in followed.removed)
+	for entry:Dictionary in followed.entries:
+		var previous:Dictionary=editor._doc._find(entry.record.uuid)
+		if previous.is_empty():editor._doc.records.append(entry.record)
+		else:editor._doc.records[editor._doc.records.find(previous)]=entry.record
+		refreshed.append(entry.record.uuid)
+	editor._doc.map_meta=followed.map_meta
+	var typed:Array[String]=[]
+	for id:String in refreshed:typed.append(id)
+	editor._refresh_records(typed)
+	return {"ok":true,"ids":refreshed}
 func set_material(id: String, material_id: Variant=null, saturation: float=-1.) -> Dictionary:
 	var ready: Dictionary=editor._gameplay.guard()
 	if not ready.ok: return ready

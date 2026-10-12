@@ -51,7 +51,7 @@ func setup(owner: Node3D) -> void:
 	add_child(search)
 	search.text_changed.connect(func(_text): _refresh_materials())
 	result_label = Label.new(); result_label.name = "SurfaceResults"
-	result_label.add_theme_font_size_override("font_size", 12)
+	result_label.theme_type_variation = "EditorCaption"
 	var results := HBoxContainer.new(); add_child(results)
 	result_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	results.add_child(result_label)
@@ -67,7 +67,7 @@ func setup(owner: Node3D) -> void:
 	picker.icon_mode = ItemList.ICON_MODE_TOP
 	picker.fixed_icon_size = Vector2i(104, 64)
 	picker.max_text_lines = 2
-	picker.add_theme_font_size_override("font_size", 13)
+	picker.theme_type_variation = "EditorAssetList"
 	add_child(picker)
 	picker.item_selected.connect(func(_index): _choose())
 	picker.resized.connect(func(): _visible_dirty = true)

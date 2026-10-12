@@ -1,0 +1,297 @@
+{
+  "source": "user supplied screenshots; no episode inferred",
+  "files": [
+    {
+      "id": "U00",
+      "file": "user_guild_exterior.png",
+      "original": "codex-clipboard-f0ff2c9f-fd55-42ff-8c2c-c7fb2472054c.png",
+      "sha256": "b3a1f8be714e1b1780aed2c641292fee0fe0f88b71e6762be804d8dc78083060"
+    },
+    {
+      "id": "U01",
+      "file": "user_01_facade_detail.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-be6945ca-fd48-4c7c-955d-6ca738098fc2.png",
+      "sha256": "6db3014f02f42f41526a9a0919f73ec5f120b9656821229beb805b367f0688a7"
+    },
+    {
+      "id": "U02",
+      "file": "user_02_entrance_inside.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-65e17daa-f514-419d-86a9-f6746fb12d38.png",
+      "sha256": "4e759a0e0a89dc21d047df63af498fda2f63892077d0a7bdbbb272081c42ff25"
+    },
+    {
+      "id": "U03",
+      "file": "user_03_dining.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-db3aa052-7bfc-4237-a149-e5d033336400.png",
+      "sha256": "592e73a3ca7d4b417aefd8c40bbc37bce77a28aeb27e8cf4b87f9d1518358532"
+    },
+    {
+      "id": "U04",
+      "file": "user_04_hall_long_view.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-a94253d6-b537-4c38-8530-598f6cff6cdf.png",
+      "sha256": "c4c33b9261fc206f21c1ed5c86b0a6b2ad15261c24f255896e8759d1b8775900"
+    },
+    {
+      "id": "U05",
+      "file": "user_05_statue_stairs.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-5f0cf54a-ad5e-49cc-94f3-077a9ed70406.png",
+      "sha256": "59ded0a416bc143d8ff018b555406c969c74b1fa2dc60b1592f9451db1dc04ed"
+    },
+    {
+      "id": "U06",
+      "file": "user_06_window_tables.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-b2e5edd4-f399-4415-9f53-196d3467584f.png",
+      "sha256": "d4953af1ee5c66bbde27b5192ac395075bb737cd64d9a59123c6ab6969e8a661"
+    },
+    {
+      "id": "U07",
+      "file": "user_07_bar_stairs.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-2df2b0f2-b03c-41e1-bdc3-e229b88b697a.png",
+      "sha256": "0d894d493c74a8dee539a3f52cd9acd429ac457aa69ebda7f9924d09a5d6e474"
+    },
+    {
+      "id": "U08",
+      "file": "user_08_registration_windows.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-e15d957a-b3fb-4f30-8bd5-6aa29cb7bae2.png",
+      "sha256": "ed100ede91c9b8416f8507379800112825fef0e6565998cbe332f9356218e9b9"
+    },
+    {
+      "id": "U09",
+      "file": "user_09_quest_recruitment_board.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-258b8aa6-cee2-4331-ac13-4e6112a3dff9.png",
+      "sha256": "13ea1f1c56a14aa6646571087ab2df07dd69ef9b7bff936abd98c557befe6bff"
+    },
+    {
+      "id": "U10",
+      "file": "user_10_registration_crystal.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-c31819d2-afc5-48c7-8097-38b23aac9ec3.png",
+      "sha256": "c17a6bf4a46c2edba844d09461757545c50805bf5e6e60ee2ed5dabbb3097e48"
+    },
+    {
+      "id": "U11",
+      "file": "user_11_crystal_detail.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-681843e8-ccdc-4bb2-95a0-b2d50b74f03b.png",
+      "sha256": "5e3e9ddfae8a0f74f544d1466f5fbfa95d78b1a8b49a6ee20e87eb623248c1e8"
+    },
+    {
+      "id": "U12",
+      "file": "user_12_reception_overview.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-196c972c-d8ee-479c-96d7-bb114479b17d.png",
+      "sha256": "f81fe89d4f269af703e73352657bdb3a63205da22c5eeec16076055bba742eff"
+    },
+    {
+      "id": "U13",
+      "file": "user_13_guild_alarm_guard_relationship.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-43862bfe-6088-49de-89db-ca147fb898e9.png",
+      "sha256": "0bbc5f3e6fd1494f1f1aa0b22b77c97138426035971ccc2f7440e4076356a53b"
+    },
+    {
+      "id": "U14",
+      "file": "user_14_decorative_panels_confirmed.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-65ca6a61-cfce-4d79-9259-34fc618c88a4.png",
+      "sha256": "bf84f74ebf9fcf75f9ad3278a640955e48c0addb197b9cc745082c679408d3fb",
+      "note": "User confirms these are decorative panels, not walls; separately modelled."
+    },
+    {
+      "id": "U15",
+      "file": "user_15_guestroom_bed_desk.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-1f8cf5bd-392d-4e13-9c39-9cc7f53adac5.png",
+      "sha256": "f4271c7c0a59e9a028865424a4d694d6dc6b560bc5aa2f864215703fc04af561",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U16",
+      "file": "user_16_quest_board_reception_clear.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-7ad3309f-8e75-435a-ba1e-d18d0aca3a60.png",
+      "sha256": "3a5f976ca5fd479b4c50f152927ac3a66531260efd5d2f9646cfa3cac39e44a4",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U17",
+      "file": "user_17_floor_grid_detail.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-ae8d0867-4456-41fa-837a-f20bf92ddc76.png",
+      "sha256": "ff46e46af1a436b417e667333a05d64aed819387a8f0e44d3a51360ef8a02b16",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U18",
+      "file": "user_18_hall_textiles_stairs_clear.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-1192d779-6515-4a91-967d-3db024ecf0a7.png",
+      "sha256": "d3ab4943a1b690bed63652eb73dd491a68fcff290a5f138473f4e1eaf3020228",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U19",
+      "file": "user_19_facade_clear.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-b0929d2c-032e-4898-8235-2c4022af0f1d.png",
+      "sha256": "51ca08521aa726f48369914aba40fe66f51d8927e73aa37901797f49b415085c",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U20",
+      "file": "user_20_entrance_door_detail.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-acf84e9c-ef0b-4193-9f6b-7e8037e7b4a6.png",
+      "sha256": "10ef6ac0b392f7c272057582d9714d7a1913231f48918d455f336a51cc6bb2b9",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U21",
+      "file": "user_21_rear_elevation_user_marked.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-d458f9a3-e4c7-482c-948d-b89c28173a97.png",
+      "sha256": "95d9656e2f6a1dd28bec4d772d047bb949a5f921efdc4068a0c5f6704eb481c5",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U22",
+      "file": "user_22_guestroom_wide.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-8568dc24-ba8c-4901-a30a-3851bb765689.png",
+      "sha256": "93047dd858cfc105312cae3d54a13620882c6557859020f85243246d8e59fc81",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User-supplied original, unchanged; furnishings/layout reference, not an official measured drawing."
+    },
+    {
+      "id": "U23",
+      "file": "user_23_alarm_tower_crown.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-3916eb8a-ef4a-4ccb-9d33-59c4b254a2fb.png",
+      "sha256": "69f1dfe0266248f89f863a2ce6837117821df4fe0a92a3dc4195c1dd04567760",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "Original screenshot preserved unchanged."
+    },
+    {
+      "id": "U24",
+      "file": "user_24_interior_stair_landing.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-e2cc6cad-5494-4721-8ab4-ec93287eb680.png",
+      "sha256": "eb28110c719b83577e57f7c5885aab1386089ed133265dd15cb10f4941fa56de",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "User tentative staircase reference; exact building and connection to hall stairs unconfirmed."
+    },
+    {
+      "id": "U28",
+      "file": "user_28_rejected_pastel_glass.png",
+      "sha256": "0dd28ce1ab939c21bc826977aec68cf8efcb4285a2d195066b9b6358411e4a4b",
+      "dimensions_px": [
+        222,
+        238
+      ],
+      "note": "User rejected pale glass palette; original preserved unchanged."
+    },
+    {
+      "id": "U29",
+      "file": "user_29_stained_glass_rose_palette.png",
+      "sha256": "fb55a5ecb355bf43b381b6cacb4fbfa0c709462d521e6d95f9a1848318706272",
+      "dimensions_px": [
+        1280,
+        2145
+      ],
+      "note": "Real stained glass colour reference; original preserved unchanged."
+    },
+    {
+      "id": "U30",
+      "file": "user_30_stained_glass_backlight.png",
+      "sha256": "5df44982fd3481dc33aa93244908109e62621cd0d9bbd94fa80f043d0dee6347",
+      "dimensions_px": [
+        750,
+        500
+      ],
+      "note": "Real stained glass interior lighting reference; original preserved unchanged."
+    },
+    {
+      "id": "U31",
+      "file": "user_31_stained_glass_coloured_light.png",
+      "sha256": "c33a1f85d62f1da9712e2dee4dd8c83c5fafa799d7ec817769e97b87652e8391",
+      "dimensions_px": [
+        750,
+        500
+      ],
+      "note": "Real stained glass coloured light reference; original preserved unchanged."
+    },
+    {
+      "id": "U32",
+      "file": "user_32_rejected_fanlight_glass.png",
+      "sha256": "7ecc226dc217d0f1bf4697321d4a3ff830a7e1cb6d3a8a0c66361762d97154bb",
+      "dimensions_px": [
+        177,
+        232
+      ],
+      "note": "Same colour issue in interior fanlights; original preserved unchanged."
+    },
+    {
+      "id": "U33",
+      "file": "user_33_banner_cloth_triangular_support.png",
+      "sha256": "d6f6c9f0453a0407b2f084c7921fc859263f2f61a93bc5e9c0ff91204d0f0182",
+      "dimensions_px": [
+        466,
+        419
+      ],
+      "note": "User: cloth banner, triangular supporting brackets; original preserved unchanged."
+    },
+    {
+      "id": "U34",
+      "file": "user_34_roof_junction_correction.png",
+      "sha256": "5533eed9a791a5b5d7285fa79082c1cfb97474f5ce0928c951be127c07d29694",
+      "dimensions_px": [
+        1082,
+        573
+      ],
+      "note": "User marked roof/gable junction defects; original preserved unchanged."
+    },
+    {
+      "id": "U35",
+      "file": "user_35_entrance_crescent_standards.png",
+      "sha256": "3efb35c65bb36675785175fdfdd899236dc82220aad75255b05115581b4a60d1",
+      "dimensions_px": [
+        522,
+        291
+      ],
+      "note": "User requires missing paired golden entrance standards; original preserved unchanged."
+    },
+    {
+      "id": "U36",
+      "file": "user_36_entrance_platform_alignment.png",
+      "original": "C:\\Users\\luna\\AppData\\Local\\Temp\\codex-clipboard-0aef5729-f991-4b52-ac19-0cb7237ef04e.png",
+      "sha256": "6f9190ef2330af81bc35ec907b5759a9715f9bd005af52657c8976e8b984c5b3",
+      "dimensions_px": [
+        652,
+        400
+      ],
+      "note": "User requires entry platform and steps to extend outward and align with side parapets; original unchanged."
+    }
+  ]
+}

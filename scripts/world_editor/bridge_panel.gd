@@ -14,8 +14,8 @@ var road_edge_id:=""
 var road_edges: OptionButton
 func setup(panel: VBoxContainer) -> void:
 	host=panel; editor=host.editor
-	var body: VBoxContainer=host.section("写实石桥 · 预制件生成")
-	host.note(body,"选择桥型，在两岸点选桥头；按长度排列石拱、桥墩与桥栏。拱高为 0 时桥面平直，两端始终保持同高。应用后成为固定网格预制件，加载时不重建拱孔；桥整体选取、移动和复制。")
+	var body: VBoxContainer=host.section("石桥 / 木桥 · 预制件生成")
+	host.note(body,"选择桥型，在两岸点选桥头；按长度排列石拱、桥墩与桥栏。支持不同桥头标高，桥面总坡度不超过 15%；可加外展翼墙和磨损 / 苔藓。应用后成为固定网格预制件，加载时不重建拱孔；桥整体选取、移动和复制。")
 	presets=OptionButton.new(); presets.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(presets); presets.item_selected.connect(func(_i):invalidate())
 	road_edges=OptionButton.new(); road_edges.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(road_edges)
 	host.button(body,"读取道路桥梁 / 转换旧桥面",load_road)
@@ -49,7 +49,9 @@ func refresh() -> void:
 		if edge.id==selected: road_edges.select(road_edges.item_count-1)
 func build(values: Dictionary) -> void:
 	values=values.duplicate(true); if not values.has("auto_clearance"): values.auto_clearance=true
-	fields.build(D.request_schema(),values,{"start":"桥头 A（世界坐标，米）","end":"桥头 B（世界坐标，米）","width":"桥梁总宽（米）","depth":"桥墩向下深度（米）","camber":"桥面拱高（米，0 为平直）","arches":"拱孔数（0 自动）","auto_clearance":"按实际水位自动抬拱（主孔净高 ≥ 2.5 米 / 净宽 2 米）"})
+	for key in ["wing_length","wear","moss","variation_seed"]:
+		if not values.has(key):values[key]=0
+	fields.build(D.request_schema(),values,{"wing_length":"桥头外展翼墙（米；0 无）","wear":"风化磨损（0～1）","moss":"潮湿处苔藓（0～1）","variation_seed":"外观变化种子","start":"桥头 A（世界坐标，米）","end":"桥头 B（世界坐标，米）","width":"桥梁总宽（米）","depth":"桥墩向下深度（米）","camber":"桥面拱高（米，0 为平直）","arches":"拱孔数（0 自动）","auto_clearance":"按实际水位自动抬拱（主孔净高 ≥ 2.5 米 / 净宽 2 米）"})
 	for control in fields.fields.values():
 		if control is SpinBox: control.value_changed.connect(func(_v):invalidate())
 		if control is CheckButton: control.toggled.connect(func(_v):invalidate())
@@ -94,7 +96,7 @@ func load_record(r: Dictionary) -> void:
 		if e.get("stone_bridge",{}).get("id","")==r.uuid: road_edge_id=e.id
 	current_id=r.uuid; var d: Dictionary=r.bridge_mesh
 	var transform:=Transform3D(Basis.from_euler(Vector3(r.rotation[0],r.rotation[1],r.rotation[2])*PI/180).scaled(Vector3(r.size[0],r.size[1],r.size[2])),Vector3(r.position[0],r.position[1],r.position[2]))
-	build({"start":D_vec(transform*Vector3(-d.length*.5,0,0)),"end":D_vec(transform*Vector3(d.length*.5,0,0)),"width":d.width*r.size[2],"depth":d.depth*r.size[1],"camber":d.camber*r.size[1],"arches":d.arches})
+	build({"start":D_vec(transform*Vector3(-d.length*.5,-d.get("rise",0.)*.5,0)),"end":D_vec(transform*Vector3(d.length*.5,d.get("rise",0.)*.5,0)),"width":d.width*r.size[2],"depth":d.depth*r.size[1],"camber":d.camber*r.size[1],"arches":d.arches,"wing_length":d.get("wing_length",0.),"wear":d.get("wear",0.),"moss":d.get("moss",0.),"variation_seed":d.get("variation_seed",0)})
 	for i in presets.item_count:
 		if presets.get_item_metadata(i)==d.prefab_id: presets.select(i)
 	# Loading another bridge must not carry over a pending material choice.
@@ -113,7 +115,9 @@ func load_road() -> void:
 		load_record(record); return
 	var nodes:={}
 	for n in data.roads.nodes: nodes[n.id]=n
-	var a:=Vector3(nodes[edge.from].position[0],nodes[edge.from].position[1]+.025,nodes[edge.from].position[2]); var b:=Vector3(nodes[edge.to].position[0],nodes[edge.to].position[1]+.025,nodes[edge.to].position[2]); var inset:=minf(12,a.distance_to(b)*.15); var direction:=(b-a).normalized()
+	var line:=preload("res://scripts/world3d/road_bridges.gd").deck_line(edge,nodes,data.roads.edges)
+	var lift:float=data.get("road_surface",{}).get("settings",{}).get("lift",.025)
+	var a:Vector3=line[0]+Vector3.UP*lift;var b:Vector3=line[1]+Vector3.UP*lift;var inset:=minf(12,a.distance_to(b)*.15);var direction:=(b-a).normalized()
 	road_edge_id=id; current_id="stone_"+id
 	build({"start":D_vec(a+direction*inset),"end":D_vec(b-direction*inset),"width":maxf(edge.width_start,edge.width_end)+1.2,"depth":5.,"camber":.6,"arches":0})
 	for menu in materials.values(): menu.select(0)

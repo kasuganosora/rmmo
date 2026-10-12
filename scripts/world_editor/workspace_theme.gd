@@ -25,7 +25,9 @@ static func build() -> Theme:
 		selected.border_color = Color("31b6df")
 		theme.set_stylebox("pressed", type, selected)
 		theme.set_stylebox("hover_pressed", type, selected)
-		theme.set_stylebox("focus", type, StyleBoxEmpty.new())
+		theme.set_stylebox("focus", type, focus_ring())
+	for type in ["LineEdit", "Tree", "ItemList", "CheckButton", "CheckBox", "TabBar", "ScrollContainer"]:
+		theme.set_stylebox("focus", type, focus_ring())
 	for type in ["Tree", "ItemList", "LineEdit", "PopupMenu"]:
 		theme.set_stylebox("panel" if type != "LineEdit" else "normal", type, panel(Color("1f2026")))
 	var selection := panel(Color("263c48"), 2)
@@ -43,3 +45,12 @@ static func build() -> Theme:
 	theme.set_constant("separation", "HSplitContainer", 5)
 	theme.set_constant("separation", "VSplitContainer", 5)
 	return theme
+
+
+static func focus_ring() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.draw_center = false
+	style.border_color = Color("88dcff")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(3)
+	return style

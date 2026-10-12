@@ -1,0 +1,23 @@
+{
+  "source": "User explicitly required all three scenes on 2026-10-12, in addition to the classic stone bridge. Exact byte copies; characters, subtitles, playback controls and watermarks excluded from reconstruction scope.",
+  "images": [
+    {
+      "file": "01_sunset_stream_stepping_stones.png",
+      "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-2ed8d73b-b034-4d06-9ee9-6a933c1fe568.png",
+      "bytes": 2028474,
+      "sha256": "514ae1112983a93d0a6fc881d58206be376c64b4042da6f6d394777aabdffc0d"
+    },
+    {
+      "file": "02_fruit_tree_residential_court.png",
+      "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-fa40abf1-2c67-42c3-9c8d-fb2ca676d4c2.png",
+      "bytes": 1599897,
+      "sha256": "a83db37fe2088d0492756bbeab6f20e4dcd5152380c87a5710bb9c417a93c9cd"
+    },
+    {
+      "file": "03_festival_residential_lane.png",
+      "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-88a6cb9b-a3c6-4000-80b5-53dec5945d79.png",
+      "bytes": 1563127,
+      "sha256": "2e1cc5915ea2b2043f169ac27e2169a2a80b72a2c2a89da74f71af20b30dae24"
+    }
+  ]
+}

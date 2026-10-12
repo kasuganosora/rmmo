@@ -133,6 +133,15 @@ func build(root:Node)->void:
 
 ## Append stable storage slots and spatial buckets; existing footprints/RIDs do
 ## not change identity. Only draw-order ranks may move for overlapping heights.
+func append_resident_specs(additions:Array)->Dictionary:
+	# A fixed authored map can unload/reload geometry without losing the map's
+	# lightweight 2D projection. Revisit source identity is verified by the loader;
+	# editor mutations still use ordinary append/build validation.
+	var fresh:Array=[]
+	for spec:Dictionary in additions:
+		if not _seen_specs.has(str(spec.get("uuid",""))):fresh.append(spec)
+	return append_specs(fresh)
+
 func append_specs(additions:Array)->Dictionary:
 	if additions.is_empty():return {"ok":true,"added_shapes":0,"added_markers":0}
 	var projected:=_project_specs(additions)

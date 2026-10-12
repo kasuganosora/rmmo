@@ -2,12 +2,19 @@ extends RefCounted
 ## Paint is record data. Rebuild an instance mesh; never mutate shared source assets.
 const Paths = preload("res://scripts/world3d/map_paths.gd")
 const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const TextureCache=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var _textures := {}
 static var prepared_images:Dictionary={}
 static var _materials := {}
+# Enable before starting the measured operation. Uses Pixels' mutex-protected
+# aggregate, so either reset_profile clears both paint.* and texture.* stages.
+static var texture_profile_enabled:=false
+
+static func reset_profile()->void:TextureCache.reset_profile()
+static func profile_snapshot()->Dictionary:return TextureCache.profile_snapshot("paint.")
 
 static func prepare_images(images:Dictionary)->void:
 	var changed:=false
@@ -196,20 +203,32 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 	return result
 
 static func texture(material: Dictionary, field: String = "texture_path",path_checks:Variant=null) -> Texture2D:
+	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
+	var result:=_texture(material,field,path_checks)
+	if texture_profile_enabled:
+		TextureCache._profile_elapsed("paint.texture",began,{"path":str(material.get(field,"")),"field":field,"ok":result!=null})
+	return result
+
+static func _texture(material:Dictionary,field:String,path_checks:Variant)->Texture2D:
 	var path := str(material.get(field, ""))
 	# A caller-owned immutable-load scope checks each path once, never across
 	# separate loads or edits. Texture cache hits alone do not authorize a path.
 	if not path.is_empty() and (path_checks==null or not path_checks.has(path)):
-		if not Paths.allowed(path) or not FileAccess.file_exists(path):return null
+		var checked:=Time.get_ticks_usec() if texture_profile_enabled else 0
+		var allowed:bool=Paths.allowed(path) and FileAccess.file_exists(path)
+		if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.path_check",checked,{"path":path,"field":field,"allowed":allowed})
+		if not allowed:return null
 		if path_checks!=null:path_checks[path]=true
 	var key := path if not path.is_empty() else (str(material.get("pattern", "")) if field == "texture_path" else "")
 	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
 	var cache_key := key + ("|flip_y" if flip_normal else "")
 	if key.is_empty(): return null
 	if _textures.has(cache_key):
+		if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_hit")
 		prepared_images.erase(cache_key)
 		return _textures[cache_key]
 	var image: Image
+	if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_miss")
 	if key == "checker":
 		image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
 		for y in 64:
@@ -217,11 +236,25 @@ static func texture(material: Dictionary, field: String = "texture_path",path_ch
 	else:
 		image = prepared_images.get(cache_key)
 		prepared_images.erase(cache_key)
-		if image==null:image = preload("res://scripts/world3d/runtime_texture_cache.gd").image(path,flip_normal)
+		if texture_profile_enabled:TextureCache._profile_count("paint.texture."+("prepared_image_hit" if image!=null else "runtime_image_lookup"))
+		if image==null:image = TextureCache.image(path,flip_normal)
 		if image==null:return null
-	if not image.has_mipmaps():image.generate_mipmaps()
-	var has_alpha:bool=image.detect_alpha()!=Image.ALPHA_NONE
+	if not image.has_mipmaps():
+		var mip_started:=Time.get_ticks_usec() if texture_profile_enabled else 0
+		image.generate_mipmaps()
+		if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.mipmaps",mip_started,{"path":path,"flip":flip_normal})
+	# Prepared pixels are immutable for this load. Their worker already scanned
+	# alpha, including RGB8's known opaque expansion; arbitrary caller images
+	# retain the ordinary scan. Never infer alpha from the cached GPU texture.
+	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
+	var alpha_prepared:bool=image.has_meta("runtime_upload_has_alpha")
+	var has_alpha:bool=image.get_meta("runtime_upload_has_alpha") if alpha_prepared else image.detect_alpha()!=Image.ALPHA_NONE
+	if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.alpha",began,{"path":path,"flip":flip_normal,"prepared":alpha_prepared})
+	began=Time.get_ticks_usec() if texture_profile_enabled else 0
 	var result := ImageTexture.create_from_image(image)
+	if texture_profile_enabled:
+		TextureCache._profile_elapsed("paint.texture.upload",began,{"path":path,"flip":flip_normal,"format":image.get_format(),"width":image.get_width(),"height":image.get_height(),"bytes":image.get_data_size()})
+		TextureCache._profile_count("paint.texture.upload_bytes",image.get_data_size())
 	result.set_meta("surface_has_alpha",has_alpha)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
@@ -245,10 +278,19 @@ static func texture_error(record: Dictionary, checks: Variant = null) -> String:
 	return ""
 
 static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CULL_BACK) -> StandardMaterial3D:
+	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
+	var result:=_make_material(value,cull_mode)
+	if texture_profile_enabled:TextureCache._profile_elapsed("paint.material",began,{"name":str(value.get("name","")),"cull":cull_mode})
+	return result
+
+static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 	# Paint definitions are immutable; UVs live on the mesh. Reuse equivalent
 	# materials so glTF packs ORM textures once, not once for every wall face.
 	var key := str(cull_mode) + "|" + JSON.stringify(value, "", true)
-	if _materials.has(key): return _materials[key]
+	if _materials.has(key):
+		if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_hit")
+		return _materials[key]
+	if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_miss")
 	var result := StandardMaterial3D.new()
 	result.cull_mode = cull_mode
 	result.resource_name = value.name

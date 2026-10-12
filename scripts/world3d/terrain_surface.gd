@@ -8,10 +8,11 @@ const MAX_CELLS=64
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
 static func integer(low: int, high: int) -> Dictionary: return {"type":"integer","minimum":low,"maximum":high}
 static func stroke_schema() -> Dictionary:
-	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000),"iterations":integer(1,32),"talus_angle":S.number(15,70),"erosion_seed":integer(0,2147483647)},"required":["id","mode","points"],"additionalProperties":false}
+	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"cross_tiles":{"type":"boolean"},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000),"iterations":integer(1,32),"talus_angle":S.number(15,70),"erosion_seed":integer(0,2147483647)},"required":["id","mode","points"],"additionalProperties":false}
 static func create_schema() -> Dictionary:
 	return {"type":"object","properties":{"source_id":{"type":"string","maxLength":128},"name":{"type":"string","maxLength":128},"center":S.vector(-100000,100000),"width":S.number(2,256),"depth":S.number(2,256),"cell_size":S.number(.25,8),"bedrock_depth":S.number(1,100),"material_id":{"type":"string","maxLength":512}},"additionalProperties":false}
 static func valid(record: Dictionary) -> bool:
+	if record.has("terrain_volume"):return preload("res://scripts/world3d/terrain_volume.gd").valid(record)
 	if not record.has("terrain_mesh"): return not record.has("terrain_material")
 	if not record.get("kind") is String or record.kind!="box": return false
 	for key in ["tile3d","building","building_shape","fixture","road_mesh","channel_mesh","rock_bank","road_source","fortification","waterway"]:

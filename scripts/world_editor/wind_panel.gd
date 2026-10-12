@@ -37,7 +37,7 @@ func refresh() -> void:
 
 func apply() -> void:
 	var result: Dictionary = editor._wind_tools.set_settings(ids,form.values())
-	editor._status.text = "受风设置已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"受风设置已应用，可撤销","受风设置")
 
 func _update_heading() -> void:
 	toggle.text = ("▾ " if toggle.button_pressed else "▸ ") + "柔性物件受风" + (" · 已启用" if enabled else "")

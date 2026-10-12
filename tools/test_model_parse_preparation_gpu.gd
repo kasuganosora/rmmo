@@ -72,8 +72,14 @@ func run() -> void:
 	write_fixture(paths[0],Color(.3,.6,.9,1)); write_fixture(paths[1],Color(.9,.2,.1,1))
 	var serial: Dictionary = Preparation.new().run(paths,Callable(),1)
 	var parallel: Dictionary = Preparation.new().run(paths,Callable(),2)
-	check(serial.error == OK and parallel.error == OK,"serial and dual model parse succeed")
-	check(parallel.parallel_eligible_count == 2 and parallel.parallel_batches == 1,"actual standalone containers qualify for parallel parsing")
+	print("MODEL_PARSE_SCHEDULING ",JSON.stringify({"eligible":parallel.parallel_eligible_count,"parallel_batches":parallel.parallel_batches,"peak_jobs":parallel.peak_inflight_jobs,"stages":parallel.admission_profile.stages}))
+	check(serial.error == OK and parallel.error == OK,"single-worker and two-worker configurations parse both models")
+	# These fixtures contain skins/morphs/animations outside the bounded static
+	# memory estimator. Eligibility is not a promise of overlapping admission.
+	var conservative_budget:=true
+	for task:Dictionary in parallel.admission_profile.tasks.values():
+		conservative_budget=conservative_budget and not task.memory.known and task.memory.exclusive
+	check(parallel.parallel_eligible_count==2 and conservative_budget and parallel.peak_inflight_jobs==1 and parallel.parallel_batches==0,"standalone animated models remain eligible but unknown memory stays exclusive")
 	if serial.error == OK and parallel.error == OK:
 		check(parallel.entries[0].document != parallel.entries[1].document and parallel.entries[0].state != parallel.entries[1].state,"document and state remain independent")
 		for i in paths.size():
@@ -81,14 +87,14 @@ func run() -> void:
 			var candidate: Node = Io.generate_scene(parallel.entries[i].document,parallel.entries[i].state)
 			check(original != null and candidate != null,"main-thread scene generation succeeds")
 			if original != null and candidate != null:
-				check(var_to_bytes(capture(original)) == var_to_bytes(capture(candidate)),"serial/parallel exact structure, mesh, morph, pixels, skin, animation and extras parity")
+				check(var_to_bytes(capture(original)) == var_to_bytes(capture(candidate)),"worker configurations preserve exact structure, mesh, morph, pixels, skin, animation and extras parity")
 				var meshes: Array = preload("res://scripts/world3d/surface_materials.gd").meshes(candidate)
 				check(meshes.size() == 2 and is_equal_approx(meshes[0].get_blend_shape_value(0),.75) and is_equal_approx(meshes[1].get_blend_shape_value(0),.25),"distinct per-node morph defaults preserved")
 				check(candidate.find_children("*","Skeleton3D",true,false).size() > 0 and candidate.find_children("*","AnimationPlayer",true,false).size() > 0,"fixture actually exercises skeleton and animation generation")
 				if not meshes.is_empty():
 					var material: StandardMaterial3D = meshes[0].get_active_material(0)
 					var pixel := material.albedo_texture.get_image().get_pixel(0,0)
-					check(pixel.b > pixel.r if i == 0 else pixel.r > pixel.b,"parallel models retain their own embedded texture")
+					check(pixel.b > pixel.r if i == 0 else pixel.r > pixel.b,"separate models retain their own embedded texture")
 			if original != null: original.free()
 			if candidate != null: candidate.free()
 	var unknown := directory.path_join("unknown.glb")

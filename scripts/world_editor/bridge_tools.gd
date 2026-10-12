@@ -13,6 +13,9 @@ static func make_record(args: Dictionary,prefab: Dictionary) -> Dictionary:
 	var count:=int(args.get("arches",0))
 	if count==0: count=maxi(1,ceili((length_-2+recipe.pier_width)/(recipe.max_span+recipe.pier_width)))
 	var data:={"version":1,"prefab_id":prefab.id,"length":length_,"width":float(args.get("width",6)),"depth":float(args.get("depth",4)),"camber":float(args.get("camber",0)),"arches":count,"recipe":recipe}
+	data.rise=b.y-a.y
+	for key in ["wing_length","wear","moss","variation_seed"]:
+		if args.has(key):data[key]=args[key]
 	var position:=a.lerp(b,.5)-Vector3.UP*D.deck_local_y(data)
 	var dimensions:=D.dimensions(data)
 	var path: String=prefab.get("asset_path",preload("res://scripts/world3d/map_paths.gd").external_root().path_join("packs/default/assets/bridges/medieval_stone/stone_"+recipe.style+".glb"))
@@ -25,7 +28,6 @@ func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 		for e in Data.resolve(editor._doc.map_meta).roads.edges:
 			if e.get("stone_bridge",{}).get("id","")==args.id: return Data.fail("这座桥已接入道路，请带 road_edge_id 或从道路桥型入口修改")
 	if args.id.is_empty() or not args.id.is_valid_identifier(): return Data.fail("桥梁 ID 必须为有效标识符")
-	if absf(args.start[1]-args.end[1])>.01: return Data.fail("当前石桥的两端须同高，请先整平桥头或增设引道")
 	var old: Dictionary=editor._doc._find(args.id)
 	if old.get("prefab_locked",false):return Data.fail("固定桥梁预制件不能再修改跨度、拱孔或材质；请新建桥梁")
 	if not old.is_empty():
@@ -38,8 +40,8 @@ func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 	var prefab: Dictionary=library.find(preset_id)
 	if prefab.is_empty(): return Data.fail("桥梁预制件不存在："+preset_id)
 	var resolved:=args.duplicate(true)
-	for key in ["width","depth","camber"]:
-		if not resolved.has(key) and old.has("bridge_mesh"): resolved[key]=old.bridge_mesh[key]
+	for key in ["width","depth","camber","wing_length","wear","moss","variation_seed"]:
+		if not resolved.has(key) and old.has("bridge_mesh"): resolved[key]=old.bridge_mesh.get(key,0.)
 	var record:=make_record(resolved,prefab)
 	if not old.is_empty():
 		record=old.merged(record,true)
@@ -48,6 +50,8 @@ func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 	if preload("res://scripts/world3d/bridge_mesh.gd").kit(record.asset_path).is_empty(): return Data.fail("Blender 桥梁模块库缺失或结构无效")
 	if not editor._authoring.Settings.contains(record,editor._authoring.settings): return Data.fail("桥梁超出当前隔离楼层")
 	var defaults:=preload("res://scripts/world3d/bridge_data.gd").default_materials()
+	if record.bridge_mesh.recipe.style=="timber":
+		for role in defaults:defaults[role]="pack:default:wood/worn_planks/material"
 	if not old.is_empty() and preset_id==old.bridge_mesh.prefab_id: record.bridge_materials=old.bridge_materials.duplicate(true)
 	for role in defaults:
 		if args.has(role+"_material_id"):
@@ -78,7 +82,7 @@ func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 	var d: Dictionary=record.bridge_mesh
 	for end in [-1,1]:
 		for z in [-d.width*.5+.6,0,d.width*.5-.6]:
-			var p: Vector3=transform*Vector3(end*(d.length*.5+.06),0,z)
+			var p: Vector3=transform*Vector3(end*(d.length*.5+.06),end*d.get("rise",0.)*.5,z)
 			var h:=ground_height(support,p)
 			if not is_finite(h) or absf(h-p.y)>.12: return Data.fail("两端桥头的通行宽度必须落在同高地面或道路上，不能悬空")
 	for i in ceili(d.length/.75)+1:
@@ -109,7 +113,7 @@ static func ground_height(records: Array,p: Vector3) -> float:
 func summary(args: Dictionary) -> Dictionary:
 	var p:=prepare(args)
 	if not p.ok: return p
-	return {"ok":true,"plan_token":p.plan_token,"id":p.record.uuid,"prefab_id":p.record.bridge_mesh.prefab_id,"arches":p.record.bridge_mesh.arches,"length":p.record.bridge_mesh.length,"camber":p.record.bridge_mesh.camber,"max_grade":p.record.bridge_mesh.camber*PI/p.record.bridge_mesh.length,"clear_width":p.record.bridge_mesh.width-1.16,"mesh_instances":1,"material_surfaces":3,"road_edge_id":p.get("road_edge_id",""),"trimmed_roads":p.get("trimmed_roads",[]),"navigation":p.navigation}
+	return {"ok":true,"plan_token":p.plan_token,"id":p.record.uuid,"prefab_id":p.record.bridge_mesh.prefab_id,"arches":p.record.bridge_mesh.arches,"length":p.record.bridge_mesh.length,"camber":p.record.bridge_mesh.camber,"max_grade":(p.record.bridge_mesh.camber*PI+absf(p.record.bridge_mesh.get("rise",0.)))/p.record.bridge_mesh.length,"clear_width":p.record.bridge_mesh.width-1.16,"mesh_instances":1,"material_surfaces":3,"road_edge_id":p.get("road_edge_id",""),"trimmed_roads":p.get("trimmed_roads",[]),"navigation":p.navigation}
 func show_preview(args: Dictionary) -> Dictionary:
 	clear_preview(); var p:=prepare(args)
 	if not p.ok: return p

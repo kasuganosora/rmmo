@@ -51,15 +51,30 @@ func run()->void:
 	image.fill(Color.BLUE);image.save_png(texture_path)
 	await call_tool("open_world",{"path":path})
 	check(base_texture(id).get_meta("runtime_source_sha256")==FileAccess.get_sha256(texture_path) and base_texture(id)!=original_texture and original_texture.get_meta("runtime_source_sha256")==old_digest,"same-path changed pixels refresh shader after texture eviction without mutating old resource")
+	# Normalize the fixture's first JSON numeric roundtrip (int -> float in
+	# instance state/map metadata) before using byte identity for no-op saves.
+	# This matters for the inherited frozen-prefab fixture, not image content.
+	await call_tool("save_world")
+	var baseline_records:Array=editor._doc.records.duplicate(true)
+	var baseline_metadata:Dictionary=editor._doc.map_meta.duplicate(true)
 	FileAccess.open(texture_path,FileAccess.WRITE).store_string("broken_png")
 	var before_save:=FileAccess.get_sha256(path)
 	await call_tool("open_world",{"path":path})
 	check(editor._view.get_node(id).has_meta("paint_error") and base_texture(id)==null,"existing but corrupt PNG cannot reuse old texture or shader")
-	await call_tool("save_world",{},false)
-	check(FileAccess.get_sha256(path)==before_save,"corrupt texture cannot overwrite formal map")
+	# Reference-map saves preserve author data, never bake the failed view or
+	# decode/export external images. Existing corrupt images fail at load; a
+	# missing reference still fails save validation below.
+	await call_tool("save_world")
+	var saved:Dictionary=editor._save_job.result
+	var exported:Dictionary=saved.get("timings",{}).get("export",{})
+	check(saved.get("saved",false) and exported.get("mode")=="reference_map" and exported.get("images_written",-1)==0 and exported.get("texture_export_passes",-1)==0,"reference save preserves external image references without exporting the failed view")
+	var reopened=Doc.open_file(path)
+	check(reopened!=null and equivalent(reopened.records,baseline_records),"corrupt view cannot change authored material definitions")
+	check(reopened!=null and equivalent(reopened.map_meta,baseline_metadata),"corrupt view cannot change authored metadata")
+	check(FileAccess.get_sha256(path)==before_save,"corrupt view cannot change saved map bytes")
 	image.fill(Color.GREEN);image.save_png(texture_path)
 	await call_tool("save_world")
-	check(FileAccess.get_sha256(path)!=before_save,"repair permits save in same editor without reopening")
+	check(editor._save_job.result.get("saved",false) and FileAccess.get_sha256(path)==before_save,"repair permits save without rewriting unchanged author definitions")
 	await call_tool("open_world",{"path":path,"discard_changes":true})
 	check(not editor._view.get_node(id).has_meta("paint_error") and base_texture(id).get_meta("runtime_source_sha256")==FileAccess.get_sha256(texture_path),"next load repairs corrupted image with no persistent negative cache")
 	before_save=FileAccess.get_sha256(path);DirAccess.remove_absolute(texture_path)

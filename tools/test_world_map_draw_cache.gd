@@ -1,7 +1,7 @@
 extends SceneTree
 const View=preload("res://scripts/ui/world_map_view_3d.gd")
 const Data=preload("res://scripts/world3d/world_map_data.gd")
-const OUT="D:/code/rmmo_runtime/review_artifacts/radar_draw_cache_20261006"
+var OUT:=OS.get_environment("RMMO_MAP_DRAW_TEST_OUT") if not OS.get_environment("RMMO_MAP_DRAW_TEST_OUT").is_empty() else "D:/code/rmmo_runtime/review_artifacts/radar_draw_cache_20261006"
 class Player extends Node3D:
 	var click_target:Variant=Vector3(12,0,8)
 	var _route:Array=[]
@@ -41,6 +41,9 @@ func run()->void:
 		for point in points:bounds=bounds.expand(point)
 		world._map_data.shapes.append({"bounds":bounds,"polygon":polygon,"color":Color(.2+i*.02,.5,.3,.6)})
 	world._map_data.pins.append(Vector2(5,6))
+	for width in [.000001,.0001,.01]:
+		var polygon:=PackedVector2Array([Vector2(10,10),Vector2(22,14),Vector2(22,14+width),Vector2(10,10+width),Vector2(10,10)])
+		world._map_data.shapes.append({"bounds":Rect2(10,10,12,4+width),"polygon":polygon,"color":Color(.3,.5,.2,.7)})
 	var view:=View.new();view.size=Vector2(280,200);view.position=Vector2(20,20);root.add_child(view);view.set_process(false);view.bind_world(world,true);view.set_meta("profile_frame",true)
 	active_view=view
 	check(view._terrain.commands_recorded==0,"bind defers footprint recording until layout has completed")

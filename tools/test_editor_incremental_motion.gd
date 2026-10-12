@@ -85,9 +85,8 @@ func run() -> void:
 	await call_tool("undo")
 	await call_tool("save_world"); var saved: Dictionary=doc.recovery_snapshot()
 	await call_tool("open_world",{"path":path}); editor._ground_batches.flush()
-	var expected_meta: Dictionary=saved.map_meta.duplicate(true)
-	for field in ["rmmo_format","rmmo_version","rmmo_unit"]: expected_meta[field]=editor._doc.map_meta[field]
-	check(equivalent(saved.records,editor._doc.records) and equivalent(expected_meta,editor._doc.map_meta),"save/reopen preserves authoring data and rebuilt batches")
+	check(equivalent(saved.records,editor._doc.records) and equivalent(saved.map_meta,editor._doc.map_meta),"save/reopen preserves authoring data and rebuilt batches")
+	check(not editor._doc.map_meta.has("rmmo_format"),"reference storage envelope stays outside authored metadata")
 	editor.queue_free(); await settle()
 	print("EDITOR_INCREMENTAL_MOTION failures=",failed)
 	quit(0 if failed==0 else 1)

@@ -1,6 +1,7 @@
 extends Mesh
 ## Authoring/collision geometry without a RenderingServer mesh allocation.
 var surfaces: Array = []
+var lods: Array = [] # Per-surface distance/error -> index buffer; collision uses base surfaces.
 var materials: Array[Material] = []
 var bounds := AABB()
 var box_size := Vector3.ZERO
@@ -8,10 +9,13 @@ var source_reference: WeakRef
 var _collision_faces:=PackedVector3Array()
 static var _unit_box_arrays: Array=[]
 
+static func plain_box(source:Mesh)->bool:
+	return source is BoxMesh and not source.flip_faces and not source.add_uv2 and source.subdivide_width==0 and source.subdivide_height==0 and source.subdivide_depth==0 and source.size.x>0 and source.size.y>0 and source.size.z>0
+
 static func primitive_arrays(source: Mesh, slot: int) -> Array:
 	# PrimitiveMesh.surface_get_arrays also reads through RenderingServer.
 	# An ordinary box has invariant topology/UVs; scale one canonical CPU copy.
-	if source is BoxMesh and not source.flip_faces and not source.add_uv2 and source.subdivide_width==0 and source.subdivide_height==0 and source.subdivide_depth==0 and source.size.x>0 and source.size.y>0 and source.size.z>0:
+	if plain_box(source):
 		if _unit_box_arrays.is_empty():
 			var unit:=BoxMesh.new(); unit.size=Vector3.ONE
 			_unit_box_arrays=unit.surface_get_arrays(0)
@@ -22,11 +26,11 @@ static func primitive_arrays(source: Mesh, slot: int) -> Array:
 		return arrays
 	return source.surface_get_arrays(slot)
 
-static func remember(source: Mesh, arrays: Array) -> Mesh:
+static func remember(source: Mesh, arrays: Array, surface_lods:Array=[]) -> Mesh:
 	# Procedural meshers already own these CPU arrays. Retain them at upload time
 	# instead of synchronously downloading thousands of GPU buffers on first use.
 	var result=load("res://scripts/world3d/ground_cpu_mesh.gd").new()
-	result.source_reference=weakref(source); result.bounds=source.get_aabb(); result.surfaces=arrays
+	result.source_reference=weakref(source); result.bounds=source.get_aabb(); result.surfaces=arrays;result.lods=surface_lods
 	for slot in source.get_surface_count(): result.materials.append(source.surface_get_material(slot))
 	source.set_meta("ground_cpu_cache",result)
 	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
@@ -34,8 +38,16 @@ static func remember(source: Mesh, arrays: Array) -> Mesh:
 
 func geometry_key() -> String:
 	if not has_meta("static_batch_geometry_signature"):
-		var context:=HashingContext.new(); context.start(HashingContext.HASH_SHA256); context.update(var_to_bytes(surfaces)); set_meta("static_batch_geometry_signature",context.finish().hex_encode())
+		set_meta("static_batch_geometry_signature",geometry_signature(surfaces,lods))
 	return get_meta("static_batch_geometry_signature")
+
+static func geometry_signature(arrays:Array,surface_lods:Array=[])->String:
+	# Preserve old cache identities for geometry without any LOD. A different
+	# distance/index table must not alias the same base geometry's GPU resource.
+	var value:Variant=arrays
+	if surface_lods.any(func(levels):return not levels.is_empty()):value=["mesh-lods-v1",arrays,surface_lods]
+	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256);context.update(var_to_bytes(value))
+	return context.finish().hex_encode()
 
 func collision_faces() -> PackedVector3Array:
 	if _collision_faces.is_empty():
@@ -64,10 +76,11 @@ static func capture(source: Mesh) -> Mesh:
 	var result = load("res://scripts/world3d/ground_cpu_mesh.gd").new()
 	result.source_reference = weakref(source)
 	result.bounds = source.get_aabb()
-	if source is BoxMesh: result.box_size = source.size
+	if plain_box(source): result.box_size = source.size
 	for slot in source.get_surface_count():
 		result.surfaces.append(primitive_arrays(source,slot))
 		result.materials.append(source.surface_get_material(slot))
+		if source is ArrayMesh:result.lods.append(capture_lods(source,slot))
 	source.set_meta("ground_cpu_cache",result)
 	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
 	return result
@@ -75,6 +88,19 @@ static func capture(source: Mesh) -> Mesh:
 static func invalidate(reference: WeakRef) -> void:
 	var source: Mesh=reference.get_ref()
 	if source != null and source.has_meta("ground_cpu_cache"): source.remove_meta("ground_cpu_cache")
+
+static func capture_lods(source:ArrayMesh,slot:int)->Dictionary:
+	# Imported native ArrayMeshes lack the procedural CPU owner from remember().
+	# Preserve index LODs across source retirement and per-instance material forks.
+	var surface:Dictionary=RenderingServer.mesh_get_surface(source.get_rid(),slot)
+	var result:Dictionary={}
+	if surface.get("lods",[]).is_empty():return result
+	var stride:int=RenderingServer.mesh_surface_get_format_index_stride(surface.format,surface.vertex_count)
+	for row:Dictionary in surface.lods:
+		var bytes:PackedByteArray=row.index_data;var indices:=PackedInt32Array();indices.resize(bytes.size()/stride)
+		for i in indices.size():indices[i]=bytes.decode_u16(i*2) if stride==2 else bytes.decode_u32(i*4)
+		result[float(row.edge_length)]=indices
+	return result
 
 func restore() -> Mesh:
 	var original: Mesh=source_reference.get_ref() if source_reference!=null else null
@@ -89,9 +115,9 @@ func restore() -> Mesh:
 		return box
 	var result := ArrayMesh.new()
 	for slot in surfaces.size():
-		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surfaces[slot])
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surfaces[slot],[],_surface_get_lods(slot))
 		result.surface_set_material(slot, materials[slot])
-	var cached: Mesh=remember(result,surfaces)
+	var cached: Mesh=remember(result,surfaces,lods)
 	# Repeated instances share this CPU object after loading. Remember the first
 	# restored GPU mesh weakly so each instance does not upload the same buffers.
 	source_reference=weakref(result)
@@ -113,5 +139,5 @@ func _surface_get_format(index: int) -> int:
 	return format
 func _surface_get_material(index: int) -> Material: return materials[index]
 func _surface_set_material(index: int, material: Material) -> void: materials[index] = material
-func _surface_get_lods(_index: int) -> Dictionary: return {}
+func _surface_get_lods(index: int) -> Dictionary: return lods[index] if index<lods.size() else {}
 func _surface_get_blend_shape_arrays(_index: int) -> Array[Array]: return []

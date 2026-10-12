@@ -85,5 +85,5 @@ func show_preview() -> void:
 	preview.text = JSON.stringify(Templates.compile(result.value), "  "); preview.visible = true
 
 func report(result: Dictionary) -> void:
-	editor._status.text = "事件设置已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"事件设置已应用，可撤销","事件设置")
 	if result.ok: refresh()

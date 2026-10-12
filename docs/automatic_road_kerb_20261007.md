@@ -54,3 +54,11 @@
 - GPU 验收使用 `tools/run_godot_background.py` 的独立未激活桌面。日志和引擎截图位于 `D:/code/rmmo_runtime/review_artifacts/automatic_kerb/`。
 
 美术自审：符合写实石材、立体低路缘、连续转角及路口无横向挡条；测试画面采用平地与道路，以便看清连接，不代表完整街区布景。路缘未添加苔藓、草丛遮挡及泥土过渡，这些仍由已有地形/植被系统布置。没有将测试地图作为已完成城镇交付。
+
+## 同日追加：石缝在游戏距离下的可读性
+
+用户在城镇应用过程中指出路缘“像水泥”。检查确认原专用石灰岩颜色、法线和粗糙度贴图均已使用，UV 为沿路长 1.76 米循环；主要问题是原接缝偏浅，缩远后分界不明显。本轮保留旧材质及母版，用 `tools/refine_automatic_kerb_joints.py` 在 Blender 重烘焙匹配的三张贴图，接缝约 13 毫米、凹陷更明确，石块增加轻微色差。没有增加逐砖模型或纹理表面数量。
+
+新版材质 ID 为 `pack:default:paving/automatic_limestone_kerb_readable/material`，库名“自动路缘·浅石灰岩·清晰石缝”。原始来源及许可信息沿用已购 Quixel Beach Cliff；原材质不覆盖。母版 `D:/code/rmmo_runtime/art_sources/automatic_kerb/stone_joints_v2/material_master_v2.blend` 保留完整程序节点。
+
+`tools/test_kerb_joint_material.gd` 在独立桌面的真实 3D HTTP MCP 中生成新版材质道路，撤销、重做、原生保存重开均通过。相同相机、灯光与曝光的前后截图为 `D:/code/rmmo_runtime/review_artifacts/bridge_road_edges_20261007/stone_joints_before.png`、`stone_joints_after.png`；后者能连续辨认石缝，前者近似浅色整条。此处仅记录材质及临时地图验收；正式街景部署见 [桥头街景记录](bridge_spire_courtyard_20261007.md)。

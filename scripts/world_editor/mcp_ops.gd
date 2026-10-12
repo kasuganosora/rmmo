@@ -31,6 +31,7 @@ func state() -> Dictionary:
 		"position_snap": editor._snap, "rotation_snap": editor._rotation_snap, "scale_snap": editor._scale_snap,
 		"pivot": array3(editor._selection_tools.pivot()), "canvas_size": [editor._canvas.size.x, editor._canvas.size.y],
 		"surface_placement_active": editor._placement_tools.active,
+		"gravity_placement": editor._gravity.enabled, "gravity_falling": editor._gravity.falling,
 		"building_region_drawing": editor._building_area_busy(),
 		"waterway_drawing":editor._city.waterway_draft,
 		"bridge_drawing":editor._city.bridge_draft,
@@ -51,6 +52,13 @@ func state() -> Dictionary:
 
 func execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"list_terrain_rivers":return preload("res://scripts/world_editor/terrain_river_tools.gd").catalog(editor)
+		"remove_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args,false,true)
+		"generate_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args)
+		"preview_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args,true)
+		"create_terrain_volume":return preload("res://scripts/world_editor/terrain_volume_tools.gd").apply(editor,args)
+		"sculpt_terrain_volume":return preload("res://scripts/world_editor/terrain_volume_tools.gd").apply(editor,args,true)
+		"preview_terrain_volume_stroke":return preload("res://scripts/world_editor/terrain_volume_tools.gd").apply(editor,args,true,true)
 		"set_editor_walk_mode":return editor._walk_mode.set_enabled(args)
 		"move_editor_walk":return editor._walk_mode.move(args)
 		"set_editor_walk_view":return editor._walk_mode.set_view(args)
@@ -69,6 +77,7 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"generate_bridge": return editor._bridges.generate(args)
 		"bake_bridge": return editor._bridges.bake(args.id)
 		"save_bridge_prefab": return editor._bridges.save_prefab(args.id,args.name)
+		"set_fortification_terrain_follow":return editor._fortifications.set_terrain_follow(args.id,args.enabled)
 		"set_terrain_furrows": return preload("res://scripts/world_editor/terrain_furrow_tools.gd").apply(editor,args)
 		"paint_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args)
 		"remove_terrain_region": return preload("res://scripts/world_editor/terrain_region_tools.gd").apply(editor,args,true)
@@ -230,10 +239,13 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 			if args.has("position_snap"): editor._snap = args.position_snap
 			if args.has("rotation_snap"): editor._rotation_snap = args.rotation_snap
 			if args.has("scale_snap"): editor._scale_snap = args.scale_snap
+			if args.has("gravity_placement"): editor._gravity.configure(args.gravity_placement)
 			for field in Schema.SNAP_VALUES:
 				if args.has(field): editor._snap_controls[field].select(Schema.SNAP_VALUES[field].find(float(args[field])))
 			editor._update_space_button()
 			return state()
+		"settle_selection":
+			return editor._gravity.settle_selection()
 		"set_object_transform":
 			var changes: Dictionary = args.duplicate(true)
 			changes.erase("id")
@@ -430,6 +442,9 @@ func place_asset(args: Dictionary) -> Dictionary:
 		if not invalid.is_empty(): return error(invalid)
 		if not editor._place_prefab(entry, position): return error(editor._status.text)
 	else:
+		if editor._gravity.enabled:
+			if entry.has("asset_path") and (not allowed_path(str(entry.asset_path)) or not FileAccess.file_exists(str(entry.asset_path))): return error("Asset path unavailable or outside allowed content root")
+			return editor._gravity.place(entry, position)
 		var id := ""
 		if entry.has("asset_path"):
 			if not allowed_path(str(entry.asset_path)) or not FileAccess.file_exists(str(entry.asset_path)): return error("Asset path unavailable or outside allowed content root")

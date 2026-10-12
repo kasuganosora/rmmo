@@ -96,7 +96,8 @@ func group_fields(groups: Array) -> void:
 
 func values() -> Dictionary:
 	# Include the number currently being typed when an Apply button is clicked.
-	var focus := get_viewport().gui_get_focus_owner()
+	var viewport := get_viewport()
+	var focus: Control = viewport.gui_get_focus_owner() if viewport != null else null
 	if focus is LineEdit and focus.get_parent() is SpinBox and is_ancestor_of(focus): focus.get_parent().apply()
 	var result := {}
 	for key in fields:

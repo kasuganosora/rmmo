@@ -9,6 +9,32 @@ const MAX_FILE_BYTES=65*1024*1024
 const MAX_RECORDS=100000
 const CACHE_BYTES=32*1024*1024
 const IDENTITY_CACHE_ENTRIES=16384
+const READ_WORKERS=4
+const DEFINITION_CACHE_MAX_BYTES=32*1024*1024
+
+class ReadQueue extends RefCounted:
+	# Requests are immutable after construction. Only queue bookkeeping is shared;
+	# each worker owns its FileAccess, decoded definitions and result array.
+	var jobs:Array=[]
+	var mutex:=Mutex.new()
+	var cursor:=0
+	var stopped:=false
+	var active:=0
+	var peak_active:=0
+	var completed:=0
+	func take()->int:
+		mutex.lock()
+		var index:=-1
+		if not stopped and cursor<jobs.size():
+			index=cursor;cursor+=1;active+=1;peak_active=maxi(peak_active,active)
+		mutex.unlock()
+		return index
+	func finish(ok:bool)->void:
+		mutex.lock();active-=1;completed+=1
+		if not ok:stopped=true
+		mutex.unlock()
+	func should_stop()->bool:
+		mutex.lock();var value:=stopped;mutex.unlock();return value
 static var _cache:Dictionary={}
 static var _cache_size:=0
 # Metadata only: no mutable definitions, raw payloads, paths, or compressed
@@ -16,6 +42,90 @@ static var _cache_size:=0
 static var _identities:Dictionary={}
 static var _mutex:=Mutex.new()
 static var _serial:=0
+# This retained CPU reserve is separate from per-job workspace. The loading
+# owner must reserve its complete configured cap before enabling it; zero is
+# the standalone default. Entries never prove a path, source generation,
+# selected building closure, cancellation state or publication readiness.
+static var _definition_mutex:=Mutex.new()
+static var _definitions:Dictionary={}
+static var _definition_budget:=0
+static var _definition_bytes:=0
+static var _definition_generation:=0
+static var _definition_stats:Dictionary={"hits":0,"misses":0,"bypasses":0,"evictions":0,"insertions":0,"peak_bytes":0}
+
+static func configure_definition_cache(byte_budget:int)->int:
+	var limit:=clampi(byte_budget,0,DEFINITION_CACHE_MAX_BYTES)
+	_definition_mutex.lock()
+	if limit!=_definition_budget:
+		_definition_budget=limit
+		_clear_definitions_locked()
+	_definition_mutex.unlock()
+	return limit
+
+static func _clear_definitions_locked()->void:
+	_definitions.clear();_definition_bytes=0;_definition_generation+=1
+	_definition_stats={"hits":0,"misses":0,"bypasses":0,"evictions":0,"insertions":0,"peak_bytes":0}
+
+static func reset_definition_cache()->void:
+	_definition_mutex.lock();_clear_definitions_locked();_definition_mutex.unlock()
+
+static func definition_cache_stats()->Dictionary:
+	_definition_mutex.lock()
+	var result:=_definition_stats.duplicate()
+	result.budget_bytes=_definition_budget;result.resident_bytes=_definition_bytes
+	result.entries=_definitions.size();result.generation=_definition_generation
+	_definition_mutex.unlock()
+	return result
+
+static func _definition_cost(raw_length:int)->int:
+	# Match the conservative serialized-definition term in the dependency
+	# directory, allowing UTF-32 strings, Variant containers and entry overhead.
+	# This is accounted capacity, not a claim of exact OS heap/RSS measurement.
+	return raw_length*8+65536
+
+static func _definition_lookup(digest:String,length:int,raw_length:int)->Dictionary:
+	var key:=digest+"/"+str(length)+"/"+str(raw_length)
+	var cost:=_definition_cost(raw_length)
+	_definition_mutex.lock()
+	var result:={"key":key,"generation":_definition_generation,"cost":cost,"status":"miss"}
+	if _definition_budget==0 or cost>_definition_budget:
+		_definition_stats.bypasses+=1;result.status="bypass"
+	elif _definitions.has(key):
+		var entry:Dictionary=_definitions[key]
+		_definitions.erase(key);_definitions[key]=entry
+		_definition_stats.hits+=1;result.status="hit";result.entry=entry
+	else:_definition_stats.misses+=1
+	_definition_mutex.unlock()
+	return result
+
+static func _freeze_definition(value:Variant)->void:
+	# _safe has excluded cycles, Objects and excessive nesting. Read-only
+	# containers do not make their packed arrays immutable: the private deep
+	# copy at insertion AND on every public return supplies that isolation.
+	if value is Dictionary:
+		for key in value:_freeze_definition(value[key])
+		value.make_read_only()
+	elif value is Array:
+		for item in value:_freeze_definition(item)
+		value.make_read_only()
+
+static func _definition_remember(ticket:Dictionary,definition:Dictionary,raw_sha:String)->void:
+	if ticket.status!="miss":return
+	# Never hold the mutex for a deep copy, IO, decompression or another cache.
+	var snapshot:=definition.duplicate(true)
+	_freeze_definition(snapshot)
+	var entry:={"definition":snapshot,"raw_sha256":raw_sha,"cost":ticket.cost}
+	entry.make_read_only()
+	_definition_mutex.lock()
+	if ticket.generation==_definition_generation and ticket.cost<=_definition_budget and not _definitions.has(ticket.key):
+		while _definition_bytes+ticket.cost>_definition_budget and not _definitions.is_empty():
+			var oldest:Variant=_definitions.keys()[0]
+			_definition_bytes-=int(_definitions[oldest].cost);_definitions.erase(oldest)
+			_definition_stats.evictions+=1
+		_definitions[ticket.key]=entry;_definition_bytes+=ticket.cost
+		_definition_stats.insertions+=1
+		_definition_stats.peak_bytes=maxi(_definition_stats.peak_bytes,_definition_bytes)
+	_definition_mutex.unlock()
 static func _temporary(prefix:String)->String:
 	while true:
 		_mutex.lock();_serial+=1;var serial:=_serial;_mutex.unlock()
@@ -230,6 +340,16 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true)
 	var raw_length:int=bytes.decode_u64(8)
 	if raw_length<=0 or raw_length>MAX_RAW_BYTES:return _fail("Invalid resource decompression length")
 	if not decode:return {"ok":true,"error":OK,"length":size}
+	# Every hit follows THIS read's complete byte SHA, length and envelope
+	# validation. Public callers still validate paths before/after the read and
+	# the preparation transaction still verifies its full sources before publish.
+	var cached:=_definition_lookup(digest,size,raw_length)
+	if cached.status=="hit":
+		var copy_started:=Time.get_ticks_usec()
+		var snapshot:Dictionary=cached.entry.definition.duplicate(true)
+		_remember_identity(cached.entry.raw_sha256,raw_length,digest,size)
+		if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.definition_reuse",copy_started,{"bytes":raw_length})
+		return {"ok":true,"error":OK,"definition":snapshot,"length":size,"definition_cache":"hit"}
 	var decode_started:=Time.get_ticks_usec()
 	var raw:=bytes.slice(16).decompress(raw_length,FileAccess.COMPRESSION_ZSTD)
 	if raw.size()!=raw_length:return _fail("Resource decompression failed")
@@ -243,9 +363,11 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true)
 	# Only fully SHA-verified, decoded and safe CPU data seeds a cold-open
 	# identity. No path or cached result replaces the next disk verification.
 	var identity_started:=Time.get_ticks_usec()
-	_remember_identity(_sha(raw),raw.size(),digest,size)
+	var raw_sha:=_sha(raw)
+	_remember_identity(raw_sha,raw.size(),digest,size)
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.identity_sha",identity_started)
-	return {"ok":true,"error":OK,"definition":definition,"length":size}
+	_definition_remember(cached,definition,raw_sha)
+	return {"ok":true,"error":OK,"definition":definition,"length":size,"definition_cache":cached.status}
 
 static func _publish(staged:Array,folder:String)->Dictionary:
 	if staged.is_empty():return {"error":OK,"written":{}}
@@ -348,10 +470,66 @@ static func write_records(records:Array,path:String,content_root:String,progress
 	_mutex.lock();var identity_count:=_identities.size();_mutex.unlock()
 	return {"ok":true,"error":OK,"records":compact,"dependencies":dependencies,"resources_written":written,"resources_reused":reused,"bytes_written":bytes_written,"encoding_cache_hits":cache_hits,"encoding_cache_misses":cache_misses,"encoded_raw_bytes":encoded_raw_bytes,"encoding_ms":encoding_ms,"verified_bytes":verified_bytes,"identity_cache_hits":identity_hits,"serialized_raw_bytes":serialized_raw_bytes,"compression_count":compression_count,"identity_cache_entries":identity_count}
 
-static func read_records(records:Array,path:String,content_root:String)->Dictionary:
+static func _read_worker(queue:ReadQueue,decode:bool,reader:Callable)->Array:
+	var result:Array=[]
+	while true:
+		var index:=queue.take()
+		if index<0:break
+		var job:Dictionary=queue.jobs[index]
+		var value:Variant=reader.call(job,decode) if reader.is_valid() else _read(job.location,job.sha256,job.length,decode)
+		var data:Dictionary=value if value is Dictionary else _fail("Resource worker returned invalid data")
+		if not data.get("ok") is bool or not data.get("error") is int:
+			data=_fail("Resource worker returned invalid data")
+		elif data.ok and (data.error!=OK or not data.get("length") is int or (decode and not data.get("definition") is Dictionary)):
+			data=_fail("Resource worker returned invalid data")
+		result.append({"index":index,"data":data})
+		queue.finish(data.ok)
+	return result
+
+static func _read_many(jobs:Array,decode:bool=true,worker_limit:int=READ_WORKERS,reader:Callable=Callable(),thread_starter:Callable=Callable())->Dictionary:
+	var started:=Time.get_ticks_usec()
+	var queue:=ReadQueue.new();queue.jobs=jobs
+	var limit:=mini(jobs.size(),clampi(worker_limit,1,READ_WORKERS))
+	var workers:Array[Thread]=[];var replies:Array=[];var fallback_count:=0
+	if limit==1:replies.append(_read_worker(queue,decode,reader))
+	elif limit>1:
+		for i in limit:
+			if queue.should_stop():break
+			var worker:=Thread.new();var task:=_read_worker.bind(queue,decode,reader)
+			var status:int=thread_starter.call(worker,task) if thread_starter.is_valid() else worker.start(task)
+			if worker.is_started():workers.append(worker)
+			elif status!=OK or not worker.is_started():fallback_count+=1
+		# One caller worker replaces failed launches after dispatch, without
+		# exceeding the requested concurrency alongside successfully started jobs.
+		if fallback_count>0:replies.append(_read_worker(queue,decode,reader))
+		# Always join every worker, even when an earlier one reported corruption.
+		for worker:Thread in workers:replies.append(worker.wait_to_finish())
+	var entries:Array=[];entries.resize(jobs.size())
+	for reply:Array in replies:
+		for item:Dictionary in reply:entries[item.index]=item.data
+	var profile:={"unique_resources":jobs.size(),"worker_limit":limit,"threads_started":workers.size(),"workers_joined":workers.size(),"fallback_count":fallback_count,"peak_active":queue.peak_active,"reads_started":queue.cursor,"completed":queue.completed,"elapsed_us":Time.get_ticks_usec()-started}
+	profile.definition_cache_hits=0;profile.definition_cache_misses=0;profile.definition_cache_bypasses=0
+	for entry:Variant in entries:
+		if not entry is Dictionary:continue
+		match str(entry.get("definition_cache","")):
+			"hit":profile.definition_cache_hits+=1
+			"miss":profile.definition_cache_misses+=1
+			"bypass":profile.definition_cache_bypasses+=1
+	# Claims occur in request order; every earlier index has finished by the
+	# join. Select that first error, not whichever worker happened to fail first.
+	for entry:Variant in entries:
+		if entry is Dictionary and not entry.ok:
+			entry.read_profile=profile;return entry
+	if queue.completed!=jobs.size():
+		var failure:=_fail("Resource workers did not complete the request set");failure.read_profile=profile;return failure
+	return {"ok":true,"error":OK,"entries":entries,"read_profile":profile}
+
+static func read_records(records:Array,path:String,content_root:String,expected_dependencies:Variant=null,worker_limit:int=READ_WORKERS)->Dictionary:
 	var paths:=_path_batch(path,content_root)
 	if paths.is_empty() or records.size()>MAX_RECORDS:return _fail("Invalid map path or record count")
-	var result:Array=[];var ids:Dictionary={};var decoded:Dictionary={};var dependencies:Dictionary={}
+	var result:Array=[];var ids:Dictionary={};var requests:Array=[];var by_uri:Dictionary={};var dependencies:Dictionary={}
+	# Complete compact/header validation before any resource bytes are read or
+	# identity cache entries are published, including malformed trailing records.
 	for record in records:
 		if not _shape(record,true) or ids.has(record.uuid):return _fail("Invalid compact record or duplicate UUID")
 		ids[record.uuid]=true
@@ -359,27 +537,36 @@ static func read_records(records:Array,path:String,content_root:String)->Diction
 		if ref.size()!=4 or not _integer(ref.get("version")) or int(ref.version)!=1 or not _integer(ref.get("length")) or ref.length<=16 or ref.length>MAX_FILE_BYTES:return _fail("Invalid resource reference")
 		var location:=_batch_location(paths,ref.get("uri"),ref.get("sha256"))
 		if location.is_empty():return _fail("Resource reference escapes adjacent directory")
-		# The per-call cache follows a fresh complete file verification. It is
-		# never authoritative across opens, and definitions are copied per instance.
-		if not decoded.has(ref.uri):
-			var data:=_read(location,ref.sha256,int(ref.length))
-			if not data.ok:return data
-			decoded[ref.uri]=data
-		if decoded[ref.uri].length!=int(ref.length):return _fail("Conflicting resource lengths")
+		if not by_uri.has(ref.uri):
+			by_uri[ref.uri]=requests.size()
+			requests.append({"uri":ref.uri,"location":location,"sha256":ref.sha256,"length":int(ref.length)})
+		elif requests[by_uri[ref.uri]].length!=int(ref.length):return _fail("Conflicting resource lengths")
 		dependencies[ref.uri]=ref.sha256
+	if expected_dependencies!=null:
+		if not expected_dependencies is Dictionary or expected_dependencies.size()!=dependencies.size():return _fail("Reference dependency manifest does not match the resource closure")
+		for uri:String in dependencies:
+			if expected_dependencies.get(uri)!=dependencies[uri]:return _fail("Reference resource is missing from the dependency manifest")
+	var decoded:=_read_many(requests,true,worker_limit)
+	if not decoded.ok:return decoded
+	# Results are merged by the original request index and copied per authored
+	# instance. No mutable definition is shared between editable records.
+	for record:Dictionary in records:
 		var copy_started:=Time.get_ticks_usec()
-		var hydrated:Dictionary=decoded[ref.uri].definition.duplicate(true)
+		var hydrated:Dictionary=decoded.entries[by_uri[record.rmmo_ref.uri]].definition.duplicate(true)
 		for field in FIELDS:hydrated[field]=record[field].duplicate(true) if record[field] is Array else record[field]
 		for field in record.rmmo_state:hydrated[str(field)]=_json_copy(record.rmmo_state[field])
 		result.append(hydrated)
 		if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.instance_copy",copy_started)
 	if not _finish_paths(paths):return _fail("Resource paths changed during read")
-	return {"ok":true,"error":OK,"reason":"","records":result,"dependencies":dependencies}
+	return {"ok":true,"error":OK,"reason":"","records":result,"dependencies":dependencies,"read_profile":decoded.read_profile}
 
-static func verify_dependencies(dependencies:Dictionary,path:String,content_root:String)->bool:
+static func verify_dependencies(dependencies:Dictionary,path:String,content_root:String,worker_limit:int=READ_WORKERS)->bool:
 	var paths:=_path_batch(path,content_root)
 	if paths.is_empty() or dependencies.size()>MAX_RECORDS:return false
+	var requests:Array=[]
 	for uri in dependencies:
 		var location:=_batch_location(paths,uri,dependencies[uri])
-		if location.is_empty() or not _read(location,dependencies[uri],-1,false).ok:return false
-	return _finish_paths(paths)
+		if location.is_empty():return false
+		requests.append({"uri":uri,"location":location,"sha256":dependencies[uri],"length":-1})
+	var verified:=_read_many(requests,false,worker_limit)
+	return verified.ok and _finish_paths(paths)

@@ -64,6 +64,10 @@ static func build(library:Array)->Dictionary:
 	result.stream_landscape=Landscape.bind(library,groups)
 	result.stream_building_groups=groups
 	result.stream_prop_index=props;result.stream_collision_index=collisions
+	# This revision describes index membership, not residency/source requests.
+	# A full rebuild also replaces the index identity and clears cached owners.
+	result.stream_collision_revision=1
+	result.stream_collision_candidate_cache={}
 	result.stream_building_count=library.size()
 	result.stream_append_state=_append_state(library,groups,result.stream_landscape)
 	return result
@@ -133,6 +137,123 @@ static func _merge_buckets(target:Dictionary,addition:Dictionary,originals:Dicti
 	for key:Variant in addition:
 		if not target.has(key):target[key]=[]
 		for value:Variant in addition[key]:target[key].append(originals[value.uuid] if value is Dictionary else value)
+
+static func _retire_failure(reason:String)->Dictionary:
+	return {"ok":false,"error":reason,"removed":0,"removed_ids":[],"removed_specs":[]}
+
+static func _retire_dependency(spec:Dictionary)->String:
+	if not _valid_append_spec(spec):return "invalid spec"
+	if bool(spec.get("native_visual",false)):return "native visual"
+	for field in ["render_building","render_bounds","render_supports","render_dependents"]:
+		if spec.has(field):return field
+	var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+	for field in ["building","fixture","fortification","house_prefab"]:
+		if record.has(field) or extra.has(field):return field
+	if Landscape.landscape(spec):return "landscape"
+	# Runtime retirement currently supports ordinary asset records only. A bare
+	# spec without an authored record remains usable by pure index consumers.
+	if not record.is_empty() and record.get("kind","")!="asset":return "non-asset record"
+	for field in ["surface_paint","prefab_materials","material","material_state","material_overrides","event","event_template"]:
+		if record.has(field):return field
+	if extra.has("rmmo_streetlamp_instance") or extra.has("rmmo_streetlamp_crystal"):return "streetlamp"
+	if extra.get("kind","") in ["npc","gather","event","teleport","warp"] or extra.has("event") or bool(extra.get("hostile",false)) or bool(extra.get("ally",false)):return "gameplay owner"
+	return ""
+
+static func _retire_plan(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	for key in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
+		if not existing.get(key) is Dictionary:return _retire_failure("invalid existing index: "+key)
+	var state:Dictionary=existing.stream_append_state
+	for key in ["namespaces","prefixes","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
+		if not state.get(key) is Dictionary:return _retire_failure("invalid append bookkeeping: "+key)
+	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _retire_failure("invalid existing index")
+	if library.size()!=existing.stream_building_count or library.size()!=existing.stream_by_id.size():return _retire_failure("library/index size mismatch")
+	var selected:Dictionary={};var prefixes:Dictionary={};var cells:Dictionary={}
+	for value:Variant in ids:
+		if not value is String or value.is_empty():return _retire_failure("invalid retirement UUID")
+		if selected.has(value):return _retire_failure("duplicate retirement UUID: "+value)
+		if not existing.stream_by_id.has(value):return _retire_failure("unknown retirement UUID: "+value)
+		var spec:Variant=existing.stream_by_id[value]
+		if not spec is Dictionary:return _retire_failure("invalid resident spec: "+value)
+		var dependency:=_retire_dependency(spec)
+		if not dependency.is_empty():return _retire_failure("pinned dependency "+dependency+": "+value)
+		selected[value]=true;prefixes[value.get_slice("__",0)]=true
+		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):cells[Vector2i(x,z)]=true
+	# Validate the complete request before mutating any shared dictionary/array.
+	# This is a metadata scan, not a rebuild or a second copy of resident specs.
+	var seen:Dictionary={};var removed:Array=[];var ordered:Array=[]
+	for value:Variant in library:
+		if not value is Dictionary or not value.get("uuid") is String:return _retire_failure("invalid library spec")
+		var id:String=value.uuid
+		if seen.has(id) or not existing.stream_by_id.has(id) or not is_same(existing.stream_by_id[id],value) or not existing.stream_known.has(id):return _retire_failure("library/index identity mismatch: "+id)
+		seen[id]=true
+		var prefix:=id.get_slice("__",0)
+		if prefixes.has(prefix) and not selected.has(id):return _retire_failure("split imported namespace: "+prefix)
+		if selected.has(id):removed.append(value);ordered.append(id)
+	for prefix:String in prefixes:
+		if not state.prefixes.has(prefix):return _retire_failure("missing prefix bookkeeping: "+prefix)
+	for id:String in selected:
+		if id.contains("__") and not state.namespaces.has(id.get_slice("__",0)):return _retire_failure("missing namespace bookkeeping: "+id)
+	# Derived groups remain pinned even if a caller has stripped a spec's tags.
+	for members:Variant in existing.stream_building_groups.values():
+		if not members is Array:return _retire_failure("invalid building group")
+		for member:Variant in members:
+			if member is Dictionary and selected.has(member.get("uuid")):return _retire_failure("pinned building group: "+str(member.uuid))
+	for member:Variant in existing.stream_landscape:
+		if member is Dictionary and selected.has(member.get("uuid")):return _retire_failure("pinned landscape: "+str(member.uuid))
+	for key:Vector2i in cells:
+		for field in ["stream_index","stream_prop_index","stream_collision_index"]:
+			if not existing[field].get(key,[]) is Array:return _retire_failure("invalid spatial bucket: "+field)
+	return {"ok":true,"selected":selected,"prefixes":prefixes,"cells":cells,"removed_ids":ordered,"removed_specs":removed}
+
+## Read-only preflight for the caller's navigation/worker retirement handshake.
+## Call retire synchronously after acquiring all owners' consent; do not await
+## between consent and commit. Both calls use exactly the same validation.
+static func validate_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var plan:=_retire_plan(existing,library,ids)
+	if not plan.ok:return plan
+	return {"ok":true,"error":"","removed":plan.removed_ids.size(),"removed_ids":plan.removed_ids}
+
+static func _retire_bucket(buckets:Dictionary,key:Vector2i,selected:Dictionary,by_spec:bool)->void:
+	if not buckets.has(key):return
+	var bucket:Array=buckets[key];var write:=0
+	for read in bucket.size():
+		var value:Variant=bucket[read]
+		var id:Variant=value.get("uuid") if by_spec and value is Dictionary else value
+		if selected.has(id):continue
+		bucket[write]=value;write+=1
+	bucket.resize(write)
+	if bucket.is_empty():buckets.erase(key)
+
+## Main-thread atomic index retirement for ordinary static props only. The
+## caller must release SceneTree, candidate/plan, batcher and navigation owners.
+## Complete imported namespaces are required; dependent/native groups stay pinned.
+## removed_specs deliberately retains resources only until the caller finishes
+## cleanup. Never store this result in a long-lived profile/history dictionary.
+static func retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var plan:=_retire_plan(existing,library,ids)
+	if not plan.ok:return plan
+	var selected:Dictionary=plan.selected;var state:Dictionary=existing.stream_append_state
+	for id:String in selected:
+		existing.stream_by_id.erase(id);existing.stream_known.erase(id)
+	for key:Vector2i in plan.cells:
+		_retire_bucket(existing.stream_index,key,selected,false)
+		_retire_bucket(existing.stream_prop_index,key,selected,true)
+		_retire_bucket(existing.stream_collision_index,key,selected,true)
+	for prefix:String in plan.prefixes:state.namespaces.erase(prefix);state.prefixes.erase(prefix)
+	var write:=0
+	for read in library.size():
+		if selected.has(library[read].uuid):continue
+		library[write]=library[read];write+=1
+	library.resize(write)
+	existing.stream_building_count=library.size()
+	if not selected.is_empty():_collision_membership_changed(existing)
+	return {"ok":true,"error":"","data":existing,"removed":plan.removed_ids.size(),"removed_ids":plan.removed_ids,"removed_specs":plan.removed_specs}
+
+static func _collision_membership_changed(existing:Dictionary)->void:
+	existing.stream_collision_revision=int(existing.get("stream_collision_revision",0))+1
+	# Drop retired specs/meshes immediately, even when no later query occurs.
+	if existing.get("stream_collision_candidate_cache") is Dictionary:existing.stream_collision_candidate_cache.clear()
 
 ## Atomic main-thread publication only: callers own the library append and
 ## residency dirty notification. Existing indexes must come from build/append.
@@ -221,4 +342,5 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 	for uuid:String in touched:
 		if not originals.has(uuid):changed_existing[uuid]=existing.stream_by_id[uuid]
 	existing.stream_building_count+=additions.size()
+	_collision_membership_changed(existing)
 	return {"ok":true,"data":existing,"added":additions.size(),"affected_groups":affected.size(),"affected_existing_specs":changed_existing.values()}

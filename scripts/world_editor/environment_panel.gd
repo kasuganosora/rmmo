@@ -14,7 +14,7 @@ func setup(host: Node3D) -> void:
 	wind_preview.toggled.connect(func(enabled):
 		var result: Dictionary=editor._wind_tools.set_preview(enabled)
 		wind_preview.set_pressed_no_signal(editor._wind_tools.preview_enabled)
-		editor._status.text=("编辑器风场预览已开启" if enabled else "编辑器风场预览已关闭") if result.ok else str(result.error)
+		editor._report_result(result,"编辑器风场预览已开启" if enabled else "编辑器风场预览已关闭","风场预览")
 	)
 	var note := Label.new(); note.text = "按主题调整参数，再点击上方「应用环境设置」。支持撤销。"
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; add_child(note)
@@ -63,4 +63,4 @@ func fill(values: Dictionary) -> void:
 
 func apply() -> void:
 	var result: Dictionary = editor._gameplay.set_environment(form.values())
-	editor._status.text = "地图环境已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"地图环境已应用，可撤销","地图环境")

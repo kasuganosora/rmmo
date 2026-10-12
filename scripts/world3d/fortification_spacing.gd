@@ -6,6 +6,10 @@ static func radius(s: Dictionary) -> float:
 	if s.get("wall_access",false): return maxf(s.thickness*1.6,s.height*.6)
 	return s.thickness*(1.0 if s.shape=="ellipse" else sqrt(2.0))
 static func gates(s: Dictionary) -> Array:
+	if s.get("shape","path")=="spline":
+		var resolved:=preload("res://scripts/world3d/fortification_spline.gd").resolve(s)
+		if not resolved.ok:return []
+		s=resolved.settings
 	var out: Array=[]
 	for g in s.gates:
 		var p: Vector2

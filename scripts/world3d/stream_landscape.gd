@@ -3,7 +3,7 @@ extends RefCounted
 static func ground(spec:Dictionary)->bool:
 	var r:Dictionary=spec.get("ground_batch_record",{})
 	if r.has("building") or r.has("fortification") or r.has("bridge_mesh"):return false
-	return r.has("terrain_mesh") or (r.get("kind")=="box" and r.get("surface_id")=="ground" and not r.has("road_mesh") and float(r.get("size",[1,3,1])[1])<=2)
+	return r.has("terrain_mesh") or r.has("terrain_volume") or (r.get("kind")=="box" and r.get("surface_id")=="ground" and not r.has("road_mesh") and float(r.get("size",[1,3,1])[1])<=2)
 
 static func landscape(spec:Dictionary)->bool:
 	var r:Dictionary=spec.get("ground_batch_record",{})

@@ -104,6 +104,14 @@ func terrain_is_prepared()->bool:
 func terrain_preparation_progress()->Vector2i:
 	return Vector2i(_terrain._warm_cursor,_terrain._items.size()) if is_instance_valid(_terrain) else Vector2i.ZERO
 
+func region_is_prepared(region_center:Vector2,view_radius:float=-1.0)->bool:
+	if not region_center.is_finite() or not is_finite(view_radius):return false
+	if not _prepare_terrain():return true
+	var scale:float=scale_factor() if view_radius<=0 else maxf(1,minf(size.x,size.y))/(view_radius*2)
+	var extent:=size/scale
+	var required:Array=world._map_data.visible_shapes(Rect2(region_center-extent*.5,extent))
+	return _terrain.are_shapes_prepared(required,1.0/scale)
+
 func _terrain_warm_budget_usec()->int:
 	# An input lock alone can mean dialogue/combat. Spend the larger slice only
 	# behind the actual entry cover for this current world, never during play.
@@ -154,8 +162,7 @@ func _draw()->void:
 		draw_set_transform(size*.5-center*scale,0,Vector2.ONE*scale)
 		for shape in world._map_data.visible_shapes(visible_rect):
 			drawn_shapes+=1
-			draw_colored_polygon(shape.polygon,shape.color)
-			draw_polyline(shape.polygon,shape.color.darkened(.25),1/scale,true)
+			preload("res://scripts/ui/world_map_footprint.gd").draw(get_canvas_item(),shape.polygon,shape.color,1/scale)
 		draw_set_transform(Vector2.ZERO)
 	var drawn:Dictionary={}
 	for marker in world._map_data.markers:

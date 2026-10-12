@@ -23,7 +23,7 @@ func setup(owner: Node3D) -> void:
 	_button(actions, "存为预制件", editor._save_prefab_dialog)
 	var hint := Label.new()
 	hint.text = "Shift / Ctrl 多选 · 双击聚焦 · 建筑默认整栋选择"
-	hint.add_theme_font_size_override("font_size", 12)
+	hint.theme_type_variation = "EditorCaption"
 	hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	add_child(hint)
 	tree = Tree.new()

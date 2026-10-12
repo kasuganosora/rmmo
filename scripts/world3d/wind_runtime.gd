@@ -3,6 +3,7 @@ extends Node3D
 const Response = preload("res://scripts/world3d/wind_response.gd")
 const Materials = preload("res://scripts/world3d/wind_material.gd")
 const SharedState = preload("res://scripts/world3d/wind_shared_state.gd")
+const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 var camera: Camera3D
 var receivers := {}
 var scan_left := 0.0
@@ -14,6 +15,11 @@ var enabled := true
 # One private world-state texel keeps every rendered LOD current without a
 # synchronous camera-range sweep. The uniform path remains an A/B reference.
 var shared_state_enabled:=true
+# Opt-in background mode must never create a cold shader during gameplay.
+# Misses keep authored materials and retry after a later covered preparation.
+var cached_variants_only:=false
+var _variant_pending:Dictionary={}
+var _last_bind_timing:Dictionary={}
 var _shared_state:RefCounted
 const REFRESH_BUDGET_USEC := 2000
 var _active_indices:Dictionary={}
@@ -58,6 +64,31 @@ func set_enabled(value: bool) -> void:
 		_cancel_refresh()
 		for row in receivers.values(): _restore(row)
 		_clear_active(); receivers.clear()
+		_variant_pending.clear()
+
+func capability_status()->Dictionary:
+	_prune_variant_pending()
+	var keys:Dictionary={}
+	for row:Dictionary in _variant_pending.values():
+		for key:String in row["keys"]:keys[key]=true
+	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else ""}
+
+func _prune_variant_pending()->void:
+	for id:int in _variant_pending.keys():
+		var node:Variant=_variant_pending[id].node.get_ref()
+		if not is_instance_valid(camera) or not _eligible(node,get_world_3d(),camera.global_position):_variant_pending.erase(id)
+
+# A cover may request these existing resources without widening asset residency.
+# The receiver owns its source materials; this snapshot never persists globally.
+func pending_specs()->Array:
+	_prune_variant_pending()
+	var specs:Array=[]
+	for row:Dictionary in _variant_pending.values():
+		var node:MeshInstance3D=row.node.get_ref()
+		var overrides:Array=[]
+		for slot in node.mesh.get_surface_count():overrides.append(node.get_surface_override_material(slot))
+		specs.append({"mesh":node.mesh,"material_override":node.material_override,"surface_overrides":overrides,"extras":node.get_meta("extras",{})})
+	return specs
 
 func _physics_process(delta: float) -> void:
 	if not enabled: return
@@ -67,12 +98,17 @@ func _physics_process(delta: float) -> void:
 	# repeatedly before the player gets another visible frame.
 	var frame:=Engine.get_process_frames()
 	if _last_slice_frame==frame:return
+	if not _scan_pending and scan_left>0:return
+	var allowed:=FrameBudget.allowance("wind",REFRESH_BUDGET_USEC)
+	if allowed<=0:return
+	var began:=Time.get_ticks_usec()
 	if not _scan_pending:
 		if scan_left>0:return
 		scan_left=.35
 		_begin_refresh()
 	_last_slice_frame=frame
-	_advance_refresh(REFRESH_BUDGET_USEC)
+	_advance_refresh(maxi(1,allowed-(Time.get_ticks_usec()-began)))
+	FrameBudget.charge("wind",began)
 
 func refresh() -> void:
 	_cancel_refresh()
@@ -82,6 +118,7 @@ func refresh() -> void:
 	_advance_refresh(0)
 
 func _begin_refresh()->void:
+	_prune_variant_pending()
 	_scan_begin_usec=Time.get_ticks_usec()
 	_scan_nodes=get_tree().get_nodes_in_group(Response.GROUP)
 	_scan_cursor=0;_cleanup_cursor=0;_scan_cleaning=false
@@ -111,6 +148,7 @@ func _advance_refresh(budget_usec:int)->void:
 	var camera_position:=camera.global_position;var world:=get_world_3d()
 	var bind_usec:=0;var bound:=0;var scan_usec:=0;var restore_usec:=0;var erase_usec:=0;var advance_usec:=0;var processed:=0;var removed:=0
 	var profiling:=has_meta("profile_frame")
+	var bind_details:Array=[]
 	var cleanup_check_usec:=0;var cleanup_keys_usec:=0;var cancel_nodes_usec:=0;var cancel_keys_usec:=0
 	while _scan_cursor<_scan_nodes.size():
 		var mark:=Time.get_ticks_usec()
@@ -119,7 +157,9 @@ func _advance_refresh(budget_usec:int)->void:
 			var id:int=node.get_instance_id()
 			if not receivers.has(id):
 				var began:=Time.get_ticks_usec();_bind(node)
-				bind_usec+=Time.get_ticks_usec()-began;bound+=1
+				bind_usec+=Time.get_ticks_usec()-began
+				if receivers.has(id):bound+=1
+				if profiling:bind_details.append(_last_bind_timing)
 			if receivers.has(id):_refresh_receiver(id,node,camera_position,world)
 		scan_usec+=Time.get_ticks_usec()-mark
 		if budget_usec>0 and Time.get_ticks_usec()-started>=budget_usec:break
@@ -152,6 +192,10 @@ func _advance_refresh(budget_usec:int)->void:
 	_scan_slices+=1
 	var used:=Time.get_ticks_usec()-started;_scan_cpu_usec+=used
 	if profiling:set_meta("refresh_timing",{"frame":Engine.get_process_frames(),"physics_frame":Engine.get_physics_frames(),"ms":used/1000.0,"cycle_ms":_scan_cpu_usec/1000.0,"slices":_scan_slices,"pending":_scan_pending,"scan_ms":scan_usec/1000.0,"cleanup_check_ms":cleanup_check_usec/1000.0,"cleanup_keys_ms":cleanup_keys_usec/1000.0,"cancel_nodes_ms":cancel_nodes_usec/1000.0,"cancel_keys_ms":cancel_keys_usec/1000.0,"restore_ms":restore_usec/1000.0,"erase_ms":erase_usec/1000.0,"advance_ms":advance_usec/1000.0,"bind_ms":bind_usec/1000.0,"bound":bound,"processed":processed,"removed":removed,"receivers":receivers.size(),"active":active_rows.size()})
+	if profiling:
+		var timing:Dictionary=get_meta("refresh_timing")
+		timing.bind_details=bind_details
+		timing.variant_capability=capability_status()
 	if profiling and has_meta("profile_wind_timeline"):
 		var timing:Dictionary=get_meta("refresh_timing")
 		timing["begin_usec"]=started;timing["end_usec"]=started+used
@@ -183,20 +227,44 @@ func _clear_active()->void:
 	active_rows.clear();_active_indices.clear()
 
 func _bind(node: MeshInstance3D) -> void:
+	var started:=Time.get_ticks_usec()
+	_last_bind_timing={"node_id":node.get_instance_id(),"uuid":str(node.get_meta("uuid","")),"materials":[],"install_ms":0.0,"shared_state_ms":0.0,"cache_miss":false}
 	var error := Response.mesh_error(node)
-	if not error.is_empty(): node.set_meta("wind_error",error); return
+	_last_bind_timing.validation_ms=(Time.get_ticks_usec()-started)/1000.0
+	if not error.is_empty():node.set_meta("wind_error",error);_variant_pending.erase(node.get_instance_id());return
+	# Check the complete replacement row before constructing or installing any
+	# material, so a multisurface receiver remains wholly authored on a miss.
+	if cached_variants_only:
+		var missing:Dictionary={}
+		for slot in node.mesh.get_surface_count():
+			var key:=Materials.variant_key(node.get_active_material(slot))
+			if not Materials.variant_is_prepared(key):missing[key]=true
+		if not missing.is_empty():
+			_variant_pending[node.get_instance_id()]={"node":weakref(node),"keys":missing.keys()}
+			_last_bind_timing.cache_miss=true;_last_bind_timing.pending_variants=missing.keys();_last_bind_timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
+			return
 	var config: Dictionary = Response.defaults().merged(node.get_meta("extras").rmmo_wind,true)
 	var original := {"override":node.material_override,"surfaces":[],"margin":node.extra_cull_margin}
 	var materials: Array[ShaderMaterial] = []
 	for slot in node.mesh.get_surface_count():
 		original.surfaces.append(node.get_surface_override_material(slot))
-		materials.append(Materials.make(node.get_active_material(slot),config,node.get_aabb()))
+		var phase:Dictionary={}
+		var material:=Materials.make(node.get_active_material(slot),config,node.get_aabb(),phase,not cached_variants_only)
+		_last_bind_timing.materials.append(phase)
+		if material==null:return
+		materials.append(material)
+	var phase:=Time.get_ticks_usec()
 	node.set_meta("wind_original",original); node.material_override = null
 	for slot in materials.size(): node.set_surface_override_material(slot,materials[slot])
 	node.extra_cull_margin = maxf(node.extra_cull_margin,config.amplitude*3)
 	var row:Dictionary={"node":weakref(node),"original":original,"materials":materials,"config":config,"exposure":1.0}
 	receivers[node.get_instance_id()] = row
+	_variant_pending.erase(node.get_instance_id())
+	_last_bind_timing.install_ms=(Time.get_ticks_usec()-phase)/1000.0
+	phase=Time.get_ticks_usec()
 	_configure_shared_row(row)
+	_last_bind_timing.shared_state_ms=(Time.get_ticks_usec()-phase)/1000.0
+	_last_bind_timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
 
 func advance(wind: Vector3, time: float) -> void:
 	velocity = wind; elapsed = time
@@ -303,3 +371,4 @@ func _exit_tree() -> void:
 	_cancel_refresh()
 	for row in receivers.values(): _restore(row)
 	_clear_active();receivers.clear()
+	_variant_pending.clear()

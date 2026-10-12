@@ -7,12 +7,15 @@ const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
 
 static func category(record: Dictionary) -> String:
+	if record.get("vegetation_batch",false):return "vegetation"
 	return "fortification" if record.has("fortification") else ("building" if record.has("building") else "ground")
 
 static func member_limit(record: Dictionary) -> int:
+	if record.get("vegetation_batch",false):return 64
 	return MAX_FORTIFICATION_MEMBERS if record.has("fortification") or record.has("building") else MAX_MEMBERS
 
 static func candidate(record: Dictionary) -> bool:
+	if preload("res://scripts/world3d/vegetation_render.gd").eligible(record):return true
 	if record.has("house_prefab"):return false
 	if record.get("kind") != "box" or record.get("invisible", false): return false
 	if record.has("building"):
@@ -26,7 +29,7 @@ static func candidate(record: Dictionary) -> bool:
 	for field in ["building", "fixture", "fortification", "channel_mesh", "tile3d", "event", "hostile", "ally", "seat", "bank_wetness", "water_depth_effect"]:
 		if record.has(field): return false
 	if record.get("wind_response", {}).get("profile", "off") != "off": return false
-	if record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"): return true
+	if record.has("terrain_mesh") or record.has("terrain_volume") or record.has("road_mesh") or record.has("rock_bank"): return true
 	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
 
 static func material_key(material: Material) -> String:

@@ -6,6 +6,13 @@ const WorldMapPaths = preload("res://scripts/world3d/map_paths.gd")
 const Travel = preload("res://scripts/world3d/world_travel.gd")
 const Stream = preload("res://scripts/world3d/world_stream.gd")
 const Net = preload("res://scripts/net/net.gd")
+static var navigation_background_enabled:=false
+static var wind_background_enabled:=false
+static var building_readiness_enabled:=false
+var _building_entry:RefCounted
+var _building_transfer:RefCounted
+var _building_traversal:RefCounted
+var _building_lease_clock:=0.0
 
 var _player: CharacterBody3D
 var _camera: Node3D
@@ -21,6 +28,8 @@ func list_building_components(building_id: String) -> Array:
 
 func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
 	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
+	if building_readiness_enabled and not building_id.begins_with("fortification:"):
+		return _building_authority().set_runtime_fixture(_map_root,_map_ref(),str(_map_root.get_meta("source_map_sha256","")),building_id,component_id,open,duration)
 	return preload("res://scripts/world3d/building_fixtures.gd").set_runtime(_map_root,building_id,component_id,open,duration)
 var _sun: DirectionalLight3D
 var _env: Environment
@@ -36,12 +45,113 @@ var _warp_candidates:Array[Node]=[]
 var _warp_cache_dirty:=true
 var _transfer_pending := false
 var _transfer_loader: Node
+var _transfer_request_serial := 0
+var _local_transfer: Dictionary = {}
 var _ready_for_play := false
+var _entry_readiness_shadow:RefCounted
+var _entry_shadow_waiting_physics:=false
 var loading_profile: Dictionary={}
 var loading_state: Dictionary={"stage":"准备三维场景","done":0,"total":0}
 
 func loading_progress() -> Dictionary:
 	return loading_state
+
+## S0 observation only. Never consult this contract to change the legacy gate.
+func entry_readiness_shadow_report()->Dictionary:
+	return _entry_readiness_shadow.report() if _entry_readiness_shadow!=null else {"mode":"shadow_only","early_entry_enabled":false,"state":"not_started"}
+
+func note_entry_first_frame(rendered:bool)->bool:
+	if _entry_readiness_shadow!=null:_entry_readiness_shadow.first_frame(rendered)
+	if not building_readiness_enabled:return true
+	if _building_entry==null:return _building_entry_failure("entry_ticket_unavailable")
+	var result:Dictionary=_building_entry.activate(rendered,_building_current_position_valid)
+	loading_profile.building_entry=_building_entry.report()
+	if not result.ok:return _building_entry_failure(str(result.reason))
+	_building_entry.retain_residency()
+	return true
+
+func _building_authority()->RefCounted:return Net.server().world3d_state.entry_authority
+func building_entry_protocol_enabled()->bool:return building_readiness_enabled
+
+func _building_entry_failure(reason:String)->bool:
+	if _building_entry!=null:_building_entry.cancel(reason)
+	set_meta("entry_loading_error","建筑就绪校验未通过："+reason)
+	_loading_stage(str(get_meta("entry_loading_error")))
+	if is_instance_valid(_player):_player.input_locked=true
+	return false
+
+func _new_building_entry(map_root:Node,path:String,centre:Vector3,reason:String)->RefCounted:
+	var attempt:RefCounted=preload("res://scripts/world3d/building_entry_transaction.gd").new()
+	var authored:=str(GltfMapIo.extras_of(map_root).get("map_ref",""))
+	var map_ref:String=authored if preload("res://scripts/world3d/world_location.gd").map_ref_ok(authored) else "prototype/map_"+path.sha256_text().substr(0,16)
+	var result:Dictionary=attempt.begin(_building_authority(),map_root,"local_session_%d"%Net.session().get_instance_id(),"local_world_%d"%get_instance_id(),map_ref,str(map_root.get_meta("source_map_sha256","")),centre-Vector3.UP*.9,reason)
+	if not result.ok:attempt.set_meta("error",str(result.reason))
+	return attempt
+
+func _building_current_position_valid(snapshot:Dictionary)->bool:
+	if not is_instance_valid(_player) or not is_instance_valid(_map_root):return false
+	var feet:Vector3=preload("res://scripts/world3d/building_membership.gd")._vector(snapshot.get("position_m"))
+	if not feet.is_equal_approx(_player.global_position-Vector3.UP*.9):return false
+	if snapshot.get("map_ref")!=_map_ref() or snapshot.get("map_revision")!=_map_root.get_meta("source_map_sha256",""):return false
+	var footprint:AABB=preload("res://scripts/world3d/physical_traversal.gd").motion_bounds(_player,Vector3.ZERO,maxf(_player.get_physics_process_delta_time(),.001),false)
+	if not _building_authority().footprint_requirements(snapshot.map_ref,snapshot.map_revision,footprint).ok:return false
+	return _physical_destination_fits(_map_root,get_world_3d().direct_space_state,feet+Vector3.UP*.9,[_player.get_rid()]) and _same_map_destination_fits(feet+Vector3.UP*.9,_navigation)
+
+func _building_movement_allowed()->bool:
+	return _building_entry!=null and _building_entry.gate!=null and _building_entry.gate.can_play() and not _transfer_pending and is_instance_valid(_combat) and _combat.can_move()
+
+func _building_source_snapshot()->Dictionary:
+	var result:Dictionary=_building_authority().position_snapshot(_map_ref(),str(_map_root.get_meta("source_map_sha256","")),_player.global_position-Vector3.UP*.9)
+	return result.get("snapshot",{})
+
+func _building_recovery_valid(original:Dictionary)->bool:
+	if not building_readiness_enabled:return true
+	if _building_transfer!=null:_building_transfer.cancel("transfer_failed");_building_transfer=null
+	var previous:Dictionary=original.get("building_snapshot",{})
+	if previous.is_empty():return false
+	var recovered:Dictionary=_building_authority().begin_recovery("local_session_%d"%Net.session().get_instance_id(),"local_world_%d"%get_instance_id(),previous)
+	if not recovered.ok:return false
+	if not recovered.membership_resolved:
+		_building_authority().cancel(recovered.ticket,"recovery_membership_unresolved");return false
+	# A fresh ticket is needed even if only the target failed. Existing complete
+	# source evidence is rechecked against current source geometry and door state.
+	var attempt:RefCounted=preload("res://scripts/world3d/building_entry_transaction.gd").new()
+	attempt.authority=_building_authority();attempt.root=weakref(_map_root);attempt.issued=recovered
+	attempt.gate=preload("res://scripts/world3d/entry_readiness.gd").new();attempt.gate.begin(recovered.snapshot)
+	attempt.gate.mark("metadata",attempt.gate.token())
+	var point:Vector3=original.transform.origin
+	if not _physical_destination_fits(_map_root,get_world_3d().direct_space_state,point,[_player.get_rid()]):return _reject_building_recovery(attempt)
+	if recovered.snapshot.membership=="indoor":
+		var state:Dictionary=_building_authority().state_snapshot(recovered.ticket)
+		if not state.ok:return _reject_building_recovery(attempt)
+		var current:Dictionary=recovered.snapshot.duplicate(true);current.building=state.building
+		var receipt:Dictionary=_building_authority().inspect_root(current,_map_root,Engine.get_physics_frames(),Engine.get_physics_frames()-1)
+		if not receipt.ok:return _reject_building_recovery(attempt)
+		if not attempt.gate.complete_building(receipt,attempt.gate.token()).ok:return _reject_building_recovery(attempt)
+	for stage:String in ["geometry","physics","render","base_gameplay"]:attempt.gate.mark(stage,attempt.gate.token())
+	# The old visible scene stayed mounted under the cover; no synthetic frame
+	# is claimed here. The caller keeps input frozen until its next actual draw.
+	attempt.retain_residency()
+	if _building_entry!=null:_building_entry.release()
+	_building_entry=attempt
+	return true
+
+func _reject_building_recovery(attempt:RefCounted)->bool:
+	attempt.cancel("recovery_evidence_unavailable");return false
+
+func note_entry_full_gate_released()->void:
+	if building_readiness_enabled and _building_entry!=null and _building_entry.gate.can_play() and is_instance_valid(_player):_player.set_physics_process(true)
+	if _entry_readiness_shadow!=null:
+		_entry_readiness_shadow.legacy_released()
+		loading_profile.entry_readiness_shadow=entry_readiness_shadow_report()
+
+func _begin_entry_readiness_shadow(map_root:Node)->void:
+	_entry_readiness_shadow=preload("res://scripts/world3d/entry_readiness_observer.gd").new()
+	# These are local observation identities, not a new remote-server protocol.
+	_entry_readiness_shadow.begin({"session_id":"local_session_%d"%Net.session().get_instance_id(),
+		"world_id":"local_world_%d"%get_instance_id(),"map_ref":_map_ref(),
+		"map_revision":str(map_root.get_meta("runtime_geometry_key","")),
+		"epoch":get_instance_id(),"position_m":Net.session().world3d_spawn})
 
 func _loading_stage(stage: String, done: int=0, total: int=0) -> void:
 	loading_state={"stage":stage,"done":done,"total":total}
@@ -158,17 +268,23 @@ func request_world_map_move(point:Vector2)->bool:
 	if _player.input_locked or not point.is_finite() or not _map_data.bounds.has_point(point):return false
 	var desired:=Vector3(point.x,_player.position.y-.9,point.y)
 	if not _navigation.fully_ready and not _navigation._inside_local(desired,2):
-		var pending:Dictionary=_navigation.find_path(_player.position-Vector3.UP*.9,desired)
+		var pending:Dictionary=_navigation.find_foreground_path(_player.position-Vector3.UP*.9,desired)
 		if pending.get("reason")=="pending":
 			_player.set_click_target(desired,"ground")
 			_hud.append_system("正在规划路线。")
 			return true
 	var goal:=NavigationServer3D.map_get_closest_point(_navigation.map,desired)
 	if Vector2(goal.x,goal.z).distance_to(point)>1.5:
+		_navigation.cancel_foreground_request(desired)
 		_hud.append_system("此处暂无可用路径；远处导航可能仍在准备。")
 		return false
-	var result:Dictionary=_navigation.find_path(_player.position-Vector3(0,.9,0),goal)
+	var result:Dictionary=_navigation.find_foreground_path(_player.position-Vector3(0,.9,0),goal)
+	if result.get("reason")=="pending":
+		_player.set_click_target(goal,"ground")
+		_hud.append_system("正在规划路线。")
+		return true
 	if not result.get("ok",false):
+		_navigation.cancel_foreground_request(goal)
 		_hud.append_system("无法到达此处。")
 		return false
 	_player.set_click_target(goal,"ground")
@@ -183,31 +299,69 @@ var _geometry_wait_locked:=false
 
 func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 	var deferred:=map_root.get_node_or_null("DeferredAssets")
-	if deferred==null or deferred.is_complete():return
-	navigation.set_geometry_pending(true)
-	navigation.configure_geometry_provider(deferred.ensure_geometry)
-	deferred.published.connect(func(specs:Array):
+	if deferred==null:return
+	var streaming:bool=not deferred._reference_index.is_empty()
+	if not streaming and deferred.is_complete():return
+	var demand_id:="navigation:%d"%navigation.get_instance_id()
+	if map_root.has_meta("entry_stream_clip") and not deferred._entry_loading.is_empty():deferred.allow_demand_in_scope(demand_id)
+	# Only this transaction's new navigation may extend the temporary scope.
+	# Old navigation providers can retain/update their tickets for rollback,
+	# but cannot re-enable origin or distant work during destination loading.
+	if not _local_transfer.is_empty() and _local_transfer.get("scope_applied",false) and not _local_transfer.get("cancelled",false):
+		if _local_transfer.get("request")==_transfer_request_serial and _local_transfer.get("map")==map_root and _local_transfer.get("deferred")==deferred and _local_transfer.get("navigation")==navigation:
+			deferred.allow_demand_in_scope(demand_id)
+	var base_geometry_key:String=map_root.get_meta("runtime_geometry_key","")
+	var provide_geometry:=func(clip:AABB)->Dictionary:
+		if not is_instance_valid(deferred):return {"ok":false,"error":"Geometry provider retired"}
+		var complete:bool=deferred.ensure_geometry(clip,demand_id)
+		return {"ok":complete,"error":deferred.error_for_clip(clip)}
+	if streaming:
+		navigation.configure_streaming_geometry(provide_geometry,deferred.release_demand.bind(demand_id))
+		if map_root.get_node_or_null("AssetResidency")==null:
+			var residency:=preload("res://scripts/world3d/asset_residency.gd").new()
+			var adoption_complete:bool=int(map_root.get_meta("stream_children",-1))==map_root.get_child_count()
+			residency.configure(self,map_root,deferred);map_root.add_child(residency)
+			if adoption_complete:map_root.set_meta("stream_children",map_root.get_child_count())
+	else:
+		navigation.set_geometry_pending(true)
+		navigation.configure_geometry_provider(provide_geometry,deferred.release_demand.bind(demand_id))
+	var on_published:=func(specs:Array):
 		if not is_instance_valid(navigation):return
 		var result:Dictionary=navigation.append_specs(specs)
 		if not result.ok:navigation.set_geometry_error(str(result.reason))
-		if map_root==_map_root and is_instance_valid(_hud):_map_data.append_specs(specs)
-	)
-	deferred.completed.connect(func():
+		# A staged transfer navigation sees the same arrivals but must not append
+		# the same objects twice to the live minimap.
+		if map_root==_map_root and navigation==_navigation:
+			if is_instance_valid(_hud):_map_data.append_resident_specs(specs)
+			if is_instance_valid(_house_candles):_house_candles.append_specs(map_root,specs)
+			if is_instance_valid(_camera):_camera.append_map_specs(map_root,specs)
+	var on_completed:=func():
 		if is_instance_valid(navigation):
 			var paths:Array=deferred.source_signatures.keys();paths.sort()
 			var identities:Array=[]
 			for path:String in paths:identities.append([path,deferred.source_signatures[path]])
-			navigation.runtime_geometry_key=map_root.get_meta("runtime_geometry_key","")+str(identities)
-			map_root.set_meta("runtime_geometry_key",navigation.runtime_geometry_key)
+			navigation.runtime_geometry_key=base_geometry_key+str(identities)
+			if navigation==_navigation:map_root.set_meta("runtime_geometry_key",navigation.runtime_geometry_key)
 		if is_instance_valid(navigation) and navigation.set_geometry_pending(false):map_root.set_meta("deferred_geometry",false)
-	)
-	deferred.failed.connect(func(reason:String):
+	var on_failed:=func(reason:String):
 		if is_instance_valid(navigation):navigation.set_geometry_error(reason)
 		if map_root==_map_root:_status.text=reason
+	deferred.published.connect(on_published)
+	deferred.completed.connect(on_completed)
+	deferred.failed.connect(on_failed)
+	var deferred_ref:WeakRef=weakref(deferred)
+	navigation.tree_exiting.connect(func():
+		var queue:Node=deferred_ref.get_ref()
+		if queue==null:return
+		for connection:Array in [[queue.published,on_published],[queue.completed,on_completed],[queue.failed,on_failed]]:
+			if connection[0].is_connected(connection[1]):connection[0].disconnect(connection[1])
+		queue.release_demand(demand_id)
 	)
 
 func _guard_deferred_geometry()->void:
 	if _transfer_pending:return
+	if building_readiness_enabled and (_building_entry==null or not _building_entry.gate.can_play()):
+		_player.input_locked=true;return
 	var deferred:=_map_root.get_node_or_null("DeferredAssets")
 	if deferred==null:return
 	deferred.prioritize(_player.global_position)
@@ -215,11 +369,14 @@ func _guard_deferred_geometry()->void:
 	# Prefetch follows the player globally; movement only waits for the local
 	# capsule safety footprint, not decorative assets across a 96 m district.
 	var clip:=AABB(Vector3(origin.x-2,-100000,origin.z-2),Vector3(4,200000,4))
-	var ready:bool=deferred.ensure_geometry(clip) and Stream.nearby_collision_ready(_map_root,origin)
+	var ready:bool=_map_traversal_receipt(_map_root,clip,"player_collision").ok if _collision_first(_map_root) else deferred.ensure_geometry(clip,"player_collision") and Stream.nearby_collision_ready(_map_root,origin)
 	_player.geometry_blocked=not ready
 	if not ready and not _player.input_locked:
 		_geometry_wait_locked=true;_player.input_locked=true;_player.velocity=Vector3.ZERO
-		_status.text="正在准备附近区块…" if deferred.error.is_empty() else deferred.error
+	if not ready and _geometry_wait_locked:
+		var local_error:String=deferred.error_for_clip(clip)
+		if local_error.is_empty():local_error=deferred.error
+		_status.text="正在准备附近区块…" if local_error.is_empty() else local_error
 	var planned:Vector2i=_map_root.get_meta("stream_target",_map_root.get_meta("stream_chunk",Vector2i(2147483647,2147483647)))
 	if _geometry_wait_locked and ready and planned==Stream.chunk_key(origin):
 		_geometry_wait_locked=false
@@ -228,6 +385,13 @@ func _guard_deferred_geometry()->void:
 
 
 func _exit_tree() -> void:
+	_retire_building_traversal()
+	if _building_entry!=null:_building_entry.cancel("world_exited")
+	if _building_transfer!=null:_building_transfer.cancel("world_exited")
+	if _entry_readiness_shadow!=null:_entry_readiness_shadow.cancelled("world_exited")
+	if not _local_transfer.is_empty():
+		_local_transfer.cancelled=true
+		_release_local_transfer_sources(_local_transfer)
 	furniture.cancel()
 	cancel_sit_preparation()
 	if is_instance_valid(_transfer_loader): _transfer_loader.cancel()
@@ -261,6 +425,16 @@ func _ready() -> void:
 		return
 	add_child(map_root)
 	_map_root = map_root
+	_begin_entry_readiness_shadow(map_root)
+	if building_readiness_enabled:
+		_building_entry=_new_building_entry(map_root,_map_path,Net.session().world3d_spawn,"entry")
+		if _building_entry.has_meta("error"):
+			_building_entry_failure(str(_building_entry.get_meta("error")));return
+	if map_root.has_meta("entry_plan"):
+		var entry_error:String=await _prepare_entry_geometry(map_root,self,Net.session().world3d_spawn)
+		if not entry_error.is_empty():
+			_entry_readiness_shadow.failed(entry_error)
+			set_meta("entry_loading_error",entry_error);_loading_stage(entry_error);return
 	if Net.session().world3d_loading:
 		map_root.set_meta("defer_source_upload",true)
 		while not map_root.has_meta("stream_chunk"):
@@ -270,10 +444,22 @@ func _ready() -> void:
 		map_root.remove_meta("defer_source_upload")
 	else:
 		_add_collision(map_root)
+	if building_readiness_enabled:
+		var building_error:String=await _building_entry.prepare(self,self,Net.session().world3d_spawn)
+		if not building_error.is_empty():_building_entry_failure(building_error);return
+	_entry_readiness_shadow.geometry_published(Engine.get_physics_frames())
+	_entry_shadow_waiting_physics=true
 	loading_profile.stream=Time.get_ticks_msec()
 	_loading_stage("准备角色")
 	await get_tree().process_frame
 	_add_player()
+	if building_readiness_enabled:_player.set_physics_process(false)
+	if _collision_first(map_root):
+		_loading_stage("验证出生点碰撞与支撑")
+		await get_tree().physics_frame
+		if not _physical_destination_fits(map_root,get_world_3d().direct_space_state,Net.session().world3d_spawn,[_player.get_rid()]):
+			var reason:="出生点碰撞或支撑尚未就绪；未放行角色"
+			set_meta("entry_loading_error",reason);_loading_stage(reason);return
 	_player.movement_intent.connect(_on_movement_intent)
 	loading_profile.player=Time.get_ticks_msec()
 	_add_town_lamps(map_root)
@@ -281,6 +467,7 @@ func _ready() -> void:
 	loading_profile.environment=Time.get_ticks_msec()
 	Net.session().prepare_world_first_frame()
 	await _prepare_navigation()
+	if _navigation.ready_for_queries:_entry_readiness_shadow.navigation_ready()
 	loading_profile.navigation=Time.get_ticks_msec()
 	_loading_stage("准备环境与交互")
 	await get_tree().process_frame
@@ -288,33 +475,46 @@ func _ready() -> void:
 	loading_profile.events=Time.get_ticks_msec()
 	if not Net.session().active_character().is_empty():
 		_add_game_hud()
+	_entry_readiness_shadow.base_gameplay_mounted()
 	loading_profile.hud=Time.get_ticks_msec()
 	_previous_feet = _player.global_position - Vector3(0, 0.9, 0)
 	apply_actions(Net.server().world3d_events.runtime.collect_autorun(Net.server().world3d_events.context()))
 	await get_tree().process_frame
 	var batches:Node=map_root.get_node_or_null("GroundRenderBatches")
-	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()):
+	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()) and (not map_root.has_meta("entry_plan") or not Stream.entry_scope_ready(map_root)):
 		_loading_stage("准备建筑渲染")
 		await get_tree().process_frame
 	if batches!=null:batches.work_budget_usec=2000
 	loading_profile.batches=Time.get_ticks_msec()
 	_loading_stage("准备受风材质")
-	loading_profile.wind_materials=await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(_map_root.get_meta("stream_library",[]),get_tree())
+	loading_profile.wind_materials=await _prepare_wind(_map_root)
+	if not wind_background_enabled:_entry_readiness_shadow.wind_prepared()
 	_loading_stage("准备灯光材质")
-	loading_profile.lamp_materials=await _weather.streetlamps.prepare_materials(_map_root.get_meta("stream_library",[]),get_tree())
+	loading_profile.lamp_materials=await _weather.streetlamps.prepare_materials(_entry_specs(_map_root),get_tree())
 	# Container layout can resize the radar after its first draw. Finish its
 	# budgeted offscreen commands at the final width before movement begins.
 	if not is_inside_tree() or is_queued_for_deletion():return
-	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.terrain_is_prepared():
+	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _entry_radar_ready():
 		var progress:Vector2i=_hud._radar.terrain_preparation_progress()
 		_loading_stage("准备地图显示",progress.x,progress.y)
 		await get_tree().process_frame
 		if not is_inside_tree() or is_queued_for_deletion():return
 	loading_profile.radar=Time.get_ticks_msec()
-	_player.input_locked = Net.session()._world_transition_active
+	_entry_readiness_shadow.render_prepared()
+	if building_readiness_enabled:
+		_building_entry.gameplay_ready()
+		Net.server().world3d_authority.movement_allowed=_building_movement_allowed
+	_player.input_locked = Net.session()._world_transition_active or building_readiness_enabled
 	_ready_for_play = true
-	var deferred:=_map_root.get_node_or_null("DeferredAssets")
-	if deferred!=null:deferred.activate(self)
+	if map_root.has_meta("entry_plan"):
+		loading_profile.entry_playable_ready_us=Time.get_ticks_usec()
+	if not Net.session()._world_transition_active:
+		if building_readiness_enabled:
+			if DisplayServer.get_name()=="headless":await get_tree().process_frame
+			else:await RenderingServer.frame_post_draw
+			if not note_entry_first_frame(DisplayServer.get_name()!="headless"):return
+			_player.input_locked=false;_player.set_physics_process(true)
+		activate_entry_neighbours()
 	if _check_map:
 		_status.text = "检查用白模，不是正式地图 · WASD 走 · N 切换路灯"
 	elif _lamps.is_empty():
@@ -370,8 +570,13 @@ func _process(delta: float) -> void:
 	if is_instance_valid(_player):apply_actions(Net.server().facial_expressions.drain())
 	if _player == null or _camera == null or not _ready_for_play:
 		return
+	if building_readiness_enabled and _building_entry!=null and not _transfer_pending:
+		if _building_traversal!=null:_building_traversal.tick()
+		_building_lease_clock+=delta
+		if _building_lease_clock>=.1:
+			_building_lease_clock=0;_building_entry.release_if_left(_player.global_position-Vector3.UP*.9)
 	_guard_deferred_geometry()
-	furniture.tick()
+	if not _transfer_pending:furniture.tick()
 	if profiling:marks.append(Time.get_ticks_usec())
 	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
 		_navigation.follow(_player.position)
@@ -382,7 +587,7 @@ func _process(delta: float) -> void:
 	_camera.follow(_player.global_position, delta)
 	if is_instance_valid(_outline):_outline.visual_exclusions=_camera.visual_exclusions()
 	if profiling:marks.append(Time.get_ticks_usec())
-	_apply_actor_view()
+	if not _transfer_pending:_apply_actor_view()
 	_poll_warp()
 	if profiling:
 		marks.append(Time.get_ticks_usec())
@@ -403,6 +608,9 @@ func _update_cloth_scene()->void:
 
 
 func _physics_process(_delta: float) -> void:
+	if _entry_shadow_waiting_physics:
+		_entry_readiness_shadow.observe_physics_frame(Engine.get_physics_frames())
+		_entry_shadow_waiting_physics=_entry_readiness_shadow.needs_physics_frame()
 	if _ready_for_play and _map_root!=null and _player!=null:_guard_deferred_geometry()
 	if _player == null or _player.input_locked or not _ready_for_play:
 		return
@@ -411,6 +619,129 @@ func _physics_process(_delta: float) -> void:
 	_previous_feet = feet
 
 
+func activate_entry_neighbours()->void:
+	if not _ready_for_play or not is_instance_valid(_map_root) or not is_instance_valid(_player):return
+	if loading_profile.has("entry_prefetch_started_us"):return
+	if is_instance_valid(_navigation):_navigation.covered_loading=false
+	var deferred:=_map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:
+		var position_:Vector3=_player.global_position
+		var collision_clip:Variant=AABB(Vector3(position_.x-2,-100000,position_.z-2),Vector3(4,200000,4)) if _collision_first(_map_root) else null
+		deferred.end_entry_loading(collision_clip);deferred.activate(self);deferred.prioritize(position_)
+	Stream.clear_entry_scope(_map_root)
+	loading_profile.entry_prefetch_started_us=Time.get_ticks_usec()
+
+func _entry_specs(map_root:Node)->Array:
+	var specs:Array=map_root.get_meta("stream_library",[])
+	if not map_root.has_meta("entry_stream_clip"):return specs
+	var clip:AABB=map_root.get_meta("entry_stream_clip")
+	return specs.filter(func(spec):return Stream._in_entry_scope(spec,clip))
+
+func _entry_radar_ready()->bool:
+	if not _map_root.has_meta("entry_plan"):return _hud._radar.terrain_is_prepared()
+	var origin:Vector3=_map_root.get_meta("entry_plan").origin
+	return _hud._radar.region_is_prepared(Vector2(origin.x,origin.z))
+
+static func _collision_first(map_root:Node)->bool:
+	return is_instance_valid(map_root) and bool(map_root.get_meta("collision_first_loading",false))
+
+static func _navigation_async(map_root:Node)->bool:
+	return navigation_background_enabled or _collision_first(map_root)
+
+func _entry_dependencies_ready(map_root:Node,deferred:Node,clip:AABB,origin:Vector3,id:String,observation:Dictionary={})->bool:
+	if deferred==null:return true
+	if not _collision_first(map_root):
+		var geometry:bool=deferred.ensure_geometry(clip,id)
+		if preload("res://scripts/world3d/load_trace.gd").enabled:observation.full_geometry_ready=geometry
+		return geometry
+	var collision:bool=deferred.ensure_collision(clip,id)
+	# Conservatively retain visible supports/interiors at the landing even for
+	# imported models without server-authored building membership.
+	var landing:=AABB(Vector3(origin.x-2,-100000,origin.z-2),Vector3(4,200000,4))
+	# The safety ticket already requests these records; a read-only query avoids
+	# shrinking/regrowing that ticket and invalidating the scheduler every frame.
+	var visual:bool=deferred.geometry_published(landing)
+	if preload("res://scripts/world3d/load_trace.gd").enabled:
+		# Record results already computed above; diagnostics must not run another
+		# dependency query, mutate its ticket or scan the whole pending queue.
+		observation.collision_dependencies_ready=collision
+		observation.landing_visual_ready=visual
+	return collision and visual
+
+func _prepare_entry_geometry(map_root:Node,host:Node,origin:Vector3,cover:Node=null)->String:
+	var plan:Dictionary=map_root.get_meta("entry_plan",{})
+	if plan.is_empty():return ""
+	loading_profile.entry_core_resources_ready_us=plan.core_resources_ready_us
+	loading_profile.entry_core_cell=[plan.cell.x,plan.cell.y]
+	if not Stream.set_entry_scope(map_root,plan.safety_clip):return "入口区块范围无效"
+	var deferred:=map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null and not deferred.begin_entry_loading(host,plan.safety_clip,cover):return "无法启动入口区块准备"
+	map_root.set_meta("defer_source_upload",true)
+	if wind_background_enabled:_begin_wind_preparation(map_root,_entry_specs(map_root))
+	var deadline:=Time.get_ticks_msec()+180000
+	while true:
+		var gate_started:=Time.get_ticks_usec()
+		var dependency_observation:Dictionary={}
+		var ready:bool=_entry_dependencies_ready(map_root,deferred,plan.safety_clip,origin,"entry_safety",dependency_observation)
+		if deferred!=null:
+			var failure:String=deferred.error_for_clip(plan.safety_clip)
+			if failure.is_empty():failure=deferred.error
+			if not failure.is_empty():
+				_abort_entry_geometry(map_root,deferred);return failure
+		var sync_started:=Time.get_ticks_usec()
+		Stream.sync(map_root,host,origin,Stream.LOAD_BUDGET)
+		var sync_ended:=Time.get_ticks_usec()
+		# Preserve short-circuit gate order: monitoring must not scan extra geometry
+		# while dependencies or the entry scope are still incomplete.
+		var scope_ready:Variant=Stream.entry_scope_ready(map_root) if ready else null
+		var collision_ready:Variant=Stream.collision_readiness(map_root,plan.safety_clip).ok if scope_ready is bool and scope_ready and _collision_first(map_root) else (Stream.nearby_collision_ready(map_root,origin) if scope_ready is bool and scope_ready else null)
+		if preload("res://scripts/world3d/load_trace.gd").enabled:
+			_trace_entry_geometry(map_root,deferred,ready,scope_ready,collision_ready,gate_started,sync_started,sync_ended,dependency_observation)
+		if collision_ready is bool and collision_ready:break
+		if Time.get_ticks_msec()>deadline:
+			_abort_entry_geometry(map_root,deferred);return "入口区块准备超时；未放行角色"
+		if cover!=null:cover.update_progress("准备当前区块边界与碰撞")
+		else:_loading_stage("准备当前区块边界与碰撞")
+		_step_wind_preparation(map_root)
+		await get_tree().process_frame
+	map_root.remove_meta("defer_source_upload")
+	loading_profile.entry_safety_ready_us=Time.get_ticks_usec()
+	return ""
+
+static func _trace_entry_geometry(map_root:Node,deferred:Node,dependencies_ready:bool,scope_ready:Variant,collision_ready:Variant,gate_started:int,sync_started:int,sync_ended:int,dependency_observation:Dictionary={})->void:
+	# Fixed known services and scalar counters only; never walk the tree, inspect
+	# GPU arrays or repeat readiness predicates in a diagnostic callback.
+	var jobs:Array=map_root.get_meta("stream_jobs",[])
+	var cursor:=int(map_root.get_meta("stream_cursor",0))
+	var batcher:=map_root.get_node_or_null("GroundRenderBatches")
+	var collision:=map_root.get_node_or_null("StreamCollisionPreparer")
+	var details:Dictionary={"dependencies_ready":dependencies_ready,"scope_ready":scope_ready,"nearby_collision_ready":collision_ready,
+		"gate_begin_us":gate_started,"dependency_gate_us":sync_started-gate_started,"sync_us":sync_ended-sync_started,"ready_gate_us":Time.get_ticks_usec()-sync_ended,
+		"jobs":jobs.size(),"cursor":cursor,"uuid":str(jobs[cursor].uuid) if cursor<jobs.size() else "",
+		"append_pending":map_root.get_meta("stream_append_pending",[]).size(),
+		"stream_cumulative_us":map_root.get_meta("stream_load_profile_us",{}).duplicate(),
+		"deferred_jobs":deferred._jobs.size() if deferred!=null else 0,
+		"batch_pending":batcher.pending.size() if batcher!=null else 0,"batch_workers":batcher._workers.size() if batcher!=null else 0,
+		"batch_preparing":not batcher._preparation.is_empty() if batcher!=null else false}
+	details.merge(dependency_observation)
+	if collision!=null:
+		details.collision_worker=collision._thread!=null and collision._thread.is_alive()
+		details.terrain_worker=collision._terrain._thread!=null and collision._terrain._thread.is_alive()
+		details.terrain_uuid=str(collision._terrain._spec.get("uuid",""))
+		details.terrain_cursor=collision._terrain._cursor;details.terrain_vertices=collision._terrain._faces.size()
+		details.terrain_cached=collision._terrain._cached
+		if "prepared_face_hits" in collision:details.prepared_face_hits=collision.prepared_face_hits
+		if "prepared_face_hits" in collision._terrain:details.terrain_prepared_face_hits=collision._terrain.prepared_face_hits
+		if "_face_prefetch" in collision:details.face_prefetch=collision._face_prefetch.profile.duplicate()
+	preload("res://scripts/world3d/load_trace.gd").instant("entry.geometry_gate",details)
+
+func _abort_entry_geometry(map_root:Node,deferred:Node)->void:
+	map_root.remove_meta("defer_source_upload")
+	_cancel_wind_preparation(map_root)
+	if deferred!=null:
+		deferred.end_entry_loading();deferred._active=false;deferred.set_process(false)
+		for job:Dictionary in deferred._jobs.values():job.token.cancel()
+
 func _prepare_navigation() -> void:
 	if is_instance_valid(_combat):
 		_combat.free()
@@ -418,13 +749,16 @@ func _prepare_navigation() -> void:
 	if is_instance_valid(_navigation):
 		_navigation.free()
 	_navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	_navigation.covered_loading=not _navigation_async(_map_root)
 	_navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(_navigation)
 	_player.navigation = _navigation
 	_navigation.runtime_geometry_key=_map_root.get_meta("runtime_geometry_key","")
+	if _map_root.has_meta("entry_plan"):_navigation.initial_geometry_clip=_map_root.get_meta("entry_plan").navigation_clip
 	_bind_deferred_geometry(_map_root,_navigation)
+	_bind_navigation_lifetime(_navigation,_map_root)
 	_navigation.build(_map_root.get_meta("stream_library", []), _player.position)
-	while not _navigation.ready_for_queries:
+	while not _navigation.ready_for_queries and not _navigation_async(_map_root):
 		# Navigation bakes on the engine worker. Build the unchanged HUD while
 		# that worker runs, then bind it once combat/navigation are mounted.
 		if _navigation._phase.is_empty() and not is_instance_valid(_hud):_create_game_hud()
@@ -434,10 +768,91 @@ func _prepare_navigation() -> void:
 		_loading_stage("准备通行导航 · "+phase_name,_navigation._cursor,_navigation._specs.size() if not _navigation._phase.is_empty() else 0)
 		await get_tree().process_frame
 	Net.server().world3d_authority.mount(_player, _navigation, _map_ref())
+	_bind_manual_authority()
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
 	add_child(_combat)
 	_combat.setup(self)
 	remote_players.refresh()
+	loading_profile.navigation_background=_navigation_async(_map_root)
+	if not Net.session()._world_transition_active:_navigation.covered_loading=false
+
+func _bind_navigation_lifetime(navigation:Node,map_root:Node)->void:
+	var target:WeakRef=weakref(map_root)
+	navigation.publication_guard=func()->bool:
+		var map:Variant=target.get_ref()
+		return is_instance_valid(map) and map.is_inside_tree() and not map.is_queued_for_deletion()
+
+func _bind_manual_authority()->void:
+	_retire_building_traversal()
+	var authority=Net.server().world3d_authority
+	if _navigation_async(_map_root) or building_readiness_enabled:
+		authority.traversal_guard=_manual_traversal_receipt.bind(weakref(_map_root))
+	else:authority.traversal_guard=Callable()
+	_player.passive_traversal_guard=_manual_traversal_receipt.bind(weakref(_map_root)) if building_readiness_enabled or _collision_first(_map_root) else Callable()
+
+func _manual_traversal_receipt(clip:AABB,target:WeakRef)->Dictionary:
+	var map:Variant=target.get_ref()
+	if not is_instance_valid(map) or map!=_map_root or not is_inside_tree() or _transfer_pending:
+		return {"ok":false,"reason":"obsolete_map"}
+	if building_readiness_enabled:
+		if _building_entry==null or not _building_entry.gate.can_play():return {"ok":false,"reason":"entry_pending"}
+		if _building_traversal==null or _building_traversal.anchor!=_building_entry.issued.ticket:
+			_retire_building_traversal()
+			_building_traversal=preload("res://scripts/world3d/building_traversal_barrier.gd").new()
+			_building_traversal.setup(self,map,_building_authority(),_building_entry.issued.ticket)
+		var building:Dictionary=_building_traversal.guard(clip,_player.global_position-Vector3.UP*.9)
+		if not building.ok:
+			_status.text="等待建筑准备完成" if building.reason=="building_pending" else "建筑通行暂不可用："+str(building.reason)
+			return building
+	return _map_traversal_receipt(map,clip,"manual_traversal")
+
+func _retire_building_traversal()->void:
+	if _building_traversal!=null:_building_traversal.dispose();_building_traversal=null
+
+func _map_traversal_receipt(map_root:Node,clip:AABB,demand:String)->Dictionary:
+	if not is_instance_valid(map_root) or map_root.is_queued_for_deletion():return {"ok":false,"reason":"obsolete_map"}
+	var profiling:=has_meta("profile_frame")
+	var began:=Time.get_ticks_usec() if profiling else 0
+	var errors_done:=began
+	var deferred:Node=map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:
+		var failure:String=deferred.error_for_clip(clip)
+		if profiling:errors_done=Time.get_ticks_usec()
+		if not failure.is_empty():return {"ok":false,"reason":failure}
+		var complete:bool=deferred.ensure_collision(clip,demand) if _collision_first(map_root) else deferred.ensure_geometry(clip,demand)
+		if not complete:return {"ok":false,"reason":"geometry_pending"}
+	var geometry_done:=Time.get_ticks_usec() if profiling else 0
+	var result:=Stream.collision_readiness(map_root,clip)
+	if profiling:
+		var finished:=Time.get_ticks_usec()
+		set_meta("traversal_timing",{"frame":Engine.get_physics_frames(),"demand":demand,"errors_ms":(errors_done-began)/1000.,"geometry_ms":(geometry_done-errors_done)/1000.,"collision_ms":(finished-geometry_done)/1000.,"ms":(finished-began)/1000.})
+	return result
+
+func _prepare_wind(map_root:Node)->Dictionary:
+	if wind_background_enabled:
+		_begin_wind_preparation(map_root,_entry_specs(map_root))
+		var queue:RefCounted=map_root.get_meta("wind_variant_preparation")
+		var report:Dictionary=await queue.finish_covered(get_tree())
+		map_root.remove_meta("wind_variant_preparation")
+		return report.merged({"mode":"covered_variants_background_receivers"},true)
+	return await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(_entry_specs(map_root),get_tree())
+
+func _begin_wind_preparation(map_root:Node,specs:Array)->void:
+	if not wind_background_enabled:return
+	if not map_root.has_meta("wind_variant_preparation"):
+		map_root.set_meta("wind_variant_preparation",preload("res://scripts/world3d/wind_material_preparer.gd").new())
+	map_root.get_meta("wind_variant_preparation").enqueue(specs)
+
+func _step_wind_preparation(map_root:Node)->void:
+	# Called only inside a drawn loading cover. A cold shader operation cannot
+	# be preempted by the time budget; runtime bindings must use ready variants.
+	if map_root.has_meta("wind_variant_preparation"):
+		map_root.get_meta("wind_variant_preparation").step_covered(true,2000,1)
+
+func _cancel_wind_preparation(map_root:Node)->void:
+	if not is_instance_valid(map_root) or not map_root.has_meta("wind_variant_preparation"):return
+	map_root.get_meta("wind_variant_preparation").cancel()
+	map_root.remove_meta("wind_variant_preparation")
 
 
 func _load_or_fail() -> Node:
@@ -608,6 +1023,7 @@ func _apply_map_environment() -> void:
 		add_child(_weather)
 		_weather.bind(_camera.camera, _sun, _env, _player)
 		_weather.environment_changed.connect(_on_server_environment)
+	_weather.wind_objects.cached_variants_only=wind_background_enabled
 	var sky_server = Net.server()
 	if sky_server.has_method("mount_world3d_sky"): sky_server.mount_world3d_sky(_map_ref(),_map_path)
 	if sky_server.has_method("snapshot_world3d_sky"): _weather.bind_sky(_map_ref(),Callable(sky_server,"snapshot_world3d_sky").bind(_map_ref()))
@@ -659,7 +1075,9 @@ func _add_hud() -> void:
 	_revive.position = Vector2(530, 80)
 	_revive.visible = false
 	_revive.pressed.connect(func():
-		if _combat.respawn(): _revive.hide()
+		if building_readiness_enabled:
+			if await _combat.request_respawn():_revive.hide()
+		elif _combat.respawn():_revive.hide()
 	)
 	layer.add_child(_revive)
 	_status = Label.new()
@@ -710,6 +1128,9 @@ func _apply_actor_view() -> void:
 func _apply_residency(budget: int = 0) -> void:
 	if _map_root == null or _player == null:
 		return
+	# The same-map transaction drives target residency while its origin is
+	# pinned. A second plan at the frozen player's old position would thrash it.
+	if not _local_transfer.is_empty():return
 	var started:=Time.get_ticks_usec()
 	Stream.sync(_map_root, self, _player.global_position, budget)
 	if budget>0 and budget<Stream.LOAD_BUDGET and not has_meta("profile_unshared_stream_budget"):
@@ -938,13 +1359,27 @@ func request_use_item(item_id: String) -> void:
 
 func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:
 	if is_instance_valid(Net.session().editor_playtest): target = Net.session().editor_playtest.resolve_map(target)
-	if _transfer_pending or not destination.is_finite() or target.is_empty(): return false
+	if not destination.is_finite() or target.is_empty(): return false
 	if not Net.server().combat_stats.player_alive(): return false
+	if _transfer_pending and _local_transfer.is_empty():return false
+	_transfer_request_serial+=1
+	var request:=_transfer_request_serial
+	if _transfer_pending:
+		# Latest valid request wins before commit. A committed handoff finishes
+		# its first rendered frame before the next transaction may start.
+		if not _local_transfer.get("committed",false):_local_transfer.cancelled=true
+		while _transfer_pending:await get_tree().process_frame
+		if request!=_transfer_request_serial:return false
+	if _same_map_target(target):return await _transfer_within_map(target,destination,before_commit,request)
 	_transfer_pending = true
 	var original:Dictionary={"combat_processing":_combat.is_physics_processing(),"locked":_player.input_locked,"physics":_player.is_physics_processing(),"velocity":_player.velocity,"geometry_blocked":_player.geometry_blocked,"geometry_wait_locked":_geometry_wait_locked,"transform":_player.global_transform,"disable_3d":get_viewport().disable_3d}
+	if building_readiness_enabled:original.building_snapshot=_building_source_snapshot()
+	original.navigation_processing=_navigation.is_processing()
+	_navigation.set_process(false)
 	var outgoing_deferred:=_map_root.get_node_or_null("DeferredAssets")
 	if outgoing_deferred!=null:
 		original.deferred=outgoing_deferred;original.deferred_processing=outgoing_deferred.is_processing()
+		original.deferred_active=outgoing_deferred._active
 		outgoing_deferred.set_process(false)
 	_combat.set_physics_process(false)
 	_player.input_locked = true
@@ -952,6 +1387,11 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	var cover:=preload("res://scripts/world3d/transfer_loading.gd").new();add_child(cover)
 	await cover.wait_until_drawn()
 	get_viewport().disable_3d=true
+	cover.update_progress("等待当前导航调整结束")
+	await _navigation.cancel_resize()
+	if outgoing_deferred!=null:
+		cover.update_progress("等待当前区域素材任务结束")
+		await outgoing_deferred.quiesce()
 	_combat._save_map_state()
 	_status.text = "读取目标地图…"
 	cover.update_progress("读取目标地图与附近素材（后台）")
@@ -968,7 +1408,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_transfer_loader = null
 	var prepared: Node = result[0]
 	if prepared == null:
-		return _transfer_failed(original,cover,str(result[2]))
+		return await _transfer_failed(original,cover,str(result[2]))
 	# Prepare and validate in an isolated physics world. The current map and
 	# inventory stay intact until navigation and the destination capsule fit.
 	var viewport := SubViewport.new()
@@ -978,38 +1418,51 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	var stage := Node3D.new()
 	viewport.add_child(stage)
 	stage.add_child(prepared)
+	if building_readiness_enabled:
+		_building_transfer=_new_building_entry(prepared,target,destination,"cross_map_transfer")
+		if _building_transfer.has_meta("error"):return await _transfer_failed(original,cover,str(_building_transfer.get_meta("error")),null,viewport)
+	if prepared.has_meta("entry_plan"):
+		var entry_error:String=await _prepare_entry_geometry(prepared,stage,destination,cover)
+		if not entry_error.is_empty():return await _transfer_failed(original,cover,entry_error,null,viewport)
+	if building_readiness_enabled:
+		var building_error:String=await _building_transfer.prepare(self,stage,destination,cover)
+		if not building_error.is_empty():return await _transfer_failed(original,cover,building_error,null,viewport)
 	var target_deferred:=prepared.get_node_or_null("DeferredAssets")
-	var initial_clip:=AABB(Vector3(destination.x-80,-100000,destination.z-80),Vector3(160,200000,160))
-	if target_deferred!=null and not target_deferred.ensure_geometry(initial_clip):
-		return _transfer_failed(original,cover,"目标附近物件尚未完整准备；保留当前地图。",null,viewport)
+	var initial_clip:AABB=prepared.get_meta("entry_plan",{}).get("navigation_clip",AABB(Vector3(destination.x-80,-100000,destination.z-80),Vector3(160,200000,160)))
+	if not _entry_dependencies_ready(prepared,target_deferred,initial_clip,destination,"entry_safety"):
+		return await _transfer_failed(original,cover,"目标附近物件尚未完整准备；保留当前地图。",null,viewport)
 	cover.update_progress("准备目标附近物件与碰撞")
 	var deadline:=Time.get_ticks_msec()+180000
 	while not prepared.has_meta("stream_chunk") or not Stream.nearby_collision_ready(prepared,destination):
-		if Time.get_ticks_msec()>deadline:return _transfer_failed(original,cover,"目标附近碰撞准备超时；保留当前地图。",null,viewport)
+		if Time.get_ticks_msec()>deadline:return await _transfer_failed(original,cover,"目标附近碰撞准备超时；保留当前地图。",null,viewport)
 		Stream.sync(prepared, stage, destination, Stream.LOAD_BUDGET)
 		await get_tree().process_frame
 	var navigation = preload("res://scripts/world3d/world_navigation.gd").new()
+	navigation.covered_loading=not _navigation_async(prepared)
 	navigation.agent_height=float(_player.get_meta("standing_height",1.9))
 	add_child(navigation)
 	navigation.runtime_geometry_key=prepared.get_meta("runtime_geometry_key","")
+	if prepared.has_meta("entry_plan"):navigation.initial_geometry_clip=prepared.get_meta("entry_plan").navigation_clip
 	_bind_deferred_geometry(prepared,navigation)
+	_bind_navigation_lifetime(navigation,prepared)
 	navigation.build(prepared.get_meta("stream_library", []), destination)
 	deadline=Time.get_ticks_msec()+180000
-	while not navigation.ready_for_queries:
+	while not navigation.ready_for_queries and not _navigation_async(prepared):
 		var navigation_error:=_transfer_navigation_error(navigation)
-		if not navigation_error.is_empty():return _transfer_failed(original,cover,navigation_error,navigation,viewport)
-		if Time.get_ticks_msec()>deadline:return _transfer_failed(original,cover,"目标附近导航准备超时；保留当前地图。",navigation,viewport)
+		if not navigation_error.is_empty():return await _transfer_failed(original,cover,navigation_error,navigation,viewport)
+		if Time.get_ticks_msec()>deadline:return await _transfer_failed(original,cover,"目标附近导航准备超时；保留当前地图。",navigation,viewport)
 		cover.update_progress("准备目标附近通行导航",navigation._cursor,navigation._specs.size())
 		await get_tree().process_frame
 	cover.update_progress("准备目标区域材质与灯光")
-	await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(prepared.get_meta("stream_library",[]),get_tree())
-	await _weather.streetlamps.prepare_materials(prepared.get_meta("stream_library",[]),get_tree())
+	await _prepare_wind(prepared)
+	await _weather.streetlamps.prepare_materials(_entry_specs(prepared),get_tree())
 	var batches:=prepared.get_node_or_null("GroundRenderBatches")
 	deadline=Time.get_ticks_msec()+180000
-	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()):
-		if Time.get_ticks_msec()>deadline:return _transfer_failed(original,cover,"目标区域绘制准备超时；保留当前地图。",navigation,viewport)
+	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()) and (not prepared.has_meta("entry_plan") or not Stream.entry_scope_ready(prepared)):
+		if Time.get_ticks_msec()>deadline:return await _transfer_failed(original,cover,"目标区域绘制准备超时；保留当前地图。",navigation,viewport)
 		cover.update_progress("准备目标区域绘制")
 		await get_tree().process_frame
+	if target_deferred!=null:await target_deferred.quiesce()
 	await get_tree().physics_frame
 	await get_tree().process_frame
 	var feet := destination - Vector3(0, 0.9, 0)
@@ -1019,7 +1472,10 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	capsule.height = float(_player.get_meta("standing_height",1.9))-.02
 	query.shape = capsule
 	query.transform = Transform3D(Basis.IDENTITY, feet + Vector3(0, capsule.height/2+.02, 0))
-	var fits: bool = navigation.near_surface(feet, 0.35, 0.4) and stage.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
+	var fits:bool
+	if _navigation_async(prepared):
+		fits=_physical_destination_fits(prepared,stage.get_world_3d().direct_space_state,destination,[])
+	else:fits=navigation.near_surface(feet, 0.35, 0.4) and stage.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 	# Dynamic actors are deliberately absent from static navigation/collision.
 	# Check their authored occupancy before committing, including cached poses.
 	var saved: Dictionary = Net.server().world3d_state.read_map(target.simplify_path())
@@ -1034,17 +1490,31 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 			actor_feet = cached.position - Vector3(0, 0.9, 0)
 		if absf(actor_feet.y - feet.y) < 1.8 and Vector2(actor_feet.x - feet.x, actor_feet.z - feet.z).length() < 0.6: fits = false
 	if not fits or (before_commit.is_valid() and not before_commit.call()):
-		return _transfer_failed(original,cover,"目标出生点不可用，或操作条件已变化；保留当前地图。",navigation,viewport)
+		return await _transfer_failed(original,cover,"目标出生点不可用，或操作条件已变化；保留当前地图。",navigation,viewport)
+	if building_readiness_enabled:
+		var current_ticket:Dictionary=_building_authority().validate(_building_transfer.issued.ticket)
+		if not current_ticket.ok:return await _transfer_failed(original,cover,str(current_ticket.reason),navigation,viewport)
+		if not _physical_destination_fits(prepared,stage.get_world_3d().direct_space_state,destination,[]):return await _transfer_failed(original,cover,"权威落点无有效支撑",navigation,viewport)
+	if target_deferred!=null and not target_deferred.begin_scene_handoff():
+		return await _transfer_failed(original,cover,"目标区块队列尚未安全停止；保留当前地图。",navigation,viewport)
 	# Commit after preparation. Save the outgoing mock map state before freeing it.
 	cover.update_progress("进入目标区域")
 	cancel_sit_preparation()
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 	furniture.cancel()
 	_combat.free()
+	# Detached CPU workers retain their immutable inputs in the shared drainer;
+	# freeing the outgoing map must not synchronously join unfinished geometry.
+	for service:String in ["GroundRenderBatches","StreamCollisionPreparer"]:
+		var outgoing:Node=_map_root.get_node_or_null(service)
+		if outgoing!=null:outgoing.retire_workers(get_tree())
 	for body in _map_root.get_meta("stream_bodies", {}).values():
 		if is_instance_valid(body): body.free()
+	# Clear presentation observers while outgoing meshes still have valid owners.
+	if is_instance_valid(_house_candles):_house_candles.bind_map(null)
+	if is_instance_valid(_camera):_camera.cutaway.bind(null)
 	_map_root.free()
-	_navigation.free()
+	if not _navigation.retire_background("map_replaced"):_navigation.free()
 	for lamp in _lamps: lamp.free()
 	_lamps.clear()
 	Net.server().world3d_release_actors()
@@ -1054,6 +1524,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_geometry_wait_locked=false
 	_player.geometry_blocked=false
 	prepared.reparent(self)
+	if target_deferred!=null:target_deferred.end_scene_handoff(self)
 	for body in prepared.get_meta("stream_bodies", {}).values():
 		if is_instance_valid(body): body.reparent(self)
 	_navigation = navigation
@@ -1069,6 +1540,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_player.map_ref = _map_ref()
 	_player.navigation = navigation
 	Net.server().world3d_authority.mount(_player, navigation, _map_ref())
+	_bind_manual_authority()
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
 	add_child(_combat)
 	_combat.setup(self)
@@ -1078,22 +1550,394 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_mount_events()
 	_refresh_world_map()
 	_apply_map_environment()
-	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.terrain_is_prepared():
+	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.region_is_prepared(Vector2(destination.x,destination.z)):
 		var radar_progress:Vector2i=_hud._radar.terrain_preparation_progress()
 		cover.update_progress("准备目标区域地图显示",radar_progress.x,radar_progress.y)
 		await get_tree().process_frame
 	await get_tree().physics_frame
 	get_viewport().disable_3d=bool(original.disable_3d)
 	await cover.finish()
+	if building_readiness_enabled and not _activate_building_transfer(cover):return false
 	set_meta("transfer_loading_profile",{"drawn_frame":cover.drawn_frame,"ready_frame":Engine.get_frames_drawn(),"elapsed_ms":Time.get_ticks_msec()-cover.started_ms,"target":target,"ok":true})
-	cover.queue_free()
+	cover.retire()
 	_player.set_physics_process(bool(original.physics))
 	_player.input_locked = false
 	_transfer_pending = false
+	navigation.covered_loading=false
 	var deferred:=prepared.get_node_or_null("DeferredAssets")
-	if deferred!=null:deferred.activate(self)
+	if deferred!=null:
+		var collision_clip:Variant=AABB(Vector3(destination.x-2,-100000,destination.z-2),Vector3(4,200000,4)) if _collision_first(prepared) else null
+		deferred.end_entry_loading(collision_clip);deferred.activate(self);deferred.prioritize(destination)
+	if prepared.has_meta("entry_plan"):Stream.clear_entry_scope(prepared)
 	_status.text = "已进入目标地图。"
 	return true
+
+func _same_map_target(target:String)->bool:
+	var left:=target.replace("\\","/").simplify_path()
+	var right:=_map_path.replace("\\","/").simplify_path()
+	return left.to_lower()==right.to_lower() if OS.get_name()=="Windows" else left==right
+
+func _local_transfer_error(context:Dictionary)->String:
+	if context.get("cancelled",false) or context.request!=_transfer_request_serial:return "已取消先前的传送，保留原位置。"
+	if not is_instance_valid(context.map) or context.map!=_map_root:return "当前地图已变化，传送已取消。"
+	var deferred:Node=context.get("deferred")
+	if is_instance_valid(deferred):
+		var local_error:String=deferred.error_for_clip(context.clip)
+		if local_error.is_empty():local_error=deferred.error
+		if not local_error.is_empty():return "目标附近素材准备失败："+local_error
+	return ""
+
+## Dedicated dead-player path. Ordinary transfer_map still rejects dead actors;
+## health changes only after destination first-frame authority activation.
+func prepare_respawn(destination:Vector3,still_dead:Callable,activation_commit:Callable)->bool:
+	if not building_readiness_enabled or _transfer_pending or not destination.is_finite():return false
+	if not still_dead.is_valid() or not activation_commit.is_valid() or Net.server().combat_stats.player_alive() or not still_dead.call():return false
+	_transfer_request_serial+=1
+	return await _transfer_within_map(_map_path,destination,still_dead,_transfer_request_serial,activation_commit)
+
+func cancel_respawn_preparation()->bool:
+	if _local_transfer.is_empty() or not _local_transfer.get("respawn",false) or _local_transfer.get("committed",false):return false
+	_local_transfer.cancelled=true
+	return true
+
+func _transfer_within_map(target:String,destination:Vector3,before_commit:Callable,request:int,activation_commit:Callable=Callable())->bool:
+	if not is_instance_valid(_map_root) or not is_instance_valid(_navigation) or not is_instance_valid(_combat):return false
+	_transfer_pending=true
+	var original:Dictionary={"combat_processing":_combat.is_physics_processing(),"locked":_player.input_locked,"physics":_player.is_physics_processing(),"velocity":_player.velocity,"geometry_blocked":_player.geometry_blocked,"geometry_wait_locked":_geometry_wait_locked,"transform":_player.global_transform,"disable_3d":get_viewport().disable_3d,"navigation_processing":_navigation.is_processing()}
+	if building_readiness_enabled:original.building_snapshot=_building_source_snapshot()
+	var deferred:=_map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:
+		original.deferred=deferred;original.deferred_processing=deferred.is_processing()
+		original.deferred_active=deferred._active
+	var cover:=preload("res://scripts/world3d/transfer_loading.gd").new()
+	var entry_plan:Dictionary=preload("res://scripts/world3d/entry_plan.gd").create(destination)
+	var clip:AABB=entry_plan.core_clip
+	var context:Dictionary={"request":request,"map":_map_root,"deferred":deferred,"original":original,"cover":cover,"navigation":null,"cancelled":false,"committed":false,
+		"origin_id":"transfer_origin:%d"%request,"target_id":"transfer_target:%d"%request,"demand_id":"transfer:%d"%request,"destination":destination,"clip":clip}
+	context.respawn=activation_commit.is_valid()
+	context.entry_plan=entry_plan
+	original.entry_stream_clip=_map_root.get_meta("entry_stream_clip") if _map_root.has_meta("entry_stream_clip") else null
+	_local_transfer=context
+	_combat.set_physics_process(false);_navigation.set_process(false)
+	_player.input_locked=true;_player.set_physics_process(false);_player.velocity=Vector3.ZERO
+	Stream.pin_source(_map_root,context.origin_id,_player.global_position)
+	Stream.pin_source(_map_root,context.target_id,destination)
+	add_child(cover)
+	await cover.wait_until_drawn()
+	get_viewport().disable_3d=true
+	context.stream_scope_applied=Stream.set_entry_scope(_map_root,entry_plan.safety_clip)
+	if wind_background_enabled:_begin_wind_preparation(_map_root,_entry_specs(_map_root))
+	cover.update_progress("等待当前导航调整结束")
+	await _navigation.cancel_resize()
+	if context.get("cancelled",false) or request!=_transfer_request_serial:
+		return await _local_transfer_failed(context,"已取消先前的传送，保留原位置。")
+	if building_readiness_enabled:
+		_building_transfer=_new_building_entry(_map_root,_map_path,destination,"same_map_transfer")
+		if _building_transfer.has_meta("error"):return await _local_transfer_failed(context,str(_building_transfer.get_meta("error")))
+	if deferred!=null:
+		deferred.retry_failed(clip)
+		deferred.activate(self);deferred.set_demand(context.demand_id,clip,-2)
+		_begin_local_transfer_scope(context)
+	cover.update_progress("准备目标区块素材")
+	var deadline:=Time.get_ticks_msec()+180000
+	while true:
+		var error:=_local_transfer_error(context)
+		if not error.is_empty():return await _local_transfer_failed(context,error)
+		var complete:bool=_entry_dependencies_ready(_map_root,deferred,clip,destination,context.demand_id)
+		if deferred!=null:deferred.set_demand(context.demand_id,clip,-2)
+		if complete:
+			if not context.has("core_resources_ready_us"):
+				context.core_resources_ready_us=Time.get_ticks_usec()
+				clip=entry_plan.safety_clip;context.clip=clip
+				if deferred!=null:deferred.retry_failed(clip);deferred.set_demand(context.demand_id,clip,-2)
+				cover.update_progress("准备目标区块边界依赖")
+				continue
+			break
+		if Time.get_ticks_msec()>deadline:return await _local_transfer_failed(context,"目标区块素材准备超时；保留原位置。")
+		_step_wind_preparation(_map_root)
+		await get_tree().process_frame
+	cover.update_progress("准备目标区块碰撞")
+	if building_readiness_enabled:
+		var building_error:String=await _building_transfer.prepare(self,self,destination,cover,func():return context.get("cancelled",false) or request!=_transfer_request_serial)
+		if not building_error.is_empty():return await _local_transfer_failed(context,building_error)
+	deadline=Time.get_ticks_msec()+180000
+	while true:
+		var error:=_local_transfer_error(context)
+		if not error.is_empty():return await _local_transfer_failed(context,error)
+		Stream.sync(_map_root,self,destination,Stream.LOAD_BUDGET)
+		if _transfer_residency_ready(destination):break
+		if Time.get_ticks_msec()>deadline:return await _local_transfer_failed(context,"目标区块碰撞准备超时；保留原位置。")
+		_step_wind_preparation(_map_root)
+		await get_tree().process_frame
+	var navigation:=preload("res://scripts/world3d/world_navigation.gd").new()
+	navigation.covered_loading=not _navigation_async(_map_root)
+	navigation.agent_height=float(_player.get_meta("standing_height",1.9))
+	context.navigation=navigation;add_child(navigation)
+	navigation.initial_geometry_clip=entry_plan.navigation_clip
+	navigation.runtime_geometry_key=_map_root.get_meta("runtime_geometry_key","")
+	_bind_deferred_geometry(_map_root,navigation)
+	_bind_navigation_lifetime(navigation,_map_root)
+	navigation.build(_map_root.get_meta("stream_library",[]),destination)
+	deadline=Time.get_ticks_msec()+180000
+	while not navigation.ready_for_queries and not _navigation_async(_map_root):
+		var error:=_local_transfer_error(context)
+		if error.is_empty():error=_transfer_navigation_error(navigation)
+		if not error.is_empty():return await _local_transfer_failed(context,error)
+		if Time.get_ticks_msec()>deadline:return await _local_transfer_failed(context,"目标附近导航准备超时；保留原位置。")
+		cover.update_progress("准备目标附近通行导航",navigation._cursor,navigation._specs.size())
+		Stream.sync(_map_root,self,destination,Stream.LOAD_BUDGET)
+		await get_tree().process_frame
+	cover.update_progress("准备目标区域材质与灯光")
+	var nearby_specs:Array=[]
+	for spec:Dictionary in _map_root.get_meta("stream_library",[]):
+		var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+		if bounds.intersects(clip):nearby_specs.append(spec)
+	if wind_background_enabled:
+		_begin_wind_preparation(_map_root,nearby_specs)
+		var wind_queue:RefCounted=_map_root.get_meta("wind_variant_preparation")
+		context.wind_materials=await wind_queue.finish_covered(get_tree())
+		_map_root.remove_meta("wind_variant_preparation")
+	else:await preload("res://scripts/world3d/wind_material_preparer.gd").prepare(nearby_specs,get_tree())
+	await _weather.streetlamps.prepare_materials(nearby_specs,get_tree())
+	var batches:=_map_root.get_node_or_null("GroundRenderBatches")
+	deadline=Time.get_ticks_msec()+180000
+	while batches!=null and (not batches.pending.is_empty() or not batches._workers.is_empty()) and not Stream.entry_scope_ready(_map_root):
+		var error:=_local_transfer_error(context)
+		if not error.is_empty():return await _local_transfer_failed(context,error)
+		if Time.get_ticks_msec()>deadline:return await _local_transfer_failed(context,"目标区域绘制准备超时；保留原位置。")
+		cover.update_progress("准备目标区域绘制")
+		await get_tree().process_frame
+	# Required target geometry is already complete. Hold unrelated publications
+	# through the first destination frame so they cannot restart the incremental
+	# radar preparation between this readiness check and cover retirement.
+	if deferred!=null:deferred._active=false;deferred.set_process(false)
+	deadline=Time.get_ticks_msec()+180000
+	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.region_is_prepared(Vector2(destination.x,destination.z)):
+		var radar_error:=_local_transfer_error(context)
+		if not radar_error.is_empty():return await _local_transfer_failed(context,radar_error)
+		if Time.get_ticks_msec()>deadline:return await _local_transfer_failed(context,"目标区域地图显示准备超时；保留原位置。")
+		var radar_progress:Vector2i=_hud._radar.terrain_preparation_progress()
+		cover.update_progress("准备目标区域地图显示",radar_progress.x,radar_progress.y)
+		await get_tree().process_frame
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	var error:=_local_transfer_error(context)
+	if not error.is_empty():return await _local_transfer_failed(context,error)
+	if not _same_map_destination_fits(destination,navigation):return await _local_transfer_failed(context,"目标出生点不可用；保留原位置。")
+	if before_commit.is_valid() and not before_commit.call():return await _local_transfer_failed(context,"操作条件已变化；保留原位置。")
+	error=_local_transfer_error(context)
+	if not error.is_empty():return await _local_transfer_failed(context,error)
+	if building_readiness_enabled:
+		var current_ticket:Dictionary=_building_authority().validate(_building_transfer.issued.ticket)
+		if not current_ticket.ok:return await _local_transfer_failed(context,str(current_ticket.reason))
+		if not _physical_destination_fits(_map_root,get_world_3d().direct_space_state,destination,[_player.get_rid()]):return await _local_transfer_failed(context,"权威落点无有效支撑")
+	# Atomic logical handoff: live map, combat, NPCs, drops, HUD and authored
+	# state retain identity. Only the ready navigation and player's pose change.
+	context.committed=true;cover.update_progress("进入目标区域")
+	cancel_sit_preparation()
+	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
+	furniture.cancel()
+	var old_navigation:=_navigation
+	_navigation=navigation;_player.navigation=navigation
+	_player.global_position=destination;_player.velocity=Vector3.ZERO;_player.click_target=null;_player._route.clear()
+	_player.geometry_blocked=false;_geometry_wait_locked=false
+	_previous_feet=destination-Vector3.UP*.9;_combat._previous=destination
+	Net.session().world3d_spawn=destination
+	_player._sense_surface()
+	Net.server().world3d_authority.mount(_player,navigation,_map_ref())
+	_bind_manual_authority()
+	for actor:Node in _combat.actors.values():
+		if is_instance_valid(actor):actor.authority.mount(actor,navigation,_map_ref())
+	if not old_navigation.retire_background("local_transfer_replaced"):old_navigation.free()
+	await get_tree().physics_frame
+	# The radar's usual 10 Hz follow tick may still point at the departure.
+	# Submit the destination view before its first rendered frame under cover.
+	if is_instance_valid(_hud) and is_instance_valid(_hud._radar):
+		_hud._radar.center=Vector2(destination.x,destination.z);_hud._radar.queue_redraw()
+	get_viewport().disable_3d=bool(original.disable_3d)
+	await cover.finish()
+	if building_readiness_enabled and not _activate_building_transfer(cover):return false
+	if activation_commit.is_valid():
+		if not activation_commit.call():return _hold_building_transfer(cover,"复活条件已变化")
+		original.locked=false;original.geometry_wait_locked=false
+	var radar_ready:bool=not is_instance_valid(_hud) or not is_instance_valid(_hud._radar) or _hud._radar.terrain_is_prepared()
+	var radar_region_ready:bool=not is_instance_valid(_hud) or not is_instance_valid(_hud._radar) or _hud._radar.region_is_prepared(Vector2(destination.x,destination.z))
+	set_meta("transfer_loading_profile",{"drawn_frame":cover.drawn_frame,"ready_frame":Engine.get_frames_drawn(),"elapsed_ms":Time.get_ticks_msec()-cover.started_ms,"target":target,"ok":true,"same_map":true,"map_reused":true,"committed":true,"radar_ready_at_retire":radar_ready,"radar_region_ready_at_retire":radar_region_ready})
+	_release_local_transfer_sources(context)
+	if deferred!=null:deferred.activate(self);deferred.prioritize(destination)
+	cover.retire();_local_transfer={}
+	_combat.set_physics_process(bool(original.combat_processing))
+	_player.set_physics_process(bool(original.physics));_player.input_locked=bool(original.locked) and not bool(original.geometry_wait_locked)
+	_transfer_pending=false;_status.text="已到达目标区域。"
+	navigation.covered_loading=false
+	return true
+
+func _activate_building_transfer(cover:CanvasLayer)->bool:
+	if _building_transfer==null:return _hold_building_transfer(cover,"entry_ticket_unavailable")
+	_building_transfer.gameplay_ready()
+	var approval:Dictionary=_building_transfer.activate(DisplayServer.get_name()!="headless",_building_current_position_valid)
+	if not approval.ok:return _hold_building_transfer(cover,str(approval.reason))
+	_building_transfer.retain_residency()
+	if _building_entry!=null:_building_entry.release()
+	_building_entry=_building_transfer;_building_transfer=null
+	Net.server().world3d_authority.movement_allowed=_building_movement_allowed
+	set_meta("building_transfer_report",_building_entry.report())
+	return true
+
+func _hold_building_transfer(cover:CanvasLayer,reason:String)->bool:
+	if _building_transfer!=null:_building_transfer.cancel(reason);_building_transfer=null
+	if _building_entry!=null:_building_entry.cancel(reason)
+	_player.input_locked=true;_player.set_physics_process(false)
+	cover.update_progress("建筑就绪校验未通过："+reason)
+	set_meta("transfer_loading_profile",{"ok":false,"committed":true,"error":reason,"authority_blocked":true})
+	var back:=Button.new();back.text="返回角色选择";back.position=Vector2(24,24);cover.add_child(back)
+	back.pressed.connect(func():Net.session().go_character_select())
+	return false
+
+func _transfer_residency_ready(origin:Vector3)->bool:
+	return _map_root.get_meta("stream_chunk",Vector2i(2147483647,2147483647))==Stream.chunk_key(origin) and _map_root.get_meta("stream_append_pending",[]).is_empty() and Stream.nearby_collision_ready(_map_root,origin)
+
+func _same_map_destination_fits(destination:Vector3,navigation:Node)->bool:
+	var feet:=destination-Vector3.UP*.9
+	if _navigation_async(_map_root):
+		if not _physical_destination_fits(_map_root,get_world_3d().direct_space_state,destination,[_player.get_rid()]):return false
+	elif not navigation.near_surface(feet,.35,.4):return false
+	var collider:=_player.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collider==null or not collider.shape is CapsuleShape3D:return false
+	var capsule:=CapsuleShape3D.new()
+	capsule.radius=maxf(.01,collider.shape.radius-.01)
+	capsule.height=maxf(capsule.radius*2,collider.shape.height-.02)
+	var pose:=_player.global_transform;pose.origin=destination
+	var query:=PhysicsShapeQueryParameters3D.new()
+	query.shape=capsule;query.transform=pose*collider.transform;query.transform.origin.y+=.01
+	query.exclude=[_player.get_rid()];query.collision_mask=_player.collision_mask;query.collide_with_areas=false
+	# Keep live NPC/pet bodies in this query: their current poses, not authored
+	# or saved spawn locations, decide whether the landing point is occupied.
+	if not get_world_3d().direct_space_state.intersect_shape(query,1).is_empty():return false
+	# Remote peer visuals currently have no PhysicsBody. Their roots are feet.
+	for model:Node3D in remote_players.models.values():
+		if not is_instance_valid(model) or not model.is_visible_in_tree():continue
+		var peer_feet:=model.global_position
+		if peer_feet.y+2.1>feet.y and feet.y+capsule.height>peer_feet.y and Vector2(peer_feet.x-feet.x,peer_feet.z-feet.z).length()<capsule.radius+.3:return false
+	return true
+
+func _physical_destination_fits(map_root:Node,space:PhysicsDirectSpaceState3D,destination:Vector3,exclude:Array[RID])->bool:
+	var collider:=_player.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collider==null or not collider.shape is CapsuleShape3D:return false
+	var capsule:CapsuleShape3D=collider.shape
+	var pose:=_player.global_transform;pose.origin=destination;pose=pose*collider.transform
+	var size:=Vector3(capsule.radius*2,capsule.height,capsule.radius*2)
+	var clip:AABB=(pose*AABB(-size*.5,size)).grow(.4)
+	var receipt:=_map_traversal_receipt(map_root,clip,"transfer_landing")
+	var result:Dictionary=preload("res://scripts/world3d/physical_traversal.gd").landing(space,destination-Vector3.UP*.9,capsule,pose,_player.collision_mask,exclude,receipt)
+	var deferred:Node=map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:deferred.release_demand("transfer_landing")
+	return result.ok
+
+func _begin_local_transfer_scope(context:Dictionary)->void:
+	var deferred:Node=context.get("deferred")
+	if not is_instance_valid(deferred):return
+	context.original.deferred_scope=deferred.get_demand_scope();context.scope_applied=true
+	var retained:Array=[]
+	if _collision_first(context.get("map")):
+		# Stream pins do not own collision-only bodies. Preserve the actual old
+		# movement/camera leases without reopening their visual dispatch scope.
+		for id:String in ["player_collision","manual_traversal"]:
+			if deferred._collision_request_ids.has(id):retained.append(id)
+	context.original.collision_tickets=retained
+	deferred.set_demand_scope([context.demand_id],retained)
+
+func _restore_local_transfer_demand_scope(context:Dictionary)->void:
+	var deferred:Node=context.get("deferred")
+	if not is_instance_valid(deferred):return
+	if context.get("scope_applied",false):
+		var retained:Array=context.original.get("collision_tickets",[]).duplicate()
+		retained.append(context.demand_id)
+		# Keep both sides until the player takes its final location's lease.
+		deferred.set_demand_scope(context.original.deferred_scope,retained)
+		context.scope_applied=false
+	if _collision_first(context.get("map")):deferred.allow_demand_in_scope("player_collision")
+
+func _local_transfer_origin_ready(context:Dictionary,origin:Vector3)->bool:
+	if not is_instance_valid(context.get("map")) or context.map!=_map_root:return false
+	if not _transfer_residency_ready(origin):return false
+	if not _collision_first(_map_root):return true
+	var clip:=AABB(Vector3(origin.x-2,-100000,origin.z-2),Vector3(4,200000,4))
+	# Ordinary Stream metadata does not include still-unpublished GLBs. Require
+	# their exact per-instance proof AND the live ordinary-body physics watermark.
+	return _map_traversal_receipt(_map_root,clip,"player_collision").ok
+
+func _release_local_transfer_sources(context:Dictionary)->void:
+	var map_root:Node=context.get("map")
+	if is_instance_valid(map_root):
+		Stream.release_source(map_root,context.origin_id);Stream.release_source(map_root,context.target_id)
+		_restore_local_stream_scope(context)
+	var deferred:Node=context.get("deferred")
+	if is_instance_valid(deferred):
+		_restore_local_transfer_demand_scope(context)
+		if _collision_first(map_root) and is_instance_valid(_player):
+			var position_:Vector3=_player.global_position
+			deferred.ensure_collision(AABB(Vector3(position_.x-2,-100000,position_.z-2),Vector3(4,200000,4)),"player_collision")
+			# This short-lived sweep belongs to the departure. Future movement
+			# acquires a fresh sweep; the camera/player margin is already held.
+			if context.get("committed",false):deferred.release_demand("manual_traversal")
+		deferred.release_demand(context.demand_id)
+
+func _restore_local_stream_scope(context:Dictionary)->void:
+	if not context.get("stream_scope_applied",false):return
+	context.stream_scope_applied=false
+	var map_root:Node=context.get("map")
+	if not is_instance_valid(map_root):return
+	var previous:Variant=context.get("original",{}).get("entry_stream_clip")
+	if previous is AABB:Stream.set_entry_scope(map_root,previous)
+	else:Stream.clear_entry_scope(map_root)
+
+func _local_transfer_failed(context:Dictionary,reason:String)->bool:
+	_cancel_wind_preparation(context.get("map"))
+	if _building_transfer!=null:_building_transfer.cancel("transfer_failed");_building_transfer=null
+	var original:Dictionary=context.original
+	var navigation:Node=context.get("navigation")
+	if is_instance_valid(navigation) and not navigation.retire_background("transfer_cancelled"):navigation.free()
+	var deferred:Node=context.get("deferred")
+	if is_instance_valid(deferred):deferred.release_demand(context.demand_id)
+	Stream.release_source(_map_root,context.target_id)
+	_restore_local_stream_scope(context)
+	if _collision_first(_map_root):
+		_restore_local_transfer_demand_scope(context)
+		# Cancellation can occur after publication was suspended for the first
+		# target frame. Recovery must be allowed to finish missing source work.
+		if is_instance_valid(deferred):deferred.activate(self)
+	# The old source remained pinned throughout. Settle its plan before input
+	# resumes, including after cancellation halfway through a target plan.
+	var origin:Vector3=original.transform.origin
+	var deadline:=Time.get_ticks_msec()+180000
+	while true:
+		Stream.sync(_map_root,self,origin,Stream.LOAD_BUDGET)
+		if _local_transfer_origin_ready(context,origin):break
+		if Time.get_ticks_msec()>deadline:
+			reason+=" 原区域驻留恢复超时。"
+			if _collision_first(_map_root):return _hold_local_transfer_recovery(context,reason)
+			original.geometry_blocked=true;original.geometry_wait_locked=true;original.locked=true
+			break
+		await get_tree().process_frame
+	_release_local_transfer_sources(context)
+	_navigation.set_process(bool(original.navigation_processing))
+	_local_transfer={}
+	var result:=await _transfer_failed(original,context.cover,reason)
+	var profile:Dictionary=get_meta("transfer_loading_profile",{})
+	profile.merge({"same_map":true,"map_reused":true,"committed":false},true);set_meta("transfer_loading_profile",profile)
+	return result
+
+func _hold_local_transfer_recovery(context:Dictionary,reason:String)->bool:
+	# A failed fallback has no safe playable location. Keep the original leases
+	# and drawn cover until leaving the world rather than restoring physics.
+	_player.input_locked=true;_player.set_physics_process(false);_player.velocity=Vector3.ZERO
+	context.recovery_failed=true
+	context.cover.update_progress(reason)
+	set_meta("transfer_loading_profile",{"same_map":true,"ok":false,"committed":false,"recovery_failed":true,"error":reason})
+	var back:=Button.new();back.text="返回角色选择";back.position=Vector2(24,24);context.cover.add_child(back)
+	back.pressed.connect(func():Net.session().go_character_select())
+	return false
 
 func _transfer_navigation_error(navigation:Node)->String:
 	if not navigation.geometry_error.is_empty():return "目标导航准备失败："+navigation.geometry_error
@@ -1103,18 +1947,31 @@ func _transfer_navigation_error(navigation:Node)->String:
 	return ""
 
 func _transfer_failed(original:Dictionary,cover:CanvasLayer,reason:String,navigation:Node=null,viewport:Node=null)->bool:
-	if is_instance_valid(navigation):navigation.free()
+	if is_instance_valid(navigation) and not navigation.retire_background("transfer_failed"):navigation.free()
 	if is_instance_valid(viewport):viewport.queue_free()
 	get_viewport().disable_3d=bool(original.disable_3d)
+	if building_readiness_enabled:
+		# Target failure never licenses blindly restoring an old transform.
+		await get_tree().physics_frame
+		await get_tree().process_frame
+		if not _building_recovery_valid(original):return _hold_building_transfer(cover,reason+"；原位置已无法安全恢复")
+		_player.global_transform=original.transform;_player.velocity=Vector3.ZERO
+		await cover.finish()
+		var approval:Dictionary=_building_entry.activate(DisplayServer.get_name()!="headless",_building_current_position_valid)
+		if not approval.ok:return _hold_building_transfer(cover,reason+"；"+str(approval.reason))
+		Net.server().world3d_authority.movement_allowed=_building_movement_allowed
 	_combat.set_physics_process(bool(original.combat_processing))
 	_player.global_transform=original.transform;_player.velocity=original.velocity
 	_player.geometry_blocked=original.geometry_blocked;_geometry_wait_locked=original.geometry_wait_locked
 	_player.set_physics_process(bool(original.physics));_player.input_locked=original.locked
-	if is_instance_valid(original.get("deferred")):original.deferred.set_process(bool(original.deferred_processing))
+	if original.has("navigation_processing"):_navigation.set_process(bool(original.navigation_processing))
+	if is_instance_valid(original.get("deferred")):
+		if original.has("deferred_active"):original.deferred._active=bool(original.deferred_active)
+		original.deferred.set_process(bool(original.deferred_processing))
 	_transfer_pending=false;_status.text=reason
 	if is_instance_valid(cover):
 		set_meta("transfer_loading_profile",{"drawn_frame":cover.drawn_frame,"ready_frame":Engine.get_frames_drawn(),"elapsed_ms":Time.get_ticks_msec()-cover.started_ms,"ok":false,"error":reason})
-		cover.queue_free()
+		cover.retire()
 	return false
 
 

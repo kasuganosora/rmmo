@@ -12,11 +12,12 @@ static func defaults() -> Dictionary:
 	return {"name":"区域植被","height":0.0,"seed":1,"count":32,"spacing":4.0,"scale_min":.85,"scale_max":1.15,"boundary_margin":.5,"collision":true}
 static func settings_schema() -> Dictionary:
 	var fields:={"id":text(80),"name":text(120),"polygon":Zones.schema().properties.polygon,"asset_ids":array(text(2048),8,1),"height":S.number(-10000,10000),"seed":S.number(0,2147483647,true),"count":S.number(1,256,true),"spacing":S.number(.5,100),"scale_min":S.number(.1,5),"scale_max":S.number(.1,5),"boundary_margin":S.number(0,20),"collision":{"type":"boolean"}}
+	fields.merge({"pattern":{"type":"string","enum":["random","rows"]},"row_angle":S.number(-180,180),"row_spacing":S.number(.5,20),"follow_terrain":{"type":"boolean"}})
 	return object(fields,["id","polygon","asset_ids"])
 static func request_schema() -> Dictionary:
 	var result:=settings_schema(); result.properties.plan_token=text(64); return result
 static func manifest_schema() -> Dictionary:
-	var settings:=settings_schema(); settings.required=settings.properties.keys()
+	var settings:=settings_schema(); settings.required=settings.properties.keys().filter(func(k):return k not in ["pattern","row_angle","row_spacing","follow_terrain"])
 	return array(object({"version":S.number(1,1,true),"settings":settings,"parts":array(object({"id":text(100),"signature":text(64)},["id","signature"]),256)},["version","settings","parts"]),128)
 static func valid_settings(settings: Dictionary) -> bool:
 	if not S.validate(settings,settings_schema()).is_empty(): return false
@@ -59,6 +60,7 @@ static func inside(poly: PackedVector2Array, regions: Array) -> bool:
 	for fragment in remaining: outside+=area(fragment)
 	return outside<.0001
 static func candidates(settings: Dictionary) -> Array:
+	if settings.get("pattern","random")=="rows":return row_candidates(settings)
 	var p:=polygon(settings.polygon); var triangles:=Geometry2D.triangulate_polygon(p)
 	var weights: Array=[]; var total:=0.0
 	for i in range(0,triangles.size(),3):
@@ -72,4 +74,18 @@ static func candidates(settings: Dictionary) -> Array:
 		var u:=sqrt(rng.randf()); var v:=rng.randf()
 		var point:=p[triangles[tri*3]]*(1-u)+p[triangles[tri*3+1]]*(u*(1-v))+p[triangles[tri*3+2]]*(u*v)
 		result.append({"slot":index,"point":point,"asset":rng.randi_range(0,settings.asset_ids.size()-1),"yaw":rng.randf_range(-180,180),"scale":rng.randf_range(settings.scale_min,settings.scale_max)})
+	return result
+
+static func row_candidates(settings:Dictionary)->Array:
+	var angle:=deg_to_rad(float(settings.get("row_angle",0.)));var p:=polygon(settings.polygon)
+	var bounds:=Rect2(p[0].rotated(-angle),Vector2.ZERO)
+	for point:Vector2 in p:bounds=bounds.expand(point.rotated(-angle))
+	var across:float=settings.get("row_spacing",1.);var along:float=settings.spacing
+	if bounds.get_area()/(across*along)>8192:return []
+	var rng:=RandomNumberGenerator.new();rng.seed=int(settings.seed);var result:Array=[]
+	for row in range(ceili(bounds.position.y/across),floori(bounds.end.y/across)+1):
+		for column in range(ceili(bounds.position.x/along),floori(bounds.end.x/along)+1):
+			var point:=Vector2(column*along,row*across).rotated(angle)
+			if not Geometry2D.is_point_in_polygon(point,p):continue
+			result.append({"slot":result.size(),"point":point,"asset":rng.randi_range(0,settings.asset_ids.size()-1),"yaw":rng.randf_range(-180,180),"scale":rng.randf_range(settings.scale_min,settings.scale_max)})
 	return result

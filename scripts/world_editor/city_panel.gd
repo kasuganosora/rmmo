@@ -36,7 +36,7 @@ func section(title: String) -> VBoxContainer:
 		toggle.text=("▾ " if value else "▸ ") + title
 	)
 	return body
-func setup(host: Node3D) -> void:
+func setup(host: Node3D, fortification_parent: Node = null) -> void:
 	editor=host; city=host._city; city.panel=self; add_theme_constant_override("separation",8)
 	add_theme_constant_override("margin_left",8)
 	note(self,"标定底图、绘制道路并生成铺面，再识别街区、预览临街地块并分批生成房屋。骨架修改后需更新路面。")
@@ -92,7 +92,10 @@ func setup(host: Node3D) -> void:
 	scatter_panel=preload("res://scripts/world_editor/scatter_panel.gd").new(); add_child(scatter_panel); scatter_panel.setup(self)
 	waterway_panel=preload("res://scripts/world_editor/waterway_panel.gd").new(); add_child(waterway_panel); waterway_panel.setup(self)
 	bridge_panel=preload("res://scripts/world_editor/bridge_panel.gd").new(); add_child(bridge_panel); bridge_panel.setup(self)
-	fortification_panel=preload("res://scripts/world_editor/fortification_panel.gd").new(); add_child(fortification_panel); fortification_panel.setup(self)
+	fortification_panel=preload("res://scripts/world_editor/fortification_panel.gd").new()
+	(fortification_parent if fortification_parent != null else self).add_child(fortification_panel)
+	fortification_panel.setup(self)
+	button(self,"打开城防面板…",func(): editor._dock_tabs.current_tab=11)
 	diagnostics=note(self,"")
 	refresh()
 
@@ -173,4 +176,4 @@ func import_reference() -> void:
 	dialog.file_selected.connect(func(path): report(city.set_reference({"path":path})); dialog.queue_free())
 	dialog.canceled.connect(dialog.queue_free); add_child(dialog); dialog.popup_centered(Vector2i(900,600))
 func report(result: Dictionary) -> void:
-	editor._status.text="城镇布局已更新" if result.ok else str(result.error)
+	editor._report_result(result,"城镇布局已更新","城镇布局")

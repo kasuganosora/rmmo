@@ -25,17 +25,30 @@ func templates() -> Dictionary:
 
 func list_buildings() -> Dictionary:
 	var rows: Array = []
-	for id in instances():
-		var value: Dictionary = instances()[id]
-		rows.append({"id":id,"parameters":value.parameters,"position":value.position,"yaw":value.yaw,"part_count":value.parts.size(),"baked":value.get("baked",false),"source_part_count":value.get("source_part_count",value.parts.size()),"conflicts":conflicts(id)})
+	var registry := instances(); var records := _record_index()
+	for id in registry:
+		var value: Dictionary = registry[id]
+		rows.append({"id":id,"parameters":value.parameters,"position":value.position,"yaw":value.yaw,"part_count":value.parts.size(),"baked":value.get("baked",false),"source_part_count":value.get("source_part_count",value.parts.size()),"conflicts":_conflicts(id,records)})
 	return {"ok":true,"buildings":rows}
 
 func conflicts(id: String) -> Array:
+	return _conflicts(id,_record_index())
+
+func _record_index() -> Dictionary:
+	# Scope the index to this call/transaction: undo, replacement and direct
+	# authoring mutations must never leave a persistent lookup cache stale.
+	var result := {}
+	for record: Dictionary in editor._doc.records:
+		var uuid := str(record.get("uuid",""))
+		if not result.has(uuid): result[uuid] = record
+	return result
+
+func _conflicts(id: String, records: Dictionary) -> Array:
 	var result: Array = []
 	if not instances().has(id): return ["建筑不存在"]
 	var value: Dictionary = instances()[id]
 	for part in value.parts:
-		var record: Dictionary = editor._doc._find(value.parts[part])
+		var record: Dictionary = records.get(str(value.parts[part]),{})
 		if record.is_empty(): result.append({"part":part,"reason":"构件已被删除"}); continue
 		if record.get("building",{}).get("id")!=id or Blueprint.geometry_signature(record)!=value.signatures[part]: result.append({"id":record.uuid,"part":part,"reason":"构件已手工改动"})
 		elif not editor._record_editable(record): result.append({"id":record.uuid,"part":part,"reason":"构件被锁定、隐藏或不在当前楼层"})
@@ -47,11 +60,13 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 	if replacing.is_empty() and instances().size()+args.placements.size()>4096: return Blueprint.fail("地图最多包含 4096 栋生成建筑")
 	var prepared: Array = []; var excluded: Array = []
 	var occupied_shapes := {}
+	var records := {}
 	if not replacing.is_empty():
 		if args.placements.size()!=1: return Blueprint.fail("更新预览只能包含一栋建筑")
 		if not instances().has(replacing): return Blueprint.fail("建筑不存在")
 		if instances()[replacing].get("baked",false):return Blueprint.fail("预制件已经烘焙，不能再修改生成参数；请生成新的预制件")
-		var blocked := conflicts(replacing)
+		records = _record_index()
+		var blocked := _conflicts(replacing,records)
 		if not blocked.is_empty(): return {"ok":false,"error":"建筑存在修改或保护冲突；请先解决，或解除生成关联后手工编辑","conflicts":blocked}
 		excluded = instances()[replacing].parts.values()
 	for index in args.placements.size():
@@ -89,7 +104,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 			var new_parts := {}
 			for record in plan.records: new_parts[record.building.part] = record
 			for part in old.parts:
-				var record: Dictionary = editor._doc._find(old.parts[part])
+				var record: Dictionary = records.get(str(old.parts[part]),{})
 				var decorated: bool = record.has("surface_paint") or record.has("event_template") or record.has("event")
 				if decorated and (not new_parts.has(part) or Blueprint.geometry_signature(new_parts[part])!=old.signatures[part]): return {"ok":false,"error":"修改会影响已绘制材质或挂载事件的构件，原建筑已保留","conflicts":[record.uuid]}
 		prepared.append(plan)
@@ -182,10 +197,11 @@ func bake_existing(id:String)->Dictionary:
 	if not instances().has(id):return Blueprint.fail("建筑不存在")
 	var old:Dictionary=instances()[id]
 	if old.get("baked",false):return {"ok":true,"changed":false,"building_ids":[id]}
-	var blocked:=conflicts(id)
+	var indexed:=_record_index()
+	var blocked:=_conflicts(id,indexed)
 	if not blocked.is_empty():return {"ok":false,"error":"建筑存在修改或保护冲突，未烘焙","conflicts":blocked}
 	var records:Array=[]
-	for uuid in old.parts.values():records.append(editor._doc._find(uuid))
+	for uuid in old.parts.values():records.append(indexed[str(uuid)])
 	return commit([{"parameters":old.parameters,"position":old.position,"yaw":old.yaw,"records":records,"recipe_version":old.version}],id)
 
 func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Dictionary:
@@ -201,8 +217,10 @@ func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Di
 	doc.checkpoint_recovery()
 	var registry: Dictionary = instances().duplicate(true)
 	var old: Dictionary = registry.get(replacing,{})
-	var previous := {}
-	for id in old.get("parts",{}).values(): previous[id] = doc._find(id).duplicate(true)
+	var previous := {}; var changed := {}; var indexed := _record_index()
+	for id in old.get("parts",{}).values():
+		previous[id] = indexed.get(str(id),{}).duplicate(true)
+		changed[str(id)] = true
 	if not replacing.is_empty(): doc.records = doc.records.filter(func(r): return not previous.has(r.uuid))
 	var ids: Array = []
 	for plan in plans:
@@ -222,10 +240,15 @@ func commit(plans: Array, replacing := "", layout_update: Dictionary = {}) -> Di
 			record.building.id = id; record.editor_group = id; record.editor_group_name = Blueprint.LABELS[plan.parameters.template]
 			value.parts[part] = record.uuid; value.signatures[part] = Blueprint.geometry_signature(record)
 			doc.records.append(record)
+			changed[str(record.uuid)] = true
 		registry[id] = value; ids.append(id)
 	doc.map_meta.building_instances = registry
 	if not layout_update.is_empty(): doc.map_meta.editor_layout=layout_update
-	editor._dirty = true; editor._rebuild()
+	# These metadata/preview hooks used to be incidental effects of a full
+	# rebuild. Keep them explicit while retaining unrelated scene nodes.
+	if editor._building_panel!=null: editor._building_panel.clear_preview()
+	if not layout_update.is_empty(): editor._city.refresh()
+	editor._dirty = true; editor._commit_records(changed.keys())
 	if editor._building_panel!=null: editor._building_panel.refresh_list(ids[0])
 	return {"ok":true,"changed":true,"building_ids":ids,"object_count":doc.records.size()}
 
@@ -234,7 +257,8 @@ func remove(id: String, detach := false) -> Dictionary:
 	if not ready.ok: return ready
 	if not instances().has(id): return Blueprint.fail("建筑不存在")
 	if detach and instances()[id].get("baked",false):return Blueprint.fail("烘焙预制件不能拆成可编辑零件")
-	var owned: Array = instances()[id].parts.values()
+	var owned := {}
+	for uuid in instances()[id].parts.values(): owned[str(uuid)] = true
 	for record in editor._doc.records:
 		if not owned.has(record.uuid): continue
 		if record.get("building",{}).get("id")!=id: return Blueprint.fail("建筑构件归属不一致，未修改地图")
@@ -247,6 +271,7 @@ func remove(id: String, detach := false) -> Dictionary:
 				record.erase("building")
 	else: editor._doc.records = editor._doc.records.filter(func(r): return not owned.has(r.uuid))
 	editor._doc.map_meta.building_instances.erase(id)
-	editor._dirty = true; editor._rebuild()
+	if editor._building_panel!=null: editor._building_panel.clear_preview()
+	editor._dirty = true; editor._commit_records(owned.keys())
 	if editor._building_panel!=null: editor._building_panel.refresh_list()
 	return {"ok":true,"changed":true,"building_id":id,"detached":detach}

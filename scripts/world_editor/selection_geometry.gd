@@ -30,7 +30,10 @@ static func corners(record: Dictionary) -> Array[Vector3]:
 	if record.get("building_shape")=="roof_prism":
 		for p in preload("res://scripts/world3d/roof_mesh.gd").vertices(record): result.append(transform*p)
 		return result
-	for i in 8: result.append(transform * local.get_endpoint(i))
+	for i in 8:
+		var point:=local.get_endpoint(i)
+		if record.has("terrain_grade") and not record.has("house_prefab"):point.y+=record.terrain_grade[0]*point.x+record.terrain_grade[1]*point.z
+		result.append(transform*point)
 	return result
 
 

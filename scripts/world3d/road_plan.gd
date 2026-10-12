@@ -4,9 +4,9 @@ const Poly=preload("res://scripts/world3d/roof_plan.gd")
 const CELL:=32.0
 
 static func settings_schema() -> Dictionary:
-	return Data.object({"thickness":Data.S.number(.1,.5),"lift":Data.S.number(.005,.05),"clearance":Data.S.number(2.5,10),"material_id":Data.text(256)}.merged(preload("res://scripts/world3d/road_kerb.gd").settings()))
+	return Data.object({"follow_terrain":{"type":"boolean"},"thickness":Data.S.number(.1,.5),"lift":Data.S.number(.005,.05),"clearance":Data.S.number(2.5,10),"material_id":Data.text(256)}.merged(preload("res://scripts/world3d/road_kerb.gd").settings()))
 static func defaults() -> Dictionary:
-	return {"thickness":.2,"lift":.025,"clearance":3.0,"material_id":""}.merged(preload("res://scripts/world3d/road_kerb.gd").defaults())
+	return {"follow_terrain":false,"thickness":.2,"lift":.025,"clearance":3.0,"material_id":""}.merged(preload("res://scripts/world3d/road_kerb.gd").defaults())
 
 static func intersection(a: Array,b: Array) -> Array:
 	var result: Array=a
@@ -115,11 +115,19 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 	for source in sources:
 		var fragments: Array=[source.polygon]
 		for portal in portals:
-			if not portal.get("road_stone",false) or absf(source.plane.x)+absf(source.plane.y)>.000001 or absf(source.plane.z+settings.lift-portal.endpoints[0][1])>.08: continue
+			if not portal.get("road_stone",false):continue
+			# Only the bound road owns this cut. A crossing road must keep its
+			# geometry and participate in the normal overlap/clearance checks.
+			if source.edge.id!=portal.edge_id:continue
+			var a:=Data.vec(portal.endpoints[0]);var b:=Data.vec(portal.endpoints[1]);var delta:=Vector2(b.x-a.x,b.z-a.z)
 			var remaining: Array=[]
 			for fragment in fragments:
-				if intersection(fragment,portal.polygon).is_empty(): remaining.append(fragment)
-				else: remaining.append_array(Poly.subtract(fragment,portal.polygon))
+				var overlap:=intersection(fragment,portal.polygon);var aligned:=not overlap.is_empty()
+				for p:Vector2 in overlap:
+					var t:float=(p-Vector2(a.x,a.z)).dot(delta)/delta.length_squared()
+					if absf(Poly.height(source.plane,p)+settings.lift-lerpf(a.y,b.y,t))>.08:aligned=false;break
+				if aligned:remaining.append_array(Poly.subtract(fragment,portal.polygon))
+				else:remaining.append(fragment)
 			fragments=remaining
 		for fragment in fragments: clipped_sources.append(source.merged({"polygon":fragment},true))
 		if clipped_sources.size()>16384: return Data.fail("石桥裁切路面超过预算")

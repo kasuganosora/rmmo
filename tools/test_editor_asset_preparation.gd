@@ -10,8 +10,19 @@ func terrain_vertices(id:String)->PackedVector3Array:
 func terrain_mask(id:String)->PackedByteArray:
 	return editor._view.get_node(id).get_active_material(0).get_meta("ground_mask_image").get_data()
 
+func write_fixture(path:String,bytes:PackedByteArray)->bool:
+	# Chained temporary FileAccess values can outlive the expression/coroutine
+	# suspension. Publish the complete file before any synchronous/worker import.
+	var file:=FileAccess.open(path,FileAccess.WRITE)
+	if file==null:return false
+	file.store_buffer(bytes);file.flush()
+	var written_ok:=file.get_error()==OK
+	file.close()
+	return written_ok and FileAccess.get_file_as_bytes(path)==bytes
+
 func run()->void:
 	Engine.max_fps=60
+	Job.parallel_preparation_enabled=not OS.get_cmdline_user_args().has("--without-parallel-preparation")
 	create_timer(90).timeout.connect(func():quit(2))
 	var directory:=Paths.cache_directory("asset_prepare_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)
@@ -22,6 +33,7 @@ func run()->void:
 	check(Io.save_scene(model,asset_path)==OK,"tiny model fixture exported")
 	model.free()
 	var original:=FileAccess.get_file_as_bytes(asset_path)
+	check(original.size()>20 and original.slice(0,4).get_string_from_ascii()=="glTF","exported fixture contains a complete binary GLB")
 	var doc:=Doc.new();var first:String=doc.add_asset({"asset_path":asset_path},Vector3.ZERO)
 	var second:String=doc.add_asset({"asset_path":asset_path},Vector3(5,0,0))
 	var terrain_id:String=doc.add_box("ground",Vector3(20,0,0),Vector3(8,1,8))
@@ -32,23 +44,32 @@ func run()->void:
 	if not region.ok:quit(1);return
 	doc.records[2]=region.records[0]
 	var next_asset_path:=directory.path_join("second_fixture.glb")
-	FileAccess.open(next_asset_path,FileAccess.WRITE).store_buffer(original)
+	if not write_fixture(next_asset_path,original):check(false,"second fixture bytes persisted before editor open");quit(1);return
+	check(FileAccess.get_sha256(next_asset_path)==FileAccess.get_sha256(asset_path),"second fixture is closed and byte-identical before synchronous editor build")
 	var third:String=doc.add_asset({"asset_path":next_asset_path},Vector3(10,0,0))
 	var path:=directory.path_join("map.gltf");check(doc.save(path)==OK,"isolated asset and terrain map saved")
 	var session=preload("res://scripts/net/net.gd").session();session.world3d_editor_doc=doc;session.world3d_editor_path=path
 	editor=preload("res://scripts/world_editor/world_editor.gd").new();editor._mcp_autostart=false;editor._draft_directory=directory.path_join("drafts")
 	root.add_child(editor);editor._safety.enabled=false;await settle()
+	check(not editor._view.get_node(third).has_meta("missing_asset"),"second fixture also succeeds in initial synchronous editor build")
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK:port+=1
 	probe.stop();check(editor.start_mcp(port).ok,"real HTTP server started")
+	var discovery:=await rpc("tools/list")
+	var names:Array=discovery.get("result",{}).get("tools",[]).map(func(tool):return tool.name)
+	check("open_world" in names and "editor_state" in names,"HTTP discovery retains current 3D loading and state tools")
 	Library._scenes.clear()
 	var before:Dictionary=doc._find(first).duplicate(true)
 	await call_tool("open_world",{"path":path})
 	var units:Dictionary=editor._load_job.state().timings.build.units
 	check(units.get("asset_parse_worker",{}).get("count",0)==2,"one background parse per distinct path despite repeated instances")
 	var lookahead:Dictionary=editor._load_job.state().timings.asset_lookahead
-	check(lookahead.unique_paths==2 and lookahead.started==2 and lookahead.consumed==2 and lookahead.peak_unconsumed==1,"ordered lookahead consumes two paths with at most one unconsumed parse")
-	check(editor._load_job._asset_thread==null and editor._load_job._asset_paths.is_empty(),"completed lookahead joins and clears pending paths")
+	check(lookahead.unique_paths==2 and lookahead.started==2 and lookahead.consumed==2 and lookahead.peak_unconsumed<=4,"bounded lookahead consumes both unique model paths")
+	check(editor._load_job._preparation==null and editor._load_job._asset_paths.is_empty(),"completed preparation releases queue and pending paths")
+	var state:=await call_tool("editor_state")
+	var capability:Dictionary=state.load.capabilities
+	check(capability.metadata_ready and capability.viewport_ready and capability.query_ready and capability.editable and capability.policy=="full_document_gate","HTTP state reports distinct metadata, viewport and query capabilities only after full load")
+	check(state.load.timings.preparation.ledger.reserved_bytes==0,"HTTP completed load retains no preparation byte leases")
 	check(not editor._view.get_node(third).has_meta("missing_asset"),"next unique model is published normally after lookahead")
 	check(units.get("terrain_neighbors_worker",{}).get("count",0)==1,"terrain preparation ran in private worker")
 	check(units.get("terrain_arrays_worker",{}).get("count",0)==1 and units.get("terrain_masks_worker",{}).get("total_ms",0)>0,"terrain geometry and region mask were prepared off main")
@@ -78,23 +99,32 @@ func run()->void:
 	check(not editor._load_job.state().timings.build.units.has("asset_parse_worker"),"cached asset skips redundant background parse")
 	# Deliberately broken bytes produce expected native parser diagnostics.
 	Library._scenes.clear()
-	FileAccess.open(asset_path,FileAccess.WRITE).store_string("invalid glb")
+	if not write_fixture(asset_path,"invalid glb".to_utf8_buffer()):check(false,"broken fixture bytes persisted");quit(1);return
 	await call_tool("open_world",{"path":path})
 	check(editor._view.get_node(first).has_meta("missing_asset") and not Library._scenes.has(asset_path),"failed background import uses normal missing placeholder without negative cache")
-	FileAccess.open(asset_path,FileAccess.WRITE).store_buffer(original)
+	if not write_fixture(asset_path,original):check(false,"repaired fixture bytes persisted before reimport");quit(1);return
+	check(FileAccess.get_sha256(asset_path)==FileAccess.get_sha256(next_asset_path),"repaired GLB is closed and byte-identical before background parser starts")
 	await call_tool("open_world",{"path":path})
 	check(not editor._view.get_node(first).has_meta("missing_asset") and editor._load_job.state().timings.build.units.asset_parse_worker.count==1,"repaired resource is parsed on next load")
 	var retained:Node3D=editor._view
 	await call_tool("open_world",{"path":directory.path_join("absent.gltf")},false)
 	check(editor._view==retained and not editor._load_job.active,"illegal open leaves the completed view available")
+	var drainer:=preload("res://scripts/world3d/asset_worker_drainer.gd").for_tree(self)
 	var job:=Job.new();root.add_child(job);job._thread=Thread.new();job._thread.start(Job._parse_asset.bind(asset_path));var owned_thread:Thread=job._thread
-	job.free();check(not owned_thread.is_started(),"freeing job joins an outstanding private parser")
+	job.free()
+	var deadline:=Time.get_ticks_msec()+10000
+	while owned_thread.is_started() and Time.get_ticks_msec()<deadline:await process_frame
+	check(not owned_thread.is_started(),"tree-owned drainer eventually joins an abandoned private parser")
 	Library._scenes.erase(asset_path)
 	var pending_job:=Job.new();root.add_child(pending_job)
 	pending_job._begin_asset_lookahead([{"kind":"asset","asset_path":asset_path},{"kind":"asset","asset_path":asset_path}])
-	var lookahead_thread:Thread=pending_job._asset_thread
-	check(lookahead_thread!=null and pending_job._asset_paths.size()==1,"lookahead starts immediately and deduplicates before any scene build")
+	var queue:Node=pending_job._preparation
+	var lease:RefCounted=queue.ledger
+	check(queue.rows.size()==1 and pending_job._asset_paths.size()==1,"lookahead deduplicates before any scene build")
+	var drained_before:int=drainer.drained
 	pending_job.free()
-	check(not lookahead_thread.is_started() and not Library._scenes.has(asset_path),"exit joins unconsumed lookahead without publishing a shared scene")
+	deadline=Time.get_ticks_msec()+10000
+	while lease.count()>0 and Time.get_ticks_msec()<deadline:await process_frame
+	check(lease.count()==0 and drainer.drained>=drained_before and not Library._scenes.has(asset_path),"exit drains unconsumed lookahead without publishing a shared scene")
 	editor.queue_free();await settle()
 	print("EDITOR_ASSET_PREPARATION_FAILED=",failed);quit(1 if failed else 0)

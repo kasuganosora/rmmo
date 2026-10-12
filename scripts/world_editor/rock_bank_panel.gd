@@ -83,7 +83,7 @@ func arguments()->Dictionary:
 	if not inner_widths.is_empty():args.inner_widths=inner_widths.duplicate()
 	if not target.is_empty():args.id=target
 	return args
-func report(result:Dictionary)->void:editor._status.text="岩岸操作完成" if result.ok else str(result.error)
+func report(result:Dictionary)->void:editor._report_result(result,"岩岸操作完成","岩岸")
 func refresh()->void:
 	cancel()
 	if choice==null:return

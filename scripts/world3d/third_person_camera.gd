@@ -55,8 +55,11 @@ func _unhandled_input(event: InputEvent) -> void:
 func follow(pivot: Vector3, delta: float) -> void:
 	if view_mode!="third_person":
 		cutaway.restore();_initialized=false;return
+	var profiling:=has_meta("profile_frame")
+	var started:=Time.get_ticks_usec() if profiling else 0
 	var feet:=pivot-Vector3.UP*.9
 	var room:Dictionary=cutaway.locate(feet)
+	var locate_end:=Time.get_ticks_usec() if profiling else 0
 	var target_distance:=minf(_want_distance,indoor_distance) if not room.is_empty() else _want_distance
 	distance = lerpf(distance, target_distance, 1.0 - exp(-8.0 * delta))
 	var arm := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)) * minf(distance,target_distance)
@@ -71,19 +74,33 @@ func follow(pivot: Vector3, delta: float) -> void:
 	var wanted := focus + arm
 	last_focus=focus;last_desired=wanted
 	var probe:=focus+arm.normalized()*minf(arm.length(),_arm_length)
+	var first_update_started:=Time.get_ticks_usec() if profiling else 0
 	cutaway.update(room,focus,probe,get_world_3d().direct_space_state,occluder_exclude,delta)
+	var first_update_end:=Time.get_ticks_usec() if profiling else 0
 	wanted = _shorten(focus, wanted)
+	var shorten_end:=Time.get_ticks_usec() if profiling else 0
 	var safe_length:=focus.distance_to(wanted)
 	_arm_length=safe_length if safe_length<_arm_length else lerpf(_arm_length,safe_length,1-exp(-6*delta))
 	global_position = focus+arm.normalized()*maxf(.05,_arm_length)
 	# Validate the actual shortened camera segment; a distant ideal orbit is not visibility.
+	var second_update_started:=Time.get_ticks_usec() if profiling else 0
 	cutaway.update(room,focus,global_position,get_world_3d().direct_space_state,occluder_exclude,delta)
+	var second_update_end:=Time.get_ticks_usec() if profiling else 0
 	camera.look_at(focus, Vector3.UP)
+	if profiling:
+		var finished:=Time.get_ticks_usec()
+		set_meta("frame_timing",{"frame":Engine.get_process_frames(),"locate_ms":(locate_end-started)/1000.0,"cutaway_first_ms":(first_update_end-first_update_started)/1000.0,"shorten_ms":(shorten_end-first_update_end)/1000.0,"cutaway_second_ms":(second_update_end-second_update_started)/1000.0,"other_ms":((first_update_started-locate_end)+(second_update_started-shorten_end)+(finished-second_update_end))/1000.0,"ms":(finished-started)/1000.0})
 
 func bind_map(map_root:Node,settings:Dictionary)->void:
 	cutaway.bind(map_root)
 	configure_environment(settings)
 	_initialized=false
+
+func append_map_specs(map_root:Node,specs:Array)->void:
+	cutaway.append_specs(map_root,specs)
+
+func remove_map_specs(map_root:Node,specs:Array)->void:
+	cutaway.remove_specs(map_root,specs)
 
 func configure_environment(settings:Dictionary)->void:
 	# Time/weather changes do not change building topology or camera focus.

@@ -54,6 +54,7 @@ func set_component_edit(enabled: bool) -> void:
 
 
 func set_ids(values: Array) -> void:
+	if editor._inspector != null: editor._inspector.finish_number_edit()
 	if editor._placement_tools != null: editor._placement_tools.cancel()
 	var requested := values.duplicate()
 	if not requested.is_empty():
@@ -92,13 +93,13 @@ func refresh(refresh_scene: bool=true) -> void:
 	if editor._space_button != null: editor._update_space_button()
 
 
-func members(id: String) -> Array[String]:
+func members(id: String, record_index: Variant = null) -> Array[String]:
 	var result: Array[String] = []
-	var record: Dictionary = editor._doc._find(id)
+	var record: Dictionary = editor._doc._find(id) if record_index==null else record_index.get(id,{})
 	if record.is_empty(): return []
 	if record.has("building"):
 		if component_edit and not record.get("prefab_locked",false): return [id] if editor._record_editable(record) else []
-		var expanded: Dictionary = motion.expand([id])
+		var expanded: Dictionary = motion.expand([id],false,false,record_index)
 		if expanded.ok: result.assign(expanded.ids)
 		return result
 	var group := str(record.get("editor_group", ""))
@@ -162,6 +163,9 @@ func finish_box(cancel: bool = false) -> void:
 		return
 	var rectangle := Rect2(start, end - start).abs()
 	var next: Array = ids.duplicate() if additive else []
+	var record_index:Dictionary={};var expanded_groups:Dictionary={};var seen:Dictionary={}
+	for record in editor._doc.records:record_index[str(record.uuid)]=record
+	for id in next:seen[id]=true
 	for record in editor._doc.records:
 		if not editor._record_editable(record): continue
 		var projected := Rect2()
@@ -173,8 +177,16 @@ func finish_box(cancel: bool = false) -> void:
 			if first: projected = Rect2(screen, Vector2.ZERO); first = false
 			else: projected = projected.expand(screen)
 		if valid and rectangle.encloses(projected):
-			for id in members(str(record.uuid)):
-				if not next.has(id): next.append(id)
+			var group_key:String=""
+			if record.has("building") and (not component_edit or record.get("prefab_locked",false)):
+				group_key="building:"+str(record.building.id)
+			elif not record.has("building") and not str(record.get("editor_group","")).is_empty():
+				group_key="group:"+str(record.editor_group)
+			if not group_key.is_empty():
+				if expanded_groups.has(group_key):continue
+				expanded_groups[group_key]=true
+			for id in members(str(record.uuid),record_index):
+				if not seen.has(id): next.append(id);seen[id]=true
 	set_ids(next)
 
 
@@ -272,16 +284,24 @@ func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Di
 	if records().any(func(r):return r.get("prefab_locked",false) and r.has("fortification")):return {"ok":false,"error":"固定城防结构不可拆改；请使用城防面板的整体删除或城门开合"}
 	if not is_equal_approx(factor,1.0) and records().any(func(r):return r.get("prefab_locked",false)):return {"ok":false,"error":"固定预制件不可缩放内部结构"}
 	var origin := pivot()
+	if editor._gravity.enabled and not editor._gravity.supported(records()): return {"ok":false,"error":"重力放置仅支持普通物件；请关闭选项后操作建筑或地形"}
 	if whole: return motion.move(translation,rotation,factor,origin)
 	if translation.is_zero_approx() and rotation.is_equal_approx(Basis.IDENTITY) and is_equal_approx(factor, 1.0): return {"ok":true,"changed":false}
-	editor._doc.checkpoint()
-	for record in records():
+	var previous: Array = records().duplicate(true)
+	var proposed: Array = previous.duplicate(true)
+	for record in proposed:
 		var position := origin + rotation * ((Geometry.vector(record, "position") - origin) * factor) + translation
 		var angles := (rotation * Basis.from_euler(Geometry.vector(record, "rotation") * PI / 180)).get_euler() * 180 / PI
 		var size_ := Geometry.vector(record, "size") * factor
 		record.position = [position.x, position.y, position.z]
 		record.rotation = [angles.x, angles.y, angles.z] if not rotation.is_equal_approx(Basis.IDENTITY) else record.rotation
 		record.size = [size_.x, size_.y, size_.z]
+	if editor._gravity.enabled: proposed = editor._gravity.constrain(previous, proposed)
+	if proposed == previous: return {"ok":true,"changed":false}
+	editor._doc.checkpoint()
+	var live := records()
+	for i in live.size():
+		for field in ["position", "rotation", "size"]: live[i][field] = proposed[i][field].duplicate()
 	editor._detach_selected_tile(false)
 	editor._sync_selected_transform()
 	changed(false)
@@ -291,23 +311,27 @@ func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Di
 func set_properties(targets: Array, properties: Dictionary) -> bool:
 	# Shared by list checkboxes/name editing and the MCP adapter.
 	if editor._load_failed: return false
-	var selected: Array = []
+	var selected: Array = [];var by_id:Dictionary={};var seen:Dictionary={}
+	for record in editor._doc.records:by_id[str(record.uuid)]=record
 	for id in targets:
-		var record: Dictionary = editor._doc._find(str(id))
+		var record: Dictionary = by_id.get(str(id),{})
 		if record.is_empty(): return false
 		if (properties.has("editor_name") or properties.has("editor_group_name")) and not editor._record_editable(record): return false
-		selected.append(record)
-	var before: Array = editor._doc.records.duplicate(true)
+		if not seen.has(str(id)):selected.append(record);seen[str(id)]=true
+	var changed:Array=[]
 	for record in selected:
+		for property in properties:
+			if not record.has(property) or record[property]!=properties[property]:changed.append(record);break
+	if changed.is_empty():return true
+	var before: Array = editor._doc.records.duplicate(true)
+	for record in changed:
 		for property in properties: record[property] = properties[property]
-	if before == editor._doc.records: return true
-	editor._doc.commit_change(before)
-	editor._dirty = true
-	editor._rebuild()
+	editor._doc.commit_owned_snapshot(before)
+	editor._commit_record_properties(changed,properties.has("editor_hidden"))
 	return true
 
 
-func set_object_transform(id: String, properties: Dictionary) -> bool:
+func set_object_transform(id: String, properties: Dictionary, record_history: bool = true) -> bool:
 	last_error = "物件不存在、已隐藏、锁定或不在当前楼层"
 	var record: Dictionary = editor._doc._find(id)
 	if editor._load_failed or not editor._record_editable(record): return false
@@ -318,11 +342,19 @@ func set_object_transform(id: String, properties: Dictionary) -> bool:
 		if record.get("prefab_locked",false):last_error="固定预制件不能修改内部组件；请用 transform_selection 整栋移动或旋转"
 		editor._status.text = last_error
 		return false
+	if editor._gravity.enabled:
+		if not editor._gravity.supported([record]):
+			last_error = "重力放置仅支持普通物件"; return false
+		var proposed := record.duplicate(true)
+		for field in properties: proposed[field] = properties[field].duplicate()
+		var accepted: Array = editor._gravity.constrain([record], [proposed])
+		properties = properties.duplicate(true)
+		for field in properties: properties[field] = accepted[0][field].duplicate()
 	var changed_ := false
 	for field in properties:
 		if record[field] != properties[field]: changed_ = true
 	if not changed_: return true
-	editor._doc.checkpoint()
+	if record_history: editor._doc.checkpoint()
 	for field in properties: record[field] = properties[field].duplicate()
 	if ids != [id]: set_ids([id])
 	elif editor._placement_tools != null: editor._placement_tools.cancel()

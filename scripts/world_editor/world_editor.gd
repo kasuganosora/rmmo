@@ -10,6 +10,7 @@ const AutoRules = preload("res://scripts/world3d/auto_tile_rules.gd")
 const SelectionGeometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Prefabs = preload("res://scripts/world_editor/prefab_library.gd")
 const WalkMode = preload("res://scripts/world_editor/walk_mode.gd")
+const PickingLods = preload("res://scripts/world_editor/picking_lod_policy.gd")
 
 var _assets = preload("res://scripts/world_editor/asset_library.gd").new()
 var _asset_pack_root := ""
@@ -28,6 +29,9 @@ var _view: Node
 var _bodies_by_uuid := {}
 var _camera: Camera3D
 var _status: Label
+var _workspace_feedback: VBoxContainer
+var _workspace_preferences = preload("res://scripts/world_editor/workspace_preferences.gd").new()
+var _add_mode_menu: MenuButton
 var _save_progress: ProgressBar
 var _save_job: Node
 var _load_job: Node
@@ -37,6 +41,7 @@ var _dirty := false:
 	set(value):
 		_dirty = value
 		if _doc != null: _doc.editor_dirty = value
+		if _workspace_feedback != null: _workspace_feedback.refresh_title()
 var _mode := 0
 var _inspector: VBoxContainer
 var _selection_box: MeshInstance3D
@@ -57,6 +62,8 @@ var _scale_snap := 0.0
 var _gizmo: Control
 var _transform_buttons: Array[Button] = []
 var _space_button: Button
+var _gravity = preload("res://scripts/world_editor/gravity_placement.gd").new()
+var _gravity_toggle: CheckBox
 var _transform_drag = preload("res://scripts/world_editor/transform_drag.gd").new()
 var _pack_map_dialog: ConfirmationDialog
 var _dock_tabs: TabContainer
@@ -105,6 +112,7 @@ var _walk_button: Button
 
 
 func _ready() -> void:
+	_workspace_preferences.setup(self)
 	var initial_path := ""
 	var dir := Paths.cache_directory("editor_yard")
 	_path = dir.path_join("map.gltf") if dir != "" else ""
@@ -203,9 +211,21 @@ func _show_placement_panel() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _gravity.falling:
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE: _gravity.complete(true)
+		get_viewport().set_input_as_handled()
+		return
 	if saving():
 		get_viewport().set_input_as_handled()
 		return
+	# Canvas overlays own their clicks before scene tools see them. In-flight
+	# pointer gestures must still receive release, even when ending above the UI.
+	if event is InputEventMouseButton and _city.overlay != null and _city.overlay.gui_contains(event.position):
+		var dragging: bool = _transform_drag.active or _auto_stroke.active or _selection_tools.marquee or not _city.drag_node.is_empty()
+		dragging = dragging or (_terrain_brush != null and _terrain_brush.pointer_down) or (_material_tool != null and _material_tool.pointer_down)
+		dragging = dragging or (_camera_navigation != null and _camera_navigation.held) or _stroke._open
+		dragging = dragging or (_walk_mode != null and _walk_mode.looking)
+		if not dragging: return
 	# The material drawer overlays the canvas and must retain its GUI input.
 	if _material_panel != null and _material_panel.drawer_input(event):
 		if _walk_mode!=null:_walk_mode.reset_input()
@@ -478,6 +498,11 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 		_commit_records([id])
 		_inspector.select(id)
 		return
+	if _gravity.enabled and not bool(spec.get("paint", false)):
+		if not fresh: return
+		var result: Dictionary = _gravity.place(spec, hit.position)
+		if not result.ok: _status.text = result.error
+		return
 	if spec.has("prefab_path"):
 		if not fresh: return
 		_place_prefab(spec, hit.position)
@@ -610,9 +635,19 @@ func _picking_node_enabled(node:Node)->bool:
 	if node is MeshInstance3D and node.mesh!=null and FortCollision.candidate(node.get_meta("ground_batch_record",{})) and (_selection_tools==null or str(node.name) not in _selection_tools.ids):return false
 	return true
 
-func _add_bodies(node: Node, recursive:bool=true) -> void:
+func _picking_record(uuid:String)->Dictionary:
+	return _doc._find(uuid) if _doc!=null else {}
+
+func _picking_plan(node:Node)->Dictionary:
+	return PickingLods.build(node,_picking_node_enabled,_picking_record)
+
+func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> void:
 	if not _picking_node_enabled(node):return
-	if node is MeshInstance3D and node.mesh != null:
+	# One validated plan per traversal, shared with LoadJob's sliced traversal.
+	# A skipped mesh does not prune its children: independent authored parts keep
+	# their own selection and physical bodies, even below a render-only LOD.
+	if picking_plan==null:picking_plan=_picking_plan(node)
+	if node is MeshInstance3D and node.mesh != null and not picking_plan.has(node.get_instance_id()):
 		var visual := node as MeshInstance3D
 		var body := StaticBody3D.new()
 		body.name = "%s_body" % str(visual.name)
@@ -638,12 +673,12 @@ func _add_bodies(node: Node, recursive:bool=true) -> void:
 		add_child(body)
 		body.force_update_transform()
 	if recursive:
-		for child in node.get_children():_add_bodies(child)
+		for child in node.get_children():_add_bodies(child,true,picking_plan)
 
 
 func _sync_selected_transform(live_records: Variant = null) -> void:
 	_selection_tools.invalidate_pivot()
-	if _authoring.settings.isolation and not _transform_drag.active:
+	if _authoring.settings.isolation and not _transform_drag.active and not _gravity.falling:
 		_rebuild()
 		return
 	_ground_sync_suspended = true
@@ -707,27 +742,59 @@ func _sync_record_transform(record: Dictionary) -> void:
 func _commit_records(ids: Array) -> void:
 	if ids.is_empty():return
 	var changed:Array[String]=[]
+	var records_by_id:Dictionary={}
+	for record in _doc.records:records_by_id[str(record.uuid)]=record
 	var terrain_changed:=false;var building_changed:=false
 	for uuid in ids:
 		if not changed.has(str(uuid)):changed.append(str(uuid))
-		var record:Dictionary=_doc._find(str(uuid))
+		var record:Dictionary=records_by_id.get(str(uuid),{})
 		terrain_changed=terrain_changed or record.has("terrain_mesh") or _doc.terrain_neighbors.sources.has(str(uuid))
 		var previous:=_view.get_node_or_null(NodePath(str(uuid)))
 		building_changed=building_changed or record.has("building") or (previous!=null and previous.get_meta("extras",{}).has("building"))
 	_dirty=true
-	_refresh_records(changed)
+	_refresh_records(changed,records_by_id)
 	if _selection_tools!=null:_selection_tools.refresh(false)
 	if _object_list!=null:_object_list.refresh_records(changed)
 	_refresh_selection(false)
 	if terrain_changed and _terrain_panel!=null:_terrain_panel.refresh()
 	if building_changed and _building_panel!=null:_building_panel.refresh_list()
 
-func _refresh_records(ids: Array[String]) -> void:
+func _commit_record_properties(records:Array, visibility_changed:bool) -> void:
+	# Metadata transactions preserve mesh/node identity. Hidden objects keep
+	# their authored visual but leave render batches and picking/physical bodies.
+	_dirty=true
+	var ids:Array[String]=[];var visuals:Array=[];var fortification_changed:=false
+	for record in records:
+		ids.append(str(record.uuid))
+		var visual:=_view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
+		if visual!=null:visuals.append(visual)
+		fortification_changed=fortification_changed or record.has("fortification")
+	if visibility_changed and is_instance_valid(_ground_batches):_ground_batches.release_sources(visuals)
+	for record in records:
+		var uuid:=str(record.uuid)
+		var visual:=_view.get_node_or_null(NodePath(uuid)) as Node3D
+		if visual==null:continue
+		if visual.has_meta("ground_batch_record"):visual.set_meta("ground_batch_record",record)
+		if visibility_changed:
+			for body in _bodies_by_uuid.get(uuid,[]):body.free()
+			_bodies_by_uuid.erase(uuid)
+			_authoring.decorate(record,visual)
+			_add_bodies(visual)
+			if _city.overlay!=null:_city.overlay.invalidate_uuid(uuid,record)
+	if _selection_tools!=null:_selection_tools.refresh(false)
+	if _object_list!=null:_object_list.refresh_records(ids)
+	if visibility_changed:_sync_ground_batches(false,true,fortification_changed)
+	_refresh_selection(not visibility_changed)
+
+func _refresh_records(ids: Array[String], record_index:Variant=null) -> void:
 	if ids.is_empty():return
 	ids=ids.duplicate()
+	var by_id:Dictionary=record_index if record_index!=null else {}
+	if record_index==null:
+		for record in _doc.records:by_id[str(record.uuid)]=record
 	var terrain_changed:=false
 	for uuid in ids:
-		if _doc._find(uuid).has("terrain_mesh") or _doc.terrain_neighbors.sources.has(uuid):terrain_changed=true;break
+		if by_id.get(uuid,{}).has("terrain_mesh") or _doc.terrain_neighbors.sources.has(uuid):terrain_changed=true;break
 	if terrain_changed:
 		for neighbor in _doc.terrain_neighbors.update(_doc.records):
 			if not ids.has(neighbor): ids.append(neighbor)
@@ -738,7 +805,7 @@ func _refresh_records(ids: Array[String]) -> void:
 		if previous!=null:
 			old_nodes.append(previous)
 			if previous.get_meta("ground_batch_record",{}).has("fortification"):fortification_changed=true
-		if _doc._find(uuid).has("fortification"):fortification_changed=true
+		if by_id.get(uuid,{}).has("fortification"):fortification_changed=true
 	if is_instance_valid(_ground_batches): _ground_batches.release_sources(old_nodes)
 	# Rebuild only cells whose rule variant changed, including erased cells.
 	for uuid in ids:
@@ -746,7 +813,7 @@ func _refresh_records(ids: Array[String]) -> void:
 		_bodies_by_uuid.erase(uuid)
 		var previous := _view.get_node_or_null(NodePath(uuid))
 		if previous != null: previous.free()
-		var record: Dictionary = _doc._find(uuid)
+		var record: Dictionary = by_id.get(uuid,{})
 		if _city.overlay!=null:_city.overlay.invalidate_uuid(uuid,record)
 		if record.is_empty():
 			_authoring._membership.erase(uuid)
@@ -789,6 +856,7 @@ func _building_area_busy() -> bool:
 	return _building_panel!=null and _building_panel.region!=null and _building_panel.region.drawing
 
 func _finish_edits() -> void:
+	_gravity.complete()
 	if _terrain_panel!=null and _terrain_panel.rock_banks!=null:_terrain_panel.rock_banks.cancel()
 	_city.finish_draw(true)
 	if _building_panel!=null and _building_panel.region!=null: _building_panel.region.cancel_draw()
@@ -797,6 +865,7 @@ func _finish_edits() -> void:
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
 	_transform_drag.finish()
+	_gravity.complete()
 	_finish_auto_stroke()
 	_stroke.end()
 	_selection_tools.finish_box(true)
@@ -835,14 +904,14 @@ func _prepare_save(path: String, overwrite: bool = false) -> bool:
 	if saving(): return false
 	_finish_edits()
 	if _load_failed:
-		_status.text = "读取失败的地图不能覆盖保存；请先恢复草稿或打开有效地图"
+		_report_error("读取失败的地图不能覆盖保存；请先恢复草稿或打开有效地图", "保存地图")
 		return false
 	if not Paths.allowed(path) or path.get_extension().to_lower() != "gltf":
-		_status.text = "地图必须保存为工程外内容目录内的 glTF 文件"
+		_report_error("地图必须保存为工程外内容目录内的 glTF 文件", "保存地图")
 		return false
 	path = path.replace("\\", "/").simplify_path()
 	if path != _path and FileAccess.file_exists(path) and not overwrite:
-		_status.text = "另存为目标已存在，请选择新路径"
+		_report_error("另存为目标已存在，请选择新路径", "保存地图")
 		return false
 	Net.session().world3d_editor_doc = _doc
 	return true
@@ -858,6 +927,7 @@ func _finish_save(err: Error, path: String, previous_path: String) -> void:
 			_load_asset_scope()
 			_refresh_palette()
 	_status.text = "已保存（%.2f 秒）" % (float(_doc.last_save_metrics.get("total_ms", 0)) / 1000.0) if err == OK else ("地图已被其他窗口修改或正在保存，请重新打开或另存为" if err == ERR_BUSY else "保存失败：" + error_string(err))
+	_report_result({"ok":err == OK,"error":_status.text}, _status.text, "保存地图")
 
 
 func _play() -> void:
@@ -929,7 +999,7 @@ func open_document(path: String) -> bool:
 	if _placement_tools != null: _placement_tools.cancel()
 	var document = Document.open_file(path)
 	if document == null:
-		_status.text = "无法读取地图，当前文档保持不变"
+		_report_error("无法读取地图，当前文档保持不变", "打开地图")
 		return false
 	_transform_drag.finish()
 	_finish_auto_stroke()
@@ -945,6 +1015,7 @@ func open_document(path: String) -> bool:
 	if is_instance_valid(_weather): _weather.configure(preload("res://scripts/world3d/environment_settings.gd").resolve(_doc.map_meta), true)
 	_refresh_palette()
 	_status.text = "已打开：" + path.get_file() + (" · 素材缺失，请重新关联" if not _doc.missing_assets().is_empty() else "")
+	_report_result({"ok":true},_status.text,"打开地图")
 	return true
 
 
@@ -1031,7 +1102,7 @@ func _apply_thumbnail(key: String, texture: Texture2D) -> void:
 	_palette.apply_thumbnail(key, texture)
 
 
-func _set_mode(mode: int) -> void:
+func _set_mode(mode: int, reveal_panel: bool = true) -> void:
 	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
 	if _material_tool != null: _material_tool.cancel()
@@ -1043,8 +1114,11 @@ func _set_mode(mode: int) -> void:
 	_stroke.end()
 	for index in _mode_buttons.size():
 		_mode_buttons[index].set_pressed_no_signal(index == mode)
-	if mode == 0: _dock_tabs.current_tab = 0
-	elif mode == 1: _dock_tabs.current_tab = 1
+	if reveal_panel:
+		if mode == 0: _dock_tabs.current_tab = 0
+		elif mode == 1: _dock_tabs.current_tab = 1
+	if _add_mode_menu != null:
+		_add_mode_menu.text = ["添加…", "添加…", "添加 NPC", "添加采集点", "添加传送点"][mode]
 	if _gizmo != null: _gizmo.visible = mode == 1 and not _inspector.selection.is_empty()
 	if _status != null: _status.text = _hint()
 	_update_auto_controls()
@@ -1055,7 +1129,7 @@ func _set_transform_mode(mode: int) -> void:
 	_transform_mode = mode
 	_selection_tools.box_mode = false
 	_box_button.set_pressed_no_signal(false)
-	_set_mode(1)
+	_set_mode(1, false)
 	for index in _transform_buttons.size(): _transform_buttons[index].set_pressed_no_signal(index == mode)
 	_update_space_button()
 
@@ -1065,6 +1139,16 @@ func _toggle_transform_space() -> void:
 	_transform_drag.finish()
 	_local_transform = not _local_transform
 	_update_space_button()
+
+
+func _report_result(result: Dictionary, success: String, context: String = "编辑操作") -> void:
+	if _workspace_feedback != null: _workspace_feedback.report(result, success, context)
+	elif _status != null: _status.text = success if result.get("ok", false) else str(result.get("error", "操作未完成"))
+
+
+func _report_error(message: String, context: String = "编辑操作") -> void:
+	if _workspace_feedback != null: _workspace_feedback.error(message, context)
+	elif _status != null: _status.text = message
 
 
 func _update_space_button() -> void:
@@ -1086,7 +1170,7 @@ func _undo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.undo():
 		_dirty = true
-		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
+		if not _restore_record_properties(before,before_meta) and not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
 		_selection_tools.refresh()
 
 
@@ -1102,8 +1186,23 @@ func _redo() -> void:
 	var before_meta: Dictionary=_doc.map_meta.duplicate(true)
 	if _doc.redo():
 		_dirty = true
-		if not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
+		if not _restore_record_properties(before,before_meta) and not _restore_record_poses(before,before_meta) and not _restore_terrain_materials(before,before_meta) and not _restore_record_changes(before,before_meta): _rebuild()
 		_selection_tools.refresh()
+
+func _restore_record_properties(before:Array,before_meta:Dictionary)->bool:
+	if before_meta!=_doc.map_meta or before.size()!=_doc.records.size():return false
+	var changed:Array=[];var visibility_changed:=false
+	for i in before.size():
+		var old:Dictionary=before[i];var current:Dictionary=_doc.records[i]
+		if old==current:continue
+		if old.uuid!=current.uuid:return false
+		var a:=old.duplicate();var b:=current.duplicate()
+		for field in ["editor_name","editor_group_name","editor_hidden","editor_locked"]:a.erase(field);b.erase(field)
+		if a!=b:return false
+		visibility_changed=visibility_changed or old.get("editor_hidden",false)!=current.get("editor_hidden",false)
+		changed.append(current)
+	if not changed.is_empty():_commit_record_properties(changed,visibility_changed)
+	return true
 
 func _restore_record_changes(before: Array,before_meta: Dictionary) -> bool:
 	# Authoring/environment changes retain their full refresh. Ordinary record
@@ -1317,6 +1416,10 @@ func _toggle_box_select() -> void:
 
 
 func _place_prefab(entry: Dictionary, point: Vector3) -> bool:
+	if _gravity.enabled:
+		var gravity_result: Dictionary = _gravity.place(entry, point)
+		if not gravity_result.ok: _status.text = gravity_result.error
+		return gravity_result.ok
 	var result := Prefabs.place(_doc, entry, point)
 	if not result.ok:
 		_status.text = result.error

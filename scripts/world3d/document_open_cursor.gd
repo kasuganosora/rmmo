@@ -7,6 +7,9 @@ const Blueprint=preload("res://scripts/world3d/building_blueprint.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const WorldLocation=preload("res://scripts/world3d/world_location.gd")
 const SourceSnapshot=preload("res://scripts/world3d/document_source_snapshot.gd")
+const PrefabWarm=preload("res://scripts/world3d/prefab_warm_preparation.gd")
+static var prefab_warm_workers:=2 # Bounded parallel warm-up; fixed-town ABBA verified. Set 1 for a serial control.
+static var prefab_warm_budget_bytes:=PrefabWarm.DEFAULT_TOTAL_BYTES
 var done:=false
 var error:=""
 var document:RefCounted
@@ -42,6 +45,7 @@ var _reference_dependencies:Dictionary={}
 var _verified_paint_ids:Array=[]
 var _asset_paths:Dictionary={}
 var _reference_thread:Thread
+var _reference_cancel:RefCounted
 var _yield_requested:=false
 var _slice_budget:=0
 
@@ -73,7 +77,7 @@ static func hydrate_references(extra: Dictionary, path: String, content_root: St
 	if extra.get("rmmo_version")!=WorldLocation.FORMAT_VERSION or extra.get("rmmo_storage")!=WorldLocation.STORAGE or not extra.get("rmmo_records") is Array or not extra.get("rmmo_resource_dependencies") is Dictionary:
 		return {"ok":false,"reason":"Invalid reference-map header"}
 	var store=load("res://scripts/world3d/map_resource_store.gd")
-	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root)
+	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root,extra.rmmo_resource_dependencies)
 	if not restored.get("ok",false):return restored
 	var dependencies:Dictionary=extra.rmmo_resource_dependencies
 	var actual:Variant=restored.get("dependencies")
@@ -84,7 +88,7 @@ static func hydrate_references(extra: Dictionary, path: String, content_root: St
 	if not store.verify_dependencies(dependencies,path,content_root):return {"ok":false,"reason":"Reference resource integrity check failed"}
 	var hydrated:=extra.duplicate()
 	hydrated.rmmo_records=restored.records
-	return {"ok":true,"extras":hydrated,"dependencies":dependencies.duplicate()}
+	return {"ok":true,"extras":hydrated,"dependencies":dependencies.duplicate(),"read_profile":restored.get("read_profile",{})}
 
 static func dependency_issue(path: String, item: Variant, require_file: bool, buffer: bool) -> String:
 	if not item is Dictionary:return "Invalid glTF dependency"
@@ -102,6 +106,7 @@ static func dependency_issue(path: String, item: Variant, require_file: bool, bu
 
 static func common_record_issue(record: Variant, material_validation: Dictionary, immutable_paint_id:Variant=null, content_root:String="") -> String:
 	if not record is Dictionary:return "Invalid object record"
+	if not preload("res://scripts/world3d/model_components.gd").valid(record):return "Invalid imported model component state"
 	if not Blueprint.valid_record(record):return "Invalid building component"
 	if not preload("res://scripts/world3d/wind_response.gd").valid(record):return "Invalid wind response"
 	if not preload("res://scripts/world3d/event_templates.gd").valid_record(record):return "Invalid 3D event template"
@@ -238,7 +243,9 @@ func _after_references() -> void:
 func _reference_step() -> void:
 	if _reference_thread==null:
 		_reference_thread=Thread.new()
-		if _reference_thread.start(_hydrate_for_cursor.bind(_extras,_path,_content_root),Thread.PRIORITY_LOW)!=OK:
+		_reference_cancel=PrefabWarm.CancelToken.new()
+		var warm_options:={"workers":prefab_warm_workers,"total_budget_bytes":prefab_warm_budget_bytes}
+		if _reference_thread.start(_hydrate_for_cursor.bind(_extras,_path,_content_root,warm_options,_reference_cancel),Thread.PRIORITY_LOW)!=OK:
 			# Thread failure preserves the old synchronous reader; never add a
 			# separate full prefab warm-up to the scene thread.
 			_reference_thread=null;_accept_references(hydrate_references(_extras,_path,_content_root));return
@@ -246,24 +253,21 @@ func _reference_step() -> void:
 	var restored:Dictionary=_reference_thread.wait_to_finish();_reference_thread=null
 	_accept_references(restored)
 
-static func _hydrate_for_cursor(extra:Dictionary,path:String,content_root:String)->Dictionary:
+static func _hydrate_for_cursor(extra:Dictionary,path:String,content_root:String,warm_options:Dictionary={},cancel:RefCounted=null)->Dictionary:
+	if cancel!=null and cancel.is_cancelled():return {"ok":false,"reason":"Reference preparation cancelled","cancelled":true}
 	var hydrate_started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.hydrate")
 	var restored:=hydrate_references(extra,path,content_root)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.hydrate",hydrate_started)
 	if not restored.get("ok",false):return restored
-	# decode() handles only immutable CPU data. Its shared decoded-cache lookup
-	# and publication are mutex protected; no geometry/material resources exist
-	# here. Retain only SHA keys, not another copy of the town or prefab payloads.
-	var started:=Time.get_ticks_usec();var seen:Dictionary={};var warmed:=0
-	for record:Dictionary in restored.extras.rmmo_records:
-		var value:Variant=record.get("house_prefab")
-		if not value is Dictionary or not value.get("sha256") is String or seen.has(value.sha256):continue
-		seen[value.sha256]=true
-		if not preload("res://scripts/world3d/house_prefab.gd").decode(value).is_empty():warmed+=1
+	# Hydration's resource readers have all joined before this bounded CPU phase.
+	# Results are only hints in House's existing cache: no geometry/material
+	# resources or pinned canonical arrays leave the preparation queue.
+	var started:=Time.get_ticks_usec()
+	restored.prefab_warm=PrefabWarm.prepare(restored.extras.rmmo_records,warm_options,cancel)
 	# This is preparation, not validation. Every record still runs the original
 	# prefab/owner/fixture validators, including same-SHA malformed variants.
-	restored.prefab_warm={"unique":seen.size(),"decoded":warmed,"elapsed_ms":(Time.get_ticks_usec()-started)/1000.}
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.prefab_prewarm",started)
+	if restored.prefab_warm.cancelled:return {"ok":false,"reason":"Reference preparation cancelled","cancelled":true,"prefab_warm":restored.prefab_warm}
 	return restored
 
 func _accept_references(restored: Dictionary) -> void:
@@ -357,5 +361,10 @@ func _metadata() -> void:
 	_metadata_step+=1
 
 func _notification(what: int) -> void:
-	if what==NOTIFICATION_PREDELETE and _reference_thread!=null and _reference_thread.is_started():
-		_reference_thread.wait_to_finish();_reference_thread=null
+	if what==NOTIFICATION_PREDELETE:
+		# LoadJob may already have detached the outer thread into its drainer.
+		# Cancel still stops future warm dispatch; only that coordinator joins its
+		# child workers. Synchronous cursor owners retain the original final join.
+		if _reference_cancel!=null:_reference_cancel.cancel()
+		if _reference_thread!=null and _reference_thread.is_started():
+			_reference_thread.wait_to_finish();_reference_thread=null

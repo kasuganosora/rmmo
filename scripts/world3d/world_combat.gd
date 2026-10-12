@@ -21,6 +21,21 @@ var _npc_ready := {}
 var _npc_markers := {}
 var summons
 
+func navigation_status()->Dictionary:
+	if not is_instance_valid(world) or not is_instance_valid(world._navigation):return {"ok":false,"state":"pending","reason":"navigation_pending"}
+	return world._navigation.capability_status()
+
+func navigation_message()->String:
+	var status:=navigation_status()
+	if status.ok:return ""
+	return "通行导航准备中，请稍后重试。" if status.state=="pending" else "通行导航暂不可用，请稍后重试。"
+
+func _navigation_rejected()->Dictionary:
+	var status:=navigation_status()
+	var result:={"ok":false,"reason":"navigation_"+str(status.state),"capability":status,"actions":[{"type":"system_message","text":navigation_message()}]}
+	world.apply_actions(result.actions)
+	return result
+
 func setup(owner: Node3D) -> void:
 	world = owner
 	_map_key = world._map_path.simplify_path()
@@ -93,12 +108,13 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
-	if world.furniture.active():world.furniture.cancel()
-	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine
 	var definition: Dictionary = Net.server().skill_catalog.get_skill(id)
 	var effect := str(definition.get("effect", ""))
+	if (engine.skill_target_mode(definition)=="ground" or effect in ["charge","revive"]) and not navigation_status().ok:return _navigation_rejected()
+	if world.furniture.active():world.furniture.cancel()
+	world.cancel_sit_preparation()
 	if effect in ["recall", "teleport_home", "pet_whistle", "party_summon", "summon"]:
 		return _apply({"ok": false, "actions": [{"type": "system_message", "text": "该技能的三维空间规则尚未接入，未消耗 MP。"}]})
 	if bool(definition.get("requires_target", false)) and actors.has(selected) and bool(targets[selected].extras.get("ally", false)) and effect not in ["revive", "heal"]:
@@ -198,9 +214,39 @@ func _physics_process(delta: float) -> void:
 	var actions: Array = server.combat_stats.statuses.tick_statuses(elapsed, server.combat_stats)
 	_apply({"actions": actions})
 
+var _respawn_preparing:=false
+
+## Unlike the legacy bool API, this completes only after loading, real physics,
+## destination first draw and authoritative activation. Duplicate clicks reject.
+func request_respawn()->bool:
+	if not world.building_entry_protocol_enabled():return respawn()
+	if _respawn_preparing or not _may_respawn():return false
+	_respawn_preparing=true
+	var result:bool=await world.prepare_respawn(respawn_point,_may_respawn,_commit_prepared_respawn)
+	_respawn_preparing=false
+	if result and is_instance_valid(world._revive):world._revive.hide()
+	return result
+
+func _may_respawn()->bool:
+	return is_instance_valid(world) and not Net.server().combat_stats.player_alive() and Net.server().awaiting_respawn
+
+func _commit_prepared_respawn()->bool:
+	if not _may_respawn():return false
+	var server=Net.server()
+	server.combat_engine.clear_cast();server.combat_stats.restore_after_death()
+	server.awaiting_respawn=false;_death_applied=false;_ambient=0.0
+	_previous=world._player.global_position
+	world._player.get_node("CharacterModel3D").play("idle","front")
+	_apply({"actions":[{"type":"system_message","text":"已在本地图出生点复活。"}]})
+	return true
+
 func respawn() -> bool:
+	if world.building_entry_protocol_enabled():
+		world._status.text="复活需要异步准备，请使用复活按钮。";return false
 	var server = Net.server()
 	if server.combat_stats.player_alive(): return false
+	if not navigation_status().ok:
+		world._status.text=navigation_message();return false
 	var feet := respawn_point - Vector3(0, 0.9, 0)
 	if not world._navigation.near_surface(feet, 0.35, 0.65): return false
 	var query := PhysicsShapeQueryParameters3D.new()
@@ -248,6 +294,9 @@ func _exit_tree() -> void:
 
 
 func _tick_actors(delta: float) -> void:
+	if not navigation_status().ok:
+		for actor:CharacterBody3D in actors.values():actor.route.clear();actor.velocity=Vector3.ZERO
+		return
 	var server = Net.server()
 	var player_feet: Vector3 = world._player.global_position - Vector3(0, 0.9, 0)
 	var Stream = preload("res://scripts/world3d/world_stream.gd")
@@ -337,6 +386,7 @@ func use_item(id: String) -> Dictionary:
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var server = Net.server()
 	var definition: Dictionary = server.item_catalog.get_item(id)
+	if (id=="pet_whistle" or str(definition.get("use_effect",""))=="party_summon") and not navigation_status().ok:return _navigation_rejected()
 	if id==preload("res://scripts/world3d/day_night_review_item.gd").ID:
 		return _apply(preload("res://scripts/world3d/day_night_review_item.gd").use(server,world._map_ref(),Callable(world,"_request_environment")))
 	if id == "pet_whistle": return summons.pet_summon()
@@ -367,6 +417,7 @@ func _clear_ray(from: Vector3, to: Vector3, target_id: String = "") -> bool:
 	return hit.is_empty() or (target_id != "" and preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit) == target_id)
 
 func valid_ground(range_units: int) -> bool:
+	if not navigation_status().ok:return false
 	if not ground_target is Vector3 or not ground_target.is_finite(): return false
 	var feet: Vector3 = world._player.global_position - Vector3(0, 0.9, 0)
 	if absf(feet.y - ground_target.y) > 1.0 or feet.distance_to(ground_target) > maxf(2.0, range_units * 2.0): return false
@@ -449,6 +500,7 @@ func pickup_nearby() -> bool:
 
 
 func _landing_clear(body: CharacterBody3D, point: Vector3) -> bool:
+	if not navigation_status().ok:return false
 	var query := PhysicsShapeQueryParameters3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.29
@@ -459,6 +511,7 @@ func _landing_clear(body: CharacterBody3D, point: Vector3) -> bool:
 	return world._navigation.near_surface(point, 0.35, 0.4) and world.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 func charge(id: String, definition: Dictionary, apply: bool) -> String:
+	if not navigation_status().ok:return navigation_message()
 	if not actors.has(id) or not Net.server().combat_stats.npcs.has(id): return "目标不存在。"
 	var body: CharacterBody3D = world._player
 	var start := body.global_position - Vector3(0, 0.9, 0)
@@ -490,6 +543,7 @@ func charge(id: String, definition: Dictionary, apply: bool) -> String:
 	return ""
 
 func revive_error(id: String) -> String:
+	if not navigation_status().ok:return navigation_message()
 	var stats = Net.server().combat_stats
 	if not actors.has(id) or not stats.npcs.has(id) or not bool(stats.npcs[id].get("ally", false)): return "只能复活同伴。"
 	if int(stats.npcs[id].hp) > 0: return "目标未死亡。"

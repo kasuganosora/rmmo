@@ -3,6 +3,7 @@ extends "res://tools/test_world3d_mcp.gd"
 ## temporary reference map; --map reuses it without touching any formal map.
 const Art=preload("res://scripts/asset/art_paths.gd")
 const Pose=preload("res://scripts/world3d/pose_save.gd")
+const LoadJob=preload("res://scripts/world_editor/load_job.gd")
 const SOURCE="D:/code/rmmo_runtime/maps/medieval_river_town/map.gltf"
 const TOP_FRAMES:=24
 var output_path:=""
@@ -32,12 +33,14 @@ func observe_frame()->void:
 	var now:=Time.get_ticks_usec();var elapsed:=(now-last_frame)/1000.
 	var job=editor._load_job
 	if monitor!=null:
-		var details:={"completed":job.completed,"total":job.total,"asset_worker_alive":job._asset_thread!=null and job._asset_thread.is_alive()}
+		var preparation:Dictionary=job._preparation.snapshot() if is_instance_valid(job._preparation) else {}
+		var ledger:Dictionary=preparation.get("ledger",{})
+		var details:={"completed":job.completed,"total":job.total,"preparation_workers":ledger.get("active_workers",0),"preparation_reserved_bytes":ledger.get("reserved_bytes",0),"preparation_states":preparation.get("states",{})}
 		if is_instance_valid(editor._ground_batches):
 			var batches=editor._ground_batches
 			details.batch_pending=batches.pending.size();details.batch_workers=batches._workers.size()
 			details.batch_ready=batches._workers.filter(func(work):return not work.thread.is_alive()).size()
-			details.batch_budget_us=batches.work_budget_usec;details.batch_rebuild_count=batches.rebuild_count
+			details.batch_budget_us=batches.effective_work_budget_usec();details.batch_rebuild_count=batches.rebuild_count
 			details.batch_preparation_phase=batches._preparation.get("phase","")
 			details.batch_preparation_cursor=batches._preparation.get("cursor",0)
 			details.batch_preparation_items=batches._preparation.get("items",[]).size()
@@ -138,17 +141,26 @@ func run()->void:
 	output_path=Art.review_path("reference_editor_load_20261008.json")
 	var prepare_only:=false
 	var monitor_enabled:=false
+	var batch_budget_us:=16000
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--map="):map_path=arg.trim_prefix("--map=")
 		elif arg=="--prepare-only":prepare_only=true
 		elif arg=="--monitor":monitor_enabled=true
+		elif arg.begins_with("--batch-budget-us="):batch_budget_us=int(arg.trim_prefix("--batch-budget-us="))
+		elif arg=="--without-compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled=false
+		elif arg=="--without-parallel-preparation":LoadJob.parallel_preparation_enabled=false
+		elif arg=="--with-parallel-preparation":LoadJob.parallel_preparation_enabled=true
 		elif arg.begins_with("--output="):output_path=arg.trim_prefix("--output=")
+	if batch_budget_us<1 or batch_budget_us>24000:
+		push_error("Batch loading budget must be between 1 and 24000 microseconds");quit(1);return
 	# Reports may only be written to the normal runtime review artifacts folder.
 	if not Paths.allowed(output_path,Art.review_path("")) or output_path.get_extension().to_lower()!="json":
 		push_error("Profile output must stay within runtime review_artifacts");quit(1);return
 	create_timer(1800).timeout.connect(func():sampling=false;report.timeout=true;persist();quit(2))
 	report={"version":1,"date":"2026-10-08","http_samples":[],"poll_interval_ms":5000,
 		"note":"phase observed_ms includes waits/rendering/HTTP polling; internal unit total_ms is nested and must not be added to overall elapsed"}
+	report.parallel_preparation={"enabled":LoadJob.parallel_preparation_enabled,"workers":LoadJob.preparation_worker_limit if LoadJob.parallel_preparation_enabled else 1,
+		"comparison":"same bounded prefetch queue with 1 versus N workers; not the historical per-record serial implementation"}
 	var cache_root:=Paths.external_root().path_join("cache/world3d")
 	var source_hash:=""
 	if map_path.is_empty():
@@ -191,6 +203,7 @@ func run()->void:
 	var discovery:=await rpc("tools/list")
 	check(discovery.get("result",{}).get("tools",[]).any(func(tool):return tool.name=="open_world"),"real HTTP discovery exposes open_world")
 	last_document=initial;sample_started=Time.get_ticks_usec();last_frame=sample_started
+	editor._load_job.loading_batch_budget_us=batch_budget_us
 	if monitor_enabled:monitor=preload("res://tools/load_monitor.gd").new();monitor.start(self)
 	sampling=true;process_frame.connect(observe_frame)
 	var pending:=await call_tool("open_world",{"path":map_path,"background":true})
@@ -230,6 +243,7 @@ func run()->void:
 	check(expected!=null and Pose.same(expected.records,editor._doc.records) and Pose.same(expected.map_meta,editor._doc.map_meta),"HTTP-loaded complete records and metadata equal independent native reopen")
 	report.records=editor._doc.records.size();report.identity=await identity_and_picking()
 	report.ground_batches=editor._ground_batches.stats()
+	check(report.ground_batches.work_budget_usec==2000 and report.ground_batches.loading_budget_scopes==0,"loading completion restores interactive batch budget")
 	check(FileAccess.get_sha256(map_path)==map_hash,"checkpoint stays byte-identical during load and inspection")
 	if not source_hash.is_empty():check(FileAccess.get_sha256(SOURCE)==source_hash,"formal source remains byte-identical")
 	editor._camera.projection=Camera3D.PROJECTION_PERSPECTIVE

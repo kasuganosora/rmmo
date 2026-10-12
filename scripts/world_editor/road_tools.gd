@@ -57,17 +57,25 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	var binding:=preload("res://scripts/world3d/road_bridges.gd").resolve(data)
 	if not binding.ok: return binding
 	for portal in binding.portals:
-		if absf(settings.lift-.025)>.000001: return Data.fail("接桥道路须使用 0.025 米铺面偏移以保持桥头齐平")
 		if portal.get("road_stone",false):
+			var bound_lift:float=data.get("road_surface",{}).get("settings",{}).get("lift",.025)
+			if absf(settings.lift-bound_lift)>.000001:return Data.fail("已绑定桥梁的道路铺面偏移不能单独改变，请先撤销桥梁转换")
 			var checked: Dictionary=preload("res://scripts/world_editor/bridge_road_tools.gd").verify(editor,portal)
 			if not checked.ok: return checked
 			continue
+		if absf(settings.lift-.025)>.000001: return Data.fail("河道配方接桥道路须使用 0.025 米铺面偏移以保持桥头齐平")
 		for region in data.get("waterways",[]):
 			if region.settings.id==portal.reference.waterway_id:
 				var owner: Dictionary=editor._waterways.owned(region)
 				if not owner.ok: return owner
 	var result:=Plan.build(data.roads,settings,binding.portals)
 	if not result.ok: return result
+	if settings.follow_terrain:
+		var terrains:Array=editor._doc.records.filter(func(r):return r.has("terrain_mesh"))
+		for i in result.records.size():
+			var fitted:=preload("res://scripts/world3d/terrain_projection.gd").fit(result.records[i],terrains,settings.lift)
+			if not fitted.ok:return fitted
+			result.records[i]=fitted.record
 	var material: Dictionary={}
 	if not settings.material_id.is_empty():
 		material=editor._material_tool.library.find(settings.material_id)
@@ -123,6 +131,7 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 				for p in overlap: foot=minf(foot,record.position[1]+record.size[1]*.5-settings.lift+grade[0]*(p.x-record.position[0])+grade[1]*(p.y-record.position[2]))
 				support=Footprint.supporting_ground(obstacle.record,obstacle.shape.bounds.end.y,foot)
 				if not support: break
+			if record.has("terrain_follow") and obstacle.record.uuid in record.terrain_follow.terrain_ids:support=true
 			if support: continue
 			if Footprint.batches_overlap(occupancy,[obstacle.shape]): return {"ok":false,"error":"路面或通行净空与现有物件重叠","conflicts":[obstacle.record.uuid]}
 	if editor._doc.records.size()-excluded.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")

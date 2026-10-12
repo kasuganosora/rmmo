@@ -4,6 +4,7 @@ const Blueprint=preload("res://scripts/world3d/building_blueprint.gd")
 const CELL:=32.0
 var map_root:Node
 var buildings:Dictionary={}
+var _part_buildings:Dictionary={}
 var index:Dictionary={}
 var hidden:Dictionary={}
 var excluded:Array[RID]=[]
@@ -15,37 +16,112 @@ var applied_key:=""
 var applied_revision:=-1
 
 func bind(root:Node)->void:
-	restore();map_root=root;buildings.clear();index.clear();target_cache.clear()
+	restore();map_root=root;buildings.clear();index.clear();target_cache.clear();_part_buildings.clear()
 	if not is_instance_valid(root):return
 	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
-	var records:Dictionary={}
-	for record:Dictionary in meta.get("rmmo_records",[]):records[str(record.uuid)]=record
 	for id:String in meta.get("building_instances",{}):
-		var instance:Dictionary=meta.building_instances[id]
-		var p:=Blueprint.instance_parameters(instance)
-		var frame:=Transform3D(Basis(Vector3.UP,deg_to_rad(instance.yaw)),Blueprint.vec(instance.position))
-		var regions:Array=[Rect2(-p.width/2,-p.depth/2-float(p.get("jetty",0)),p.width,p.depth+float(p.get("jetty",0)))]
-		if p.get("layout") in ["townhouse","hall"]:
-			for annex:Dictionary in preload("res://scripts/world3d/medieval_building.gd").annex_specs(p):
-				regions.append(Rect2(annex.center[0]-annex.width/2,annex.center[1]-annex.depth/2,annex.width,annex.depth))
-		var parts:Dictionary={}
-		for uuid:String in instance.parts.values():
-			if records.has(uuid):parts[uuid]=records[uuid]
-		var headhouse:Dictionary={}
-		for uuid:String in parts:
-			var record:Dictionary=parts[uuid]
-			if record.building.part!="roof/headhouse/ceiling":continue
-			var center:Vector3=frame.affine_inverse()*Blueprint.vec(record.position)
-			var size:=Blueprint.vec(record.size)
-			headhouse={"rect":Rect2(center.x-size.x/2,center.z-size.z/2,size.x,size.z),"top":center.y-size.y/2,"ceiling_id":uuid}
-		buildings[id]={"parameters":p,"frame":frame,"regions":regions,"parts":parts,"headhouse":headhouse}
-		for rect:Rect2 in regions:
-			var bounds: AABB=frame*AABB(Vector3(rect.position.x,0,rect.position.y),Vector3(rect.size.x,1,rect.size.y))
-			for x in range(floori(bounds.position.x/CELL),floori(bounds.end.x/CELL)+1):
-				for z in range(floori(bounds.position.z/CELL),floori(bounds.end.z/CELL)+1):
-					var key:=Vector2i(x,z)
-					if not index.has(key):index[key]=[]
-					if not index[key].has(id):index[key].append(id)
+		_sync_building(id,meta.building_instances[id])
+	append_records(root,meta.get("rmmo_records",[]))
+
+func append_specs(root:Node,specs:Array)->void:
+	if root!=map_root or not is_instance_valid(map_root):return
+	var records:Array=[]
+	for spec:Dictionary in specs:
+		var record:Dictionary=spec.get("ground_batch_record",{})
+		if record.has("building"):records.append(record)
+	append_records(root,records)
+
+func append_records(root:Node,records:Array)->void:
+	if root!=map_root or not is_instance_valid(map_root):return
+	var instances:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root).get("building_instances",{})
+	var changed:Dictionary={};var touched:Dictionary={}
+	for record:Dictionary in records:
+		var id:=str(record.get("building",{}).get("id",""))
+		if not instances.has(id):continue
+		if not touched.has(id):
+			if _sync_building(id,instances[id]):changed[id]=true
+			touched[id]=true
+		var uuid:=str(record.uuid)
+		var previous_id:=str(_part_buildings.get(uuid,""))
+		if not previous_id.is_empty() and previous_id!=id:
+			if buildings.has(previous_id):
+				_restore_parts([uuid]);buildings[previous_id].parts.erase(uuid);changed[previous_id]=true
+		# Keep only presentation data, never another retained frozen geometry blob.
+		var part:={"position":record.position,"size":record.size,"building":record.building}
+		if buildings[id].parts.get(uuid,{})==part:continue
+		buildings[id].parts[uuid]=part.duplicate(true);_part_buildings[uuid]=id;changed[id]=true
+	for id:String in changed:
+		_refresh_headhouse(id);_invalidate_building(id)
+
+func remove_specs(root:Node,specs:Array)->void:
+	var ids:Array=[]
+	for spec:Dictionary in specs:ids.append(str(spec.get("uuid","")))
+	remove_uuids(root,ids)
+
+func remove_uuids(root:Node,ids:Array)->void:
+	if root!=map_root or not is_instance_valid(map_root):return
+	var changed:Dictionary={}
+	for uuid:String in ids:
+		var id:=str(_part_buildings.get(uuid,""))
+		if id.is_empty() or not buildings.has(id):continue
+		_restore_parts([uuid]);buildings[id].parts.erase(uuid);_part_buildings.erase(uuid);changed[id]=true
+	for id:String in changed:
+		_invalidate_building(id)
+		if buildings[id].parts.is_empty():
+			_remove_cells(id);buildings.erase(id)
+		else:_refresh_headhouse(id)
+
+func _sync_building(id:String,instance:Dictionary)->bool:
+	var header:={"parameters":instance.parameters,"position":instance.position,"yaw":instance.yaw,"version":instance.get("version",1)}
+	if buildings.has(id) and buildings[id].header==header:return false
+	var parts:Dictionary=buildings[id].parts if buildings.has(id) else {}
+	if buildings.has(id):_remove_cells(id)
+	var p:=Blueprint.instance_parameters(instance)
+	var frame:=Transform3D(Basis(Vector3.UP,deg_to_rad(instance.yaw)),Blueprint.vec(instance.position))
+	var regions:Array=[Rect2(-p.width/2,-p.depth/2-float(p.get("jetty",0)),p.width,p.depth+float(p.get("jetty",0)))]
+	if p.get("layout") in ["townhouse","hall"]:
+		for annex:Dictionary in preload("res://scripts/world3d/medieval_building.gd").annex_specs(p):
+			regions.append(Rect2(annex.center[0]-annex.width/2,annex.center[1]-annex.depth/2,annex.width,annex.depth))
+	var cells:Dictionary={}
+	for rect:Rect2 in regions:
+		var bounds:AABB=frame*AABB(Vector3(rect.position.x,0,rect.position.y),Vector3(rect.size.x,1,rect.size.y))
+		for x in range(floori(bounds.position.x/CELL),floori(bounds.end.x/CELL)+1):
+			for z in range(floori(bounds.position.z/CELL),floori(bounds.end.z/CELL)+1):
+				var key:=Vector2i(x,z);cells[key]=true
+				if not index.has(key):index[key]=[]
+				if not index[key].has(id):index[key].append(id)
+	buildings[id]={"parameters":p,"frame":frame,"regions":regions,"parts":parts,"headhouse":{},"cells":cells,"header":header.duplicate(true)}
+	return true
+
+func _remove_cells(id:String)->void:
+	for key:Vector2i in buildings[id].cells:
+		index[key].erase(id)
+		if index[key].is_empty():index.erase(key)
+
+func _refresh_headhouse(id:String)->void:
+	var b:Dictionary=buildings[id];b.headhouse={}
+	for uuid:String in b.parts:
+		var record:Dictionary=b.parts[uuid]
+		if record.building.get("part","")!="roof/headhouse/ceiling":continue
+		var center:Vector3=b.frame.affine_inverse()*Blueprint.vec(record.position)
+		var size:=Blueprint.vec(record.size)
+		b.headhouse={"rect":Rect2(center.x-size.x/2,center.z-size.z/2,size.x,size.z),"top":center.y-size.y/2,"ceiling_id":uuid}
+		break
+
+func _key_owner(key:String)->String:
+	return key.left(key.rfind(":")) if key.contains(":") else ""
+
+func _invalidate_building(id:String)->void:
+	for key:String in target_cache.keys():
+		if _key_owner(key)==id:target_cache.erase(key)
+	if _key_owner(applied_key)==id or _key_owner(active_key)==id:
+		_restore_parts(buildings[id].parts.keys());active_key="";applied_key="";applied_revision=-1
+
+func _restore_parts(ids:Array)->void:
+	var remaining:Dictionary={}
+	for uuid:String in hidden:remaining[uuid]=true
+	for uuid:String in ids:remaining.erase(uuid)
+	if remaining.size()!=hidden.size():apply_hidden(remaining)
 
 func locate(feet:Vector3)->Dictionary:
 	for id:String in index.get(Vector2i(floori(feet.x/CELL),floori(feet.z/CELL)),[]):
@@ -68,7 +144,7 @@ func locate(feet:Vector3)->Dictionary:
 	return {}
 
 func update(room:Dictionary,focus:Vector3,wanted:Vector3,space:PhysicsDirectSpaceState3D,ignore:Array[RID],delta:float)->void:
-	if not enabled or room.is_empty() or not is_instance_valid(map_root):restore();return
+	if not enabled or room.is_empty() or not is_instance_valid(map_root) or not buildings.has(room.id):restore();return
 	var query:=PhysicsRayQueryParameters3D.create(wanted,focus)
 	query.exclude=ignore;query.collide_with_areas=false;query.hit_from_inside=true
 	# Always query the full physical building, including currently hidden slabs.

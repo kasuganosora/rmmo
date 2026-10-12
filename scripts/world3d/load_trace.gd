@@ -40,3 +40,13 @@ static func stop()->Dictionary:
 	_events=[];_stats={}
 	_mutex.unlock()
 	return result
+
+static func instant(label:String,details:Dictionary={})->void:
+	# Decisions have no duration; retain them without inventing a slow span.
+	if not enabled:return
+	var now:=Time.get_ticks_usec();var tid:=OS.get_thread_caller_id()
+	_mutex.lock()
+	if enabled:
+		if _events.size()<MAX_EVENTS:_events.append({"label":label,"thread_id":tid,"start_us":now,"end_us":now,"duration_us":0,"kind":"instant","details":details})
+		else:_dropped+=1
+	_mutex.unlock()
