@@ -167,7 +167,9 @@ func go_loading() -> void:
 	var fade:=create_tween()
 	fade.tween_property(shade,"modulate:a",1.0,.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await fade.finished
+	var scene_started:=Time.get_ticks_usec()
 	var error:=get_tree().change_scene_to_file(SCENE_LOADING)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("game.loading_scene_change",scene_started)
 	if error==OK:
 		await get_tree().scene_changed
 	else:
@@ -229,6 +231,17 @@ func go_world() -> void:
 	var transition_status: Label=visual.get_node_or_null("Center/VBox/Status")
 	var transition_bar: ProgressBar=visual.get_node_or_null("Center/VBox/Bar")
 	while is_instance_valid(world) and world.has_method("is_world_ready") and not world.is_world_ready():
+		if world.has_meta("entry_loading_error"):
+			var message:=str(world.get_meta("entry_loading_error"))
+			if transition_status!=null:transition_status.text=message
+			else:
+				var label:=Label.new();label.text=message;label.position=Vector2(24,80);visual.add_child(label)
+			var back:=Button.new();back.text="返回角色选择";back.position=Vector2(24,24);visual.add_child(back)
+			back.pressed.connect(func():
+				viewport.disable_3d=previous_disable_3d;cover.queue_free();_world_transition_active=false;go_character_select()
+			)
+			last_loading_profile["entry_error"]=message
+			return
 		if world.has_method("loading_progress") and transition_status!=null:
 			var state: Dictionary=world.loading_progress()
 			var total: int=state.get("total",0)
@@ -250,6 +263,19 @@ func go_world() -> void:
 	if DisplayServer.get_name()=="headless":await get_tree().process_frame
 	else:await RenderingServer.frame_post_draw
 	last_loading_profile["first_frame_ms"]=Time.get_ticks_msec()
+	if is_instance_valid(world) and world.has_method("note_entry_first_frame"):
+		if not world.note_entry_first_frame(DisplayServer.get_name()!="headless"):
+			var message:=str(world.get_meta("entry_loading_error","建筑就绪校验未通过"))
+			if transition_status!=null:transition_status.text=message
+			else:
+				var label:=Label.new();label.text=message;label.position=Vector2(24,80);visual.add_child(label)
+			var back:=Button.new();back.text="返回角色选择";back.position=Vector2(24,24);visual.add_child(back)
+			back.pressed.connect(func():
+				viewport.disable_3d=previous_disable_3d;cover.queue_free();_world_transition_active=false;go_character_select()
+			)
+			last_loading_profile["entry_error"]=message
+			return
+	if world.has_method("activate_entry_neighbours"):world.activate_entry_neighbours()
 	# A slow first draw must not count as elapsed animation time and swallow
 	# the whole fade on its first tick.
 	await get_tree().process_frame
@@ -259,6 +285,8 @@ func go_world() -> void:
 	await fade.finished
 	cover.queue_free()
 	if is_instance_valid(player) and get_tree().current_scene==world:player.input_locked=false
+	if is_instance_valid(world) and get_tree().current_scene==world and world.has_method("note_entry_full_gate_released"):
+		world.note_entry_full_gate_released()
 	_world_transition_active=false
 	last_loading_profile["finished_ms"]=Time.get_ticks_msec()
 

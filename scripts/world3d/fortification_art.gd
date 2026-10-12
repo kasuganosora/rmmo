@@ -40,8 +40,9 @@ func point(p: Vector3) -> Vector3:
 	return Vector3(q.x,p.y*size_.y,q.y)
 func build(r: Dictionary) -> ArrayMesh:
 	record=r; size_=Data.vec(r.size); spans=[]; total=0
-	var key:=Data.token([r.get("channel_mesh",{}),r.size,r.fortification_art,r.fortification_materials])
+	var key:=Data.token([r.get("channel_mesh",{}),r.get("water_gate",{}),r.size,r.fortification_art,r.fortification_materials])
 	if cache.has(key): return cache[key]
+	if r.has("water_gate"):return remember(key,preload("res://scripts/world3d/water_gate_mesh.gd").mesh(r))
 	if r.fortification_art.module=="tower_stair": return remember(key,preload("res://scripts/world3d/fortification_stair_mesh.gd").build(r))
 	var source:=kit(r.fortification_art.asset_path)
 	if source.is_empty(): return null
@@ -83,10 +84,8 @@ func build(r: Dictionary) -> ArrayMesh:
 				st.set_normal(normal); st.set_uv(uv/Vector2(tile[0],tile[1])); st.add_vertex(v)
 		st.generate_tangents(); st.index(); importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,st.commit_to_arrays(),[],{},material,role)
 	importer.generate_lods(60,25,[])
-	var arrays: Array=[]
-	for slot in importer.get_surface_count(): arrays.append(importer.get_surface_arrays(slot))
 	var result:=importer.get_mesh()
-	preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(result,arrays)
+	preload("res://scripts/world3d/bridge_lod_preparation.gd").remember(importer,result)
 	return remember(key,result)
 func remember(key: String,result: ArrayMesh) -> ArrayMesh:
 	var bytes:=0

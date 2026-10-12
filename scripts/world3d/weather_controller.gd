@@ -191,7 +191,39 @@ func _physics_process(delta: float) -> void:
 		if not precipitation.cast(point,point+direction*3.).is_empty(): walls+=1.
 	roof_cover = covers/5.; enclosure_target = roof_cover*(.45+.55*walls/4.)
 
+var _sky_profile_slots:Array=[]
+var _sky_profile_frame:=-1
+var _sky_profile_count:=0
+var _sky_profile_dropped:=0
+
+func sky_profile_snapshot()->Dictionary:
+	if not has_meta("profile_frame") or not get_meta("profile_sky_details",false) or _sky_profile_frame<0:return {}
+	var result:Dictionary={"frame":_sky_profile_frame,"dropped":_sky_profile_dropped,"calls":[]}
+	const NAMES=["begin_us","setup_end_us","provider_begin_us","provider_end_us","receive_begin_us","receive_end_us","revision_end_us","sample_begin_us","sample_end_us","star_uniform_end_us","arrays_end_us","meteor_uniform_end_us","return_end_us","polled","accepted","revision_changed","editor_preview"]
+	for i in _sky_profile_count:
+		var row:Dictionary={}
+		for j in NAMES.size():row[NAMES[j]]=_sky_profile_slots[i][j]
+		result.calls.append(row)
+	return result
+
 func _tick_night_sky(delta: float) -> void:
+	if not has_meta("profile_frame") or not get_meta("profile_sky_details",false):
+		_tick_night_sky_impl(delta);return
+	if _sky_profile_slots.is_empty():
+		for i in 4:
+			var slot:Array=[];slot.resize(17);slot.fill(0);_sky_profile_slots.append(slot)
+	if _sky_profile_frame!=Engine.get_process_frames():
+		_sky_profile_frame=Engine.get_process_frames();_sky_profile_count=0;_sky_profile_dropped=0
+	if _sky_profile_count>=_sky_profile_slots.size():
+		_sky_profile_dropped+=1;_tick_night_sky_impl(delta);return
+	var stamps:Array=_sky_profile_slots[_sky_profile_count];_sky_profile_count+=1;stamps.fill(0)
+	stamps[0]=Time.get_ticks_usec();stamps[16]=int(editor_preview)
+	_tick_night_sky_impl(delta,stamps)
+	# Captures temporary PackedArray/packet release after the implementation's
+	# last shader submission as well as ordinary work in the body below.
+	stamps[12]=Time.get_ticks_usec()
+
+func _tick_night_sky_impl(delta: float, stamps:Variant=null) -> void:
 	var now := night_sky.local_time()
 	sky_poll -= delta
 	if editor_preview:
@@ -201,13 +233,24 @@ func _tick_night_sky(delta: float) -> void:
 			preview_sky_key = key
 			if not preview_sky.maps.has("editor-preview"): preview_sky.configure("editor-preview",7321,values.meteor_frequency,values.meteors_enabled)
 			preview_sky.set_environment("editor-preview",values,now); sky_poll = 0
+		if stamps!=null:stamps[1]=Time.get_ticks_usec()
 		if sky_poll <= 0:
-			night_sky.receive(preview_sky.snapshot("editor-preview",now),"editor-preview",now,now); sky_poll = 1
+			if stamps!=null:stamps[13]=1;stamps[2]=Time.get_ticks_usec()
+			var packet:Dictionary=preview_sky.snapshot("editor-preview",now)
+			if stamps!=null:stamps[3]=Time.get_ticks_usec();stamps[4]=Time.get_ticks_usec()
+			var accepted:bool=night_sky.receive(packet,"editor-preview",now,now)
+			if stamps!=null:stamps[5]=Time.get_ticks_usec();stamps[14]=int(accepted)
+			sky_poll = 1
 	elif sky_provider.is_valid() and sky_poll <= 0:
+		if stamps!=null:stamps[1]=Time.get_ticks_usec();stamps[13]=1;stamps[2]=Time.get_ticks_usec()
 		var packet: Variant = sky_provider.call()
-		if packet is Dictionary and night_sky.receive(packet,sky_map,now,night_sky.local_time()):
+		if stamps!=null:stamps[3]=Time.get_ticks_usec();stamps[4]=Time.get_ticks_usec()
+		var accepted:bool=packet is Dictionary and night_sky.receive(packet,sky_map,now,night_sky.local_time())
+		if stamps!=null:stamps[5]=Time.get_ticks_usec();stamps[14]=int(accepted)
+		if accepted:
 			var key := str([packet.epoch,packet.environment_revision])
 			if server_environment_key != key:
+				if stamps!=null:stamps[15]=1
 				server_environment_key = key; values = packet.environment.duplicate(true)
 				source = Profile.decode(packet.source_profile); target = Profile.sample(values)
 				current = Profile.at(packet,now+night_sky.clock_offset)
@@ -215,23 +258,30 @@ func _tick_night_sky(delta: float) -> void:
 				environment_changed.emit(values.duplicate(true))
 				streetlamps.refresh()
 		sky_poll = 1
+	if stamps!=null:
+		if stamps[1]==0:stamps[1]=Time.get_ticks_usec()
+		stamps[6]=Time.get_ticks_usec();stamps[7]=Time.get_ticks_usec()
 	night_sky.sample(now+night_sky.clock_offset)
 	var hour: float = Cycle.hours(night_sky.snapshot,now+night_sky.clock_offset) if night_sky.ready else values.time_hours
 	celestial = Cycle.sample(hour)
 	var night: float = (float(celestial.night) if values.celestial_cycle else 1.0 if values.preset == "night" else 0.0) if values.sky_enabled else 0.0
 	var visibility: float = pow(1.0-current.cloud*.8,2.0) * (1.0-clampf(current.fog*18.0,0,1))
+	if stamps!=null:stamps[8]=Time.get_ticks_usec()
 	sky_material.set_shader_parameter("cloud_seed_offset",Clouds.seed_offset(night_sky.seed))
 	sky_material.set_shader_parameter("star_seed",night_sky.seed)
 	sky_material.set_shader_parameter("star_intensity",values.star_intensity*visibility*night if night_sky.ready else 0.0)
 	sky_material.set_shader_parameter("star_time",night_sky.time)
+	if stamps!=null:stamps[9]=Time.get_ticks_usec()
 	var heads := PackedVector3Array(); var tails := PackedVector3Array(); var energies := PackedFloat32Array(); var kinds := PackedFloat32Array(); var brightness := PackedFloat32Array()
 	for i in 8:
 		var row: Dictionary = night_sky.meteors[i] if i<night_sky.meteors.size() else {}
 		heads.append(row.get("head",Vector3.UP)); tails.append(row.get("tail",Vector3.UP))
 		energies.append(row.get("energy",0.0)*visibility*night if visuals_enabled and values.meteors_enabled else 0.0)
 		kinds.append(1.0 if row.get("kind")=="fireball" else 0.0); brightness.append(row.get("brightness",0.0))
+	if stamps!=null:stamps[10]=Time.get_ticks_usec()
 	sky_material.set_shader_parameter("meteor_heads",heads); sky_material.set_shader_parameter("meteor_tails",tails)
 	sky_material.set_shader_parameter("meteor_energies",energies); sky_material.set_shader_parameter("meteor_kinds",kinds); sky_material.set_shader_parameter("meteor_brightness",brightness)
+	if stamps!=null:stamps[11]=Time.get_ticks_usec()
 
 func _tick_lightning(delta: float) -> void:
 	if not night_sky.ready: return

@@ -13,13 +13,15 @@ func _init(template:NavigationMesh,area:AABB)->void:
 	mesh=template.duplicate();mesh.clear()
 	mesh.filter_baking_aabb=clip;mesh.border_size=0
 
-func step(owner:Node)->void:
+func step(owner:Node,budget_usec:int=2000)->void:
 	if complete:return
 	if baking:
 		complete=not NavigationServer3D.is_baking_navigation_mesh(mesh)
 		return
+	if budget_usec<=0:return
 	var started:=Time.get_ticks_usec()
-	while cursor<owner._specs.size() and Time.get_ticks_usec()-started<2000:
+	var initial_cursor:=cursor
+	while cursor<owner._specs.size() and (cursor==initial_cursor or Time.get_ticks_usec()-started<budget_usec):
 		var spec:Dictionary=owner._specs[cursor];cursor+=1
 		if not owner._collides(spec):continue
 		var box:AABB=spec.transform*spec.mesh.get_aabb()

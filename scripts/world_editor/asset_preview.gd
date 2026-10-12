@@ -30,8 +30,7 @@ func _ready() -> void:
 func show_asset(path: String) -> void:
 	if path == current_path: return
 	current_path = path
-	if is_instance_valid(scene): scene.free()
-	scene = null
+	_dispose_scene()
 	visible = not path.is_empty()
 	if not visible: return
 	scene = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
@@ -42,7 +41,7 @@ func show_prefab(entry: Dictionary) -> void:
 	var path := str(entry.get("prefab_path", ""))
 	if path == current_path: return
 	current_path = path
-	if is_instance_valid(scene): scene.free()
+	_dispose_scene()
 	scene = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
 	visible = scene != null
 	_show_scene()
@@ -62,3 +61,16 @@ func _show_scene() -> void:
 	camera.near = maxf(0.001, distance / 1000)
 	camera.far = maxf(100, distance * 5)
 	viewport_.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+func _dispose_scene()->void:
+	var owned:=scene;scene=null
+	if not is_instance_valid(owned):return
+	# Only this viewport's private preview belongs to us. A reparented instance
+	# has a different owner and must not be destroyed through a stale field.
+	if owned.get_parent()!=null:
+		if owned.get_parent()!=viewport_:return
+		viewport_.remove_child(owned)
+	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(owned)
+
+func _exit_tree()->void:
+	_dispose_scene()

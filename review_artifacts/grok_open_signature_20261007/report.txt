@@ -1,0 +1,65 @@
+保留 signature 阶段末尾这一次主线程 `FileAccess.get_sha256(_path)`。没有既安全又简单、又能保住现有语义的削峰改法。737ms 是这次不可让出的全文件内容校验的耗时，不是预算参数设错。
+
+## 已证事实
+
+加载任务把初读放在低优先级 worker 上。`_read` 先 `FileAccess.get_sha256(value)`，再另一次 `get_file_as_string` 并解析 JSON，返回 `{signature, data}`。这是两次独立打开，没有共同的字节快照。
+
+主线程每帧 `await process_frame` 等 worker 结束后，用 `begin_document(path, prepared, true, report)` 进入游标。`prepared` 含 `signature`，所以这条路径不会在 `begin_document` 里再哈希一次。回退分支（没有 `signature` 时现场 `get_sha256`）这次打开走不到。
+
+校验按 `_validation_budget_us`（8000）切片。`advance` 在 `_step()` 返回之后才看预算。signature 这一步整段是一次 `FileAccess.get_sha256(_path)`，返回后才比较、构造 `document`、写 `_disk_signature`、`done=true`。注释已写明大文件哈希不能被切片抢占。用户测到的约 737ms 落在这一次调用上。
+
+成功时加载任务不让出：
+
+```gdscript
+while not validation.done:
+    validation.advance(_validation_budget_us)
+    if not validation.done: await get_tree().process_frame
+```
+
+signature 在同一次 `advance` 里把 `done` 设为真，循环不再 `await`，随后同步执行 `editor._doc=document` 等发布。失败则 `document` 保持空，不发布。
+
+所有走完 `begin_document` 的成功路径都到 signature，包括 legacy。`begin_map_validation` 在节点阶段结束，不做这次磁盘签名；它不是这次 737ms 的路径。
+
+因此现有谓词是：发布前的同一段同步调用栈里，路径上的又一次全文件 SHA-256 必须等于 worker 当初的 SHA-256。摘要算法就是 `FileAccess.get_sha256` 的摘要，不能换成 mtime、size 或另一种哈希。
+
+## 这次检查实际盖住的窗口
+
+它盖住的是从初读到发布之前的整段跨帧校验：文件内容若已变，打开失败，文档不装上。校验含依赖、节点、元数据、所有权、逐条深拷贝，中间有多次 `await process_frame`。这段墙钟时间比 737ms 长，具体多少本次材料里没有。
+
+残留窗口也是代码里能看出的，不是实现疏漏可随便补上的：
+
+- worker 的哈希和 `get_file_as_string` 之间文件若被改写又改回，最终哈希仍等于初值，解析结果却可能来自中间内容。
+- `get_sha256` 返回之后到 `editor._doc=document` 之间没有 `await`，但仍有指标记录、`clear_target()` 和字段赋值。外部进程仍可能在这次系统调用读完最后一个字节之后改路径。这段同步尾巴有多长，贴出的代码不能量化。
+- 游标自己不强制调用方立刻发布。当前加载任务遵守了；以后在 `done` 之后插入 `await` 或延迟回调，等于拆掉这个谓词。
+
+## 三种常见改法都会换掉谓词
+
+分片跨帧哈希。签名阶段打开文件，每帧 `HashingContext.update` 一块，最后 `finish` 等于初值就发布。这不再是“发布瞬间路径上的一次 `get_sha256`”。
+
+具体交错：文件仍是初读字节 X，分片已经读完 X 并得到 S0，预算用尽后 `await` 一帧，此时路径被原子换成 Y，且 `hash(Y) ≠ S0`。下一帧只做 `finish` 和比较，不再整文件重读，于是放行。同一步的 `get_sha256` 会失败。若每块都重新打开并 seek，前半来自 X、后半来自 Y，只要已读过的区域后来被改写、未读区域仍与 X 相同，拼接结果仍是 S0，磁盘已经是 Y。地图 JSON 改前部字段就是这种形状。失败方向（拼出来对不上，误报“打开期间地图已变化”）可以重试；放行方向不能。
+
+worker 末尾再哈希然后 `await`。worker 算出等于 S0 之后，主线程至少要等下一帧才能发布。这一帧里路径可以变成 Y。发布看到的是已经过期的相等结果。若在 signature 里对 worker `wait_to_finish` 且不处理帧，主线程会堵住直到哈希结束，峰值还在，只是从 `get_sha256` 换成了线程汇合。
+
+把哈希提前到校验尾部、和主线程重叠，同样对不齐。哈希在 T1 完成，校验在 T2 才结束，`(T1, T2)` 里的写入会被当成未发生。要消掉这段空档，就得在发布前再哈希一次，737ms 回到 signature 那一步。
+
+预先信任初值。去掉最终比较后，整个跨帧校验期间的写入都不会被发现，`_disk_signature` 仍写成初值。这正是 `"Map changed while opening"` 要拦住的情况。
+
+用 mtime 或 size 做最后判断同样离开了内容哈希。size 预检只能在变长时提早失败；成功打开未改动的大文件仍要读完全部字节，成功路径的峰值不动。
+
+文件锁从初读握到发布，理论上可以让磁盘在窗口内不能换，从而不必在主线程再哈希。Godot 的 `FileAccess` 没有随这次代码给出可用的、跨 Windows 共享模式还和原子保存兼容的锁。锁要跨 worker 和主线程交接到发布之后，还要覆盖 UI 与 MCP 的同一条打开事务。这不是小改，也没有在现有语义里证明过。
+
+## 测量可以做，但不能当成收益
+
+语义不变的对照只有一种：同一次不可让出的步骤里，对同一份字节各做一遍全文件 SHA-256，摘要必须逐字节一致，打开失败必须仍走失败而不是变成空摘要相等。变量只是引擎 `HashingContext` 的块大小，以及“整缓冲一次 `update`”相对 `FileAccess.get_sha256`。对象用临时副本，不写用户原图。冷缓存、热缓存要分开。Windows 上实时扫描可能算进单次打开耗时，这是测量条件假设，不是已证实的 737ms 成因。
+
+未测之前不能断言 GDScript 分块会更快。引擎内部本身就在 C++ 里流式计算 SHA-256；脚本层每块分配 `PackedByteArray` 可能更慢。即便更快，省下的仍是同一次全文件读取加 SHA-256，只是峰值从 737ms 变成另一个数，并且摘要、失败和“成功后同步发布”必须先对齐。
+
+跨帧总 CPU 更低、或 worker 里更快，都不回答这次主线程峰值。那两种数对应的是另一套谓词。
+
+编辑器里若要复测打开卡顿，用 `tools/run_godot_background.py` 的独立桌面，临时地图和资源包，原图不写入。签名逻辑在共享游标里，UI 与 MCP 必须走同一次 `begin_document` 事务，不能只给加载任务加一条旁路。本次是静态审阅，没有跑这些测试。
+
+## 假设（不作为改代码依据）
+
+未在本会话核对 Godot 4.7.2 源码，因此不认定 `get_sha256` 的内部缓冲、共享模式，以及原子替换之后已打开句柄是否仍读到旧文件。单次 `get_sha256` 期间是否可能读到半截写入，取决于保存实现和打开标志，这里也未证实。737ms 里 CPU 与磁盘各占多少，没有剖面。`clear_target()` 和文档赋值之间有没有额外 I/O，贴出的代码看不出来。
+
+worker 把“哈希”和“解析”收成同一块字节，可以收紧初读处那个已存在的空档。那一步仍在 worker，取消不了发布前的这次主线程全文件哈希。

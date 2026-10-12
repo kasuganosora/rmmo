@@ -9,6 +9,8 @@ var fields: VBoxContainer
 var assets: ItemList
 var search: LineEdit
 var info: Label
+var selection_summary: Label
+var selected_chips: HFlowContainer
 var current: Dictionary={}
 var preview: Dictionary={}
 var selected_assets: Array=[]
@@ -26,8 +28,11 @@ func setup(panel: VBoxContainer) -> void:
 		var id: String=assets.get_item_metadata(index)
 		if selected and not selected_assets.has(id): selected_assets.append(id)
 		elif not selected: selected_assets.erase(id)
+		_refresh_selection_summary()
 		invalidate())
 	host.note(body,"Ctrl 多选，最多混合 8 种模型；搜索不会清空已选项。")
+	selection_summary=host.note(body,"")
+	selected_chips=HFlowContainer.new(); body.add_child(selected_chips)
 	host.button(body,"清空素材选择",func():selected_assets=[]; refresh_assets(); invalidate())
 	host.button(body,"点选区域边界",func():host.report(editor._city.begin_scatter(float(fields.values().height))))
 	host.button(body,"使用已选街区边界",use_block)
@@ -44,11 +49,13 @@ func form() -> void:
 	var schema:=Scatter.settings_schema()
 	var values:=current.duplicate(true)
 	for key in ["id","polygon","asset_ids"]: schema.properties.erase(key); values.erase(key)
-	fields.build(schema,values,{"name":"区域名称","height":"地面标高（米）","seed":"随机种子","count":"目标株数（最多 256）","spacing":"中心最小间隔（米）","scale_min":"最小缩放","scale_max":"最大缩放","boundary_margin":"边界留空（米）","collision":"运行时碰撞"})
+	values.merge({"pattern":current.get("pattern","random"),"row_angle":current.get("row_angle",0.),"row_spacing":current.get("row_spacing",1.),"follow_terrain":current.get("follow_terrain",false)})
+	fields.build(schema,values,{"name":"区域名称","height":"平地标高（米）","seed":"随机种子","count":"目标株数（最多 256）","spacing":"株距 / 最小间隔（米）","scale_min":"最小缩放","scale_max":"最大缩放","boundary_margin":"边界留空（米）","collision":"运行时碰撞","pattern":"分布（random 随机 / rows 成行）","row_angle":"行方向（度）","row_spacing":"行距（米）","follow_terrain":"按地形 / 垄沟实际高度落位"})
 	for control in fields.fields.values():
 		if control is SpinBox: control.value_changed.connect(func(_v):invalidate())
 		elif control is CheckButton: control.toggled.connect(func(_v):invalidate())
 		elif control is LineEdit: control.text_changed.connect(func(_v):invalidate())
+		elif control is OptionButton:control.item_selected.connect(func(_v):invalidate())
 func new_region() -> void:
 	current=Scatter.defaults().merged({"id":"grove_"+Crypto.new().generate_random_bytes(6).hex_encode(),"polygon":[]})
 	selected_assets=[]; form(); refresh_assets(); invalidate()
@@ -71,6 +78,35 @@ func refresh_assets() -> void:
 		assets.add_item(str(entry.label)); var i:=assets.item_count-1
 		assets.set_item_metadata(i,entry.asset_path); assets.set_item_tooltip(i,str(entry.get("category",""))+"\n"+entry.asset_path)
 		if selected_assets.has(entry.asset_path): assets.select(i,false)
+	_refresh_selection_summary()
+func _refresh_selection_summary() -> void:
+	if selection_summary == null: return
+	var visible_selected := 0
+	var labels := {}
+	for entry in editor._scatter.entries(""):
+		labels[str(entry.asset_path)] = str(entry.label)
+	for index in assets.item_count:
+		if selected_assets.has(assets.get_item_metadata(index)): visible_selected += 1
+	var hidden := selected_assets.size() - visible_selected
+	selection_summary.text = "已选 %d / 8 种模型" % selected_assets.size()
+	if hidden > 0: selection_summary.text += " · %d 种不在当前列表中" % hidden
+	if selected_assets.size() > 8: selection_summary.text += " · 请移除多余选择"
+	for child in selected_chips.get_children():
+		selected_chips.remove_child(child)
+		child.queue_free()
+	for id in selected_assets:
+		var chip := Button.new()
+		chip.text = str(labels.get(id, str(id).get_file())) + " ×"
+		chip.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		chip.clip_text = true
+		chip.custom_minimum_size.x = 110
+		chip.tooltip_text = "移除此项：" + str(labels.get(id, id))
+		selected_chips.add_child(chip)
+		chip.pressed.connect(func():
+			selected_assets.erase(id)
+			refresh_assets()
+			invalidate()
+		)
 func request() -> Dictionary:
 	return fields.values().merged({"id":current.id,"polygon":current.polygon,"asset_ids":selected_assets.duplicate()})
 func set_polygon(points: Array) -> Dictionary:

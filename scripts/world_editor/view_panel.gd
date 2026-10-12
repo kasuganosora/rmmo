@@ -28,4 +28,4 @@ func refresh() -> void:
 	floor_form.build(Settings.schema(),floors,{"isolation":"楼层隔离","base_height":"当前层起始高度","floor_height":"层高 / 范围高度","outside":"其他楼层显示"},{"outside":[{"id":"hide","name":"隐藏"},{"id":"dim","name":"淡化"}]})
 	spawn_form.build(Settings.schema(),{"spawn":s.spawn},{"spawn":"XYZ"})
 func report(result: Dictionary) -> void:
-	editor._status.text = "楼层 / 出生点设置已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"楼层 / 出生点设置已应用，可撤销","楼层与出生点")

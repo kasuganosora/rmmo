@@ -10,6 +10,7 @@ var _hit := {}
 
 func setup(owner: Node3D) -> void:
 	editor = owner
+	editor._gravity.editor = owner
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	clip_contents = true
@@ -18,7 +19,7 @@ func failure(message: String) -> Dictionary:
 	return {"ok": false, "error": message}
 
 func report(result: Dictionary) -> void:
-	editor._status.text = "已完成 · %d 件物件" % result.get("changed_ids", []).size() if result.ok else str(result.error)
+	editor._report_result(result,"已完成 · %d 件物件" % result.get("changed_ids", []).size(),"物件摆放")
 
 func _selection() -> Dictionary:
 	if editor._selection_tools.whole: return failure("整栋建筑请使用 XYZ 移动或建筑位置参数；暂不支持贴面、落地和自动排列")
@@ -223,3 +224,6 @@ func _draw() -> void:
 	draw_line(point - Vector2(0, 12), point + Vector2(0, 12), Color.WHITE, 1)
 	var tip: Vector2 = editor._camera.unproject_position(_hit.position + _hit.normal)
 	draw_line(point, tip, Color("8cde82"), 2)
+
+func _physics_process(delta: float) -> void:
+	editor._gravity.tick(delta)

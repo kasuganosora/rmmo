@@ -39,7 +39,7 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok,"HTTP server")
 	var definitions: Array = (await rpc("tools/list")).result.tools
-	check(definitions.size()==118 and definitions.any(func(d): return d.name=="save_world" and d.inputSchema.properties.has("background")), "3D discovery exposes background saves")
+	check(definitions.size()==preload("res://scripts/world_editor/mcp_schema.gd").tools().size() and definitions.any(func(d): return d.name=="save_world" and d.inputSchema.properties.has("background")), "3D discovery exposes background saves")
 	process_frame.connect(track_frame)
 	Io.save_fault = delayed_publish
 	var dialog := AcceptDialog.new(); editor.add_child(dialog); dialog.popup_centered()
@@ -101,7 +101,7 @@ func run() -> void:
 	await call_tool("save_world", {"path":"C:/outside.gltf","background":true}, false)
 	await call_tool("save_world", {"background":"yes"}, false)
 	check(editor._save_job.state().job_id==previous_job and not editor.saving(), "illegal path/schema does not start a save")
-	check(phases.has("build") and phases.has("publish") and frame_gaps.size()>60, "render frames advance across real save stages")
+	check(phases.has("reuse") and phases.has("publish") and frame_gaps.size()>60, "render frames advance across resource verification and publication")
 	var report := {"failures":failed,"phases":phases.keys(),"frames":frame_gaps.size(),"max_frame_ms":frame_gaps.max()}
 	var file := FileAccess.open(Art.review_path("save_progress/http.json"),FileAccess.WRITE)
 	file.store_string(JSON.stringify(report,"\t")); file.close()

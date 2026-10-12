@@ -2,10 +2,12 @@ extends RefCounted
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 
 static func list_components(editor: Node, id: String) -> Dictionary:
+	if editor._doc._find(id).get("kind")=="asset":return preload("res://scripts/world_editor/model_component_tools.gd").list_components(editor,id)
 	if not editor._buildings.instances().has(id): return {"ok":false,"error":"建筑不存在"}
 	return {"ok":true,"building_id":id,"components":Fixtures.rows(editor._doc.records,id)}
 
 static func set_open(editor: Node, id: String, component: String, amount: float) -> Dictionary:
+	if editor._doc._find(id).get("kind")=="asset":return preload("res://scripts/world_editor/model_component_tools.gd").set_open(editor,id,component,amount)
 	var ready: Dictionary=editor._gameplay.guard()
 	if not ready.ok: return ready
 	if not is_finite(amount) or amount<0 or amount>1: return {"ok":false,"error":"开合值必须为 0～1"}

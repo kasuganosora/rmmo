@@ -28,6 +28,13 @@ func slab(part: String,polygons: Array,bottom: float,top: float,role: String) ->
 	for poly in polygons:
 		for p in poly: bounds=bounds.expand(p)
 	var c:=bounds.get_center(); var size_:=Vector3(bounds.size.x,top-bottom,bounds.size.y)
+	# Vector2's float32 midpoint can round away from the exact center on a
+	# translated, narrow merlon. Bound the actual local vertices around that
+	# stored midpoint; do not relax validation or clamp away seam vertices.
+	for poly in polygons:
+		for p:Vector2 in poly:
+			size_.x=maxf(size_.x,absf(p.x-c.x)*2.)
+			size_.z=maxf(size_.z,absf(p.y-c.y)*2.)
 	var r: Dictionary=plan.box(part,Vector3(c.x,(bottom+top)*.5,c.y),size_,0,role)
 	r.channel_mesh={"uv_origin":r.position.duplicate(),"polygons":[]}
 	for poly in polygons: r.channel_mesh.polygons.append(poly.map(func(p):return [(p.x-c.x)/size_.x,(p.y-c.y)/size_.z]))
@@ -44,6 +51,19 @@ func intervals(lo: float,hi: float) -> Array:
 	if lo<0: return [[0.0,hi],[lo+TAU,TAU]]
 	if hi>TAU: return [[lo,TAU],[0.0,hi-TAU]]
 	return [[lo,hi]]
+func water_crown(id:String,lo:float,hi:float,a:Vector2,b:Vector2,bottom:float,top:float,half:float)->void:
+	var d:Vector2=(b-a).normalized();var n:=Vector2(-d.y,d.x)*half
+	var footprint:Array=[a-n,b-n,b+n,a+n]
+	if Geometry2D.is_polygon_clockwise(PackedVector2Array(footprint)):footprint.reverse()
+	var count:=maxi(1,ceili((hi-lo)/minf(deg_to_rad(3),2./maxf(radii.x,radii.y))))
+	for i in count:
+		var angle_a:=lerpf(lo,hi,float(i)/count);var angle_b:=lerpf(lo,hi,float(i+1)/count)
+		var poly:Array=[point(angle_a,half),point(angle_b,half),point(angle_b,-half),point(angle_a,-half)]
+		# Only the curved crescent needs a crown. Never overlay the arch's
+		# coplanar top with a second slab (which flickers at glancing angles).
+		var fragments:=preload("res://scripts/world3d/roof_plan.gd").subtract(poly,footprint)
+		for j in fragments.size():
+			if absf(preload("res://scripts/world3d/roof_plan.gd").area(fragments[j]))>.00001:slab("water_crown_%s_%d_%d"%[id,i,j],[fragments[j]],bottom,top,"gate_lintel")
 func build(owner: RefCounted) -> Dictionary:
 	plan=owner; s=plan.settings; center=Vector2(s.center_x,s.center_z); radii=Vector2(s.radius_x,s.radius_z); turn=-deg_to_rad(s.rotation)
 	if minf(radii.x,radii.y)*minf(radii.x,radii.y)/maxf(radii.x,radii.y)<s.thickness*2: return Data.fail("椭圆过扁，短轴处曲率无法容纳墙厚和塔楼")
@@ -74,7 +94,9 @@ func build(owner: RefCounted) -> Dictionary:
 			if tower_points.size()>1 and tower_points[i].distance_to(tower_points[(i+1)%tower_points.size()])<s.thickness*2+.5: return Data.fail("环形塔楼间距不足，请减少塔楼数量、减小墙厚或增大半径")
 	var y: float=s.base_height; var top: float=y+s.height; var half: float=s.thickness*.5
 	for gate in s.gates:
-		var angle:=deg_to_rad(gate.angle); var delta:=asin(gate.width*.5/tangent(angle).length())
+		var angle:=deg_to_rad(gate.angle)
+		if gate.width*.5>=tangent(angle).length():return Data.fail("水关或城门宽度超过局部环墙直径")
+		var delta:=asin(gate.width*.5/tangent(angle).length())
 		var a:=point(angle-delta); var b:=point(angle+delta); var c: Vector2=(a+b)*.5
 		for tower in tower_points:
 			if tower.distance_to(c)<gate.width*.5+s.thickness*1.5: return Data.fail("环形城门距塔楼太近，请调整城门角度或塔楼数量")
@@ -82,12 +104,16 @@ func build(owner: RefCounted) -> Dictionary:
 			if Vector2(previous.center[0],previous.center[2]).distance_to(c)<(previous.width+gate.width)*.5+1: return Data.fail("环形城门彼此太近或重叠")
 		for span in intervals(angle-delta,angle+delta): openings.append({"lo":span[0],"hi":span[1],"gate":gate})
 		var direction: Vector2=(b-a).normalized(); var normal:=Vector2(-direction.y,direction.x); var id: String=gate.id.sha256_text().left(10)
-		for side in [-1,1]:
+		if gate.get("kind","land")=="water":
+			plan.water_opening(gate,a,b)
+			# The chord reaches the same endpoints; curved crown closes the upper joint.
+			water_crown(id,angle-delta,angle+delta,a,b,top-.5,top,half)
+		for side in ([] if gate.get("kind","land")=="water" else [-1,1]):
 			var p: Vector2=c+direction*side*gate.width*.25-normal*(half+.12)
 			var r: Dictionary=plan.box("door_%s_%s"%[id,str(side).replace("-","m")],Vector3(p.x,y+gate.height*.5,p.y),Vector3(gate.width*.5-.06,gate.height-.1,.18),-rad_to_deg(direction.angle()),"door")
 			r.fixture={"id":gate.id,"kind":"door","pivot":[side*gate.width*.25,0,0],"angle":-side*100.0,"open":gate.open}
 			plan.hinges(r)
-		band("lintel_"+id,angle-delta,angle+delta,-half,half,y+gate.height,top,"gate_lintel")
+		if gate.get("kind","land")!="water":band("lintel_"+id,angle-delta,angle+delta,-half,half,y+gate.height,top,"gate_lintel")
 		gates.append({"id":gate.id,"center":[c.x,y,c.y],"width":gate.width,"height":gate.height,"open":gate.open,"angle":gate.angle})
 	openings.sort_custom(func(a,b):return a.lo<b.lo)
 	var start:=0.0; var index:=0

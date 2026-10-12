@@ -17,13 +17,14 @@ static func prepare(editor,args: Dictionary) -> Dictionary:
 		if original.id!=args.id or Data.token(editor._doc._find(args.id))!=original.signature: return Data.fail("已绑定桥梁的身份或构件已被手改，请先撤销手改")
 		if Data.vec(args.start).distance_to(Data.vec(original.start))>.001 or Data.vec(args.end).distance_to(Data.vec(original.end))>.001 or absf(args.get("width",original.width)-original.width)>.001: return Data.fail("已绑定桥梁可改桥型、拱高和深度；跨度/净宽变化需先撤销该桥的转换")
 	elif not editor._doc._find(args.id).is_empty(): return Data.fail("新绑定桥梁 ID 已被其他物件占用")
-	var a:=Data.vec(nodes[edge.from].position); var b:=Data.vec(nodes[edge.to].position); var delta:=b-a; var length_:=delta.length(); var direction:=delta.normalized()
-	if absf(a.y-b.y)>.001: return Data.fail("现阶段桥梁道路的两端须同高")
+	var line:=Ports.deck_line(edge,nodes,data.roads.edges)
+	var lift:float=data.get("road_surface",{}).get("settings",{}).get("lift",.025)
+	var a:Vector3=line[0];var b:Vector3=line[1];var delta:=b-a;var length_:=delta.length();var direction:=delta.normalized()
 	var first:=Data.vec(args.start); var last:=Data.vec(args.end)
-	var t0: float=(first-a).dot(direction); var t1: float=(last-a).dot(direction)
+	var t0: float=(first-Vector3.UP*lift-a).dot(direction); var t1: float=(last-Vector3.UP*lift-a).dot(direction)
 	for p in [first,last]:
-		var ground: Vector3=p-Vector3.UP*.025
-		if ground.distance_to(a+direction*(ground-a).dot(direction))>.003: return Data.fail("石桥须位于所选道路中心线，桥头高度为道路标高 + 0.025 米")
+		var ground: Vector3=p-Vector3.UP*lift
+		if ground.distance_to(a+direction*(ground-a).dot(direction))>.003: return Data.fail("桥头须位于所选道路的中心线和实际路面标高上")
 	if t0<2 or t1>length_-2 or t1-t0<6: return Data.fail("请在道路两端各保留至少 2 米引道，桥梁跨度至少 6 米")
 	if args.get("width",6)<maxf(edge.width_start,edge.width_end)+1.16-.001: return Data.fail("桥梁总宽须比原道路宽至少 1.16 米，以保留石栏内通行净宽")
 	var request:=args.duplicate(true); request.erase("road_edge_id"); request.erase("plan_token")
@@ -34,10 +35,15 @@ static func prepare(editor,args: Dictionary) -> Dictionary:
 	for p in mask: box=box.expand(p)
 	var replacements:={}; var removed:={}; var touched: Array=[]
 	for r in editor._doc.records:
-		if not r.has("road_mesh") or absf(r.position[1]+r.size[1]*.5-first.y)>.08: continue
+		if not r.has("road_mesh"): continue
+		var middle:Vector3=(first+last)*.5
+		var local:Vector3=Transform3D(Basis.from_euler(Data.vec(r.rotation)*PI/180),Data.vec(r.position)).affine_inverse()*middle
+		var top:float=r.position[1]+r.size[1]*.5
+		if r.road_mesh.has("grade"):top+=local.x*r.road_mesh.grade[0]+local.z*r.road_mesh.grade[1]
+		if absf(top-middle.y)>.08 and not r.road_mesh.has("elevations"):continue
 		var bounds: AABB=Foot.record_shape(r).bounds
 		if not box.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z)): continue
-		var cut: Dictionary=preload("res://scripts/world_editor/bridge_road_cut.gd").cut(r,mask,first.y)
+		var cut: Dictionary=preload("res://scripts/world_editor/bridge_road_cut.gd").cut(r,mask,first.y,[first,last])
 		if not cut.ok: return cut
 		if not cut.changed: continue
 		if not editor._record_editable(r) or editor._selection_tools.members(r.uuid).is_empty(): return Data.fail("需要裁切的旧路面已受保护")
@@ -71,6 +77,6 @@ static func verify(editor,portal: Dictionary) -> Dictionary:
 	if not editor._record_editable(r): return Data.fail("道路石桥已隐藏、锁定或隔层")
 	var transform:=Transform3D(Basis.from_euler(Data.vec(r.rotation)*PI/180).scaled(Data.vec(r.size)),Data.vec(r.position))
 	for i in 2:
-		if (transform*Vector3((i*2-1)*r.bridge_mesh.length*.5,0,0)).distance_to(Data.vec(portal.endpoints[i]))>.003: return Data.fail("道路绑定与实际桥梁位置不一致")
+		if (transform*Vector3((i*2-1)*r.bridge_mesh.length*.5,(i*2-1)*r.bridge_mesh.get("rise",0.)*.5,0)).distance_to(Data.vec(portal.endpoints[i]))>.003: return Data.fail("道路绑定与实际桥梁位置不一致")
 	if absf(r.bridge_mesh.width*r.size[2]-portal.width-1.16)>.003: return Data.fail("道路绑定与实际桥梁宽度不一致")
 	return {"ok":true}

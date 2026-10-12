@@ -6,7 +6,9 @@ var pointer_down:=false
 var target_id:=""
 var options: Dictionary={}
 var before: Array=[]
+var before_state:Dictionary={}
 var was_dirty:=false
+var changed_ids:Array[String]=[]
 var last:=Vector2(INF,INF)
 var hover:=Vector3(INF,INF,INF)
 
@@ -28,11 +30,19 @@ func cancel() -> void:
 func finish(rollback: bool=false) -> void:
 	if not pointer_down: return
 	pointer_down=false
+	if not rollback and before!=editor._doc.records:
+		# Terrain previews every dab; refreeze the dependent structure only once
+		# on mouse release. Failure rolls the entire gesture back atomically.
+		var followed:Dictionary=editor._terrain.finish_followers(changed_ids)
+		if not followed.ok:rollback=true;editor._status.text=str(followed.error)
+		else:
+			for id:String in followed.ids:
+				if not changed_ids.has(id):changed_ids.append(id)
 	if rollback:
-		var refresh_ids: Array[String]=[target_id]
-		editor._doc.records=before; editor._dirty=was_dirty; editor._refresh_records(refresh_ids)
-	elif before!=editor._doc.records: editor._doc.commit_change(before)
-	before=[]; last=Vector2(INF,INF); editor._refresh_selection()
+		var refresh_ids: Array[String]=changed_ids.duplicate()
+		editor._doc.apply_recovery(before_state); editor._dirty=was_dirty; editor._refresh_records(refresh_ids)
+	elif before!=editor._doc.records: editor._doc.commit_recovery_change(before_state)
+	before=[]; before_state={}; changed_ids.clear(); last=Vector2(INF,INF); editor._refresh_selection()
 	if editor._terrain_panel!=null: editor._terrain_panel.refresh(target_id)
 func pick(screen: Vector2) -> Vector3:
 	if not Rect2(Vector2.ZERO,editor._canvas.size).has_point(screen): return Vector3(INF,INF,INF)
@@ -42,14 +52,26 @@ func pick(screen: Vector2) -> Vector3:
 	var query:=PhysicsRayQueryParameters3D.create(origin,origin+direction*editor._camera.far)
 	query.hit_back_faces=false
 	var hit: Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty() and preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)==target_id and hit.normal.y>.01: return hit.position
-	# A hole has no hit; retain the original plane so fill remains possible.
-	var at: Variant=Plane(Vector3.UP,float(record.position[1])).intersects_ray(origin,direction)
-	if at==null: return Vector3(INF,INF,INF)
-	var local: Vector3=Terrain.transform(record).affine_inverse()*at
-	if not is_finite(Terrain.sample(record,local,true)): return Vector3(INF,INF,INF)
-	if not hit.is_empty() and origin.distance_to(hit.position)<origin.distance_to(at)-.01: return Vector3(INF,INF,INF)
-	return at
+	var targets:Array=preload("res://scripts/world3d/terrain_stroke_batch.gd").connected(editor._doc.records,record) if options.get("cross_tiles",true) else [record]
+	if not hit.is_empty() and hit.normal.y>.01:
+		var hit_id:=preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
+		for tile:Dictionary in targets:
+			if tile.uuid==hit_id:return hit.position
+	# A hole has no top-face hit. Keep all connected tiles pickable, otherwise a
+	# cross-tile hole could only be filled after changing the selected seed tile.
+	var limit:float=editor._camera.far if hit.is_empty() else origin.distance_to(hit.position)+.01
+	return plane_pick(targets,origin,direction,limit)
+
+static func plane_pick(targets:Array,origin:Vector3,direction:Vector3,limit:float)->Vector3:
+	var nearest:=Vector3(INF,INF,INF);var distance:=limit
+	for tile:Dictionary in targets:
+		var at:Variant=Plane(Vector3.UP,float(tile.position[1])).intersects_ray(origin,direction)
+		if at==null:continue
+		var local:Vector3=Terrain.transform(tile).affine_inverse()*at
+		if not is_finite(Terrain.sample(tile,local,true)):continue
+		var measured:float=origin.distance_to(at)
+		if measured<=distance:nearest=at;distance=measured
+	return nearest
 func dab(screen: Vector2) -> void:
 	var at:=pick(screen)
 	if not at.is_finite(): return
@@ -63,6 +85,8 @@ func dab(screen: Vector2) -> void:
 	var result: Dictionary=editor._terrain.sculpt(options.merged({"id":target_id,"points":points}),true)
 	if not result.ok:
 		finish(true); editor._status.text=str(result.error); return
+	for id:String in result.get("changed_ids",[]):
+		if not changed_ids.has(id):changed_ids.append(id)
 	last=p; editor._status.text="地形笔刷 · 松开提交这一笔 · Esc 撤销当前笔画并退出"
 func input(event: InputEvent) -> bool:
 	if not active: return false
@@ -71,7 +95,7 @@ func input(event: InputEvent) -> bool:
 	if pointer_down and event is InputEventKey: return true
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
 		if event.pressed and editor._canvas.get_global_rect().has_point(event.position):
-			before=editor._doc.records.duplicate(true); was_dirty=editor._dirty; pointer_down=true; last=Vector2(INF,INF); dab(event.position-editor._canvas.global_position); return true
+			before_state=editor._doc.recovery_snapshot(); before=before_state.records; was_dirty=editor._dirty; pointer_down=true; last=Vector2(INF,INF); dab(event.position-editor._canvas.global_position); return true
 		if not event.pressed and pointer_down:
 			dab(event.position-editor._canvas.global_position); finish(); return true
 	if event is InputEventMouseMotion and pointer_down:

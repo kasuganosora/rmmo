@@ -9,6 +9,8 @@ var map_root:Node
 var observer:Node3D
 var weather:Node
 var fixtures:Array=[]
+var _fixtures_by_id:Dictionary={}
+var _day_settled:=false
 var hours:=12.0
 var tick:=0.0
 
@@ -18,22 +20,70 @@ static func is_night(hour:float)->bool:
 
 func bind_map(root_:Node,actor:Node3D=null,weather_:Node=null)->void:
 	for f in fixtures:
-		if is_instance_valid(f.effect):f.effect.queue_free()
-	fixtures.clear();map_root=root_;observer=actor;weather=weather_
+		_retire_effect(f)
+	fixtures.clear();_fixtures_by_id.clear();_day_settled=false
+	map_root=root_;observer=actor;weather=weather_
 	if not is_instance_valid(map_root):return
 	var extras:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(map_root)
-	for r:Dictionary in extras.get("rmmo_records",[]):
+	read_clock()
+	append_records(map_root,extras.get("rmmo_records",[]))
+
+# Publication supplies the already-restored author record. Never rescan the map
+# or rebuild existing effect nodes when another building finishes loading.
+func append_specs(root_:Node,specs:Array)->void:
+	if root_!=map_root or not is_instance_valid(map_root):return
+	var records:Array=[]
+	for spec:Dictionary in specs:
+		var record:Dictionary=spec.get("ground_batch_record",{})
+		if record.get("building_shape")=="candle_sconce":records.append(record)
+	append_records(root_,records)
+
+func append_records(root_:Node,records:Array)->void:
+	if root_!=map_root or not is_instance_valid(map_root):return
+	var changed:=false
+	for r:Dictionary in records:
 		if r.get("building_shape")!="candle_sconce":continue
+		var uuid:=str(r.uuid)
+		var position_:Array=r.position;var rotation_:Array=r.rotation
+		var pose:=Transform3D(Basis.from_euler(Vector3(rotation_[0],rotation_[1],rotation_[2])*PI/180.0),Vector3(position_[0],position_[1],position_[2]))
+		var floor_y:=float(r.get("building",{}).get("floor_y",position_[1]-2.15))
+		var flame:Vector3=Sconce.FLAME*Vector3(r.size[0],r.size[1],r.size[2])/Sconce.SIZE
+		var group:=str(r.get("building",{}).get("id",""))
+		if _fixtures_by_id.has(uuid):
+			var existing:Dictionary=_fixtures_by_id[uuid]
+			if existing.pose==pose and existing.floor_y==floor_y and existing.flame==flame and existing.group==group:continue
+			existing.pose=pose;existing.floor_y=floor_y;existing.flame=flame;existing.group=group
+			changed=true;continue
 		var effect:=Node3D.new();effect.name="Candle_"+str(r.uuid);add_child(effect);effect.visible=false
 		var mesh:=MeshInstance3D.new();mesh.name="Flame";effect.add_child(mesh)
 		mesh.mesh=flame_mesh()
 		mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var light:=OmniLight3D.new();effect.add_child(light);light.light_color=Color(1,.80,.50);light.omni_range=5.5;light.omni_attenuation=1.5;light.light_energy=.18;light.shadow_enabled=true;light.shadow_bias=.035;light.visible=false
-		var position_:Array=r.position;var rotation_:Array=r.rotation
-		var pose:=Transform3D(Basis.from_euler(Vector3(rotation_[0],rotation_[1],rotation_[2])*PI/180.0),Vector3(position_[0],position_[1],position_[2]))
-		fixtures.append({"uuid":str(r.uuid),"effect":effect,"light":light,"pose":pose,"floor_y":float(r.get("building",{}).get("floor_y",position_[1]-2.15)),"flame":Sconce.FLAME*Vector3(r.size[0],r.size[1],r.size[2])/Sconce.SIZE})
-	read_clock()
-	refresh()
+		var fixture:={"uuid":uuid,"group":group,"effect":effect,"light":light,"pose":pose,"floor_y":floor_y,"flame":flame}
+		fixtures.append(fixture);_fixtures_by_id[uuid]=fixture;changed=true
+	if changed:_day_settled=false;refresh()
+
+# These hooks only retire presentation registrations. Stream's building/physics
+# retirement safety gate remains authoritative and is not relaxed here.
+func remove_specs(root_:Node,specs:Array)->void:
+	var ids:Array=[]
+	for spec:Dictionary in specs:ids.append(str(spec.get("uuid","")))
+	remove_uuids(root_,ids)
+
+func remove_uuids(root_:Node,ids:Array)->void:
+	if root_!=map_root or not is_instance_valid(map_root):return
+	var removed:=false
+	for uuid:String in ids:
+		if not _fixtures_by_id.has(uuid):continue
+		var fixture:Dictionary=_fixtures_by_id[uuid]
+		_retire_effect(fixture);_fixtures_by_id.erase(uuid);removed=true
+	if removed:
+		fixtures=fixtures.filter(func(f):return _fixtures_by_id.has(f.uuid))
+		refresh()
+
+func _retire_effect(f:Dictionary)->void:
+	if is_instance_valid(f.effect):
+		f.effect.visible=false;f.light.visible=false;f.effect.queue_free()
 
 func set_hours(hour:float)->void:
 	hours=hour;refresh()
@@ -51,7 +101,14 @@ func read_clock()->void:
 		else:hours=float(weather.values.get("time_hours",12.0))
 
 func refresh()->void:
-	var active:Array=[];var night:=is_night(hours)
+	var active:Array=[];var night:=is_night(hours) and is_instance_valid(map_root)
+	# Dawn, rebinding and arrivals settle visibility once. Stable daylight has
+	# no flame transforms, source lookups, distance checks or ray queries.
+	if not night:
+		if _day_settled:return
+		for f in fixtures:f.effect.visible=false;f.light.visible=false
+		_day_settled=true;return
+	_day_settled=false
 	var meshes:Dictionary=map_root.get_meta("stream_meshes",{}) if is_instance_valid(map_root) else {}
 	var streamed:bool=is_instance_valid(map_root) and map_root.has_meta("stream_meshes")
 	var eye:=observer.global_position if is_instance_valid(observer) else Vector3.ZERO

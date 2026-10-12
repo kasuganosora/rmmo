@@ -1,0 +1,12 @@
+extends SceneTree
+func describe(value:Variant)->Dictionary:
+	return {"type":type_string(typeof(value)),"is_null":value==null,"nested_equals_nil":[value]==[null]}
+func _initialize()->void:
+	var typed:Array[Material]=[];typed.resize(1)
+	var node:=MeshInstance3D.new()
+	var typed_empty:Material=null
+	var native:Variant=node.material_override
+	var instance:Variant=instance_from_id(0)
+	var values:={"typed_array_resize":describe(typed[0]),"instance_from_id_zero":describe(instance),"native_getter":describe(native),"typed_variable":describe(typed_empty)}
+	var filled:Array=[];filled.resize(2);filled.fill(native);values.native_fill=describe(filled[0])
+	node.free();print("MATERIAL_NULL_PROBE ",JSON.stringify(values));quit(0)

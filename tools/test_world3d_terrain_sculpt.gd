@@ -75,7 +75,7 @@ func run() -> void:
 	before=editor._doc.records.duplicate(true); count=editor._doc._undo.size()
 	var settings:={"mode":"raise","radius":1.5,"strength":.25,"hardness":.25,"target_height":0}
 	check(editor._terrain_brush.begin(ground,settings).ok,"UI terrain brush starts")
-	var dock_scroll: ScrollContainer=editor._terrain_panel.get_parent(); dock_scroll.scroll_vertical=int(editor._terrain_panel.brush_fields.position.y)-55
+	editor._terrain_panel.tasks.current_tab=0
 	await settle(); await RenderingServer.frame_post_draw; root.get_texture().get_image().save_png(directory.path_join("terrain_panel.png"))
 	await mouse_at(Vector3(2,0,-8),true); await mouse_move(Vector3(5,0,-8)); await mouse_at(Vector3(5,0,-8),false)
 	check(editor._doc._undo.size()==count+1 and not equivalent(before,editor._doc.records),"multiple UI dabs are a single undo transaction")

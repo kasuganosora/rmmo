@@ -6,9 +6,19 @@ const S=preload("res://scripts/world3d/document_schema.gd")
 static func valid(record: Dictionary) -> bool:
 	if not record.has("road_mesh"): return not record.has("road_source") and not record.has("road_clearance")
 	var schema:={"type":"object","properties":{"polygons":{"type":"array","minItems":1,"maxItems":512,"items":{"type":"array","minItems":3,"maxItems":40,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-.50001,.50001)}}},"uv_origin":S.vector(-100000,100000)},"required":["polygons","uv_origin"],"additionalProperties":false}
+	schema.properties.elevations={"type":"array","minItems":1,"maxItems":512,"items":{"type":"array","minItems":3,"maxItems":40,"items":S.number(-10000,10000)}}
+	schema.properties.kerbs=preload("res://scripts/world3d/road_kerb.gd").schema()
 	schema.properties.grade={"type":"array","minItems":2,"maxItems":2,"items":S.number(-.15,.15)}
 	if not S.validate(record.road_mesh,schema).is_empty() or record.get("kind")!="box": return false
 	if record.road_mesh.has("grade") and Vector2(record.road_mesh.grade[0],record.road_mesh.grade[1]).length()>.150001: return false
+	if record.road_mesh.has("elevations"):
+		if record.road_mesh.elevations.size()!=record.road_mesh.polygons.size() or record.road_mesh.has("grade"):return false
+		for i in record.road_mesh.polygons.size():
+			if record.road_mesh.elevations[i].size()!=record.road_mesh.polygons[i].size():return false
+	if record.has("terrain_follow"):
+		var W=preload("res://scripts/world3d/waterway_data.gd")
+		var binding:=W.obj({"version":S.number(1,1,true),"terrain_ids":W.arr(W.text(128),256,1),"polygons":schema.properties.polygons,"offset":S.number(-20,20),"max_grade":S.number(.001,2),"kerbs":schema.properties.kerbs},["version","terrain_ids","polygons","offset","max_grade"])
+		if not S.validate(record.terrain_follow,binding).is_empty():return false
 	if record.has("building") or record.has("tile3d") or record.has("building_shape"): return false
 	if not S.validate(record.get("size"),S.vector(.001,100000)).is_empty(): return false
 	if not S.validate(record.get("road_clearance",3.0),S.number(2.5,10)).is_empty(): return false
@@ -28,12 +38,16 @@ static func valid(record: Dictionary) -> bool:
 
 static func local_polygons(record: Dictionary) -> Array:
 	var out: Array=[]
-	for raw in record.road_mesh.polygons:
+	for polygon_index in record.road_mesh.polygons.size():
+		var raw:Array=record.road_mesh.polygons[polygon_index]
 		var p: Array[Vector3]=[]
 		var grade: Array=record.road_mesh.get("grade",[0,0])
-		for v in raw:
+		for vertex_index in raw.size():
+			var v:Array=raw[vertex_index]
 			var x: float=v[0]*record.size[0]; var z: float=v[1]*record.size[2]
-			p.append(Vector3(x,record.size[1]*.5+grade[0]*x+grade[1]*z,z))
+			var y:float=record.road_mesh.elevations[polygon_index][vertex_index] if record.road_mesh.has("elevations") else record.size[1]*.5+grade[0]*x+grade[1]*z
+			if record.has("terrain_grade"):y+=record.terrain_grade[0]*x+record.terrain_grade[1]*z
+			p.append(Vector3(x,y,z))
 		out.append(p)
 	return out
 
@@ -41,6 +55,8 @@ static func vertices(record: Dictionary) -> Array[Vector3]:
 	var out: Array[Vector3]=[]
 	for poly in local_polygons(record):
 		for p in poly: out.append(p); out.append(p-Vector3.UP*float(record.size[1]))
+	for part in record.road_mesh.get("kerbs",[]):
+		for point in part.a+part.b:out.append(preload("res://scripts/world3d/road_kerb.gd").vec(point))
 	return out
 
 static func mesh(record: Dictionary, material: Material) -> ArrayMesh:
@@ -49,7 +65,9 @@ static func mesh(record: Dictionary, material: Material) -> ArrayMesh:
 	for surface in built.size():
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,built[surface])
 		result.surface_set_material(surface,material if material!=null else StandardMaterial3D.new())
-		result.surface_set_name(surface,["pavement","underside","edge"][surface])
+		if surface==3:result.surface_set_material(surface,kerb_material(record))
+		result.surface_set_name(surface,["pavement","underside","edge","automatic_kerb"][surface])
+	preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(result,built)
 	return result
 
 static func arrays(record:Dictionary)->Array:
@@ -72,10 +90,14 @@ static func arrays(record:Dictionary)->Array:
 				for point in triangle:
 					st.set_normal(normal); st.set_uv(Vector2(point.x+uv.x,point.z+uv.z) if surface<2 else Vector2((point+uv).dot(Vector3.UP.cross(normal)),point.y+uv.y)); st.add_vertex(point)
 		st.generate_tangents(); result.append(st.commit_to_arrays())
+	if record.road_mesh.has("kerbs"):result.append(preload("res://scripts/world3d/road_kerb.gd").arrays(record))
 	return result
+
+static func kerb_material(record:Dictionary)->Material:
+	return preload("res://scripts/world3d/surface_materials.gd").make_material(record.road_kerb_material) if record.has("road_kerb_material") else StandardMaterial3D.new()
 
 static func signature(record: Dictionary) -> String:
 	var value:={}
-	for field in ["position","rotation","size","road_mesh","road_clearance","collision","kind","color","invisible","wind_response"]:
+	for field in ["position","rotation","size","road_mesh","terrain_follow","road_kerb_material","road_clearance","collision","kind","color","invisible","wind_response"]:
 		if record.has(field): value[field]=record[field]
 	return preload("res://scripts/world3d/city_layout.gd").token(value)

@@ -1,0 +1,96 @@
+extends "res://tools/test_world3d_city_layout.gd"
+## Real focused numeric input plus the shared 3D HTTP operations, on a temp map.
+
+func type_number(line: LineEdit, value: String) -> void:
+	line.grab_focus()
+	line.select_all()
+	for character in value:
+		var event := InputEventKey.new()
+		event.pressed = true
+		event.unicode = character.unicode_at(0)
+		Input.parse_input_event(event)
+		await process_frame
+	await settle()
+
+func run() -> void:
+	Engine.max_fps = 60
+	root.size = Vector2i(1600, 1000)
+	root.content_scale_size = root.size
+	directory = Paths.cache_directory("editor_live_numbers_%d" % Time.get_ticks_usec())
+	DirAccess.make_dir_recursive_absolute(directory)
+	var path := directory.path_join("map.gltf")
+	var doc := Doc.new()
+	doc.add_box_silent("ground", Vector3(0, -.1, 0), Vector3(30, .2, 30))
+	var box := doc.add_box_silent("block", Vector3(0, .5, 0), Vector3(1, 1, 2))
+	var second := doc.add_box_silent("block", Vector3(4, .5, 0), Vector3.ONE)
+	check(doc.save(path) == OK, "temporary fixture saved")
+	var session = preload("res://scripts/net/net.gd").session()
+	session.world3d_editor_doc = doc
+	session.world3d_editor_path = path
+	editor = preload("res://scripts/world_editor/world_editor.gd").new()
+	editor._mcp_autostart = false
+	editor._draft_directory = directory.path_join("drafts")
+	root.add_child(editor)
+	editor._safety.enabled = false
+	await settle()
+	var probe := TCPServer.new()
+	while probe.listen(port, "127.0.0.1") != OK: port += 1
+	probe.stop()
+	check(editor.start_mcp(port).ok, "real HTTP server starts")
+	var definitions: Array = (await rpc("tools/list")).result.tools
+	check(definitions.any(func(item): return item.name == "set_object_transform"), "shared precise transform discovered")
+	await call_tool("select_objects", {"ids": [box]})
+	var spin: SpinBox = editor._inspector.fields.rotation_1
+	var line := spin.get_line_edit()
+	var visual: Node3D = editor._view.get_node(box)
+	var initial_history: int = doc._undo.size()
+	await type_number(line, "126.121")
+	check(line.has_focus() and line.text.contains("126.121"), "focused decimal text survives inspector refresh")
+	check(absf(float(doc._find(box).rotation[1]) - 126.121) < .0000001, "typed angle and final 0.001 step applied before Enter or blur")
+	check(visual.basis.orthonormalized().is_equal_approx(Basis.from_euler(Vector3(0, deg_to_rad(126.121), 0))), "scene transform immediately matches the typed angle")
+	check(doc._undo.size() == initial_history + 1, "typing one decimal value owns one undo snapshot")
+	var history: int = doc._undo.size()
+	line.release_focus()
+	await settle()
+	check(doc._undo.size() == history, "blur does not duplicate an already applied edit")
+	await call_tool("undo")
+	check(absf(float(doc._find(box).rotation[1]) - 126.121) > .0000001, "undo restores the value before typing")
+	await call_tool("redo")
+	check(is_equal_approx(float(doc._find(box).rotation[1]), 126.121), "redo restores the exact numeric value")
+	await type_number(line, "-")
+	check(is_equal_approx(float(doc._find(box).rotation[1]), 126.121), "incomplete negative input leaves the last valid transform")
+	await type_number(line, "-25.125")
+	check(is_equal_approx(float(doc._find(box).rotation[1]), -25.125), "negative decimal input is live")
+	line.release_focus()
+	await settle()
+	await call_tool("set_object_transform", {"id": box, "rotation": [0, 35.125, 0]})
+	check(is_equal_approx(spin.value, 35.125), "MCP updates the same inspector and scene operation")
+	await atomic_reject("set_object_transform", {"id": box, "size": [0, 1, 1]})
+	await call_tool("set_object_properties", {"ids": [box], "locked": true})
+	await atomic_reject("set_object_transform", {"id": box, "rotation": [0, 90, 0]})
+	await call_tool("undo")
+	await call_tool("select_objects", {"ids": [box, second]})
+	check(not spin.update_on_text_changed, "group delta rotation retains submission semantics")
+	var before: Array = doc.records.duplicate(true)
+	await type_number(line, "12")
+	check(equivalent(before, doc.records), "typing a group delta does not accumulate partial rotations")
+	spin.apply()
+	line.release_focus()
+	await settle()
+	check(not equivalent(before, doc.records), "submitted group delta still applies")
+	await call_tool("undo")
+	check(equivalent(before, doc.records), "one undo restores the submitted group transform")
+	await call_tool("select_objects", {"ids": [box]})
+	await call_tool("set_editor_walk_mode", {"enabled": true, "position": [0, 0, 4]})
+	await type_number(line, "44.125")
+	check(is_equal_approx(float(doc._find(box).rotation[1]), 44.125), "live angle also works while capsule mode is active")
+	line.release_focus()
+	await call_tool("set_editor_walk_mode", {"enabled": false})
+	await call_tool("save_world")
+	var saved: Array = doc.records.duplicate(true)
+	await call_tool("open_world", {"path": path})
+	check(equivalent(saved, editor._doc.records), "save and reopen preserve all accepted numeric edits")
+	editor.queue_free()
+	await settle()
+	print("EDITOR_LIVE_NUMBERS failures=", failed)
+	quit(0 if failed == 0 else 1)

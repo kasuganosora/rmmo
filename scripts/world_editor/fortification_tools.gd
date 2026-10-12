@@ -13,6 +13,34 @@ func catalog() -> Dictionary:
 	var items: Array=[]
 	for r in regions(): items.append({"settings":r.settings,"baked":r.get("baked",false),"source_part_count":r.get("source_part_count",r.parts.size()),"count":r.parts.size(),"modified_or_missing":r.parts.filter(func(p):return Data.token(editor._doc._find(p.id))!=p.signature).map(func(p):return p.id)})
 	return {"ok":true,"regions":items}
+func set_terrain_follow(id:String,enabled:bool)->Dictionary:
+	var ready:Dictionary=editor._city.guard()
+	if not ready.ok:return ready
+	for region:Dictionary in regions():
+		if region.settings.id!=id:continue
+		var owner:=owned(region)
+		if not owner.ok:return owner
+		if region.settings.get("follow_terrain",false)==enabled:return {"ok":true,"changed":false}
+		var data:=Data.resolve(editor._doc.map_meta);var manifest:Dictionary=region.duplicate(true)
+		manifest.settings.follow_terrain=enabled
+		var next:Array=[]
+		if enabled:
+			var args:Dictionary=manifest.settings.duplicate(true);args.erase("layout_version")
+			var prepared:=prepare(args,true,editor._doc.records)
+			if not prepared.ok:return prepared
+			var frozen:=freeze(prepared.records,prepared.manifest)
+			if not frozen.ok:return frozen
+			manifest=prepared.manifest;next=frozen.records
+		data.fortifications=data.fortifications.filter(func(r):return r.settings.id!=id);data.fortifications.append(manifest)
+		if not Data.valid({"editor_layout":data}):return Data.fail("城防贴地关联无效")
+		editor._doc.checkpoint_recovery()
+		var refresh:Array=owner.ids.keys()
+		if enabled:
+			editor._doc.records=editor._doc.records.filter(func(r):return not owner.ids.has(r.uuid));editor._doc.records.append_array(next)
+			refresh.append_array(next.map(func(r):return r.uuid))
+		editor._doc.map_meta.editor_layout=data;editor._commit_records(refresh)
+		return {"ok":true,"changed":true,"enabled":enabled}
+	return Data.fail("城防不存在")
 func owned(region: Dictionary,verify:=true) -> Dictionary:
 	var ids:={}
 	for part in region.get("parts",[]):
@@ -30,8 +58,10 @@ func paint(r: Dictionary,material: Dictionary) -> Dictionary:
 		for face in surface.faces: entries.append({"mesh":".","surface":slot,"face":face,"geometry":surface.signature,"material":material.duplicate(true),"mapping":"uv" if r.has("channel_mesh") else "meters","scale":[1.0/tile[0],1.0/tile[1]],"offset":[0,0],"rotation":0.0})
 	r.surface_paint=entries
 	return {"ok":true} if Paint.valid(r) and Paint.missing([r]).is_empty() else Data.fail("城墙材质依赖缺失")
-func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
+func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> Dictionary:
+	var world_records:Array=editor._doc.records if terrain_records.is_empty() else terrain_records
 	var schema:=F.request_schema()
+	if not terrain_records.is_empty():schema.properties.points.maxItems=512
 	# Operating an already-saved legacy gate must not silently rebuild its dimensions.
 	# Public generation requests always keep the >=5m schema.
 	if gate_control: schema.properties.gates=F.W.arr(F.gate_schema(),16)
@@ -40,7 +70,7 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 	var old: Dictionary={}
 	for r in regions():
 		if r.settings.id==args.id: old=r
-	if old.get("baked",false):return Data.fail("已烘焙的城防结构不可重生成；城门开合请用城门状态操作")
+	if old.get("baked",false) and terrain_records.is_empty():return Data.fail("已烘焙的城防结构不可重生成；城门开合请用城门状态操作")
 	if old.is_empty() and regions().size()>=64: return Data.fail("城墙最多 64 组")
 	var settings:=F.defaults();
 	if old.is_empty(): settings.style="medieval_stone"; settings.height=7.5; settings.thickness=3.5; settings.arrow_slits=true; settings.wall_access=true; settings.tower_count=0; settings.tower_layout="automatic"
@@ -48,7 +78,7 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 	if old.is_empty() and settings.style=="plain":
 		if not changes.has("wall_access"): settings.wall_access=false
 		if not changes.has("arrow_slits"): settings.arrow_slits=false
-	if not gate_control: settings.layout_version=1
+	if not gate_control and terrain_records.is_empty(): settings.layout_version=1
 	if settings.shape=="ellipse": settings.closed=true
 	if not F.valid_settings(settings): return Data.fail("城墙路径或参数无效：写实城门最低净高须 ≥ 5 米，墙顶须高于门洞至少 0.5 米；登墙通路要求写实样式、塔楼、至少 3.2 米墙厚和 7.5 米墙高；射击孔需要写实样式")
 	var owner:=owned(old)
@@ -56,13 +86,17 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 	var result:=Plan.new().build(settings)
 	if not result.ok:
 		result.settings=settings; return result
+	if settings.follow_terrain:
+		var fitted:=preload("res://scripts/world3d/fortification_terrain.gd").fit(result.records,world_records.filter(func(r):return r.has("terrain_mesh")),settings.base_height,settings.foundation)
+		if not fitted.ok:return fitted
+		result.records=fitted.records
 	if not gate_control and settings.tower_layout=="automatic":
 		var centers:=Spacing.record_centers(result.records)
 		for region in regions():
 			if region.settings.id==settings.id: continue
 			var other:=F.defaults().merged(region.settings,true)
 			if other.base_height+other.height<settings.base_height or settings.base_height+settings.height<other.base_height: continue
-			var existing: Array=editor._doc.records.filter(func(r):return r.get("fortification",{}).get("id","")==other.id)
+			var existing: Array=world_records.filter(func(r):return r.get("fortification",{}).get("id","")==other.id)
 			var checked:=Spacing.cross_validate(centers,Spacing.gates(settings),Spacing.radius(settings),Spacing.record_centers(existing),Spacing.gates(other),Spacing.radius(other))
 			if not checked.ok:
 				checked.settings=settings; checked.layout_zones=Spacing.zones(Spacing.record_centers(existing),Spacing.gates(other),Spacing.radius(settings)); return checked
@@ -79,11 +113,11 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 	if settings.style=="medieval_stone":
 		if preload("res://scripts/world3d/fortification_art.gd").new().kit(kit_path).is_empty(): return Data.fail("写实城墙 Blender 模块库缺失，请安装默认资源包")
 		materials.iron={"name":"锻铁","color":[.075,.068,.055,1.0],"roughness":.78,"metallic":.72}
-	var token:=Data.token([settings,editor._doc.records,Data.resolve(editor._doc.map_meta),editor._authoring.settings,materials])
+	var token:=Data.token([settings,world_records,Data.resolve(editor._doc.map_meta),editor._authoring.settings,materials])
 	if args.has("plan_token") and args.plan_token!=token: return Data.fail("城墙预览已过期，请重新预览")
 	var obstacles: Array=[]; var buildings:={}
 	var site:=preload("res://scripts/world_editor/fortification_site.gd").new()
-	for r in editor._doc.records:
+	for r in world_records:
 		if owner.ids.has(r.uuid): continue
 		if r.has("building"):
 			if not buildings.has(r.building.id): buildings[r.building.id]=[]
@@ -91,8 +125,8 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 		var shapes:=Foot.record_shapes(r)
 		var blocked: Array=[]
 		for shape in shapes:
-			var foundation_support: bool=settings.terrain_foundation and r.has("terrain_mesh") and r.get("collision","")!="none" and shape.top_max_y<=settings.base_height+.035 and shape.top_min_y>=settings.base_height-settings.foundation+.02
-			if Foot.level_ground(r,shape,settings.base_height) or foundation_support: site.add(shape,r.uuid,true)
+			var foundation_support: bool=(settings.follow_terrain and r.has("terrain_mesh")) or settings.terrain_foundation and r.has("terrain_mesh") and r.get("collision","")!="none" and shape.top_max_y<=settings.base_height+.035 and shape.top_min_y>=settings.base_height-settings.foundation+.02
+			if Foot.level_ground(r,shape,settings.base_height) or foundation_support or (r.get("surface_id","")=="river_bed" and settings.gates.any(func(g):return g.get("kind","land")=="water")): site.add(shape,r.uuid,true)
 			else: blocked.append(shape)
 		for shape in blocked: site.add(shape,r.uuid,false,r.has("road_mesh"))
 	for id in buildings: obstacles.append({"id":id,"road":false,"shapes":Foot.components(buildings[id],Vector3.ZERO,Basis.IDENTITY)})
@@ -108,21 +142,41 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 	for obstacle in obstacles:
 		for shape in obstacle.shapes: site.add(shape,obstacle.id,false,obstacle.road)
 	var water_support: Array=[]
-	for gate in settings.gates:
+	var resolved_path:=preload("res://scripts/world3d/fortification_spline.gd").resolve(settings)
+	if not resolved_path.ok:return resolved_path
+	var path_settings:Dictionary=resolved_path.settings
+	for gate in path_settings.gates:
 		if gate.get("kind","land")!="water": continue
-		var i:=int(gate.segment); var a:=Vector2(settings.points[i][0],settings.points[i][1]); var b:=Vector2(settings.points[(i+1)%settings.points.size()][0],settings.points[(i+1)%settings.points.size()][1]); var d:=(b-a).normalized()
+		if settings.shape=="ellipse":
+			var ring=preload("res://scripts/world3d/fortification_ring.gd").new()
+			ring.center=Vector2(settings.center_x,settings.center_z);ring.radii=Vector2(settings.radius_x,settings.radius_z);ring.turn=-deg_to_rad(settings.rotation)
+			var angle:float=deg_to_rad(gate.angle);var delta:float=asin(gate.width*.5/ring.tangent(angle).length())
+			var a:Vector2=ring.point(angle-delta);var b:Vector2=ring.point(angle+delta)
+			water_support.append({"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle((a+b)*.5,(b-a).normalized(),-gate.width*.5,gate.width*.5,settings.thickness+2.*(ring.point(angle)-(a+b)*.5).length()+.1),"bottom":settings.base_height+gate.height})
+			continue
+		var i:=int(gate.segment); var a:=Vector2(path_settings.points[i][0],path_settings.points[i][1]); var b:=Vector2(path_settings.points[(i+1)%path_settings.points.size()][0],path_settings.points[(i+1)%path_settings.points.size()][1]); var d:=(b-a).normalized()
 		water_support.append({"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle(a.lerp(b,gate.t),d,-gate.width*.5,gate.width*.5,settings.thickness+.1),"bottom":settings.base_height+gate.height})
 	var parts: Array=[]; var checks:=0; var support_cache:={}; var issues: Array=[]
 	for r in result.records:
 		if not owner.ids.has(r.uuid) and editor._doc.has_uuid(r.uuid): return Data.fail("城墙构件 ID 冲突")
 		if not editor._authoring.Settings.contains(r,editor._authoring.settings): return Data.fail("城墙构件落在当前隔离楼层外")
+		var pier_ground:Dictionary={}
+		if str(r.fortification.part).begins_with("water_pier_"):
+			var ground:Array=world_records.filter(func(item):return item.has("terrain_mesh") or item.get("surface_id","") in ["ground","grass","dirt","stone","sand","river_bed"])
+			for item:Dictionary in ground:pier_ground[item.uuid]=true
+			var basis:=Basis.from_euler(Data.vec(r.rotation)*PI/180.)
+			for offset:Vector3 in [Vector3.ZERO,Vector3(-.5,0,-.5),Vector3(.5,0,-.5),Vector3(-.5,0,.5),Vector3(.5,0,.5)]:
+				var h:=preload("res://scripts/world_editor/bridge_tools.gd").ground_height(ground,Data.vec(r.position)+basis*(offset*Data.vec(r.size)))
+				if not is_finite(h) or r.position[1]-r.size[1]*.5>h+.01:return Data.fail("水关桥墩未完整到达河床，请增大水关墩基下延")
 		var shapes:=Foot.record_shapes(r); var valid_site:=true
 		for shape in shapes:
 			var nearby:=site.query(shape.bounds)
 			var key:=str(shape.polygon)+str(shape.bounds.position.y)
 			# Hinged leaves are suspended from the validated jamb, not supported
 			# by every point of their swing. Their swept collision is still tested.
-			if r.has("fixture"): support_cache[key]=true
+			# Pier bases were checked against the actual submerged bed above, not
+			# the dry bank's reference elevation. Hinge pins hang from these jambs.
+			if r.has("fixture") or not pier_ground.is_empty() or str(r.fortification.part).begins_with("water_hinge_"): support_cache[key]=true
 			elif not support_cache.has(key):
 				var local_support: Array=nearby.filter(func(e):return e.support).map(func(e):return e.shape.polygon)
 				for opening in water_support:
@@ -131,7 +185,7 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 			if not support_cache[key]:
 				issues.append({"ok":false,"error":"城墙构件缺少地面承托或地基下延不足："+r.fortification.part,"part":r.fortification.part,"position":r.position}); valid_site=false; break
 			for obstacle in nearby:
-				if obstacle.support or obstacle.road and r.has("fixture"): continue
+				if obstacle.support or pier_ground.has(obstacle.id) or obstacle.road and r.has("fixture"): continue
 				checks+=1
 				if checks>4000000: return Data.fail("城墙碰撞检查超过预算，请分段生成")
 				if Foot.overlaps(shape,obstacle.shape):
@@ -140,7 +194,7 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 		if issues.size()>=32: return issues[0].merged({"issues":issues})
 		if not issues.is_empty(): continue
 
-		var role: String="floor" if settings.layout_version==1 and r.fortification.role=="access_floor" else ("door" if r.has("fixture") else "stone")
+		var role: String="floor" if settings.layout_version==1 and r.fortification.role=="access_floor" else ("iron" if r.fortification.role=="water_grille" else ("door" if r.has("fixture") else "stone"))
 		if settings.style=="medieval_stone" and r.fortification.role in preload("res://scripts/world3d/fortification_art.gd").MODULES and (not r.has("channel_mesh") or r.fortification.role=="corner_tower" or r.channel_mesh.polygons.all(func(p):return p.size()==4)):
 			var module: String=r.fortification.role
 			if module=="corner_tower" and settings.shape=="ellipse": module="round_tower"
@@ -152,7 +206,7 @@ func prepare(args: Dictionary,gate_control:=false) -> Dictionary:
 			if not painted.ok: return painted
 		parts.append({"id":r.uuid,"signature":Data.token(r)})
 	if not issues.is_empty(): return issues[0].merged({"issues":issues})
-	if editor._doc.records.size()-owner.ids.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")
+	if world_records.size()-owner.ids.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")
 	result.manifest={"version":1,"settings":settings,"parts":parts}; result.excluded=owner.ids; result.plan_token=token
 	data.fortifications=regions().filter(func(r):return r.settings.id!=settings.id); data.fortifications.append(result.manifest)
 	if not Data.valid({"editor_layout":data}): return Data.fail("城墙配方未通过保存校验")
@@ -222,7 +276,7 @@ static func freeze(records:Array,manifest:Dictionary)->Dictionary:
 			floor_texture=paint_.get("material",{}).get("texture_path","")
 			if not floor_texture.is_empty():break
 		if not floor_texture.is_empty():break
-	var cleanup:=preload("res://scripts/world3d/fortification_deck_cleanup.gd").apply(result.records,manifest.settings.base_height+manifest.settings.height,floor_texture)
+	var cleanup:Dictionary={"ok":true} if manifest.settings.get("follow_terrain",false) else preload("res://scripts/world3d/fortification_deck_cleanup.gd").apply(result.records,manifest.settings.base_height+manifest.settings.height,floor_texture)
 	if not cleanup.ok:return cleanup
 	manifest.baked=true;manifest.source_part_count=records.size();manifest.parts=[]
 	for r in result.records:manifest.parts.append({"id":r.uuid,"signature":Data.token(r)})

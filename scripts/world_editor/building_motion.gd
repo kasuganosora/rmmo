@@ -3,6 +3,7 @@ extends RefCounted
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Footprint = preload("res://scripts/world_editor/building_footprint.gd")
+const ClearanceSnapshot = preload("res://scripts/world_editor/building_clearance_snapshot.gd")
 var editor: Node3D
 
 func fail(message: String) -> Dictionary:
@@ -11,9 +12,12 @@ func fail(message: String) -> Dictionary:
 
 func registry() -> Dictionary: return editor._doc.map_meta.get("building_instances",{})
 
-func expand(values: Array, allow_protected := false, skip_unavailable := false) -> Dictionary:
-	var by_id := {}; var result: Array = []; var seen := {}; var buildings := {}
-	for record in editor._doc.records: by_id[str(record.uuid)] = record
+func expand(values: Array, allow_protected := false, skip_unavailable := false, record_index: Variant = null) -> Dictionary:
+	# Optional operation-owned index; never retained across edits or undo.
+	var by_id:Dictionary=record_index if record_index!=null else {}
+	var result: Array = []; var seen := {}; var buildings := {}
+	if record_index==null:
+		for record in editor._doc.records: by_id[str(record.uuid)] = record
 	for value in values:
 		var id := str(value)
 		if not by_id.has(id):
@@ -87,11 +91,15 @@ func proposal(rows: Array, delta: Vector3, rotation: Basis, center: Vector3) -> 
 		plans.append({"id":unit.id,"value":value,"records":records,"occupancy":Footprint.components(local,origin,basis)})
 	return {"ok":true,"plans":plans}
 
-func clearance(plans: Array, excluded: Dictionary) -> Dictionary:
-	var obstacles: Array = []
-	for record in editor._doc.records:
-		if not excluded.has(record.uuid):
-			for shape in Footprint.record_shapes(record): obstacles.append({"id":record.uuid,"record":record,"shape":shape})
+func clearance(plans: Array, excluded: Dictionary, snapshot: Variant=null) -> Dictionary:
+	var occupancy_bounds := AABB()
+	var first := true
+	for plan in plans:
+		for shape in plan.occupancy:
+			occupancy_bounds=shape.bounds if first else occupancy_bounds.merge(shape.bounds); first=false
+	if snapshot==null:
+		snapshot=ClearanceSnapshot.new();snapshot.capture(editor._doc.records,excluded)
+	var obstacles:Array=snapshot.obstacles(occupancy_bounds)
 	for index in plans.size():
 		var plan: Dictionary = plans[index]
 		if Footprint.batches_overlap(plan.occupancy,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)): return {"ok":false,"error":"建筑进入禁建区或保留通道，已保留原位"}
@@ -121,12 +129,13 @@ func duplicate_selected() -> Dictionary:
 	if registry().size()+ready.units.size()>4096: return fail("地图最多包含 4096 栋生成建筑")
 	if editor._doc.records.size()+editor._selection_tools.ids.size()>100000: return fail("复制后超过地图 100000 个物件限制")
 	var bounds := Geometry.bounds(editor._selection_tools.records())
+	var snapshot:=ClearanceSnapshot.new();snapshot.capture(editor._doc.records,{})
 	# Find a nearby clear location instead of creating a copy inside the source house.
 	for ring in range(1,5):
 		for axis in [Vector3.RIGHT,Vector3.LEFT,Vector3.BACK,Vector3.FORWARD]:
 			var distance := (bounds.size.x if axis.x!=0 else bounds.size.z)+2.0
 			var prepared := proposal(ready.units,axis*distance*ring,Basis.IDENTITY,Vector3.ZERO)
-			if prepared.ok and clearance(prepared.plans,{}).ok: return commit(prepared.plans,true)
+			if prepared.ok and clearance(prepared.plans,{},snapshot).ok: return commit(prepared.plans,true)
 	return fail("附近没有能放下整栋副本的空地；请腾出空间后再复制")
 
 func commit(plans: Array, copy: bool) -> Dictionary:
@@ -149,7 +158,14 @@ func commit(plans: Array, copy: bool) -> Dictionary:
 		for index in doc.records.size():
 			if replacements.has(doc.records[index].uuid): doc.records[index]=replacements[doc.records[index].uuid]
 	doc.map_meta.building_instances=next_registry
-	editor._dirty=true; editor._rebuild(); editor._selection_tools.set_ids(selected)
+	editor._dirty=true
+	if copy:
+		editor._commit_records(selected); editor._selection_tools.set_ids(selected)
+	else:
+		# Rigid motion changes poses and recipe origins, not mesh topology. Keep
+		# unrelated terrain, assets, physics bodies and render groups alive.
+		editor._sync_selected_transform()
+		editor._selection_tools.refresh(false)
 	if editor._building_panel!=null: editor._building_panel.refresh_list()
 	return {"ok":true,"changed":true,"changed_ids":selected}
 
@@ -161,6 +177,6 @@ func remove() -> Dictionary:
 	editor._doc.checkpoint_recovery()
 	editor._doc.records=editor._doc.records.filter(func(r): return not removed.has(r.uuid))
 	for unit in ready.units: editor._doc.map_meta.building_instances.erase(unit.id)
-	editor._selection_tools.ids.clear(); editor._dirty=true; editor._rebuild()
+	editor._selection_tools.ids.clear(); editor._commit_records(removed.keys())
 	if editor._building_panel!=null: editor._building_panel.refresh_list()
 	return {"ok":true,"changed":true}

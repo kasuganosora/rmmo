@@ -9,6 +9,7 @@ func make_editor(path: String, draft_root: String) -> void:
 	editor._mcp_autostart = false
 	editor._draft_directory = draft_root
 	root.add_child(editor)
+	while editor._load_job.active: await process_frame
 	await settle()
 
 func wait_file(path: String, seconds: int = 45) -> bool:
@@ -59,7 +60,7 @@ func run() -> void:
 	probe.stop()
 	check(editor.start_mcp(port).ok, "start recovery HTTP fixture")
 	var listed := await rpc("tools/list")
-	check(listed.result.tools.size() == 118, "discovery includes draft, autosave and close tools")
+	check(listed.result.tools.size() == preload("res://scripts/world_editor/mcp_schema.gd").tools().size(), "discovery includes current draft, autosave and close tools")
 	var status := await call_tool("editor_state")
 	check(status.autosave.enabled and status.autosave.interval_seconds == 60 and not auto_accept_quit, "autosave defaults and native close guard are enabled")
 	await call_tool("configure_autosave", {"enabled": true, "interval_seconds": 15})
@@ -99,9 +100,11 @@ func run() -> void:
 	await call_tool("configure_autosave", {"enabled": true})
 	# Accelerate only the test timer; production schema retains a 15 second minimum.
 	editor._safety.timer.start(0.05)
-	await create_timer(0.3).timeout
-	check(FileAccess.get_sha256(own_file) != draft_hash and editor._safety.last_error.is_empty(), "timer saves completed changes without a manual command")
+	var autosave_deadline:=Time.get_ticks_msec()+10000
+	while FileAccess.get_sha256(own_file)==draft_hash and Time.get_ticks_msec()<autosave_deadline: await create_timer(.05).timeout
 	editor._safety.timer.start(60)
+	while editor._safety.state().active and Time.get_ticks_msec()<autosave_deadline: await process_frame
+	check(FileAccess.get_sha256(own_file) != draft_hash and editor._safety.last_error.is_empty(), "timer saves completed changes without a manual command")
 	var other := Store.new(draft_root)
 	var second: Dictionary = other.write(path, editor._doc)
 	check(second.ok and second.draft_id != draft_id, "concurrent editing sessions use independent draft files")

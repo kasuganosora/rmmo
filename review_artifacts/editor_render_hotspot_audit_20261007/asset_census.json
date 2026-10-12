@@ -1,0 +1,3862 @@
+[
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/c9c641df3c4c6f79a5d907f429a447317cf58704e2ad3dcf4b80445153363994.glb",
+    "instances": 223,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 223
+    },
+    "record_wind": {
+      "{}": 223
+    },
+    "mesh_nodes": [
+      {
+        "name": "arch_B_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.652002489566803,
+              -0.02,
+              -0.7047831177711487,
+              1.2840054750442504,
+              0.7208885192871094,
+              1.3568087935447692
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 13720,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_B_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.652002489566803,
+              -0.02,
+              -0.7047831177711487,
+              1.2840054750442504,
+              0.7208885192871094,
+              1.3568087935447692
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 7840,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_B_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.652002489566803,
+              -0.02,
+              -0.7047831177711487,
+              1.2840054750442504,
+              0.7208885192871094,
+              1.3568087935447692
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 3920,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "reference_blade_scanned_summer",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "reference_blade_scanned_summer2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 36,
+        "members_in_multiple": 214,
+        "multi_groups": 27
+      },
+      "16": {
+        "groups": 16,
+        "members_in_multiple": 223,
+        "multi_groups": 16
+      },
+      "32": {
+        "groups": 9,
+        "members_in_multiple": 223,
+        "multi_groups": 9
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/117f47a0c7206cd03bdf3fcecc3f0a0a2b9ecd64d8f96709c558c3b49be2994f.glb",
+    "instances": 206,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 206
+    },
+    "record_wind": {
+      "{}": 206
+    },
+    "mesh_nodes": [
+      {
+        "name": "arch_A_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.7323457956314087,
+              -0.02,
+              -0.6362300872802734,
+              1.3815600395202636,
+              0.6305481135845185,
+              1.3192066073417663
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 11760,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_A_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.7323457956314087,
+              -0.02,
+              -0.6362300872802734,
+              1.3815600395202636,
+              0.6305481135845185,
+              1.3192066073417663
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 6720,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_A_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.7323457956314087,
+              -0.02,
+              -0.6362300872802734,
+              1.3815600395202636,
+              0.6305481135845185,
+              1.3192066073417663
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 3360,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "reference_blade_scanned_summer",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "reference_blade_scanned_summer2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 34,
+        "members_in_multiple": 201,
+        "multi_groups": 29
+      },
+      "16": {
+        "groups": 17,
+        "members_in_multiple": 204,
+        "multi_groups": 15
+      },
+      "32": {
+        "groups": 10,
+        "members_in_multiple": 205,
+        "multi_groups": 9
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/2abd3fe0f222d1e7cf69fa26eb5a6f05e21aca2cf041beb7301bd1847bd16c15.glb",
+    "instances": 201,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 201
+    },
+    "record_wind": {
+      "{}": 201
+    },
+    "mesh_nodes": [
+      {
+        "name": "arch_C_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.7126859188079834,
+              -0.02,
+              -0.596566891670227,
+              1.3367133855819702,
+              0.5310940980911255,
+              1.1668563604354858
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 10080,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_C_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.7126859188079834,
+              -0.02,
+              -0.596566891670227,
+              1.3367133855819702,
+              0.5310940980911255,
+              1.1668563604354858
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.055,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.72
+          }
+        },
+        "primitives": 1,
+        "triangles": 5760,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "arch_C_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.7126859188079834,
+              -0.02,
+              -0.596566891670227,
+              1.3367133855819702,
+              0.5310940980911255,
+              1.1668563604354858
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 2880,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "reference_blade_scanned_summer",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "reference_blade_scanned_summer2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 31,
+        "members_in_multiple": 197,
+        "multi_groups": 27
+      },
+      "16": {
+        "groups": 16,
+        "members_in_multiple": 200,
+        "multi_groups": 15
+      },
+      "32": {
+        "groups": 9,
+        "members_in_multiple": 201,
+        "multi_groups": 9
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/2528503a4824b0b98a9ea280ac6bdfef09f1a899a4e6c74611025d7ea8efdea1.glb",
+    "instances": 41,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 41
+    },
+    "record_wind": {
+      "{}": 41
+    },
+    "mesh_nodes": [
+      {
+        "name": "short_C_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.5279202818870544,
+              -0.01994425437398604,
+              -0.5418578147888183,
+              1.040833485126495,
+              0.3558450128788536,
+              1.0459112346172332
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 6910,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_C_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.5279202818870544,
+              -0.01994425437398604,
+              -0.5418578147888183,
+              1.040833485126495,
+              0.3558450128788536,
+              1.0459112346172332
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 3109,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_C_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.5279202818870544,
+              -0.01994425437398604,
+              -0.5418578147888183,
+              1.040833485126495,
+              0.3558450128788536,
+              1.0459112346172332
+            ],
+            "end": 55.0
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 1381,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "short_game_2K_002",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "short_game_2K_0022",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 16,
+        "members_in_multiple": 36,
+        "multi_groups": 11
+      },
+      "16": {
+        "groups": 11,
+        "members_in_multiple": 38,
+        "multi_groups": 8
+      },
+      "32": {
+        "groups": 6,
+        "members_in_multiple": 40,
+        "multi_groups": 5
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/f265495a6c0e4481b35140aeb54827e40ea63f20752775214e5e8087c5092b30.glb",
+    "instances": 39,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 39
+    },
+    "record_wind": {
+      "{}": 39
+    },
+    "mesh_nodes": [
+      {
+        "name": "short_B_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.48503545522689817,
+              -0.01983365427760873,
+              -0.49711752533912656,
+              1.05739067196846,
+              0.35262428712158,
+              0.982001346349716
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 2886,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_B_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.48503545522689817,
+              -0.01983365427760873,
+              -0.49711752533912656,
+              1.05739067196846,
+              0.35262428712158,
+              0.982001346349716
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 1298,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_B_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.48503545522689817,
+              -0.01983365427760873,
+              -0.49711752533912656,
+              1.05739067196846,
+              0.35262428712158,
+              0.982001346349716
+            ],
+            "end": 55.0
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 577,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "short_game_2K_001",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "short_game_2K_0012",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 20,
+        "members_in_multiple": 31,
+        "multi_groups": 12
+      },
+      "16": {
+        "groups": 13,
+        "members_in_multiple": 36,
+        "multi_groups": 10
+      },
+      "32": {
+        "groups": 8,
+        "members_in_multiple": 38,
+        "multi_groups": 7
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/f308819058f9a51e8fecb41b24ac839073153f48481979af18c73c273199a2c9.glb",
+    "instances": 33,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "block": 33
+    },
+    "record_wind": {
+      "{}": 33
+    },
+    "mesh_nodes": [
+      {
+        "name": "StreetlampOpaque",
+        "extras": {
+          "slot": 0.0
+        },
+        "primitives": 2,
+        "triangles": 1888,
+        "materials": [
+          14,
+          15
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "BannerCloth",
+        "extras": {
+          "rmmo_banner_slot": true,
+          "slot": 2.0
+        },
+        "primitives": 2,
+        "triangles": 1048,
+        "materials": [
+          16,
+          17
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "LanternGlass",
+        "extras": {
+          "slot": 4.0
+        },
+        "primitives": 1,
+        "triangles": 8,
+        "materials": [
+          18
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "ArcaneCrystal",
+        "extras": {
+          "slot": 5.0
+        },
+        "primitives": 2,
+        "triangles": 32,
+        "materials": [
+          19,
+          20
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "Blackened bronze",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Rubbed brass edges",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oxblood woven cloth",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Gold thread",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Smoky glass",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane blue crystal",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane crystal heart",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Blackened bronze2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Rubbed brass edges2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oxblood woven cloth2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Gold thread2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Smoky glass2",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane blue crystal2",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane crystal heart2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Blackened bronze22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Rubbed brass edges22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oxblood woven cloth22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Gold thread22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Smoky glass22",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane blue crystal22",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Arcane crystal heart22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 33,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 27,
+        "members_in_multiple": 12,
+        "multi_groups": 6
+      },
+      "32": {
+        "groups": 14,
+        "members_in_multiple": 30,
+        "multi_groups": 11
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/5beaac048f0176d57c6ca06e0d136f87c64d0b46ec93c378f2a637aceeafef45.glb",
+    "instances": 26,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 26
+    },
+    "record_wind": {
+      "{}": 26
+    },
+    "mesh_nodes": [
+      {
+        "name": "Metal",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 3372,
+        "materials": [
+          4
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "CandleWarm",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_small_wall_lantern": true
+        },
+        "primitives": 1,
+        "triangles": 168,
+        "materials": [
+          5
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Goods",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 60,
+        "materials": [
+          6
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Glass",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 72,
+        "materials": [
+          7
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "small_wall_lantern_Metal_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "CandleWarm2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "small_wall_lantern_Goods_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Slightly aged lantern glass",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "small_wall_lantern_Metal_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "CandleWarm3",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "small_wall_lantern_Goods_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Slightly aged lantern glass2",
+        "alphaMode": "BLEND",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 26,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 22,
+        "members_in_multiple": 8,
+        "multi_groups": 4
+      },
+      "32": {
+        "groups": 10,
+        "members_in_multiple": 23,
+        "multi_groups": 7
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/2f8f54540c3d123fa16f65ad9397024d75b2f0aab24f3949c5c6159ca6d6c7dd.glb",
+    "instances": 23,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "walk": 23
+    },
+    "record_wind": {
+      "{}": 23
+    },
+    "mesh_nodes": [
+      {
+        "name": "kerb_straight_1",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 1700,
+        "materials": [
+          2
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "Weathered light stone - Quixel Beach Cliff",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Weathered light stone - Quixel Beach Cliff2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Weathered light stone - Quixel Beach Cliff22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 19,
+        "members_in_multiple": 7,
+        "multi_groups": 3
+      },
+      "16": {
+        "groups": 13,
+        "members_in_multiple": 16,
+        "multi_groups": 6
+      },
+      "32": {
+        "groups": 7,
+        "members_in_multiple": 21,
+        "multi_groups": 5
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/8c3d70c856bd1f047c4e0a73e6c1dc72ec2edf3129a25f6aa69c1535ec924c71.glb",
+    "instances": 19,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 19
+    },
+    "record_wind": {
+      "{}": 19
+    },
+    "mesh_nodes": [
+      {
+        "name": "Structure",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 9426,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "town_planters_02_window_flowers_Structure_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_planters_02_window_flowers_Structure_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 19,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 18,
+        "members_in_multiple": 2,
+        "multi_groups": 1
+      },
+      "32": {
+        "groups": 9,
+        "members_in_multiple": 17,
+        "multi_groups": 7
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/c9e7a4d4ba7aa73ffb4a09b0dd9a3e5c19e19c707f6fbfcadbfe6073c46837bb.glb",
+    "instances": 11,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 11
+    },
+    "record_wind": {
+      "{}": 11
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_A_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.3773621976375579,
+              -0.02,
+              -0.37217373251914976,
+              0.7304755866527557,
+              0.5587309241294861,
+              0.6901195168495178
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 2820,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_A_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.3773621976375579,
+              -0.02,
+              -0.37217373251914976,
+              0.7304755866527557,
+              0.5587309241294861,
+              0.6901195168495178
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 1202,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_A_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.3773621976375579,
+              -0.02,
+              -0.37217373251914976,
+              0.7304755866527557,
+              0.5587309241294861,
+              0.6901195168495178
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 805,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 9,
+        "members_in_multiple": 4,
+        "multi_groups": 2
+      },
+      "16": {
+        "groups": 7,
+        "members_in_multiple": 7,
+        "multi_groups": 3
+      },
+      "32": {
+        "groups": 6,
+        "members_in_multiple": 9,
+        "multi_groups": 4
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/308166ed85d0b11149c120eab53211d90f90e8fee569c434d58a920b289dcd2b.glb",
+    "instances": 11,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 11
+    },
+    "record_wind": {
+      "{}": 11
+    },
+    "mesh_nodes": [
+      {
+        "name": "short_A_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.5343385994434356,
+              -0.01987961385340895,
+              -0.5036517739295959,
+              1.0510195910930633,
+              0.38250576887221543,
+              1.0491683900356292
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 13142,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_A_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.5343385994434356,
+              -0.01987961385340895,
+              -0.5036517739295959,
+              1.0510195910930633,
+              0.38250576887221543,
+              1.0491683900356292
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 5913,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "short_A_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.5343385994434356,
+              -0.01987961385340895,
+              -0.5036517739295959,
+              1.0510195910930633,
+              0.38250576887221543,
+              1.0491683900356292
+            ],
+            "end": 55.0
+          },
+          "source_fab": "70b6ac17-a842-48d9-81e4-41f80fe160d9"
+        },
+        "primitives": 1,
+        "triangles": 2627,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "short_game_2K",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "short_game_2K2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 7,
+        "members_in_multiple": 6,
+        "multi_groups": 2
+      },
+      "16": {
+        "groups": 7,
+        "members_in_multiple": 6,
+        "multi_groups": 2
+      },
+      "32": {
+        "groups": 5,
+        "members_in_multiple": 8,
+        "multi_groups": 2
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/893bd73c8c9a4a63bc67ce46958e20ac0f5e6b48797ae5d541a2b2641f4135ce.glb",
+    "instances": 7,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 7
+    },
+    "record_wind": {
+      "{}": 7
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_D_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.25587314963340757,
+              -0.02,
+              -0.3431984394788742,
+              0.5587591797113418,
+              0.422089034318924,
+              0.6146967977285385
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 2387,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_D_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.25587314963340757,
+              -0.02,
+              -0.3431984394788742,
+              0.5587591797113418,
+              0.422089034318924,
+              0.6146967977285385
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 978,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_D_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.25587314963340757,
+              -0.02,
+              -0.3431984394788742,
+              0.5587591797113418,
+              0.422089034318924,
+              0.6146967977285385
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 660,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_003",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0032",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 6,
+        "members_in_multiple": 2,
+        "multi_groups": 1
+      },
+      "16": {
+        "groups": 5,
+        "members_in_multiple": 3,
+        "multi_groups": 1
+      },
+      "32": {
+        "groups": 4,
+        "members_in_multiple": 4,
+        "multi_groups": 1
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/6df0af808d7a385d6b6ee60e4ae696d940adb32dfc64572810765b12a319e500.glb",
+    "instances": 6,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 6
+    },
+    "record_wind": {
+      "{}": 6
+    },
+    "mesh_nodes": [
+      {
+        "name": "Structure",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 1584,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "bridge_street_kit_08_low_garden_wall_Structure_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "bridge_street_kit_08_low_garden_wall_Structure_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 3,
+        "members_in_multiple": 5,
+        "multi_groups": 2
+      },
+      "16": {
+        "groups": 3,
+        "members_in_multiple": 5,
+        "multi_groups": 2
+      },
+      "32": {
+        "groups": 3,
+        "members_in_multiple": 5,
+        "multi_groups": 2
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/91ce39fb03f6dbd97936cedaeedb92ad85841a28d8b5635d1f960d261013e10d.glb",
+    "instances": 3,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 3
+    },
+    "record_wind": {
+      "{}": 3
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_C_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.3407858073711395,
+              -0.02,
+              -0.3507027685642242,
+              0.6963845014572143,
+              0.30436993539333346,
+              0.6755792021751403
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 6802,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_C_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.3407858073711395,
+              -0.02,
+              -0.3507027685642242,
+              0.6963845014572143,
+              0.30436993539333346,
+              0.6755792021751403
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 2780,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_C_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.3407858073711395,
+              -0.02,
+              -0.3507027685642242,
+              0.6963845014572143,
+              0.30436993539333346,
+              0.6755792021751403
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 977,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_002",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0022",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/537fe3a8b1327303dda2f0874afb5ef9495361872677bee5d8c1c11035e31df8.glb",
+    "instances": 3,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 3
+    },
+    "record_wind": {
+      "{}": 3
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_H_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.195790296792984,
+              -0.02,
+              -0.24577357470989228,
+              0.3905218660831451,
+              0.26523863673210146,
+              0.4633533924818039
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 2502,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_H_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.195790296792984,
+              -0.02,
+              -0.24577357470989228,
+              0.3905218660831451,
+              0.26523863673210146,
+              0.4633533924818039
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 973,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_H_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.195790296792984,
+              -0.02,
+              -0.24577357470989228,
+              0.3905218660831451,
+              0.26523863673210146,
+              0.4633533924818039
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 732,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_007",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0072",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 3,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/3f3d82982e18c11218aa214d4dc6d811b5c0c1ed5eb0cca34725169240ad7fd2.glb",
+    "instances": 2,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 2
+    },
+    "record_wind": {
+      "{}": 2
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_F_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.2698353588581085,
+              -0.02,
+              -0.22238628417253495,
+              0.48921768814325334,
+              0.3065222293138504,
+              0.48775262087583543
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 3720,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_F_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.2698353588581085,
+              -0.02,
+              -0.22238628417253495,
+              0.48921768814325334,
+              0.3065222293138504,
+              0.48775262087583543
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 1852,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_F_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.2698353588581085,
+              -0.02,
+              -0.22238628417253495,
+              0.48921768814325334,
+              0.3065222293138504,
+              0.48775262087583543
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 1482,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_005",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0052",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/79b1fdffa5762148eb14fa0770b53e6b229f319f8022951a34338764d7692a34.glb",
+    "instances": 2,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 2
+    },
+    "record_wind": {
+      "{}": 2
+    },
+    "mesh_nodes": [
+      {
+        "name": "PostBody",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 1244,
+        "materials": [
+          2
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "GoldSilk",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 3968,
+        "materials": [
+          3
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "town_festival_posts_POST_blue_PostBody_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_blue_GoldSilk_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_blue_PostBody_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_blue_GoldSilk_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/cache/world3d/bridge_street_finish_20261006/assets/ca443721d86d712acc2627f25fd4cdc1755584d7057ae008b770627d4db969e1.glb",
+    "instances": 2,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "none": 2
+    },
+    "record_wind": {
+      "{}": 2
+    },
+    "mesh_nodes": [
+      {
+        "name": "Structure",
+        "extras": {
+          "rmmo_collision": "none"
+        },
+        "primitives": 1,
+        "triangles": 576,
+        "materials": [
+          12
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_00",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          13
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_01",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          14
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_02",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          15
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_03",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          16
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_04",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          17
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_05",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          13
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_06",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          14
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_07",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          15
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Bridge_Long_Pennant_08",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.18,
+            "anchor": "top",
+            "mesh": "*",
+            "profile": "cloth",
+            "shelter": true,
+            "stiffness": 0.35
+          }
+        },
+        "primitives": 1,
+        "triangles": 1696,
+        "materials": [
+          16
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "town_festival_posts_bunting_Structure_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 1_runtime_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 2_runtime_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 3_runtime_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 4_runtime_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 5_runtime_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Structure_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 1_runtime_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 2_runtime_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 3_runtime_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 4_runtime_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 5_runtime_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Structure_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 1_runtime_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 2_runtime_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 3_runtime_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 4_runtime_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_bunting_Hanging pennant 5_runtime_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/9ba5457e2bb349c03d56b3ebd7c4c54ea9862fb507408fd4cc517a1daa08dd01.glb",
+    "instances": 2,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 2
+    },
+    "record_wind": {
+      "{}": 2
+    },
+    "mesh_nodes": [
+      {
+        "name": "Oak_Trunk",
+        "extras": {
+          "rmmo_collision": "block",
+          "rmmo_leaf_backlight": [
+            0.0
+          ]
+        },
+        "primitives": 1,
+        "triangles": 16263,
+        "materials": [
+          4
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Oak_Canopy_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_leaf_backlight": [
+            0.0,
+            0.14
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -4.652669143676758,
+              0.0,
+              -5.048167419433594,
+              8.804447555541993,
+              8.859349060058594,
+              9.986024761199952
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.9
+          }
+        },
+        "primitives": 2,
+        "triangles": 207169,
+        "materials": [
+          4,
+          5
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Oak_Canopy_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_leaf_backlight": [
+            0.14
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -4.652669143676758,
+              0.0,
+              -5.048167419433594,
+              8.804447555541993,
+              8.859349060058594,
+              9.986024761199952
+            ],
+            "end": 65.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.045,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.9
+          }
+        },
+        "primitives": 1,
+        "triangles": 64368,
+        "materials": [
+          5
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "Oak_Canopy_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_leaf_backlight": [
+            0.14
+          ],
+          "rmmo_visibility_range": {
+            "begin": 65.0,
+            "bounds": [
+              -4.652669143676758,
+              0.0,
+              -5.048167419433594,
+              8.804447555541993,
+              8.859349060058594,
+              9.986024761199952
+            ],
+            "end": 180.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 21456,
+        "materials": [
+          5
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "Oak_Bark_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oak game leaf PBR",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oak_Bark_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oak game leaf PBR2",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oak_Bark_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Oak game leaf PBR22",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 2,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/0c878137336c170215ee1e9222e4abf1bd0e11dfd54abc313e0e58036e4f88d1.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_E_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.292852646112442,
+              -0.02,
+              -0.3298615574836731,
+              0.6058429896831512,
+              0.33135084211826327,
+              0.5603820651769638
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 1377,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_E_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.292852646112442,
+              -0.02,
+              -0.3298615574836731,
+              0.6058429896831512,
+              0.33135084211826327,
+              0.5603820651769638
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 568,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_E_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.292852646112442,
+              -0.02,
+              -0.3298615574836731,
+              0.6058429896831512,
+              0.33135084211826327,
+              0.5603820651769638
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 380,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_004",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0042",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/ad5d496914e334c501916adb4923e4aabf4c51fcc744d1a59bf47c275c7b29f6.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_B_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.3488238513469696,
+              -0.02,
+              -0.35226640701293943,
+              0.7459795594215393,
+              0.3218018501996994,
+              0.7412510335445404
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 11874,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_B_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.3488238513469696,
+              -0.02,
+              -0.35226640701293943,
+              0.7459795594215393,
+              0.3218018501996994,
+              0.7412510335445404
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 2323,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_B_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.3488238513469696,
+              -0.02,
+              -0.35226640701293943,
+              0.7459795594215393,
+              0.3218018501996994,
+              0.7412510335445404
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 842,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_001",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0012",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/24ac85deab31801b21e39b7a99c1bca58902b32bdbecd4607250390a19d3ac17.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "collision",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "uuid"
+    ],
+    "collision": {
+      "none": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "wild_G_LOD0",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 0.0,
+            "bounds": [
+              -0.21073920875787736,
+              -0.02,
+              -0.21963793635368348,
+              0.45377153605222703,
+              0.26197643727064135,
+              0.39661425054073335
+            ],
+            "end": 12.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          },
+          "source_fab": "50d9a417-73ed-4132-9421-6be3d4f7432e"
+        },
+        "primitives": 1,
+        "triangles": 2045,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_G_LOD1",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 12.0,
+            "bounds": [
+              -0.21073920875787736,
+              -0.02,
+              -0.21963793635368348,
+              0.45377153605222703,
+              0.26197643727064135,
+              0.39661425054073335
+            ],
+            "end": 25.0
+          },
+          "rmmo_wind": {
+            "amplitude": 0.075,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.65
+          }
+        },
+        "primitives": 1,
+        "triangles": 848,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "wild_G_LOD2",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_grass": true,
+          "rmmo_leaf_backlight": [
+            0.18
+          ],
+          "rmmo_visibility_range": {
+            "begin": 25.0,
+            "bounds": [
+              -0.21073920875787736,
+              -0.02,
+              -0.21963793635368348,
+              0.45377153605222703,
+              0.26197643727064135,
+              0.39661425054073335
+            ],
+            "end": 55.0
+          }
+        },
+        "primitives": 1,
+        "triangles": 576,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "wild_game_2K_006",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "wild_game_2K_0062",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/c20c78874ba2a1693d2d474f43d0ea8bc47958fa08b610e3b703e5570883a6ad.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "GoldSilk",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 3968,
+        "materials": [
+          2
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "PostBody",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 1244,
+        "materials": [
+          3
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "town_festival_posts_POST_natural_GoldSilk_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_PostBody_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_GoldSilk_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_PostBody_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/cache/world3d/bridge_street_finish_20261006/assets/58270ecbcd881db4931cb4e7ad555687f8a5129a2c79d5fe541654e697ec4de9.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "GoldSilk",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 3968,
+        "materials": [
+          4
+        ],
+        "skin": null,
+        "morph": false
+      },
+      {
+        "name": "PostBody",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 1244,
+        "materials": [
+          5
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "town_festival_posts_POST_natural_GoldSilk_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_PostBody_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_GoldSilk_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Painted green timber; original wood normal and roughness",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "town_festival_posts_POST_natural_GoldSilk_PBR22",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Painted green timber; original wood normal and roughness2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/a83439c92591bafe32ae33090073316ed0a95bc3f3a5c85e7ce55b9314580216.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "Structure",
+        "extras": {},
+        "primitives": 1,
+        "triangles": 4424,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "bridge_street_kit_10_laundry_line_Structure_PBR",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "bridge_street_kit_10_laundry_line_Structure_PBR2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/packs/default/assets/06d99753370dbfae156f75133e0980faaf035002e10978d789e0f22ea467b889.glb",
+    "instances": 1,
+    "record_keys": [
+      "asset_path",
+      "bounds_position",
+      "bounds_size",
+      "category",
+      "editor_group",
+      "editor_group_name",
+      "kind",
+      "label",
+      "position",
+      "rotation",
+      "size",
+      "surface_id",
+      "uuid"
+    ],
+    "collision": {
+      "missing": 1
+    },
+    "record_wind": {
+      "{}": 1
+    },
+    "mesh_nodes": [
+      {
+        "name": "Foliage",
+        "extras": {
+          "rmmo_collision": "none",
+          "rmmo_wind": {
+            "amplitude": 0.08,
+            "anchor": "bottom",
+            "mesh": "*",
+            "profile": "foliage",
+            "shelter": true,
+            "stiffness": 0.8
+          }
+        },
+        "primitives": 1,
+        "triangles": 3674,
+        "materials": [
+          1
+        ],
+        "skin": null,
+        "morph": false
+      }
+    ],
+    "materials": [
+      {
+        "name": "Quixel Boxwood rjepadp2 - scanned branches_001",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      },
+      {
+        "name": "Quixel Boxwood rjepadp2 - scanned branches_0012",
+        "alphaMode": "MASK",
+        "doubleSided": true,
+        "extensions": {}
+      }
+    ],
+    "animations": 0,
+    "cell_candidates": {
+      "8": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "16": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      },
+      "32": {
+        "groups": 1,
+        "members_in_multiple": 0,
+        "multi_groups": 0
+      }
+    }
+  }
+]

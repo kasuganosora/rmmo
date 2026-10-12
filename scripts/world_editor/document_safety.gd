@@ -11,6 +11,10 @@ var last_error := ""
 var prompt: ConfirmationDialog
 var _close_window := true
 var _auto_quit_before := true
+var _draft_thread: Thread
+var _draft_prepared := {}
+var _discard_pending := false
+var _preparing := false
 
 func setup(owner: Node3D) -> void:
 	editor = owner
@@ -26,11 +30,16 @@ func setup(owner: Node3D) -> void:
 	call_deferred("refresh_notice")
 
 func _exit_tree() -> void:
+	if _draft_thread!=null and _draft_thread.is_started():
+		_draft_thread.wait_to_finish()
+		if _discard_pending: store.discard(store.own_id(_draft_prepared.map_path))
+		_draft_thread=null; _draft_prepared.clear()
 	if get_tree() == null: return
 	if get_tree().root.close_requested.is_connected(request_exit.bind(true)): get_tree().root.close_requested.disconnect(request_exit.bind(true))
 	get_tree().auto_accept_quit = _auto_quit_before
 
 func busy() -> bool:
+	if _preparing or _draft_thread!=null: return true
 	if editor.saving(): return true
 	if editor._terrain_brush!=null and editor._terrain_brush.pointer_down: return true
 	if editor._city.busy(): return true
@@ -41,7 +50,7 @@ func busy() -> bool:
 	return editor._transform_drag.active or editor._auto_stroke.active or editor._stroke._open or editor._selection_tools.marquee or editor._placement_tools.active or editor.get_viewport().gui_get_focus_owner() is LineEdit
 
 func state() -> Dictionary:
-	return {"enabled": enabled, "interval_seconds": interval_seconds, "last_saved_at": last_saved_at, "last_error": last_error, "close_pending": is_instance_valid(prompt) and prompt.visible}
+	return {"enabled": enabled, "active":_preparing or _draft_thread!=null,"interval_seconds": interval_seconds, "last_saved_at": last_saved_at, "last_error": last_error, "close_pending": is_instance_valid(prompt) and prompt.visible}
 
 func configure(on: bool, interval: float) -> Dictionary:
 	if not is_finite(interval) or interval < 15 or interval > 600: return Store.fail("自动草稿间隔须为 15–600 秒")
@@ -54,8 +63,39 @@ func configure(on: bool, interval: float) -> Dictionary:
 
 func tick() -> void:
 	if not enabled or not editor._dirty or editor._load_failed or busy() or (is_instance_valid(prompt) and prompt.visible): return
-	var result := save_draft()
-	if not result.ok: editor._status.text = str(result.error)
+	_draft_prepared=store.snapshot(editor._path,editor._doc)
+	if not _draft_prepared.ok:
+		last_error=_draft_prepared.error; editor._status.text=last_error; _draft_prepared.clear(); return
+	_discard_pending=false; _preparing=true; _validate_and_encode.call_deferred()
+
+func _validate_and_encode() -> void:
+	var issue: String=Store.validate_meta(_draft_prepared.state)
+	var ids:={}; var slice:=Time.get_ticks_usec()
+	if issue.is_empty():
+		for record in _draft_prepared.state.records:
+			issue=Store.validate_record(record,_draft_prepared.state,ids)
+			if not issue.is_empty(): break
+			if Time.get_ticks_usec()-slice>=4000:
+				await get_tree().process_frame; slice=Time.get_ticks_usec()
+	if issue.is_empty(): issue=Store.validate_ownership(_draft_prepared.state)
+	_preparing=false
+	if not issue.is_empty():
+		last_error=issue; _draft_prepared.clear(); editor._status.text=last_error; return
+	if _discard_pending: _draft_prepared.clear(); return
+	_draft_thread=Thread.new()
+	var err:=_draft_thread.start(store.encode_and_publish.bind(_draft_prepared,Store.Paths.external_root()),Thread.PRIORITY_LOW)
+	if err!=OK:
+		_draft_thread=null; _draft_prepared.clear(); last_error="无法启动草稿保存："+error_string(err)
+
+func _process(_dt: float) -> void:
+	if _draft_thread==null or _draft_thread.is_alive(): return
+	var result: Dictionary=_draft_thread.wait_to_finish(); _draft_thread=null
+	if _discard_pending: result=store.discard(store.own_id(_draft_prepared.map_path))
+	_draft_prepared.clear()
+	if result.ok:
+		last_saved_at=float(result.get("saved_at",last_saved_at)); last_error=""; refresh_notice()
+	else:
+		last_error=result.error; editor._status.text=last_error
 
 func save_draft() -> Dictionary:
 	if busy(): return Store.fail("请先结束当前操作或文字输入，再保存草稿")
@@ -69,12 +109,14 @@ func save_draft() -> Dictionary:
 	return result
 
 func saved(previous_path: String) -> void:
+	if not _draft_prepared.is_empty() and Store.canonical(previous_path)==_draft_prepared.map_path: _discard_pending=true
 	var result: Dictionary = store.discard(store.own_id(previous_path))
 	if not result.ok: last_error = str(result.error)
 	refresh_notice()
 
 func refresh_notice() -> void:
-	var found: Dictionary = store.list_drafts(0, 1)
+	# The badge only needs the count, not source signatures or recovery metadata.
+	var found: Dictionary = store.list_drafts(0, 0)
 	if editor._recovery_button == null: return
 	var count := int(found.get("total", 0))
 	editor._recovery_button.visible = count > 0
@@ -108,6 +150,7 @@ func restore(id: String, discard_changes: bool = false) -> Dictionary:
 	return {"ok": true, "map_path": path, "source_changed": changed, "undoable": same, "missing_assets": editor._doc.missing_assets()}
 
 func discard(id: String) -> Dictionary:
+	if not _draft_prepared.is_empty() and id==store.own_id(_draft_prepared.map_path): return Store.fail("草稿正在保存，请稍后再删除")
 	var result: Dictionary = store.discard(id)
 	refresh_notice()
 	return result

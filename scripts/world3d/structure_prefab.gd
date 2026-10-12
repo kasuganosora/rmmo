@@ -14,7 +14,11 @@ static func fortification(records:Array)->Dictionary:
 		# Spatial render groups do not change world streaming cells. Keep towers'
 		# semantic centers for automatic layout, and every hinge as a separate leaf.
 		var tower:bool=r.fortification.role in ["tower_stair","corner_tower"]
-		var key:=str([floori(p.x/32),floori(p.z/32),r.get("collision","block"),r.get("fixture",{}).get("id",""),r.get("fixture",{}).get("angle",0),r.uuid if tower else ""])
+		var hinge_key:Array=[]
+		if r.has("fixture"):
+			var closed:=Transform3D(Basis.from_euler(Frozen.vec(r.rotation)*PI/180),p)
+			hinge_key=Frozen.arr((closed*Frozen.vec(r.fixture.pivot)).snapped(Vector3.ONE*.0001))
+		var key:=str([floori(p.x/32),floori(p.z/32),r.get("collision","block"),r.get("fixture",{}).get("id",""),r.get("fixture",{}).get("angle",0),hinge_key,r.uuid if tower else ""])
 		if not groups.has(key):groups[key]=groups.size()
 		var group:int=groups[key]
 		if tower:centers[group]=[p.x,p.z]

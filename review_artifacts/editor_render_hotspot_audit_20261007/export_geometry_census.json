@@ -1,0 +1,275 @@
+{
+  "note": "Export JSON geometry census, not runtime visibility/draws. Before generated shared batches, wind overrides, shadows and screen culling. Mesh references counted per node, not unique resources.",
+  "groups": {
+    "frozen_building_fixture": {
+      "mesh_nodes": 1338,
+      "surfaces": 3833,
+      "alpha_OPAQUE": 2966,
+      "alpha_BLEND": 867
+    },
+    "imported_asset": {
+      "mesh_nodes": 2572,
+      "surfaces": 2673,
+      "alpha_OPAQUE": 298,
+      "alpha_BLEND": 92,
+      "alpha_MASK": 2283
+    },
+    "road_mesh": {
+      "mesh_nodes": 784,
+      "surfaces": 1578,
+      "alpha_OPAQUE": 1578
+    },
+    "frozen_building_shell": {
+      "mesh_nodes": 245,
+      "surfaces": 1284,
+      "alpha_OPAQUE": 1241,
+      "alpha_BLEND": 43
+    },
+    "frozen_building_floor": {
+      "mesh_nodes": 340,
+      "surfaces": 1020,
+      "alpha_OPAQUE": 1020
+    },
+    "building": {
+      "mesh_nodes": 230,
+      "surfaces": 920,
+      "alpha_OPAQUE": 920
+    },
+    "frozen_fortification": {
+      "mesh_nodes": 271,
+      "surfaces": 589,
+      "alpha_OPAQUE": 589
+    },
+    "channel_mesh": {
+      "mesh_nodes": 162,
+      "surfaces": 324,
+      "alpha_OPAQUE": 324
+    },
+    "frozen_building_roof": {
+      "mesh_nodes": 77,
+      "surfaces": 278,
+      "alpha_OPAQUE": 278
+    },
+    "terrain_mesh": {
+      "mesh_nodes": 49,
+      "surfaces": 120,
+      "alpha_OPAQUE": 120
+    },
+    "frozen_bridge": {
+      "mesh_nodes": 5,
+      "surfaces": 15,
+      "alpha_OPAQUE": 15
+    },
+    "rock_bank": {
+      "mesh_nodes": 4,
+      "surfaces": 8,
+      "alpha_OPAQUE": 8
+    }
+  },
+  "samples": {
+    "terrain_mesh": [
+      {
+        "name": "town_terrain_0_0",
+        "surfaces": 3,
+        "record": "town_terrain_0_0"
+      },
+      {
+        "name": "town_terrain_1_0",
+        "surfaces": 3,
+        "record": "town_terrain_1_0"
+      },
+      {
+        "name": "town_terrain_2_0",
+        "surfaces": 3,
+        "record": "town_terrain_2_0"
+      }
+    ],
+    "road_mesh": [
+      {
+        "name": "town_road_0_0_0",
+        "surfaces": 2,
+        "record": "town_road_0_0_0"
+      },
+      {
+        "name": "town_road_0_17_0",
+        "surfaces": 2,
+        "record": "town_road_0_17_0"
+      },
+      {
+        "name": "town_road_0_1_0",
+        "surfaces": 2,
+        "record": "town_road_0_1_0"
+      }
+    ],
+    "channel_mesh": [
+      {
+        "name": "town_water_-6_-22",
+        "surfaces": 2,
+        "record": "town_water_-6_-22"
+      },
+      {
+        "name": "town_water_-5_-22",
+        "surfaces": 2,
+        "record": "town_water_-5_-22"
+      },
+      {
+        "name": "town_water_-6_-21",
+        "surfaces": 2,
+        "record": "town_water_-6_-21"
+      }
+    ],
+    "frozen_bridge": [
+      {
+        "name": "stone_e_40a43beda870db87",
+        "surfaces": 3,
+        "record": "stone_e_40a43beda870db87"
+      },
+      {
+        "name": "stone_e_6cb908c1743783cd",
+        "surfaces": 3,
+        "record": "stone_e_6cb908c1743783cd"
+      },
+      {
+        "name": "stone_e_0be972769041dbc9",
+        "surfaces": 3,
+        "record": "stone_e_0be972769041dbc9"
+      }
+    ],
+    "frozen_fortification": [
+      {
+        "name": "fort_53234bfb77f0d0eb_baked_0",
+        "surfaces": 2,
+        "record": "fort_53234bfb77f0d0eb_baked_0"
+      },
+      {
+        "name": "fort_53234bfb77f0d0eb_baked_1",
+        "surfaces": 4,
+        "record": "fort_53234bfb77f0d0eb_baked_1"
+      },
+      {
+        "name": "fort_53234bfb77f0d0eb_baked_2",
+        "surfaces": 2,
+        "record": "fort_53234bfb77f0d0eb_baked_2"
+      }
+    ],
+    "building": [
+      {
+        "name": "obj_3081",
+        "surfaces": 4,
+        "record": "obj_3081"
+      },
+      {
+        "name": "obj_3082",
+        "surfaces": 4,
+        "record": "obj_3082"
+      },
+      {
+        "name": "obj_3083",
+        "surfaces": 4,
+        "record": "obj_3083"
+      }
+    ],
+    "frozen_building_floor": [
+      {
+        "name": "obj_3085",
+        "surfaces": 3,
+        "record": "obj_3085"
+      },
+      {
+        "name": "obj_3107",
+        "surfaces": 3,
+        "record": "obj_3107"
+      },
+      {
+        "name": "obj_3108",
+        "surfaces": 3,
+        "record": "obj_3108"
+      }
+    ],
+    "frozen_building_shell": [
+      {
+        "name": "obj_3086",
+        "surfaces": 10,
+        "record": "obj_3086"
+      },
+      {
+        "name": "obj_3111",
+        "surfaces": 7,
+        "record": "obj_3111"
+      },
+      {
+        "name": "obj_3141",
+        "surfaces": 3,
+        "record": "obj_3141"
+      }
+    ],
+    "frozen_building_fixture": [
+      {
+        "name": "obj_3087",
+        "surfaces": 2,
+        "record": "obj_3087"
+      },
+      {
+        "name": "obj_3088",
+        "surfaces": 3,
+        "record": "obj_3088"
+      },
+      {
+        "name": "obj_3089",
+        "surfaces": 3,
+        "record": "obj_3089"
+      }
+    ],
+    "frozen_building_roof": [
+      {
+        "name": "obj_3142",
+        "surfaces": 4,
+        "record": "obj_3142"
+      },
+      {
+        "name": "obj_3157",
+        "surfaces": 4,
+        "record": "obj_3157"
+      },
+      {
+        "name": "obj_3190",
+        "surfaces": 4,
+        "record": "obj_3190"
+      }
+    ],
+    "imported_asset": [
+      {
+        "name": "StreetlampOpaque",
+        "surfaces": 2,
+        "record": "obj_4021"
+      },
+      {
+        "name": "BannerCloth",
+        "surfaces": 2,
+        "record": "obj_4021"
+      },
+      {
+        "name": "LanternGlass",
+        "surfaces": 1,
+        "record": "obj_4021"
+      }
+    ],
+    "rock_bank": [
+      {
+        "name": "bridge_reference_bank_0",
+        "surfaces": 2,
+        "record": "bridge_reference_bank_0"
+      },
+      {
+        "name": "bridge_reference_bank_2",
+        "surfaces": 2,
+        "record": "bridge_reference_bank_2"
+      },
+      {
+        "name": "bridge_reference_west_bank_0",
+        "surfaces": 2,
+        "record": "bridge_reference_west_bank_0"
+      }
+    ]
+  }
+}

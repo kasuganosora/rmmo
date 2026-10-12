@@ -8,8 +8,8 @@ var streams: Array=[]
 var materials: Array=[]
 var tiles: Array=[]
 var data: Dictionary
-static func height_at(x: float,d: Dictionary) -> float: return d.camber*pow(sin(PI*clampf(x/d.length+.5,0,1)),2)
-static func slope_at(x: float,d: Dictionary) -> float: return d.camber*PI/d.length*sin(TAU*clampf(x/d.length+.5,0,1))
+static func height_at(x: float,d: Dictionary) -> float: return d.camber*pow(sin(PI*clampf(x/d.length+.5,0,1)),2)+d.get("rise",0.)*(clampf(x/d.length+.5,0,1)-.5)
+static func slope_at(x: float,d: Dictionary) -> float: return d.camber*PI/d.length*sin(TAU*clampf(x/d.length+.5,0,1))+d.get("rise",0.)/d.length
 static func kit(path: String) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(path) or not FileAccess.file_exists(path): return {}
@@ -23,7 +23,7 @@ static func kit(path: String) -> Dictionary:
 	if kits.size()>=8: kits.erase(kits.keys()[0])
 	kits[path]=pieces
 	return pieces
-func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation:=false) -> void:
+func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation:=false,yaw:=0.) -> void:
 	var mesh: Mesh=piece.mesh
 	for slot in mesh.get_surface_count():
 		var mat: Material=mesh.surface_get_material(slot); var name_: String=mat.resource_name if mat!=null else ""
@@ -37,7 +37,8 @@ func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation
 		var triangle:Array=[]
 		for index in indices:
 			var p: Vector3=piece.transform*vertices[index]; var normal: Vector3=piece.transform.basis*normals[index]
-			p=p*scale_+position; normal=(normal/scale_).normalized()
+			var turn:=Basis(Vector3.UP,yaw)
+			p=turn*(p*scale_)+position; normal=(turn*(normal/scale_)).normalized()
 			# The deck module is a solid slab. Only its upward walking surface
 			# is paving; side/end/underside faces belong to supporting masonry.
 			var role:int=1 if source_role==0 and normal.y<.7 else source_role
@@ -50,7 +51,12 @@ func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation
 			var f: float=clampf((p.y+data.depth)/(data.depth-.25),0,1) if foundation else 1.0
 			var stretch: float=1+height_at(p.x,data)/(data.depth-.25) if foundation and f<1 else 1.0
 			normal=Vector3(normal.x-slope_at(p.x,data)*f*normal.y/stretch,normal.y/stretch,normal.z).normalized(); p.y+=height_at(p.x,data)*f
-			triangle.append({"p":p,"n":normal,"uv":uv,"color":colors[index] if index<colors.size() else Color.WHITE})
+			var color:Color=colors[index] if index<colors.size() else Color.WHITE
+			var noise:=clampf(.5+.25*sin(p.x*2.7+p.z*1.3+data.get("variation_seed",0))+.25*sin(p.y*4.1-p.x*.7),0,1)
+			color=color.lerp(Color(.83,.78,.67),data.get("wear",0.)*noise*.28)
+			var damp:=clampf((-p.y+.2)/maxf(data.depth,.1),0,1)*(.35+.65*noise)
+			color=color.lerp(Color(.24,.31,.15),data.get("moss",0.)*damp*.55)
+			triangle.append({"p":p,"n":normal,"uv":uv,"color":color})
 			if triangle.size()==3:
 				preload("res://scripts/world3d/bridge_deck_rim.gd").emit(streams,triangle,role,data.width,tiles[1]);triangle=[]
 func build(record: Dictionary) -> ArrayMesh:
@@ -70,7 +76,7 @@ func build(record: Dictionary) -> ArrayMesh:
 	var opening: float=(l-2-(count-1)*pier)/count
 	for i in count:
 		var x: float=-l*.5+1+i*(opening+pier)+opening*.5
-		append_piece(pieces.arch,Vector3(x,0,0),Vector3(opening/8,(data.depth-.25)/4.75,w/7),true)
+		append_piece(pieces.arch,Vector3(x,0,0),Vector3((opening+pier if data.recipe.style=="timber" else opening)/8,(data.depth-.25)/4.75,w/7),true)
 	for i in count+1:
 		var x: float=-l*.5+.5 if i==0 else (l*.5-.5 if i==count else -l*.5+1+i*opening+(i-1)*pier+pier*.5)
 		append_piece(pieces.abutment if i==0 or i==count else pieces.pier,Vector3(x,0,0),Vector3(1 if i==0 or i==count else pier/1.3,(data.depth-.25)/4.75,w/7),true)
@@ -84,12 +90,20 @@ func build(record: Dictionary) -> ArrayMesh:
 		for side in [-1,1]: append_piece(pieces.parapet,Vector3(x,0,side*(w*.5-.28)),Vector3(step,data.recipe.rail_height/(.98 if data.recipe.style=="rustic" else 1.08),1))
 	for side in [-1,1]:
 		for end in [-1,1]: append_piece(pieces.post,Vector3(end*(l*.5-.34),0,side*(w*.5-.28)),Vector3.ONE)
+	var wing:float=data.get("wing_length",0.)
+	if wing>0:
+		for side in [-1,1]:
+			for end in [-1,1]:
+				var angle:float=-side*end*atan(.6)
+				append_piece(pieces.parapet,Vector3(end*(l*.5+wing*.5),0,side*(w*.5-.28+wing*.3)),Vector3(wing*sqrt(1.36),1,1),false,angle)
+				append_piece(pieces.post,Vector3(end*(l*.5+wing),0,side*(w*.5-.28+wing*.6)),Vector3.ONE)
 	var importer:=ImporterMesh.new()
 	for i in streams.size():
 		var st: SurfaceTool=streams[i]; st.generate_tangents(); st.index()
 		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,st.commit_to_arrays(),[],{},materials[i],["bridge_paving","bridge_masonry","bridge_coping_and_arch_rings"][i])
 	importer.generate_lods(60,25,[])
 	var result:=importer.get_mesh()
+	preload("res://scripts/world3d/bridge_lod_preparation.gd").remember(importer,result)
 	var counts: Array=[]
 	for slot in importer.get_surface_count():
 		var levels: Array=[]

@@ -1,0 +1,20 @@
+The 72.774 ms frame is an idle-process wall-time spike. Named buckets leave **61.67–61.97 ms** of `main_process` with no source. Nothing in this sample identifies that residual. The 136 ms ground preparation, the streetlamp/radar/collision metas, and MockServer combat are not this frame.
+
+## Frame split
+
+| Bracket | ms | Share of 72.774 |
+|---|---:|---:|
+| `main_process` (process_frame begin → ProcessMeter priority 1000000) | 62.264 | 85.6% |
+| Draw (`frame_pre_draw` → `frame_post_draw`) | 6.510 | 8.9% |
+| Outside both brackets | 4.000 | 5.5% |
+
+Inside `main_process`, the named pieces are weather 0.285, world callbacks 0.294, nav background 0.018. If those three are disjoint and all inside the bracket, omitted wall time is **61.667 ms**. If weather sits inside the world sum, subtracting both under-counts the hole, and omitted wall time is **61.970 ms**. Either reading leaves about **99%** of `main_process` unnamed. Draw does not contain the spike.
+
+Support queries: 5,875 of them, with 1.313 ms recorded as max. That max is already larger than the world-callback sum and the weather bucket, so it is outside both. If 1.313 ms is the whole support-query bucket, it fills at most 1.313 ms of the residual. If it is only the slowest single query, the other 5,874 durations are unreported and are not recoverable as count × max.
+
+Position 49.83, 42.48 m only repeats the earlier “near 50 m, process spike, no source” pattern. The sampler stores this on the **next** `process_frame`, after physics may already have stepped, so this position and other world metadata can be one physics step later than the 62.264 ms interval. Stamp frame-ids during the measured process; do not align those stamps from metadata read on the following frame.
+
+## Cleared for this frame
+
+- **MockServer combat, cast, NPC cast, mob AI, remote patrol, pets, respawn, sit, potion, and DPS meter.** `player_cell` starts at (-9999, -9999), and 3D enter keeps that sentinel. After `_tick_weather`, `player_cell.x <= -9990` returns. Weather 0.285 ms matches that path. A later caller would have to move the cell; this sample has no such write.
+- **Female axis rig.** This session is the male test character. `female_axis_rig` runs only with

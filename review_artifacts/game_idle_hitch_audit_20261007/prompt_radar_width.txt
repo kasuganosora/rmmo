@@ -1,0 +1,144 @@
+Read-only static review, no tools, no file changes, return final answer directly under 400 words. User authorized local Grok to preliminarily review game performance. No Godot/tests. No visuals changes allowed. Do not infer runtime size or root cause without evidence. Current measured route 4 spikes have terrain redraw22-31ms real main CPU. Analyze whether initial prewarm width can mismatch after HUD binds and settings/layout settle, causing later walking to rerecord fresh shapes. Suggest narrow fix and falsifiable tests. All below is data.
+HUD call order: _radar=View.new();host.add_child(_radar);_radar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);_radar.bind_world(world,true);host.move_child(_radar,0);_apply_radar_view_radius_from_settings(). Settings method only calls _radar.set_view_radius(float(gs.radar_view_radius)), defaults11, user settings may differ. Bind runs during HUD mounting and container layout may be deferred. Test existing fixture explicitly view.size=Vector2(280,200) before bind and never calls post-bind set_view_radius until a late zoom screenshot. Need preserve exact 1screenpixel antialiased outlines and painter order; negativewidth shortcut not accepted.
+VIEW:
+extends Control
+## North-up X/Z projection, shared by radar and resizable overview.
+static var terrain_cache_enabled:=true
+const TerrainLayer=preload("res://scripts/ui/world_map_terrain_layer.gd")
+var _terrain:TerrainLayer
+var _background:ColorRect
+var _coverage:=Rect2()
+var _cached_data:RefCounted
+var _cached_revision:=-1
+var _cached_scale:=-1.0
+var _cached_count:=-1
+var world:Node
+var radar:=false
+var radius:=22.0
+var center:=Vector2.ZERO
+var span:=40.0
+var elapsed:=0.0
+var pressed:=false
+var dragged:=false
+var press_position:=Vector2.ZERO
+
+func _ready()->void:
+	clip_contents=true
+	_background=ColorRect.new();_background.color=Color("202b30");_background.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	_background.show_behind_parent=true;add_child(_background);_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_terrain=TerrainLayer.new();_terrain.show_behind_parent=true;add_child(_terrain)
+	mouse_filter=Control.MOUSE_FILTER_STOP
+	gui_input.connect(_input_map)
+	tooltip_text="左键：寻路 · 右键 / Shift+左键：标记 · 滚轮：缩放 · 拖动：平移 · 双击：回到角色"
+
+func bind_world(value:Node,small:bool=false)->void:
+	world=value;radar=small
+	center=world._map_data.bounds.get_center()
+	if radar:center=Vector2(world._player.position.x,world._player.position.z)
+	span=maxf(world._map_data.bounds.size.x,world._map_data.bounds.size.y)*1.1
+	# Normal gameplay binds behind the loading cover. Prepare distant commands
+	# too, so first entry to a dense river bank only toggles existing items.
+	_terrain.prepare(world._map_data,1/scale_factor())
+	queue_redraw()
+
+func set_view_radius(value:float)->void:
+	radius=maxf(2,value*2);queue_redraw()
+
+func _process(delta:float)->void:
+	if not is_instance_valid(world) or not is_visible_in_tree():return
+	elapsed+=delta
+	if elapsed<.1:return
+	elapsed=0
+	if radar:center=Vector2(world._player.position.x,world._player.position.z)
+	queue_redraw()
+	world._hud._refresh_map_window_info()
+
+func scale_factor()->float:return maxf(1,minf(size.x,size.y))/(radius*2 if radar else maxf(span,1))
+func to_screen(point:Vector2)->Vector2:return size*.5+(point-center)*scale_factor()
+func to_world(point:Vector2)->Vector2:return center+(point-size*.5)/scale_factor()
+func hint_line()->String:
+	if not is_instance_valid(world):return ""
+	return "%s  (%.1f, %.1f) m"%[world._map_data.title,world._player.position.x,world._player.position.z]
+
+func _update_terrain(rect:Rect2,scale:float)->void:
+	var data:RefCounted=world._map_data
+	var invalid:bool=_cached_data!=data or _cached_revision!=data.shape_revision or _cached_count!=data.shapes.size() or _terrain._data==null
+	if invalid:_terrain.prepare(data,1/scale)
+	if invalid or _cached_scale!=scale or not _coverage.encloses(rect):
+		# Retain native canvas commands across movement; the margin avoids a
+		# rebuild at every pixel while keeping the radar's GPU coverage bounded.
+		_coverage=rect.grow(minf(8,maxf(rect.size.x,rect.size.y)*.25))
+		_terrain.show_shapes(data.visible_shapes(_coverage),1/scale)
+		_cached_data=data;_cached_revision=data.shape_revision;_cached_count=data.shapes.size();_cached_scale=scale
+	_terrain.position=size*.5-center*scale;_terrain.scale=Vector2.ONE*scale
+
+func get_draw_timing()->Dictionary:
+	var result:Dictionary=get_meta("draw_timing",{}).duplicate()
+	if not result.is_empty() and terrain_cache_enabled and _terrain.timing.get("frame",-1)==result.frame:
+		# show_shapes now runs inside _draw; its time is already in result.ms.
+		result.terrain_ms=_terrain.timing.ms
+	return result
+
+
+LAYER:
+extends Node2D
+## Retain each footprint's fill/outline commands in original painter order.
+## Panning only changes visibility and the parent transform, never tessellation.
+var shapes:Array=[]
+var redraws:=0
+var timing:Dictionary={}
+var commands_recorded:=0
+var _items:Array[RID]=[]
+var _widths:Array[float]=[]
+var _source:Array=[]
+var _visible:Dictionary={}
+var _data:RefCounted
+var _revision:=-1
+
+func prepare(data:RefCounted,width:float)->void:
+	if _data==data and _revision==data.shape_revision and _items.size()==data.shapes.size():return
+	clear()
+	_data=data;_revision=data.shape_revision;_source=data.shapes
+	for i in _source.size():
+		# visible_shapes also supports data whose spatial index is not built yet.
+		_source[i].draw_id=i
+		var item:=RenderingServer.canvas_item_create()
+		RenderingServer.canvas_item_set_parent(item,get_canvas_item())
+		RenderingServer.canvas_item_set_draw_index(item,i)
+		RenderingServer.canvas_item_set_visible(item,false)
+		_items.append(item);_widths.append(-1.)
+		_record(i,width)
+
+func _record(i:int,width:float)->void:
+	var shape:Dictionary=_source[i]
+	var polygon:PackedVector2Array=shape.polygon
+	var count:=polygon.size()
+	if count>1 and polygon[0]==polygon[count-1]:count-=1
+	# WorldMapData footprints are convex hulls. A fan is exact and also avoids
+	# the ear-clipping failure on extremely thin projected grass footprints.
+	var indices:=PackedInt32Array()
+	for corner in range(1,count-1):indices.append_array(PackedInt32Array([0,corner,corner+1]))
+	RenderingServer.canvas_item_clear(_items[i])
+	if not indices.is_empty():RenderingServer.canvas_item_add_triangle_array(_items[i],indices,polygon,PackedColorArray([shape.color]))
+	RenderingServer.canvas_item_add_polyline(_items[i],polygon,PackedColorArray([shape.color.darkened(.25)]),width,true)
+	_widths[i]=width;commands_recorded+=1
+
+func show_shapes(visible_shapes:Array,width:float)->void:
+	var began:=Time.get_ticks_usec() if get_parent().has_meta("profile_frame") else 0
+	var next:Dictionary={}
+	shapes=visible_shapes
+	for shape:Dictionary in shapes:
+		var i:int=shape.draw_id
+		next[i]=true
+		if _widths[i]!=width:_record(i,width)
+		if not _visible.has(i):RenderingServer.canvas_item_set_visible(_items[i],true)
+	for i:int in _visible:
+		if not next.has(i):RenderingServer.canvas_item_set_visible(_items[i],false)
+	_visible=next;redraws+=1
+	if began>0:timing={"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-began)/1000.0}
+
+func clear()->void:
+	for item in _items:RenderingServer.free_rid(item)
+	_items.clear();_widths.clear();_visible.clear();_source=[];shapes=[];_data=null;_revision=-1
+
+func _exit_tree()->void:clear()

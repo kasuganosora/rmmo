@@ -33,7 +33,9 @@ func _ready() -> void:
 	Net.session().last_loading_profile={"started_ms":Time.get_ticks_msec()}
 	var mode: String = str(Net.session().loading_mode)
 	Net.session().world3d_loading = mode == "world3d_preview" or (mode != "transfer" and Net.session().use_world3d())
+	var resource_started:=Time.get_ticks_usec()
 	Net.session().prepare_world_resources()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("game.resource_requests",resource_started)
 	if mode == "world3d_preview":
 		if not Net.session().has_active_character():
 			status_label.text = "请先选择角色，试玩不会生成替代人物"
@@ -223,11 +225,14 @@ func _prepare_world3d() -> void:
 		_show_transfer_fail_actions()
 		return
 	_map_loader = Loader.new()
+	_map_loader.near_first=true
 	Net.session().add_child(_map_loader)
 	_map_loader.finished.connect(_on_world3d_loaded)
 	_map_loader.progress.connect(func(stage: String, done: int, total: int): _stage(stage, done, total))
 	_map_loader.start(path)
+	var actor_started:=Time.get_ticks_usec()
 	Net.session().prepare_world_actor()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("game.actor_prepare",actor_started)
 
 
 func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:

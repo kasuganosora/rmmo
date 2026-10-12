@@ -5,6 +5,7 @@ func check(ok:bool,label:String)->void:
 func _initialize()->void:run.call_deferred()
 func run()->void:
 	var wind=preload("res://scripts/world3d/wind_runtime.gd").new();root.add_child(wind)
+	wind.set_shared_state_enabled(false) # Retained uniform/range reference path.
 	var camera=Camera3D.new();root.add_child(camera);wind.camera=camera;wind.set_physics_process(false)
 	var mesh=MeshInstance3D.new();mesh.mesh=BoxMesh.new();root.add_child(mesh)
 	mesh.custom_aabb=AABB(Vector3(-2,0,-2),Vector3(4,10,4));mesh.position=Vector3(20,0,0);mesh.scale=Vector3(2,2,2)

@@ -99,7 +99,7 @@ static func fit(record: Dictionary,records: Array,automatic:=true) -> Dictionary
 		if not best.is_empty(): break
 		openings=profile(record,true)
 	if best.is_empty(): return Data.fail("水面上找不到连续 2 米宽的主通航孔，请调整桥位、孔数或跨度")
-	var d: Dictionary=record.bridge_mesh; var requested: float=d.camber; var maximum:=minf(5,d.length*.15/PI)
+	var d: Dictionary=record.bridge_mesh; var requested: float=d.camber; var maximum:=minf(5,(d.length*.15-absf(d.get("rise",0.)))/PI)
 	if automatic:
 		var fitted:=maxf(requested,ceilf(required*1000)/1000)
 		if fitted>maximum+.000001: return Data.fail("主通航孔须有 2.5 米净高 / 2 米净宽；所需拱高 %.2f 米超过坡度上限，请加长桥梁/引道或提高两岸标高"%fitted)

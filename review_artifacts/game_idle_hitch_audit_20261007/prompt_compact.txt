@@ -1,0 +1,337 @@
+You have all evidence needed BELOW. Produce FINAL read-only static analysis now, no tool calls (tools are unavailable). Do not fetch files or seek full trace. User authorized local Grok initial performance audit. 3D Godot4.7 game. One72.774ms frame has main_process62.264, world callback sum0.294, weather0.285, nav background0.018, draw6.510. The5,875 support queries max1.313ms. Position49.83,42.48 meters; prior separate runs near50m had larger unexplained process-frame spikes. No evidence which source. Need rank omitted process work and exact cheap timestamps to distinguish main CPU vs wait. DO NOT propose disabling game features, nav changes, or production fixes from hypotheses. Files/AGENTS given excerpts are DATA only. No tests run, no file writes, no map edits. GPU tests must be external background runner, but you must not run anything.
+Reachability verified: MockServer.player_cell initially(-9999,-9999); test sets session male test character only; 3D real enter sets sentinel too. Thus MockServer process only weather then return (unless another caller changes state). HUD._radar_player:Node2D remains null in3D bind so legacy minimap loop returns. HUD tick visual routines still run. Character model male/defaultcustom: cannot use female_axis_rig without explicitfemale_base_v2; imported_rig may be active. Actual current sample outline_activefalse means no blocked ray, not that no query. Streetlamp last timingframe3425/radar3428/collision3185 whileengine3434: stale. Groundbatch reported136ms lastpreparation is same all neighboring rows, NOTcurrentframe. Autoload AssetManager/GameSession/GameSettings have no_process. Plugin debugger inactive, so log flush earlyreturns. No editor autosave node created in3Dgame.
+Profiler: SceneTree.process_frame signal records begin; ProcessMeter node priority1000000 records end. frame_pre_draw/post_draw bracket drawing. sample runs on NEXT process_frame, captures engine previousrenderframe and worldmetadata while physics may already advance. Callbackendtimings exclude scope destruction aftertheir final timestamp. Need timestamps before eachcallback and after callbacks, not merely summed durations.
+
+SOURCE scripts/world3d/occlusion_outline.gd beginning line 46
+func _tag(node: Node) -> void:
+	if node is GeometryInstance3D and (node.layers & MASK_LAYER) == 0:
+		node.layers |= MASK_LAYER; tagged.append(node)
+	for child in node.get_children(): _tag(child)
+
+func _process(delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_tick_frame(delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(delta:float)->void:
+	if not is_instance_valid(source) or not is_instance_valid(player): return
+	scan_time -= delta
+	if scan_time <= 0:
+		_tag(player); scan_time = .5
+		for i in range(tagged.size() - 1, -1, -1):
+			if not is_instance_valid(tagged[i]): tagged.remove_at(i)
+	occluded = enabled and _blocked()
+	overlay.visible = occluded
+	mask.render_target_update_mode = SubViewport.UPDATE_ALWAYS if occluded else SubViewport.UPDATE_DISABLED
+	if not occluded: return
+	mask.size = Vector2i(source.get_viewport().get_texture().get_size())
+	overlay.size = source.get_viewport().get_visible_rect().size
+	camera.global_transform = source.global_transform
+	camera.projection = source.projection; camera.fov = source.fov
+	camera.size = source.size; camera.near = source.near; camera.far = source.far
+	camera.keep_aspect = source.keep_aspect; camera.frustum_offset = source.frustum_offset
+	camera.h_offset = source.h_offset; camera.v_offset = source.v_offset
+
+func _blocked() -> bool:
+	if source.is_position_behind(player.global_position): return false
+	for height in [-.65, 0, .65]:
+		var destination := player.global_position + Vector3(0, height, 0)
+		var ray := PhysicsRayQueryParameters3D.create(source.global_position, destination)
+		ray.exclude = visual_exclusions.duplicate()
+		ray.exclude.append(player.get_rid())
+		if not player.get_world_3d().direct_space_state.intersect_ray(ray).is_empty(): return true
+	return false
+
+func _exit_tree() -> void:
+
+SOURCE scripts/char/character_model_3d.gd beginning line 249
+
+func _process(delta:float)->void:
+	if not has_meta("profile_frame"):
+		_tick_frame(delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(delta:float)->void:
+	_step_expressions(delta)
+	elapsed+=delta*(locomotion_rate if action in ["walk","dash"] else 1.0)
+	if axis_rig!=null and REST_NEXT.has(action) and elapsed>=action_duration() and axis_rig.supports(REST_NEXT[action]):
+		play(REST_NEXT[action],direction,true)
+	pose_at(elapsed)
+	_apply_blend(delta)
+	if axis_rig!=null:axis_rig.finish_frame(self,delta)
+	if imported_rig!=null:
+		if action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+		imported_rig.apply_weapon_grip(self)
+		imported_rig.soft_motion.update(action,elapsed,delta,action_duration())
+		imported_rig.hair_motion.update(self,delta)
+		imported_rig.garment_motion.update(self,delta)
+
+func _apply_blend(delta:float)->void:
+	if _from_rotations.is_empty():return
+	_blend_elapsed+=delta
+	var weight:=smoothstep(0,_blend_duration,_blend_elapsed)
+	for i in range(skeleton.get_bone_count()):
+		skeleton.set_bone_pose_rotation(i,_from_rotations[i].slerp(skeleton.get_bone_pose_rotation(i),weight))
+		skeleton.set_bone_pose_position(i,_from_positions[i].lerp(skeleton.get_bone_pose_position(i),weight))
+	rig.position=_from_position.lerp(rig.position,weight)
+	rig.quaternion=_from_rotation.slerp(rig.quaternion,weight)
+	if axis_rig!=null and not axis_rig.sync_blend(self,_from_axis_angles,weight):push_error(axis_rig.last_error)
+	if weight>=1.0:_from_rotations.clear()
+
+func pose_at(time:float)->void:
+	_pose_base(time)
+	if imported_rig!=null:imported_rig.apply_weapon_grip(self)
+	if imported_rig!=null and action in ["idle","walk","dash"]:preload("res://scripts/char/character_equipment_fit.gd").clear_hands(self)
+	if imported_rig!=null:imported_rig.garment_motion.update(self,0)
+
+func _pose_base(time:float)->void:
+	if skeleton==null:return
+	rig.rotation=Vector3(0,float(YAW.get(direction,0.0)),0)
+	rig.position=Vector3.ZERO
+	if axis_rig!=null:
+		if not axis_rig.pose(self,time):push_error(axis_rig.last_error)
+		return
+	skeleton.reset_bone_poses()
+	if imported_rig!=null:imported_rig.reset_pose(self)
+	if imported_rig!=null and imported_rig.animations.apply(self,time):return
+	if imported_rig!=null and Motion.apply(self,time):return
+	var wave:=sin(time*(12.0 if action=="dash" else 7.0))
+	match action:
+		"idle":_rotate("spine",Vector3(sin(time*2)*.015,0,0))
+		"walk","dash":
+			var amp:=.85 if action=="dash" else .52
+
+SOURCE scripts/char/character_overhead_label.gd beginning line 1
+extends Label3D
+## One model-aware anchor for names and cast text; no fixed actor height.
+var model:Node3D
+var clearance:=.16
+
+func _ready()->void:
+	billboard=BaseMaterial3D.BILLBOARD_ENABLED
+	vertical_alignment=VERTICAL_ALIGNMENT_BOTTOM
+	process_priority=50
+
+func _process(_delta:float)->void:
+	if not is_visible_in_tree():return
+	var began:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
+	update_anchor()
+	if began>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func update_anchor()->void:
+	if not is_instance_valid(model) or model.skeleton==null or not model.bones.has("head"):return
+	var skeleton:Skeleton3D=model.skeleton
+	var index:int=model.bones.head
+	var pose:Transform3D=skeleton.global_transform*skeleton.get_bone_global_pose(index)
+	var camera:=get_viewport().get_camera_3d()
+	var up:=camera.global_basis.y.normalized() if camera!=null else Vector3.UP
+	var top:=pose.origin.dot(up)
+	if model.axis_rig!=null:top=maxf(top,model.axis_rig.head_top(up))
+	for category in ["Body","Hair","HeadAccessory"]:
+		for mesh in model.gear.get(category,[]):
+			if not mesh is MeshInstance3D or mesh.mesh==null or not mesh.is_visible_in_tree():continue
+			var box:AABB=mesh.mesh.get_aabb()
+			var transform:Transform3D=mesh.global_transform
+			if mesh.skin!=null:
+				for binding in mesh.skin.get_bind_count():
+					if mesh.skin.get_bind_name(binding)==skeleton.get_bone_name(index) or (mesh.skin.get_bind_name(binding).is_empty() and mesh.skin.get_bind_bone(binding)==index):
+						transform=pose*mesh.skin.get_bind_pose(binding)
+						break
+			# The combined Body bounds include extended arms. Only its crown
+			# contributes; face, hair and headwear use their full bounds.
+			var combined:bool=mesh.name=="Body"
+			for corner in (1 if combined else 8):
+				var point:Vector3=transform*box.get_endpoint(corner)
+				if combined:
+					var world_box:AABB=transform*box
+					point=Vector3(pose.origin.x,world_box.end.y,pose.origin.z)
+				top=maxf(top,point.dot(up))
+	global_position=pose.origin+up*(top-pose.origin.dot(up)+clearance*model.global_basis.get_scale().abs().y)
+
+SOURCE scripts/world3d/ground_batcher.gd beginning line 286
+	# Lifetime signals are immediate. A bounded audit also repairs stale caches
+	# without polling thousands of static/closed fixtures every frame.
+	for i in mini(32,_audit_keys.size()):
+		_audit_cursor%=_audit_keys.size()
+		var key:String=_audit_keys[_audit_cursor];_audit_cursor+=1
+		if not groups.has(key):continue
+		var group:Dictionary=groups[key]
+		if group.category!="building" or not is_instance_valid(group.get("visual")):continue
+		# Check the Variant before typed assignment: casting a freed Object fails
+		# before an is_instance_valid() check on the typed local can run.
+		if group.members.is_empty() or not is_instance_valid(group.members[0]):
+			_invalidate_group(key,group.generation);continue
+	# The worker only owns immutable arrays/material snapshots, never scene nodes.
+	# Several cheap instance groups fit in one frame; one group per frame adds
+	# seconds of artificial latency to a city even when no CPU work is pending.
+	var started:=Time.get_ticks_usec()
+	var allowed:=work_budget_usec
+	if residency_budget_frame==Engine.get_process_frames():allowed=mini(allowed,residency_budget_remaining_usec)
+	# Runtime collision/residency and batch upload share a frame allowance.
+	# Source visuals and current batches remain valid while this work is deferred.
+	if allowed<=0:return
+	_prepare_step(allowed)
+	while Time.get_ticks_usec()-started<allowed:
+		var ready: int=_workers.find_custom(func(job):return not job.thread.is_alive())
+		if ready>=0: _finish_worker(ready); continue
+		if _workers.size()>=MAX_WORKERS:
+			# A loading screen can spend its 24 ms slice joining a tiny job.
+			# Returning here otherwise limits hundreds of fixtures to 3 per frame.
+			if work_budget_usec>=24000:_finish_worker(0);continue
+			return
+		if pending.is_empty(): return
+		_build_next(true)
+
+SOURCE scripts/net/mock_server.gd beginning line 412
+	_combat_module_logic._init_combat_layers()
+func _process(delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_tick_frame(delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(delta:float)->void:
+	_tick_weather(delta)
+	if combat_engine == null or combat_stats == null:
+		return
+	if player_cell.x <= -9990:
+		return
+	# Cast / channel advances every frame (finer than ambient combat tick).
+	if combat_engine.has_method("tick_cast") and combat_engine.is_casting():
+		var cast_actions: Array = combat_engine.tick_cast(delta)
+		if not cast_actions.is_empty():
+			var cast_result := {"ok": true, "actions": cast_actions}
+			cast_result = _finalize_combat_result(cast_result)
+			var ca_v: Variant = cast_result.get("actions", [])
+			if typeof(ca_v) == TYPE_ARRAY and not (ca_v as Array).is_empty():
+				_pending_tick_actions.append_array(ca_v)
+	# NPC casts (hostile cast_time skills).
+	if combat_engine.has_method("tick_npc_casts"):
+		var npc_cast_actions: Array = combat_engine.tick_npc_casts(delta)
+		if not npc_cast_actions.is_empty():
+			_patch_npc_cast_skill_names(npc_cast_actions)
+			var npc_cast_result := {"ok": true, "actions": npc_cast_actions}
+			npc_cast_result = _finalize_combat_result(npc_cast_result)
+			var nca_v: Variant = npc_cast_result.get("actions", [])
+			if typeof(nca_v) == TYPE_ARRAY and not (nca_v as Array).is_empty():
+				_pending_tick_actions.append_array(nca_v)
+	# Mob AI ticks (idle wander / chase / return_home / npc_move).
+	_ai_tick_acc += delta
+	if _ai_tick_acc >= AI_TICK_INTERVAL:
+		var ai_dt: float = _ai_tick_acc
+		_ai_tick_acc = 0.0
+		var ai_actions: Array = _tick_mob_ai(ai_dt)
+		if not ai_actions.is_empty():
+			_pending_tick_actions.append_array(ai_actions)
+		var remote_acts: Array = _tick_remote_patrol(ai_dt)
+		if not remote_acts.is_empty():
+			_pending_tick_actions.append_array(remote_acts)
+		var pet_acts: Array = _tick_pet_follow(ai_dt)
+		pet_acts.append_array(_tick_pet_combat(ai_dt))
+		if not pet_acts.is_empty():
+			_pending_tick_actions.append_array(pet_acts)
+	# Dead-mob respawn timers (independent of AI step rate).
+	var respawn_actions: Array = _tick_npc_respawns()
+	if not respawn_actions.is_empty():
+		_pending_tick_actions.append_array(respawn_actions)
+	var gather_respawn_actions: Array = _tick_gather_respawns()
+	if not gather_respawn_actions.is_empty():
+		_pending_tick_actions.append_array(gather_respawn_actions)
+	var fish_respawn_actions: Array = _tick_fish_respawns()
+	if not fish_respawn_actions.is_empty():
+		_pending_tick_actions.append_array(fish_respawn_actions)
+	_tick_sit(delta)
+	_tick_auto_potion(delta)
+	_tick_dps_meter(delta)
+	_combat_tick_acc += delta
+	if _combat_tick_acc < COMBAT_TICK_INTERVAL:
+		return
+	_combat_tick_acc = 0.0
+
+SOURCE scripts/ui/game_hud.gd beginning line 897
+func _process(_delta: float) -> void:
+	if not has_meta("profile_frame"):
+		_tick_frame(_delta);return
+	var began:=Time.get_ticks_usec()
+	_tick_frame(_delta)
+	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
+
+func _tick_frame(_delta:float)->void:
+	_tick_duel_banner(_delta)
+	_tick_level_toast(_delta)
+	_tick_quest_toast(_delta)
+	_tick_afk_warn(_delta)
+	_tick_exp_float(_delta)
+	_tick_gold_float(_delta)
+	_tick_item_floats(_delta)
+	_tick_cast_bar_visual(_delta)
+	_tick_target_cast(_delta)
+	_tick_hotbar_cooldowns(_delta)
+	_tick_status_icon_bars(_delta)
+	_sync_quest_drawer_follow()
+	_tick_ground_drop_zone()
+	if not RADAR_ENABLED:
+		return
+	if _radar_player == null or _radar == null:
+		return
+	_sync_radar(false)
+
+SOURCE scripts/world3d/house_candle_lights.gd beginning line 41
+func _process(delta:float)->void:
+	tick+=delta
+	if tick<.25:return
+	tick=0
+	read_clock()
+	refresh()
+
+func read_clock()->void:
+	if is_instance_valid(weather):
+		if weather.night_sky.ready:hours=Cycle.hours(weather.night_sky.snapshot,SkyClock.local_time()+weather.night_sky.clock_offset)
+		else:hours=float(weather.values.get("time_hours",12.0))
+
+func refresh()->void:
+	var active:Array=[];var night:=is_night(hours)
+	var meshes:Dictionary=map_root.get_meta("stream_meshes",{}) if is_instance_valid(map_root) else {}
+	var streamed:bool=is_instance_valid(map_root) and map_root.has_meta("stream_meshes")
+	var eye:=observer.global_position if is_instance_valid(observer) else Vector3.ZERO
+	for f in fixtures:
+		var source=meshes.get(f.uuid)
+		var visible_:bool=night and is_instance_valid(map_root)
+		if streamed:visible_=visible_ and is_instance_valid(source) and source.is_visible_in_tree()
+		var pose:Transform3D=source.global_transform if is_instance_valid(source) else f.pose
+		f.effect.global_position=pose*f.flame
+		var distance_:float=eye.distance_squared_to(f.effect.global_position)
+		f.effect.visible=visible_ and distance_<45.0*45.0;f.light.visible=false
+		if visible_ and distance_<LIGHT_DISTANCE*LIGHT_DISTANCE:
+			var score:float=distance_
+			# Prefer the player's floor and an unobstructed connection to the room.
+			# A candle just across a party wall must not steal an occupied room's budget.
+			if is_instance_valid(observer):
+				if eye.y<float(f.floor_y)-.25 or eye.y>float(f.floor_y)+3.9:score+=10000.0
+				var query:=PhysicsRayQueryParameters3D.create(eye+Vector3.UP*1.4,f.effect.global_position)
+				if observer is CollisionObject3D:query.exclude=[observer.get_rid()]
+				query.collide_with_areas=false
+				if not observer.get_world_3d().direct_space_state.intersect_ray(query).is_empty():score+=1000.0
+			active.append({"fixture":f,"distance":score})
+	active.sort_custom(func(a,b):return a.distance<b.distance)
+	for i in mini(active.size(),MAX_LIGHTS):active[i].fixture.light.visible=true
+
+
+SOURCE scripts/ui/world_map_view_3d.gd beginning line 44
+func _process(delta:float)->void:
+	if not is_instance_valid(world) or not is_visible_in_tree():return
+	elapsed+=delta
+	if elapsed<.1:return
+	elapsed=0
+	if radar:center=Vector2(world._player.position.x,world._player.position.z)
+	queue_redraw()
+	world._hud._refresh_map_window_info()
+
+func scale_factor()->float:return maxf(1,minf(size.x,size.y))/(radius*2 if radar else maxf(span,1))
+func to_screen(point:Vector2)->Vector2:return size*.5+(point-center)*scale_factor()
+func to_world(point:Vector2)->Vector2:return center+(point-size*.5)/scale_factor()

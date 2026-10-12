@@ -1,0 +1,50 @@
+750 株草、14 个 GLB 路径是这次普查里唯一“实例数远大于原型数”的导入资产桶。全镇俯视约 9000 draw 时，只有先证明这些原型在 `_asset` 整条链之后仍共享网格，且按单元格拆开后 draw 会明显下降，按单元格实例化才值得做。房屋同层合并已使 draw 从 9082 升到 9115、场景 CPU 从 13.988 ms 降到 13.970 ms，应视为噪声并保持否决。
+
+## 机会 1：按「路径 + 子网格 + 可见区间 + 材质」做单元格派生 MultiMesh
+
+`asset_library.cache_scene` 每个路径只保留一份 `PackedScene`，`instantiate` 复用它。地面合批 `candidate()` 要求 `kind == "box"`，并直接排除 `house_prefab`，因此这 867 个导入资产（其中 750 株草）不在现有合批里。
+
+派生代理要同时满足这些键，才能和现在的逐子节点语义一致：
+
+- 同一 `asset_path`、同一子节点路径、同一网格 RID、同一材质 RID
+- 同一 `visibility_range_begin/end` 与作者自定义 AABB
+- 同一阴影模式、同一透明类别
+
+`asset_visibility_range.register` 写在每个 `MeshInstance3D` 上，不在资产根上。不同子网格的 begin/end 必须分成不同的 MultiMesh。源节点、`extras.uuid`、`rmmo_collision`、碰撞体、选择和撤销保存都留在原节点上。这是渲染代理，不改地图记录。
+
+## 机会 2：先做窄采样，用预测 draw 决定是否实现
+
+在动渲染代码前，对这 14 个路径在完整 `_asset` 链之后取样：`instantiate`、`parametric_tree.apply`、`SurfaceMaterials.apply`、`wind_response.annotate/register`、可见距离注册。只读临时场景，不改用户地图，不做 GPU 测试。
+
+每个子网格记录：网格 RID 是否跨实例相同、表面数、透明模式、billboard、skin、blend shape、`cast_shadow`、`rmmo_visibility_range`、`extras.rmmo_wind`、表面覆盖材质、`rmmo_collision`。再按实例坐标统计 16 m、32 m、64 m 单元格的占用数。
+
+俯视预测 draw 约为「原型数 × 占用单元格数」（只计该相机距离下仍可见的 LOD）。占用单元格数须明显小于该路径的实例数。预测降幅很小，或资格门把大多数草挡在外面，就停。上一轮表面数减少 285、draw 却上升，说明表面计数不能当验收。
+
+## 朴素 MultiMesh 会错的地方
+
+1. **一个资产一个 MultiMesh 会把各子级 LOD 画在一起。** 可见距离和 `custom_aabb` 是子网格属性。远景本该关掉的近景 LOD 会继续提交。房屋同层合并后 draw 不降，与“合成后失去按件剔除、又变成无法复用的唯一网格”相符；成因仍是假设。
+
+2. **风场材质是逐实例的。** `wind_material.make` 每次 `ShaderMaterial.new()`。`wind_exposure` 来自该网格的遮挡射线，写在 uniform 上。弯曲用 `MODEL_MATRIX` 的逆和位移做相位，锚点来自该网格局部 AABB。MultiMesh 的 `MODEL_MATRIX` 可以保留弯曲和相位，但一份共享材质无法让每株草有不同的 exposure。`wind_runtime` 只扫描 `MeshInstance3D` 组。编辑器里风默认关，仍可能被打开。
+
+3. **记录里没有 `wind_response` 时，GLB 自带风不会被清掉。** `annotate` 仅在 `record.has("wind_response")` 且 profile 为 `off` 时擦除 `rmmo_wind`。随后 `_asset` 仍调用 `register`。资格门必须看注册之后的 extras，不能只看地图记录。不能把这 750 株草都当成静态。
+
+4. **透明混合不排序。** 风场允许 `TRANSPARENCY_ALPHA` 与 alpha scissor；地面合批则拒绝一切透明。MultiMesh 按缓冲顺序画，不按相机距离排序。162 个水体附近，alpha blend 的草会叠错。alpha scissor 可以进不透明裁切通道。
+
+5. **单元格节点的 `custom_aabb` 不能抄子网格的 LOD 盒。** 该属性替换的是整个几何实例的剔除盒。抄到单元格节点上，会把整片草的剔除收成一个局部盒子。可见距离应保持 `VISIBILITY_RANGE_FADE_DISABLED`（与现有作者数据一致）。引擎是否用 MultiMesh 节点的合并 AABB 做一次距离测试，需要对照本项目的 Godot 版本；在核对前，按“整格同时切换 LOD”设计，格边长要落在现有 1 m margin 可接受的误差内。
+
+6. **源节点不能 `visible = false`。** 风场 `_eligible` 要求 `is_visible_in_tree()`。选择、碰撞和逐子节点 UUID 也依赖这些节点仍在。代理只去掉渲染层；源网格资源只读。`PackedScene` 子资源是共享的，`surface_set_material` 会改到所有实例。
+
+## 最小原型
+
+只包住采样通过的草：不透明或 alpha scissor、无 skin、无 blend shape、无 billboard、无表面覆盖、注册后没有非 off 的 `rmmo_wind`、两份实例的网格 RID 相同。
+
+每个占用单元格、每个通过门的子网格原型一个 MultiMesh。实例变换用该子网格的全局变换（含 holder 的 `record.size` 缩放和 GLB 内部节点）。风场 `set_enabled(true)` 时先拆掉代理并恢复源渲染层，再走现有 `_bind`。风场再关闭时才重建代理。
+
+验收用临时地图、后台窗口（`tools/run_godot_background.py`），同一全镇俯视和一台街道相机：可见 draw、阴影 draw、场景 CPU、帧时间，多帧。draw 下降但帧时间不稳，按小地图缓存那次（-782 draw）同样否决。抽一株草做选择、撤销、保存重开；打开再关闭风场，画面须回到逐网格路径。
+
+## 不确定假设
+
+- 这 14 个 GLB 的子网格没有风、没有逐实例改网格、并且是 alpha scissor 或部分不透明。`parametric_tree.apply` 与 `SurfaceMaterials.apply` 的源码不在本次材料里，任一路径逐实例复制网格或材质，复用就不成立。
+- 草的空间分布足够成团，单元格数会明显小于 750。分布很散时，按格实例化会在俯视里增加 draw。
+- 房屋 draw 上升来自合并 AABB 变大和唯一网格失去复用。数字只说明表面数不能预测 draw 或 CPU。
+- 本仓库 Godot 版本里，MultiMesh 的可见距离和 `extra_cull_margin` 是整节点一次测试，且顶点着色器里的 `MODEL_MATRIX` 是实例矩阵。实现前要对照该版本核对。

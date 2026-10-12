@@ -1,0 +1,2123 @@
+{
+  "label": "river_bridge_wait_chain_20261007",
+  "flags": 0,
+  "wct_counts": {
+    "(1, 'running')": 4803,
+    "(1, 'blocked')": 189,
+    "(3, 'blocked')": 7,
+    "(0, '')": 1
+  },
+  "query_median": 10.4477,
+  "query_p95": 16.0584,
+  "query_max": 32.7325,
+  "multichains": [
+    {
+      "unix_begin": 1791347580.2671597,
+      "query_ms": 8.1821,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 811905,
+          "context_switches": 4073
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 2,
+          "type": "thread",
+          "status": "running",
+          "pid": 15504,
+          "tid": 8572,
+          "wait_time": 0,
+          "context_switches": 1
+        }
+      ],
+      "relative_us": 50952969.789505005
+    },
+    {
+      "unix_begin": 1791347580.284922,
+      "query_ms": 9.9329,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 811905,
+          "context_switches": 4073
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 2,
+          "type": "thread",
+          "status": "running",
+          "pid": 15504,
+          "tid": 8572,
+          "wait_time": 0,
+          "context_switches": 1
+        }
+      ],
+      "relative_us": 50970731.97364807
+    },
+    {
+      "unix_begin": 1791347582.006076,
+      "query_ms": 13.7582,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 812017,
+          "context_switches": 4141
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 2,
+          "type": "thread",
+          "status": "running",
+          "pid": 15504,
+          "tid": 9140,
+          "wait_time": 0,
+          "context_switches": 1
+        }
+      ],
+      "relative_us": 52691886.18659973
+    },
+    {
+      "unix_begin": 1791347690.7976384,
+      "query_ms": 10.2206,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 818978,
+          "context_switches": 30042
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20444,
+          "wait_time": 818971,
+          "context_switches": 19125
+        }
+      ],
+      "relative_us": 161483448.5054016
+    },
+    {
+      "unix_begin": 1791347690.8173614,
+      "query_ms": 15.5682,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 818978,
+          "context_switches": 30042
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20444,
+          "wait_time": 818971,
+          "context_switches": 19125
+        }
+      ],
+      "relative_us": 161503171.4439392
+    },
+    {
+      "unix_begin": 1791347690.8421896,
+      "query_ms": 9.7695,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 818978,
+          "context_switches": 30042
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20444,
+          "wait_time": 818971,
+          "context_switches": 19125
+        }
+      ],
+      "relative_us": 161527999.6395111
+    },
+    {
+      "unix_begin": 1791347690.8611047,
+      "query_ms": 9.7514,
+      "ok": true,
+      "error": 0,
+      "cycle": false,
+      "count": 3,
+      "nodes": [
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20012,
+          "wait_time": 818978,
+          "context_switches": 30042
+        },
+        {
+          "type_id": 6,
+          "status_id": 6,
+          "type": "thread_wait",
+          "status": "owned",
+          "name": ""
+        },
+        {
+          "type_id": 8,
+          "status_id": 3,
+          "type": "thread",
+          "status": "blocked",
+          "pid": 15504,
+          "tid": 20444,
+          "wait_time": 818971,
+          "context_switches": 19125
+        }
+      ],
+      "relative_us": 161546914.8159027
+    }
+  ],
+  "peaks": [
+    {
+      "frame": 6580,
+      "position": "(241.3605, 0.925823, 105.6102)",
+      "ms": 57.152,
+      "radar": {
+        "candidates": 2278,
+        "frame": 6577,
+        "indexed": true,
+        "ms": 0.288,
+        "shapes": 186,
+        "terrain_cached": true,
+        "terrain_redraws": 35
+      },
+      "physics": {
+        "frame": 6888,
+        "max_step_ms": 46.106,
+        "script_ms": 46.106,
+        "steps": 1,
+        "tail_ms": 0.244,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 6888,
+          "landing_ms": 0.08,
+          "move_ms": 0.175,
+          "ms": 0.39,
+          "navigation_ms": 0.019,
+          "sense_ms": 0.064,
+          "step_ms": 0.052,
+          "support_ms": 0.099
+        }
+      },
+      "intervals": [
+        {
+          "name": "process_to_sample",
+          "begin_us": 132941804,
+          "end_us": 132998969,
+          "wall_ms": 57.165,
+          "outer": {
+            "wall_ms": 65.52886962890625,
+            "cpu_ms": 15.625,
+            "cycles": 63741854
+          },
+          "inner": {
+            "wall_ms": 54.46267127990723,
+            "cpu_ms": 0.0,
+            "cycles": 29321990
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "postprocess_to_draw",
+          "begin_us": 132943711,
+          "end_us": 132943810,
+          "wall_ms": 0.099,
+          "outer": {
+            "wall_ms": 5.522489547729492,
+            "cpu_ms": 0.0,
+            "cycles": 18087982
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [],
+          "wct_queries_overlap": []
+        },
+        {
+          "name": "draw",
+          "begin_us": 132943810,
+          "end_us": 132948037,
+          "wall_ms": 4.227,
+          "outer": {
+            "wall_ms": 11.042118072509766,
+            "cpu_ms": 0.0,
+            "cycles": 33194624
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "wind",
+          "begin_us": 132953175,
+          "end_us": 132998506,
+          "wall_ms": 45.331,
+          "outer": {
+            "wall_ms": 48.94304275512695,
+            "cpu_ms": 0.0,
+            "cycles": 14215348
+          },
+          "inner": {
+            "wall_ms": 37.85204887390137,
+            "cpu_ms": 0.0,
+            "cycles": 7039594
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "wind_cancel_nodes",
+          "begin_us": 132953416,
+          "end_us": 132981910,
+          "wall_ms": 28.494,
+          "outer": {
+            "wall_ms": 32.71031379699707,
+            "cpu_ms": 0.0,
+            "cycles": 9700420
+          },
+          "inner": {
+            "wall_ms": 22.06897735595703,
+            "cpu_ms": 0.0,
+            "cycles": 3445436
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.260526,
+              "query_ms": 13.4556,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817153,
+                  "context_switches": 24699
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.283593,
+              "query_ms": 7.3906,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817154,
+                  "context_switches": 24893
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "wind_cancel_keys",
+          "begin_us": 132981912,
+          "end_us": 132998474,
+          "wall_ms": 16.562,
+          "outer": {
+            "wall_ms": 21.364927291870117,
+            "cpu_ms": 0.0,
+            "cycles": 5249250
+          },
+          "inner": {
+            "wall_ms": 10.650873184204102,
+            "cpu_ms": 0.0,
+            "cycles": 2859836
+          },
+          "memory_outer": {
+            "wall_ms": 109.72952842712402,
+            "rss_delta": -28172288,
+            "page_fault_delta": 324
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.3012516,
+              "query_ms": 11.3978,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817156,
+                  "context_switches": 25155
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 6617,
+      "position": "(243.4165, 0.925821, 107.3083)",
+      "ms": 59.548,
+      "radar": {
+        "candidates": 2278,
+        "frame": 6617,
+        "indexed": true,
+        "ms": 32.674,
+        "shapes": 511,
+        "terrain_cached": true,
+        "terrain_ms": 26.17,
+        "terrain_redraws": 36
+      },
+      "physics": {
+        "frame": 6928,
+        "max_step_ms": 3.393,
+        "script_ms": 4.78,
+        "steps": 3,
+        "tail_ms": 0.131,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 6926,
+          "landing_ms": 0.147,
+          "move_ms": 0.415,
+          "ms": 0.813,
+          "navigation_ms": 0.039,
+          "sense_ms": 0.122,
+          "step_ms": 0.091,
+          "support_ms": 0.186
+        }
+      },
+      "intervals": [
+        {
+          "name": "process_to_sample",
+          "begin_us": 133575528,
+          "end_us": 133635086,
+          "wall_ms": 59.558,
+          "outer": {
+            "wall_ms": 65.68002700805664,
+            "cpu_ms": 15.625,
+            "cycles": 224112884
+          },
+          "inner": {
+            "wall_ms": 54.6422004699707,
+            "cpu_ms": 15.625,
+            "cycles": 186577120
+          },
+          "memory_outer": {
+            "wall_ms": 220.51620483398438,
+            "rss_delta": 14135296,
+            "page_fault_delta": 4315
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.8920662,
+              "query_ms": 15.0433,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817193,
+                  "context_switches": 25631
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9164207,
+              "query_ms": 12.052,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817195,
+                  "context_switches": 25633
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9377542,
+              "query_ms": 10.9427,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817196,
+                  "context_switches": 25634
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.8920662,
+              "query_ms": 15.0433,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817193,
+                  "context_switches": 25631
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9164207,
+              "query_ms": 12.052,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817195,
+                  "context_switches": 25633
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9377542,
+              "query_ms": 10.9427,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817196,
+                  "context_switches": 25634
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "postprocess_to_draw",
+          "begin_us": 133578153,
+          "end_us": 133611078,
+          "wall_ms": 32.925,
+          "outer": {
+            "wall_ms": 38.147687911987305,
+            "cpu_ms": 0.0,
+            "cycles": 128946168
+          },
+          "inner": {
+            "wall_ms": 27.356624603271484,
+            "cpu_ms": 0.0,
+            "cycles": 92113274
+          },
+          "memory_outer": {
+            "wall_ms": 220.51620483398438,
+            "rss_delta": 14135296,
+            "page_fault_delta": 4315
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.9164207,
+              "query_ms": 12.052,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817195,
+                  "context_switches": 25633
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.8920662,
+              "query_ms": 15.0433,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817193,
+                  "context_switches": 25631
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9164207,
+              "query_ms": 12.052,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817195,
+                  "context_switches": 25633
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "draw",
+          "begin_us": 133611078,
+          "end_us": 133629599,
+          "wall_ms": 18.521,
+          "outer": {
+            "wall_ms": 22.009611129760742,
+            "cpu_ms": 15.625,
+            "cycles": 76042022
+          },
+          "inner": {
+            "wall_ms": 10.715723037719727,
+            "cpu_ms": 0.0,
+            "cycles": 37794252
+          },
+          "memory_outer": {
+            "wall_ms": 110.07261276245117,
+            "rss_delta": 8216576,
+            "page_fault_delta": 2009
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347662.9377542,
+              "query_ms": 10.9427,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817196,
+                  "context_switches": 25634
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347662.9164207,
+              "query_ms": 12.052,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817195,
+                  "context_switches": 25633
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347662.9377542,
+              "query_ms": 10.9427,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817196,
+                  "context_switches": 25634
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7165,
+      "position": "(275.9059, 2.426018, 134.0223)",
+      "ms": 76.43,
+      "radar": {
+        "candidates": 2278,
+        "frame": 7165,
+        "indexed": true,
+        "ms": 31.379,
+        "shapes": 1456,
+        "terrain_cached": true,
+        "terrain_ms": 25.92,
+        "terrain_redraws": 40
+      },
+      "physics": {
+        "frame": 7562,
+        "max_step_ms": 4.01,
+        "script_ms": 9.755,
+        "steps": 4,
+        "tail_ms": 0.312,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 7559,
+          "landing_ms": 0.162,
+          "move_ms": 0.514,
+          "ms": 1.636,
+          "navigation_ms": 0.031,
+          "sense_ms": 0.127,
+          "step_ms": 0.803,
+          "support_ms": 0.193
+        }
+      },
+      "intervals": [
+        {
+          "name": "process_to_sample",
+          "begin_us": 144139664,
+          "end_us": 144216114,
+          "wall_ms": 76.45,
+          "outer": {
+            "wall_ms": 81.7708969116211,
+            "cpu_ms": 46.875,
+            "cycles": 279306344
+          },
+          "inner": {
+            "wall_ms": 71.17104530334473,
+            "cpu_ms": 46.875,
+            "cycles": 243076632
+          },
+          "memory_outer": {
+            "wall_ms": 219.03276443481445,
+            "rss_delta": 741376,
+            "page_fault_delta": 506
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347673.4772966,
+              "query_ms": 8.317,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817870,
+                  "context_switches": 27627
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347673.5109003,
+              "query_ms": 8.4423,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817873,
+                  "context_switches": 27628
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347673.4772966,
+              "query_ms": 8.317,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817870,
+                  "context_switches": 27627
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347673.5109003,
+              "query_ms": 8.4423,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817873,
+                  "context_switches": 27628
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "postprocess_to_draw",
+          "begin_us": 144146400,
+          "end_us": 144178322,
+          "wall_ms": 31.922,
+          "outer": {
+            "wall_ms": 32.562971115112305,
+            "cpu_ms": 31.25,
+            "cycles": 110547824
+          },
+          "inner": {
+            "wall_ms": 21.85535430908203,
+            "cpu_ms": 31.25,
+            "cycles": 75093002
+          },
+          "memory_outer": {
+            "wall_ms": 109.88306999206543,
+            "rss_delta": 536576,
+            "page_fault_delta": 441
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347673.4772966,
+              "query_ms": 8.317,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817870,
+                  "context_switches": 27627
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347673.4772966,
+              "query_ms": 8.317,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817870,
+                  "context_switches": 27627
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "draw",
+          "begin_us": 144178322,
+          "end_us": 144205309,
+          "wall_ms": 26.987,
+          "outer": {
+            "wall_ms": 33.10966491699219,
+            "cpu_ms": 15.625,
+            "cycles": 113920406
+          },
+          "inner": {
+            "wall_ms": 22.07636833190918,
+            "cpu_ms": 15.625,
+            "cycles": 76019172
+          },
+          "memory_outer": {
+            "wall_ms": 219.03276443481445,
+            "rss_delta": 741376,
+            "page_fault_delta": 506
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347673.5109003,
+              "query_ms": 8.4423,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817873,
+                  "context_switches": 27628
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347673.5109003,
+              "query_ms": 8.4423,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 817873,
+                  "context_switches": 27628
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7275,
+      "position": "(283.8883, 2.848507, 141.1845)",
+      "ms": 64.967,
+      "radar": {
+        "candidates": 2278,
+        "frame": 7275,
+        "indexed": true,
+        "ms": 34.312,
+        "shapes": 1651,
+        "terrain_cached": true,
+        "terrain_ms": 30.854,
+        "terrain_redraws": 41
+      },
+      "physics": {
+        "frame": 7723,
+        "max_step_ms": 3.37,
+        "script_ms": 5.078,
+        "steps": 3,
+        "tail_ms": 0.129,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 7721,
+          "landing_ms": 0.149,
+          "move_ms": 0.237,
+          "ms": 1.004,
+          "navigation_ms": 0.354,
+          "sense_ms": 0.117,
+          "step_ms": 0.148,
+          "support_ms": 0.503
+        }
+      },
+      "intervals": [
+        {
+          "name": "process_to_sample",
+          "begin_us": 146828135,
+          "end_us": 146893112,
+          "wall_ms": 64.977,
+          "outer": {
+            "wall_ms": 71.41804695129395,
+            "cpu_ms": 46.875,
+            "cycles": 243409868
+          },
+          "inner": {
+            "wall_ms": 60.37473678588867,
+            "cpu_ms": 46.875,
+            "cycles": 206850898
+          },
+          "memory_outer": {
+            "wall_ms": 109.64345932006836,
+            "rss_delta": 352256,
+            "page_fault_delta": 107
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347676.1428845,
+              "query_ms": 8.9715,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818041,
+                  "context_switches": 28091
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347676.1611526,
+              "query_ms": 8.6476,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818042,
+                  "context_switches": 28091
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347676.180212,
+              "query_ms": 8.5487,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818044,
+                  "context_switches": 28092
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347676.1428845,
+              "query_ms": 8.9715,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818041,
+                  "context_switches": 28091
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347676.1611526,
+              "query_ms": 8.6476,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818042,
+                  "context_switches": 28091
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347676.180212,
+              "query_ms": 8.5487,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818044,
+                  "context_switches": 28092
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "postprocess_to_draw",
+          "begin_us": 146829754,
+          "end_us": 146864323,
+          "wall_ms": 34.569,
+          "outer": {
+            "wall_ms": 38.321733474731445,
+            "cpu_ms": 31.25,
+            "cycles": 130183868
+          },
+          "inner": {
+            "wall_ms": 27.282238006591797,
+            "cpu_ms": 31.25,
+            "cycles": 93857134
+          },
+          "memory_outer": {
+            "wall_ms": 109.64345932006836,
+            "rss_delta": 352256,
+            "page_fault_delta": 107
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347676.1611526,
+              "query_ms": 8.6476,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818042,
+                  "context_switches": 28091
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347676.1428845,
+              "query_ms": 8.9715,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818041,
+                  "context_switches": 28091
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347676.1611526,
+              "query_ms": 8.6476,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818042,
+                  "context_switches": 28091
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "draw",
+          "begin_us": 146864323,
+          "end_us": 146887413,
+          "wall_ms": 23.09,
+          "outer": {
+            "wall_ms": 27.5728702545166,
+            "cpu_ms": 15.625,
+            "cycles": 95294388
+          },
+          "inner": {
+            "wall_ms": 16.546010971069336,
+            "cpu_ms": 15.625,
+            "cycles": 57695288
+          },
+          "memory_outer": {
+            "wall_ms": 109.64345932006836,
+            "rss_delta": 352256,
+            "page_fault_delta": 107
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347676.180212,
+              "query_ms": 8.5487,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818044,
+                  "context_switches": 28092
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347676.180212,
+              "query_ms": 8.5487,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818044,
+                  "context_switches": 28092
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "frame": 7383,
+      "position": "(291.9987, 2.102746, 148.0134)",
+      "ms": 57.541,
+      "radar": {
+        "candidates": 1967,
+        "frame": 7383,
+        "indexed": true,
+        "ms": 25.814,
+        "shapes": 1328,
+        "terrain_cached": true,
+        "terrain_ms": 22.609,
+        "terrain_redraws": 42
+      },
+      "physics": {
+        "frame": 7882,
+        "max_step_ms": 2.905,
+        "script_ms": 4.56,
+        "steps": 2,
+        "tail_ms": 0.238,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "contacts": [],
+          "frame": 7882,
+          "landing_ms": 0.198,
+          "move_from": [
+            291.947692871094,
+            2.11093807220459,
+            147.970443725586
+          ],
+          "move_ms": 1.585,
+          "move_rotation": "(0.0, 0.0, 0.0)",
+          "move_velocity": "(3.059692, -0.163333, 2.576294)",
+          "ms": 2.421,
+          "navigation_ms": 0.032,
+          "sense_ms": 0.208,
+          "step_ms": 0.399,
+          "support_ms": 0.23
+        }
+      },
+      "intervals": [
+        {
+          "name": "process_to_sample",
+          "begin_us": 149487258,
+          "end_us": 149544808,
+          "wall_ms": 57.55,
+          "outer": {
+            "wall_ms": 66.22314453125,
+            "cpu_ms": 46.875,
+            "cycles": 226913062
+          },
+          "inner": {
+            "wall_ms": 55.27067184448242,
+            "cpu_ms": 46.875,
+            "cycles": 190027776
+          },
+          "memory_outer": {
+            "wall_ms": 110.3978157043457,
+            "rss_delta": 33619968,
+            "page_fault_delta": 8338
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347678.8102574,
+              "query_ms": 10.7271,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818212,
+                  "context_switches": 28524
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8303316,
+              "query_ms": 9.4847,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818213,
+                  "context_switches": 28525
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8503973,
+              "query_ms": 8.8626,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818215,
+                  "context_switches": 28525
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347678.8102574,
+              "query_ms": 10.7271,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818212,
+                  "context_switches": 28524
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8303316,
+              "query_ms": 9.4847,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818213,
+                  "context_switches": 28525
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8503973,
+              "query_ms": 8.8626,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818215,
+                  "context_switches": 28525
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "postprocess_to_draw",
+          "begin_us": 149490094,
+          "end_us": 149516120,
+          "wall_ms": 26.026,
+          "outer": {
+            "wall_ms": 27.617216110229492,
+            "cpu_ms": 31.25,
+            "cycles": 96746362
+          },
+          "inner": {
+            "wall_ms": 16.56031608581543,
+            "cpu_ms": 31.25,
+            "cycles": 58279734
+          },
+          "memory_outer": {
+            "wall_ms": 110.3978157043457,
+            "rss_delta": 33619968,
+            "page_fault_delta": 8338
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347678.8102574,
+              "query_ms": 10.7271,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818212,
+                  "context_switches": 28524
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347678.8102574,
+              "query_ms": 10.7271,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818212,
+                  "context_switches": 28524
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "draw",
+          "begin_us": 149516120,
+          "end_us": 149539693,
+          "wall_ms": 23.573,
+          "outer": {
+            "wall_ms": 33.1873893737793,
+            "cpu_ms": 15.625,
+            "cycles": 112628490
+          },
+          "inner": {
+            "wall_ms": 22.063255310058594,
+            "cpu_ms": 15.625,
+            "cycles": 75708784
+          },
+          "memory_outer": {
+            "wall_ms": 110.3978157043457,
+            "rss_delta": 33619968,
+            "page_fault_delta": 8338
+          },
+          "wct_queries_started_inside": [
+            {
+              "unix_begin": 1791347678.8303316,
+              "query_ms": 9.4847,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818213,
+                  "context_switches": 28525
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8503973,
+              "query_ms": 8.8626,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818215,
+                  "context_switches": 28525
+                }
+              ]
+            }
+          ],
+          "wct_queries_overlap": [
+            {
+              "unix_begin": 1791347678.8303316,
+              "query_ms": 9.4847,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818213,
+                  "context_switches": 28525
+                }
+              ]
+            },
+            {
+              "unix_begin": 1791347678.8503973,
+              "query_ms": 8.8626,
+              "ok": true,
+              "error": 0,
+              "cycle": false,
+              "count": 1,
+              "nodes": [
+                {
+                  "type_id": 8,
+                  "status_id": 2,
+                  "type": "thread",
+                  "status": "running",
+                  "pid": 15504,
+                  "tid": 20012,
+                  "wait_time": 818215,
+                  "context_switches": 28525
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

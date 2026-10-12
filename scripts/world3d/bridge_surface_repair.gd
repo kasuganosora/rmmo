@@ -39,7 +39,7 @@ static func repair(record:Dictionary)->Dictionary:
 		var st:SurfaceTool=streams[slot];st.index();st.generate_tangents()
 		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,st.commit_to_arrays(),[],{},original.mesh.materials[slot])
 	importer.generate_lods(60,25,[])
-	var visual:Mesh=importer.get_mesh();var cpu:Mesh=Frozen.Cpu.capture(visual)
+	var visual:Mesh=importer.get_mesh();var cpu:Mesh=preload("res://scripts/world3d/bridge_lod_preparation.gd").remember(importer,visual)
 	var cache:Dictionary={};cache[[0]]={"mesh":cpu,"source":original.source}
 	var data:=Frozen.Cook.pack(cache,"","bridge_surface_v2");Frozen.compact_data(data)
 	if data.entries.size()!=1:return {"ok":false,"error":"无法保存修复网格"}

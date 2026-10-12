@@ -1,0 +1,97 @@
+--- before/model_parse_preparation.gd
++++ after/model_parse_preparation.gd
+@@ -59,7 +59,7 @@
+ 	var parse:=parser if parser.is_valid() else _parse_verified_fallback.bind(content_root,verified_sources)
+ 	var limit := clampi(worker_limit, 1, 4)
+ 	var eligibility_started := Time.get_ticks_usec()
+-	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var required_resident:=0
++	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
+ 	for path: String in unique:
+ 		if is_cancelled(): break
+ 		if not native_route or (eligibility_checker.call(path) if eligibility_checker.is_valid() else Embedded.can_copy(path)):eligible[path]=true
+@@ -67,15 +67,23 @@
+ 		if not estimate is Dictionary or not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool:
+ 			estimate=MemoryEstimate._unknown("invalid_estimator")
+ 		estimates[path]=estimate.duplicate()
+-		if native_footprints_enabled and native_route and (candidate_provider.is_valid() or not cache_reader.is_valid()):
++		legacy_estimates[path]=estimate.duplicate()
++		if native_route and (candidate_provider.is_valid() or not cache_reader.is_valid()):
+ 			var candidate:Dictionary=candidate_provider.call(path) if candidate_provider.is_valid() else preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")))
+-			if not candidate.is_empty() and candidate.get("estimated_bytes") is int and candidate.estimated_bytes>0 and candidate.estimated_bytes<estimate.estimated_bytes and candidate.get("exclusive") is bool:
+-				candidates[path]=candidate.duplicate(true)
+-				native_estimates[path]={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true,"reason":"verified_native_footprint"}
++			if not candidate.is_empty() and candidate.get("estimated_bytes") is int and candidate.estimated_bytes>0 and candidate.get("exclusive") is bool:
++				# Source cleanup can shrink the raw envelope without changing the
++				# native pixels or loader working set. A known native bound applies
++				# even when it costs MORE; the legacy opt-out can still read native.
++				native_bounds[path]=candidate.estimated_bytes
++				legacy_estimates[path].estimated_bytes=maxi(estimate.estimated_bytes,candidate.estimated_bytes)
++				legacy_estimates[path].exclusive=estimate.exclusive or candidate.exclusive
++				if native_footprints_enabled:
++					candidates[path]=candidate.duplicate(true)
++					native_estimates[path]={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true,"reason":"verified_native_footprint"}
+ 		# The synchronous API retains every completed model until its caller can
+ 		# consume the returned array. Charge the full task estimate conservatively;
+ 		# GLTFState may retain source buffers as well as decoded meshes/textures.
+-		required_resident+=int(native_estimates.get(path,estimate).estimated_bytes)
++		required_resident+=int(native_estimates.get(path,legacy_estimates[path]).estimated_bytes)
+ 	var eligibility_us := Time.get_ticks_usec() - eligibility_started
+ 	var admission=Admission.new();admission.worker_limit=limit;admission.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit)
+ 	var completed:Dictionary={};var pending:Array=[];var fallbacks:Array=[]
+@@ -91,6 +99,10 @@
+ 		"policy":"conservative_bytes_held_until_join_then_full_result_charge","timing_scope":"scheduler wall time; task waits and overlapping worker stages are not additive CPU time"}
+ 	for path:String in unique:
+ 		admission_profile.tasks[path]={"enqueued_us":queued_at,"queue_us":0,"blocked_us":0,"blocked_us_by_reason":{},"state":"queued","stages":[],"memory":MemoryEstimate.stage_profile(estimates.get(path,{}))}
++		if native_bounds.has(path):
++			admission_profile.tasks[path].memory.native_bound_bytes=native_bounds[path]
++			admission_profile.tasks[path].memory.compiled_read_reservation_bytes=legacy_estimates[path].estimated_bytes
++			admission_profile.tasks[path].memory.policy="legacy_native_or_raw_max_envelope"
+ 		if native_estimates.has(path):
+ 			var memory:Dictionary=admission_profile.tasks[path].memory
+ 			memory.compiled_read_reservation_bytes=native_estimates[path].estimated_bytes
+@@ -140,7 +152,7 @@
+ 				# Native preparation may discover a changed source. Refresh the raw
+ 				# envelope before reserving its separate stage; never reuse the
+ 				# discounted product reservation for a newly imported GLB.
+-				if (candidates.has(path) or legacy_retry) and not draining:
++				if native_route and not draining:
+ 					var refreshed:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else MemoryEstimate.estimate(path)
+ 					if not refreshed is Dictionary or not refreshed.get("estimated_bytes") is int or refreshed.estimated_bytes<=0 or not refreshed.get("exclusive") is bool:refreshed=MemoryEstimate._unknown("invalid_fallback_estimate")
+ 					estimates[path]=refreshed.duplicate()
+@@ -168,7 +180,7 @@
+ 			var index:int=route.index;var path:String=unique[index]
+ 			var fallback_stage:bool=route.has("reason")
+ 			var serial:bool=fallback_stage and not eligible.has(path)
+-			var estimate:Dictionary=(native_estimates[path] if not fallback_stage and native_estimates.has(path) else estimates[path]).duplicate()
++			var estimate:Dictionary=(estimates[path] if fallback_stage else native_estimates.get(path,legacy_estimates[path])).duplicate()
+ 			if serial:estimate.exclusive=true
+ 			var stage:String="compiled_read" if native_route and not fallback_stage else ("raw_import" if native_route else "injected_parse")
+ 			estimate.stage=stage
+--- before/deferred_asset_loader.gd
++++ after/deferred_asset_loader.gd
+@@ -1981,14 +1981,21 @@
+ 			if _raw_retries.has(path):
+ 				stage="raw_import";raw_item.memory=_raw_retries[path].memory
+ 				estimate=_estimate_job(raw_item,requests,true)
+-			elif native_preparation_enabled:
++			else:
+ 				var offered:Dictionary=_candidate_for_job(path,content_root,digest)
+ 				var raw_bytes:=int(next.get("memory",{}).get("estimated_bytes",_admission.byte_limit))
+-				if offered.get("estimated_bytes") is int and offered.estimated_bytes>0 and offered.estimated_bytes<raw_bytes and offered.get("exclusive") is bool:
+-					candidate=offered.duplicate(true);stage="fixed_native"
+-					if native_budget_enabled:raw_item.memory={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true}
++				if offered.get("estimated_bytes") is int and offered.estimated_bytes>0 and offered.get("exclusive") is bool:
++					# Both fixed and legacy readers may allocate the known native
++					# product. Never discard its larger bound after GLB cleanup.
++					raw_item.memory=next.get("memory",{}).duplicate()
++					raw_item.memory.estimated_bytes=maxi(raw_bytes,offered.estimated_bytes)
++					raw_item.memory.exclusive=bool(raw_item.memory.get("exclusive",false)) or offered.exclusive
++					if native_preparation_enabled:
++						candidate=offered.duplicate(true);stage="fixed_native"
++						if native_budget_enabled:raw_item.memory={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true}
+ 					estimate=_estimate_job(raw_item,requests,true)
+ 					estimate.raw_model_bytes=raw_bytes
++					estimate.native_model_bound_bytes=offered.estimated_bytes
+ 		estimate.stage=stage
+ 		if CollisionGeometry.enabled and not native:
+ 			# Snapshot/learned-policy containers are private task inputs/outputs.

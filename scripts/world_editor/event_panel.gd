@@ -32,6 +32,7 @@ func setup(host: Node3D) -> void:
 	button(create_box, "在此位置新建事件", create_event)
 	form = Form.new(); add_child(form)
 	preview = TextEdit.new(); preview.editable = false; preview.custom_minimum_size.y = 130; preview.visible = false; add_child(preview)
+	visibility_changed.connect(refresh)
 	refresh()
 
 func button(parent: Node, text_: String, callback: Callable) -> Button:
@@ -41,7 +42,9 @@ func selected_id() -> String:
 	return str(editor._selection_tools.ids[0]) if editor._selection_tools.ids.size() == 1 else ""
 
 func refresh() -> void:
-	if form == null: return
+	# Selection changes also reach inactive tabs. Build the controls from the
+	# current document when this tab becomes visible, including hidden MCP edits.
+	if form == null or not is_visible_in_tree(): return
 	var record: Dictionary = editor._doc._find(selected_id())
 	apply_button.disabled = record.is_empty()
 	remove_button.disabled = not record.has("event_template")
@@ -82,5 +85,5 @@ func show_preview() -> void:
 	preview.text = JSON.stringify(Templates.compile(result.value), "  "); preview.visible = true
 
 func report(result: Dictionary) -> void:
-	editor._status.text = "事件设置已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"事件设置已应用，可撤销","事件设置")
 	if result.ok: refresh()

@@ -1,10 +1,25 @@
 extends RefCounted
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Data=preload("res://scripts/world3d/river_material_data.gd")
+const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const Trace=preload("res://scripts/world3d/load_trace.gd")
+const CPU_SURFACE_OVERRIDES_META=&"runtime_cpu_surface_overrides"
+static var cpu_index_overrides_enabled:=true # Probe-only old/new comparison.
+static var water_cpu_normals_enabled:=true # Probe-only old/new comparison.
+static var water_cpu_index_enabled:=true # Keep water independent from ground batching.
+static var water_cpu_normal_hits:=0
+# Main-thread runtime indexing counters; the entry probe resets between runs.
+static var cpu_index_override_count:=0
+static var cpu_index_legacy_restore_count:=0
 static var cache: Dictionary={}
 static var hidden_slab: ShaderMaterial
 
+static func reset_index_profile()->void:
+	cpu_index_override_count=0;cpu_index_legacy_restore_count=0
+	water_cpu_normal_hits=0
+
 static func bind(material: ShaderMaterial, prefix: String, definition: Dictionary,path_checks:Variant=null) -> void:
+	var started:=Time.get_ticks_usec() if Trace.enabled else 0
 	var c: Array=definition.color
 	material.set_shader_parameter(prefix+"_color",Color(c[0],c[1],c[2],c[3]))
 	var tile: Array=definition.get("tile_size",[2,2])
@@ -17,6 +32,7 @@ static func bind(material: ShaderMaterial, prefix: String, definition: Dictionar
 	material.set_shader_parameter(prefix+"_roughness",definition.roughness)
 	material.set_shader_parameter(prefix+"_metallic",definition.get("metallic",1.0 if definition.has("metallic_path") else 0.0))
 	material.set_shader_parameter(prefix+"_strength",definition.get("normal_strength",1.0) if definition.has("normal_path") else 0.0)
+	if Trace.enabled:Trace.elapsed("river.bind",started,{"prefix":prefix})
 
 static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMaterial:
 	var depth_enabled: bool=record.has("terrain_depth_blend")
@@ -31,7 +47,9 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	# Avoid serializing thousands of heights on every hit. Verify equality so a
 	# hash collision is a cache miss, never another patch's heights/materials.
 	if cache.has(key) and cache[key].get_meta("terrain_signature",[])==signature: return cached(key)
+	var started:=Time.get_ticks_usec() if Trace.enabled else 0
 	var result:=ShaderMaterial.new(); result.shader=preload("res://scripts/world3d/river_terrain.gdshader")
+	if Trace.enabled:Trace.elapsed("river.terrain_create",started)
 	result.set_meta("terrain_signature",signature.duplicate(true))
 	result.resource_name="River depth blend" if depth_enabled else ("Terrain slope blend" if record.has("terrain_slope_blend") else "Terrain PBR")
 	var checks:Variant=context.get("texture_checks")
@@ -96,24 +114,54 @@ static func bank(config: Dictionary, source: StandardMaterial3D) -> ShaderMateri
 	for pair in [["albedo_tex","albedo_texture"],["normal_tex","normal_texture"],["rough_tex","roughness_texture"],["metal_tex","metallic_texture"],["ao_tex","ao_texture"]]: result.set_shader_parameter(pair[0],source.get(pair[1]))
 	return remember(key,result)
 
-static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={},validation_cache:Variant=null,validated:bool=false) -> void:
+static func _set_override(node:MeshInstance3D,slot:int,material:Material,cpu_overrides:Variant)->void:
+	if cpu_overrides!=null:cpu_overrides[slot]=material
+	else:node.set_surface_override_material(slot,material)
+
+static func _active_material(node:MeshInstance3D,slot:int,cpu_overrides:Variant)->Material:
+	if cpu_overrides==null:return node.get_active_material(slot)
+	# Match MeshInstance3D's override precedence without requiring a mesh RID.
+	if node.material_override!=null:return node.material_override
+	return cpu_overrides[slot] if cpu_overrides[slot]!=null else node.mesh.surface_get_material(slot)
+
+static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={},validation_cache:Variant=null,validated:bool=false,cpu_index:bool=false) -> void:
 	if not record.has("terrain_depth_blend") and not record.has("terrain_slope_blend") and not record.has("terrain_regions") and not record.has("terrain_saturation") and not record.has("water_depth_effect") and not record.has("bank_wetness"): return
 	if not validated and (not Data.valid(record) or not Paint.valid(record,false,"",validation_cache)): node.set_meta("paint_error","地形/河道材质参数无效"); return
-	# Cooked source geometry is CPU-only. Instance material overrides require a
-	# real mesh RID with surface slots, even during immutable runtime indexing.
-	if node.mesh.get_script()==preload("res://scripts/world3d/ground_cpu_mesh.gd"):
-		node.mesh=node.mesh.restore()
+	var cpu_overrides:Variant=null
+	# Keep the verified CPU arrays across restore. Reading them back from the
+	# newly uploaded ArrayMesh synchronizes with RenderingServer unnecessarily.
+	# Existing caches are invalidated by Mesh.changed; never capture a new mesh
+	# here just to inspect normals (that would read every surface back instead).
+	var normal_source:Mesh=node.mesh
+	if water_cpu_normals_enabled and record.has("water_depth_effect") and not normal_source is Cpu:
+		normal_source=normal_source.get_meta("ground_cpu_cache",normal_source)
+	if node.mesh is Cpu:
+		if cpu_index and cpu_index_overrides_enabled:
+			# Immutable terrain/water indexing only needs override references. Upload
+			# once at actual stream spawn, not into a temporary node freed by _spec.
+			cpu_overrides=[];cpu_overrides.resize(node.mesh.get_surface_count())
+			# Match native Material getters' OBJECT-null, not Array.resize's NIL.
+			# Zero is an invalid ObjectID: the native API returns that empty Variant
+			# without allocating a node or copying an existing material_override.
+			cpu_overrides.fill(instance_from_id(0))
+			node.set_meta(CPU_SURFACE_OVERRIDES_META,cpu_overrides)
+			cpu_index_override_count+=1
+		else:
+			if cpu_index:cpu_index_legacy_restore_count+=1
+			var restore_started:=Time.get_ticks_usec() if Trace.enabled else 0
+			node.mesh=node.mesh.restore()
+			if Trace.enabled:Trace.elapsed("river.mesh_restore",restore_started,{"uuid":record.get("uuid","")})
 	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"):
 		var material:=terrain(record,context)
-		node.set_surface_override_material(0,material)
-		for slot in range(2,node.mesh.get_surface_count()): node.set_surface_override_material(slot,material)
+		_set_override(node,0,material,cpu_overrides)
+		for slot in range(2,node.mesh.get_surface_count()): _set_override(node,slot,material,cpu_overrides)
 		# Natural exposed cut edges use the same slope rule; legacy depth-only maps stay unchanged.
-		if material.get_shader_parameter("slope_aware"):
-			for slot in range(1,node.mesh.get_surface_count()): node.set_surface_override_material(slot,material)
+		if record.has("terrain_slope_blend") or (record.has("terrain_depth_blend") and record.terrain_depth_blend.get("bank_profile","depth")=="natural"):
+			for slot in range(1,node.mesh.get_surface_count()): _set_override(node,slot,material,cpu_overrides)
 	if record.has("bank_wetness"):
 		for slot in node.mesh.get_surface_count():
-			var source: Material=node.get_active_material(slot)
-			if source is StandardMaterial3D: node.set_surface_override_material(slot,bank(record.bank_wetness,source))
+			var source: Material=_active_material(node,slot,cpu_overrides)
+			if source is StandardMaterial3D: _set_override(node,slot,bank(record.bank_wetness,source),cpu_overrides)
 	if record.has("water_depth_effect"):
 		if hidden_slab==null:
 			hidden_slab=ShaderMaterial.new(); hidden_slab.shader=Shader.new()
@@ -121,10 +169,16 @@ static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary=
 		node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		# Only horizontal upper faces; never shade slab undersides/vertical edges as water.
 		for slot in node.mesh.get_surface_count():
-			var normals: PackedVector3Array=node.mesh.surface_get_arrays(slot)[Mesh.ARRAY_NORMAL]
+			var normals_started:=Time.get_ticks_usec() if Trace.enabled else 0
+			var use_cpu:=water_cpu_normals_enabled and normal_source is Cpu
+			var normals: PackedVector3Array=(normal_source if use_cpu else node.mesh).surface_get_arrays(slot)[Mesh.ARRAY_NORMAL]
+			if use_cpu:water_cpu_normal_hits+=1
+			if Trace.enabled:Trace.elapsed("river.water_normals",normals_started,{"uuid":record.get("uuid",""),"slot":slot})
+			var water_started:=Time.get_ticks_usec() if Trace.enabled else 0
 			if not normals.is_empty() and normals[0].y>.99:
-				node.set_surface_override_material(slot,water(record.water_depth_effect,node.get_active_material(slot)))
-			else: node.set_surface_override_material(slot,hidden_slab)
+				_set_override(node,slot,water(record.water_depth_effect,_active_material(node,slot,cpu_overrides)),cpu_overrides)
+			else: _set_override(node,slot,hidden_slab,cpu_overrides)
+			if Trace.enabled:Trace.elapsed("river.water_material",water_started,{"uuid":record.get("uuid",""),"slot":slot})
 
 static func cached(key: String) -> ShaderMaterial:
 	var value: ShaderMaterial=cache[key]

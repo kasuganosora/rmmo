@@ -75,7 +75,9 @@ func _collect_maps(path: String, base: String, pack: Dictionary, result: Array[D
 		var name := relative.get_base_dir() if file == "map.gltf" and relative.contains("/") else relative.get_basename()
 		result.append({"name": name, "path": full, "pack": pack})
 	for folder in directory.get_directories():
-		if folder.begins_with(".") or directory.is_link(folder): continue
+		# Save generations and immutable definitions are implementation storage,
+		# never selectable maps (especially after the one-time v1 migration).
+		if folder.begins_with(".") or folder.ends_with(".versions") or folder.ends_with(".resources") or folder.ends_with(".save-lock") or directory.is_link(folder): continue
 		_collect_maps(path.path_join(folder), base, pack, result, depth + 1)
 
 func available_maps(pack: Dictionary, all_packs: Array[Dictionary]) -> Array[Dictionary]:

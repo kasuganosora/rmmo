@@ -25,11 +25,13 @@ func includes(record: Dictionary) -> bool:
 	return Settings.contains(record,settings)
 
 func decorate(record: Dictionary, visual: Node3D) -> void:
+	visual.set_meta("editor_mesh_size",record.get("size",[]).duplicate())
 	_membership[str(record.uuid)] = Settings.contains(record,settings)
 	var inside := includes(record)
 	visual.set_meta("editor_floor_excluded",not inside)
 	visual.visible = not record.get("editor_hidden",false) and (inside or settings.outside == "dim")
 	if not inside and settings.outside == "dim": _dim(visual)
+	preload("res://scripts/world_editor/building_shadow_preview.gd").attach(record,visual)
 
 func _dim(node: Node) -> void:
 	if node is GeometryInstance3D: node.transparency = maxf(node.transparency,.85)

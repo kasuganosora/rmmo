@@ -1,0 +1,42 @@
+{
+  "self_test_passed": true,
+  "current_pid": 17860,
+  "main_tid": 15672,
+  "result": {
+    "unix_begin": 1791347339.9831622,
+    "query_ms": 13.1745,
+    "ok": true,
+    "error": 0,
+    "cycle": false,
+    "count": 3,
+    "nodes": [
+      {
+        "type_id": 8,
+        "status_id": 3,
+        "type": "thread",
+        "status": "blocked",
+        "pid": 17860,
+        "tid": 5460,
+        "wait_time": 796510,
+        "context_switches": 2
+      },
+      {
+        "type_id": 3,
+        "status_id": 6,
+        "type": "mutex",
+        "status": "owned",
+        "name": ""
+      },
+      {
+        "type_id": 8,
+        "status_id": 2,
+        "type": "thread",
+        "status": "running",
+        "pid": 17860,
+        "tid": 15672,
+        "wait_time": 796525,
+        "context_switches": 151
+      }
+    ]
+  }
+}

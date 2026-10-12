@@ -10,6 +10,33 @@ var material_builds:=0
 static var night_materials:Dictionary={}
 static var halo_mesh:QuadMesh
 
+func prepare_materials(library:Array,tree:SceneTree)->Dictionary:
+	# Distant lamps can have a different StandardMaterial shader variant. Resolve
+	# their emissive RID under the loading cover, before first residency entry.
+	var started:=Time.get_ticks_usec();var slice:=started;var seen:Dictionary={}
+	var report:={"materials":0,"max_make_ms":0.0}
+	for spec:Dictionary in library:
+		if Time.get_ticks_usec()-slice>=2000:await tree.process_frame;slice=Time.get_ticks_usec()
+		var extra:Dictionary=spec.get("extras",{})
+		var warm:bool=extra.get("rmmo_small_wall_lantern",false)
+		if not warm and not extra.get("rmmo_streetlamp_crystal",false):continue
+		var mesh:Mesh=spec.get("mesh")
+		if mesh==null:continue
+		var overrides:Array=spec.get("surface_overrides",[])
+		for slot in mesh.get_surface_count():
+			var source:Material=spec.get("material_override")
+			if source==null and slot<overrides.size():source=overrides[slot]
+			if source==null:source=mesh.surface_get_material(slot)
+			if not source is StandardMaterial3D:continue
+			var key:=str(source.get_instance_id())+str(warm)
+			if seen.has(key):continue
+			seen[key]=true
+			var mark:=Time.get_ticks_usec()
+			_night_material(source,warm)
+			report.materials+=1;report.max_make_ms=maxf(report.max_make_ms,(Time.get_ticks_usec()-mark)/1000.0)
+	report.elapsed_ms=(Time.get_ticks_usec()-started)/1000.0
+	return report
+
 func _night_material(original:Material,warm:bool=false)->Material:
 	if not original is StandardMaterial3D:return original
 	var key:String=str(original.get_instance_id())+("_warm" if warm else "_blue")
@@ -31,6 +58,7 @@ func _night_material(original:Material,warm:bool=false)->Material:
 
 static func register(node:MeshInstance3D)->void:
 	var extras:Dictionary=node.get_meta("extras",{})
+	if preload("res://scripts/world3d/model_components.gd").valid_socket(extras.get("rmmo_model_light")):node.add_to_group(GROUP)
 	if extras.get("rmmo_streetlamp_crystal",false) or extras.get("rmmo_small_wall_lantern",false):node.add_to_group(GROUP)
 
 static func annotate(root_:Node,instance_id:String)->void:
@@ -76,11 +104,16 @@ func refresh()->void:
 	if weather.night_sky.ready:hour=preload("res://scripts/world3d/celestial_cycle.gd").hours(weather.night_sky.snapshot,preload("res://scripts/world3d/night_sky.gd").local_time()+weather.night_sky.clock_offset)
 	var night:bool=hour<6.0 or hour>=20.0
 	var active:Dictionary={}
+	var model_candidates:Array=[]
 	for node in get_tree().get_nodes_in_group(GROUP):
 		if not node is MeshInstance3D or node.get_world_3d()!=get_world_3d() or node.is_queued_for_deletion():continue
 		var id:int=node.get_instance_id();active[id]=true
+		if node.get_meta("extras",{}).has("rmmo_model_light"):
+			_refresh_model_light(node,night,model_candidates)
+			continue
 		if not fixtures.has(id):
 			var warm:bool=node.get_meta("extras",{}).get("rmmo_small_wall_lantern",false)
+			var original_override:Material=node.material_override
 			var originals:Array=[]
 			var emission:Array=[]
 			for slot in node.mesh.get_surface_count():
@@ -89,17 +122,21 @@ func refresh()->void:
 				# Prepare both states on fixture discovery, while initial map loading
 				# is covered. Switching the clock only swaps already built resources.
 				# Retain them per fixture even if the bounded shared cache evicts one.
-				emission.append(_night_material(override if override!=null else node.mesh.surface_get_material(slot),warm))
+				emission.append(_night_material(node.get_active_material(slot),warm))
 			var glow:=MeshInstance3D.new();glow.name="StreetlampHalo";glow.mesh=halo();glow.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			glow.position=node.get_aabb().get_center();glow.visible=false;node.add_child(glow)
 			var light:=_new_light()
 			if warm:light.light_color=Color(1,.52,.22);light.light_energy=1.2;light.omni_range=3.5
-			fixtures[id]={"node":weakref(node),"originals":originals,"emission":emission,"glow":glow,"light":light,"lit":false,"warm":warm}
+			fixtures[id]={"node":weakref(node),"original_override":original_override,"originals":originals,"emission":emission,"glow":glow,"light":light,"lit":false,"warm":warm}
 		var row:Dictionary=fixtures[id]
 		var at:Vector3=node.global_transform*node.get_aabb().get_center()
 		# Night lighting belongs to the fixture, never to the observer's distance/rank.
 		var enabled:bool=night and node.is_visible_in_tree()
 		if enabled!=row.lit:
+			# A global override wins over every surface override. Emission derives
+			# from that active source, then temporarily replaces it per surface;
+			# restore both levels of authored overrides when daylight returns.
+			node.material_override=null if enabled else row.original_override
 			for slot in node.mesh.get_surface_count():
 				node.set_surface_override_material(slot,row.emission[slot] if enabled else row.originals[slot])
 			row.lit=enabled
@@ -110,15 +147,44 @@ func refresh()->void:
 		row.light.visible=enabled
 	for id in fixtures.keys():
 		if not active.has(id):_restore(fixtures[id]);fixtures.erase(id)
+	model_candidates.sort_custom(func(a,b):return a.distance<b.distance)
+	for i in mini(model_candidates.size(),6):
+		var light:OmniLight3D=model_candidates[i].light
+		light.visible=true;light.shadow_enabled=i<2
 	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-profile_start)/1000.0,"material_builds":material_builds,"materials":night_materials.size()})
 
 func _restore(row:Dictionary)->void:
 	var node=row.node.get_ref()
-	if is_instance_valid(node):
-		for slot in row.originals.size():node.set_surface_override_material(slot,row.originals[slot])
+	if is_instance_valid(node) and not row.get("model_socket",false):
+		node.material_override=row.original_override
+		for slot in mini(node.mesh.get_surface_count(),row.originals.size()):node.set_surface_override_material(slot,row.originals[slot])
 	if is_instance_valid(row.glow):row.glow.queue_free()
 	if is_instance_valid(row.light):
 		row.light.hide();lights.erase(row.light);row.light.queue_free()
+
+func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void:
+	var socket:Dictionary=node.get_meta("extras",{}).rmmo_model_light
+	var id:=node.get_instance_id()
+	if not fixtures.has(id):
+		var effect:=MeshInstance3D.new();effect.name="AuthoredLightFlame"
+		if socket.get("flame",false):effect.mesh=preload("res://scripts/world3d/house_candle_lights.gd").flame_mesh()
+		effect.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF;node.add_child(effect)
+		var p:Array=socket.position;effect.position=Vector3(p[0],p[1],p[2])
+		var light:=_new_light();var c:Array=socket.color
+		light.light_color=Color(c[0],c[1],c[2]);light.light_energy=socket.energy;light.omni_range=socket.range
+		light.omni_attenuation=1.5;light.shadow_bias=.035
+		fixtures[id]={"node":weakref(node),"model_socket":true,"glow":effect,"light":light}
+	var row:Dictionary=fixtures[id]
+	var p:Array=socket.position;var at:Vector3=node.global_transform*Vector3(p[0],p[1],p[2])
+	row.light.global_position=at;row.light.visible=false
+	var enabled:bool=node.is_visible_in_tree() and (night or socket.get("indoor",false))
+	row.glow.visible=enabled
+	var observer:Camera3D=camera if is_instance_valid(camera) else get_viewport().get_camera_3d()
+	var distance:float=observer.global_position.distance_squared_to(at) if is_instance_valid(observer) else 0.0
+	var score:=distance
+	# Nearby upstairs candles must not consume the occupied hall's light budget.
+	if is_instance_valid(observer) and absf(observer.global_position.y-at.y)>3.1:score+=10000.0
+	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
 
 func _exit_tree()->void:
 	for row:Dictionary in fixtures.values():_restore(row)

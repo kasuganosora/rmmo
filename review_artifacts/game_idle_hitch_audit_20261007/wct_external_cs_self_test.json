@@ -1,0 +1,92 @@
+{
+  "external_cs_self_test_passed": true,
+  "child": {
+    "pid": 19632,
+    "owner_tid": 18188,
+    "waiting_tid": 3600
+  },
+  "child_exit": 0,
+  "stderr": "",
+  "results": [
+    {
+      "flags": 0,
+      "result": {
+        "unix_begin": 1791347930.8572814,
+        "query_ms": 16.0095,
+        "ok": true,
+        "error": 0,
+        "cycle": false,
+        "count": 3,
+        "nodes": [
+          {
+            "type_id": 8,
+            "status_id": 3,
+            "type": "thread",
+            "status": "blocked",
+            "pid": 19632,
+            "tid": 3600,
+            "wait_time": 834326,
+            "context_switches": 2
+          },
+          {
+            "type_id": 1,
+            "status_id": 6,
+            "type": "critical_section",
+            "status": "owned",
+            "name": ""
+          },
+          {
+            "type_id": 8,
+            "status_id": 3,
+            "type": "thread",
+            "status": "blocked",
+            "pid": 19632,
+            "tid": 18188,
+            "wait_time": 834326,
+            "context_switches": 162
+          }
+        ]
+      }
+    },
+    {
+      "flags": 4,
+      "result": {
+        "unix_begin": 1791347930.8732798,
+        "query_ms": 11.6167,
+        "ok": true,
+        "error": 0,
+        "cycle": false,
+        "count": 3,
+        "nodes": [
+          {
+            "type_id": 8,
+            "status_id": 3,
+            "type": "thread",
+            "status": "blocked",
+            "pid": 19632,
+            "tid": 3600,
+            "wait_time": 834326,
+            "context_switches": 2
+          },
+          {
+            "type_id": 1,
+            "status_id": 6,
+            "type": "critical_section",
+            "status": "owned",
+            "name": ""
+          },
+          {
+            "type_id": 8,
+            "status_id": 3,
+            "type": "thread",
+            "status": "blocked",
+            "pid": 19632,
+            "tid": 18188,
+            "wait_time": 834326,
+            "context_switches": 162
+          }
+        ]
+      }
+    }
+  ]
+}

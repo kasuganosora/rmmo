@@ -45,7 +45,7 @@ func submit() -> Dictionary:
 	var result:=Tools.apply(editor,args)
 	if result.ok: cancel()
 	else: active=true
-	editor._status.text="地表区域已应用，可撤销" if result.ok else str(result.error)
+	editor._report_result(result,"地表区域已应用，可撤销","地表区域")
 	return result
 func input(event: InputEvent) -> bool:
 	if not active: return false

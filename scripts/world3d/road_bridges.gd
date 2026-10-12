@@ -2,6 +2,18 @@ extends RefCounted
 ## Metadata-only bridge bindings, shared by persistence and editor operations.
 static func vec(a: Array) -> Vector3: return Vector3(a[0],a[1],a[2])
 static func xyz(p: Vector3) -> Array: return [p.x,p.y,p.z]
+static func deck_line(edge:Dictionary,nodes:Dictionary,edges:Array=[])->Array:
+	var a:=vec(nodes[edge.from].position);var b:=vec(nodes[edge.to].position)
+	if absf(a.y-b.y)>.001:
+		var start_radius:float=edge.width_start*.5;var end_radius:float=edge.width_end*.5
+		for other:Dictionary in edges:
+			for endpoint:String in ["from","to"]:
+				var radius:float=other["width_start" if endpoint=="from" else "width_end"]*.5
+				if other[endpoint]==edge.from:start_radius=maxf(start_radius,radius)
+				if other[endpoint]==edge.to:end_radius=maxf(end_radius,radius)
+		var along:=Vector3(b.x-a.x,0,b.z-a.z).normalized()
+		a+=along*start_radius;b-=along*end_radius
+	return [a,b]
 static func stone_source(edge: Dictionary,nodes: Dictionary) -> String:
 	var copy:=edge.duplicate(true)
 	for key in ["stone_bridge","locked","hidden","name"]: copy.erase(key)
@@ -24,6 +36,16 @@ static func resolve(data: Dictionary) -> Dictionary:
 			var stone: Dictionary=edge.stone_bridge
 			if edge.has("bridge_ref") or edge.kind!="bridge" or edge.has("controls") or not nodes.has(edge.from) or not nodes.has(edge.to): return {"ok":false,"error":"石桥道路绑定无效"}
 			if stone_source(edge,nodes)!=stone.source_token or used.has(stone.id): return {"ok":false,"error":"石桥绑定的道路端点或净宽已变化"}
+			# A neighbouring edge can widen this junction and move the ramp's
+			# shoulders without changing the bound edge's own source token.
+			var line:=deck_line(edge,nodes,data.roads.edges)
+			var lift:float=data.get("road_surface",{}).get("settings",{}).get("lift",.025)
+			var run:Vector3=line[1]-line[0]
+			if run.length_squared()<.000001:return {"ok":false,"error":"石桥引道已退化"}
+			for endpoint:Array in [stone.start,stone.end]:
+				var ground:=vec(endpoint)-Vector3.UP*lift
+				var distance:float=(ground-line[0]).dot(run.normalized())
+				if ground.distance_to(line[0]+run.normalized()*distance)>.003 or distance<2.-.003 or distance>run.length()-2.+.003:return {"ok":false,"error":"相邻路口宽度或铺面标高变化会使已绑定石桥与引道错位"}
 			if stone.signature.length()!=64: return {"ok":false,"error":"石桥构件签名无效"}
 			used[stone.id]=true
 			ports.append({"road_stone":true,"edge_id":edge.id,"deck_id":stone.id,"part_ids":[stone.id],"nodes":[edge.from,edge.to],"endpoints":[stone.start,stone.end],"width":stone.width-1.16,"polygon":stone_polygon(stone),"reference":{"object_id":stone.id},"signature":stone.signature})

@@ -1,0 +1,68 @@
+Pose-reuse on this frozen town is still dominated by a second, sequential pass over work the first pass already did, plus a full 169MB glTF parse/stringify round-trip. Two changes stay inside the current safety model.
+
+Measured town reuse (building raise, `editor_pose_save_town.json`): **25.575s** = source probe **3.98s** + read/verify **4.86s** + published deps **2.47s** + pose compare **0.94s** + serialize **4.09s** + pre-publish verify **8.79s** + atomic publish **0.34s**. Parallel SHA already cut serial reuse from ~46s to ~26s (probe: 287 files serial 14.33s / 4 threads 3.93s, identical digests).
+
+## 1. One closed-set SHA256 batch under the save lock
+
+**Measured duplicate.** `final_verify_ms` is the largest remaining slice at **8.79s**. It replays the same two functions already timed at **3.98s** and **2.47s**:
+
+- First pass, **unlocked**: `pose_save.attempt` → `source_files` → `_paths(records)` → `hash_files(..., discover=true)` → `_source_dependencies` (hash then parse each GLB/glTF) → `generator_key`.
+- First pass, **locked**: `_attempt_locked` → `dependencies` → URI walk of in-memory `buffers`/`images` → `hash_files` of published files.
+- Pre-publish, **locked**: the same `source_files(records, ...)` and `dependencies(data, path, ...)` again, then `FileAccess.get_sha256(path)` / `get_sha256(staged)` / `get_sha256(path)`.
+
+Those two function costs already sum to **6.45s**. The leftover **~2.3s** in `final_verify_ms` is the three 169MB map hashes sitting around them (per-file cost **estimated** from the remainder, not separately timed).
+
+The second `source_files` also repeats work the hash probe already isolated: record-path walk **0.68s**, and a second GLTF/GLB parse for discovery. Discovery is required only to *build* the closure. The first pass already returned `sources.files` (closed) and `resources.files`. Pose-reuse does not add source URIs. If a parent GLTF changes between passes, its SHA256 changes and the compare already fails with `ERR_BUSY`. An unchanged parent has the same child list.
+
+**Keep:** full SHA256 of every closed source path and every published dependency; `Paths.allowed`; hash-before-parse on any *new* discovery; `resources_ready` / `before_publish`; map digest `== expected` immediately before `atomic_file.publish`; fail `ERR_BUSY` on mismatch.
+
+**Do:** under the lock, `hash_files(closed_source_keys + published_dep_paths, content_root, discover=false)` in the existing 4-worker size groups; compare to the first-pass maps and `generator_key`; then one live-map SHA256. Optionally put `path` and `staged` in that same batch, then keep a **single** trailing `get_sha256(path)` after the batch so an external writer during the hash still loses the race.
+
+**Estimated saving (from measured parts):** overlapping the sequential 3.98s + 2.47s toward one ~4s 4-worker run (probe’s 287 mixed files were **3.93s**), plus dropping the second 0.68s walk/parse. Roughly **2.5–3.5s** off the 8.79s phase. Wall-clock after that is still a full SHA of ~1.2GB plus the map file.
+
+**Risks / tests**
+
+- Closed-set miss: a parent GLTF rewritten to new child URIs with a *different* hash is already a mismatch; a same-hash parent cannot have new children. Re-walk `_paths(records)` (0.68s) and union any new keys into the batch if you want the set check independent of “GUI is locked.”
+- `hash_files` currently fails the whole batch if any path is missing; that is the right `ERR_BUSY` / `ok:false` for a deleted source during save.
+- Generator scripts: second `source_files` recomputes `generator_key()` (directory walk of `world3d` + `save_job.gd` / `asset_library.gd`). Cheap relative to 26s; still compare it.
+- Tests already in tree: `tools/test_pose_save_hash.gd` (4-worker vs serial equality, GLTF buffer closure, missing/escape paths); late external write, source texture change, HTTP `resources_ready` / `before_publish` fault injection in `test_world3d_pose_save.gd` / `test_world3d_pose_save_http.gd`. Add one in-lock rewrite of a published image and of a source GLTF *after* first hash, *before* publish; both must fail, keep dirty, leave the original map.
+
+## 2. Stop treating the 169MB glTF as a fresh document on pose-reuse
+
+**Measured cost.** `read_verify_ms` **4.86s** and `serialize_ms` **4.09s** are the next two slices. `_attempt_locked` currently:
+
+1. `FileAccess.get_file_as_bytes(path)` (169MB)
+2. `sha256_bytes(bytes)` vs `expected`
+3. `bytes.get_string_from_utf8()` (second 169MB copy)
+4. `JSON.parse` into a Dictionary that includes meshes, accessors, materials, images
+5. `valid_content_bytes` zeros 64 checksum bytes and **SHA256s the 169MB again**
+6. `update()` mutates a few node matrices / building extras (this town: 0 / 1 / 33 nodes)
+7. Drops `bytes`/`text`
+8. `serialize_bytes` → `JSON.stringify` of the **entire** parsed document → `to_utf8_buffer` → SHA256 with checksum zeroed → patch 64 bytes → `store_buffer`
+9. Later `FileAccess.get_sha256(staged)` reads that file back and hashes it again for `signature`
+
+Steps 2 and 5 are two required *digests* (full-file conflict signature vs zeroed `rmmo_saved_content_sha256`). They do not require two extra copies. Steps 3–4–8 are a full JSON round-trip of 6077 meshes / 1099 materials in order to change node TRS and `extras.rmmo_records`.
+
+`serialize_bytes` already documents why checksum hashing must run on exact output bytes (float64 re-parse drift). Re-stringifying the whole parsed tree is the thing that *creates* that drift surface for unchanged mesh JSON.
+
+**Keep:** checksum algorithm (zero 64 bytes, SHA256, patch in place); resource-root URI rules; image/buffer files untouched; final live-map SHA256 before replace.
+
+**Do, in two tight pieces:**
+
+- **Read path:** keep one `PackedByteArray`. Compute `expected` from it. In-place zero the checksum span already found by `_checksum_byte_offset`, compute content digest, restore those 64 bytes (or hash original first). Decode UTF-8 **once** for `JSON.parse`. This removes one 169MB SHA and keeps the two semantic checks. Saving inside the 4.86s is **estimated** (likely ~0.5–1.5s of pure SHA, rest is decode+parse).
+- **Write path:** keep the original compact JSON bytes through `update()`. Rewrite only changed `nodes[i]` objects (matrix / `extras.building`) and root `extras` (records + `building_instances` + manifest). Run the existing checksum patch on that byte buffer. Use the in-memory SHA256 of the *patched* buffer as `signature` after `store_buffer`+`flush`+`get_error()`. Keep **disk** `get_sha256(path)` before publish as the conflict check against `expected`.
+
+Image/buffer **files** stay as they are; this only avoids copying their JSON *descriptions*. Authoring extras still stringify (4372 records). Fraction of 169MB that is `rmmo_records` vs mesh JSON is **not measured**; serialize dropping from 4.09s toward “extras + N node objects + checksum” is an **estimate**. Peak RAM rises if original bytes and the parsed Dictionary overlap longer; today the code frees bytes before pose compare to avoid that.
+
+**Risks / tests**
+
+- Compact JSON splice: node identity is `nodes[child].name == uuid` (`update()` already requires that). Unicode labels already affect checksum *byte* offset (`_checksum_byte_offset` uses UTF-8 length). A splice that shifts bytes before the checksum field breaks the 64-byte patch; new exports keep the checksum near the front for this reason.
+- `update()` still needs a parsed `nodes` array; this does not remove the parse, only the re-stringify of unchanged sections.
+- In-memory staged signature matches disk only if `store_buffer`+`flush` succeeded. Keep `get_error()`; a torn write that reports OK would be a new hole if disk SHA of `staged` is dropped. Prefer hashing the buffer you passed to `store_buffer`, then still SHA the live **published** `path` (the file you are about to replace).
+- Tests: existing “URI and image/buffer bytes unchanged”, authoring round-trip, checksum compatibility, Unicode labels (`test_pose_save_hash.gd`), pose HTTP reopen of building `floor_y` / door extras. Add a byte-level compare of an unchanged accessor/mesh JSON slice before vs after pose-reuse, and a checksum-field-moved fixture so a bad splice fails closed.
+
+## How the two compose
+
+Opportunity 1 attacks the **8.79s** phase with evidence that the same SHA256 closure is computed twice, sequentially. Opportunity 2 attacks the **4.86s + 4.09s** JSON copies of a document whose pose-reuse payload is tens of nodes. Together they leave: one unlocked probe hash (reuse decision), one locked closed-set hash (TOCTOU), one 169MB load/parse, a narrow JSON patch, atomic replace, and the fault hooks. They do not make save instant; first full export (376.9s) and any geometry/material change still take the long path.
+
+Invariants kept: full SHA256 (no mtime), resource-root checks, source-dependency closure on the discover pass, verify sources/deps/map before publish, save lock, Windows atomic publish, `resources_ready` / `before_publish`, fail → dirty + unlock. No baseline re-sign, no source-map rewrite, no mesh/visual changes.

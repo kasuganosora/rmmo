@@ -7,6 +7,7 @@ var overlay: Control
 var analysis := {"ok":true,"nodes":{},"paths":{},"diagnostics":[]}
 var data := Data.defaults()
 var drawing := false
+var draw_tab_index := -1
 var zone_draft: Dictionary = {}
 var scatter_draft := false
 var waterway_draft := false
@@ -40,6 +41,13 @@ func guard() -> Dictionary:
 func commit(value: Dictionary) -> Dictionary:
 	if not Data.valid({"editor_layout":value}): return Data.fail("城市布局数据无效")
 	if value == Data.resolve(editor._doc.map_meta): return {"ok":true,"changed":false}
+	var previous:=Data.resolve(editor._doc.map_meta)
+	if previous.get("road_surface",{}).get("settings",{}).get("kerb_enabled",false) and editor._roads.geometry_token(previous.roads)!=editor._roads.geometry_token(value.roads):
+		var prepared:Dictionary=editor._roads.prepare({},value)
+		if not prepared.ok:return prepared
+		editor._doc.checkpoint_recovery()
+		editor._roads.apply_prepared(prepared,value)
+		return {"ok":true,"changed":true,"surface_updated":true,"diff":prepared.diff}
 	editor._doc.checkpoint_recovery()
 	editor._doc.map_meta.editor_layout = value
 	editor._dirty = true
@@ -66,6 +74,7 @@ func set_camera(changes: Dictionary) -> Dictionary:
 	return {"ok":true,"camera":camera_state()}
 
 func apply_camera(value: Dictionary) -> void:
+	if editor._walk_mode!=null and editor._walk_mode.active:editor._walk_mode.stop()
 	_distance=value.distance
 	editor._orbit_center = Data.vec(value.center)
 	_angles = Vector2(value.pitch,value.yaw)
@@ -94,8 +103,18 @@ func pan(relative: Vector2) -> void:
 	var height: float = maxf(editor._canvas.size.y,1)
 	var span: float = editor._camera.size if editor._camera.projection == Camera3D.PROJECTION_ORTHOGONAL else 2*editor._camera.position.distance_to(editor._orbit_center)*tan(deg_to_rad(editor._camera.fov*.5))
 	var offset: Vector3 = (-editor._camera.global_basis.x*relative.x+editor._camera.global_basis.y*relative.y)*span/height
-	editor._camera.position += offset; editor._orbit_center += offset
+	editor._camera.position+=offset; editor._orbit_center+=offset
 	update_grid()
+
+func move_camera(offset: Vector3) -> Dictionary:
+	var ready:=guard()
+	if not ready.ok: return ready
+	if editor._walk_mode!=null and editor._walk_mode.active:return Data.fail("胶囊行走中请使用行走控制，或先退出再平移自由镜头")
+	var center: Vector3=editor._orbit_center+offset
+	if not offset.is_finite() or center.abs()[center.abs().max_axis_index()]>100000: return Data.fail("镜头位置超出范围")
+	editor._camera.position+=offset; editor._orbit_center=center
+	update_grid()
+	return {"ok":true,"camera":camera_state()}
 
 func orbit(relative: Vector2) -> void:
 	if editor._camera.projection == Camera3D.PROJECTION_ORTHOGONAL:
@@ -332,6 +351,19 @@ func add_path(points: Array, width: float, kind: String) -> Dictionary:
 	return update_roads({"expected_token":Data.token(value.roads),"nodes":nodes,"edges":edges})
 
 func begin_draw(width: float, height: float, kind: String) -> Dictionary:
+	return _begin_draw(width,height,kind,panel)
+
+func _draw_owner_tab(owner:Node) -> int:
+	# Resolve the actual workspace page; city tools and standalone castle tools
+	# share drawing logic but no longer share a dock page.
+	var page:=owner
+	while page!=null and page.get_parent()!=editor._dock_tabs:page=page.get_parent()
+	if page!=null:
+		for index in editor._dock_tabs.get_tab_count():
+			if editor._dock_tabs.get_tab_control(index)==page:return index
+	return panel.tab_index if panel!=null else -1
+
+func _begin_draw(width:float,height:float,kind:String,owner:Node)->Dictionary:
 	var ready:=guard()
 	if not ready.ok: return ready
 	draw_width=width; draw_height=height; draw_kind=kind; pending=[]; drawing=true; zone_draft={}
@@ -339,7 +371,8 @@ func begin_draw(width: float, height: float, kind: String) -> Dictionary:
 	waterway_draft=false
 	bridge_draft=false
 	fortification_draft=false
-	if panel!=null: editor._dock_tabs.current_tab=panel.tab_index
+	draw_tab_index=_draw_owner_tab(owner)
+	if draw_tab_index>=0:editor._dock_tabs.current_tab=draw_tab_index
 	editor._status.text="点选道路节点 · Enter 提交 · Backspace 退一点 · Esc 取消；端点靠近已有节点会吸附"
 	return {"ok":true}
 
@@ -372,7 +405,8 @@ func begin_waterway(height: float) -> Dictionary:
 	return result
 
 func begin_fortification(height: float) -> Dictionary:
-	var result:=begin_draw(1,height,"ground")
+	var owner:Node=panel.fortification_panel if panel!=null else null
+	var result:=_begin_draw(1,height,"ground",owner)
 	if result.ok:
 		fortification_draft=true
 		editor._status.text="点选城墙中心线（环形模式选两个范围对角）· Enter 完成 · Backspace 退一点 · Esc 取消"
@@ -396,13 +430,13 @@ func finish_draw(cancel: bool = false) -> Dictionary:
 			result=editor._roads.zones({"expected_token":JSON.stringify(data.get("zones",[])).sha256_text(),"zones":[zone]})
 		elif pending.size()<2: result=Data.fail("至少点选两个道路节点")
 		else: result=add_path(pending,draw_width,draw_kind)
-	if result.ok or cancel: pending=[]; zone_draft={}; scatter_draft=false; waterway_draft=false; bridge_draft=false; fortification_draft=false
+	if result.ok or cancel: pending=[]; zone_draft={}; scatter_draft=false; waterway_draft=false; bridge_draft=false; fortification_draft=false; draw_tab_index=-1
 	else: drawing=true
 	return result
 
 func input(event: InputEvent) -> bool:
 	if editor._playtest!=null and editor._playtest.active(): return false
-	if drawing and panel!=null and editor._dock_tabs.current_tab!=panel.tab_index:
+	if drawing and draw_tab_index>=0 and editor._dock_tabs.current_tab!=draw_tab_index:
 		finish_draw(true); return false
 	if not drag_node.is_empty():
 		if event is InputEventKey and event.pressed and event.keycode==KEY_ESCAPE: finish_node_drag(true); return true
@@ -420,6 +454,7 @@ func input(event: InputEvent) -> bool:
 					if node.id==drag_node.id: node.position=Data.xyz(position); analysis.nodes[node.id]=node
 				for edge in data.roads.edges:
 					if drag_node.id in [edge.from,edge.to]: analysis.paths[edge.id]=Data.samples(edge,analysis.nodes)
+				if overlay!=null: overlay.refresh_roads()
 				drag_moved=true
 			return true
 		return event is InputEventKey or event is InputEventMouseButton
@@ -458,7 +493,10 @@ func input(event: InputEvent) -> bool:
 		elif event.keycode==KEY_BACKSPACE:
 			if not pending.is_empty(): pending.pop_back()
 		elif event.keycode==KEY_ENTER:
-			panel.report(finish_draw())
+			var wall_draft:=fortification_draft
+			var result:=finish_draw()
+			if wall_draft:panel.fortification_panel.report(result,"路径已更新，请预览城墙")
+			else:panel.report(result)
 		return true
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT and editor._canvas.get_global_rect().has_point(event.position):
 		if overlay != null and overlay.mini.visible and overlay.mini.get_global_rect().has_point(event.position): return false

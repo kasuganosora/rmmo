@@ -6,33 +6,113 @@ const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Envelope=preload("res://scripts/world3d/map_metadata_cache.gd")
 const DIR:="user://world3d_meshes"
-const MAGIC:="RMMOMESH1"
+const MAGIC:="RMMOMESH2"
+const HEADER_SIZE:=113 # magic, length, source identity, generator identity, checksum
+
+static func _identity(value:String)->PackedByteArray:
+	return Envelope.checksum(value.to_utf8_buffer())
+
+static func _valid_selection(value:String)->bool:
+	if value.length()!=64:return false
+	for character in value:
+		if character not in "0123456789abcdef":return false
+	return true
+
+static func selection_identity(record_indices:Array,compact_records:Array)->String:
+	# Original author order and the exact verified compact closure are part of
+	# the identity, including instance pose/state and immutable reference hashes.
+	# Source bytes and generator identity are additionally bound by the envelope.
+	var Store=preload("res://scripts/world3d/map_resource_store.gd")
+	if record_indices.size()!=compact_records.size() or record_indices.size()>Store.MAX_RECORDS:return ""
+	var previous:=-1;var seen:Dictionary={}
+	for i in record_indices.size():
+		var at:Variant=record_indices[i];var record:Variant=compact_records[i]
+		if not at is int or at<=previous or not Store._shape(record,true):return ""
+		if seen.has(record.uuid) or not Store._digest(record.rmmo_ref.get("sha256")):return ""
+		previous=at;seen[record.uuid]=true
+	return Envelope.checksum(var_to_bytes(["selected-reference-closure-v1",record_indices,compact_records])).hex_encode()
+
+static func _source_identity(digest:String,selection:String)->PackedByteArray:
+	return _identity(digest) if selection.is_empty() else _identity(str([digest,"selected-reference-closure-v1",selection]))
+
+static func _checksum(source:PackedByteArray,generator:PackedByteArray,bytes:PackedByteArray)->PackedByteArray:
+	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256)
+	context.update(source);context.update(generator);context.update(bytes)
+	return context.finish()
 
 static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
 	for file in ["house_prefab.gd","world_document.gd","surface_materials.gd","ground_cpu_mesh.gd","runtime_mesh_cache.gd","world_stream.gd","stream_index.gd","stream_landscape.gd","streetlamp_banner.gd","streetlamp_lights.gd","building_fixtures.gd","wind_response.gd","building_blueprint.gd","house_wall_mesh.gd","curtain_mesh.gd","linen_curtain_data.gd","joined_box_mesh.gd","candle_sconce_mesh.gd","candle_sconce_data.gd","timber_door_mesh.gd","interior_door_mesh.gd","interior_door_layout.gd","roof_mesh.gd","fortification_art.gd","fortification_stair_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
-	for file in ["terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","channel_surface.gd","rock_bank_mesh.gd"]:
+	for file in ["water_gate_mesh.gd","fortification_terrain.gd","bridge_mesh.gd","bridge_data.gd","terrain_volume.gd","terrain_projection.gd","terrain_surface.gd","terrain_furrows.gd","terrain_neighbors.gd","terrain_regions.gd","terrain_context_cache.gd","road_surface.gd","road_kerb.gd","channel_surface.gd","rock_bank_mesh.gd"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
 	return str(hashes).sha256_text()
 
-static func cache_path(path:String)->String:
-	return DIR.path_join(path.replace("\\","/").simplify_path().sha256_text()+".bin")
+static func cache_path(path:String,selection:String="")->String:
+	var map_key:=path.replace("\\","/").simplify_path().sha256_text()
+	if selection.is_empty():return DIR.path_join(map_key+".bin")
+	if not _valid_selection(selection):return ""
+	return DIR.path_join("selected").path_join(map_key).path_join(selection+".bin")
 
-static func read(path:String,digest:String,generator:String)->Dictionary:
-	var file:=FileAccess.open(cache_path(path),FileAccess.READ)
-	if file==null or file.get_length()<49 or file.get_buffer(9).get_string_from_ascii()!=MAGIC:return {}
+static func read(path:String,digest:String,generator:String,diagnostics:Variant=null,selection:String="")->Dictionary:
+	if diagnostics!=null:diagnostics.payload_bytes_read=0;diagnostics.reason="missing_or_header"
+	var target:=cache_path(path,selection)
+	if target.is_empty():return {}
+	var file:=FileAccess.open(target,FileAccess.READ)
+	# Old envelopes are disposable misses. Reject stale identities before
+	# reading/checksumming/deserializing a potentially 256 MB geometry payload.
+	if file==null or file.get_length()<=HEADER_SIZE or file.get_buffer(9).get_string_from_ascii()!=MAGIC:return {}
 	var length:=file.get_64()
-	if length<=0 or length>268435456 or length+49!=file.get_length():return {}
+	if length<=0 or length>268435456 or length+HEADER_SIZE!=file.get_length():return {}
+	var source_key:=file.get_buffer(32);var generator_key_:=file.get_buffer(32)
+	if source_key!=_source_identity(digest,selection) or generator_key_!=_identity(generator):
+		if diagnostics!=null:diagnostics.reason="identity_mismatch"
+		return {}
 	var checksum:=file.get_buffer(32);var bytes:=file.get_buffer(length)
-	if Envelope.checksum(bytes)!=checksum:return {}
+	if diagnostics!=null:diagnostics.payload_bytes_read=bytes.size();diagnostics.reason="checksum"
+	if _checksum(source_key,generator_key_,bytes)!=checksum:return {}
 	var data:Variant=bytes_to_var(bytes)
-	if not data is Dictionary or data.get("digest")!=digest or data.get("generator")!=generator:return {}
+	if diagnostics!=null:diagnostics.reason="payload_identity"
+	if not data is Dictionary or data.get("digest")!=digest or data.get("generator")!=generator or data.get("selection","")!=selection:return {}
+	if diagnostics!=null:diagnostics.reason="invalid_data"
 	if not valid_data(data):return {}
+	if diagnostics!=null:diagnostics.reason="hit"
 	return data
 
 static func index_valid(value:Variant,count:int)->bool:
 	return value is int and value>=0 and value<count
+
+static func models_match(data:Dictionary,models:Dictionary)->bool:
+	# Models are observed by the loader after validating its current reference
+	# closure. A selected cache cannot inherit signatures from another entry.
+	return not data.is_empty() and data.get("models",{}) is Dictionary and data.get("models",{})==models
+
+static func valid_lods(value:Variant,surfaces:Array)->bool:
+	if not value is Array or (not value.is_empty() and value.size()!=surfaces.size()):return false
+	if value.is_empty():return true
+	var renderer_scalar:=PackedFloat32Array([0.0])
+	for slot in value.size():
+		var levels:Variant=value[slot]
+		if not levels is Dictionary or levels.size()>32:return false
+		var arrays:Array=surfaces[slot];var count:int=arrays[Mesh.ARRAY_VERTEX].size()
+		var base_count:int=arrays[Mesh.ARRAY_INDEX].size() if arrays[Mesh.ARRAY_INDEX]!=null and not arrays[Mesh.ARRAY_INDEX].is_empty() else count
+		var total:=0;var renderer_distances:Dictionary={}
+		for distance:Variant in levels:
+			if not distance is float or not is_finite(distance) or distance<=0:return false
+			# Variant keys are float64; RenderingServer stores float32 thresholds.
+			# Do not accept values that disappear, overflow, or collapse two levels
+			# on upload. Keep authored/generated keys untouched after validation.
+			renderer_scalar[0]=distance
+			var renderer_distance:float=renderer_scalar[0]
+			if not is_finite(renderer_distance) or renderer_distance<=0 or renderer_distances.has(renderer_distance):return false
+			renderer_distances[renderer_distance]=true
+			var indices:Variant=levels[distance]
+			if not indices is PackedInt32Array or indices.size()<3 or indices.size()%3!=0 or indices.size()>base_count:return false
+			total+=indices.size()
+			if total>base_count*16:return false
+			var limits:Array=Array(indices)
+			if limits.min()<0 or limits.max()>=count:return false
+	return true
 
 static func valid_data(data:Dictionary)->bool:
 	if not data.get("materials") is Array or not data.get("meshes") is Array or not data.get("entries") is Array or not data.get("specs",[]) is Array:return false
@@ -73,6 +153,8 @@ static func valid_data(data:Dictionary)->bool:
 						var bounds:Array=Array(channel)
 						if bounds.min()<0 or bounds.max()>=count:return false
 				else:return false # Static authoring geometry has no skin/custom channels.
+		if not valid_lods(value.get("lods",[]),value.surfaces):return false
+		if value.box_size!=Vector3.ZERO and value.get("lods",[]).any(func(levels):return not levels.is_empty()):return false
 	for entry in data.entries:
 		if not entry is Array or entry.size()!=2 or not entry[0] is Array or not entry[1] is Array or entry[1].size()!=2:return false
 		for id in entry[1]:
@@ -130,7 +212,9 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 				if not supported:break
 				mesh_ids[mid]=meshes.size()
 				mesh_ids[cpu.get_instance_id()]=meshes.size()
-				meshes.append({"surfaces":cpu.surfaces,"materials":slots,"bounds":cpu.bounds,"box_size":cpu.box_size})
+				var packed_mesh:Dictionary={"surfaces":cpu.surfaces,"materials":slots,"bounds":cpu.bounds,"box_size":cpu.box_size}
+				if cpu.lods.any(func(levels):return not levels.is_empty()):packed_mesh.lods=cpu.lods
+				meshes.append(packed_mesh)
 			ids.append(mesh_ids[mid])
 		if supported:entries.append([key,ids])
 	var specs:Array=[];var skipped:=""
@@ -148,7 +232,8 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 	return {"digest":digest,"generator":generator,"materials":materials,"meshes":meshes,"entries":entries,"specs":specs,"specs_skip_reason":skipped}
 
 
-static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null)->Dictionary:
+static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->Dictionary:
+	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	if data.is_empty():return {}
 	# A pool belongs to one immutable runtime load. Editor restores remain local.
 	if material_pool==null:material_pool={}
@@ -177,24 +262,40 @@ static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:
 				material.set(key,property)
 		material_pool[identity]=material
 		materials.append(material)
+	if timings!=null:timings.materials_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	for value:Dictionary in data.meshes:
-		var mesh:=Cpu.new();mesh.surfaces=value.surfaces;mesh.bounds=value.bounds;mesh.box_size=value.box_size
+		var mesh:=Cpu.new();mesh.surfaces=value.surfaces;mesh.lods=value.get("lods",[]);mesh.bounds=value.bounds;mesh.box_size=value.box_size
 		for id:int in value.materials:mesh.materials.append(materials[id])
 		meshes.append(mesh)
 	for entry:Array in data.entries:result[entry[0]]={"mesh":meshes[entry[1][0]],"source":meshes[entry[1][1]]}
 	data["_restored_meshes"]=meshes
+	if timings!=null:timings.cpu_meshes_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return result
 
 static func restore_specs(data:Dictionary,records:Array)->Array:
 	var rows:Array=data.get("specs",[])
-	if rows.size()!=records.size() or not data.has("_restored_meshes"):return []
+	if not data.has("_restored_meshes"):return []
 	var result:Array=[];var solids:Dictionary={};var meshes:Array=data._restored_meshes
 	var by_id:Dictionary={}
 	for row:Dictionary in rows:
 		var id:String=row.uuid if row.get("fallback")==true else row.spec.uuid
 		if by_id.has(id):return []
 		by_id[id]=row
+	var expected:Dictionary={};var seen:Dictionary={}
+	for record:Dictionary in records:
+		var id:String=record.uuid
+		if seen.has(id):return []
+		seen[id]=true
+		# This is precisely MapLoader's independently imported asset branch.
+		# It never appends to the cooked library. No other missing row is valid.
+		if record.get("kind")=="asset" and not record.has("house_prefab"):continue
+		expected[id]=true
+	if by_id.size()!=expected.size():return []
+	for id:String in by_id:
+		if not expected.has(id):return []
 	for i in records.size():
+		if records[i].get("kind")=="asset" and not records[i].has("house_prefab"):
+			result.append({});continue
 		if not by_id.has(records[i].uuid):return []
 		var row:Dictionary=by_id[records[i].uuid]
 		if row.get("fallback")==true:
@@ -212,12 +313,18 @@ static func restore_specs(data:Dictionary,records:Array)->Array:
 		result.append(spec)
 	return result
 
-static func write(path:String,data:Dictionary)->void:
-	if DirAccess.make_dir_recursive_absolute(DIR)!=OK:return
+static func write(path:String,data:Dictionary,selection:String="")->void:
+	if not data.get("digest") is String or not data.get("generator") is String:return
+	var target:=cache_path(path,selection)
+	if target.is_empty() or data.get("selection","")!=selection:return
+	if DirAccess.make_dir_recursive_absolute(target.get_base_dir())!=OK:return
 	var bytes:=var_to_bytes(data)
 	if bytes.size()>268435456:return
-	var target:=cache_path(path);var temporary:=target+".%d.%d.tmp"%[OS.get_process_id(),Time.get_ticks_usec()]
+	var temporary:=target+".%d.%d.tmp"%[OS.get_process_id(),Time.get_ticks_usec()]
 	var file:=FileAccess.open(temporary,FileAccess.WRITE)
 	if file==null:return
-	file.store_buffer(MAGIC.to_ascii_buffer());file.store_64(bytes.size());file.store_buffer(Envelope.checksum(bytes));file.store_buffer(bytes);file.close()
+	var source_key:=_source_identity(data.digest,selection);var generator_key_:=_identity(data.generator)
+	file.store_buffer(MAGIC.to_ascii_buffer());file.store_64(bytes.size())
+	file.store_buffer(source_key);file.store_buffer(generator_key_)
+	file.store_buffer(_checksum(source_key,generator_key_,bytes));file.store_buffer(bytes);file.close()
 	if DirAccess.rename_absolute(temporary,target)!=OK:DirAccess.remove_absolute(temporary)

@@ -14,6 +14,10 @@ func run()->void:
 	nav.build([{"mesh":floor_,"transform":Transform3D(Basis.IDENTITY,Vector3(0,-.1,0)),"extras":{}}])
 	while not nav.fully_ready:await process_frame
 	while nav._surface_index==null:await process_frame
+	nav.near_surface(Vector3(0,.1,0),.35,.65)
+	check(nav.take_surface_profile().queries.is_empty(),"surface detail diagnostics are disabled by default")
+	nav._surface_map=RID()
+	nav.set_meta("profile_surface_details",true)
 	check(nav.near_surface(Vector3(0,.1,0),.35,.65),"initial surface query succeeds")
 	check(nav.surface_index_hits>0 and nav.surface_query_count==0,"published triangle index certifies interior support without a global query")
 	var count:=nav.surface_query_count
@@ -23,6 +27,15 @@ func run()->void:
 	check(not nav.near_surface(Vector3(.1,3,.1),.35,.65) and nav.surface_query_count>count,"cached support cannot validate another floor")
 	check(not nav.near_surface(Vector3(11,.1,0),.35,.65),"cached support cannot cross unsupported map edge")
 	check(not nav.near_surface(Vector3.INF),"non-finite coordinates stay rejected")
+	var details:Dictionary=nav.take_surface_profile()
+	check(details.dropped==0 and details.queries.size()==6,"surface diagnostics retain every query, including rejected support")
+	check(details.queries.map(func(row):return row.route)==["triangle_index","point_cache","nearest","nearest","nearest","rejected"],"surface diagnostics distinguish index, point cache, nearest and guard paths")
+	check(details.queries.all(func(row):return row.begin_us<=row.iteration_us and row.iteration_us<=row.index_us and row.index_us<=row.end_us),"surface diagnostic intervals are ordered")
+	check(nav.take_surface_profile().queries.is_empty() and details.queries.size()==6,"draining diagnostics does not mutate previously captured samples")
+	for i in 65:nav.near_surface(Vector3.INF)
+	var bounded:Dictionary=nav.take_surface_profile()
+	check(bounded.queries.size()==64 and bounded.dropped==1 and nav.take_surface_profile().dropped==0,"surface diagnostics are bounded and reset dropped counts")
+	nav.remove_meta("profile_surface_details")
 	# Cache writer finishes asynchronously and restores the exact published mesh.
 	while nav._cache_writer!=null:await process_frame
 	var cached:=NavigationMesh.new()

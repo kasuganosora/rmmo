@@ -89,7 +89,9 @@ static func _apply_runtime(map_root: Node, members: Array, amount: float) -> voi
 			var node: Node3D=map_root.get_meta(bag,{}).get(spec.uuid)
 			if is_instance_valid(node):
 				node.global_transform=spec.transform
-				if bag=="stream_bodies": node.set_meta("center",spec.position)
+				if bag=="stream_bodies":
+					node.set_meta("center",spec.position)
+					node.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
 
 static func prepare_spec(spec: Dictionary) -> void:
 	if not spec.extras.has("fixture"): return

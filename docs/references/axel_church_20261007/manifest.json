@@ -1,0 +1,16 @@
+{
+  "source": "User-supplied screenshot; church identification provided by user.",
+  "files": [
+    {
+      "id": "C01",
+      "file": "user_01_church_exterior.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-f09723b6-c7d9-43f1-a9a4-eed8d98bab0a.png",
+      "sha256": "4a5a1e19e4d0c40e63bfafa36d4f40fd8edfecc9c0bb214eb1cd4246880bac2b",
+      "dimensions_px": [
+        1394,
+        784
+      ],
+      "note": "Original screenshot preserved unchanged."
+    }
+  ]
+}

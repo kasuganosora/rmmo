@@ -3,7 +3,7 @@ extends RefCounted
 ## Hash decoded pixels and image layout, never names or untrusted family tags.
 static var _textures:Dictionary={}
 static var _mutex:=Mutex.new()
-static func apply(root:Node)->void:
+static func apply(root:Node,compiled:bool=false)->void:
 	var seen:Dictionary={}
 	var colored_materials:Dictionary={}
 	for mesh in preload("res://scripts/world3d/surface_materials.gd").meshes(root):
@@ -12,9 +12,14 @@ static func apply(root:Node)->void:
 		for slot in mesh.mesh.get_surface_count():
 			var mat=mesh.get_active_material(slot) as StandardMaterial3D
 			if mat==null:continue
-			var arrays:Array=mesh.mesh.surface_get_arrays(slot)
-			var colors:Variant=arrays[Mesh.ARRAY_COLOR]
-			if colors is PackedColorArray and colors.size()==arrays[Mesh.ARRAY_VERTEX].size() and not colors.is_empty() and not mat.vertex_color_use_as_albedo:
+			# Compiled imports already baked this material flag. Texture rebinding
+			# must not read back a full vertex buffer just to rediscover that fact.
+			var needs_vertex_color:=false
+			if not mat.vertex_color_use_as_albedo:
+				var arrays:Array=mesh.mesh.surface_get_arrays(slot)
+				var colors:Variant=arrays[Mesh.ARRAY_COLOR]
+				needs_vertex_color=colors is PackedColorArray and colors.size()==arrays[Mesh.ARRAY_VERTEX].size() and not colors.is_empty()
+			if needs_vertex_color:
 				# glTF imports can retain COLOR_0 while disabling it on the material.
 				# Keep uncolored surfaces and other users of the source material intact.
 				var source_id:int=mat.get_instance_id()
@@ -30,14 +35,20 @@ static func apply(root:Node)->void:
 			for field in ["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture"]:
 				var tex=mat.get(field) as Texture2D
 				if tex==null:continue
-				if not seen.has(tex.get_instance_id()):seen[tex.get_instance_id()]=shared(tex)
+				if not seen.has(tex.get_instance_id()):seen[tex.get_instance_id()]=shared(tex,compiled)
 				mat.set(field,seen[tex.get_instance_id()])
-static func shared(texture:Texture2D)->Texture2D:
+static func shared(texture:Texture2D,compiled:bool=false)->Texture2D:
+	if compiled and texture.has_meta("compiled_grass_pixel_key"):
+		return _remember(str(texture.get_meta("compiled_grass_pixel_key")),texture)
 	var image:=texture.get_image()
 	if image==null:return texture
 	var hash_=HashingContext.new();hash_.start(HashingContext.HASH_SHA256)
 	hash_.update(var_to_bytes([image.get_width(),image.get_height(),image.get_format(),image.has_mipmaps()]));hash_.update(image.get_data())
 	var key=hash_.finish().hex_encode()
+	texture.set_meta("compiled_grass_pixel_key",key)
+	return _remember(key,texture)
+
+static func _remember(key:String,texture:Texture2D)->Texture2D:
 	_mutex.lock()
 	var result:Texture2D=_textures[key].get_ref() if _textures.has(key) else null
 	if result==null:

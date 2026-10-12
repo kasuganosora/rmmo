@@ -1,0 +1,1286 @@
+{
+  "source": "D:\\code\\rmmo_runtime\\review_artifacts\\town_street_entry_20261005\\river_bridge_surface_detail_20261007.json",
+  "peak_index": 1414,
+  "rows": [
+    {
+      "batch_commit": 2.41,
+      "batch_count": 1,
+      "batch_ms": 136.407,
+      "batch_profile": {
+        "capture_us": 7796,
+        "geometry_us": 197,
+        "material_us": 38523
+      },
+      "batch_slice": 136.457,
+      "body_count": 30,
+      "celestial_lights": {
+        "moon_energy": 0.0,
+        "moon_shadow": false,
+        "moon_visible": true,
+        "sun_energy": 1.14999997615814,
+        "sun_shadow": true,
+        "sun_visible": true
+      },
+      "collision_prepare": {
+        "frame": 3185,
+        "ms": 0.11,
+        "physics_frame": 3516,
+        "preparer": {
+          "frame": 3185,
+          "ms": 0.079,
+          "path": "worker_complete",
+          "ready": true,
+          "stages": {
+            "cache_release_ms": 0.005,
+            "needs_slices_ms": 0.013,
+            "shape_set_faces_ms": 0.037,
+            "worker_handoff_ms": 0.012
+          },
+          "uuid": "town_road_3_3_0"
+        },
+        "ready": true,
+        "uuid": "town_road_3_3_0"
+      },
+      "draw_calls": 504.0,
+      "engine": {
+        "after_process_to_draw_ms": 0.103,
+        "draw_begin_usec": 83497753,
+        "draw_end_usec": 83503862,
+        "draw_ms": 6.084,
+        "frame": 3432,
+        "main_process_ms": 1.519,
+        "process_begin_usec": 83496131,
+        "process_end_usec": 83497650,
+        "process_to_draw_ms": 1.622
+      },
+      "fort_collision": {
+        "frame": 3185,
+        "groups": 0,
+        "ms": 0.007,
+        "profile": {
+          "faces_us": 0,
+          "install_us": 0,
+          "prepare_ms": 0.006,
+          "shape_us": 0
+        },
+        "rebuilds": 0,
+        "syncs": 92
+      },
+      "gpu": 1.52900004386902,
+      "lamps": {
+        "frame": 3425,
+        "material_builds": 3,
+        "materials": 3,
+        "ms": 0.367
+      },
+      "main_view": {
+        "shadow_calls": 99,
+        "shadow_objects": 99,
+        "visible_calls": 261,
+        "visible_objects": 261
+      },
+      "memory_mib": 1785.21272182465,
+      "motion": {
+        "capsule_query_aligned": true,
+        "frame": 3764,
+        "landing_ms": 0.147,
+        "move_ms": 0.828,
+        "ms": 1.305,
+        "navigation_ms": 0.048,
+        "sense_ms": 0.132,
+        "step_ms": 0.151,
+        "support_ms": 0.195
+      },
+      "ms": 16.559,
+      "nav": 1,
+      "nav_background": {
+        "frame": 3432,
+        "ms": 0.014,
+        "phase": ""
+      },
+      "nav_full": false,
+      "nav_publication": {
+        "frame": 3433,
+        "ms": 0.005
+      },
+      "night": false,
+      "nodes": 8630.0,
+      "outline_active": false,
+      "outline_cpu": 0.0,
+      "outline_gpu": 0.0,
+      "outline_view": {
+        "shadow_calls": 0,
+        "shadow_objects": 0,
+        "visible_calls": 0,
+        "visible_objects": 0
+      },
+      "parts": {
+        "actions": 0.018,
+        "actors": 0.018,
+        "camera": 0.087,
+        "frame": 3432,
+        "navigation": 0.009,
+        "stream": 0.036
+      },
+      "pass": 0,
+      "physics": 2.198,
+      "physics_work": {
+        "frame": 3764,
+        "max_step_ms": 1.74,
+        "script_ms": 1.74,
+        "steps": 1,
+        "tail_ms": 0.235,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 3764,
+          "landing_ms": 0.147,
+          "move_ms": 0.828,
+          "ms": 1.305,
+          "navigation_ms": 0.048,
+          "sense_ms": 0.132,
+          "step_ms": 0.151,
+          "support_ms": 0.195
+        }
+      },
+      "pipelines": {
+        "draw": 0.0,
+        "mesh": 0.0,
+        "specialization": 32.0,
+        "surface": 147.0
+      },
+      "position": "(49.58464, 0.925837, 42.3769)",
+      "process": 14.152,
+      "radar": {
+        "candidates": 19,
+        "frame": 3428,
+        "indexed": true,
+        "ms": 0.227,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_redraws": 11
+      },
+      "render_cpu": 2.81699991226196,
+      "render_setup_cpu": 0.098,
+      "residency": {
+        "cursor": 0,
+        "fort_sources": 0,
+        "jobs": 0,
+        "meshes": 3475,
+        "settled": true
+      },
+      "sampling_ms": 0.212,
+      "stream_cell": "(1, 1)",
+      "stream_phases": {
+        "apply_ms": 0.519,
+        "batch_ms": 0.018,
+        "fort_ms": 0.007,
+        "frame": 3185,
+        "index_ms": 0.022,
+        "phase": "apply",
+        "plan_detail": {
+          "call_ms": 0.003
+        },
+        "plan_ms": 0.01
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 83511108,
+            "end_us": 83511137,
+            "frame": 3764,
+            "index_us": 83511114,
+            "iteration_us": 83511114,
+            "point": "(49.58464, 0.025837, 42.3769)",
+            "route": "nearest"
+          }
+        ]
+      },
+      "surface_query": {
+        "frame": 3764,
+        "ms": 0.005
+      },
+      "ticks_usec": 83512701,
+      "tiles_remaining": 130,
+      "toggles": 0,
+      "weather": {
+        "apply_ms": 0.008,
+        "audio_ms": 0.01,
+        "frame": 3432,
+        "lightning_ms": 0.024,
+        "ms": 0.249,
+        "simulation_ms": 0.087,
+        "sky_ms": 0.111,
+        "wind_ms": 0.009
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 83195539,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.001,
+        "cancel_nodes_ms": 0.002,
+        "cancel_timeline": {
+          "keys_begin_usec": 83195868,
+          "keys_end_usec": 83195869,
+          "nodes_begin_usec": 83195866,
+          "nodes_end_usec": 83195868
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.002,
+        "cycle_ms": 0.336,
+        "end_usec": 83195875,
+        "erase_ms": 0.0,
+        "frame": 3414,
+        "ms": 0.336,
+        "pending": false,
+        "physics_frame": 3745,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.275,
+        "slices": 1
+      },
+      "wind_advance": {
+        "active": 0,
+        "frame": 3432,
+        "range_ms": 0.0,
+        "shared_state": true,
+        "uniform_ms": 0.0
+      }
+    },
+    {
+      "batch_commit": 2.41,
+      "batch_count": 1,
+      "batch_ms": 136.407,
+      "batch_profile": {
+        "capture_us": 7796,
+        "geometry_us": 197,
+        "material_us": 38523
+      },
+      "batch_slice": 136.457,
+      "body_count": 30,
+      "celestial_lights": {
+        "moon_energy": 0.0,
+        "moon_shadow": false,
+        "moon_visible": true,
+        "sun_energy": 1.14999997615814,
+        "sun_shadow": true,
+        "sun_visible": true
+      },
+      "collision_prepare": {
+        "frame": 3185,
+        "ms": 0.11,
+        "physics_frame": 3516,
+        "preparer": {
+          "frame": 3185,
+          "ms": 0.079,
+          "path": "worker_complete",
+          "ready": true,
+          "stages": {
+            "cache_release_ms": 0.005,
+            "needs_slices_ms": 0.013,
+            "shape_set_faces_ms": 0.037,
+            "worker_handoff_ms": 0.012
+          },
+          "uuid": "town_road_3_3_0"
+        },
+        "ready": true,
+        "uuid": "town_road_3_3_0"
+      },
+      "draw_calls": 504.0,
+      "engine": {
+        "after_process_to_draw_ms": 0.14,
+        "draw_begin_usec": 83514611,
+        "draw_end_usec": 83521378,
+        "draw_ms": 6.747,
+        "frame": 3433,
+        "main_process_ms": 1.78,
+        "process_begin_usec": 83512691,
+        "process_end_usec": 83514471,
+        "process_to_draw_ms": 1.92
+      },
+      "fort_collision": {
+        "frame": 3185,
+        "groups": 0,
+        "ms": 0.007,
+        "profile": {
+          "faces_us": 0,
+          "install_us": 0,
+          "prepare_ms": 0.006,
+          "shape_us": 0
+        },
+        "rebuilds": 0,
+        "syncs": 92
+      },
+      "gpu": 1.51900005340576,
+      "lamps": {
+        "frame": 3425,
+        "material_builds": 3,
+        "materials": 3,
+        "ms": 0.367
+      },
+      "main_view": {
+        "shadow_calls": 99,
+        "shadow_objects": 99,
+        "visible_calls": 261,
+        "visible_objects": 261
+      },
+      "memory_mib": 1785.23056697845,
+      "motion": {
+        "capsule_query_aligned": true,
+        "frame": 3765,
+        "landing_ms": 0.152,
+        "move_ms": 0.83,
+        "ms": 1.298,
+        "navigation_ms": 0.034,
+        "sense_ms": 0.133,
+        "step_ms": 0.15,
+        "support_ms": 0.186
+      },
+      "ms": 16.718,
+      "nav": 1,
+      "nav_background": {
+        "frame": 3433,
+        "ms": 0.018,
+        "phase": ""
+      },
+      "nav_full": false,
+      "nav_publication": {
+        "frame": 3434,
+        "ms": 0.006
+      },
+      "night": false,
+      "nodes": 8630.0,
+      "outline_active": false,
+      "outline_cpu": 0.0,
+      "outline_gpu": 0.0,
+      "outline_view": {
+        "shadow_calls": 0,
+        "shadow_objects": 0,
+        "visible_calls": 0,
+        "visible_objects": 0
+      },
+      "parts": {
+        "actions": 0.017,
+        "actors": 0.019,
+        "camera": 0.088,
+        "frame": 3433,
+        "navigation": 0.01,
+        "stream": 0.038
+      },
+      "pass": 0,
+      "physics": 2.198,
+      "physics_work": {
+        "frame": 3765,
+        "max_step_ms": 1.741,
+        "script_ms": 1.741,
+        "steps": 1,
+        "tail_ms": 0.282,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 3765,
+          "landing_ms": 0.152,
+          "move_ms": 0.83,
+          "ms": 1.298,
+          "navigation_ms": 0.034,
+          "sense_ms": 0.133,
+          "step_ms": 0.15,
+          "support_ms": 0.186
+        }
+      },
+      "pipelines": {
+        "draw": 0.0,
+        "mesh": 0.0,
+        "specialization": 32.0,
+        "surface": 147.0
+      },
+      "position": "(49.64559, 0.925837, 42.4039)",
+      "process": 14.152,
+      "radar": {
+        "candidates": 19,
+        "frame": 3428,
+        "indexed": true,
+        "ms": 0.227,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_redraws": 11
+      },
+      "render_cpu": 3.05599999427795,
+      "render_setup_cpu": 0.169,
+      "residency": {
+        "cursor": 0,
+        "fort_sources": 0,
+        "jobs": 0,
+        "meshes": 3475,
+        "settled": true
+      },
+      "sampling_ms": 0.234,
+      "stream_cell": "(1, 1)",
+      "stream_phases": {
+        "apply_ms": 0.519,
+        "batch_ms": 0.018,
+        "fort_ms": 0.007,
+        "frame": 3185,
+        "index_ms": 0.022,
+        "phase": "apply",
+        "plan_detail": {
+          "call_ms": 0.003
+        },
+        "plan_ms": 0.01
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 83527789,
+            "end_us": 83527803,
+            "frame": 3765,
+            "index_us": 83527795,
+            "iteration_us": 83527795,
+            "point": "(49.64559, 0.025837, 42.4039)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "surface_query": {
+        "frame": 3764,
+        "ms": 0.005
+      },
+      "ticks_usec": 83529419,
+      "tiles_remaining": 130,
+      "toggles": 0,
+      "weather": {
+        "apply_ms": 0.01,
+        "audio_ms": 0.013,
+        "frame": 3433,
+        "lightning_ms": 0.036,
+        "ms": 0.314,
+        "simulation_ms": 0.099,
+        "sky_ms": 0.143,
+        "wind_ms": 0.012
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 83195539,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.001,
+        "cancel_nodes_ms": 0.002,
+        "cancel_timeline": {
+          "keys_begin_usec": 83195868,
+          "keys_end_usec": 83195869,
+          "nodes_begin_usec": 83195866,
+          "nodes_end_usec": 83195868
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.002,
+        "cycle_ms": 0.336,
+        "end_usec": 83195875,
+        "erase_ms": 0.0,
+        "frame": 3414,
+        "ms": 0.336,
+        "pending": false,
+        "physics_frame": 3745,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.275,
+        "slices": 1
+      },
+      "wind_advance": {
+        "active": 0,
+        "frame": 3433,
+        "range_ms": 0.0,
+        "shared_state": true,
+        "uniform_ms": 0.002
+      }
+    },
+    {
+      "batch_commit": 2.41,
+      "batch_count": 1,
+      "batch_ms": 136.407,
+      "batch_profile": {
+        "capture_us": 7796,
+        "geometry_us": 197,
+        "material_us": 38523
+      },
+      "batch_slice": 136.457,
+      "body_count": 30,
+      "celestial_lights": {
+        "moon_energy": 0.0,
+        "moon_shadow": false,
+        "moon_visible": true,
+        "sun_energy": 1.14999997615814,
+        "sun_shadow": true,
+        "sun_visible": true
+      },
+      "collision_prepare": {
+        "frame": 3185,
+        "ms": 0.11,
+        "physics_frame": 3516,
+        "preparer": {
+          "frame": 3185,
+          "ms": 0.079,
+          "path": "worker_complete",
+          "ready": true,
+          "stages": {
+            "cache_release_ms": 0.005,
+            "needs_slices_ms": 0.013,
+            "shape_set_faces_ms": 0.037,
+            "worker_handoff_ms": 0.012
+          },
+          "uuid": "town_road_3_3_0"
+        },
+        "ready": true,
+        "uuid": "town_road_3_3_0"
+      },
+      "draw_calls": 504.0,
+      "engine": {
+        "after_process_to_draw_ms": 0.138,
+        "draw_begin_usec": 83591808,
+        "draw_end_usec": 83598334,
+        "draw_ms": 6.51,
+        "frame": 3434,
+        "main_process_ms": 62.264,
+        "process_begin_usec": 83529406,
+        "process_end_usec": 83591670,
+        "process_to_draw_ms": 62.402
+      },
+      "fort_collision": {
+        "frame": 3185,
+        "groups": 0,
+        "ms": 0.007,
+        "profile": {
+          "faces_us": 0,
+          "install_us": 0,
+          "prepare_ms": 0.006,
+          "shape_us": 0
+        },
+        "rebuilds": 0,
+        "syncs": 92
+      },
+      "gpu": 1.99500000476837,
+      "lamps": {
+        "frame": 3425,
+        "material_builds": 3,
+        "materials": 3,
+        "ms": 0.367
+      },
+      "main_view": {
+        "shadow_calls": 99,
+        "shadow_objects": 99,
+        "visible_calls": 261,
+        "visible_objects": 261
+      },
+      "memory_mib": 1785.25380992889,
+      "motion": {
+        "capsule_query_aligned": true,
+        "frame": 3768,
+        "landing_ms": 0.049,
+        "move_ms": 0.274,
+        "ms": 0.426,
+        "navigation_ms": 0.014,
+        "sense_ms": 0.043,
+        "step_ms": 0.046,
+        "support_ms": 0.063
+      },
+      "ms": 72.774,
+      "nav": 1,
+      "nav_background": {
+        "frame": 3434,
+        "ms": 0.018,
+        "phase": ""
+      },
+      "nav_full": false,
+      "nav_publication": {
+        "frame": 3435,
+        "ms": 0.001
+      },
+      "night": false,
+      "nodes": 8630.0,
+      "outline_active": false,
+      "outline_cpu": 0.0,
+      "outline_gpu": 0.0,
+      "outline_view": {
+        "shadow_calls": 0,
+        "shadow_objects": 0,
+        "visible_calls": 0,
+        "visible_objects": 0
+      },
+      "parts": {
+        "actions": 0.048,
+        "actors": 0.025,
+        "camera": 0.134,
+        "frame": 3434,
+        "navigation": 0.027,
+        "stream": 0.06
+      },
+      "pass": 0,
+      "physics": 2.198,
+      "physics_work": {
+        "frame": 3768,
+        "max_step_ms": 1.769,
+        "script_ms": 3.146,
+        "steps": 3,
+        "tail_ms": 0.204,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 3766,
+          "landing_ms": 0.148,
+          "move_ms": 0.836,
+          "ms": 1.304,
+          "navigation_ms": 0.036,
+          "sense_ms": 0.132,
+          "step_ms": 0.153,
+          "support_ms": 0.184
+        }
+      },
+      "pipelines": {
+        "draw": 0.0,
+        "mesh": 0.0,
+        "specialization": 32.0,
+        "surface": 147.0
+      },
+      "position": "(49.82845, 0.925835, 42.48488)",
+      "process": 14.152,
+      "radar": {
+        "candidates": 19,
+        "frame": 3428,
+        "indexed": true,
+        "ms": 0.227,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_redraws": 11
+      },
+      "render_cpu": 3.43199992179871,
+      "render_setup_cpu": 0.119,
+      "residency": {
+        "cursor": 0,
+        "fort_sources": 0,
+        "jobs": 0,
+        "meshes": 3475,
+        "settled": true
+      },
+      "sampling_ms": 0.28,
+      "stream_cell": "(1, 1)",
+      "stream_phases": {
+        "apply_ms": 0.519,
+        "batch_ms": 0.018,
+        "fort_ms": 0.007,
+        "frame": 3185,
+        "index_ms": 0.022,
+        "phase": "apply",
+        "plan_detail": {
+          "call_ms": 0.003
+        },
+        "plan_ms": 0.01
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 83598814,
+            "end_us": 83598830,
+            "frame": 3766,
+            "index_us": 83598821,
+            "iteration_us": 83598821,
+            "point": "(49.70654, 0.025837, 42.43089)",
+            "route": "point_cache"
+          },
+          {
+            "accepted": true,
+            "begin_us": 83600605,
+            "end_us": 83600611,
+            "frame": 3767,
+            "index_us": 83600608,
+            "iteration_us": 83600608,
+            "point": "(49.76749, 0.025837, 42.45789)",
+            "route": "point_cache"
+          },
+          {
+            "accepted": true,
+            "begin_us": 83601546,
+            "end_us": 83601552,
+            "frame": 3768,
+            "index_us": 83601549,
+            "iteration_us": 83601549,
+            "point": "(49.82845, 0.025837, 42.48489)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "surface_query": {
+        "frame": 3764,
+        "ms": 0.005
+      },
+      "ticks_usec": 83602193,
+      "tiles_remaining": 130,
+      "toggles": 0,
+      "weather": {
+        "apply_ms": 0.009,
+        "audio_ms": 0.012,
+        "frame": 3434,
+        "lightning_ms": 0.025,
+        "ms": 0.285,
+        "simulation_ms": 0.099,
+        "sky_ms": 0.128,
+        "wind_ms": 0.011
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 83601017,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.001,
+        "cancel_timeline": {
+          "keys_begin_usec": 83601147,
+          "keys_end_usec": 83601147,
+          "nodes_begin_usec": 83601146,
+          "nodes_end_usec": 83601147
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.001,
+        "cycle_ms": 0.133,
+        "end_usec": 83601150,
+        "erase_ms": 0.0,
+        "frame": 3435,
+        "ms": 0.133,
+        "pending": false,
+        "physics_frame": 3767,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.108,
+        "slices": 1
+      },
+      "wind_advance": {
+        "active": 0,
+        "frame": 3434,
+        "range_ms": 0.0,
+        "shared_state": true,
+        "uniform_ms": 0.001
+      }
+    },
+    {
+      "batch_commit": 2.41,
+      "batch_count": 1,
+      "batch_ms": 136.407,
+      "batch_profile": {
+        "capture_us": 7796,
+        "geometry_us": 197,
+        "material_us": 38523
+      },
+      "batch_slice": 136.457,
+      "body_count": 30,
+      "celestial_lights": {
+        "moon_energy": 0.0,
+        "moon_shadow": false,
+        "moon_visible": true,
+        "sun_energy": 1.14999997615814,
+        "sun_shadow": true,
+        "sun_visible": true
+      },
+      "collision_prepare": {
+        "frame": 3185,
+        "ms": 0.11,
+        "physics_frame": 3516,
+        "preparer": {
+          "frame": 3185,
+          "ms": 0.079,
+          "path": "worker_complete",
+          "ready": true,
+          "stages": {
+            "cache_release_ms": 0.005,
+            "needs_slices_ms": 0.013,
+            "shape_set_faces_ms": 0.037,
+            "worker_handoff_ms": 0.012
+          },
+          "uuid": "town_road_3_3_0"
+        },
+        "ready": true,
+        "uuid": "town_road_3_3_0"
+      },
+      "draw_calls": 504.0,
+      "engine": {
+        "after_process_to_draw_ms": 0.753,
+        "draw_begin_usec": 83607813,
+        "draw_end_usec": 83611974,
+        "draw_ms": 4.155,
+        "frame": 3435,
+        "main_process_ms": 4.883,
+        "process_begin_usec": 83602177,
+        "process_end_usec": 83607060,
+        "process_to_draw_ms": 5.636
+      },
+      "fort_collision": {
+        "frame": 3185,
+        "groups": 0,
+        "ms": 0.007,
+        "profile": {
+          "faces_us": 0,
+          "install_us": 0,
+          "prepare_ms": 0.006,
+          "shape_us": 0
+        },
+        "rebuilds": 0,
+        "syncs": 92
+      },
+      "gpu": 3.53200006484985,
+      "lamps": {
+        "frame": 3435,
+        "material_builds": 3,
+        "materials": 3,
+        "ms": 0.455
+      },
+      "main_view": {
+        "shadow_calls": 99,
+        "shadow_objects": 99,
+        "visible_calls": 261,
+        "visible_objects": 261
+      },
+      "memory_mib": 1785.27154445648,
+      "motion": {
+        "capsule_query_aligned": true,
+        "frame": 3770,
+        "landing_ms": 0.127,
+        "move_ms": 0.571,
+        "ms": 1.014,
+        "navigation_ms": 0.029,
+        "sense_ms": 0.124,
+        "step_ms": 0.164,
+        "support_ms": 0.156
+      },
+      "ms": 12.402,
+      "nav": 1,
+      "nav_background": {
+        "frame": 3435,
+        "ms": 0.027,
+        "phase": ""
+      },
+      "nav_full": false,
+      "nav_publication": {
+        "frame": 3436,
+        "ms": 0.004
+      },
+      "night": false,
+      "nodes": 8630.0,
+      "outline_active": false,
+      "outline_cpu": 0.0,
+      "outline_gpu": 0.0,
+      "outline_view": {
+        "shadow_calls": 0,
+        "shadow_objects": 0,
+        "visible_calls": 0,
+        "visible_objects": 0
+      },
+      "parts": {
+        "actions": 0.022,
+        "actors": 0.03,
+        "camera": 0.137,
+        "frame": 3435,
+        "navigation": 0.015,
+        "stream": 0.058
+      },
+      "pass": 0,
+      "physics": 2.198,
+      "physics_work": {
+        "frame": 3770,
+        "max_step_ms": 1.39,
+        "script_ms": 2.122,
+        "steps": 2,
+        "tail_ms": 0.274,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 3770,
+          "landing_ms": 0.127,
+          "move_ms": 0.571,
+          "ms": 1.014,
+          "navigation_ms": 0.029,
+          "sense_ms": 0.124,
+          "step_ms": 0.164,
+          "support_ms": 0.156
+        }
+      },
+      "pipelines": {
+        "draw": 0.0,
+        "mesh": 0.0,
+        "specialization": 32.0,
+        "surface": 147.0
+      },
+      "position": "(49.95036, 0.924674, 42.53888)",
+      "process": 14.152,
+      "radar": {
+        "candidates": 19,
+        "frame": 3435,
+        "indexed": true,
+        "ms": 0.286,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_redraws": 11
+      },
+      "render_cpu": 3.05299997329712,
+      "render_setup_cpu": 0.157,
+      "residency": {
+        "cursor": 0,
+        "fort_sources": 0,
+        "jobs": 0,
+        "meshes": 3475,
+        "settled": true
+      },
+      "sampling_ms": 0.329,
+      "stream_cell": "(1, 1)",
+      "stream_phases": {
+        "apply_ms": 0.519,
+        "batch_ms": 0.018,
+        "fort_ms": 0.007,
+        "frame": 3185,
+        "index_ms": 0.022,
+        "phase": "apply",
+        "plan_detail": {
+          "call_ms": 0.003
+        },
+        "plan_ms": 0.01
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 83612209,
+            "end_us": 83612224,
+            "frame": 3769,
+            "index_us": 83612213,
+            "iteration_us": 83612213,
+            "point": "(49.8894, 0.025835, 42.51188)",
+            "route": "nearest"
+          },
+          {
+            "accepted": true,
+            "begin_us": 83613251,
+            "end_us": 83613263,
+            "frame": 3770,
+            "index_us": 83613256,
+            "iteration_us": 83613256,
+            "point": "(49.95036, 0.025827, 42.53888)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "surface_query": {
+        "frame": 3769,
+        "ms": 0.004
+      },
+      "ticks_usec": 83614595,
+      "tiles_remaining": 130,
+      "toggles": 0,
+      "weather": {
+        "apply_ms": 0.014,
+        "audio_ms": 0.017,
+        "frame": 3435,
+        "lightning_ms": 0.035,
+        "ms": 0.41,
+        "simulation_ms": 0.152,
+        "sky_ms": 0.178,
+        "wind_ms": 0.014
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 83601017,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.001,
+        "cancel_timeline": {
+          "keys_begin_usec": 83601147,
+          "keys_end_usec": 83601147,
+          "nodes_begin_usec": 83601146,
+          "nodes_end_usec": 83601147
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.001,
+        "cycle_ms": 0.133,
+        "end_usec": 83601150,
+        "erase_ms": 0.0,
+        "frame": 3435,
+        "ms": 0.133,
+        "pending": false,
+        "physics_frame": 3767,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.108,
+        "slices": 1
+      },
+      "wind_advance": {
+        "active": 0,
+        "frame": 3435,
+        "range_ms": 0.0,
+        "shared_state": true,
+        "uniform_ms": 0.001
+      }
+    },
+    {
+      "batch_commit": 2.41,
+      "batch_count": 1,
+      "batch_ms": 136.407,
+      "batch_profile": {
+        "capture_us": 7796,
+        "geometry_us": 197,
+        "material_us": 38523
+      },
+      "batch_slice": 136.457,
+      "body_count": 30,
+      "celestial_lights": {
+        "moon_energy": 0.0,
+        "moon_shadow": false,
+        "moon_visible": true,
+        "sun_energy": 1.14999997615814,
+        "sun_shadow": true,
+        "sun_visible": true
+      },
+      "collision_prepare": {
+        "frame": 3185,
+        "ms": 0.11,
+        "physics_frame": 3516,
+        "preparer": {
+          "frame": 3185,
+          "ms": 0.079,
+          "path": "worker_complete",
+          "ready": true,
+          "stages": {
+            "cache_release_ms": 0.005,
+            "needs_slices_ms": 0.013,
+            "shape_set_faces_ms": 0.037,
+            "worker_handoff_ms": 0.012
+          },
+          "uuid": "town_road_3_3_0"
+        },
+        "ready": true,
+        "uuid": "town_road_3_3_0"
+      },
+      "draw_calls": 504.0,
+      "engine": {
+        "after_process_to_draw_ms": 0.21,
+        "draw_begin_usec": 83617632,
+        "draw_end_usec": 83620807,
+        "draw_ms": 3.169,
+        "frame": 3436,
+        "main_process_ms": 2.842,
+        "process_begin_usec": 83614580,
+        "process_end_usec": 83617422,
+        "process_to_draw_ms": 3.052
+      },
+      "fort_collision": {
+        "frame": 3185,
+        "groups": 0,
+        "ms": 0.007,
+        "profile": {
+          "faces_us": 0,
+          "install_us": 0,
+          "prepare_ms": 0.006,
+          "shape_us": 0
+        },
+        "rebuilds": 0,
+        "syncs": 92
+      },
+      "gpu": 1.55900001525879,
+      "lamps": {
+        "frame": 3435,
+        "material_builds": 3,
+        "materials": 3,
+        "ms": 0.455
+      },
+      "main_view": {
+        "shadow_calls": 99,
+        "shadow_objects": 99,
+        "visible_calls": 261,
+        "visible_objects": 261
+      },
+      "memory_mib": 1785.29151058197,
+      "motion": {
+        "capsule_query_aligned": true,
+        "frame": 3771,
+        "landing_ms": 0.072,
+        "move_ms": 0.355,
+        "ms": 0.582,
+        "navigation_ms": 0.016,
+        "sense_ms": 0.084,
+        "step_ms": 0.056,
+        "support_ms": 0.088
+      },
+      "ms": 7.296,
+      "nav": 1,
+      "nav_background": {
+        "frame": 3436,
+        "ms": 0.023,
+        "phase": ""
+      },
+      "nav_full": false,
+      "nav_publication": {
+        "frame": 3437,
+        "ms": 0.004
+      },
+      "night": false,
+      "nodes": 8630.0,
+      "outline_active": false,
+      "outline_cpu": 0.0,
+      "outline_gpu": 0.0,
+      "outline_view": {
+        "shadow_calls": 0,
+        "shadow_objects": 0,
+        "visible_calls": 0,
+        "visible_objects": 0
+      },
+      "parts": {
+        "actions": 0.028,
+        "actors": 0.034,
+        "camera": 0.154,
+        "frame": 3436,
+        "navigation": 0.017,
+        "stream": 0.071
+      },
+      "pass": 0,
+      "physics": 2.198,
+      "physics_work": {
+        "frame": 3771,
+        "max_step_ms": 0.807,
+        "script_ms": 0.807,
+        "steps": 1,
+        "tail_ms": 0.218,
+        "worst_motion": {
+          "capsule_query_aligned": true,
+          "frame": 3771,
+          "landing_ms": 0.072,
+          "move_ms": 0.355,
+          "ms": 0.582,
+          "navigation_ms": 0.016,
+          "sense_ms": 0.084,
+          "step_ms": 0.056,
+          "support_ms": 0.088
+        }
+      },
+      "pipelines": {
+        "draw": 0.0,
+        "mesh": 0.0,
+        "specialization": 32.0,
+        "surface": 147.0
+      },
+      "position": "(50.01131, 0.925817, 42.56587)",
+      "process": 14.152,
+      "radar": {
+        "candidates": 19,
+        "frame": 3435,
+        "indexed": true,
+        "ms": 0.286,
+        "shapes": 6,
+        "terrain_cached": true,
+        "terrain_redraws": 11
+      },
+      "render_cpu": 1.58299994468689,
+      "render_setup_cpu": 0.149,
+      "residency": {
+        "cursor": 0,
+        "fort_sources": 0,
+        "jobs": 0,
+        "meshes": 3475,
+        "settled": true
+      },
+      "sampling_ms": 0.531,
+      "stream_cell": "(1, 1)",
+      "stream_phases": {
+        "apply_ms": 0.519,
+        "batch_ms": 0.018,
+        "fort_ms": 0.007,
+        "frame": 3185,
+        "index_ms": 0.022,
+        "phase": "apply",
+        "plan_detail": {
+          "call_ms": 0.003
+        },
+        "plan_ms": 0.01
+      },
+      "surface_details": {
+        "dropped": 0,
+        "queries": [
+          {
+            "accepted": true,
+            "begin_us": 83621036,
+            "end_us": 83621044,
+            "frame": 3771,
+            "index_us": 83621040,
+            "iteration_us": 83621040,
+            "point": "(50.01131, 0.024674, 42.56587)",
+            "route": "point_cache"
+          }
+        ]
+      },
+      "surface_query": {
+        "frame": 3769,
+        "ms": 0.004
+      },
+      "ticks_usec": 83621891,
+      "tiles_remaining": 130,
+      "toggles": 0,
+      "weather": {
+        "apply_ms": 0.013,
+        "audio_ms": 0.019,
+        "frame": 3436,
+        "lightning_ms": 0.037,
+        "ms": 0.467,
+        "simulation_ms": 0.185,
+        "sky_ms": 0.199,
+        "wind_ms": 0.014
+      },
+      "wind": {
+        "active": 0,
+        "advance_ms": 0.0,
+        "begin_usec": 83601017,
+        "bind_ms": 0.0,
+        "bound": 0,
+        "cancel_keys_ms": 0.0,
+        "cancel_nodes_ms": 0.001,
+        "cancel_timeline": {
+          "keys_begin_usec": 83601147,
+          "keys_end_usec": 83601147,
+          "nodes_begin_usec": 83601146,
+          "nodes_end_usec": 83601147
+        },
+        "cleanup_check_ms": 0.0,
+        "cleanup_keys_ms": 0.001,
+        "cycle_ms": 0.133,
+        "end_usec": 83601150,
+        "erase_ms": 0.0,
+        "frame": 3435,
+        "ms": 0.133,
+        "pending": false,
+        "physics_frame": 3767,
+        "processed": 33,
+        "receivers": 0,
+        "removed": 0,
+        "restore_ms": 0.0,
+        "scan_ms": 0.108,
+        "slices": 1
+      },
+      "wind_advance": {
+        "active": 0,
+        "frame": 3436,
+        "range_ms": 0.0,
+        "shared_state": true,
+        "uniform_ms": 0.002
+      }
+    }
+  ]
+}

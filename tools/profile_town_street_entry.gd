@@ -1,5 +1,5 @@
 extends SceneTree
-const MAP="D:/code/rmmo_runtime/cache/world3d/town_second_street_20261005/map.gltf"
+var MAP="D:/code/rmmo_runtime/cache/world3d/town_second_street_20261005/map.gltf"
 const OUT="D:/code/rmmo_runtime/review_artifacts/town_street_entry_20261005"
 var world:Node
 var samples:Array=[]
@@ -21,6 +21,15 @@ var unix_offset:=0.0
 var expect_shadow_gating:=false
 var force_legacy_shadows:=false
 var shadow_comparison:Array=[]
+var source_hash:=""
+var collision_details:=false
+var callback_nodes:Dictionary={}
+
+func profile_callbacks(node:Node)->void:
+	var script:Script=node.get_script()
+	if script!=null and script.resource_path in ["res://scripts/net/mock_server.gd","res://scripts/ui/game_hud.gd","res://scripts/char/character_model_3d.gd","res://scripts/char/character_overhead_label.gd","res://scripts/world3d/occlusion_outline.gd"]:
+		node.set_meta("profile_frame",true);callback_nodes[str(node.get_path())]=weakref(node)
+	for child:Node in node.get_children():profile_callbacks(child)
 class PhysicsMeter extends Node:
 	var began:=0
 	var ended:=0
@@ -35,6 +44,12 @@ class PhysicsMeter extends Node:
 		if elapsed>max_ms and is_instance_valid(player):worst_motion=player.get_meta("motion_timing",{})
 		total_ms+=elapsed;max_ms=maxf(max_ms,elapsed);steps+=1
 var physics_meter:PhysicsMeter
+class ProcessMeter extends Node:
+	var ended:=0
+	var frame:=-1
+	func _process(_delta:float)->void:
+		ended=Time.get_ticks_usec();frame=Engine.get_process_frames()
+var process_meter:ProcessMeter
 func compare_shadow_work()->void:
 	# Stationary ABBA in the same loaded scene removes route/residency differences.
 	# Keep graphics settings and all geometry/lights; only restore the old unused
@@ -80,6 +95,7 @@ func tour()->Array:
 	var nodes:Dictionary={}
 	for node:Dictionary in graph.nodes:nodes[node.id]=Vector3(node.position[0],node.position[1],node.position[2])
 	var chain:=["n_405_495","n_475_501","n_468_445","n_475_501","n_532_476","n_475_501","n_405_495"]
+	if "--river-bridge" in OS.get_cmdline_user_args():chain=["n_475_501","n_528_527","n_578_547","n_625_558","junction_1ba95b5ea4ed6090","n_666_570","n_722_617"]
 	var result:Array=[nodes[chain[0]]]
 	for i in chain.size()-1:
 		var matches:Array=graph.edges.filter(func(edge):return (edge.from==chain[i] and edge.to==chain[i+1]) or (edge.to==chain[i] and edge.from==chain[i+1]))
@@ -119,6 +135,18 @@ func sample(previous:int)->int:
 	r["nodes"]=Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
 	r["memory_mib"]=Performance.get_monitor(Performance.MEMORY_STATIC)/1048576.0
 	r["weather"]=world._weather.get_meta("frame_timing",{})
+	r["wind"]=world._weather.wind_objects.get_meta("refresh_timing",{})
+	r["wind_advance"]=world._weather.wind_objects.get_meta("advance_timing",{})
+	if collision_details:
+		r["callbacks"]={}
+		for path:String in callback_nodes:
+			var node:Node=callback_nodes[path].get_ref()
+			if node!=null:r.callbacks[path]=node.get_meta("frame_timing",{})
+		r["surface_details"]=world._navigation.take_surface_profile()
+		r["collision_prepare"]=world._map_root.get_meta("collision_prepare_timing",{})
+		r["collision_wrapper"]=preload("res://scripts/world3d/world_stream.gd").collision_wrapper_snapshot(world._map_root)
+		r["sky_details"]=world._weather.sky_profile_snapshot()
+		r["stream_phases"]=world._map_root.get_meta("stream_phase_timing",{})
 	r["lamps"]=world._weather.streetlamps.get_meta("frame_timing",{})
 	r["toggles"]=toggle_count
 	r["engine"]=engine_frame
@@ -263,6 +291,13 @@ func shadow_visual_compare()->void:
 				reports.append(path)
 	print("SHADOW_VISUAL ",JSON.stringify({"sources":sources.size(),"images":reports,"stats":preload("res://scripts/world3d/building_shadow_proxy.gd").stats()}))
 func run()->void:
+	var probe_sources:Dictionary={}
+	for path:String in ["res://scripts/ui/world_map_view_3d.gd","res://scripts/ui/world_map_terrain_layer.gd","res://scripts/ui/game_hud.gd","res://scripts/world3d/world_3d.gd","res://scripts/world3d/world_navigation.gd","res://scripts/world3d/wind_runtime.gd","res://scripts/world3d/weather_controller.gd","res://scripts/world3d/world_stream.gd"]:
+		probe_sources[path]=FileAccess.get_sha256(path)
+	collision_details="--collision-details" in OS.get_cmdline_user_args()
+	preload("res://scripts/ui/world_map_view_3d.gd").preparation_profile_enabled=collision_details
+	if "--river-bridge" in OS.get_cmdline_user_args():MAP="D:/code/rmmo_runtime/cache/world3d/bridge_perf_20261006/map.gltf"
+	source_hash=FileAccess.get_sha256(MAP)
 	preload("res://scripts/ui/world_map_view_3d.gd").terrain_cache_enabled=not "--legacy-radar-draw" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/building_shadow_proxy.gd").enabled=not "--legacy-building-shadows" in OS.get_cmdline_user_args()
 	expect_shadow_gating="--expect-shadow-gating" in OS.get_cmdline_user_args()
@@ -275,6 +310,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(OUT)
 	preload("res://tools/world3d_test_character.gd").ensure(self)
 	var session=root.get_node("GameSession");session.world3d_map_path=MAP;session.world3d_spawn=Vector3(-114.9,.9,-1.7)
+	if "--river-bridge" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-35,1.1,1.4)
 	if "--entry-road" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-35,.9,-2.5)
 	if "--street-end" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-333,.9,-24)
 	if "--fortifications" in OS.get_cmdline_user_args():session.world3d_spawn=Vector3(-575,.9,-96)
@@ -342,13 +378,31 @@ func run()->void:
 	if "--legacy-capsule-yaw" in OS.get_cmdline_user_args():world._player.set_meta("profile_legacy_capsule_yaw",true)
 	world._navigation.set_meta("profile_frame",true)
 	world._weather.set_meta("profile_frame",true)
+	if collision_details:world._weather.set_meta("profile_sky_details",true)
+	world._weather.wind_objects.set_meta("profile_frame",true)
+	if "--legacy-wind-state" in OS.get_cmdline_user_args():world._weather.wind_objects.set_shared_state_enabled(false)
+	elif "--shared-wind-state" in OS.get_cmdline_user_args():world._weather.wind_objects.set_shared_state_enabled(true)
+	if "--wind-range-detail" in OS.get_cmdline_user_args():world._weather.wind_objects.set_meta("profile_wind_range_detail",true)
 	world._weather.streetlamps.set_meta("profile_frame",true)
 	world._map_root.set_meta("profile_frame",true)
+	if collision_details:
+		profile_callbacks(root)
+		world._navigation.set_meta("profile_surface_details",true)
+		world._map_root.set_meta("profile_collision_details",true)
+		world._weather.wind_objects.set_meta("profile_wind_timeline",true)
 	world._hud._radar.set_meta("profile_frame",true)
+	var radar_startup:Dictionary={}
+	if collision_details:
+		var radar=world._hud._radar
+		var widths:Dictionary={}
+		for width:float in radar._terrain._widths:
+			var key:=str(width);widths[key]=int(widths.get(key,0))+1
+		radar_startup={"size":radar.size,"radius":radar.radius,"scale":radar.scale_factor(),"width":1.0/radar.scale_factor(),"prepared_width":radar._terrain.prepared_width,"first_width":radar._terrain._widths[0] if not radar._terrain._widths.is_empty() else -1,"width_histogram":widths,"commands_recorded":radar._terrain.commands_recorded,"shape_count":radar._terrain._items.size(),"first_preparation":radar.terrain_preparation_timing.duplicate(true)}
 	world._map_root.get_node("GroundRenderBatches").set_meta("profile_frame",true)
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(),true)
 	RenderingServer.viewport_set_measure_render_time(world._outline.mask.get_viewport_rid(),true)
 	process_frame.connect(func():script_frame_start=Time.get_ticks_usec())
+	process_meter=ProcessMeter.new();process_meter.process_priority=1000000;root.add_child(process_meter)
 	physics_meter=PhysicsMeter.new();physics_meter.player=world._player;physics_meter.process_physics_priority=1000000;root.add_child(physics_meter)
 	physics_frame.connect(func():physics_meter.began=Time.get_ticks_usec())
 	RenderingServer.frame_pre_draw.connect(func():
@@ -356,7 +410,11 @@ func run()->void:
 			world._weather.sun.shadow_enabled=bool(world._weather.values.sun_shadows)
 			world._weather.moon.shadow_enabled=bool(world._weather.values.sun_shadows)
 		draw_frame_start=Time.get_ticks_usec())
-	RenderingServer.frame_post_draw.connect(func():engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0})
+	RenderingServer.frame_post_draw.connect(func():
+		engine_frame={"frame":Engine.get_process_frames(),"process_to_draw_ms":(draw_frame_start-script_frame_start)/1000.0,"main_process_ms":(process_meter.ended-script_frame_start)/1000.0 if process_meter.frame==Engine.get_process_frames() else -1.0,"after_process_to_draw_ms":(draw_frame_start-process_meter.ended)/1000.0 if process_meter.frame==Engine.get_process_frames() else -1.0,"draw_ms":(Time.get_ticks_usec()-draw_frame_start)/1000.0}
+		if collision_details:
+			engine_frame["process_begin_usec"]=script_frame_start;engine_frame["process_end_usec"]=process_meter.ended
+			engine_frame["draw_begin_usec"]=draw_frame_start;engine_frame["draw_end_usec"]=Time.get_ticks_usec())
 	world._request_environment({"time_hours":12.0,"time_speed":0.0})
 	for i in 40:await process_frame
 	var shadow_before_route:=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
@@ -369,6 +427,7 @@ func run()->void:
 	if "--entry-road" in OS.get_cmdline_user_args():paths=[Vector3(-60,0,-2.5),Vector3(-85,0,-2.5),Vector3(-110,0,-2.5),Vector3(-135,0,-2.5)]
 	if "--street-end" in OS.get_cmdline_user_args():paths=[Vector3(-333,0,8),Vector3(-327,0,40),Vector3(-333,0,8),Vector3(-333,0,-24)]
 	if "--fortifications" in OS.get_cmdline_user_args():paths=[Vector3(-584,0,-64),Vector3(-590,0,-32),Vector3(-591,0,0),Vector3(-591,0,32),Vector3(-587,0,64),Vector3(-582,0,96),Vector3(-574,0,128),Vector3(-566,0,160)]
+	if "--river-bridge" in OS.get_cmdline_user_args():paths=tour()
 	if "--short" in OS.get_cmdline_user_args():paths=paths.slice(0,2)
 	var passes:=10 if "--explore" in OS.get_cmdline_user_args() else (8 if "--soak" in OS.get_cmdline_user_args() else (1 if "--short" in OS.get_cmdline_user_args() else 2))
 	for arg in OS.get_cmdline_user_args():
@@ -380,6 +439,12 @@ func run()->void:
 		elif pass_>0:paths.reverse()
 		print("PROFILE_PASS ",pass_," night=",night," full_navigation=",world._navigation.fully_ready)
 		for target:Vector3 in paths:
+			if "--river-bridge" in OS.get_cmdline_user_args() and target.x>250 and target.x<310:
+				# Follow the actual collision deck, including the arch above y=0.
+				var query:=PhysicsRayQueryParameters3D.create(target+Vector3.UP*50,target-Vector3.UP*20)
+				query.exclude=[world._player.get_rid()]
+				var ground:Dictionary=world._player.get_world_3d().direct_space_state.intersect_ray(query)
+				if not ground.is_empty():target.y=ground.position.y
 			var previous:=Time.get_ticks_usec()
 			world._player.set_click_target(target,"ground")
 			click_timings.append({"pass":pass_,"target":target,"ms":(Time.get_ticks_usec()-previous)/1000.0})
@@ -401,7 +466,21 @@ func run()->void:
 	var worst:Array=samples.duplicate();worst.sort_custom(func(a,b):return a.ms>b.ms)
 	var report:={"loader":"native" if "--native" in OS.get_cmdline_user_args() else "direct_gltf","short_route":"--short" in OS.get_cmdline_user_args(),"navigation_paused":"--pause-nav" in OS.get_cmdline_user_args(),"failures":failures,"samples":samples,"median":sorted[sorted.size()/2],"p95":sorted[int(sorted.size()*.95)],"p99":sorted[int(sorted.size()*.99)],"max":sorted.back(),"over50":sorted.filter(func(x):return x>50).size(),"worst":worst.slice(0,20),"map":FileAccess.get_sha256(MAP)}
 	report["navigation_fully_ready"]=world._navigation.fully_ready
+	report["source_unchanged"]=FileAccess.get_sha256(MAP)==source_hash
+	report["probe_sources_start"]=probe_sources
+	report["probe_sources_end"]={}
+	report["probe_sources_unchanged"]=true
+	for path:String in probe_sources:
+		var sha:=FileAccess.get_sha256(path)
+		report.probe_sources_end[path]=sha
+		if sha!=probe_sources[path]:report.probe_sources_unchanged=false
 	report["vsync_disabled"]="--no-vsync" in OS.get_cmdline_user_args()
+	report["wind_range_detail"]="--wind-range-detail" in OS.get_cmdline_user_args()
+	report["shared_wind_state"]=world._weather.wind_objects.shared_state_enabled
+	report["collision_details"]=collision_details
+	if collision_details:report["radar_startup"]=radar_startup
+	if collision_details:
+		report["physics_configuration"]={"server_class":PhysicsServer3D.get_class(),"engine":ProjectSettings.get_setting("physics/3d/physics_engine","DEFAULT"),"separate_thread":ProjectSettings.get_setting("physics/3d/run_on_separate_thread",false)}
 	report["aligned_capsule_yaw"]=not "--legacy-capsule-yaw" in OS.get_cmdline_user_args()
 	report["canonical_buildings"]=preload("res://scripts/world3d/ground_batcher.gd").canonical_buildings_enabled
 	report["shadow_proxy"]=preload("res://scripts/world3d/building_shadow_proxy.gd").stats()
@@ -413,6 +492,7 @@ func run()->void:
 	report["surface_query_frame_domain"]="physics" # Other instrumented frame IDs use process frames.
 	report["route"]="fortifications" if "--fortifications" in OS.get_cmdline_user_args() else ("street_end" if "--street-end" in OS.get_cmdline_user_args() else "streets")
 	if "--entry-road" in OS.get_cmdline_user_args():report["route"]="entry_road"
+	if "--river-bridge" in OS.get_cmdline_user_args():report["route"]="spawn_to_river_bridge"
 	report["map_open"]="--map-open" in OS.get_cmdline_user_args()
 	report["resident_slice_probe"]="--slice-resident" in OS.get_cmdline_user_args()
 	report["terrain_slicing"]=not "--legacy-collision" in OS.get_cmdline_user_args()

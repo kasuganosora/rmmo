@@ -1,6 +1,8 @@
 extends Node3D
 ## Spatial render cache. The source nodes, UUIDs, physics and records remain independent.
 const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
+const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
+const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var groups: Dictionary = {}
@@ -12,6 +14,9 @@ var max_build_ms := 0.0
 var _material_keys: Dictionary = {}
 var _instance_meshes: Dictionary = {}
 var _workers: Array = []
+var _retiring_workers:=false
+var _retired_leases:Array=[]
+var _resume_processing:=true
 const MAX_WORKERS=3
 var _generation := 0
 var last_commit_ms := 0.0
@@ -25,7 +30,11 @@ var _audit_cursor:=0
 var _audit_keys:Array=[]
 var _building_meshes:Dictionary={}
 var building_mesh_hits:=0
-var work_budget_usec:=2000
+const INTERACTIVE_WORK_BUDGET_USEC:=2000
+const MAX_LOADING_WORK_BUDGET_USEC:=24000
+var work_budget_usec:=INTERACTIVE_WORK_BUDGET_USEC
+var _loading_budget_serial:=0
+var _loading_budgets:Array[Dictionary]=[]
 var residency_budget_frame:=-1
 var residency_budget_remaining_usec:=2000
 # Residency requests prepare on the main thread in bounded slices. Existing
@@ -36,9 +45,31 @@ var _residency_descriptors:Dictionary={}
 var last_prepare_slice_ms:=0.0
 var max_prepare_slice_ms:=0.0
 
+func begin_loading_budget(budget_usec:int=16000)->int:
+	# A temporary scheduling allowance, not a deadline for native mesh uploads
+	# or one source's geometry capture. Callers end the token on success/failure.
+	if budget_usec<=0 or budget_usec>MAX_LOADING_WORK_BUDGET_USEC:return 0
+	_loading_budget_serial+=1
+	_loading_budgets.append({"token":_loading_budget_serial,"usec":budget_usec})
+	return _loading_budget_serial
+
+func end_loading_budget(token:int)->bool:
+	# Removing an older load cannot undo a newer load's allowance. The base
+	# setting also remains editable while the temporary allowance is active.
+	var index:=_loading_budgets.find_custom(func(scope):return scope.token==token)
+	if index<0:return false
+	_loading_budgets.remove_at(index)
+	return true
+
+func effective_work_budget_usec()->int:
+	return work_budget_usec if _loading_budgets.is_empty() else int(_loading_budgets.back().usec)
+
 static func _fingerprint(value:Variant)->String:
 	var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256)
 	hash.update(var_to_bytes(value));return hash.finish().hex_encode()
+
+func _enter_tree()->void:
+	_retiring_workers=false;set_process(_resume_processing)
 
 func _ready() -> void:
 	name = "GroundRenderBatches"
@@ -52,7 +83,7 @@ static func freeze(node: MeshInstance3D, captured: Mesh = null) -> void:
 	# Geometry can be shared, but per-instance paint must not overwrite another
 	# source's materials when the original GPU mesh is shared by both objects.
 	if cpu.materials!=materials:
-		var local:=Cpu.new(); local.surfaces=cpu.surfaces; local.bounds=cpu.bounds; local.box_size=cpu.box_size; local.source_reference=cpu.source_reference; local.materials=materials
+		var local:=Cpu.new(); local.surfaces=cpu.surfaces;local.lods=cpu.lods; local.bounds=cpu.bounds; local.box_size=cpu.box_size; local.source_reference=cpu.source_reference; local.materials=materials
 		if cpu.has_meta("static_batch_geometry_signature"): local.set_meta("static_batch_geometry_signature",cpu.geometry_key())
 		local._collision_faces=cpu._collision_faces; cpu=local
 	for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot,null)
@@ -71,6 +102,20 @@ func clear(restore_sources: bool = true) -> void:
 
 func release(ids: Array) -> void:
 	_preparation.clear();_residency_descriptors.clear() # Editor mutations invalidate captured descriptors.
+	_release_groups(ids)
+
+func release_sources(nodes: Array) -> void:
+	# A local editor replacement knows exactly which sources are dirty. Keep
+	# immutable descriptors for every other source; regroup on the frame budget.
+	_preparation.clear()
+	var ids:Array=[]
+	for node in _expanded_sources(nodes):
+		if not is_instance_valid(node):continue
+		ids.append(str(node.name))
+		_residency_descriptors.erase(node.get_instance_id())
+	_release_groups(ids)
+
+func _release_groups(ids: Array) -> void:
 	# Editing is synchronous: remove the old combined draw before changing a source.
 	var affected: Dictionary={}
 	for id in ids:
@@ -135,6 +180,37 @@ func sync(nodes: Array, excluded: Array = []) -> void:
 	request_sync(nodes,excluded)
 	while not _preparation.is_empty(): _prepare_step(0)
 
+func sync_selection(nodes: Array, excluded: Array) -> void:
+	# Selection changes no source geometry/materials. Restore selected sources
+	# immediately, then regroup remaining sources within the normal frame budget.
+	_preparation.clear()
+	_release_groups(_expanded_exclusions(nodes,excluded))
+	request_sync(nodes,excluded)
+
+func invalidate_source(node: MeshInstance3D) -> void:
+	# An excluded source may change size/materials without changing its pose.
+	# Its next selection release must recapture its own descriptor only.
+	_residency_descriptors.erase(node.get_instance_id())
+
+static func _expanded_sources(nodes:Array)->Array:
+	var result:Array=[]
+	for node in nodes:
+		if not is_instance_valid(node):continue
+		if node.has_meta("model_component_batch_sources"):
+			for source in node.get_meta("model_component_batch_sources"):
+				if is_instance_valid(source):result.append(source)
+		else:result.append(node)
+	return result
+
+static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
+	var result:=excluded.duplicate()
+	for node in nodes:
+		if not is_instance_valid(node) or str(node.name) not in excluded:continue
+		if node.has_meta("model_component_batch_sources"):
+			for source in node.get_meta("model_component_batch_sources"):
+				if is_instance_valid(source):result.append(str(source.name))
+	return result
+
 func request_sync(nodes:Array,excluded:Array=[])->void:
 	# New residency supersedes unfinished preparation. No source has been hidden
 	# by preparation; lifetime signals immediately remove already-built stale draws.
@@ -143,7 +219,7 @@ func request_sync(nodes:Array,excluded:Array=[])->void:
 	sync_count+=1
 	sync_profile={"material_us":0,"geometry_us":0,"capture_us":0}
 	_material_keys.clear()
-	_preparation={"phase":"collect","cursor":0,"items":nodes,"named":{},"desired":{},"excluded":excluded,"cpu_us":0}
+	_preparation={"phase":"collect","cursor":0,"items":_expanded_sources(nodes),"named":{},"desired":{},"excluded":_expanded_exclusions(nodes,excluded),"cpu_us":0}
 	for cached:String in _instance_meshes.keys():
 		if _instance_meshes[cached].get_ref()==null:_instance_meshes.erase(cached)
 	for cached:String in _building_meshes.keys():
@@ -153,7 +229,7 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	if not node is MeshInstance3D or not node.has_meta("ground_batch_record") or str(node.name) in excluded: return
 	if not node.is_visible_in_tree() or node.transparency > 0 or node.material_overlay != null or node.skin != null: return
 	var record: Dictionary = node.get_meta("ground_batch_record")
-	if not Geometry.candidate(record) or not node.global_basis.is_conformal() or not node.global_basis.get_scale().is_equal_approx(Vector3.ONE) or node.global_basis.determinant() < 0: return
+	if not Geometry.candidate(record) or not node.global_basis.is_conformal() or (not record.get("vegetation_batch",false) and not node.global_basis.get_scale().is_equal_approx(Vector3.ONE)) or node.global_basis.determinant() < 0: return
 	# Runtime residency only adds/removes immutable sources. Their captured
 	# grouping data survives chunk crossings and CPU/GPU mesh substitution.
 	# sync/release clear this cache before editor changes; no material is pinned.
@@ -177,9 +253,10 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	# merge a whole city, so culling and local edits stay spatially bounded.
 	var extent: Vector3 = node.get_aabb().size
 	var kind:=Geometry.category(record)
-	var cell := maxf(32. if kind=="fortification" else 128., pow(2., ceil(log(maxf(1., maxf(extent.x,extent.z))) / log(2.))) * (1. if kind=="fortification" else 2.))
+	var cell := maxf(32. if kind in ["fortification","vegetation"] else 128., pow(2., ceil(log(maxf(1., maxf(extent.x,extent.z))) / log(2.))) * (1. if kind in ["fortification","vegetation"] else 2.))
 	var center: Vector3 = node.global_position
 	var shape: Array = [record.terrain_mesh.columns,record.terrain_mesh.rows] if record.has("terrain_mesh") else []
+	if kind=="vegetation":shape=[record.asset_path]
 	if kind=="building":
 		var b:Dictionary=record.building
 		var presentation:String="ceiling" if str(b.part).ends_with("/ceiling") else ("roof" if b.role=="roof" else "body")
@@ -268,9 +345,37 @@ func _prepare_step(budget_usec:int)->void:
 	max_prepare_slice_ms=maxf(max_prepare_slice_ms,last_prepare_slice_ms)
 
 func _process(_delta: float) -> void:
+	if _retiring_workers:return
+	var wanted:=effective_work_budget_usec()
+	if residency_budget_frame==Engine.get_process_frames():wanted=mini(wanted,residency_budget_remaining_usec)
+	var allowed:=FrameBudget.allowance("batch",wanted,wanted>=24000)
+	if allowed<=0:return
+	var began:=Time.get_ticks_usec()
+	_process_work(allowed)
+	FrameBudget.charge("batch",began)
+
+func _process_work(allowed:int)->void:
+	if allowed<=0:return
+	var started:=Time.get_ticks_usec()
+	# Cursor work / one finished-worker commit must precede the optional audit.
+	# Otherwise even a permanently positive 1 us slice can spend every frame
+	# auditing without ever consuming a pending group or joined worker.
+	var prepared:=not _preparation.is_empty()
+	_prepare_step(allowed)
+	var advanced:=prepared
+	while not advanced or Time.get_ticks_usec()-started<allowed:
+		var ready: int=_workers.find_custom(func(job):return not job.thread.is_alive())
+		if ready>=0:_finish_worker(ready);advanced=true;continue
+		if _workers.size()+WorkerRetirement.pending(_retired_leases)>=MAX_WORKERS:
+			# Retain only the explicit legacy covered-loading join policy.
+			if not _workers.is_empty() and not FrameBudget.enabled and _loading_budgets.is_empty() and work_budget_usec>=24000:_finish_worker(0);advanced=true;continue
+			break
+		if pending.is_empty():break
+		_build_next(true);advanced=true
 	# Lifetime signals are immediate. A bounded audit also repairs stale caches
 	# without polling thousands of static/closed fixtures every frame.
 	for i in mini(32,_audit_keys.size()):
+		if i>0 and Time.get_ticks_usec()-started>=allowed:break
 		_audit_cursor%=_audit_keys.size()
 		var key:String=_audit_keys[_audit_cursor];_audit_cursor+=1
 		if not groups.has(key):continue
@@ -280,33 +385,15 @@ func _process(_delta: float) -> void:
 		# before an is_instance_valid() check on the typed local can run.
 		if group.members.is_empty() or not is_instance_valid(group.members[0]):
 			_invalidate_group(key,group.generation);continue
-	# The worker only owns immutable arrays/material snapshots, never scene nodes.
-	# Several cheap instance groups fit in one frame; one group per frame adds
-	# seconds of artificial latency to a city even when no CPU work is pending.
-	var started:=Time.get_ticks_usec()
-	var allowed:=work_budget_usec
-	if residency_budget_frame==Engine.get_process_frames():allowed=mini(allowed,residency_budget_remaining_usec)
-	# Runtime collision/residency and batch upload share a frame allowance.
-	# Source visuals and current batches remain valid while this work is deferred.
-	if allowed<=0:return
-	_prepare_step(allowed)
-	while Time.get_ticks_usec()-started<allowed:
-		var ready: int=_workers.find_custom(func(job):return not job.thread.is_alive())
-		if ready>=0: _finish_worker(ready); continue
-		if _workers.size()>=MAX_WORKERS:
-			# A loading screen can spend its 24 ms slice joining a tiny job.
-			# Returning here otherwise limits hundreds of fixtures to 3 per frame.
-			if work_budget_usec>=24000:_finish_worker(0);continue
-			return
-		if pending.is_empty(): return
-		_build_next(true)
 
 func flush() -> void:
+	if _retiring_workers:return
 	while not _preparation.is_empty():_prepare_step(0)
 	while not _workers.is_empty(): _finish_worker(0)
 	while not pending.is_empty(): _build_next()
 
 func _build_next(background: bool = false) -> void:
+	if _retiring_workers:return
 	var key: String = pending.pop_front()
 	if not groups.has(key): return
 	var group: Dictionary = groups[key]
@@ -350,13 +437,18 @@ func _build_next(background: bool = false) -> void:
 				_commit(group,data,started);return
 	# Repeated stone modules should share one vertex buffer. Flattening them
 	# all into a combined mesh trades fewer draws for duplicated GPU geometry.
-	if group.category=="fortification" and _identical_geometry(group.cpu):
+	if group.category in ["fortification","vegetation"] and _identical_geometry(group.cpu):
 		_commit_instances(group,snapshot,started)
 		return
 	if background:
 		var job:={"key":key,"generation":group.generation,"started":started,"thread":Thread.new()}
 		var origin: Vector3=group.origin
-		if job.thread.start(func():return Geometry.build(snapshot,origin,true)) == OK: _workers.append(job); return
+		# Workers never own a Node callable. Keep GPU-linked input materials on a
+		# main-owned lease even if the entire source map is removed mid-build.
+		for source:Dictionary in snapshot:source.surfaces=WorkerRetirement.snapshot_surfaces(source.surfaces)
+		job.retirement=WorkerRetirement.watch(job.thread,get_tree(),[snapshot,group.cpu.duplicate()])
+		if not job.retirement.is_empty() and job.thread.start(Geometry.build.bind(snapshot,origin,true)) == OK: _workers.append(job); return
+		WorkerRetirement.complete(job.retirement)
 	_commit(group,Geometry.build(snapshot,group.origin),started)
 
 func _compatible_poses(group:Dictionary,entry:Dictionary)->bool:
@@ -395,11 +487,14 @@ func _commit_instances(group: Dictionary,snapshot: Array,started: int) -> void:
 		if compatible:
 			for slot in original.get_surface_count():
 				if original.surface_get_material(slot)!=snapshot[0].materials[slot]: compatible=false; break
-		mesh=original if compatible else group.cpu[0].restore()
-		if not compatible:
-			if mesh is PrimitiveMesh: mesh.material=snapshot[0].materials[0]
-			else:
-				for slot in mesh.get_surface_count(): mesh.surface_set_material(slot,snapshot[0].materials[slot])
+		if compatible:mesh=original
+		else:
+			# restore() may return the shared original. Give the batch a private
+			# material owner rather than changing that original's materials.
+			var source:Mesh=group.cpu[0];var local:=Cpu.new()
+			local.surfaces=source.surfaces;local.lods=source.lods;local.bounds=source.bounds;local.box_size=source.box_size
+			local.materials.assign(snapshot[0].materials)
+			mesh=local.restore()
 		_instance_meshes[key]=weakref(mesh)
 	var multi:=MultiMesh.new(); multi.transform_format=MultiMesh.TRANSFORM_3D; multi.mesh=mesh; multi.instance_count=snapshot.size()
 	for i in snapshot.size():
@@ -418,10 +513,21 @@ func _finish_worker(index: int) -> void:
 	var data: Dictionary = job.thread.wait_to_finish()
 	if groups.has(job.key) and groups[job.key].generation == job.generation:
 		_commit(groups[job.key],data,job.started)
+	WorkerRetirement.complete(job.get("retirement",{}))
+
+func retire_workers(_tree:SceneTree=null)->void:
+	if not _retiring_workers:_resume_processing=is_processing()
+	_retiring_workers=true;set_process(false)
+	_loading_budgets.clear()
+	for job:Dictionary in _workers:
+		# Reparenting within the same SceneTree also exits. If this node returns,
+		# rebuild only the still-current group after its retired slot drains.
+		if groups.has(job.get("key","")) and groups[job.key].generation==job.generation and not pending.has(job.key):pending.append(job.key)
+		WorkerRetirement.abandon(job.get("retirement",{}),_retired_leases)
+	_workers.clear()
 
 func _exit_tree() -> void:
-	for job: Dictionary in _workers: job.thread.wait_to_finish()
-	_workers.clear()
+	retire_workers()
 
 func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	if data.is_empty(): return
@@ -458,6 +564,8 @@ func stats(category: String="") -> Dictionary:
 	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
 	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
 	result.building_mesh_hits=building_mesh_hits
+	result.work_budget_usec=effective_work_budget_usec();result.base_work_budget_usec=work_budget_usec
+	result.loading_budget_scopes=_loading_budgets.size()
 	for group: Dictionary in groups.values():
 		if not category.is_empty() and group.category!=category: continue
 		if not group.has("data"): continue

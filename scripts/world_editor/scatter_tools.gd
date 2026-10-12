@@ -67,11 +67,13 @@ func prepare(args: Dictionary) -> Dictionary:
 	var polygon:=Scatter.polygon(settings.polygon)
 	var allowed: Array=[polygon] if settings.boundary_margin==0 else Array(Geometry2D.offset_polygon(polygon,-settings.boundary_margin))
 	if allowed.is_empty(): return Data.fail("区域太窄，无法留出边界退让")
-	var supports: Array=[]; var obstacles: Array=[]; var grouped:={}
+	var supports: Array=[]; var obstacles: Array=[]; var grouped:={};var terrains:Array=[]
 	var region_box:=AABB(Vector3(polygon[0].x,settings.height,polygon[0].y),Vector3.ZERO)
 	for p in polygon: region_box=region_box.expand(Vector3(p.x,settings.height,p.y))
 	for record in editor._doc.records:
 		if ownership.ids.has(record.uuid): continue
+		if settings.get("follow_terrain",false) and record.has("terrain_mesh") and record.get("collision")!="none":
+			terrains.append(record);continue
 		var shapes:=Foot.record_shapes(record)
 		if record.has("building"):
 			var id: String=record.building.id
@@ -98,7 +100,10 @@ func prepare(args: Dictionary) -> Dictionary:
 	var records: Array=[]; var placements: Array=[]; var used: Array=[]; var points: Array[Vector2]=[]
 	var skipped:={"boundary":0,"unsupported":0,"occupied":0,"road":0,"spacing":0,"floor":0}
 	var attempts:=0; var checks:=0
-	for candidate in Scatter.candidates(settings):
+	var candidates:=Scatter.candidates(settings)
+	if candidates.is_empty():return Data.fail("散布候选为空或超过 8192，请缩小区域或加大行距")
+	var terrain_support:=preload("res://scripts/world3d/terrain_plant_support.gd").new();terrain_support.setup(terrains)
+	for candidate in candidates:
 		if records.size()>=settings.count: break
 		attempts+=1
 		var asset: Dictionary=assets[candidate.asset]; var scale_: float=candidate.scale
@@ -106,10 +111,21 @@ func prepare(args: Dictionary) -> Dictionary:
 		var local_center:=Data.vec(asset.bounds_position)+Data.vec(asset.bounds_size)*.5
 		var centered:=basis*Vector3(local_center.x,0,local_center.z)*scale_
 		var position:=Vector3(candidate.point.x,settings.height-float(asset.bounds_position[1])*scale_,candidate.point.y)-centered
+		if settings.get("follow_terrain",false):
+			var h:=terrain_support.sample(Vector3(candidate.point.x,0,candidate.point.y))
+			if not is_finite(h):skipped.unsupported+=1;continue
+			position.y=h-float(asset.bounds_position[1])*scale_
 		var record:={"uuid":"vegetation_"+settings.id.sha256_text().left(16)+"_"+str(candidate.slot),"kind":"asset","surface_id":"model","asset_path":asset.asset_path,"label":asset.label,"category":asset.get("category",""),"bounds_position":asset.bounds_position,"bounds_size":asset.bounds_size,"position":Data.xyz(position),"rotation":[0,candidate.yaw,0],"size":[scale_,scale_,scale_],"collision":"block" if settings.collision else "none"}
 		var shape:=Foot.record_shape(record)
+		if settings.get("pattern","random")=="rows":record.vegetation_batch=true
 		if not Scatter.inside(shape.polygon,allowed): skipped.boundary+=1; continue
-		if not Scatter.inside(shape.polygon,supports): skipped.unsupported+=1; continue
+		if settings.get("follow_terrain",false):
+			var supported:=true
+			for corner:Vector2 in shape.polygon:
+				var h:=terrain_support.sample(Vector3(corner.x,0,corner.y))
+				if not is_finite(h) or absf(h-(position.y+float(asset.bounds_position[1])*scale_))>.35:supported=false;break
+			if not supported:skipped.unsupported+=1;continue
+		elif not Scatter.inside(shape.polygon,supports): skipped.unsupported+=1; continue
 		if not editor._authoring.Settings.contains(record,editor._authoring.settings): skipped.floor+=1; continue
 		var blocked:=false
 		for point in points:

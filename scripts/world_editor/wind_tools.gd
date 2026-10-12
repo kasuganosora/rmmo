@@ -1,6 +1,19 @@
 extends RefCounted
 const Response = preload("res://scripts/world3d/wind_response.gd")
 var editor: Node3D
+var preview_enabled := false
+
+func set_preview(enabled: bool) -> Dictionary:
+	var ready: Dictionary=editor._gameplay.guard()
+	if not ready.ok: return ready
+	preview_enabled=enabled
+	apply_preview()
+	if editor._environment_panel!=null: editor._environment_panel.refresh()
+	return {"ok":true,"enabled":preview_enabled}
+
+func apply_preview() -> void:
+	if is_instance_valid(editor._weather) and editor._weather.wind_objects!=null:
+		editor._weather.wind_objects.set_enabled(preview_enabled)
 
 func catalog(id: String) -> Array:
 	if editor._view == null: return []
