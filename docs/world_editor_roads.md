@@ -15,15 +15,15 @@
 ## 几何与碰撞
 
 - 支持水平直路、三次曲线、变宽道路、同层路口、圆角连接和圆端帽；现已增加带水平接头的直线坡道。独立水平桥面可以跨过地面道路，按真实铺面重叠范围检查桥下净空；河道桥梁可显式绑定，复用已有桥面，不重复铺设。详见 [道路桥梁联动](world_editor_road_connections.md)。
-- 路面按世界坐标 **32 米分块**，分块内保存互不重叠的凸多边形补片。环路中央、弯路外侧和分块空角保留空地；不会以整个分块包围盒代替道路碰撞。网格包含正面、背面、边缘，法线和切线有效；顶面使用连续世界米制 UV，支持资源包 PBR 法线、粗糙度与 AO。
+- 路面以世界坐标 **32 米分块**为起点；贴地后超过补片预算的块会自动细分，见下方 2026-10-14 更新。分块内保存互不重叠的凸多边形补片。环路中央、弯路外侧和分块空角保留空地；不会以整个分块包围盒代替道路碰撞。网格包含正面、背面、边缘，法线和切线有效；顶面使用连续世界米制 UV，支持资源包 PBR 法线、粗糙度与 AO。
 - 曲线采样段在缓弯处共用偏移横截面，使两侧边缘连续，避免每个采样点叠加整圆后裁出大量碎片。锐角或相对路宽过短的段仍使用有界圆角；不会生成过长尖角。相连路口按交汇横截面收口，圆端帽只用于断头路，防止宽支路伸出窄主路。UI 与 MCP 仍共用 `road_plan.gd`，参数与撤销事务不变。
 - 建筑预览、直接生成、区域随机生成、沿街生成、更新及整栋移动/旋转/复制共用占地检查。道路实际范围和上方净空都是障碍；普通地面支撑的豁免不适用于生成道路，包括解除关联后的道路。
 - 生成道路前检查全部现有物件，包括隐藏、锁定物件；真正位于脚平面下的普通地面可作为支撑。障碍物落入路面或净空会整笔拒绝，不删除既有房屋、物件。
 - 净空默认 3 米，可设 2.5～10 米；桥面高差须至少为净空加铺面厚度。厚度 0.1～0.5 米，默认 0.2；顶面高于道路节点 0.005～0.05 米，默认 0.025，以避免与平地重叠闪烁。
 
-**边界：**直线高差道路支持扣除水平接头后不超过 15% 的坡度；曲线斜坡、随地形贴合、倾斜路口、自动桥墩尚未实现。[河道工具](world_editor_waterways.md) 可生成与两岸齐平的桥头和栏杆，显式接入道路图后支持引道联动；桥梁模型仍待重做。自交、重叠中心线、不同类型的同层穿越及无法稳定求解的近切线交汇需先整理骨架。交叉候选来自 16～128 段曲线采样，再用曲线参数求精确交点，误差超限拒绝；不声称覆盖任意曲线的全部数学交点。
+**边界：**不启用贴地时，直线高差道路仍按扣除水平接头后的 15% 坡度限制；独立曲线坡道、倾斜路口不在这条旧路径中支持。已实现的 `follow_terrain` 根据真实地形拟合道路，见下方 2026-10-14 更新。[河道工具](world_editor_waterways.md) 支持显式桥面绑定；现有参数化石桥及其结构边界见 [石桥工具](world_editor_stone_bridges.md)。自交、重叠中心线、不同类型的同层穿越及无法稳定求解的近切线交汇需先整理骨架。交叉候选来自 16～128 段曲线采样，再用曲线参数求精确交点，误差超限拒绝；不声称覆盖任意曲线的全部数学交点。
 
-上限：256 节点、512 边、8192 源轮廓、4096 路面块、每块 512 凸补片、100 万次裁切。单个刷面记录上限仍为 128，极复杂分块绑定默认材质可能因该限制被拒绝。复杂度超限保持原文档，不静默少生成。更新目前仍重新求解道路图、重建编辑场景及记录完整撤销快照；稳定身份和差异统计不等于整城增量渲染性能已经完成。
+上限：256 节点、512 边、8192 源轮廓、4096 路面块、每块 512 凸补片、100 万次裁切。单个刷面记录上限仍为 128；贴地道路的默认铺路材质会自动细分超预算块，见下方更新。达到最小块尺寸或总量上限仍整笔拒绝，不静默少生成。稳定身份和差异统计不等于整城增量渲染性能已经完成。
 
 ## 身份与编辑保护
 
@@ -71,3 +71,36 @@
 GPU 测试在 `tools/run_godot_background.py` 的独立桌面运行，不激活用户窗口；使用临时地图及临时资源包。[街区闭合提取、临街地块与空位房屋](world_editor_blocks.md) 已在下一轮补齐；道路变化后自动替换建筑仍待实施，完整参考城镇尚未搭建。
 
 本轮验收通过：`D:/code/rmmo_runtime/review_artifacts/roads_acceptance_live.log`（`WORLD3D_ROADS_FINISHED failures=0`）、`road_protection_live.log`（`ROAD_PROTECTION_FINISHED failures=0`），均无脚本错误。既有 city_layout、mcp、transform、groups_ui、editor 五组后台回归全部通过，日志前缀 `roads_regression_`。主测试地图及实际 PBR 近景在 `D:/code/rmmo_runtime/cache/world3d/roads_8562783/`，包括 `map.gltf`、`roads.png`、`road_material.png`；未覆盖用户地图。
+
+## 2026-10-14：细地形自动分块与贴地桥口
+
+UI 与当前 3D `preview_road_surface` / `generate_road_surface` 继续共用 [road_tools.prepare](../scripts/world_editor/road_tools.gd)，本次没有新增工具或参数。沿用已有 `follow_terrain`、路缘、材质、厚度及偏移设置，不启用历史二维入口。
+
+- [road_plan.gd](../scripts/world3d/road_plan.gd) 在贴地模式下先合并统一的 XZ 道路轮廓，不再把普通地面道路当作需要两端平接头的独立坡道。最终每片高度与 15% 坡度限制仍由 [terrain_projection.gd](../scripts/world3d/terrain_projection.gd) 检查实际地形，未降低地形精度，也未放宽洞口、缺地、重叠承托及坡度校验。
+- 原生石桥的桥面切口先按真实桥绑定 XYZ 裁切；随后才将道路轮廓置于临时平面。路缘开口使用同一平面的 portal 副本，避免拿高处桥端 Y 与临时平面比较而横封桥口。原桥端标高、绑定及道路图保持不变。两端侧缘保留端帽；石桥和河道桥均覆盖此路径。
+- [road_terrain_fit.gd](../scripts/world3d/road_terrain_fit.gd) 在原生投影明确返回 512 片超限，或指定默认铺路材质后的刷面预算不足时，自动四叉细分派生道路块，最小块边长 0.25 米，总块数仍不超过 4096。其他错误直接原子失败。未超限块保持原 ID；相同内容的子块由父 key 和象限序列确定身份。子块保留世界铺面 UV、路缘米制 U、真实外端帽及原生 `terrain_follow` 作者轮廓，不在内部切分处新增端帽。
+- 已经精确验证为道路承托的地形，提前跳过重复的逐片障碍裁切；远处障碍只通过保守 XZ 包围框粗筛，其余物件仍执行真实重叠检查。选择、碰撞、手刷和事件保护、共享渲染批次、撤销及原生保存语义保持不变。
+
+地形雕刻后，[terrain_follow_tools.gd](../scripts/world_editor/terrain_follow_tools.gd) 仍按已生成的各子块作者轮廓重新投影，并更新清单签名。现有雕刻改变高度与洞格，不改变网格行列或地形 XZ 范围，因此不会增加同一子块的投影片数；这条路径不重新合并子块或改写父子身份。动态重采样已有地形不是本次新增能力。
+
+[test_adaptive_terrain_roads.gd](../tools/test_adaptive_terrain_roads.gd) 在 0.5 米网格夹具中真实复现单块超过 512 片，并核对自动细分后的面积、地形高度、UV、路缘长度和端帽、稳定身份、真实洞口和陡坡拒绝。首轮 47 项通过，包含 loopback HTTP 工具发现、与 UI 共享预览结果、障碍和洞口的无副作用失败、生成幂等、撤销重做、保存重开及已绑定道路下挖洞的事务保护；原始日志为 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_regression.log`。
+
+最终补充复验 **60 项通过，0 失败**：两种高处桥口均无横封路缘、侧缘及端帽仍存在，原桥绑定未改；真实 HTTP `sculpt_terrain(mode:raise)` 后子块 ID、512 片限制与清单签名正确，地形和道路一起撤销重做并保存重开。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_regression_final.log`，临时地图 `D:/code/rmmo_runtime/cache/world3d/adaptive_terrain_roads_12032613/map.gltf`；未修改用户地图。
+
+同日带材质补测发现另一项独立预算：起伏地面会把顶面分为许多不同共面组，`paint_default` 每组占一条原生刷面记录，可能未到 512 片投影上限便超过 `Paint.MAX_OVERRIDES=128`。现有共享材质缓存继续复用，未增加底材字段、提高刷面上限或改变逐面手刷格式。指定 `material_id` 时，自动细分额外保证每块顶面三角数不超过 128：即使日后雕刻让每个三角形变为独立面组，也有足够刷面预算，避免当前平面合组暂时通过、雕刻后失败。材质依赖错误和刷面超限的错误信息分开报告。
+
+`test_adaptive_terrain_roads.gd -- --textured` 使用实际 `pack:default:paving/outdoor_flagstone/material` 和 0.5 米缓起伏网格，**70 项通过，0 失败**。夹具中原 4 个投影块的最大刷面数为 402；启用材质预算后为 28 个原生子块，最大刷面数 122，面积与路缘总长度不变。真实 HTTP 预览、生成、实际颜色/法线贴图绑定、重复生成、保存重开、雕刻后重新刷默认材质均通过，手动清除材质在重新生成时仍保留。证据：`D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_textured_regression.log`，临时地图 `D:/code/rmmo_runtime/cache/world3d/adaptive_terrain_roads_15230943/map.gltf`。历史道路不会因打开地图自动重生成；已有道路更新仍走预览/应用及手改保护。
+
+同日桥头实测补齐了桥翼墙的碰撞细化。原桥体包围框包含两侧翼墙之间的通路，会误拒绝正常引道。[road_bridge_approach.gd](../scripts/world3d/road_bridge_approach.gd) 仅在桥跨两端以外，将已拟合路面及其净空棱柱与保存的完整冻结碰撞三角形比较；使用实际变换，不取渲染 LOD，也不按新配方重建代替已保存几何。桥跨中央仍保守拒绝占用；真实翼墙、端柱碰撞仍拒绝。未知冻结布局、未冻结桥及倾斜桥保持原有保守保护。本次仅处理原生桥外端引道，未新增通用实体包含检测或忽略整座桥的开关。
+
+生成预览与地形雕刻后的道路跟随更新共用该检查；碰撞缓存只在一次不可变预检内存续。[test_road_bridge_approach.gd](../tools/test_road_bridge_approach.gd) 实际 headless/HTTP **29 项通过，0 失败**：原生桥及真实铺路材质生成、包围框确实重叠的合法双端引道、未知冻结布局和桥跨主体保护、真实翼柱碰撞拒绝、UI 与 HTTP 预览一致、失败原子性、撤销重做、保存重开，以及重开后普通雕刻触发引道跟随更新。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/road_bridge_approach_regression.log`，临时地图 `D:/code/rmmo_runtime/cache/world3d/road_bridge_approach_10123865/map.gltf`。候选桥 2 原北侧转弯另有真实端柱碰撞，需调整道路位置；碰撞修正不会自动放行这类内容错误。
+
+上述是编辑器业务和 headless/HTTP 验证，不代表本轮城镇道路、桥梁已发布，也不替代实际桥头过渡、材质和室外镜头验收。小夹具运行时间不能作为整城加载或生成性能承诺。
+
+同日修复短边焊接的退化回环：浮点裁切在东北门路口留下约 1.39 毫米的 A→B→A 零面积边界；旧有方向映射形成循环，循环检测停止后仍保留往返边，误报“路缘内角过尖”。`road_kerb.gd` 现在将原有 2.5 厘米短边焊接范围内的节点合并到确定的公共根，消除双点及微小回环。阈值未扩大，正常尖角、分叉、路缘折叠保护均保留；没有关闭路缘或忽略合法面积区域。
+
+`test_automatic_kerb_geometry.gd` 新增实际微片坐标、三边微片、真实尖角拒绝和正常边界不变检查，连同直路、T/Y/十字路口、环路、坡道、曲线及桥口开口用例全部通过。完整城镇配方的真实 XZ 轮廓开启路缘后通过（暴露边界约 6344.23 米）。`test_kerb_sliver_mcp.gd` 使用临时平地及同位置斜接门路，通过真实 3D HTTP 工具发现、预览无副作用、带材质生成、非法宽度拒绝、撤销重做和原生保存重开，18 项通过、0 失败；日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/kerb_sliver_http.log`。UI/MCP 无新增 schema，继续共享相同路缘业务。
+
+贴地超坡失败现在报告实际交叠位置、地形 ID、网格和三角序号及坡度百分比，避免只提示“坡度超过限制”而无法定位。返回 `code:terrain_projection_grade_limit`，并附 `record_id/road_source/terrain_id/position/cell/triangle_index/triangle_world/grade/max_grade`；位置在实际地形表面，未加铺面偏移。结构化坡度为比值（`.15` 即 15%）；近垂直面的 `grade` 为 `null`，不发送非有限 JSON 数值。原 15% 限制、数值容差、覆盖裁切及失败原子性不变，无新增工具参数。
+
+[test_terrain_projection_bounds.gd](../tools/test_terrain_projection_bounds.gd) 的远坐标、旋转、孔洞、覆盖及诊断回归 **22 项通过**；[test_terrain_projection_diagnostics_http.gd](../tools/test_terrain_projection_diagnostics_http.gd) 使用独立已知 25% 坡面，真实 HTTP **12 项通过**，核对 UI 同结果、实际位置/三角/坡度、预览与生成错误一致及无副作用失败。日志同目录 `terrain_projection_bounds_diagnostics.log`、`terrain_grade_diagnostic_http.log`，临时地图 `D:/code/rmmo_runtime/cache/world3d/terrain_grade_diagnostic_10993134/map.gltf`。候选图实际首处失败为桥 5 西端附近 `(200,323.25)` 的 23.4395% 地形三角，已交内容配方局部整坡，未通过修改通行阈值放行。

@@ -105,6 +105,12 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 	var water:Array=[];var bins:Dictionary={};var changed:Dictionary={}
 	for entry:Dictionary in entries:changed[entry.record.uuid]=entry.record
 	var terrains:Array=terrain_ids.map(func(id):return changed.get(id,indexed.get(id,{})))
+	# Adapt the horizontal water footprint to the shared projection budget.
+	# Fine editable banks must not require lowering terrain detail to fit water.
+	var water_cell:=32.0
+	for terrain:Dictionary in terrains:
+		water_cell=minf(water_cell,8.0*minf(float(terrain.size[0])/terrain.terrain_mesh.columns,float(terrain.size[2])/terrain.terrain_mesh.rows))
+	water_cell=maxf(2.0,water_cell)
 	for i in path.size()-1:
 		var polygon:Array=[left[i],left[i+1],right[i+1],right[i]]
 		if Geometry2D.is_polygon_clockwise(PackedVector2Array(polygon)):polygon.reverse()
@@ -114,19 +120,19 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 			if Geometry2D.segment_intersects_segment(left[i],left[i+1],left[j],left[j+1])!=null or Geometry2D.segment_intersects_segment(right[i],right[i+1],right[j],right[j+1])!=null:return T.fail("河岸自交，请调整路径或宽度")
 		var bounds:=Rect2(polygon[0],Vector2.ZERO)
 		for p:Vector2 in polygon:bounds=bounds.expand(p)
-		for z in range(floori(bounds.position.y/32.),floori(bounds.end.y/32.)+1):
-			for x in range(floori(bounds.position.x/32.),floori(bounds.end.x/32.)+1):
-				var clipped:=Road.intersection(polygon,Poly.rect([x*32.,z*32.,(x+1)*32.,(z+1)*32.]))
+		for z in range(floori(bounds.position.y/water_cell),floori(bounds.end.y/water_cell)+1):
+			for x in range(floori(bounds.position.x/water_cell),floori(bounds.end.x/water_cell)+1):
+				var clipped:=Road.intersection(polygon,Poly.rect([x*water_cell,z*water_cell,(x+1)*water_cell,(z+1)*water_cell]))
 				if clipped.size()<3 or Poly.area(clipped)<.00001:continue
 				var key:=Vector2i(x,z)
 				if not bins.has(key):bins[key]=[]
 				bins[key].append(clipped)
 	for key:Vector2i in bins:
-		var center:=Vector3((key.x+.5)*32,level-.01,(key.y+.5)*32);var polys:Array=[]
-		for polygon:Array in bins[key]:polys.append(polygon.map(func(p):return [(p.x-center.x)/32.,(p.y-center.z)/32.]))
-		var r:Dictionary={"uuid":prefix+str(water.size()),"kind":"box","position":[center.x,center.y,center.z],"rotation":[0,0,0],"size":[32,.02,32],"surface_id":"water","collision":"none","color":[.13,.27,.31],"editor_group":prefix,"editor_group_name":args.id,"channel_mesh":{"polygons":polys,"uv_origin":[center.x,center.y,center.z]},"water_depth_effect":{"absorption":.9,"shallow_color":[.13,.27,.31],"deep_color":[.055,.14,.205]}}
+		var center:=Vector3((key.x+.5)*water_cell,level-.01,(key.y+.5)*water_cell);var polys:Array=[]
+		for polygon:Array in bins[key]:polys.append(polygon.map(func(p):return [(p.x-center.x)/water_cell,(p.y-center.z)/water_cell]))
+		var r:Dictionary={"uuid":prefix+str(water.size()),"kind":"box","position":[center.x,center.y,center.z],"rotation":[0,0,0],"size":[water_cell,.02,water_cell],"surface_id":"water","collision":"none","color":[.13,.27,.31],"editor_group":prefix,"editor_group_name":args.id,"channel_mesh":{"polygons":polys,"uv_origin":[center.x,center.y,center.z]},"water_depth_effect":{"absorption":.9,"shallow_color":[.13,.27,.31],"deep_color":[.055,.14,.205]}}
 		var coverage:=preload("res://scripts/world3d/terrain_projection.gd").fit(r,terrains,0,100.)
-		if not coverage.ok:return T.fail("河流水面范围必须完整覆盖所选地形，不能跨过洞口或边缘")
+		if not coverage.ok:return T.fail("河流水面地形校验失败："+str(coverage.get("error","不能跨过洞口或边缘")))
 		if not preload("res://scripts/world3d/channel_surface.gd").valid(r):return T.fail("河段过长或采样过密，请拆分中心线")
 		if not editor._authoring.Settings.contains(r,editor._authoring.settings):return T.fail("河流水面超出当前楼层")
 		if preload("res://scripts/world_editor/building_footprint.gd").batches_overlap(preload("res://scripts/world_editor/building_footprint.gd").record_shapes(r),preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)):return T.fail("河流侵入保留区或保留通道")

@@ -104,3 +104,9 @@ RX 7900 XTX、Forward+、独立后台测试视口，45 帧预热、80 帧采样�
 城镇合并 831 个来源为 106 组，2453 个来源材质面变为 201 个合并材质面；像素平均通道误差约 `7.8e-8`。贴图显存基本不变（城镇高度层新增约 0.20 MiB），不能把缓冲下降 22% 宣称为总显存下降 22%。整图首次后台构建约 5.46 秒，构建期间帧时间 P95 为 23.9 ms，仍出现 87.2 ms 峰值；普通 49 块样例构建期 P95 为 2.29 ms、最大 10.76 ms。首次整图构建仍有优化空间，稳定视图不重复构建。
 
 验证：`tools/test_ground_cpu_mesh.gd` 检查原数组、碰撞、无 GPU RID、恢复与缓存失效；`tools/test_ground_batching.gd` 做像素比较、逐来源三角形不变、GPU 缓冲及 draw call 实测、局部恢复；`tools/test_world3d_ground_batching.gd` 通过真实 HTTP 验证发现、状态、雕刻、非法调用无副作用、隐藏/锁定/楼层、撤销重做、保存重开及运行时驻留/卸载/碰撞。`tools/benchmark_town_ground_batching.gd` 只读加载用户地图并校验文件哈希；日志与截图在 `D:/code/rmmo_runtime/review_artifacts/ground_batching/`。
+
+## 矩形宅基整平（2026-10-14）
+
+地形雕刻 → 整平可选择“矩形宅基（平滑边缘）”。`shape=rectangle` 与原 `preview_terrain_stroke` / `sculpt_terrain` 共用业务；指定单个世界 XZ 中心、`plot_width` / `plot_depth`、与建筑一致的 `plot_yaw`、`target_height`、`blend_margin`。矩形内平整，外侧用 smoothstep 柔和回到原地形；矩形强度是 0.01–1 的混合比例，1 一次完成。旧圆形笔刷含义不变。
+
+跨块边界、锁定/隐藏、保留区、实体保护、道路自动贴地和坡度限制继续有效；道路无法通行时整笔拒绝，不能用整平绕过。修改触发原生局部渲染批次和派生缓存，撤销、保存仍为同一事务。仅为确有需要的宅基使用，不将整片街区抹平。真实 HTTP 发现/合法非法/无副作用失败/撤销重做/原生保存重开见 `tools/test_terrain_house_plots.gd`；旋转和混合格距坐标检查见 `tools/test_terrain_house_plot_coordinates.gd`。

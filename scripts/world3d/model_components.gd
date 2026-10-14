@@ -44,6 +44,61 @@ static func valid_socket(socket:Variant)->bool:
 			if not Fixtures._bounded(value,0 if key=="color" else -1000,1 if key=="color" else 1000):return false
 	return Fixtures._bounded(socket.get("range"),.1,30) and Fixtures._bounded(socket.get("energy"),0,8) and socket.get("flame") is bool and socket.get("indoor") is bool
 
+static func _encloses_emitting_socket(mesh_node:MeshInstance3D,point:Vector3)->bool:
+	# Imported luminous solids may surround their own OmniLight. Let their light
+	# escape, but retain lantern-frame/ordinary scene shadows. This is only called
+	# within an opted-in, validated fixture subtree; never edit shared materials.
+	if mesh_node.mesh==null or mesh_node.mesh.get_surface_count()==0:return false
+	for slot in mesh_node.mesh.get_surface_count():
+		var material:Material=mesh_node.get_active_material(slot)
+		if not material is BaseMaterial3D:return false
+		if not material.emission_enabled or material.emission_energy_multiplier<=0:return false
+		if maxf(material.emission.r,maxf(material.emission.g,material.emission.b))<=0 and material.emission_texture==null:return false
+	var box:=mesh_node.get_aabb()
+	# Boundary sockets and degenerate solids keep their authored shadow state.
+	var epsilon:float=maxf(box.size.length()*0.000001,0.0000001)
+	if not box.grow(-epsilon).has_point(point):return false
+	var triangles:PackedVector3Array=mesh_node.mesh.get_faces()
+	if triangles.size()<12 or triangles.size()%3!=0:return false
+	# Welding positions (not render vertices) permits ordinary UV/normal seams.
+	# Reject open/non-manifold emitters instead of treating an AABB as a solid.
+	var positions:Dictionary={};var edges:Dictionary={}
+	for offset in range(0,triangles.size(),3):
+		var a:Vector3=triangles[offset];var b:Vector3=triangles[offset+1];var c:Vector3=triangles[offset+2]
+		if (b-a).cross(c-a).length_squared()<=pow(epsilon,4):return false
+		var ab:=b-a;var ac:=c-a;var ap:=point-a
+		if absf(ab.cross(ac).normalized().dot(ap))<=epsilon:
+			var d00:=ab.dot(ab);var d01:=ab.dot(ac);var d11:=ac.dot(ac)
+			var d20:=ap.dot(ab);var d21:=ap.dot(ac);var denominator:=d00*d11-d01*d01
+			var u:float=(d11*d20-d01*d21)/denominator
+			var v:float=(d00*d21-d01*d20)/denominator
+			if u>=-0.000001 and v>=-0.000001 and u+v<=1.000001:return false
+		var indices:Array[int]=[]
+		for vertex:Vector3 in [a,b,c]:
+			var key:=vertex.snapped(Vector3.ONE*epsilon)
+			if not positions.has(key):positions[key]=positions.size()
+			indices.append(positions[key])
+		for j in 3:
+			var start:int=indices[j];var finish:int=indices[(j+1)%3]
+			if start==finish:return false
+			var edge:=Vector2i(mini(start,finish),maxi(start,finish))
+			edges[edge]=int(edges.get(edge,0))+1
+	for count:int in edges.values():
+		if count!=2:return false
+	# Odd crossings mean inside; de-duplicate hits on shared triangle edges.
+	# Two non-axis rays must agree, including for concave or hollow emitters.
+	for direction:Vector3 in [Vector3(.811,.379,.443).normalized(),Vector3(-.327,.827,.458).normalized()]:
+		var distances:Array[float]=[]
+		for offset in range(0,triangles.size(),3):
+			var hit:Variant=Geometry3D.ray_intersects_triangle(point,direction,triangles[offset],triangles[offset+1],triangles[offset+2])
+			if hit!=null:distances.append(point.distance_to(hit))
+		distances.sort()
+		var crossings:=0;var previous:=-INF
+		for distance:float in distances:
+			if distance-previous>epsilon:crossings+=1;previous=distance
+		if crossings%2==0:return false
+	return true
+
 static func apply(model:Node3D,record:Dictionary)->void:
 	if not valid(record):return
 	var nodes:Array[Node]=[model];nodes.append_array(model.find_children("*","",true,false))
@@ -84,7 +139,13 @@ static func apply(model:Node3D,record:Dictionary)->void:
 		var anchor:MeshInstance3D=meshes[0]
 		var p:Variant=socket.get("position")
 		if not p is Array or p.size()!=3:continue
-		var local:Vector3=relative_pose(anchor,model).affine_inverse()*relative_pose(node,model)*Vector3(p[0],p[1],p[2])
+		var socket_point:Vector3=relative_pose(node,model)*Vector3(p[0],p[1],p[2])
+		for emitter:MeshInstance3D in meshes:
+			var pose:=relative_pose(emitter,model)
+			if absf(pose.basis.determinant())<=0.00000001:continue
+			if _encloses_emitting_socket(emitter,pose.affine_inverse()*socket_point):
+				emitter.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var local:Vector3=relative_pose(anchor,model).affine_inverse()*socket_point
 		var extra:Dictionary=anchor.get_meta("extras",{}).duplicate(true)
 		extra.rmmo_model_light=socket.duplicate(true);extra.rmmo_model_light.position=[local.x,local.y,local.z]
 		anchor.set_meta("extras",extra);anchor.remove_meta("ground_batch_record")

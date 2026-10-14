@@ -37,6 +37,9 @@ static func wall(plan: Dictionary, key: String, axis: String, fixed: float, star
 	for opening in openings:
 		var o: Dictionary = opening.duplicate(true); o.wall = key; o.axis = axis; o.fixed = fixed; o.floor_y = y
 		plan.openings.append(o)
+		if o.type=="arch_passage":
+			load("res://scripts/world3d/house_arched_entrance.gd").infill(plan,key+"/"+str(o.id),axis,fixed,o,y,height,colors,floor_)
+			continue
 		if o.type=="window" and plan.parameters.get("window_style","casement")!="casement":
 			load("res://scripts/world3d/house_window_styles.gd").build(plan,key,axis,fixed,o,y,colors,floor_)
 			continue
@@ -165,6 +168,8 @@ static func finish_plan(plan: Dictionary) -> Dictionary:
 		plan.roof_plan=solved
 		plan.records.append_array(preload("res://scripts/world3d/roof_mesh.gd").generate(solved))
 		plan.erase("roof_modules"); plan.erase("roof_openings")
+	var oculus:=preload("res://scripts/world3d/house_gable_oculus.gd").apply(plan)
+	if not oculus.ok:return oculus
 	preload("res://scripts/world3d/joined_box_mesh.gd").apply(plan)
 	# Raise the complete interior, including articulated pivots (which are local),
 	# before extending foundations down to the terrain datum.
@@ -182,7 +187,7 @@ static func finish_plan(plan: Dictionary) -> Dictionary:
 		for joint in plan.get("frame_joints",[]):joint.start[1]+=raised;joint.end[1]+=raised
 		for volume in plan.get("volumes",[]):volume.top+=raised
 		for o in plan.openings:
-			if o.type!="door" or not o.wall.ends_with("north") or o.floor_y>raised+.01:continue
+			if o.type not in ["door","arch_passage"] or not o.wall.ends_with("north") or o.floor_y>raised+.01:continue
 			if not o.id in ["entrance","entry"]:continue
 			var count:=ceili(raised/.15)
 			for i in count:

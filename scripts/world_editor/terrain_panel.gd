@@ -111,9 +111,9 @@ func setup(value: Node3D) -> void:
 	var remove_river:=button("停用材质效果",func(): _apply_river(false))
 	var brush_start := get_child_count()
 	var brush_hint := note("左键拖动雕刻，松开提交；Esc 取消。")
-	brush_hint.tooltip_text = "整平使用世界高度；平滑强度为混合比例。风化搬移陡坡到坡脚，建议小范围多次刷。"
+	brush_hint.tooltip_text = "整平使用世界高度；矩形宅基以宽深定义平面，外侧柔和过渡，强度 1 一次整平。平滑强度为混合比例。风化搬移陡坡到坡脚，建议小范围多次刷。"
 	brush_fields=Form.new(); add_child(brush_fields)
-	brush_fields.build(Terrain.stroke_schema(),{"cross_tiles":true,"mode":"raise","radius":3.0,"strength":.5,"hardness":.25,"target_height":0.0,"iterations":8,"talus_angle":35.0,"erosion_seed":0},{"cross_tiles":"跨相邻地形并同步边界","mode":"工具","radius":"半径（米）","strength":"强度","hardness":"硬度（0 软边 / 1 硬边）","target_height":"整平目标标高（米）","iterations":"风化迭代（1–32）","talus_angle":"风化稳定坡角（度）","erosion_seed":"风化随机种子"},{"mode":[{"id":"raise","name":"隆起"},{"id":"lower","name":"下沉 / 挖坑"},{"id":"flatten","name":"整平"},{"id":"smooth","name":"平滑"},{"id":"hole","name":"挖穿洞口"},{"id":"fill","name":"补洞"},{"id":"erode","name":"风化 / 坡脚堆积"}]})
+	brush_fields.build(Terrain.stroke_schema(),{"cross_tiles":true,"mode":"raise","shape":"circle","plot_width":10.,"plot_depth":14.,"plot_yaw":0.,"blend_margin":2.,"radius":3.0,"strength":.5,"hardness":.25,"target_height":0.0,"iterations":8,"talus_angle":35.0,"erosion_seed":0},{"cross_tiles":"跨相邻地形并同步边界","mode":"工具","shape":"整平形状","plot_width":"宅基宽（米）","plot_depth":"宅基深（米）","plot_yaw":"宅基转向（度）","blend_margin":"平滑过渡宽（米）","radius":"半径（米）","strength":"强度","hardness":"硬度（0 软边 / 1 硬边）","target_height":"整平目标标高（米）","iterations":"风化迭代（1–32）","talus_angle":"风化稳定坡角（度）","erosion_seed":"风化随机种子"},{"shape":[{"id":"circle","name":"圆形"},{"id":"rectangle","name":"矩形宅基（平滑边缘）"}],"mode":[{"id":"raise","name":"隆起"},{"id":"lower","name":"下沉 / 挖坑"},{"id":"flatten","name":"整平"},{"id":"smooth","name":"平滑"},{"id":"hole","name":"挖穿洞口"},{"id":"fill","name":"补洞"},{"id":"erode","name":"风化 / 坡脚堆积"}]})
 	Compact.apply(brush_fields,{"cross_tiles":"跨相邻地形同步边界","mode":"工具","radius":"半径 (m)","strength":"强度","hardness":"硬度","target_height":"目标高 (m)","iterations":"迭代次数","talus_angle":"稳定坡 (°)","erosion_seed":"随机种子"})
 	for control in brush_fields.fields.values():
 		if control is CheckButton: control.toggled.connect(func(_v):editor._terrain_brush.cancel())
@@ -154,6 +154,7 @@ func setup(value: Node3D) -> void:
 	apply_river.reparent(river_appearance.footer); remove_river.reparent(river_appearance.footer)
 	terrain_result=note(""); terrain_result.name="TerrainResult"; terrain_result.visible=false
 	brush_fields.fields.mode.item_selected.connect(func(_index):_update_brush_fields())
+	brush_fields.fields.shape.item_selected.connect(func(_index):_update_brush_fields())
 	_update_brush_fields()
 	refresh()
 
@@ -176,6 +177,12 @@ func _section(parent:Node, title:String, expanded:bool=false)->VBoxContainer:
 
 func _update_brush_fields()->void:
 	var mode:String=brush_fields.values().mode
+	if mode!="flatten":brush_fields.fields.shape.select(0)
+	var rectangle:bool=mode=="flatten" and brush_fields.values().shape=="rectangle"
+	Compact.show_field(brush_fields,"shape",mode=="flatten")
+	for key in ["plot_width","plot_depth","plot_yaw","blend_margin"]:Compact.show_field(brush_fields,key,rectangle)
+	for key in ["radius","hardness"]:Compact.show_field(brush_fields,key,not rectangle)
+	brush_fields.fields.strength.max_value=1. if rectangle else 20.
 	for key in ["target_height","iterations","talus_angle","erosion_seed"]:
 		var show:=mode=="flatten" if key=="target_height" else mode=="erode"
 		Compact.show_field(brush_fields,key,show)

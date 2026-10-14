@@ -630,6 +630,7 @@ func _finish_rebuild() -> void:
 
 func _picking_node_enabled(node:Node)->bool:
 	if node.get_meta("editor_shadow_proxy",false):return false
+	if node.get_meta("runtime_light_effect",false):return false
 	if node.get_meta("editor_floor_excluded",false):return false
 	if node is Node3D and not node.visible:return false
 	if node is MeshInstance3D and node.mesh!=null and FortCollision.candidate(node.get_meta("ground_batch_record",{})) and (_selection_tools==null or str(node.name) not in _selection_tools.ids):return false

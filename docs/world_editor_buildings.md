@@ -347,3 +347,33 @@ V7 验收记录：14 组覆盖/空洞/交接样例和 100 组随机尺寸（96 �
 一个建筑实例只选一个窗口方案，含所有楼层、翼楼与老虎窗；老虎窗按空间缩小。`random` 以该实例 `seed_offset` 只抽取一次，保存解析后的明确方案。批量请求需要给实例不同 seed_offset 才能获得变化；没有逐窗随机。省略参数仍使用旧式，不强制改写已有房屋。新式仅 tall_shutter 配窗板。生成后可沿用 bake_building 冻结；冻结实例依旧遵守原有不可参数更新规则。
 
 真实 HTTP 验收 `tools/test_town_styles_mcp.gd` 覆盖发现、圆拱三层楼旋转生成并冻结、非法窗口枚举/重叠失败无副作用、撤销重做、保存重开。结构和参考见 [窗口及街景实施记录](town_frontage_rhythm_20261005.md)。本图街区候选评分脚本仍是离线制作工具，不等于通用 UI/MCP 自动排布功能。
+
+### 2026-10-14 正面山墙的真实圆窗
+
+中世纪房屋新增可选 `gable_oculus:true`。当前支持 `layout:townhouse/hall`、`roof_solver:unified`、`style:plaster`、`roof:gable`、`roof_axis:depth`、`compound:none`；圆窗外圈与檐口及斜屋面保留至少 0.12 m 净距，空间不足或不支持的组合会在预览/生成前拒绝。省略或设为 `false` 不改变既有房屋几何，也不要求旧版本 8 实例补字段。该窗属于固定阁楼圆窗，普通窗继续沿用整栋统一的 `window_style`。
+
+[house_gable_oculus.gd](../scripts/world3d/house_gable_oculus.gd) 在统一屋面结束后，对正面山墙逐片减去圆形轮廓，再生成原生凸棱柱墙体、浅石外套、深木内框、固定玻璃和十字木格。墙的内外面与碰撞都实际开洞，不把圆形构件贴到实墙上。32 段圆周、1.50 m 外径/1.12 m 净口沿用 [已验圆窗构件](house_appearance_20261007.md) 的尺度；墙洞直径 1.20 m 留出窗框安装口。这些是项目尺寸，不是文保实测。现实结构继续参考 [Historic England 的 Southwick Hall](https://historicengland.org.uk/listing/the-list/list-entry/1040240) 中的山墙顶圆窗和石窗套。
+
+房屋面板与 3D MCP 的 `list_building_templates.parameters_schema`、`preview_buildings`、`generate_buildings` 共用同一参数校验和蓝图。继续原生自动冻结、静态合批及屋顶隐藏语义，未新增 rawmesh、专用 MCP 工具或每次手动合并步骤。活动门窗沿用既有管线，本轮不重复室内验收。
+
+[test_house_gable_oculus.gd](../tools/test_house_gable_oculus.gd) 实际 headless/loopback HTTP **33 项通过，0 失败**：真实原生三角碰撞在圆洞内不再击中灰泥，相邻墙体仍阻挡；石套/木框分材、屋顶语义、原生记录校验、非法组合无副作用、预览、烘焙、撤销重做、保存重开及旧字段兼容均通过。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/oculus_http.log`。这是共享能力及隔离夹具管线证据；新住宅的画质、材质、近中远和正式地图接入仍由本轮模型/街景验收记录判定，不能据此称 S2 镜头已经完成。
+
+### 2026-10-14 通高圆拱住宅入口
+
+`entrance_style:round_arch_hall` 在既有两层挑空大厅住宅中生成真正圆拱入口。仅支持 `layout:hall`、`template:house`、`floors:2`、`style:plaster`、`compound:none`、`jetty:0`、`front_canopy:false`；非法组合在预览和生成前拒绝。可选 `entrance_arch_width` 为 1.5–3.6 m（缺省 2.28 m），`entrance_arch_spring` 为 2.2–4 m（缺省 3.67 m），冠高为起拱高加净宽一半，冠顶上方至少留 0.5 m 墙。上述默认尺寸匹配已验 S12 双柱外挑拱构件，并非从动画测得的实物尺寸。
+
+前墙按各楼层分别切开，圆弧角隅使用同一批原生凸棱柱生成可见墙与碰撞；开口经过楼层时，挑空前厅不产生横穿的楼板、墙裙或横向腰线。这里是常开外廊入口，后部住宅门、楼梯及楼上房间沿用既有大厅结构；开放前厅属于项目补充设计。双柱拱与高窄雕饰仍是独立已验资产，不把安装示例墙当作完整住宅。S12 装配采用 `base_height:0`，保证墙洞与外柱的地坪、起拱线一致；抬高入口时必须同时给外柱提供完整支撑，不能只把柱脚悬在门台标高。
+
+房屋面板“入口结构”和 3D MCP 共用蓝图、参数 schema 与业务事务，省略字段等价于 `rectangular`，没有把新增项加入旧实例的必填默认参数。保存仍保留逐层/屋顶与活动件语义，并沿原生冻结和合批流程处理；已有冻结住宅不会因此自动改形。
+
+`tools/test_house_arched_entrance.gd` 通过实际三角几何检查及 loopback HTTP 的预览、非法普通楼板组合、旋转生成冻结、归属、撤销重做与保存重开；日志为 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/arched_entrance_http.log`。覆盖 3.0/3.3/4.0 m 层高圆弧裁切及旧参数几何不变。撤销按原生合同保留单调增长的物件 ID 分配器，内容和元数据恢复完整。本项不重复住宅室内行走；S12 新装配的材质、近中远画质与正式地图接入由本轮场景模型验收另行判断。
+
+### 2026-10-14 斜地住宅的抬高地基承托
+
+同轮为浅溪前景住宅增加原生 8 m 短进深：`depth` 的 schema 最小值为 8，但 8–10 m 仅允许 `layout:townhouse`、`floors:1`、`compound:none`；多层住宅和其他布局仍需至少 10 m，楼梯和大厅空间校验没有放宽。UI 与 3D MCP 共用此蓝图规则。`tools/test_house_arched_entrance.gd` 的补充回归验证 8×8 单层门位、短进深多层/大厅拒绝、真实 HTTP schema/预览以及非法生成无副作用；连同圆拱原有验收共 46 项通过、0 失败，日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/arched_entrance_http_small_cottage.log`。冻结模板及场景摆放另按模型与室外验收执行。
+
+原生生成和素材库整栋放置共用 [building_footprint.foundation_support_height](../scripts/world_editor/building_footprint.gd)：`townhouse/hall` 具有合法正值 `base_height` 和 `foundation_depth` 时，地面可接触抬高基座，不再把略高于建筑原点的坡地一律判为穿屋。承托上限同时受真实首层 `floor` 构件顶面约束，缺少该构件、零深度地基或普通未抬高布局继续使用原点上限；不能仅靠预制件参数声称更高地板而放行埋屋。
+
+此修正不雕刻地形、不抬整屋，也不豁免道路或其他建筑碰撞。UI、`preview_buildings` / `generate_buildings` 及 `place_asset` 复用相同判断，工具与参数没有新增。地形整平仍是独立原生操作，必须通过道路真实坡度和保护检查。
+
+[test_house_foundation_support_http.gd](../tools/test_house_foundation_support_http.gd) 在隔离临时地图实际执行 **33 项通过，0 失败**：合法斜地原生生成与冻结预制件放置、地形顶点不变、无地基与地板被埋的原子拒绝、参数上限受实际几何限制、撤销重做和保存重开。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/foundation_support_http.log`。这是承托能力回归，不等于住宅外观和正式地图布局已经验收。

@@ -67,7 +67,9 @@ static func town_presets() -> Array:
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
 		"window_style":{"type":"string","enum":["casement","random","cross_lattice","diamond_lattice","round_arch","tall_shutter"]},
-		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(10,30),
+		"gable_oculus":{"type":"boolean"},
+		"entrance_style":{"type":"string","enum":["rectangular","round_arch_hall"]},"entrance_arch_width":Schema.number(1.5,3.6),"entrance_arch_spring":Schema.number(2.2,4.0),
+		"template":{"type":"string","enum":LABELS.keys()}, "width":Schema.number(5.5,24), "depth":Schema.number(8,30),
 		"floors":{"type":"integer","minimum":1,"maximum":6}, "floor_height":Schema.number(3,4),
 		"stair_layout":{"type":"string","enum":["straight","switchback"]},"base_height":Schema.number(0,.9),"curtains":{"type":"boolean"},
 		"door_height":Schema.number(2.2,2.6),"door_width":Schema.number(1.3,1.8),"stair_width":Schema.number(1.4,2.0),"stair_landing":Schema.number(1.4,2.6),"corridor_width":Schema.number(1.6,2.4),
@@ -101,10 +103,15 @@ static func generate(parameters: Dictionary) -> Dictionary:
 	var issue := Schema.validate(parameters,schema())
 	if not issue.is_empty(): return fail(issue)
 	var p := layout_defaults(str(parameters.get("layout","standard"))); p.merge(parameters,true)
+	if p.depth<10 and not (p.layout=="townhouse" and p.floors==1 and p.compound=="none"):return fail("8–10 米短进深仅适用于单层独栋中世纪住宅布局；其他布局至少需要 10 米")
+	var arch_issue:String=preload("res://scripts/world3d/house_arched_entrance.gd").validate(p)
+	if not arch_issue.is_empty():return fail(arch_issue)
 	if p.get("window_style","casement")=="random":
 		var random:=RandomNumberGenerator.new();random.seed=int(p.seed)
 		p.window_style=preload("res://scripts/world3d/house_window_styles.gd").IDS[random.randi_range(0,3)]
 	if p.get("window_style","casement")!="casement":p.shutters=p.window_style=="tall_shutter"
+	var oculus_issue:=preload("res://scripts/world3d/house_gable_oculus.gd").issue(p)
+	if not oculus_issue.is_empty():return fail(oculus_issue)
 	if p.roof_solver=="legacy" and (p.roof not in ["gable","flat"] or p.annex_floors!=1 or p.compound=="rear_wing"): return fail("旧版屋顶不支持新样式或同高翼楼，请选择统一屋面")
 	if p.layout=="urban_village": return finish_plan(preload("res://scripts/world3d/urban_building.gd").generate(p))
 	if p.floors>3: return fail("普通及中世纪布局最多三层；城中村自建房支持六层")

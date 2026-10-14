@@ -72,10 +72,9 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	if not result.ok: return result
 	if settings.follow_terrain:
 		var terrains:Array=editor._doc.records.filter(func(r):return r.has("terrain_mesh"))
-		for i in result.records.size():
-			var fitted:=preload("res://scripts/world3d/terrain_projection.gd").fit(result.records[i],terrains,settings.lift)
-			if not fitted.ok:return fitted
-			result.records[i]=fitted.record
+		var fitted:=preload("res://scripts/world3d/road_terrain_fit.gd").fit(result.records,terrains,settings.lift,Paint.MAX_OVERRIDES if not settings.material_id.is_empty() else 0)
+		if not fitted.ok:return fitted
+		result.records=fitted.records;result.chunks=fitted.chunks
 	var material: Dictionary={}
 	if not settings.material_id.is_empty():
 		material=editor._material_tool.library.find(settings.material_id)
@@ -120,9 +119,19 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 		if excluded.has(record.uuid): continue
 		if record.has("fortification") and record.has("fixture"): continue # A gate controls road traffic; its open/closed pose is intentional.
 		for shape in Footprint.record_shapes(record): obstacles.append({"record":record,"shape":shape})
+	var bridge_collision_cache:Dictionary={}
 	for record in result.records:
 		var occupancy:=Footprint.record_shapes(record)
+		var occupied_bounds:AABB=occupancy[0].bounds
+		for shape:Dictionary in occupancy:occupied_bounds=occupied_bounds.merge(shape.bounds)
+		var occupied_xz:=Rect2(occupied_bounds.position.x,occupied_bounds.position.z,occupied_bounds.size.x,occupied_bounds.size.z).grow(.001)
 		for obstacle in obstacles:
+			# Projection already validated this exact supporting heightfield.
+			# This was previously checked after O(road faces * terrain cells)
+			# clipping; move the identical exemption before those intersections.
+			if record.has("terrain_follow") and obstacle.record.uuid in record.terrain_follow.terrain_ids:continue
+			var obstacle_bounds:AABB=obstacle.shape.bounds
+			if not occupied_xz.intersects(Rect2(obstacle_bounds.position.x,obstacle_bounds.position.z,obstacle_bounds.size.x,obstacle_bounds.size.z),true):continue
 			var support:=false
 			for shape in occupancy:
 				var overlap:=Plan.intersection(Array(shape.polygon).slice(0,-1),Array(obstacle.shape.polygon).slice(0,-1))
@@ -131,9 +140,10 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 				for p in overlap: foot=minf(foot,record.position[1]+record.size[1]*.5-settings.lift+grade[0]*(p.x-record.position[0])+grade[1]*(p.y-record.position[2]))
 				support=Footprint.supporting_ground(obstacle.record,obstacle.shape.bounds.end.y,foot)
 				if not support: break
-			if record.has("terrain_follow") and obstacle.record.uuid in record.terrain_follow.terrain_ids:support=true
 			if support: continue
-			if Footprint.batches_overlap(occupancy,[obstacle.shape]): return {"ok":false,"error":"路面或通行净空与现有物件重叠","conflicts":[obstacle.record.uuid]}
+			if Footprint.batches_overlap(occupancy,[obstacle.shape]):
+				if obstacle.record.has("bridge_mesh") and not preload("res://scripts/world3d/road_bridge_approach.gd").intersects(record,obstacle.record,occupancy,obstacle.shape,bridge_collision_cache):continue
+				return {"ok":false,"error":"路面或通行净空与现有物件重叠","conflicts":[obstacle.record.uuid]}
 	if editor._doc.records.size()-excluded.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")
 	result.manifest=manifest; result.excluded=excluded;result.graph=data.roads
 	result.diff={"added":added,"updated":updated,"unchanged":unchanged,"removed":by_key.size()+added-result.records.size()}
@@ -145,10 +155,11 @@ func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:
 	var geometry:=Paint.geometry(node); node.free()
 	if not geometry.ok: return geometry
 	var surface: Dictionary=geometry.surfaces[0]; var entries: Array=[]; var tile: Array=material.get("tile_size",[1,1])
+	if surface.faces.size()>Paint.MAX_OVERRIDES:return {"ok":false,"code":"road_paint_face_limit","error":"单块路面需要 %d 个刷面，超过 %d 个预算"%[surface.faces.size(),Paint.MAX_OVERRIDES]}
 	for face in surface.faces:
 		entries.append({"mesh":".","surface":0,"face":face,"geometry":surface.signature,"material":material.duplicate(true),"mapping":"uv","scale":[1.0/tile[0],1.0/tile[1]],"offset":[0,0],"rotation":0.0})
 	record.surface_paint=entries
-	return {"ok":true} if Paint.valid(record) and Paint.missing([record]).is_empty() else Data.fail("路面材质依赖缺失或单块刷面数量超限")
+	return {"ok":true} if Paint.valid(record) and Paint.missing([record]).is_empty() else Data.fail("路面材质无效或贴图依赖缺失")
 
 func summary(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)

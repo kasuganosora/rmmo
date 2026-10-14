@@ -1,6 +1,14 @@
 extends "res://tools/test_road_plan.gd"
 const Kerb=preload("res://scripts/world3d/road_kerb.gd")
 func run()->void:
+	var sliver_a:=Vector3(331.5000305,.025,60.0013924);var sliver_b:=Vector3(331.5,.025,60.0000038)
+	var sliver:=[{"a":sliver_a,"b":sliver_b},{"a":sliver_b,"b":sliver_a}]
+	check(Kerb.weld_short_edges(sliver).is_empty(),"1.39 mm reverse-edge loop collapses without a weld cycle")
+	var sliver_c:=Vector3(331.5000305,.025,60.002)
+	check(Kerb.weld_short_edges([{"a":sliver_a,"b":sliver_b},{"a":sliver_b,"b":sliver_c},{"a":sliver_c,"b":sliver_a}]).is_empty(),"tiny zero-area three-edge loop collapses")
+	check(Kerb.join(Vector2.RIGHT,Vector2(-1,.001))==Vector2.ZERO,"real sharp-corner protection is unchanged")
+	var healthy:=[{"a":Vector3.ZERO,"b":Vector3(3,0,0)},{"a":Vector3(3,0,0),"b":Vector3(3,0,3)}]
+	check(Kerb.weld_short_edges(healthy.duplicate(true))==healthy,"ordinary exposed boundaries retain their coordinates")
 	var cases:={"straight":[[[-50,0,0],[50,0,0]]],"cross":[[[-60,0,0],[60,0,0]],[[0,0,-35],[0,0,35]]],"T":[[[-40,0,0],[40,0,0]],[[0,0,0],[0,0,30]]],"Y":[[[0,0,-30],[0,0,0],[25,0,30]],[[0,0,0],[-25,0,30]]],"ring":[[[-25,0,-25],[25,0,-25],[25,0,25],[-25,0,25],[-25,0,-25]]],"ramp":[[[-60,0,0],[60,6,0]]],"overpass":[[[-40,0,0],[40,0,0]],[[0,6,-40],[0,6,40]]]}
 	for name_ in cases:
 		var g:Dictionary=Split.split(graph(cases[name_])).graph

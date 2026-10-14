@@ -90,6 +90,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 		plan.entrance = Blueprint.arr(origin+basis*Blueprint.vec(plan.entrance))
 		var box := Geometry.bounds(plan.records)
 		plan.bounds = {"position":Blueprint.arr(box.position),"size":Blueprint.arr(box.size)}
+		var support_height:=Footprint.foundation_support_height(plan.parameters,origin.y,plan.records)
 		for previous in prepared:
 			if Footprint.batches_overlap(plan.occupancy,previous.occupancy): return Blueprint.fail("本批第 %d 栋建筑与另一栋建筑占地重叠"%(index+1))
 		if Footprint.batches_overlap(plan.occupancy,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)): return Blueprint.fail("建筑进入禁建区或保留通道")
@@ -97,7 +98,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 			if excluded.has(str(record.uuid)): continue
 			if not occupied_shapes.has(record.uuid): occupied_shapes[record.uuid]=Footprint.record_shapes(record)
 			for shape in occupied_shapes[record.uuid]:
-				if Footprint.supporting_ground(record,shape.bounds.end.y,origin.y): continue
+				if Footprint.supporting_ground(record,shape.bounds.end.y,support_height): continue
 				if Footprint.batches_overlap(plan.occupancy,[shape]): return {"ok":false,"error":"第 %d 栋建筑占地与现有物件重叠"%(index+1),"conflicts":[str(record.uuid)]}
 		if not replacing.is_empty():
 			var old: Dictionary = instances()[replacing]

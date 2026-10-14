@@ -10,6 +10,45 @@ var tiles: Array=[]
 var data: Dictionary
 static func height_at(x: float,d: Dictionary) -> float: return d.camber*pow(sin(PI*clampf(x/d.length+.5,0,1)),2)+d.get("rise",0.)*(clampf(x/d.length+.5,0,1)-.5)
 static func slope_at(x: float,d: Dictionary) -> float: return d.camber*PI/d.length*sin(TAU*clampf(x/d.length+.5,0,1))+d.get("rise",0.)/d.length
+static func repair_zero_tangents(arrays:Array)->Dictionary:
+	# MikkTSpace's angle weighting can round a very thin bevel corner to zero
+	# even with a non-degenerate position/UV triangle. Recover only those missing
+	# bases from that triangle's actual UV derivatives. Never invent an arbitrary
+	# axis, remove geometry, alter valid tangents, or change normals/UV mapping.
+	var p:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+	var n:PackedVector3Array=arrays[Mesh.ARRAY_NORMAL]
+	var uv:PackedVector2Array=arrays[Mesh.ARRAY_TEX_UV]
+	var tangents:PackedFloat32Array=arrays[Mesh.ARRAY_TANGENT]
+	if n.size()!=p.size() or uv.size()!=p.size() or tangents.size()!=p.size()*4:return {"ok":false,"error":"bridge tangent channels missing"}
+	var missing:Dictionary={};var best:Dictionary={}
+	for i in p.size():
+		var t:=Vector3(tangents[i*4],tangents[i*4+1],tangents[i*4+2])
+		if not t.is_finite() or t.length_squared()<.1:missing[i]=true
+	if missing.is_empty():return {"ok":true,"repaired":0}
+	var indices:PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
+	if indices.is_empty():
+		for i in p.size():indices.append(i)
+	for at in range(0,indices.size(),3):
+		var a:int=indices[at];var b:int=indices[at+1];var c:int=indices[at+2]
+		if not missing.has(a) and not missing.has(b) and not missing.has(c):continue
+		var ab:=p[b]-p[a];var ac:=p[c]-p[a];var duv:=uv[b]-uv[a];var dvv:=uv[c]-uv[a]
+		var determinant:=duv.cross(dvv);var area:=ab.cross(ac).length_squared()
+		if absf(determinant)<1e-20 or area<1e-20:continue
+		var along_u:Vector3=(ab*dvv.y-ac*duv.y)/determinant
+		var along_v:Vector3=(ac*duv.x-ab*dvv.x)/determinant
+		for i:int in [a,b,c]:
+			if not missing.has(i) or area<=float(best.get(i,0)):continue
+			var normal:=n[i].normalized();var tangent:=along_u-normal*normal.dot(along_u)
+			if not tangent.is_finite() or tangent.length_squared()<1e-20:continue
+			tangent=tangent.normalized()
+			var orientation:=normal.cross(tangent).dot(along_v)
+			if not is_finite(orientation) or absf(orientation)<1e-20:continue
+			tangents[i*4]=tangent.x;tangents[i*4+1]=tangent.y;tangents[i*4+2]=tangent.z
+			# SurfaceTool stores the opposite binormal sign to dP/dv (its UV-Y
+			# convention). Keep identical handedness to healthy MikkTSpace bases.
+			tangents[i*4+3]=1.0 if orientation<0 else -1.0;best[i]=area
+	arrays[Mesh.ARRAY_TANGENT]=tangents
+	return {"ok":best.size()==missing.size(),"repaired":best.size(),"unresolved":missing.size()-best.size()}
 static func kit(path: String) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(path) or not FileAccess.file_exists(path): return {}
@@ -100,7 +139,9 @@ func build(record: Dictionary) -> ArrayMesh:
 	var importer:=ImporterMesh.new()
 	for i in streams.size():
 		var st: SurfaceTool=streams[i]; st.generate_tangents(); st.index()
-		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,st.commit_to_arrays(),[],{},materials[i],["bridge_paving","bridge_masonry","bridge_coping_and_arch_rings"][i])
+		var arrays:=st.commit_to_arrays();var repaired:=repair_zero_tangents(arrays)
+		if not repaired.ok:push_error("Bridge tangent basis cannot be recovered: "+str(repaired));return null
+		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,arrays,[],{},materials[i],["bridge_paving","bridge_masonry","bridge_coping_and_arch_rings"][i])
 	importer.generate_lods(60,25,[])
 	var result:=importer.get_mesh()
 	preload("res://scripts/world3d/bridge_lod_preparation.gd").remember(importer,result)

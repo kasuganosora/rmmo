@@ -18,7 +18,7 @@ static func index_path(path:String,content_root:String="")->String:
 
 static func generator()->String:
 	var values:Array=[VERSION,Engine.get_version_info(),ProjectSettings.get_setting("rendering/renderer/rendering_method","")]
-	for path in ["compiled_asset_cache.gd","gltf_map_io.gd","grass_texture_cache.gd","model_texture_cache.gd","model_lod_preparation.gd","leaf_backlight.gd","asset_visibility_range.gd","asset_bounds_manifest.gd"]:
+	for path in ["compiled_asset_cache.gd","gltf_map_io.gd","grass_texture_cache.gd","model_texture_cache.gd","model_lod_preparation.gd","leaf_backlight.gd","tinted_glass.gd","asset_visibility_range.gd","asset_bounds_manifest.gd"]:
 		values.append(FileAccess.get_sha256("res://scripts/world3d/"+path))
 	return JSON.stringify(values).sha256_text()
 

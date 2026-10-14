@@ -19,6 +19,29 @@ static func xyz(v:Vector3)->Array:return [v.x,v.y,v.z]
 static func key(p:Vector3)->String:return "%d,%d,%d"%[roundi(p.x/EPS),roundi(p.y/EPS),roundi(p.z/EPS)]
 static func flat(p:Vector3)->Vector2:return Vector2(p.x,p.z)
 
+static func weld_root(parents:Dictionary,id:String)->String:
+	while parents[id]!=id:id=parents[id]
+	return id
+
+static func weld_short_edges(exposed:Array)->Array:
+	# A directed b->a map forms a cycle for tiny A->B->A clipping slivers.
+	# Union the same short edges into deterministic roots instead, so those
+	# zero-area/two-point loops actually collapse. The existing 2.5 cm weld
+	# threshold and all real corner/junction safety checks stay unchanged.
+	var parents:Dictionary={};var points:Dictionary={}
+	for edge:Dictionary in exposed:
+		if edge.a.distance_to(edge.b)>=.025:continue
+		for p:Vector3 in [edge.a,edge.b]:
+			var id:=key(p)
+			if not parents.has(id):parents[id]=id;points[id]=p
+		var a:=weld_root(parents,key(edge.a));var b:=weld_root(parents,key(edge.b))
+		if a!=b:parents[b if a<b else a]=a if a<b else b
+	for edge:Dictionary in exposed:
+		for field:String in ["a","b"]:
+			var id:=key(edge[field])
+			if parents.has(id):edge[field]=points[weld_root(parents,id)]
+	return exposed.filter(func(e):return e.a.distance_to(e.b)>=EPS)
+
 static func attach(records:Array, options:Dictionary, portals:Array)->Dictionary:
 	if not options.get("kerb_enabled",false):return {"ok":true,"length":0.0}
 	var edges:Array=[];var bins:Dictionary={}
@@ -66,16 +89,7 @@ static func attach(records:Array, options:Dictionary, portals:Array)->Dictionary
 			exposed.append({"a":a,"b":b,"record":edge.record})
 	# Boolean clipping can leave centimetre-long bevel fragments. Collapse these
 	# before offsetting; otherwise the inner offset folds over its neighbour.
-	var weld:Dictionary={}
-	for edge in exposed:
-		if edge.a.distance_to(edge.b)<.025:
-			weld[key(edge.b)]=edge.a
-	for edge in exposed:
-		for field in ["a","b"]:
-			var seen:Dictionary={}
-			while weld.has(key(edge[field])) and not seen.has(key(edge[field])):
-				seen[key(edge[field])]=true;edge[field]=weld[key(edge[field])]
-	exposed=exposed.filter(func(e):return e.a.distance_to(e.b)>=EPS)
+	exposed=weld_short_edges(exposed)
 	var starts:Dictionary={};var ends:Dictionary={}
 	for i in exposed.size():
 		var edge:Dictionary=exposed[i]
@@ -94,11 +108,11 @@ static func attach(records:Array, options:Dictionary, portals:Array)->Dictionary
 			visited[at]=true
 			var edge:Dictionary=exposed[at];var d:Vector2=(flat(edge.b)-flat(edge.a)).normalized();var inward:=Vector2(-d.y,d.x)
 			var prev:Array=ends.get(key(edge.a),[]);var next:Array=starts.get(key(edge.b),[])
-			if prev.size()>1 or next.size()>1:return {"ok":false,"error":"路缘边界在接点处分叉，请调整过窄或相切的道路"}
+			if prev.size()>1 or next.size()>1:return {"ok":false,"error":"路缘边界在接点处分叉，请调整过窄或相切的道路（%.3f, %.3f → %.3f, %.3f）"%[edge.a.x,edge.a.z,edge.b.x,edge.b.z]}
 			var na:=inward;var nb:=inward
 			if prev.size()==1:na=join(flat(exposed[prev[0]].b)-flat(exposed[prev[0]].a),d)
 			if next.size()==1:nb=join(d,flat(exposed[next[0]].b)-flat(exposed[next[0]].a))
-			if na==Vector2.ZERO or nb==Vector2.ZERO:return {"ok":false,"error":"路缘内角过尖，无法生成安全截面，请调宽或圆滑该路口"}
+			if na==Vector2.ZERO or nb==Vector2.ZERO:return {"ok":false,"error":"路缘内角过尖，无法生成安全截面，请调宽或圆滑该路口","boundary":[xyz(edge.a),xyz(edge.b)],"previous":prev.map(func(j):return [xyz(exposed[j].a),xyz(exposed[j].b)]),"next":next.map(func(j):return [xyz(exposed[j].a),xyz(exposed[j].b)])}
 			var record:Dictionary=edge.record;var origin:=vec(record.position);var grade:Array=record.road_mesh.get("grade",[0,0]);var length:float=edge.a.distance_to(edge.b)
 			var part:={"a":section(edge.a-origin,na,options,grade),"b":section(edge.b-origin,nb,options,grade),"u":u,"length":length,"cap_a":prev.is_empty(),"cap_b":next.is_empty()}
 			# Reject folded strips rather than emitting overlapping corner geometry.

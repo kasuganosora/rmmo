@@ -1,7 +1,7 @@
 extends SceneTree
-const OUT = "D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/repair_review/tower"
-const ASSET = "D:/code/rmmo_runtime/art_sources/axel_guild/repair_v2/guild_alarm_tower.glb"
-const SOURCE = "D:/code/rmmo/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb"
+var output_dir = "D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/repair_review/tower"
+var asset_path = "D:/code/rmmo_runtime/art_sources/axel_guild/repair_v2/guild_alarm_tower.glb"
+var source_path = "D:/code/rmmo/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb"
 const Visibility = preload("res://scripts/world3d/asset_visibility_range.gd")
 var errors: Array = []
 var report := {}
@@ -9,7 +9,7 @@ var camera: Camera3D
 var scenes: Array[Node3D] = []
 var prepared := {}
 func _initialize() -> void:
-	create_timer(100).timeout.connect(func(): quit(124))
+	create_timer(300).timeout.connect(func(): quit(124))
 	call_deferred("run")
 func check(ok: bool, message: String) -> void:
 	if not ok: errors.append(message)
@@ -33,10 +33,16 @@ func shot(scene: Node3D, label: String, eye: Vector3, aim: Vector3) -> Dictionar
 	for s in scenes:s.visible=s==scene
 	camera.position=eye;camera.look_at(aim)
 	await settle()
-	check(root.get_texture().get_image().save_png(OUT+"/"+label+".png")==OK,"capture "+label)
+	check(root.get_texture().get_image().save_png(output_dir+"/"+label+".png")==OK,"capture "+label)
 	return stats()
 func run() -> void:
-	DirAccess.make_dir_recursive_absolute(OUT)
+	for arg:String in OS.get_cmdline_user_args():
+		if arg=="--syntax-only":print("GUILD_TOWER syntax only");quit();return
+		if arg.begins_with("--out="):output_dir=arg.trim_prefix("--out=")
+		if arg.begins_with("--asset="):asset_path=arg.trim_prefix("--asset=")
+		if arg.begins_with("--source="):source_path=arg.trim_prefix("--source=")
+	if DisplayServer.get_name()=="headless":push_error("Tower GPU review requires background graphics; only --syntax-only is headless");quit(2);return
+	DirAccess.make_dir_recursive_absolute(output_dir)
 	root.size=Vector2i(1400,1100);root.content_scale_size=Vector2i.ZERO
 	root.msaa_3d=Viewport.MSAA_4X;root.use_taa=false
 	var env := Environment.new();env.background_mode=Environment.BG_SKY
@@ -49,8 +55,8 @@ func run() -> void:
 	var sun := DirectionalLight3D.new();root.add_child(sun);sun.rotation_degrees=Vector3(-45,-25,0)
 	sun.light_energy=1.5;sun.shadow_enabled=true
 	camera=Camera3D.new();root.add_child(camera);camera.current=true;camera.fov=50;camera.far=800
-	var master := load_asset(SOURCE)
-	var game := load_asset(ASSET)
+	var master := load_asset(source_path)
+	var game := load_asset(asset_path)
 	scenes=[master,game]
 	var groups := [0,0,0];var triangles := [0,0,0];var surfaces := [0,0,0]
 	var collision_nodes := 0
@@ -87,7 +93,7 @@ func run() -> void:
 		camera.position=common_center+Vector3(1,.12,1).normalized()*distance;camera.look_at(common_center)
 		for node in game.find_children("*","MeshInstance3D",true,false):node.visible=true;Visibility.register(node)
 		await settle();var automatic := stats()
-		if distance in [42.,112.]:root.get_texture().get_image().save_png(OUT+"/switch_"+str(int(distance))+"_automatic.png")
+		if distance in [42.,112.]:root.get_texture().get_image().save_png(output_dir+"/switch_"+str(int(distance))+"_automatic.png")
 		var expected := 0 if distance<40 else (1 if distance<110 else 2)
 		for node in game.find_children("*","MeshInstance3D",true,false):
 			node.visible=int(node.get_meta("extras",{}).get("lod_level",-1))==expected
@@ -99,14 +105,14 @@ func run() -> void:
 			for node in game.find_children("*","MeshInstance3D",true,false):
 				node.visible=int(node.get_meta("extras",{}).get("lod_level",-1))==expected-1
 			await settle()
-			root.get_texture().get_image().save_png(OUT+"/switch_"+str(int(distance))+"_previous.png")
+			root.get_texture().get_image().save_png(output_dir+"/switch_"+str(int(distance))+"_previous.png")
 	report["transitions"]=transitions
 	for node in game.find_children("*","MeshInstance3D",true,false):node.visible=true;Visibility.register(node)
 	var save_doc := GLTFDocument.new();var save_state := GLTFState.new()
 	check(save_doc.append_from_scene(game,save_state)==OK,"roundtrip append")
-	check(save_doc.write_to_filesystem(save_state,OUT+"/review_roundtrip.glb")==OK,"roundtrip save")
+	check(save_doc.write_to_filesystem(save_state,output_dir+"/review_roundtrip.glb")==OK,"roundtrip save")
 	var reopened_doc := GLTFDocument.new();var reopened_state := GLTFState.new()
-	check(reopened_doc.append_from_file(OUT+"/review_roundtrip.glb",reopened_state)==OK,"roundtrip reopen")
+	check(reopened_doc.append_from_file(output_dir+"/review_roundtrip.glb",reopened_state)==OK,"roundtrip reopen")
 	var reopened := reopened_doc.generate_scene(reopened_state)
 	root.add_child(reopened);Visibility.apply(reopened)
 	var roundtrip_nodes := 0
@@ -120,8 +126,10 @@ func run() -> void:
 	check(roundtrip_nodes==36,"all 36 LOD nodes persisted")
 	reopened.queue_free();report["roundtrip_lod_nodes"]=roundtrip_nodes
 	report["passed"]=errors.is_empty();report["errors"]=errors
-	report["sha256"]=FileAccess.get_sha256(ASSET)
+	report["sha256"]=FileAccess.get_sha256(asset_path)
+	report["asset_path"]=asset_path;report["baseline_path"]=source_path;report["baseline_sha256"]=FileAccess.get_sha256(source_path)
+	report["generator"]=preload("res://scripts/world3d/compiled_asset_cache.gd").generator()
 	report["scope"]="Single isolated tower; actual shared visibility-range adapter; draw counters exclude shadow passes; no city FPS claim or editor publication"
-	var file := FileAccess.open(OUT+"/game_review.json",FileAccess.WRITE);file.store_string(JSON.stringify(report,"\t"))
+	var file := FileAccess.open(output_dir+"/game_review.json",FileAccess.WRITE);file.store_string(JSON.stringify(report,"\t"))
 	print("ALARM_GAME_REVIEW ",JSON.stringify(report));quit(0 if errors.is_empty() else 1)
 

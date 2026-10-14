@@ -100,9 +100,18 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 		for key in ["stair_layout","base_height","curtains"]: ordered[key]=parameters.get(key,Blueprint.defaults()[key])
 		labels.merge({"stair_layout":"楼梯布局","base_height":"室内地面抬高（米）","curtains":"室内窗帘"})
 		choices.stair_layout=[{"id":"switchback","name":"双跑折返"},{"id":"straight","name":"直跑"}]
+		ordered.entrance_style=parameters.get("entrance_style","rectangular")
+		labels.entrance_style="入口结构"
+		choices.entrance_style=[{"id":"rectangular","name":"普通门洞"},{"id":"round_arch_hall","name":"挑空大厅通高圆拱"}]
+		if layout=="hall":
+			ordered.entrance_arch_width=parameters.get("entrance_arch_width",2.28)
+			ordered.entrance_arch_spring=parameters.get("entrance_arch_spring",3.67)
+			labels.entrance_arch_width="圆拱净宽（米）";labels.entrance_arch_spring="圆拱起拱高度（米）"
 	labels.front_canopy="临街遮檐"; labels.dormers="主屋老虎窗数量"
 	ordered.window_style=parameters.get("window_style","casement");labels.window_style="整栋窗口方案"
 	choices.window_style=preload("res://scripts/world3d/house_window_styles.gd").choices()
+	if layout in ["townhouse","hall"]:
+		ordered.gable_oculus=parameters.get("gable_oculus",false);labels.gable_oculus="正面山墙真圆窗（浅灰泥）"
 	if layout!="urban_village": ordered.roof_solver=parameters.get("roof_solver","unified")
 	if layout in ["townhouse","hall"]: ordered.annex_floors=parameters.get("annex_floors",1)
 	labels.roof_solver="屋面生成方式"; labels.annex_floors="翼楼层数（与主屋连通）"

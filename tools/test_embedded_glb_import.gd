@@ -44,7 +44,7 @@ func run() -> void:
 	check(not library.import_file(broken).ok and library.entries==before and FileAccess.get_sha256(library.directory.path_join("library.json"))==revision,"invalid import has no catalog side effects")
 	var bad_png := binary.duplicate(); bad_png[72]=0; write_glb(broken,data,bad_png)
 	check(not library.import_file(broken).ok and library.entries==before,"corrupt embedded image fails without catalog changes")
-	for change in [{"extensionsUsed":["KHR_materials_unlit"]},{"extras":{"uri":"external.bin"}},{"buffers":[{"byteLength":binary.size(),"uri":"external.bin"}]}]:
+	for change in [{"extensionsUsed":["VENDOR_unknown_material"]},{"extras":{"uri":"external.bin"}},{"buffers":[{"byteLength":binary.size(),"uri":"external.bin"}]}]:
 		write_glb(broken,data.merged(change,true),binary); check(not Embedded.can_copy(broken),"unknown extension or URI stays on packing fallback")
 	var external := data.duplicate(true); external.buffers[0].uri="external.bin"; external.buffers[0].byteLength=binary.size(); external.images[0]={"uri":"external.png"}
 	var gltf := directory.path_join("external.gltf")

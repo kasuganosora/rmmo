@@ -2,6 +2,18 @@ extends RefCounted
 const ProjectTerrain=preload("res://scripts/world3d/terrain_projection.gd")
 const Foot=preload("res://scripts/world_editor/building_footprint.gd")
 const City=preload("res://scripts/world3d/city_layout.gd")
+const Paint=preload("res://scripts/world3d/surface_materials.gd")
+static func automatic_paint(paint:Array)->bool:
+	if paint.is_empty():return false
+	var material:Dictionary=paint[0].material
+	var tile:Array=material.get("tile_size",[1.,1.])
+	for entry:Dictionary in paint:
+		if entry.material!=material or entry.mapping!="uv" or entry.rotation!=0.:return false
+		# JSON reads integer zero as float. Array equality treats those element
+		# types differently; compare numeric coordinates without changing paint.
+		if not Paint.numbers(entry.offset,2,0.,0.) or not Paint.numbers(entry.scale,2,.01,100.):return false
+		if entry.scale[0]!=1./float(tile[0]) or entry.scale[1]!=1./float(tile[1]):return false
+	return true
 static func affected(records:Array,ids:Array)->Array:
 	return records.filter(func(r):return r.has("terrain_follow") and r.terrain_follow.terrain_ids.any(func(id):return id in ids))
 static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)->Dictionary:
@@ -12,7 +24,7 @@ static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)
 	var terrains:Array=[]
 	for r:Dictionary in editor._doc.records:
 		if r.has("terrain_mesh"):terrains.append(updated.get(r.uuid,r))
-	var result:Array=[];var metadata:Dictionary=editor._doc.map_meta.duplicate(true)
+	var result:Array=[];var metadata:Dictionary=editor._doc.map_meta.duplicate(true);var bridge_collision_cache:Dictionary={}
 	for previous:Dictionary in followers:
 		if not editor._record_editable(previous):return City.fail("跟随地形的铺面被锁定、隐藏或隔层，整笔取消")
 		if previous.has("event") or previous.has("event_template"):return City.fail("跟随铺面有事件，请先解除贴地关联")
@@ -22,7 +34,7 @@ static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)
 		var next:Dictionary=fitted.record;var paint:Array=previous.get("surface_paint",[])
 		if not paint.is_empty():
 			var material:Dictionary=paint[0].material
-			if not paint.all(func(p):return p.material==material and p.mapping=="uv" and p.rotation==0. and p.offset==[0,0]):return City.fail("贴地铺面含手工刷面，不能自动覆盖")
+			if not automatic_paint(paint):return City.fail("贴地铺面含手工刷面，不能自动覆盖")
 			next.erase("surface_paint")
 			var painted:Dictionary=editor._roads.paint_default(next,material) if next.has("road_mesh") else editor._waterways.paint(next,material)
 			if not painted.ok:return painted
@@ -30,7 +42,9 @@ static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)
 		if Foot.batches_overlap(shapes,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)):return City.fail("贴地更新侵入保留区或保留通道")
 		for obstacle:Dictionary in editor._doc.records:
 			if obstacle.uuid in ids or obstacle.uuid in next.terrain_follow.terrain_ids:continue
-			if Foot.batches_overlap(shapes,Foot.record_shapes(obstacle)):return City.fail("贴地更新侵入物件或通行净空："+str(obstacle.uuid))
+			if Foot.batches_overlap(shapes,Foot.record_shapes(obstacle)):
+				if next.has("road_mesh") and obstacle.has("bridge_mesh") and not preload("res://scripts/world3d/road_bridge_approach.gd").intersects(next,obstacle,shapes,Foot.record_shape(obstacle),bridge_collision_cache):continue
+				return City.fail("贴地更新侵入物件或通行净空："+str(obstacle.uuid))
 		if not editor._authoring.Settings.contains(next,editor._authoring.settings):return City.fail("贴地更新超出当前楼层")
 		result.append({"record":next})
 		for part:Dictionary in metadata.get("editor_layout",{}).get("road_surface",{}).get("parts",[]):

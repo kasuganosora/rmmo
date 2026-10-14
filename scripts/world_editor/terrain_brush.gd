@@ -82,6 +82,7 @@ func dab(screen: Vector2) -> void:
 	if last.is_finite():
 		var count:=maxi(1,ceili(last.distance_to(p)/maxf(float(options.radius)*.25,.125)))
 		var first:=last.lerp(p,1.0/count); points=[[first.x,first.y],[p.x,p.y]]
+	if options.get("shape","circle")=="rectangle":points=[[p.x,p.y]]
 	var result: Dictionary=editor._terrain.sculpt(options.merged({"id":target_id,"points":points}),true)
 	if not result.ok:
 		finish(true); editor._status.text=str(result.error); return
@@ -115,6 +116,13 @@ func _draw() -> void:
 	var world:=Terrain.transform(record); var inverse:=world.affine_inverse(); var ring:=PackedVector2Array()
 	for i in 65:
 		var angle:=TAU*i/64; var p:=hover+Vector3(cos(angle),0,sin(angle))*float(options.radius)
+		if options.get("shape","circle")=="rectangle":
+			var quarter:=i/16
+			var t:=float(i%16)/16.
+			var half:=Vector2(float(options.plot_width),float(options.plot_depth))*.5
+			var corners:Array[Vector2]=[Vector2(-half.x,-half.y),Vector2(half.x,-half.y),half,Vector2(-half.x,half.y)]
+			var point:Vector2=corners[quarter%4].lerp(corners[(quarter+1)%4],t).rotated(-deg_to_rad(float(options.get("plot_yaw",0))))
+			p=hover+Vector3(point.x,0,point.y)
 		var local:=inverse*p; var h:=Terrain.sample(record,local,true)
 		if is_finite(h): local.y=h+.04; p=world*local
 		if editor._camera.is_position_behind(p): return

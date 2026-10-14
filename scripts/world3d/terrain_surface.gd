@@ -8,7 +8,7 @@ const MAX_CELLS=64
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
 static func integer(low: int, high: int) -> Dictionary: return {"type":"integer","minimum":low,"maximum":high}
 static func stroke_schema() -> Dictionary:
-	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"cross_tiles":{"type":"boolean"},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000),"iterations":integer(1,32),"talus_angle":S.number(15,70),"erosion_seed":integer(0,2147483647)},"required":["id","mode","points"],"additionalProperties":false}
+	return {"type":"object","properties":{"id":{"type":"string","maxLength":128},"mode":{"type":"string","enum":MODES},"cross_tiles":{"type":"boolean"},"points":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":2,"maxItems":2,"items":S.number(-100000,100000)}},"radius":S.number(.25,32),"strength":S.number(.01,20),"hardness":S.number(0,1),"target_height":S.number(-1000,1000),"shape":{"type":"string","enum":["circle","rectangle"]},"plot_width":S.number(.5,64),"plot_depth":S.number(.5,64),"plot_yaw":S.number(-180,180),"blend_margin":S.number(.25,16),"iterations":integer(1,32),"talus_angle":S.number(15,70),"erosion_seed":integer(0,2147483647)},"required":["id","mode","points"],"additionalProperties":false}
 static func create_schema() -> Dictionary:
 	return {"type":"object","properties":{"source_id":{"type":"string","maxLength":128},"name":{"type":"string","maxLength":128},"center":S.vector(-100000,100000),"width":S.number(2,256),"depth":S.number(2,256),"cell_size":S.number(.25,8),"bedrock_depth":S.number(1,100),"material_id":{"type":"string","maxLength":512}},"additionalProperties":false}
 static func valid(record: Dictionary) -> bool:
@@ -132,15 +132,24 @@ static func weight(distance: float, radius: float, hardness: float) -> float:
 	if hardness>=.999 or distance<=radius*hardness: return 1.0
 	var v: float=(radius-distance)/(radius*(1-hardness))
 	return v*v*(3-2*v)
+static func plot_weight(world:Vector2,center:Vector2,args:Dictionary)->float:
+	# World XZ rotation matches the building yaw convention. The interior is
+	# planar, with a C1-continuous rounded falloff outside the actual footprint.
+	var local:Vector2=(world-center).rotated(deg_to_rad(float(args.get("plot_yaw",0))))
+	var outside:=Vector2(maxf(absf(local.x)-float(args.plot_width)*.5,0),maxf(absf(local.y)-float(args.plot_depth)*.5,0))
+	return weight(outside.length(),float(args.get("blend_margin",2.0)),0.)
 static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 	var error:=S.validate(args,stroke_schema())
 	if not error.is_empty(): return fail(error)
 	if not valid(record): return fail("地形数据无效")
 	if absf(record.rotation[0])>.0001 or absf(record.rotation[2])>.0001: return fail("雕刻前请将地形 X/Z 旋转恢复为 0；支持平移、Y 轴旋转和缩放")
 	if args.mode=="flatten" and not args.has("target_height"): return fail("整平需要 target_height 世界高度")
+	var rectangular:bool=args.get("shape","circle")=="rectangle"
+	if rectangular and (args.mode!="flatten" or args.points.size()!=1 or not args.has("plot_width") or not args.has("plot_depth") or float(args.get("strength",.5))>1):return fail("矩形宅基整平需要 flatten、一个中心点、plot_width/plot_depth，强度需为 0.01～1 的混合比例")
 	var next:=record.duplicate(true); var t: Dictionary=next.terrain_mesh
 	var radius: float=args.get("radius",3.0); var strength: float=args.get("strength",.5); var hardness: float=args.get("hardness",.25)
 	var inverse:=transform(record).affine_inverse(); var samples: Array[Vector2]=[]
+	var world_pose:=transform(record)
 	for i in args.points.size():
 		var p:=Vector2(args.points[i][0],args.points[i][1])
 		if i==0: samples.append(p); continue
@@ -151,7 +160,8 @@ static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 	var touched:={}
 	for world in samples:
 		var local:=inverse*Vector3(world.x,record.position[1],world.y)
-		if absf(local.x)>record.size[0]*.5+radius or absf(local.z)>record.size[2]*.5+radius: continue
+		var reach:float=Vector2(float(args.get("plot_width",0)),float(args.get("plot_depth",0))).length()*.5+float(args.get("blend_margin",2)) if rectangular else radius
+		if absf(local.x)>record.size[0]*.5+reach or absf(local.z)>record.size[2]*.5+reach: continue
 		var old: Array=t.heights.duplicate()
 		if args.mode in ["hole","fill"]:
 			for z in int(t.rows):
@@ -164,12 +174,15 @@ static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 			for z in range(int(t.rows)+1):
 				for x in range(int(t.columns)+1):
 					var p:=point(next,x,z); var w:=weight(Vector2(p.x-local.x,p.z-local.z).length(),radius,hardness)
+					if rectangular:
+						var at_world:=world_pose*p
+						w=plot_weight(Vector2(at_world.x,at_world.z),world,args)
 					if w<=0: continue
 					var at: int=z*(int(t.columns)+1)+x; var height: float=old[at]
 					match args.mode:
 						"raise": height+=strength*w/record.size[1]
 						"lower": height-=strength*w/record.size[1]
-						"flatten": height=move_toward(height,(args.target_height-record.position[1])/record.size[1],strength*w/record.size[1])
+						"flatten": height=lerpf(height,(args.target_height-record.position[1])/record.size[1],strength*w) if rectangular else move_toward(height,(args.target_height-record.position[1])/record.size[1],strength*w/record.size[1])
 						"smooth":
 							var total:=0.0; var count:=0
 							for dz in range(maxi(0,z-1),mini(t.rows,z+1)+1):

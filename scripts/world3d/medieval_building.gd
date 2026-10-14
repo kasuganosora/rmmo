@@ -35,6 +35,7 @@ static func generate(p: Dictionary) -> Dictionary:
 	for channel in 3: palette.wall[channel] = clampf(palette.wall[channel]+tint,0,1)
 	var plan := {"ok":true,"version":4,"parameters":p,"records":[],"rooms":[],"openings":[],"stairs":[],"routes":[],"volumes":[],"courtyards":[],"connections":[],"frame_joints":[],"entrance":[-w/2+1.2,0,-d/2-1],"size":[w,levels*h+w/2,d]}
 	var annexes := annex_specs(p)
+	if preload("res://scripts/world3d/house_arched_entrance.gd").enabled(p):plan.entrance[0]=preload("res://scripts/world3d/house_arched_entrance.gd").center(p)
 	for f in levels:
 		var y := f*h; var front: float = -d/2-(float(p.jetty) if f>0 else 0.0)
 		var prefix := "f%d/"%f; var start: float = split_z if p.layout=="hall" and f==1 else front
@@ -94,6 +95,7 @@ static func generate(p: Dictionary) -> Dictionary:
 			elif annex.join=="south": back_windows=back_windows.filter(func(o): return o.type=="door" or absf(o.u-annex.center[0])>annex.width/2+.75)
 		if p.left_wall=="party": left_windows=[]
 		if p.right_wall=="party": right_windows=[]
+		front_windows=preload("res://scripts/world3d/house_arched_entrance.gd").front_openings(p,front_windows,f)
 		framed_wall(plan,prefix+"west","z",-w/2+WALL/2,front,d/2,y,h,left_windows,palette,f,p)
 		framed_wall(plan,prefix+"east","z",w/2-WALL/2,front,d/2,y,h,right_windows,palette,f,p)
 		framed_wall(plan,prefix+"north","x",front+WALL/2,-w/2+WALL,w/2-WALL,y,h,front_windows,palette,f,p)
@@ -166,18 +168,20 @@ static func framed_wall(plan: Dictionary, key: String, axis: String, fixed: floa
 				var bottom:=y+course*.42
 				if openings.any(func(o): return Rect2(u-width/2,bottom,width,.4).intersects(Rect2(o.u-o.width/2,y+o.bottom,o.width,o.height))): continue
 				wall_box(plan,key+"/quoin%d_%d"%[edge,course],axis,skin,u,bottom+.2,width,.4,.13,colors.stone,f,"stone_trim")
-		wall_box(plan,key+"/course",axis,skin,(start+end)/2,y+height-.1,end-start,.2,.16,colors.stone,f,"stone_trim")
+		if not openings.any(func(o):return o.type=="arch_passage" and o.bottom+o.height>=height-.2):
+			wall_box(plan,key+"/course",axis,skin,(start+end)/2,y+height-.1,end-start,.2,.16,colors.stone,f,"stone_trim")
 	# Low masonry base is split around doors, never an invisible threshold.
 	var cuts: Array=[start,end]
 	for o in openings:
-		if o.type=="door": cuts.append(o.u-o.width/2-.04); cuts.append(o.u+o.width/2+.04)
+		if o.type in ["door","arch_passage"]: cuts.append(o.u-o.width/2-.04); cuts.append(o.u+o.width/2+.04)
 	cuts.sort()
 	for i in cuts.size()-1:
 		var center: float=(cuts[i]+cuts[i+1])/2
-		if openings.any(func(o): return o.type=="door" and absf(center-o.u)<o.width/2+.04): continue
+		if openings.any(func(o): return o.type in ["door","arch_passage"] and absf(center-o.u)<o.width/2+.04): continue
 		wall_box(plan,key+"/base%d"%i,axis,skin,center,y+.18,cuts[i+1]-cuts[i],.36,.16,colors.trim if timber else colors.stone,f,"beam" if timber else "stone_trim")
 	for o in openings:
 		var prefix: String=key+"/"+o.id
+		if o.type=="arch_passage":continue
 		# Stone surrounds sit outside the cut; narrow wood joinery remains inset.
 		if not timber and (o.type!="window" or p.get("window_style","casement")=="casement"):
 			wall_box(plan,prefix+"/stone_head",axis,skin,o.u,y+o.bottom+o.height+.09,o.width+.34,.18,.17,colors.stone,f,"stone_trim")

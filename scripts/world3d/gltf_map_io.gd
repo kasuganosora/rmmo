@@ -341,6 +341,7 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 	preload("res://scripts/world3d/model_texture_cache.gd").prepare_mipmaps(scene)
 	preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene)
 	preload("res://scripts/world3d/leaf_backlight.gd").apply(scene)
+	preload("res://scripts/world3d/tinted_glass.gd").apply(scene)
 	preload("res://scripts/world3d/asset_visibility_range.gd").apply(scene)
 	return scene
 

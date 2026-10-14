@@ -206,6 +206,7 @@ def choose(o):
     if name.startswith('round bottom long banner'): return 'long banner'
     if 'slope cloth corner tie' in name: return 'banner gold'
     if group == '44_Hanging_Landmark':
+        if name.startswith('neural spine'): return 'aged bone'
         if any(w in name for w in ('cable', 'armature', 'ferrule', 'collar', 'pin', 'fixing', 'clamp')): return 'forged iron'
         if any(w in name for w in ('crossbeam', 'crossbar', 'banner suspension')): return 'structural oak'
         return 'aged bone'

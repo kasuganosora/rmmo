@@ -72,6 +72,26 @@ static func record_shapes(record: Dictionary) -> Array:
 static func supporting_ground(record: Dictionary, top: float, foot: float) -> bool:
 	return not record.has("road_mesh") and not record.has("building") and record.get("surface_id") in ["ground","grass","dirt","road","stone","sand"] and top<=foot+.005
 
+static func foundation_support_height(parameters:Dictionary,origin_y:float,records:Array)->float:
+	# These layouts raise their actual ground floor above the placement origin
+	# and extend a foundation down through it. Terrain may meet that foundation,
+	# but must never be excused above the real interior floor. All records here
+	# are already transformed into world space (generated or frozen prefab).
+	if parameters.get("layout","") not in ["townhouse","hall"]:return origin_y
+	var raised:Variant=parameters.get("base_height",0.)
+	var depth:Variant=parameters.get("foundation_depth",0.)
+	if (not raised is float and not raised is int) or (not depth is float and not depth is int):return origin_y
+	if not is_finite(float(raised)) or not is_finite(float(depth)) or raised<=0. or raised>.9 or depth<=0. or depth>3.:return origin_y
+	var floor_cap:=INF
+	for r:Dictionary in records:
+		var b:Dictionary=r.get("building",{})
+		if b.get("floor",-1)!=0 or b.get("role","")!="floor":continue
+		# Keep supporting_ground's 5 mm contact tolerance below the actual top;
+		# edited or older prefabs cannot gain headroom merely from recipe metadata.
+		floor_cap=minf(floor_cap,Geometry.bounds([r]).end.y-.005)
+	if not is_finite(floor_cap) or floor_cap<=origin_y:return origin_y
+	return minf(origin_y+float(raised),floor_cap)
+
 static func level_ground(record: Dictionary, shape: Dictionary, height: float) -> bool:
 	if record.get("kind")!="box" or record.has("building_shape") or record.has("road_mesh") or record.has("building") or record.get("collision","")=="none": return false
 	if record.get("surface_id") not in ["ground","grass","dirt","stone","sand"] or absf(record.rotation[0])+absf(record.rotation[2])>.001: return false

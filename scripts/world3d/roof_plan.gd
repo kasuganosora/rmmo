@@ -9,8 +9,13 @@ static func rect(r: Array) -> Array:
 	return [Vector2(r[0],r[1]),Vector2(r[2],r[1]),Vector2(r[2],r[3]),Vector2(r[0],r[3])]
 
 static func area(poly: Array) -> float:
+	if poly.size()<3:return 0.0
+	# Keep products local: float32 Vector2 cross products at world coordinates
+	# can lose entire small faces when large terms cancel. Sum signed triangles
+	# before taking abs, preserving concave polygons and either winding.
+	var origin:Vector2=poly[0]
 	var value:=0.0
-	for i in poly.size(): value+=poly[i].cross(poly[(i+1)%poly.size()])
+	for i in range(1,poly.size()-1):value+=(poly[i]-origin).cross(poly[i+1]-origin)
 	return absf(value)*.5
 
 static func clean(poly: Array) -> Array:

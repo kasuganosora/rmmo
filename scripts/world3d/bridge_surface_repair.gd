@@ -37,7 +37,9 @@ static func repair(record:Dictionary)->Dictionary:
 	var importer:=ImporterMesh.new()
 	for slot in 3:
 		var st:SurfaceTool=streams[slot];st.index();st.generate_tangents()
-		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,st.commit_to_arrays(),[],{},original.mesh.materials[slot])
+		var arrays:=st.commit_to_arrays();var repaired:=Bridge.repair_zero_tangents(arrays)
+		if not repaired.ok:return {"ok":false,"error":"桥梁切线基无法从原始纹理坐标恢复"}
+		importer.add_surface(Mesh.PRIMITIVE_TRIANGLES,arrays,[],{},original.mesh.materials[slot])
 	importer.generate_lods(60,25,[])
 	var visual:Mesh=importer.get_mesh();var cpu:Mesh=preload("res://scripts/world3d/bridge_lod_preparation.gd").remember(importer,visual)
 	var cache:Dictionary={};cache[[0]]={"mesh":cpu,"source":original.source}

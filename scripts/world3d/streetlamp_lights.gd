@@ -124,6 +124,7 @@ func refresh()->void:
 				# Retain them per fixture even if the bounded shared cache evicts one.
 				emission.append(_night_material(node.get_active_material(slot),warm))
 			var glow:=MeshInstance3D.new();glow.name="StreetlampHalo";glow.mesh=halo();glow.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_mark_light_effect(glow)
 			glow.position=node.get_aabb().get_center();glow.visible=false;node.add_child(glow)
 			var light:=_new_light()
 			if warm:light.light_color=Color(1,.52,.22);light.light_energy=1.2;light.omni_range=3.5
@@ -167,6 +168,7 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 	var id:=node.get_instance_id()
 	if not fixtures.has(id):
 		var effect:=MeshInstance3D.new();effect.name="AuthoredLightFlame"
+		_mark_light_effect(effect)
 		if socket.get("flame",false):effect.mesh=preload("res://scripts/world3d/house_candle_lights.gd").flame_mesh()
 		effect.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF;node.add_child(effect)
 		var p:Array=socket.position;effect.position=Vector3(p[0],p[1],p[2])
@@ -185,6 +187,13 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 	# Nearby upstairs candles must not consume the occupied hall's light budget.
 	if is_instance_valid(observer) and absf(observer.global_position.y-at.y)>3.1:score+=10000.0
 	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
+
+static func _mark_light_effect(effect:MeshInstance3D)->void:
+	# Created during frame updates, so a sliced editor load may encounter these
+	# children after its picking traversal has already begun. They are light
+	# presentation only; the authored lamp remains selectable and physical.
+	effect.set_meta("runtime_light_effect",true)
+	effect.set_meta("extras",{"rmmo_collision":"none"})
 
 func _exit_tree()->void:
 	for row:Dictionary in fixtures.values():_restore(row)

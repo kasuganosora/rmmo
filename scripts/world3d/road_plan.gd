@@ -55,7 +55,10 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 			if not portals.any(func(p):return p.edge_id==edge.id): return Data.fail("桥梁路网绑定缺失或尚未验证")
 			continue # The waterway owns the physical deck; never pave a duplicate.
 		var path: Array=checked.paths[edge.id]; var y: float=path[0].y
-		var ramp: bool=path.any(func(p):return absf(p.y-y)>.001)
+		# Terrain-following ground needs its XZ footprint, not the legacy ramp's
+		# shortened run and level junction platforms. Actual terrain grade is
+		# checked after clipping. Bridge planes stay intact until portal cutting.
+		var ramp: bool=path.any(func(p):return absf(p.y-y)>.001) and not (settings.get("follow_terrain",false) and edge.kind=="ground")
 		if ramp:
 			if edge.has("controls"): return Data.fail("当前坡道需用直线段，弯曲坡道请拆成带平坦节点的多段："+edge.id)
 			var delta: Vector3=path[-1]-path[0]; var length_: float=Vector2(delta.x,delta.z).length()
@@ -132,6 +135,11 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 		for fragment in fragments: clipped_sources.append(source.merged({"polygon":fragment},true))
 		if clipped_sources.size()>16384: return Data.fail("石桥裁切路面超过预算")
 	sources=clipped_sources
+	if settings.get("follow_terrain",false):
+		# Native bridge portals were cut using their real XYZ above. Their dry
+		# approaches and ordinary ground now share one planar footprint union;
+		# the heightfield supplies every final elevation, without stepped caps.
+		for source:Dictionary in sources:source.plane=Vector3.ZERO
 	var operations:=0
 	for source in sources:
 		# Flat-cut the cap at a linked deck boundary. Approaching roads keep their
@@ -202,6 +210,14 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 		record.road_clearance=settings.clearance
 		if not preload("res://scripts/world3d/road_surface.gd").valid(record): return Data.fail("道路裁切产生无效网格，已取消")
 		records.append(record)
-	var kerbs:=preload("res://scripts/world3d/road_kerb.gd").attach(records,defaults().merged(settings,true),portals)
+	var kerb_portals:Array=portals
+	if settings.get("follow_terrain",false):
+		# Kerbs are attached to the temporary planar footprint, then projected
+		# with the pavement. Match openings at that plane; the original portal
+		# XYZ remains intact for bridge cutting and the persisted binding.
+		kerb_portals=portals.duplicate(true)
+		for portal:Dictionary in kerb_portals:
+			for endpoint:Array in portal.endpoints:endpoint[1]=settings.lift
+	var kerbs:=preload("res://scripts/world3d/road_kerb.gd").attach(records,defaults().merged(settings,true),kerb_portals)
 	if not kerbs.ok:return kerbs
 	return {"ok":true,"records":records,"area":area,"chunks":records.size(),"operations":operations,"kerb_length":kerbs.length}

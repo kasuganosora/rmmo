@@ -1,5 +1,24 @@
 # 当前 3D 地图编辑器 MCP
 
+## 运行时灯光效果的拾取与碰撞（2026-10-14）
+
+公会正式素材导入的保存重开检查发现：异步加载期间新生成的烛焰会被当成可选、可碰撞网格。现在烛焰及灯光晕在生成时明确标记 `runtime_light_effect` 和 `extras.rmmo_collision="none"`，同步/异步加载共用的拾取入口排除这些运行时效果。真实灯具、玻璃和魔法石仍保持原有拾取与碰撞；不按节点名称排除用户模型。没有更改发光形状、亮度、光源数量、MCP 工具或 schema。
+
+`tools/test_editor_light_effect_picking.gd` 20 项通过、0 失败，覆盖效果晚到、同步重建、昼夜、同名真实模型及原灯具行为，见 [回归日志](../review_artifacts/guild_reference_recheck_20261013/formal_import/light_effect_picking_headless.log)。native 生成器未变；既有运行时缓存指纹包含灯光代码，会按原规则失效。正式共享目录的逐件真实 HTTP 复验记录在 [正式导入报告](../review_artifacts/guild_reference_recheck_20261013/formal_import/README.md)。
+
+## 自包含 GLB 材质扩展与彩窗光学合同（2026-10-13）
+
+本次公会模型复验修正共享导入路径，不增加 MCP 工具或改变参数 schema。素材面板继续使用 `AssetLibrary.import_file`；进入目录后，UI 与当前 3D MCP 的 `list_assets`、`place_asset`、撤销/重做、`save_world`、`open_world` 使用同一资源及场景加载路径。**没有新增可直接调用的 MCP 通用文件导入或彩窗参数编辑接口**，不能把测试脚本直接调用导入函数写成 HTTP 已提供导入功能。
+
+- `embedded_glb.gd` 只在已有 native 编译器明确支持的可选纯材质扩展直接位于 `materials[index].extensions` 时允许字节保留复制。白名单引用 `asset_bounds_manifest.gd`，当前为 `KHR_materials_specular`、`KHR_materials_transmission`、`KHR_materials_unlit`、`KHR_materials_emissive_strength`、`KHR_materials_pbrSpecularGlossiness`、`KHR_materials_clearcoat`、`KHR_materials_ior`；本轮没有扩大 native 编译器白名单。
+- 自包含 GLB 的结构、单一 BIN、bufferView、嵌入 PNG/JPEG 等条件仍须成立。非空 `extensionsRequired`、任意 `uri`（包括 extras 内）、未知扩展、几何/节点扩展、错误的材料表或扩展结构均退回既有依赖打包路径。可复制不等于可发布：暂存副本仍执行真实 GLTF staged prepare 校验，失败不写目录；原文件保持不变。
+- 彩窗使用网格 `extras.rmmo_tinted_glass` 显式指定材质名，格式为 `{"version":1,"materials":{"材质名":{"transmittance":[0.12,0.3,0.7],"roughness":0.13}}}`。`transmittance` 是三个有限线性值，均须 `>0` 且 `<=1`；可选粗糙度默认 `0.13`，范围 `0.02..0.6`；最多 64 个非空材质名。无标记、不匹配材质名和非 StandardMaterial 材质不处理，非法配方整体忽略，不局部修改有效槽。
+- `gltf_map_io.gd` 的统一场景生成步骤应用 `tinted_glass.gd`：原共享材质保持不变，匹配表面使用独立覆盖；同配方复用、重复应用不叠加。native 保留 StandardMaterial3D 的乘色透射及 `next_pass` 加色介质反射，两层均不自发光、不折射。外部 GLB 保留 alpha 兼容外观；真实背景的染色效果依赖此运行时适配。它是薄玻璃近似，不是体积吸收、厚玻璃折射或地面彩色焦散；正式场景反射与曝光仍需单独验证。
+
+已完成的 headless 合同证据：`tools/test_embedded_material_extensions.gd` **78 项、0 失败**，覆盖七种允许扩展的实际暂存导入与同 SHA、未知/URI/错误结构回退及无效 accessor 的无副作用拒绝；原 `test_asset_import_preparation.gd` **37 项、0 失败**。`tools/test_tinted_glass.gd` **63 项、0 失败**，覆盖非法配方原子忽略、共享材质不受影响、幂等、两层 native 保存重开及资源图统计。后续最终材质配方变更需复验受影响断言。
+
+候选模型的真实目录导入、逐件源/输出/native 语义、完整资源预算及 HTTP 放置/选择/撤销/保存重开由 `tools/test_guild_reference_import.gd --source-dir=... --out=...` 在隔离目录执行；GPU 使用后台桌面，按实际 SHA 与生成器记录。用户随后授权全部导入，64 件已发布至正式默认包，文件素材库由 116 条增至 180 条。`tools/test_guild_street_published_catalog.gd` 经正常共享目录及临时地图完成 64 件、4,546 项真实 HTTP 检查，0 失败；正式地图未改，整楼分层/屋顶隐藏等场景接入仍另计。详见 [正式导入记录](../review_artifacts/guild_reference_recheck_20261013/formal_import/README.md)、[本日模型清单](../review_artifacts/guild_reference_recheck_20261013/today_model_inventory.json)与[逐件源资源审计](../review_artifacts/guild_reference_recheck_20261013/resource_audit/index.json)。
+
 ## 通用表面通行与冻结保存修正（2026-10-12）
 
 胶囊模式与游戏共用实际物理支撑规则：可站立的物体表面允许行走、起跳和跳离，不按花坛、柱子或屋顶建立名单。保持物理碰撞、净空及加载就绪保护。`test_editor_walk_mode.gd --real-planter` 经真实 HTTP 验证实际花坛及既有运动/编辑事务，通过 143 项。
@@ -461,6 +480,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 |能力|工具 / 新参数|说明|
 |---|---|---|
 |跨块笔刷|`sculpt_terrain`、`preview_terrain_stroke`：`cross_tiles`|默认 true，同方向且共享原始边界的相邻块一起更新，支持不同格距（已验收 1/2 米、2/3 米）；细格边界约束到共享折线。锁定/隐藏邻块整笔拒绝。false 保留单块行为。|
+|矩形宅基整平|同上：`mode:flatten,shape:rectangle,points:[[x,z]],plot_width,plot_depth,plot_yaw,blend_margin,target_height,strength`|2026-10-14：矩形平面外侧平滑回到原地形，强度0.01–1；必须单中心点，UI同参数。跨块、道路跟随/坡度、保留区、碰撞保护、原子撤销与保存复用原生流程。旧circle笔刷含义不变。真实HTTP验证见`tools/test_terrain_house_plots.gd`。|
 |体积地形|`create_terrain_volume`|`id,center:[x,y,z],size:[x,y,z]` 必填；`resolution:4..32`、`seed:box/ellipsoid`、`material_id` 可选。每轴尺寸 2..64 米。|
 |洞穴 / 堆积|`preview_terrain_volume_stroke`、`sculpt_terrain_volume`|`id,mode:add/subtract,points:[[x,y,z],...],radius`；世界坐标胶囊笔画，有界工作量，真实洞顶、可碰撞地面，保存配方。|
 |中心线河道|`preview_terrain_river`、`generate_terrain_river`|`id,terrain_ids,points:[[x,z],...],water_level` 必填；`width,bank_width,depth,curved,natural_materials` 可选。同 ID 更新：恢复旧河床后计算新路线；持久化恢复图层、无关雕刻保留、一次撤销。自动包含触及的兼容邻块；所属样本/水面被手改或保护则拒绝。|
@@ -493,3 +513,39 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 编辑器地形分为雕刻、表面、河流、洞穴、岩岸、新建；城防成为独立任务。已有河道可从目录或场景选择载入，城防创建/冻结管理显示不同的可用操作。布局调整继续调用当前 3D 的既有业务方法、schema、撤销及原子保存，没有增加直接写文档的旁路，也没有注册历史二维工具。
 
 河道目录浏览、面板切换与草稿编辑不修改地图；提交仍执行共享校验。侧栏宽度、概览折叠和字号是本机 UI 偏好，不属于地图文档或 MCP 业务参数。真实 HTTP 回归涵盖发现、河道合法/非法编辑、材质导入刷新、无副作用失败、撤销重做和保存重开，见 [布局修复验收](editor_layout_fix_20261013.md)。
+
+### 2026-10-14：细网格河道与远坐标投影修正
+
+当前 3D UI 与 HTTP `preview_terrain_river` / `generate_terrain_river` 继续使用同一个业务实现，无新增工具或参数，也不恢复二维入口。水面派生分块随所选地形格距自适应，避免 1–2 m 精细岸坡在固定 32 m 水面块中超过既有 512 片投影上限；原来的几何覆盖、洞口、锁定、保留区、工作量和保存保护保持不变。失败消息保留实际投影原因，避免把预算或数值问题一概报成地形缺口。
+
+`roof_plan.area` 改为相对首点计算有符号三角扇面积，防止远坐标小面片相减丢精度，未放宽覆盖误差容限。`terrain_projection.fit` 增加地块、三角形与目标轮廓的 XZ 包围框粗筛，精确裁切和失败条件保持不变。实际 headless 回归 `tools/test_polygon_area_translation.gd`、`tools/test_terrain_projection_bounds.gd`、`tools/test_terrain_projection_http.gd` 均为 0 失败：覆盖 0/500/1000/10000 m 平移、凹形与绕向、旋转与远处密地块、真实洞口和超限拒绝，以及 loopback HTTP 预览、生成、无副作用失败、撤销重做、保存重开和删除恢复。夹具耗时不是整城性能基准。
+
+新城镇通过真实 HTTP 绘制局部河床区域并生成两条河道；仍使用原生独立地形与水面记录，派生地形自动进入共享静态批次。软边区域调用 `paint_terrain_region`，相邻地块使用同一个全局轮廓，避免分段遮罩重叠或整块染沙；`tools/test_axel_river_ground_regions.gd` 核对多边形、工作量预算及生产遮罩接边。场景证据见 [新城镇地形记录](medieval_town_visual_references.md#2026-10-14-新城镇地形落地)。
+
+### 2026-10-14：贴地道路自动细分与桥口路缘修正
+
+`preview_road_surface` / `generate_road_surface` 和 UI 沿用 [road_tools.prepare](../scripts/world_editor/road_tools.gd)，没有新增工具、schema 参数或二维入口。`follow_terrain` 的普通地面道路先生成统一 XZ 轮廓，再由真实高度场确定高度和坡度，避免旧独立坡道的两端平接头规则错误拒绝缓坡道路。原生桥口先按真实 XYZ 裁切；临时平面上的路缘识别使用同高 portal 副本，防止高处桥口被横向路缘封住，原桥绑定不变。实现见 [road_plan.gd](../scripts/world3d/road_plan.gd)。
+
+[road_terrain_fit.gd](../scripts/world3d/road_terrain_fit.gd) 对明确超过 512 投影片的派生块自动四叉细分；指定默认铺路材质时，还按既有 128 条刷面预算进一步细分，其余投影失败仍直接拒绝。为确保后续雕刻改变共面组后仍可刷材质，有默认材质的每块顶面三角数不超过 128。保持每块 512 片、总计 4096 块和最小 0.25 米块边长；不降低地形精度、不放宽真实孔洞、重叠承托、15% 坡度或障碍限制。子块保留确定身份、世界 UV、连续路缘及 `terrain_follow` 作者数据；支持地形提前豁免重复碰撞裁切，远处障碍使用保守粗筛。后续原生雕刻仍逐子块更新道路及清单签名，不合并已细分子块。
+
+[test_adaptive_terrain_roads.gd](../tools/test_adaptive_terrain_roads.gd) 首轮实际 headless/HTTP 47 项通过，涵盖 0.5 米网格的原生超限复现与自动细分、UV/面积/路缘/稳定 ID、合法预览与 UI 业务一致、真实障碍和孔洞拒绝、无副作用失败、幂等生成、撤销重做、保存重开及雕刻事务保护。首轮日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_regression.log`。桥口复查及真实 HTTP 普通雕刻跟随补充后，最终 **60 项通过，0 失败**，日志同目录 `adaptive_road_regression_final.log`；范围与临时地图见 [道路说明](world_editor_roads.md#2026-10-14细地形自动分块与贴地桥口)。这些结果验证编辑器能力，不能据此宣称城镇道路或五座桥已上线，也不是整城性能基准。
+
+同日 `--textured` 补测以真实 `outdoor_flagstone` 材质复现起伏道路 402 个面组超过 128 条刷面预算，自动分块后单块最多 122 个面组；**70 项通过，0 失败**，日志同目录 `adaptive_road_textured_regression.log`。真实 HTTP 覆盖带材质预览/生成、颜色与法线纹理实际绑定、稳定身份、撤销重做、保存重开、雕刻后默认材质更新及手动清材质保护。没有新增 MCP 参数、原生底材字段或手刷旁路，`Paint.MAX_OVERRIDES` 保持 128。
+
+原生桥包围框内、桥跨两端以外的引道增加 [road_bridge_approach.gd](../scripts/world3d/road_bridge_approach.gd) 碰撞细化：对保存的完整冻结碰撞三角形检查实际路面及净空，避免翼墙间的通路被包围框误拒绝。桥跨主体、真实翼墙及端柱仍保护；未知冻结布局、未冻结或倾斜桥保守拒绝。`preview_road_surface` / `generate_road_surface` 与 [terrain_follow_tools.gd](../scripts/world_editor/terrain_follow_tools.gd) 的雕刻跟随复用同一判断，不增工具或参数。[test_road_bridge_approach.gd](../tools/test_road_bridge_approach.gd) 实际 HTTP **29 项通过，0 失败**，覆盖合法引道、真实翼柱拒绝、未知布局、UI 业务一致、无副作用失败、撤销重做、保存重开与普通雕刻跟随；日志同目录 `road_bridge_approach_regression.log`。本项是编辑器能力验证，不代表候选五桥和道路已经正式发布。
+
+`terrain_projection.fit` 的超坡错误增加 `code:terrain_projection_grade_limit` 及 `record_id/road_source/terrain_id/position/cell/triangle_index/triangle_world/grade/max_grade`，UI 文本同时给出实际交叠坐标和坡度百分比。位置使用地形表面，坡度比值 `.15` 表示 15%；近垂直面 `grade:null`。没有新增输入参数，也未放宽阈值或改变失败事务。`test_terrain_projection_bounds.gd` **22 项通过**，`test_terrain_projection_diagnostics_http.gd` 真实 HTTP **12 项通过**，包含实际错误字段、UI 一致、预览/生成及无副作用失败；日志同目录 `terrain_projection_bounds_diagnostics.log` 与 `terrain_grade_diagnostic_http.log`。
+
+### 2026-10-14 房屋山墙真圆窗
+
+既有 `list_building_templates.parameters_schema`、`preview_buildings` 和 `generate_buildings` 同步公开可选 `gable_oculus:boolean`；UI 房屋详细参数对应“正面山墙真圆窗”。当前为中世纪、浅灰泥、统一双坡屋面、山墙朝街、无翼楼组合，具体限制及结构见 [房屋说明](world_editor_buildings.md#2026-10-14-正面山墙的真实圆窗)。未新增工具，历史二维入口仍禁用。
+
+圆洞贯穿原生山墙内外面及碰撞，浅石套、木框、固定玻璃和木格跟随屋顶隐藏与自动冻结/合批。`false` 或省略保持既有几何和旧元数据兼容，非法组合原子失败。[test_house_gable_oculus.gd](../tools/test_house_gable_oculus.gd) 经真实 loopback HTTP 与原生三角检测 **33 项通过，0 失败**，包含发现、合法/非法调用、无副作用失败、撤销重做及保存重开；日志位于 `review_artifacts/axel_town_houses_20261014/oculus_http.log`。此处为编辑器能力交付，场景外观及正式接入另行留证。
+
+### 2026-10-14 通高圆拱住宅入口与斜地承托
+
+房屋共享 schema 新增可选 `entrance_style:rectangular/round_arch_hall`（缺省为 rectangular）、`entrance_arch_width:1.5..3.6`（默认 2.28 m）、`entrance_arch_spring:2.2..4`（默认 3.67 m）。UI 与既有 `list_building_templates`、`preview_buildings`、`generate_buildings` 使用同一蓝图和校验。圆拱限两层浅灰泥 `hall` 住宅、无翼楼/挑层/门雨棚；前厅真实挑空并开洞，后部住宅活动门保留。具体结构、冠顶净距与兼容性见 [房屋说明](world_editor_buildings.md#2026-10-14-通高圆拱住宅入口)。[test_house_arched_entrance.gd](../tools/test_house_arched_entrance.gd) 实际 HTTP **38 项通过，0 失败**，日志 `review_artifacts/axel_town_houses_20261014/arched_entrance_http.log`。
+
+既有 `depth` 参数的最小值支持 8 m，但 `depth<10` 仅限 `layout:townhouse`、`floors:1`、`compound:none` 的小住宅；其他布局仍需至少 10 m，避免压缩楼梯及通行。没有新工具或字段，UI 与 MCP 共享此条件校验。小住宅与圆拱增量实际 HTTP 共 **46 项通过，0 失败**，日志同目录 `arched_entrance_http_small_cottage.log`。
+
+同日 `preview_buildings` / `generate_buildings` 和 `place_asset` 共用抬高地基承托上限：仅合法中世纪抬高地基允许地面进入基座，且不得高于实际首层地板。未增加输入参数或工具；UI 与 MCP 一致，地形和道路碰撞保护不放宽。[test_house_foundation_support_http.gd](../tools/test_house_foundation_support_http.gd) 实际 HTTP **33 项通过，0 失败**，覆盖合法斜地、非法埋屋无副作用失败、素材库放置、撤销重做及保存重开；日志同目录 `foundation_support_http.log`。两项均为共享能力与隔离夹具证据，不代表新城镇住宅已经正式发布。
