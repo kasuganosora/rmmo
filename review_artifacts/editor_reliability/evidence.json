@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-15T14:05:47.131919+00:00",
+  "status": "passed_scoped_residential_house_and_access_road_loop",
+  "worktree": "C:/Users/luna/.codex/worktrees/editor-reliability/rmmo",
+  "branch": "codex/editor-reliability",
+  "base_commit": "7842d8784957ea36371896592a9a66aced95b503",
+  "implementation_state": "uncommitted isolated worktree; not merged or pushed",
+  "scope": {
+    "supported": "One frozen townhouse/hall house with explicit first-floor entrance, ordinary heightfields, an existing straight ground road with a current terrain-following surface; optional continuous kerbs.",
+    "limits": [
+      "Road graphs containing bridge bindings are rejected in this slice.",
+      "Unknown support geometry, multiple entrances and unsupported terrain are rejected conservatively.",
+      "No terrain sculpting, neighboring object movement or formal scene integration.",
+      "Finite 0.05 m setback search, at most 157 attempts; failure is not a proof of global infeasibility.",
+      "Each candidate reports runtime_traversal=requires_runtime_verification; the recorded representative fixture has real runtime verification."
+    ],
+    "preserved": [
+      "single native undo/redo transaction",
+      "stable house and door identities",
+      "shared automatic static batches",
+      "source hash and monotonic document revision validation",
+      "native atomic save/reopen",
+      "scope-external authored records including numeric representations"
+    ]
+  },
+  "sources": [
+    {
+      "path": "scripts/world3d/world_document.gd",
+      "bytes": 36183,
+      "sha256": "0344c42d5f4c5bae1c86e31b7909a1935ade500c3b3b3fd253cf0dd9bdf2401c",
+      "lf_normalized_sha256": "773d7c4c9acff425c877687f423f6031d33f050628ab7f5cf8ed834c81ef1bb9"
+    },
+    {
+      "path": "scripts/world_editor/building_panel.gd",
+      "bytes": 18096,
+      "sha256": "5e58e7b00cd11d58ecdd4b0b34a68ca26f58f7768ff6ba078ad05f1b14e539e4",
+      "lf_normalized_sha256": "01e5a04d700be8370f6df4092a2f0a78702c059c644e375396a15a26c5f1eeed"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "bytes": 35617,
+      "sha256": "d2df6a73e1d9db45b48a83b2072b5e80f2993844c4cfd098c0c791009d7c9552",
+      "lf_normalized_sha256": "6066f76a718373be7d393871abee309d1df6141b15c65fe0c67d7839ca0594b2"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "bytes": 55570,
+      "sha256": "5c30b4ef6726700779b448514434d136d08fb9001ca9a08a6d876120d308dcc4",
+      "lf_normalized_sha256": "63a7fddc0c83ebe9214b8b68f57e1959d6b597e05900bc2291f0bb6c8916c472"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd",
+      "bytes": 14785,
+      "sha256": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+      "lf_normalized_sha256": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd.uid",
+      "bytes": 20,
+      "sha256": "149a647af3cb5ad2f2fa5c266269793adf9729f3ddda6f0f5b4d81c4d9d2dd02",
+      "lf_normalized_sha256": "149a647af3cb5ad2f2fa5c266269793adf9729f3ddda6f0f5b4d81c4d9d2dd02"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "bytes": 11083,
+      "sha256": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021",
+      "lf_normalized_sha256": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "bytes": 23534,
+      "sha256": "90733478f53d20de833cfcdba0342dc3c5c35270fe7f2b0b59b21d3cdc140f8f",
+      "lf_normalized_sha256": "90733478f53d20de833cfcdba0342dc3c5c35270fe7f2b0b59b21d3cdc140f8f"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "bytes": 34147,
+      "sha256": "d972d9f7168b7855269f71443c0f1ff0f0152ac7b34b76b02ccd920eef1d5b01",
+      "lf_normalized_sha256": "d972d9f7168b7855269f71443c0f1ff0f0152ac7b34b76b02ccd920eef1d5b01"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd.uid",
+      "bytes": 20,
+      "sha256": "e473a462f37583bf965e56b02c69e19fcb08a184abe8ea57daf9b7a3ddb1aca4",
+      "lf_normalized_sha256": "e473a462f37583bf965e56b02c69e19fcb08a184abe8ea57daf9b7a3ddb1aca4"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "bytes": 71433,
+      "sha256": "cea663a1780b8791b6dfd2ed5e33104c6288a97c5bbeb4a92ec13ffd21292f02",
+      "lf_normalized_sha256": "6b4c1cb4d68ee83612686f1b606f787cd500683f0924babf6dbd4288ae9c4d1c"
+    },
+    {
+      "path": "tools/test_residential_access.gd",
+      "bytes": 10562,
+      "sha256": "854fb3901175abbecda1897851e8e958974aa8c44361fdb0810fedc692392b35",
+      "lf_normalized_sha256": "854fb3901175abbecda1897851e8e958974aa8c44361fdb0810fedc692392b35"
+    },
+    {
+      "path": "tools/test_residential_connector.gd",
+      "bytes": 5258,
+      "sha256": "c982716fd4ac416b2a9965f103914b0fad2bfddddc21e15dc3a7474d15af46a1",
+      "lf_normalized_sha256": "c982716fd4ac416b2a9965f103914b0fad2bfddddc21e15dc3a7474d15af46a1"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "bytes": 25563,
+      "sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "lf_normalized_sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    },
+    {
+      "path": "tools/test_residential_placement_runtime.gd",
+      "bytes": 10156,
+      "sha256": "40fa9714bf6bd9002a78d079b3abeae90cac488c236495f84d3480d0bb27f3db",
+      "lf_normalized_sha256": "40fa9714bf6bd9002a78d079b3abeae90cac488c236495f84d3480d0bb27f3db"
+    },
+    {
+      "path": "tools/test_residential_support.gd",
+      "bytes": 15728,
+      "sha256": "5cdc3281adab64b2d0129f34d6c8cc711a116f7e42e9c8f9a9b8631845f737db",
+      "lf_normalized_sha256": "5cdc3281adab64b2d0129f34d6c8cc711a116f7e42e9c8f9a9b8631845f737db"
+    },
+    {
+      "path": "tools/test_world3d_mcp.gd",
+      "bytes": 14628,
+      "sha256": "18a1694a032983236e04c8443f6e0ab3f668ff0c2393386fd003903316411b56",
+      "lf_normalized_sha256": "83c8e5a63090bbaadca712e8203119aa4fd8073c82517fbb7637df731bbeb6cc"
+    }
+  ],
+  "reports": [
+    {
+      "path": "review_artifacts/editor_reliability/residential_support/result.json",
+      "bytes": 27636,
+      "sha256": "e8e6865c32c6cc6b375d01423b7a29d60f9f751e56ff3905e49cc29276df55c2",
+      "checks": 52,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/residential_access/result.json",
+      "bytes": 14766,
+      "sha256": "7cd4a4d7a25352fc385310ab2ae59e31f5984bcc8060ff229df28b50ca695dde",
+      "checks": 47,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/residential_connector/result.json",
+      "bytes": 5727,
+      "sha256": "09049891992a9971c48df8d23fe4f7ad3bc1526252e83adb6831a1bb94d73642",
+      "checks": 14,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/http_kerbs.json",
+      "bytes": 428964,
+      "sha256": "8f55910f9db2c25146bc675df763b67c3bb078e95da3d76c678228169a6ea15e",
+      "checks": 127,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/runtime_kerbs.json",
+      "bytes": 4001,
+      "sha256": "734f2576b8b409b2cdb00dc680b73c7a9f31cef9da99161e5cc74a0f56b162f6",
+      "checks": 21,
+      "failures": 0
+    }
+  ],
+  "fixture": {
+    "path": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/maps/test/map.gltf",
+    "bytes": 53013,
+    "sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e"
+  },
+  "frozen_source": {
+    "path": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/assets/prefabs/4006ccda6a663a7ee4ba3545619a9c16d5393b82ee2cdace2f0ec7fd0cee6e04.json",
+    "bytes": 453143,
+    "sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc"
+  },
+  "resource_dependencies": [
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/normal.png",
+      "bytes": 2004579,
+      "sha256": "b9af76c52ea7ffcbfab227ed1ff8c7d295952fbdabe4af64f0a27526fbf03f2c"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/roughness.png",
+      "bytes": 15888,
+      "sha256": "0bf22b9cd27e305b62610f9453cf42ef6b0cb8b198e960674633f00cd3b9f4df"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/texture.png",
+      "bytes": 1817456,
+      "sha256": "74d16083107589ea878c9b49eb7a58ebf3bff89b17ead3d09a95deedb4063620"
+    }
+  ],
+  "test_summary": {
+    "assertions": 261,
+    "failures": 0,
+    "house_parts": 34,
+    "graphical_http": true,
+    "kerbs": true,
+    "outbound_and_returned": true,
+    "first_preview": {
+      "attempts": 29.0,
+      "budget": 45.0,
+      "full_graph_checks": 1.0,
+      "prepare_ms": 3165.812,
+      "step": 0.05
+    },
+    "runtime_batch": {
+      "base_work_budget_usec": 2000,
+      "building_mesh_hits": 0,
+      "enabled": true,
+      "groups": 1,
+      "instanced_groups": 0,
+      "last_build_ms": 15.463,
+      "last_commit_ms": 0.939,
+      "last_sync_ms": 0.497,
+      "loading_budget_scopes": 0,
+      "max_build_ms": 15.463,
+      "max_commit_ms": 0.939,
+      "pending_groups": 0,
+      "rebuild_count": 1,
+      "release_groups_visited": 0,
+      "render_surfaces": 2,
+      "render_vertices": 11844,
+      "source_objects": 3,
+      "source_surfaces": 12,
+      "source_vertices": 11844,
+      "sync_count": 3,
+      "sync_profile_us": {
+        "capture_us": 0,
+        "geometry_us": 0,
+        "material_us": 0
+      },
+      "work_budget_usec": 2000
+    },
+    "performance_scope": "Fixture correctness/actual batch verification only, not a town benchmark or measured before/after optimization gain."
+  },
+  "isolation": {
+    "edited_checkout": "C:/Users/luna/.codex/worktrees/editor-reliability/rmmo",
+    "original_scene_checkout": "D:/code/rmmo",
+    "maps": "Only unique __residential_placement_* temporary packs. No original scene map changes.",
+    "gpu": "tools/run_godot_background.py private never-activated desktop",
+    "images_uploaded": false
+  },
+  "commands": [
+    "Godot --headless --path . --script res://tools/test_residential_support.gd -- --output=review_artifacts/editor_reliability/residential_support",
+    "Godot --headless --path . --script res://tools/test_residential_access.gd -- --output=review_artifacts/editor_reliability/residential_access",
+    "Godot --headless --path . --script res://tools/test_residential_connector.gd -- --output=review_artifacts/editor_reliability/residential_connector",
+    "python tools/run_godot_background.py --timeout 480 --log review_artifacts/editor_reliability/http_kerbs.log -- D:/tools/godot/Godot_v4.7.2-stable_win64.exe --path . --script res://tools/test_residential_placement_http.gd -- --kerbs --report=C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\editor_reliability\\http_kerbs.json",
+    "python tools/run_godot_background.py --timeout 360 --log review_artifacts/editor_reliability/runtime_kerbs.log -- D:/tools/godot/Godot_v4.7.2-stable_win64.exe --path . --script res://tools/test_residential_placement_runtime.gd -- --manifest=C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\editor_reliability\\http_kerbs.json --report=C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\editor_reliability\\runtime_kerbs.json"
+  ],
+  "logs": [
+    {
+      "path": "review_artifacts/editor_reliability/http_kerbs.log",
+      "bytes": 7538,
+      "sha256": "6efa6414bf84b728e767c2c46fdd0e0969dece15006d6187af4ef4aa8d12522a",
+      "local_only_ignored_log": true
+    },
+    {
+      "path": "review_artifacts/editor_reliability/runtime_kerbs.log",
+      "bytes": 54871,
+      "sha256": "f772d8a699ab4249f3cd9b8eb7b7c1d4b0459fee18de7f4420f7d807d5e07d90",
+      "local_only_ignored_log": true
+    },
+    {
+      "path": "review_artifacts/editor_reliability/iterations/runtime_verbose.log",
+      "bytes": 147888,
+      "sha256": "3611c270fe682069a6b6d401d5a56559f8f3ff0cc6459a3142b7b7171d82e68b",
+      "local_only_ignored_log": true
+    }
+  ],
+  "observations": [
+    "First runtime pass exited 0 with one ObjectDB-at-exit warning. An unchanged-code verbose replay passed 21/0 without reproducing that warning. Both runs verified world destruction, no remaining map loaders, navigation bakes or orphan worker jobs. Root cause unassigned; no unrelated lifecycle change.",
+    "Verbose replay emitted existing character texture RGB8 conversion and glTF packed-buffer import warnings.",
+    "Runtime test initially used road graph guide Y for spawn; it now derives the capsule spawn from actual saved native pavement triangles, preserving production readiness validation."
+  ],
+  "iterations": [
+    {
+      "path": "review_artifacts/editor_reliability/iterations/http_before_connector_review.json",
+      "bytes": 22289,
+      "sha256": "ee83e72ca44961172e12c2da3a16763740f14a2b062d7d058f34aba8ed91cad3",
+      "status": "historical_pass_before_full_connector_proof"
+    },
+    {
+      "path": "review_artifacts/editor_reliability/iterations/http_before_numeric_equality_fix.json",
+      "bytes": 15920,
+      "sha256": "c68af2959141b22eb1ef9f17d7c3944f8b32838b321241f264e34d40f4d51b8f",
+      "status": "historical_failure_before_numeric_equality_fix"
+    },
+    {
+      "path": "review_artifacts/editor_reliability/iterations/runtime_verbose.json",
+      "bytes": 3997,
+      "sha256": "dff3dd2e2536e912a589af2e941fbdb2161b2bf6f7c235ff8b876b17467c6284",
+      "status": "unchanged_code_diagnostic_replay_21_passes"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ static func spec(name: String, description: String, properties: Dictionary = {},
 
 static func tools() -> Array:
 	var city = preload("res://scripts/world3d/city_layout.gd")
+	var residential:Dictionary=preload("res://scripts/world_editor/residential_placement_tools.gd").request_schema()
 	var scatter: Dictionary=preload("res://scripts/world3d/vegetation_scatter.gd").request_schema()
 	var waterways: Dictionary=preload("res://scripts/world3d/waterway_data.gd").request_schema()
 	var bridges: Dictionary=preload("res://scripts/world3d/bridge_data.gd").request_schema()
@@ -109,6 +110,9 @@ static func tools() -> Array:
 		spec("create_road_path", "与画布点选共用：从XYZ点列创建连续道路骨架，端点在0.25米内复用已有节点；不会自动拆分穿越线段。保护节点拒绝连接。整笔一次撤销，返回新road_token及诊断。", {"points":city.array(city.S.vector(-100000,100000),64,2),"width":number(1,60),"kind":choice(["ground","bridge"])}, ["points"]),
 		spec("preview_region_buildings", "在矩形平地区域内按种子随机规划单栋或成片建筑，避让全部已有物体，含隐藏/锁定物体；计入屋檐、阳台、雨棚和入口。只读，返回 plan_token 供确认同一方案。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"], true),
 		spec("generate_region_buildings", "应用区域随机建筑方案，最多16栋且整批一次撤销；提交前再次校验碰撞。传预览的 plan_token 时方案改变会无副作用拒绝。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"]),
+		spec("preview_residential_placement", "只读准备一个冻结住宅及入户路候选。asset_id 来自 list_assets；连接已有普通直线 ground 道路 road_edge_id。position 为住宅原点 XYZ，elevation_min/max 为相对输入 Y 的允许升降，setback_min/max 为门前退距范围，width 为入户路宽度。固定 0.05 米步长、最多157次有界检查；不移动邻物或修改地形。完整原生验证通过后返回 plan_token、最终位置/调整、承托/道路摘要和见证；unsupported 表示超出支持范围，search_exhausted 只表示给定范围内未找到候选。", residential.properties, residential.required, true),
+		spec("apply_residential_placement", "提交同一会话预览返回的 plan_token；验证地图和模板身份仍一致，住宅与完整道路变化一起应用、一次撤销。过期/无效候选无副作用拒绝，之后按原生 save_world 保存。", {"plan_token":text_field()}, ["plan_token"]),
+		spec("discard_residential_placement", "释放本会话住宅与入户路候选，不修改地图或撤销历史。", {"plan_token":text_field()}, ["plan_token"]),
 		spec("set_streetlamp_banner", "更换独立路灯旗帜。ids 可批量至256盏；shape=pointed/rectangle/swallowtail，design=original/plain/flag(整面图片)/emblem(透明图案)，color/trim_color 为RGB，texture_path须位于资源根目录。顶部固定并随游戏风场摆动；wind_enabled可关闭。仅改布面，不改灯杆灯罩；共用UI保护、一次撤销、保存和资源打包。", {"ids":{"type":"array","items":text_field(),"minItems":1,"maxItems":256},"settings":preload("res://scripts/world3d/streetlamp_banner.gd").schema()}, ["ids","settings"]),
 		spec("list_building_templates", "查询用途默认参数、中世纪 presets、参考城镇 town_presets（十一款，包含两款三层商住楼与紧凑双层住宅）、window_styles 整栋窗口方案（casement/cross_lattice/diamond_lattice/round_arch/tall_shutter/random；random 按 seed_offset 每栋只选一次并保存解析结果）、交接屋顶 roof_presets、城中村 urban_presets 和 schema。V7 roof_solver=unified 提供最终裁切屋面、真实洞口、L/T/U 同高交接和低翼楼收口；annex_floors 控制连通翼楼层数，支持 gable/hip/shed，旧实例继续 legacy。可选 gable_oculus=true 在浅灰泥、统一双坡、山墙朝街、无翼楼的中世纪住宅正面生成真实圆洞及石套木框，省略保持原样；不支持组合或净距不足会拒绝。可选 entrance_style=round_arch_hall 为两层浅灰泥 hall 住宅生成真实挑空圆拱入口，entrance_arch_width/entrance_arch_spring 控制净宽与起拱高，后部住宅门保留；缺省 rectangular 保持原样。默认 foundation_depth 向下 1 米，支持活动门窗、front_canopy 遮檐、dormers 老虎窗和七款中世纪预设。中世纪支持灰泥石墙/石基木构、timber_width 柱宽、chimney 烟囱，门窗驱动分格与连接梁柱的斜撑。城中村支持1至6层、折返楼梯、阳台及可到达屋顶；不含分租规则。内外共用洞口与标高，旧版本地图兼容。", {}, [], true),
 		spec("preview_street_buildings", "只读规划平地道路中心线两侧的建筑，按实际屋檐和挑层留出道路净空，避开转角，返回确定的逐栋参数；不创建道路。", preload("res://scripts/world_editor/building_street.gd").schema().properties, ["points"], true),

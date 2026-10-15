@@ -1,0 +1,146 @@
+{
+  "batch_stats": {
+    "base_work_budget_usec": 2000,
+    "building_mesh_hits": 0,
+    "enabled": true,
+    "groups": 1,
+    "instanced_groups": 0,
+    "last_build_ms": 15.34,
+    "last_commit_ms": 0.802,
+    "last_sync_ms": 1.239,
+    "loading_budget_scopes": 0,
+    "max_build_ms": 15.34,
+    "max_commit_ms": 0.802,
+    "pending_groups": 0,
+    "rebuild_count": 1,
+    "release_groups_visited": 0,
+    "render_surfaces": 2,
+    "render_vertices": 11844,
+    "source_objects": 3,
+    "source_surfaces": 12,
+    "source_vertices": 11844,
+    "sync_count": 3,
+    "sync_profile_us": {
+      "capture_us": 0,
+      "geometry_us": 0,
+      "material_us": 0
+    },
+    "work_budget_usec": 2000
+  },
+  "checks": [
+    {
+      "label": "real renderer enabled on the private test desktop",
+      "ok": true
+    },
+    {
+      "label": "explicit HTTP fixture manifest exists",
+      "ok": true
+    },
+    {
+      "label": "HTTP transaction fixture passed before runtime verification",
+      "ok": true
+    },
+    {
+      "label": "runtime is confined to the newly generated disposable fixture",
+      "ok": true
+    },
+    {
+      "label": "runtime loads the exact saved HTTP result",
+      "ok": true
+    },
+    {
+      "label": "saved candidate supplies the complete straight approach",
+      "ok": true
+    },
+    {
+      "label": "saved native fixture opens for exact road spawn sampling",
+      "ok": true
+    },
+    {
+      "label": "street spawn has a real saved pavement triangle beneath it",
+      "ok": true
+    },
+    {
+      "label": "candidate supplies the actual entrance threshold",
+      "ok": true
+    },
+    {
+      "label": "production entry releases the real character after readiness",
+      "ok": true
+    },
+    {
+      "label": "live stream uses the manifest source revision",
+      "ok": true
+    },
+    {
+      "label": "frozen house retains an operable entrance door",
+      "ok": true
+    },
+    {
+      "label": "real authority opens the entrance for exterior-to-interior traversal",
+      "ok": true
+    },
+    {
+      "label": "actual character crosses generated road, doorstep and entrance",
+      "ok": true
+    },
+    {
+      "label": "continuous walk has ground support and stays inside the narrow approach",
+      "ok": true
+    },
+    {
+      "label": "entrance crossing receives complete-building readiness authority",
+      "ok": true
+    },
+    {
+      "label": "runtime static preparation finishes before measuring batching",
+      "ok": true
+    },
+    {
+      "label": "actual runtime static batching reduces resident render surfaces",
+      "ok": true
+    },
+    {
+      "label": "stream retains every independent house member identity",
+      "ok": true
+    },
+    {
+      "label": "actual character returns from the entrance to the original street",
+      "ok": true
+    },
+    {
+      "label": "world freed, all map loaders retired, navigation bakes finished and orphan asset workers joined",
+      "ok": true
+    }
+  ],
+  "entrance_fixture_id": "f0/north/entrance/door",
+  "failures": 0,
+  "goal": [
+    -3.31550121307373,
+    1.21799993515015,
+    -3.75750017166138
+  ],
+  "house_id": "building_04c93938bdb4c388bcae",
+  "manifest": "C:/Users/luna/.codex/worktrees/editor-reliability/rmmo/review_artifacts/editor_reliability/http_kerbs.json",
+  "map_path": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/maps/test/map.gltf",
+  "map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+  "maximum_sideways_error": 0.000069510904722847,
+  "minimum_character_y": 0.90061616897583,
+  "movement_reasons": {
+    "building_pending": 3,
+    "ok": 276
+  },
+  "reached": true,
+  "returned": true,
+  "scope": "Real HTTP-produced temporary map; exterior approach and entrance only, not unrelated rooms or a town performance benchmark",
+  "start": [
+    -3.31550025939941,
+    0.924999594688416,
+    -16.0
+  ],
+  "street_support": {
+    "ok": true,
+    "road_id": "pavement_9f4cb035258a4eec34b9",
+    "y": 0.0249996185302734
+  }
+}

@@ -263,10 +263,31 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 | 固定建筑烘焙；旧建筑参数更新、删除、解除关联 | `bake_building`、`update_building`、`delete_building`、`detach_building` |
 | 沿街普通、中世纪、城中村建筑规划与生成 | `preview_street_buildings`、`generate_street_buildings` |
 | 矩形区域内随机单栋/成片建筑，避让已有物体 | `preview_region_buildings`、`generate_region_buildings` |
+| 冻结住宅与入户路候选、一次应用／放弃 | `preview_residential_placement`、`apply_residential_placement`、`discard_residential_placement` |
 
 ## 语义与示例
 
-当前共 **104 个工具**。参数化建筑的外观/室内一致性、批量生成和修改保护见 [world_editor_buildings.md](world_editor_buildings.md)。楼层隔离、指定出生点和临时试玩见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。事件模板、环境与人物遮挡轮廓见 [world_editor_events_environment.md](world_editor_events_environment.md)。高差、楼梯、屋顶、桥栏杆和自定义套件见 [world_editor_height_terrain.md](world_editor_height_terrain.md)。贴地、表面放置和排列的参数、完整组规则及接触精度边界见 [world_editor_placement.md](world_editor_placement.md)。这四项均使用当前选择，共享撤销事务，返回实际修改的 `changed_ids`。草稿/关闭工具见 [world_editor_recovery.md](world_editor_recovery.md)；材质库、选面、刷面及恢复原材质见 [world_editor_surface_materials.md](world_editor_surface_materials.md)。
+完整工具清单以当前服务 `tools/list` 为准。参数化建筑的外观/室内一致性、批量生成和修改保护见 [world_editor_buildings.md](world_editor_buildings.md)。楼层隔离、指定出生点和临时试玩见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。事件模板、环境与人物遮挡轮廓见 [world_editor_events_environment.md](world_editor_events_environment.md)。高差、楼梯、屋顶、桥栏杆和自定义套件见 [world_editor_height_terrain.md](world_editor_height_terrain.md)。贴地、表面放置和排列的参数、完整组规则及接触精度边界见 [world_editor_placement.md](world_editor_placement.md)。这四项均使用当前选择，共享撤销事务，返回实际修改的 `changed_ids`。草稿/关闭工具见 [world_editor_recovery.md](world_editor_recovery.md)；材质库、选面、刷面及恢复原材质见 [world_editor_surface_materials.md](world_editor_surface_materials.md)。
+
+### 冻结住宅与入户路候选
+
+2026-10-15 首个限定住宅闭环已在隔离分支通过功能验收：带原生路缘的真实控件／HTTP 回归 **127 项通过、0 失败**，同一保存结果的玩家室外道路与入口往返 **21 项通过、0 失败**。不代表 E1/E2 整包完成、分支合并或正式场景接入。
+
+建筑页「冻结住宅与入户路」与以下三个工具共用 `residential_placement_tools.gd`。只支持一个冻结 `townhouse/hall` 住宅、可确认的首层入口和已有普通直线 `ground` 道路；整张路网须已有沿地形铺面且没有桥梁绑定。不移动邻物、不改变地形；普通手动布置规则不因此增加美术间距禁令。普通高度场、未知入口等具体支持边界及参数范围见 [建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
+
+先通过 `list_assets` 取得预制件 `asset_id`，通过 `get_city_layout` 取得道路边 ID，再请求：
+
+```json
+{"name":"preview_residential_placement","arguments":{"asset_id":"<list_assets 返回的 ID>","position":[20,0,30],"yaw":0,"road_edge_id":"<已有道路边 ID>","elevation_min":-0.5,"elevation_max":0.5,"setback_min":0.8,"setback_max":3,"width":1.6}}
+```
+
+`asset_id/position/road_edge_id` 必填；其余示例值即默认值。`yaw` 是在预制件保存朝向上附加的 Y 轴旋转，范围 ±180 度；0 保留保存朝向。升降为相对输入 Y 的允许范围，先由连续支撑求安全标高区间；退距是首层入口向外到入户路起点的距离，单位均为米。退距搜索步长 0.05 米，最多 157 次；`unsupported` 类错误（含 `residential_support_unsupported`）明确标注不支持的路径，`search_exhausted` 仅表示给定范围内未找到通过全部检查的候选。失败返回 `code/error/stage`，可附见证 `position/conflicts` 或嵌套 `last_failure/lower_witness/upper_witness`；不写入地图、选择或撤销历史。
+
+成功摘要包含 `plan_token/source_sha256/base_version`、最终 `position/adjustment`、`road_points/setback/width`、建筑与变化记录 ID、`support/checks/bounds/search`。`checks.runtime_traversal="requires_runtime_verification"` 表示仍需实际玩家通行验收，几何预览不冒充物理跑图。候选几何留在服务内，MCP 不传整图记录。随后调用 `apply_residential_placement {"plan_token":"..."}` 一次提交住宅与完整道路变化，或 `discard_residential_placement {"plan_token":"..."}` 放弃。token 属于当前会话；地图或模板身份变化导致旧 token 拒绝，调用方须重新预览。成功应用保留一次撤销、重做、原生保存与独立可编辑语义，仍需调用 `save_world` 保存。参数校验、候选求解和提交均复用 UI 业务，不注册二维工具；实际验收结果单独记录，不把接口接入等同于全部场景通过。
+
+[当前 HTTP／UI 证据](../review_artifacts/editor_reliability/http_kerbs.json)覆盖工具发现、合法／非法调用、放弃与过期 token、源变化及失败无副作用；实际控件与 HTTP 同输入同结果，34 个住宅构件和道路一次发布／撤销／重做，范围外加载记录字节不变。带路缘的道路在生成、应用、保存重开后保有实际几何和材质，并验证编辑器合批及独立语义。回归脚本的 `--kerbs` 为测试模式参数，不是新增 MCP 参数；普通模式保留。共享几何另有承托 52/0、入口 47/0、连接段 14/0，具体报告与支持边界见[建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
+
+[对应运行时证据](../review_artifacts/editor_reliability/runtime_kerbs.json)验证真实角色往返、生产建筑就绪门控、34 个构件身份和实际运行时合批，限同一临时图的室外接路与入口。首次退出的一个 ObjectDB 警告在[同源码 verbose 复跑](../review_artifacts/editor_reliability/iterations/runtime_verbose.json)中未复现，复跑 21/0 且清理检查通过；保留观察，不宣称已根治。版本与资源身份见[统一证据](../review_artifacts/editor_reliability/evidence.json)。接口的 `requires_runtime_verification` 仍适用于每个新预览，样例通过不会把任意候选自动标为物理跑图通过。
 
 XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基础物件为尺寸，对导入模型为三轴缩放倍率。精确数值操作不套用吸附。`transform_selection` 是世界轴增量，绕共同中心旋转/等比缩放，一次调用对应一次撤销。界面与 MCP 共用变换、分组、选择、自动瓦片和预制件业务逻辑。
 

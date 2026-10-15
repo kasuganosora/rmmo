@@ -48,6 +48,8 @@ func add_npc(position: Vector3, npc_id: String, line: String) -> String:
 
 var _undo: Array = []
 var _redo: Array = []
+## Session-only candidate revision. Never persisted or restored by undo.
+var authoring_revision:=0
 
 
 func checkpoint() -> void:
@@ -62,6 +64,7 @@ func commit_owned_snapshot(before: Array) -> void:
 	# Takes an already independent deep snapshot. The caller must discard its
 	# reference without clearing/mutating the array after transferring ownership.
 	assert(not is_same(before, records), "Cannot transfer live document records into history")
+	authoring_revision+=1
 	_undo.append(before)
 	_redo.clear()
 	if _undo.size() > 32:
@@ -72,6 +75,7 @@ func undo() -> bool:
 	if _undo.is_empty():
 		return false
 	var state: Variant = _undo.pop_back()
+	authoring_revision+=1
 	_redo.append(recovery_snapshot() if state is Dictionary else records.duplicate(true))
 	if state is Dictionary: apply_recovery(state)
 	else: records = state
@@ -82,6 +86,7 @@ func redo() -> bool:
 	if _redo.is_empty():
 		return false
 	var state: Variant = _redo.pop_back()
+	authoring_revision+=1
 	_undo.append(recovery_snapshot() if state is Dictionary else records.duplicate(true))
 	if state is Dictionary: apply_recovery(state)
 	else: records = state
@@ -93,17 +98,20 @@ func recovery_snapshot() -> Dictionary:
 
 
 func commit_recovery_change(before:Dictionary)->void:
+	authoring_revision+=1
 	_undo.append(before.duplicate(true));_redo.clear()
 	if _undo.size()>32:_undo.pop_front()
 
 
 func checkpoint_recovery() -> void:
+	authoring_revision+=1
 	_undo.append(recovery_snapshot())
 	_redo.clear()
 	if _undo.size() > 32: _undo.pop_front()
 
 
 func apply_recovery(state: Dictionary) -> void:
+	authoring_revision+=1
 	records = state.records.duplicate(true)
 	map_meta = state.map_meta.duplicate(true)
 	_next = maxi(_next, int(state.next))
