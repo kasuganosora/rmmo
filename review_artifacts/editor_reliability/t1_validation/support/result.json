@@ -1,0 +1,1076 @@
+{
+  "checks": [
+    {
+      "detail": {
+        "input_version": "fixture-v1",
+        "ok": true,
+        "position": "(0.0, 0.0, 0.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 16.0,
+              "covered_area": 16.0,
+              "floor_bottom": 0.2,
+              "foundation_bottom": -1.0,
+              "foundation_id": "base",
+              "missing_area": 0.0,
+              "part": "main/floor",
+              "record_id": "floor",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 4096,
+            "cells_visited": 1225,
+            "overlaps": 2048,
+            "solid_skipped": 2871,
+            "terrain_candidates": 1,
+            "triangle_clips": 2312
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            -0.2,
+            1.0
+          ],
+          "interval": [
+            -0.2,
+            1.0
+          ],
+          "lower_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              -2.0,
+              0.0,
+              -2.0
+            ],
+            "record_id": "floor",
+            "terrain_height": 0.0,
+            "terrain_id": "terrain",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "terrain"
+          ],
+          "upper_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              -2.0,
+              0.0,
+              -2.0
+            ],
+            "record_id": "floor",
+            "terrain_height": 0.0,
+            "terrain_id": "terrain",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "ordinary foundation accepts continuous flat terrain",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "interval derives from actual slab bottom and foundation bottom",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "version and native-validation scope stay explicit",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "solver never mutates source records",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "floating placement moves down into the feasible interval",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "buried placement moves above actual floor intrusion",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "bounded adjustment rejects unreachable support",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "caller world-height interval participates in the solution",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "caller cannot enlarge geometric tolerances",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "narrow hole lies between all former 9 by 9 samples",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cell": [
+          18,
+          18
+        ],
+        "code": "residential_support_coverage_gap",
+        "conservative": false,
+        "counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2046,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "error": "实际首层支撑域存在地形孔洞或未覆盖区域",
+        "exact": true,
+        "floor_bottom": 0.2,
+        "foundation_bottom": -1.0,
+        "foundation_id": "base",
+        "gap_polygon": [
+          [
+            -1.75,
+            -1.75
+          ],
+          [
+            -1.625,
+            -1.75
+          ],
+          [
+            -1.625,
+            -1.625
+          ],
+          [
+            -1.75,
+            -1.625
+          ]
+        ],
+        "input_version": null,
+        "missing_area": 0.015625,
+        "ok": false,
+        "part": "main/floor",
+        "position": [
+          -1.75,
+          0.0,
+          -1.75
+        ],
+        "record_id": "floor",
+        "stage": "residential_support",
+        "support_area": 16.0,
+        "terrain_height": 0.0,
+        "terrain_id": "terrain",
+        "triangle_index": 1
+      },
+      "label": "continuous coverage detects the unsampled hole",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "hole failure includes reproducible source and polygon witness",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "narrow trench lies between former samples",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "residential_support_height_interval",
+        "conservative": false,
+        "counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "error": "地形起伏超过实际基础可承托高度，无法同时避免悬空和埋入楼板",
+        "exact": true,
+        "input_version": null,
+        "interval": [
+          -0.2,
+          -2.0
+        ],
+        "lower_witness": {
+          "cell": [
+            16,
+            16
+          ],
+          "floor_bottom": 0.2,
+          "foundation_bottom": -1.0,
+          "foundation_id": "base",
+          "part": "main/floor",
+          "position": [
+            -2.0,
+            0.0,
+            -2.0
+          ],
+          "record_id": "floor",
+          "terrain_height": 0.0,
+          "terrain_id": "terrain",
+          "triangle_index": 0
+        },
+        "ok": false,
+        "stage": "residential_support",
+        "upper_witness": {
+          "cell": [
+            17,
+            17
+          ],
+          "floor_bottom": 0.2,
+          "foundation_bottom": -1.0,
+          "foundation_id": "base",
+          "part": "main/floor",
+          "position": [
+            -1.75,
+            -3.0,
+            -1.75
+          ],
+          "record_id": "floor",
+          "terrain_height": -3.0,
+          "terrain_id": "terrain",
+          "triangle_index": 0
+        }
+      },
+      "label": "actual relief defeats shallow foundation for unsampled -3.0",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "incompatible elevation constraints identify both limiting positions",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "narrow peak lies between former samples",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "residential_support_height_interval",
+        "conservative": false,
+        "counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "error": "地形起伏超过实际基础可承托高度，无法同时避免悬空和埋入楼板",
+        "exact": true,
+        "input_version": null,
+        "interval": [
+          2.8,
+          1.0
+        ],
+        "lower_witness": {
+          "cell": [
+            17,
+            17
+          ],
+          "floor_bottom": 0.2,
+          "foundation_bottom": -1.0,
+          "foundation_id": "base",
+          "part": "main/floor",
+          "position": [
+            -1.75,
+            3.0,
+            -1.75
+          ],
+          "record_id": "floor",
+          "terrain_height": 3.0,
+          "terrain_id": "terrain",
+          "triangle_index": 0
+        },
+        "ok": false,
+        "stage": "residential_support",
+        "upper_witness": {
+          "cell": [
+            16,
+            16
+          ],
+          "floor_bottom": 0.2,
+          "foundation_bottom": -1.0,
+          "foundation_id": "base",
+          "part": "main/floor",
+          "position": [
+            -2.0,
+            0.0,
+            -2.0
+          ],
+          "record_id": "floor",
+          "terrain_height": 0.0,
+          "terrain_id": "terrain",
+          "triangle_index": 0
+        }
+      },
+      "label": "actual relief defeats shallow foundation for unsampled 3.0",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "incompatible elevation constraints identify both limiting positions",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "terrain boundary cannot support a partially floating floor",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "overlapping heightfields are not silently combined",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "extra overlapping area cannot cancel a real hole in coverage accounting",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "overhanging eaves do not enlarge floor support domain",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "missing physical foundation is unsupported",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "misaligned foundation cannot support the full floor",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "metadata cannot invent deeper or higher foundations",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "tilted heightfield explicitly unsupported",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "raised furrows explicitly unsupported",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "hidden terrain cannot supply editor collision support",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "terrain with collision disabled cannot supply support",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "locked visible terrain remains valid read-only support",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(10000.0, 7.0, -10000.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 16.0,
+              "covered_area": 16.0,
+              "floor_bottom": 0.2,
+              "foundation_bottom": -1.0,
+              "foundation_id": "base",
+              "missing_area": 0.0,
+              "part": "main/floor",
+              "record_id": "floor",
+              "terrain_range": [
+                7.0,
+                7.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 4096,
+            "cells_visited": 1225,
+            "overlaps": 2048,
+            "solid_skipped": 2871,
+            "terrain_candidates": 1,
+            "triangle_clips": 2432
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            6.8,
+            8.0
+          ],
+          "interval": [
+            6.8,
+            8.0
+          ],
+          "lower_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              9997.1990989336,
+              7.0,
+              -10000.3936409738
+            ],
+            "record_id": "floor",
+            "terrain_height": 7.0,
+            "terrain_id": "translated",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "translated"
+          ],
+          "upper_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              9997.1990989336,
+              7.0,
+              -10000.3936409738
+            ],
+            "record_id": "floor",
+            "terrain_height": 7.0,
+            "terrain_id": "translated",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "world translation and yaw preserve continuous support at (10000.0, 7.0, -10000.0)",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "far rotated hole remains visible to continuous clipping",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(-500.0, 7.0, 320.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 16.0,
+              "covered_area": 16.0,
+              "floor_bottom": 0.2,
+              "foundation_bottom": -1.0,
+              "foundation_id": "base",
+              "missing_area": 0.0,
+              "part": "main/floor",
+              "record_id": "floor",
+              "terrain_range": [
+                7.0,
+                7.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 4096,
+            "cells_visited": 1225,
+            "overlaps": 2048,
+            "solid_skipped": 2871,
+            "terrain_candidates": 1,
+            "triangle_clips": 2312
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            6.8,
+            8.0
+          ],
+          "interval": [
+            6.8,
+            8.0
+          ],
+          "lower_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              -502.0,
+              7.0,
+              322.0
+            ],
+            "record_id": "floor",
+            "terrain_height": 7.0,
+            "terrain_id": "translated",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "translated"
+          ],
+          "upper_witness": {
+            "cell": [
+              16,
+              16
+            ],
+            "floor_bottom": 0.2,
+            "foundation_bottom": -1.0,
+            "foundation_id": "base",
+            "part": "main/floor",
+            "position": [
+              -502.0,
+              7.0,
+              322.0
+            ],
+            "record_id": "floor",
+            "terrain_height": 7.0,
+            "terrain_id": "translated",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "world translation and yaw preserve continuous support at (-500.0, 7.0, 320.0)",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "far rotated hole remains visible to continuous clipping",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "unrelated far terrain leaves deterministic result unchanged",
+      "ok": true
+    },
+    {
+      "detail": {
+        "area": 4.0,
+        "area_tolerance": 0.0000001,
+        "conservative": false,
+        "counts": {
+          "cells_scanned": 320,
+          "cells_visited": 38,
+          "overlaps": 20,
+          "solid_skipped": 282,
+          "terrain_candidates": 2,
+          "triangle_clips": 52
+        },
+        "covered_area": 4.0,
+        "exact": true,
+        "grade_witness": {},
+        "height_range": [
+          0.0,
+          0.300000011920929
+        ],
+        "max_grade": 0.0,
+        "max_seam_step": 0.300000011920929,
+        "ok": true,
+        "scope": "continuous_heightfield_region_only",
+        "seam_witness": {
+          "cells": [
+            [
+              7,
+              3
+            ],
+            [
+              0,
+              6
+            ]
+          ],
+          "heights": [
+            0.0,
+            0.300000011920929
+          ],
+          "position": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "step": 0.300000011920929,
+          "terrain_ids": [
+            "left",
+            "right"
+          ]
+        },
+        "stage": "residential_support",
+        "terrain_ids": [
+          "left",
+          "right"
+        ]
+      },
+      "label": "mixed-grid flat tiles report a real 30 cm boundary step",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "seam diagnostic identifies both terrain owners",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "continuous mixed-grid T junction has no invented step",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "corridor reports analytic plane slope and clipped height extrema",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "corridor uses continuous hole coverage too",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "nonconvex corridor rejects instead of using its convex hull",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "real native townhouse generates for frozen-payload regression",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(0.0, 0.0, 0.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 99.0,
+              "covered_area": 99.0,
+              "floor_bottom": 0.0799999937415123,
+              "foundation_bottom": -1.21999996900558,
+              "foundation_id": "f0_floor_foundation",
+              "missing_area": 0.0,
+              "part": "f0/floor",
+              "record_id": "f0_floor",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 256,
+            "cells_visited": 99,
+            "overlaps": 96,
+            "solid_skipped": 157,
+            "terrain_candidates": 1,
+            "triangle_clips": 128
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            -0.0799999937415123,
+            1.21999996900558
+          ],
+          "interval": [
+            -0.0799999937415123,
+            1.21999996900558
+          ],
+          "lower_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999937415123,
+            "foundation_bottom": -1.21999996900558,
+            "foundation_id": "f0_floor_foundation",
+            "part": "f0/floor",
+            "position": [
+              -4.0,
+              0.0,
+              -5.5
+            ],
+            "record_id": "f0_floor",
+            "terrain_height": 0.0,
+            "terrain_id": "broad",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "broad"
+          ],
+          "upper_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999937415123,
+            "foundation_bottom": -1.21999996900558,
+            "foundation_id": "f0_floor_foundation",
+            "part": "f0/floor",
+            "position": [
+              -4.0,
+              0.0,
+              -5.5
+            ],
+            "record_id": "f0_floor",
+            "terrain_height": 0.0,
+            "terrain_id": "broad",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "actual generated foundation passes continuous solver",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "native bake creates actual frozen collision payload",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(0.0, 0.0, 0.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 99.0,
+              "covered_area": 99.0,
+              "floor_bottom": 0.0799999907612801,
+              "foundation_bottom": -1.22000002861023,
+              "foundation_id": "baked_3/support_triangle_824",
+              "missing_area": 0.0,
+              "part": "main/baked_2",
+              "record_id": "baked_2",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 256,
+            "cells_visited": 99,
+            "overlaps": 96,
+            "solid_skipped": 157,
+            "terrain_candidates": 1,
+            "triangle_clips": 128
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            -0.0799999907612801,
+            1.22000002861023
+          ],
+          "interval": [
+            -0.0799999907612801,
+            1.22000002861023
+          ],
+          "lower_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "baked_3/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              -4.0,
+              0.0,
+              -5.5
+            ],
+            "record_id": "baked_2",
+            "terrain_height": 0.0,
+            "terrain_id": "broad",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "broad"
+          ],
+          "upper_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "baked_3/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              -4.0,
+              0.0,
+              -5.5
+            ],
+            "record_id": "baked_2",
+            "terrain_height": 0.0,
+            "terrain_id": "broad",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "actual frozen floor and merged shell prove physical foundation",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "frozen geometry interval matches native geometry without regeneration",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "frozen analysis preserves exact payload bytes",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(10000.0, 7.0, -10000.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 99.0,
+              "covered_area": 99.0,
+              "floor_bottom": 0.0799999907612801,
+              "foundation_bottom": -1.22000002861023,
+              "foundation_id": "baked_3/support_triangle_824",
+              "missing_area": 0.0,
+              "part": "main/baked_2",
+              "record_id": "baked_2",
+              "terrain_range": [
+                7.0,
+                7.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 256,
+            "cells_visited": 99,
+            "overlaps": 96,
+            "solid_skipped": 157,
+            "terrain_candidates": 1,
+            "triangle_clips": 167
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            6.92000000923872,
+            8.22000002861023
+          ],
+          "interval": [
+            6.92000000923872,
+            8.22000002861023
+          ],
+          "lower_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "baked_3/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              9993.49547533247,
+              7.0,
+              -10001.9852352127
+            ],
+            "record_id": "baked_2",
+            "terrain_height": 7.0,
+            "terrain_id": "far-frozen",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "continuous_ground_floor_foundation_only",
+          "terrain_ids": [
+            "far-frozen"
+          ],
+          "upper_witness": {
+            "cell": [
+              5,
+              4
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "baked_3/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              9993.49547533247,
+              7.0,
+              -10001.9852352127
+            ],
+            "record_id": "baked_2",
+            "terrain_height": 7.0,
+            "terrain_id": "far-frozen",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "frozen collision support survives far placement and yaw",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "validly rehashed open foundation geometry is not a closed support solid",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "changed frozen SHA cannot reuse a previous support proof",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "frozen missing foundation cannot borrow its recipe depth",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "fractional native dimensions retain frozen foundation support",
+      "ok": true
+    }
+  ],
+  "elapsed_ms": 5885.518,
+  "failures": 0,
+  "frozen": {
+    "frozen_count": 34,
+    "result": {
+      "input_version": null,
+      "ok": true,
+      "position": "(0.0, 0.0, 0.0)",
+      "support": {
+        "area_tolerance": 0.0000001,
+        "components": [
+          {
+            "area": 99.0,
+            "covered_area": 99.0,
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "baked_3/support_triangle_824",
+            "missing_area": 0.0,
+            "part": "main/baked_2",
+            "record_id": "baked_2",
+            "terrain_range": [
+              0.0,
+              0.0
+            ]
+          }
+        ],
+        "counts": {
+          "cells_scanned": 256,
+          "cells_visited": 99,
+          "overlaps": 96,
+          "solid_skipped": 157,
+          "terrain_candidates": 1,
+          "triangle_clips": 128
+        },
+        "excluded_landings": [],
+        "geometric_interval": [
+          -0.0799999907612801,
+          1.22000002861023
+        ],
+        "interval": [
+          -0.0799999907612801,
+          1.22000002861023
+        ],
+        "lower_witness": {
+          "cell": [
+            5,
+            4
+          ],
+          "floor_bottom": 0.0799999907612801,
+          "foundation_bottom": -1.22000002861023,
+          "foundation_id": "baked_3/support_triangle_824",
+          "part": "main/baked_2",
+          "position": [
+            -4.0,
+            0.0,
+            -5.5
+          ],
+          "record_id": "baked_2",
+          "terrain_height": 0.0,
+          "terrain_id": "broad",
+          "triangle_index": 0
+        },
+        "requires_native_placement_validation": true,
+        "scope": "continuous_ground_floor_foundation_only",
+        "terrain_ids": [
+          "broad"
+        ],
+        "upper_witness": {
+          "cell": [
+            5,
+            4
+          ],
+          "floor_bottom": 0.0799999907612801,
+          "foundation_bottom": -1.22000002861023,
+          "foundation_id": "baked_3/support_triangle_824",
+          "part": "main/baked_2",
+          "position": [
+            -4.0,
+            0.0,
+            -5.5
+          ],
+          "record_id": "baked_2",
+          "terrain_height": 0.0,
+          "terrain_id": "broad",
+          "triangle_index": 0
+        }
+      }
+    },
+    "source_count": 604
+  },
+  "scope": "headless CPU geometry; no gameplay, GPU, UI or HTTP acceptance"
+}

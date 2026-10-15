@@ -18,6 +18,16 @@ const MAX_CANDIDATES=157
 var editor:Node3D
 var _candidate:Dictionary={}
 var _publishing:=false
+## Opt-in diagnostics for controlled editor benchmarks. Never authoring state.
+var profile_enabled:=false
+var last_profile:Dictionary={}
+
+func _profile_start()->int:
+	return Time.get_ticks_usec() if profile_enabled else 0
+
+func _profile_end(stage:String,started:int)->void:
+	if profile_enabled:
+		last_profile.stages_ms[stage]=float(last_profile.stages_ms.get(stage,0.))+(Time.get_ticks_usec()-started)/1000.
 
 class PreparationContext extends Node3D:
 	var _doc
@@ -51,6 +61,8 @@ func preview_visual(token:String)->Array:
 	return _candidate.visual.duplicate(true)
 
 func preview(args:Dictionary)->Dictionary:
+	last_profile={"cached":false,"stages_ms":{}} if profile_enabled else {}
+	var phase:=_profile_start()
 	var ready:Dictionary=editor._gameplay.guard()
 	if not ready.ok:return ready
 	if _publishing:return fail("busy","正在发布住宅候选")
@@ -66,7 +78,10 @@ func preview(args:Dictionary)->Dictionary:
 	var base_version:=_version()
 	var request_id:=Data.token(p)
 	if not _candidate.is_empty() and _candidate.request_id==request_id and _candidate.summary.base_version==base_version and _candidate.summary.source_sha256==source_sha and _dependencies_current(_candidate.dependencies):
+		_profile_end("lookup_identity",phase)
+		if profile_enabled:last_profile.cached=true
 		return _candidate.summary.duplicate(true)
+	_profile_end("lookup_identity",phase);phase=_profile_start()
 	_candidate={}
 	var started:=Time.get_ticks_usec()
 	var loaded:=Prefabs.read(entry)
@@ -86,7 +101,9 @@ func preview(args:Dictionary)->Dictionary:
 	if not road_check.ok:return road_check
 	var local:=_oriented(loaded,float(p.yaw))
 	var input:=Data.vec(p.position)
+	_profile_end("source_and_target",phase);phase=_profile_start()
 	var solved:=Support.solve(editor._doc,loaded.records,input,float(p.yaw),instance.parameters,{"min_y":input.y+p.elevation_min,"max_y":input.y+p.elevation_max,"input_version":base_version})
+	_profile_end("support",phase);phase=_profile_start()
 	if not solved.ok:return solved
 	var position:Vector3=solved.position
 	var initial_records:=_translated(local.records,position)
@@ -98,6 +115,7 @@ func preview(args:Dictionary)->Dictionary:
 	if maximum_y<float(solved.support.interval[0]):return fail("entrance_height_interval","基础承托与真实入口台阶没有共同可行标高").merged({"support_interval":solved.support.interval,"maximum_entrance_y":maximum_y,"position":Data.xyz(initial_entry.position)})
 	position.y=minf(position.y,maximum_y)
 	solved.support.entrance_maximum_y=maximum_y
+	_profile_end("entrance_elevation",phase);phase=_profile_start()
 	var before:Dictionary=editor._doc.recovery_snapshot()
 	var staged=Doc.new();staged.apply_recovery(before)
 	var placed:=Prefabs.place_buildings(staged,local,position,str(entry.get("label","住宅")))
@@ -107,6 +125,7 @@ func preview(args:Dictionary)->Dictionary:
 	for r:Dictionary in house_records:
 		if not editor._authoring.Settings.contains(r,editor._authoring.settings):return fail("protected_scope","住宅落在当前隔离楼层外")
 	var entry_info:=Access.entrance(house_records,float(instance.yaw)+float(p.yaw))
+	_profile_end("native_house_placement",phase);phase=_profile_start()
 	if not entry_info.ok:return entry_info
 	var context:=PreparationContext.new();context.source=editor;context._doc=staged;context._authoring=editor._authoring;context._material_tool=editor._material_tool
 	var roads:=Roads.new();roads.editor=context
@@ -114,17 +133,23 @@ func preview(args:Dictionary)->Dictionary:
 	var full_graph_checks:=0
 	var occupancy:=Foot.components(house_records,Vector3.ZERO,Basis.IDENTITY)
 	var count:=mini(MAX_CANDIDATES,ceili((p.setback_max-p.setback_min)/STEP)+1)
+	_profile_end("search_setup",phase)
 	for i in count:
+		phase=_profile_start()
 		var setback:float=minf(p.setback_max,p.setback_min+i*STEP)
 		attempts+=1
 		linked=_connect(data,road_check,entry_info,setback,p.width,request_id.left(14))
+		_profile_end("connect",phase);phase=_profile_start()
 		if not linked.ok:last=linked;continue
 		var quick:=_connector_clearance(linked,data.road_surface.settings,occupancy,editor._doc.map_meta)
+		_profile_end("quick_clearance",phase);phase=_profile_start()
 		if not quick.ok:last=quick;prepared={};continue
 		var connector_ground:=_connector_ground(staged,linked,p.width)
+		_profile_end("connector_ground",phase);phase=_profile_start()
 		if not connector_ground.ok:last=connector_ground;prepared={};continue
 		full_graph_checks+=1
 		prepared=roads.prepare({},linked.data)
+		_profile_end("full_road",phase);phase=_profile_start()
 		if not prepared.ok:last=prepared;continue
 		# JSON reload produces float zero rotations where the generator uses int
 		# zero. Preserve equal authored records verbatim; do not dirty distant
@@ -134,9 +159,12 @@ func preview(args:Dictionary)->Dictionary:
 			var previous:Dictionary=staged._find(record.uuid)
 			if _same(record,previous):prepared.records[record_index]=previous.duplicate(true)
 		if Data.token(prepared.graph)!=Data.token(linked.data.roads):last=fail("scope_conflict","完整路网检查还需要拆分其他道路，请先处理道路交叉");continue
+		_profile_end("preserve_records",phase);phase=_profile_start()
 		var extra:=_candidate_clearance(prepared,staged,occupancy)
+		_profile_end("candidate_clearance",phase);phase=_profile_start()
 		if not extra.ok:last=extra;prepared={};continue
 		access=Access.check(staged,house_records,entry_info,Data.vec(linked.points[0]),p.width)
+		_profile_end("entrance_access",phase)
 		if not access.ok:last=access;continue
 		access.connector_ground=connector_ground
 		break
@@ -144,12 +172,14 @@ func preview(args:Dictionary)->Dictionary:
 	if prepared.is_empty() or not prepared.get("ok",false) or not access.get("ok",false) or not linked.get("ok",false) or Data.token(prepared.get("graph",{}))!=Data.token(linked.get("data",{}).get("roads",{})):
 		return fail("search_exhausted","允许退距内未找到通过全部检查的候选；可调整位置或范围后重试").merged({"attempts":attempts,"last_failure":last,"position":Data.xyz(position),"search_complete":false})
 	# Road generation is pure until here. Preserve every untouched record verbatim.
+	phase=_profile_start()
 	staged.records=staged.records.filter(func(r):return not prepared.excluded.has(r.uuid))
 	staged.records.append_array(prepared.records)
 	linked.data.roads=prepared.graph;linked.data.road_surface=prepared.manifest;staged.map_meta.editor_layout=linked.data
 	dependency_issue=_dependencies(prepared.records,dependencies)
 	if not dependency_issue.is_empty():return fail("resource_missing",dependency_issue,"resource")
 	if staged.validate_save()!=OK:return fail("candidate_invalid","组合候选未通过原生保存校验","save_validation")
+	_profile_end("final_validation",phase);phase=_profile_start()
 	var changed:Array[String]=[];var visual:Array=[];var old:Dictionary={}
 	for r:Dictionary in before.records:old[r.uuid]=r
 	for r:Dictionary in staged.records:
@@ -166,8 +196,12 @@ func preview(args:Dictionary)->Dictionary:
 	var bounds:=Geometry.bounds(house_records)
 	var token:=Crypto.new().generate_random_bytes(24).hex_encode()
 	var summary:Dictionary={"ok":true,"plan_token":token,"source_sha256":source_sha,"base_version":base_version,"position":Data.xyz(position),"adjustment":Data.xyz(position-input),"road_points":linked.points,"setback":linked.setback,"width":p.width,"building_id":house_records[0].building.id,"building_ids":[house_records[0].building.id],"house_ids":placed.ids,"changed_ids":changed,"support":solved.support,"access":access,"bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"checks":{"continuous_support":true,"native_house_geometry":true,"full_road_graph":true,"entrance_corridor":true,"native_save":true,"runtime_traversal":"requires_runtime_verification"},"search":{"attempts":attempts,"full_graph_checks":full_graph_checks,"budget":count,"step":STEP,"prepare_ms":(Time.get_ticks_usec()-started)/1000.}}
-	if base_version!=_version() or not _dependencies_current(dependencies):return fail("base_changed","输入或资源已变化，请重新预览")
+	_profile_end("result",phase);phase=_profile_start()
+	var current:=base_version==_version() and _dependencies_current(dependencies)
+	_profile_end("final_identity",phase);phase=_profile_start()
+	if not current:return fail("base_changed","输入或资源已变化，请重新预览")
 	_candidate={"summary":summary,"request_id":request_id,"dependencies":dependencies,"after":staged.recovery_snapshot(),"visual":visual}
+	_profile_end("candidate_snapshot",phase)
 	return summary.duplicate(true)
 
 func apply(args:Dictionary)->Dictionary:

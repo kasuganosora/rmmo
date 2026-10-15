@@ -1,0 +1,7 @@
+{
+  "source": "scripts/world_editor/residential_support.gd",
+  "source_sha256": "d972d9f7168b7855269f71443c0f1ff0f0152ac7b34b76b02ccd920eef1d5b01",
+  "commit": "391d478",
+  "snapshot_utc": "2026-10-15T14:15:58.5733613Z",
+  "scope": "Exact immutable reference before T1 local cell construction optimization; no geometry tolerance changes"
+}

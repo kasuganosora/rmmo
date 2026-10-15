@@ -341,6 +341,30 @@ static func terrain_point(record: Dictionary, point: Vector3, origin: Vector3) -
 		float(record.position[2]) - float(origin.z) - sin(angle) * point.x + cos(angle) * point.z]
 
 
+static func cell_window(terrain: Dictionary, polygon: Array, origin: Vector3) -> Array:
+	var columns := int(terrain.terrain_mesh.columns); var rows := int(terrain.terrain_mesh.rows)
+	var angle := deg_to_rad(float(terrain.rotation[1])); var c := cos(angle); var s := sin(angle)
+	var offset_x := float(terrain.position[0]) - float(origin.x)
+	var offset_z := float(terrain.position[2]) - float(origin.z)
+	var low_x := INF; var low_z := INF; var high_x := -INF; var high_z := -INF
+	for point: Array in polygon:
+		# Invert the existing scalar-double, placement-relative transform. Do not
+		# add a far world origin through a float32 Vector2/Transform3D first.
+		var dx: float = point[0] - offset_x; var dz: float = point[1] - offset_z
+		var x: float = ((c * dx - s * dz) / float(terrain.size[0]) + 0.5) * columns
+		var z: float = ((s * dx + c * dz) / float(terrain.size[2]) + 0.5) * rows
+		if not is_finite(x) or not is_finite(z):
+			return [0, 0, columns - 1, rows - 1]
+		low_x = minf(low_x, x); low_z = minf(low_z, z)
+		high_x = maxf(high_x, x); high_z = maxf(high_z, z)
+	# This is only a conservative construction window. The extra cell keeps
+	# grid-edge rounding inside the original exact triangle clipping path.
+	return [int(clampf(floorf(low_x) - 1.0, 0.0, columns - 1.0)),
+		int(clampf(floorf(low_z) - 1.0, 0.0, rows - 1.0)),
+		int(clampf(ceilf(high_x) + 1.0, 0.0, columns - 1.0)),
+		int(clampf(ceilf(high_z) + 1.0, 0.0, rows - 1.0))]
+
+
 static func height_at(corners: Array, point: Array) -> float:
 	var a: Array = corners[0]; var b: Array = corners[1]; var c: Array = corners[2]
 	var bx: float = b[0] - a[0]; var bz: float = b[2] - a[2]
@@ -466,13 +490,22 @@ static func region(doc, component: Dictionary, position: Vector3, counts: Dictio
 		# thousands of needless slivers even on a flat intact tile. Heights below
 		# are still proved on every actual clipped native triangle.
 		var terrain_coverage: Array = [intersection(component.polygon, terrain_polygon)]
+		var window := cell_window(terrain, component.polygon, position)
 		for z in int(t.rows):
 			for x in int(t.columns):
+				counts.cells_scanned = int(counts.get("cells_scanned", 0)) + 1
+				var solid := Terrain.solid(t, x, z)
+				if solid and (x < window[0] or z < window[1] or x > window[2] or z > window[3]):
+					counts.solid_skipped = int(counts.get("solid_skipped", 0)) + 1
+					continue
+				# Keep every hole and the original row-major order: even a distant
+				# subtraction can change fragments, diagnostics and budget failures.
+				# cells_visited continues to count actual cell construction.
 				counts.cells_visited += 1
 				var cell: Array = []
 				for point: Vector3 in Terrain.cell(terrain, x, z):
 					cell.append(terrain_point(terrain, point, position))
-				if not Terrain.solid(t, x, z):
+				if not solid:
 					var hole: Array = cell.map(func(p): return [p[0], p[2]])
 					var rest: Array = []
 					for fragment: Array in terrain_coverage:
@@ -493,7 +526,7 @@ static func region(doc, component: Dictionary, position: Vector3, counts: Dictio
 					if overlap_area <= 1e-12:
 						continue
 					last_witness = witness(component, terrain, x, z, triangle_index, overlap[0], height_at(corners, overlap[0]), position)
-					if not Terrain.solid(t, x, z):
+					if not solid:
 						hole_witness = last_witness
 						continue
 					counts.overlaps += 1

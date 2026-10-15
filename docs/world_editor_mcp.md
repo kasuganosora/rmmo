@@ -271,7 +271,7 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 
 ### 冻结住宅与入户路候选
 
-2026-10-15 首个限定住宅闭环已在隔离分支通过功能验收：带原生路缘的真实控件／HTTP 回归 **127 项通过、0 失败**，同一保存结果的玩家室外道路与入口往返 **21 项通过、0 失败**。不代表 E1/E2 整包完成、分支合并或正式场景接入。
+2026-10-15 首个限定住宅闭环已在隔离分支通过功能验收，并提交为 `391d47818be733ffc0eca11af816a5a9ddff11e0`：带原生路缘的真实控件／HTTP 回归 **127 项通过、0 失败**，同一保存结果的玩家室外道路与入口往返 **21 项通过、0 失败**。`codex/editor-reliability` 尚未合并或推送，不代表 E1/E2 整包完成或正式场景接入。原功能证据在该提交前捕获，未提交状态字段保留历史原样。
 
 建筑页「冻结住宅与入户路」与以下三个工具共用 `residential_placement_tools.gd`。只支持一个冻结 `townhouse/hall` 住宅、可确认的首层入口和已有普通直线 `ground` 道路；整张路网须已有沿地形铺面且没有桥梁绑定。不移动邻物、不改变地形；普通手动布置规则不因此增加美术间距禁令。普通高度场、未知入口等具体支持边界及参数范围见 [建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
 
@@ -288,6 +288,8 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 [当前 HTTP／UI 证据](../review_artifacts/editor_reliability/http_kerbs.json)覆盖工具发现、合法／非法调用、放弃与过期 token、源变化及失败无副作用；实际控件与 HTTP 同输入同结果，34 个住宅构件和道路一次发布／撤销／重做，范围外加载记录字节不变。带路缘的道路在生成、应用、保存重开后保有实际几何和材质，并验证编辑器合批及独立语义。回归脚本的 `--kerbs` 为测试模式参数，不是新增 MCP 参数；普通模式保留。共享几何另有承托 52/0、入口 47/0、连接段 14/0，具体报告与支持边界见[建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
 
 [对应运行时证据](../review_artifacts/editor_reliability/runtime_kerbs.json)验证真实角色往返、生产建筑就绪门控、34 个构件身份和实际运行时合批，限同一临时图的室外接路与入口。首次退出的一个 ObjectDB 警告在[同源码 verbose 复跑](../review_artifacts/editor_reliability/iterations/runtime_verbose.json)中未复现，复跑 21/0 且清理检查通过；保留观察，不宣称已根治。版本与资源身份见[统一证据](../review_artifacts/editor_reliability/evidence.json)。接口的 `requires_runtime_verification` 仍适用于每个新预览，样例通过不会把任意候选自动标为物理跑图通过。
+
+2026-10-15 后续共享服务优化：住宅承托仅减少范围外实心格的几何构造，完整地形校验、洞格、精确裁切、原失败条件及三项工具的请求／返回合同保持。`profile_enabled/last_profile` 为默认关闭的内部诊断，不是 MCP 参数，也不写入地图。固定 64×64 夹具直接调用共享服务的重复准备中位数 **3181.736→1788.146 ms**（关闭探针，各 2 次，约 −43.8%）；不含 HTTP 延迟，不推广为城镇或全部 UI 提速。优化后[真实 UI／HTTP 复验](../review_artifacts/editor_reliability/t1_validation/http_kerbs.json) **127/0**，共享几何与仅排除计数的严格差分通过。A/B、原始计数、归一化摘要的身份限制及剩余工作见[统一计划](seamless_streaming_optimization_plan_20261014.md#w0-e-住宅候选基线与-t1-首个热点切片2026-10-15)；本轮不增加工具、不启用二维入口。
 
 XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基础物件为尺寸，对导入模型为三轴缩放倍率。精确数值操作不套用吸附。`transform_selection` 是世界轴增量，绕共同中心旋转/等比缩放，一次调用对应一次撤销。界面与 MCP 共用变换、分组、选择、自动瓦片和预制件业务逻辑。
 

@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "status": "passed_fixed_fixture_before_after_comparison",
+  "base_commit": "391d47818be733ffc0eca11af816a5a9ddff11e0",
+  "report_sha256": {
+    "before.json": "d87a736a6942f2afd8a5f3b485b87c79304a19bdf048dc64e6305b9bd0dc9fb4",
+    "after.json": "d35d48c066ee1dab8d27183455722c3838d7a4935da60fd34cf4e5fec50d0fd1"
+  },
+  "assertions": {
+    "same_fixture_source_input_engine_viewport_settings": [
+      "grid",
+      "terrain_cells",
+      "records",
+      "fixture",
+      "fixture_map_sha256",
+      "source_sha256",
+      "input_state_sha256",
+      "engine_executable",
+      "engine_executable_sha256",
+      "viewport",
+      "road_settings"
+    ],
+    "only_changed_measured_script": [
+      "res://scripts/world_editor/residential_support.gd"
+    ],
+    "same_sample_labels_cache_modes_outcomes_search_work": true,
+    "same_normalized_geometry_summary_all_12_samples": true,
+    "same_reported_clips_and_overlaps": true
+  },
+  "groups": {
+    "cache_hit": {
+      "before": {
+        "median_wall_ms": 54.562,
+        "n": 1,
+        "raw_wall_ms": [
+          54.562
+        ]
+      },
+      "after": {
+        "median_wall_ms": 55.74,
+        "n": 1,
+        "raw_wall_ms": [
+          55.74
+        ]
+      },
+      "median_delta_ms": 1.1780000000000044,
+      "median_reduction_percent": -2.1590117664308517
+    },
+    "first_prepare": {
+      "before": {
+        "median_wall_ms": 3249.262,
+        "n": 1,
+        "raw_wall_ms": [
+          3249.262
+        ]
+      },
+      "after": {
+        "median_wall_ms": 1767.317,
+        "n": 1,
+        "raw_wall_ms": [
+          1767.317
+        ]
+      },
+      "median_delta_ms": -1481.9450000000002,
+      "median_reduction_percent": 45.608664367477914
+    },
+    "warm_profiled_prepare": {
+      "before": {
+        "median_wall_ms": 3072.1515,
+        "n": 2,
+        "raw_wall_ms": [
+          3066.632,
+          3077.671
+        ]
+      },
+      "after": {
+        "median_wall_ms": 1790.056,
+        "n": 2,
+        "raw_wall_ms": [
+          1671.749,
+          1908.363
+        ]
+      },
+      "median_delta_ms": -1282.0955,
+      "median_reduction_percent": 41.732821444515345
+    },
+    "warm_unprofiled_prepare": {
+      "before": {
+        "median_wall_ms": 3181.7355,
+        "n": 2,
+        "raw_wall_ms": [
+          3216.435,
+          3147.036
+        ]
+      },
+      "after": {
+        "median_wall_ms": 1788.1455,
+        "n": 2,
+        "raw_wall_ms": [
+          1863.644,
+          1712.647
+        ]
+      },
+      "median_delta_ms": -1393.5899999999997,
+      "median_reduction_percent": 43.799681023139726
+    }
+  },
+  "warm_profiled_stage_medians": {
+    "candidate_clearance": {
+      "before_ms": 40.3585,
+      "after_ms": 46.485
+    },
+    "candidate_snapshot": {
+      "before_ms": 2.5345,
+      "after_ms": 3.701
+    },
+    "connect": {
+      "before_ms": 9.054,
+      "after_ms": 11.6775
+    },
+    "connector_ground": {
+      "before_ms": 95.303,
+      "after_ms": 14.069
+    },
+    "entrance_access": {
+      "before_ms": 1340.4940000000001,
+      "after_ms": 169.03449999999998
+    },
+    "entrance_elevation": {
+      "before_ms": 96.068,
+      "after_ms": 12.447
+    },
+    "final_identity": {
+      "before_ms": 50.3215,
+      "after_ms": 61.6035
+    },
+    "final_validation": {
+      "before_ms": 142.488,
+      "after_ms": 152.2815
+    },
+    "full_road": {
+      "before_ms": 848.2065,
+      "after_ms": 913.462
+    },
+    "lookup_identity": {
+      "before_ms": 13.068,
+      "after_ms": 9.7635
+    },
+    "native_house_placement": {
+      "before_ms": 56.428,
+      "after_ms": 62.6745
+    },
+    "preserve_records": {
+      "before_ms": 6.375500000000001,
+      "after_ms": 7.4350000000000005
+    },
+    "quick_clearance": {
+      "before_ms": 91.191,
+      "after_ms": 109.9955
+    },
+    "result": {
+      "before_ms": 9.805,
+      "after_ms": 12.834
+    },
+    "search_setup": {
+      "before_ms": 0.7889999999999999,
+      "after_ms": 0.7645
+    },
+    "source_and_target": {
+      "before_ms": 133.5245,
+      "after_ms": 143.185
+    },
+    "support": {
+      "before_ms": 132.9785,
+      "after_ms": 54.577
+    }
+  },
+  "selected_terrain_stage_sums": {
+    "before": {
+      "median_stage_sum_ms": 1664.8435,
+      "median_fraction_of_whole_call": 0.5419161952167755
+    },
+    "after": {
+      "median_stage_sum_ms": 250.1275,
+      "median_fraction_of_whole_call": 0.14025541669052233
+    }
+  },
+  "work_counts": {
+    "before": {
+      "access.connector_ground.counts": {
+        "cells_visited": 4096,
+        "overlaps": 89,
+        "terrain_candidates": 1,
+        "triangle_clips": 90
+      },
+      "support.counts": {
+        "cells_visited": 4096,
+        "overlaps": 606,
+        "terrain_candidates": 1,
+        "triangle_clips": 608
+      }
+    },
+    "after": {
+      "access.connector_ground.counts": {
+        "cells_scanned": 4096,
+        "cells_visited": 108,
+        "overlaps": 89,
+        "solid_skipped": 3988,
+        "terrain_candidates": 1,
+        "triangle_clips": 90
+      },
+      "support.counts": {
+        "cells_scanned": 4096,
+        "cells_visited": 418,
+        "overlaps": 606,
+        "solid_skipped": 3678,
+        "terrain_candidates": 1,
+        "triangle_clips": 608
+      }
+    }
+  },
+  "ui_single_samples": {
+    "before": {
+      "button_service_profile": {
+        "cached": true,
+        "stages_ms": {
+          "lookup_identity": 53.803
+        }
+      },
+      "first_show_render_wait_ms": 46.678,
+      "first_show_visual_cpu_ms": 386.018,
+      "method": "separate payload copy and first ghost construction; full UI button callback is then measured warm and includes its cached service call; render waits are measured after CPU return",
+      "preview_visual_copy_ms": 1.297,
+      "records": 35,
+      "warm_button_render_wait_ms": 50.321,
+      "warm_cached_button_callback_ms": 85.564
+    },
+    "after": {
+      "button_service_profile": {
+        "cached": true,
+        "stages_ms": {
+          "lookup_identity": 70.015
+        }
+      },
+      "first_show_render_wait_ms": 70.108,
+      "first_show_visual_cpu_ms": 389.918,
+      "method": "separate payload copy and first ghost construction; full UI button callback is then measured warm and includes its cached service call; render waits are measured after CPU return",
+      "preview_visual_copy_ms": 1.376,
+      "records": 35,
+      "warm_button_render_wait_ms": 66.844,
+      "warm_cached_button_callback_ms": 105.372
+    }
+  },
+  "apply_single_samples": {
+    "before": {
+      "callback_to_ready_ms": 395.546,
+      "callback_wall_ms": 205.2,
+      "method": "actual UI apply callback plus separate wait for all house editor nodes/picking bodies, pending batch count zero, two physics frames and a rendered frame; picking bodies include collision:none decorations and are not gameplay collision proof or real-character traversal",
+      "publication_wait_ms": 190.346,
+      "ready": {
+        "batch_stats": {
+          "base_work_budget_usec": 2000,
+          "building_mesh_hits": 0,
+          "enabled": true,
+          "groups": 1,
+          "instanced_groups": 0,
+          "last_build_ms": 10.033,
+          "last_commit_ms": 0.676,
+          "last_sync_ms": 2.633,
+          "loading_budget_scopes": 0,
+          "max_build_ms": 10.033,
+          "max_commit_ms": 0.676,
+          "pending_groups": 0,
+          "rebuild_count": 1,
+          "release_groups_visited": 0,
+          "render_surfaces": 2,
+          "render_vertices": 11844,
+          "source_objects": 3,
+          "source_surfaces": 12,
+          "source_vertices": 11844,
+          "sync_count": 5,
+          "sync_profile_us": {
+            "capture_us": 36,
+            "geometry_us": 0,
+            "material_us": 2006
+          },
+          "work_budget_usec": 2000
+        },
+        "draw_frame": 18,
+        "ok": true,
+        "physics_frame": 65,
+        "wait_ms": 190.346
+      }
+    },
+    "after": {
+      "callback_to_ready_ms": 354.128,
+      "callback_wall_ms": 214.201,
+      "method": "actual UI apply callback plus separate wait for all house editor nodes/picking bodies, pending batch count zero, two physics frames and a rendered frame; picking bodies include collision:none decorations and are not gameplay collision proof or real-character traversal",
+      "publication_wait_ms": 139.927,
+      "ready": {
+        "batch_stats": {
+          "base_work_budget_usec": 2000,
+          "building_mesh_hits": 0,
+          "enabled": true,
+          "groups": 1,
+          "instanced_groups": 0,
+          "last_build_ms": 7.905,
+          "last_commit_ms": 0.776,
+          "last_sync_ms": 1.984,
+          "loading_budget_scopes": 0,
+          "max_build_ms": 7.905,
+          "max_commit_ms": 0.776,
+          "pending_groups": 0,
+          "rebuild_count": 1,
+          "release_groups_visited": 0,
+          "render_surfaces": 2,
+          "render_vertices": 11844,
+          "source_objects": 3,
+          "source_surfaces": 12,
+          "source_vertices": 11844,
+          "sync_count": 5,
+          "sync_profile_us": {
+            "capture_us": 25,
+            "geometry_us": 0,
+            "material_us": 1453
+          },
+          "work_budget_usec": 2000
+        },
+        "draw_frame": 14,
+        "ok": true,
+        "physics_frame": 64,
+        "wait_ms": 139.927
+      }
+    }
+  },
+  "limits": [
+    "Two warm samples per probe state per build; raw samples and medians only, no P95/P99 or statistical significance claim.",
+    "Primary latency comparison uses whole-call unprofiled warm recomputations; profiled stages are attribution only and exclude some early exits and cleanup.",
+    "ON/OFF sample order and run noise prevent interpreting their difference as exact probe overhead.",
+    "Input and geometry SHA normalize numeric values and exclude IDs, tokens, search/timing and counts; these summaries alone do not prove complete candidate payload or identity equality. Strict solver differential and real UI/HTTP regression provide separate correctness coverage.",
+    "Reported work counts cover returned support and connector-ground results, not all repeated entrance terrain calls. Whole-grid validation and hole scanning remain linear.",
+    "UI, render waits, cache hit and apply-to-editor-readiness each have one sample; no improvement claim. Editor picking-body readiness is not gameplay traversal.",
+    "Fixed 40m 64x64 solid terrain plus distant sentinel road and one frozen residential source; no whole-town, terrain-brush, RSS/VRAM or unrelated runtime optimization claim."
+  ]
+}
