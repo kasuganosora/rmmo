@@ -9,13 +9,17 @@ class Registry extends RefCounted:
 class PaintHost extends Node3D:
 	var _view:Node3D
 	var _buildings:Registry=Registry.new()
+func publish_index(value:Dictionary)->void:
+	var target:=OUT+"/house_templates.json";var temporary:=target+".authoring.tmp"
+	var file:=FileAccess.open(temporary,FileAccess.WRITE);file.store_string(JSON.stringify(value,"\t"));file.close()
+	check(DirAccess.rename_absolute(temporary,target)==OK,"atomic template index publication")
 func run()->void:
 	DirAccess.make_dir_recursive_absolute(OUT+"/templates")
 	var inventory:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(OUT+"/source_house_inventory.json"))
 	var low:Dictionary=inventory.families.filter(func(r):return r.id=="building_083c47c0d96f3497f32d")[0].duplicate(true)
 	low.id="s2_low_gable";low.parameters.roof_axis="depth";inventory.families.append(low)
 	var stone:Dictionary=inventory.families.filter(func(r):return r.id=="building_34340ded1777777e6628")[0].duplicate(true)
-	stone.id="s1_narrow_stone";stone.exterior_material="pack:default:walls/stone_tiles_facade/material";inventory.families.append(stone)
+	stone.id="s1_narrow_stone";stone.exterior_material="pack:default:walls/lime_plaster/material";inventory.families.append(stone)
 	var selected:=""
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):selected=arg.trim_prefix("--only=")
@@ -37,6 +41,9 @@ func run()->void:
 		var plan:Dictionary=Blueprint.generate(parameters)
 		check(plan.ok,"house blueprint "+id)
 		if not plan.ok:quit(1);return
+		# Register the generator's canonical complete parameters. Special recipes
+		# are sparse inputs; persisting them directly fails native metadata save.
+		parameters=plan.parameters.duplicate(true)
 		var local:Array=plan.records
 		for i in local.size():local[i].uuid="template_%d"%i;local[i].building.id=id
 		var paintdoc=Doc.new();paintdoc.records=local
@@ -69,11 +76,13 @@ func run()->void:
 			value.parts[r.building.part]=r.uuid;value.signatures[r.building.part]=Blueprint.geometry_signature(r)
 		var loaded:Dictionary={"records":frozen.records,"building_instances":{id:value}}
 		check(Blueprint.valid_ownership({"building_instances":loaded.building_instances},loaded.records),"ownership "+id)
+		check(Blueprint.valid_meta({"building_instances":loaded.building_instances}),"saveable complete building metadata "+id)
+		if failed:quit(1);return
 		var bounds:AABB=Footprint.local_bounds(frozen.records)
 		var row:Dictionary={"id":id,"source_id":id,"parameters":parameters,"loaded_path":OUT+"/templates/"+id+".json","entrance":plan.entrance,"door_threshold":[float(plan.entrance[0]),float(parameters.base_height),-float(parameters.depth)/2],"bounds":{"position":Blueprint.arr(bounds.position),"size":Blueprint.arr(bounds.size)},"foundation_min_y":bounds.position.y,"source_parts":local.size(),"frozen_parts":frozen.records.size(),"review":{"resource":"pending","visual":"pending","pipeline":"ownership_passed","formal_integration":"pending"}}
 		FileAccess.open(row.loaded_path,FileAccess.WRITE).store_string(JSON.stringify(loaded))
 		row.sha256=FileAccess.get_sha256(row.loaded_path);results.append(row)
-		FileAccess.open(OUT+"/house_templates.json",FileAccess.WRITE).store_string(JSON.stringify({"complete":false,"templates":results,"failures":failed},"\t"))
+		if selected.is_empty():publish_index({"complete":false,"templates":results,"failures":failed})
 		print("HOUSE_TEMPLATE_READY ",id," ",frozen.records.size());await process_frame
-	FileAccess.open(OUT+"/house_templates.json",FileAccess.WRITE).store_string(JSON.stringify({"complete":true,"templates":results,"failures":failed,"materials":definitions},"\t"))
+	publish_index({"complete":true,"templates":results,"failures":failed,"materials":definitions})
 	editor.free();quit(failed)

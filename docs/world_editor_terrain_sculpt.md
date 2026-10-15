@@ -110,3 +110,11 @@ RX 7900 XTX、Forward+、独立后台测试视口，45 帧预热、80 帧采样�
 地形雕刻 → 整平可选择“矩形宅基（平滑边缘）”。`shape=rectangle` 与原 `preview_terrain_stroke` / `sculpt_terrain` 共用业务；指定单个世界 XZ 中心、`plot_width` / `plot_depth`、与建筑一致的 `plot_yaw`、`target_height`、`blend_margin`。矩形内平整，外侧用 smoothstep 柔和回到原地形；矩形强度是 0.01–1 的混合比例，1 一次完成。旧圆形笔刷含义不变。
 
 跨块边界、锁定/隐藏、保留区、实体保护、道路自动贴地和坡度限制继续有效；道路无法通行时整笔拒绝，不能用整平绕过。修改触发原生局部渲染批次和派生缓存，撤销、保存仍为同一事务。仅为确有需要的宅基使用，不将整片街区抹平。真实 HTTP 发现/合法非法/无副作用失败/撤销重做/原生保存重开见 `tools/test_terrain_house_plots.gd`；旋转和混合格距坐标检查见 `tools/test_terrain_house_plot_coordinates.gd`。
+
+## 普通物件的地面接触保护（2026-10-15）
+
+原雕刻保护将变化格子的高度包络向下扩大 15 mm、向上扩大 150 mm，适合作粗筛，但会把原已埋土约 12 mm 的草根在地面仅下降 0.842 mm 时误判为失去承托。现在 [terrain_tools.gd](../scripts/world_editor/terrain_tools.gd) 保留原粗筛，再由 [terrain_prop_contact.gd](../scripts/world_editor/terrain_prop_contact.gd) 对普通 `box/asset` 的已知原生包围盒作接触细查。
+
+承托面是按完整位置、旋转、非均匀缩放变换后的局部 −Y 底面，不使用世界 AABB 最低点或单个中心采样。底面及其他朝下侧面与实际旧/新地形三角求交，包含原接触阈值穿越点；已有根部埋入可以变浅，新增埋入、真实承托丢失和洞口仍拒绝。草根侧面与土面相交线后退不视为失去底面承托。沿用 5 mm 接触容差，计算舍入只取 10 µm；连续小笔仍受绝对接触高度约束。复杂生成结构、坡台、起垄及没有可确认朝下底面的侧躺/倒置模型继续保守拒绝，不新增忽略碰撞的参数。
+
+可见、隐藏和锁定物件均参与同一检查；地形自身的锁定/隐藏与保留区保护不变。UI 笔刷、预览和当前 3D `sculpt_terrain` 共用业务，无新工具/schema。临时地图 [test_terrain_prop_contact_http.gd](../tools/test_terrain_prop_contact_http.gd) 实际 headless/loopback HTTP **57 项通过，0 失败**：真实草资源的微量降土、混合分辨率跨缝、旋转/缩放、倾斜箱体非中心接触、下降/增埋/洞口拒绝、锁定/隐藏区别、连续小笔、失败原子性、撤销重做和原生保存重开。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_prop_contact_http.log`。本项只证明编辑器保护逻辑，不代表住宅候选已接入正式地图。

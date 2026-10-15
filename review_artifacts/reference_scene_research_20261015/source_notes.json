@@ -1,0 +1,95 @@
+{
+  "purpose": "Primary sources used for scene-editor reliability research; no claim that Cities Skylines uses these internal algorithms.",
+  "sources": [
+    {
+      "title": "Shewchuk robust predicates",
+      "url": "https://www.cs.cmu.edu/~quake/robust.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Adaptive orientation/incircle predicates; robust signs do not guarantee robust constructions or recover quantized inputs."
+    },
+    {
+      "title": "Clipper2 Robustness",
+      "url": "https://www.angusj.com/clipper2/Docs/Robustness.htm",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Integer scaling has quantization; tiny edges and near-zero areas need explicit dimensional policy, not a blanket tolerance increase."
+    },
+    {
+      "title": "Godot Large world coordinates",
+      "url": "https://docs.godotengine.org/en/stable/tutorials/physics/large_world_coordinates.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Default GDScript float and Vector precision differ; global double precision has cost and compatibility implications."
+    },
+    {
+      "title": "JSON Schema Numeric types",
+      "url": "https://json-schema.org/understanding-json-schema/reference/numeric",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "1 and 1.0 are the same numerical value; strings remain distinct."
+    },
+    {
+      "title": "JSON Schema Annotations",
+      "url": "https://json-schema.org/understanding-json-schema/reference/annotations",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "default is an annotation and does not populate missing fields during validation."
+    },
+    {
+      "title": "OpenUSD Pcp dependencies",
+      "url": "https://openusd.org/release/api/pcp_page_front.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Dependency-aware change collection; applying changes and invalidating caches is distinct from collecting effects."
+    },
+    {
+      "title": "OpenUSD PcpChanges",
+      "url": "https://openusd.org/release/api/class_pcp_changes.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Computes needed cache changes first, Apply performs them. This is not a guarantee of RMMO transaction atomicity."
+    },
+    {
+      "title": "OpenUSD ObjectsChanged",
+      "url": "https://openusd.org/release/api/class_usd_notice_1_1_objects_changed.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Structural resync differs from nonstructural changes; arbitrary relationships are not automatically propagated."
+    },
+    {
+      "title": "Epic PCG Generation Modes",
+      "url": "https://dev.epicgames.com/documentation/en-us/unreal-engine/using-pcg-generation-modes-in-unreal-engine",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Partition/hierarchical generation; finer grids can duplicate work. Reference architecture, not direct Godot implementation."
+    },
+    {
+      "title": "CGAL Minkowski sum 3",
+      "url": "https://doc.cgal.org/latest/Minkowski_sum_3/index.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Fixed-orientation translation configuration obstacles. Start with limited local footprints and heights, not general 3D operations."
+    },
+    {
+      "title": "CGAL AABB tree",
+      "url": "https://doc.cgal.org/latest/AABB_tree/index.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Hierarchy narrows candidates; primitive intersection IDs can explain conflicts. Point distance is not continuous support proof."
+    },
+    {
+      "title": "Recast rcConfig",
+      "url": "https://recastnav.com/structrcConfig.html",
+      "checked_on": "2026-10-15",
+      "source_type": "primary",
+      "evidence": "Radius, height, climb and slope are separate agent constraints; discretization and physical readiness remain separate."
+    }
+  ],
+  "project_inferences": [
+    "Semantic support / occupied geometry / traversal envelopes are separate contracts.",
+    "A bounded candidate solver must be followed by complete version-matched validation; search exhaustion is not proof of global infeasibility.",
+    "For intersecting XZ cells where both height surfaces are affine, height difference extrema occur at polygon vertices; explicit coverage/hole checks remain necessary. This is a proposed project derivation, not a ready-made CGAL terrain API.",
+    "Editing source records is limited to the explicit edit set; dependency closure permits derived recomputation, not arbitrary source deletion."
+  ]
+}

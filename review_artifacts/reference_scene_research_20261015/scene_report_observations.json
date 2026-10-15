@@ -1,0 +1,156 @@
+[
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/build.json",
+    "sha256": "2a7d02da3b65c7aab6718c2bb39d89f03fa94daf85cd2287299260de78f4a2f4",
+    "captured_at": "2026-10-15T12:10:03.240676+00:00",
+    "top_level_keys": [
+      "authoring_inputs",
+      "candidate",
+      "candidate_sha256",
+      "failures",
+      "grass_moves",
+      "ground_batching",
+      "houses",
+      "images",
+      "phase",
+      "plots",
+      "props",
+      "source_sha256",
+      "source_signature"
+    ],
+    "selected_fields": {
+      "phase": "candidate_complete",
+      "failures": 0,
+      "candidate_sha256": "f2b7a5d025428c35e121fc2655c111fa7308a9989c95184893a11fd611037df8",
+      "source_sha256": "9ee60da53eeb1d4b35d632e8e74054469a3f49abb28031a6f33f70abc3ab23e6"
+    },
+    "house_count": 14,
+    "props_fields": {
+      "ok": true
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/s12_native_preflight.json",
+    "sha256": "7e1d60fef12a3030e5ef2568c24684f02d0d38f455ffc574e91e0d45f230bd7e",
+    "captured_at": "2026-10-15T12:10:03.244669+00:00",
+    "top_level_keys": [
+      "formal_mutated",
+      "formal_unchanged",
+      "graph_counts",
+      "grass_moves",
+      "houses",
+      "houses_only",
+      "ok",
+      "phase",
+      "plots",
+      "props",
+      "recipe_sha256",
+      "resumed_plot_snapshot_sha256",
+      "roads",
+      "save_validation",
+      "source_sha256",
+      "templates_sha256"
+    ],
+    "selected_fields": {
+      "ok": true,
+      "phase": "complete",
+      "source_sha256": "9ee60da53eeb1d4b35d632e8e74054469a3f49abb28031a6f33f70abc3ab23e6",
+      "roads": {
+        "chunks": 324,
+        "ok": true
+      },
+      "save_validation": {
+        "error": 0,
+        "ok": true
+      }
+    },
+    "house_count": 14,
+    "props_fields": {
+      "ok": true
+    }
+  },
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/road_regeneration_baseline.json",
+    "sha256": "9ad8953d15b37dc7d14a9f54b0bf149c85e5f3662c1b640706434ad2d1ae9adb",
+    "captured_at": "2026-10-15T12:10:03.245669+00:00",
+    "top_level_keys": [
+      "formal_sha256",
+      "map_saved",
+      "results",
+      "diagnosis"
+    ],
+    "selected_fields": {}
+  },
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/resume_checkpoint.json",
+    "sha256": "12e0245d5ec75d72da330f2ed1f5f5bffff8ebb571b0f338c3d9e98fbb7b6c2f",
+    "captured_at": "2026-10-15T12:10:03.246669+00:00",
+    "top_level_keys": [
+      "date",
+      "status",
+      "resumed_at_user_request",
+      "user_request",
+      "formal_map",
+      "formal_expected_sha256",
+      "formal_house_publication",
+      "candidate_map",
+      "candidate_note",
+      "saved_results",
+      "resume_order",
+      "known_asset_gap",
+      "known_remaining",
+      "running_work",
+      "updated_at",
+      "current_stage",
+      "formal_map_published",
+      "completed_this_resume",
+      "next_actions"
+    ],
+    "selected_fields": {}
+  },
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_template_resource_inventory.json",
+    "sha256": "53fbeb04182c9643770f91e5ae24c3be8563e329ae38426266db8e4592c1e559",
+    "captured_at": "2026-10-15T12:10:03.263669+00:00",
+    "top_level_keys": [
+      "templates",
+      "shared_textures",
+      "all_templates_shared_rgba8_mip_budget_bytes"
+    ],
+    "selected_fields": {}
+  },
+  {
+    "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_batch_transaction_review.json",
+    "sha256": "9a04e21b623493a27b184aacabd8cdc4318baaa3bd7806aad18e3b61d4b55375",
+    "captured_at": "2026-10-15T12:10:03.263669+00:00",
+    "top_level_keys": [
+      "after_next",
+      "after_records",
+      "after_sha256",
+      "before_next",
+      "before_records",
+      "before_sha256",
+      "builder_sha256",
+      "checks",
+      "failed",
+      "ok",
+      "passed",
+      "scope"
+    ],
+    "selected_fields": {
+      "ok": true
+    }
+  },
+  {
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_town_houses_20261014\\publication.json",
+    "exists": false
+  },
+  {
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_town_houses_20261014\\visual_acceptance.json",
+    "exists": false
+  },
+  {
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_town_houses_20261014\\runtime\\result.json",
+    "exists": false
+  }
+]

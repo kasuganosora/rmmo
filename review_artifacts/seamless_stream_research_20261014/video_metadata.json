@@ -1,0 +1,31 @@
+{
+  "bvid": "BV1qezSY3Erk",
+  "aid": 113589402796618,
+  "cid": 27173128537,
+  "title": "游戏没有加载画面的无缝转场是怎么实现的？揭秘异环的解决方案",
+  "desc": "最近开放世界二次元游戏异环进行了首测，里面加入了大量这种花哨的无缝转场。这些炫酷转场到底是通过什么方法实现的，做无缝转场中到底会遇到哪些困难？这期视频就我结合自己的一些经验，来和大家说说。",
+  "duration": 725,
+  "owner": {
+    "mid": 834339,
+    "name": "搅拌摩擦的石叶",
+    "face": "https://i0.hdslb.com/bfs/face/6ece24d310de429504038166123deef99c71cb35.jpg"
+  },
+  "pages": [
+    {
+      "cid": 27173128537,
+      "page": 1,
+      "from": "vupload",
+      "part": "游戏里神奇的无缝转场是怎么实现的？揭秘异环的解决方案",
+      "duration": 725,
+      "vid": "",
+      "weblink": "",
+      "dimension": {
+        "width": 1920,
+        "height": 1080,
+        "rotate": 0
+      },
+      "first_frame": "http://i1.hdslb.com/bfs/storyff/n241204sa1pivmg0lqbr361k9imrdeez_firsti.jpg",
+      "ctime": 1733294591
+    }
+  ]
+}

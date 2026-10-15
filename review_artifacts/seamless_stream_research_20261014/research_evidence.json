@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-14",
+  "kind": "research_and_plan_only",
+  "head": "e344b29f11749d12b575fc90518154c56caf0a8e",
+  "working_tree_not_clean": true,
+  "video_method": "Public complete 724.648095-second 640x360 playback source; burned-in captions visually inspected at 2-second intervals across whole video; no independent subtitle track or audio transcription.",
+  "video_local_root": "D:/code/rmmo_runtime/review_artifacts/seamless_stream_research_20261014",
+  "gpu_tests_run": false,
+  "code_sha256": {
+    "scripts/world3d/world_3d.gd": "7f61163c3d281f718432f8a60ca8fb6c631eb3710616a346d1dedf2d0ece8b91",
+    "scripts/world3d/frame_work_budget.gd": "9cdb169367bf422a6e2953d309ee62ea7237603e8565e62d46ef99c785bfeb34",
+    "scripts/world3d/deferred_asset_loader.gd": "e9f4045d7c48790e328a5d00be25e8dec0469e8fdd8c299cf5a1291d6aebdf96",
+    "scripts/world3d/world_stream.gd": "f34d7b31b5acb0f19c3fc10c2c6acea8217b101ed55833b02f03648b3fff4f65",
+    "scripts/world3d/map_loader.gd": "ec7e7533790dc3c049a98a6361f1967b35ae83b808ae002736a1c1c14e98d861",
+    "scripts/world3d/resource_admission.gd": "0520dfe89674de8d6ff83aa6df84ec5d8c5261bf4d9ff1f48926fae21828af13",
+    "scripts/world3d/entry_readiness.gd": "de322d97e4222f1b5018ae872a4bf1cdd6dd31cee22057d390b70145202bdf1f",
+    "scripts/world3d/building_entry_transaction.gd": "9990b9a97d4752ec7aee1b5de5e8ae3c7693f8894445da1533c48d7d88cf27bc",
+    "scripts/world3d/map_dependency_index.gd": "2ee2517fdd23ebd194a97b63af388d7dd061ca3921fc704b0e8324e78b01b0d0",
+    "scripts/world3d/compiled_asset_cache.gd": "9f3092b194f41bede645c73576134b39cb9bb8769efbb6202fc20425da67dbec",
+    "scripts/world3d/event_templates.gd": "84859bca72032cbc2a943deea80706dfb73c9390a109bdb2efa7bcbffd7b9094",
+    "scripts/net/game_session.gd": "0a4113092793ec697cd42aedbd46934cc30fc86a78cb6c245062cbbac0004002",
+    "docs/reference_map_performance_20261008.md": "a7a57f1fc7baa4f81e2dd444efb402f96dc1a52828c5126db5f430c602ef157e",
+    "docs/seamless_streaming_optimization_plan_20261014.md": "a18e9991ec7d301c2aac09cc5e23c734c5734b87e00f5b90a9c5c6aa6bd4031c"
+  },
+  "historical_report": {
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\loading_default_final_route_20261011.json",
+    "sha256": "60bb5b2a5d9a94aba20031061c8d1d16039675fba16a9f2a9413b5433e17b174",
+    "scope": "2026-10-11 historical version before subsequent formal asset migration; not current-day baseline",
+    "entry_ms": 16634.134,
+    "entry_core_ready_ms": 9549.045,
+    "failures": 0,
+    "route_leg_frames": [
+      {
+        "max": 451.066,
+        "over_100ms": 98,
+        "over_50ms": 273,
+        "p50": 83.458,
+        "p95": 191.737,
+        "p99": 247.613
+      },
+      {
+        "max": 218.006,
+        "over_100ms": 45,
+        "over_50ms": 353,
+        "p50": 75.233,
+        "p95": 130.422,
+        "p99": 201.721
+      },
+      {
+        "max": 189.482,
+        "over_100ms": 28,
+        "over_50ms": 63,
+        "p50": 40.263,
+        "p95": 129.721,
+        "p99": 180.024
+      },
+      {
+        "max": 343.824,
+        "over_100ms": 31,
+        "over_50ms": 110,
+        "p50": 68.964,
+        "p95": 189.665,
+        "p99": 265.998
+      }
+    ]
+  }
+}

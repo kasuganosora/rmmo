@@ -15,6 +15,7 @@ def main():
         for k in ('columns','rows'):r['terrain_mesh'][k]=int(r['terrain_mesh'][k])
     sample=lambda p:float(T.sample(terrains,*p))
     templates={t['id']:t for t in read('house_templates.json')['templates']}
+    setbacks={r['id']:r for r in read('house_access_setbacks.json').get('houses',[])} if (OUT/'house_access_setbacks.json').is_file() else {}
     houses=sum([p['houses'] for p in plans],[])
     for h in houses:
         if h['id']=='s2_south_oculus':h['template_id']='s2_oculus_home'
@@ -29,15 +30,42 @@ def main():
         h['grade']={'center':h['position'],'width':w+2.0,'depth':d+2.2,'yaw':h['yaw'],'height':h['ground_y'],'margin':3.0,'required':highest>h['ground_y']+params.get('base_height',0)-.025}
         h['grade'].update(h.get('grade_override',{}))
         h['ground_y']=h['grade']['height']
-        # The access terminates just outside the native doorstep envelope;
-        # graph tessellation adds a half-width cap, so keep it clear of stairs.
-        front=[-s,-c];begin=[doorway[0]+front[0]*.9,doorway[1]+front[1]*.9]
-        points=h.get('entrance_connector',{}).get('points')
+        # A native footprint/road-plan audit supplies the complete door sweep
+        # setback, including tessellated end caps and the continuous kerb.
+        setback=setbacks.get(h['id'],{})
+        if setback:
+            assert setback['template_sha256']==t['sha256'], 'Stale access footprint: '+h['id']
+            assert setback.get('ok') is True and setback.get('native_footprint_clear') is True and setback.get('terrain_fit_passed') is True
+            assert math.dist(setback['position'],h['position'])<.001 and abs(setback['yaw']-h['yaw'])<.001, 'Stale access pose: '+h['id']
+        offset=float(setback.get('offset_from_entrance_m',.9))
+        assert math.isfinite(offset) and offset>=.9
+        h['access_start_offset_m']=offset
+        h['access_setback_evidence']=setback
+        front=[-s,-c];begin=[doorway[0]+front[0]*offset,doorway[1]+front[1]*offset]
+        points=setback.get('updated_connector_points',h.get('entrance_connector',{}).get('points'))
         h['access_points']=[begin]+points[1:] if points else [begin]
         h['entrance_xz']=doorway
     graph=copy.deepcopy(meta['editor_layout']['roads']);nodes={n['id']:n for n in graph['nodes']}
-    removed=[e['id'] for e in graph['edges'] if all(n.startswith('entry_') for n in e.get('name','').split('+'))]
-    edges=[e for e in graph['edges'] if e['id'] not in removed]
+    # Replace only door stubs belonging to this batch's housing areas. Removing
+    # unrelated town stubs changes junction/end-cap shapes on preserved roads.
+    replaced_entries={'entry_01',*(f'entry_{i:02}' for i in [33,34,35,36,40,41,42,43,44,45])}
+    removed=[e['id'] for e in graph['edges'] if all(n in replaced_entries for n in e.get('name','').split('+'))]
+    edges={e['id']:e for e in graph['edges'] if e['id'] not in removed}
+    # Authored courtyard/back-lane changes remain part of the same native road
+    # graph. Apply them before attaching individual door paths.
+    for plan in plans:
+        override=plan.get('road_overrides',{})
+        for key in override.get('remove_edges',[]):
+            edges.pop(key,None)
+            if key not in removed:removed.append(key)
+        for key in override.get('remove_nodes',[]):nodes.pop(key,None)
+        for node in override.get('nodes',[]):
+            node=copy.deepcopy(node);p=node['position']
+            if len(p)==2:node['position']=[p[0],sample(p),p[1]]
+            nodes[node['id']]=node
+        for edge in override.get('edges',[]):edges[edge['id']]=copy.deepcopy(edge)
+    edges=list(edges.values())
+    assert all(e[k] in nodes for e in edges for k in ('from','to'))
     def xz(n):p=nodes[n]['position'];return [p[0],p[2]]
     def nid(p):
         for k,n in nodes.items():
@@ -71,6 +99,6 @@ def main():
         # Existing bridge endpoints retain their authored deck heights.
     graph={'nodes':[n for k,n in nodes.items() if k in used],'edges':edges}
     assert len(graph['nodes'])<=256 and len(edges)<=512
-    write('housing_recipe.json',{'source':read('source_identity.json'),'houses':houses,'cameras':sum([p['cameras'] for p in plans],[]),'road_graph':graph,'remove_edges':removed,'remove_nodes':[n['id'] for n in meta['editor_layout']['roads']['nodes'] if n['id'] not in used],'road_settings':meta['editor_layout']['road_surface']['settings']})
+    write('housing_recipe.json',{'source':read('source_identity.json'),'houses':houses,'cameras':sum([p['cameras'] for p in plans],[]),'grass_moves':sum([p.get('grass_moves',[]) for p in plans],[]),'road_graph':graph,'remove_edges':removed,'remove_nodes':[n['id'] for n in meta['editor_layout']['roads']['nodes'] if n['id'] not in used],'road_settings':meta['editor_layout']['road_surface']['settings']})
     print('housing recipe',len(houses),'houses',len(graph['nodes']),'road nodes',len(edges),'edges')
 if __name__=='__main__':main()

@@ -94,8 +94,13 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 		for previous in prepared:
 			if Footprint.batches_overlap(plan.occupancy,previous.occupancy): return Blueprint.fail("本批第 %d 栋建筑与另一栋建筑占地重叠"%(index+1))
 		if Footprint.batches_overlap(plan.occupancy,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)): return Blueprint.fail("建筑进入禁建区或保留通道")
+		var terrain_pieces:Array=Footprint.terrain_components(plan.records)
 		for record in editor._doc.records:
 			if excluded.has(str(record.uuid)): continue
+			if record.has("terrain_mesh"):
+				var contact:Dictionary=Footprint.terrain_conflict(record,terrain_pieces,support_height)
+				if not contact.is_empty():return {"ok":false,"error":"第 %d 栋建筑与地形重叠"%(index+1),"conflicts":[str(record.uuid)],"terrain_contact":contact}
+				continue
 			if not occupied_shapes.has(record.uuid): occupied_shapes[record.uuid]=Footprint.record_shapes(record)
 			for shape in occupied_shapes[record.uuid]:
 				if Footprint.supporting_ground(record,shape.bounds.end.y,support_height): continue

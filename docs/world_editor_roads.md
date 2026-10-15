@@ -104,3 +104,9 @@ UI 与当前 3D `preview_road_surface` / `generate_road_surface` 继续共用 [r
 贴地超坡失败现在报告实际交叠位置、地形 ID、网格和三角序号及坡度百分比，避免只提示“坡度超过限制”而无法定位。返回 `code:terrain_projection_grade_limit`，并附 `record_id/road_source/terrain_id/position/cell/triangle_index/triangle_world/grade/max_grade`；位置在实际地形表面，未加铺面偏移。结构化坡度为比值（`.15` 即 15%）；近垂直面的 `grade` 为 `null`，不发送非有限 JSON 数值。原 15% 限制、数值容差、覆盖裁切及失败原子性不变，无新增工具参数。
 
 [test_terrain_projection_bounds.gd](../tools/test_terrain_projection_bounds.gd) 的远坐标、旋转、孔洞、覆盖及诊断回归 **22 项通过**；[test_terrain_projection_diagnostics_http.gd](../tools/test_terrain_projection_diagnostics_http.gd) 使用独立已知 25% 坡面，真实 HTTP **12 项通过**，核对 UI 同结果、实际位置/三角/坡度、预览与生成错误一致及无副作用失败。日志同目录 `terrain_projection_bounds_diagnostics.log`、`terrain_grade_diagnostic_http.log`，临时地图 `D:/code/rmmo_runtime/cache/world3d/terrain_grade_diagnostic_10993134/map.gltf`。候选图实际首处失败为桥 5 西端附近 `(200,323.25)` 的 23.4395% 地形三角，已交内容配方局部整坡，未通过修改通行阈值放行。
+
+### 2026-10-15 贴地默认材质的 JSON 数值兼容
+
+`terrain_follow_tools.automatic_paint` 对零 UV 偏移逐元素进行数值判断，避免 JSON 读入的 `[0.0,0.0]` 与原生成的 `[0,0]` 因数组元素类型不同而误报手刷覆盖。允许的仍是统一材质、原 UV、零旋转/偏移和材质默认米制倍率；非零偏移、旋转、手改倍率或分面混材仍拒绝自动覆盖。没有增加工具或参数，UI 地形笔刷与 3D `sculpt_terrain` 共用此路径，坡度、碰撞、锁定及事务保护保持不变。
+
+[test_terrain_follow_paint_http.gd](../tools/test_terrain_follow_paint_http.gd) 实际 headless/loopback HTTP **33 项通过，0 失败**：显式 JSON 往返复现浮点零偏移后雕刻成功，默认 PBR、撤销重做和保存重开保留；四类真实手刷变化均无副作用拒绝。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_follow_paint_http.log`。该项是共享能力回归，不代表住宅布局或正式地图接入已经通过。

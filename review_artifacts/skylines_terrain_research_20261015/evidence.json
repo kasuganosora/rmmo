@@ -1,0 +1,166 @@
+{
+  "recorded_at": "2026-10-15T19:48:15.2729242+08:00",
+  "research_date": "2026-10-15",
+  "head": "520d142197bd71920b476f10d7e5261d4f4d3db5",
+  "working_tree_has_tracked_changes": true,
+  "scope": "Read-only research and code audit; new analysis and evidence only; no runtime edits, GPU runs or performance measurements",
+  "files": [
+    {
+      "path": "D:/code/rmmo/docs/seamless_streaming_optimization_plan_20261014.md",
+      "sha256": "501f3c4a0fbb6ff43427e0a291a1b1f1ddaaf8fc75eede7f9f4427a5d74fdc8b",
+      "bytes": 34272
+    },
+    {
+      "path": "D:/code/rmmo/docs/world_editor_terrain_sculpt.md",
+      "sha256": "6c72323c17fb7ce0c93ab659a3f469af99c26d3a27dab68a4ecb10c927aea63e",
+      "bytes": 16586
+    },
+    {
+      "path": "D:/code/rmmo/docs/world_editor_todo.md",
+      "sha256": "a2a392d9aa9573f5122d91b111c3520791dd77b0a079580943da80ea875dce99",
+      "bytes": 123918
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/mcp_ops.gd",
+      "sha256": "e86116319c8c39eb13b4ecd9433aa54f965791d5f8cbb1be637e9f1309cecb00",
+      "bytes": 35374
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/mcp_schema.gd",
+      "sha256": "ab527b1f3d8a50f566073c3ae137e403ea13f9364474dda9e395af39731d9be6",
+      "bytes": 54098
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/picking_shape_cache.gd",
+      "sha256": "3306103c5edc510a4155bd0611725bac391f1c23ec42217206985386f57d8fae",
+      "bytes": 1154
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_brush.gd",
+      "sha256": "3ddabedf339a17cd29cb9f82fcbf6c2d306b56e9335a0d93ceb3167db9ba87ce",
+      "bytes": 7762
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_follow_tools.gd",
+      "sha256": "bed78228920083cd242a51512d383c4986f8f11bc0b7bc8cbd41fa46f0f5b361",
+      "bytes": 6383
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_panel.gd",
+      "sha256": "6af7c9d419b4fcd11cbab4b37ae64a97eeb9681000984600dc863cf4a21663d1",
+      "bytes": 28305
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_prop_contact.gd",
+      "sha256": "0323416d479c69801dda28b7f8f1fc0b66eea3ff78295eb0a5cfdc70f480957e",
+      "bytes": 5251
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_tools.gd",
+      "sha256": "b7fc23c8014172f0dfd63141ac824af7b3a6da1df09f3d74e9828e32c0fafa9b",
+      "bytes": 14293
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/world_editor.gd",
+      "sha256": "b9e2054fe500a40a5c423c30ab239341db0f9086e5ca19f875d4ee6295acaf35",
+      "bytes": 71309
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/ground_batcher.gd",
+      "sha256": "7afe8febc6db913f67c21d1ef4c2b6bbfcb81d63484788c77fd019d588565130",
+      "bytes": 32212
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/river_terrain.gdshader",
+      "sha256": "558a59d8ee502bf72776b0d1edff05a70b8b45bdc99e0cb7eaa5965014c02d28",
+      "bytes": 21719
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/runtime_mesh_cache.gd",
+      "sha256": "5a0dd184fb5c35966057288220d4046a6f8d04d76eb863e136d14be898537ff8",
+      "bytes": 20317
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_collision_preparer.gd",
+      "sha256": "fe9e60627602cc10b0c12eb51f43d1fc8cfbb3d373e59aab6f5c11b8d8b5e80a",
+      "bytes": 13863
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_erosion.gd",
+      "sha256": "31ed45705da2582167d58f151f57a4a3bcd72ff762a293607dc5ab1dd6169ce0",
+      "bytes": 4660
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_neighbors.gd",
+      "sha256": "d75e7cc8a61d218744dafc18a63a3cd83970b03b8119636131be4aac54491e53",
+      "bytes": 5251
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_projection.gd",
+      "sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+      "bytes": 6905
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_stroke_batch.gd",
+      "sha256": "afb3cd7cc4d68d40c1729064913bf487eb446558f4e60ec155f5b31ebbc9cd64",
+      "bytes": 8271
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_surface.gd",
+      "sha256": "b628d4b6a7d326c52683db2b0dbad9ebf591b7a85741038da71a87722c45d648",
+      "bytes": 14060
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_volume.gd",
+      "sha256": "9bd0fe4b0ac1b72ce62971e9d692732fea0010b4007c4af05d62bcba2ca603e5",
+      "bytes": 6056
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/world_document.gd",
+      "sha256": "1442ac3effe7b87fcf04d41547024e25a54b25f8845d31b583708cf5e1902681",
+      "bytes": 35938
+    },
+    {
+      "path": "D:/code/rmmo/docs/skylines_terrain_performance_analysis_20261015.md",
+      "sha256": "7a4db2c44df496ce1b937294a2fa9250501e01775832f44a314c286377a1fd0b",
+      "bytes": 18817
+    }
+  ],
+  "web_sources": [
+    "https://blog.paavo.me/cities-skylines-2-performance/",
+    "https://colossalorder.fi/news/development-diary-map-editor/",
+    "https://docs.godotengine.org/en/4.7/classes/class_arraymesh.html",
+    "https://docs.godotengine.org/en/4.7/classes/class_heightmapshape3d.html",
+    "https://docs.godotengine.org/en/4.7/tutorials/performance/thread_safe_apis.html",
+    "https://docs.unity3d.com/6000.0/Documentation/ScriptReference/TerrainData.SetHeightsDelayLOD.html",
+    "https://github.com/TokisanGames/Terrain3D/blob/main/doc/docs/performance.md",
+    "https://hhoppe.com/proj/geomclipmap/",
+    "https://steamcommunity.com/games/949230/announcements/detail/532128384944178048",
+    "https://steamcommunity.com/games/949230/announcements/detail/699893179027031260",
+    "https://steamcommunity.com/ogg/949230/announcements/detail/699893179027030812",
+    "https://terrain3d.readthedocs.io/en/stable/docs/system_architecture.html"
+  ],
+  "official_steam_news": [
+    {
+      "title": "City Corner #4 - A Peek into Performance",
+      "timestamp": 1775743251,
+      "date": "2026-04-09",
+      "feed": "steam_community_announcements",
+      "api": "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=949230&count=100&maxlength=0&enddate=1775779200"
+    },
+    {
+      "title": "City Corner #8 - Transforming the Terrain",
+      "timestamp": 1781188809,
+      "date": "2026-06-11",
+      "feed": "steam_community_announcements",
+      "api": "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=949230&count=60&maxlength=0&enddate=1782259200"
+    },
+    {
+      "title": "Patch 1.6.0f1 - Summer Solstice",
+      "timestamp": 1782129656,
+      "date": "2026-06-22",
+      "feed": "steam_community_announcements",
+      "api": "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=949230&count=60&maxlength=0&enddate=1782259200"
+    }
+  ]
+}

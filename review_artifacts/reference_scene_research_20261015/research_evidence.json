@@ -1,0 +1,372 @@
+{
+  "purpose": "Read-only scene-problem research and unified plan revision; no code/map/test changes",
+  "head": "520d142197bd71920b476f10d7e5261d4f4d3db5",
+  "working_tree": "Concurrent dirty worktree; per-file observations, not an atomic code snapshot",
+  "plan_before": {
+    "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/unified_plan_before_scene_research.md",
+    "sha256": "9b180035b6c5dcf5a90a21b94cc932985ebc88b45942212e977fbf4f9456906b",
+    "bytes": 57858,
+    "captured_at": "2026-10-15T12:09:14.943280+00:00"
+  },
+  "source_files": [
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_prop_contact.gd",
+      "sha256": "0323416d479c69801dda28b7f8f1fc0b66eea3ff78295eb0a5cfdc70f480957e",
+      "bytes": 5251,
+      "captured_at": "2026-10-15T12:09:14.944282+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_tools.gd",
+      "sha256": "b7fc23c8014172f0dfd63141ac824af7b3a6da1df09f3d74e9828e32c0fafa9b",
+      "bytes": 14293,
+      "captured_at": "2026-10-15T12:09:14.944282+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/building_footprint.gd",
+      "sha256": "4dc94e5a3dabb30ef2dde0fc56ba5f57df80a1ff9d9af0d5c88fb4ade1f64faa",
+      "bytes": 13090,
+      "captured_at": "2026-10-15T12:09:14.944282+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/building_tools.gd",
+      "sha256": "1d2457464b3e7828c6c5c89f5f54fef97f7f4457e7af968fb6eb8067599d4fbb",
+      "bytes": 17898,
+      "captured_at": "2026-10-15T12:09:14.944282+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/prefab_library.gd",
+      "sha256": "747316f2bada8e01172047f6ceab78abdb53903ed0c5e92dda21abd1e7f118a5",
+      "bytes": 16026,
+      "captured_at": "2026-10-15T12:09:14.945278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/road_tools.gd",
+      "sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+      "bytes": 14522,
+      "captured_at": "2026-10-15T12:09:14.945278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_follow_tools.gd",
+      "sha256": "bed78228920083cd242a51512d383c4986f8f11bc0b7bc8cbd41fa46f0f5b361",
+      "bytes": 6383,
+      "captured_at": "2026-10-15T12:09:14.945278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/mcp_schema.gd",
+      "sha256": "ab527b1f3d8a50f566073c3ae137e403ea13f9364474dda9e395af39731d9be6",
+      "bytes": 54098,
+      "captured_at": "2026-10-15T12:09:14.946278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/mcp_ops.gd",
+      "sha256": "e86116319c8c39eb13b4ecd9433aa54f965791d5f8cbb1be637e9f1309cecb00",
+      "bytes": 35374,
+      "captured_at": "2026-10-15T12:09:14.946278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/placement_tools.gd",
+      "sha256": "66db0312bc5f3e4e372f3b8eeaa977cc306f5938ad5d4a8eb5b1fee286da06c8",
+      "bytes": 11712,
+      "captured_at": "2026-10-15T12:09:14.946278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/world_document.gd",
+      "sha256": "1442ac3effe7b87fcf04d41547024e25a54b25f8845d31b583708cf5e1902681",
+      "bytes": 35938,
+      "captured_at": "2026-10-15T12:09:14.947278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/build_axel_town_houses.gd",
+      "sha256": "8941d4e653e9c7a54743b204dfe277202d9403e18503d4480ef65d81d29715aa",
+      "bytes": 13326,
+      "captured_at": "2026-10-15T12:09:14.947278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/prepare_axel_town_houses.py",
+      "sha256": "26c1287db79c6830269c48b41ce47a0bdda14fabf874f321c77e64e6f1534c9d",
+      "bytes": 7054,
+      "captured_at": "2026-10-15T12:09:14.947278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/axel_house_placement_support.gd",
+      "sha256": "92866188b0ebc60f293eee18cce1b95437e3a163d8b484596e957de89bdefe20",
+      "bytes": 1920,
+      "captured_at": "2026-10-15T12:09:14.947278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/docs/world_editor_roads.md",
+      "sha256": "73d56aaf71e9a74abeb3801b36f1fcef18fc7c74cfa7b5e9b8a778cf7b764859",
+      "bytes": 19774,
+      "captured_at": "2026-10-15T12:09:14.947278+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/docs/world_editor_buildings.md",
+      "sha256": "e0a0fd8af147a24cd90aeaf4c7c6f645bfb27f7fcaa1a0afc918d5db18a33b37",
+      "bytes": 58625,
+      "captured_at": "2026-10-15T12:09:14.948279+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/docs/world_editor_terrain_sculpt.md",
+      "sha256": "6c72323c17fb7ce0c93ab659a3f469af99c26d3a27dab68a4ecb10c927aea63e",
+      "bytes": 16586,
+      "captured_at": "2026-10-15T12:09:14.948279+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/docs/axel_town_house_layout_20261014.md",
+      "sha256": "8a15734330be2cc538972dd071d0d9ca431424960220e28a47f68a60adab0bc3",
+      "bytes": 3095,
+      "captured_at": "2026-10-15T12:09:14.948279+00:00"
+    }
+  ],
+  "new_runtime_or_gpu_tests": false,
+  "previous_evidence_unchanged": [
+    "review_artifacts/optimization_plan_merge_20261015/merge_evidence.json",
+    "review_artifacts/seamless_stream_research_20261014/plan_revision_evidence.json",
+    "review_artifacts/skylines_terrain_research_20261015/evidence.json"
+  ],
+  "additional_source_observations": [
+    {
+      "path": "D:/code/rmmo/scripts/world3d/road_terrain_fit.gd",
+      "sha256": "b490b4b605a848d04f71810faf196f6afe5e5d8850aa3165d4f84f780f4b36f3",
+      "bytes": 5311,
+      "captured_at": "2026-10-15T12:21:45.369264+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/terrain_projection.gd",
+      "sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+      "bytes": 6905,
+      "captured_at": "2026-10-15T12:21:45.370258+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/road_kerb.gd",
+      "sha256": "a6924c0f5225e3380181fe4b6f58e99abeea314b647d6d90016cd287fe5da2a8",
+      "bytes": 9734,
+      "captured_at": "2026-10-15T12:21:45.370258+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/roof_plan.gd",
+      "sha256": "e267ba2ed33e6ca6b88130263770b0b9788b3554c90faa94b3fff53a9cb9bd5e",
+      "bytes": 11059,
+      "captured_at": "2026-10-15T12:21:45.370258+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world_editor/terrain_river_tools.gd",
+      "sha256": "d316c48db3ee5c1f0aacd588b779187e6afb1471f5236344cd8534bf4f59a083",
+      "bytes": 19681,
+      "captured_at": "2026-10-15T12:21:45.371267+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/scripts/world3d/player_clearance.gd",
+      "sha256": "a98d3a7388b2757f20882254fa8a87dd778fd29a347e8eeb6c585d8bbb85994f",
+      "bytes": 2385,
+      "captured_at": "2026-10-15T12:21:45.371267+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/audit_axel_house_access_setbacks.gd",
+      "sha256": "c90ffe3401e20ad8dd4828eb6828902075d2e040f1e5271ab076c48559672228",
+      "bytes": 7902,
+      "captured_at": "2026-10-15T12:21:45.372267+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/prepare_axel_town_house_templates.gd",
+      "sha256": "a87d822a896aa972fcb514a5ba132aeb5ff22e6895f78e636b166b15cd197e55",
+      "bytes": 6436,
+      "captured_at": "2026-10-15T12:21:45.372267+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/review_axel_town_roads.gd",
+      "sha256": "1de925ffd0194d7a29514bb624998cd958517ca1bb8659cf4af36bf7daf82cd5",
+      "bytes": 16729,
+      "captured_at": "2026-10-15T12:21:45.373264+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/review_axel_town_houses.gd",
+      "sha256": "023fc59cfccc09743009b1a9818d7a7334856b447c02185c4ec3335adbe502ac",
+      "bytes": 14216,
+      "captured_at": "2026-10-15T12:21:45.373264+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/test_adaptive_terrain_roads.gd",
+      "sha256": "74500e453b845755b9b9ae8e33ee62686f3fd6c824af639af1bce22b9fab282d",
+      "bytes": 16954,
+      "captured_at": "2026-10-15T12:21:45.374259+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/test_terrain_projection_bounds.gd",
+      "sha256": "327a8fc14d27b6274020cf484da38b0a48784e1ef53a2e8adfc95f5eed516df5",
+      "bytes": 5649,
+      "captured_at": "2026-10-15T12:21:45.374259+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/test_kerb_sliver_mcp.gd",
+      "sha256": "f65be92e8c6421988fb57e08076307f327ec82e56a80239af1eb326f7fa80cbb",
+      "bytes": 3012,
+      "captured_at": "2026-10-15T12:21:45.374259+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/test_terrain_projection_http.gd",
+      "sha256": "3bd20c7371b0811b3ad4f9c2c60254f48b94b854cc32e684531f6f76c224deec",
+      "bytes": 4297,
+      "captured_at": "2026-10-15T12:21:45.375258+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/tools/test_river_boundary_review.gd",
+      "sha256": "e8a98d318f5f965d2f150f5be35affd07f20b6d2baf00a6c246b35cf70fc61c6",
+      "bytes": 9953,
+      "captured_at": "2026-10-15T12:21:45.375258+00:00"
+    }
+  ],
+  "referenced_prior_reports": [
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_prop_contact_http.log",
+      "sha256": "11f2b642f143c854b408c90259882577ec8427aaff1a0725f068376760fa075d",
+      "bytes": 3619,
+      "captured_at": "2026-10-15T12:21:45.376263+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/foundation_support_http.log",
+      "sha256": "8f2cca85c80069556bf553b2ec8abc050a14ea6b0222c66a3bea4d377866eb65",
+      "bytes": 1917,
+      "captured_at": "2026-10-15T12:21:45.401557+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_terrain_contact_http.log",
+      "sha256": "329dd2e5ebfeb87eb560b46c098e67d1ea15a491c04746026ad0e8538efe9788",
+      "bytes": 2325,
+      "captured_at": "2026-10-15T12:21:45.402555+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/foundation_support_http_terrain_refinement.log",
+      "sha256": "17abe6ed093c932d28f6534898cfeeb283ee715e4f00dc303651c43a0cc3c7b2",
+      "bytes": 1917,
+      "captured_at": "2026-10-15T12:21:45.402555+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_follow_paint_http.log",
+      "sha256": "d89b354bde39981950463712edeb9db70586a8ac2b56d05291c91420def207aa",
+      "bytes": 2162,
+      "captured_at": "2026-10-15T12:21:45.403555+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_terrain_diagnostic.json",
+      "sha256": "b4641fc083f6a624e1a63d6f3aeb7f6a327906703ed4a2c10b1e4f38bc60aa7a",
+      "bytes": 1282,
+      "captured_at": "2026-10-15T12:21:45.403555+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_access_setbacks.json",
+      "sha256": "4732633dcfaadd9d30f7a911da22d9c274c77bdac79755020bc6609f161c5479",
+      "bytes": 21965,
+      "captured_at": "2026-10-15T12:21:45.404553+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/road_regeneration_baseline.json",
+      "sha256": "9ad8953d15b37dc7d14a9f54b0bf149c85e5f3662c1b640706434ad2d1ae9adb",
+      "bytes": 2923,
+      "captured_at": "2026-10-15T12:21:45.404553+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/s12_native_preflight.json",
+      "sha256": "7e1d60fef12a3030e5ef2568c24684f02d0d38f455ffc574e91e0d45f230bd7e",
+      "bytes": 77314,
+      "captured_at": "2026-10-15T12:21:45.406553+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_template_native_audit.json",
+      "sha256": "55df07b80c7809cf68c3a7ada87d3a946c658b50bd92a59edc0511cceb58e2b6",
+      "bytes": 383023,
+      "captured_at": "2026-10-15T12:21:45.409557+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_batch_transaction_review.json",
+      "sha256": "9a04e21b623493a27b184aacabd8cdc4318baaa3bd7806aad18e3b61d4b55375",
+      "bytes": 4301,
+      "captured_at": "2026-10-15T12:21:45.410554+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_regression_final.log",
+      "sha256": "8e57bbd9e182f64ad34761fd05a86943c9df479b9dd4e9fa2f0ba4909fe2ca91",
+      "bytes": 3708,
+      "captured_at": "2026-10-15T12:21:45.410554+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/adaptive_road_textured_regression.log",
+      "sha256": "93fc14ad4469b986e93bd310ede180c9b7af7618d9e2172f272ece26412feb43",
+      "bytes": 4541,
+      "captured_at": "2026-10-15T12:21:45.411553+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/runtime_initial.json",
+      "sha256": "834a4f0e94296c2f8cb6073fd98f762488fbc197cc8e91faa2bd8f068b9ae809",
+      "bytes": 707304,
+      "captured_at": "2026-10-15T12:21:45.416554+00:00"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/runtime/result.json",
+      "sha256": "93a2b177da9e38411920280344b58bfdd280a9aa70a5bb08d809aee6225d8f2f",
+      "bytes": 735450,
+      "captured_at": "2026-10-15T12:21:45.422553+00:00"
+    }
+  ],
+  "report_use": "Existing reports from the scene task; no tests rerun by this research task. Current code may differ from code used by each report. These reports do not certify new E1/E2 functionality.",
+  "user_followup": "Prioritize reliable editor-provided geometric/support/traversal guarantees and bounded solutions; do not depend on visual trial-and-error to prove correctness.",
+  "candidate_only": true,
+  "plan_after": {
+    "path": "D:/code/rmmo/docs/seamless_streaming_optimization_plan_20261014.md",
+    "sha256": "2489df33d17e47cec8ac44f4f025021fa9ddfc8b4fee449e351502c45ceb0508",
+    "bytes": 84209,
+    "captured_at": "2026-10-15T12:21:45.423553+00:00"
+  },
+  "artifacts": [
+    {
+      "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/unified_plan_before_scene_research.md",
+      "sha256": "9b180035b6c5dcf5a90a21b94cc932985ebc88b45942212e977fbf4f9456906b",
+      "bytes": 57858,
+      "captured_at": "2026-10-15T12:21:45.741589+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/thread_problem_excerpts.json",
+      "sha256": "127bce33d098ce675c2760db69e47996dfadf32630806315f71a37adbdb5625f",
+      "bytes": 16361,
+      "captured_at": "2026-10-15T12:21:45.742588+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/source_notes.json",
+      "sha256": "25fb0c3444a0426f381ed6ee82ad4bf6fdcb21d7e222f26ff349db2fff8f9f9f",
+      "bytes": 4800,
+      "captured_at": "2026-10-15T12:21:45.742588+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/scene_report_observations.json",
+      "sha256": "237b5bce30612054f52fca3e3336cecb6069d2bd063b9161df02d5e4964a5311",
+      "bytes": 4568,
+      "captured_at": "2026-10-15T12:21:45.761590+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/document_validation.json",
+      "sha256": "28e0887391a30a04a4ef2c8e09db27dec0e0d8be4d1cc6914e82fc0d089401c5",
+      "bytes": 705,
+      "captured_at": "2026-10-15T12:21:45.774586+00:00"
+    }
+  ],
+  "preserved_historical_evidence": [
+    {
+      "path": "D:/code/rmmo/review_artifacts/optimization_plan_merge_20261015/merge_evidence.json",
+      "sha256": "908d7024ddb5530af6fc7100501cb360f1c5e150bd5a738e15115e807b02ea8e",
+      "bytes": 3552,
+      "captured_at": "2026-10-15T12:21:45.774586+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/seamless_stream_research_20261014/plan_revision_evidence.json",
+      "sha256": "591371b6646e82600526423d79be9b17ea5dca262aee2a301f66880c93d44c0f",
+      "bytes": 6276,
+      "captured_at": "2026-10-15T12:21:45.774586+00:00"
+    },
+    {
+      "path": "D:/code/rmmo/review_artifacts/skylines_terrain_research_20261015/evidence.json",
+      "sha256": "d265871fcdcf494153973b078ec5b5a00b540bc611035eb8b27553ef9858075e",
+      "bytes": 6877,
+      "captured_at": "2026-10-15T12:21:45.775585+00:00"
+    }
+  ]
+}

@@ -92,6 +92,59 @@ static func foundation_support_height(parameters:Dictionary,origin_y:float,recor
 	if not is_finite(floor_cap) or floor_cap<=origin_y:return origin_y
 	return minf(origin_y+float(raised),floor_cap)
 
+static func terrain_components(records:Array)->Array:
+	# Whole-building hulls are useful for reserving interiors and door access,
+	# but must not extrude an upstairs shutter/eave down through its foundation.
+	# Keep each native component's vertical range and its full fixture sweep.
+	var result:Array=[]
+	for record:Dictionary in records:
+		for shape:Dictionary in components([record],Vector3.ZERO,Basis.IDENTITY):
+			shape.part=str(record.get("building",{}).get("part",record.get("uuid","")));result.append(shape)
+	return result
+
+static func terrain_conflict(record:Dictionary,pieces:Array,support_height:float)->Dictionary:
+	var T=preload("res://scripts/world3d/terrain_surface.gd")
+	var Clip=preload("res://scripts/world3d/road_plan.gd")
+	var Poly=preload("res://scripts/world3d/roof_plan.gd")
+	# Preserve conservative handling for unsupported tilted ground / raised
+	# furrows. This refinement concerns the actual triangulated height surface.
+	if absf(record.rotation[0])+absf(record.rotation[2])>.0001 or preload("res://scripts/world3d/terrain_furrows.gd").maximum_height(record)>0:
+		for cell:Dictionary in record_shapes(record):
+			if not supporting_ground(record,cell.bounds.end.y,support_height) and batches_overlap(pieces,[cell]):return {"terrain_id":record.uuid,"conservative":true}
+		return {}
+	var t:Dictionary=record.terrain_mesh;var pose:Transform3D=T.transform(record)
+	var available:Array=[];var terrain_bounds:=Geometry.bounds([record])
+	for piece:Dictionary in pieces:
+		if piece.bounds.grow(.01).intersects(terrain_bounds.grow(.01)):available.append(piece)
+	if available.is_empty():return {}
+	for z in int(t.rows):
+		for x in int(t.columns):
+			if not T.solid(t,x,z):continue
+			var corners:Array=T.cell(record,x,z).map(func(p):return pose*p)
+			var top:float=corners.map(func(p):return p.y).max()
+			if supporting_ground(record,top,support_height):continue
+			var cell_bounds:=AABB(corners[0],Vector3.ZERO)
+			for p:Vector3 in corners:cell_bounds=cell_bounds.expand(p)
+			var floor_y:float=pose.origin.y+float(t.floor)*record.size[1]
+			cell_bounds.position.y=floor_y;cell_bounds.size.y=top-floor_y
+			for piece:Dictionary in available:
+				if not piece.bounds.grow(.01).intersects(cell_bounds.grow(.01)):continue
+				var footprint:Array=[]
+				for p:Vector2 in piece.polygon:footprint.append(p)
+				if footprint.size()>1 and footprint[0]==footprint[-1]:footprint.pop_back()
+				for ids in [[0,1,2],[0,2,3]]:
+					var triangle:Array=ids.map(func(i):return Vector2(corners[i].x,corners[i].z))
+					var overlap:Array=Clip.intersection(footprint,triangle)
+					if overlap.size()<3 or Poly.area(overlap)<1e-9:continue
+					var p:Vector3=corners[ids[0]];var normal:Vector3=(corners[ids[1]]-p).cross(corners[ids[2]]-p)
+					for at:Vector2 in overlap:
+						var y:=float(p.y)-(float(normal.x)*(float(at.x)-p.x)+float(normal.z)*(float(at.y)-p.z))/normal.y
+						if supporting_ground(record,y,support_height):continue
+						# Match the existing shape-overlap contact tolerance.
+						if y<=piece.bounds.position.y+.01 or floor_y>=piece.bounds.end.y-.01:continue
+						return {"terrain_id":record.uuid,"part":piece.get("part",""),"cell":[x,z],"position":[at.x,y,at.y],"support_height":support_height}
+	return {}
+
 static func level_ground(record: Dictionary, shape: Dictionary, height: float) -> bool:
 	if record.get("kind")!="box" or record.has("building_shape") or record.has("road_mesh") or record.has("building") or record.get("collision","")=="none": return false
 	if record.get("surface_id") not in ["ground","grass","dirt","stone","sand"] or absf(record.rotation[0])+absf(record.rotation[2])>.001: return false

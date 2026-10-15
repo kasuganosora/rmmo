@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\town_bridge_street_20261005\\01_bridge_to_festival_street.png",
+  "source_sha256": "37dcaa0d1bbdcd693e17cda9d971a150fc9b8c200ff9b9f07c54fddf0be8d243",
+  "source_bytes": 2306112,
+  "path": "D:\\code\\rmmo\\docs\\references\\town_bridge_street_20261005\\01_bridge_to_festival_street.webp",
+  "sha256": "529f5e4029975622c7902640cfef6a4185eb71a752952d17710603599b2a1711",
+  "bytes": 387566,
+  "dimensions": [
+    1310,
+    737
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\03_festival_residential_lane.png",
+  "source_sha256": "2e1cc5915ea2b2043f169ac27e2169a2a80b72a2c2a89da74f71af20b30dae24",
+  "source_bytes": 1563127,
+  "path": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\03_festival_residential_lane.webp",
+  "sha256": "2ea277fd49a3e5033e56dcc7d008de595cd554da691ce1afcfded33152d898cf",
+  "bytes": 137492,
+  "dimensions": [
+    1310,
+    737
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

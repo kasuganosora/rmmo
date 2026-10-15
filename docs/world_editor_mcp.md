@@ -549,3 +549,15 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 既有 `depth` 参数的最小值支持 8 m，但 `depth<10` 仅限 `layout:townhouse`、`floors:1`、`compound:none` 的小住宅；其他布局仍需至少 10 m，避免压缩楼梯及通行。没有新工具或字段，UI 与 MCP 共享此条件校验。小住宅与圆拱增量实际 HTTP 共 **46 项通过，0 失败**，日志同目录 `arched_entrance_http_small_cottage.log`。
 
 同日 `preview_buildings` / `generate_buildings` 和 `place_asset` 共用抬高地基承托上限：仅合法中世纪抬高地基允许地面进入基座，且不得高于实际首层地板。未增加输入参数或工具；UI 与 MCP 一致，地形和道路碰撞保护不放宽。[test_house_foundation_support_http.gd](../tools/test_house_foundation_support_http.gd) 实际 HTTP **33 项通过，0 失败**，覆盖合法斜地、非法埋屋无副作用失败、素材库放置、撤销重做及保存重开；日志同目录 `foundation_support_http.log`。两项均为共享能力与隔离夹具证据，不代表新城镇住宅已经正式发布。
+
+### 2026-10-15 贴地默认材质的 JSON 数值兼容
+
+UI 地形笔刷与当前 3D `sculpt_terrain` 的铺面跟随更新改为数值识别零 UV 偏移，兼容 JSON 的浮点零，避免将未改默认材质误判为手刷。仍拒绝真实偏移、旋转、倍率或分面材质变化；无新工具/schema 参数，碰撞、坡度和原子失败保护不变。[test_terrain_follow_paint_http.gd](../tools/test_terrain_follow_paint_http.gd) 实际 HTTP **33 项通过，0 失败**，包括 JSON 往返、合法雕刻、四类手刷拒绝无副作用、撤销重做和保存重开；日志 `review_artifacts/axel_town_houses_20261014/terrain_follow_paint_http.log`，细节见 [道路说明](world_editor_roads.md#2026-10-15-贴地默认材质的-json-数值兼容)。
+
+### 2026-10-15 雕刻时普通物件的实际接触保护
+
+`preview_terrain_stroke` / `sculpt_terrain` 与 UI 共享 [terrain_prop_contact.gd](../scripts/world_editor/terrain_prop_contact.gd) 的普通物件接触细查：保留原变化体积粗筛，对完整变换后的局部底面和实际地形三角求交，允许仍有承托的已埋草根随微量降土变浅；真实丢失承托、加深侵入、洞口及复杂结构仍保护。锁定和隐藏物件不跳过，地形可编辑性规则不变；无新工具或输入字段，不提高原接触容差。结构范围及限制见 [地形说明](world_editor_terrain_sculpt.md#普通物件的地面接触保护2026-10-15)。[test_terrain_prop_contact_http.gd](../tools/test_terrain_prop_contact_http.gd) 实际 HTTP **57 项通过，0 失败**，日志同目录 `terrain_prop_contact_http.log`；覆盖真实草资源、跨缝、完整变换、合法微量降土和真实非法操作、无副作用失败、撤销重做及原生保存重开。正式地图接入单独验收。
+
+### 2026-10-15 房屋地形碰撞按实际交叠检查
+
+`preview_buildings` / `generate_buildings` 和 `place_asset` 与 UI 共用 [building_footprint.terrain_conflict](../scripts/world_editor/building_footprint.gd)：仅对地形按构件高度、完整活动范围及实际三角交叠判断，不把屋外高格角或高处屋檐包络算成埋屋。道路、其他住宅及保留区仍使用原有占地保护，真实进入地板或活动门的土坡仍拒绝；无新工具/schema。拒绝结果可附 `terrain_contact` 诊断（地形、构件、网格及世界位置）。[新回归](../tools/test_house_terrain_contact_http.gd) 实际 HTTP **39 项通过**，既有 [地基回归](../tools/test_house_foundation_support_http.gd) **33 项通过**，均 0 失败；涵盖生成、冻结素材库、原子拒绝、撤销重做及保存重开。日志同目录 `house_terrain_contact_http.log`、`foundation_support_http_terrain_refinement.log`，具体边界见 [房屋说明](world_editor_buildings.md#2026-10-15-房屋与斜地的实际交叠范围)。

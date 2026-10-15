@@ -202,6 +202,7 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 	for fresh:String in remap.values():
 		var members:Array=records.filter(func(r):return r.building.id==fresh)
 		var shape:Array=Footprint.components(members,Vector3.ZERO,Basis.IDENTITY)
+		var terrain_pieces:Array=Footprint.terrain_components(members)
 		var support_height:float=Footprint.foundation_support_height(registry[fresh].parameters,float(registry[fresh].position[1]),members)
 		if Footprint.batches_overlap(shape,occupied) or Footprint.batches_overlap(shape,preload("res://scripts/world3d/planning_zones.gd").obstacles(doc.map_meta)):return {"ok":false,"error":"预制件进入保留区或另一栋建筑"}
 		for r:Dictionary in doc.records:
@@ -210,6 +211,9 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 			if r.has("terrain_mesh"):
 				var bounds:=Geometry.bounds([r])
 				if not shape.any(func(s):return s.bounds.grow(.01).intersects(bounds.grow(.01))):continue
+				var contact:Dictionary=Footprint.terrain_conflict(r,terrain_pieces,support_height)
+				if not contact.is_empty():return {"ok":false,"error":"预制件与已有地形重叠","conflicts":[str(r.uuid)],"terrain_contact":contact}
+				continue
 			for obstacle:Dictionary in Footprint.record_shapes(r):
 				if Footprint.supporting_ground(r,obstacle.bounds.end.y,support_height):continue
 				if Footprint.batches_overlap(shape,[obstacle]):return {"ok":false,"error":"预制件与已有物件重叠","conflicts":[str(r.uuid)]}

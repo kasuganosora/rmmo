@@ -7,24 +7,47 @@ var build_receipt:Dictionary={}
 var house_recipe:Dictionary={}
 var terrain_records:Array=[]
 var sampled_houses:Dictionary={}
-var entrance_steps:Array[AABB]=[]
+var entrance_steps:Array[Dictionary]=[]
 var entrance_component_ids:Array=[]
+var entrance_building_id:=""
 
 func prepare_steps(h:Dictionary)->void:
-	entrance_steps.clear();entrance_component_ids=h.get("component_ids",[])
+	entrance_steps.clear();entrance_component_ids=h.get("component_ids",[]);entrance_building_id=str(h.building_id)
 	var plan:Dictionary=preload("res://scripts/world3d/building_blueprint.gd").generate(h.parameters)
 	var pose:=Transform3D(Basis(Vector3.UP,deg_to_rad(float(h.yaw))),vector(h.position))
 	for r:Dictionary in plan.get("records",[]):
 		if r.get("building",{}).get("role","")!="entry_step":continue
-		entrance_steps.append(pose*AABB(vector(r.position)-vector(r.size)*.5,vector(r.size)))
+		var step_pose:=pose*Transform3D(Basis.from_euler(vector(r.get("rotation",[0,0,0]))*PI/180),vector(r.position))
+		entrance_steps.append({"inverse":step_pose.affine_inverse(),"box":AABB(-vector(r.size)*.5,vector(r.size)),"part":r.building.part})
+
+func step_owner(id:String)->bool:
+	var owner:Dictionary=records.get(id,{}).get("building",{})
+	return id in entrance_component_ids and str(owner.get("id",""))==entrance_building_id and owner.get("role","") in ["shell","entry_step"]
 
 func authored_step(point:Vector3,id:String)->bool:
 	# Freeze batches entry treads with the storey's shell. Match the original
 	# native step's real volume/top, never blanket-accept the merged shell.
-	if id not in entrance_component_ids:return false
-	for box:AABB in entrance_steps:
-		if absf(point.y-box.end.y)<.025 and box.grow(.02).has_point(point):return true
+	if not step_owner(id):return false
+	for step:Dictionary in entrance_steps:
+		var local:Vector3=step.inverse*point;var box:AABB=step.box
+		if absf(local.y-box.end.y)<.025 and box.grow(.02).has_point(local):return true
 	return false
+
+func step_contact_points(feet_point:Vector3,id:String,points:PackedVector3Array)->Dictionary:
+	# Classify actual collision pairs, not the separate centre ray's ground hit.
+	# Both endpoints of every pair must be inside the current house's authored
+	# tread OBBs. A rotated step's empty AABB corners, walls and upper jambs are
+	# never accepted merely because they share the frozen shell's object ID.
+	var bad:Array=[];var highest:=-INF
+	if not step_owner(id) or points.is_empty() or points.size()%2!=0 or points.size()>=256:return {"passed":false,"reason":"unknown owner or missing/truncated contact pairs","contact_points":points.size()}
+	for point:Vector3 in points:
+		highest=maxf(highest,point.y)
+		var in_step:=false
+		if point.is_finite() and point.y<=feet_point.y+.32 and point.y>=feet_point.y-.025:
+			for step:Dictionary in entrance_steps:
+				if step.box.grow(.015).has_point(step.inverse*point):in_step=true;break
+		if not in_step:bad.append(xyz(point))
+	return {"passed":bad.is_empty(),"contact_points":points.size(),"highest_contact":highest,"height_above_ground":highest-feet_point.y,"invalid_points":bad}
 
 func ground_point(at:Vector3)->Vector3:
 	var y:=BridgeTools.ground_height(terrain_records,at)
@@ -38,25 +61,48 @@ func capsule_clear(point:Vector3)->Dictionary:
 	query.exclude=[world._player.get_rid()];query.collision_mask=world._player.collision_mask;query.margin=.001
 	var contacts:Array=world._player.get_world_3d().direct_space_state.intersect_shape(query,64)
 	var blocked:Array=[];var supports:Array=[]
-	var shell_supports:Array=[]
+	var step_contacts:Array=[];var visited:Dictionary={}
+	if contacts.size()>=64:blocked.append({"reason":"capsule contact list reached limit; cannot certify all contacts"})
 	for contact:Dictionary in contacts:
 		var id:=object_id(contact.collider);var r:Dictionary=records.get(id,{})
+		var rid:RID=contact.get("rid",RID())
+		if visited.has(rid):continue
+		visited[rid]=true
 		# Ground slopes/entry treads can touch the bottom of an upright capsule.
 		# Record those contacts separately; the physical local walk below still
 		# has to climb them. House walls, foundations, planters and trees may not
 		# be excused as support just because a ray found ground below them.
 		if r.has("terrain_mesh") or r.has("road_mesh") or r.get("building",{}).get("role","") in ["floor","entry_step"]:supports.append(id)
-		elif authored_step(point,id):shell_supports.append(id)
+		elif step_owner(id) and rid.is_valid():
+			# intersect_shape supplies owner RIDs but no contact locations. Exclude
+			# every other overlapping body for this read-only collide_shape probe;
+			# all shapes of the target RID remain included, including its walls.
+			var excluded:Array[RID]=[world._player.get_rid()]
+			for other:Dictionary in contacts:
+				var other_rid:RID=other.get("rid",RID())
+				if other_rid.is_valid() and other_rid!=rid and not excluded.has(other_rid):excluded.append(other_rid)
+			query.exclude=excluded
+			var points:PackedVector3Array=world._player.get_world_3d().direct_space_state.collide_shape(query,128)
+			var classified:=step_contact_points(point,id,points);classified.id=id;step_contacts.append(classified)
+			if classified.passed:supports.append(id)
+			else:blocked.append({"id":id,"role":r.get("building",{}).get("role",""),"reason":"frozen contact is not wholly inside authored low steps","classification":classified})
 		else:blocked.append({"id":id,"name":r.get("editor_name",r.get("name","")),"role":r.get("building",{}).get("role","")})
-	# A capsule beside a 15cm tread can touch the next riser at its rounded foot.
-	# Only low contact pairs may be classified as this authored step; a wall or
-	# jamb belonging to the same frozen object remains a hard failure.
-	var highest_contact:float=-INF
-	if not shell_supports.is_empty():
-		for contact_point:Vector3 in world._player.get_world_3d().direct_space_state.collide_shape(query,128):highest_contact=maxf(highest_contact,contact_point.y)
-		if highest_contact>point.y+.18:blocked.append({"ids":shell_supports,"reason":"frozen shell contact exceeds native tread rise","highest_contact":highest_contact})
-		else:supports.append_array(shell_supports)
-	return {"passed":blocked.is_empty(),"blocked":blocked,"support_contacts":supports,"capsule_origin":xyz(query.transform.origin)}
+	return {"passed":blocked.is_empty(),"blocked":blocked,"support_contacts":supports,"authored_step_contact_pairs":step_contacts,"capsule_origin":xyz(query.transform.origin)}
+
+func walk_doorway(target:Vector3,label:String)->Dictionary:
+	# A 35cm town-route tolerance can stop before a 38cm-deep entry tread. This
+	# short outdoor test must really reach its target, including the target Y.
+	var start:=feet();var request:Dictionary=world._player.set_click_target(target,"ground")
+	var began:=Time.get_ticks_msec();var unsupported:=0;var max_unsupported:=0;var ticks:=0
+	while Time.get_ticks_msec()-began<15000:
+		await physics_frame;ticks+=1
+		var point:=feet();var hit:=support(point,.6,.3)
+		unsupported=0 if hit.ok else unsupported+1;max_unsupported=maxi(max_unsupported,unsupported)
+		if unsupported>20 or point.distance_to(target)<.10:break
+		if not world._player.path_status.get("ok",false) and world._player.path_status.get("reason","")!="pending":break
+	var end:=feet();var remaining:=end.distance_to(target)
+	var result:={"label":label,"start":xyz(start),"end":xyz(end),"target":xyz(target),"remaining_m":remaining,"elapsed_ms":Time.get_ticks_msec()-began,"unsupported_ticks":max_unsupported,"physics_samples":ticks,"request_reason":request.get("reason",""),"final_path_reason":world._player.path_status.get("reason",""),"passed":remaining<.12 and max_unsupported<=20}
+	check(result.passed,"actual player reaches outdoor doorstep target "+label,result);stop_route();return result
 
 func audit_house(h:Dictionary)->void:
 	var id:=str(h.id);report.phase="entrance_"+id
@@ -94,11 +140,14 @@ func audit_house(h:Dictionary)->void:
 		previous=row
 	check(joins.size()==4 and joins.all(func(j):return j.passed),"outdoor doorstep has no unsupported vertical jump "+id,{"joins":joins})
 	var walks:Array=[]
-	if invalid.is_empty() and center_hits.has("2.3") and center_hits.has("0.55"):
+	# Preserve any static failure above, but still gather both physical outdoor
+	# directions. No probe exemption can substitute for actually walking here.
+	if center_hits.has("2.3") and center_hits.has("0.55"):
 		var a:=vector(center_hits["2.3"].position);var b:=vector(center_hits["0.55"].position)
 		if await relocate(a+Vector3.UP*.025,id+" short approach"):
-			walks.append(await walk_route(b,id+" approach stops outside wall"))
-			if walks.back().passed:walks.append(await walk_route(a,id+" return to street side"))
+			walks.append(await walk_doorway(b,id+" approach stops outside wall"))
+		if await relocate(b+Vector3.UP*.025,id+" outdoor reverse start"):
+			walks.append(await walk_doorway(a,id+" return to street side"))
 	check(walks.size()==2 and walks.all(func(w):return w.passed),"both outdoor approach directions completed "+id)
 	var result:={"id":id,"shot":h.shot,"building_id":h.building_id,"position":h.position,"threshold":xyz(threshold),"outward":xyz(outward),"samples":samples,"joins":joins,"walks":walks}
 	report.houses.append(result);sampled_houses[id]=result;save_report()

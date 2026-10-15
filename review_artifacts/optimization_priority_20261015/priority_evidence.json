@@ -1,0 +1,54 @@
+{
+  "purpose": "Prioritize existing candidate work packages by expected current contribution, dependency and implementation risk; no new performance results",
+  "created_at": "2026-10-15T12:27:30.302824+00:00",
+  "plan_before": {
+    "path": "D:/code/rmmo/review_artifacts/optimization_priority_20261015/unified_plan_before_priority.md",
+    "sha256": "2489df33d17e47cec8ac44f4f025021fa9ddfc8b4fee449e351502c45ceb0508"
+  },
+  "previous_evidence": "D:/code/rmmo/review_artifacts/reference_scene_research_20261015/research_evidence.json",
+  "runtime_code_or_map_changed": false,
+  "gpu_or_runtime_tests_run": false,
+  "plan_after": {
+    "path": "D:/code/rmmo/docs/seamless_streaming_optimization_plan_20261014.md",
+    "sha256": "93ba83fcb9171447799f3e5c0724ef1dec47399acb7b344b72d624c12bc60dae"
+  },
+  "validated_at": "2026-10-15T12:31:14.313910+00:00",
+  "validation": {
+    "local_link_count": 41,
+    "missing_local_links": [],
+    "all_previous_external_sources_retained": true,
+    "technical_work_package_sections_unchanged": {
+      "### E1 ": true,
+      "### E2 ": true,
+      "### W0 ": true,
+      "### W0-E ": true,
+      "### W1 ": true,
+      "### T1 ": true,
+      "### T2 ": true,
+      "### W2 ": true,
+      "### W3 ": true,
+      "### W4 ": true,
+      "### W5 ": true,
+      "### T4 ": true
+    },
+    "previous_research_output_matches_input_snapshot": true,
+    "git_diff_check_exit_code": 0,
+    "git_diff_check_output": "warning: in the working copy of 'docs/seamless_streaming_optimization_plan_20261014.md', LF will be replaced by CRLF the next time Git touches it\n"
+  },
+  "ranking_basis": [
+    "Current user objective: reliable editor outcomes, reduced visual trial-and-error",
+    "Observed scene failure/rework classes and existing reusable implementation",
+    "Expected impact breadth and frequency; separate correctness/productivity/performance dimensions",
+    "Hard dependencies distinguished from default resource scheduling",
+    "Performance packages activated by the relevant measured bottleneck; no invented percentages"
+  ],
+  "first_delivery": {
+    "parallel": [
+      "E1-A shared constraints and reliable validation",
+      "E2-A bounded multi-tool candidate transaction",
+      "W0-E representative baseline"
+    ],
+    "integration": "E1-B reliable house elevation and entrance-road setback via shared UI/current 3D MCP",
+    "scope": "One existing frozen residential building, one entrance road, and nearby protected props on supported ordinary heightfield"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "checked_at": "2026-10-15T12:21:45.653594+00:00",
+  "local_link_count": 38,
+  "missing_local_links": [],
+  "old_external_sources_preserved": true,
+  "new_external_source_count": 12,
+  "runtime_sections_unchanged": {
+    "### W2 ": true,
+    "### W3 ": true,
+    "### W4 ": true
+  },
+  "missing_referenced_script_filenames": [],
+  "plan_sha256": "2489df33d17e47cec8ac44f4f025021fa9ddfc8b4fee449e351502c45ceb0508",
+  "plan_lines": 469,
+  "gpu_or_runtime_tests_run": false,
+  "git_diff_check_exit_code": 0,
+  "git_diff_check_output": "warning: in the working copy of 'docs/seamless_streaming_optimization_plan_20261014.md', LF will be replaced by CRLF the next time Git touches it\n"
+}

@@ -37,6 +37,12 @@ def main():
     recipe, index, native = (receipts[n] for n in names[4:])
     planned = recipe.get('houses', [])
     built = build.get('houses', [])
+    near_post = next((r for r in build.get('props', {}).get('placements', [])
+                      if r.get('key') == 'festival/lane_near_south'), {})
+    has_green_post = near_post.get('asset_label') == '绿色金丝带彩柱' and bool(near_post.get('asset_sha256'))
+    pole_note = ('S1 桥左蓝柱、桥右浅原木柱保持用户修正。S2 近南柱已使用正式库绿色原木素材。'
+                 if has_green_post else
+                 'S1 桥左蓝柱、桥右浅原木柱保持用户修正。S2 近南绿色柱尚未接入正式候选。')
     templates = {r['id']: r for r in index.get('templates', [])}
     native_rows = {r['id']: r for r in native.get('templates', [])}
     used = sorted({r['template_id'] for r in planned})
@@ -53,9 +59,12 @@ def main():
     image_rows = {r.get('path'): r for r in visual.get('images', []) if isinstance(r, dict)}
     checked_images = {}
     for path, image in image_rows.items():
+        preparation = read(str(path) + '.review-image.json') if path else {}
         valid = bool(path and Path(path).suffix.lower() == '.webp' and image.get('reviewed') is True
                      and image.get('sha256') and sha(path) == image['sha256']
-                     and (image.get('quality') == 90 or image.get('lossless') is True))
+                     and image.get('quality') == 90
+                     and preparation.get('sha256') == image['sha256']
+                     and preparation.get('quality') == 90 and preparation.get('lossless') is False)
         checked_images[path] = {**image, 'valid': valid}
     pub_evidence = publication.get('evidence', {})
     publication_ok = (publication.get('published') is True and publication.get('status') == 'passed'
@@ -113,7 +122,7 @@ def main():
               'used_templates': models, 'reviewed_images': list(checked_images.values()),
               'scope_limits': ['14 residences across S1/S2/S10/S12; not full-town background infill or complete shot restoration.',
                                'No repeated component-house interior tests; runtime scope is outdoor approaches and current layout.',
-                               'S1 keeps blue and natural timber poles. S2 near-south remains approved natural timber because green is absent from the formal catalog; old isolated green cache was not imported.',
+                               pole_note,
                                'Native geometry/surface/texture budgets are distinct from measured runtime draw calls or VRAM.'],
               'visual_schema': {'template_reviews': [{'template_id': '...', 'template_sha256': '...', 'passed': True,
                                'notes': 'Actual visual conclusion', 'image_paths': ['absolute .webp path']}],
@@ -126,7 +135,7 @@ def main():
                  ('正式原子发布与重开已核对。正式文件 SHA：`'+str(report['formal_sha256'])+'`。' if publication_ok else '本页当前记录候选制作与验收阶段，尚无完整正式接入通过结论。'), '',
                  '住宅均为居民用途，保留整栋窗型、楼层/屋顶隐藏和活动门窗语义。S1 使用规整小砌块外墙与闭合留门院墙；S2 低宅有真实圆山墙窗；S12 采用真实通高拱洞、独立双柱外拱和山墙雕饰。不可见部分与游戏尺寸属于项目补充设计。', '',
                  '本轮没有补齐整城背景，也不能视为四个镜头完整还原。既有组件房室内不重复测试；运行验收覆盖本轮室外入口和通路。', '',
-                 'S1 桥左蓝柱、桥右浅原木柱保持用户修正。S2 近南绿色柱缺少正式库素材，暂用已验收原木柱；未引入旧隔离缓存的绿色版本。三组跨街旗串复用原生风动素材，柱高约 6.43 m，CPU 沿地形最低旗底净高约 3.83 m，实际风姿态仍以本轮画面证据为准。', '',
+                 pole_note+'三组跨街旗串复用原生风动素材，实际挂点与风姿态以本轮场景证据为准。', '',
                  '| 使用模板 | 资源 | 画质 | 管线 | 正式接入 |', '|---|---|---|---|---|']
         for m in models:
             lines.append('| '+m['template_id']+' | '+' | '.join(stage_names[m['stages'][k]['status']] for k in ['resource','visual','pipeline','formal_integration'])+' |')

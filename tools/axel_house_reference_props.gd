@@ -66,7 +66,10 @@ static func build_requests(doc,plans:Array,final_houses:Dictionary)->Dictionary:
 				requests.append(request(str(h.id)+"/projecting_arch",arch,origin+basis*Vector3(arch_x,float(p.get("base_height",0)),-float(p.depth)/2),yaw+180,Vector3.ONE,false))
 				requests.append(request(str(h.id)+"/gable_relief",relief,origin+basis*Vector3(0,5.35,-float(p.depth)/2),yaw+180,Vector3.ONE,false))
 			if h.get("shot")=="S10" and int(p.floors)==1:
-				requests.append(request(str(h.id)+"/redfruit",fruit,origin+basis*Vector3(-7.75,0,-12.5),yaw))
+				var fruit_at:=origin+basis*Vector3(-7.75,0,-12.5)
+				var fruit_xz:Array=plan.get("props",{}).get("s10_tree",{}).get("position_xz",[])
+				if fruit_xz.size()==2:fruit_at=Vector3(float(fruit_xz[0]),0,float(fruit_xz[1]))
+				requests.append(request(str(h.id)+"/redfruit",fruit,fruit_at,yaw))
 				# Two separate warm brick planters, keeping the actual left-offset door clear.
 				for side:Array in [[-7.55,3.2],[.75,4.2]]:
 					requests.append(request(str(h.id)+"/planter_"+str(side[0]),planter,origin+basis*Vector3(side[0],0,-7.3),yaw,Vector3(float(side[1])/3.620182,1,.8/1.235942)))
@@ -186,5 +189,6 @@ static func apply_requests(doc,prepared:Dictionary,only_missing:bool=false)->Dic
 			r.size=B.arr(B.vec(r.get("size",[1,1,1]))*scale_)
 			if row.has("collision"):r.collision=row.collision
 			r.editor_name="Axel reference "+str(row.key);ids.append(r.uuid)
-			placements.append({"id":r.uuid,"key":row.key,"position":r.position,"rotation":r.rotation,"scale":r.size})
-	return {"ok":true,"ids":ids,"placements":placements}
+			var source_path:String=r.get("asset_path","")
+			placements.append({"id":r.uuid,"key":row.key,"position":r.position,"rotation":r.rotation,"scale":r.size,"asset_label":entry_.get("label",""),"asset_id":entry_.get("id",""),"asset_path":source_path,"asset_sha256":FileAccess.get_sha256(source_path) if FileAccess.file_exists(source_path) else ""})
+	return {"ok":true,"ids":ids,"placements":placements,"material_deviations":prepared.get("material_deviations",[])}

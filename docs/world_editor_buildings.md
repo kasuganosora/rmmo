@@ -377,3 +377,11 @@ V7 验收记录：14 组覆盖/空洞/交接样例和 100 组随机尺寸（96 �
 此修正不雕刻地形、不抬整屋，也不豁免道路或其他建筑碰撞。UI、`preview_buildings` / `generate_buildings` 及 `place_asset` 复用相同判断，工具与参数没有新增。地形整平仍是独立原生操作，必须通过道路真实坡度和保护检查。
 
 [test_house_foundation_support_http.gd](../tools/test_house_foundation_support_http.gd) 在隔离临时地图实际执行 **33 项通过，0 失败**：合法斜地原生生成与冻结预制件放置、地形顶点不变、无地基与地板被埋的原子拒绝、参数上限受实际几何限制、撤销重做和保存重开。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/foundation_support_http.log`。这是承托能力回归，不等于住宅外观和正式地图布局已经验收。
+
+### 2026-10-15 房屋与斜地的实际交叠范围
+
+原有整栋占地用于道路净空、房屋间距和保留区，继续保留。仅地形碰撞增加 [building_footprint.terrain_components / terrain_conflict](../scripts/world_editor/building_footprint.gd)：每个原生构件保留自身高度范围和完整活动门窗包络，再与实际地形格子的两个三角求交，按交叠区域的线性表面高度检查。屋檐、楼上窗扇不再和地基拼成贯穿全高的实体棱柱，落在房屋外的高格角也不再冒充屋内地面。冻结与未冻结构件使用同一路径；不修改模型或地形。
+
+真实土坡进入室内地板、墙体或活动门范围仍拒绝；抬高基座上限仍受参数和实际首层地板双重限制。倾斜地块、起垄保留原保守处理。`building_tools.prepare` 与 `prefab_library.place_buildings` 同步接入，UI、`preview_buildings` / `generate_buildings`、`place_asset` 无新工具或参数；失败附 `terrain_contact` 中的地形 ID、构件、网格和实际世界位置，便于定位内容冲突。原道路/其他房屋碰撞与原子事务不变。
+
+[test_house_terrain_contact_http.gd](../tools/test_house_terrain_contact_http.gd) 在真实 loopback HTTP **39 项通过，0 失败**：重现整格高角及整屋包络误报、合法斜地、真实室内土峰、平移/旋转、生成后冻结并另存素材库再放置、非法埋屋无副作用、撤销重做与保存重开。既有 [地基回归](../tools/test_house_foundation_support_http.gd) 同时复跑 **33 项通过，0 失败**。证据位于 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_terrain_contact_http.log` 和 `foundation_support_http_terrain_refinement.log`。S1 后排木构宅与 S12 前景宅的真实模板/两块宅基地 CPU 复现见同目录 `house_terrain_diagnostic.json`；该隔离检查不等于全部道路和正式场景已验收。

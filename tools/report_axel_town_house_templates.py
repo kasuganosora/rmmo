@@ -3,6 +3,7 @@ from pathlib import Path
 import base64
 import hashlib
 import json
+import argparse
 from PIL import Image
 
 OUT = Path('D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014')
@@ -11,11 +12,23 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--only', default='', help='Comma-separated changed template IDs; retain other reviews')
+    selected = set(filter(None, parser.parse_args().only.split(',')))
     index = json.loads((OUT / 'house_templates.json').read_text(encoding='utf8'))
     native = {r['id']: r for r in json.loads((OUT / 'house_template_native_audit.json').read_text(encoding='utf8'))['templates']}
     cache = {}
     reports = []
+    if selected:
+        for item in index['templates']:
+            if item['id'] in selected:
+                continue
+            previous = json.loads((OUT / 'templates' / (item['id'] + '.review.json')).read_text(encoding='utf8'))
+            reports.append(previous)
+            cache.update(previous.get('textures', {}))
     for item in index['templates']:
+        if selected and item['id'] not in selected:
+            continue
         path = Path(item['loaded_path'])
         source = json.loads(path.read_text(encoding='utf8'))
         audit = native.get(item['id'], {})

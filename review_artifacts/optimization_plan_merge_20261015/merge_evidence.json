@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-15",
+  "kind": "documentation_consolidation",
+  "head_at_merge": "520d142197bd71920b476f10d7e5261d4f4d3db5",
+  "scope": "Merged prior streaming plan and terrain research into one canonical plan. No runtime code, assets, maps or experimental flags changed; no performance/GPU/headless tests run.",
+  "code_facts_reaudited": false,
+  "canonical_plan": "docs/seamless_streaming_optimization_plan_20261014.md",
+  "former_terrain_entry": "docs/skylines_terrain_performance_analysis_20261015.md",
+  "source_audits": [
+    {
+      "date": "2026-10-14",
+      "head": "e344b29f11749d12b575fc90518154c56caf0a8e",
+      "evidence": "review_artifacts/seamless_stream_research_20261014/plan_revision_evidence.json"
+    },
+    {
+      "date": "2026-10-15",
+      "head": "520d142197bd71920b476f10d7e5261d4f4d3db5",
+      "evidence": "review_artifacts/skylines_terrain_research_20261015/evidence.json"
+    }
+  ],
+  "work_package_mapping": {
+    "W0": "W0-R (runtime) and W0-E (editor terrain)",
+    "T0": "W0-E",
+    "T3": "W5 terrain subtopic",
+    "W1/T2": "Separate execution and acceptance; shared principles only",
+    "T4": "Independent feature package; no optimization speedup prerequisite"
+  },
+  "snapshots": [
+    {
+      "original_path": "docs/seamless_streaming_optimization_plan_20261014.md",
+      "archive_path": "review_artifacts/optimization_plan_merge_20261015/streaming_before_merge.md",
+      "sha256": "501f3c4a0fbb6ff43427e0a291a1b1f1ddaaf8fc75eede7f9f4427a5d74fdc8b"
+    },
+    {
+      "original_path": "docs/skylines_terrain_performance_analysis_20261015.md",
+      "archive_path": "review_artifacts/optimization_plan_merge_20261015/terrain_before_merge.md",
+      "sha256": "7a4db2c44df496ce1b937294a2fa9250501e01775832f44a314c286377a1fd0b"
+    }
+  ],
+  "snapshot_original_link_base": "D:/code/rmmo/docs",
+  "prior_evidence_policy": "Original evidence JSON retained unchanged. Historical path/hash entries describe pre-merge documents; archived snapshots preserve the exact bytes.",
+  "files": [
+    {
+      "path": "docs/seamless_streaming_optimization_plan_20261014.md",
+      "sha256": "9b180035b6c5dcf5a90a21b94cc932985ebc88b45942212e977fbf4f9456906b",
+      "bytes": 57858
+    },
+    {
+      "path": "docs/skylines_terrain_performance_analysis_20261015.md",
+      "sha256": "576852ca7d76a8923081c8a984a5ca1f1c4b79d6f4f2e3ea8182a726a847ebd4",
+      "bytes": 826
+    },
+    {
+      "path": "review_artifacts/optimization_plan_merge_20261015/streaming_before_merge.md",
+      "sha256": "501f3c4a0fbb6ff43427e0a291a1b1f1ddaaf8fc75eede7f9f4427a5d74fdc8b",
+      "bytes": 34272
+    },
+    {
+      "path": "review_artifacts/optimization_plan_merge_20261015/terrain_before_merge.md",
+      "sha256": "7a4db2c44df496ce1b937294a2fa9250501e01775832f44a314c286377a1fd0b",
+      "bytes": 18817
+    },
+    {
+      "path": "review_artifacts/seamless_stream_research_20261014/plan_revision_evidence.json",
+      "sha256": "591371b6646e82600526423d79be9b17ea5dca262aee2a301f66880c93d44c0f",
+      "bytes": 6276
+    },
+    {
+      "path": "review_artifacts/skylines_terrain_research_20261015/evidence.json",
+      "sha256": "d265871fcdcf494153973b078ec5b5a00b540bc611035eb8b27553ef9858075e",
+      "bytes": 6877
+    }
+  ],
+  "content_checks": {
+    "protectedSections": [
+      {
+        "id": "W2",
+        "unchanged": true
+      },
+      {
+        "id": "W3",
+        "unchanged": true
+      },
+      {
+        "id": "W4",
+        "unchanged": true
+      }
+    ],
+    "external_sources_preserved": 23,
+    "missingURLs": []
+  }
+}

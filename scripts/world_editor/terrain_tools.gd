@@ -120,7 +120,9 @@ func validate_change(record:Dictionary,result:Dictionary,participants:Array)->Di
 		if obstacle.get("surface_id")=="water" and obstacle.has("channel_mesh") and obstacle.get("collision")=="none": continue
 		var bounds:=Foot.record_shape(obstacle)
 		if not Foot.batches_overlap(changed_volumes,[bounds]): continue
-		if Foot.batches_overlap(changed_volumes,Foot.record_shapes(obstacle)): return {"ok":false,"error":"笔刷会侵入现有物件或移除其地面承托，整笔已拒绝","conflicts":[obstacle.uuid]}
+		if Foot.batches_overlap(changed_volumes,Foot.record_shapes(obstacle)):
+			if preload("res://scripts/world_editor/terrain_prop_contact.gd").preserves(record,result,obstacle):continue
+			return {"ok":false,"error":"笔刷会侵入现有物件或移除其地面承托，整笔已拒绝","conflicts":[obstacle.uuid]}
 	return {"ok":true}
 func summary(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)

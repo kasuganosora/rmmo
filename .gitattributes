@@ -1,0 +1,6 @@
+# Research evidence contains byte-level SHA records; preserve archived bytes.
+/review_artifacts/optimization_plan_merge_20261015/** -text whitespace=-blank-at-eof,cr-at-eol
+/review_artifacts/optimization_priority_20261015/** -text whitespace=-blank-at-eof,cr-at-eol
+/review_artifacts/reference_scene_research_20261015/** -text whitespace=-blank-at-eof,cr-at-eol
+/review_artifacts/seamless_stream_research_20261014/** -text whitespace=-blank-at-eof,cr-at-eol
+/review_artifacts/skylines_terrain_research_20261015/** -text whitespace=-blank-at-eof,cr-at-eol
