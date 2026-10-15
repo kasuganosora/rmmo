@@ -1,0 +1,369 @@
+{
+	"checks": [
+		{
+			"label": "frozen original road_tools source SHA is exact",
+			"ok": true
+		},
+		{
+			"label": "frozen original source parses for independent correctness comparison",
+			"ok": true
+		},
+		{
+			"label": "equal nested numbers and dictionary order are semantically identical",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-12 numeric difference is never swallowed",
+			"ok": true
+		},
+		{
+			"label": "bool, string and missing fields remain distinct",
+			"ok": true
+		},
+		{
+			"label": "array order and container types remain distinct",
+			"ok": true
+		},
+		{
+			"label": "same-type integers remain exact and unsafe int-to-double rounding cannot merge changes",
+			"ok": true
+		},
+		{
+			"label": "safe cross-type integers compare exactly and nonfinite conversion is refused",
+			"ok": true
+		},
+		{
+			"label": "native unpainted near/far roads prepare in a CPU-only context",
+			"ok": true
+		},
+		{
+			"label": "original and corrected prepare accept the same reloaded authored map",
+			"ok": true
+		},
+		{
+			"label": "both prepare implementations leave source document and history untouched",
+			"ok": true
+		},
+		{
+			"label": "corrected diff counts semantically unchanged reloaded records accurately",
+			"ok": false
+		},
+		{
+			"label": "frozen original reproduces spurious updates after JSON reload",
+			"ok": true
+		},
+		{
+			"label": "corrected candidates retain exact author bytes while original candidates replace representation",
+			"ok": false
+		},
+		{
+			"label": "manifest and plan-token definitions remain byte-identical to original prepare",
+			"ok": true
+		},
+		{
+			"label": "retained candidate is a deep copy and cannot mutate the live document",
+			"ok": true
+		},
+		{
+			"label": "direct repeated generate after JSON reload is a no-op with no history or refresh",
+			"ok": false
+		},
+		{
+			"label": "original implementation reproduces unnecessary repeated-generate history",
+			"ok": true
+		},
+		{
+			"label": "a genuine local endpoint change remains an update beside unchanged far roads",
+			"ok": true
+		},
+		{
+			"label": "legal local preparation preserves every distant authored road byte",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-10 authored clearance change updates every affected record",
+			"ok": true
+		}
+	],
+	"corrected_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 4,
+		"updated": 2
+	},
+	"corrected_repeat": {
+		"changed": true,
+		"chunks": 6,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 4,
+			"updated": 2
+		},
+		"ids": [
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_371cc25e17aebb0b7c4b",
+			"pavement_0fb07334267a8da69cc0",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"ok": true
+	},
+	"current_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"exact_change_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"failures": 3,
+	"local_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 3,
+		"updated": 3
+	},
+	"original_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"original_repeat": {
+		"changed": true,
+		"chunks": 6,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 0,
+			"updated": 6
+		},
+		"ids": [
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_371cc25e17aebb0b7c4b",
+			"pavement_0fb07334267a8da69cc0",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"ok": true
+	},
+	"prepare_manifest_sha256": "0da26544d3bb32b8b7c9689448fd7685aa2aa94980ba9bc36a3db7bd8a8044a3",
+	"record_evidence": [
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "61d2d921453bb489227fd933a5f6ed5b903ff876b7f70626d23ca113d20efbbd",
+			"corrected_sha256": "61d2d921453bb489227fd933a5f6ed5b903ff876b7f70626d23ca113d20efbbd",
+			"id": "pavement_95dbe641da91b6c6b952",
+			"original_rotation_type": 2,
+			"original_sha256": "0f6bef6d6f80ec88ba37058172d05d421b0d1a474bc18c3722277ce32e7c0e61",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "801bc79c9d71b0bfe40adbbc8567d8b58e23ce14b729f59fd3707cd6fc6b5454",
+			"corrected_sha256": "801bc79c9d71b0bfe40adbbc8567d8b58e23ce14b729f59fd3707cd6fc6b5454",
+			"id": "pavement_993600ba1e5c0bde643e",
+			"original_rotation_type": 2,
+			"original_sha256": "da9be804a33b4d1b54921edf11472671c2028e1d57dbfb0026415c2601fb911e",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "1a6fd3ba0aac4747ad407f63ebddc8381ce5e89e2a87948ba748ceae506ab335",
+			"corrected_sha256": "dedcec1c8f4366b2a7c89fc36cf5d4545365c494b16c3769be17cd978d511698",
+			"id": "pavement_371cc25e17aebb0b7c4b",
+			"original_rotation_type": 2,
+			"original_sha256": "dedcec1c8f4366b2a7c89fc36cf5d4545365c494b16c3769be17cd978d511698",
+			"real_value_differences": [
+				{
+					"left": -0.0161762237548828,
+					"left_precise": "-0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][1][0]",
+					"right": -0.0161762237548828,
+					"right_precise": "-0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": 0.0603704452514648,
+					"left_precise": "0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][1][1]",
+					"right": 0.0603704452514648,
+					"right_precise": "0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": -0.0603704452514648,
+					"left_precise": "-0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][5][0]",
+					"right": -0.0603704452514648,
+					"right_precise": "-0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": 0.0161762237548828,
+					"left_precise": "0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][5][1]",
+					"right": 0.0161762237548828,
+					"right_precise": "0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": -0.0603704452514648,
+					"left_precise": "-0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][7][0]",
+					"right": -0.0603704452514648,
+					"right_precise": "-0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": -0.0161762237548828,
+					"left_precise": "-0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][7][1]",
+					"right": -0.0161762237548828,
+					"right_precise": "-0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": -0.0161762237548828,
+					"left_precise": "-0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][11][0]",
+					"right": -0.0161762237548828,
+					"right_precise": "-0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": -0.0603704452514648,
+					"left_precise": "-0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][11][1]",
+					"right": -0.0603704452514648,
+					"right_precise": "-0.06037044525146484",
+					"right_type": 3
+				}
+			]
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "8fb13163445b1b02753e4cf4c2e4d162f4d93430e2dd1034c88b86a1fdeb754b",
+			"corrected_sha256": "48e8486b9a1d3f03ddc6f6bcfd74df3b89640145e3a2012c2b415d679992943a",
+			"id": "pavement_0fb07334267a8da69cc0",
+			"original_rotation_type": 2,
+			"original_sha256": "48e8486b9a1d3f03ddc6f6bcfd74df3b89640145e3a2012c2b415d679992943a",
+			"real_value_differences": [
+				{
+					"left": 0.0603704452514648,
+					"left_precise": "0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][1][0]",
+					"right": 0.0603704452514648,
+					"right_precise": "0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": 0.0161762237548828,
+					"left_precise": "0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][1][1]",
+					"right": 0.0161762237548828,
+					"right_precise": "0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": 0.0161762237548828,
+					"left_precise": "0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][5][0]",
+					"right": 0.0161762237548828,
+					"right_precise": "0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": 0.0603704452514648,
+					"left_precise": "0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][5][1]",
+					"right": 0.0603704452514648,
+					"right_precise": "0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": 0.0161762237548828,
+					"left_precise": "0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][8][0]",
+					"right": 0.0161762237548828,
+					"right_precise": "0.01617622375488281",
+					"right_type": 3
+				},
+				{
+					"left": -0.0603704452514648,
+					"left_precise": "-0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][8][1]",
+					"right": -0.0603704452514648,
+					"right_precise": "-0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": 0.0603704452514648,
+					"left_precise": "0.06037044525146484",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][12][0]",
+					"right": 0.0603704452514648,
+					"right_precise": "0.06037044525146484",
+					"right_type": 3
+				},
+				{
+					"left": -0.0161762237548828,
+					"left_precise": "-0.01617622375488281",
+					"left_type": 3,
+					"path": ".road_mesh.polygons[1][12][1]",
+					"right": -0.0161762237548828,
+					"right_precise": "-0.01617622375488281",
+					"right_type": 3
+				}
+			]
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "ba60ef1cd89ac6e268537cddacc670524a1914d747dd4a5c02c12a1aff74d7a8",
+			"corrected_sha256": "ba60ef1cd89ac6e268537cddacc670524a1914d747dd4a5c02c12a1aff74d7a8",
+			"id": "pavement_7e8b2fc2a30eeea3bdd2",
+			"original_rotation_type": 2,
+			"original_sha256": "cc3bc482b8360561cdbb4892a07f5b8c1626c1751c2bfc3c0fe5d6e013d6f030",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "af6647d55479bae6af75d70e19c8cb4f35237f35bfc881c780d12abca3b3d42d",
+			"corrected_sha256": "af6647d55479bae6af75d70e19c8cb4f35237f35bfc881c780d12abca3b3d42d",
+			"id": "pavement_9f4cb035258a4eec34b9",
+			"original_rotation_type": 2,
+			"original_sha256": "be2a1335f4609ab60da2d37e1df64c2788fc5ade5efc589b20eb989b3eea65b1",
+			"real_value_differences": []
+		}
+	],
+	"reference_sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+	"scope": "CPU JSON author-data round trip and real shared road_tools.prepare/generate. Intentional record representation and diff correction; not an all-results-identical performance claim.",
+	"test_sha256": "5a77b2aa5ddc840cd7dd0ec9341e7f5126dcf3666371336d766f909fc5c1b129"
+}

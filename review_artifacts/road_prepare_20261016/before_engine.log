@@ -1,0 +1,183 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS selected fixture exists
+PASS frozen pre-profile source SHA is exact
+PASS frozen original source compiles
+PASS junction_kerbs native fixture constructed
+PASS open evidence junction_kerbs_input.bin
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"first_prepare","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":1,"potential_shape_pairs":4,"road_records":4,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.026,"collision":0.931,"finalize":0.122,"intersection_split":1.083,"material_lookup":0.799,"obstacle_shapes":0.063,"record_preservation":34.827,"road_build":14.728,"source_validation":0.125,"terrain_fit":0.007},"total_ms":52.714},"profiling_on":true,"stage_sum_ms":52.711,"unattributed_ms":0.017000000000003,"wall_ms":52.728}
+PASS junction_kerbs/first_prepare expected result
+PASS junction_kerbs/first_prepare input bytes unchanged
+PASS junction_kerbs/first_prepare disabled probes empty
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"warm_on_1","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":1,"potential_shape_pairs":4,"road_records":4,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.033,"collision":1.327,"finalize":0.131,"intersection_split":1.452,"material_lookup":0.735,"obstacle_shapes":0.062,"record_preservation":35.843,"road_build":19.14,"source_validation":0.149,"terrain_fit":0.012},"total_ms":58.892},"profiling_on":true,"stage_sum_ms":58.884,"unattributed_ms":0.323,"wall_ms":59.207}
+PASS junction_kerbs/warm_on_1 expected result
+PASS junction_kerbs/warm_on_1 input bytes unchanged
+PASS junction_kerbs/warm_on_1 disabled probes empty
+PASS junction_kerbs/warm_on_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"warm_on_2","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":1,"potential_shape_pairs":4,"road_records":4,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.027,"collision":0.846,"finalize":0.118,"intersection_split":1.395,"material_lookup":0.596,"obstacle_shapes":0.062,"record_preservation":67.823,"road_build":15.876,"source_validation":0.106,"terrain_fit":0.004},"total_ms":86.857},"profiling_on":true,"stage_sum_ms":86.853,"unattributed_ms":0.278000000000006,"wall_ms":87.131}
+PASS junction_kerbs/warm_on_2 expected result
+PASS junction_kerbs/warm_on_2 input bytes unchanged
+PASS junction_kerbs/warm_on_2 disabled probes empty
+PASS junction_kerbs/warm_on_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"warm_off_1","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":52.22,"wall_ms":52.22}
+PASS junction_kerbs/warm_off_1 expected result
+PASS junction_kerbs/warm_off_1 input bytes unchanged
+PASS junction_kerbs/warm_off_1 disabled probes empty
+PASS junction_kerbs/warm_off_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"warm_off_2","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":62.826,"wall_ms":62.826}
+PASS junction_kerbs/warm_off_2 expected result
+PASS junction_kerbs/warm_off_2 input bytes unchanged
+PASS junction_kerbs/warm_off_2 disabled probes empty
+PASS junction_kerbs/warm_off_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"junction_kerbs","full_result_sha256":"e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011","input_sha256":"86a6b44237dd116ff765094ebbba1599787acfd7048faec92b52ad843a895114","label":"warm_off_3","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":69.604,"wall_ms":69.604}
+PASS junction_kerbs/warm_off_3 expected result
+PASS junction_kerbs/warm_off_3 input bytes unchanged
+PASS junction_kerbs/warm_off_3 disabled probes empty
+PASS junction_kerbs/warm_off_3 full result identical
+PASS junction_kerbs complete result matches frozen original
+PASS junction_kerbs original also leaves bytes unchanged
+PASS open evidence junction_kerbs_result.bin
+PASS open evidence junction_kerbs_reference_result.bin
+PASS terrain64_local native fixture constructed
+PASS open evidence terrain64_local_input.bin
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"first_prepare","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":4096,"potential_shape_pairs":32768,"road_records":8,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.018,"collision":51.64,"finalize":8.293,"intersection_split":0.008,"material_lookup":0.375,"obstacle_shapes":84.489,"record_preservation":185.718,"road_build":4.495,"source_validation":0.089,"terrain_fit":1533.319},"total_ms":1868.457},"profiling_on":true,"stage_sum_ms":1868.444,"unattributed_ms":0.0270000000000437,"wall_ms":1868.471}
+PASS terrain64_local/first_prepare expected result
+PASS terrain64_local/first_prepare input bytes unchanged
+PASS terrain64_local/first_prepare disabled probes empty
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"warm_on_1","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":4096,"potential_shape_pairs":32768,"road_records":8,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.015,"collision":46.39,"finalize":5.11,"intersection_split":0.005,"material_lookup":0.45,"obstacle_shapes":87.948,"record_preservation":184.066,"road_build":1.541,"source_validation":0.069,"terrain_fit":1528.724},"total_ms":1854.328},"profiling_on":true,"stage_sum_ms":1854.318,"unattributed_ms":0.708999999999833,"wall_ms":1855.027}
+PASS terrain64_local/warm_on_1 expected result
+PASS terrain64_local/warm_on_1 input bytes unchanged
+PASS terrain64_local/warm_on_1 disabled probes empty
+PASS terrain64_local/warm_on_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"warm_on_2","ok":true,"profile":{"counts":{"obstacle_records_expanded":1,"obstacle_shapes":4096,"potential_shape_pairs":32768,"road_records":8,"source_records":1},"ok":true,"stages_ms":{"bridge_bindings":0.024,"collision":41.522,"finalize":10.648,"intersection_split":0.011,"material_lookup":0.351,"obstacle_shapes":87.634,"record_preservation":178.213,"road_build":3.582,"source_validation":0.12,"terrain_fit":1590.943},"total_ms":1913.064},"profiling_on":true,"stage_sum_ms":1913.048,"unattributed_ms":1.06799999999998,"wall_ms":1914.116}
+PASS terrain64_local/warm_on_2 expected result
+PASS terrain64_local/warm_on_2 input bytes unchanged
+PASS terrain64_local/warm_on_2 disabled probes empty
+PASS terrain64_local/warm_on_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"warm_off_1","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":1946.649,"wall_ms":1946.649}
+PASS terrain64_local/warm_off_1 expected result
+PASS terrain64_local/warm_off_1 input bytes unchanged
+PASS terrain64_local/warm_off_1 disabled probes empty
+PASS terrain64_local/warm_off_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"warm_off_2","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":1856.127,"wall_ms":1856.127}
+PASS terrain64_local/warm_off_2 expected result
+PASS terrain64_local/warm_off_2 input bytes unchanged
+PASS terrain64_local/warm_off_2 disabled probes empty
+PASS terrain64_local/warm_off_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_local","full_result_sha256":"1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8","input_sha256":"5ddc9e4b13381e679bbba3067105d386c8ea932141d100db81f1924d64ffe835","label":"warm_off_3","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":1901.219,"wall_ms":1901.219}
+PASS terrain64_local/warm_off_3 expected result
+PASS terrain64_local/warm_off_3 input bytes unchanged
+PASS terrain64_local/warm_off_3 disabled probes empty
+PASS terrain64_local/warm_off_3 full result identical
+PASS terrain64_local complete result matches frozen original
+PASS terrain64_local original also leaves bytes unchanged
+PASS open evidence terrain64_local_result.bin
+PASS open evidence terrain64_local_reference_result.bin
+PASS terrain64_far_complex native fixture constructed
+PASS open evidence terrain64_far_complex_input.bin
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"first_prepare","ok":true,"profile":{"counts":{"obstacle_records_expanded":610,"obstacle_shapes":10843,"potential_shape_pairs":86744,"road_records":8,"source_records":610},"ok":true,"stages_ms":{"bridge_bindings":0.075,"collision":132.905,"finalize":68.384,"intersection_split":0.004,"material_lookup":1.039,"obstacle_shapes":259.047,"record_preservation":182.245,"road_build":2.418,"source_validation":0.07,"terrain_fit":1440.997},"total_ms":2087.198},"profiling_on":true,"stage_sum_ms":2087.184,"unattributed_ms":0.0260000000002947,"wall_ms":2087.21}
+PASS terrain64_far_complex/first_prepare expected result
+PASS terrain64_far_complex/first_prepare input bytes unchanged
+PASS terrain64_far_complex/first_prepare disabled probes empty
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"warm_on_1","ok":true,"profile":{"counts":{"obstacle_records_expanded":610,"obstacle_shapes":10843,"potential_shape_pairs":86744,"road_records":8,"source_records":610},"ok":true,"stages_ms":{"bridge_bindings":0.013,"collision":167.275,"finalize":40.627,"intersection_split":0.004,"material_lookup":0.395,"obstacle_shapes":259.2,"record_preservation":170.991,"road_build":1.537,"source_validation":0.054,"terrain_fit":1469.142},"total_ms":2109.252},"profiling_on":true,"stage_sum_ms":2109.238,"unattributed_ms":0.671000000000276,"wall_ms":2109.909}
+PASS terrain64_far_complex/warm_on_1 expected result
+PASS terrain64_far_complex/warm_on_1 input bytes unchanged
+PASS terrain64_far_complex/warm_on_1 disabled probes empty
+PASS terrain64_far_complex/warm_on_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"warm_on_2","ok":true,"profile":{"counts":{"obstacle_records_expanded":610,"obstacle_shapes":10843,"potential_shape_pairs":86744,"road_records":8,"source_records":610},"ok":true,"stages_ms":{"bridge_bindings":0.012,"collision":147.791,"finalize":46.74,"intersection_split":0.005,"material_lookup":0.893,"obstacle_shapes":195.998,"record_preservation":160.877,"road_build":1.785,"source_validation":0.093,"terrain_fit":1456.355},"total_ms":2010.573},"profiling_on":true,"stage_sum_ms":2010.549,"unattributed_ms":1.65699999999993,"wall_ms":2012.206}
+PASS terrain64_far_complex/warm_on_2 expected result
+PASS terrain64_far_complex/warm_on_2 input bytes unchanged
+PASS terrain64_far_complex/warm_on_2 disabled probes empty
+PASS terrain64_far_complex/warm_on_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"warm_off_1","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":2432.404,"wall_ms":2432.404}
+PASS terrain64_far_complex/warm_off_1 expected result
+PASS terrain64_far_complex/warm_off_1 input bytes unchanged
+PASS terrain64_far_complex/warm_off_1 disabled probes empty
+PASS terrain64_far_complex/warm_off_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"warm_off_2","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":2076.315,"wall_ms":2076.315}
+PASS terrain64_far_complex/warm_off_2 expected result
+PASS terrain64_far_complex/warm_off_2 input bytes unchanged
+PASS terrain64_far_complex/warm_off_2 disabled probes empty
+PASS terrain64_far_complex/warm_off_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"terrain64_far_complex","full_result_sha256":"919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3","input_sha256":"b8fa303dbb7ed2a95b48d35ad4638abda3f7899a7baefbcff641369bf8faade0","label":"warm_off_3","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":1995.021,"wall_ms":1995.021}
+PASS terrain64_far_complex/warm_off_3 expected result
+PASS terrain64_far_complex/warm_off_3 input bytes unchanged
+PASS terrain64_far_complex/warm_off_3 disabled probes empty
+PASS terrain64_far_complex/warm_off_3 full result identical
+PASS terrain64_far_complex complete result matches frozen original
+PASS terrain64_far_complex original also leaves bytes unchanged
+PASS open evidence terrain64_far_complex_result.bin
+PASS open evidence terrain64_far_complex_reference_result.bin
+PASS waterway_bound_bridge native fixture constructed
+PASS open evidence waterway_bound_bridge_input.bin
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"first_prepare","ok":true,"profile":{"counts":{"obstacle_records_expanded":34,"obstacle_shapes":60,"potential_shape_pairs":480,"road_records":8,"source_records":34},"ok":true,"stages_ms":{"bridge_bindings":6.278,"collision":4.101,"finalize":3.032,"intersection_split":0.006,"material_lookup":0.397,"obstacle_shapes":4.99,"record_preservation":11.395,"road_build":4.964,"source_validation":0.234,"terrain_fit":0.005},"total_ms":35.41},"profiling_on":true,"stage_sum_ms":35.402,"unattributed_ms":0.019999999999996,"wall_ms":35.422}
+PASS waterway_bound_bridge/first_prepare expected result
+PASS waterway_bound_bridge/first_prepare input bytes unchanged
+PASS waterway_bound_bridge/first_prepare disabled probes empty
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"warm_on_1","ok":true,"profile":{"counts":{"obstacle_records_expanded":34,"obstacle_shapes":60,"potential_shape_pairs":480,"road_records":8,"source_records":34},"ok":true,"stages_ms":{"bridge_bindings":6.672,"collision":1.669,"finalize":1.525,"intersection_split":0.012,"material_lookup":0.385,"obstacle_shapes":1.6,"record_preservation":14.202,"road_build":3.458,"source_validation":0.378,"terrain_fit":0.003},"total_ms":29.91},"profiling_on":true,"stage_sum_ms":29.904,"unattributed_ms":0.102,"wall_ms":30.006}
+PASS waterway_bound_bridge/warm_on_1 expected result
+PASS waterway_bound_bridge/warm_on_1 input bytes unchanged
+PASS waterway_bound_bridge/warm_on_1 disabled probes empty
+PASS waterway_bound_bridge/warm_on_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"warm_on_2","ok":true,"profile":{"counts":{"obstacle_records_expanded":34,"obstacle_shapes":60,"potential_shape_pairs":480,"road_records":8,"source_records":34},"ok":true,"stages_ms":{"bridge_bindings":5.16,"collision":1.051,"finalize":1.285,"intersection_split":0.004,"material_lookup":0.494,"obstacle_shapes":1.115,"record_preservation":14.183,"road_build":4.133,"source_validation":0.145,"terrain_fit":0.004},"total_ms":27.578},"profiling_on":true,"stage_sum_ms":27.574,"unattributed_ms":0.103000000000005,"wall_ms":27.677}
+PASS waterway_bound_bridge/warm_on_2 expected result
+PASS waterway_bound_bridge/warm_on_2 input bytes unchanged
+PASS waterway_bound_bridge/warm_on_2 disabled probes empty
+PASS waterway_bound_bridge/warm_on_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"warm_off_1","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":22.337,"wall_ms":22.337}
+PASS waterway_bound_bridge/warm_off_1 expected result
+PASS waterway_bound_bridge/warm_off_1 input bytes unchanged
+PASS waterway_bound_bridge/warm_off_1 disabled probes empty
+PASS waterway_bound_bridge/warm_off_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"warm_off_2","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":28.841,"wall_ms":28.841}
+PASS waterway_bound_bridge/warm_off_2 expected result
+PASS waterway_bound_bridge/warm_off_2 input bytes unchanged
+PASS waterway_bound_bridge/warm_off_2 disabled probes empty
+PASS waterway_bound_bridge/warm_off_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"waterway_bound_bridge","full_result_sha256":"bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3","input_sha256":"c3786e22a748ccc55e99acad2af1ac0615e4305435369d9c85d0c7eabcc7161b","label":"warm_off_3","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":23.67,"wall_ms":23.67}
+PASS waterway_bound_bridge/warm_off_3 expected result
+PASS waterway_bound_bridge/warm_off_3 input bytes unchanged
+PASS waterway_bound_bridge/warm_off_3 disabled probes empty
+PASS waterway_bound_bridge/warm_off_3 full result identical
+PASS waterway_bound_bridge complete result matches frozen original
+PASS waterway_bound_bridge original also leaves bytes unchanged
+PASS open evidence waterway_bound_bridge_result.bin
+PASS open evidence waterway_bound_bridge_reference_result.bin
+PASS frozen_stone_bridge_approaches native fixture constructed
+PASS open evidence frozen_stone_bridge_approaches_input.bin
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"first_prepare","ok":true,"profile":{"counts":{"obstacle_records_expanded":2,"obstacle_shapes":257,"potential_shape_pairs":257,"road_records":1,"source_records":2},"ok":true,"stages_ms":{"bridge_bindings":13.239,"collision":73.797,"finalize":10.408,"intersection_split":0.008,"material_lookup":0.367,"obstacle_shapes":6.267,"record_preservation":5.69,"road_build":3.325,"source_validation":0.082,"terrain_fit":12.257},"total_ms":125.476},"profiling_on":true,"stage_sum_ms":125.44,"unattributed_ms":0.0599999999999881,"wall_ms":125.5}
+PASS frozen_stone_bridge_approaches/first_prepare expected result
+PASS frozen_stone_bridge_approaches/first_prepare input bytes unchanged
+PASS frozen_stone_bridge_approaches/first_prepare disabled probes empty
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"warm_on_1","ok":true,"profile":{"counts":{"obstacle_records_expanded":2,"obstacle_shapes":257,"potential_shape_pairs":257,"road_records":1,"source_records":2},"ok":true,"stages_ms":{"bridge_bindings":12.146,"collision":23.098,"finalize":12.766,"intersection_split":0.008,"material_lookup":0.34,"obstacle_shapes":4.013,"record_preservation":8.299,"road_build":2.416,"source_validation":0.091,"terrain_fit":5.976},"total_ms":69.182},"profiling_on":true,"stage_sum_ms":69.153,"unattributed_ms":0.225999999999999,"wall_ms":69.379}
+PASS frozen_stone_bridge_approaches/warm_on_1 expected result
+PASS frozen_stone_bridge_approaches/warm_on_1 input bytes unchanged
+PASS frozen_stone_bridge_approaches/warm_on_1 disabled probes empty
+PASS frozen_stone_bridge_approaches/warm_on_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"warm_on_2","ok":true,"profile":{"counts":{"obstacle_records_expanded":2,"obstacle_shapes":257,"potential_shape_pairs":257,"road_records":1,"source_records":2},"ok":true,"stages_ms":{"bridge_bindings":12.289,"collision":26.922,"finalize":13.629,"intersection_split":0.005,"material_lookup":0.387,"obstacle_shapes":5.839,"record_preservation":5.953,"road_build":1.57,"source_validation":0.077,"terrain_fit":10.952},"total_ms":77.656},"profiling_on":true,"stage_sum_ms":77.623,"unattributed_ms":0.307999999999993,"wall_ms":77.931}
+PASS frozen_stone_bridge_approaches/warm_on_2 expected result
+PASS frozen_stone_bridge_approaches/warm_on_2 input bytes unchanged
+PASS frozen_stone_bridge_approaches/warm_on_2 disabled probes empty
+PASS frozen_stone_bridge_approaches/warm_on_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"warm_off_1","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":71.044,"wall_ms":71.044}
+PASS frozen_stone_bridge_approaches/warm_off_1 expected result
+PASS frozen_stone_bridge_approaches/warm_off_1 input bytes unchanged
+PASS frozen_stone_bridge_approaches/warm_off_1 disabled probes empty
+PASS frozen_stone_bridge_approaches/warm_off_1 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"warm_off_2","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":76.674,"wall_ms":76.674}
+PASS frozen_stone_bridge_approaches/warm_off_2 expected result
+PASS frozen_stone_bridge_approaches/warm_off_2 input bytes unchanged
+PASS frozen_stone_bridge_approaches/warm_off_2 disabled probes empty
+PASS frozen_stone_bridge_approaches/warm_off_2 full result identical
+ROAD_PREPARE_SAMPLE {"fixture":"frozen_stone_bridge_approaches","full_result_sha256":"a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e","input_sha256":"6828d1d5380b35b8d1fade41b34da66631503e9a48e255c7d314504fc1a19b58","label":"warm_off_3","ok":true,"profile":{},"profiling_on":false,"stage_sum_ms":0.0,"unattributed_ms":82.089,"wall_ms":82.089}
+PASS frozen_stone_bridge_approaches/warm_off_3 expected result
+PASS frozen_stone_bridge_approaches/warm_off_3 input bytes unchanged
+PASS frozen_stone_bridge_approaches/warm_off_3 disabled probes empty
+PASS frozen_stone_bridge_approaches/warm_off_3 full result identical
+PASS frozen_stone_bridge_approaches complete result matches frozen original
+PASS frozen_stone_bridge_approaches original also leaves bytes unchanged
+PASS open evidence frozen_stone_bridge_approaches_result.bin
+PASS open evidence frozen_stone_bridge_approaches_reference_result.bin
+PASS frozen_stone_bridge_approaches external source unchanged: stone_segmental.glb
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_prepare_20261016/before/result.json checks=149 failures=0

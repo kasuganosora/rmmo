@@ -110,3 +110,13 @@ UI 与当前 3D `preview_road_surface` / `generate_road_surface` 继续共用 [r
 `terrain_follow_tools.automatic_paint` 对零 UV 偏移逐元素进行数值判断，避免 JSON 读入的 `[0.0,0.0]` 与原生成的 `[0,0]` 因数组元素类型不同而误报手刷覆盖。允许的仍是统一材质、原 UV、零旋转/偏移和材质默认米制倍率；非零偏移、旋转、手改倍率或分面混材仍拒绝自动覆盖。没有增加工具或参数，UI 地形笔刷与 3D `sculpt_terrain` 共用此路径，坡度、碰撞、锁定及事务保护保持不变。
 
 [test_terrain_follow_paint_http.gd](../tools/test_terrain_follow_paint_http.gd) 实际 headless/loopback HTTP **33 项通过，0 失败**：显式 JSON 往返复现浮点零偏移后雕刻成功，默认 PBR、撤销重做和保存重开保留；四类真实手刷变化均无副作用拒绝。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_follow_paint_http.log`。该项是共享能力回归，不代表住宅布局或正式地图接入已经通过。
+
+## 2026-10-16：道路准备与街区可靠性
+
+UI「预览铺面变化／应用铺面方案」与当前 3D MCP `preview_road_surface`、`generate_road_surface` 继续共用 `road_tools.prepare`；`update_road_graph` 的自动铺面更新也走同一逻辑。已有参数、事务、保存格式及工具发现保持兼容。
+
+沿地形铺面在严格零旋转且数值安全的高度场上，只构造可能与道路相交的格三角形；旋转、微小倾斜及远坐标微格使用原完整扫描。仍检查真实孔洞、连续覆盖、坡度、障碍、手刷及锁定保护，保持自动细分、路缘、UV 和稳定身份。无需新增开关。
+
+保存重开后，JSON 的整数／浮点表示和字典顺序不再让同值道路被误判为更新。准备完成全部保护后，以精确数值比较确认整条记录相等，深复制原记录以保留字节；真实数值变化不做近似忽略。重复生成同时按相同规则核对清单，避免无改动操作写入撤销历史。
+
+本轮性能方法、街区 UI／真实 HTTP、局部更新与远路字节、撤销／重做、保存重开、自动合批和运行时碰撞回归统一记录在[优化方案](seamless_streaming_optimization_plan_20261014.md#w0-e-道路准备与-t1-投影窗口街区回归2026-10-16)。性能数字仅适用于记录的 CPU 夹具，不代表正式地图发布或任意路线已通过角色通行。

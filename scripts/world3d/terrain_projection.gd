@@ -5,6 +5,36 @@ const T=preload("res://scripts/world3d/terrain_surface.gd")
 const R=preload("res://scripts/world3d/road_surface.gd")
 const P=preload("res://scripts/world3d/road_plan.gd")
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
+
+static func _cell_window(terrain:Dictionary,pose:Transform3D,wanted:Rect2)->Rect2i:
+	var columns:int=terrain.terrain_mesh.columns;var rows:int=terrain.terrain_mesh.rows
+	var full:=Rect2i(0,0,columns,rows)
+	# Only exact axis alignment is accelerated. Even accepted tiny tilts can
+	# move high interior vertices outside an XZ window; keep their original scan.
+	for angle in terrain.rotation:
+		if float(angle)!=0.0:return full
+	if pose.basis!=Basis.IDENTITY or columns<2 or rows<2 or columns>T.MAX_CELLS or rows>T.MAX_CELLS:return full
+	if terrain.terrain_mesh.columns!=columns or terrain.terrain_mesh.rows!=rows:return full
+	var width:float=terrain.size[0];var depth:float=terrain.size[2]
+	if not is_finite(width) or not is_finite(depth) or width<=0.0 or depth<=0.0:return full
+	# T.point, world translation and Rect2 bounds use native float32. Expand
+	# in scalar double precision (never store this pad back in Vector2), with
+	# margin for those roundings plus a whole cell at each end. At far origins
+	# with tiny cells the bound becomes unhelpful: conservatively scan everything.
+	var epsilon:=1.0/8388608.0
+	var pad_x:=8.0*epsilon*(absf(pose.origin.x)+width+1.0)
+	var pad_z:=8.0*epsilon*(absf(pose.origin.z)+depth+1.0)
+	if not is_finite(pad_x) or not is_finite(pad_z) or pad_x>width/columns*.5 or pad_z>depth/rows*.5:return full
+	var x0:float=((float(wanted.position.x)-pad_x-pose.origin.x)/width+.5)*columns
+	var x1:float=((float(wanted.end.x)+pad_x-pose.origin.x)/width+.5)*columns
+	var z0:float=((float(wanted.position.y)-pad_z-pose.origin.z)/depth+.5)*rows
+	var z1:float=((float(wanted.end.y)+pad_z-pose.origin.z)/depth+.5)*rows
+	if not is_finite(x0) or not is_finite(x1) or not is_finite(z0) or not is_finite(z1) or x0>x1 or z0>z1:return full
+	# Clamp before integer conversion, including for footprints outside the tile.
+	var first:=Vector2i(int(clampf(floorf(x0)-1.0,0,columns)),int(clampf(floorf(z0)-1.0,0,rows)))
+	var last:=Vector2i(int(clampf(ceilf(x1)+1.0,0,columns)),int(clampf(ceilf(z1)+1.0,0,rows)))
+	return Rect2i(first,last-first)
+
 static func fit(record:Dictionary,terrains:Array,offset:float=.025,max_grade:float=.15)->Dictionary:
 	if absf(record.rotation[0])+absf(record.rotation[1])+absf(record.rotation[2])>.0001:return T.fail("贴地生成只支持世界轴路面，请先烘焙旋转")
 	var next:=record.duplicate(true);var field:="road_mesh" if record.has("road_mesh") else "channel_mesh"
@@ -38,8 +68,9 @@ static func fit(record:Dictionary,terrains:Array,offset:float=.025,max_grade:flo
 		for index in wanted.size():
 			if not horizontal or terrain_bounds.intersects(wanted_bounds[index],true):terrain_wanted.append(index)
 		if terrain_wanted.is_empty():continue
-		for z in int(terrain.terrain_mesh.rows):
-			for x in int(terrain.terrain_mesh.columns):
+		var window:=_cell_window(terrain,pose,wanted_extent)
+		for z in range(window.position.y,window.end.y):
+			for x in range(window.position.x,window.end.x):
 				if not T.solid(terrain.terrain_mesh,x,z):continue
 				var cell:=T.cell(terrain,x,z)
 				var triangles:Array=[[cell[0],cell[1],cell[2]],[cell[0],cell[2],cell[3]]]

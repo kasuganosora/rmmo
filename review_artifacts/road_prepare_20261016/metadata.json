@@ -1,0 +1,7 @@
+{
+  "source": "scripts/world_editor/road_tools.gd",
+  "source_sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+  "commit": "784e2cb",
+  "snapshot_utc": "2026-10-15T21:47:52.0452272Z",
+  "scope": "Exact road_tools source before profiling and prepare optimization; strict full-result differential baseline"
+}

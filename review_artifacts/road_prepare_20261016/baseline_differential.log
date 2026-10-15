@@ -1,0 +1,351 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS selected fixture exists
+PASS frozen pre-profile source SHA is exact
+PASS frozen original source compiles
+PASS independent reference SHA road_terrain_fit.gd.txt
+PASS independent reference SHA reference.gd.txt
+PASS independent reference SHA terrain_projection_ref.gd
+PASS independent reference SHA terrain_projection.gd.txt
+PASS independent reference SHA road_tools_full_chain_ref.gd
+PASS independent reference SHA road_terrain_fit_ref.gd
+PASS projection original byte SHA pinned
+PASS adaptive fit original byte SHA pinned
+PASS fit adapter only redirects the frozen projection preload
+PASS prepare adapter only redirects the frozen adaptive preload
+PASS junction_kerbs fixture construction
+PASS junction_kerbs full bytes equal
+PASS junction_kerbs expected outcome
+PASS junction_kerbs ON/OFF exact and disabled profile empty
+PASS junction_kerbs state, history, authoring and arguments unchanged
+PASS terrain64_local fixture construction
+PASS terrain64_local full bytes equal
+PASS terrain64_local expected outcome
+PASS terrain64_local ON/OFF exact and disabled profile empty
+PASS terrain64_local state, history, authoring and arguments unchanged
+PASS terrain64_far_complex fixture construction
+PASS terrain64_far_complex full bytes equal
+PASS terrain64_far_complex expected outcome
+PASS terrain64_far_complex ON/OFF exact and disabled profile empty
+PASS terrain64_far_complex state, history, authoring and arguments unchanged
+PASS waterway_bound_bridge fixture construction
+PASS waterway_bound_bridge full bytes equal
+PASS waterway_bound_bridge expected outcome
+PASS waterway_bound_bridge ON/OFF exact and disabled profile empty
+PASS waterway_bound_bridge state, history, authoring and arguments unchanged
+PASS frozen_stone_bridge_approaches fixture construction
+PASS frozen_stone_bridge_approaches full bytes equal
+PASS frozen_stone_bridge_approaches expected outcome
+PASS frozen_stone_bridge_approaches ON/OFF exact and disabled profile empty
+PASS frozen_stone_bridge_approaches state, history, authoring and arguments unchanged
+PASS near_obstacle_ordinary fixture construction
+PASS near_obstacle_ordinary full bytes equal
+PASS near_obstacle_ordinary expected outcome
+PASS near_obstacle_ordinary exact first conflict
+PASS near_obstacle_ordinary ON/OFF exact and disabled profile empty
+PASS near_obstacle_ordinary state, history, authoring and arguments unchanged
+PASS near_obstacle_editor_hidden fixture construction
+PASS near_obstacle_editor_hidden full bytes equal
+PASS near_obstacle_editor_hidden expected outcome
+PASS near_obstacle_editor_hidden exact first conflict
+PASS near_obstacle_editor_hidden ON/OFF exact and disabled profile empty
+PASS near_obstacle_editor_hidden state, history, authoring and arguments unchanged
+PASS near_obstacle_collision_none fixture construction
+PASS near_obstacle_collision_none full bytes equal
+PASS near_obstacle_collision_none expected outcome
+PASS near_obstacle_collision_none exact first conflict
+PASS near_obstacle_collision_none ON/OFF exact and disabled profile empty
+PASS near_obstacle_collision_none state, history, authoring and arguments unchanged
+PASS near_obstacle_editor_locked fixture construction
+PASS near_obstacle_editor_locked full bytes equal
+PASS near_obstacle_editor_locked expected outcome
+PASS near_obstacle_editor_locked exact first conflict
+PASS near_obstacle_editor_locked ON/OFF exact and disabled profile empty
+PASS near_obstacle_editor_locked state, history, authoring and arguments unchanged
+PASS first_conflict_reverse_false fixture construction
+PASS first_conflict_reverse_false full bytes equal
+PASS first_conflict_reverse_false expected outcome
+PASS first_conflict_reverse_false exact first conflict
+PASS first_conflict_reverse_false ON/OFF exact and disabled profile empty
+PASS first_conflict_reverse_false state, history, authoring and arguments unchanged
+PASS first_conflict_reverse_true fixture construction
+PASS first_conflict_reverse_true full bytes equal
+PASS first_conflict_reverse_true expected outcome
+PASS first_conflict_reverse_true exact first conflict
+PASS first_conflict_reverse_true ON/OFF exact and disabled profile empty
+PASS first_conflict_reverse_true state, history, authoring and arguments unchanged
+PASS protected_graph_hidden fixture construction
+PASS protected_graph_hidden full bytes equal
+PASS protected_graph_hidden expected outcome
+PASS protected_graph_hidden ON/OFF exact and disabled profile empty
+PASS protected_graph_hidden state, history, authoring and arguments unchanged
+PASS protected_graph_locked fixture construction
+PASS protected_graph_locked full bytes equal
+PASS protected_graph_locked expected outcome
+PASS protected_graph_locked ON/OFF exact and disabled profile empty
+PASS protected_graph_locked state, history, authoring and arguments unchanged
+PASS rotated_scaled_asset_clearance fixture construction
+PASS rotated_scaled_asset_clearance full bytes equal
+PASS rotated_scaled_asset_clearance expected outcome
+PASS rotated_scaled_asset_clearance exact first conflict
+PASS rotated_scaled_asset_clearance ON/OFF exact and disabled profile empty
+PASS rotated_scaled_asset_clearance state, history, authoring and arguments unchanged
+PASS inclined_existing_road_clearance fixture construction
+PASS inclined_existing_road_clearance full bytes equal
+PASS inclined_existing_road_clearance expected outcome
+PASS inclined_existing_road_clearance exact first conflict
+PASS inclined_existing_road_clearance ON/OFF exact and disabled profile empty
+PASS inclined_existing_road_clearance state, history, authoring and arguments unchanged
+PASS sloped_new_road_obstacle fixture construction
+PASS sloped_new_road_obstacle full bytes equal
+PASS sloped_new_road_obstacle expected outcome
+PASS sloped_new_road_obstacle exact first conflict
+PASS sloped_new_road_obstacle ON/OFF exact and disabled profile empty
+PASS sloped_new_road_obstacle state, history, authoring and arguments unchanged
+PASS tilted_terrain_not_flat_support fixture construction
+PASS tilted_terrain_not_flat_support full bytes equal
+PASS tilted_terrain_not_flat_support expected outcome
+PASS tilted_terrain_not_flat_support exact first conflict
+PASS tilted_terrain_not_flat_support ON/OFF exact and disabled profile empty
+PASS tilted_terrain_not_flat_support state, history, authoring and arguments unchanged
+PASS raised_furrow_occupancy fixture construction
+PASS raised_furrow_occupancy full bytes equal
+PASS raised_furrow_occupancy expected outcome
+PASS raised_furrow_occupancy exact first conflict
+PASS raised_furrow_occupancy ON/OFF exact and disabled profile empty
+PASS raised_furrow_occupancy state, history, authoring and arguments unchanged
+PASS per_road_supporting_terrain_ids fixture construction
+PASS per_road_supporting_terrain_ids full bytes equal
+PASS per_road_supporting_terrain_ids expected outcome
+PASS per_road_supporting_terrain_ids ON/OFF exact and disabled profile empty
+PASS per_road_supporting_terrain_ids state, history, authoring and arguments unchanged
+PASS waterway_tampered_member fixture construction
+PASS waterway_tampered_member full bytes equal
+PASS waterway_tampered_member expected outcome
+PASS waterway_tampered_member ON/OFF exact and disabled profile empty
+PASS waterway_tampered_member state, history, authoring and arguments unchanged
+PASS stone_bridge_moved_source fixture construction
+PASS stone_bridge_moved_source full bytes equal
+PASS stone_bridge_moved_source expected outcome
+PASS stone_bridge_moved_source ON/OFF exact and disabled profile empty
+PASS stone_bridge_moved_source state, history, authoring and arguments unchanged
+PASS actual_stone_wing_post fixture construction
+PASS actual_stone_wing_post full bytes equal
+PASS actual_stone_wing_post expected outcome
+PASS actual_stone_wing_post exact first conflict
+PASS actual_stone_wing_post ON/OFF exact and disabled profile empty
+PASS actual_stone_wing_post state, history, authoring and arguments unchanged
+PASS original native pavement seed succeeds
+PASS unchanged_existing_pavement fixture construction
+PASS unchanged_existing_pavement full bytes equal
+PASS unchanged_existing_pavement expected outcome
+PASS unchanged_existing_pavement ON/OFF exact and disabled profile empty
+PASS unchanged_existing_pavement state, history, authoring and arguments unchanged
+PASS preserve_event_and_group fixture construction
+PASS preserve_event_and_group full bytes equal
+PASS preserve_event_and_group expected outcome
+PASS preserve_event_and_group ON/OFF exact and disabled profile empty
+PASS preserve_event_and_group state, history, authoring and arguments unchanged
+PASS event_rejects_changed_geometry fixture construction
+PASS event_rejects_changed_geometry full bytes equal
+PASS event_rejects_changed_geometry expected outcome
+PASS event_rejects_changed_geometry ON/OFF exact and disabled profile empty
+PASS event_rejects_changed_geometry state, history, authoring and arguments unchanged
+PASS tampered_pavement_source fixture construction
+PASS tampered_pavement_source full bytes equal
+PASS tampered_pavement_source expected outcome
+PASS tampered_pavement_source ON/OFF exact and disabled profile empty
+PASS tampered_pavement_source state, history, authoring and arguments unchanged
+PASS protected_pavement_editor_hidden fixture construction
+PASS protected_pavement_editor_hidden full bytes equal
+PASS protected_pavement_editor_hidden expected outcome
+PASS protected_pavement_editor_hidden ON/OFF exact and disabled profile empty
+PASS protected_pavement_editor_hidden state, history, authoring and arguments unchanged
+PASS protected_pavement_editor_locked fixture construction
+PASS protected_pavement_editor_locked full bytes equal
+PASS protected_pavement_editor_locked expected outcome
+PASS protected_pavement_editor_locked ON/OFF exact and disabled profile empty
+PASS protected_pavement_editor_locked state, history, authoring and arguments unchanged
+PASS mutation_far full bytes equal
+PASS mutation_far expected outcome
+PASS mutation_far ON/OFF exact and disabled profile empty
+PASS mutation_far state, history, authoring and arguments unchanged
+PASS mutation_same_uuid_near full bytes equal
+PASS mutation_same_uuid_near expected outcome
+PASS mutation_same_uuid_near exact first conflict
+PASS mutation_same_uuid_near ON/OFF exact and disabled profile empty
+PASS mutation_same_uuid_near state, history, authoring and arguments unchanged
+PASS native undo moving obstacle
+PASS mutation_native_undo full bytes equal
+PASS mutation_native_undo expected outcome
+PASS mutation_native_undo ON/OFF exact and disabled profile empty
+PASS mutation_native_undo state, history, authoring and arguments unchanged
+PASS native redo moving obstacle
+PASS mutation_native_redo full bytes equal
+PASS mutation_native_redo expected outcome
+PASS mutation_native_redo exact first conflict
+PASS mutation_native_redo ON/OFF exact and disabled profile empty
+PASS mutation_native_redo state, history, authoring and arguments unchanged
+PASS mutation_delete full bytes equal
+PASS mutation_delete expected outcome
+PASS mutation_delete ON/OFF exact and disabled profile empty
+PASS mutation_delete state, history, authoring and arguments unchanged
+PASS native undo deleted obstacle
+PASS mutation_restore_deleted full bytes equal
+PASS mutation_restore_deleted expected outcome
+PASS mutation_restore_deleted exact first conflict
+PASS mutation_restore_deleted ON/OFF exact and disabled profile empty
+PASS mutation_restore_deleted state, history, authoring and arguments unchanged
+PASS projection_yaw_0.0_0.0 full bytes equal
+PASS projection_yaw_0.0_0.0 expected outcome
+PASS projection_yaw_0.0_0.0 exact inputs unchanged
+PASS projection_yaw_0.0_0.0 native surface validity
+PASS projection_yaw_10000.0_37.0 full bytes equal
+PASS projection_yaw_10000.0_37.0 expected outcome
+PASS projection_yaw_10000.0_37.0 exact inputs unchanged
+PASS projection_yaw_10000.0_37.0 native surface validity
+PASS projection_yaw_-10000.0_-73.0 full bytes equal
+PASS projection_yaw_-10000.0_-73.0 expected outcome
+PASS projection_yaw_-10000.0_-73.0 exact inputs unchanged
+PASS projection_yaw_-10000.0_-73.0 native surface validity
+PASS projection_yaw_-48.0_90.0 full bytes equal
+PASS projection_yaw_-48.0_90.0 expected outcome
+PASS projection_yaw_-48.0_90.0 exact inputs unchanged
+PASS projection_yaw_-48.0_90.0 native surface validity
+PASS seeded_rotated_00 full bytes equal
+PASS seeded_rotated_00 expected outcome
+PASS seeded_rotated_00 exact inputs unchanged
+PASS seeded_rotated_00 native surface validity
+PASS seeded_rotated_01 full bytes equal
+PASS seeded_rotated_01 expected outcome
+PASS seeded_rotated_01 exact inputs unchanged
+PASS seeded_rotated_01 native surface validity
+PASS seeded_rotated_02 full bytes equal
+PASS seeded_rotated_02 expected outcome
+PASS seeded_rotated_02 exact inputs unchanged
+PASS seeded_rotated_02 native surface validity
+PASS seeded_rotated_03 full bytes equal
+PASS seeded_rotated_03 expected outcome
+PASS seeded_rotated_03 exact inputs unchanged
+PASS seeded_rotated_03 native surface validity
+PASS seeded_rotated_04 full bytes equal
+PASS seeded_rotated_04 expected outcome
+PASS seeded_rotated_04 exact inputs unchanged
+PASS seeded_rotated_04 native surface validity
+PASS seeded_rotated_05 full bytes equal
+PASS seeded_rotated_05 expected outcome
+PASS seeded_rotated_05 exact inputs unchanged
+PASS seeded_rotated_05 native surface validity
+PASS seeded_rotated_06 full bytes equal
+PASS seeded_rotated_06 expected outcome
+PASS seeded_rotated_06 exact inputs unchanged
+PASS seeded_rotated_06 native surface validity
+PASS seeded_rotated_07 full bytes equal
+PASS seeded_rotated_07 expected outcome
+PASS seeded_rotated_07 exact inputs unchanged
+PASS seeded_rotated_07 native surface validity
+PASS seeded_rotated_08 full bytes equal
+PASS seeded_rotated_08 expected outcome
+PASS seeded_rotated_08 exact inputs unchanged
+PASS seeded_rotated_08 native surface validity
+PASS seeded_rotated_09 full bytes equal
+PASS seeded_rotated_09 expected outcome
+PASS seeded_rotated_09 exact inputs unchanged
+PASS seeded_rotated_09 native surface validity
+PASS seeded_rotated_10 full bytes equal
+PASS seeded_rotated_10 expected outcome
+PASS seeded_rotated_10 exact inputs unchanged
+PASS seeded_rotated_10 native surface validity
+PASS seeded_rotated_11 full bytes equal
+PASS seeded_rotated_11 expected outcome
+PASS seeded_rotated_11 exact inputs unchanged
+PASS seeded_rotated_11 native surface validity
+PASS projection_narrow_hole full bytes equal
+PASS projection_narrow_hole expected outcome
+PASS projection_narrow_hole exact inputs unchanged
+PASS projection_far_hole full bytes equal
+PASS projection_far_hole expected outcome
+PASS projection_far_hole exact inputs unchanged
+PASS projection_far_hole native surface validity
+PASS projection_all_holes full bytes equal
+PASS projection_all_holes expected outcome
+PASS projection_all_holes exact inputs unchanged
+PASS projection_grade_0.1 full bytes equal
+PASS projection_grade_0.1 expected outcome
+PASS projection_grade_0.1 exact inputs unchanged
+PASS projection_grade_0.1 native surface validity
+PASS projection_grade_0.3 full bytes equal
+PASS projection_grade_0.3 expected outcome
+PASS projection_grade_0.3 exact inputs unchanged
+PASS projection_tilt_0.00009_0.0 full bytes equal
+PASS projection_tilt_0.00009_0.0 expected outcome
+PASS projection_tilt_0.00009_0.0 exact inputs unchanged
+PASS projection_tilt_0.0_-0.00009 full bytes equal
+PASS projection_tilt_0.0_-0.00009 expected outcome
+PASS projection_tilt_0.0_-0.00009 exact inputs unchanged
+PASS projection_tilt_0.001_0.0 full bytes equal
+PASS projection_tilt_0.001_0.0 expected outcome
+PASS projection_tilt_0.001_0.0 exact inputs unchanged
+PASS projection_mixed_grid_seam full bytes equal
+PASS projection_mixed_grid_seam expected outcome
+PASS projection_mixed_grid_seam exact inputs unchanged
+PASS projection_mixed_grid_seam native surface validity
+PASS projection_overlapping_tiles full bytes equal
+PASS projection_overlapping_tiles expected outcome
+PASS projection_overlapping_tiles exact inputs unchanged
+PASS projection_millimetre_strip_at_10km full bytes equal
+PASS projection_millimetre_strip_at_10km exact inputs unchanged
+PASS projection_millimetre_strip_at_10km native surface validity
+PASS projection_exact_cell_lines full bytes equal
+PASS projection_exact_cell_lines expected outcome
+PASS projection_exact_cell_lines exact inputs unchanged
+PASS projection_exact_cell_lines native surface validity
+PASS projection_non_square_negative full bytes equal
+PASS projection_non_square_negative expected outcome
+PASS projection_non_square_negative exact inputs unchanged
+PASS projection_non_square_negative native surface validity
+PASS projection_microgrid_guard_10000.0 full bytes equal
+PASS projection_microgrid_guard_10000.0 exact inputs unchanged
+PASS projection_microgrid_guard_10000.0 native surface validity
+PASS projection_microgrid_guard_16000.0 full bytes equal
+PASS projection_microgrid_guard_16000.0 exact inputs unchanged
+PASS projection_microgrid_guard_16000.0 native surface validity
+PASS projection_microgrid_guard_17000.0 full bytes equal
+PASS projection_microgrid_guard_17000.0 exact inputs unchanged
+PASS projection_microgrid_guard_17000.0 native surface validity
+PASS projection_microgrid_guard_-17000.0 full bytes equal
+PASS projection_microgrid_guard_-17000.0 exact inputs unchanged
+PASS projection_microgrid_guard_-17000.0 native surface validity
+PASS projection_fragmented_holes full bytes equal
+PASS projection_fragmented_holes expected outcome
+PASS projection_fragmented_holes exact inputs unchanged
+PASS projection_512_piece_limit full bytes equal
+PASS projection_512_piece_limit expected outcome
+PASS projection_512_piece_limit exact inputs unchanged
+PASS adaptive_512_piece_split full bytes equal
+PASS adaptive_512_piece_split expected outcome
+PASS adaptive_512_piece_split exact inputs unchanged
+PASS adaptive_512_piece_split native surface validity
+PASS adaptive_256_paint_split full bytes equal
+PASS adaptive_256_paint_split expected outcome
+PASS adaptive_256_paint_split exact inputs unchanged
+PASS adaptive_256_paint_split native surface validity
+PASS native continuous kerb fixture built
+PASS kerb_sampled_height_0 full bytes equal
+PASS kerb_sampled_height_0 expected outcome
+PASS kerb_sampled_height_0 exact inputs unchanged
+PASS kerb_sampled_height_0 native surface validity
+PASS kerb_sampled_height_1 full bytes equal
+PASS kerb_sampled_height_1 expected outcome
+PASS kerb_sampled_height_1 exact inputs unchanged
+PASS kerb_sampled_height_1 native surface validity
+PASS kerb_sampled_height_2 full bytes equal
+PASS kerb_sampled_height_2 expected outcome
+PASS kerb_sampled_height_2 exact inputs unchanged
+PASS kerb_sampled_height_2 native surface validity
+PASS kerb_sampled_height_3 full bytes equal
+PASS kerb_sampled_height_3 expected outcome
+PASS kerb_sampled_height_3 exact inputs unchanged
+PASS kerb_sampled_height_3 native surface validity
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_prepare_20261016/baseline_differential.json checks=347 failures=0

@@ -1,0 +1,718 @@
+{
+  "version": 1,
+  "captured_utc": "2026-10-15T22:26:50.635453+00:00",
+  "base_commit": "784e2cbc27cbd5196b949d0b989a04e92f2b7995",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "capture_scope": "Captured before this batch's separate commit. File SHA identifies tested state; this manifest is not a self-referential commit identifier.",
+  "delivery": "Road preparation cell-window optimization, exact unchanged record preservation, shared UI/current 3D MCP district regression. No merge or push.",
+  "isolation": "All checkout writes in this managed worktree. GPU tests used tools/run_godot_background.py on never-activated private desktops and unique temporary maps/packs. No writes to the scene-building checkout or user maps.",
+  "test_results": {
+    "before/result.json": {
+      "checks": 149,
+      "failures": 0,
+      "sha256": "4369277c82ddb667d666a20e40857b3760c99cd62a1dad44cc33ec8ca54d555c"
+    },
+    "after/result.json": {
+      "checks": 149,
+      "failures": 0,
+      "sha256": "90724809e7fbe03866c1a0cc2a85ee414f7ca15d312941ccd732568e878519bb"
+    },
+    "final/result.json": {
+      "checks": 149,
+      "failures": 0,
+      "sha256": "e1b135233e2991c3a595091b77c606aa2b5247e4fbe1cf5137637c7a2af016ca"
+    },
+    "comparison.json": {
+      "checks": 514,
+      "failures": 0,
+      "sha256": "666521883dac06be9952a2576990e27bd733eda41a97896fc78e7573ce7e283f"
+    },
+    "comparison_final.json": {
+      "checks": 514,
+      "failures": 0,
+      "sha256": "302fae37293340fbcb8e3d2062f217149194ecdcbc58bfaae90f36bc8dfca9aa"
+    },
+    "differential.json": {
+      "checks": 356,
+      "failures": 0,
+      "sha256": "f516000a9f2a1759b8b6fcca3100434cd64ab765b748cfaf2d31112a00ba36f4"
+    },
+    "differential_final.json": {
+      "checks": 364,
+      "failures": 0,
+      "sha256": "f83a638cd9accfa0ae2644dd5edfced3679f4903718918a2226be75bc6b91d42"
+    },
+    "record_preservation_native.json": {
+      "checks": 24,
+      "failures": 0,
+      "sha256": "decd5556364891698a6683a4e6062a45de13c0d75a4bba16728b237a17e48629"
+    },
+    "district_http_final.json": {
+      "checks": 113,
+      "failures": 0,
+      "sha256": "2e11b6c23f17b6434a45123af01cfd4a1f352d19a7a3d42ddfc6b39f8f9bb54b"
+    },
+    "residential_http_final.json": {
+      "checks": 127,
+      "failures": 0,
+      "sha256": "51a82e3fa7a9d12d344c5013811e006b53584a8740f9de0c8b1d875df9d920e2"
+    },
+    "waterway_control/result.json": {
+      "checks": 95,
+      "failures": 0,
+      "sha256": "26668869de7ae01ec4fd0dcf653c7a0498cbb33e506f815fbf72da00a45e89c2"
+    },
+    "terrain_projection_bounds.log": {
+      "checks": 22,
+      "failures": 0,
+      "sha256": "141af9fe7c7f7db094fae8227b8dc7cfdf7c600119cd6c6b7cb9143bab9ba43e"
+    },
+    "adaptive_textured_final_engine.log": {
+      "checks": 70,
+      "failures": 0,
+      "sha256": "e8a4f78805e58a7e2699e8afa63a8f607e7e0c2bb27b8fb60f90d28f4217648e"
+    }
+  },
+  "final_source_sha256": {
+    "scripts/world3d/terrain_projection.gd": {
+      "sha256": "1b8b339d47ac00786bfe597543812c05a5584ad0621a205efb3bff644f520615",
+      "lf_sha256": "c1bc2e85cc4b04461f24635d45072cbe65c0d5baeffa00188c0923334a6ccc24",
+      "bytes": 9054
+    },
+    "scripts/world3d/road_terrain_fit.gd": {
+      "sha256": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+      "lf_sha256": "b490b4b605a848d04f71810faf196f6afe5e5d8850aa3165d4f84f780f4b36f3",
+      "bytes": 5403
+    },
+    "scripts/world_editor/road_tools.gd": {
+      "sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+      "lf_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+      "bytes": 17445
+    },
+    "scripts/world_editor/road_panel.gd": {
+      "sha256": "513565ff78be70be9e7ae93b4f75efa496b2211f636ab81602ae093e83760014",
+      "lf_sha256": "6b44ac31630001a19e05fa0054f1386d02c5361c86ceb1713258937a0c48ea7c",
+      "bytes": 8739
+    },
+    "scripts/world_editor/city_tools.gd": {
+      "sha256": "fb4fa0ea3ce9711870e86d45a2ceafeb38d6f62d0c51bc5b57f30b09bf384648",
+      "lf_sha256": "eeaba35c779c6ecc4a19c69d401f21d3c9eed6e3fccf1ce3a5a86bc8f13f4dc3",
+      "bytes": 28640
+    },
+    "scripts/world_editor/mcp_schema.gd": {
+      "sha256": "5c30b4ef6726700779b448514434d136d08fb9001ca9a08a6d876120d308dcc4",
+      "lf_sha256": "63a7fddc0c83ebe9214b8b68f57e1959d6b597e05900bc2291f0bb6c8916c472",
+      "bytes": 55570
+    },
+    "scripts/world_editor/mcp_ops.gd": {
+      "sha256": "d2df6a73e1d9db45b48a83b2072b5e80f2993844c4cfd098c0c791009d7c9552",
+      "lf_sha256": "6066f76a718373be7d393871abee309d1df6141b15c65fe0c67d7839ca0594b2",
+      "bytes": 35617
+    },
+    "tools/benchmark_road_prepare.gd": {
+      "sha256": "9cecd3fbd3ab7c03d469552b61c88bdde8ef22d3375294a9130bb59832875185",
+      "lf_sha256": "9cecd3fbd3ab7c03d469552b61c88bdde8ef22d3375294a9130bb59832875185",
+      "bytes": 10145
+    },
+    "tools/road_prepare_fixture.gd": {
+      "sha256": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea",
+      "lf_sha256": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea",
+      "bytes": 8538
+    },
+    "tools/compare_road_prepare.py": {
+      "sha256": "06aad0560159b7a00f615eff2dabcb17741a22f8366fa3ad88a711b5488f91c7",
+      "lf_sha256": "06aad0560159b7a00f615eff2dabcb17741a22f8366fa3ad88a711b5488f91c7",
+      "bytes": 12421
+    },
+    "tools/test_road_prepare_differential.gd": {
+      "sha256": "43072360771e6c8cdb207066cbe82638ab47a26d964bd5a8dce41e322f506966",
+      "lf_sha256": "43072360771e6c8cdb207066cbe82638ab47a26d964bd5a8dce41e322f506966",
+      "bytes": 25924
+    },
+    "tools/test_road_record_preservation.gd": {
+      "sha256": "96695e487a3ab82313760d56a0354d53afcc4e1ea6bce179421057e342f35084",
+      "lf_sha256": "96695e487a3ab82313760d56a0354d53afcc4e1ea6bce179421057e342f35084",
+      "bytes": 13294
+    },
+    "tools/test_road_prepare_district_http.gd": {
+      "sha256": "5773628ac027c1ad6aa47623b78adcbf2d2412a42c93636cd3df25b1994a1c63",
+      "lf_sha256": "5773628ac027c1ad6aa47623b78adcbf2d2412a42c93636cd3df25b1994a1c63",
+      "bytes": 22428
+    },
+    "tools/test_residential_placement_http.gd": {
+      "sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "lf_sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "bytes": 25563
+    },
+    "tools/test_adaptive_terrain_roads.gd": {
+      "sha256": "5feb16f66df8ce08f8a76d1900e22972e50bc50ebd2ccf562b316eeb417a09dc",
+      "lf_sha256": "74500e453b845755b9b9ae8e33ee62686f3fd6c824af639af1bce22b9fab282d",
+      "bytes": 17146
+    },
+    "tools/test_terrain_projection_bounds.gd": {
+      "sha256": "2bbc5ef1a96ffa56896130f414f43d14bc245e56b167500fc51aa7400754a8c6",
+      "lf_sha256": "327a8fc14d27b6274020cf484da38b0a48784e1ef53a2e8adfc95f5eed516df5",
+      "bytes": 5735
+    },
+    "tools/run_godot_background.py": {
+      "sha256": "d9add9a15d8729b0221054b2c20189b9c69e230526d04166ea9ecc2d87a0ad2e",
+      "lf_sha256": "b182b46ff6d8b1b1facedbc7ffda813ab74a1b83075667a01cadf6d9bbe9c3d6",
+      "bytes": 6514
+    },
+    "project.godot": {
+      "sha256": "e1d1bb7c924bd22ffaef450ff75c4440577af3a0fa885d84732e7bf868ee6ea3",
+      "lf_sha256": "62746f1cf61a57fab089da14d6365537c9ad2853f71d7f82825aacff5e51a1d8",
+      "bytes": 1492
+    },
+    ".gitattributes": {
+      "sha256": "670930ce7fc6b43622f70f03297d098e974ce242fe53605793506ca625be6c1f",
+      "lf_sha256": "688e68f4b54b791701baf5976c8ecd3be30dd888b8ad78e91c22d04f4cb6e0aa",
+      "bytes": 742
+    },
+    "docs/seamless_streaming_optimization_plan_20261014.md": {
+      "sha256": "036f2a23f1b242e1158564154283d1f3b631e4ceb3f1068fb37f4b27cc8646e1",
+      "lf_sha256": "afabe9c8dc473dcd529598af83ab5780d15d19e64726912b8e0d82b5e25934e3",
+      "bytes": 115045
+    },
+    "docs/world_editor_mcp.md": {
+      "sha256": "6b08b56fafee514795b771e9c39a3130b30a2586f9ef9e51c90b209163066940",
+      "lf_sha256": "606cfea73e442d7c137a496ce191843d9b72cc52727b3d3ec29df17fffe13ad4",
+      "bytes": 137598
+    },
+    "docs/world_editor_roads.md": {
+      "sha256": "631091eb7120a8b07ac868760f662d96d14b0222dee08e00f635e91908ed4b04",
+      "lf_sha256": "86ae509278168e22356ab06ed97b5e5a825dd3f4d99106dc718d6b2e768b9f8b",
+      "bytes": 21194
+    }
+  },
+  "final_benchmark_all_recorded_production_sources_match_live": true,
+  "engine": {
+    "console_path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "console_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "gui_path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "gui_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "version": {
+      "build": "official",
+      "hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+      "hex": 263938,
+      "major": 4,
+      "minor": 7,
+      "patch": 2,
+      "status": "stable",
+      "string": "4.7.2-stable (official)",
+      "timestamp": 0
+    }
+  },
+  "final_temporary_maps": {
+    "district_http_final.json": {
+      "path": "D:\\code\\rmmo_runtime\\__road_prepare_district_6532_15595486\\maps\\test\\map.gltf",
+      "sha256": "155ec80ed97596359ad90875dea45fc64e0ae06a2cf81b3bd2ecc19b33fd045b"
+    },
+    "residential_http_final.json": {
+      "path": "D:\\code\\rmmo_runtime\\__residential_placement_9968_13060647\\maps\\test\\map.gltf",
+      "sha256": "6da3d8caab38ad01f708629d3c0ed26b04e1f98b079b398b8e37c2fd8720bf96"
+    },
+    "record_preservation_native.json": {
+      "path": "D:/code/rmmo_runtime/cache/world3d/road_record_preservation_21940_7994948/map.gltf",
+      "reader": "map_resource_store.read_records",
+      "save_mode": "reference_map",
+      "sha256": "125a727f593246ebc0e521f4503eadecbd61b15fce6c189be422160bd14066db",
+      "writer": "reference_map_save"
+    },
+    "adaptive_textured_final_engine.log": {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\adaptive_terrain_roads_17617866\\map.gltf",
+      "sha256": "485169b9233db7ce3f5f49b03e5263f41a853b35119ffe82a17aa2b944508609"
+    }
+  },
+  "measurement_scope": {
+    "A_B": "Frozen identical five fixtures; only terrain_projection changed during A/B. Full input/result binaries and all six samples per fixture match. measured_road_tools.gd.txt pins the profiled service before the subsequent correctness fix.",
+    "A_C": "Final source in same five fixtures. Road_tools record preservation and projection differ from A; these fixtures have no existing road_surface.parts. No saved-road regeneration timing claim.",
+    "strict_final": "74 strict full-chain byte-equal cases plus one separately asserted intended author-key-order preservation case; no generic normalization.",
+    "runtime": "District native collision readiness and ten rays, bridgehead height continuity, no character capsule traversal. Residential HTTP covers candidate/editor operations, not a repeated interior or runtime route review.",
+    "limits": "Small fixed-order CPU samples, no P95/P99, statistical-significance, whole-town UI latency or memory claim; no model geometry changes or formal scene delivery."
+  },
+  "remaining_observations": [
+    {
+      "path": "waterway_bound_bridge",
+      "observation": "A/C OFF median 23.670 -> 36.224 ms. Additional same-process 10 paired OFF samples: 6 current slower, 4 faster; paired median +3.372 ms. Small regression is not ruled out; retained for next measurement, not dismissed as noise.",
+      "evidence": "waterway_control/result.json"
+    }
+  ],
+  "iterations_preserved": {
+    "before_district_http.json": "Fixture originally located chunks by anchors instead of actual world footprint; corrected test selection.",
+    "before_district_http_v2.json": "Protected manual paint correctly rejected connected-road modification; test subsequently continued and cleanup called a freed loader. Test now restores the negative case before legal edits and aborts on failure.",
+    "district_http.json": "Actual unchanged far-road byte loss after native reopen and local update, reproduced before record-preservation fix.",
+    "record_preservation_initial_fixture.json": "Whole-record JSON simulation did not match binary geometry persistence and changed real float values; replaced with native ReferenceMapSave/Store round trip and retained lossy control as a negative test."
+  },
+  "artifacts": {
+    "adaptive_textured_final.log": {
+      "sha256": "542af6514e865918ea5e4b8036a043828eebe4ece7dace951acb7f2d90c7c72f",
+      "bytes": 4616
+    },
+    "adaptive_textured_final_engine.log": {
+      "sha256": "e8a4f78805e58a7e2699e8afa63a8f607e7e0c2bb27b8fb60f90d28f4217648e",
+      "bytes": 4540
+    },
+    "after/frozen_stone_bridge_approaches_input.bin": {
+      "sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+      "bytes": 723700
+    },
+    "after/frozen_stone_bridge_approaches_reference_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "after/frozen_stone_bridge_approaches_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "after/junction_kerbs_input.bin": {
+      "sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+      "bytes": 1464
+    },
+    "after/junction_kerbs_reference_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "after/junction_kerbs_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "after/result.json": {
+      "sha256": "90724809e7fbe03866c1a0cc2a85ee414f7ca15d312941ccd732568e878519bb",
+      "bytes": 90116
+    },
+    "after/terrain64_far_complex_input.bin": {
+      "sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+      "bytes": 578036
+    },
+    "after/terrain64_far_complex_reference_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "after/terrain64_far_complex_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "after/terrain64_local_input.bin": {
+      "sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+      "bytes": 67816
+    },
+    "after/terrain64_local_reference_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "after/terrain64_local_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "after/waterway_bound_bridge_input.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "after/waterway_bound_bridge_reference_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "after/waterway_bound_bridge_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "after_engine.log": {
+      "sha256": "95e1312ee2bfa65eabd481c086c2542bf080d6e5059eff2e5420c92f89f1c8cf",
+      "bytes": 25571
+    },
+    "baseline_differential.json": {
+      "sha256": "0e215cdf904c61a3abd3178ac5526ce1e9e0cb168df2e1b3c1496e6e1fc0bf7a",
+      "bytes": 128850
+    },
+    "baseline_differential.log": {
+      "sha256": "e6c95832ac2656979db35f4d86fbe72ffc6593aa85c0b348f12cca0513ea9a7e",
+      "bytes": 19423
+    },
+    "before/frozen_stone_bridge_approaches_input.bin": {
+      "sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+      "bytes": 723700
+    },
+    "before/frozen_stone_bridge_approaches_reference_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "before/frozen_stone_bridge_approaches_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "before/junction_kerbs_input.bin": {
+      "sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+      "bytes": 1464
+    },
+    "before/junction_kerbs_reference_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "before/junction_kerbs_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "before/result.json": {
+      "sha256": "4369277c82ddb667d666a20e40857b3760c99cd62a1dad44cc33ec8ca54d555c",
+      "bytes": 90025
+    },
+    "before/terrain64_far_complex_input.bin": {
+      "sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+      "bytes": 578036
+    },
+    "before/terrain64_far_complex_reference_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "before/terrain64_far_complex_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "before/terrain64_local_input.bin": {
+      "sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+      "bytes": 67816
+    },
+    "before/terrain64_local_reference_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "before/terrain64_local_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "before/waterway_bound_bridge_input.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "before/waterway_bound_bridge_reference_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "before/waterway_bound_bridge_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "before_district_http.json": {
+      "sha256": "f5c010cd7be2497b6906c64b4d0ac154f386f6b3ca5febebf3d8450bcfd1ed9d",
+      "bytes": 4286
+    },
+    "before_district_http.log": {
+      "sha256": "f3f2f17caab977eee130d22281f2835337f03b6c6e21167db4938df9e035a2dc",
+      "bytes": 2352
+    },
+    "before_district_http_engine.log": {
+      "sha256": "0d30d88b0db5821e45e8bc63ca56a88a70b2f348e4c20d5e4545646286f07307",
+      "bytes": 2314
+    },
+    "before_district_http_v2.json": {
+      "sha256": "1cf925c841808edbc9feb00c7f1e834c6f63337895c8191528c1de9e67130d2b",
+      "bytes": 19575
+    },
+    "before_district_http_v2.log": {
+      "sha256": "0f0819d9b76d24e2c94c58b77e5080b5c4c88d4da7de346491c8ccb4a1988f6a",
+      "bytes": 7599
+    },
+    "before_district_http_v2_engine.log": {
+      "sha256": "d512a3ce27587d306803f7d7b3057baf6071e91c6e4a6d5ddaf95c3e9ece89d2",
+      "bytes": 7480
+    },
+    "before_engine.log": {
+      "sha256": "1a0d9f40f3a4878da244b1e974e23a8aa7b5cce2ad0328dc9d156af6b0b59ee7",
+      "bytes": 25587
+    },
+    "comparison.json": {
+      "sha256": "666521883dac06be9952a2576990e27bd733eda41a97896fc78e7573ce7e283f",
+      "bytes": 125536
+    },
+    "comparison_final.json": {
+      "sha256": "302fae37293340fbcb8e3d2062f217149194ecdcbc58bfaae90f36bc8dfca9aa",
+      "bytes": 125973
+    },
+    "differential.json": {
+      "sha256": "f516000a9f2a1759b8b6fcca3100434cd64ab765b748cfaf2d31112a00ba36f4",
+      "bytes": 130757
+    },
+    "differential.log": {
+      "sha256": "8fc535a842a87449a25a62b90f92304f5801f87f5a23d8126266be3abfca9af6",
+      "bytes": 20011
+    },
+    "differential_final.json": {
+      "sha256": "f83a638cd9accfa0ae2644dd5edfced3679f4903718918a2226be75bc6b91d42",
+      "bytes": 138295
+    },
+    "differential_final.log": {
+      "sha256": "5d777643db468b029ca32097aa10ad24bc2f722cac58495483d7a7ccd8b2d9e5",
+      "bytes": 20907
+    },
+    "differential_final_record_order.json": {
+      "sha256": "2b289b4a51846c45f601fa9d8e16b2d7e46dbde7a82c8eb1bc95f0b4801073b4",
+      "bytes": 5379
+    },
+    "differential_final_record_order_current.bin": {
+      "sha256": "a985b19263478769061d14e284dcfbba06f3c139cb3ca75e53b73b1bdff949f3",
+      "bytes": 6152
+    },
+    "differential_final_record_order_legacy.bin": {
+      "sha256": "ed87dafdaa255b05d3e3512e84af4dc0ea1a2c8e7b471a09440dc358bf5f1d2a",
+      "bytes": 6152
+    },
+    "differential_final_record_order_previous.bin": {
+      "sha256": "19b0866236d204a49d669f679b3b0ca7ae3631327f711e3a551c40378d787848",
+      "bytes": 944
+    },
+    "district_http.json": {
+      "sha256": "66e61ec06c66e09350003aa3e30b2c55e0fc06a3aabbbeeac887f1e8b84e2aba",
+      "bytes": 21611
+    },
+    "district_http.log": {
+      "sha256": "c9a698254ff8d796282c8cf1884d470eeff85a121db459d998f66ab6314fec0b",
+      "bytes": 7234
+    },
+    "district_http_engine.log": {
+      "sha256": "c71a560ff10d0212c85e962576afc3efc739f68114f10715a9eaef3c52d4d88a",
+      "bytes": 7118
+    },
+    "district_http_final.json": {
+      "sha256": "2e11b6c23f17b6434a45123af01cfd4a1f352d19a7a3d42ddfc6b39f8f9bb54b",
+      "bytes": 22543
+    },
+    "district_http_final.log": {
+      "sha256": "46cead807748a8ec1e5f380a155c2f526718706093d7d8492458f5b647376ee9",
+      "bytes": 7463
+    },
+    "district_http_final_engine.log": {
+      "sha256": "017d8449809385445567e7c94b0e9f6f336aa0a8b732ce093a852e9859d5619a",
+      "bytes": 7344
+    },
+    "final/frozen_stone_bridge_approaches_input.bin": {
+      "sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+      "bytes": 723700
+    },
+    "final/frozen_stone_bridge_approaches_reference_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "final/frozen_stone_bridge_approaches_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "final/junction_kerbs_input.bin": {
+      "sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+      "bytes": 1464
+    },
+    "final/junction_kerbs_reference_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "final/junction_kerbs_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "final/result.json": {
+      "sha256": "e1b135233e2991c3a595091b77c606aa2b5247e4fbe1cf5137637c7a2af016ca",
+      "bytes": 90114
+    },
+    "final/terrain64_far_complex_input.bin": {
+      "sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+      "bytes": 578036
+    },
+    "final/terrain64_far_complex_reference_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "final/terrain64_far_complex_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "final/terrain64_local_input.bin": {
+      "sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+      "bytes": 67816
+    },
+    "final/terrain64_local_reference_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "final/terrain64_local_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "final/waterway_bound_bridge_input.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "final/waterway_bound_bridge_reference_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "final/waterway_bound_bridge_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "final_engine.log": {
+      "sha256": "322eb90cfa51708d24c510e34fb88f892486b70c1afc304aac88bc23b4da1d36",
+      "bytes": 25568
+    },
+    "fixture_check/frozen_stone_bridge_approaches_input.bin": {
+      "sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+      "bytes": 723700
+    },
+    "fixture_check/frozen_stone_bridge_approaches_reference_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "fixture_check/frozen_stone_bridge_approaches_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "fixture_check/junction_kerbs_input.bin": {
+      "sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+      "bytes": 1464
+    },
+    "fixture_check/junction_kerbs_reference_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "fixture_check/junction_kerbs_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "fixture_check/result.json": {
+      "sha256": "b309a62d71b17d1cbbfd7cf8fdeb4992c88ddcfc54057d90175ca36d10d1ea54",
+      "bytes": 60138
+    },
+    "fixture_check/terrain64_far_complex_input.bin": {
+      "sha256": "e7eef48afc1ad943bd0291680dfe4dd40534669e4ff70aba1309766d36f01eb3",
+      "bytes": 940816
+    },
+    "fixture_check/terrain64_far_complex_reference_result.bin": {
+      "sha256": "6cbf1bdbfaf25667167a81fd08927fa3c621a3f91fe633b433324559e7040461",
+      "bytes": 102140
+    },
+    "fixture_check/terrain64_far_complex_result.bin": {
+      "sha256": "6cbf1bdbfaf25667167a81fd08927fa3c621a3f91fe633b433324559e7040461",
+      "bytes": 102140
+    },
+    "fixture_check/terrain64_local_input.bin": {
+      "sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+      "bytes": 67816
+    },
+    "fixture_check/terrain64_local_reference_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "fixture_check/terrain64_local_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "fixture_check/waterway_bound_bridge_input.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "fixture_check/waterway_bound_bridge_reference_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "fixture_check/waterway_bound_bridge_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "full_chain_metadata.json": {
+      "sha256": "c4a3150698a2af5deed4c3bbfa2f6d3272456ab0c224bda320f3d6283e3f6a29",
+      "bytes": 1392
+    },
+    "measured_road_tools.gd.txt": {
+      "sha256": "73cc35c36b2e6fbc8ae373c67585f536edcb89c01d8662cff8e2848e7b46632b",
+      "bytes": 15993
+    },
+    "metadata.json": {
+      "sha256": "d3f1d7bbb0b490d23d79a518d4345d21d0836548c004be63c2eb5d6db2592a20",
+      "bytes": 340
+    },
+    "record_preservation.json": {
+      "sha256": "cb2f4b6b15e9a9e27835e224f0b81855479f5461117e00edfb480064a7132d1b",
+      "bytes": 6499
+    },
+    "record_preservation_float_diagnostic.json": {
+      "sha256": "0733d63238124f05e59c8eeeb1da92b7792d76e41fd4b70958f45618d2c06e8e",
+      "bytes": 10835
+    },
+    "record_preservation_initial_fixture.json": {
+      "sha256": "ae6a9e17dac534849d033074a2141fe7ac6939ee3d721b647846919138f5b9ce",
+      "bytes": 6499
+    },
+    "record_preservation_native.json": {
+      "sha256": "decd5556364891698a6683a4e6062a45de13c0d75a4bba16728b237a17e48629",
+      "bytes": 7301
+    },
+    "reference.gd.txt": {
+      "sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+      "bytes": 14522
+    },
+    "residential_http_final.json": {
+      "sha256": "51a82e3fa7a9d12d344c5013811e006b53584a8740f9de0c8b1d875df9d920e2",
+      "bytes": 429164
+    },
+    "residential_http_final.log": {
+      "sha256": "685e2461ee9cdceb24f8763f1b869aa2b1710e8d1b1c10aa45b994ca449f55fc",
+      "bytes": 7553
+    },
+    "residential_http_final_engine.log": {
+      "sha256": "d886bcdaad032be802a49fe58fe93faea5085f4e20dff578e66dfa084093fca1",
+      "bytes": 7421
+    },
+    "road_terrain_fit.gd.txt": {
+      "sha256": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+      "bytes": 5403
+    },
+    "road_terrain_fit_ref.gd": {
+      "sha256": "4cfbe13fcee37ddafc625795971477a292c39b72a8d5ebdb2e993b509cd3cffa",
+      "bytes": 5430
+    },
+    "road_tools_full_chain_ref.gd": {
+      "sha256": "5005f93bb2d0b21bc4a27542a291e33c6763296ba7ebe15f5a98f7e2ad59a3d3",
+      "bytes": 14549
+    },
+    "terrain_projection.gd.txt": {
+      "sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+      "bytes": 6905
+    },
+    "terrain_projection_bounds.log": {
+      "sha256": "141af9fe7c7f7db094fae8227b8dc7cfdf7c600119cd6c6b7cb9143bab9ba43e",
+      "bytes": 1521
+    },
+    "terrain_projection_ref.gd": {
+      "sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+      "bytes": 6905
+    },
+    "waterway_control/current_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "waterway_control/input_fixture.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "waterway_control/input_state.bin": {
+      "sha256": "0e6ff765d0529e12f78df2832c2b04c1955fa8a87c501ee2f5d535a11164fdd7",
+      "bytes": 32208
+    },
+    "waterway_control/legacy_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "waterway_control/result.json": {
+      "sha256": "26668869de7ae01ec4fd0dcf653c7a0498cbb33e506f815fbf72da00a45e89c2",
+      "bytes": 65711
+    },
+    "waterway_control.gd": {
+      "sha256": "c2d1e3db78985b8a575e1774756387de1b0409bcbb7d33030a83f3bae3f5271a",
+      "bytes": 7580
+    },
+    "waterway_control.log": {
+      "sha256": "1d90027f8bab5652e34c8680e9755d9c2df65addf29a15f257bed39719071fd4",
+      "bytes": 5499
+    }
+  }
+}

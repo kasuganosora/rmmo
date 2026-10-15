@@ -1,0 +1,116 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: native planner creates the disposable original bridge-road slab
+PASS: fixture saves only inside its unique temporary resource pack
+PASS: isolated real HTTP MCP binds an available loopback port
+PASS: discovery exposes current 3D road and bridge tools without a stale tool-count assumption
+PASS: real road preview schema includes kerbs and declares read-only behavior
+PASS: HTTP preview_bridge succeeds
+PASS: native stone bridge preview leaves the district untouched
+PASS: HTTP generate_bridge succeeds
+PASS: bridgehead fixture uses the existing native stone bridge generator
+PASS: HTTP preview_road_surface succeeds
+PASS: district road preview is exactly read-only
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: preview_road_surface
+PASS: HTTP generate_road_surface succeeds
+PASS: district surface and kerbs commit as one undo transaction
+PASS: HTTP undo succeeds
+PASS: one undo restores complete graph, bridge binding and road records
+PASS: HTTP redo succeeds
+PASS: redo restores identical district IDs and geometry
+PASS: HTTP preview_road_surface succeeds
+PASS: actual UI preview button and HTTP return the same plan token for identical inputs
+PASS: UI and HTTP previews preserve exact authored and history state
+PASS: actual UI prepares a changed kerb height
+PASS: actual UI apply button is connected
+PASS: UI change commits through the native single transaction
+PASS: HTTP undo succeeds
+PASS: UI change undo restores the exact authored state
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP and UI same-input applications produce equivalent complete documents
+PASS: local generated pavement is available for ownership protections
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: preview_road_surface
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP undo succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: preview_road_surface
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP undo succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP undo succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP undo succeeds
+PASS: HTTP set_object_transform succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP undo succeeds
+PASS: HTTP undo succeeds
+PASS: HTTP clear_surface_material succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: repeat generation retains explicit hand-cleared pavement paint
+PASS: HTTP update_road_graph rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: update_road_graph
+PASS: HTTP undo succeeds
+PASS: native undo restores all authored data and the original undo stack before legal local editing
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: local graph edit automatically prepares road and kerbs in one transaction
+FAIL: local endpoint edit after reopen: every distant road ID and serialized record byte is unchanged
+PASS: HTTP undo succeeds
+PASS: local district undo restores graph and generated geometry
+PASS: undo: every distant road ID and serialized record byte is unchanged
+PASS: HTTP redo succeeds
+PASS: local district redo preserves IDs and geometry
+FAIL: redo: every distant road ID and serialized record byte is unchanged
+PASS: HTTP generate_road_surface succeeds
+PASS: identical district regeneration is a native no-op
+PASS: no-op regeneration does not add undo or replace author records
+PASS: all editor derived groups finish before batch assertions
+PASS: actual editor batching reduces surfaces
+PASS: batched roads retain independent authoring nodes and editor picking identities
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: district native save/reopen preserves bridge, roads, manual paint and graph
+PASS: second save/reopen: every distant road ID and serialized record byte is unchanged
+PASS: saved district retains real kerb profiles and resolved material dependencies
+PASS: native runtime loader reopens the saved district
+PASS: native physics publication is ready before probing junction
+PASS: actual native collider supports the intended surface at junction
+PASS: native physics publication is ready before probing chunk_left
+PASS: actual native collider supports the intended surface at chunk_left
+PASS: native physics publication is ready before probing chunk_right
+PASS: actual native collider supports the intended surface at chunk_right
+PASS: native physics publication is ready before probing west_approach
+PASS: actual native collider supports the intended surface at west_approach
+PASS: native physics publication is ready before probing west_bridge
+PASS: actual native collider supports the intended surface at west_bridge
+PASS: native physics publication is ready before probing east_bridge
+PASS: actual native collider supports the intended surface at east_bridge
+PASS: native physics publication is ready before probing east_approach
+PASS: actual native collider supports the intended surface at east_approach
+PASS: native physics publication is ready before probing changed_north
+PASS: actual native collider supports the intended surface at changed_north
+PASS: native physics publication is ready before probing far_lane
+PASS: actual native collider supports the intended surface at far_lane
+PASS: native physics publication is ready before probing empty_courtyard
+PASS: actual native collider supports the intended surface at empty_courtyard
+PASS: native bridgehead and approach collision heights meet continuously
+PASS: native bridgehead and approach collision heights meet continuously
+ROAD_PREPARE_DISTRICT_REPORT C:/Users/luna/.codex/worktrees/editor-reliability/rmmo/review_artifacts/road_prepare_20261016/district_http.json
+ROAD_PREPARE_DISTRICT_FINISHED checks=110 failures=2
