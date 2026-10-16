@@ -5,6 +5,7 @@ const T=preload("res://scripts/world3d/terrain_surface.gd")
 const R=preload("res://scripts/world3d/road_surface.gd")
 const P=preload("res://scripts/world3d/road_plan.gd")
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
+const KERB_SAMPLE_CACHE_LIMIT:=4096
 
 static func _cell_window(terrain:Dictionary,pose:Transform3D,wanted:Rect2)->Rect2i:
 	var columns:int=terrain.terrain_mesh.columns;var rows:int=terrain.terrain_mesh.rows
@@ -69,15 +70,23 @@ static func fit(record:Dictionary,terrains:Array,offset:float=.025,max_grade:flo
 			if not horizontal or terrain_bounds.intersects(wanted_bounds[index],true):terrain_wanted.append(index)
 		if terrain_wanted.is_empty():continue
 		var window:=_cell_window(terrain,pose,wanted_extent)
+		# Adjacent solid cells share vertices. Keep only two lazy rows of the
+		# exact native point/transform result, including on rotated fallback paths.
+		# Holes do not construct points and no state survives this fit call.
+		var lower:Array=[];lower.resize(window.size.x+1)
 		for z in range(window.position.y,window.end.y):
+			var upper:=lower;lower=[];lower.resize(window.size.x+1)
 			for x in range(window.position.x,window.end.x):
 				if not T.solid(terrain.terrain_mesh,x,z):continue
-				var cell:=T.cell(terrain,x,z)
-				var triangles:Array=[[cell[0],cell[1],cell[2]],[cell[0],cell[2],cell[3]]]
+				var column:=x-window.position.x
+				if upper[column]==null:upper[column]=pose*T.point(terrain,x,z)
+				if upper[column+1]==null:upper[column+1]=pose*T.point(terrain,x+1,z)
+				if lower[column]==null:lower[column]=pose*T.point(terrain,x,z+1)
+				if lower[column+1]==null:lower[column+1]=pose*T.point(terrain,x+1,z+1)
+				var triangles:Array=[[upper[column],upper[column+1],lower[column+1]],[upper[column],lower[column+1],lower[column]]]
 				for triangle_index in triangles.size():
-					var triangle:Array=triangles[triangle_index]
-					var corners:Array=triangle.map(func(p):return pose*p)
-					var boundary:Array=corners.map(func(p):return Vector2(p.x,p.z))
+					var corners:Array=triangles[triangle_index]
+					var boundary:Array=[Vector2(corners[0].x,corners[0].z),Vector2(corners[1].x,corners[1].z),Vector2(corners[2].x,corners[2].z)]
 					var triangle_bounds:=Rect2(boundary[0],Vector2.ZERO)
 					triangle_bounds=triangle_bounds.expand(boundary[1]).expand(boundary[2])
 					if not triangle_bounds.intersects(wanted_extent,true):continue
@@ -107,13 +116,25 @@ static func fit(record:Dictionary,terrains:Array,offset:float=.025,max_grade:flo
 	# Existing kerbs are regenerated against the fitted surface below.
 	var source_kerbs:Array=record.get("terrain_follow",{}).get("kerbs",record[field].get("kerbs",[])).duplicate(true)
 	if not source_kerbs.is_empty():next[field].kerbs=source_kerbs.duplicate(true)
+	var terrain_poses:Array[Transform3D]=[];var terrain_inverses:Array[Transform3D]=[]
+	if not next[field].get("kerbs",[]).is_empty():
+		for terrain:Dictionary in terrains:
+			var pose:=T.transform(terrain);terrain_poses.append(pose);terrain_inverses.append(pose.affine_inverse())
+	var sampled_heights:Dictionary={}
 	for kerb:Dictionary in next[field].get("kerbs",[]):
 		for side:String in ["a","b"]:
 			for point:Array in kerb[side]:
 				var world:=Vector3(point[0]+record.position[0],0,point[2]+record.position[2]);var y:=-INF
-				for terrain:Dictionary in terrains:
-					var pose:=T.transform(terrain);var local:Vector3=pose.affine_inverse()*world;var sample:=T.sample(terrain,local)
-					if is_finite(sample):y=maxf(y,(pose*Vector3(local.x,sample,local.z)).y)
+				if sampled_heights.has(world):y=sampled_heights[world]
+				else:
+					# Use the exact float32 world position already used by sampling,
+					# not a rounded key or author point with a different precision.
+					for index in terrains.size():
+						var pose:Transform3D=terrain_poses[index];var local:Vector3=terrain_inverses[index]*world;var sample:=T.sample(terrains[index],local)
+						if is_finite(sample):y=maxf(y,(pose*Vector3(local.x,sample,local.z)).y)
+					# Unusually intricate authored kerbs remain supported: after the
+					# local cap, uncached coordinates use the original exact sampling.
+					if sampled_heights.size()<KERB_SAMPLE_CACHE_LIMIT:sampled_heights[world]=y
 				if not is_finite(y):return T.fail("路缘缺少地形承托")
 				point[1]=y+offset-record.position[1]+(point[1]-record.size[1]*.5)
 	next.terrain_follow={"version":1,"terrain_ids":ids,"polygons":source,"offset":offset,"max_grade":max_grade}
