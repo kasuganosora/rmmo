@@ -1,0 +1,76 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: fine terrain road footprint with continuous kerbs builds
+PASS: dense half-metre terrain reproduces native 512-piece failure
+PASS: only over-budget derived cells automatically subdivide
+PASS: every adaptive child keeps native schema and 512-piece cap
+PASS: adaptation preserves complete road area without holes or overlap
+PASS: continuous kerb length survives subdivision
+PASS: internal subdivision boundaries do not add kerb end caps
+PASS: child world paving UV phase retained
+PASS: child world paving UV phase retained
+PASS: child world paving UV phase retained
+PASS: child world paving UV phase retained
+PASS: fitted child vertices remain on the actual analytical terrain plane
+PASS: adaptive preparation leaves sources and terrain immutable
+PASS: same graph and terrain retain deterministic child IDs and geometry
+PASS: gentle undulating terrain reproduces more than 128 paint faces below the 512-piece cap
+PASS: textured adaptive cells reserve the existing paint budget even after future sculpt changes face groups
+PASS: paint-budget subdivision preserves road area and continuous kerb length
+PAINT_BUDGET {"after_chunks":28,"after_max_faces":122,"before_chunks":4,"before_max_faces":402}
+PASS: real terrain holes still reject atomically
+PASS: steep actual terrain remains rejected
+PASS: legacy explicit ramp still rejects an over-steep shortened run
+PASS: terrain-follow footprint does not impose legacy flat-end ramp geometry
+PASS: sloped native bridge portal is cut before terrain-follow planar union
+PASS: physical bridge opening stays empty and authored bridge XYZ/binding remain unchanged
+PASS: elevated stone bridge has open kerbs at both portals and retains approach side strips
+PASS: kerb portal matching leaves original bridge endpoints and binding untouched
+PASS: terrain-follow river deck retains both kerb openings at elevated ends
+PASS: isolated native road fixture saved
+PASS: real HTTP MCP listens on loopback
+PASS: current 3D road tools remain discoverable without legacy 2D
+PASS: HTTP preview_road_surface succeeds
+PASS: HTTP preview matches shared UI business prepare
+PASS: successful adaptive preview has no document/history side effects
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: occupied road area still rejects without side effects
+PASS: HTTP sculpt_terrain succeeds
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: true terrain hole fails preview/generate without partial edits
+PASS: HTTP undo succeeds
+PASS: hole undo restores original terrain before road generation
+PASS: HTTP generate_road_surface succeeds
+PASS: real HTTP generation commits multiple bounded native cells
+PASS: HTTP textured undulating road uses valid native default paint within unchanged 128-entry cap
+PASS: generated native road actually binds existing paving albedo and normal textures
+PASS: HTTP generate_road_surface succeeds
+PASS: repeating generation is unchanged and retains stable IDs
+PASS: HTTP undo succeeds
+PASS: undo restores exact pre-road content
+PASS: HTTP redo succeeds
+PASS: redo restores adaptive road and kerb metadata
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen preserves adaptive cells and terrain-follow source
+PASS: HTTP sculpt_terrain succeeds
+PASS: ordinary native sculpt refits adaptive children with unchanged stable IDs and face budget
+PASS: terrain sculpt updates actual road geometry and every manifest signature
+PASS: HTTP undo succeeds
+PASS: sculpt undo restores terrain and all adaptive road children together
+PASS: HTTP redo succeeds
+PASS: sculpt redo restores the complete follower transaction
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: sculpted adaptive road children and ownership survive save/reopen
+PASS: sculpted and reopened textured roads stay within the existing paint budget
+PASS: HTTP clear_surface_material succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: manual material clearing is preserved by automatic regeneration
+PASS: HTTP undo succeeds
+PASS: HTTP sculpt_terrain rejects invalid operation
+PASS: hole sculpt beneath a bound road rejects and protects road/terrain transaction
+ADAPTIVE_TERRAIN_ROAD_HTTP D:/code/rmmo_runtime/cache/world3d/adaptive_terrain_roads_15611179 failures=0

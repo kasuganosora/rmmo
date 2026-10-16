@@ -1,0 +1,340 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS 12e3c91 baseline bytes pinned
+PASS selected fixture exists
+PASS junction_kerbs fixture construction
+PASS junction_kerbs full bytes equal
+PASS junction_kerbs expected outcome
+PASS junction_kerbs ON/OFF exact and disabled profile empty
+PASS junction_kerbs state, history, authoring and arguments unchanged
+PASS terrain64_local fixture construction
+PASS terrain64_local full bytes equal
+PASS terrain64_local expected outcome
+PASS terrain64_local ON/OFF exact and disabled profile empty
+PASS terrain64_local state, history, authoring and arguments unchanged
+PASS terrain64_far_complex fixture construction
+PASS terrain64_far_complex full bytes equal
+PASS terrain64_far_complex expected outcome
+PASS terrain64_far_complex ON/OFF exact and disabled profile empty
+PASS terrain64_far_complex state, history, authoring and arguments unchanged
+PASS waterway_bound_bridge fixture construction
+PASS waterway_bound_bridge full bytes equal
+PASS waterway_bound_bridge expected outcome
+PASS waterway_bound_bridge ON/OFF exact and disabled profile empty
+PASS waterway_bound_bridge state, history, authoring and arguments unchanged
+PASS frozen_stone_bridge_approaches fixture construction
+PASS frozen_stone_bridge_approaches full bytes equal
+PASS frozen_stone_bridge_approaches expected outcome
+PASS frozen_stone_bridge_approaches ON/OFF exact and disabled profile empty
+PASS frozen_stone_bridge_approaches state, history, authoring and arguments unchanged
+PASS near_obstacle_ordinary fixture construction
+PASS near_obstacle_ordinary full bytes equal
+PASS near_obstacle_ordinary expected outcome
+PASS near_obstacle_ordinary exact first conflict
+PASS near_obstacle_ordinary ON/OFF exact and disabled profile empty
+PASS near_obstacle_ordinary state, history, authoring and arguments unchanged
+PASS near_obstacle_editor_hidden fixture construction
+PASS near_obstacle_editor_hidden full bytes equal
+PASS near_obstacle_editor_hidden expected outcome
+PASS near_obstacle_editor_hidden exact first conflict
+PASS near_obstacle_editor_hidden ON/OFF exact and disabled profile empty
+PASS near_obstacle_editor_hidden state, history, authoring and arguments unchanged
+PASS near_obstacle_collision_none fixture construction
+PASS near_obstacle_collision_none full bytes equal
+PASS near_obstacle_collision_none expected outcome
+PASS near_obstacle_collision_none exact first conflict
+PASS near_obstacle_collision_none ON/OFF exact and disabled profile empty
+PASS near_obstacle_collision_none state, history, authoring and arguments unchanged
+PASS near_obstacle_editor_locked fixture construction
+PASS near_obstacle_editor_locked full bytes equal
+PASS near_obstacle_editor_locked expected outcome
+PASS near_obstacle_editor_locked exact first conflict
+PASS near_obstacle_editor_locked ON/OFF exact and disabled profile empty
+PASS near_obstacle_editor_locked state, history, authoring and arguments unchanged
+PASS first_conflict_reverse_false fixture construction
+PASS first_conflict_reverse_false full bytes equal
+PASS first_conflict_reverse_false expected outcome
+PASS first_conflict_reverse_false exact first conflict
+PASS first_conflict_reverse_false ON/OFF exact and disabled profile empty
+PASS first_conflict_reverse_false state, history, authoring and arguments unchanged
+PASS first_conflict_reverse_true fixture construction
+PASS first_conflict_reverse_true full bytes equal
+PASS first_conflict_reverse_true expected outcome
+PASS first_conflict_reverse_true exact first conflict
+PASS first_conflict_reverse_true ON/OFF exact and disabled profile empty
+PASS first_conflict_reverse_true state, history, authoring and arguments unchanged
+PASS protected_graph_hidden fixture construction
+PASS protected_graph_hidden full bytes equal
+PASS protected_graph_hidden expected outcome
+PASS protected_graph_hidden ON/OFF exact and disabled profile empty
+PASS protected_graph_hidden state, history, authoring and arguments unchanged
+PASS protected_graph_locked fixture construction
+PASS protected_graph_locked full bytes equal
+PASS protected_graph_locked expected outcome
+PASS protected_graph_locked ON/OFF exact and disabled profile empty
+PASS protected_graph_locked state, history, authoring and arguments unchanged
+PASS rotated_scaled_asset_clearance fixture construction
+PASS rotated_scaled_asset_clearance full bytes equal
+PASS rotated_scaled_asset_clearance expected outcome
+PASS rotated_scaled_asset_clearance exact first conflict
+PASS rotated_scaled_asset_clearance ON/OFF exact and disabled profile empty
+PASS rotated_scaled_asset_clearance state, history, authoring and arguments unchanged
+PASS inclined_existing_road_clearance fixture construction
+PASS inclined_existing_road_clearance full bytes equal
+PASS inclined_existing_road_clearance expected outcome
+PASS inclined_existing_road_clearance exact first conflict
+PASS inclined_existing_road_clearance ON/OFF exact and disabled profile empty
+PASS inclined_existing_road_clearance state, history, authoring and arguments unchanged
+PASS sloped_new_road_obstacle fixture construction
+PASS sloped_new_road_obstacle full bytes equal
+PASS sloped_new_road_obstacle expected outcome
+PASS sloped_new_road_obstacle exact first conflict
+PASS sloped_new_road_obstacle ON/OFF exact and disabled profile empty
+PASS sloped_new_road_obstacle state, history, authoring and arguments unchanged
+PASS tilted_terrain_not_flat_support fixture construction
+PASS tilted_terrain_not_flat_support full bytes equal
+PASS tilted_terrain_not_flat_support expected outcome
+PASS tilted_terrain_not_flat_support exact first conflict
+PASS tilted_terrain_not_flat_support ON/OFF exact and disabled profile empty
+PASS tilted_terrain_not_flat_support state, history, authoring and arguments unchanged
+PASS raised_furrow_occupancy fixture construction
+PASS raised_furrow_occupancy full bytes equal
+PASS raised_furrow_occupancy expected outcome
+PASS raised_furrow_occupancy exact first conflict
+PASS raised_furrow_occupancy ON/OFF exact and disabled profile empty
+PASS raised_furrow_occupancy state, history, authoring and arguments unchanged
+PASS per_road_supporting_terrain_ids fixture construction
+PASS per_road_supporting_terrain_ids full bytes equal
+PASS per_road_supporting_terrain_ids expected outcome
+PASS per_road_supporting_terrain_ids ON/OFF exact and disabled profile empty
+PASS per_road_supporting_terrain_ids state, history, authoring and arguments unchanged
+PASS waterway_tampered_member fixture construction
+PASS waterway_tampered_member full bytes equal
+PASS waterway_tampered_member expected outcome
+PASS waterway_tampered_member ON/OFF exact and disabled profile empty
+PASS waterway_tampered_member state, history, authoring and arguments unchanged
+PASS stone_bridge_moved_source fixture construction
+PASS stone_bridge_moved_source full bytes equal
+PASS stone_bridge_moved_source expected outcome
+PASS stone_bridge_moved_source ON/OFF exact and disabled profile empty
+PASS stone_bridge_moved_source state, history, authoring and arguments unchanged
+PASS actual_stone_wing_post fixture construction
+PASS actual_stone_wing_post full bytes equal
+PASS actual_stone_wing_post expected outcome
+PASS actual_stone_wing_post exact first conflict
+PASS actual_stone_wing_post ON/OFF exact and disabled profile empty
+PASS actual_stone_wing_post state, history, authoring and arguments unchanged
+PASS original native pavement seed succeeds
+PASS unchanged_existing_pavement fixture construction
+PASS unchanged_existing_pavement full bytes equal
+PASS unchanged_existing_pavement expected outcome
+PASS unchanged_existing_pavement ON/OFF exact and disabled profile empty
+PASS unchanged_existing_pavement state, history, authoring and arguments unchanged
+PASS preserve_event_and_group fixture construction
+PASS preserve_event_and_group full bytes equal
+PASS preserve_event_and_group expected outcome
+PASS preserve_event_and_group ON/OFF exact and disabled profile empty
+PASS preserve_event_and_group state, history, authoring and arguments unchanged
+PASS decorated record retains original author bytes
+PASS event_rejects_changed_geometry fixture construction
+PASS event_rejects_changed_geometry full bytes equal
+PASS event_rejects_changed_geometry expected outcome
+PASS event_rejects_changed_geometry ON/OFF exact and disabled profile empty
+PASS event_rejects_changed_geometry state, history, authoring and arguments unchanged
+PASS tampered_pavement_source fixture construction
+PASS tampered_pavement_source full bytes equal
+PASS tampered_pavement_source expected outcome
+PASS tampered_pavement_source ON/OFF exact and disabled profile empty
+PASS tampered_pavement_source state, history, authoring and arguments unchanged
+PASS protected_pavement_editor_hidden fixture construction
+PASS protected_pavement_editor_hidden full bytes equal
+PASS protected_pavement_editor_hidden expected outcome
+PASS protected_pavement_editor_hidden ON/OFF exact and disabled profile empty
+PASS protected_pavement_editor_hidden state, history, authoring and arguments unchanged
+PASS protected_pavement_editor_locked fixture construction
+PASS protected_pavement_editor_locked full bytes equal
+PASS protected_pavement_editor_locked expected outcome
+PASS protected_pavement_editor_locked ON/OFF exact and disabled profile empty
+PASS protected_pavement_editor_locked state, history, authoring and arguments unchanged
+PASS mutation_far full bytes equal
+PASS mutation_far expected outcome
+PASS mutation_far ON/OFF exact and disabled profile empty
+PASS mutation_far state, history, authoring and arguments unchanged
+PASS mutation_same_uuid_near full bytes equal
+PASS mutation_same_uuid_near expected outcome
+PASS mutation_same_uuid_near exact first conflict
+PASS mutation_same_uuid_near ON/OFF exact and disabled profile empty
+PASS mutation_same_uuid_near state, history, authoring and arguments unchanged
+PASS native undo moving obstacle
+PASS mutation_native_undo full bytes equal
+PASS mutation_native_undo expected outcome
+PASS mutation_native_undo ON/OFF exact and disabled profile empty
+PASS mutation_native_undo state, history, authoring and arguments unchanged
+PASS native redo moving obstacle
+PASS mutation_native_redo full bytes equal
+PASS mutation_native_redo expected outcome
+PASS mutation_native_redo exact first conflict
+PASS mutation_native_redo ON/OFF exact and disabled profile empty
+PASS mutation_native_redo state, history, authoring and arguments unchanged
+PASS mutation_delete full bytes equal
+PASS mutation_delete expected outcome
+PASS mutation_delete ON/OFF exact and disabled profile empty
+PASS mutation_delete state, history, authoring and arguments unchanged
+PASS native undo deleted obstacle
+PASS mutation_restore_deleted full bytes equal
+PASS mutation_restore_deleted expected outcome
+PASS mutation_restore_deleted exact first conflict
+PASS mutation_restore_deleted ON/OFF exact and disabled profile empty
+PASS mutation_restore_deleted state, history, authoring and arguments unchanged
+PASS terrain_edge_0.0_-0.02 fixture construction
+PASS terrain_edge_0.0_-0.02 full bytes equal
+PASS terrain_edge_0.0_-0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_0.0_-0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_0.0_0.0 fixture construction
+PASS terrain_edge_0.0_0.0 full bytes equal
+PASS terrain_edge_0.0_0.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_0.0_0.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_0.0_0.02 fixture construction
+PASS terrain_edge_0.0_0.02 full bytes equal
+PASS terrain_edge_0.0_0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_0.0_0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_0.0_1.0 fixture construction
+PASS terrain_edge_0.0_1.0 full bytes equal
+PASS terrain_edge_0.0_1.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_0.0_1.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_10000.0_-0.02 fixture construction
+PASS terrain_edge_10000.0_-0.02 full bytes equal
+PASS terrain_edge_10000.0_-0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_10000.0_-0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_10000.0_0.0 fixture construction
+PASS terrain_edge_10000.0_0.0 full bytes equal
+PASS terrain_edge_10000.0_0.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_10000.0_0.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_10000.0_0.02 fixture construction
+PASS terrain_edge_10000.0_0.02 full bytes equal
+PASS terrain_edge_10000.0_0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_10000.0_0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_10000.0_1.0 fixture construction
+PASS terrain_edge_10000.0_1.0 full bytes equal
+PASS terrain_edge_10000.0_1.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_10000.0_1.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_-10000.0_-0.02 fixture construction
+PASS terrain_edge_-10000.0_-0.02 full bytes equal
+PASS terrain_edge_-10000.0_-0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_-10000.0_-0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_-10000.0_0.0 fixture construction
+PASS terrain_edge_-10000.0_0.0 full bytes equal
+PASS terrain_edge_-10000.0_0.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_-10000.0_0.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_-10000.0_0.02 fixture construction
+PASS terrain_edge_-10000.0_0.02 full bytes equal
+PASS terrain_edge_-10000.0_0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_-10000.0_0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_-10000.0_1.0 fixture construction
+PASS terrain_edge_-10000.0_1.0 full bytes equal
+PASS terrain_edge_-10000.0_1.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_-10000.0_1.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_99900.0_-0.02 fixture construction
+PASS terrain_edge_99900.0_-0.02 full bytes equal
+PASS terrain_edge_99900.0_-0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_99900.0_-0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_99900.0_0.0 fixture construction
+PASS terrain_edge_99900.0_0.0 full bytes equal
+PASS terrain_edge_99900.0_0.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_99900.0_0.0 state, history, authoring and arguments unchanged
+PASS terrain_edge_99900.0_0.02 fixture construction
+PASS terrain_edge_99900.0_0.02 full bytes equal
+PASS terrain_edge_99900.0_0.02 ON/OFF exact and disabled profile empty
+PASS terrain_edge_99900.0_0.02 state, history, authoring and arguments unchanged
+PASS terrain_edge_99900.0_1.0 fixture construction
+PASS terrain_edge_99900.0_1.0 full bytes equal
+PASS terrain_edge_99900.0_1.0 ON/OFF exact and disabled profile empty
+PASS terrain_edge_99900.0_1.0 state, history, authoring and arguments unchanged
+PASS terrain_fallback_[0.0, 43.0, 0.0] full scan selected
+PASS terrain_fallback_[0.0, 43.0, 0.0] fixture construction
+PASS terrain_fallback_[0.0, 43.0, 0.0] full bytes equal
+PASS terrain_fallback_[0.0, 43.0, 0.0] expected outcome
+PASS terrain_fallback_[0.0, 43.0, 0.0] ON/OFF exact and disabled profile empty
+PASS terrain_fallback_[0.0, 43.0, 0.0] state, history, authoring and arguments unchanged
+PASS terrain_fallback_[0.00001, 0.0, 0.0] full scan selected
+PASS terrain_fallback_[0.00001, 0.0, 0.0] fixture construction
+PASS terrain_fallback_[0.00001, 0.0, 0.0] full bytes equal
+PASS terrain_fallback_[0.00001, 0.0, 0.0] expected outcome
+PASS terrain_fallback_[0.00001, 0.0, 0.0] ON/OFF exact and disabled profile empty
+PASS terrain_fallback_[0.00001, 0.0, 0.0] state, history, authoring and arguments unchanged
+PASS terrain_fallback_[0.0, 0.0, -0.00001] full scan selected
+PASS terrain_fallback_[0.0, 0.0, -0.00001] fixture construction
+PASS terrain_fallback_[0.0, 0.0, -0.00001] full bytes equal
+PASS terrain_fallback_[0.0, 0.0, -0.00001] expected outcome
+PASS terrain_fallback_[0.0, 0.0, -0.00001] ON/OFF exact and disabled profile empty
+PASS terrain_fallback_[0.0, 0.0, -0.00001] state, history, authoring and arguments unchanged
+PASS terrain_prop_conflict_order_false fixture construction
+PASS terrain_prop_conflict_order_false full bytes equal
+PASS terrain_prop_conflict_order_false expected outcome
+PASS terrain_prop_conflict_order_false exact first conflict
+PASS terrain_prop_conflict_order_false ON/OFF exact and disabled profile empty
+PASS terrain_prop_conflict_order_false state, history, authoring and arguments unchanged
+PASS terrain_prop_conflict_order_true fixture construction
+PASS terrain_prop_conflict_order_true full bytes equal
+PASS terrain_prop_conflict_order_true expected outcome
+PASS terrain_prop_conflict_order_true exact first conflict
+PASS terrain_prop_conflict_order_true ON/OFF exact and disabled profile empty
+PASS terrain_prop_conflict_order_true state, history, authoring and arguments unchanged
+PASS seeded conservative native cell bounds 0
+PASS seeded conservative native cell bounds 1
+PASS seeded conservative native cell bounds 2
+PASS seeded conservative native cell bounds 3
+PASS seeded conservative native cell bounds 4
+PASS seeded conservative native cell bounds 5
+PASS seeded conservative native cell bounds 6
+PASS seeded conservative native cell bounds 7
+PASS seeded conservative native cell bounds 8
+PASS seeded conservative native cell bounds 9
+PASS seeded conservative native cell bounds 10
+PASS seeded conservative native cell bounds 11
+PASS seeded conservative native cell bounds 12
+PASS seeded conservative native cell bounds 13
+PASS seeded conservative native cell bounds 14
+PASS seeded conservative native cell bounds 15
+PASS seeded conservative native cell bounds 16
+PASS seeded conservative native cell bounds 17
+PASS seeded conservative native cell bounds 18
+PASS seeded conservative native cell bounds 19
+PASS seeded conservative native cell bounds 20
+PASS seeded conservative native cell bounds 21
+PASS seeded conservative native cell bounds 22
+PASS seeded conservative native cell bounds 23
+PASS seeded conservative native cell bounds 24
+PASS seeded conservative native cell bounds 25
+PASS seeded conservative native cell bounds 26
+PASS seeded conservative native cell bounds 27
+PASS seeded conservative native cell bounds 28
+PASS seeded conservative native cell bounds 29
+PASS seeded conservative native cell bounds 30
+PASS seeded conservative native cell bounds 31
+PASS one road's terrain exemption cannot hide another road's collision
+PASS per-road support and distant bounds can jointly skip a terrain
+PASS already projected support needs no road footprint cache
+PASS distant check caches only a rectangle, not exact polygons
+PASS terrain_mutation_far full bytes equal
+PASS terrain_mutation_far expected outcome
+PASS terrain_mutation_far ON/OFF exact and disabled profile empty
+PASS terrain_mutation_far state, history, authoring and arguments unchanged
+PASS terrain_mutation_near full bytes equal
+PASS terrain_mutation_near expected outcome
+PASS terrain_mutation_near exact first conflict
+PASS terrain_mutation_near ON/OFF exact and disabled profile empty
+PASS terrain_mutation_near state, history, authoring and arguments unchanged
+PASS native terrain move undo
+PASS terrain_mutation_undo full bytes equal
+PASS terrain_mutation_undo expected outcome
+PASS terrain_mutation_undo ON/OFF exact and disabled profile empty
+PASS terrain_mutation_undo state, history, authoring and arguments unchanged
+PASS native terrain move redo
+PASS terrain_mutation_redo full bytes equal
+PASS terrain_mutation_redo expected outcome
+PASS terrain_mutation_redo exact first conflict
+PASS terrain_mutation_redo ON/OFF exact and disabled profile empty
+PASS terrain_mutation_redo state, history, authoring and arguments unchanged
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_obstacles_20261017/differential.json checks=336 failures=0

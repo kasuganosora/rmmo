@@ -42,6 +42,43 @@ func _profile_next(stage:String)->void:
 		last_profile.stages_ms[_profile_phase]=float(last_profile.stages_ms.get(_profile_phase,0.))+(now-_profile_started)/1000.
 	_profile_phase=stage;_profile_started=now
 
+static func _flat_terrain_xz(record:Dictionary)->Variant:
+	# Only an identity heightfield has XZ bounds independent of heights and
+	# cultivation. Tilt/yaw and other footprint kinds keep the exact old path.
+	if not record.has("terrain_mesh") or record.has("rock_bank"):return null
+	for angle:float in record.rotation:
+		if angle!=0.:return null
+	for value:float in record.position+record.size:
+		if not is_finite(value):return null
+	if record.size.any(func(value):return value<=0.):return null
+	var terrain=preload("res://scripts/world3d/terrain_surface.gd")
+	var pose:Transform3D=terrain.transform(record)
+	if pose.basis!=Basis.IDENTITY:return null
+	var first:Vector3=pose*terrain.point(record,0,0)
+	var last:Vector3=pose*terrain.point(record,int(record.terrain_mesh.columns),int(record.terrain_mesh.rows))
+	# Native float32 AABB expansion and Rect2 end reconstruction can round
+	# outwards. Pad in world scale so a boundary obstacle is never culled.
+	var pad:=8.*pow(2.,-23.)*(maxf(absf(pose.origin.x),absf(pose.origin.z))+maxf(record.size[0],record.size[2])+1.)
+	return Rect2(Vector2(first.x,first.z),Vector2(last.x-first.x,last.z-first.z)).grow(pad)
+
+static func _terrain_unneeded(record:Dictionary,roads:Array,bounds_cache:Dictionary)->bool:
+	if not record.has("terrain_mesh"):return false
+	var bounds:Variant=_flat_terrain_xz(record)
+	for index in roads.size():
+		var road:Dictionary=roads[index]
+		# This exemption belongs to each projected road, never to the map.
+		if road.has("terrain_follow") and record.uuid in road.terrain_follow.terrain_ids:continue
+		if bounds==null:return false
+		if not bounds_cache.has(index):
+			var shapes:=Footprint.record_shapes(road)
+			var occupied:AABB=shapes[0].bounds
+			for shape:Dictionary in shapes:occupied=occupied.merge(shape.bounds)
+			# Cache only coarse rectangles for this prepare call. Keeping every
+			# road's exact polygons here would increase peak temporary residency.
+			bounds_cache[index]=Rect2(occupied.position.x,occupied.position.z,occupied.size.x,occupied.size.z).grow(.001)
+		if bounds_cache[index].intersects(bounds,true):return false
+	return true
+
 func split() -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
 	if not ready.ok: return ready
@@ -173,12 +210,18 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 		var part: Dictionary=by_key[key]; var record: Dictionary=editor._doc._find(part.id)
 		if record.has("event_template") or record.has("event") or Data.token(record.get("surface_paint",[]))!=part.paint_signature: return Data.fail("将移除的道路构件上有手刷材质或事件")
 	_profile_next("obstacle_shapes")
-	if profile_enabled:last_profile.counts={"source_records":editor._doc.records.size(),"road_records":result.records.size(),"obstacle_records_expanded":0}
+	if profile_enabled:last_profile.counts={"source_records":editor._doc.records.size(),"road_records":result.records.size(),"obstacle_records_expanded":0,"terrain_records_skipped":0}
+	# Avoid expanding only terrain that every road can safely exclude. Keep
+	# original document/shape conflict order and no cache across author edits.
+	var terrain_road_bounds:Dictionary={}
 	# Actual convex occupied patches, not cell AABBs, protect courtyards and empty corners.
 	var obstacles: Array=[]
 	for record in editor._doc.records:
 		if excluded.has(record.uuid): continue
 		if record.has("fortification") and record.has("fixture"): continue # A gate controls road traffic; its open/closed pose is intentional.
+		if record.has("terrain_mesh") and _terrain_unneeded(record,result.records,terrain_road_bounds):
+			if profile_enabled:last_profile.counts.terrain_records_skipped+=1
+			continue
 		if profile_enabled:last_profile.counts.obstacle_records_expanded+=1
 		for shape in Footprint.record_shapes(record): obstacles.append({"record":record,"shape":shape})
 	if profile_enabled:

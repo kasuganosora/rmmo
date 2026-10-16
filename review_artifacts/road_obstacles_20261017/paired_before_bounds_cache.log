@@ -1,0 +1,592 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS 12e3c91 baseline bytes pinned
+PASS selected fixture exists
+PASS legacy chain SHA road_terrain_fit.gd.txt
+PASS legacy chain SHA reference.gd.txt
+PASS legacy chain SHA terrain_projection_ref.gd
+PASS legacy chain SHA terrain_projection.gd.txt
+PASS legacy chain SHA road_tools_full_chain_ref.gd
+PASS legacy chain SHA road_terrain_fit_ref.gd
+PASS junction_kerbs native fixture built
+PASS junction_kerbs baseline seed immutable
+PASS open evidence junction_kerbs_fixture.bin
+PASS open evidence junction_kerbs_result.bin
+PASS baseline warmup 0 full bytes equal
+PASS baseline warmup 0 state and args unchanged
+PASS baseline warmup 0 OFF probe empty
+PASS baseline warmup 1 full bytes equal
+PASS baseline warmup 1 state and args unchanged
+PASS baseline warmup 1 OFF probe empty
+PASS current warmup 0 full bytes equal
+PASS current warmup 0 state and args unchanged
+PASS current warmup 0 OFF probe empty
+PASS current warmup 1 full bytes equal
+PASS current warmup 1 state and args unchanged
+PASS current warmup 1 OFF probe empty
+PASS baseline pair 0 full bytes equal
+PASS baseline pair 0 state and args unchanged
+PASS baseline pair 0 OFF probe empty
+PASS current pair 0 full bytes equal
+PASS current pair 0 state and args unchanged
+PASS current pair 0 OFF probe empty
+PASS current pair 1 full bytes equal
+PASS current pair 1 state and args unchanged
+PASS current pair 1 OFF probe empty
+PASS baseline pair 1 full bytes equal
+PASS baseline pair 1 state and args unchanged
+PASS baseline pair 1 OFF probe empty
+PASS baseline pair 2 full bytes equal
+PASS baseline pair 2 state and args unchanged
+PASS baseline pair 2 OFF probe empty
+PASS current pair 2 full bytes equal
+PASS current pair 2 state and args unchanged
+PASS current pair 2 OFF probe empty
+PASS current pair 3 full bytes equal
+PASS current pair 3 state and args unchanged
+PASS current pair 3 OFF probe empty
+PASS baseline pair 3 full bytes equal
+PASS baseline pair 3 state and args unchanged
+PASS baseline pair 3 OFF probe empty
+PASS baseline pair 4 full bytes equal
+PASS baseline pair 4 state and args unchanged
+PASS baseline pair 4 OFF probe empty
+PASS current pair 4 full bytes equal
+PASS current pair 4 state and args unchanged
+PASS current pair 4 OFF probe empty
+PASS current pair 5 full bytes equal
+PASS current pair 5 state and args unchanged
+PASS current pair 5 OFF probe empty
+PASS baseline pair 5 full bytes equal
+PASS baseline pair 5 state and args unchanged
+PASS baseline pair 5 OFF probe empty
+PASS baseline pair 6 full bytes equal
+PASS baseline pair 6 state and args unchanged
+PASS baseline pair 6 OFF probe empty
+PASS current pair 6 full bytes equal
+PASS current pair 6 state and args unchanged
+PASS current pair 6 OFF probe empty
+PASS current pair 7 full bytes equal
+PASS current pair 7 state and args unchanged
+PASS current pair 7 OFF probe empty
+PASS baseline pair 7 full bytes equal
+PASS baseline pair 7 state and args unchanged
+PASS baseline pair 7 OFF probe empty
+PASS baseline pair 8 full bytes equal
+PASS baseline pair 8 state and args unchanged
+PASS baseline pair 8 OFF probe empty
+PASS current pair 8 full bytes equal
+PASS current pair 8 state and args unchanged
+PASS current pair 8 OFF probe empty
+PASS current pair 9 full bytes equal
+PASS current pair 9 state and args unchanged
+PASS current pair 9 OFF probe empty
+PASS baseline pair 9 full bytes equal
+PASS baseline pair 9 state and args unchanged
+PASS baseline pair 9 OFF probe empty
+PASS baseline ON diagnostic full bytes equal
+PASS baseline ON diagnostic state and args unchanged
+PASS baseline ON diagnostic OFF probe empty
+PASS current ON diagnostic full bytes equal
+PASS current ON diagnostic state and args unchanged
+PASS current ON diagnostic OFF probe empty
+PAIRED_OBSTACLES junction_kerbs {"current_slower_pairs":7,"median_ms":{"baseline":36.166,"current":37.0035},"paired_delta_median_ms":0.539000000000001,"paired_ratio_median":1.0150645405396,"pairs":10,"raw_ms":{"baseline":[35.364,35.218,64.59,36.627,35.289,54.986,36.075,35.667,36.257,36.518],"current":[35.807,58.045,38.3,37.944,48.831,34.961,36.71,35.759,37.297,35.648]}}
+PASS terrain64_local native fixture built
+PASS terrain64_local baseline seed immutable
+PASS open evidence terrain64_local_fixture.bin
+PASS open evidence terrain64_local_result.bin
+PASS baseline warmup 0 full bytes equal
+PASS baseline warmup 0 state and args unchanged
+PASS baseline warmup 0 OFF probe empty
+PASS baseline warmup 1 full bytes equal
+PASS baseline warmup 1 state and args unchanged
+PASS baseline warmup 1 OFF probe empty
+PASS current warmup 0 full bytes equal
+PASS current warmup 0 state and args unchanged
+PASS current warmup 0 OFF probe empty
+PASS current warmup 1 full bytes equal
+PASS current warmup 1 state and args unchanged
+PASS current warmup 1 OFF probe empty
+PASS baseline pair 0 full bytes equal
+PASS baseline pair 0 state and args unchanged
+PASS baseline pair 0 OFF probe empty
+PASS current pair 0 full bytes equal
+PASS current pair 0 state and args unchanged
+PASS current pair 0 OFF probe empty
+PASS current pair 1 full bytes equal
+PASS current pair 1 state and args unchanged
+PASS current pair 1 OFF probe empty
+PASS baseline pair 1 full bytes equal
+PASS baseline pair 1 state and args unchanged
+PASS baseline pair 1 OFF probe empty
+PASS baseline pair 2 full bytes equal
+PASS baseline pair 2 state and args unchanged
+PASS baseline pair 2 OFF probe empty
+PASS current pair 2 full bytes equal
+PASS current pair 2 state and args unchanged
+PASS current pair 2 OFF probe empty
+PASS current pair 3 full bytes equal
+PASS current pair 3 state and args unchanged
+PASS current pair 3 OFF probe empty
+PASS baseline pair 3 full bytes equal
+PASS baseline pair 3 state and args unchanged
+PASS baseline pair 3 OFF probe empty
+PASS baseline pair 4 full bytes equal
+PASS baseline pair 4 state and args unchanged
+PASS baseline pair 4 OFF probe empty
+PASS current pair 4 full bytes equal
+PASS current pair 4 state and args unchanged
+PASS current pair 4 OFF probe empty
+PASS current pair 5 full bytes equal
+PASS current pair 5 state and args unchanged
+PASS current pair 5 OFF probe empty
+PASS baseline pair 5 full bytes equal
+PASS baseline pair 5 state and args unchanged
+PASS baseline pair 5 OFF probe empty
+PASS baseline pair 6 full bytes equal
+PASS baseline pair 6 state and args unchanged
+PASS baseline pair 6 OFF probe empty
+PASS current pair 6 full bytes equal
+PASS current pair 6 state and args unchanged
+PASS current pair 6 OFF probe empty
+PASS current pair 7 full bytes equal
+PASS current pair 7 state and args unchanged
+PASS current pair 7 OFF probe empty
+PASS baseline pair 7 full bytes equal
+PASS baseline pair 7 state and args unchanged
+PASS baseline pair 7 OFF probe empty
+PASS baseline pair 8 full bytes equal
+PASS baseline pair 8 state and args unchanged
+PASS baseline pair 8 OFF probe empty
+PASS current pair 8 full bytes equal
+PASS current pair 8 state and args unchanged
+PASS current pair 8 OFF probe empty
+PASS current pair 9 full bytes equal
+PASS current pair 9 state and args unchanged
+PASS current pair 9 OFF probe empty
+PASS baseline pair 9 full bytes equal
+PASS baseline pair 9 state and args unchanged
+PASS baseline pair 9 OFF probe empty
+PASS baseline ON diagnostic full bytes equal
+PASS baseline ON diagnostic state and args unchanged
+PASS baseline ON diagnostic OFF probe empty
+PASS current ON diagnostic full bytes equal
+PASS current ON diagnostic state and args unchanged
+PASS current ON diagnostic OFF probe empty
+PASS terrain64_local expected terrain records actually culled
+PAIRED_OBSTACLES terrain64_local {"current_slower_pairs":0,"median_ms":{"baseline":340.8425,"current":239.981},"paired_delta_median_ms":-103.141,"paired_ratio_median":0.699719632587824,"pairs":10,"raw_ms":{"baseline":[378.592,334.647,318.123,343.175,338.51,321.371,321.797,377.085,351.653,371.135],"current":[240.538,253.682,262.348,237.727,237.676,237.898,238.727,239.424,245.213,254.72]}}
+PASS terrain64_far_complex native fixture built
+PASS terrain64_far_complex baseline seed immutable
+PASS open evidence terrain64_far_complex_fixture.bin
+PASS open evidence terrain64_far_complex_result.bin
+PASS baseline warmup 0 full bytes equal
+PASS baseline warmup 0 state and args unchanged
+PASS baseline warmup 0 OFF probe empty
+PASS baseline warmup 1 full bytes equal
+PASS baseline warmup 1 state and args unchanged
+PASS baseline warmup 1 OFF probe empty
+PASS current warmup 0 full bytes equal
+PASS current warmup 0 state and args unchanged
+PASS current warmup 0 OFF probe empty
+PASS current warmup 1 full bytes equal
+PASS current warmup 1 state and args unchanged
+PASS current warmup 1 OFF probe empty
+PASS baseline pair 0 full bytes equal
+PASS baseline pair 0 state and args unchanged
+PASS baseline pair 0 OFF probe empty
+PASS current pair 0 full bytes equal
+PASS current pair 0 state and args unchanged
+PASS current pair 0 OFF probe empty
+PASS current pair 1 full bytes equal
+PASS current pair 1 state and args unchanged
+PASS current pair 1 OFF probe empty
+PASS baseline pair 1 full bytes equal
+PASS baseline pair 1 state and args unchanged
+PASS baseline pair 1 OFF probe empty
+PASS baseline pair 2 full bytes equal
+PASS baseline pair 2 state and args unchanged
+PASS baseline pair 2 OFF probe empty
+PASS current pair 2 full bytes equal
+PASS current pair 2 state and args unchanged
+PASS current pair 2 OFF probe empty
+PASS current pair 3 full bytes equal
+PASS current pair 3 state and args unchanged
+PASS current pair 3 OFF probe empty
+PASS baseline pair 3 full bytes equal
+PASS baseline pair 3 state and args unchanged
+PASS baseline pair 3 OFF probe empty
+PASS baseline pair 4 full bytes equal
+PASS baseline pair 4 state and args unchanged
+PASS baseline pair 4 OFF probe empty
+PASS current pair 4 full bytes equal
+PASS current pair 4 state and args unchanged
+PASS current pair 4 OFF probe empty
+PASS current pair 5 full bytes equal
+PASS current pair 5 state and args unchanged
+PASS current pair 5 OFF probe empty
+PASS baseline pair 5 full bytes equal
+PASS baseline pair 5 state and args unchanged
+PASS baseline pair 5 OFF probe empty
+PASS baseline pair 6 full bytes equal
+PASS baseline pair 6 state and args unchanged
+PASS baseline pair 6 OFF probe empty
+PASS current pair 6 full bytes equal
+PASS current pair 6 state and args unchanged
+PASS current pair 6 OFF probe empty
+PASS current pair 7 full bytes equal
+PASS current pair 7 state and args unchanged
+PASS current pair 7 OFF probe empty
+PASS baseline pair 7 full bytes equal
+PASS baseline pair 7 state and args unchanged
+PASS baseline pair 7 OFF probe empty
+PASS baseline pair 8 full bytes equal
+PASS baseline pair 8 state and args unchanged
+PASS baseline pair 8 OFF probe empty
+PASS current pair 8 full bytes equal
+PASS current pair 8 state and args unchanged
+PASS current pair 8 OFF probe empty
+PASS current pair 9 full bytes equal
+PASS current pair 9 state and args unchanged
+PASS current pair 9 OFF probe empty
+PASS baseline pair 9 full bytes equal
+PASS baseline pair 9 state and args unchanged
+PASS baseline pair 9 OFF probe empty
+PASS baseline ON diagnostic full bytes equal
+PASS baseline ON diagnostic state and args unchanged
+PASS baseline ON diagnostic OFF probe empty
+PASS current ON diagnostic full bytes equal
+PASS current ON diagnostic state and args unchanged
+PASS current ON diagnostic OFF probe empty
+PASS terrain64_far_complex expected terrain records actually culled
+PAIRED_OBSTACLES terrain64_far_complex {"current_slower_pairs":0,"median_ms":{"baseline":603.149,"current":298.809},"paired_delta_median_ms":-276.061,"paired_ratio_median":0.515747340613882,"pairs":10,"raw_ms":{"baseline":[627.193,562.51,654.327,620.093,564.105,564.402,602.779,569.799,652.352,603.519],"current":[386.832,335.795,285.345,291.75,298.423,284.867,299.195,297.212,381.154,307.726]}}
+PASS waterway_bound_bridge native fixture built
+PASS waterway_bound_bridge baseline seed immutable
+PASS open evidence waterway_bound_bridge_fixture.bin
+PASS open evidence waterway_bound_bridge_result.bin
+PASS baseline warmup 0 full bytes equal
+PASS baseline warmup 0 state and args unchanged
+PASS baseline warmup 0 OFF probe empty
+PASS baseline warmup 1 full bytes equal
+PASS baseline warmup 1 state and args unchanged
+PASS baseline warmup 1 OFF probe empty
+PASS current warmup 0 full bytes equal
+PASS current warmup 0 state and args unchanged
+PASS current warmup 0 OFF probe empty
+PASS current warmup 1 full bytes equal
+PASS current warmup 1 state and args unchanged
+PASS current warmup 1 OFF probe empty
+PASS legacy warmup 0 full bytes equal
+PASS legacy warmup 0 state and args unchanged
+PASS legacy warmup 0 OFF probe empty
+PASS legacy warmup 1 full bytes equal
+PASS legacy warmup 1 state and args unchanged
+PASS legacy warmup 1 OFF probe empty
+PASS baseline pair 0 full bytes equal
+PASS baseline pair 0 state and args unchanged
+PASS baseline pair 0 OFF probe empty
+PASS current pair 0 full bytes equal
+PASS current pair 0 state and args unchanged
+PASS current pair 0 OFF probe empty
+PASS legacy pair 0 full bytes equal
+PASS legacy pair 0 state and args unchanged
+PASS legacy pair 0 OFF probe empty
+PASS legacy pair 1 full bytes equal
+PASS legacy pair 1 state and args unchanged
+PASS legacy pair 1 OFF probe empty
+PASS current pair 1 full bytes equal
+PASS current pair 1 state and args unchanged
+PASS current pair 1 OFF probe empty
+PASS baseline pair 1 full bytes equal
+PASS baseline pair 1 state and args unchanged
+PASS baseline pair 1 OFF probe empty
+PASS current pair 2 full bytes equal
+PASS current pair 2 state and args unchanged
+PASS current pair 2 OFF probe empty
+PASS legacy pair 2 full bytes equal
+PASS legacy pair 2 state and args unchanged
+PASS legacy pair 2 OFF probe empty
+PASS baseline pair 2 full bytes equal
+PASS baseline pair 2 state and args unchanged
+PASS baseline pair 2 OFF probe empty
+PASS baseline pair 3 full bytes equal
+PASS baseline pair 3 state and args unchanged
+PASS baseline pair 3 OFF probe empty
+PASS legacy pair 3 full bytes equal
+PASS legacy pair 3 state and args unchanged
+PASS legacy pair 3 OFF probe empty
+PASS current pair 3 full bytes equal
+PASS current pair 3 state and args unchanged
+PASS current pair 3 OFF probe empty
+PASS legacy pair 4 full bytes equal
+PASS legacy pair 4 state and args unchanged
+PASS legacy pair 4 OFF probe empty
+PASS baseline pair 4 full bytes equal
+PASS baseline pair 4 state and args unchanged
+PASS baseline pair 4 OFF probe empty
+PASS current pair 4 full bytes equal
+PASS current pair 4 state and args unchanged
+PASS current pair 4 OFF probe empty
+PASS current pair 5 full bytes equal
+PASS current pair 5 state and args unchanged
+PASS current pair 5 OFF probe empty
+PASS baseline pair 5 full bytes equal
+PASS baseline pair 5 state and args unchanged
+PASS baseline pair 5 OFF probe empty
+PASS legacy pair 5 full bytes equal
+PASS legacy pair 5 state and args unchanged
+PASS legacy pair 5 OFF probe empty
+PASS baseline pair 6 full bytes equal
+PASS baseline pair 6 state and args unchanged
+PASS baseline pair 6 OFF probe empty
+PASS current pair 6 full bytes equal
+PASS current pair 6 state and args unchanged
+PASS current pair 6 OFF probe empty
+PASS legacy pair 6 full bytes equal
+PASS legacy pair 6 state and args unchanged
+PASS legacy pair 6 OFF probe empty
+PASS legacy pair 7 full bytes equal
+PASS legacy pair 7 state and args unchanged
+PASS legacy pair 7 OFF probe empty
+PASS current pair 7 full bytes equal
+PASS current pair 7 state and args unchanged
+PASS current pair 7 OFF probe empty
+PASS baseline pair 7 full bytes equal
+PASS baseline pair 7 state and args unchanged
+PASS baseline pair 7 OFF probe empty
+PASS current pair 8 full bytes equal
+PASS current pair 8 state and args unchanged
+PASS current pair 8 OFF probe empty
+PASS legacy pair 8 full bytes equal
+PASS legacy pair 8 state and args unchanged
+PASS legacy pair 8 OFF probe empty
+PASS baseline pair 8 full bytes equal
+PASS baseline pair 8 state and args unchanged
+PASS baseline pair 8 OFF probe empty
+PASS baseline pair 9 full bytes equal
+PASS baseline pair 9 state and args unchanged
+PASS baseline pair 9 OFF probe empty
+PASS legacy pair 9 full bytes equal
+PASS legacy pair 9 state and args unchanged
+PASS legacy pair 9 OFF probe empty
+PASS current pair 9 full bytes equal
+PASS current pair 9 state and args unchanged
+PASS current pair 9 OFF probe empty
+PASS legacy pair 10 full bytes equal
+PASS legacy pair 10 state and args unchanged
+PASS legacy pair 10 OFF probe empty
+PASS baseline pair 10 full bytes equal
+PASS baseline pair 10 state and args unchanged
+PASS baseline pair 10 OFF probe empty
+PASS current pair 10 full bytes equal
+PASS current pair 10 state and args unchanged
+PASS current pair 10 OFF probe empty
+PASS current pair 11 full bytes equal
+PASS current pair 11 state and args unchanged
+PASS current pair 11 OFF probe empty
+PASS baseline pair 11 full bytes equal
+PASS baseline pair 11 state and args unchanged
+PASS baseline pair 11 OFF probe empty
+PASS legacy pair 11 full bytes equal
+PASS legacy pair 11 state and args unchanged
+PASS legacy pair 11 OFF probe empty
+PASS baseline pair 12 full bytes equal
+PASS baseline pair 12 state and args unchanged
+PASS baseline pair 12 OFF probe empty
+PASS current pair 12 full bytes equal
+PASS current pair 12 state and args unchanged
+PASS current pair 12 OFF probe empty
+PASS legacy pair 12 full bytes equal
+PASS legacy pair 12 state and args unchanged
+PASS legacy pair 12 OFF probe empty
+PASS legacy pair 13 full bytes equal
+PASS legacy pair 13 state and args unchanged
+PASS legacy pair 13 OFF probe empty
+PASS current pair 13 full bytes equal
+PASS current pair 13 state and args unchanged
+PASS current pair 13 OFF probe empty
+PASS baseline pair 13 full bytes equal
+PASS baseline pair 13 state and args unchanged
+PASS baseline pair 13 OFF probe empty
+PASS current pair 14 full bytes equal
+PASS current pair 14 state and args unchanged
+PASS current pair 14 OFF probe empty
+PASS legacy pair 14 full bytes equal
+PASS legacy pair 14 state and args unchanged
+PASS legacy pair 14 OFF probe empty
+PASS baseline pair 14 full bytes equal
+PASS baseline pair 14 state and args unchanged
+PASS baseline pair 14 OFF probe empty
+PASS baseline pair 15 full bytes equal
+PASS baseline pair 15 state and args unchanged
+PASS baseline pair 15 OFF probe empty
+PASS legacy pair 15 full bytes equal
+PASS legacy pair 15 state and args unchanged
+PASS legacy pair 15 OFF probe empty
+PASS current pair 15 full bytes equal
+PASS current pair 15 state and args unchanged
+PASS current pair 15 OFF probe empty
+PASS legacy pair 16 full bytes equal
+PASS legacy pair 16 state and args unchanged
+PASS legacy pair 16 OFF probe empty
+PASS baseline pair 16 full bytes equal
+PASS baseline pair 16 state and args unchanged
+PASS baseline pair 16 OFF probe empty
+PASS current pair 16 full bytes equal
+PASS current pair 16 state and args unchanged
+PASS current pair 16 OFF probe empty
+PASS current pair 17 full bytes equal
+PASS current pair 17 state and args unchanged
+PASS current pair 17 OFF probe empty
+PASS baseline pair 17 full bytes equal
+PASS baseline pair 17 state and args unchanged
+PASS baseline pair 17 OFF probe empty
+PASS legacy pair 17 full bytes equal
+PASS legacy pair 17 state and args unchanged
+PASS legacy pair 17 OFF probe empty
+PASS baseline pair 18 full bytes equal
+PASS baseline pair 18 state and args unchanged
+PASS baseline pair 18 OFF probe empty
+PASS current pair 18 full bytes equal
+PASS current pair 18 state and args unchanged
+PASS current pair 18 OFF probe empty
+PASS legacy pair 18 full bytes equal
+PASS legacy pair 18 state and args unchanged
+PASS legacy pair 18 OFF probe empty
+PASS legacy pair 19 full bytes equal
+PASS legacy pair 19 state and args unchanged
+PASS legacy pair 19 OFF probe empty
+PASS current pair 19 full bytes equal
+PASS current pair 19 state and args unchanged
+PASS current pair 19 OFF probe empty
+PASS baseline pair 19 full bytes equal
+PASS baseline pair 19 state and args unchanged
+PASS baseline pair 19 OFF probe empty
+PASS current pair 20 full bytes equal
+PASS current pair 20 state and args unchanged
+PASS current pair 20 OFF probe empty
+PASS legacy pair 20 full bytes equal
+PASS legacy pair 20 state and args unchanged
+PASS legacy pair 20 OFF probe empty
+PASS baseline pair 20 full bytes equal
+PASS baseline pair 20 state and args unchanged
+PASS baseline pair 20 OFF probe empty
+PASS baseline pair 21 full bytes equal
+PASS baseline pair 21 state and args unchanged
+PASS baseline pair 21 OFF probe empty
+PASS legacy pair 21 full bytes equal
+PASS legacy pair 21 state and args unchanged
+PASS legacy pair 21 OFF probe empty
+PASS current pair 21 full bytes equal
+PASS current pair 21 state and args unchanged
+PASS current pair 21 OFF probe empty
+PASS legacy pair 22 full bytes equal
+PASS legacy pair 22 state and args unchanged
+PASS legacy pair 22 OFF probe empty
+PASS baseline pair 22 full bytes equal
+PASS baseline pair 22 state and args unchanged
+PASS baseline pair 22 OFF probe empty
+PASS current pair 22 full bytes equal
+PASS current pair 22 state and args unchanged
+PASS current pair 22 OFF probe empty
+PASS current pair 23 full bytes equal
+PASS current pair 23 state and args unchanged
+PASS current pair 23 OFF probe empty
+PASS baseline pair 23 full bytes equal
+PASS baseline pair 23 state and args unchanged
+PASS baseline pair 23 OFF probe empty
+PASS legacy pair 23 full bytes equal
+PASS legacy pair 23 state and args unchanged
+PASS legacy pair 23 OFF probe empty
+PASS baseline ON diagnostic full bytes equal
+PASS baseline ON diagnostic state and args unchanged
+PASS baseline ON diagnostic OFF probe empty
+PASS current ON diagnostic full bytes equal
+PASS current ON diagnostic state and args unchanged
+PASS current ON diagnostic OFF probe empty
+PAIRED_OBSTACLES waterway_bound_bridge {"baseline_minus_legacy_paired_median_ms":-0.0220000000000002,"current_minus_legacy_paired_median_ms":0.0749999999999993,"current_slower_pairs":11,"median_ms":{"baseline":18.7545,"current":18.8055,"legacy":18.804},"paired_delta_median_ms":-0.0609999999999982,"paired_ratio_median":0.996747206991601,"pairs":24,"raw_ms":{"baseline":[21.406,20.012,18.753,18.655,19.03,18.714,18.753,19.159,18.851,19.095,18.756,19.235,18.731,18.752,18.601,18.86,18.666,18.679,22.379,18.839,18.611,18.744,18.658,18.884],"current":[19.853,18.684,44.768,18.981,18.77,18.831,19.071,18.78,18.973,18.96,18.722,18.73,18.63,18.664,18.679,18.637,21.263,18.751,18.926,18.642,18.906,19.047,18.842,18.759],"legacy":[19.174,18.928,24.314,18.889,21.868,19.011,20.772,31.857,18.673,19.465,18.612,18.829,18.575,18.779,18.618,18.695,18.996,39.903,18.648,18.553,18.753,18.746,18.721,18.582]}}
+PASS frozen_stone_bridge_approaches native fixture built
+PASS frozen_stone_bridge_approaches baseline seed immutable
+PASS open evidence frozen_stone_bridge_approaches_fixture.bin
+PASS open evidence frozen_stone_bridge_approaches_result.bin
+PASS baseline warmup 0 full bytes equal
+PASS baseline warmup 0 state and args unchanged
+PASS baseline warmup 0 OFF probe empty
+PASS baseline warmup 1 full bytes equal
+PASS baseline warmup 1 state and args unchanged
+PASS baseline warmup 1 OFF probe empty
+PASS current warmup 0 full bytes equal
+PASS current warmup 0 state and args unchanged
+PASS current warmup 0 OFF probe empty
+PASS current warmup 1 full bytes equal
+PASS current warmup 1 state and args unchanged
+PASS current warmup 1 OFF probe empty
+PASS baseline pair 0 full bytes equal
+PASS baseline pair 0 state and args unchanged
+PASS baseline pair 0 OFF probe empty
+PASS current pair 0 full bytes equal
+PASS current pair 0 state and args unchanged
+PASS current pair 0 OFF probe empty
+PASS current pair 1 full bytes equal
+PASS current pair 1 state and args unchanged
+PASS current pair 1 OFF probe empty
+PASS baseline pair 1 full bytes equal
+PASS baseline pair 1 state and args unchanged
+PASS baseline pair 1 OFF probe empty
+PASS baseline pair 2 full bytes equal
+PASS baseline pair 2 state and args unchanged
+PASS baseline pair 2 OFF probe empty
+PASS current pair 2 full bytes equal
+PASS current pair 2 state and args unchanged
+PASS current pair 2 OFF probe empty
+PASS current pair 3 full bytes equal
+PASS current pair 3 state and args unchanged
+PASS current pair 3 OFF probe empty
+PASS baseline pair 3 full bytes equal
+PASS baseline pair 3 state and args unchanged
+PASS baseline pair 3 OFF probe empty
+PASS baseline pair 4 full bytes equal
+PASS baseline pair 4 state and args unchanged
+PASS baseline pair 4 OFF probe empty
+PASS current pair 4 full bytes equal
+PASS current pair 4 state and args unchanged
+PASS current pair 4 OFF probe empty
+PASS current pair 5 full bytes equal
+PASS current pair 5 state and args unchanged
+PASS current pair 5 OFF probe empty
+PASS baseline pair 5 full bytes equal
+PASS baseline pair 5 state and args unchanged
+PASS baseline pair 5 OFF probe empty
+PASS baseline pair 6 full bytes equal
+PASS baseline pair 6 state and args unchanged
+PASS baseline pair 6 OFF probe empty
+PASS current pair 6 full bytes equal
+PASS current pair 6 state and args unchanged
+PASS current pair 6 OFF probe empty
+PASS current pair 7 full bytes equal
+PASS current pair 7 state and args unchanged
+PASS current pair 7 OFF probe empty
+PASS baseline pair 7 full bytes equal
+PASS baseline pair 7 state and args unchanged
+PASS baseline pair 7 OFF probe empty
+PASS baseline pair 8 full bytes equal
+PASS baseline pair 8 state and args unchanged
+PASS baseline pair 8 OFF probe empty
+PASS current pair 8 full bytes equal
+PASS current pair 8 state and args unchanged
+PASS current pair 8 OFF probe empty
+PASS current pair 9 full bytes equal
+PASS current pair 9 state and args unchanged
+PASS current pair 9 OFF probe empty
+PASS baseline pair 9 full bytes equal
+PASS baseline pair 9 state and args unchanged
+PASS baseline pair 9 OFF probe empty
+PASS baseline ON diagnostic full bytes equal
+PASS baseline ON diagnostic state and args unchanged
+PASS baseline ON diagnostic OFF probe empty
+PASS current ON diagnostic full bytes equal
+PASS current ON diagnostic state and args unchanged
+PASS current ON diagnostic OFF probe empty
+PASS frozen_stone_bridge_approaches external dependency unchanged stone_segmental.glb
+PAIRED_OBSTACLES frozen_stone_bridge_approaches {"current_slower_pairs":1,"median_ms":{"baseline":50.304,"current":46.791},"paired_delta_median_ms":-3.632,"paired_ratio_median":0.926796055626929,"pairs":10,"raw_ms":{"baseline":[50.216,48.859,50.392,48.748,49.844,51.569,50.718,49.421,70.779,53.109],"current":[47.463,44.833,46.502,45.374,47.3,44.702,44.955,47.08,48.186,61.04]}}
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_obstacles_20261017/paired/result.json checks=583 failures=0

@@ -1,0 +1,132 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: unique temporary pack and map saved
+PASS: real 3D loopback HTTP starts
+PASS: all residential tools discovered on current 3D service
+PASS: HTTP generate_road_surface succeeds
+PASS: generated retains actual native kerb profiles and mesh vertices
+PASS: generated retains valid kerb material dependencies
+PASS: HTTP generate_buildings succeeds
+PASS: HTTP select_objects succeeds
+PASS: HTTP save_prefab succeeds
+PASS: HTTP delete_building succeeds
+PASS: HTTP save_world succeeds
+PASS: scope sentinel includes actual generated distant road records
+PASS: HTTP preview_residential_placement succeeds
+PASS: candidate preserves more than 32 house components for a single private-document publication
+PASS: preview does not mutate map or history
+PASS: preview returns source identity and a concrete house-road plan
+PASS: HTTP preview_residential_placement succeeds
+PASS: same inputs produce the same constrained geometry
+PASS: HTTP discard_residential_placement succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: stale_road_surface
+PASS: rejection is atomic: preview_residential_placement
+PASS: pure target check refuses a locked edge before any geometry work
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: stale_road_surface
+PASS: rejection is atomic: preview_residential_placement
+PASS: pure target check identifies curved roads as unsupported
+PASS: HTTP get_city_layout succeeds
+PASS: HTTP update_planning_zones succeeds
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: search_exhausted
+PASS: rejection is atomic: preview_residential_placement
+PASS: candidate connector respects the reserved area outside the house
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP undo succeeds
+PASS: edit then undo restores authored input before stale-candidate check
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP undo succeeds
+PASS: HTTP redo succeeds
+PASS: undo then redo restores identical authored content
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP open_world succeeds
+PASS: reopening the same source creates a distinct document instance
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: source_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: source fixture restored byte for byte
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: residential_support_coverage_gap
+PASS: rejection is atomic: preview_residential_placement
+PASS: narrow interior hole reports a positive uncovered area and the actual terrain
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: residential_support_height_limit
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: a high request is lowered within its allowed interval to meet the actual doorstep
+PASS: bounded elevation correction is preview-only
+PASS: UI exposes the same native source and target road
+PASS: actual UI preview button agrees with HTTP for identical inputs
+PASS: UI owns an inspectable preview without authored geometry
+PASS: UI discard removes ghost and apply authority
+PASS: editing a real UI field invalidates the candidate immediately
+PASS: actual UI apply button commits the complete transaction once
+PASS: HTTP undo succeeds
+PASS: UI-applied candidate is undone by the same HTTP undo operation
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement succeeds
+PASS: house and complete approach are one undo transaction
+PASS: automatic placement leaves every terrain sample and hole unchanged
+PASS: scope-external objects and native distant roads preserve authored values across reopen
+PASS: scope-external loaded records remain identical in memory including numeric types
+PASS: candidate changed_ids exclude every scope-external object and road
+PASS: scope-external authored road edge remains unchanged
+PASS: committed house keeps native building identity
+PASS: applied retains actual native kerb profiles and mesh vertices
+PASS: applied retains valid kerb material dependencies
+PASS: applied includes kerbs in the changed house-approach road scope
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP undo succeeds
+PASS: undo restores complete map, graph and metadata without reusing object IDs
+PASS: HTTP redo succeeds
+PASS: redo restores exact house, road and stable identities
+PASS: HTTP select_objects succeeds
+PASS: picking identity expands into whole-house selection
+PASS: native moving doors remain independent semantic records
+PASS: every house member retains an independent editor node after batching
+PASS: moving door nodes keep their own collision identities
+PASS: HTTP focus_selection succeeds
+PASS: actual editor camera ray picks committed house geometry
+PASS: editor static preparation finishes before measuring batching
+PASS: actual editor batching reduces render surfaces with independent members retained
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen preserves full transaction
+PASS: reopened retains actual native kerb profiles and mesh vertices
+PASS: reopened retains valid kerb material dependencies
+PASS: reopened includes kerbs in the changed house-approach road scope
+PASS: native save/reopen preserves actual kerb geometry and material identity
+RESIDENTIAL_PLACEMENT_HTTP C:/Users/luna/.codex/worktrees/editor-reliability/rmmo/review_artifacts/road_obstacles_20261017/residential_http.json failures=0

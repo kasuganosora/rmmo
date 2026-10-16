@@ -1,0 +1,108 @@
+extends "res://tools/test_road_prepare_differential.gd"
+## Strict boundary for the 2026-10-17 road_tools-only optimization.
+const Baseline = preload("res://review_artifacts/road_obstacles_20261017/road_tools_ref.gd")
+const ROOT := "res://review_artifacts/road_obstacles_20261017/"
+const BASE_SHA := "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616"
+const Footprint = preload("res://scripts/world_editor/building_footprint.gd")
+
+func initialize() -> bool:
+	for argument: String in OS.get_cmdline_user_args():
+		if argument.begins_with("--report="): report_path = argument.trim_prefix("--report=")
+		elif argument.begins_with("--case="): selected = argument.trim_prefix("--case=")
+		else: check(false, "unknown argument", argument)
+	var absolute := ProjectSettings.globalize_path(report_path).replace("\\", "/").simplify_path()
+	var allowed := ProjectSettings.globalize_path(ROOT).replace("\\", "/").simplify_path().trim_suffix("/") + "/"
+	if not absolute.begins_with(allowed):
+		push_error("Report must be inside this worktree's " + ROOT); quit(2); return false
+	DirAccess.make_dir_recursive_absolute(report_path.get_base_dir())
+	check(FileAccess.get_sha256(ROOT + "road_tools_ref.gd") == BASE_SHA, "12e3c91 baseline bytes pinned")
+	check(selected.is_empty() or selected in Fixture.names(), "selected fixture exists")
+	var scripts := {}
+	source_hashes("res://scripts/world_editor", scripts); source_hashes("res://scripts/world3d", scripts)
+	for path: String in ["res://tools/road_prepare_fixture.gd", "res://tools/test_road_prepare_differential.gd", "res://tools/benchmark_road_prepare.gd", "res://tools/test_road_obstacle_preparation.gd", "res://tools/benchmark_road_obstacles.gd", "res://project.godot"]:
+		scripts[path] = FileAccess.get_sha256(path)
+	var commit: Array = []; OS.execute("git", ["-C", ProjectSettings.globalize_path("res://"), "rev-parse", "HEAD"], commit)
+	report = {"version": 1, "engine": Engine.get_version_info(), "engine_executable_sha256": FileAccess.get_sha256(OS.get_executable_path()),
+		"head_commit": "".join(commit).strip_edges(), "reference_sha256": BASE_SHA, "script_sha256": scripts, "display": DisplayServer.get_name()}
+	return failures == 0
+
+func compare_context(name_: String, context: Node3D, args: Dictionary, current: RefCounted, _old: RefCounted, expected_ok: Variant = null, conflict := "") -> Dictionary:
+	var baseline := Baseline.new(); baseline.editor = context
+	var result := super.compare_context(name_, context, args, current, baseline, expected_ok, conflict)
+	baseline.editor = null
+	return result
+
+func compare_record_order_correctness(fixture: Dictionary) -> void:
+	# In this batch author-byte preservation is already in the reference.
+	# It must be completely equal too; no exception or normalized comparison.
+	var result := compare_prepare(fixture, true)
+	var previous: Dictionary = fixture.records[-1]
+	var matches: Array = result.get("records", []).filter(func(record): return record.uuid == previous.uuid)
+	check(matches.size() == 1 and var_to_bytes(matches[0]) == var_to_bytes(previous), "decorated record retains original author bytes")
+
+func terrain_matrix() -> void:
+	for origin: float in [0., 10000., -10000., 99900.]:
+		for gap: float in [-.02, 0., .02, 1.]:
+			var test := lane("terrain_edge_%s_%s" % [origin, gap])
+			for node in test.layout.roads.nodes:
+				node.position[0] += origin; node.position[2] -= origin
+			test.records[0].position[0] += origin; test.records[0].position[2] -= origin
+			var tile := Fixture.terrain("edge_tile", 8, Vector3(origin, .7, -origin + 18. + gap), 32.)
+			test.records.append(tile); compare_prepare(test)
+	for rotation: Array in [[0., 43., 0.], [.00001, 0., 0.], [0., 0., -.00001]]:
+		var test := lane("terrain_fallback_" + str(rotation))
+		var tile := Fixture.terrain("fallback", 8, Vector3(400., .7, 400.), 32.); tile.rotation = rotation
+		check(Roads._flat_terrain_xz(tile) == null, test.name + " full scan selected")
+		test.records.append(tile); compare_prepare(test, true)
+	for reverse in [false, true]:
+		var test := lane("terrain_prop_conflict_order_" + str(reverse))
+		# Cover the same first road patch: road order takes precedence over
+		# document order when a small prop only intersects a later patch.
+		var prop := obstacle("prop", [0., 1., 0.]); prop.size = [48., 2., 8.]
+		var obstacles := [Fixture.terrain("raised", 8, Vector3(0., .7, 0.), 32.), prop]
+		if reverse: obstacles.reverse()
+		test.records.append_array(obstacles); compare_prepare(test, false, "prop" if reverse else "raised")
+	# Conservative hull must cover every actual cell AABB, including holes,
+	# raised cultivation, non-square dimensions and large-coordinate rounding.
+	var random := RandomNumberGenerator.new(); random.seed = 171017
+	for index in 32:
+		var tile := Fixture.terrain("bounds", 8, Vector3(random.randf_range(-99900., 99900.), .3, random.randf_range(-99900., 99900.)), 32.)
+		tile.size = [random.randf_range(.25, 256.), random.randf_range(.01, 10.), random.randf_range(.25, 256.)]
+		for at in tile.terrain_mesh.heights.size(): tile.terrain_mesh.heights[at] = random.randf_range(-.5, 20.)
+		tile.terrain_mesh.holes[0] = true
+		var broad: Rect2 = Roads._flat_terrain_xz(tile)
+		var all_inside := true
+		for shape in Footprint.record_shapes(tile):
+			var box: AABB = shape.bounds
+			all_inside = all_inside and broad.encloses(Rect2(box.position.x, box.position.z, box.size.x, box.size.z))
+		check(all_inside, "seeded conservative native cell bounds %d" % index)
+	var tile := Fixture.terrain("support", 8)
+	var roads := [{"terrain_follow": {"terrain_ids": ["support"]}}, {}]
+	var near := Rect2(-2., -2., 4., 4.)
+	check(not Roads._terrain_unneeded(tile, roads, {0: near, 1: near}), "one road's terrain exemption cannot hide another road's collision")
+	check(Roads._terrain_unneeded(tile, roads, {0: near, 1: Rect2(400., 400., 4., 4.)}), "per-road support and distant bounds can jointly skip a terrain")
+	var cache := {}
+	check(Roads._terrain_unneeded(tile, [roads[0]], cache) and cache.is_empty(), "already projected support needs no road footprint cache")
+	var remote := road_patch([Vector2(-2., -2.), Vector2(2., -2.), Vector2(2., 2.), Vector2(-2., 2.)], Vector3(400., 0., 400.))
+	check(Roads._terrain_unneeded(tile, [remote], cache) and cache.size() == 1 and cache[0] is Rect2, "distant check caches only a rectangle, not exact polygons")
+	var test := lane("terrain_mutation"); test.records.append(Fixture.terrain("moving_terrain", 8, Vector3(400., .7, 400.), 32.))
+	var context := Fixture.context(test); var current := Roads.new(); current.editor = context
+	compare_context("terrain_mutation_far", context, test.args, current, current, true)
+	context._doc.checkpoint_recovery(); context._doc.records[-1].position = [0., .7, 0.]
+	compare_context("terrain_mutation_near", context, test.args, current, current, false, "moving_terrain")
+	check(context._doc.undo(), "native terrain move undo")
+	compare_context("terrain_mutation_undo", context, test.args, current, current, true)
+	check(context._doc.redo(), "native terrain move redo")
+	compare_context("terrain_mutation_redo", context, test.args, current, current, false, "moving_terrain")
+	current.editor = null; context._waterways.editor = null; context.free()
+
+func run() -> void:
+	report_path = ROOT + "differential.json"
+	if not initialize(): finish(); return
+	prepare_matrix()
+	if selected.is_empty(): terrain_matrix()
+	report.cases = cases; report.case_count = cases.size()
+	report.method = {"comparison": "Full var_to_bytes return, exact types, dictionary order, IDs, tokens and errors. No exceptions or normalization.",
+		"reference": "Pinned road_tools from 12e3c91, including prior projection and author-byte fixes. Geometry helpers are shared and unchanged.",
+		"scope": "CPU prepare only; ON/OFF equal; document/history/arguments immutable. Native HTTP and publication tested separately."}
+	finish()
