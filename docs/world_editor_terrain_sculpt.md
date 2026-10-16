@@ -111,6 +111,16 @@ RX 7900 XTX、Forward+、独立后台测试视口，45 帧预热、80 帧采样�
 
 跨块边界、锁定/隐藏、保留区、实体保护、道路自动贴地和坡度限制继续有效；道路无法通行时整笔拒绝，不能用整平绕过。修改触发原生局部渲染批次和派生缓存，撤销、保存仍为同一事务。仅为确有需要的宅基使用，不将整片街区抹平。真实 HTTP 发现/合法非法/无副作用失败/撤销重做/原生保存重开见 `tools/test_terrain_house_plots.gd`；旋转和混合格距坐标检查见 `tools/test_terrain_house_plot_coordinates.gd`。
 
+## 联合整坡与道路移位（2026-10-15）
+
+平台、连接斜坡和道路移位有时必须同时完成，逐笔执行的临时地形可能过陡，即使最终布局符合要求。地形面板的“联合整坡”页支持按顺序添加、选中修改或删除矩形区域，并选择需要一同移动的已有道路节点；“检查最终布局”不改地图，“应用联合调整”共用一次原生撤销。中心为世界 X/Z，坡度随区域转向旋转，柔边继续回接原地形。
+
+当前 3D MCP 对应 `preview_terrain_layout` / `apply_terrain_layout`。`strokes` 是 1–16 个原生矩形 `flatten` 请求（含 `id`、单中心 `points`、尺寸、标高、柔边及可选 `plot_grade`）；可选 `road_nodes:[{id,position}]` 仅移动已有节点，需提供从 `get_city_layout` 取得的 `expected_road_token`。不增加、删除道路拓扑，不提供忽略碰撞或坡度保护的选项。先计算最终高度与节点位置，再统一核对原生物件承托、桥基、保留区、跨块边界、道路保护和最终铺面坡度，重建受影响道路及派生渲染。失败不改变文档或撤销栈。UI 草案不改变地图，切换文档会清空草案。
+
+真实临时地图 HTTP/UI 验证 `tools/test_terrain_layout_http.gd` 已完成 **50 项通过、0 失败**：单笔产生真实陡坡而两区域与移位共同通过、锁定地形和铺面、过期路网令牌、无效节点和坡度、真实冻结桥体穿插、预览不改文档、同一 UI/HTTP 结果、一次撤销重做及保存重开。证据为 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_layout_http_review.json` 与 `terrain_layout_http.log`。这证明共享编辑能力，城镇实际布局仍需完成其原生事务和室外检查。
+
+补充 `tools/test_terrain_layout_limits.gd` 的 43 条断言通过、0 失败（含预算夹具有效性检查）：无道路元数据、无变化与先抬后恢复的最终无变化结果不新增历史；超过整组 200 万地形顶点处理预算时在采样前拒绝，失败不改文档。最终修改格数另限 262144，重复区域同样消耗预算。核心及日志摘要见 `terrain_layout_limits_review.json`。
+
 ## 普通物件的地面接触保护（2026-10-15）
 
 原雕刻保护将变化格子的高度包络向下扩大 15 mm、向上扩大 150 mm，适合作粗筛，但会把原已埋土约 12 mm 的草根在地面仅下降 0.842 mm 时误判为失去承托。现在 [terrain_tools.gd](../scripts/world_editor/terrain_tools.gd) 保留原粗筛，再由 [terrain_prop_contact.gd](../scripts/world_editor/terrain_prop_contact.gd) 对普通 `box/asset` 的已知原生包围盒作接触细查。
@@ -118,3 +128,11 @@ RX 7900 XTX、Forward+、独立后台测试视口，45 帧预热、80 帧采样�
 承托面是按完整位置、旋转、非均匀缩放变换后的局部 −Y 底面，不使用世界 AABB 最低点或单个中心采样。底面及其他朝下侧面与实际旧/新地形三角求交，包含原接触阈值穿越点；已有根部埋入可以变浅，新增埋入、真实承托丢失和洞口仍拒绝。草根侧面与土面相交线后退不视为失去底面承托。沿用 5 mm 接触容差，计算舍入只取 10 µm；连续小笔仍受绝对接触高度约束。复杂生成结构、坡台、起垄及没有可确认朝下底面的侧躺/倒置模型继续保守拒绝，不新增忽略碰撞的参数。
 
 可见、隐藏和锁定物件均参与同一检查；地形自身的锁定/隐藏与保留区保护不变。UI 笔刷、预览和当前 3D `sculpt_terrain` 共用业务，无新工具/schema。临时地图 [test_terrain_prop_contact_http.gd](../tools/test_terrain_prop_contact_http.gd) 实际 headless/loopback HTTP **57 项通过，0 失败**：真实草资源的微量降土、混合分辨率跨缝、旋转/缩放、倾斜箱体非中心接触、下降/增埋/洞口拒绝、锁定/隐藏区别、连续小笔、失败原子性、撤销重做和原生保存重开。日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_prop_contact_http.log`。本项只证明编辑器保护逻辑，不代表住宅候选已接入正式地图。
+
+## 原生石桥下开槽与桥基保护（2026-10-15）
+
+既有变化体积粗筛会把尚未挖开的拱洞内土体算作整桥实体，阻止“先放桥，再生成溪流”。[terrain_bridge_contact.gd](../scripts/world_editor/terrain_bridge_contact.gd) 仅在原保护将拒绝时，对已冻结原生石桥进一步检查：读取经过摘要校验的完整碰撞源，按当前原始模块与保存配方重建桥台、桥墩的实际三角，要求它们与冻结源一致；每个支承必须有真实水平底面。完整底面与旧、新地形每个三角裁交，在交点检查承托高度，不能用拱腹、全桥包围盒或中心采样代替基础。
+
+保留桥基承托的下挖可通过，基础掏空、桥基洞口及在实际结构投影内新增回填仍拒绝；原先埋在拱洞内的土可挖低。沿用 5 mm 接触容差与 10 µm 数值舍入。已知桥按实际 Node3D 的局部缩放再旋转处理；未知冻结布局、来源/配方不符、不能确认完整基础、木桥、桥或地形沿 X/Z 倾斜及起垄地形继续走原保守保护，不新增忽略碰撞开关。源文件 SHA、冻结数据摘要与完整实例姿态参与一次 prepare 的局部缓存，同路径替换来源不会沿用旧证明。
+
+UI 笔刷及中心线河道与当前 3D `preview_terrain_stroke` / `sculpt_terrain` / `preview_terrain_river` / `generate_terrain_river` 共用校验，不新增工具或参数。保留原拒绝错误与冲突 ID、锁定/隐藏保护、一次撤销、保存和派生渲染处理。[test_terrain_bridge_contact_http.gd](../tools/test_terrain_bridge_contact_http.gd) 实际 headless/HTTP **68 项通过，0 失败**：先造桥后跨两块地形生成河道、桥台/中墩/偏心分水尖承托、非法回填及深河冲基无副作用失败、源文件同路径变更失效、旋转非均匀缩放与真实冻结节点逐顶点对照、撤销重做及保存重开。证据：`D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_bridge_contact_http.log`、`terrain_bridge_contact_http_review.json`。本项不修改桥模型或正式地图，场景画面仍单独验收。

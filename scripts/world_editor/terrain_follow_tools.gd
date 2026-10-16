@@ -25,6 +25,7 @@ static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)
 	for r:Dictionary in editor._doc.records:
 		if r.has("terrain_mesh"):terrains.append(updated.get(r.uuid,r))
 	var result:Array=[];var metadata:Dictionary=editor._doc.map_meta.duplicate(true);var bridge_collision_cache:Dictionary={}
+	var asset_contact_cache:Dictionary={}
 	for previous:Dictionary in followers:
 		if not editor._record_editable(previous):return City.fail("跟随地形的铺面被锁定、隐藏或隔层，整笔取消")
 		if previous.has("event") or previous.has("event_template"):return City.fail("跟随铺面有事件，请先解除贴地关联")
@@ -43,6 +44,8 @@ static func prepare(editor:Node3D,changes:Array,defer_fortifications:bool=false)
 		for obstacle:Dictionary in editor._doc.records:
 			if obstacle.uuid in ids or obstacle.uuid in next.terrain_follow.terrain_ids:continue
 			if Foot.batches_overlap(shapes,Foot.record_shapes(obstacle)):
+				if next.has("road_mesh") and obstacle.has("house_prefab") and not preload("res://scripts/world3d/frozen_road_contact.gd").intersects(next,obstacle,shapes,Foot.record_shape(obstacle),asset_contact_cache):continue
+				if next.has("road_mesh") and obstacle.get("kind")=="asset" and not preload("res://scripts/world3d/asset_road_contact.gd").intersects(next,obstacle,shapes,Foot.record_shape(obstacle),asset_contact_cache):continue
 				if next.has("road_mesh") and obstacle.has("bridge_mesh") and not preload("res://scripts/world3d/road_bridge_approach.gd").intersects(next,obstacle,shapes,Foot.record_shape(obstacle),bridge_collision_cache):continue
 				return City.fail("贴地更新侵入物件或通行净空："+str(obstacle.uuid))
 		if not editor._authoring.Settings.contains(next,editor._authoring.settings):return City.fail("贴地更新超出当前楼层")

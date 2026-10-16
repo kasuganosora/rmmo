@@ -30,7 +30,7 @@ static func collision_faces(bridge:Dictionary)->Dictionary:
 	if source.box_size!=Vector3.ZERO:
 		var box:=BoxMesh.new();box.size=source.box_size
 		surfaces=[preload("res://scripts/world3d/ground_cpu_mesh.gd").primitive_arrays(box,0)]
-	var pose:=Transform3D(Basis.from_euler(City.vec(bridge.rotation)*PI/180.).scaled(City.vec(bridge.size)),City.vec(bridge.position))
+	var pose:=Transform3D(Basis.from_euler(City.vec(bridge.rotation)*PI/180.)*Basis.from_scale(City.vec(bridge.size)),City.vec(bridge.position))
 	var half:float=bridge.bridge_mesh.length*.5;var faces:Array=[]
 	for surface:Array in surfaces:
 		var vertices:PackedVector3Array=surface[Mesh.ARRAY_VERTEX]
@@ -46,7 +46,7 @@ static func collision_faces(bridge:Dictionary)->Dictionary:
 
 static func intersects(road:Dictionary,bridge:Dictionary,occupancy:Array,bridge_shape:Dictionary,cache:Dictionary)->bool:
 	if not bridge.has("bridge_mesh") or absf(bridge.rotation[0])+absf(bridge.rotation[2])>.0001:return true
-	var pose:=Transform3D(Basis.from_euler(City.vec(bridge.rotation)*PI/180.).scaled(City.vec(bridge.size)),City.vec(bridge.position))
+	var pose:=Transform3D(Basis.from_euler(City.vec(bridge.rotation)*PI/180.)*Basis.from_scale(City.vec(bridge.size)),City.vec(bridge.position))
 	var inverse:=pose.affine_inverse();var half:float=bridge.bridge_mesh.length*.5
 	var road_pose:=Transform3D(Basis.from_euler(City.vec(road.rotation)*PI/180.),City.vec(road.position))
 	var polygons:=Road.local_polygons(road);var patches:Array=[]

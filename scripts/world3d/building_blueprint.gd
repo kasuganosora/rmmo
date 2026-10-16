@@ -66,6 +66,7 @@ static func town_presets() -> Array:
 
 static func schema() -> Dictionary:
 	return {"type":"object", "properties":{
+		"front_string_course":{"type":"string","enum":["full","none"]},
 		"window_style":{"type":"string","enum":["casement","random","cross_lattice","diamond_lattice","round_arch","tall_shutter"]},
 		"gable_oculus":{"type":"boolean"},
 		"entrance_style":{"type":"string","enum":["rectangular","round_arch_hall"]},"entrance_arch_width":Schema.number(1.5,3.6),"entrance_arch_spring":Schema.number(2.2,4.0),
@@ -104,6 +105,7 @@ static func generate(parameters: Dictionary) -> Dictionary:
 	if not issue.is_empty(): return fail(issue)
 	var p := layout_defaults(str(parameters.get("layout","standard"))); p.merge(parameters,true)
 	if p.depth<10 and not (p.layout=="townhouse" and p.floors==1 and p.compound=="none"):return fail("8–10 米短进深仅适用于单层独栋中世纪住宅布局；其他布局至少需要 10 米")
+	if p.get("front_string_course","full")=="none" and (p.layout not in ["townhouse","hall"] or p.style!="plaster"):return fail("取消正面石腰线仅适用于中世纪灰泥石墙住宅")
 	var arch_issue:String=preload("res://scripts/world3d/house_arched_entrance.gd").validate(p)
 	if not arch_issue.is_empty():return fail(arch_issue)
 	if p.get("window_style","casement")=="random":

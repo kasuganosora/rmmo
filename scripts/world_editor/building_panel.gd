@@ -101,6 +101,9 @@ func set_values(parameters: Dictionary, position: Array, yaw: float) -> void:
 		labels.merge({"stair_layout":"楼梯布局","base_height":"室内地面抬高（米）","curtains":"室内窗帘"})
 		choices.stair_layout=[{"id":"switchback","name":"双跑折返"},{"id":"straight","name":"直跑"}]
 		ordered.entrance_style=parameters.get("entrance_style","rectangular")
+		ordered.front_string_course=parameters.get("front_string_course","full")
+		labels.front_string_course="正面石砌横腰线"
+		choices.front_string_course=[{"id":"full","name":"保留"},{"id":"none","name":"取消（保留墙体与角石）"}]
 		labels.entrance_style="入口结构"
 		choices.entrance_style=[{"id":"rectangular","name":"普通门洞"},{"id":"round_arch_hall","name":"挑空大厅通高圆拱"}]
 		if layout=="hall":

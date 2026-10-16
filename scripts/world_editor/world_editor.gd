@@ -639,16 +639,26 @@ func _picking_node_enabled(node:Node)->bool:
 func _picking_record(uuid:String)->Dictionary:
 	return _doc._find(uuid) if _doc!=null else {}
 
+func _body_node_enabled(node:Node)->bool:
+	return node.get_meta("editor_floor_physical",false) or _picking_node_enabled(node)
+
+func _body_layers(visual:MeshInstance3D)->int:
+	var selectable:=true;var node:Node=visual
+	while node!=null and node!=self:
+		if not _picking_node_enabled(node):selectable=false;break
+		node=node.get_parent()
+	return (1 if selectable else 0) | (WalkMode.WALK_MASK if WalkMode.physical(visual.get_meta("extras",{})) else 0)
+
 func _picking_plan(node:Node)->Dictionary:
-	return PickingLods.build(node,_picking_node_enabled,_picking_record)
+	return PickingLods.build(node,_body_node_enabled,_picking_record)
 
 func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> void:
-	if not _picking_node_enabled(node):return
+	if not _body_node_enabled(node):return
 	# One validated plan per traversal, shared with LoadJob's sliced traversal.
 	# A skipped mesh does not prune its children: independent authored parts keep
 	# their own selection and physical bodies, even below a render-only LOD.
 	if picking_plan==null:picking_plan=_picking_plan(node)
-	if node is MeshInstance3D and node.mesh != null and not picking_plan.has(node.get_instance_id()):
+	if node is MeshInstance3D and node.mesh != null and not picking_plan.has(node.get_instance_id()) and _body_layers(node)!=0:
 		var visual := node as MeshInstance3D
 		var body := StaticBody3D.new()
 		body.name = "%s_body" % str(visual.name)
@@ -656,7 +666,7 @@ func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> 
 		while asset != null and not asset.has_meta("asset_uuid"): asset = asset.get_parent()
 		body.set_meta("uuid", str(asset.get_meta("asset_uuid")) if asset != null else str(visual.name))
 		body.set_meta("visual", visual)
-		body.collision_layer=1 | (WalkMode.WALK_MASK if WalkMode.physical(visual.get_meta("extras",{})) else 0)
+		body.collision_layer=_body_layers(visual)
 		var uuid := str(body.get_meta("uuid"))
 		if not _bodies_by_uuid.has(uuid): _bodies_by_uuid[uuid] = []
 		_bodies_by_uuid[uuid].append(body)

@@ -9,6 +9,7 @@ const Cursor = preload("res://scripts/world3d/document_open_cursor.gd")
 const Snapshot = preload("res://scripts/world3d/document_source_snapshot.gd")
 const Manifest = preload("res://scripts/world3d/asset_bounds_manifest.gd")
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
+const Imported = preload("res://scripts/world3d/imported_building.gd")
 const Road = preload("res://scripts/world3d/road_surface.gd")
 const RoadPreparation = preload("res://scripts/world3d/native_road_preparation.gd")
 const Fort = preload("res://scripts/world3d/fortification_data.gd")
@@ -25,7 +26,7 @@ const MAX_BYTES := 64 * 1024 * 1024
 const CHUNK_M := 32.0
 const MAX_CHUNK_SPAN := 256
 const COMMON_FIELDS := ["uuid", "position", "rotation", "size", "kind", "surface_id", "collision", "color", "invisible", "surface_paint", "editor_group", "editor_group_name", "editor_name", "editor_hidden", "editor_locked"]
-const ASSET_FIELDS := ["asset_path", "asset_id", "asset_name", "name", "label", "thumbnail_path", "bounds_position", "bounds_size", "category", "tags"]
+const ASSET_FIELDS := ["asset_path", "asset_id", "asset_name", "name", "label", "thumbnail_path", "bounds_position", "bounds_size", "category", "tags", "model_building", "model_building_states"]
 const FROZEN_FIELDS := ["house_prefab", "prefab_locked", "prefab_materials"]
 const FORT_FIELDS := ["fortification", "fixture", "prefab_tower_center"]
 const BRIDGE_FIELDS := ["bridge_mesh", "bridge_materials", "asset_path", "bounds_position", "bounds_size"]
@@ -36,6 +37,7 @@ static func _fail(reason: String) -> Dictionary:
 
 static func generator_key() -> String:
 	var hashes: Array = [VERSION, Engine.get_version_info().hash]
+	hashes.append(FileAccess.get_sha256("res://scripts/world3d/imported_building.gd"))
 	for name in ["map_dependency_index", "dependency_index_proof", "asset_bounds_manifest", "world_document", "building_blueprint", "building_fixtures", "house_prefab", "prefab_texture_preparation", "fortification_data", "bridge_data", "structure_prefab", "river_material_data", "candle_sconce_mesh", "candle_sconce_data", "terrain_surface", "terrain_furrows", "road_surface", "road_kerb", "native_road_preparation", "surface_materials", "document_schema"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/" + name + ".gd"))
 	return str(hashes).sha256_text()
@@ -137,6 +139,7 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 			if row.group_id.begins_with("building:"): row.reason = "building_group"
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
 	if not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
+	if not _imported_sources_valid(opened.extras, rows): return _fail("imported_building_source_mismatch")
 	if not Store.verify_dependencies(opened.dependencies, path, content_root) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
 	for model_path: String in models:
 		var current: Dictionary = Manifest.read(model_path)
@@ -171,6 +174,7 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	var data: Variant = bytes_to_var(bytes) # Never allow Objects or scripts.
 	if not data is Dictionary or not _valid_payload(data, opened.extras.rmmo_records, content_root) or not _ownership_valid(opened.extras, data.rows, data.groups): return _fail("invalid_index_schema")
 	if data.source_sha256 != opened.source._signature or data.generator != generator_key(): return _fail("stale_index")
+	if not _imported_sources_valid(opened.extras, data.rows): return _fail("imported_building_source_mismatch")
 	# Bounds refer to the source accessor JSON. A changed or missing model cannot
 	# silently retain an old far-away footprint. Keep it eager until rebuilt.
 	var changed_models := {}
@@ -229,6 +233,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 	var result := {"classification": "global", "reason": "unknown_geometry", "bounds_known": false, "bounds": AABB(), "chunk_min": Vector2i.ZERO, "chunk_max": Vector2i.ZERO, "terrain_halo": 0.0, "asset_path": "", "owner_keys": []}
 	for owner in ["building", "fortification"]:
 		if record.get(owner) is Dictionary: result.owner_keys.append(owner + ":" + str(record[owner].get("id", "")))
+	if record.has("model_building"):result.owner_keys.append("building:"+str(record.uuid))
 	if record.has("terrain_mesh"):
 		var terrain = preload("res://scripts/world3d/terrain_surface.gd")
 		if terrain.valid(record):
@@ -254,6 +259,10 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 		var candle := _candle_bounds(record)
 		if candle.known: result.bounds = candle.bounds; result.bounds_known = true
 		result.reason = "candle_ownership_global"
+	elif record.has("model_building"):
+		result.asset_path=str(record.get("asset_path",""))
+		if Imported.valid_record(record) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
+			_classify_model(record,root,models,result)
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
 	elif record.has("road_mesh") and _fields_allowed(record, COMMON_FIELDS + ROAD_FIELDS) and Road.valid(record):
@@ -267,13 +276,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 		result.bounds_known = _finite_bounds(result.bounds); result.reason = "native_box"
 		if result.bounds_known: result.classification = "spatial"
 	elif record.get("kind") == "asset" and _fields_allowed(record, COMMON_FIELDS + ASSET_FIELDS):
-		var path := str(record.get("asset_path", "")); result.asset_path = path
-		if not Paths.allowed(path, root): result.reason = "invalid_model_path"; return result
-		var source: Dictionary = models[path].merged({"known": true}) if models.has(path) else Manifest.read(path)
-		var placed: Dictionary = Manifest.apply_record(source, record)
-		if placed.get("known", false):
-			models[path] = {"json_sha256": source.json_sha256, "file_length": source.file_length, "local_bounds": source.local_bounds}
-			result.bounds = placed.world_bounds; result.bounds_known = true; result.classification = "spatial"; result.reason = "model_accessor_bounds"
+		_classify_model(record,root,models,result)
 	if record.has("building") and not _fields_allowed(record, COMMON_FIELDS + ["building", "fixture", "house_prefab", "prefab_locked", "prefab_materials", "window_design", "building_shape"]):
 		result.bounds_known = false; result.reason = "unsupported_building_behavior"
 	if result.bounds_known:
@@ -283,6 +286,31 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 			result.classification = "global"; result.reason = "large_spanning_record"
 			if record.has("fortification") or record.has("bridge_mesh"): result.bounds_known = false
 	return result
+
+static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary)->void:
+	var path:=str(record.get("asset_path",""));result.asset_path=path
+	if not Paths.allowed(path,root):result.reason="invalid_model_path";return
+	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else Manifest.read(path)
+	var placed:Dictionary=Manifest.apply_record(source,record)
+	if placed.get("known",false):
+		models[path]={"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds}
+		result.bounds=placed.world_bounds;result.bounds_known=true;result.classification="spatial";result.reason="model_accessor_bounds"
+
+# Bind exact source annotations and complete bytes, not a claimed record volume
+# or an unchanged accessor header hiding replaced mesh/material binary data.
+static func _imported_sources_valid(extras:Dictionary,rows:Array)->bool:
+	var hashes:Dictionary={};var descriptors:Dictionary={}
+	for row:Dictionary in rows:
+		var state:Dictionary=extras.rmmo_records[row.order].rmmo_state
+		if not state.has("model_building"):continue
+		var path:String=row.asset_path
+		if path.is_empty() or not FileAccess.file_exists(path):return false
+		if not hashes.has(path):
+			hashes[path]=FileAccess.get_sha256(path)
+			descriptors[path]=Imported.source_descriptor(path,hashes[path])
+		if hashes[path]!=state.model_building.source_sha:return false
+		if descriptors[path].is_empty() or not Imported.same(descriptors[path],state.model_building):return false
+	return true
 
 ## Road.vertices includes both slab faces, the grade, and every persisted kerb
 ## section point. Kerb adjacency is resolved when authoring; runtime arrays only
@@ -363,6 +391,7 @@ static func _fortification_owners(extras: Dictionary, rows: Array) -> Dictionary
 static func _expected_group(compact: Dictionary, row: Dictionary, fort_owners: Dictionary) -> String:
 	var state: Dictionary = compact.rmmo_state
 	if state.has("building"): return "building:" + str(state.building.get("id", ""))
+	if state.has("model_building"):return "building:"+str(compact.uuid)
 	if state.has("fortification"):
 		var owner := str(state.fortification.get("id", ""))
 		if not fort_owners.has(owner): return ""
@@ -397,6 +426,10 @@ static func _ownership_valid(extras: Dictionary, rows: Array, groups: Dictionary
 			if state.has(owner):
 				if not state[owner] is Dictionary: return false
 				expected_owners.append(owner + ":" + str(state[owner].get("id", "")))
+		if state.has("model_building"):
+			var authored:Dictionary=compact.merged(state,true)
+			if not Imported.valid_record(authored) or not expected_owners.is_empty() or extras.get("building_instances",{}).has(compact.uuid):return false
+			expected_owners.append("building:"+str(compact.uuid))
 		if row.owner_keys != expected_owners: return false
 		var expected_group := _expected_group(compact, row, fort_owners)
 		if row.group_id != expected_group: return false
@@ -571,7 +604,8 @@ static func validate_selected(index: Dictionary, hydrated_records: Array, conten
 	for group: String in groups:
 		if not group.begins_with("building:"): continue
 		var id: String = index.groups[group].owner_id
-		registry[id] = index.extras.building_instances[id]
+		if index.extras.get("building_instances",{}).has(id):registry[id]=index.extras.building_instances[id]
+		elif not positions.has(id):return _fail("missing_imported_building_owner")
 	meta.building_instances = registry
 	if not Blueprint.valid_ownership(meta, hydrated_records): return _fail("invalid_selected_building_ownership")
 	return {"ok": true, "validation_extras": meta, "selected_groups": groups.keys(), "closure_complete": false, "ownership_validation_us": ownership_us, "uuid_lookup_us": uuid_lookup_us, "ownership_proof_used": ownership_proof != null}

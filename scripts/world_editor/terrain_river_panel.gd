@@ -8,6 +8,10 @@ var coordinates:VBoxContainer
 var point_list:ItemList
 var terrain_ids:Array=[]
 var points:Array=[]
+var water_levels:Array=[]
+var profile_toggle:CheckButton
+var point_level:SpinBox
+var outlet_target:LineEdit
 var message:Label
 var river_picker:OptionButton
 var terrain_summary:Label
@@ -43,18 +47,31 @@ func setup(value:Node3D)->void:
 	settings.fields.id.text_changed.connect(func(_text):_refresh_actions())
 	settings.group_fields([{"id":"appearance","label":"河岸与水下细节","fields":["bank_width","depth","curved","natural_materials"]}])
 	Compact.apply(settings,{"id":"河道名称","width":"水面宽 (m)","water_level":"水位 (m)","bank_width":"河岸宽 (m)","depth":"水深 (m)","curved":"平滑中心线","natural_materials":"自然河岸材质"})
+	profile_toggle=CheckButton.new(); profile_toggle.name="RiverLongitudinalProfile"; profile_toggle.text="逐点水位（沿路径下降或等高）"; _body.add_child(profile_toggle)
+	profile_toggle.toggled.connect(_profile_changed)
+	var profile_hint:=Label.new(); profile_hint.text="逐点水位使用连续斜水面；自然湿岸暂仅支持水平水位，纵向河道请使用地形区域材质。"; profile_hint.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; _body.add_child(profile_hint)
+	outlet_target=LineEdit.new();outlet_target.name="RiverOutletTarget";outlet_target.placeholder_text="末端汇入河道 ID（留空不汇入）";outlet_target.tooltip_text="仅末端汇入，末段水位须与目标汇口相同；目标河道存在依赖时不能单独改线/删除。";_body.add_child(outlet_target)
 	var points_heading:=Label.new(); points_heading.text="中心线控制点"; points_heading.theme_type_variation="EditorHeading"; _body.add_child(points_heading)
 	point_list=ItemList.new(); point_list.custom_minimum_size.y=112; _body.add_child(point_list)
-	point_list.item_selected.connect(func(index):coordinates.update_values({"point":points[index]}))
+	point_list.item_selected.connect(func(index):
+		coordinates.update_values({"point":points[index]})
+		if profile_toggle.button_pressed:point_level.value=water_levels[index])
 	coordinates=Form.new(); _body.add_child(coordinates)
 	coordinates.build({"properties":{"point":Tool.W.arr(Tool.T.S.number(-10000,10000),2,2)}},{"point":[0,0]},{"point":"中心线点（X、Z 米）"})
 	coordinates.fields.point.get_child(1).prefix="Z"
+	point_level=SpinBox.new(); point_level.name="RiverPointWaterLevel"; point_level.min_value=-1000;point_level.max_value=1000;point_level.step=.001;point_level.prefix="选中点水位 m";point_level.value=Tool.defaults().water_level;point_level.visible=false;_body.add_child(point_level)
 	var point_actions:=HFlowContainer.new(); _body.add_child(point_actions)
-	button("追加点",func():points.append(coordinates.values().point);refresh();point_list.select(points.size()-1),point_actions)
+	button("追加点",func():
+		points.append(coordinates.values().point)
+		if profile_toggle.button_pressed:water_levels.append(point_level.value)
+		refresh();point_list.select(points.size()-1),point_actions)
 	button("替换选中点",replace_point,point_actions)
 	button("删除选中点",func():
 		var selected:=point_list.get_selected_items()
-		if not selected.is_empty():points.remove_at(selected[0]);refresh(),point_actions)
+		if not selected.is_empty():
+			points.remove_at(selected[0])
+			if profile_toggle.button_pressed:water_levels.remove_at(selected[0])
+			refresh(),point_actions)
 	remove_button=button("删除河道并恢复河床",func():
 		var result:=Tool.apply(editor,{"id":settings.values().id},false,true)
 		report(result)
@@ -71,17 +88,32 @@ func setup(value:Node3D)->void:
 	message=Label.new(); message.name="RiverResult"; message.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART; footer.add_child(message)
 	refresh_catalog(); _refresh_terrain_summary(); _refresh_actions()
 
-func args()->Dictionary:return settings.values().merged({"terrain_ids":terrain_ids,"points":points})
+func args()->Dictionary:
+	var result:Dictionary=settings.values().merged({"terrain_ids":terrain_ids,"points":points})
+	if profile_toggle.button_pressed:result.water_levels=water_levels.duplicate()
+	if not outlet_target.text.strip_edges().is_empty():result.outlet={"river_id":outlet_target.text.strip_edges(),"endpoint":"end"}
+	return result
+
+func _profile_changed(enabled:bool)->void:
+	if enabled and water_levels.size()!=points.size():
+		water_levels=points.map(func(_p):return float(settings.values().water_level))
+	point_level.visible=enabled
+	point_level.value=water_levels.back() if enabled and not water_levels.is_empty() else float(settings.values().water_level)
+	settings.fields.natural_materials.disabled=enabled
+	if enabled:settings.fields.natural_materials.button_pressed=false
+	refresh()
 
 func refresh()->void:
 	point_list.clear()
-	for index in points.size():point_list.add_item("%d · X %.2f / Z %.2f"%[index+1,points[index][0],points[index][1]])
+	for index in points.size():point_list.add_item("%d · X %.2f / Z %.2f"%[index+1,points[index][0],points[index][1]]+(" · 水位 %.3f"%water_levels[index] if profile_toggle.button_pressed else ""))
 	_refresh_terrain_summary()
 
 func replace_point()->void:
 	var selected:=point_list.get_selected_items()
 	if selected.is_empty():return
-	points[selected[0]]=coordinates.values().point;refresh();point_list.select(selected[0])
+	points[selected[0]]=coordinates.values().point
+	if profile_toggle.button_pressed:water_levels[selected[0]]=point_level.value
+	refresh();point_list.select(selected[0])
 
 func button(text:String,action:Callable,parent:Node=null)->Button:
 	var b:=Button.new(); b.text=text; b.pressed.connect(action); (parent if parent!=null else self).add_child(b); return b
@@ -136,7 +168,7 @@ func new_river()->void:
 	var values:=Tool.defaults(); var suffix:=1
 	while _catalog.any(func(request):return request.id==values.id):
 		suffix+=1; values.id="natural_river_%d"%suffix
-	_loaded_id=""; terrain_ids=[]; points=[]; settings.update_values(values); settings.fields.id.editable=true; river_picker.select(0); refresh(); _refresh_actions()
+	_loaded_id=""; terrain_ids=[]; points=[]; water_levels=[]; outlet_target.text=""; profile_toggle.set_pressed_no_signal(false); _profile_changed(false); settings.update_values(values); settings.fields.id.editable=true; river_picker.select(0); refresh(); _refresh_actions()
 	message.text="新的河道方案：先选择地形，再添加中心线点"
 
 func load_river(id:String)->bool:
@@ -148,6 +180,8 @@ func load_river(id:String)->bool:
 		var values:Dictionary=Tool.defaults()
 		for key in values:values[key]=request.get(key,values[key])
 		settings.update_values(values); settings.fields.id.editable=false; _loaded_id=id
+		outlet_target.text=str(request.get("outlet",{}).get("river_id",""))
+		water_levels=request.get("water_levels",[]).duplicate();profile_toggle.set_pressed_no_signal(request.has("water_levels"));_profile_changed(request.has("water_levels"))
 		for index in river_picker.item_count:
 			if river_picker.get_item_metadata(index)==id:river_picker.select(index);break
 		refresh(); _refresh_actions(); message.text="已载入 %s，可修改中心线和参数后更新"%id; return true

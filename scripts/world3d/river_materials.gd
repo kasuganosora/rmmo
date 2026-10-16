@@ -124,6 +124,20 @@ static func _active_material(node:MeshInstance3D,slot:int,cpu_overrides:Variant)
 	if node.material_override!=null:return node.material_override
 	return cpu_overrides[slot] if cpu_overrides[slot]!=null else node.mesh.surface_get_material(slot)
 
+static func water_top(record:Dictionary,slot:int,normals:PackedVector3Array)->bool:
+	if normals.is_empty():return false
+	# Native profiled channels use Slab's explicit top/underside/edge slots.
+	# A steep top is still water; never infer its role from the first triangle's
+	# near-horizontal normal. Side and underside slots remain hidden regardless
+	# of their normal. Painted meshes can reorder/merge slots, so retain their
+	# existing material classification rather than assuming the native layout.
+	if record.get("channel_mesh",{}).has("elevations") and not record.has("surface_paint"):
+		if slot!=0:return false
+		for normal:Vector3 in normals:
+			if normal.y<=0:return false
+		return true
+	return normals[0].y>.99
+
 static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={},validation_cache:Variant=null,validated:bool=false,cpu_index:bool=false) -> void:
 	if not record.has("terrain_depth_blend") and not record.has("terrain_slope_blend") and not record.has("terrain_regions") and not record.has("terrain_saturation") and not record.has("water_depth_effect") and not record.has("bank_wetness"): return
 	if not validated and (not Data.valid(record) or not Paint.valid(record,false,"",validation_cache)): node.set_meta("paint_error","地形/河道材质参数无效"); return
@@ -167,7 +181,7 @@ static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary=
 			hidden_slab=ShaderMaterial.new(); hidden_slab.shader=Shader.new()
 			hidden_slab.shader.code="shader_type spatial; void fragment() { discard; }"
 		node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		# Only horizontal upper faces; never shade slab undersides/vertical edges as water.
+		# Only upper faces; never shade slab undersides/vertical edges as water.
 		for slot in node.mesh.get_surface_count():
 			var normals_started:=Time.get_ticks_usec() if Trace.enabled else 0
 			var use_cpu:=water_cpu_normals_enabled and normal_source is Cpu
@@ -175,7 +189,7 @@ static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary=
 			if use_cpu:water_cpu_normal_hits+=1
 			if Trace.enabled:Trace.elapsed("river.water_normals",normals_started,{"uuid":record.get("uuid",""),"slot":slot})
 			var water_started:=Time.get_ticks_usec() if Trace.enabled else 0
-			if not normals.is_empty() and normals[0].y>.99:
+			if water_top(record,slot,normals):
 				_set_override(node,slot,water(record.water_depth_effect,_active_material(node,slot,cpu_overrides)),cpu_overrides)
 			else: _set_override(node,slot,hidden_slab,cpu_overrides)
 			if Trace.enabled:Trace.elapsed("river.water_material",water_started,{"uuid":record.get("uuid",""),"slot":slot})

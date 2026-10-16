@@ -65,6 +65,10 @@ static func prepare(records: Array, args: Dictionary, library, editable: Callabl
 			if enabled:
 				if absf(record.rotation[0])>.0001 or absf(record.rotation[2])>.0001 or Vector2(record.channel_mesh.get("grade",[0,0])[0],record.channel_mesh.get("grade",[0,0])[1]).length()>.0001: return fail("深浅水效果需要水平水面")
 				if (not terrain_ids.is_empty() or not bank_ids.is_empty()) and absf(record.position[1]+record.size[1]*.5-float(config.water_level))>.01: return fail("河床/护岸水位参数必须与所选水面实际标高一致")
+				if not terrain_ids.is_empty() or not bank_ids.is_empty():
+					for polygon:Array in preload("res://scripts/world3d/channel_surface.gd").local_polygons(record):
+						for point:Vector3 in polygon:
+							if absf(point.y+float(record.position[1])-float(config.water_level))>.01:return fail("纵向水面的各处标高不同，请单独设置水面，岸线使用区域材质")
 				next[field]={"absorption":config.absorption,"shallow_color":config.shallow_color,"deep_color":config.deep_color}
 		if not enabled: next.erase(field)
 		if not Paint.valid(next) or not Paint.missing([next]).is_empty(): return fail("渐变材质记录或资源依赖无效")
@@ -75,7 +79,36 @@ static func apply(editor: Node3D, args: Dictionary) -> Dictionary:
 	var guard: Dictionary=editor._gameplay.guard()
 	if not guard.ok: return guard
 	var result:=prepare(editor._doc.records,args,editor._material_tool.library,editor._record_editable)
+	if result.ok and result.changed:
+		var owned:=owned_appearance(editor,result.records)
+		if not owned.ok:return owned
+		result.map_meta=owned.map_meta
 	return commit(editor,result)
+
+static func owned_appearance(editor:Node3D,replacements:Array)->Dictionary:
+	# This explicit river-material edit changes its authoring recipe's expected
+	# appearance in the same undo transaction, never adopts a prior hand edit.
+	var Layer=preload("res://scripts/world3d/terrain_river_layer.gd")
+	var City=preload("res://scripts/world3d/city_layout.gd")
+	var metadata:Dictionary=editor._doc.map_meta.duplicate(true)
+	if not Layer.valid(metadata):return fail("河道恢复图层无效")
+	var by_id:Dictionary={}
+	for next:Dictionary in replacements:by_id[next.uuid]=next
+	for layer:Dictionary in metadata.get("terrain_rivers",[]):
+		for water:Dictionary in layer.water:
+			if not by_id.has(water.id):continue
+			if City.token(editor._doc._find(water.id))!=water.signature:return fail("河道水面已手改，不能将旧改动接管为材质更新")
+			water.signature=City.token(by_id[water.id])
+		for item:Dictionary in layer.terrains:
+			if not by_id.has(item.after.uuid):continue
+			var current:Dictionary=editor._doc._find(item.after.uuid);var next:Dictionary=by_id[item.after.uuid]
+			for field:String in Layer.APPEARANCE_FIELDS:
+				if Layer.same(item.before.get(field),item.after.get(field)) or Layer.same(current.get(field),next.get(field)):continue
+				if not Layer.same(current.get(field),item.after.get(field)):return fail("河岸所属材质已手改，不能接管旧冲突")
+				if next.has(field):item.after[field]=next[field].duplicate(true)
+				else:item.after.erase(field)
+	if not Layer.valid(metadata):return fail("材质更新后的河道恢复图层无效")
+	return {"ok":true,"map_meta":metadata}
 
 static func prepare_slope(records: Array,args: Dictionary,library,editable: Callable) -> Dictionary:
 	var error:=Data.S.validate(args,Data.slope_schema())
@@ -118,11 +151,13 @@ static func apply_slope(editor: Node3D,args: Dictionary) -> Dictionary:
 
 static func commit(editor: Node3D,result: Dictionary) -> Dictionary:
 	if not result.ok or not result.changed: return result
-	editor._doc.checkpoint()
+	if result.has("map_meta"):editor._doc.checkpoint_recovery()
+	else:editor._doc.checkpoint()
 	var ids: Array[String]=[]
 	for replacement in result.records:
 		var old: Dictionary=editor._doc._find(replacement.uuid)
 		editor._doc.records[editor._doc.records.find(old)]=replacement; ids.append(replacement.uuid)
+	if result.has("map_meta"):editor._doc.map_meta=result.map_meta
 	editor._dirty=true; editor._refresh_records(ids)
 	if editor._terrain_panel!=null: editor._terrain_panel.refresh()
 	return {"ok":true,"changed":true,"changed_ids":ids}

@@ -60,6 +60,7 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 	if replacing.is_empty() and instances().size()+args.placements.size()>4096: return Blueprint.fail("地图最多包含 4096 栋生成建筑")
 	var prepared: Array = []; var excluded: Array = []
 	var occupied_shapes := {}
+	var frozen_contact_cache:Dictionary={}
 	var records := {}
 	if not replacing.is_empty():
 		if args.placements.size()!=1: return Blueprint.fail("更新预览只能包含一栋建筑")
@@ -104,7 +105,9 @@ func prepare(args: Dictionary, replacing := "") -> Dictionary:
 			if not occupied_shapes.has(record.uuid): occupied_shapes[record.uuid]=Footprint.record_shapes(record)
 			for shape in occupied_shapes[record.uuid]:
 				if Footprint.supporting_ground(record,shape.bounds.end.y,support_height): continue
-				if Footprint.batches_overlap(plan.occupancy,[shape]): return {"ok":false,"error":"第 %d 栋建筑占地与现有物件重叠"%(index+1),"conflicts":[str(record.uuid)]}
+				if Footprint.batches_overlap(plan.occupancy,[shape]):
+					if record.has("house_prefab") and not preload("res://scripts/world3d/frozen_placement_contact.gd").intersects(record,plan.occupancy,shape,frozen_contact_cache):continue
+					return {"ok":false,"error":"第 %d 栋建筑占地与现有物件重叠"%(index+1),"conflicts":[str(record.uuid)]}
 		if not replacing.is_empty():
 			var old: Dictionary = instances()[replacing]
 			var new_parts := {}

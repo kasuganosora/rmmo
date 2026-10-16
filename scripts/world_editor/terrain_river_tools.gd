@@ -4,6 +4,8 @@ const W=preload("res://scripts/world3d/waterway_data.gd")
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
 const Road=preload("res://scripts/world3d/road_plan.gd")
 const Layer=preload("res://scripts/world3d/terrain_river_layer.gd")
+const Profile=preload("res://scripts/world3d/terrain_river_profile.gd")
+const Outlet=preload("res://scripts/world3d/terrain_river_outlet.gd")
 const Batch=preload("res://scripts/world3d/terrain_stroke_batch.gd")
 static func schema()->Dictionary:
 	return Layer.request_schema()
@@ -25,9 +27,9 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 	if not str(args.id).is_valid_identifier():return T.fail("河道 ID 无效")
 	var prefix:="river_"+str(args.id)+"_"
 	if records.any(func(r):return str(r.uuid).begins_with(prefix)):return T.fail("发现同名未关联水面，请先改用其他 ID")
-	var curve:=preload("res://scripts/world3d/spline_route.gd").sample(args.points,2.,false,.5 if args.get("curved",true) else 0.)
+	var curve:=Profile.prepare(args)
 	if not curve.ok:return curve
-	var path:Array=curve.points;var half:float=args.get("width",8.)*.5;var bank:float=args.get("bank_width",4.);var level:float=args.water_level;var depth:float=args.get("depth",2.)
+	var path:Array=curve.path;var half:float=args.get("width",8.)*.5;var bank:float=args.get("bank_width",4.);var level:float=args.water_level;var depth:float=args.get("depth",2.)
 	var terrain_ids:Array=args.terrain_ids.duplicate();var entries:Array=[];var seen:Dictionary={};var work:=0;var touched:Dictionary={}
 	# Include compatible neighbors within the carving radius before changing any
 	# sample. Both copies of a shared edge must use the same world-space recipe.
@@ -57,15 +59,16 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 		if work>4000000:return T.fail("河床采样超过单次预算，请缩短中心线或分段生成")
 		for z in int(data.rows)+1:
 			for x in int(data.columns)+1:
-				var at:=z*(int(data.columns)+1)+x;var p:Vector3=pose*T.point(next,x,z);var d:=distance(Vector2(p.x,p.z),path)
+				var at:=z*(int(data.columns)+1)+x;var p:Vector3=pose*T.point(next,x,z);var station:=Profile.sample(Vector2(p.x,p.z),path,curve.levels);var d:float=station.distance
 				if d>half+bank:continue
 				# Equal-height samples can still depend on another river's bed.
 				# Track the whole footprint, not only numerically changed heights.
 				touched[id][at]=true
-				var target:float=level-depth
+				var local_level:float=station.level
+				var target:float=local_level-depth
 				if d>half*.55:
 					var blend:=smoothstep(half*.55,half+bank,d)
-					target=lerpf(level-depth,p.y,blend)
+					target=lerpf(local_level-depth,p.y,blend)
 				var y:float=(minf(p.y,target)-next.position[1])/next.size[1]
 				if is_equal_approx(y,data.heights[at]):continue
 				data.heights[at]=y
@@ -102,7 +105,7 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 		var p:=Vector2(path[i][0],path[i][1]);var before:=Vector2(path[maxi(0,i-1)][0],path[maxi(0,i-1)][1]);var after:=Vector2(path[mini(i+1,path.size()-1)][0],path[mini(i+1,path.size()-1)][1])
 		var d:Vector2=(after-before).normalized();var normal:=Vector2(-d.y,d.x)
 		left.append(p-normal*half);right.append(p+normal*half)
-	var water:Array=[];var bins:Dictionary={};var changed:Dictionary={}
+	var water:Array=[];var bins:Dictionary={};var height_bins:Dictionary={};var changed:Dictionary={}
 	for entry:Dictionary in entries:changed[entry.record.uuid]=entry.record
 	var terrains:Array=terrain_ids.map(func(id):return changed.get(id,indexed.get(id,{})))
 	# Adapt the horizontal water footprint to the shared projection budget.
@@ -113,7 +116,8 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 	water_cell=maxf(2.0,water_cell)
 	for i in path.size()-1:
 		var polygon:Array=[left[i],left[i+1],right[i+1],right[i]]
-		if Geometry2D.is_polygon_clockwise(PackedVector2Array(polygon)):polygon.reverse()
+		var polygon_levels:Array=[curve.levels[i],curve.levels[i+1],curve.levels[i+1],curve.levels[i]]
+		if Geometry2D.is_polygon_clockwise(PackedVector2Array(polygon)):polygon.reverse();polygon_levels.reverse()
 		for j in polygon.size():
 			if (polygon[(j+1)%4]-polygon[j]).cross(polygon[(j+2)%4]-polygon[(j+1)%4])<-.0001:return T.fail("河弯太急，岸线折回；请加大弯曲半径")
 		for j in range(0,i-1):
@@ -122,15 +126,26 @@ static func build(editor:Node3D,args:Dictionary,records:Array)->Dictionary:
 		for p:Vector2 in polygon:bounds=bounds.expand(p)
 		for z in range(floori(bounds.position.y/water_cell),floori(bounds.end.y/water_cell)+1):
 			for x in range(floori(bounds.position.x/water_cell),floori(bounds.end.x/water_cell)+1):
-				var clipped:=Road.intersection(polygon,Poly.rect([x*water_cell,z*water_cell,(x+1)*water_cell,(z+1)*water_cell]))
-				if clipped.size()<3 or Poly.area(clipped)<.00001:continue
-				var key:=Vector2i(x,z)
-				if not bins.has(key):bins[key]=[]
-				bins[key].append(clipped)
+				var pieces:Array=[[polygon[0],polygon[1],polygon[2]],[polygon[0],polygon[2],polygon[3]]] if curve.profile else [polygon]
+				for piece_index in pieces.size():
+					var clipped:=Road.intersection(pieces[piece_index],Poly.rect([x*water_cell,z*water_cell,(x+1)*water_cell,(z+1)*water_cell]))
+					if clipped.size()<3 or Poly.area(clipped)<.00001:continue
+					var key:=Vector2i(x,z)
+					if not bins.has(key):bins[key]=[];height_bins[key]=[]
+					bins[key].append(clipped)
+					if curve.profile:
+						var vertex_levels:Array=[polygon_levels[0],polygon_levels[1],polygon_levels[2]] if piece_index==0 else [polygon_levels[0],polygon_levels[2],polygon_levels[3]]
+						var heights:Array=[]
+						for point:Vector2 in clipped:heights.append(Profile.triangle_level(point,pieces[piece_index],vertex_levels))
+						height_bins[key].append(heights)
 	for key:Vector2i in bins:
 		var center:=Vector3((key.x+.5)*water_cell,level-.01,(key.y+.5)*water_cell);var polys:Array=[]
 		for polygon:Array in bins[key]:polys.append(polygon.map(func(p):return [(p.x-center.x)/water_cell,(p.y-center.z)/water_cell]))
 		var r:Dictionary={"uuid":prefix+str(water.size()),"kind":"box","position":[center.x,center.y,center.z],"rotation":[0,0,0],"size":[water_cell,.02,water_cell],"surface_id":"water","collision":"none","color":[.13,.27,.31],"editor_group":prefix,"editor_group_name":args.id,"channel_mesh":{"polygons":polys,"uv_origin":[center.x,center.y,center.z]},"water_depth_effect":{"absorption":.9,"shallow_color":[.13,.27,.31],"deep_color":[.055,.14,.205]}}
+		if curve.profile:
+			var elevations:Array=[]
+			for heights:Array in height_bins[key]:elevations.append(heights.map(func(y):return float(y)-center.y))
+			r.channel_mesh.elevations=elevations
 		var coverage:=preload("res://scripts/world3d/terrain_projection.gd").fit(r,terrains,0,100.)
 		if not coverage.ok:return T.fail("河流水面地形校验失败："+str(coverage.get("error","不能跨过洞口或边缘")))
 		if not preload("res://scripts/world3d/channel_surface.gd").valid(r):return T.fail("河段过长或采样过密，请拆分中心线")
@@ -159,7 +174,7 @@ static func ownership_conflict(result:Dictionary,layers:Array,args:Dictionary)->
 			var id:String=item.after.uuid
 			if not result.touched.has(id):continue
 			for at in result.touched[id]:
-				if not Layer.same(item.before.terrain_mesh.heights[at],item.after.terrain_mesh.heights[at]):return "河床采样已属于河道 "+layer.id+"；请修改同一河道的中心线或避开已有河床"
+				if not Layer.same(item.before.terrain_mesh.heights[at],item.after.terrain_mesh.heights[at]) and not Outlet.allows(result.get("outlet",{}),layer.id,item.after,at):return "河床采样已属于河道 "+layer.id+"；请修改同一河道的中心线或避开已有河床"
 			# Appearance is stored once per terrain, not once per channel. Two
 			# layers may not independently restore the same material, even when
 			# their generated values happen to be identical.
@@ -214,6 +229,8 @@ static func apply(editor:Node3D,args:Dictionary,preview:=false,remove:=false)->D
 		if layer.id==args.get("id",""):old=layer
 	if remove and old.is_empty():return T.fail("河道不存在或旧河道没有恢复图层")
 	if old.is_empty() and layers.size()>=64:return T.fail("河道图层最多 64 组")
+	var dependent:=Outlet.dependency_error(str(args.id),layers)
+	if not dependent.is_empty():return T.fail(dependent)
 	var records:Array=editor._doc.records.duplicate(true);var water_ids:Array=[];var restored:Dictionary={}
 	for part:Dictionary in old.get("water",[]):
 		var current:Dictionary=editor._doc._find(part.id)
@@ -231,9 +248,13 @@ static func apply(editor:Node3D,args:Dictionary,preview:=false,remove:=false)->D
 		restored[current.uuid]=recovered.record
 	var dependency:=restoration_conflict(editor,str(args.id),layers,restored)
 	if not dependency.is_empty():return T.fail(dependency)
+	var outlet:Dictionary={"ok":true,"enabled":false} if remove else Outlet.prepare(editor,args,layers,records)
+	if not outlet.ok:return outlet
 	var result:Dictionary={"ok":true,"entries":[],"water":[],"samples":0} if remove else build(editor,args,records)
 	if not result.ok:return result
 	if not remove:
+		result=Outlet.clip_water(result,outlet)
+		if not result.ok:return result
 		var conflict:=ownership_conflict(result,layers,args)
 		if not conflict.is_empty():return T.fail(conflict)
 	var next_layer:Dictionary={"version":1,"id":args.id,"request":args.duplicate(true),"terrains":[],"water":[]}
@@ -251,8 +272,9 @@ static func apply(editor:Node3D,args:Dictionary,preview:=false,remove:=false)->D
 	var ids:Array=restored.keys()+water_ids
 	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").affected(editor._doc.records,restored.keys()).map(func(r):return r.uuid))
 	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").fort_ids(editor,entries))
+	var bridge_contact_cache:Dictionary={}
 	for entry:Dictionary in entries:
-		var checked:Dictionary=editor._terrain.validate_change(editor._doc._find(entry.record.uuid),entry,ids)
+		var checked:Dictionary=editor._terrain.validate_change(editor._doc._find(entry.record.uuid),entry,ids,bridge_contact_cache)
 		if not checked.ok:return checked
 	var followed:=preload("res://scripts/world_editor/terrain_follow_tools.gd").prepare(editor,entries)
 	if not followed.ok:return followed

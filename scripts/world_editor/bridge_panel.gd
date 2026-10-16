@@ -49,10 +49,14 @@ func refresh() -> void:
 		if edge.id==selected: road_edges.select(road_edges.item_count-1)
 func build(values: Dictionary) -> void:
 	values=values.duplicate(true); if not values.has("auto_clearance"): values.auto_clearance=true
+	if not values.has("clearance_mode"):values.clearance_mode="navigable"
 	for key in ["wing_length","wear","moss","variation_seed"]:
 		if not values.has(key):values[key]=0
-	fields.build(D.request_schema(),values,{"wing_length":"桥头外展翼墙（米；0 无）","wear":"风化磨损（0～1）","moss":"潮湿处苔藓（0～1）","variation_seed":"外观变化种子","start":"桥头 A（世界坐标，米）","end":"桥头 B（世界坐标，米）","width":"桥梁总宽（米）","depth":"桥墩向下深度（米）","camber":"桥面拱高（米，0 为平直）","arches":"拱孔数（0 自动）","auto_clearance":"按实际水位自动抬拱（主孔净高 ≥ 2.5 米 / 净宽 2 米）"})
+	fields.build(D.request_schema(),values,{"wing_length":"桥头外展翼墙（米；0 无）","wear":"风化磨损（0～1）","moss":"潮湿处苔藓（0～1）","variation_seed":"外观变化种子","start":"桥头 A（世界坐标，米）","end":"桥头 B（世界坐标，米）","width":"桥梁总宽（米）","depth":"桥墩向下深度（米）","camber":"桥面拱高（米，0 为平直）","arches":"拱孔数（0 自动）","clearance_mode":"过水用途（溪流模式不提供通航能力）","auto_clearance":"按所选用途与实际水位自动抬拱（仍限制坡度 ≤ 15%）"})
+	var mode:OptionButton=fields.fields.clearance_mode
+	mode.set_item_text(0,"通航：主孔 ≥ 2.5 米高 / 2 米宽");mode.set_item_text(1,"非通航溪流：完整水面上方 ≥ 0.20 米")
 	for control in fields.fields.values():
+		if control is OptionButton:control.item_selected.connect(func(_i):invalidate())
 		if control is SpinBox: control.value_changed.connect(func(_v):invalidate())
 		if control is CheckButton: control.toggled.connect(func(_v):invalidate())
 		if control is HBoxContainer:
@@ -79,7 +83,9 @@ func show_preview() -> void:
 	if not preview.ok: info.text=preview.error; preview={}; return
 	info.text="%.1f 米 · %d 孔 · 净宽 %.1f 米\n拱高 %.2f 米 · 最大坡度 %.1f%%\n一体网格 / 3 材质，确认外观后应用。"%[preview.length,preview.arches,preview.clear_width,preview.camber,preview.max_grade*100]
 	if not road_edge_id.is_empty(): info.text+="\n保留道路连接；裁切 %d 块旧桥面。"%preview.trimmed_roads.size()
-	if preview.navigation.applicable: info.text+="\n主通航孔：净高 %.2f 米 / 净宽 %.1f 米，按实际水位。"%[preview.navigation.clearance,preview.navigation.width]
+	if preview.navigation.applicable:
+		if preview.navigation.get("mode","")=="stream":info.text+="\n非通航溪流：完整水面最小净空 %.3f 米（不提供船舶通行）。"%preview.navigation.clearance
+		else:info.text+="\n主通航孔：净高 %.2f 米 / 净宽 %.1f 米，按实际水位。"%[preview.navigation.clearance,preview.navigation.width]
 func apply() -> void:
 	if preview.is_empty(): host.report({"ok":false,"error":"请先预览桥梁"}); return
 	host.report(editor._bridges.generate(request().merged({"plan_token":preview.plan_token})))
@@ -96,7 +102,7 @@ func load_record(r: Dictionary) -> void:
 		if e.get("stone_bridge",{}).get("id","")==r.uuid: road_edge_id=e.id
 	current_id=r.uuid; var d: Dictionary=r.bridge_mesh
 	var transform:=Transform3D(Basis.from_euler(Vector3(r.rotation[0],r.rotation[1],r.rotation[2])*PI/180).scaled(Vector3(r.size[0],r.size[1],r.size[2])),Vector3(r.position[0],r.position[1],r.position[2]))
-	build({"start":D_vec(transform*Vector3(-d.length*.5,-d.get("rise",0.)*.5,0)),"end":D_vec(transform*Vector3(d.length*.5,d.get("rise",0.)*.5,0)),"width":d.width*r.size[2],"depth":d.depth*r.size[1],"camber":d.camber*r.size[1],"arches":d.arches,"wing_length":d.get("wing_length",0.),"wear":d.get("wear",0.),"moss":d.get("moss",0.),"variation_seed":d.get("variation_seed",0)})
+	build({"start":D_vec(transform*Vector3(-d.length*.5,-d.get("rise",0.)*.5,0)),"end":D_vec(transform*Vector3(d.length*.5,d.get("rise",0.)*.5,0)),"width":d.width*r.size[2],"depth":d.depth*r.size[1],"camber":d.camber*r.size[1],"arches":d.arches,"wing_length":d.get("wing_length",0.),"wear":d.get("wear",0.),"moss":d.get("moss",0.),"variation_seed":d.get("variation_seed",0),"clearance_mode":d.get("clearance_mode","navigable")})
 	for i in presets.item_count:
 		if presets.get_item_metadata(i)==d.prefab_id: presets.select(i)
 	# Loading another bridge must not carry over a pending material choice.

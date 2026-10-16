@@ -14,7 +14,7 @@ static func make_record(args: Dictionary,prefab: Dictionary) -> Dictionary:
 	if count==0: count=maxi(1,ceili((length_-2+recipe.pier_width)/(recipe.max_span+recipe.pier_width)))
 	var data:={"version":1,"prefab_id":prefab.id,"length":length_,"width":float(args.get("width",6)),"depth":float(args.get("depth",4)),"camber":float(args.get("camber",0)),"arches":count,"recipe":recipe}
 	data.rise=b.y-a.y
-	for key in ["wing_length","wear","moss","variation_seed"]:
+	for key in ["wing_length","wear","moss","variation_seed","clearance_mode"]:
 		if args.has(key):data[key]=args[key]
 	var position:=a.lerp(b,.5)-Vector3.UP*D.deck_local_y(data)
 	var dimensions:=D.dimensions(data)
@@ -42,6 +42,7 @@ func prepare(args: Dictionary,binding_update:=false) -> Dictionary:
 	var resolved:=args.duplicate(true)
 	for key in ["width","depth","camber","wing_length","wear","moss","variation_seed"]:
 		if not resolved.has(key) and old.has("bridge_mesh"): resolved[key]=old.bridge_mesh.get(key,0.)
+	if not resolved.has("clearance_mode") and old.get("bridge_mesh",{}).has("clearance_mode"):resolved.clearance_mode=old.bridge_mesh.clearance_mode
 	var record:=make_record(resolved,prefab)
 	if not old.is_empty():
 		record=old.merged(record,true)

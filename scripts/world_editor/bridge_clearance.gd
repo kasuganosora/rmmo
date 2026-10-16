@@ -70,7 +70,7 @@ static func water_surfaces(records: Array,record: Dictionary) -> Array:
 			var s:=Data.vec(r.size)*.5; polys=[[Vector3(-s.x,s.y,-s.z),Vector3(s.x,s.y,-s.z),Vector3(s.x,s.y,s.z),Vector3(-s.x,s.y,s.z)]]
 		for poly in polys:
 			var p: Array=Array(poly).map(func(v):return t*v)
-			surfaces.append({"polygon":PackedVector2Array(p.map(func(v):return Vector2(v.x,v.z))),"plane":Plane(p[0],p[1],p[2])})
+			surfaces.append({"polygon":PackedVector2Array(p.map(func(v):return Vector2(v.x,v.z))),"plane":Plane(p[0],p[1],p[2]),"source_id":str(r.uuid)})
 	return surfaces
 static func water_at(surfaces: Array,p: Vector3) -> float:
 	var height:=-INF
@@ -82,6 +82,7 @@ static func water_at(surfaces: Array,p: Vector3) -> float:
 static func fit(record: Dictionary,records: Array,automatic:=true) -> Dictionary:
 	var waters:=water_surfaces(records,record)
 	if waters.is_empty(): return {"ok":true,"applicable":false}
+	if record.bridge_mesh.get("clearance_mode","navigable")=="stream":return preload("res://scripts/world_editor/bridge_stream_clearance.gd").fit(record,waters,automatic)
 	var openings:=profile(record)
 	if openings.is_empty(): return Data.fail("无法读取石桥实际拱洞几何")
 	var t:=Transform3D(Basis.from_euler(Data.vec(record.rotation)*PI/180),Data.vec(record.position))

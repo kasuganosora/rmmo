@@ -2,7 +2,7 @@ extends RefCounted
 const W=preload("res://scripts/world3d/waterway_data.gd")
 const S=preload("res://scripts/world3d/document_schema.gd")
 static func gate_schema(min_height:=3.0) -> Dictionary:
-	return W.obj({"id":W.text(),"segment":S.number(0,511,true),"t":S.number(0,1),"angle":S.number(0,359.999),"kind":{"type":"string","enum":["land","water"]},"water_depth":S.number(.5,12),"grille":{"type":"boolean"},"width":S.number(3,64),"height":S.number(min_height,9),"open":S.number(0,1)},["id","width","height","open"])
+	return W.obj({"id":W.text(),"segment":S.number(0,511,true),"t":S.number(0,1),"angle":S.number(0,359.999),"kind":{"type":"string","enum":["land","water"]},"base_height":S.number(-1000,1000),"water_depth":S.number(.5,12),"grille":{"type":"boolean"},"width":S.number(3,64),"height":S.number(min_height,9),"open":S.number(0,1)},["id","width","height","open"])
 static func settings_schema() -> Dictionary:
 	return W.obj({"id":W.text(),"name":W.text(120),"points":W.arr(W.arr(S.number(-10000,10000),2,2),512),"tower_indices":W.arr(S.number(0,511,true),128),"shape":{"type":"string","enum":["path","ellipse","spline"]},"curve_tension":S.number(0,1),"follow_terrain":{"type":"boolean"},"center_x":S.number(-10000,10000),"center_z":S.number(-10000,10000),"radius_x":S.number(15,200),"radius_z":S.number(15,200),"rotation":S.number(-180,180),"tower_count":S.number(0,24,true),"tower_spacing":S.number(50,120),"tower_layout":{"type":"string","enum":["automatic","manual"]},"layout_version":S.number(0,1,true),"closed":{"type":"boolean"},"base_height":S.number(-1000,1000),"height":S.number(4,12),"thickness":S.number(1.5,4),"terrain_foundation":{"type":"boolean"},"foundation":S.number(.5,3),"corner_towers":{"type":"boolean"},"battlements":{"type":"boolean"},"arrow_slits":{"type":"boolean"},"wall_access":{"type":"boolean"},"tower_door_open":S.number(0,1),"interior_side":{"type":"string","enum":["left","right"]},"style":{"type":"string","enum":["plain","medieval_stone"]},"floor_material_id":W.text(256),"trim_material_id":W.text(256),"stone_material_id":W.text(256),"door_material_id":W.text(256),"gates":W.arr(gate_schema(),16)})
 static func defaults() -> Dictionary:
@@ -28,6 +28,9 @@ static func valid_settings(value: Dictionary) -> bool:
 			seen[index]=true
 	var ids:={}
 	for gate in value.gates:
+		# Optional and water-only: this is the dry-bank structural datum, not
+		# the river surface. Old recipes keep the region datum unchanged.
+		if gate.has("base_height") and (gate.get("kind","land")!="water" or (not value.get("follow_terrain",false) and not is_equal_approx(float(gate.base_height),float(value.base_height)))):return false
 		if value.get("style","plain")=="medieval_stone" and gate.height<5.0: return false
 		if gate.get("kind","land")=="land" and gate.width>32: return false
 		if gate.id.is_empty() or not gate.id.is_valid_identifier() or ids.has(gate.id) or gate.height>value.height-.5: return false

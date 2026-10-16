@@ -15,25 +15,44 @@ var target_cache:Dictionary={}
 var applied_key:=""
 var applied_revision:=-1
 
+func _instances(root:Node)->Dictionary:
+	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
+	var result:Dictionary=meta.get("building_instances",{}).duplicate()
+	var author:Dictionary=root.get_meta("author_reference_extras",meta)
+	for raw:Dictionary in author.get("rmmo_records",[]):
+		var record:Dictionary=raw.duplicate();record.merge(raw.get("rmmo_state",{}),true)
+		if record.has("model_building") and preload("res://scripts/world3d/imported_building.gd").valid_record(record):result[str(record.uuid)]={"imported_record":record}
+	return result
+
 func bind(root:Node)->void:
 	restore();map_root=root;buildings.clear();index.clear();target_cache.clear();_part_buildings.clear()
 	if not is_instance_valid(root):return
 	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
-	for id:String in meta.get("building_instances",{}):
-		_sync_building(id,meta.building_instances[id])
+	var instances:=_instances(root)
+	for id:String in instances:_sync_building(id,instances[id])
 	append_records(root,meta.get("rmmo_records",[]))
+	# Imported author records describe the whole resource. Its already loaded
+	# presentation members are in the streaming library, including on a rebind.
+	append_specs(root,root.get_meta("stream_library",[]))
 
 func append_specs(root:Node,specs:Array)->void:
 	if root!=map_root or not is_instance_valid(map_root):return
 	var records:Array=[]
 	for spec:Dictionary in specs:
 		var record:Dictionary=spec.get("ground_batch_record",{})
+		var extra:Dictionary=spec.get("extras",{})
+		# Lights, transparent pieces and authored LODs may not be batch candidates.
+		# Membership is independent of batching and uses their actual world box.
+		if extra.has("building") and spec.get("mesh") is Mesh and spec.get("transform") is Transform3D:
+			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+			var center:=bounds.get_center();var size:=bounds.size
+			record={"uuid":str(spec.uuid),"building":extra.building,"position":[center.x,center.y,center.z],"size":[size.x,size.y,size.z]}
 		if record.has("building"):records.append(record)
 	append_records(root,records)
 
 func append_records(root:Node,records:Array)->void:
 	if root!=map_root or not is_instance_valid(map_root):return
-	var instances:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root).get("building_instances",{})
+	var instances:=_instances(root)
 	var changed:Dictionary={};var touched:Dictionary={}
 	for record:Dictionary in records:
 		var id:=str(record.get("building",{}).get("id",""))
@@ -72,6 +91,7 @@ func remove_uuids(root:Node,ids:Array)->void:
 		else:_refresh_headhouse(id)
 
 func _sync_building(id:String,instance:Dictionary)->bool:
+	if instance.has("imported_record"):return _sync_imported(id,instance.imported_record)
 	var header:={"parameters":instance.parameters,"position":instance.position,"yaw":instance.yaw,"version":instance.get("version",1)}
 	if buildings.has(id) and buildings[id].header==header:return false
 	var parts:Dictionary=buildings[id].parts if buildings.has(id) else {}
@@ -91,6 +111,25 @@ func _sync_building(id:String,instance:Dictionary)->bool:
 				if not index.has(key):index[key]=[]
 				if not index[key].has(id):index[key].append(id)
 	buildings[id]={"parameters":p,"frame":frame,"regions":regions,"parts":parts,"headhouse":{},"cells":cells,"header":header.duplicate(true)}
+	return true
+
+func _sync_imported(id:String,record:Dictionary)->bool:
+	var Imported=preload("res://scripts/world3d/imported_building.gd")
+	var header:={"model_building":record.model_building,"position":record.position,"rotation":record.rotation,"size":record.size}
+	if buildings.has(id) and buildings[id].header==header:return false
+	var parts:Dictionary=buildings[id].parts if buildings.has(id) else {}
+	if buildings.has(id):_remove_cells(id)
+	var frame:Transform3D=Imported.frame(record)
+	var rooms:Array=Imported.regions(record);var cells:Dictionary={}
+	rooms.sort_custom(func(a,b):return a.bottom>b.bottom)
+	for room:Dictionary in rooms:
+		var bounds:AABB=frame*AABB(Vector3(room.rect.position.x,room.bottom,room.rect.position.y),Vector3(room.rect.size.x,room.top-room.bottom,room.rect.size.y))
+		for x in range(floori(bounds.position.x/CELL),floori(bounds.end.x/CELL)+1):
+			for z in range(floori(bounds.position.z/CELL),floori(bounds.end.z/CELL)+1):
+				var key:=Vector2i(x,z);cells[key]=true
+				if not index.has(key):index[key]=[]
+				if not index[key].has(id):index[key].append(id)
+	buildings[id]={"parameters":{},"frame":frame,"regions":[],"authored_regions":rooms,"parts":parts,"headhouse":{},"cells":cells,"header":header.duplicate(true)}
 	return true
 
 func _remove_cells(id:String)->void:
@@ -127,6 +166,11 @@ func locate(feet:Vector3)->Dictionary:
 	for id:String in index.get(Vector2i(floori(feet.x/CELL),floori(feet.z/CELL)),[]):
 		var b:Dictionary=buildings[id];var p:Dictionary=b.parameters
 		var at:Vector3=b.frame.affine_inverse()*feet
+		if b.has("authored_regions"):
+			for room:Dictionary in b.authored_regions:
+				if at.y>=room.bottom-.15 and at.y<room.top and room.rect.grow(-.12).has_point(Vector2(at.x,at.z)):
+					return {"id":id,"floor":room.floor,"key":id+":"+str(room.floor)+"_"+str(room.id).sha256_text().substr(0,8),"ceiling_y":(b.frame*Vector3(at.x,room.top,at.z)).y}
+			continue
 		if at.y<-.15:continue
 		var base:float=p.get("base_height",0.0) if p.get("layout") in ["townhouse","hall"] else 0.0
 		var floor_id:=maxi(0,floori((at.y-base+.08)/float(p.floor_height)))
@@ -158,6 +202,8 @@ func update(room:Dictionary,focus:Vector3,wanted:Vector3,space:PhysicsDirectSpac
 	# gables and other buildings never trigger a cutaway, even with a slab behind.
 	var ceiling:bool=first_info.get("role")=="floor" or str(first_info.get("part","")).ends_with("/ceiling")
 	var blocked:bool=ceiling and (int(first_info.get("floor",0))>room.floor or first_id==room.get("ceiling_id","_none"))
+	if b.has("authored_regions") and first_info.get("role") in ["roof","ceiling"]:
+		blocked=not first.is_empty() and float(first.position[1])>focus.y+.25
 	if not blocked:restore();return
 	active_key=room.key;clear_time=0
 	if not target_cache.has(room.key):
@@ -166,6 +212,7 @@ func update(room:Dictionary,focus:Vector3,wanted:Vector3,space:PhysicsDirectSpac
 			var record:Dictionary=b.parts[id];var info:Dictionary=record.get("building",{})
 			if int(info.get("floor",0))>room.floor:targets[id]=true
 			elif info.get("role")=="roof" and float(record.position[1])>=float(room.ceiling_y)-.3:targets[id]=true
+			elif b.has("authored_regions") and info.get("role")=="ceiling" and float(record.position[1])>focus.y+.25:targets[id]=true
 			elif id==room.get("ceiling_id",""):targets[id]=true
 		target_cache[room.key]=targets
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)

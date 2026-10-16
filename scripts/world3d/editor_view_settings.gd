@@ -22,5 +22,9 @@ static func elevation(record: Dictionary) -> float:
 	return bounds.position.y
 static func contains(record: Dictionary, settings: Dictionary) -> bool:
 	if not settings.isolation: return true
+	if record.has("model_building") and preload("res://scripts/world3d/imported_building.gd").valid_record(record):
+		for part:Dictionary in record.model_building.members.values():
+			if preload("res://scripts/world3d/imported_building.gd").floor_in_view(record,part,settings):return true
+		return false
 	var y := elevation(record)
 	return y >= float(settings.base_height) - .001 and y < float(settings.base_height) + float(settings.floor_height) - .001

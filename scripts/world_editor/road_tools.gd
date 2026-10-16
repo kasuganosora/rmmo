@@ -120,6 +120,7 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 		if record.has("fortification") and record.has("fixture"): continue # A gate controls road traffic; its open/closed pose is intentional.
 		for shape in Footprint.record_shapes(record): obstacles.append({"record":record,"shape":shape})
 	var bridge_collision_cache:Dictionary={}
+	var asset_contact_cache:Dictionary={}
 	for record in result.records:
 		var occupancy:=Footprint.record_shapes(record)
 		var occupied_bounds:AABB=occupancy[0].bounds
@@ -142,6 +143,8 @@ func prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 				if not support: break
 			if support: continue
 			if Footprint.batches_overlap(occupancy,[obstacle.shape]):
+				if obstacle.record.has("house_prefab") and not preload("res://scripts/world3d/frozen_road_contact.gd").intersects(record,obstacle.record,occupancy,obstacle.shape,asset_contact_cache):continue
+				if obstacle.record.get("kind")=="asset" and not preload("res://scripts/world3d/asset_road_contact.gd").intersects(record,obstacle.record,occupancy,obstacle.shape,asset_contact_cache):continue
 				if obstacle.record.has("bridge_mesh") and not preload("res://scripts/world3d/road_bridge_approach.gd").intersects(record,obstacle.record,occupancy,obstacle.shape,bridge_collision_cache):continue
 				return {"ok":false,"error":"路面或通行净空与现有物件重叠","conflicts":[obstacle.record.uuid]}
 	if editor._doc.records.size()-excluded.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")

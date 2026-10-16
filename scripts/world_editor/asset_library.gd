@@ -30,6 +30,9 @@ func import_file(path: String) -> Dictionary:
 	if normalized.get_base_dir()==directory.simplify_path().replace("\\","/") and normalized.get_extension()=="glb":
 		for entry in entries:
 			if str(entry.get("asset_path","")).simplify_path().replace("\\","/")==normalized and FileAccess.get_sha256(path)==normalized.get_file().get_basename():
+				var contract:Dictionary=preload("res://scripts/world3d/imported_building.gd").source_descriptor(path,normalized.get_file().get_basename())
+				if not contract.is_empty() and not preload("res://scripts/world3d/imported_building.gd").same(contract,entry.get("model_building",{})):break
+				if contract.is_empty() and entry.has("model_building"):return {"ok":false,"error":"素材库建筑合同与源文件不一致"}
 				return {"ok":true,"entry":entry,"compiled_asset":_compile_import(str(entry.asset_path))}
 	DirAccess.make_dir_recursive_absolute(directory)
 	var staging := directory.path_join("import_%d.glb" % Time.get_ticks_usec())
@@ -62,6 +65,18 @@ func import_file(path: String) -> Dictionary:
 		if FileAccess.file_exists(staging): DirAccess.remove_absolute(staging)
 		return {"ok": false, "error": "模型或依赖读取失败：" + error_string(err)}
 	var hash := prepared.source_digest
+	var authored_scene:Node3D=prepared.get_scene()
+	var building:Dictionary=preload("res://scripts/world3d/imported_building.gd").describe(authored_scene) if authored_scene!=null else {}
+	if authored_scene!=null and preload("res://scripts/world3d/imported_building.gd").opted(authored_scene) and building.is_empty():
+		prepared.dispose();DirAccess.remove_absolute(staging)
+		return {"ok":false,"error":"导入建筑的分件或室内区域合同无效"}
+	if not building.is_empty():
+		building.source_sha=hash
+		var source_building:Dictionary=preload("res://scripts/world3d/imported_building.gd").source_descriptor(staging,hash)
+		if not preload("res://scripts/world3d/imported_building.gd").same(building,source_building):
+			prepared.dispose();DirAccess.remove_absolute(staging)
+			return {"ok":false,"error":"导入建筑的源文件与原生分件合同不一致"}
+	authored_scene=null
 	var target := directory.path_join(hash + ".glb")
 	if FileAccess.file_exists(target):
 		# A content-addressed pathname is not proof that its bytes are intact.
@@ -80,13 +95,14 @@ func import_file(path: String) -> Dictionary:
 		return {"ok":false,"error":"导入模型在发布前发生变化"}
 	for entry in entries:
 		if entry.get("asset_path") == target:
+			var previous:Dictionary=entry.duplicate(true)
+			if not building.is_empty():entry.model_building=building
 			if not entry.has("thumbnail_path"):
 				entry.thumbnail_path = directory.path_join("thumbnails").path_join(hash + ".png")
-				var saved := save()
-				if saved != OK:
-					entry.erase("thumbnail_path")
-					prepared.dispose()
-					return {"ok": false, "error": "缩略图信息保存失败"}
+			if not preload("res://scripts/world3d/imported_building.gd").same(previous,entry) and save()!=OK:
+				entry.clear();entry.merge(previous,true)
+				prepared.dispose()
+				return {"ok":false,"error":"素材信息保存失败"}
 			var existing_compiled:=_compile_import(target,prepared)
 			var existing_diagnostics:=prepared.report();existing_diagnostics.parse_count+=reexport_parses
 			return {"ok": true, "entry": entry,"compiled_asset":existing_compiled,"import_preparation":existing_diagnostics}
@@ -100,6 +116,7 @@ func import_file(path: String) -> Dictionary:
 		prepared.dispose()
 		return {"ok":false,"error":"导入模型在登记前发生变化"}
 	var entry := {"label": path.get_file().get_basename(), "category": "导入模型", "asset_path": target, "thumbnail_path": directory.path_join("thumbnails").path_join(hash + ".png"), "bounds_position": [bounds.position.x, bounds.position.y, bounds.position.z], "bounds_size": [bounds.size.x, bounds.size.y, bounds.size.z]}
+	if not building.is_empty():entry.model_building=building
 	entries.append(entry)
 	err = save()
 	if err != OK:

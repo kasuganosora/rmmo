@@ -35,7 +35,11 @@ func relocate(point: Vector3, label: String) -> bool:
 	# The real same-map transfer prepares streaming collision/navigation before
 	# moving the normal character; neither collision nor loading gates are removed.
 	var ok: bool=await world.transfer_map(map_path,point+Vector3.UP*.9)
-	if not check(ok,"native same-map review transfer "+label,{"feet":xyz(point)}): return false
+	var diagnostics:={"feet":xyz(point),"transfer":world.get_meta("transfer_loading_profile",{})}
+	if not ok:
+		diagnostics.actual_surface=ray_surface(point,1.,2.)
+		diagnostics.status=str(world._status.text)
+	if not check(ok,"native same-map review transfer "+label,diagnostics): return false
 	for frame in 12: await physics_frame
 	var supported:=support(feet(),.8,.3)
 	check(not world._player.geometry_blocked and not world._player.input_locked,"review position has ready local geometry "+label)
@@ -43,6 +47,23 @@ func relocate(point: Vector3, label: String) -> bool:
 
 func stop_route() -> void:
 	world._player.click_target=null; world._player._route.clear()
+
+func await_visual_residency(label:String)->void:
+	# Keep normal world processing alive until the requested region finishes.
+	# Freezing camera follow also freezes streaming; a settled batcher alone
+	# cannot prove that its not-yet-published source assets are present.
+	var started:=Time.get_ticks_msec();var stable:=0
+	while Time.get_ticks_msec()-started<120000:
+		await process_frame
+		var map:Node=world._map_root;var queue:Node=map.get_node_or_null("DeferredAssets")
+		var pending:bool=queue!=null and queue.pending.any(func(item):return queue._demanded_by_id.has(item.record.uuid))
+		var ready:bool=map.has_meta("stream_chunk") and map.get_meta("stream_jobs",[]).is_empty() and map.get_meta("stream_append_pending",[]).is_empty() and not pending
+		stable=stable+1 if ready else 0
+		if stable>=30:break
+	if not report.has("view_preparations"):report.view_preparations=[]
+	var result:={"id":label,"ready":stable>=30,"wait_ms":Time.get_ticks_msec()-started,"method":"normal world processing; no extra view demand or residency radius"}
+	report.view_preparations.append(result)
+	check(result.ready,"requested source assets and residency settle before capture "+label,result)
 
 func walk_route(target: Vector3, label: String, bridge: Dictionary = {}) -> Dictionary:
 	var start:=feet(); var request: Dictionary=world._player.set_click_target(target,"ground")
@@ -65,6 +86,15 @@ func walk_route(target: Vector3, label: String, bridge: Dictionary = {}) -> Dict
 	var within_lane:=bridge.is_empty() or max_side<(float(bridge.bridge_mesh.width)-1.16)*.5-.15
 	var result:={"label":label,"start":xyz(start),"end":xyz(feet()),"target":xyz(target),"remaining_m":remaining,"elapsed_ms":Time.get_ticks_msec()-began,"unsupported_ticks":max_unsupported,"max_bridge_lateral_m":max_side,"minimum_y":min_y,"physics_samples":sample_count,"request_reason":request.get("reason",""),"final_path_reason":world._player.path_status.get("reason","")}
 	result.passed=remaining<.45 and max_unsupported<=20 and within_lane
+	if not result.passed:
+		result.path_status=world._player.path_status.duplicate(true)
+		result.remaining_route=Array(world._player._route).map(func(p):return xyz(p))
+		result.click_target=xyz(world._player.click_target) if world._player.click_target is Vector3 else null
+		result.velocity=xyz(world._player.velocity);result.on_floor=world._player.is_on_floor()
+		result.contacts=[]
+		for i in world._player.get_slide_collision_count():
+			var collision:KinematicCollision3D=world._player.get_slide_collision(i)
+			for j in collision.get_collision_count():result.contacts.append({"id":object_id(collision.get_collider(j)),"position":xyz(collision.get_position(j)),"normal":xyz(collision.get_normal(j))})
 	check(result.passed,"actual player follows outdoor route "+label,result)
 	stop_route()
 	return result

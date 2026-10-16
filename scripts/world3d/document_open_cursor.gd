@@ -124,6 +124,7 @@ static func asset_record_issue(record: Variant, material_validation: Dictionary,
 		if asset_paths==null or not asset_paths.has(path):
 			if not Paths.allowed(path,content_root):return "Model reference is outside the allowed content root"
 			if asset_paths!=null:asset_paths[path]=true
+		if not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return "Imported building does not match its source contract"
 	return ""
 
 static func document_record_issue(record: Dictionary, ids: Dictionary) -> String:

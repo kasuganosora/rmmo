@@ -8,7 +8,11 @@ uniform float absorption = .45;
 uniform vec3 shallow_color : source_color = vec3(.24,.42,.34);
 uniform vec3 deep_color : source_color = vec3(.055,.16,.14);
 varying vec3 world_position;
-void vertex() { world_position=(MODEL_MATRIX*vec4(VERTEX,1.)).xyz; }
+varying vec3 water_normal;
+void vertex() {
+	world_position=(MODEL_MATRIX*vec4(VERTEX,1.)).xyz;
+	water_normal=normalize(MODEL_NORMAL_MATRIX*NORMAL);
+}
 void fragment() {
 	float depth=texture(scene_depth,SCREEN_UV).r;
 	#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
@@ -24,7 +28,14 @@ void fragment() {
 	ALBEDO=mix(shallow_color,deep_color,1.-exp(-vertical_depth*.65));
 	ROUGHNESS=roughness;
 	vec3 ripple=texture(normal_tex,world_position.xz/4.).rgb*2.-1.;
-	NORMAL=normalize((VIEW_MATRIX*vec4(ripple.x*normal_strength,ripple.z,ripple.y*normal_strength,0.)).xyz);
+	// Keep the horizontal X/Z ripple unchanged, but anchor it to the actual
+	// longitudinal water surface instead of forcing every river to world-up.
+	vec3 base_normal=normalize(water_normal);
+	vec3 reference_axis=abs(base_normal.x)<.99?vec3(1.,0.,0.):vec3(0.,0.,1.);
+	vec3 along=normalize(reference_axis-base_normal*dot(reference_axis,base_normal));
+	vec3 across=normalize(cross(along,base_normal));
+	vec3 rippled=along*ripple.x*normal_strength+base_normal*ripple.z+across*ripple.y*normal_strength;
+	NORMAL=normalize((VIEW_MATRIX*vec4(rippled,0.)).xyz);
 	// Fade at the real shore; deeper/oblique rays hide the bottom progressively.
 	ALPHA=clamp(1.-exp(-thickness*absorption),0.,.96)*smoothstep(0.,.12,vertical_depth);
 }

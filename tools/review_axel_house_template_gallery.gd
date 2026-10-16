@@ -5,6 +5,7 @@ const OUT="D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014"
 const GALLERY=OUT+"/template_gallery_20261015"
 const CACHE="D:/code/rmmo_runtime/cache/world3d/axel_template_gallery_20261015"
 var gallery:=GALLERY
+var cache:=CACHE
 var report:Dictionary={"items":[],"failures":0,"visual_acceptance":"pending actual image review","render":{"size":[1400,1000],"exposure":1.0,"sun_rotation":[-38,-35,0],"sun_energy":1.1,"ambient_energy":.45,"msaa":"4x","tonemap":"ACES"}}
 var camera:Camera3D
 func _init()->void:call_deferred("run")
@@ -20,9 +21,13 @@ func capture(folder:String,label:String,at:Vector3,target:Vector3,extent:float)-
 func run()->void:
 	DirAccess.make_dir_recursive_absolute(GALLERY)
 	var only:=""
+	var index_path:=OUT+"/house_templates.json"
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):only=arg.trim_prefix("--only=")
-		if arg.begins_with("--label="):gallery=GALLERY+"_"+arg.trim_prefix("--label=")
+		if arg.begins_with("--index="):index_path=arg.trim_prefix("--index=")
+		if arg.begins_with("--label="):
+			var label:=arg.trim_prefix("--label=").validate_filename()
+			gallery=GALLERY+"_"+label;cache=CACHE+"_"+label
 	DirAccess.make_dir_recursive_absolute(gallery)
 	if not only.is_empty() and FileAccess.file_exists(gallery+"/capture.json"):
 		report=JSON.parse_string(FileAccess.get_file_as_string(gallery+"/capture.json"));report.items=report.items.filter(func(i):return not str(i.template_id) in only.split(","));report.failures=0;report.complete=false
@@ -33,7 +38,7 @@ func run()->void:
 	var environment:=WorldEnvironment.new();environment.environment=env;root.add_child(environment)
 	var sun:=DirectionalLight3D.new();sun.rotation_degrees=Vector3(-38,-35,0);sun.light_energy=1.1;sun.shadow_enabled=true;root.add_child(sun)
 	camera=Camera3D.new();camera.projection=Camera3D.PROJECTION_ORTHOGONAL;camera.current=true;root.add_child(camera)
-	var index:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(OUT+"/house_templates.json"));var used:Dictionary={}
+	var index:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(index_path));var used:Dictionary={}
 	for filename:String in ["house_plan_s1_s2.json","house_plan_s10_s12.json"]:
 		var plan:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(OUT+"/"+filename))
 		for h:Dictionary in plan.houses:used[h.template_id]=true
@@ -46,7 +51,7 @@ func run()->void:
 		var ground_id:String=doc.add_box("ground",Vector3(0,-.2,0),Vector3(180,.4,180))
 		for r:Dictionary in doc.records:
 			if r.uuid==ground_id:r.color=[.31,.35,.27]
-		var path:String=CACHE+"/"+str(template.id)+"/map.gltf";DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+		var path:String=cache+"/"+str(template.id)+"/map.gltf";DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 		var saved:Error=doc.save(path)
 		var reopened=Doc.open_file(path) if saved==OK else null
 		var item:Dictionary={"template_id":template.id,"template_sha256":FileAccess.get_sha256(template.loaded_path),"native_path":path,"native_sha256":FileAccess.get_sha256(path) if saved==OK else "","save_ok":saved==OK,"reopen_ok":reopened!=null,"images":[]}

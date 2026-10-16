@@ -51,6 +51,21 @@ func intervals(lo: float,hi: float) -> Array:
 	if lo<0: return [[0.0,hi],[lo+TAU,TAU]]
 	if hi>TAU: return [[lo,TAU],[0.0,hi-TAU]]
 	return [[lo,hi]]
+func top_band(part:String,lo:float,hi:float,inside:float,outside:float,bottom:float,top:float,role:String,openings:Array)->void:
+	var elevated:Array=openings.filter(func(o):return o.gate.get("kind","land")=="water" and o.gate.has("base_height"))
+	if elevated.is_empty():band(part,lo,hi,inside,outside,bottom,top,role);return
+	var cuts:Array=[lo,hi]
+	for opening:Dictionary in elevated:
+		for shift:float in [-TAU,0.,TAU]:
+			for edge:float in [opening.lo+shift,opening.hi+shift]:
+				if edge>lo+.000001 and edge<hi-.000001:cuts.append(edge)
+	cuts.sort()
+	for i in cuts.size()-1:
+		if cuts[i+1]-cuts[i]<.000001:continue
+		var center:float=fposmod((cuts[i]+cuts[i+1])*.5,TAU);var offset:=0.0
+		for opening:Dictionary in elevated:
+			if center>=opening.lo and center<=opening.hi:offset=float(opening.gate.base_height)-float(s.base_height);break
+		band(part+"_level%d"%i,cuts[i],cuts[i+1],inside,outside,bottom+offset,top+offset,role)
 func water_crown(id:String,lo:float,hi:float,a:Vector2,b:Vector2,bottom:float,top:float,half:float)->void:
 	var d:Vector2=(b-a).normalized();var n:=Vector2(-d.y,d.x)*half
 	var footprint:Array=[a-n,b-n,b+n,a+n]
@@ -107,14 +122,15 @@ func build(owner: RefCounted) -> Dictionary:
 		if gate.get("kind","land")=="water":
 			plan.water_opening(gate,a,b)
 			# The chord reaches the same endpoints; curved crown closes the upper joint.
-			water_crown(id,angle-delta,angle+delta,a,b,top-.5,top,half)
+			var local_top:float=gate.get("base_height",y)+s.height
+			water_crown(id,angle-delta,angle+delta,a,b,local_top-.5,local_top,half)
 		for side in ([] if gate.get("kind","land")=="water" else [-1,1]):
 			var p: Vector2=c+direction*side*gate.width*.25-normal*(half+.12)
 			var r: Dictionary=plan.box("door_%s_%s"%[id,str(side).replace("-","m")],Vector3(p.x,y+gate.height*.5,p.y),Vector3(gate.width*.5-.06,gate.height-.1,.18),-rad_to_deg(direction.angle()),"door")
 			r.fixture={"id":gate.id,"kind":"door","pivot":[side*gate.width*.25,0,0],"angle":-side*100.0,"open":gate.open}
 			plan.hinges(r)
 		if gate.get("kind","land")!="water":band("lintel_"+id,angle-delta,angle+delta,-half,half,y+gate.height,top,"gate_lintel")
-		gates.append({"id":gate.id,"center":[c.x,y,c.y],"width":gate.width,"height":gate.height,"open":gate.open,"angle":gate.angle})
+		gates.append({"id":gate.id,"center":[c.x,gate.get("base_height",y),c.y],"width":gate.width,"height":gate.height,"open":gate.open,"angle":gate.angle})
 	openings.sort_custom(func(a,b):return a.lo<b.lo)
 	var start:=0.0; var index:=0
 	for opening in openings:
@@ -125,11 +141,11 @@ func build(owner: RefCounted) -> Dictionary:
 	if s.battlements:
 		for side in [-1,1]:
 			var offset: float=side*(half-.2); var label_: String=str(side).replace("-","m")
-			band("parapet_"+label_,0,TAU,offset-.2,offset+.2,top,top+.45,"parapet")
+			top_band("parapet_"+label_,0,TAU,offset-.2,offset+.2,top,top+.45,"parapet",openings)
 			var count:=ceili(length_/2.4)
 			for i in count:
 				var angle: float=TAU*(i+.5)/count; var delta: float=TAU/count*.25
-				band("merlon_%s_%d"%[label_,i],angle-delta,angle+delta,offset-.2,offset+.2,top+.45,top+1.15,"battlement")
+				top_band("merlon_%s_%d"%[label_,i],angle-delta,angle+delta,offset-.2,offset+.2,top+.45,top+1.15,"battlement",openings)
 	# Round solid towers, offset from cardinal directions to leave natural gate sites.
 	var ring_center:=center; var ring_radii:=radii; var ring_turn:=turn
 	for i in tower_points.size():

@@ -32,7 +32,9 @@ static func build(library:Array)->Dictionary:
 	var groups:Dictionary={}
 	var props:Dictionary={};var collisions:Dictionary={}
 	for spec:Dictionary in library:
-		var id:String=spec.get("ground_batch_record",{}).get("building",{}).get("id","")
+		# Authored membership survives render-merge exclusions (lights, LODs,
+		# glass and wind). Batch eligibility must not change building residency.
+		var id:String=spec.get("extras",{}).get("building",{}).get("id",spec.get("ground_batch_record",{}).get("building",{}).get("id",""))
 		# Keep each whole streetlamp with its supporting landscape at town view distance.
 		# Physics still uses the original near-field bounds and collision index.
 		var lamp_id:String=spec.get("extras",{}).get("rmmo_streetlamp_instance","")
@@ -121,6 +123,7 @@ static func _valid_append_spec(value:Variant)->bool:
 	if not extra.get("rmmo_streetlamp_instance","") is String:return false
 	for field in ["fixture","building","fortification"]:
 		if extra.has(field) and not extra[field] is Dictionary:return false
+	if not extra.get("building",{}).get("id","") is String:return false
 	if record.get("kind")=="box" and record.get("surface_id")=="ground":
 		var size:Variant=record.get("size",[1,3,1])
 		if not size is Array or size.size()<2 or not (size[1] is int or size[1] is float):return false

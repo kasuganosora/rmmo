@@ -12,7 +12,7 @@ const GROUPS=[
 	{"name":"材质","fields":[]}, {"name":"城门","fields":[]}, {"name":"管理","fields":["follow_terrain"]}
 ]
 const COMPACT_LABELS={"name":"名称","shape":"形状","center_x":"中心 X","center_z":"中心 Z","radius_x":"半径 X (m)","radius_z":"半径 Z (m)","rotation":"朝向 (°)","closed":"闭合路径","interior_side":"城内侧","curve_tension":"弯曲强度","base_height":"标高 (m)","style":"样式","height":"墙高 (m)","thickness":"墙厚 (m)","battlements":"垛口与护墙","terrain_foundation":"地基承托缓坡","foundation":"地基深度 (m)","corner_towers":"生成塔楼","tower_layout":"布局模式","tower_spacing":"间距 (m)","tower_count":"环形塔数","wall_access":"内部楼梯与楼顶通行","arrow_slits":"对外射击孔","tower_door_open":"内门开度","follow_terrain":"随地形雕刻联动"}
-const GATE_LABELS={"kind":"通道类型","segment":"城墙段号","t":"段内位置","angle":"环上角度 (°)","width":"门宽 (m)","height":"门高 (m)","open":"门扇开度","grille":"水关双扇铁栅","water_depth":"墩基深度 (m)"}
+const GATE_LABELS={"kind":"通道类型","segment":"城墙段号","t":"段内位置","angle":"环上角度 (°)","width":"门宽 (m)","height":"门高 (m)","open":"门扇开度","grille":"水关双扇铁栅","water_depth":"墩基深度 (m)","local_water_base":"独立水关岸基准","base_height":"岸基准标高 (m)"}
 var editor: Node3D
 var host: VBoxContainer
 var choice: OptionButton
@@ -206,22 +206,35 @@ func _update_state() -> void:
 func gate_form(value: Dictionary={}) -> void:
 	var schema:=F.gate_schema(3.0 if _region().get("baked",false) else 5.0); schema.properties.erase("id"); schema.required=[]
 	var values:={"grille":false,"water_depth":4.,"kind":"land","width":5.0,"height":5.0,"open":1.0}; values.merge(value,true); values.erase("id")
+	# This checkbox is UI state only. Disabled means omit the optional field,
+	# preserving the saved region datum rather than serializing a false zero.
+	schema.properties.local_water_base={"type":"boolean"}
+	values.local_water_base=value.get("local_water_base",value.has("base_height"))
+	values.base_height=value.get("base_height",fields.values().base_height)
 	if fields.values().get("shape","path")=="ellipse":
 		values.erase("segment"); values.erase("t"); values.angle=values.get("angle",270.0); schema.properties.erase("segment"); schema.properties.erase("t")
 	else:
 		values.erase("angle"); values.segment=values.get("segment",0); values.t=values.get("t",.5); schema.properties.erase("angle")
-	gate_fields.build(schema,values,{"grille":"水关双扇铁栅","water_depth":"水关墩基下延（米）","kind":"通道类型","segment":"城墙段号（从 0 起）","t":"段内位置（0～1）","angle":"环上角度（度）","width":"门洞宽（米）","height":"门洞净高（米）","open":"城门开度（0～1）"},{"kind":[{"id":"land","name":"陆地城门"},{"id":"water","name":"多孔水关"}]})
+	gate_fields.build(schema,values,{"grille":"水关双扇铁栅","water_depth":"水关墩基下延（米）","kind":"通道类型","segment":"城墙段号（从 0 起）","t":"段内位置（0～1）","angle":"环上角度（度）","width":"门洞宽（米）","height":"门洞净高（米）","open":"城门开度（0～1）","local_water_base":"水关使用独立岸基准","base_height":"水关岸基准世界标高（不是河水水位；须启用随地形）"},{"kind":[{"id":"land","name":"陆地城门"},{"id":"water","name":"多孔水关"}]})
 	for key in GATE_LABELS:
 		if gate_fields.fields.has(key):_compact_field(gate_fields,key,gate_fields,GATE_LABELS[key])
 	gate_fields.fields.kind.item_selected.connect(func(_i):_gate_visibility())
+	gate_fields.fields.local_water_base.toggled.connect(func(_on):_gate_visibility())
 	_gate_visibility()
 	for control in gate_fields.fields.values():_set_editable(control,not _region().get("baked",false))
 
 func _gate_visibility() -> void:
 	var water:bool=gate_fields.values().kind=="water"
-	for key in ["grille","water_depth"]:
-		gate_fields.fields[key].get_parent().visible=water
-		gate_fields.fields[key].visible=water; gate_fields._labels[key].visible=water and not gate_fields.fields[key] is CheckButton
+	for key in ["grille","water_depth","local_water_base","base_height"]:
+		var shown:bool=water and (key!="base_height" or gate_fields.values().local_water_base)
+		gate_fields.fields[key].get_parent().visible=shown
+		gate_fields.fields[key].visible=shown; gate_fields._labels[key].visible=shown and not gate_fields.fields[key] is CheckButton
+
+func _gate_values()->Dictionary:
+	var value:Dictionary=gate_fields.values()
+	if value.kind!="water" or not value.local_water_base:value.erase("base_height")
+	value.erase("local_water_base")
+	return value
 
 func sync_gates(selected_id:String="") -> void:
 	if selected_id.is_empty() and gate_choice.item_count>0:selected_id=str(gate_choice.get_item_metadata(gate_choice.selected))
@@ -234,10 +247,10 @@ func sync_gates(selected_id:String="") -> void:
 func _add_gate() -> void:
 	if _frozen:return
 	var id:="gate_"+Crypto.new().generate_random_bytes(4).hex_encode()
-	current.gates.append(gate_fields.values().merged({"id":id})); sync_gates(id); invalidate()
+	current.gates.append(_gate_values().merged({"id":id})); sync_gates(id); invalidate()
 func _update_gate() -> void:
 	if _frozen or gate_choice.item_count==0:return
-	current.gates[gate_choice.selected]=gate_fields.values().merged({"id":current.gates[gate_choice.selected].id}); sync_gates(); invalidate()
+	current.gates[gate_choice.selected]=_gate_values().merged({"id":current.gates[gate_choice.selected].id}); sync_gates(); invalidate()
 func _remove_gate() -> void:
 	if _frozen or gate_choice.item_count==0:return
 	current.gates.remove_at(gate_choice.selected); sync_gates(); invalidate()

@@ -2,8 +2,10 @@ extends RefCounted
 ## Adapt authored imported parts to existing fixture, lighting and render-batch
 ## contracts. Persist only per-instance state; native source graphs stay immutable.
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
+const Imported=preload("res://scripts/world3d/imported_building.gd")
 
 static func valid(record:Dictionary)->bool:
+	if not Imported.valid_record(record):return false
 	if not record.has("model_component_states"):return true
 	var states:Variant=record.model_component_states
 	if record.get("kind")!="asset" or not states is Dictionary or states.size()>256:return false
@@ -102,27 +104,47 @@ static func _encloses_emitting_socket(mesh_node:MeshInstance3D,point:Vector3)->b
 static func apply(model:Node3D,record:Dictionary)->void:
 	if not valid(record):return
 	var nodes:Array[Node]=[model];nodes.append_array(model.find_children("*","",true,false))
-	var opted:=nodes.any(func(n):return n.get_meta("extras",{}).get("delivery_stage","")=="textured_repair_v2")
+	var authored:=Imported.describe(model)
+	if Imported.opted(model) and authored.is_empty():
+		model.set_meta("model_components_error","invalid_authored_building");return
+	var generic:=not authored.is_empty()
+	if record.has("model_building") and not generic:
+		model.set_meta("model_components_error","missing_authored_building_contract");return
+	if generic and record.has("model_building"):
+		var expected:Dictionary=record.model_building.duplicate(true);expected.erase("source_sha")
+		if not Imported.same(expected,authored):
+			model.set_meta("model_components_error","authored_building_mismatch");return
+	var opted:=generic or nodes.any(func(n):return n.get_meta("extras",{}).get("delivery_stage","")=="textured_repair_v2")
 	if not opted:return
-	var states:Dictionary=record.get("model_component_states",{})
+	var states:Dictionary=record.get("model_building_states",{}) if generic else record.get("model_component_states",{})
 	for node in nodes:
 		if not node is MeshInstance3D or node.mesh==null:continue
 		var extra:Dictionary=node.get_meta("extras",{}).duplicate(true)
+		if generic:
+			extra.rmmo_source_uuid=extra.get("rmmo_source_uuid",extra.get("uuid"))
+			extra.uuid=str(record.uuid)+"__"+str(extra.rmmo_source_uuid)
 		var group:String=extra.get("semantic_group","")
 		var parent:Node=node.get_parent()
 		while parent!=null and parent!=model and not parent.get_meta("extras",{}).has("asset_id"):parent=parent.get_parent()
 		var owner_path:=str(model.get_path_to(parent)) if parent!=null else "."
 		var row:Dictionary={"kind":"box","uuid":str(extra.get("uuid",node.name)),"size":[1,1,1],"building":{"id":str(record.uuid)+":"+group+":"+owner_path,"floor":1 if group.begins_with("3") or group in ["11_Exterior_Upper","20_Floor_L1"] else 0,"part":str(node.name)+("/ceiling" if group=="33_Ceilings_L1" else ""),"role":"roof" if group.begins_with("50_") else "body"}}
+		if generic:
+			var part:Dictionary=extra.rmmo_part
+			row.building={"id":str(record.uuid),"floor":int(part.floor),"floor_y":float(part.floor_y),"part":str(part.part)+("/ceiling" if part.role=="ceiling" else ""),"role":str(part.role)}
+			var world_bounds:AABB=Imported.frame(record)*relative_pose(node,model)*node.get_aabb()
+			row.position=Fixtures.arr(world_bounds.get_center());row.size=Fixtures.arr(world_bounds.size)
+			extra.building=row.building.duplicate(true)
 		var hinge:Variant=extra.get("rmmo_hinge")
 		if hinge==null:
-			var authored:=architectural_hinge(node,model)
-			if not authored.is_empty():hinge=authored;extra.rmmo_hinge=authored
+			var legacy_hinge:=architectural_hinge(node,model)
+			if not legacy_hinge.is_empty():hinge=legacy_hinge;extra.rmmo_hinge=legacy_hinge
 		if hinge is Dictionary and hinge.get("id") is String and Fixtures._bounded(hinge.get("angle"),-180,180):
-			var id:=owner_path+":"+str(hinge.id)
+			var id:=str(hinge.id) if generic else owner_path+":"+str(hinge.id)
 			var fixture:={"id":id,"kind":"door","pivot":hinge.get("pivot",[0,0,0]),"angle":hinge.angle,"open":float(states.get(id,hinge.get("open",0.0)))}
 			# Mesh origins are authored at the hinge. Scaling stays on the parent.
 			node.transform=Fixtures.pose(node.transform,fixture,fixture.open-float(hinge.get("open",0.0)))
-			extra.fixture=fixture;extra.building={"id":str(record.uuid)}
+			extra.fixture=fixture
+			if not generic:extra.building={"id":str(record.uuid)}
 			extra.rmmo_collision="block";row.fixture=fixture
 			row.building.id=str(record.uuid)
 		# Keep light anchors and wind/transparent materials out of render merging.
@@ -164,6 +186,6 @@ static func rows(model:Node)->Array:
 		var extra:Dictionary=node.get_meta("extras",{})
 		if not extra.has("rmmo_hinge") or not extra.has("fixture"):continue
 		var f:Dictionary=extra.fixture
-		if not result.has(f.id):result[f.id]={"id":f.id,"kind":"door","open":f.open,"angle":f.angle,"members":[]}
+		if not result.has(f.id):result[f.id]={"id":f.id,"kind":"door","open":f.open,"angle":f.angle,"floor":extra.get("rmmo_part",{}).get("floor",0),"floor_y":extra.get("rmmo_part",{}).get("floor_y",0.0),"members":[]}
 		result[f.id].members.append(str(extra.get("uuid",node.name)))
 	return result.values()

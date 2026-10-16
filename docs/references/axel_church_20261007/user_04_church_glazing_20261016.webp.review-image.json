@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_04_church_glazing_20261016.png",
+  "source_sha256": "354d1d0c3ee800c8cff950fe86d93f49b2498041bcaf44da306b3703a1fca7bc",
+  "source_bytes": 2021035,
+  "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_04_church_glazing_20261016.webp",
+  "sha256": "21a6e1c5f19c8d5211268853ed6dc5ece17760853e1be24e0469c681a93a209a",
+  "bytes": 191666,
+  "dimensions": [
+    1455,
+    818
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

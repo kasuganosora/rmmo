@@ -9,6 +9,7 @@ func _initialize()->void:
 		if node.visibility_range_begin!=0 or node.visibility_range_end!=0:failed+=1
 	node.set_meta("extras",{"rmmo_visibility_range":{"begin":35,"end":85,"bounds":bounds}});Ranges.register(node)
 	if node.visibility_range_begin!=35 or node.visibility_range_end!=85 or node.custom_aabb.size!=Vector3(2,10,2):failed+=1
+	if node.visibility_range_begin_margin!=0 or node.visibility_range_end_margin!=0:failed+=1
 	Ranges.register(node)
 	if node.visibility_range_begin!=35:failed+=1
 	node.set_meta("extras",{"rmmo_visibility_range":{"begin":85,"end":0,"bounds":bounds}});Ranges.register(node)

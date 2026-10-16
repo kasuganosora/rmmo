@@ -74,6 +74,7 @@ func run()->void:
 		await author_houses()
 		if stopped():return
 	await wait_view();await call_tool("select_objects",{"ids":[]})
+	FileAccess.open(OUT.path_join("s12_live_asset_diagnostic.json"),FileAccess.WRITE).store_string(JSON.stringify(preload("res://tools/diagnose_axel_reference_render.gd").inspect(editor),"\t"))
 	if editor._grid!=null:editor._grid.visible=false
 	if editor._authoring.marker!=null:editor._authoring.marker.visible=false
 	await capture_overview()
@@ -83,6 +84,12 @@ func run()->void:
 	await capture_reference({"id":"s12_stream_close","position":[323,8.58,129],"target":[358,11,117],"fov":55})
 	await capture_reference({"id":"s2_oculus_detail","position":[329.7,12.4,270.4],"target":[336.5,11.4,277.5],"fov":50})
 	await capture_reference({"id":"s12_arch_detail","position":[337,11.5,118.5],"target":[345,11,113.3],"fov":55})
+	if report.get("watercourse",{}).get("continuous",false):
+		await capture_reference({"id":"s12_watercourse_overview","position":[467,181,210],"target":[361,5,83],"fov":62})
+		await capture_reference({"id":"s12_watercourse_source","position":[429,24,38],"target":[408,8,-9],"fov":58})
+		await capture_reference({"id":"s12_stream_crossing","position":[319,12.5,116],"target":[335,8,126],"fov":58})
+		await capture_reference({"id":"s12_stream_rapid","position":[309,13,126],"target":[323,5,136],"fov":56})
+		await capture_reference({"id":"s12_stream_confluence","position":[296,14,151],"target":[320,3,147],"fov":58})
 	report.ground_batching=editor._ground_batches.stats();report.phase="candidate_complete";report.candidate_sha256=FileAccess.get_sha256(CANDIDATE)
 	verify_authoring_inputs()
 	check(FileAccess.get_sha256(FORMAL)==recipe.source.sha256,"formal map untouched during candidate review")
@@ -210,6 +217,7 @@ func refresh_reference_props()->void:
 		await call_tool("set_object_transform",properties.merged({"id":row.id}))
 		if stopped():return
 		var after:Dictionary=editor._doc._find(str(row.id)).duplicate(true)
+		check(B.vec(after.position).distance_to(B.vec(row.position))<.0001 and B.vec(after.rotation).distance_to(B.vec(row.rotation))<.0001 and B.vec(after.size).distance_to(B.vec(row.scale))<.0001,"refined prop reaches intended transform "+str(row.key))
 		check(editor._doc.undo() and equivalent(editor._doc._find(str(row.id)),before),"refined prop transform undo "+str(row.key))
 		check(editor._doc.redo() and equivalent(editor._doc._find(str(row.id)),after),"refined prop transform redo "+str(row.key))
 		changed.append({"key":row.key,"id":row.id,"from":before.position,"to":after.position})

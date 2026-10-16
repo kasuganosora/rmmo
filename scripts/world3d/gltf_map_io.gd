@@ -337,6 +337,10 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 					node.mesh=preload("res://scripts/world3d/terrain_surface.gd").mesh(record,fallback,neighbors.data.get(str(record.uuid),{}))
 					preload("res://scripts/world3d/surface_materials.gd").apply(node,record)
 				preload("res://scripts/world3d/river_materials.gd").apply(node,record,neighbors.data.get(str(record.uuid),{}))
+				if record.has("channel_mesh"):
+					var water_extras:Dictionary=extras_of(node).duplicate(true)
+					water_extras.rmmo_landscape_kind="channel"
+					node.set_meta("extras",water_extras)
 				if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): by_id[str(record.uuid)].set_meta("ground_batch_record",record.duplicate(true))
 	preload("res://scripts/world3d/model_texture_cache.gd").prepare_mipmaps(scene)
 	preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene)

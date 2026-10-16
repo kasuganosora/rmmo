@@ -87,6 +87,8 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"create_terrain": return editor._terrain.create(args)
 		"preview_terrain_stroke": return editor._terrain.summary(args)
 		"sculpt_terrain": return editor._terrain.sculpt(args)
+		"preview_terrain_layout": return preload("res://scripts/world_editor/terrain_layout_tools.gd").preview(editor,args)
+		"apply_terrain_layout": return preload("res://scripts/world_editor/terrain_layout_tools.gd").apply(editor,args)
 		"set_terrain_material": return editor._terrain.set_material(args.id,args.get("material_id"),args.get("saturation",-1.))
 		"list_vegetation_scatter": return editor._scatter.catalog(args.get("query",""),int(args.get("offset",0)),int(args.get("limit",100)))
 		"list_waterways": return editor._waterways.catalog()

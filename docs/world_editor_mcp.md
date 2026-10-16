@@ -1,5 +1,11 @@
 # 当前 3D 地图编辑器 MCP
 
+## 素材预览与缩略图反射环境（2026-10-16）
+
+`AssetPreview` 与 `AssetThumbnails` 共用 `asset_preview_environment.gd` 的低分辨率中性反射天空，保留原背景、补光、曝光和主灯；正式世界的天气环境不变。UI 和当前 3D MCP 的 `repair_asset_thumbnails` 仍共用原生产队列，工具名称与 schema 没有变化。
+
+四款正式市场预制件真实 HTTP 检查 400 项通过：发现、放置、选择、撤销重做、保存重开，以及实际四次缩略图模型加载/四次完成信号；混合非法 ID 请求不产生有效前缀队列或文件副作用。实际 UI 预览和缩略图相机均验证共享反射环境，输出已人工查看。正式目录、源/native 与 173 份正式地图文件前后守恒。证据与材质接受范围见 [市场材质复验](axel_market_realism_review_20261016.md)；本项不增加 MCP 通用文件导入接口，也不代表正式地图实例已替换。
+
 ## 运行时灯光效果的拾取与碰撞（2026-10-14）
 
 公会正式素材导入的保存重开检查发现：异步加载期间新生成的烛焰会被当成可选、可碰撞网格。现在烛焰及灯光晕在生成时明确标记 `runtime_light_effect` 和 `extras.rmmo_collision="none"`，同步/异步加载共用的拾取入口排除这些运行时效果。真实灯具、玻璃和魔法石仍保持原有拾取与碰撞；不按节点名称排除用户模型。没有更改发光形状、亮度、光源数量、MCP 工具或 schema。
@@ -151,6 +157,8 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 2026-10-04 房屋加载性能修复：工具仍为 **118 项**，schema、编辑事务及旧二维下线状态不变。CPU 刷面几何/切线实现由 UI、MCP 和运行时共用；不可变地图加载专用的校验及等价方块缓存不用于后续编辑事务，避免跨编辑复用过期校验。`paint_surface`、锁定保护、撤销重做、保存重开及非法调用通过真实 HTTP 回归；性能记录见 [房屋加载修复验证](world_editor_todo.md#房屋加载修复验证2026-10-04)。
 
 2026-10-03 石桥通航净空：`preview_bridge/generate_bridge.auto_clearance` 缺省为 `true`，按实际水面自动增加拱高；主通航孔须保留 **2 米宽、至少 2.5 米高**的连续通道，靠岸小孔可较低。关闭自动调整仍校验硬下限，所需拱高超过 15% 坡度限制时原子拒绝。预览返回最终 `camber` 及 `navigation` 实测值。河道入口的石桥按填写拱高校验同一规则，当前仍为 118 项，旧二维保持下线。
+
+2026-10-15 非通航溪流：现有 3D `preview_bridge` / `generate_bridge` 新增可选 `clearance_mode="navigable"|"stream"`，省略仍为原 2.5 m 高 / 2 m 宽主通航模式。`stream` 不提供船舶通行，使用完整实际桥体与全部重叠水面多边形连续裁交，最小净空 0.20 m，包含湿宽边部、沿水向外露石块、桥脚、斜水面和水面块接缝；不接受调用者伪造较低水位。返回 `navigation.mode/scope/clearance/required_height/water_level/minimum_at/water_id/clipped_triangles/adjusted`（溪流模式不返回航道 `width`）。UI 同一模式选项、预览、应用及原生保存字段均已同步；默认通航、15% 坡度、碰撞/承托、道路绑定和保护不变，失败无副作用。独立桥及道路转换可用；河道配方内嵌桥 schema 本轮未扩展，仍按通航要求。未新增工具或二维入口。真实 HTTP 回归与完整限制见 [非通航溪流过水口](world_editor_stone_bridges.md#2026-10-15-非通航溪流过水口)；候选资源/管线通过不代表新城镇内容已发布。
 
 2026-10-03 已有道路石桥转换：`preview_bridge/generate_bridge` 新增 `road_edge_id`，UI 可从已有桥梁道路读取、选择桥型并转换旧桥板；同事务保留引道、逐面 UV 材质和原道路拓扑。支持接路桥型/拱高/深度修改，增量刷新受影响物件，旧预览/保护/手改明确拒绝，当前仍为 118 项。见 [石桥与道路转换](world_editor_stone_bridges.md)。
 
@@ -481,9 +489,12 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 |---|---|---|
 |跨块笔刷|`sculpt_terrain`、`preview_terrain_stroke`：`cross_tiles`|默认 true，同方向且共享原始边界的相邻块一起更新，支持不同格距（已验收 1/2 米、2/3 米）；细格边界约束到共享折线。锁定/隐藏邻块整笔拒绝。false 保留单块行为。|
 |矩形宅基整平|同上：`mode:flatten,shape:rectangle,points:[[x,z]],plot_width,plot_depth,plot_yaw,blend_margin,target_height,strength`|2026-10-14：矩形平面外侧平滑回到原地形，强度0.01–1；必须单中心点，UI同参数。跨块、道路跟随/坡度、保留区、碰撞保护、原子撤销与保存复用原生流程。旧circle笔刷含义不变。真实HTTP验证见`tools/test_terrain_house_plots.gd`。|
+|矩形斜面整平|同上增加可选 `plot_grade:[gx,gz]`，默认 `[0,0]`|2026-10-15：相对于 `plot_yaw` 后的局部 X/Z，目标高度为中心 `target_height + gx*x + gz*z`，合成坡度上限15%；用于连续桥头路基。外侧仍柔和接回原地形，路面投影继续独立检查实际三角坡度，不因此放宽路坡或承托保护。UI同参数，非矩形/非flatten不得携带非零坡度。真实HTTP测试：`tools/test_terrain_plot_grade.gd`。|
+
+2026-10-15：`set_river_materials` 与 UI 的明确河道材质编辑会在同一撤销事务中同步生成河道的水面签名及其已拥有的河岸材质快照；保存重开后仍可正常移除/改线，无需内容脚本手改恢复元数据。已有手改签名或材质冲突仍原子拒绝，不接管旧冲突。连续纵向水面可以单独调整深浅色及吸收率；同时选择单水位河岸/河床时逐实际水面顶点校验，不能用统一水位套住高差。验证见 `tools/test_river_owned_materials.gd`。
 |体积地形|`create_terrain_volume`|`id,center:[x,y,z],size:[x,y,z]` 必填；`resolution:4..32`、`seed:box/ellipsoid`、`material_id` 可选。每轴尺寸 2..64 米。|
 |洞穴 / 堆积|`preview_terrain_volume_stroke`、`sculpt_terrain_volume`|`id,mode:add/subtract,points:[[x,y,z],...],radius`；世界坐标胶囊笔画，有界工作量，真实洞顶、可碰撞地面，保存配方。|
-|中心线河道|`preview_terrain_river`、`generate_terrain_river`|`id,terrain_ids,points:[[x,z],...],water_level` 必填；`width,bank_width,depth,curved,natural_materials` 可选。同 ID 更新：恢复旧河床后计算新路线；持久化恢复图层、无关雕刻保留、一次撤销。自动包含触及的兼容邻块；所属样本/水面被手改或保护则拒绝。|
+|中心线河道|`preview_terrain_river`、`generate_terrain_river`|`id,terrain_ids,points:[[x,z],...],water_level` 必填；`width,bank_width,depth,curved,natural_materials` 可选；`water_levels` 可选且与控制点等长，沿点序下降或等高，提供时覆盖单一 `water_level` 的水面高程。纵向水位必须 `natural_materials=false`，可用地形区域材质；旧水平湿岸不套用到坡水。同 ID 更新：恢复旧河床后计算新路线；持久化恢复图层、无关雕刻保留、一次撤销。自动包含触及的兼容邻块；所属样本/水面被手改或保护则拒绝。|
 |河道加载 / 删除|`list_terrain_rivers`、`remove_terrain_river`|列表无参数，返回完整可编辑配方；删除需 `id`，恢复原河床及关联材质，一次撤销。历史无恢复图层的河道不伪造原地形。UI 从已有河道列表或场景水面选择载入；选中地形关联多条河道时要求从列表指定，不猜测归属。可替换选中控制点及删除。|
 |自动贴地道路|`preview_road_surface`、`generate_road_surface`：`follow_terrain`|依据实际高度场三角形拟合，不穿地；之后地形笔画连带更新道路和清单。缺地/洞/陡坡/受保护道路拒绝。|
 |曲线 / 坡地城墙|`preview_fortification`、`generate_fortification`：`shape:spline,curve_tension,follow_terrain`|控制点 XZ，最多 128 个，采样最多 512；完整闭环自交检查。短墙段顺坡，城门与城楼需局部平整承托。|
@@ -561,3 +572,98 @@ UI 地形笔刷与当前 3D `sculpt_terrain` 的铺面跟随更新改为数值�
 ### 2026-10-15 房屋地形碰撞按实际交叠检查
 
 `preview_buildings` / `generate_buildings` 和 `place_asset` 与 UI 共用 [building_footprint.terrain_conflict](../scripts/world_editor/building_footprint.gd)：仅对地形按构件高度、完整活动范围及实际三角交叠判断，不把屋外高格角或高处屋檐包络算成埋屋。道路、其他住宅及保留区仍使用原有占地保护，真实进入地板或活动门的土坡仍拒绝；无新工具/schema。拒绝结果可附 `terrain_contact` 诊断（地形、构件、网格及世界位置）。[新回归](../tools/test_house_terrain_contact_http.gd) 实际 HTTP **39 项通过**，既有 [地基回归](../tools/test_house_foundation_support_http.gd) **33 项通过**，均 0 失败；涵盖生成、冻结素材库、原子拒绝、撤销重做及保存重开。日志同目录 `house_terrain_contact_http.log`、`foundation_support_http_terrain_refinement.log`，具体边界见 [房屋说明](world_editor_buildings.md#2026-10-15-房屋与斜地的实际交叠范围)。
+
+
+### 2026-10-15 连续纵向河道水位
+
+`preview_terrain_river` / `generate_terrain_river` 新增可选 `water_levels:[y0,y1,...]`，与 `points:[[x,z],...]` 一一对应，沿控制点顺序仅下降或等高。旧请求继续使用原 `water_level` 水平面；该必填字段保留兼容。逐点水位按共享中心线 Hermite 采样返回的 `segment/t` 线性插值，避免水位曲线过冲。非数、非有限值、长度不匹配、逆坡均在提交前拒绝。
+
+河床使用各采样位置的局部水位；水面带按原生三角形携带高程裁剪到共享分块，并存为 `channel_mesh.elevations`。同一裁剪边共享高程，保持可编辑配方、恢复图层、一次撤销与原生保存，没有用一串水平薄片代替坡水。仍使用既有 400 万采样工作量、64 块地形及分块投影上限。水面法线纹理沿真实坡面法线扰动，水平面保留原方向及强度；深浅色和透明度算法未改变。
+
+UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后点击「替换选中点」；追加/删除点同步处理水位，载入旧水平河道保持原操作。当前自然湿岸材质仅有单一水位，纵向河道明确禁用 `natural_materials`（MCP 传 true 拒绝；UI 自动关闭并说明），岸面可使用现有 `paint_terrain_region`。不能把现有水平湿岸误用于整条降坡河道。
+
+逻辑及真实 loopback HTTP 验证脚本：`tools/test_terrain_river_profile.gd`；水平河道/恢复与跨所有权保护沿用 `tools/test_river_boundary_review.gd`。坡面 GPU 光照和最终场景接入另行验收，CPU/HTTP 通过不等于画质通过。
+
+2026-10-16 修复原生纵向水面的材质分类：未手刷分面的 `channel_mesh.elevations` 使用共享薄片网格的顶面槽语义，避免陡坡或平缓/陡坡混合水块因首个三角法线不接近竖直而整块隐藏；底面与侧壁仍隐藏，反向异常顶面仍保守拒绝。编辑器与运行时 CPU 索引共用 `river_materials.gd`，UI/MCP 工具及 schema 不变，也不改变水位、河床、碰撞或恢复所有权。`tools/test_profile_water_material_http.gd` 真实 HTTP **38 项通过、0 失败**，含生成、同 ID 更新、非法调用原子性、UI 载入、撤销重做、保存重开及两条材质派生路径。已手刷 `surface_paint` 的网格可能重排/合并材质槽，继续沿用原保守分类，不在本次斜坡修复支持范围内；本次城镇水面无该字段。最终连续流水画面仍须 GPU 复核。
+
+
+### 2026-10-15 显式支流末端汇口
+
+中心线河道可选 `outlet:{"river_id":"接收河道ID","endpoint":"end"}`，`endpoint` 省略时同样仅表示末端。UI 提供接收河道 ID 输入，留空表示独立河道。接收河道必须已保存；支流末端进入其中心区域，从岸侧汇入，重叠段先达到与汇口一致的水平水位。禁止自指、循环、非末端交叠或沿接收河重复铺水。未声明 `outlet` 的河床所有权重叠继续拒绝。
+
+实际接收水面保持原记录及签名，支流水面按其原生多边形裁剪到共边，不保留重叠面积；携带逐顶点高程的裁剪保持汇口同高。只有合法末端范围可新增共享河床采样的支流 delta，并保存接收河当时的基线。目标汇口范围中接收河自身拥有 delta 的采样须仍精确匹配其 `after`；锁定、手改、已被其他支流占用会原子拒绝。同一接收地形上的远端合法汇口不因此被拒绝。
+
+有支流依赖的接收河不能单独改线或删除，应先移除/改接支流。移除支流恢复其修改前的接收河床，保持主河水面与其他远端支流；撤销、重做和保存重开保留依赖与恢复图层。测试 `tools/test_terrain_river_outlet.gd` 经真实 loopback HTTP 验证合法汇入、面积去重/共边同高、依赖保护、远端双支流、目标手改保护、无副作用拒绝和重开后精确恢复。该能力不自动生成道路涵洞，也不放宽原有地形/水面工作量预算。
+
+### 2026-10-15 正面石砌腰线
+
+建筑共享参数 `front_string_course` 可取 `full`（省略时默认，保持旧几何）或 `none`。`none` 仅适用于 `townhouse/hall` 的 `plaster` 房型，取消主屋前墙石腰线，不改变墙体、角石、基座、翼楼、其余立面与门窗。建筑面板与当前 3D MCP `preview_buildings/generate_buildings`（以及未烘焙旧建筑的 `update_building`）共用 Blueprint schema 和生成器。固定预制件仍不能拆改内部组件；应从参数重新生成、冻结后原生替换，不直接删除合并楼层外壳。非法枚举/类型或不支持房型原子拒绝，保留原生撤销、合批、楼层和活动件语义。验证脚本：`tools/test_house_string_course.gd`。
+
+### 2026-10-15 静态资产与道路净空窄相
+
+`preview_road_surface/generate_road_surface` 和地形/河流引发的铺面贴地更新，共用 `asset_road_contact.gd`：整体包围盒重叠后，对静态 GLB 实际碰撞源及可见装饰三角检查铺面与既定通行净空。因此空拱可通，柱腿、墙体和低顶仍阻挡。UI 和当前 3D MCP 不新增参数或按标签豁免。未知、动态、骨骼、独立碰撞形状及外部 buffer glTF 保留保守保护。仅在一次 prepare 中缓存，完整 GLB 摘要与实例姿态参与键；同路径替换不会沿用旧结果。真 HTTP 回归见 `tools/test_asset_road_contact.gd`，候选地图不因此自动发布。
+
+### 2026-10-15 联合整坡与道路移位
+
+同日新增联合布局入口 `preview_terrain_layout` / `apply_terrain_layout`：与地形面板“联合整坡”共用多个矩形区域及现有道路节点移位的最终态校验，一次撤销，失败无副作用。参数、限制和验证入口见 [联合整坡与道路移位](world_editor_terrain_sculpt.md#联合整坡与道路移位2026-10-15)。不新增二维工具，不通过临时删道路或忽略桥基来完成地形编辑；真实 HTTP/UI 回归已完成 50 项通过、0 失败，正式场景应用另行记录。
+
+2026-10-16 修复合法汇流叠层的联合整坡误拒：接收河道的 `after` 样本可能被具有显式 `outlet` 的后续支流合法覆盖。共享业务现在对每个相关河道从真实当前记录独立校验，按依赖顺序在私有副本中恢复其后代，再执行原有恢复保护；共享样本还须通过原生汇口几何、水位、水面签名和直接目标范围检查。不会整体倒放无关河道来掩盖非法重叠，也不修改历史快照或放宽单河 `Layer.restore`。真正改变 owned 样本、手改当前记录、错误/循环汇流及汇口外重叠仍被拒绝，未产生高度差的河床范围保护也保持原有规则。
+
+此修复没有新增参数；UI 与当前 3D MCP 沿用同一 `terrain_layout_tools` 操作。`tools/test_terrain_layout_outlet_http.gd` 使用临时小地形完成真实 HTTP/UI 51 项通过、0 失败，涵盖两个合法汇口、无关整坡、上述负例、原子失败、单次撤销重做、保存重开与严格原生河道移除。证据位于 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/terrain_layout_outlet_http_review.json` 及同名 `.log`；该专项未修改候选或正式城镇地图。
+
+### 2026-10-15 原生石桥下开槽
+
+地形笔刷与中心线河道的 UI 和现有 3D MCP 共用 [terrain_bridge_contact.gd](../scripts/world_editor/terrain_bridge_contact.gd)：仅细化原包围盒保护会拒绝的情况，核对冻结碰撞源、当前模块与原生桥配方，以实际桥台/桥墩底面和地形三角裁交确认承托。合法“先桥后挖溪”可执行，基础掏空、洞口与新增回填仍拒绝，未知结构保守处理；无新工具/schema，不修改桥模型。完整范围见 [地形说明](world_editor_terrain_sculpt.md#原生石桥下开槽与桥基保护2026-10-15)。[回归脚本](../tools/test_terrain_bridge_contact_http.gd) 实际 HTTP **68 项通过，0 失败**，含 `generate_terrain_river`、非法调用原子性、UI 共用 prepare、撤销重做与保存重开；日志及源摘要报告位于 `review_artifacts/axel_town_houses_20261014/terrain_bridge_contact_http.*`、`terrain_bridge_contact_http_review.json`。正式场景接入与 GPU 画质另行验收。
+
+
+## 2026-10-16：Blender 完整建筑的分层和门组件
+
+导入时通过显式 `rmmo_model_components` / `rmmo_building` / `rmmo_part` / `rmmo_hinge` 接入完整建筑，绑定实际源SHA。复用 `list_building_components`、`set_building_component_state`、`set_floor_view` 及正常放置/保存/打开工具，UI与3D HTTP共用操作；锁定、隐藏、隔层外组件拒绝修改，楼层隐藏保留行走碰撞。新模型的每实例门状态使用 `model_building_states`，旧公会状态不迁移。合同、源码、自动验证入口和验收状态见 [完整导入建筑合同](imported_building_contract_20261016.md)。
+
+## 2026-10-16：同一城墙组内的独立水关岸基准
+
+`preview_fortification` / `generate_fortification` 的 `gates[]` 新增可选 `base_height`，只用于 `kind="water"`。它是该水关两岸的绝对结构基准，不是河水水位；门洞净高、墙顶、墩基下延和铁栅都从这个基准计算。省略时仍使用整组 `base_height`，旧地图无需升级。不同于整组的基准须启用 `follow_terrain`；城防面板“城门”页的“独立水关岸基准”与当前 3D MCP 使用同一业务。取消勾选会省略字段，不写入零值。
+
+原生折线、样条直线接驳区与环形水冠均保留单组身份。过水护墙、垛口按水口边界分段到本地高程；紧邻的墙顶接到同一岸基准。显式岸高的两端墙脚必须有实际台地承托，跨墙厚采样与目标高差不超过 0.12 米。墙顶 15% 坡度、地形非线性、桥墩到床、道路净空、保留区与锁定检查保持生效。不同高度的水关不自动抬河、填河或整平地形；作者应先做好真实岸台和接坡。
+
+随地形预览中的 `access_routes`（内门、室内入口、旋梯上下口、塔顶、射击孔）及陆门 `gates[].center` 现按实际刚性构件的平移量更新世界 Y，不再报告整组旧基准。塔楼仍由城内侧门、内部楼梯通到楼顶和墙顶，不增加外置梯。
+
+真实 headless HTTP 证据：`tools/test_watergate_local_elevation_http.gd`，39 PASS / 0 FAIL、进程退出 0；报告 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/watergate_local_elevation_http.json`。覆盖 4/8 米两岸高同一闭环、四处墙顶接缝、环形冠层、旧门兼容、UI 字段省略、工具发现、非法岸高/短墩/陆门误用原子拒绝、冻结身份、撤销重做、栅门开合、保存重开与原生地形跟随重生。此为共享业务与几何验证，不等同于正式城墙的画质、完整通路或地图发布验收；城镇地图未由该回归修改。
+
+## 2026-10-16：水关构件与原生液面的交叠
+
+城防面板与现有 3D `preview_fortification` / `generate_fortification` / `set_fortification_gate` 共用 `fortification_tools.gd`，不新增工具或参数。修正无碰撞液面被当成实体障碍的误判：仅 `channel_mesh`、`surface_id="water"`、`collision="none"`、无通行净空、厚度不超过 0.1 米的水平原生水面可与当前对应水关的墩、铁栅和铰链交叠。记录带地形、道路、房屋或其他城防语义时仍不适用。
+
+匹配使用本水关 ID 与实际闭合安装范围，范围仅加上墙外铁栅和铰链所需的 0.35 米接触余量；不扩大拱道原有承托范围。按水面实际几何高度检查其位于该门的岸基准与 `water_depth` 下延之间，保留 0.035 米接触容差。活动铁栅按闭合安装位置确认归属，完整开合扫掠仍与实体障碍校验。普通陆墙、陆门、保留净空水道、实体河床、道路、房屋和其他墙体不获得此豁免；水面始终不能充当地面承托，水墩五点到达实际河床的规则保持。
+
+针对性回归 `tools/test_watergate_surface_contact_http.gd` 已实际完成 **52 PASS / 0 FAIL、进程退出 0**；结果与日志在 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/watergate_surface_contact_http.*`。覆盖斜向安装、独立岸高、闭合与两种开度、非法水面/门外陆墙/实体物件/短墩/道路净空的原子拒绝，以及真实 HTTP 生成、一次撤销重做、保存重开。此为共享业务验收，未修改正式地图；正式城镇室外画面仍由候选场景验收负责。
+
+## 2026-10-16：冻结构件的道路净空
+
+道路面板与当前 3D `preview_road_surface` / `generate_road_surface`、地形修改触发的贴地更新继续共用原业务和 schema。静态原生 `house_prefab` 的合批包围盒只作粗筛；命中后按已保存且校验通过的冻结碰撞源及可见网格逐三角检查道路厚度与通行净空，保留真实门洞。`box` 预制件的 `size` 是边界尺寸，不再误作几何缩放；`asset` 预制件仍按原生局部缩放后旋转。
+
+整段道路完全位于实体内部时仍拒绝。相邻实体接缝的相反出入面不当成一次奇偶交点；非闭合装饰面的一次射线相交也不等于实体包围，包围判定使用实际三角的有向立体角。实际墙面、柱腿与低横梁相交继续拒绝；无效/未知冻结数据、活动件和风动对象保持保守保护，桥梁继续走既有桥头窄相。未放宽预制件锁定、道路坡度、保留区或保存校验，未改变模型或已保存地图数据。
+
+定向回归入口：`tools/test_frozen_road_contact.gd`（真实 HTTP、UI 一致性、空洞/实体/低梁/共享边/开放壳、旋转缩放、非法调用无副作用、撤销重做和保存重开）；已有导入资产回归 `tools/test_asset_road_contact.gd`。真实候选只读复现入口 `tools/repro_frozen_fortification_roads.gd`，前后报告在 `review_artifacts/axel_town_layout_20261016/frozen_road_repro_{before,after}.json`，最终状态以实际报告为准。
+
+本次已实际完成冻结专项 **33 PASS / 0 FAIL**、已有导入资产 **32 PASS / 0 FAIL**，两套真实 HTTP 进程均退出 0。真实候选 `1632fecd683cbdccbb1cea8c0862b555175c7552c4ace14f1bf34f320db71ef2` 在修复前拒绝合批城门构件，修复后整图 `_roads.prepare({})` 通过且文件 SHA 未变。完整结果 `review_artifacts/axel_town_layout_20261016/frozen_road_contact_review.json`；这不替代后续内容事务和室外画面验收。
+
+## 2026-10-16：城墙细长三角的法线贴图切线
+
+城防面板和现有 3D MCP 生成、贴地重建共用 `fortification_art.gd` / `fortification_terrain.gd`，无新增工具或参数。真实冻结候选的 39 个表面有 184 个零切线顶点，全部被 169 个非零面积三角引用。进一步逐点检查，同一批启用法线贴图的表面另有 1,720 个非零但与法线不正交的切线（归一方向点积绝对值超过 0.001，最大约 0.98984）。原始 Blender 模块切线正常；编辑器按米制重新生成 UV/切线、或进行地形变形时，极细三角会触发原生切线生成器的零基底或偏斜方向。不是纹理缺失，也不能通过忽略这些顶点或删除小三角来放行。
+
+两个生成入口在原生生成后共用 `mesh_tangent_repair.gd`，只对启用法线贴图的材质补正失效切线。导数用双精度标量计算，再对原顶点法线正交归一，手性按 Godot 实际 binormal 约定；奇异 UV 无导数时提供确定的正交基底。正常切线、位置、UV、顶点法线、索引、材质与碰撞不修改。未使用法线贴图的铁件通道保持原样。`runtime_mesh_cache.generator_key` 已覆盖新 helper SHA，使旧派生缓存失效；旧的作者冻结 payload 不在运行时偷偷替换，须通过既有原生城防操作重建并保存。
+
+针对性 CPU 回归 `tools/test_mesh_tangent_repair.gd` 已完成 **13 项通过、0 失败**，涵盖镜像 UV 手性、非有限值、奇异 UV、原正常切线不变及真实 39 面/1,904 个失效基底（184 零值、1,720 正交偏差）的逐通道不变性。阶段探针 `tools/probe_axel_fortification_tangent_stages.gd` 证明实际模块、坡地变形、平地/坡地冻结均无零切线。证据位于 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/mesh_tangent_repair_test.json`、`fortification_tangent_stages{,_fixed}.json`。
+
+原生 HTTP 整组替换已实际完成 **1,028 项检查、0 失败**，一次撤销/重做及保存重开均通过；116 条冻结记录中 39 个 payload 改变，正常切线及所有非切线数据保持相同。再生候选 SHA 为 `164d3233bf43591d06262de5c8629074de3d9c41dbfecb072e031fe88249d4ac`，不可变原生快照为 `wall_regenerated_records.json`，完整事务记录为 `fortification_regeneration.json`。
+
+受影响 GPU 复验使用旧候选 `1632fe…` 和新候选的真实冻结快照直接恢复，不从新生成器重建旧基线。坏点最多墙段与转角各拍近/中/远/细节，固定 1,400×1,000、同相机/灯光/曝光，53 项检查通过；全部 16 张实际有损 WebP Q90 已查看，8 对本地无损 PNG 逐像素一致。报告记录了不同 CPU geometry signature、独立 GPU mesh RID、不同 GPU tangent 数组和一致的有效 normal map，排除旧渲染网格复用造成的假一致。权威受影响项结论为 `fortification_tangent_review.json`（SHA `8950a1098d30d0faa5dac8091b320a2129cd6d2c94584460e6532bdb7ffe975e`），图片、收据及像素计量在 `fortification_tangent_ab_verified/`。该结论仅覆盖本次切线修复；窄倒角既有纹理拉伸未改动，不等同整城画质、资源优化或正式地图发布通过。并发 headless 布局期间的截图不用于 FPS / RSS / VRAM 结论。
+
+## 2026-10-16：冻结城防附近的房屋放置与商街入户连接
+
+建筑面板、当前 3D `preview_buildings` / `generate_buildings`、资源库 `place_asset` 继续使用既有 schema。`BuildingTools.prepare` 与 `PrefabLibrary.place_buildings` 共用 `frozen_placement_contact.gd`：静态冻结批次的总包围盒只作粗筛，命中后读取校验过的原生可见与碰撞三角，将其与新建筑原有凸占地体积裁剪，并检查完整实体包含。不会因城墙合并后包围盒跨过空地而误拒住宅，也不会忽略整座城防。新房占地、室内保留体积及门扇完整扫掠保持原规则；已有生成建筑仍保留整体占用，不能在空大厅内嵌套新房。损坏/未知 payload、活动件、风动对象和桥梁特殊数据保持保守保护；真实墙面、梁柱、完整实体包含、地形、道路、保留区与锁定检查继续生效。
+
+真实候选 `164d3233…` 的北侧集市住宅一与 `fort_82e4c659dc0331e8_baked_6` 仅粗筛相交，原生保存三角并无相交。只读探针用真实 34 组件住宅模板对全部城防执行内存库放置通过；其余五栋无城防粗筛冲突。没有修改房屋位置、参数、素材或候选地图。市场两条商房支路则属于真实拓扑错误：在 `(195,174)`、`(195,193)` 与主路重叠却没有共享节点。内容 helper 现将原 `axel_e_be73f25d73ff` 按两交点分为三段，保留两端原节点、首段原边 ID、5 米宽及其他元属性；两条支路共享度数为三的路口，并以图遍历确认连接主街。
+
+`tools/test_frozen_building_contact_http.gd` 已完成 **59 项通过、0 失败、进程退出 0**。包含当前工具发现、UI/HTTP 同结果、真实冻结墙/低梁与完全包围实体拒绝、未知 payload 的无副作用拒绝、活动件和原房内部保留、旋转、生成及完整库房屋放置、一次撤销重做、保存重开，以及实际商业路网请求的共享节点、连通性、属性保留和原生保存。原生 UUID 序列在撤销后保持单调，测试独立检查该语义；业务撤销未改。专项报告位于 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/frozen_building_placement_review.json`，原始 HTTP、单屋探针与路网证据同目录。这里只验证共用校验及拓扑修复，最终市场整批地形、内容保存和室外画面仍由场景接入验收负责。

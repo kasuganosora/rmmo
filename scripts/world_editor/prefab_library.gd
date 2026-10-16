@@ -199,6 +199,7 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 		value.parts[record.building.part]=record.uuid;value.signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
 	var Footprint=preload("res://scripts/world_editor/building_footprint.gd")
 	var occupied:Array=[]
+	var frozen_contact_cache:Dictionary={}
 	for fresh:String in remap.values():
 		var members:Array=records.filter(func(r):return r.building.id==fresh)
 		var shape:Array=Footprint.components(members,Vector3.ZERO,Basis.IDENTITY)
@@ -216,7 +217,9 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 				continue
 			for obstacle:Dictionary in Footprint.record_shapes(r):
 				if Footprint.supporting_ground(r,obstacle.bounds.end.y,support_height):continue
-				if Footprint.batches_overlap(shape,[obstacle]):return {"ok":false,"error":"预制件与已有物件重叠","conflicts":[str(r.uuid)]}
+				if Footprint.batches_overlap(shape,[obstacle]):
+					if r.has("house_prefab") and not preload("res://scripts/world3d/frozen_placement_contact.gd").intersects(r,shape,obstacle,frozen_contact_cache):continue
+					return {"ok":false,"error":"预制件与已有物件重叠","conflicts":[str(r.uuid)]}
 		occupied.append_array(shape)
 	doc.checkpoint_recovery();doc._next=next;doc.records.append_array(records);doc.map_meta.building_instances=registry
 	return {"ok":true,"ids":ids}

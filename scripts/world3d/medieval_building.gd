@@ -168,7 +168,7 @@ static func framed_wall(plan: Dictionary, key: String, axis: String, fixed: floa
 				var bottom:=y+course*.42
 				if openings.any(func(o): return Rect2(u-width/2,bottom,width,.4).intersects(Rect2(o.u-o.width/2,y+o.bottom,o.width,o.height))): continue
 				wall_box(plan,key+"/quoin%d_%d"%[edge,course],axis,skin,u,bottom+.2,width,.4,.13,colors.stone,f,"stone_trim")
-		if not openings.any(func(o):return o.type=="arch_passage" and o.bottom+o.height>=height-.2):
+		if not (key.begins_with("f") and key.ends_with("north") and p.get("front_string_course","full")=="none") and not openings.any(func(o):return o.type=="arch_passage" and o.bottom+o.height>=height-.2):
 			wall_box(plan,key+"/course",axis,skin,(start+end)/2,y+height-.1,end-start,.2,.16,colors.stone,f,"stone_trim")
 	# Low masonry base is split around doors, never an invisible threshold.
 	var cuts: Array=[start,end]

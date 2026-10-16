@@ -30,7 +30,26 @@ func decorate(record: Dictionary, visual: Node3D) -> void:
 	var inside := includes(record)
 	visual.set_meta("editor_floor_excluded",not inside)
 	visual.visible = not record.get("editor_hidden",false) and (inside or settings.outside == "dim")
+	# Imported floor isolation is a view operation. Preserve authored walk
+	# collision even when the whole asset lies outside the displayed floor.
+	visual.set_meta("editor_floor_physical",record.has("model_building") and settings.isolation and not record.get("editor_hidden",false))
 	if not inside and settings.outside == "dim": _dim(visual)
+	if record.has("model_building") and settings.isolation:
+		for mesh:MeshInstance3D in visual.find_children("*","MeshInstance3D",true,false):
+			var part:Dictionary=mesh.get_meta("extras",{}).get("rmmo_part",{})
+			if not preload("res://scripts/world3d/imported_building.gd").valid_part(part):continue
+			var in_floor:bool=preload("res://scripts/world3d/imported_building.gd").floor_in_view(record,part,settings)
+			if part.role in ["roof","ceiling"]:
+				var local:=Transform3D.IDENTITY;var current:Node=mesh
+				while current!=visual:
+					if current is Node3D:local=current.transform*local
+					current=current.get_parent()
+				var bounds:AABB=preload("res://scripts/world3d/imported_building.gd").frame(record)*local*mesh.get_aabb()
+				in_floor=bounds.position.y>=float(settings.base_height)-.001 and bounds.end.y<float(settings.base_height)+float(settings.floor_height)-.001
+			mesh.set_meta("editor_floor_excluded",not in_floor)
+			mesh.set_meta("editor_floor_physical",not record.get("editor_hidden",false))
+			mesh.visible=in_floor or settings.outside=="dim"
+			if not in_floor and settings.outside=="dim":_dim(mesh)
 	preload("res://scripts/world_editor/building_shadow_preview.gd").attach(record,visual)
 
 func _dim(node: Node) -> void:

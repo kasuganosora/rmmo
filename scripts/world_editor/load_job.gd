@@ -239,10 +239,10 @@ func _add_record_bodies(visual:Node,uuid:String,slice:int,first_uuid:String)->Di
 		if first_uuid.is_empty():first_uuid=uuid
 		var node:Node=pending.pop_back()
 		# Reuse the synchronous traversal's exact subtree exclusion rule.
-		if not editor._picking_node_enabled(node):continue
+		if not editor._body_node_enabled(node):continue
 		if node is MeshInstance3D and node.mesh!=null and picking_plan.has(node.get_instance_id()):
 			_build_elapsed("picking_lod_skipped",0,uuid)
-		elif node is MeshInstance3D and node.mesh!=null:
+		elif node is MeshInstance3D and node.mesh!=null and editor._body_layers(node)!=0:
 			var mark:=Time.get_ticks_usec()
 			var snapshot:=PickingPreparation.snapshot(node.get_meta("paint_source",node.mesh))
 			_build_timing("picking_capture",mark,uuid)

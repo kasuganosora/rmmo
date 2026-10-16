@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_01_church_exterior.png",
+  "source_sha256": "4a5a1e19e4d0c40e63bfafa36d4f40fd8edfecc9c0bb214eb1cd4246880bac2b",
+  "source_bytes": 1852156,
+  "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_01_church_exterior.webp",
+  "sha256": "31cddbc5e7f95931bf23a1fbe7dc9839abf09b90fb7450965ae5c6667cb14424",
+  "bytes": 189266,
+  "dimensions": [
+    1394,
+    784
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

@@ -8,6 +8,33 @@ const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Scatter=preload("res://scripts/world3d/vegetation_scatter.gd")
 var editor: Node3D
 var overlay_plan: Dictionary={}
+static func water_surface(record:Dictionary)->bool:
+	# Only the native, horizontal, non-colliding liquid sheet. Channel beds,
+	# clearance reservations and objects merely named/painted "water" stay solid.
+	if not record.has("channel_mesh") or record.get("surface_id","")!="water" or record.get("collision","")!="none":return false
+	for key in ["terrain_mesh","road_mesh","road_source","building","fortification"]:
+		if record.has(key):return false
+	return record.get("kind","")=="box" and float(record.get("channel_clearance",0.))==0. and float(record.size[1])<=.1 and absf(record.rotation[0])+absf(record.rotation[2])<.001
+static func water_contact(record:Dictionary,openings:Array)->Dictionary:
+	var part:String=record.get("fortification",{}).get("part","")
+	for opening:Dictionary in openings:
+		if opening.gate.get("kind","land")!="water":continue
+		if record.has("fixture") and record.fixture.id!=opening.gate.id:continue
+		var prefix:String=str(opening.gate.id).sha256_text().left(10)+"_"
+		if not ["water_pier_","water_grille_","water_hinge_"].any(func(role):return part.begins_with(role+prefix)):continue
+		# Validate the generated attachment in its closed pose. The full opening
+		# sweep remains in the ordinary solid-obstacle checks below.
+		var closed:Dictionary=record.duplicate(true)
+		if closed.has("fixture"):closed.fixture.open=0.
+		# The grille is mounted 0.14m outside the wall face; axis-aligned hinge
+		# boxes project up to 0.20m beyond either jamb. Include only that hardware.
+		var contact:Array=Geometry2D.offset_polygon(opening.polygon,.35,Geometry2D.JOIN_MITER)
+		if not contact.is_empty() and Scatter.inside(Foot.record_shape(closed).polygon,contact):return opening
+	return {}
+static func water_contact_height(opening:Dictionary,shape:Dictionary,base:float)->bool:
+	if opening.is_empty():return false
+	var gate:Dictionary=opening.gate;var bank:float=gate.get("base_height",base)
+	return shape.bounds.end.y<=bank+.035 and shape.bounds.position.y>=bank-gate.get("water_depth",4.)-.035
 func regions() -> Array: return Data.resolve(editor._doc.map_meta).get("fortifications",[])
 func catalog() -> Dictionary:
 	var items: Array=[]
@@ -87,9 +114,21 @@ func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> D
 	if not result.ok:
 		result.settings=settings; return result
 	if settings.follow_terrain:
-		var fitted:=preload("res://scripts/world3d/fortification_terrain.gd").fit(result.records,world_records.filter(func(r):return r.has("terrain_mesh")),settings.base_height,settings.foundation)
+		var fitted:=preload("res://scripts/world3d/fortification_terrain.gd").fit(result.records,world_records.filter(func(r):return r.has("terrain_mesh")),settings.base_height,settings.foundation,settings)
 		if not fitted.ok:return fitted
 		result.records=fitted.records
+		# Preview/runtime route metadata must describe the fitted world, not
+		# the pre-fit region datum. Use the exact rigid structure translation.
+		for route:Dictionary in result.get("access_routes",[]):
+			var part_name:="access_tower_%d_internal_stair"%route.tower;var offset:=0.0
+			for record:Dictionary in fitted.records:
+				if record.fortification.part==part_name:offset=fitted.height_offsets[record.uuid];break
+			for key in ["entry","room","deck","stairs_bottom","stairs_top"]:route[key][1]+=offset
+			for port:Array in route.get("arrow_ports",[]):port[1]+=offset
+		for gate:Dictionary in result.gates:
+			var part_prefix:="door_"+str(gate.id).sha256_text().left(10)+"_"
+			for record:Dictionary in fitted.records:
+				if str(record.fortification.part).begins_with(part_prefix):gate.center[1]+=fitted.height_offsets[record.uuid];break
 	if not gate_control and settings.tower_layout=="automatic":
 		var centers:=Spacing.record_centers(result.records)
 		for region in regions():
@@ -115,10 +154,11 @@ func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> D
 		materials.iron={"name":"锻铁","color":[.075,.068,.055,1.0],"roughness":.78,"metallic":.72}
 	var token:=Data.token([settings,world_records,Data.resolve(editor._doc.map_meta),editor._authoring.settings,materials])
 	if args.has("plan_token") and args.plan_token!=token: return Data.fail("城墙预览已过期，请重新预览")
-	var obstacles: Array=[]; var buildings:={}
+	var obstacles: Array=[]; var buildings:={};var water_surfaces:={}
 	var site:=preload("res://scripts/world_editor/fortification_site.gd").new()
 	for r in world_records:
 		if owner.ids.has(r.uuid): continue
+		if water_surface(r):water_surfaces[r.uuid]=true
 		if r.has("building"):
 			if not buildings.has(r.building.id): buildings[r.building.id]=[]
 			buildings[r.building.id].append(r); continue
@@ -152,10 +192,10 @@ func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> D
 			ring.center=Vector2(settings.center_x,settings.center_z);ring.radii=Vector2(settings.radius_x,settings.radius_z);ring.turn=-deg_to_rad(settings.rotation)
 			var angle:float=deg_to_rad(gate.angle);var delta:float=asin(gate.width*.5/ring.tangent(angle).length())
 			var a:Vector2=ring.point(angle-delta);var b:Vector2=ring.point(angle+delta)
-			water_support.append({"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle((a+b)*.5,(b-a).normalized(),-gate.width*.5,gate.width*.5,settings.thickness+2.*(ring.point(angle)-(a+b)*.5).length()+.1),"bottom":settings.base_height+gate.height})
+			water_support.append({"gate":gate,"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle((a+b)*.5,(b-a).normalized(),-gate.width*.5,gate.width*.5,settings.thickness+2.*(ring.point(angle)-(a+b)*.5).length()+.1),"bottom":gate.get("base_height",settings.base_height)+gate.height})
 			continue
 		var i:=int(gate.segment); var a:=Vector2(path_settings.points[i][0],path_settings.points[i][1]); var b:=Vector2(path_settings.points[(i+1)%path_settings.points.size()][0],path_settings.points[(i+1)%path_settings.points.size()][1]); var d:=(b-a).normalized()
-		water_support.append({"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle(a.lerp(b,gate.t),d,-gate.width*.5,gate.width*.5,settings.thickness+.1),"bottom":settings.base_height+gate.height})
+		water_support.append({"gate":gate,"polygon":preload("res://scripts/world3d/fortification_access.gd").rectangle(a.lerp(b,gate.t),d,-gate.width*.5,gate.width*.5,settings.thickness+.1),"bottom":gate.get("base_height",settings.base_height)+gate.height})
 	var parts: Array=[]; var checks:=0; var support_cache:={}; var issues: Array=[]
 	for r in result.records:
 		if not owner.ids.has(r.uuid) and editor._doc.has_uuid(r.uuid): return Data.fail("城墙构件 ID 冲突")
@@ -169,6 +209,7 @@ func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> D
 				var h:=preload("res://scripts/world_editor/bridge_tools.gd").ground_height(ground,Data.vec(r.position)+basis*(offset*Data.vec(r.size)))
 				if not is_finite(h) or r.position[1]-r.size[1]*.5>h+.01:return Data.fail("水关桥墩未完整到达河床，请增大水关墩基下延")
 		var shapes:=Foot.record_shapes(r); var valid_site:=true
+		var contact:=water_contact(r,water_support)
 		for shape in shapes:
 			var nearby:=site.query(shape.bounds)
 			var key:=str(shape.polygon)+str(shape.bounds.position.y)
@@ -186,6 +227,7 @@ func prepare(args: Dictionary,gate_control:=false,terrain_records:Array=[]) -> D
 				issues.append({"ok":false,"error":"城墙构件缺少地面承托或地基下延不足："+r.fortification.part,"part":r.fortification.part,"position":r.position}); valid_site=false; break
 			for obstacle in nearby:
 				if obstacle.support or pier_ground.has(obstacle.id) or obstacle.road and r.has("fixture"): continue
+				if water_surfaces.has(obstacle.id) and water_contact_height(contact,obstacle.shape,settings.base_height):continue
 				checks+=1
 				if checks>4000000: return Data.fail("城墙碰撞检查超过预算，请分段生成")
 				if Foot.overlaps(shape,obstacle.shape):

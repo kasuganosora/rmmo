@@ -4,6 +4,7 @@ extends RefCounted
 const Blueprint=preload("res://scripts/world3d/building_blueprint.gd")
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 const Location=preload("res://scripts/world3d/world_location.gd")
+const Imported=preload("res://scripts/world3d/imported_building.gd")
 const PROTOCOL=1
 const CELL_M=32.0
 
@@ -82,10 +83,50 @@ static func build(meta:Dictionary,bounds_by_uuid:Dictionary={},imported_bounds:A
 				var height:float=maxf(.2,local.y+_vector(r.size).y/2-bottom)
 				unknown.append(frame*AABB(Vector3(local.x-_vector(r.size).x/2,bottom,local.z-_vector(r.size).z/2),Vector3(_vector(r.size).x,height,_vector(r.size).z)))
 		buildings[id]={"instance_id":id,"structure_revision":digest([instance.version,p,structural]),"pose_revision":digest([instance.position,instance.yaw,poses]),"members":parts,"member_set":owned,"fixtures":fixtures,"frame":frame,"regions":regions,"bounds":envelope,"complete":complete,"semantic_ready":complete and entrance and not conflict}
+	# One authored asset remains one record. Readiness, however, requires every
+	# native mesh named by its source-bound import descriptor, not the locator.
+	var source_hashes:Dictionary={};var source_descriptors:Dictionary={}
+	for uuid:String in records:
+		var r:Dictionary=records[uuid]
+		if not r.has("model_building"):continue
+		if not Imported.valid_record(r) or r.has("building") or r.has("fortification") or buildings.has(uuid):return _fail("invalid_imported_building")
+		var path:String=str(r.get("asset_path",""))
+		if path.is_empty() or not FileAccess.file_exists(path):return _fail("imported_building_source_unavailable")
+		if not source_hashes.has(path):
+			source_hashes[path]=FileAccess.get_sha256(path)
+			source_descriptors[path]=Imported.source_descriptor(path,source_hashes[path])
+		if source_hashes[path]!=r.model_building.source_sha:return _fail("imported_building_source_changed")
+		if source_descriptors[path].is_empty() or not Imported.same(source_descriptors[path],r.model_building):return _fail("imported_building_descriptor_mismatch")
+		var parts:Array=Imported.member_ids(r);var owned:Dictionary={}
+		for member:String in parts:
+			if records.has(member):return _fail("imported_member_identity_conflict")
+			owned[member]=true
+		var frame:Transform3D=Imported.frame(r);var regions:Array=Imported.regions(r)
+		var envelope:=AABB()
+		for region:Dictionary in regions:
+			var box:AABB=frame*AABB(Vector3(region.rect.position.x,region.bottom-.2,region.rect.position.y),Vector3(region.rect.size.x,region.top-region.bottom+.4,region.rect.size.y))
+			envelope=box if envelope.size==Vector3.ZERO else envelope.merge(box)
+		if bounds_by_uuid.get(uuid) is AABB:envelope=envelope.merge(bounds_by_uuid[uuid])
+		for member:String in parts:
+			if bounds_by_uuid.get(member) is AABB:envelope=envelope.merge(bounds_by_uuid[member])
+		var fixtures:Dictionary=r.model_building.fixtures.duplicate(true)
+		var states:Variant=r.get("model_building_states",{})
+		if not states is Dictionary:return _fail("invalid_imported_fixture_states")
+		for id:Variant in states:
+			if not fixtures.has(id) or not Imported.bounded(states[id],0,1):return _fail("invalid_imported_fixture_states")
+			fixtures[id]=float(states[id])
+		var entrance:bool=not fixtures.is_empty() and r.model_building.members.values().any(func(part):return part.role=="door" and int(part.floor)==0)
+		buildings[uuid]={"instance_id":uuid,"structure_revision":digest([r.model_building,r.size]),"pose_revision":digest([r.position,r.rotation]),"members":parts,"member_set":owned,"fixtures":fixtures,"frame":frame,"regions":regions,"bounds":envelope,"complete":true,"semantic_ready":entrance}
+	var claimed:Dictionary={}
+	for id:String in buildings:
+		for member:String in buildings[id].members:
+			if claimed.has(member):return _fail("building_member_identity_conflict")
+			claimed[member]=id
 	# Missing ownership or unannotated imported structures can only deny, never
 	# grant indoor/outdoor proof. Proven dependency bounds cover hollow meshes too.
 	for uuid:String in records:
 		var r:Dictionary=records[uuid]
+		if r.has("model_building"):continue
 		if r.has("building"):
 			if not buildings.has(r.building.id) or not buildings[r.building.id].member_set.has(uuid):return _fail("orphan_building_member")
 			continue

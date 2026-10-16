@@ -110,6 +110,7 @@ func _ready() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color.WHITE
 	environment.ambient_light_energy = 0.65
+	preload("res://scripts/world_editor/asset_preview_environment.gd").apply_reflections(environment)
 	_camera.environment = environment
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-50, -30, 0)

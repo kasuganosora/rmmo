@@ -102,6 +102,7 @@ static func from_json(data: Dictionary, bin_size: int) -> Dictionary:
 	var pending: Array = []
 	for index in scenes[int(scene_id)].get("nodes", []): pending.append({"index":int(index), "parent":Transform3D.IDENTITY})
 	var parts: Array = []; var total := AABB(); var first := true
+	var authored_hinges:bool=nodes.any(func(n):return _authored_marker(n.get("extras",{})))
 	var cursor := 0
 	while cursor < pending.size():
 		var entry: Dictionary = pending[cursor]; cursor += 1
@@ -110,13 +111,45 @@ static func from_json(data: Dictionary, bin_size: int) -> Dictionary:
 		if not _finite_transform(transform): return unknown("transform_overflow")
 		var node: Dictionary = nodes[index]
 		if node.has("mesh"):
-			var box: AABB = transform * mesh_boxes[int(node.mesh)]
+			var local_box:AABB=mesh_boxes[int(node.mesh)]
+			if authored_hinges and node.get("extras",{}) is Dictionary and node.get("extras",{}).has("rmmo_hinge"):
+				var swept:=_hinge_bounds(local_box,node.extras.rmmo_hinge)
+				if not swept.get("known",false):return unknown("authored_hinge_bounds")
+				local_box=swept.bounds
+			var box: AABB = transform * local_box
 			if not _finite_box(box): return unknown("bounds_overflow")
 			parts.append({"id":"node:%d" % index, "node_index":index, "mesh_index":int(node.mesh), "transform":transform, "mesh_bounds":mesh_boxes[int(node.mesh)], "bounds":box})
 			total = box if first else total.merge(box); first = false
 		for child in node.get("children", []): pending.append({"index":int(child), "parent":transform})
 	if first or not _finite_box(total): return unknown("empty_or_invalid_bounds")
 	return {"known":true, "reason":"source_accessor_bounds", "local_bounds":total, "world_bounds":total, "mesh_nodes":parts, "scene_index":int(scene_id)}
+
+static func _authored_marker(extras:Variant)->bool:
+	if not extras is Dictionary:return false
+	var marker:Variant=extras.get("rmmo_model_components")
+	return marker is Dictionary and marker.size()==1 and (marker.get("version") is int or marker.get("version") is float) and marker.version==1
+
+static func _hinge_bounds(box:AABB,hinge:Variant)->Dictionary:
+	if not hinge is Dictionary or not _vector(hinge.get("pivot"),3):return unknown("hinge_pivot")
+	for key in ["angle","open"]:
+		var v:Variant=hinge.get(key,0 if key=="open" else null)
+		if not (v is int or v is float) or not is_finite(float(v)):return unknown("hinge_value")
+	var angle:=float(hinge.angle);var opened:=float(hinge.get("open",0))
+	if absf(angle)>180 or opened<0 or opened>1:return unknown("hinge_range")
+	var a:=deg_to_rad(-opened*angle);var b:=deg_to_rad((1-opened)*angle)
+	var low:=minf(a,b);var high:=maxf(a,b);var pivot:=_vec(hinge.pivot)
+	var swept:=box
+	# Extremal angles of each transformed accessor-box corner bound the entire
+	# continuous leaf motion, including its handle, without loading vertices.
+	for i in 8:
+		var offset:=box.get_endpoint(i)-pivot
+		var angles:Array[float]=[low,high]
+		for base:float in [atan2(offset.z,offset.x),atan2(-offset.x,offset.z)]:
+			for k in range(-2,3):
+				var theta:=base+k*PI
+				if theta>=low and theta<=high:angles.append(theta)
+		for theta:float in angles:swept=swept.expand(pivot+Basis(Vector3.UP,theta)*offset)
+	return {"known":_finite_box(swept),"bounds":swept}
 
 static func apply_record(manifest: Dictionary, record: Dictionary) -> Dictionary:
 	if not manifest.get("known", false): return manifest

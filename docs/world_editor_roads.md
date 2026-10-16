@@ -97,6 +97,8 @@ UI 与当前 3D `preview_road_surface` / `generate_road_surface` 继续共用 [r
 
 上述是编辑器业务和 headless/HTTP 验证，不代表本轮城镇道路、桥梁已发布，也不替代实际桥头过渡、材质和室外镜头验收。小夹具运行时间不能作为整城加载或生成性能承诺。
 
+2026-10-15 补充：桥端窄相的正向与逆向变换统一为 `rotation * local_scale`，与实际冻结桥 `Node3D` 一致，避免旋转叠加非均匀缩放时按世界轴误缩放。既有回归增加真实 `Frozen.visual` 的全部引道碰撞顶点对照，以及同姿态下合法中央通路/真实翼柱冲突，实际 HTTP 共 **32 项通过，0 失败**；日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/road_bridge_approach_scaled_http.log`。没有放宽桥跨主体保护或增加参数。
+
 同日修复短边焊接的退化回环：浮点裁切在东北门路口留下约 1.39 毫米的 A→B→A 零面积边界；旧有方向映射形成循环，循环检测停止后仍保留往返边，误报“路缘内角过尖”。`road_kerb.gd` 现在将原有 2.5 厘米短边焊接范围内的节点合并到确定的公共根，消除双点及微小回环。阈值未扩大，正常尖角、分叉、路缘折叠保护均保留；没有关闭路缘或忽略合法面积区域。
 
 `test_automatic_kerb_geometry.gd` 新增实际微片坐标、三边微片、真实尖角拒绝和正常边界不变检查，连同直路、T/Y/十字路口、环路、坡道、曲线及桥口开口用例全部通过。完整城镇配方的真实 XZ 轮廓开启路缘后通过（暴露边界约 6344.23 米）。`test_kerb_sliver_mcp.gd` 使用临时平地及同位置斜接门路，通过真实 3D HTTP 工具发现、预览无副作用、带材质生成、非法宽度拒绝、撤销重做和原生保存重开，18 项通过、0 失败；日志 `D:/code/rmmo_runtime/review_artifacts/axel_town_roads_20261014/kerb_sliver_http.log`。UI/MCP 无新增 schema，继续共享相同路缘业务。

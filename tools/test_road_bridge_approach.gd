@@ -3,6 +3,25 @@ const City=preload("res://scripts/world3d/city_layout.gd")
 const Foot=preload("res://scripts/world_editor/building_footprint.gd")
 const Narrow=preload("res://scripts/world3d/road_bridge_approach.gd")
 
+func transformed_approaches(bridge:Dictionary)->void:
+	var local:=bridge.duplicate(true);local.position=[0,0,0];local.rotation=[0,0,0];local.size=[1,1,1]
+	var original:=Narrow.collision_faces(local)
+	var copy:=bridge.duplicate(true);copy.position=[1300,2,-900];copy.rotation=[0,37,0];copy.size=[1.8,.9,.55]
+	var node:=preload("res://scripts/world3d/house_prefab.gd").visual(copy,false)
+	var actual:=Narrow.collision_faces(copy);var same:bool=original.faces.size()==actual.faces.size()
+	for i in original.faces.size():
+		for j in 3:same=same and (node.transform*original.faces[i].points[j]).distance_to(actual.faces[i].points[j])<.0002
+	check(same,"every approach collision vertex matches actual Frozen.visual transform under yaw and nonuniform local scale")
+	var bounds:=Foot.record_shape(copy)
+	for blocked:bool in [false,true]:
+		var rectangle:Array=[Vector2(6.1,-.5),Vector2(8.5,-.5),Vector2(8.5,.5),Vector2(6.1,.5)] if not blocked else [Vector2(6.7,2.92),Vector2(7.3,2.92),Vector2(7.3,3.52),Vector2(6.7,3.52)]
+		var points:Array=[]
+		for p:Vector2 in rectangle:
+			var world:Vector3=node.transform*Vector3(p.x,0,p.y);points.append([world.x,world.z])
+		var road:Dictionary={"uuid":"transformed_approach","kind":"box","surface_id":"road","position":[0.,node.position.y,0.],"rotation":[0,0,0],"size":[1.,.2,1.],"road_mesh":{"polygons":[points],"uv_origin":[0.,node.position.y,0.]},"road_clearance":3.}
+		check(Narrow.intersects(road,copy,Foot.record_shapes(road),bounds,{})==blocked,"nonuniform rotated approach "+("rejects actual wing post" if blocked else "retains clear centre passage"))
+	node.free()
+
 func run()->void:
 	create_timer(170).timeout.connect(func():quit(2));rpc_timeout_ms=80000
 	var directory:String=Paths.cache_directory("road_bridge_approach_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)
@@ -23,6 +42,7 @@ func run()->void:
 	await call_tool("generate_bridge",{"id":"fixture_bridge","road_edge_id":"crossing","prefab_id":"stone_segmental","start":[10.,.025,16.],"end":[22.,.025,16.],"width":5.2,"depth":2.,"camber":.25,"arches":1,"wing_length":1.5})
 	var bridge:Dictionary=editor._doc._find("fixture_bridge")
 	check(bridge.has("house_prefab") and bridge.get("prefab_locked",false),"actual generated bridge uses its frozen native collision source")
+	transformed_approaches(bridge)
 	var unknown:Dictionary=bridge.duplicate(true);var frozen=preload("res://scripts/world3d/house_prefab.gd")
 	var packet:Dictionary=frozen.decode(unknown.house_prefab);packet.entries[0][0]=[7]
 	var bytes:=var_to_bytes(packet);unknown.house_prefab={"version":1,"sha256":frozen.Cook.Envelope.checksum(bytes).hex_encode(),"length":bytes.size(),"data":Marshalls.raw_to_base64(bytes.compress(FileAccess.COMPRESSION_ZSTD))}

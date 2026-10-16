@@ -262,6 +262,7 @@ func validate_save_record(record: Dictionary, material_validation:Variant=null, 
 		# of instances should not reopen the same path's ancestors per instance.
 		if asset_validation==null or not asset_validation.has(path):
 			if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
+		if not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return ERR_FILE_CORRUPT
 		if asset_validation!=null:
 			var required:=preload("res://scripts/world3d/house_prefab.gd").requires_source_model(record)
 			asset_validation[path]=bool(asset_validation.get(path,false)) or required
@@ -274,6 +275,15 @@ func validate_save_asset_paths(asset_validation:Dictionary) -> Error:
 	for path:String in asset_validation:
 		if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
 		if asset_validation[path] and not FileAccess.file_exists(path):return ERR_FILE_NOT_FOUND
+	# Room/member proofs checked before a sliced yield must still refer to the
+	# same immutable bytes immediately before publication.
+	var verified:Dictionary={}
+	for record:Dictionary in records:
+		if not record.has("model_building"):continue
+		var path:String=str(record.get("asset_path",""))
+		if not asset_validation.has(path):return ERR_INVALID_DATA
+		if not verified.has(path):verified[path]=FileAccess.get_sha256(path)
+		if verified[path]!=record.model_building.source_sha:return ERR_FILE_CORRUPT
 	return OK
 
 
@@ -538,6 +548,9 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		extras.fixture=record.fixture.duplicate(true)
 	if record.has("building"):extras.building=record.building.duplicate(true)
 	if record.has("fortification"): extras.fortification=record.fortification.duplicate(true)
+	# Transparent water is excluded from ground batching, but remains part of
+	# the landscape's long-distance residency. Keep that semantic independently.
+	if record.has("channel_mesh"):extras.rmmo_landscape_kind="channel"
 	mesh_node.set_meta("extras", extras)
 	if record.get("building_shape") in ["joined_box","timber_door","interior_door"]:mesh_node.set_meta("collision_solid",box)
 	if cached == null:
@@ -623,6 +636,7 @@ func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
 		if not tree_error.is_empty():holder.set_meta("paint_error",tree_error)
 		_namespace_asset(model, str(record.uuid), model, str(record.get("collision","")))
 		preload("res://scripts/world3d/model_components.gd").apply(model,record)
+		if model.has_meta("model_components_error"):holder.set_meta("paint_error",str(model.get_meta("model_components_error")))
 		if model.has_meta("model_component_batch_sources"):
 			holder.set_meta("model_component_batch_sources",model.get_meta("model_component_batch_sources"))
 	preload("res://scripts/world3d/streetlamp_banner.gd").apply(holder,record)
@@ -636,6 +650,7 @@ func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
 func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:
 	if node is MeshInstance3D:
 		var extras: Dictionary = node.get_meta("extras", {}).duplicate(true)
+		if preload("res://scripts/world3d/imported_building.gd").valid_part(extras.get("rmmo_part")) and extras.has("uuid"):extras.rmmo_source_uuid=extras.uuid
 		extras["uuid"] = prefix + "__" + str(asset_root.get_path_to(node)).replace("/", "__")
 		if collision in ["none","walk","block"]: extras["rmmo_collision"]=collision
 		node.set_meta("extras", extras)

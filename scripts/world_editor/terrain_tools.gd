@@ -85,18 +85,19 @@ func prepare(args: Dictionary,defer_fortifications:bool=false) -> Dictionary:
 	var ids:Array=result.entries.map(func(entry):return entry.record.uuid)
 	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").affected(editor._doc.records,ids).map(func(r):return r.uuid))
 	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").fort_ids(editor,result.entries))
+	var bridge_contact_cache:Dictionary={}
 	for entry:Dictionary in result.entries:
 		var source:Dictionary=editor._doc._find(entry.record.uuid)
 		if not editor._record_editable(source):return Terrain.fail("跨块笔刷触及锁定、隐藏或隔层地形，整笔取消")
 		if source.has("surface_paint"):return Terrain.fail("跨块笔刷触及手刷表面，整笔取消")
-		var checked:=validate_change(source,entry,ids)
+		var checked:=validate_change(source,entry,ids,bridge_contact_cache)
 		if not checked.ok:return checked
 	var followed:=preload("res://scripts/world_editor/terrain_follow_tools.gd").prepare(editor,result.entries,defer_fortifications)
 	if not followed.ok:return followed
 	result.entries.append_array(followed.entries);result.map_meta=followed.map_meta;result.removed=followed.removed
 	return result
 
-func validate_change(record:Dictionary,result:Dictionary,participants:Array)->Dictionary:
+func validate_change(record:Dictionary,result:Dictionary,participants:Array,bridge_contact_cache:Dictionary={})->Dictionary:
 	var next:Dictionary=result.record;var t:Dictionary=record.terrain_mesh;var world:=Terrain.transform(record)
 	var furrows:=preload("res://scripts/world3d/terrain_furrows.gd").generate(next)
 	if not furrows.ok:return furrows
@@ -122,6 +123,7 @@ func validate_change(record:Dictionary,result:Dictionary,participants:Array)->Di
 		if not Foot.batches_overlap(changed_volumes,[bounds]): continue
 		if Foot.batches_overlap(changed_volumes,Foot.record_shapes(obstacle)):
 			if preload("res://scripts/world_editor/terrain_prop_contact.gd").preserves(record,result,obstacle):continue
+			if preload("res://scripts/world_editor/terrain_bridge_contact.gd").preserves(record,result,obstacle,bridge_contact_cache):continue
 			return {"ok":false,"error":"笔刷会侵入现有物件或移除其地面承托，整笔已拒绝","conflicts":[obstacle.uuid]}
 	return {"ok":true}
 func summary(args: Dictionary) -> Dictionary:

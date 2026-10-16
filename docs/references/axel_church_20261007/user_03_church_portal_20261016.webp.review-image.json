@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_03_church_portal_20261016.png",
+  "source_sha256": "6d406be0d21ed5dcd6a606a9494b56ae05206a234e79e5223d13ac32cf9eeafa",
+  "source_bytes": 1615216,
+  "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_03_church_portal_20261016.webp",
+  "sha256": "27702c891f543e45d68622ce3d8067f69579384949de7a045d20bd75a968f7f1",
+  "bytes": 129000,
+  "dimensions": [
+    1455,
+    818
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

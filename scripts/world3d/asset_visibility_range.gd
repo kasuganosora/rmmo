@@ -20,6 +20,9 @@ static func register(mesh: MeshInstance3D) -> void:
 	mesh.custom_aabb = AABB(Vector3(bounds[0], bounds[1], bounds[2]), Vector3(bounds[3], bounds[4], bounds[5]))
 	mesh.visibility_range_begin = float(begin)
 	mesh.visibility_range_end = float(end)
-	mesh.visibility_range_begin_margin = 1.0 if float(begin) > 0.0 else 0.0
-	mesh.visibility_range_end_margin = 1.0 if float(end) > 0.0 else 0.0
+	# These authored ranges tile the distance axis with independent meshes.
+	# Independent hysteresis can hide both siblings after a camera/entry jump.
+	# Exact shared boundaries retain coverage without transparency.
+	mesh.visibility_range_begin_margin = 0.0
+	mesh.visibility_range_end_margin = 0.0
 	mesh.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED

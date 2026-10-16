@@ -120,6 +120,17 @@ func invalidate_uuid(uuid: String, record: Dictionary) -> void:
 	_changed_records[uuid]=record # An empty record removes its cached bounds.
 
 func _refresh_bounds() -> void:
+	# Native document batches and deferred invalidation can straddle a frame
+	# (or an undo). Resolve IDs against the current document, never an earlier
+	# queued record/tombstone. Keep unchanged geometry cached.
+	var present:Dictionary={}
+	for record:Dictionary in city.editor._doc.records:
+		var id:=str(record.uuid);present[id]=true
+		if not _record_bounds.has(id) or _changed_records.has(id):
+			_record_bounds[id]=city.Geometry.bounds([record])
+	for id:String in _record_bounds.keys():
+		if not present.has(id):_record_bounds.erase(id)
+	_changed_records.clear()
 	var world := AABB()
 	var first := true
 	for box: AABB in _record_bounds.values():
@@ -142,10 +153,7 @@ func _process(_dt: float) -> void:
 	age+=_dt
 	if invalidated and age>=.2: refresh()
 	elif not _changed_records.is_empty() and age>=.2:
-		for id: String in _changed_records:
-			if _changed_records[id].is_empty():_record_bounds.erase(id)
-			else:_record_bounds[id]=city.Geometry.bounds([_changed_records[id]])
-		_changed_records.clear(); age=0; _refresh_bounds(); mini.queue_redraw()
+		age=0; _refresh_bounds(); mini.queue_redraw()
 	size=city.editor._canvas.size
 	var compact := size.x < 600
 	var mini_size := Vector2(160,132) if compact else Vector2(200,166)

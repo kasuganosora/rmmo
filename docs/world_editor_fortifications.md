@@ -266,3 +266,14 @@ Fixtures.set_runtime(map_root, "fortification:city_wall", "north", 1.0, 0.8)
 
 发布完成：默认登录配置 `override.cfg` 指向的 `D:/code/rmmo_runtime/maps/medieval_river_town/map.gltf` 已原子写回并原生重开核对通过，`published.json` 记录源/结果 SHA256，最终 failures=0。已经加载的游戏/编辑器视图需重新打开地图才能看到新网格；性能基准的独立两街区测试地图未改写。
 
+
+
+## 2026-10-16：同一城墙组内的独立水关岸基准
+
+`preview_fortification` / `generate_fortification` 的 `gates[]` 新增可选 `base_height`，只用于 `kind="water"`。它是该水关两岸的绝对结构基准，不是河水水位；门洞净高、墙顶、墩基下延和铁栅都从这个基准计算。省略时仍使用整组 `base_height`，旧地图无需升级。不同于整组的基准须启用 `follow_terrain`；城防面板“城门”页的“独立水关岸基准”与当前 3D MCP 使用同一业务。取消勾选会省略字段，不写入零值。
+
+原生折线、样条直线接驳区与环形水冠均保留单组身份。过水护墙、垛口按水口边界分段到本地高程；紧邻的墙顶接到同一岸基准。显式岸高的两端墙脚必须有实际台地承托，跨墙厚采样与目标高差不超过 0.12 米。墙顶 15% 坡度、地形非线性、桥墩到床、道路净空、保留区与锁定检查保持生效。不同高度的水关不自动抬河、填河或整平地形；作者应先做好真实岸台和接坡。
+
+随地形预览中的 `access_routes`（内门、室内入口、旋梯上下口、塔顶、射击孔）及陆门 `gates[].center` 现按实际刚性构件的平移量更新世界 Y，不再报告整组旧基准。塔楼仍由城内侧门、内部楼梯通到楼顶和墙顶，不增加外置梯。
+
+真实 headless HTTP 证据：`tools/test_watergate_local_elevation_http.gd`，39 PASS / 0 FAIL、进程退出 0；报告 `D:/code/rmmo_runtime/review_artifacts/axel_town_layout_20261016/watergate_local_elevation_http.json`。覆盖 4/8 米两岸高同一闭环、四处墙顶接缝、环形冠层、旧门兼容、UI 字段省略、工具发现、非法岸高/短墩/陆门误用原子拒绝、冻结身份、撤销重做、栅门开合、保存重开与原生地形跟随重生。此为共享业务与几何验证，不等同于正式城墙的画质、完整通路或地图发布验收；城镇地图未由该回归修改。

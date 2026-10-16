@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_02_church_full_20261016.png",
+  "source_sha256": "a0edc25224e8b6fe7a272d7482fb0f0fc086f9a853eeabccf8808dc023e0f7a6",
+  "source_bytes": 1921605,
+  "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_02_church_full_20261016.webp",
+  "sha256": "28a5e07622744fba0ec139e6982f18ca3f8e20f3910d8aa738d31423a96996da",
+  "bytes": 188366,
+  "dimensions": [
+    1455,
+    818
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

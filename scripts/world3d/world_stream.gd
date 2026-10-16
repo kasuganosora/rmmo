@@ -166,10 +166,18 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		return
 	if planned_work and deadline>0 and Time.get_ticks_usec()>=deadline:return
 	var cursor := int(map_root.get_meta(&"stream_cursor", 0))
-	var initial_cursor:=cursor
-	var left := 1000000 if budget <= 0 else budget
 	var draw := _source_ring(map_root,target, RENDER_RADIUS)
 	var solid := _source_ring(map_root,target, COLLISION_RADIUS)
+	var appended_now:=false
+	if budget>0 and budget<LOAD_BUDGET:
+		appended_now=append_ready_jobs(map_root,jobs,cursor,draw,solid,meshes,bodies)
+	if budget>0 and budget<LOAD_BUDGET and cursor<jobs.size():
+		var priority_origin:Variant=map_root.get_meta("stream_collision_priority_origin",Vector3(INF,INF,INF))
+		if appended_now or not priority_origin is Vector3 or Vector2(priority_origin.x,priority_origin.z).distance_squared_to(Vector2(origin.x,origin.z))>=1.0:
+			prioritize_local_collisions(jobs,cursor,origin,bodies,draw,meshes)
+			map_root.set_meta("stream_collision_priority_origin",origin)
+	var initial_cursor:=cursor
+	var left := 1000000 if budget <= 0 else budget
 	var wrapper_profile:Variant=_collision_wrapper_slots(map_root) if detailed else null
 	var apply_started := Time.get_ticks_usec()
 	if budget>=LOAD_BUDGET and _entry_clip(map_root)!=null:
@@ -929,8 +937,54 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 	var appended:=Time.get_ticks_usec() if detailed else 0
 	map_root.remove_meta(&"stream_candidates")
 	map_root.remove_meta(&"stream_plan_bins")
+	map_root.remove_meta("stream_collision_priority_origin")
 	if detailed:map_root.set_meta("stream_plan_detail",{"scan_ms":(scanned-entered)/1000.,"append_ms":(appended-scanned)/1000.,"release_meta_ms":(Time.get_ticks_usec()-appended)/1000.,"scanned":cursor-cursor_before,"pending":false})
 	return true
+
+
+static func append_ready_jobs(map_root:Node,jobs:Array,cursor:int,draw:Dictionary,solid:Dictionary,meshes:Dictionary,bodies:Dictionary)->bool:
+	# Index.append already validated and published these immutable specs. Insert
+	# them into the current plan without cancelling its active collision worker.
+	# Holding every new near prop behind an entire district left streets empty.
+	var pending:Array=map_root.get_meta("stream_append_pending",[])
+	if pending.is_empty():return false
+	var queued:Dictionary={}
+	for i in range(cursor,jobs.size()):queued[jobs[i].uuid]=true
+	var consumed:=mini(256,pending.size());var changed:=false
+	for i in consumed:
+		var spec:Dictionary=pending[i]
+		if queued.has(spec.uuid):continue
+		if _needs_work(spec,draw,solid,meshes,bodies,_dict(map_root,&"fortification_collision_sources")):
+			jobs.append(spec);queued[spec.uuid]=true;changed=true
+	if consumed==pending.size():map_root.remove_meta("stream_append_pending")
+	else:map_root.set_meta("stream_append_pending",pending.slice(consumed))
+	return changed
+
+
+static func prioritize_local_collisions(jobs:Array,cursor:int,origin:Vector3,bodies:Dictionary,draw:Dictionary={},meshes:Dictionary={})->void:
+	# Reorder only the pending residency plan. Keep its current item first:
+	# a sliced/worker collision preparation may already own that exact source.
+	# The 6 m lead gives nearby solids time to attach before the 2 m safety gate.
+	# Never widen collision residency, skip a body, or change readiness rules.
+	if cursor<0 or cursor+1>=jobs.size():return
+	var area:=Rect2(origin.x-6.,origin.z-6.,12.,12.)
+	var ground:Array=[];var local:Array=[];var visuals:Array=[];var rest:Array=[]
+	for i in range(cursor+1,jobs.size()):
+		var spec:Dictionary=jobs[i];var extra:Dictionary=spec.get("extras",{})
+		if not draw.is_empty() and Landscape.ground(spec) and _draws(spec,draw):ground.append(spec);continue
+		var near:bool=not bodies.has(str(spec.uuid)) and extra.get("rmmo_collision","")!="none" and not extra.get("hostile",false) and not extra.get("ally",false) and not spec.get("native_visual",false)
+		if near:
+			var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
+			var bounds:AABB=spec.transform*(AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb())
+			near=area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z),true)
+		if near:
+			if Landscape.ground(spec):ground.append(spec)
+			else:local.append(spec)
+		elif not draw.is_empty() and not meshes.has(spec.uuid) and not spec.get("native_visual",false) and not extra.get("hostile",false) and not extra.get("ally",false) and _overlaps(spec,draw) and _draws(spec,draw):visuals.append(spec)
+		else:rest.append(spec)
+	var at:=cursor+1
+	for group:Array in [ground,local,visuals,rest]:
+		for spec:Dictionary in group:jobs[at]=spec;at+=1
 
 
 static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary, batched: Dictionary={}) -> bool:

@@ -17,9 +17,11 @@ var traversal_guard:Callable=Callable()
 ## Reuse the already-required forward test's result; flat walking performs no
 ## additional collision query or per-tick KinematicCollision allocation.
 var _step_contact:=KinematicCollision3D.new()
+var _descent=preload("res://scripts/world3d/step_descent.gd").new()
 
 
 func release() -> void:
+	_descent.clear()
 	_body = null
 	_navigation = null
 	snapshot.clear()
@@ -29,6 +31,7 @@ func release() -> void:
 
 
 func mount(body: CharacterBody3D, navigation: Node, map_ref: String) -> void:
+	_descent.clear()
 	_body = weakref(body)
 	_navigation = weakref(navigation) if is_instance_valid(navigation) else null
 	_map_ref = map_ref
@@ -81,7 +84,9 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 		# Navigation decides click-to-move routes, not manual physical movement.
 		# A supported roof, narrow post or prop needs no nav polygon/asset allowlist.
 	var support_done:=Time.get_ticks_usec() if profiling else 0
-	if jump and body.is_on_floor():body.velocity.y=4.8
+	var was_supported:bool=body.is_on_floor() or _descent.supported(body)
+	var jumped:bool=jump and was_supported
+	if jumped:body.velocity.y=4.8
 	if body.velocity.y<=0 and wish.length_squared() > 0.0 and body.test_move(body.global_transform, wish * dt,_step_contact):
 		_step_up(body, feet, wish, dt,_step_contact)
 		feet = body.global_position - Vector3(0, 0.9, 0)
@@ -92,6 +97,7 @@ func move_intent(sequence: int, direction: Vector3, speed: float, jump:bool=fals
 	var move_from:Transform3D=body.global_transform if profiling else Transform3D.IDENTITY
 	var move_velocity:Vector3=body.velocity if profiling else Vector3.ZERO
 	body.move_and_slide()
+	_descent.follow(body,was_supported,jumped)
 	var move_done:=Time.get_ticks_usec() if profiling else 0
 	body._sense_surface()
 	preload("res://scripts/world3d/player_clearance.gd").end_capsule_motion(body,actor_rotation)

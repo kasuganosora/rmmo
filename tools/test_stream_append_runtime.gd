@@ -303,6 +303,29 @@ func shared_near_far_model()->void:
 		await process_frame
 	check(not is_instance_valid(loader),"shared-model loader retires all initial background work")
 	host.free();assets._scenes.erase(asset)
+func late_visible_asset()->void:
+	var items:Array=[]
+	for i in 80:
+		var item:=box("district_%d__wall"%i,Vector3(200+i,8,4),Vector3(2,16,2))
+		items.append(item)
+	var world:=scene(items);Stream.sync(world.map,world.host,Vector3(2000,0,0))
+	for frame in 20:
+		Stream.sync(world.map,world.host,Vector3.ZERO,1)
+		if world.map.get_meta("stream_jobs",[]).size()>40:break
+		await process_frame
+	var cursor:int=world.map.get_meta("stream_cursor",0)
+	check(world.map.get_meta("stream_jobs",[]).size()-cursor>40,"late-arrival fixture has real outstanding district work")
+	var late:=box("late_near_visual",Vector3(4,1,4),Vector3.ONE);late.extras.rmmo_collision="none"
+	check(Stream.append_specs(world.map,[late]).ok,"new near visual indexes during an active district plan")
+	var appeared:=-1
+	for frame in 12:
+		Stream.sync(world.map,world.host,Vector3.ZERO,1)
+		if world.map.get_meta("stream_meshes",{}).has(late.uuid):appeared=frame;break
+		await process_frame
+	check(appeared>=0 and world.map.get_meta("stream_jobs",[]).size()-int(world.map.get_meta("stream_cursor",0))>20,"new near visual appears before the distant district drains")
+	await settle(world,Vector3.ZERO);equal_residency(world,Vector3.ZERO,"late visual promotion")
+	world.host.free()
+
 func run()->void:
 	create_timer(90).timeout.connect(func():push_error("append runtime timeout");quit(2))
 	var initial:Array=[box("anchor",Vector3(4,1,4),Vector3(2,2,2))]
@@ -372,6 +395,7 @@ func run()->void:
 	reverse.host.free()
 	await guards()
 	await continuous_appends()
+	await late_visible_asset()
 	await source_pins()
 	await scheduler()
 	await shared_near_far_model()

@@ -7,7 +7,7 @@ static func ground(spec:Dictionary)->bool:
 
 static func landscape(spec:Dictionary)->bool:
 	var r:Dictionary=spec.get("ground_batch_record",{})
-	return ground(spec) or r.has("road_mesh") or r.has("channel_mesh") or r.has("bridge_mesh") or r.has("fortification")
+	return ground(spec) or r.has("road_mesh") or r.has("channel_mesh") or r.has("bridge_mesh") or r.has("fortification") or spec.get("extras",{}).get("rmmo_landscape_kind","")=="channel"
 
 static func bind(library:Array,groups:Dictionary)->Array:
 	var land:Array=[];var supports:Array=[]

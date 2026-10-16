@@ -12,6 +12,7 @@ static func inspect(snapshot:Dictionary,root:Node,physics_frame:int,published_fr
 	var specs:Dictionary={};var missing:Array=[]
 	for spec:Dictionary in root.get_meta("stream_library",[]):
 		var uuid:String=str(spec.get("extras",{}).get("uuid",spec.get("uuid","")))
+		if spec.get("extras",{}).get("building",{}).get("id")==b.instance_id and uuid not in b.member_ids:receipt.structure_ready=false
 		if uuid in b.member_ids:
 			if not specs.has(uuid):specs[uuid]=[]
 			specs[uuid].append(spec)

@@ -27,14 +27,28 @@ func register_root(map_ref:String,map_revision:String,root:Node)->Dictionary:
 	var complete:Dictionary=root.get_meta("author_reference_extras",root.get_meta("extras",{}))
 	if root.get_meta("runtime_record_subset",false) and not root.has_meta("author_reference_extras"):return _fail("complete_author_metadata_unavailable")
 	var bounds:Dictionary={};var imported:Array=[]
+	var annotated:Dictionary={};var member_owners:Dictionary={}
+	for raw:Dictionary in complete.get("rmmo_records",[]):
+		var r:Dictionary=Membership.header(raw)
+		if not r.has("model_building"):continue
+		if not Membership.Imported.valid_record(r):return _fail("invalid_imported_building")
+		annotated[r.uuid]=true
+		for member:String in Membership.Imported.member_ids(r):member_owners[member]=r.uuid
 	var deferred:=root.get_node_or_null("DeferredAssets")
 	var index:Dictionary=deferred.get("_reference_index") if deferred!=null else {}
 	if not index.is_empty():
+		# Compact state deliberately omits immutable asset_path. Its verified
+		# directory supplies the path only for this authority-side snapshot.
+		complete=complete.duplicate(true)
+		var paths:Dictionary={}
 		for row:Dictionary in index.get("rows",[]):
+			if annotated.has(row.uuid):paths[row.uuid]=str(row.get("asset_path",""))
 			if row.get("bounds_known",false):
 				bounds[row.uuid]=row.bounds
-				if not str(row.get("asset_path","")).is_empty():imported.append(row.bounds)
+				if not str(row.get("asset_path","")).is_empty() and not annotated.has(row.uuid):imported.append(row.bounds)
 			elif not str(row.get("asset_path","")).is_empty():return _fail("unclassified_asset_bounds")
+		for raw:Dictionary in complete.get("rmmo_records",[]):
+			if annotated.has(raw.uuid):raw.asset_path=paths.get(raw.uuid,"")
 	else:
 		# Compact references do not carry immutable kind/asset_path. Without a
 		# verified directory use the complete hydrated author list, or deny proof.
@@ -46,7 +60,11 @@ func register_root(map_ref:String,map_revision:String,root:Node)->Dictionary:
 			var r:Dictionary=spec.get("extras",{})
 			if spec.get("mesh")!=null:
 				bounds[spec.uuid]=spec.transform*spec.mesh.get_aabb()
-				if r.get("kind")=="asset" or r.has("asset_path"):imported.append(bounds[spec.uuid])
+				var member:String=str(r.get("uuid",spec.uuid))
+				if member_owners.has(member):
+					var owner:String=member_owners[member]
+					bounds[owner]=bounds[owner].merge(bounds[spec.uuid]) if bounds.has(owner) else bounds[spec.uuid]
+				elif (r.get("kind")=="asset" or r.has("asset_path")) and not annotated.has(member):imported.append(bounds[spec.uuid])
 	return register_map(map_ref,map_revision,complete,bounds,imported)
 
 func register_map(map_ref:String,map_revision:String,complete_author_meta:Dictionary,bounds:Dictionary={},imported_bounds:Array=[])->Dictionary:

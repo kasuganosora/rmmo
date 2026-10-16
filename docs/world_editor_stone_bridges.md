@@ -117,3 +117,22 @@ Blender 制作原创拼装模块，编辑器按现场参数生成整桥。默认
 
 派生缓存的 `runtime_mesh_cache.generator_key()` 已包含 `bridge_mesh.gd` 文件 SHA，修改会令旧派生网格缓存失效；新桥 `Structure.bridge()` 直接调用共享生成器后重新冻结，其 `house_prefab.sha256` 随实际内容更新。已经保存的固定桥是创作资源，不因缓存失效被静默重写；旧资源保留，新城镇候选重新生成五桥，再核对新 SHA 和保存重开身份。
 
+## 2026-10-15 非通航溪流过水口
+
+桥梁面板和当前 3D MCP `preview_bridge` / `generate_bridge` 增加可选 `clearance_mode`：
+
+| 值 | 用途与实际几何下限 |
+| --- | --- |
+| `navigable`（省略时默认） | 保留原规则：连续主通航孔净宽 2 m、净高 2.5 m。 |
+| `stream` | 明确不提供船舶通行；桥体与**全部实际重叠水面**之间至少留 0.20 m 空隙。此值是项目的低矮溪流防穿透余量，不是现实水利或防洪标准。 |
+
+`stream` 使用 [bridge_stream_clearance.gd](../scripts/world_editor/bridge_stream_clearance.gd) 将现有桥型全部实际三角面与现场水面多边形连续裁交。测量包含整个湿宽、沿水流方向的两侧面、斜交角、跨水面块接缝，以及投影面积为零的竖向桥脚。按每块实际水面平面逐点求高，不让桥中央的高拱顶掩盖侧部低石块、桥脚或倾斜水面的高侧。零面积水面或近竖直水面保守拒绝；现有原生水面记录校验继续生效。它不模拟流量、洪水、吃水或着色器波峰。
+
+两种模式均沿用 `auto_clearance`、最大 15% 坡度、真实物件碰撞、桥头承托及道路绑定保护。自动抬拱不足时要求调整桥头/跨度；不会填入挡水支撑、放大坡度预算或删除河床。无水旱桥仍返回 `applicable=false`。溪流预览的 `navigation` 增加 `mode="stream"`、`scope="entire_overlapped_water_surface"`，并返回 `clearance/required_height/water_level/minimum_at/water_id/clipped_triangles/adjusted`；该模式没有主航道 `width` 字段。用途保存于 `bridge_mesh.clearance_mode`，应用后仍是原生固定桥、一个网格三个 PBR 表面，原有 LOD、精确碰撞、合批和源资源身份不变。
+
+此入口支持独立桥及 `road_edge_id` 道路转换。现有河道配方内嵌桥的参数 schema 本轮未增加此字段，仍采用通航规则；溪流内容使用明确道路绑定桥。手动移动水面、桥体或以后更改河线后必须重新验证，不能将生成时的测量当成持续水文保证。
+
+[test_bridge_stream_clearance_http.gd](../tools/test_bridge_stream_clearance_http.gd) 通过真实 loopback HTTP 验证工具发现、合法/非法用途、保留默认通航、完整湿宽/桥脚/倾斜水面拒绝、自动抬拱坡度限制、保护/碰撞、UI 预览与应用、单事务裁掉 T 口旧铺面和路缘、撤销重做、原生保存重开。纯 CPU 另验小凸齿、竖向桥脚、远坐标、反向水面绕序/跨块缝及退化输入；实际桥面和流向使用完整碰撞三角网射线验证。日志与资源报告为 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/stream_bridge_http.log`、`stream_bridge_http_review.json`。
+
+隔离夹具的浅拱石桥总跨 6 m、总宽 6.2 m、基础深 1.5 m、无翼墙/无拱起，桥面 8.49 m、水面 7.45 m、湿宽 3.6 m，并保留 main09 的斜交角。实际最小净空 **0.21225 m**；三个材质表面、13,356 三角，冻结解码数据 1,173,168 字节。母模块 SHA `308b971639dabd7e9abe2c13d8a4d46dd2067607bead8b8efabf58a1b2f84ffb` 未改；本轮没有另做新桥型或简化资源。RSS/VRAM 未测，原生几何/管线通过不等于实际城镇接岸、画质或正式地图接入通过；这些仍须整组后台 GPU 验收。
+

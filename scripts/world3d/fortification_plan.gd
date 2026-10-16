@@ -26,6 +26,24 @@ func strip(part: String,a: Vector2,b: Vector2,bottom: float,top: float,width: fl
 		for i in n: strip(part+"_chunk%d"%i,a.lerp(b,float(i)/n),a.lerp(b,float(i+1)/n),bottom,top,width,role)
 		return
 	var center: Vector2=(a+b)*.5; box(part,Vector3(center.x,(top+bottom)*.5,center.y),Vector3(a.distance_to(b),top-bottom,width),-rad_to_deg((b-a).angle()),role)
+
+func top_strip(part:String,a:Vector2,b:Vector2,bottom:float,top:float,width:float,role:String,origin:Vector2,tangent:Vector2,openings:Array)->void:
+	# Split only explicitly elevated water crossings. No parapet or merlon
+	# may straddle their jamb and keep the region's unrelated elevation.
+	var length:float=a.distance_to(b);var start:float=(a-origin).dot(tangent);var cuts:Array=[0.0,length]
+	var elevated:Array=openings.filter(func(o):return o.gate.get("kind","land")=="water" and o.gate.has("base_height"))
+	if elevated.is_empty():strip(part,a,b,bottom,top,width,role);return
+	for opening:Dictionary in elevated:
+		for edge:float in [opening.lo,opening.hi]:
+			var at:float=edge-start
+			if at>.00001 and at<length-.00001:cuts.append(at)
+	cuts.sort()
+	for i in cuts.size()-1:
+		if cuts[i+1]-cuts[i]<.00001:continue
+		var center:float=start+(cuts[i]+cuts[i+1])*.5;var offset:=0.0
+		for opening:Dictionary in elevated:
+			if center>=opening.lo and center<=opening.hi:offset=float(opening.gate.base_height)-float(settings.base_height);break
+		strip(part+"_level%d"%i,a+tangent*cuts[i],a+tangent*cuts[i+1],bottom+offset,top+offset,width,role)
 func build(value: Dictionary,curved:bool=false) -> Dictionary:
 	if value.get("shape","path")=="spline":
 		var resolved:=preload("res://scripts/world3d/fortification_spline.gd").resolve(value)
@@ -77,17 +95,17 @@ func build(value: Dictionary,curved:bool=false) -> Dictionary:
 				var r:=box("door_%s_%s"%[id,str(side).replace("-","m")],Vector3(c.x,y+gate.height*.5,c.y),Vector3(gate.width*.5-.06,gate.height-.1,.18),-rad_to_deg(tangent.angle()),"door")
 				r.fixture={"id":gate.id,"kind":"door","pivot":[side*gate.width*.25,0,0],"angle":-side*100.0,"open":gate.open}
 				hinges(r)
-			gates.append({"id":gate.id,"center":[center.x,y,center.y],"width":gate.width,"height":gate.height,"open":gate.open}); start=opening.hi
+			gates.append({"id":gate.id,"center":[center.x,gate.get("base_height",y),center.y],"width":gate.width,"height":gate.height,"open":gate.open}); start=opening.hi
 		strip("s%d_end"%path.index,a+tangent*start,b,y-settings.foundation,top,settings.thickness)
 		# Continuous inner/outer parapets with evenly spaced raised merlons.
 		if settings.battlements:
 			for side in [-1,1]:
 				var offset: Vector2=normal*side*(half-.2)
-				strip("parapet_%d_%s"%[path.index,str(side).replace("-","m")],a+offset,b+offset,top,top+.45,.4,"parapet")
+				top_strip("parapet_%d_%s"%[path.index,str(side).replace("-","m")],a+offset,b+offset,top,top+.45,.4,"parapet",a,tangent,openings)
 				var count: int=maxi(2,ceili(length/2.4))
 				for j in count:
 					var c: Vector2=a.lerp(b,(j+.5)/count)+offset; var span: float=length/count*.5
-					strip("merlon_%d_%s_%d"%[path.index,str(side).replace("-","m"),j],c-tangent*span*.5,c+tangent*span*.5,top+.45,top+1.15,.4,"battlement")
+					top_strip("merlon_%d_%s_%d"%[path.index,str(side).replace("-","m"),j],c-tangent*span*.5,c+tangent*span*.5,top+.45,top+1.15,.4,"battlement",a,tangent,openings)
 	for i in points.size():
 		var p: Vector2=points[i]
 		if settings.corner_towers and (not settings.has("tower_indices") or i in settings.tower_indices):
@@ -106,7 +124,7 @@ func build(value: Dictionary,curved:bool=false) -> Dictionary:
 
 func water_opening(gate:Dictionary,a:Vector2,b:Vector2)->void:
 	var tangent:Vector2=(b-a).normalized();var normal:=Vector2(-tangent.y,tangent.x)
-	var id:String=gate.id.sha256_text().left(10);var y:float=settings.base_height;var top:float=y+settings.height;var half:float=settings.thickness*.5
+	var id:String=gate.id.sha256_text().left(10);var y:float=gate.get("base_height",settings.base_height);var top:float=y+settings.height;var half:float=settings.thickness*.5
 	var bays:=maxi(1,ceili(gate.width/8.));var pier:=1.;var span:float=(gate.width-(bays-1)*pier)/bays
 	for bay in bays:
 		var lo:float=0.0+bay*(span+pier);var hi:float=lo+span

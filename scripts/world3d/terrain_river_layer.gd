@@ -5,7 +5,7 @@ const T=preload("res://scripts/world3d/terrain_surface.gd")
 const W=preload("res://scripts/world3d/waterway_data.gd")
 const APPEARANCE_FIELDS=["terrain_depth_blend","terrain_slope_blend"]
 static func request_schema()->Dictionary:
-	return W.obj({"id":W.text(80),"terrain_ids":W.arr(W.text(128),64,1),"points":W.arr(W.arr(T.S.number(-10000,10000),2,2),128,2),"width":T.S.number(3,60),"bank_width":T.S.number(1,20),"water_level":T.S.number(-1000,1000),"depth":T.S.number(.5,12),"curved":{"type":"boolean"},"natural_materials":{"type":"boolean"}},["id","terrain_ids","points","water_level"])
+	return W.obj({"id":W.text(80),"terrain_ids":W.arr(W.text(128),64,1),"points":W.arr(W.arr(T.S.number(-10000,10000),2,2),128,2),"width":T.S.number(3,60),"bank_width":T.S.number(1,20),"water_level":T.S.number(-1000,1000),"water_levels":W.arr(T.S.number(-1000,1000),128,2),"outlet":W.obj({"river_id":W.text(80),"endpoint":{"type":"string","enum":["end"]}},["river_id"]),"depth":T.S.number(.5,12),"curved":{"type":"boolean"},"natural_materials":{"type":"boolean"}},["id","terrain_ids","points","water_level"])
 
 static func snapshots_valid(before:Dictionary,after:Dictionary)->bool:
 	for record:Dictionary in [before,after]:
@@ -69,6 +69,7 @@ static func valid(meta:Dictionary)->bool:
 		ids[layer.id]=true
 		if not layer.id.is_valid_identifier() or layer.id.length()>80:return false
 		if not layer.get("request") is Dictionary or not T.S.validate(layer.request,request_schema()).is_empty() or layer.request.id!=layer.id:return false
+		if not preload("res://scripts/world3d/terrain_river_profile.gd").validate(layer.request).is_empty():return false
 		var seeds:Dictionary={}
 		for id:String in layer.request.terrain_ids:
 			if id.is_empty() or seeds.has(id):return false
@@ -83,7 +84,7 @@ static func valid(meta:Dictionary)->bool:
 		for water:Variant in layer.water:
 			if not water is Dictionary or not water.get("id") is String or not water.id.begins_with("river_"+layer.id+"_") or not water.get("signature") is String or water.signature.length()!=64 or not water.signature.is_valid_hex_number(false) or water_ids.has(water.id):return false
 			water_ids[water.id]=true
-	return true
+	return preload("res://scripts/world3d/terrain_river_outlet.gd").valid_links(meta)
 
 static func snapshot_records(meta:Dictionary)->Array:
 	# Callers validate metadata before using this dependency list. References

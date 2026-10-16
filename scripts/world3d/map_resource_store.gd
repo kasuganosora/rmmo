@@ -2,7 +2,7 @@ extends RefCounted
 ## Immutable authored CPU definitions. No models/images are loaded or exported.
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const FIELDS=["uuid","position","rotation","size"]
-const STATE_FIELDS=["building","fortification","fixture","event","editor_group","editor_group_name","editor_name","editor_hidden","editor_locked"]
+const STATE_FIELDS=["building","model_building","model_building_states","fortification","fixture","event","editor_group","editor_group_name","editor_name","editor_hidden","editor_locked"]
 const MAGIC="RMMORES1"
 const MAX_RAW_BYTES=64*1024*1024
 const MAX_FILE_BYTES=65*1024*1024

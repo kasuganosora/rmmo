@@ -11,6 +11,96 @@
         784
       ],
       "note": "Original screenshot preserved unchanged."
+    },
+    {
+      "id": "C02",
+      "file": "user_02_church_full_20261016.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-104a36e0-95b0-4e70-bd46-261d8bf58c96.png",
+      "sha256": "a0edc25224e8b6fe7a272d7482fb0f0fc086f9a853eeabccf8808dc023e0f7a6",
+      "dimensions_px": [
+        1455,
+        818
+      ],
+      "upload": {
+        "version": 2,
+        "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_02_church_full_20261016.png",
+        "source_sha256": "a0edc25224e8b6fe7a272d7482fb0f0fc086f9a853eeabccf8808dc023e0f7a6",
+        "source_bytes": 1921605,
+        "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_02_church_full_20261016.webp",
+        "sha256": "28a5e07622744fba0ec139e6982f18ca3f8e20f3910d8aa738d31423a96996da",
+        "bytes": 188366,
+        "dimensions": [
+          1455,
+          818
+        ],
+        "format": "WEBP",
+        "quality": 90,
+        "lossless": false,
+        "method": 6,
+        "source_retained": true,
+        "intended_use": "openai_review"
+      },
+      "note": "2026-10-16 user supplement. Original unchanged; complete undamaged glazing explicitly required."
+    },
+    {
+      "id": "C03",
+      "file": "user_03_church_portal_20261016.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-c3fa1d4b-332c-4447-8a68-3eabaca5c269.png",
+      "sha256": "6d406be0d21ed5dcd6a606a9494b56ae05206a234e79e5223d13ac32cf9eeafa",
+      "dimensions_px": [
+        1455,
+        818
+      ],
+      "upload": {
+        "version": 2,
+        "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_03_church_portal_20261016.png",
+        "source_sha256": "6d406be0d21ed5dcd6a606a9494b56ae05206a234e79e5223d13ac32cf9eeafa",
+        "source_bytes": 1615216,
+        "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_03_church_portal_20261016.webp",
+        "sha256": "27702c891f543e45d68622ce3d8067f69579384949de7a045d20bd75a968f7f1",
+        "bytes": 129000,
+        "dimensions": [
+          1455,
+          818
+        ],
+        "format": "WEBP",
+        "quality": 90,
+        "lossless": false,
+        "method": 6,
+        "source_retained": true,
+        "intended_use": "openai_review"
+      },
+      "note": "2026-10-16 user supplement. Original unchanged; complete undamaged glazing explicitly required."
+    },
+    {
+      "id": "C04",
+      "file": "user_04_church_glazing_20261016.png",
+      "original": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-33d49fdc-344f-4e57-ba37-6a92f37ccae9.png",
+      "sha256": "354d1d0c3ee800c8cff950fe86d93f49b2498041bcaf44da306b3703a1fca7bc",
+      "dimensions_px": [
+        1455,
+        818
+      ],
+      "upload": {
+        "version": 2,
+        "source": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_04_church_glazing_20261016.png",
+        "source_sha256": "354d1d0c3ee800c8cff950fe86d93f49b2498041bcaf44da306b3703a1fca7bc",
+        "source_bytes": 2021035,
+        "path": "D:\\code\\rmmo\\docs\\references\\axel_church_20261007\\user_04_church_glazing_20261016.webp",
+        "sha256": "21a6e1c5f19c8d5211268853ed6dc5ece17760853e1be24e0469c681a93a209a",
+        "bytes": 191666,
+        "dimensions": [
+          1455,
+          818
+        ],
+        "format": "WEBP",
+        "quality": 90,
+        "lossless": false,
+        "method": 6,
+        "source_retained": true,
+        "intended_use": "openai_review"
+      },
+      "note": "2026-10-16 user supplement. Original unchanged; complete undamaged glazing explicitly required."
     }
   ]
 }

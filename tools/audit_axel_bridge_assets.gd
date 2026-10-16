@@ -124,7 +124,7 @@ static func capture_plan(record:Dictionary)->Dictionary:
 		"detail":camera_view(pose,Vector3(0,float(d.camber)-.12,width*.5),Vector3(-1.2,1.1,4.2))}
 	return {"id":record.uuid,"frozen_payload_sha256":record.house_prefab.sha256,"views":views,"detail_purpose":"side masonry / top paving boundary beneath parapet, former white stripe, arch ring and normal-map density","visibility_caveat":"CPU camera proposal; verify occlusion and terrain/water clipping in actual GPU capture; keep common lighting, exposure and FOV"}
 
-static func audit_document(doc,map_path:String="")->Dictionary:
+static func audit_document(doc,map_path:String="",bridge_ids:Array=[])->Dictionary:
 	var errors:Array=[];var images:Dictionary={};var material_pool:Dictionary={};var unique_geometry:Dictionary={}
 	var report:={"schema_version":1,"scope":"five generated stone bridges only","map":file_identity(map_path),"bridges":[],"capture_plan":[],"errors":errors}
 	var refs:Dictionary={}
@@ -134,8 +134,10 @@ static func audit_document(doc,map_path:String="")->Dictionary:
 			for node:Dictionary in gltf.get("nodes",[]):
 				for compact:Dictionary in node.get("extras",{}).get("rmmo_records",[]):refs[compact.uuid]=compact
 	var bridges:Array=doc.records.filter(func(r):return r.has("bridge_mesh"))
+	if not bridge_ids.is_empty():bridges=bridges.filter(func(r):return r.uuid in bridge_ids);report.scope="explicitly selected generated bridges: "+str(bridge_ids)
 	bridges.sort_custom(func(a,b):return a.position[2]<b.position[2])
-	demand(bridges.size()==5,"expected exactly five authored bridges; found "+str(bridges.size()),errors)
+	var expected_count:=5 if bridge_ids.is_empty() else bridge_ids.size()
+	demand(bridges.size()==expected_count,"expected "+str(expected_count)+" authored bridges; found "+str(bridges.size()),errors)
 	var ports:=Ports.resolve(City.resolve(doc.map_meta));report.road_bindings_valid=ports.get("ok",false)
 	demand(report.road_bindings_valid,"native road bridge bindings invalid: "+str(ports.get("error","")),errors)
 	var support:Array=doc.records.filter(func(r):return r.has("terrain_mesh") or r.has("road_mesh") or r.get("kind")=="box" and r.get("surface_id") in ["ground","grass","dirt","sand","stone","river_bank","river_bed"])
@@ -221,8 +223,8 @@ static func audit_document(doc,map_path:String="")->Dictionary:
 	report.passed=errors.is_empty()
 	return report
 
-static func write_report(doc,map_path:String,out:String)->Dictionary:
-	var result:=audit_document(doc,map_path)
+static func write_report(doc,map_path:String,out:String,bridge_ids:Array=[])->Dictionary:
+	var result:=audit_document(doc,map_path,bridge_ids)
 	DirAccess.make_dir_recursive_absolute(out)
 	var file:=FileAccess.open(out.path_join("resource_audit.json"),FileAccess.WRITE)
 	if file==null:return {"passed":false,"errors":["cannot write resource_audit.json"]}

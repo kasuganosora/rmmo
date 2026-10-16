@@ -13,6 +13,7 @@ func refresh()->void:
 	var title:=Label.new();title.text="模型活动门 / 柜门";add_child(title)
 	for row:Dictionary in found.components:
 		var button:=Button.new();button.text=("关闭 · " if row.open>.5 else "打开 · ")+str(row.id).get_file()
+		button.disabled=not row.get("editable",true)
 		add_child(button)
 		button.pressed.connect(func():
 			var result:Dictionary=preload("res://scripts/world_editor/model_component_tools.gd").set_open(editor,id,row.id,0.0 if row.open>.5 else 1.0)
