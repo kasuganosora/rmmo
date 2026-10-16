@@ -7,7 +7,7 @@ const Index=preload("res://scripts/world3d/stream_index.gd")
 const Errors=preload("res://tools/test_prefab_texture_preparation.gd").Errors
 class Document extends RefCounted:
 	var calls:Dictionary={}
-	func _mesh(record:Dictionary)->Node3D:
+	func _mesh(record:Dictionary,_effects:bool=true,_timings:Variant=null)->Node3D:
 		calls[record.uuid]=int(calls.get(record.uuid,0))+1
 		return Node3D.new()
 class Queue extends Deferred:
