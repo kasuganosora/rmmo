@@ -38,6 +38,7 @@ static var native_preparation_enabled:=true # Probe-only old native/readmission 
 static var native_budget_enabled:=true # Validated native reservations; invalid candidates use full raw admission.
 static var ready_worker_yield_enabled:=true # Bytes remain charged after join.
 static var fair_publication_enabled:=true # Probe may select the old distance-only order.
+static var material_publication_slices_enabled:=true # Probe-only synchronous control.
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
@@ -1311,6 +1312,7 @@ func _publication_ready()->Array:
 		if at>=queue.items.size():at=queue.cursor
 		var visited:=0
 		while checked<64 and visited<queue.items.size()-queue.cursor:
+			var selected_at:=at
 			var item:Dictionary=queue.items[at];checked+=1;visited+=1
 			at+=1
 			if at>=queue.items.size():at=queue.cursor
@@ -1323,6 +1325,7 @@ func _publication_ready()->Array:
 				if collision.get("pending",false):
 					profile.collision_publication_waits=int(profile.get("collision_publication_waits",0))+1
 					continue
+			queue.chosen=selected_at
 			ready.append(item);break
 	ready.sort_custom(func(a,b):return _demanded_rank[a.record.uuid]<_demanded_rank[b.record.uuid])
 	var elapsed:=Time.get_ticks_usec()-began
@@ -1439,6 +1442,28 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		if item.record.has("house_prefab"):
 			var prepared:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_cpu",{}).get(item.record.house_prefab.sha256,{})
 			var textures:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_texture_packet",{})
+			# Prepared image/ticket packets already have a separate scoped owner and
+			# invalidation protocol. Keep that route synchronous and unchanged.
+			if (material_publication_slices_enabled and textures.is_empty()
+				and not Prefab._meshes.has(item.record.house_prefab.sha256)
+				and prepared.get("sha256")==item.record.house_prefab.sha256 and prepared.get("data") is Dictionary
+				and prepared.get("geometry_keys",[]).size()==prepared.data.meshes.size()
+				and prepared.get("collision_faces",[]).size()==prepared.data.meshes.size()):
+				var phase:=preload("res://scripts/world3d/material_publication.gd").step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool)
+				if phase!=0:
+					if phase<0:
+						_instance_failed(publication_id,"预制件材质准备失败："+publication_id)
+						if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+					else:
+						# Revisit this ready member next turn; all readiness/collision and
+						# demand-priority checks still run. A demand revision rebuilds it.
+						var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen
+					var elapsed:int=Time.get_ticks_usec()-unit_began
+					profile.material_preparation_units=int(profile.get("material_preparation_units",0))+1
+					profile.material_preparation_us=int(profile.get("material_preparation_us",0))+elapsed
+					profile.max_material_preparation_unit_us=maxi(int(profile.get("max_material_preparation_unit_us",0)),elapsed)
+					preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.material_step",unit_began,{"uuid":publication_id,"path":item.path,"phase":phase})
+					_account_work_unit(timing,unit_began);continue
 			if not preload("res://scripts/world3d/house_prefab.gd").publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,prefab_parts,textures):
 				textures={};prepared={}
 				_instance_failed(item.record.uuid,"后台预制件数据无法发布："+item.record.uuid);_stage_building(item,[])

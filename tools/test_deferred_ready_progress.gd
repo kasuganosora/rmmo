@@ -22,8 +22,8 @@ func check(ok:bool,label_:String)->void:
 	print("PASS: " if ok else "FAIL: ",label_)
 	if ok:passed+=1
 	else:failures+=1
-func fixture(member_count:int=2,props:bool=false)->Dictionary:
-	var map:=Node3D.new();root.add_child(map);map.set_meta("stream_library",[])
+func fixture(member_count:int=2,props:bool=false,scene_root:Node=null)->Dictionary:
+	var map:=Node3D.new();(scene_root if scene_root!=null else root).add_child(map);map.set_meta("stream_library",[])
 	var index:=Index.build([])
 	for key:String in index:map.set_meta(key,index[key])
 	var service:=Probe.new();map.add_child(service);var document:=Document.new();service._doc=document

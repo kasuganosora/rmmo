@@ -37,6 +37,8 @@
 - 最终策略接受草木排队改善，不能称为消除了卡顿或实现流畅的整区加载。后续继续处理 `house_prefab.gd` → `runtime_mesh_cache.gd` 的材质恢复阶段，保持身份校验、预算、取消清理及原子显示；不能直接打开已失败的全量贴图准备实验。
 - Blender 的植被资源候选仍是离线候选，本轮没有替换正式地图资产。镜头细化、岸草疏密和摊棚材质仍按总布局文档继续。
 
+同日后续已完成材质分帧阶段，详见 `axel_material_publication_20261017.md`：在保留本策略的同版本开关对照中，材质与物件发布单位峰值由 731.047 毫秒降至 223.561 毫秒，区域等待基本持平。上面的原实验数字保留；单张贴图停顿与整区约一分钟等待仍未解决。
+
 ## 复现入口
 
 `tools/profile_axel_publication.gd` 继承原区域探针，使用 `--trace` 和互斥选择的 `--legacy-publication` / `--fair-publication`，并传入现有 `--out` 与 `--cameras`。相机配方为 `D:/code/rmmo_runtime/review_artifacts/axel_town_followup_20261017/market_profile_camera.json`，SHA `12edc14f135e69f7d767462ec47661d3d19870d95bd3152520225b07de694d31`。
