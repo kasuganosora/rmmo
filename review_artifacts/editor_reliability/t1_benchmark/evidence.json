@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-15T14:37:51.737171+00:00",
+  "status": "passed_scoped_T1_residential_terrain_construction_optimization",
+  "worktree": "C:/Users/luna/.codex/worktrees/editor-reliability/rmmo",
+  "branch": "codex/editor-reliability",
+  "previous_feature_commit": "391d47818be733ffc0eca11af816a5a9ddff11e0",
+  "implementation_identity": "Captured before the T1 commit; source hashes identify the tested working tree. No merge or push.",
+  "scope": {
+    "delivered": [
+      "W0-E fixed residential candidate baseline, whole-call latency plus opt-in phases, cache/UI/apply separately",
+      "T1 conservative local solid-cell construction window shared by UI and current 3D MCP",
+      "Strict solver differential including Access raw pieces; real UI/loopback HTTP undo/redo/save/reopen regression"
+    ],
+    "preserved": [
+      "Complete terrain validation including invalid far tiles",
+      "Full grid hole scan and original row-major hole subtraction order",
+      "Exact clipping, witness order, thresholds, overlap/fragment budgets",
+      "Author state, source identity checks, native transaction and derived batching paths"
+    ],
+    "not_completed": [
+      "All terrain-brush W0-E measurements",
+      "General spatial/adjacency caching and follower incremental invalidation",
+      "T2 mesh/shape publishing changes",
+      "Whole-town or runtime performance measurement",
+      "New gameplay traversal on T1 code; earlier fixture traversal remains historical evidence"
+    ]
+  },
+  "sources": [
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "bytes": 36102,
+      "sha256": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+      "lf_normalized_sha256": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "bytes": 25182,
+      "sha256": "2d837cd1ca08b40a5f2eaae4774fc1de882ca502fc8db7178445e00833a68c3d",
+      "lf_normalized_sha256": "2d837cd1ca08b40a5f2eaae4774fc1de882ca502fc8db7178445e00833a68c3d"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd",
+      "bytes": 14785,
+      "sha256": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+      "lf_normalized_sha256": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8"
+    },
+    {
+      "path": "scripts/world3d/terrain_surface.gd",
+      "bytes": 14060,
+      "sha256": "b628d4b6a7d326c52683db2b0dbad9ebf591b7a85741038da71a87722c45d648",
+      "lf_normalized_sha256": "fac08c3911f8cb4ad6c02da5ac52ed308366c9780a78516da360a342c93fe3f6"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "bytes": 11083,
+      "sha256": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021",
+      "lf_normalized_sha256": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "bytes": 35617,
+      "sha256": "d2df6a73e1d9db45b48a83b2072b5e80f2993844c4cfd098c0c791009d7c9552",
+      "lf_normalized_sha256": "6066f76a718373be7d393871abee309d1df6141b15c65fe0c67d7839ca0594b2"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "bytes": 55570,
+      "sha256": "5c30b4ef6726700779b448514434d136d08fb9001ca9a08a6d876120d308dcc4",
+      "lf_normalized_sha256": "63a7fddc0c83ebe9214b8b68f57e1959d6b597e05900bc2291f0bb6c8916c472"
+    },
+    {
+      "path": "scripts/world3d/road_plan.gd",
+      "bytes": 14008,
+      "sha256": "6584e9ed6f643df984b55609f24042b36db5352ea069aedad4abed894c33d089",
+      "lf_normalized_sha256": "5c4c898c1921eb0599bb139eac26de59ad4662ce1a0558e2ec58417021d4767e"
+    },
+    {
+      "path": "scripts/world3d/road_terrain_fit.gd",
+      "bytes": 5403,
+      "sha256": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+      "lf_normalized_sha256": "b490b4b605a848d04f71810faf196f6afe5e5d8850aa3165d4f84f780f4b36f3"
+    },
+    {
+      "path": "tools/benchmark_residential_preview.gd",
+      "bytes": 18576,
+      "sha256": "442cd3cb238163a24ca04f7d6506405c84a2a949f7dae61b7735b8566be02afb",
+      "lf_normalized_sha256": "442cd3cb238163a24ca04f7d6506405c84a2a949f7dae61b7735b8566be02afb"
+    },
+    {
+      "path": "tools/test_residential_support_differential.gd",
+      "bytes": 12882,
+      "sha256": "de42383de45f7ee74febda63928be4178e7ecad9c0f1b0cc7dda202389df1173",
+      "lf_normalized_sha256": "de42383de45f7ee74febda63928be4178e7ecad9c0f1b0cc7dda202389df1173"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "bytes": 25563,
+      "sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "lf_normalized_sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    }
+  ],
+  "reports": [
+    {
+      "path": "review_artifacts/editor_reliability/t1_benchmark/before.json",
+      "sha256": "d87a736a6942f2afd8a5f3b485b87c79304a19bdf048dc64e6305b9bd0dc9fb4",
+      "checks": 43,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_benchmark/after.json",
+      "sha256": "d35d48c066ee1dab8d27183455722c3838d7a4935da60fd34cf4e5fec50d0fd1",
+      "checks": 43,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_benchmark/comparison.json",
+      "sha256": "18d14f95ce98f92b88418d605d0a6e7749d72699f88cf3c9e8eae6298a499a70"
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_validation/support/result.json",
+      "sha256": "1672b0789bf757191c020d5f9212f4d4ea1a23f91d75ef0e8acb3e502d3bcc0b",
+      "checks": 52,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_validation/access/result.json",
+      "sha256": "ab3e3559c772efa25a00b8b922cec43e786266f650550e45b7c7b23888b37eff",
+      "checks": 47,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_validation/connector/result.json",
+      "sha256": "5642ab17ee505b022632dcd799b0aef838b12a27467b62655830bbdb600fbfce",
+      "checks": 14,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_validation/differential/result.json",
+      "sha256": "ac6b421dc1afad07c35b013669cd95ca32714e8bf9afb27ca604b84a001165ec",
+      "checks": 79,
+      "failures": 0
+    },
+    {
+      "path": "review_artifacts/editor_reliability/t1_validation/http_kerbs.json",
+      "sha256": "32499954fd6dbb864244dec120ffddb1275a6c85c325103a571dc89533f4218f",
+      "checks": 127,
+      "failures": 0
+    }
+  ],
+  "frozen_reference": {
+    "path": "review_artifacts/editor_reliability/t1_support_reference/source.gd.txt",
+    "sha256": "d972d9f7168b7855269f71443c0f1ff0f0152ac7b34b76b02ccd920eef1d5b01"
+  },
+  "benchmark_script_provenance": {
+    "measured_archive": "review_artifacts/editor_reliability/t1_benchmark/measurement_script.gd.txt",
+    "measured_sha256": "f6aaefd25b16f4def239953b9ed44ba2555b6388aa744a40a81acbee1a5f8ea5",
+    "final_path": "tools/benchmark_residential_preview.gd",
+    "final_sha256": "442cd3cb238163a24ca04f7d6506405c84a2a949f7dae61b7735b8566be02afb",
+    "post_measurement_change": "Only CLI usage, allowed grid values and configuration message corrected from 64|128 to 32|64 to match Terrain.MAX_CELLS=64; formal A/B both use unchanged 64 path. Final script parser checked; reports keep original measured SHA."
+  },
+  "engine": {
+    "path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "version": {
+      "build": "official",
+      "hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+      "hex": 263938,
+      "major": 4,
+      "minor": 7,
+      "patch": 2,
+      "status": "stable",
+      "string": "4.7.2-stable (official)",
+      "timestamp": 0
+    }
+  },
+  "resources": {
+    "benchmark_fixture": {
+      "path": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/maps/test/map.gltf",
+      "sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e"
+    },
+    "benchmark_prefab": {
+      "path": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/assets/prefabs/4006ccda6a663a7ee4ba3545619a9c16d5393b82ee2cdace2f0ec7fd0cee6e04.json",
+      "sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc"
+    },
+    "new_http_fixture": {
+      "path": "D:/code/rmmo_runtime/__residential_placement_19508_13273975/maps/test/map.gltf",
+      "sha256": "8755e00a28072a3dde0b4b92bd8a4f96613c2896beec72ec1057ddc6d3e64379"
+    },
+    "new_http_prefab": {
+      "path": "D:/code/rmmo_runtime/__residential_placement_19508_13273975/assets/prefabs/c1cf8ef615f0dc14a85b200a6f572b3e29b944ef845ccaa6850f878ed214f1c2.json",
+      "sha256": "07f9192f65cbedffe7182ca7c1945ea93689b82befd2b4b235f42cf951cfe52f"
+    }
+  },
+  "runtime_lineage": {
+    "path": "review_artifacts/editor_reliability/runtime_kerbs.json",
+    "scope": "Historical 21/0 traversal from previous feature commit; not rerun and not claimed as current-code performance evidence."
+  },
+  "verification": {
+    "cpu": {
+      "differential_cases": 41,
+      "differential_checks": 79,
+      "support_checks": 52,
+      "access_checks": 47,
+      "connector_checks": 14,
+      "failures": 0
+    },
+    "before_after": {
+      "checks_each": 43,
+      "failures": 0,
+      "same_source_input_engine_and_normalized_summary": true,
+      "only_measured_source_changed": "residential_support.gd"
+    },
+    "current_ui_http": {
+      "checks": 127,
+      "failures": 0,
+      "loopback_only": true,
+      "temporary_pack_only": true
+    },
+    "gpu_execution": "tools/run_godot_background.py private non-activated desktop; runs serialized; no scene chat process or user map modified"
+  },
+  "performance_result": {
+    "before": {
+      "median_wall_ms": 3181.7355,
+      "n": 2,
+      "raw_wall_ms": [
+        3216.435,
+        3147.036
+      ]
+    },
+    "after": {
+      "median_wall_ms": 1788.1455,
+      "n": 2,
+      "raw_wall_ms": [
+        1863.644,
+        1712.647
+      ]
+    },
+    "median_delta_ms": -1393.5899999999997,
+    "median_reduction_percent": 43.799681023139726
+  },
+  "limits": [
+    "Two warm samples per probe state per build; raw samples and medians only, no P95/P99 or statistical significance claim.",
+    "Primary latency comparison uses whole-call unprofiled warm recomputations; profiled stages are attribution only and exclude some early exits and cleanup.",
+    "ON/OFF sample order and run noise prevent interpreting their difference as exact probe overhead.",
+    "Input and geometry SHA normalize numeric values and exclude IDs, tokens, search/timing and counts; these summaries alone do not prove complete candidate payload or identity equality. Strict solver differential and real UI/HTTP regression provide separate correctness coverage.",
+    "Reported work counts cover returned support and connector-ground results, not all repeated entrance terrain calls. Whole-grid validation and hole scanning remain linear.",
+    "UI, render waits, cache hit and apply-to-editor-readiness each have one sample; no improvement claim. Editor picking-body readiness is not gameplay traversal.",
+    "Fixed 40m 64x64 solid terrain plus distant sentinel road and one frozen residential source; no whole-town, terrain-brush, RSS/VRAM or unrelated runtime optimization claim."
+  ]
+}

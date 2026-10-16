@@ -95,6 +95,7 @@ var _playtest: Node
 var _buildings = preload("res://scripts/world_editor/building_tools.gd").new()
 var _building_panel: VBoxContainer
 var _roads = preload("res://scripts/world_editor/road_tools.gd").new()
+var _residential = preload("res://scripts/world_editor/residential_placement_tools.gd").new()
 var _blocks = preload("res://scripts/world_editor/block_tools.gd").new()
 var _scatter = preload("res://scripts/world_editor/scatter_tools.gd").new()
 var _waterways = preload("res://scripts/world_editor/waterway_tools.gd").new()
@@ -136,6 +137,7 @@ func _ready() -> void:
 	_buildings.editor = self
 	_authoring.editor = self
 	_roads.editor = self
+	_residential.editor = self
 	_blocks.editor = self
 	_scatter.editor = self
 	_waterways.editor = self

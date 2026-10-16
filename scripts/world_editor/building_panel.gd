@@ -18,6 +18,7 @@ var bound_instance: Dictionary = {}
 var placement_raw: Dictionary = {}
 var placement_shown: Dictionary = {}
 var fixtures: VBoxContainer
+var residential: VBoxContainer
 
 func button(text_: String, action: Callable) -> Button:
 	var value := Button.new(); value.text = text_; value.pressed.connect(action); add_child(value); return value
@@ -65,6 +66,7 @@ func setup(host: Node3D) -> void:
 	# Keep the full original workflow under an expandable section.
 	details=VBoxContainer.new()
 	for child in get_children(): remove_child(child); details.add_child(child)
+	residential=preload("res://scripts/world_editor/residential_placement_panel.gd").new(); add_child(residential); residential.setup(self)
 	region=preload("res://scripts/world_editor/building_region_panel.gd").new(); add_child(region); region.setup(self)
 	details_toggle=CheckButton.new(); details_toggle.text="详细参数与建筑管理"; add_child(details_toggle)
 	add_child(details); details.hide(); details_toggle.toggled.connect(func(value): details.visible=value)
@@ -147,6 +149,7 @@ func placement_values() -> Dictionary:
 
 
 func refresh_list(selected := "") -> void:
+	if residential!=null: residential.refresh_catalogs()
 	if chooser==null: return
 	var explicit := not selected.is_empty()
 	if selected.is_empty() and chooser.selected>=0: selected = str(chooser.get_item_metadata(chooser.selected))
@@ -208,6 +211,7 @@ func show_preview(result: Dictionary, replacing := "", fit := true) -> void:
 	if fit: frame({"position":Blueprint.arr(bounds.position),"size":Blueprint.arr(bounds.size)})
 
 func clear_preview() -> void:
+	if residential!=null: residential.invalidate_preview("")
 	if region!=null: region.invalidate_preview()
 	for pair in hidden_sources:
 		if is_instance_valid(pair[0]): pair[0].visible = pair[1]

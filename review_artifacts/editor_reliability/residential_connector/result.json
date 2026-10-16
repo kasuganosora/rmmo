@@ -1,0 +1,243 @@
+{
+  "checks": [
+    {
+      "detail": {},
+      "label": "connector proof preserves author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "connector_slope",
+        "error": "入户路地面坡度或地块接缝超过玩家通行范围",
+        "grade_witness": {},
+        "max_grade": 0.0,
+        "max_seam_step": 1.0,
+        "ok": false,
+        "seam_witness": {
+          "cells": [
+            [
+              9,
+              0
+            ],
+            [
+              9,
+              19
+            ]
+          ],
+          "heights": [
+            0.0,
+            1.0
+          ],
+          "position": [
+            -0.800000011920929,
+            0.0,
+            -7.0
+          ],
+          "step": 1.0,
+          "terrain_ids": [
+            "low",
+            "high"
+          ]
+        },
+        "stage": "connector_ground",
+        "terrain_ids": [
+          "low",
+          "high"
+        ]
+      },
+      "label": "one metre seam in the middle of a complete connector rejects",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "connector proof preserves author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "area": 19.2000002861023,
+        "area_tolerance": 0.0000001,
+        "conservative": false,
+        "counts": {
+          "cells_visited": 800,
+          "overlaps": 96,
+          "terrain_candidates": 2,
+          "triangle_clips": 104
+        },
+        "covered_area": 19.2000002861023,
+        "exact": true,
+        "grade_witness": {},
+        "height_range": [
+          0.0,
+          0.0
+        ],
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "ok": true,
+        "scope": "continuous_heightfield_region_only",
+        "seam_witness": {},
+        "stage": "residential_support",
+        "terrain_ids": [
+          "first",
+          "second"
+        ]
+      },
+      "label": "continuous adjacent fields remain accepted",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "connector proof preserves author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "area": 19.2000002861023,
+        "area_tolerance": 0.0000001,
+        "conservative": false,
+        "counts": {
+          "cells_visited": 400,
+          "overlaps": 48,
+          "terrain_candidates": 1,
+          "triangle_clips": 56
+        },
+        "covered_area": 19.2000002861023,
+        "exact": true,
+        "grade_witness": {
+          "cell": [
+            9,
+            3
+          ],
+          "grade": 0.100000023841858,
+          "position": [
+            -0.800000011920929,
+            1.37999997258186,
+            -13.8000000119209
+          ],
+          "terrain_id": "slope",
+          "triangle_index": 0
+        },
+        "height_range": [
+          0.200000002980232,
+          1.39999997615814
+        ],
+        "max_grade": 0.100000023841858,
+        "max_seam_step": 0.0,
+        "ok": true,
+        "scope": "continuous_heightfield_region_only",
+        "seam_witness": {},
+        "stage": "residential_support",
+        "terrain_ids": [
+          "slope"
+        ]
+      },
+      "label": "continuous ten percent connector slope passes",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "connector proof preserves author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cell": [
+          21,
+          12
+        ],
+        "code": "residential_support_coverage_gap",
+        "conservative": false,
+        "counts": {
+          "cells_visited": 1600,
+          "overlaps": 190,
+          "terrain_candidates": 1,
+          "triangle_clips": 208
+        },
+        "error": "实际首层支撑域存在地形孔洞或未覆盖区域",
+        "exact": true,
+        "floor_bottom": 0.0,
+        "foundation_bottom": 0.0,
+        "foundation_id": "",
+        "gap_polygon": [
+          [
+            0.5,
+            -11.0
+          ],
+          [
+            0.800000011920929,
+            -11.0
+          ],
+          [
+            0.800000011920929,
+            -10.5
+          ],
+          [
+            0.5,
+            -10.5
+          ]
+        ],
+        "missing_area": 0.150000005960464,
+        "ok": false,
+        "part": "corridor",
+        "position": [
+          0.5,
+          0.0,
+          -11.0
+        ],
+        "record_id": "",
+        "stage": "connector_ground",
+        "support_area": 19.2000002861023,
+        "terrain_height": 0.0,
+        "terrain_id": "side_hole",
+        "triangle_index": 1
+      },
+      "label": "off-centre hole inside full connector width rejects",
+      "ok": true
+    },
+    {
+      "detail": {
+        "ok": true
+      },
+      "label": "house broad phase does not reject an elevated no-build zone",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "connector native road plan builds",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "connector terrain projection builds",
+      "ok": true
+    },
+    {
+      "detail": {
+        "ok": true
+      },
+      "label": "exact fitted geometry passes below elevated no-build zone",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "reserved_zone",
+        "conflicts": [
+          "elevated_reserve"
+        ],
+        "error": "新增道路或路缘进入禁止自动建设的保留区",
+        "ok": false,
+        "stage": "residential_placement"
+      },
+      "label": "exact fitted geometry still rejects ground-level no-build zone",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "existing house XZ conservative rejection remains",
+      "ok": true
+    }
+  ],
+  "elapsed_ms": 151.373,
+  "failures": 0,
+  "scope": "headless CPU connector geometry; no live map or GPU"
+}

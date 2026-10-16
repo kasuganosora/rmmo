@@ -1,0 +1,217 @@
+{
+	"checks": [
+		{
+			"label": "frozen original road_tools source SHA is exact",
+			"ok": true
+		},
+		{
+			"label": "frozen original source parses for independent correctness comparison",
+			"ok": true
+		},
+		{
+			"label": "equal nested numbers and dictionary order are semantically identical",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-12 numeric difference is never swallowed",
+			"ok": true
+		},
+		{
+			"label": "bool, string and missing fields remain distinct",
+			"ok": true
+		},
+		{
+			"label": "array order and container types remain distinct",
+			"ok": true
+		},
+		{
+			"label": "same-type integers remain exact and unsafe int-to-double rounding cannot merge changes",
+			"ok": true
+		},
+		{
+			"label": "safe cross-type integers compare exactly and nonfinite conversion is refused",
+			"ok": true
+		},
+		{
+			"label": "native unpainted near/far roads prepare in a CPU-only context",
+			"ok": true
+		},
+		{
+			"label": "original and corrected prepare accept the same reloaded authored map",
+			"ok": true
+		},
+		{
+			"label": "both prepare implementations leave source document and history untouched",
+			"ok": true
+		},
+		{
+			"label": "corrected diff counts semantically unchanged reloaded records accurately",
+			"ok": false
+		},
+		{
+			"label": "frozen original reproduces spurious updates after JSON reload",
+			"ok": true
+		},
+		{
+			"label": "corrected candidates retain exact author bytes while original candidates replace representation",
+			"ok": false
+		},
+		{
+			"label": "manifest and plan-token definitions remain byte-identical to original prepare",
+			"ok": true
+		},
+		{
+			"label": "retained candidate is a deep copy and cannot mutate the live document",
+			"ok": true
+		},
+		{
+			"label": "direct repeated generate after JSON reload is a no-op with no history or refresh",
+			"ok": false
+		},
+		{
+			"label": "original implementation reproduces unnecessary repeated-generate history",
+			"ok": true
+		},
+		{
+			"label": "a genuine local endpoint change remains an update beside unchanged far roads",
+			"ok": true
+		},
+		{
+			"label": "legal local preparation preserves every distant authored road byte",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-10 authored clearance change updates every affected record",
+			"ok": true
+		}
+	],
+	"corrected_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"corrected_repeat": {
+		"changed": true,
+		"chunks": 6,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 0,
+			"updated": 6
+		},
+		"ids": [
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_371cc25e17aebb0b7c4b",
+			"pavement_0fb07334267a8da69cc0",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"ok": true
+	},
+	"current_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"exact_change_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"failures": 3,
+	"local_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 3,
+		"updated": 3
+	},
+	"original_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"original_repeat": {
+		"changed": true,
+		"chunks": 6,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 0,
+			"updated": 6
+		},
+		"ids": [
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_371cc25e17aebb0b7c4b",
+			"pavement_0fb07334267a8da69cc0",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"ok": true
+	},
+	"prepare_manifest_sha256": "0da26544d3bb32b8b7c9689448fd7685aa2aa94980ba9bc36a3db7bd8a8044a3",
+	"record_evidence": [
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "0368fc27783b9f92dd0c6c7d3fb345a8d5df9792cbcaea4c28b291b9c2d13a9a",
+			"corrected_sha256": "0f6bef6d6f80ec88ba37058172d05d421b0d1a474bc18c3722277ce32e7c0e61",
+			"id": "pavement_95dbe641da91b6c6b952",
+			"original_rotation_type": 2,
+			"original_sha256": "0f6bef6d6f80ec88ba37058172d05d421b0d1a474bc18c3722277ce32e7c0e61"
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "9d2271c5c1e975daffc376fa43a95f3e948debf49fa7b95d424de7316d592661",
+			"corrected_sha256": "da9be804a33b4d1b54921edf11472671c2028e1d57dbfb0026415c2601fb911e",
+			"id": "pavement_993600ba1e5c0bde643e",
+			"original_rotation_type": 2,
+			"original_sha256": "da9be804a33b4d1b54921edf11472671c2028e1d57dbfb0026415c2601fb911e"
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "89daca0ca1022244e1dba32e2396415a46e903ec0782c1cda582b9e71764ade4",
+			"corrected_sha256": "dedcec1c8f4366b2a7c89fc36cf5d4545365c494b16c3769be17cd978d511698",
+			"id": "pavement_371cc25e17aebb0b7c4b",
+			"original_rotation_type": 2,
+			"original_sha256": "dedcec1c8f4366b2a7c89fc36cf5d4545365c494b16c3769be17cd978d511698"
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "728bfef2e2b71c7295eed98e671ef2fea6bac0eeeacd02de017aa760cca40f82",
+			"corrected_sha256": "48e8486b9a1d3f03ddc6f6bcfd74df3b89640145e3a2012c2b415d679992943a",
+			"id": "pavement_0fb07334267a8da69cc0",
+			"original_rotation_type": 2,
+			"original_sha256": "48e8486b9a1d3f03ddc6f6bcfd74df3b89640145e3a2012c2b415d679992943a"
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "044eebd762617fe896db0909523c8bc6c94232bcd95b5cc3de821f68eb865483",
+			"corrected_sha256": "cc3bc482b8360561cdbb4892a07f5b8c1626c1751c2bfc3c0fe5d6e013d6f030",
+			"id": "pavement_7e8b2fc2a30eeea3bdd2",
+			"original_rotation_type": 2,
+			"original_sha256": "cc3bc482b8360561cdbb4892a07f5b8c1626c1751c2bfc3c0fe5d6e013d6f030"
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "758ef3c63999a9107030751cc315d4c556bcf05cf7217c4946fbde03940bd3ea",
+			"corrected_sha256": "be2a1335f4609ab60da2d37e1df64c2788fc5ade5efc589b20eb989b3eea65b1",
+			"id": "pavement_9f4cb035258a4eec34b9",
+			"original_rotation_type": 2,
+			"original_sha256": "be2a1335f4609ab60da2d37e1df64c2788fc5ade5efc589b20eb989b3eea65b1"
+		}
+	],
+	"reference_sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+	"scope": "CPU JSON author-data round trip and real shared road_tools.prepare/generate. Intentional record representation and diff correction; not an all-results-identical performance claim.",
+	"test_sha256": "ce54db3a160a926bd36017396695cff06e621167677a177214d36fa4d946cf98"
+}

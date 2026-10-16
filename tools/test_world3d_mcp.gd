@@ -107,7 +107,10 @@ func run() -> void:
 	check(initialized.get("result", {}).get("serverInfo", {}).get("name") == "rmmo-world-editor", "initialize identifies only the 3D service")
 	var discovery := await rpc("tools/list")
 	var names: Array = discovery.get("result", {}).get("tools", []).map(func(t): return t.name)
-	check(names.size() == 118 and not names.has("paint_tile") and not names.has("set_cursor") and names.has("paint_auto_tiles") and names.has("save_prefab"), "discovery contains 118 current tools and no legacy 2D tools")
+	var required_tools: Array = ["paint_auto_tiles", "save_prefab", "preview_residential_placement", "apply_residential_placement", "discard_residential_placement", "preview_terrain_layout", "apply_terrain_layout"]
+	var unique_names: Dictionary = {}
+	for name_: String in names: unique_names[name_] = true
+	check(names.size() == 150 and unique_names.size() == names.size() and not names.has("paint_tile") and not names.has("set_cursor") and required_tools.all(func(name_): return names.has(name_)), "discovery contains 150 unique current tools including residential placement and terrain layout and no legacy 2D tools")
 	await call_tool("paint_tile", {"x": 0, "y": 0}, false)
 	var state := await call_tool("editor_state")
 	check(state.object_count == 2 and state.up_axis == "Y", "state uses 3D meters and current document")

@@ -1,0 +1,93 @@
+extends "res://tools/test_road_obstacle_preparation.gd"
+## Alternating paired comparison against the exact preceding commit.
+const Legacy = preload("res://review_artifacts/road_prepare_20261016/road_tools_full_chain_ref.gd")
+
+func median(values: Array) -> float:
+	var sorted := values.duplicate(); sorted.sort()
+	return sorted[sorted.size() / 2] if sorted.size() % 2 else (sorted[sorted.size() / 2 - 1] + sorted[sorted.size() / 2]) * .5
+
+func observe(tool: RefCounted, context: Node3D, args: Dictionary, expected: PackedByteArray, input: PackedByteArray, label_: String, profiling: bool) -> Dictionary:
+	if not tool is Legacy: tool.profile_enabled = profiling
+	var started := Time.get_ticks_usec()
+	var result: Dictionary = tool.prepare(args)
+	var wall_ms := (Time.get_ticks_usec() - started) / 1000.
+	# Serialization, immutable-state verification and file I/O are not timed.
+	var encoded := var_to_bytes(result)
+	check(result.get("ok", false) and encoded == expected, label_ + " full bytes equal")
+	check(input == var_to_bytes([Fixture.state(context), args]), label_ + " state and args unchanged")
+	var profile: Dictionary = {} if tool is Legacy else tool.last_profile.duplicate(true)
+	check(not profile.is_empty() if profiling else profile.is_empty(), label_ + (" ON diagnostic present" if profiling else " OFF probe empty"))
+	return {"label": label_, "wall_ms": wall_ms, "profiling_on": profiling, "profile": profile,
+		"input_sha256": bytes_sha(input), "result_sha256": bytes_sha(encoded)}
+
+func paired_case(fixture: Dictionary) -> void:
+	check(fixture.construction_error.is_empty(), fixture.name + " native fixture built", fixture.construction_error)
+	if failures: return
+	var context := Fixture.context(fixture)
+	var baseline := Baseline.new(); baseline.editor = context
+	var current := Roads.new(); current.editor = context
+	var legacy := Legacy.new(); legacy.editor = context
+	var versions := {"baseline": baseline, "current": current}
+	var waterway: bool = fixture.name == "waterway_bound_bridge"
+	if waterway: versions.legacy = legacy
+	var input := var_to_bytes([Fixture.state(context), fixture.args])
+	var expected := var_to_bytes(baseline.prepare(fixture.args))
+	check(input == var_to_bytes([Fixture.state(context), fixture.args]), fixture.name + " baseline seed immutable")
+	write_bytes(report_path.get_base_dir().path_join(fixture.name + "_fixture.bin"), var_to_bytes(fixture))
+	write_bytes(report_path.get_base_dir().path_join(fixture.name + "_result.bin"), expected)
+	var warmups: Array = []; var samples: Array = []; var pairs: Array = []; var raw := {}; var deltas: Array = []; var ratios: Array = []
+	for version: String in versions:
+		raw[version] = []
+		for index in 2: warmups.append(observe(versions[version], context, fixture.args, expected, input, version + " warmup " + str(index), false))
+	var orders := [["baseline", "current"], ["current", "baseline"]]
+	if waterway:
+		orders = [["baseline", "current", "legacy"], ["legacy", "current", "baseline"], ["current", "legacy", "baseline"],
+			["baseline", "legacy", "current"], ["legacy", "baseline", "current"], ["current", "baseline", "legacy"]]
+	for index in (24 if waterway else 10):
+		var order: Array = orders[index % orders.size()]
+		var pair := {"index": index, "order": order}
+		for version: String in order:
+			var sample := observe(versions[version], context, fixture.args, expected, input, version + " pair " + str(index), false)
+			sample.version = version; sample.pair = index
+			samples.append(sample); raw[version].append(sample.wall_ms); pair[version] = sample.wall_ms
+		pair.delta_ms = pair.current - pair.baseline; pair.ratio = pair.current / pair.baseline
+		deltas.append(pair.delta_ms); ratios.append(pair.ratio); pairs.append(pair)
+	var profiles := {}
+	for version: String in ["baseline", "current"]:
+		profiles[version] = observe(versions[version], context, fixture.args, expected, input, version + " ON diagnostic", true)
+	if fixture.name.begins_with("terrain64_"):
+		check(profiles.current.profile.counts.terrain_records_skipped == (7 if fixture.name.contains("far") else 1), fixture.name + " expected terrain records actually culled", profiles.current.profile.counts)
+	for path: String in fixture.dependencies:
+		check(FileAccess.get_sha256(path) == fixture.dependencies[path], fixture.name + " external dependency unchanged " + path.get_file())
+	var medians := {}
+	for version: String in raw: medians[version] = median(raw[version])
+	var stats := {"raw_ms": raw, "median_ms": medians, "paired_delta_median_ms": median(deltas), "paired_ratio_median": median(ratios),
+		"current_slower_pairs": deltas.filter(func(delta): return delta > 0.).size(), "pairs": pairs.size()}
+	if waterway:
+		var baseline_legacy: Array = []; var current_legacy: Array = []
+		for pair in pairs:
+			baseline_legacy.append(pair.baseline - pair.legacy); current_legacy.append(pair.current - pair.legacy)
+		stats.baseline_minus_legacy_paired_median_ms = median(baseline_legacy)
+		stats.current_minus_legacy_paired_median_ms = median(current_legacy)
+	report.fixtures.append({"name": fixture.name, "records": fixture.records.size(), "dependencies": fixture.dependencies,
+		"input_sha256": bytes_sha(input), "fixture_sha256": value_sha(fixture), "full_result_sha256": bytes_sha(expected),
+		"warmups": warmups, "samples": samples, "pairs": pairs, "profiles": profiles, "statistics": stats})
+	print("PAIRED_OBSTACLES ", fixture.name, " ", JSON.stringify(stats))
+	baseline.editor = null; current.editor = null; legacy.editor = null; context._waterways.editor = null; context.free()
+
+func run() -> void:
+	report_path = ROOT + "paired/result.json"
+	if not initialize(): finish(); return
+	var legacy_manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://review_artifacts/road_prepare_20261016/full_chain_metadata.json"))
+	for filename: String in legacy_manifest.files:
+		check(FileAccess.get_sha256("res://review_artifacts/road_prepare_20261016/" + filename) == legacy_manifest.files[filename], "legacy chain SHA " + filename)
+	report.fixtures = []; report.legacy_reference = legacy_manifest
+	report.method = {"reference": "12e3c91 road_tools, unchanged shared helpers; waterway additionally compares the independently frozen pre-optimization full chain.",
+		"order": "Untimed baseline result seed, then two OFF warmups per version. Ten measured alternating OFF pairs; waterway uses all six orders of three versions four times (24 triplets). All raw observations retained.",
+		"timing": "Wall around prepare only. Setup, serialization, checks, hashes and evidence I/O excluded. One final ON diagnostic per version, excluded from OFF statistics.",
+		"identity": "Every complete return and input state byte checked. No rounding, ignored fields or normalized comparison.",
+		"profiles": "Current obstacle_shapes includes lazy road XZ bounds for distant-terrain rejection. Collision retains original exact road footprint construction; only rectangles cached per prepare. Counts report actual expansion, not all source cells.",
+		"scope": "CPU fixture preparation only; no significance, P95/P99, editor frame, HTTP latency, whole-town or memory claim. Other sessions/system load remain unmanaged."}
+	for name_: String in Fixture.names():
+		if selected.is_empty() or selected == name_: paired_case(Fixture.build(name_))
+	finish()

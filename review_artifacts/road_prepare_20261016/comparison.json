@@ -1,0 +1,4145 @@
+{
+  "version": 1,
+  "created_utc": "2026-10-15T22:08:16.153978+00:00",
+  "before_report": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\result.json",
+  "after_report": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\result.json",
+  "before_report_sha256": "4369277c82ddb667d666a20e40857b3760c99cd62a1dad44cc33ec8ca54d555c",
+  "after_report_sha256": "90724809e7fbe03866c1a0cc2a85ee414f7ca15d312941ccd732568e878519bb",
+  "comparison_script_sha256": "06aad0560159b7a00f615eff2dabcb17741a22f8366fa3ad88a711b5488f91c7",
+  "failures": 0,
+  "checks": [
+    {
+      "ok": true,
+      "label": "A and B are distinct reports",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A benchmark has zero failures",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A every recorded check passed",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A is a full six-sample benchmark",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A uses the same CPU-only headless scope",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A has exactly the five ordered fixtures",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A has exactly thirty samples",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B benchmark has zero failures",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B every recorded check passed",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B is a full six-sample benchmark",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B uses the same CPU-only headless scope",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B has exactly the five ordered fixtures",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "B has exactly thirty samples",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B engine_executable_sha256 match",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B engine match",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B display match",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B reference_sha256 match",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B frozen benchmark dependency res://tools/benchmark_road_prepare.gd",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B frozen benchmark dependency res://tools/road_prepare_fixture.gd",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B frozen benchmark dependency res://project.godot",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "A/B frozen benchmark dependency res://review_artifacts/road_prepare_20261016/reference.gd.txt",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "Production source changes stay inside the independently frozen comparison chain",
+      "details": [
+        {
+          "path": "res://scripts/world3d/terrain_projection.gd",
+          "before_sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+          "after_sha256": "1b8b339d47ac00786bfe597543812c05a5584ad0621a205efb3bff644f520615"
+        }
+      ]
+    },
+    {
+      "ok": true,
+      "label": "Recorded engine executable still has its measured SHA",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical records",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical road_nodes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical road_edges",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical terrain_cells",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical input_bytes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical input_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical fixture_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical args",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs identical dependencies",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs input binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs complete input bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs input files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs complete result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs reference_result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs complete reference_result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs reference_result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs A/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "junction_kerbs B/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical records",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical road_nodes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical road_edges",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical terrain_cells",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical input_bytes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical input_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical fixture_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical args",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local identical dependencies",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local input binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local complete input bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local input files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local complete result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local reference_result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local complete reference_result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local reference_result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local A/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_local B/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical records",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical road_nodes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical road_edges",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical terrain_cells",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical input_bytes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical input_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical fixture_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical args",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex identical dependencies",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex input binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex complete input bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex input files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex complete result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex reference_result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex complete reference_result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex reference_result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex A/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "terrain64_far_complex B/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical records",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical road_nodes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical road_edges",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical terrain_cells",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical input_bytes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical input_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical fixture_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical args",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge identical dependencies",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge input binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge complete input bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge input files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge complete result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge reference_result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge complete reference_result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge reference_result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge A/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "waterway_bound_bridge B/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical records",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical road_nodes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical road_edges",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical terrain_cells",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical input_bytes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical input_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical fixture_sha256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical args",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches identical dependencies",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches input binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches complete input bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches input files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches complete result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches reference_result binary evidence exists",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches complete reference_result bytes have matching SHA256",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches reference_result files match both recorded hashes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches measured external dependency remains exact: D:/code/rmmo_runtime/packs/default/assets/bridges/medieval_stone/stone_segmental.glb",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches A/warm_off_3 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B exact first/ON2/OFF3 order",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/first_prepare stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_1 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 ON profile covers a successful prepare",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_on_2 stage sum recomputes",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_1 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_2 OFF profile is empty",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 succeeded",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 entire return SHA matches A/B binary result",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 input identity matches",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 expected probe state",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 finite nonnegative external wall",
+      "details": null
+    },
+    {
+      "ok": true,
+      "label": "frozen_stone_bridge_approaches B/warm_off_3 OFF profile is empty",
+      "details": null
+    }
+  ],
+  "production_source_changes": [
+    {
+      "path": "res://scripts/world3d/terrain_projection.gd",
+      "before_sha256": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+      "after_sha256": "1b8b339d47ac00786bfe597543812c05a5584ad0621a205efb3bff644f520615"
+    }
+  ],
+  "nonproduction_source_changes": [
+    {
+      "path": "res://tools/test_road_prepare_differential.gd",
+      "before_sha256": null,
+      "after_sha256": "9bcafa45288c71eecfc6dcf7f8667908796481c661f8375a5abb377e5e797ee8"
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "junction_kerbs",
+      "binary_evidence": {
+        "input": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\junction_kerbs_input.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\junction_kerbs_input.bin",
+          "before_sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+          "after_sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+          "bytes_before": 1464,
+          "bytes_after": 1464
+        },
+        "result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\junction_kerbs_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\junction_kerbs_result.bin",
+          "before_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+          "after_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+          "bytes_before": 42012,
+          "bytes_after": 42012
+        },
+        "reference_result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\junction_kerbs_reference_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\junction_kerbs_reference_result.bin",
+          "before_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+          "after_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+          "bytes_before": 42012,
+          "bytes_after": 42012
+        }
+      },
+      "before": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            52.728
+          ],
+          "median_wall_ms": 52.728,
+          "stages_median_ms": {
+            "bridge_bindings": 0.026,
+            "collision": 0.931,
+            "finalize": 0.122,
+            "intersection_split": 1.083,
+            "material_lookup": 0.799,
+            "obstacle_shapes": 0.063,
+            "record_preservation": 34.827,
+            "road_build": 14.728,
+            "source_validation": 0.125,
+            "terrain_fit": 0.007
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.026,
+                "collision": 0.931,
+                "finalize": 0.122,
+                "intersection_split": 1.083,
+                "material_lookup": 0.799,
+                "obstacle_shapes": 0.063,
+                "record_preservation": 34.827,
+                "road_build": 14.728,
+                "source_validation": 0.125,
+                "terrain_fit": 0.007
+              },
+              "total_ms": 52.714
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            59.207,
+            87.131
+          ],
+          "median_wall_ms": 73.169,
+          "stages_median_ms": {
+            "bridge_bindings": 0.03,
+            "collision": 1.0865,
+            "finalize": 0.1245,
+            "intersection_split": 1.4235,
+            "material_lookup": 0.6655,
+            "obstacle_shapes": 0.062,
+            "record_preservation": 51.833,
+            "road_build": 17.508,
+            "source_validation": 0.1275,
+            "terrain_fit": 0.008
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.033,
+                "collision": 1.327,
+                "finalize": 0.131,
+                "intersection_split": 1.452,
+                "material_lookup": 0.735,
+                "obstacle_shapes": 0.062,
+                "record_preservation": 35.843,
+                "road_build": 19.14,
+                "source_validation": 0.149,
+                "terrain_fit": 0.012
+              },
+              "total_ms": 58.892
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.027,
+                "collision": 0.846,
+                "finalize": 0.118,
+                "intersection_split": 1.395,
+                "material_lookup": 0.596,
+                "obstacle_shapes": 0.062,
+                "record_preservation": 67.823,
+                "road_build": 15.876,
+                "source_validation": 0.106,
+                "terrain_fit": 0.004
+              },
+              "total_ms": 86.857
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            52.22,
+            62.826,
+            69.604
+          ],
+          "median_wall_ms": 62.826,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "after": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            55.179
+          ],
+          "median_wall_ms": 55.179,
+          "stages_median_ms": {
+            "bridge_bindings": 0.019,
+            "collision": 1.329,
+            "finalize": 0.126,
+            "intersection_split": 1.033,
+            "material_lookup": 0.614,
+            "obstacle_shapes": 0.059,
+            "record_preservation": 34.78,
+            "road_build": 17.057,
+            "source_validation": 0.133,
+            "terrain_fit": 0.005
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.019,
+                "collision": 1.329,
+                "finalize": 0.126,
+                "intersection_split": 1.033,
+                "material_lookup": 0.614,
+                "obstacle_shapes": 0.059,
+                "record_preservation": 34.78,
+                "road_build": 17.057,
+                "source_validation": 0.133,
+                "terrain_fit": 0.005
+              },
+              "total_ms": 55.164
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            45.183,
+            52.866
+          ],
+          "median_wall_ms": 49.0245,
+          "stages_median_ms": {
+            "bridge_bindings": 0.021500000000000002,
+            "collision": 0.8314999999999999,
+            "finalize": 0.11,
+            "intersection_split": 1.1375,
+            "material_lookup": 0.6915,
+            "obstacle_shapes": 0.0505,
+            "record_preservation": 27.4645,
+            "road_build": 18.371,
+            "source_validation": 0.08299999999999999,
+            "terrain_fit": 0.0055
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.014,
+                "collision": 0.831,
+                "finalize": 0.111,
+                "intersection_split": 0.676,
+                "material_lookup": 0.597,
+                "obstacle_shapes": 0.052,
+                "record_preservation": 29.231,
+                "road_build": 13.353,
+                "source_validation": 0.063,
+                "terrain_fit": 0.005
+              },
+              "total_ms": 44.937
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 1,
+                "potential_shape_pairs": 4,
+                "road_records": 4,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.029,
+                "collision": 0.832,
+                "finalize": 0.109,
+                "intersection_split": 1.599,
+                "material_lookup": 0.786,
+                "obstacle_shapes": 0.049,
+                "record_preservation": 25.698,
+                "road_build": 23.389,
+                "source_validation": 0.103,
+                "terrain_fit": 0.006
+              },
+              "total_ms": 52.604
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            55.896,
+            58.395,
+            53.01
+          ],
+          "median_wall_ms": 55.896,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "wall_change": {
+        "first": {
+          "before_ms": 52.728,
+          "after_ms": 55.179,
+          "change_ms": 2.4510000000000005,
+          "improvement_percent": -4.648384160218488
+        },
+        "warm_on": {
+          "before_ms": 73.169,
+          "after_ms": 49.0245,
+          "change_ms": -24.144499999999994,
+          "improvement_percent": 32.99826429225491
+        },
+        "warm_off": {
+          "before_ms": 62.826,
+          "after_ms": 55.896,
+          "change_ms": -6.93,
+          "improvement_percent": 11.030465094069331
+        }
+      }
+    },
+    {
+      "name": "terrain64_local",
+      "binary_evidence": {
+        "input": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_local_input.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_local_input.bin",
+          "before_sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+          "after_sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+          "bytes_before": 67816,
+          "bytes_after": 67816
+        },
+        "result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_local_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_local_result.bin",
+          "before_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+          "after_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+          "bytes_before": 102140,
+          "bytes_after": 102140
+        },
+        "reference_result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_local_reference_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_local_reference_result.bin",
+          "before_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+          "after_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+          "bytes_before": 102140,
+          "bytes_after": 102140
+        }
+      },
+      "before": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            1868.471
+          ],
+          "median_wall_ms": 1868.471,
+          "stages_median_ms": {
+            "bridge_bindings": 0.018,
+            "collision": 51.64,
+            "finalize": 8.293,
+            "intersection_split": 0.008,
+            "material_lookup": 0.375,
+            "obstacle_shapes": 84.489,
+            "record_preservation": 185.718,
+            "road_build": 4.495,
+            "source_validation": 0.089,
+            "terrain_fit": 1533.319
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.018,
+                "collision": 51.64,
+                "finalize": 8.293,
+                "intersection_split": 0.008,
+                "material_lookup": 0.375,
+                "obstacle_shapes": 84.489,
+                "record_preservation": 185.718,
+                "road_build": 4.495,
+                "source_validation": 0.089,
+                "terrain_fit": 1533.319
+              },
+              "total_ms": 1868.457
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            1855.027,
+            1914.116
+          ],
+          "median_wall_ms": 1884.5715,
+          "stages_median_ms": {
+            "bridge_bindings": 0.0195,
+            "collision": 43.956,
+            "finalize": 7.879,
+            "intersection_split": 0.008,
+            "material_lookup": 0.40049999999999997,
+            "obstacle_shapes": 87.791,
+            "record_preservation": 181.1395,
+            "road_build": 2.5614999999999997,
+            "source_validation": 0.0945,
+            "terrain_fit": 1559.8335
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.015,
+                "collision": 46.39,
+                "finalize": 5.11,
+                "intersection_split": 0.005,
+                "material_lookup": 0.45,
+                "obstacle_shapes": 87.948,
+                "record_preservation": 184.066,
+                "road_build": 1.541,
+                "source_validation": 0.069,
+                "terrain_fit": 1528.724
+              },
+              "total_ms": 1854.328
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.024,
+                "collision": 41.522,
+                "finalize": 10.648,
+                "intersection_split": 0.011,
+                "material_lookup": 0.351,
+                "obstacle_shapes": 87.634,
+                "record_preservation": 178.213,
+                "road_build": 3.582,
+                "source_validation": 0.12,
+                "terrain_fit": 1590.943
+              },
+              "total_ms": 1913.064
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            1946.649,
+            1856.127,
+            1901.219
+          ],
+          "median_wall_ms": 1901.219,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "after": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            434.716
+          ],
+          "median_wall_ms": 434.716,
+          "stages_median_ms": {
+            "bridge_bindings": 0.013,
+            "collision": 38.352,
+            "finalize": 5.587,
+            "intersection_split": 0.004,
+            "material_lookup": 0.405,
+            "obstacle_shapes": 84.177,
+            "record_preservation": 153.453,
+            "road_build": 2.73,
+            "source_validation": 0.07,
+            "terrain_fit": 149.902
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.013,
+                "collision": 38.352,
+                "finalize": 5.587,
+                "intersection_split": 0.004,
+                "material_lookup": 0.405,
+                "obstacle_shapes": 84.177,
+                "record_preservation": 153.453,
+                "road_build": 2.73,
+                "source_validation": 0.07,
+                "terrain_fit": 149.902
+              },
+              "total_ms": 434.705
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            464.455,
+            424.499
+          ],
+          "median_wall_ms": 444.477,
+          "stages_median_ms": {
+            "bridge_bindings": 0.018000000000000002,
+            "collision": 34.7455,
+            "finalize": 5.8795,
+            "intersection_split": 0.006500000000000001,
+            "material_lookup": 0.39349999999999996,
+            "obstacle_shapes": 86.3735,
+            "record_preservation": 124.128,
+            "road_build": 2.835,
+            "source_validation": 0.087,
+            "terrain_fit": 189.2265
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.017,
+                "collision": 34.25,
+                "finalize": 6.172,
+                "intersection_split": 0.007,
+                "material_lookup": 0.414,
+                "obstacle_shapes": 100.309,
+                "record_preservation": 125.822,
+                "road_build": 2.749,
+                "source_validation": 0.089,
+                "terrain_fit": 193.682
+              },
+              "total_ms": 463.53
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 1,
+                "obstacle_shapes": 4096,
+                "potential_shape_pairs": 32768,
+                "road_records": 8,
+                "source_records": 1
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.019,
+                "collision": 35.241,
+                "finalize": 5.587,
+                "intersection_split": 0.006,
+                "material_lookup": 0.373,
+                "obstacle_shapes": 72.438,
+                "record_preservation": 122.434,
+                "road_build": 2.921,
+                "source_validation": 0.085,
+                "terrain_fit": 184.771
+              },
+              "total_ms": 423.886
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            456.471,
+            499.827,
+            477.017
+          ],
+          "median_wall_ms": 477.017,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "wall_change": {
+        "first": {
+          "before_ms": 1868.471,
+          "after_ms": 434.716,
+          "change_ms": -1433.755,
+          "improvement_percent": 76.73413181151861
+        },
+        "warm_on": {
+          "before_ms": 1884.5715,
+          "after_ms": 444.477,
+          "change_ms": -1440.0945000000002,
+          "improvement_percent": 76.41495692787458
+        },
+        "warm_off": {
+          "before_ms": 1901.219,
+          "after_ms": 477.017,
+          "change_ms": -1424.202,
+          "improvement_percent": 74.909939359958
+        }
+      }
+    },
+    {
+      "name": "terrain64_far_complex",
+      "binary_evidence": {
+        "input": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_far_complex_input.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_far_complex_input.bin",
+          "before_sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+          "after_sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+          "bytes_before": 578036,
+          "bytes_after": 578036
+        },
+        "result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_far_complex_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_far_complex_result.bin",
+          "before_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+          "after_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+          "bytes_before": 102140,
+          "bytes_after": 102140
+        },
+        "reference_result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\terrain64_far_complex_reference_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\terrain64_far_complex_reference_result.bin",
+          "before_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+          "after_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+          "bytes_before": 102140,
+          "bytes_after": 102140
+        }
+      },
+      "before": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            2087.21
+          ],
+          "median_wall_ms": 2087.21,
+          "stages_median_ms": {
+            "bridge_bindings": 0.075,
+            "collision": 132.905,
+            "finalize": 68.384,
+            "intersection_split": 0.004,
+            "material_lookup": 1.039,
+            "obstacle_shapes": 259.047,
+            "record_preservation": 182.245,
+            "road_build": 2.418,
+            "source_validation": 0.07,
+            "terrain_fit": 1440.997
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.075,
+                "collision": 132.905,
+                "finalize": 68.384,
+                "intersection_split": 0.004,
+                "material_lookup": 1.039,
+                "obstacle_shapes": 259.047,
+                "record_preservation": 182.245,
+                "road_build": 2.418,
+                "source_validation": 0.07,
+                "terrain_fit": 1440.997
+              },
+              "total_ms": 2087.198
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            2109.909,
+            2012.206
+          ],
+          "median_wall_ms": 2061.0575,
+          "stages_median_ms": {
+            "bridge_bindings": 0.0125,
+            "collision": 157.53300000000002,
+            "finalize": 43.6835,
+            "intersection_split": 0.0045000000000000005,
+            "material_lookup": 0.644,
+            "obstacle_shapes": 227.599,
+            "record_preservation": 165.93400000000003,
+            "road_build": 1.661,
+            "source_validation": 0.0735,
+            "terrain_fit": 1462.7485000000001
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.013,
+                "collision": 167.275,
+                "finalize": 40.627,
+                "intersection_split": 0.004,
+                "material_lookup": 0.395,
+                "obstacle_shapes": 259.2,
+                "record_preservation": 170.991,
+                "road_build": 1.537,
+                "source_validation": 0.054,
+                "terrain_fit": 1469.142
+              },
+              "total_ms": 2109.252
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.012,
+                "collision": 147.791,
+                "finalize": 46.74,
+                "intersection_split": 0.005,
+                "material_lookup": 0.893,
+                "obstacle_shapes": 195.998,
+                "record_preservation": 160.877,
+                "road_build": 1.785,
+                "source_validation": 0.093,
+                "terrain_fit": 1456.355
+              },
+              "total_ms": 2010.573
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            2432.404,
+            2076.315,
+            1995.021
+          ],
+          "median_wall_ms": 2076.315,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "after": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            724.99
+          ],
+          "median_wall_ms": 724.99,
+          "stages_median_ms": {
+            "bridge_bindings": 0.018,
+            "collision": 120.793,
+            "finalize": 67.321,
+            "intersection_split": 0.006,
+            "material_lookup": 0.659,
+            "obstacle_shapes": 219.232,
+            "record_preservation": 140.796,
+            "road_build": 2.767,
+            "source_validation": 0.088,
+            "terrain_fit": 173.272
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.018,
+                "collision": 120.793,
+                "finalize": 67.321,
+                "intersection_split": 0.006,
+                "material_lookup": 0.659,
+                "obstacle_shapes": 219.232,
+                "record_preservation": 140.796,
+                "road_build": 2.767,
+                "source_validation": 0.088,
+                "terrain_fit": 173.272
+              },
+              "total_ms": 724.973
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            664.304,
+            710.144
+          ],
+          "median_wall_ms": 687.2239999999999,
+          "stages_median_ms": {
+            "bridge_bindings": 0.017499999999999998,
+            "collision": 121.67750000000001,
+            "finalize": 38.8035,
+            "intersection_split": 0.006999999999999999,
+            "material_lookup": 0.5105,
+            "obstacle_shapes": 175.98250000000002,
+            "record_preservation": 152.23950000000002,
+            "road_build": 5.051,
+            "source_validation": 0.103,
+            "terrain_fit": 192.0915
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.013,
+                "collision": 112.611,
+                "finalize": 37.854,
+                "intersection_split": 0.005,
+                "material_lookup": 0.616,
+                "obstacle_shapes": 171.733,
+                "record_preservation": 172.377,
+                "road_build": 1.682,
+                "source_validation": 0.058,
+                "terrain_fit": 166.633
+              },
+              "total_ms": 663.598
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 610,
+                "obstacle_shapes": 10843,
+                "potential_shape_pairs": 86744,
+                "road_records": 8,
+                "source_records": 610
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 0.022,
+                "collision": 130.744,
+                "finalize": 39.753,
+                "intersection_split": 0.009,
+                "material_lookup": 0.405,
+                "obstacle_shapes": 180.232,
+                "record_preservation": 132.102,
+                "road_build": 8.42,
+                "source_validation": 0.148,
+                "terrain_fit": 217.55
+              },
+              "total_ms": 709.403
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            640.036,
+            665.608,
+            671.357
+          ],
+          "median_wall_ms": 665.608,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "wall_change": {
+        "first": {
+          "before_ms": 2087.21,
+          "after_ms": 724.99,
+          "change_ms": -1362.22,
+          "improvement_percent": 65.26511467461347
+        },
+        "warm_on": {
+          "before_ms": 2061.0575,
+          "after_ms": 687.2239999999999,
+          "change_ms": -1373.8335,
+          "improvement_percent": 66.65672840277381
+        },
+        "warm_off": {
+          "before_ms": 2076.315,
+          "after_ms": 665.608,
+          "change_ms": -1410.707,
+          "improvement_percent": 67.94282177800575
+        }
+      }
+    },
+    {
+      "name": "waterway_bound_bridge",
+      "binary_evidence": {
+        "input": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\waterway_bound_bridge_input.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\waterway_bound_bridge_input.bin",
+          "before_sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+          "after_sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+          "bytes_before": 32028,
+          "bytes_after": 32028
+        },
+        "result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\waterway_bound_bridge_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\waterway_bound_bridge_result.bin",
+          "before_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+          "after_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+          "bytes_before": 14044,
+          "bytes_after": 14044
+        },
+        "reference_result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\waterway_bound_bridge_reference_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\waterway_bound_bridge_reference_result.bin",
+          "before_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+          "after_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+          "bytes_before": 14044,
+          "bytes_after": 14044
+        }
+      },
+      "before": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            35.422
+          ],
+          "median_wall_ms": 35.422,
+          "stages_median_ms": {
+            "bridge_bindings": 6.278,
+            "collision": 4.101,
+            "finalize": 3.032,
+            "intersection_split": 0.006,
+            "material_lookup": 0.397,
+            "obstacle_shapes": 4.99,
+            "record_preservation": 11.395,
+            "road_build": 4.964,
+            "source_validation": 0.234,
+            "terrain_fit": 0.005
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 6.278,
+                "collision": 4.101,
+                "finalize": 3.032,
+                "intersection_split": 0.006,
+                "material_lookup": 0.397,
+                "obstacle_shapes": 4.99,
+                "record_preservation": 11.395,
+                "road_build": 4.964,
+                "source_validation": 0.234,
+                "terrain_fit": 0.005
+              },
+              "total_ms": 35.41
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            30.006,
+            27.677
+          ],
+          "median_wall_ms": 28.8415,
+          "stages_median_ms": {
+            "bridge_bindings": 5.916,
+            "collision": 1.3599999999999999,
+            "finalize": 1.4049999999999998,
+            "intersection_split": 0.008,
+            "material_lookup": 0.4395,
+            "obstacle_shapes": 1.3575,
+            "record_preservation": 14.192499999999999,
+            "road_build": 3.7955,
+            "source_validation": 0.2615,
+            "terrain_fit": 0.0035
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 6.672,
+                "collision": 1.669,
+                "finalize": 1.525,
+                "intersection_split": 0.012,
+                "material_lookup": 0.385,
+                "obstacle_shapes": 1.6,
+                "record_preservation": 14.202,
+                "road_build": 3.458,
+                "source_validation": 0.378,
+                "terrain_fit": 0.003
+              },
+              "total_ms": 29.91
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 5.16,
+                "collision": 1.051,
+                "finalize": 1.285,
+                "intersection_split": 0.004,
+                "material_lookup": 0.494,
+                "obstacle_shapes": 1.115,
+                "record_preservation": 14.183,
+                "road_build": 4.133,
+                "source_validation": 0.145,
+                "terrain_fit": 0.004
+              },
+              "total_ms": 27.578
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            22.337,
+            28.841,
+            23.67
+          ],
+          "median_wall_ms": 23.67,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "after": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            39.797
+          ],
+          "median_wall_ms": 39.797,
+          "stages_median_ms": {
+            "bridge_bindings": 4.001,
+            "collision": 2.826,
+            "finalize": 2.309,
+            "intersection_split": 0.005,
+            "material_lookup": 0.703,
+            "obstacle_shapes": 2.668,
+            "record_preservation": 23.555,
+            "road_build": 3.512,
+            "source_validation": 0.196,
+            "terrain_fit": 0.005
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 4.001,
+                "collision": 2.826,
+                "finalize": 2.309,
+                "intersection_split": 0.005,
+                "material_lookup": 0.703,
+                "obstacle_shapes": 2.668,
+                "record_preservation": 23.555,
+                "road_build": 3.512,
+                "source_validation": 0.196,
+                "terrain_fit": 0.005
+              },
+              "total_ms": 39.787
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            23.338,
+            27.66
+          ],
+          "median_wall_ms": 25.499000000000002,
+          "stages_median_ms": {
+            "bridge_bindings": 3.395,
+            "collision": 1.495,
+            "finalize": 1.4605000000000001,
+            "intersection_split": 0.0045000000000000005,
+            "material_lookup": 0.4065,
+            "obstacle_shapes": 1.4220000000000002,
+            "record_preservation": 14.5495,
+            "road_build": 2.4385,
+            "source_validation": 0.2105,
+            "terrain_fit": 0.0035
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 3.932,
+                "collision": 1.057,
+                "finalize": 1.304,
+                "intersection_split": 0.006,
+                "material_lookup": 0.449,
+                "obstacle_shapes": 1.221,
+                "record_preservation": 12.297,
+                "road_build": 2.678,
+                "source_validation": 0.284,
+                "terrain_fit": 0.004
+              },
+              "total_ms": 23.238
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 34,
+                "obstacle_shapes": 60,
+                "potential_shape_pairs": 480,
+                "road_records": 8,
+                "source_records": 34
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 2.858,
+                "collision": 1.933,
+                "finalize": 1.617,
+                "intersection_split": 0.003,
+                "material_lookup": 0.364,
+                "obstacle_shapes": 1.623,
+                "record_preservation": 16.802,
+                "road_build": 2.199,
+                "source_validation": 0.137,
+                "terrain_fit": 0.003
+              },
+              "total_ms": 27.547
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            29.787,
+            21.831,
+            32.222
+          ],
+          "median_wall_ms": 29.787,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "wall_change": {
+        "first": {
+          "before_ms": 35.422,
+          "after_ms": 39.797,
+          "change_ms": 4.375,
+          "improvement_percent": -12.35108124894133
+        },
+        "warm_on": {
+          "before_ms": 28.8415,
+          "after_ms": 25.499000000000002,
+          "change_ms": -3.3424999999999976,
+          "improvement_percent": 11.589203058093368
+        },
+        "warm_off": {
+          "before_ms": 23.67,
+          "after_ms": 29.787,
+          "change_ms": 6.116999999999997,
+          "improvement_percent": -25.84283903675537
+        }
+      }
+    },
+    {
+      "name": "frozen_stone_bridge_approaches",
+      "binary_evidence": {
+        "input": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\frozen_stone_bridge_approaches_input.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\frozen_stone_bridge_approaches_input.bin",
+          "before_sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+          "after_sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+          "bytes_before": 723700,
+          "bytes_after": 723700
+        },
+        "result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\frozen_stone_bridge_approaches_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\frozen_stone_bridge_approaches_result.bin",
+          "before_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+          "after_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+          "bytes_before": 8064,
+          "bytes_after": 8064
+        },
+        "reference_result": {
+          "before": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\before\\frozen_stone_bridge_approaches_reference_result.bin",
+          "after": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\review_artifacts\\road_prepare_20261016\\after\\frozen_stone_bridge_approaches_reference_result.bin",
+          "before_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+          "after_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+          "bytes_before": 8064,
+          "bytes_after": 8064
+        }
+      },
+      "before": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            125.5
+          ],
+          "median_wall_ms": 125.5,
+          "stages_median_ms": {
+            "bridge_bindings": 13.239,
+            "collision": 73.797,
+            "finalize": 10.408,
+            "intersection_split": 0.008,
+            "material_lookup": 0.367,
+            "obstacle_shapes": 6.267,
+            "record_preservation": 5.69,
+            "road_build": 3.325,
+            "source_validation": 0.082,
+            "terrain_fit": 12.257
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 13.239,
+                "collision": 73.797,
+                "finalize": 10.408,
+                "intersection_split": 0.008,
+                "material_lookup": 0.367,
+                "obstacle_shapes": 6.267,
+                "record_preservation": 5.69,
+                "road_build": 3.325,
+                "source_validation": 0.082,
+                "terrain_fit": 12.257
+              },
+              "total_ms": 125.476
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            69.379,
+            77.931
+          ],
+          "median_wall_ms": 73.655,
+          "stages_median_ms": {
+            "bridge_bindings": 12.217500000000001,
+            "collision": 25.009999999999998,
+            "finalize": 13.1975,
+            "intersection_split": 0.006500000000000001,
+            "material_lookup": 0.36350000000000005,
+            "obstacle_shapes": 4.926,
+            "record_preservation": 7.1259999999999994,
+            "road_build": 1.9929999999999999,
+            "source_validation": 0.08399999999999999,
+            "terrain_fit": 8.464
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 12.146,
+                "collision": 23.098,
+                "finalize": 12.766,
+                "intersection_split": 0.008,
+                "material_lookup": 0.34,
+                "obstacle_shapes": 4.013,
+                "record_preservation": 8.299,
+                "road_build": 2.416,
+                "source_validation": 0.091,
+                "terrain_fit": 5.976
+              },
+              "total_ms": 69.182
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 12.289,
+                "collision": 26.922,
+                "finalize": 13.629,
+                "intersection_split": 0.005,
+                "material_lookup": 0.387,
+                "obstacle_shapes": 5.839,
+                "record_preservation": 5.953,
+                "road_build": 1.57,
+                "source_validation": 0.077,
+                "terrain_fit": 10.952
+              },
+              "total_ms": 77.656
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            71.044,
+            76.674,
+            82.089
+          ],
+          "median_wall_ms": 76.674,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "after": {
+        "first": {
+          "n": 1,
+          "raw_wall_ms": [
+            117.186
+          ],
+          "median_wall_ms": 117.186,
+          "stages_median_ms": {
+            "bridge_bindings": 14.977,
+            "collision": 64.045,
+            "finalize": 21.722,
+            "intersection_split": 0.006,
+            "material_lookup": 0.396,
+            "obstacle_shapes": 3.707,
+            "record_preservation": 6.654,
+            "road_build": 1.473,
+            "source_validation": 0.112,
+            "terrain_fit": 4.055
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 14.977,
+                "collision": 64.045,
+                "finalize": 21.722,
+                "intersection_split": 0.006,
+                "material_lookup": 0.396,
+                "obstacle_shapes": 3.707,
+                "record_preservation": 6.654,
+                "road_build": 1.473,
+                "source_validation": 0.112,
+                "terrain_fit": 4.055
+              },
+              "total_ms": 117.167
+            }
+          ]
+        },
+        "warm_on": {
+          "n": 2,
+          "raw_wall_ms": [
+            54.637,
+            82.865
+          ],
+          "median_wall_ms": 68.751,
+          "stages_median_ms": {
+            "bridge_bindings": 8.996,
+            "collision": 27.667,
+            "finalize": 11.6955,
+            "intersection_split": 0.0045000000000000005,
+            "material_lookup": 0.4,
+            "obstacle_shapes": 7.143000000000001,
+            "record_preservation": 5.7669999999999995,
+            "road_build": 2.1705,
+            "source_validation": 0.08449999999999999,
+            "terrain_fit": 4.686
+          },
+          "raw_profiles": [
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 9.673,
+                "collision": 17.402,
+                "finalize": 11.956,
+                "intersection_split": 0.004,
+                "material_lookup": 0.401,
+                "obstacle_shapes": 3.848,
+                "record_preservation": 5.905,
+                "road_build": 1.465,
+                "source_validation": 0.06,
+                "terrain_fit": 3.767
+              },
+              "total_ms": 54.501
+            },
+            {
+              "counts": {
+                "obstacle_records_expanded": 2,
+                "obstacle_shapes": 257,
+                "potential_shape_pairs": 257,
+                "road_records": 1,
+                "source_records": 2
+              },
+              "ok": true,
+              "stages_ms": {
+                "bridge_bindings": 8.319,
+                "collision": 37.932,
+                "finalize": 11.435,
+                "intersection_split": 0.005,
+                "material_lookup": 0.399,
+                "obstacle_shapes": 10.438,
+                "record_preservation": 5.629,
+                "road_build": 2.876,
+                "source_validation": 0.109,
+                "terrain_fit": 5.605
+              },
+              "total_ms": 82.764
+            }
+          ]
+        },
+        "warm_off": {
+          "n": 3,
+          "raw_wall_ms": [
+            51.039,
+            74.623,
+            60.208
+          ],
+          "median_wall_ms": 60.208,
+          "stages_median_ms": {},
+          "raw_profiles": [
+            {},
+            {},
+            {}
+          ]
+        }
+      },
+      "wall_change": {
+        "first": {
+          "before_ms": 125.5,
+          "after_ms": 117.186,
+          "change_ms": -8.313999999999993,
+          "improvement_percent": 6.624701195219118
+        },
+        "warm_on": {
+          "before_ms": 73.655,
+          "after_ms": 68.751,
+          "change_ms": -4.903999999999996,
+          "improvement_percent": 6.658068019822139
+        },
+        "warm_off": {
+          "before_ms": 76.674,
+          "after_ms": 60.208,
+          "change_ms": -16.466000000000008,
+          "improvement_percent": 21.475337141664717
+        }
+      }
+    }
+  ],
+  "method": {
+    "identity": "Full input and return binary SHA plus every one of six recorded sample hashes. IDs, tokens, manifests, errors and numeric types are retained.",
+    "timing": "First is separate; warm ON has two samples and warm OFF three. Raw samples, wall medians and separate ON stage medians retained. No percentile, significance or isolated instrumentation-overhead claim.",
+    "reference_limit": "The benchmark reference road_tools shares current helper preloads. Its equality alone cannot prove old Projection equivalence. Cross-process A/B binaries and test_road_prepare_differential's independently frozen full chain must both pass.",
+    "scope": "CPU preparation only. These numbers do not measure GPU, actual editor publication, HTTP response latency, memory or character traversal."
+  }
+}

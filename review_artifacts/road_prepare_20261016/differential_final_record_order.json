@@ -1,0 +1,289 @@
+{
+  "current_record": {
+    "color": [
+      0.39,
+      0.36,
+      0.31
+    ],
+    "editor_group": "retained_group",
+    "editor_name": "retained_name",
+    "event": {
+      "fixture_marker": 17
+    },
+    "kind": "box",
+    "position": [
+      -16.0,
+      -0.0750000029802322,
+      -16.0
+    ],
+    "road_clearance": 3.0,
+    "road_mesh": {
+      "polygons": [
+        [
+          [
+            0.125,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.125,
+            0.5
+          ]
+        ],
+        [
+          [
+            0.125,
+            0.5
+          ],
+          [
+            0.0703125,
+            0.5
+          ],
+          [
+            0.072175920009613,
+            0.4858458340168
+          ],
+          [
+            0.0776392221450806,
+            0.47265625
+          ],
+          [
+            0.0863300859928131,
+            0.461330085992813
+          ],
+          [
+            0.09765625,
+            0.452639222145081
+          ],
+          [
+            0.1108458340168,
+            0.447175920009613
+          ],
+          [
+            0.125,
+            0.4453125
+          ]
+        ]
+      ],
+      "uv_origin": [
+        -16.0,
+        -0.0750000029802322,
+        -16.0
+      ]
+    },
+    "road_source": "road_m1_m1_0",
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "size": [
+      32.0,
+      0.2,
+      32.0
+    ],
+    "surface_id": "road",
+    "uuid": "pavement_9f4cb035258a4eec34b9"
+  },
+  "current_result_sha256": "a985b19263478769061d14e284dcfbba06f3c139cb3ca75e53b73b1bdff949f3",
+  "first_difference": "$.records[3] keys or key order",
+  "input_previous": {
+    "color": [
+      0.39,
+      0.36,
+      0.31
+    ],
+    "editor_group": "retained_group",
+    "editor_name": "retained_name",
+    "event": {
+      "fixture_marker": 17
+    },
+    "kind": "box",
+    "position": [
+      -16.0,
+      -0.0750000029802322,
+      -16.0
+    ],
+    "road_clearance": 3.0,
+    "road_mesh": {
+      "polygons": [
+        [
+          [
+            0.125,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.125,
+            0.5
+          ]
+        ],
+        [
+          [
+            0.125,
+            0.5
+          ],
+          [
+            0.0703125,
+            0.5
+          ],
+          [
+            0.072175920009613,
+            0.4858458340168
+          ],
+          [
+            0.0776392221450806,
+            0.47265625
+          ],
+          [
+            0.0863300859928131,
+            0.461330085992813
+          ],
+          [
+            0.09765625,
+            0.452639222145081
+          ],
+          [
+            0.1108458340168,
+            0.447175920009613
+          ],
+          [
+            0.125,
+            0.4453125
+          ]
+        ]
+      ],
+      "uv_origin": [
+        -16.0,
+        -0.0750000029802322,
+        -16.0
+      ]
+    },
+    "road_source": "road_m1_m1_0",
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "size": [
+      32.0,
+      0.2,
+      32.0
+    ],
+    "surface_id": "road",
+    "uuid": "pavement_9f4cb035258a4eec34b9"
+  },
+  "input_previous_sha256": "19b0866236d204a49d669f679b3b0ca7ae3631327f711e3a551c40378d787848",
+  "legacy_current_identical": false,
+  "legacy_record": {
+    "color": [
+      0.39,
+      0.36,
+      0.31
+    ],
+    "editor_group": "retained_group",
+    "editor_name": "retained_name",
+    "event": {
+      "fixture_marker": 17
+    },
+    "kind": "box",
+    "position": [
+      -16.0,
+      -0.0750000029802322,
+      -16.0
+    ],
+    "road_clearance": 3.0,
+    "road_mesh": {
+      "polygons": [
+        [
+          [
+            0.125,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.4453125
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.125,
+            0.5
+          ]
+        ],
+        [
+          [
+            0.125,
+            0.5
+          ],
+          [
+            0.0703125,
+            0.5
+          ],
+          [
+            0.072175920009613,
+            0.4858458340168
+          ],
+          [
+            0.0776392221450806,
+            0.47265625
+          ],
+          [
+            0.0863300859928131,
+            0.461330085992813
+          ],
+          [
+            0.09765625,
+            0.452639222145081
+          ],
+          [
+            0.1108458340168,
+            0.447175920009613
+          ],
+          [
+            0.125,
+            0.4453125
+          ]
+        ]
+      ],
+      "uv_origin": [
+        -16.0,
+        -0.0750000029802322,
+        -16.0
+      ]
+    },
+    "road_source": "road_m1_m1_0",
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "size": [
+      32.0,
+      0.2,
+      32.0
+    ],
+    "surface_id": "road",
+    "uuid": "pavement_9f4cb035258a4eec34b9"
+  },
+  "legacy_result_sha256": "ed87dafdaa255b05d3e3512e84af4dc0ea1a2c8e7b471a09440dc358bf5f1d2a",
+  "migrated_from_strict_case": "preserve_event_and_group",
+  "name": "preserve_event_and_group_author_byte_preservation",
+  "reason": "Correctness fix preserves an already equivalent author record instead of rebuilding its dictionary order. No global comparator normalization."
+}

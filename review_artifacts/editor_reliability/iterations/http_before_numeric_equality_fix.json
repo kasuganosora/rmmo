@@ -1,0 +1,687 @@
+{
+  "asset_id": "D:/code/rmmo_runtime/__residential_placement_18844_12651142/assets/prefabs/dbdffaca161b2573a2f0e41fcee8624558684e75caf01a28cc587676c00549db.json",
+  "checks": [
+    {
+      "label": "unique temporary pack and map saved",
+      "ok": true
+    },
+    {
+      "label": "real 3D loopback HTTP starts",
+      "ok": true
+    },
+    {
+      "label": "all residential tools discovered on current 3D service",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_road_surface succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_buildings succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP select_objects succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_prefab succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP delete_building succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "scope sentinel includes actual generated distant road records",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "preview does not mutate map or history",
+      "ok": true
+    },
+    {
+      "label": "preview returns source identity and a concrete house-road plan",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "same inputs produce the same constrained geometry",
+      "ok": true
+    },
+    {
+      "label": "HTTP discard_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: protected_scope",
+      "ok": false
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: unsupported",
+      "ok": false
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_object_properties succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: base_changed",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: source_changed",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "source fixture restored byte for byte",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: residential_support_coverage_gap",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "narrow interior hole reports a positive uncovered area and the actual terrain",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: residential_support_height_limit",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "UI exposes the same native source and target road",
+      "ok": true
+    },
+    {
+      "label": "actual UI preview button agrees with HTTP for identical inputs",
+      "ok": true
+    },
+    {
+      "label": "UI owns an inspectable preview without authored geometry",
+      "ok": true
+    },
+    {
+      "label": "UI discard removes ghost and apply authority",
+      "ok": true
+    },
+    {
+      "label": "editing a real UI field invalidates the candidate immediately",
+      "ok": true
+    },
+    {
+      "label": "actual UI apply button commits the complete transaction once",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI-applied candidate is undone by the same HTTP undo operation",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement succeeds",
+      "ok": true
+    },
+    {
+      "label": "house and complete approach are one undo transaction",
+      "ok": true
+    },
+    {
+      "label": "automatic placement leaves every terrain sample and hole unchanged",
+      "ok": true
+    },
+    {
+      "label": "scope-external objects and native distant roads remain byte-equivalent",
+      "ok": true
+    },
+    {
+      "label": "scope-external authored road edge remains unchanged",
+      "ok": true
+    },
+    {
+      "label": "committed house keeps native building identity",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "undo restores complete map, graph and metadata without reusing object IDs",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "redo restores exact house, road and stable identities",
+      "ok": true
+    },
+    {
+      "label": "HTTP select_objects succeeds",
+      "ok": true
+    },
+    {
+      "label": "picking identity expands into whole-house selection",
+      "ok": true
+    },
+    {
+      "label": "native moving doors remain independent semantic records",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "native save/reopen preserves full transaction",
+      "ok": true
+    }
+  ],
+  "directory": "D:/code/rmmo_runtime/__residential_placement_18844_12651142",
+  "editor_batch_stats": {
+    "base_work_budget_usec": 2000,
+    "building_mesh_hits": 0,
+    "enabled": true,
+    "groups": 1,
+    "instanced_groups": 0,
+    "last_build_ms": 1.382,
+    "last_commit_ms": 0.137,
+    "last_sync_ms": 6.327,
+    "loading_budget_scopes": 0,
+    "max_build_ms": 1012.955,
+    "max_commit_ms": 0.692,
+    "pending_groups": 1,
+    "rebuild_count": 3,
+    "release_groups_visited": 0,
+    "render_surfaces": 1,
+    "render_vertices": 10332,
+    "source_objects": 3,
+    "source_surfaces": 9,
+    "source_vertices": 10332,
+    "sync_count": 23,
+    "sync_profile_us": {
+      "capture_us": 0,
+      "geometry_us": 0,
+      "material_us": 0
+    },
+    "work_budget_usec": 2000
+  },
+  "failures": 2,
+  "fixture": "D:/code/rmmo_runtime/__residential_placement_18844_12651142/maps/test/map.gltf",
+  "graphical": false,
+  "house_id": "building_55590b8cfe9f66d9dd94",
+  "house_ids": [
+    "obj_70",
+    "obj_71",
+    "obj_72",
+    "obj_73",
+    "obj_74",
+    "obj_75",
+    "obj_76",
+    "obj_77",
+    "obj_78",
+    "obj_79",
+    "obj_80",
+    "obj_81",
+    "obj_82",
+    "obj_83",
+    "obj_84",
+    "obj_85",
+    "obj_86",
+    "obj_87",
+    "obj_88",
+    "obj_89",
+    "obj_90",
+    "obj_91",
+    "obj_92",
+    "obj_93",
+    "obj_94",
+    "obj_95",
+    "obj_96",
+    "obj_97",
+    "obj_98",
+    "obj_99",
+    "obj_100",
+    "obj_101",
+    "obj_102",
+    "obj_103"
+  ],
+  "map_sha256": "9f30ab27166a9a39e7d25b78723fb58bc8153770aeefbdd4f3f382cdb31a54ff",
+  "parameters": {
+    "annex_depth": 7.0,
+    "annex_floors": 1,
+    "annex_width": 5.0,
+    "balcony": "front",
+    "balcony_depth": 1.6,
+    "base_height": 0.3,
+    "bay_width": 2.8,
+    "bedrooms": 2,
+    "chimney": false,
+    "compound": "none",
+    "corridor_width": 2.2,
+    "curtains": true,
+    "depth": 11.0,
+    "door_height": 2.5,
+    "door_width": 1.5,
+    "dormers": 0,
+    "eaves": 0.4,
+    "facade_color": "white",
+    "floor_height": 3.5,
+    "floors": 1,
+    "foundation_depth": 1.0,
+    "front_canopy": false,
+    "ground_canopy": true,
+    "jetty": 0.0,
+    "layout": "townhouse",
+    "left_wall": "open",
+    "right_wall": "open",
+    "roof": "gable",
+    "roof_axis": "depth",
+    "roof_canopy": true,
+    "roof_height": 2.0,
+    "roof_pitch": 36.0,
+    "roof_solver": "unified",
+    "roof_tank": true,
+    "rooms_per_floor": 2,
+    "seed": 1,
+    "shutters": true,
+    "stair_landing": 2.0,
+    "stair_layout": "switchback",
+    "stair_width": 1.7,
+    "style": "plaster",
+    "template": "house",
+    "timber_width": 0.24,
+    "width": 9.0
+  },
+  "plan": {
+    "access": {
+      "corridor_width": 0.8,
+      "door_id": "obj_92",
+      "fixture_id": "f0/north/entrance/door",
+      "intervals": 13.0,
+      "max_grade": 0.0,
+      "max_seam_step": 0.0,
+      "max_step": 0.15,
+      "ok": true,
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "threshold": [
+        -3.31550097465515,
+        0.318000018596649,
+        -5.25750017166138
+      ]
+    },
+    "adjustment": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "base_version": "2dda6600191c548dcda5212a5e4ed648dc06299dc3610712e0b7390d15a9352f",
+    "bounds": {
+      "position": [
+        -4.96500110626221,
+        -1.22000002861023,
+        -6.10750007629395
+      ],
+      "size": [
+        9.93000221252441,
+        8.71444129943848,
+        12.2150001525879
+      ]
+    },
+    "building_id": "building_55590b8cfe9f66d9dd94",
+    "building_ids": [
+      "building_55590b8cfe9f66d9dd94"
+    ],
+    "changed_ids": [
+      "obj_70",
+      "obj_71",
+      "obj_72",
+      "obj_73",
+      "obj_74",
+      "obj_75",
+      "obj_76",
+      "obj_77",
+      "obj_78",
+      "obj_79",
+      "obj_80",
+      "obj_81",
+      "obj_82",
+      "obj_83",
+      "obj_84",
+      "obj_85",
+      "obj_86",
+      "obj_87",
+      "obj_88",
+      "obj_89",
+      "obj_90",
+      "obj_91",
+      "obj_92",
+      "obj_93",
+      "obj_94",
+      "obj_95",
+      "obj_96",
+      "obj_97",
+      "obj_98",
+      "obj_99",
+      "obj_100",
+      "obj_101",
+      "obj_102",
+      "obj_103",
+      "pavement_9f4cb035258a4eec34b9"
+    ],
+    "checks": {
+      "continuous_support": true,
+      "entrance_corridor": true,
+      "full_road_graph": true,
+      "native_house_geometry": true,
+      "native_save": true,
+      "runtime_traversal": "requires_runtime_verification"
+    },
+    "house_ids": [
+      "obj_70",
+      "obj_71",
+      "obj_72",
+      "obj_73",
+      "obj_74",
+      "obj_75",
+      "obj_76",
+      "obj_77",
+      "obj_78",
+      "obj_79",
+      "obj_80",
+      "obj_81",
+      "obj_82",
+      "obj_83",
+      "obj_84",
+      "obj_85",
+      "obj_86",
+      "obj_87",
+      "obj_88",
+      "obj_89",
+      "obj_90",
+      "obj_91",
+      "obj_92",
+      "obj_93",
+      "obj_94",
+      "obj_95",
+      "obj_96",
+      "obj_97",
+      "obj_98",
+      "obj_99",
+      "obj_100",
+      "obj_101",
+      "obj_102",
+      "obj_103"
+    ],
+    "ok": true,
+    "plan_token": "57d29f0dfba3c3ba3199c81d521c9ca37168763e15d78e5e",
+    "position": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "road_points": [
+      [
+        -3.31550097465515,
+        0.0,
+        -6.90750026702881
+      ],
+      [
+        -3.31550025939941,
+        0.0,
+        -16.0
+      ]
+    ],
+    "search": {
+      "attempts": 18.0,
+      "budget": 45.0,
+      "prepare_ms": 7917.172,
+      "step": 0.05
+    },
+    "setback": 1.65,
+    "source_sha256": "240aceb88d778dae3a5543e0a82af26b0d3b687cb0390b6d900f5a9029ea4c68",
+    "support": {
+      "area_tolerance": 0.0000001,
+      "components": [
+        {
+          "area": 99.0,
+          "covered_area": 99.0,
+          "floor_bottom": 0.0799999907612801,
+          "foundation_bottom": -1.22000002861023,
+          "foundation_id": "obj_5/support_triangle_824",
+          "missing_area": 0.0,
+          "part": "main/baked_2",
+          "record_id": "obj_4",
+          "terrain_range": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "counts": {
+        "cells_visited": 4096.0,
+        "overlaps": 606.0,
+        "terrain_candidates": 1.0,
+        "triangle_clips": 608.0
+      },
+      "entrance_maximum_y": 0.33,
+      "excluded_landings": [],
+      "geometric_interval": [
+        -0.0799999907612801,
+        1.22000002861023
+      ],
+      "interval": [
+        -0.0799999907612801,
+        0.5
+      ],
+      "lower_witness": {
+        "cell": [
+          24.0,
+          26.0
+        ],
+        "floor_bottom": 0.0799999907612801,
+        "foundation_bottom": -1.22000002861023,
+        "foundation_id": "obj_5/support_triangle_824",
+        "part": "main/baked_2",
+        "position": [
+          -4.50000095367432,
+          0.0,
+          -5.35750007629395
+        ],
+        "record_id": "obj_4",
+        "terrain_height": 0.0,
+        "terrain_id": "residential_ground",
+        "triangle_index": 0.0
+      },
+      "requires_native_placement_validation": true,
+      "scope": "continuous_ground_floor_foundation_only",
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "upper_witness": {
+        "cell": [
+          24.0,
+          26.0
+        ],
+        "floor_bottom": 0.0799999907612801,
+        "foundation_bottom": -1.22000002861023,
+        "foundation_id": "obj_5/support_triangle_824",
+        "part": "main/baked_2",
+        "position": [
+          -4.50000095367432,
+          0.0,
+          -5.35750007629395
+        ],
+        "record_id": "obj_4",
+        "terrain_height": 0.0,
+        "terrain_id": "residential_ground",
+        "triangle_index": 0.0
+      }
+    },
+    "width": 1.6
+  },
+  "request": {
+    "asset_id": "D:/code/rmmo_runtime/__residential_placement_18844_12651142/assets/prefabs/dbdffaca161b2573a2f0e41fcee8624558684e75caf01a28cc587676c00549db.json",
+    "elevation_max": 0.5,
+    "elevation_min": -0.5,
+    "position": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "road_edge_id": "main_lane",
+    "setback_max": 3.0,
+    "setback_min": 0.8,
+    "width": 1.6,
+    "yaw": 0.0
+  },
+  "road_points": [
+    [
+      -3.31550097465515,
+      0.0,
+      -6.90750026702881
+    ],
+    [
+      -3.31550025939941,
+      0.0,
+      -16.0
+    ]
+  ],
+  "runtime_verified": false,
+  "source_path": "D:/code/rmmo_runtime/__residential_placement_18844_12651142/assets/prefabs/dbdffaca161b2573a2f0e41fcee8624558684e75caf01a28cc587676c00549db.json"
+}

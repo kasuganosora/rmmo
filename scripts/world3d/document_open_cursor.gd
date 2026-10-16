@@ -68,7 +68,7 @@ static func native_root(data: Variant, allow_legacy_migration: bool=false) -> in
 	return root
 
 static func claims_native(data: Variant) -> bool:
-	if not data is Dictionary or not data.get("nodes",[]) is Array:return false
+	if not data is Dictionary or not data.get("nodes") is Array:return false
 	for node in data.nodes:
 		if node is Dictionary and node.get("extras") is Dictionary and node.extras.get("rmmo_format")==WorldLocation.FORMAT:return true
 	return false

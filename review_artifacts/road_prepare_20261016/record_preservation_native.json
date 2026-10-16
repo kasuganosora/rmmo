@@ -1,0 +1,242 @@
+{
+	"checks": [
+		{
+			"label": "frozen original road_tools source SHA is exact",
+			"ok": true
+		},
+		{
+			"label": "frozen original source parses for independent correctness comparison",
+			"ok": true
+		},
+		{
+			"label": "equal nested numbers and dictionary order are semantically identical",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-12 numeric difference is never swallowed",
+			"ok": true
+		},
+		{
+			"label": "bool, string and missing fields remain distinct",
+			"ok": true
+		},
+		{
+			"label": "array order and container types remain distinct",
+			"ok": true
+		},
+		{
+			"label": "same-type integers remain exact and unsafe int-to-double rounding cannot merge changes",
+			"ok": true
+		},
+		{
+			"label": "safe cross-type integers compare exactly and nonfinite conversion is refused",
+			"ok": true
+		},
+		{
+			"label": "native unpainted near/far roads prepare in a CPU-only context",
+			"ok": true
+		},
+		{
+			"label": "native CPU reference writer saves a unique temporary map",
+			"ok": true
+		},
+		{
+			"label": "native resource reader restores verified binary definitions and JSON poses",
+			"ok": true
+		},
+		{
+			"label": "whole-record lossy JSON geometry remains a real change and is never reused",
+			"ok": true
+		},
+		{
+			"label": "original and corrected prepare accept the same reloaded authored map",
+			"ok": true
+		},
+		{
+			"label": "both prepare implementations leave source document and history untouched",
+			"ok": true
+		},
+		{
+			"label": "corrected diff counts semantically unchanged reloaded records accurately",
+			"ok": true
+		},
+		{
+			"label": "frozen original reproduces spurious updates after JSON reload",
+			"ok": true
+		},
+		{
+			"label": "corrected candidates retain exact author bytes while original candidates replace representation",
+			"ok": true
+		},
+		{
+			"label": "manifest and plan-token definitions remain byte-identical to original prepare",
+			"ok": true
+		},
+		{
+			"label": "retained candidate is a deep copy and cannot mutate the live document",
+			"ok": true
+		},
+		{
+			"label": "direct repeated generate after JSON reload is a no-op with no history or refresh",
+			"ok": true
+		},
+		{
+			"label": "original implementation reproduces unnecessary repeated-generate history",
+			"ok": true
+		},
+		{
+			"label": "a genuine local endpoint change remains an update beside unchanged far roads",
+			"ok": true
+		},
+		{
+			"label": "legal local preparation preserves every distant authored road byte",
+			"ok": true
+		},
+		{
+			"label": "a real 1e-10 authored clearance change updates every affected record",
+			"ok": true
+		}
+	],
+	"corrected_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 6,
+		"updated": 0
+	},
+	"corrected_repeat": {
+		"changed": false,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 6,
+			"updated": 0
+		},
+		"ok": true
+	},
+	"current_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"exact_change_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"failures": 0,
+	"fixture": {
+		"path": "D:/code/rmmo_runtime/cache/world3d/road_record_preservation_21940_7994948/map.gltf",
+		"reader": "map_resource_store.read_records",
+		"save_mode": "reference_map",
+		"sha256": "125a727f593246ebc0e521f4503eadecbd61b15fce6c189be422160bd14066db",
+		"writer": "reference_map_save"
+	},
+	"local_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 3,
+		"updated": 3
+	},
+	"lossy_json_control": {
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 0,
+			"updated": 6
+		},
+		"scope": "Deliberately serializes binary geometry as default-precision JSON; not the native persistence path."
+	},
+	"original_diff": {
+		"added": 0,
+		"removed": 0,
+		"unchanged": 0,
+		"updated": 6
+	},
+	"original_repeat": {
+		"changed": true,
+		"chunks": 6,
+		"diff": {
+			"added": 0,
+			"removed": 0,
+			"unchanged": 0,
+			"updated": 6
+		},
+		"ids": [
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_371cc25e17aebb0b7c4b",
+			"pavement_0fb07334267a8da69cc0",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"ok": true
+	},
+	"prepare_manifest_sha256": "0da26544d3bb32b8b7c9689448fd7685aa2aa94980ba9bc36a3db7bd8a8044a3",
+	"record_evidence": [
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "4829615065d2eb9e444cdbccacff425fc441331cf7986fd0691cdae3be32095b",
+			"corrected_sha256": "4829615065d2eb9e444cdbccacff425fc441331cf7986fd0691cdae3be32095b",
+			"id": "pavement_95dbe641da91b6c6b952",
+			"original_rotation_type": 2,
+			"original_sha256": "0f6bef6d6f80ec88ba37058172d05d421b0d1a474bc18c3722277ce32e7c0e61",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "1fcb8dc1753a49dd05fa9ddd7d6817c263602cccb876a2513628c0abb5cfc881",
+			"corrected_sha256": "1fcb8dc1753a49dd05fa9ddd7d6817c263602cccb876a2513628c0abb5cfc881",
+			"id": "pavement_993600ba1e5c0bde643e",
+			"original_rotation_type": 2,
+			"original_sha256": "da9be804a33b4d1b54921edf11472671c2028e1d57dbfb0026415c2601fb911e",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "577d180ee9ad810a52a840ca271581b185305c36d24a99eb914985f274e8bee6",
+			"corrected_sha256": "577d180ee9ad810a52a840ca271581b185305c36d24a99eb914985f274e8bee6",
+			"id": "pavement_371cc25e17aebb0b7c4b",
+			"original_rotation_type": 2,
+			"original_sha256": "dedcec1c8f4366b2a7c89fc36cf5d4545365c494b16c3769be17cd978d511698",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "eef51fbc7cb10decc3742b945b716ccced7b159db19c0e7ef805dee9b9ed283f",
+			"corrected_sha256": "eef51fbc7cb10decc3742b945b716ccced7b159db19c0e7ef805dee9b9ed283f",
+			"id": "pavement_0fb07334267a8da69cc0",
+			"original_rotation_type": 2,
+			"original_sha256": "48e8486b9a1d3f03ddc6f6bcfd74df3b89640145e3a2012c2b415d679992943a",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "d11812478b928700908fd1e21177265a58b158986d70641990ddf3d2fe5eb10d",
+			"corrected_sha256": "d11812478b928700908fd1e21177265a58b158986d70641990ddf3d2fe5eb10d",
+			"id": "pavement_7e8b2fc2a30eeea3bdd2",
+			"original_rotation_type": 2,
+			"original_sha256": "cc3bc482b8360561cdbb4892a07f5b8c1626c1751c2bfc3c0fe5d6e013d6f030",
+			"real_value_differences": []
+		},
+		{
+			"author_rotation_type": 3,
+			"author_sha256": "efdb4ba1dc43d543fb0d8f1c80c5d7b7cbe7810283d94fcd3bcd1c99e4efce62",
+			"corrected_sha256": "efdb4ba1dc43d543fb0d8f1c80c5d7b7cbe7810283d94fcd3bcd1c99e4efce62",
+			"id": "pavement_9f4cb035258a4eec34b9",
+			"original_rotation_type": 2,
+			"original_sha256": "be2a1335f4609ab60da2d37e1df64c2788fc5ade5efc589b20eb989b3eea65b1",
+			"real_value_differences": []
+		}
+	],
+	"reference_sha256": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+	"scope": "CPU native reference save/read and real shared road_tools.prepare/generate. Intentional record representation and diff correction; not an all-results-identical performance claim.",
+	"test_sha256": "96695e487a3ab82313760d56a0354d53afcc4e1ea6bce179421057e342f35084"
+}

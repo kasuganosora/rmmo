@@ -1,0 +1,26 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS fit elevated yaw 0 terrain at 0 m: 
+PASS unrelated dense terrain leaves complete result unchanged at 0 m
+PASS fitted area and plane heights at 0 m (area 8.000000, height error 0.000000)
+PASS real hole remains rejected at 0 m
+PASS overlapping ground remains rejected at 0 m
+PASS fit elevated yaw 90 terrain at 500 m: 
+PASS unrelated dense terrain leaves complete result unchanged at 500 m
+PASS fitted area and plane heights at 500 m (area 8.000000, height error 0.000002)
+PASS real hole remains rejected at 500 m
+PASS overlapping ground remains rejected at 500 m
+PASS fit elevated yaw 37 terrain at 10000 m: 
+PASS unrelated dense terrain leaves complete result unchanged at 10000 m
+PASS fitted area and plane heights at 10000 m (area 7.999991, height error 0.000068)
+PASS real hole remains rejected at 10000 m
+PASS overlapping ground remains rejected at 10000 m
+PASS intersecting steep slope still rejects
+PASS slope failure identifies the actual terrain and projected record
+PASS slope diagnostic reports independently known plane grade without changing its limit
+PASS diagnostic position lies on actual overlapping terrain, without pavement lift
+PASS slope diagnostic includes the precise terrain cell and world triangle
+PASS real terrain boundary still rejects
+PASS 512-piece budget still rejects
+test_terrain_projection_bounds: failures=0 elapsed_ms=80.458

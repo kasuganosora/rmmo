@@ -1,0 +1,731 @@
+{
+  "apply": {
+    "callback_to_ready_ms": 354.128,
+    "callback_wall_ms": 214.201,
+    "method": "actual UI apply callback plus separate wait for all house editor nodes/picking bodies, pending batch count zero, two physics frames and a rendered frame; picking bodies include collision:none decorations and are not gameplay collision proof or real-character traversal",
+    "publication_wait_ms": 139.927,
+    "ready": {
+      "batch_stats": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 7.905,
+        "last_commit_ms": 0.776,
+        "last_sync_ms": 1.984,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 7.905,
+        "max_commit_ms": 0.776,
+        "pending_groups": 0,
+        "rebuild_count": 1,
+        "release_groups_visited": 0,
+        "render_surfaces": 2,
+        "render_vertices": 11844,
+        "source_objects": 3,
+        "source_surfaces": 12,
+        "source_vertices": 11844,
+        "sync_count": 5,
+        "sync_profile_us": {
+          "capture_us": 25,
+          "geometry_us": 0,
+          "material_us": 1453
+        },
+        "work_budget_usec": 2000
+      },
+      "draw_frame": 14,
+      "ok": true,
+      "physics_frame": 64,
+      "wait_ms": 139.927
+    }
+  },
+  "checks": [
+    {
+      "label": "bounded benchmark configuration",
+      "ok": true
+    },
+    {
+      "label": "explicit successful HTTP fixture manifest exists",
+      "ok": true
+    },
+    {
+      "label": "input is a successful real-kerb HTTP fixture",
+      "ok": true
+    },
+    {
+      "label": "input belongs to the disposable test pack",
+      "ok": true
+    },
+    {
+      "label": "exact source map and frozen asset revisions match the passing fixture",
+      "ok": true
+    },
+    {
+      "label": "native fixture opens for an in-memory baseline",
+      "ok": true
+    },
+    {
+      "label": "known fixed fixture skeleton is available",
+      "ok": true
+    },
+    {
+      "label": "grid variant preserves the same flat solid terrain",
+      "ok": true
+    },
+    {
+      "label": "baseline roads are rebuilt by the native full-graph service",
+      "ok": true
+    },
+    {
+      "label": "baseline derived editor geometry is ready before timing",
+      "ok": true
+    },
+    {
+      "label": "first_prepare_in_editor succeeds",
+      "ok": true
+    },
+    {
+      "label": "first_prepare_in_editor uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "first_prepare_in_editor leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "first_prepare_in_editor preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_1 succeeds",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_1 uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_1 leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_1 preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_2 succeeds",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_2 uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_2 leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "prepare_after_discard_2 preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "candidate_cache_hit succeeds",
+      "ok": true
+    },
+    {
+      "label": "candidate_cache_hit uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "candidate_cache_hit leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "candidate_cache_hit preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "cache hit reuses the exact candidate authority",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_1 succeeds",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_1 uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_1 leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_1 preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_2 succeeds",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_2 uses the expected candidate-cache path",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_2 leaves document, history and selection unchanged",
+      "ok": true
+    },
+    {
+      "label": "unprofiled_prepare_after_discard_2 preserves exact normalized geometry summary",
+      "ok": true
+    },
+    {
+      "label": "real UI selects the benchmark source and road",
+      "ok": true
+    },
+    {
+      "label": "UI benchmark uses identical service inputs",
+      "ok": true
+    },
+    {
+      "label": "first preview display constructs real ghost geometry",
+      "ok": true
+    },
+    {
+      "label": "actual UI button reuses the cached equivalent candidate",
+      "ok": true
+    },
+    {
+      "label": "UI applies the complete candidate in one native undo transaction",
+      "ok": true
+    },
+    {
+      "label": "applied house reaches editor member picking-body, batch and later-frame readiness",
+      "ok": true
+    },
+    {
+      "label": "benchmark does not write the successful source fixture",
+      "ok": true
+    },
+    {
+      "label": "benchmark does not write the frozen source asset",
+      "ok": true
+    }
+  ],
+  "engine": {
+    "build": "official",
+    "hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "hex": 263938,
+    "major": 4,
+    "minor": 7,
+    "patch": 2,
+    "status": "stable",
+    "string": "4.7.2-stable (official)",
+    "timestamp": 0
+  },
+  "engine_executable": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+  "engine_executable_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/__residential_placement_4088_13306828/maps/test/map.gltf",
+  "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+  "graphical": true,
+  "grid": 64,
+  "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+  "manifest": "res://review_artifacts/editor_reliability/http_kerbs.json",
+  "method": {
+    "cache": "cache hit wall time is measured separately; candidate_search and candidate_work_counts are historical, not work performed by the cache hit",
+    "cold_label": "first residential preparation in this editor; document, native roads, engine and OS caches may already be warm",
+    "geometry": "SHA256 of exact float-normalized summary, sorted keys; excludes IDs, tokens, timings and counts; work counts are recorded separately",
+    "profiling": "first plus two warm ON preparations, then two warm OFF preparations; disabled probes have empty profile and the full wall is unattributed",
+    "scope": "fixed 40m terrain plus distant-road sentinel; no town benchmark, network latency or RSS/VRAM claim",
+    "service": "direct call to the actual WorldEditor shared service; includes argument/identity/SHA/version checks, candidate preparation and return"
+  },
+  "records": 7,
+  "road_settings": {
+    "clearance": 3.0,
+    "follow_terrain": true,
+    "kerb_enabled": true,
+    "kerb_height": 0.055,
+    "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+    "kerb_width": 0.28,
+    "lift": 0.025,
+    "material_id": "",
+    "thickness": 0.2
+  },
+  "samples": [
+    {
+      "attempts": 29,
+      "cached": false,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1683.25,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 1,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "first_prepare_in_editor",
+      "outcome": "ok",
+      "profile": {
+        "cached": false,
+        "stages_ms": {
+          "candidate_clearance": 58.975,
+          "candidate_snapshot": 2.905,
+          "connect": 8.943,
+          "connector_ground": 13.386,
+          "entrance_access": 181.193,
+          "entrance_elevation": 10.534,
+          "final_identity": 68.674,
+          "final_validation": 143.368,
+          "full_road": 887.431,
+          "lookup_identity": 9.545,
+          "native_house_placement": 58.425,
+          "preserve_records": 20.329,
+          "quick_clearance": 88.869,
+          "result": 9.939,
+          "search_setup": 0.774,
+          "source_and_target": 147.738,
+          "support": 52.935
+        }
+      },
+      "profiling_on": true,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 1763.963,
+      "unattributed_ms": 3.35400000000027,
+      "wall_ms": 1767.317,
+      "work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      }
+    },
+    {
+      "attempts": 29,
+      "cached": false,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1590.006,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 1,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "prepare_after_discard_1",
+      "outcome": "ok",
+      "profile": {
+        "cached": false,
+        "stages_ms": {
+          "candidate_clearance": 48.649,
+          "candidate_snapshot": 4.431,
+          "connect": 9.384,
+          "connector_ground": 13.351,
+          "entrance_access": 170.429,
+          "entrance_elevation": 10.427,
+          "final_identity": 63.756,
+          "final_validation": 155.039,
+          "full_road": 838.239,
+          "lookup_identity": 9.218,
+          "native_house_placement": 56.979,
+          "preserve_records": 6.543,
+          "quick_clearance": 89.959,
+          "result": 10.485,
+          "search_setup": 0.77,
+          "source_and_target": 125.81,
+          "support": 53.513
+        }
+      },
+      "profiling_on": true,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 1666.982,
+      "unattributed_ms": 4.76699999999983,
+      "wall_ms": 1671.749,
+      "work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      }
+    },
+    {
+      "attempts": 29,
+      "cached": false,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1832.769,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 1,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "prepare_after_discard_2",
+      "outcome": "ok",
+      "profile": {
+        "cached": false,
+        "stages_ms": {
+          "candidate_clearance": 44.321,
+          "candidate_snapshot": 2.971,
+          "connect": 13.971,
+          "connector_ground": 14.787,
+          "entrance_access": 167.64,
+          "entrance_elevation": 14.467,
+          "final_identity": 59.451,
+          "final_validation": 149.524,
+          "full_road": 988.685,
+          "lookup_identity": 10.309,
+          "native_house_placement": 68.37,
+          "preserve_records": 8.327,
+          "quick_clearance": 130.032,
+          "result": 15.183,
+          "search_setup": 0.759,
+          "source_and_target": 160.56,
+          "support": 55.641
+        }
+      },
+      "profiling_on": true,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 1904.998,
+      "unattributed_ms": 3.36500000000046,
+      "wall_ms": 1908.363,
+      "work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      }
+    },
+    {
+      "attempts": 0,
+      "cached": true,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1832.769,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 0,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "candidate_cache_hit",
+      "outcome": "ok",
+      "profile": {
+        "cached": true,
+        "stages_ms": {
+          "lookup_identity": 55.622
+        }
+      },
+      "profiling_on": true,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 55.622,
+      "unattributed_ms": 0.118000000000002,
+      "wall_ms": 55.74,
+      "work_counts": {}
+    },
+    {
+      "attempts": 29,
+      "cached": false,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1794.847,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 1,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "unprofiled_prepare_after_discard_1",
+      "outcome": "ok",
+      "profile": {},
+      "profiling_on": false,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 0.0,
+      "unattributed_ms": 1863.644,
+      "wall_ms": 1863.644,
+      "work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      }
+    },
+    {
+      "attempts": 29,
+      "cached": false,
+      "candidate_search": {
+        "attempts": 29,
+        "budget": 45,
+        "full_graph_checks": 1,
+        "prepare_ms": 1646.895,
+        "step": 0.05
+      },
+      "candidate_work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      },
+      "fixture_map_sha256": "acf797b7b8486db1fec3e9e640e729823c4bf9be1ee51f0584e8f8a28d658b2e",
+      "full_graph_checks": 1,
+      "geometry_sha256": "d982cee3610a5b9efd44c415d47a8d1d240b81de834bb55622c5bd9a2033a7ef",
+      "input_state_sha256": "af7849efb39366aa72caec929b82508b07f11f04099c80212a99a21f12820554",
+      "label": "unprofiled_prepare_after_discard_2",
+      "outcome": "ok",
+      "profile": {},
+      "profiling_on": false,
+      "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+      "stage_sum_ms": 0.0,
+      "unattributed_ms": 1712.647,
+      "wall_ms": 1712.647,
+      "work_counts": {
+        "access.connector_ground.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 108,
+          "overlaps": 89,
+          "solid_skipped": 3988,
+          "terrain_candidates": 1,
+          "triangle_clips": 90
+        },
+        "support.counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 418,
+          "overlaps": 606,
+          "solid_skipped": 3678,
+          "terrain_candidates": 1,
+          "triangle_clips": 608
+        }
+      }
+    }
+  ],
+  "script_sha256": {
+    "res://scripts/world3d/road_plan.gd": "6584e9ed6f643df984b55609f24042b36db5352ea069aedad4abed894c33d089",
+    "res://scripts/world3d/road_terrain_fit.gd": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+    "res://scripts/world_editor/residential_access.gd": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+    "res://scripts/world_editor/residential_placement_panel.gd": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021",
+    "res://scripts/world_editor/residential_placement_tools.gd": "2d837cd1ca08b40a5f2eaae4774fc1de882ca502fc8db7178445e00833a68c3d",
+    "res://scripts/world_editor/residential_support.gd": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+    "res://scripts/world_editor/road_tools.gd": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+    "res://tools/benchmark_residential_preview.gd": "f6aaefd25b16f4def239953b9ed44ba2555b6388aa744a40a81acbee1a5f8ea5"
+  },
+  "setup_ms": 5974.41,
+  "source_sha256": "e532843fc74ef3ce2104cbb7df641754dd1a9dba60d24716c5f372b9366dd4dc",
+  "statistics": {
+    "groups": {
+      "cache_hit": {
+        "median_wall_ms": 55.74,
+        "n": 1,
+        "raw_wall_ms": [
+          55.74
+        ]
+      },
+      "first_prepare": {
+        "median_wall_ms": 1767.317,
+        "n": 1,
+        "raw_wall_ms": [
+          1767.317
+        ]
+      },
+      "warm_profiled_prepare": {
+        "median_wall_ms": 1790.056,
+        "n": 2,
+        "raw_wall_ms": [
+          1671.749,
+          1908.363
+        ]
+      },
+      "warm_unprofiled_prepare": {
+        "median_wall_ms": 1788.1455,
+        "n": 2,
+        "raw_wall_ms": [
+          1863.644,
+          1712.647
+        ]
+      }
+    },
+    "method": "ordered fixed-input samples; raw values and median only, no percentile or statistical significance claim; ON/OFF pairs estimate possible probe cost but also include run-order variation"
+  },
+  "terrain_cells": 4096,
+  "ui": {
+    "button_service_profile": {
+      "cached": true,
+      "stages_ms": {
+        "lookup_identity": 70.015
+      }
+    },
+    "first_show_render_wait_ms": 70.108,
+    "first_show_visual_cpu_ms": 389.918,
+    "method": "separate payload copy and first ghost construction; full UI button callback is then measured warm and includes its cached service call; render waits are measured after CPU return",
+    "preview_visual_copy_ms": 1.376,
+    "records": 35,
+    "warm_button_render_wait_ms": 66.844,
+    "warm_cached_button_callback_ms": 105.372
+  },
+  "version": 1,
+  "viewport": [
+    1280,
+    900
+  ]
+}

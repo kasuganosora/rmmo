@@ -1,0 +1,1162 @@
+{
+  "baseline": {
+    "commit": "391d478",
+    "scope": "Exact immutable reference before T1 local cell construction optimization; no geometry tolerance changes",
+    "snapshot_utc": "2026-10-15T14:15:58.5733613Z",
+    "source": "scripts/world_editor/residential_support.gd",
+    "source_sha256": "d972d9f7168b7855269f71443c0f1ff0f0152ac7b34b76b02ccd920eef1d5b01"
+  },
+  "cases": 41,
+  "checks": [
+    {
+      "detail": {},
+      "label": "reference metadata is readable",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "reference source SHA matches the frozen baseline",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "frozen pre-T1 source compiles",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "flat support and exact elevation witnesses",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "flat support and exact elevation witnesses exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 16,
+          "overlaps": 2,
+          "solid_skipped": 4080,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "differences": []
+      },
+      "label": "grid-aligned one-cell corridor",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "grid-aligned one-cell corridor exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 36,
+          "overlaps": 8,
+          "solid_skipped": 4060,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "differences": []
+      },
+      "label": "sub-cell offset across grid boundary",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "sub-cell offset across grid boundary exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 16,
+          "overlaps": 8,
+          "solid_skipped": 4080,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "differences": []
+      },
+      "label": "first tile corner and boundary cells",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "first tile corner and boundary cells exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 9,
+          "overlaps": 8,
+          "solid_skipped": 4087,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "differences": []
+      },
+      "label": "last tile corner and boundary cells",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "last tile corner and boundary cells exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2,
+          "terrain_candidates": 1,
+          "triangle_clips": 2
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 4,
+          "overlaps": 2,
+          "solid_skipped": 4092,
+          "terrain_candidates": 1,
+          "triangle_clips": 2
+        },
+        "differences": []
+      },
+      "label": "partial support beyond tile border",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "partial support beyond tile border exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 36,
+          "overlaps": 8,
+          "solid_skipped": 4060,
+          "terrain_candidates": 1,
+          "triangle_clips": 18
+        },
+        "differences": [],
+        "piece_count": 8
+      },
+      "label": "raw Access pieces across a sub-cell grid boundary",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 16,
+          "overlaps": 8,
+          "solid_skipped": 4080,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "differences": [],
+        "piece_count": 8
+      },
+      "label": "raw Access pieces at the first tile boundary",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 8,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 9,
+          "overlaps": 8,
+          "solid_skipped": 4087,
+          "terrain_candidates": 1,
+          "triangle_clips": 8
+        },
+        "differences": [],
+        "piece_count": 8
+      },
+      "label": "raw Access pieces at the last tile boundary",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2046,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2046,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "narrow interior hole with exact gap polygon and cell",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "narrow interior hole with exact gap polygon and cell exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2046,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2046,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": [],
+        "piece_count": 0
+      },
+      "label": "raw Access local hole preserves failure and witness",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1226,
+          "overlaps": 2048,
+          "solid_skipped": 2870,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "far-X hole with intersecting Z preserves subtraction fragments",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "far-X hole with intersecting Z preserves subtraction fragments exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1226,
+          "overlaps": 2048,
+          "solid_skipped": 2870,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": [],
+        "piece_count": 2048
+      },
+      "label": "raw Access distant-hole pieces retain their exact order",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2046,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1226,
+          "overlaps": 2046,
+          "solid_skipped": 2870,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "far hole plus local hole preserve complete failure witness",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "far hole plus local hole preserve complete failure witness exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1481,
+          "overlaps": 2048,
+          "solid_skipped": 2615,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "all rows of distant holes preserve fragment order",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "all rows of distant holes preserve fragment order exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {},
+        "code": "residential_support_invalid_terrain",
+        "current_counts": {},
+        "differences": []
+      },
+      "label": "all-hole tile remains invalid before spatial filtering",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_invalid_terrain",
+        "expected_code": "residential_support_invalid_terrain"
+      },
+      "label": "all-hole tile remains invalid before spatial filtering exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 8192,
+          "overlaps": 4096,
+          "terrain_candidates": 2,
+          "triangle_clips": 4624
+        },
+        "code": "residential_support_unsupported",
+        "current_counts": {
+          "cells_scanned": 8192,
+          "cells_visited": 2450,
+          "overlaps": 4096,
+          "solid_skipped": 5742,
+          "terrain_candidates": 2,
+          "triangle_clips": 4624
+        },
+        "differences": []
+      },
+      "label": "overlapping fields preserve unsupported error and area witness",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_unsupported",
+        "expected_code": "residential_support_unsupported"
+      },
+      "label": "overlapping fields preserve unsupported error and area witness exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {},
+        "code": "residential_support_unsupported",
+        "current_counts": {},
+        "differences": []
+      },
+      "label": "hidden field remains unsupported",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_unsupported",
+        "expected_code": "residential_support_unsupported"
+      },
+      "label": "hidden field remains unsupported exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "locked field remains valid read-only support",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "locked field remains valid read-only support exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {},
+        "code": "residential_support_invalid_terrain",
+        "current_counts": {},
+        "differences": []
+      },
+      "label": "invalid far tile first is still rejected",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_invalid_terrain",
+        "expected_code": "residential_support_invalid_terrain"
+      },
+      "label": "invalid far tile first is still rejected exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {},
+        "code": "residential_support_invalid_terrain",
+        "current_counts": {},
+        "differences": []
+      },
+      "label": "invalid far tile after complete support is still rejected",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_invalid_terrain",
+        "expected_code": "residential_support_invalid_terrain"
+      },
+      "label": "invalid far tile after complete support is still rejected exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 576,
+          "overlaps": 36,
+          "terrain_candidates": 2,
+          "triangle_clips": 76
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 576,
+          "cells_visited": 54,
+          "overlaps": 36,
+          "solid_skipped": 522,
+          "terrain_candidates": 2,
+          "triangle_clips": 76
+        },
+        "differences": []
+      },
+      "label": "mixed-grid seam preserves grade, jump and exact seam witness",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "mixed-grid seam preserves grade, jump and exact seam witness exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 1316,
+          "terrain_candidates": 1,
+          "triangle_clips": 2560
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 891,
+          "overlaps": 1316,
+          "solid_skipped": 3205,
+          "terrain_candidates": 1,
+          "triangle_clips": 1696
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 0",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 0 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 1232,
+          "terrain_candidates": 1,
+          "triangle_clips": 2560
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 775,
+          "overlaps": 1232,
+          "solid_skipped": 3321,
+          "terrain_candidates": 1,
+          "triangle_clips": 1519
+        },
+        "differences": [],
+        "piece_count": 1232
+      },
+      "label": "raw Access far rotated pieces 0",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 1230,
+          "terrain_candidates": 1,
+          "triangle_clips": 2560
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 775,
+          "overlaps": 1230,
+          "solid_skipped": 3321,
+          "terrain_candidates": 1,
+          "triangle_clips": 1519
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated narrow hole 0",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "seeded far rotated narrow hole 0 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 512,
+          "overlaps": 190,
+          "terrain_candidates": 1,
+          "triangle_clips": 360
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 512,
+          "cells_visited": 165,
+          "overlaps": 190,
+          "solid_skipped": 347,
+          "terrain_candidates": 1,
+          "triangle_clips": 284
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 1",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 1 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 512,
+          "overlaps": 190,
+          "terrain_candidates": 1,
+          "triangle_clips": 360
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 512,
+          "cells_visited": 165,
+          "overlaps": 190,
+          "solid_skipped": 347,
+          "terrain_candidates": 1,
+          "triangle_clips": 284
+        },
+        "differences": [],
+        "piece_count": 190
+      },
+      "label": "raw Access far rotated pieces 1",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 512,
+          "overlaps": 188,
+          "terrain_candidates": 1,
+          "triangle_clips": 360
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 512,
+          "cells_visited": 165,
+          "overlaps": 188,
+          "solid_skipped": 347,
+          "terrain_candidates": 1,
+          "triangle_clips": 284
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated narrow hole 1",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "seeded far rotated narrow hole 1 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 1024,
+          "overlaps": 366,
+          "terrain_candidates": 1,
+          "triangle_clips": 682
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 1024,
+          "cells_visited": 319,
+          "overlaps": 366,
+          "solid_skipped": 705,
+          "terrain_candidates": 1,
+          "triangle_clips": 553
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 2",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 2 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 1024,
+          "overlaps": 352,
+          "terrain_candidates": 1,
+          "triangle_clips": 642
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 1024,
+          "cells_visited": 275,
+          "overlaps": 352,
+          "solid_skipped": 749,
+          "terrain_candidates": 1,
+          "triangle_clips": 487
+        },
+        "differences": [],
+        "piece_count": 352
+      },
+      "label": "raw Access far rotated pieces 2",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 1024,
+          "overlaps": 350,
+          "terrain_candidates": 1,
+          "triangle_clips": 642
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_scanned": 1024,
+          "cells_visited": 275,
+          "overlaps": 350,
+          "solid_skipped": 749,
+          "terrain_candidates": 1,
+          "triangle_clips": 487
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated narrow hole 2",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "seeded far rotated narrow hole 2 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 2048,
+          "overlaps": 686,
+          "terrain_candidates": 1,
+          "triangle_clips": 1094
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 2048,
+          "cells_visited": 495,
+          "overlaps": 686,
+          "solid_skipped": 1553,
+          "terrain_candidates": 1,
+          "triangle_clips": 916
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 3",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 3 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 1024,
+          "overlaps": 374,
+          "terrain_candidates": 1,
+          "triangle_clips": 476
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 1024,
+          "cells_visited": 319,
+          "overlaps": 374,
+          "solid_skipped": 705,
+          "terrain_candidates": 1,
+          "triangle_clips": 476
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 4",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 4 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 512,
+          "overlaps": 190,
+          "terrain_candidates": 1,
+          "triangle_clips": 316
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 512,
+          "cells_visited": 187,
+          "overlaps": 190,
+          "solid_skipped": 325,
+          "terrain_candidates": 1,
+          "triangle_clips": 284
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 5",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 5 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 1296,
+          "terrain_candidates": 1,
+          "triangle_clips": 2440
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 891,
+          "overlaps": 1296,
+          "solid_skipped": 3205,
+          "terrain_candidates": 1,
+          "triangle_clips": 1689
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 6",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 6 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 512,
+          "overlaps": 190,
+          "terrain_candidates": 1,
+          "triangle_clips": 318
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 512,
+          "cells_visited": 187,
+          "overlaps": 190,
+          "solid_skipped": 325,
+          "terrain_candidates": 1,
+          "triangle_clips": 302
+        },
+        "differences": []
+      },
+      "label": "seeded far rotated rectangular field 7",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "seeded far rotated rectangular field 7 exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "differences": []
+      },
+      "label": "moved tile does not reuse previous coverage",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "moved tile does not reuse previous coverage exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "fixture undo restores the prior terrain snapshot",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "undo restores the original proof",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "undo restores the original proof exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "fixture redo restores the moved terrain snapshot",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "differences": []
+      },
+      "label": "redo restores moved coverage failure",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "redo restores moved coverage failure exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "code": "residential_support_coverage_gap",
+        "current_counts": {
+          "cells_visited": 0,
+          "overlaps": 0,
+          "terrain_candidates": 0,
+          "triangle_clips": 0
+        },
+        "differences": []
+      },
+      "label": "deleted tile cannot supply old coverage",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "residential_support_coverage_gap",
+        "expected_code": "residential_support_coverage_gap"
+      },
+      "label": "deleted tile cannot supply old coverage exercises intended outcome",
+      "ok": true
+    },
+    {
+      "detail": {
+        "baseline_counts": {
+          "cells_visited": 4096,
+          "overlaps": 2048,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "code": "ok",
+        "current_counts": {
+          "cells_scanned": 4096,
+          "cells_visited": 1225,
+          "overlaps": 2048,
+          "solid_skipped": 2871,
+          "terrain_candidates": 1,
+          "triangle_clips": 2312
+        },
+        "differences": []
+      },
+      "label": "new document JSON round-trip preserves reopen numeric representation",
+      "ok": true
+    },
+    {
+      "detail": {
+        "actual_code": "ok",
+        "expected_code": "ok"
+      },
+      "label": "new document JSON round-trip preserves reopen numeric representation exercises intended outcome",
+      "ok": true
+    }
+  ],
+  "current_source_sha256": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+  "elapsed_ms": 7038.842,
+  "failures": 0,
+  "scope": "pure CPU differential geometry; only recursive counts fields excluded; JSON round-trip is not native save/reopen acceptance",
+  "seed": 6151037
+}

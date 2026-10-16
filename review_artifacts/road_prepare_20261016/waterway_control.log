@@ -1,0 +1,100 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS selected fixture exists
+PASS frozen pre-profile source SHA is exact
+PASS frozen original source compiles
+PASS control is exactly ten full pairs of the waterway fixture
+PASS independent original chain SHA road_terrain_fit.gd.txt
+PASS independent original chain SHA reference.gd.txt
+PASS independent original chain SHA terrain_projection_ref.gd
+PASS independent original chain SHA terrain_projection.gd.txt
+PASS independent original chain SHA road_tools_full_chain_ref.gd
+PASS independent original chain SHA road_terrain_fit_ref.gd
+PASS native WaterwayPlan fixture built
+PASS open evidence input_fixture.bin
+PASS open evidence input_state.bin
+PASS current warmup/-1/0 succeeds
+PASS current warmup/-1/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current warmup/-1/0 deterministic complete return
+PASS legacy warmup/-1/1 succeeds
+PASS legacy warmup/-1/1 input bytes unchanged
+PASS legacy warmup/-1/1 deterministic complete return
+PASS current measured/0/0 succeeds
+PASS current measured/0/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/0/0 deterministic complete return
+PASS legacy measured/0/1 succeeds
+PASS legacy measured/0/1 input bytes unchanged
+PASS legacy measured/0/1 deterministic complete return
+PASS legacy measured/1/0 succeeds
+PASS legacy measured/1/0 input bytes unchanged
+PASS legacy measured/1/0 deterministic complete return
+PASS current measured/1/1 succeeds
+PASS current measured/1/1 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/1/1 deterministic complete return
+PASS current measured/2/0 succeeds
+PASS current measured/2/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/2/0 deterministic complete return
+PASS legacy measured/2/1 succeeds
+PASS legacy measured/2/1 input bytes unchanged
+PASS legacy measured/2/1 deterministic complete return
+PASS legacy measured/3/0 succeeds
+PASS legacy measured/3/0 input bytes unchanged
+PASS legacy measured/3/0 deterministic complete return
+PASS current measured/3/1 succeeds
+PASS current measured/3/1 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/3/1 deterministic complete return
+PASS current measured/4/0 succeeds
+PASS current measured/4/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/4/0 deterministic complete return
+PASS legacy measured/4/1 succeeds
+PASS legacy measured/4/1 input bytes unchanged
+PASS legacy measured/4/1 deterministic complete return
+PASS legacy measured/5/0 succeeds
+PASS legacy measured/5/0 input bytes unchanged
+PASS legacy measured/5/0 deterministic complete return
+PASS current measured/5/1 succeeds
+PASS current measured/5/1 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/5/1 deterministic complete return
+PASS current measured/6/0 succeeds
+PASS current measured/6/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/6/0 deterministic complete return
+PASS legacy measured/6/1 succeeds
+PASS legacy measured/6/1 input bytes unchanged
+PASS legacy measured/6/1 deterministic complete return
+PASS legacy measured/7/0 succeeds
+PASS legacy measured/7/0 input bytes unchanged
+PASS legacy measured/7/0 deterministic complete return
+PASS current measured/7/1 succeeds
+PASS current measured/7/1 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/7/1 deterministic complete return
+PASS current measured/8/0 succeeds
+PASS current measured/8/0 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/8/0 deterministic complete return
+PASS legacy measured/8/1 succeeds
+PASS legacy measured/8/1 input bytes unchanged
+PASS legacy measured/8/1 deterministic complete return
+PASS legacy measured/9/0 succeeds
+PASS legacy measured/9/0 input bytes unchanged
+PASS legacy measured/9/0 deterministic complete return
+PASS current measured/9/1 succeeds
+PASS current measured/9/1 input bytes unchanged
+PASS current control probe remains OFF
+PASS current measured/9/1 deterministic complete return
+PASS all current and legacy complete result bytes match
+PASS all 22 samples share identical full result and input SHA
+PASS entire control leaves document, history and arguments untouched
+PASS open evidence current_result.bin
+PASS open evidence legacy_result.bin
+WATERWAY_PAIRED_CONTROL {"current_faster_pairs":4,"current_median_ms":28.6655,"current_raw_wall_ms":[19.532,20.903,24.599,22.657,28.524,28.807,41.211,30.492,39.686,36.201],"current_slower_pairs":6,"legacy_median_ms":24.4385,"legacy_raw_wall_ms":[25.954,23.713,22.516,22.822,35.105,24.146,36.258,23.482,24.731,29.628],"n_pairs":10,"n_per_version":10,"paired_current_minus_legacy_median_ms":3.372,"paired_current_minus_legacy_raw_ms":[-6.422,-2.81,2.083,-0.164999999999999,-6.581,4.661,4.953,7.01,14.955,6.573],"paired_current_over_legacy_median":1.11455816353382,"paired_current_over_legacy_raw":[0.752562225475842,0.88149959937587,1.09251199147273,0.99277013408115,0.812533827090158,1.19303404290566,1.1366043355949,1.29852653095988,1.60470664348389,1.22185095180235]}
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_prepare_20261016/waterway_control/result.json checks=95 failures=0

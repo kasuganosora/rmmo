@@ -1,0 +1,7 @@
+{
+  "head": "12e3c91cce9461c0ab60737b4cfdaac64f651557",
+  "source": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo\\scripts\\world_editor\\road_tools.gd",
+  "reference_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+  "reference_lf_sha256": "3fdaa9dbb5f37946a35070f2e798b91686ca6cb13089d6ed6864858086ead616",
+  "scope": "Only road_tools.gd changes; all geometry and other helpers are shared, source SHA recorded per run."
+}

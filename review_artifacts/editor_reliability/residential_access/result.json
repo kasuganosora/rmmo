@@ -1,0 +1,589 @@
+{
+  "checks": [
+    {
+      "detail": {},
+      "label": "native single-house fixture generates",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {
+        "door_bounds": {
+          "position": [
+            -4.0310001373291,
+            0.324999809265137,
+            -5.53000020980835
+          ],
+          "size": [
+            1.43100023269653,
+            2.44500017166138,
+            0.260000228881836
+          ]
+        },
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "floor_y": 0.318000018596649,
+        "ok": true,
+        "outward": "(0.0, 0.0, -1.0)",
+        "position": "(-3.3155, 0.318, -5.4)",
+        "side": "(1.0, 0.0, 0.0)"
+      },
+      "label": "actual frozen first-floor entrance is recognized",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "max_step": 0.15,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "ordinary low treads and clear doorway pass",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.100000023841858,
+        "max_seam_step": 0.0,
+        "max_step": 0.162500000186265,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "continuous 10 percent descent across a long strip is not a step",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.100000023841858,
+        "max_seam_step": 0.0,
+        "max_step": 0.15,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "continuous 10 percent ascent across a long strip is not a step",
+      "ok": true
+    },
+    {
+      "detail": {
+        "maximum_shift": 0.18,
+        "ok": true,
+        "tread_distance": 0.849999904632568,
+        "tread_height": 0.15
+      },
+      "label": "actual outermost complete tread produces an elevation bound",
+      "ok": true
+    },
+    {
+      "detail": {
+        "maximum_shift": 0.18,
+        "ok": true,
+        "tread_distance": 0.849999904632568,
+        "tread_height": 0.15
+      },
+      "label": "allowed elevation derives from the actual outer tread and terrain",
+      "ok": true
+    },
+    {
+      "detail": {
+        "maximum_shift": -0.82,
+        "ok": true,
+        "tread_distance": 0.849999904632568,
+        "tread_height": 1.15
+      },
+      "label": "high input elevation yields a necessary downward adjustment",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "max_step": 0.33,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.498000025749207,
+          -5.40000009536743
+        ]
+      },
+      "label": "applying the actual-tread elevation bound restores entrance access",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cell": [
+          12,
+          9
+        ],
+        "code": "residential_support_coverage_gap",
+        "conservative": false,
+        "counts": {
+          "cells_visited": 1024,
+          "overlaps": 1,
+          "terrain_candidates": 1,
+          "triangle_clips": 4
+        },
+        "error": "实际首层支撑域存在地形孔洞或未覆盖区域",
+        "exact": true,
+        "floor_bottom": 0.0,
+        "foundation_bottom": 0.0,
+        "foundation_id": "",
+        "gap_polygon": [
+          [
+            -3.71550011634827,
+            -6.30499982833862
+          ],
+          [
+            -3.0,
+            -6.30499982833862
+          ],
+          [
+            -3.0,
+            -6.25500011444092
+          ],
+          [
+            -3.71550011634827,
+            -6.25500011444092
+          ]
+        ],
+        "missing_area": 0.035774801111188,
+        "ok": false,
+        "part": "corridor",
+        "position": [
+          -3.71550011634827,
+          0.0,
+          -6.30499982833862
+        ],
+        "record_id": "",
+        "stage": "residential_support",
+        "support_area": 0.0399997806548527,
+        "terrain_height": 0.0,
+        "terrain_id": "access_test_terrain",
+        "triangle_index": 1
+      },
+      "label": "hole beyond the outermost tread cannot produce a safe elevation bound",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 2,
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "max_step": 0.318,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "30 cm unstepped threshold remains within conservative step reach",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "high-threshold negative fixture generates",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_step",
+        "error": "实际门槛、台阶与地面高差超过胶囊台阶能力",
+        "limit": 0.35,
+        "measured_step": 0.918,
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.918000042438507,
+          -5.5
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "90 cm threshold without treads is rejected",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_step",
+        "error": "实际门槛、台阶与地面高差超过胶囊台阶能力",
+        "limit": 0.35,
+        "measured_step": 0.918,
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.918000042438507,
+          -5.5
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "non-colliding decorative treads cannot support a high entrance",
+      "ok": true
+    },
+    {
+      "detail": {
+        "maximum_shift": -0.588,
+        "ok": true,
+        "tread_distance": 0.0999999046325684,
+        "tread_height": 0.918
+      },
+      "label": "decorative treads cannot fake the actual outer-tread elevation bound",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_clearance",
+        "conflicts": [
+          "baked_3"
+        ],
+        "error": "实际冻结墙体、门框或梁遮挡了入户走廊",
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.92828130722046
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "own frozen low beam cannot be ignored as part of the same house",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_clearance",
+        "conflicts": [
+          "baked_3"
+        ],
+        "error": "实际冻结墙体、门框或梁遮挡了入户走廊",
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.92828130722046
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "blocked own geometry reports a location or object witness",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "max_step": 0.15,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "beam above player headroom does not falsely block access",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "decorative beam is a distinct frozen no-collision record",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "corridor_width": 0.8,
+        "door_id": "baked_22",
+        "fixture_id": "f0/north/entrance/door",
+        "intervals": 13,
+        "max_grade": 0.0,
+        "max_seam_step": 0.0,
+        "max_step": 0.15,
+        "ok": true,
+        "terrain_ids": [
+          "access_test_terrain"
+        ],
+        "threshold": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.40000009536743
+        ]
+      },
+      "label": "non-colliding decorative geometry cannot falsely block headroom",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_clearance",
+        "conflicts": [
+          "baked_3"
+        ],
+        "error": "实际冻结墙体、门框或梁遮挡了入户走廊",
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.8600001335144
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "narrow own doorway rejects despite the original wide door leaf",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "physically narrow entry leaf cannot claim a full-width passage",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "unknown first-floor entrance semantics are unsupported",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "multiple entrance semantics are unsupported",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "cell": [
+          12,
+          8
+        ],
+        "code": "residential_support_coverage_gap",
+        "conservative": false,
+        "counts": {
+          "cells_visited": 1024,
+          "overlaps": 9,
+          "terrain_candidates": 1,
+          "triangle_clips": 12
+        },
+        "error": "实际首层支撑域存在地形孔洞或未覆盖区域",
+        "exact": true,
+        "floor_bottom": 0.0,
+        "foundation_bottom": 0.0,
+        "foundation_id": "",
+        "gap_polygon": [
+          [
+            -3.71550011634827,
+            -7.90000009536743
+          ],
+          [
+            -3.0,
+            -7.90000009536743
+          ],
+          [
+            -3.0,
+            -7.0
+          ],
+          [
+            -3.71550011634827,
+            -7.0
+          ]
+        ],
+        "missing_area": 0.643950172948848,
+        "ok": false,
+        "part": "corridor",
+        "position": [
+          -3.71550011634827,
+          0.0,
+          -7.90000009536743
+        ],
+        "record_id": "",
+        "stage": "entrance_ground",
+        "support_area": 2.00000047683716,
+        "terrain_height": 0.0,
+        "terrain_id": "access_test_terrain",
+        "triangle_index": 1
+      },
+      "label": "real terrain hole in front of the steps rejects continuously",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_obstructed",
+        "conflicts": [
+          "access_test_loose_prop"
+        ],
+        "error": "住宅门前通行走廊被已有物件阻挡",
+        "ok": false,
+        "stage": "entrance_access"
+      },
+      "label": "independent prop still blocks the entrance corridor",
+      "ok": true
+    }
+  ],
+  "elapsed_ms": 9318.714,
+  "failures": 0,
+  "ok": true,
+  "scope": "headless source collision geometry only; no map writes, GPU, UI, HTTP or gameplay traversal"
+}

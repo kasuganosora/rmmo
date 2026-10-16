@@ -271,10 +271,33 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 | 固定建筑烘焙；旧建筑参数更新、删除、解除关联 | `bake_building`、`update_building`、`delete_building`、`detach_building` |
 | 沿街普通、中世纪、城中村建筑规划与生成 | `preview_street_buildings`、`generate_street_buildings` |
 | 矩形区域内随机单栋/成片建筑，避让已有物体 | `preview_region_buildings`、`generate_region_buildings` |
+| 冻结住宅与入户路候选、一次应用／放弃 | `preview_residential_placement`、`apply_residential_placement`、`discard_residential_placement` |
 
 ## 语义与示例
 
-当前共 **104 个工具**。参数化建筑的外观/室内一致性、批量生成和修改保护见 [world_editor_buildings.md](world_editor_buildings.md)。楼层隔离、指定出生点和临时试玩见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。事件模板、环境与人物遮挡轮廓见 [world_editor_events_environment.md](world_editor_events_environment.md)。高差、楼梯、屋顶、桥栏杆和自定义套件见 [world_editor_height_terrain.md](world_editor_height_terrain.md)。贴地、表面放置和排列的参数、完整组规则及接触精度边界见 [world_editor_placement.md](world_editor_placement.md)。这四项均使用当前选择，共享撤销事务，返回实际修改的 `changed_ids`。草稿/关闭工具见 [world_editor_recovery.md](world_editor_recovery.md)；材质库、选面、刷面及恢复原材质见 [world_editor_surface_materials.md](world_editor_surface_materials.md)。
+完整工具清单以当前服务 `tools/list` 为准。参数化建筑的外观/室内一致性、批量生成和修改保护见 [world_editor_buildings.md](world_editor_buildings.md)。楼层隔离、指定出生点和临时试玩见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。事件模板、环境与人物遮挡轮廓见 [world_editor_events_environment.md](world_editor_events_environment.md)。高差、楼梯、屋顶、桥栏杆和自定义套件见 [world_editor_height_terrain.md](world_editor_height_terrain.md)。贴地、表面放置和排列的参数、完整组规则及接触精度边界见 [world_editor_placement.md](world_editor_placement.md)。这四项均使用当前选择，共享撤销事务，返回实际修改的 `changed_ids`。草稿/关闭工具见 [world_editor_recovery.md](world_editor_recovery.md)；材质库、选面、刷面及恢复原材质见 [world_editor_surface_materials.md](world_editor_surface_materials.md)。
+
+### 冻结住宅与入户路候选
+
+2026-10-15 首个限定住宅闭环已在隔离分支通过功能验收，并提交为 `391d47818be733ffc0eca11af816a5a9ddff11e0`：带原生路缘的真实控件／HTTP 回归 **127 项通过、0 失败**，同一保存结果的玩家室外道路与入口往返 **21 项通过、0 失败**。`codex/editor-reliability` 尚未合并或推送，不代表 E1/E2 整包完成或正式场景接入。原功能证据在该提交前捕获，未提交状态字段保留历史原样。
+
+建筑页「冻结住宅与入户路」与以下三个工具共用 `residential_placement_tools.gd`。只支持一个冻结 `townhouse/hall` 住宅、可确认的首层入口和已有普通直线 `ground` 道路；整张路网须已有沿地形铺面且没有桥梁绑定。不移动邻物、不改变地形；普通手动布置规则不因此增加美术间距禁令。普通高度场、未知入口等具体支持边界及参数范围见 [建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
+
+先通过 `list_assets` 取得预制件 `asset_id`，通过 `get_city_layout` 取得道路边 ID，再请求：
+
+```json
+{"name":"preview_residential_placement","arguments":{"asset_id":"<list_assets 返回的 ID>","position":[20,0,30],"yaw":0,"road_edge_id":"<已有道路边 ID>","elevation_min":-0.5,"elevation_max":0.5,"setback_min":0.8,"setback_max":3,"width":1.6}}
+```
+
+`asset_id/position/road_edge_id` 必填；其余示例值即默认值。`yaw` 是在预制件保存朝向上附加的 Y 轴旋转，范围 ±180 度；0 保留保存朝向。升降为相对输入 Y 的允许范围，先由连续支撑求安全标高区间；退距是首层入口向外到入户路起点的距离，单位均为米。退距搜索步长 0.05 米，最多 157 次；`unsupported` 类错误（含 `residential_support_unsupported`）明确标注不支持的路径，`search_exhausted` 仅表示给定范围内未找到通过全部检查的候选。失败返回 `code/error/stage`，可附见证 `position/conflicts` 或嵌套 `last_failure/lower_witness/upper_witness`；不写入地图、选择或撤销历史。
+
+成功摘要包含 `plan_token/source_sha256/base_version`、最终 `position/adjustment`、`road_points/setback/width`、建筑与变化记录 ID、`support/checks/bounds/search`。`checks.runtime_traversal="requires_runtime_verification"` 表示仍需实际玩家通行验收，几何预览不冒充物理跑图。候选几何留在服务内，MCP 不传整图记录。随后调用 `apply_residential_placement {"plan_token":"..."}` 一次提交住宅与完整道路变化，或 `discard_residential_placement {"plan_token":"..."}` 放弃。token 属于当前会话；地图或模板身份变化导致旧 token 拒绝，调用方须重新预览。成功应用保留一次撤销、重做、原生保存与独立可编辑语义，仍需调用 `save_world` 保存。参数校验、候选求解和提交均复用 UI 业务，不注册二维工具；实际验收结果单独记录，不把接口接入等同于全部场景通过。
+
+[当前 HTTP／UI 证据](../review_artifacts/editor_reliability/http_kerbs.json)覆盖工具发现、合法／非法调用、放弃与过期 token、源变化及失败无副作用；实际控件与 HTTP 同输入同结果，34 个住宅构件和道路一次发布／撤销／重做，范围外加载记录字节不变。带路缘的道路在生成、应用、保存重开后保有实际几何和材质，并验证编辑器合批及独立语义。回归脚本的 `--kerbs` 为测试模式参数，不是新增 MCP 参数；普通模式保留。共享几何另有承托 52/0、入口 47/0、连接段 14/0，具体报告与支持边界见[建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
+
+[对应运行时证据](../review_artifacts/editor_reliability/runtime_kerbs.json)验证真实角色往返、生产建筑就绪门控、34 个构件身份和实际运行时合批，限同一临时图的室外接路与入口。首次退出的一个 ObjectDB 警告在[同源码 verbose 复跑](../review_artifacts/editor_reliability/iterations/runtime_verbose.json)中未复现，复跑 21/0 且清理检查通过；保留观察，不宣称已根治。版本与资源身份见[统一证据](../review_artifacts/editor_reliability/evidence.json)。接口的 `requires_runtime_verification` 仍适用于每个新预览，样例通过不会把任意候选自动标为物理跑图通过。
+
+2026-10-15 后续共享服务优化：住宅承托仅减少范围外实心格的几何构造，完整地形校验、洞格、精确裁切、原失败条件及三项工具的请求／返回合同保持。`profile_enabled/last_profile` 为默认关闭的内部诊断，不是 MCP 参数，也不写入地图。固定 64×64 夹具直接调用共享服务的重复准备中位数 **3181.736→1788.146 ms**（关闭探针，各 2 次，约 −43.8%）；不含 HTTP 延迟，不推广为城镇或全部 UI 提速。优化后[真实 UI／HTTP 复验](../review_artifacts/editor_reliability/t1_validation/http_kerbs.json) **127/0**，共享几何与仅排除计数的严格差分通过。A/B、原始计数、归一化摘要的身份限制及剩余工作见[统一计划](seamless_streaming_optimization_plan_20261014.md#w0-e-住宅候选基线与-t1-首个热点切片2026-10-15)；本轮不增加工具、不启用二维入口。
 
 XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基础物件为尺寸，对导入模型为三轴缩放倍率。精确数值操作不套用吸附。`transform_selection` 是世界轴增量，绕共同中心旋转/等比缩放，一次调用对应一次撤销。界面与 MCP 共用变换、分组、选择、自动瓦片和预制件业务逻辑。
 
@@ -524,6 +547,18 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 编辑器地形分为雕刻、表面、河流、洞穴、岩岸、新建；城防成为独立任务。已有河道可从目录或场景选择载入，城防创建/冻结管理显示不同的可用操作。布局调整继续调用当前 3D 的既有业务方法、schema、撤销及原子保存，没有增加直接写文档的旁路，也没有注册历史二维工具。
 
 河道目录浏览、面板切换与草稿编辑不修改地图；提交仍执行共享校验。侧栏宽度、概览折叠和字号是本机 UI 偏好，不属于地图文档或 MCP 业务参数。真实 HTTP 回归涵盖发现、河道合法/非法编辑、材质导入刷新、无副作用失败、撤销重做和保存重开，见 [布局修复验收](editor_layout_fix_20261013.md)。
+
+### 2026-10-17：道路障碍准备提前粗筛
+
+`preview_road_surface`、`generate_road_surface`、骨架更新及住宅候选继续复用 UI 的 `road_tools.prepare`，工具清单、参数 schema、返回字段与 token 格式不变。准备阶段按每条道路的承托关系和保守范围，提前跳过无需展开的地形；倾斜／旋转地形保守回退。局部矩形缓存仅活到本次准备结束，精确碰撞、首个冲突、保护规则和撤销保存语义不改。没有新增二维入口。
+
+源码、完整字节差分、真实 UI／HTTP 回归和性能范围见[统一方案](seamless_streaming_optimization_plan_20261014.md#w0-e--t1道路障碍准备粗筛2026-10-17)。
+
+### 2026-10-16：道路准备与街区回归
+
+UI 道路预览／应用与当前 3D `preview_road_surface`、`generate_road_surface`、道路骨架更新后的自动铺面继续共享 `road_tools.prepare`；没有新增工具、schema 参数或二维入口。严格零旋转且数值安全的贴地投影使用局部格窗口，其他情况保守完整扫描；原坡度、孔洞、障碍、手刷、锁定与事务校验不放宽。保存重开后的同值记录按精确数值递归比较，并保留原记录字节；清单无变化时重复生成不添加撤销历史。阶段探针仅为默认关闭的本地诊断，不对 MCP 暴露。
+
+[街区回归](../tools/test_road_prepare_district_http.gd)使用真实 UI 按钮及独立 loopback HTTP，覆盖工具与 schema 发现、合法／非法调用、无副作用失败、局部修改、远处记录字节、撤销重做、保存重开、合批和运行时碰撞发布。性能与最终验收结果见[统一方案](seamless_streaming_optimization_plan_20261014.md#w0-e-道路准备与-t1-投影窗口街区回归2026-10-16)；复用原生临时地图，不读写用户场景。
 
 ### 2026-10-14：细网格河道与远坐标投影修正
 

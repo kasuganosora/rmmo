@@ -1,0 +1,180 @@
+{
+	"checks": [
+		{
+			"label": "native planner creates the disposable original bridge-road slab",
+			"ok": true
+		},
+		{
+			"label": "fixture saves only inside its unique temporary resource pack",
+			"ok": true
+		},
+		{
+			"label": "isolated real HTTP MCP binds an available loopback port",
+			"ok": true
+		},
+		{
+			"label": "discovery exposes current 3D road and bridge tools without a stale tool-count assumption",
+			"ok": true
+		},
+		{
+			"label": "real road preview schema includes kerbs and declares read-only behavior",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_bridge succeeds",
+			"ok": true
+		},
+		{
+			"label": "native stone bridge preview leaves the district untouched",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_bridge succeeds",
+			"ok": true
+		},
+		{
+			"label": "bridgehead fixture uses the existing native stone bridge generator",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "district road preview is exactly read-only",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: preview_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "district surface and kerbs commit as one undo transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one undo restores complete graph, bridge binding and road records",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "redo restores identical district IDs and geometry",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "actual UI preview button and HTTP return the same plan token for identical inputs",
+			"ok": true
+		},
+		{
+			"label": "UI and HTTP previews preserve exact authored and history state",
+			"ok": true
+		},
+		{
+			"label": "actual UI prepares a changed kerb height",
+			"ok": true
+		},
+		{
+			"label": "actual UI apply button is connected",
+			"ok": true
+		},
+		{
+			"label": "UI change commits through the native single transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "UI change undo restores the exact authored state",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP and UI same-input applications produce equivalent complete documents",
+			"ok": true
+		},
+		{
+			"label": "local generated pavement is available for ownership protections",
+			"ok": false
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/__road_prepare_district_18256_15430204",
+	"elapsed_ms": 34651,
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"failures": 1,
+	"fixture": "D:/code/rmmo_runtime/__road_prepare_district_18256_15430204/maps/test/map.gltf",
+	"graphical": true,
+	"map_sha256": "1ba075d873d06bcdb56a6b7f37a0f1fa1928ab30f118eddc62c13444182abbc5",
+	"port": 31910,
+	"rejections": [
+		{
+			"arguments": {
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"plan_token": "stale"
+			},
+			"result": {
+				"error": "道路方案或现有物件已改变，请重新预览",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 2.0,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result": {
+				"error": "arguments.kerb_width is out of range",
+				"ok": false
+			},
+			"tool": "preview_road_surface"
+		}
+	]
+}

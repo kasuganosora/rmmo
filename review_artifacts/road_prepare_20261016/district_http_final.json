@@ -1,0 +1,960 @@
+{
+	"batch_stats": {
+		"base_work_budget_usec": 2000,
+		"building_mesh_hits": 0,
+		"enabled": true,
+		"groups": 4,
+		"instanced_groups": 0,
+		"last_build_ms": 0.609,
+		"last_commit_ms": 0.239,
+		"last_sync_ms": 15.854,
+		"loading_budget_scopes": 0,
+		"max_build_ms": 1725.102,
+		"max_commit_ms": 1.221,
+		"pending_groups": 0,
+		"rebuild_count": 27,
+		"release_groups_visited": 11,
+		"render_surfaces": 12,
+		"render_vertices": 5592,
+		"source_objects": 16,
+		"source_surfaces": 48,
+		"source_vertices": 5592,
+		"sync_count": 50,
+		"sync_profile_us": {
+			"capture_us": 289,
+			"geometry_us": 2,
+			"material_us": 13798
+		},
+		"work_budget_usec": 2000
+	},
+	"checks": [
+		{
+			"label": "native planner creates the disposable original bridge-road slab",
+			"ok": true
+		},
+		{
+			"label": "fixture saves only inside its unique temporary resource pack",
+			"ok": true
+		},
+		{
+			"label": "isolated real HTTP MCP binds an available loopback port",
+			"ok": true
+		},
+		{
+			"label": "discovery exposes current 3D road and bridge tools without a stale tool-count assumption",
+			"ok": true
+		},
+		{
+			"label": "real road preview schema includes kerbs and declares read-only behavior",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_bridge succeeds",
+			"ok": true
+		},
+		{
+			"label": "native stone bridge preview leaves the district untouched",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_bridge succeeds",
+			"ok": true
+		},
+		{
+			"label": "bridgehead fixture uses the existing native stone bridge generator",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "district road preview is exactly read-only",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: preview_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "district surface and kerbs commit as one undo transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one undo restores complete graph, bridge binding and road records",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "redo restores identical district IDs and geometry",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "actual UI preview button and HTTP return the same plan token for identical inputs",
+			"ok": true
+		},
+		{
+			"label": "UI and HTTP previews preserve exact authored and history state",
+			"ok": true
+		},
+		{
+			"label": "actual UI prepares a changed kerb height",
+			"ok": true
+		},
+		{
+			"label": "actual UI apply button is connected",
+			"ok": true
+		},
+		{
+			"label": "UI change commits through the native single transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "UI change undo restores the exact authored state",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP and UI same-input applications produce equivalent complete documents",
+			"ok": true
+		},
+		{
+			"label": "local generated pavement is available for ownership protections",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: preview_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: preview_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_transform succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP clear_surface_material succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "repeat generation retains explicit hand-cleared pavement paint",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: update_road_graph",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "native undo restores all authored data and the original undo stack before legal local editing",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "direct native regeneration after save/reopen is a no-op before any local edit",
+			"ok": true
+		},
+		{
+			"label": "direct repeat after reopen preserves document bytes, history, selection and dirty state",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "local graph edit automatically prepares road and kerbs in one transaction",
+			"ok": true
+		},
+		{
+			"label": "local endpoint edit after reopen: every distant road ID and serialized record byte is unchanged",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "local district undo restores graph and generated geometry",
+			"ok": true
+		},
+		{
+			"label": "undo: every distant road ID and serialized record byte is unchanged",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "local district redo preserves IDs and geometry",
+			"ok": true
+		},
+		{
+			"label": "redo: every distant road ID and serialized record byte is unchanged",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "identical district regeneration is a native no-op",
+			"ok": true
+		},
+		{
+			"label": "no-op regeneration does not add undo or replace author records",
+			"ok": true
+		},
+		{
+			"label": "all editor derived groups finish before batch assertions",
+			"ok": true
+		},
+		{
+			"label": "actual editor batching reduces surfaces",
+			"ok": true
+		},
+		{
+			"label": "batched roads retain independent authoring nodes and editor picking identities",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "district native save/reopen preserves bridge, roads, manual paint and graph",
+			"ok": true
+		},
+		{
+			"label": "second save/reopen: every distant road ID and serialized record byte is unchanged",
+			"ok": true
+		},
+		{
+			"label": "saved district retains real kerb profiles and resolved material dependencies",
+			"ok": true
+		},
+		{
+			"label": "native runtime loader reopens the saved district",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing junction",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at junction",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing chunk_left",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at chunk_left",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing chunk_right",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at chunk_right",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing west_approach",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at west_approach",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing west_bridge",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at west_bridge",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing east_bridge",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at east_bridge",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing east_approach",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at east_approach",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing changed_north",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at changed_north",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing far_lane",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at far_lane",
+			"ok": true
+		},
+		{
+			"label": "native physics publication is ready before probing empty_courtyard",
+			"ok": true
+		},
+		{
+			"label": "actual native collider supports the intended surface at empty_courtyard",
+			"ok": true
+		},
+		{
+			"label": "native bridgehead and approach collision heights meet continuously",
+			"ok": true
+		},
+		{
+			"label": "native bridgehead and approach collision heights meet continuously",
+			"ok": true
+		}
+	],
+	"collision_probes": [
+		{
+			"expected": 0.025,
+			"height": 0.0249999016523361,
+			"label": "junction",
+			"point": [
+				-60.0,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.024999663233757,
+			"label": "chunk_left",
+			"point": [
+				-64.0500030517578,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0,
+			"label": "chunk_right",
+			"point": [
+				-63.9500007629395,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0249999016523361,
+			"label": "west_approach",
+			"point": [
+				-20.0499992370605,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0253972057253122,
+			"label": "west_bridge",
+			"point": [
+				-19.9500007629395,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0253972057253122,
+			"label": "east_bridge",
+			"point": [
+				19.9500007629395,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 744,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0249999016523361,
+			"label": "east_approach",
+			"point": [
+				20.0499992370605,
+				0.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 744,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.024999663233757,
+			"label": "changed_north",
+			"point": [
+				-60.0,
+				50.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.025,
+			"height": 0.0249999016523361,
+			"label": "far_lane",
+			"point": [
+				50.0,
+				60.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 750,
+				"reason": ""
+			}
+		},
+		{
+			"expected": 0.0,
+			"height": 0.0,
+			"label": "empty_courtyard",
+			"point": [
+				-76.0,
+				14.0
+			],
+			"readiness": {
+				"ok": true,
+				"physics_published_frame": 733,
+				"reason": ""
+			}
+		}
+	],
+	"collision_probes_verified": true,
+	"directory": "D:/code/rmmo_runtime/__road_prepare_district_6532_15595486",
+	"elapsed_ms": 58532,
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"failures": 0,
+	"far_before": {
+		"road_1_1_0": "c93e2eeb3d655746b0eb16d1b3ec715bd13e77a39eeeec149d19fac9f473442f",
+		"road_2_1_0": "700c32d0604e9e9b85238702d201e03050bdfd1cec1ae5f0aea0b124433ad0c0"
+	},
+	"fixture": "D:/code/rmmo_runtime/__road_prepare_district_6532_15595486/maps/test/map.gltf",
+	"graphical": true,
+	"local_edit": {
+		"changed": true,
+		"diagnostics": [],
+		"diff": {
+			"added": 0.0,
+			"removed": 0.0,
+			"unchanged": 9.0,
+			"updated": 7.0
+		},
+		"ok": true,
+		"road_token": "64f9202409c0fe00c655adbd74bd5191931da95638a71f3aa6adf12fee64389d",
+		"surface_updated": true
+	},
+	"manual_paint_restoration": {
+		"after": {
+			"dirty": true,
+			"document": "0f4a574cfab7c8ba90e07ac2d269e8ac07d1fb71e2812766bd23d2c41bf63876",
+			"history": "0b2d70da7a1ff4c2f64a73dfa0806db3f07bd8f2ea39c9a554f1db5f1a95d9ec",
+			"selection": []
+		},
+		"before": {
+			"dirty": true,
+			"document": "0f4a574cfab7c8ba90e07ac2d269e8ac07d1fb71e2812766bd23d2c41bf63876",
+			"history": "e4767a38dbdc6b58d455dc1be799df7e55fcc3eeaef4ca10ec76be6ea9c9f25e",
+			"selection": []
+		},
+		"native_undo_calls": 1,
+		"restored": true
+	},
+	"map_sha256": "155ec80ed97596359ad90875dea45fc64e0ae06a2cf81b3bd2ecc19b33fd045b",
+	"no_op": {
+		"after": {
+			"dirty": true,
+			"document": "45c91ad1b25cb7d42bb7b7d4abfe42325280ab10b88bd7696c68517444fe3d40",
+			"history": "83b4523d2406fc561ed013595544812f6f768f5607f7ad69889871687895b453",
+			"selection": []
+		},
+		"before": {
+			"dirty": true,
+			"document": "45c91ad1b25cb7d42bb7b7d4abfe42325280ab10b88bd7696c68517444fe3d40",
+			"history": "83b4523d2406fc561ed013595544812f6f768f5607f7ad69889871687895b453",
+			"selection": []
+		},
+		"request": {
+			"clearance": 3.0,
+			"follow_terrain": false,
+			"kerb_enabled": true,
+			"kerb_height": 0.065,
+			"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+			"kerb_width": 0.28,
+			"lift": 0.025,
+			"material_id": "pack:default:paving/historic_cobble/material",
+			"thickness": 0.2
+		},
+		"result": {
+			"changed": false,
+			"diff": {
+				"added": 0.0,
+				"removed": 0.0,
+				"unchanged": 16.0,
+				"updated": 0.0
+			},
+			"ok": true
+		},
+		"settings_before": {
+			"clearance": 3.0,
+			"follow_terrain": false,
+			"kerb_enabled": true,
+			"kerb_height": 0.065,
+			"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+			"kerb_width": 0.28,
+			"lift": 0.025,
+			"material_id": "pack:default:paving/historic_cobble/material",
+			"thickness": 0.2
+		}
+	},
+	"port": 31910,
+	"rejections": [
+		{
+			"arguments": {
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"plan_token": "stale"
+			},
+			"result": {
+				"error": "道路方案或现有物件已改变，请重新预览",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 2.0,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result": {
+				"error": "arguments.kerb_width is out of range",
+				"ok": false
+			},
+			"tool": "preview_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "道路铺面包含锁定、隐藏或隔层构件",
+				"ok": false
+			},
+			"tool": "preview_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "道路铺面包含锁定、隐藏或隔层构件",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "道路铺面包含锁定、隐藏或隔层构件",
+				"ok": false
+			},
+			"tool": "preview_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "道路铺面包含锁定、隐藏或隔层构件",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "生成前请显示并解锁道路骨架",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"error": "生成前请显示并解锁道路骨架",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": false,
+				"kerb_enabled": true,
+				"kerb_height": 0.065,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"result": {
+				"conflicts": [
+					"obj_5"
+				],
+				"error": "路面或通行净空与现有物件重叠",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"edges": [
+					{
+						"from": "west",
+						"id": "west_lane",
+						"kind": "ground",
+						"name": "west_lane",
+						"to": "junction",
+						"width_end": 10.0,
+						"width_start": 10.0
+					}
+				],
+				"expected_token": "861875cb9d0476c67896f32ff54a614261bac7c051f3b3159650b7a94d1c279c"
+			},
+			"result": {
+				"diagnostics": [],
+				"error": "路面改变会覆盖手刷材质或事件，已保留原道路",
+				"ok": false,
+				"road_token": "71c99d636d1c64f46e974cdddc15148165adc090853cd2cb32c7bb8c6e740ca9"
+			},
+			"tool": "update_road_graph"
+		}
+	],
+	"reopened_no_op": {
+		"after": {
+			"dirty": false,
+			"document": "0bbcbea0cbb61022d4c5a1005ca1e3013112994a5a4cb22cd5d70d6b92b70b7e",
+			"history": "bd5e14675cd63b9e739c4edd6ea6a1cd87bd8602d9af2469118d201cf4e37a66",
+			"selection": []
+		},
+		"before": {
+			"dirty": false,
+			"document": "0bbcbea0cbb61022d4c5a1005ca1e3013112994a5a4cb22cd5d70d6b92b70b7e",
+			"history": "bd5e14675cd63b9e739c4edd6ea6a1cd87bd8602d9af2469118d201cf4e37a66",
+			"selection": []
+		},
+		"result": {
+			"changed": false,
+			"diff": {
+				"added": 0.0,
+				"removed": 0.0,
+				"unchanged": 16.0,
+				"updated": 0.0
+			},
+			"ok": true
+		}
+	},
+	"road_ids": [
+		"road_0_0_0",
+		"road_0_m1_0",
+		"road_1_0_0",
+		"road_1_1_0",
+		"road_1_m1_0",
+		"road_2_0_0",
+		"road_2_1_0",
+		"road_2_m1_0",
+		"road_m1_0_0",
+		"road_m1_m1_0",
+		"road_m2_0_0",
+		"road_m2_1_0",
+		"road_m2_m1_0",
+		"road_m2_m2_0",
+		"road_m3_0_0",
+		"road_m3_m1_0"
+	],
+	"runtime_scope": "Native saved-map collision publication and surface rays at road junction, chunk seams, bridgeheads, changed endpoint and far lane; no capsule traversal in this test.",
+	"settings": {
+		"clearance": 3.0,
+		"follow_terrain": false,
+		"kerb_enabled": true,
+		"kerb_height": 0.065,
+		"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+		"kerb_width": 0.28,
+		"lift": 0.025,
+		"material_id": "pack:default:paving/historic_cobble/material",
+		"thickness": 0.2
+	}
+}

@@ -1,0 +1,27 @@
+{
+  "snapshot_utc": "2026-10-15T21:56:58.8459115Z",
+  "source_commit": "784e2cbc27cbd5196b949d0b989a04e92f2b7995",
+  "scope": "Exact pre-optimization projection and adaptive fit; only two explicit preload path adaptations create independent original prepare chain",
+  "files": {
+    "road_terrain_fit.gd.txt": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+    "reference.gd.txt": "061c4df3a456ff9ae0d0a950d18d8380dee438f725559af5ec27d9a69caa41eb",
+    "terrain_projection_ref.gd": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+    "terrain_projection.gd.txt": "5241610fe9ab43be91f6a554f8232dfae2e7def8bb268a76fb52e7c6d5355391",
+    "road_tools_full_chain_ref.gd": "5005f93bb2d0b21bc4a27542a291e33c6763296ba7ebe15f5a98f7e2ad59a3d3",
+    "road_terrain_fit_ref.gd": "4cfbe13fcee37ddafc625795971477a292c39b72a8d5ebdb2e993b509cd3cffa"
+  },
+  "adapters": [
+    {
+      "old": "res://scripts/world3d/terrain_projection.gd",
+      "replacement": "res://review_artifacts/road_prepare_20261016/terrain_projection_ref.gd",
+      "file": "road_terrain_fit_ref.gd",
+      "replacements": 1
+    },
+    {
+      "old": "res://scripts/world3d/road_terrain_fit.gd",
+      "replacement": "res://review_artifacts/road_prepare_20261016/road_terrain_fit_ref.gd",
+      "file": "road_tools_full_chain_ref.gd",
+      "replacements": 1
+    }
+  ]
+}
