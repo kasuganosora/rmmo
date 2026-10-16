@@ -234,6 +234,31 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 	return {"digest":digest,"generator":generator,"materials":materials,"meshes":meshes,"entries":entries,"specs":specs,"specs_skip_reason":skipped}
 
 
+static func restore_material(value:Dictionary,paint_validation:Variant,material_pool:Dictionary)->bool:
+	var identity:Array=[value]
+	if material_pool.has(identity):return true
+	var material:StandardMaterial3D
+	if value.has("paint"):
+		if not Paint.material_valid(value.paint,false,"",paint_validation):return false
+		material=Paint.make_material(value.paint,value.cull)
+		if value.get("vertex_color",false):
+			# Do not change the shared un-tinted paint used by walls and other assets.
+			material=material.duplicate();material.vertex_color_use_as_albedo=true
+	elif value.has("values"):
+		if not material_pool.has("schema"):
+			var schema:Dictionary={};var prototype:=StandardMaterial3D.new()
+			for property in prototype.get_property_list():
+				if property.usage & PROPERTY_USAGE_STORAGE and property.name not in ["script","resource_path"]:schema[property.name]=property.type
+			material_pool.schema=schema
+		var allowed:Dictionary=material_pool.schema
+		material=StandardMaterial3D.new()
+		for key in value["values"]:
+			var property:Variant=value["values"][key]
+			if not allowed.has(key) or (typeof(property)!=allowed[key] and not (property==null and allowed[key]==TYPE_OBJECT)):return false
+			material.set(key,property)
+	material_pool[identity]=material
+	return true
+
 static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->Dictionary:
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	if data.is_empty():return {}
@@ -241,29 +266,8 @@ static func restore(data:Dictionary,paint_validation:Variant=null,material_pool:
 	if material_pool==null:material_pool={}
 	var materials:Array[Material]=[];var meshes:Array=[];var result:Dictionary={}
 	for value:Dictionary in data.materials:
-		var identity:Array=[value]
-		if material_pool.has(identity):materials.append(material_pool[identity]);continue
-		var material:StandardMaterial3D
-		if value.has("paint"):
-			if not Paint.material_valid(value.paint,false,"",paint_validation):data.clear();return {}
-			material=Paint.make_material(value.paint,value.cull)
-			if value.get("vertex_color",false):
-				# Do not change the shared un-tinted paint used by walls and other assets.
-				material=material.duplicate();material.vertex_color_use_as_albedo=true
-		elif value.has("values"):
-			if not material_pool.has("schema"):
-				var schema:Dictionary={};var prototype:=StandardMaterial3D.new()
-				for property in prototype.get_property_list():
-					if property.usage & PROPERTY_USAGE_STORAGE and property.name not in ["script","resource_path"]:schema[property.name]=property.type
-				material_pool.schema=schema
-			var allowed:Dictionary=material_pool.schema
-			material=StandardMaterial3D.new()
-			for key in value["values"]:
-				var property:Variant=value["values"][key]
-				if not allowed.has(key) or (typeof(property)!=allowed[key] and not (property==null and allowed[key]==TYPE_OBJECT)):data.clear();return {}
-				material.set(key,property)
-		material_pool[identity]=material
-		materials.append(material)
+		if not restore_material(value,paint_validation,material_pool):data.clear();return {}
+		materials.append(material_pool[[value]])
 	if timings!=null:timings.materials_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	for value:Dictionary in data.meshes:
 		var mesh:=Cpu.new();mesh.surfaces=value.surfaces;mesh.lods=value.get("lods",[]);mesh.bounds=value.bounds;mesh.box_size=value.box_size
