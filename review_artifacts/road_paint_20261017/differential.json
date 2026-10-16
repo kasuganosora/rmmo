@@ -1,0 +1,3110 @@
+{
+  "case_count": 36,
+  "cases": [
+    {
+      "conflicts": [],
+      "current_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "error": "",
+      "identical": true,
+      "input_sha256": "0de1a183a67aa53f4a88aeae74991f4c9a4135d386a8b03fd81558b4edf56c54",
+      "name": "junction_kerbs",
+      "ok": true,
+      "reference_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "error": "",
+      "identical": true,
+      "input_sha256": "91e7cf6fd971a988e4778254e8a8d67c197b2e1cf87c44d0afa53b27223f1136",
+      "name": "terrain64_local",
+      "ok": true,
+      "reference_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "error": "",
+      "identical": true,
+      "input_sha256": "696e3fc19cb7865d158415ca1ba14a3da90b17297d03873f23a77fdc7a641354",
+      "name": "terrain64_far_complex",
+      "ok": true,
+      "reference_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "error": "",
+      "identical": true,
+      "input_sha256": "0e6ff765d0529e12f78df2832c2b04c1955fa8a87c501ee2f5d535a11164fdd7",
+      "name": "waterway_bound_bridge",
+      "ok": true,
+      "reference_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "error": "",
+      "identical": true,
+      "input_sha256": "bb8b582eccbe17ec08a5a6a357269548e469c4a6b20f4739aea7197c03a5c81c",
+      "name": "frozen_stone_bridge_approaches",
+      "ok": true,
+      "reference_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e"
+    },
+    {
+      "conflicts": [
+        "obstacle"
+      ],
+      "current_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "0ae4520db273ebc1b20efde56ff25829e5515f18ab2ceb4f69de7ca73b5c4b02",
+      "name": "near_obstacle_ordinary",
+      "ok": false,
+      "reference_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8"
+    },
+    {
+      "conflicts": [
+        "obstacle"
+      ],
+      "current_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "4361e88820c56b3dcbf23eb2ffc0ac7ef4de181f09e55b0e959f45b1df9797f3",
+      "name": "near_obstacle_editor_hidden",
+      "ok": false,
+      "reference_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8"
+    },
+    {
+      "conflicts": [
+        "obstacle"
+      ],
+      "current_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "0c9fbedae034082ba1f8a3bdc85bc822250634c423003dd6f097ba65b36149e1",
+      "name": "near_obstacle_collision_none",
+      "ok": false,
+      "reference_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8"
+    },
+    {
+      "conflicts": [
+        "obstacle"
+      ],
+      "current_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "42721af2eda5c1c0c9962a14bfd95821e5835848d7efdcdfc4b62b5fe02039d8",
+      "name": "near_obstacle_editor_locked",
+      "ok": false,
+      "reference_sha256": "11bce00013f5a2b250d9b90b5ad9e1ef24e557d242b7280c02d18739a2f433c8"
+    },
+    {
+      "conflicts": [
+        "first"
+      ],
+      "current_sha256": "0056b0881d6417237859bba6050712f624354657543d94bf3c95766fc096ea11",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "f1d8fa916247e937c48ea0bcfe044fb4af9fc91853631ec4601d2bec03eb622d",
+      "name": "first_conflict_reverse_false",
+      "ok": false,
+      "reference_sha256": "0056b0881d6417237859bba6050712f624354657543d94bf3c95766fc096ea11"
+    },
+    {
+      "conflicts": [
+        "second"
+      ],
+      "current_sha256": "28dad85ca7eb6138a2623c0f73934e5a6643ca5217fbd9e6f3bc95b4e1f01a17",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "768fa5ad8968c5549978c436254ff73660a77bd4187436ceae25cfe7524b1366",
+      "name": "first_conflict_reverse_true",
+      "ok": false,
+      "reference_sha256": "28dad85ca7eb6138a2623c0f73934e5a6643ca5217fbd9e6f3bc95b4e1f01a17"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "214502e7387f085acdf4485190eb04130d2c6a997fce846626236cfd5312f516",
+      "error": "生成前请显示并解锁道路骨架",
+      "identical": true,
+      "input_sha256": "e3e81775b22487265a18c4a8d29df68de46e78080673593f7d16855cdeac1773",
+      "name": "protected_graph_hidden",
+      "ok": false,
+      "reference_sha256": "214502e7387f085acdf4485190eb04130d2c6a997fce846626236cfd5312f516"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "214502e7387f085acdf4485190eb04130d2c6a997fce846626236cfd5312f516",
+      "error": "生成前请显示并解锁道路骨架",
+      "identical": true,
+      "input_sha256": "ede4045e20d62956ef50342073474881808d0f4c2848947a56aedae1c2d84e98",
+      "name": "protected_graph_locked",
+      "ok": false,
+      "reference_sha256": "214502e7387f085acdf4485190eb04130d2c6a997fce846626236cfd5312f516"
+    },
+    {
+      "conflicts": [
+        "rotated_asset"
+      ],
+      "current_sha256": "5f36b3a16f5581d96ef6ecc0fdabfd68bd392deab0141864eb476e2fd20bb11f",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "20366ee3501f374ada5c963d2d6eebe27c47fcf63d1aad6fa2ba32bfb8ddeeb0",
+      "name": "rotated_scaled_asset_clearance",
+      "ok": false,
+      "reference_sha256": "5f36b3a16f5581d96ef6ecc0fdabfd68bd392deab0141864eb476e2fd20bb11f"
+    },
+    {
+      "conflicts": [
+        "inclined_road"
+      ],
+      "current_sha256": "1d0e444b36c325b76e4717e6238a0bdf8ae1260dc9b0f8bc3dd5dc4933093922",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "60cd2da8ce606abe41991c5e680b4f73fa3bbfa42c69acb0f85ea8e812912d58",
+      "name": "inclined_existing_road_clearance",
+      "ok": false,
+      "reference_sha256": "1d0e444b36c325b76e4717e6238a0bdf8ae1260dc9b0f8bc3dd5dc4933093922"
+    },
+    {
+      "conflicts": [
+        "on_ramp"
+      ],
+      "current_sha256": "c6963c689752b7604e6da1d12410081ba793feab6231dcdade8de3cdb3c47592",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "252fbdd00fbe8d08f407b453ebaccc09d3cc66ab90da113708bbe829a17ab10e",
+      "name": "sloped_new_road_obstacle",
+      "ok": false,
+      "reference_sha256": "c6963c689752b7604e6da1d12410081ba793feab6231dcdade8de3cdb3c47592"
+    },
+    {
+      "conflicts": [
+        "tilted_ground"
+      ],
+      "current_sha256": "ca9c1e94688ca6813c3ed581594fd72ed49a7bb23c0734f1d7640de1bb56ca06",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "1c41d8e4d1d80a267c5d5350aa9b11ddc4756baa1f4b995b4cdf9369578e6203",
+      "name": "tilted_terrain_not_flat_support",
+      "ok": false,
+      "reference_sha256": "ca9c1e94688ca6813c3ed581594fd72ed49a7bb23c0734f1d7640de1bb56ca06"
+    },
+    {
+      "conflicts": [
+        "farm"
+      ],
+      "current_sha256": "9e751c84b604b2ab9871d6d036fcd5d15c4e4202843f81d1696050af1c0d2535",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "a9f4b0cc7acb19a6d50341c774682fbb0b992b3d547e3d32f0d0bd26ad530f3f",
+      "name": "raised_furrow_occupancy",
+      "ok": false,
+      "reference_sha256": "9e751c84b604b2ab9871d6d036fcd5d15c4e4202843f81d1696050af1c0d2535"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "d05afdc782172ec4053c9978e3d6104ced40db8fbef128dc6e314babd4bf5770",
+      "error": "",
+      "identical": true,
+      "input_sha256": "b88cd424a914625524d56184ede59d85e4c62cef0ae57e1ec3e6e04062c51c95",
+      "name": "per_road_supporting_terrain_ids",
+      "ok": true,
+      "reference_sha256": "d05afdc782172ec4053c9978e3d6104ced40db8fbef128dc6e314babd4bf5770"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "0e844b95ba5df1cdc9074c73c08c078429b4b9c66c6a25f02945e3acb1306e45",
+      "error": "河道或挖河地面已被手改 / 删除，请恢复修改，或解除关联后保留现场",
+      "identical": true,
+      "input_sha256": "b181825a41070409333a338abe69f377467b74cb6d8f17b8686f5c1a6a5d7b26",
+      "name": "waterway_tampered_member",
+      "ok": false,
+      "reference_sha256": "0e844b95ba5df1cdc9074c73c08c078429b4b9c66c6a25f02945e3acb1306e45"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "e564da274499af59b1538e8a8a598949d10046c6bb244f4bd5d14d93ec6fce94",
+      "error": "道路石桥已被手改或删除，不能重新铺路",
+      "identical": true,
+      "input_sha256": "7db0f4122b2c41452d2be6fbc1d53ecbd8bd0b3301588a8fb7efecfd81be924d",
+      "name": "stone_bridge_moved_source",
+      "ok": false,
+      "reference_sha256": "e564da274499af59b1538e8a8a598949d10046c6bb244f4bd5d14d93ec6fce94"
+    },
+    {
+      "conflicts": [
+        "fixture_bridge"
+      ],
+      "current_sha256": "2c839eeaf648f9d8891d884160808fdc2bf50717a1bb376864732165e8e6d8d5",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "dd04473054e0d734059224ccfffb8512566c029191cc78da28cd28e9bb0dc668",
+      "name": "actual_stone_wing_post",
+      "ok": false,
+      "reference_sha256": "2c839eeaf648f9d8891d884160808fdc2bf50717a1bb376864732165e8e6d8d5"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "4233ddfe1680d0c55acbd0e6a868ef61967491ffbc8ce1d8230ab4062bb450ed",
+      "error": "",
+      "identical": true,
+      "input_sha256": "a4d98a623dceeb273ab34c55539b25a56ff8895a367c663f833295d66278dd4b",
+      "name": "unchanged_existing_pavement",
+      "ok": true,
+      "reference_sha256": "4233ddfe1680d0c55acbd0e6a868ef61967491ffbc8ce1d8230ab4062bb450ed"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "a985b19263478769061d14e284dcfbba06f3c139cb3ca75e53b73b1bdff949f3",
+      "error": "",
+      "identical": true,
+      "input_sha256": "f3fef53e4b7ec50100ca5e2cb2c2d09c9c3c0d6c402372279a28f534c24b5066",
+      "name": "preserve_event_and_group",
+      "ok": true,
+      "reference_sha256": "a985b19263478769061d14e284dcfbba06f3c139cb3ca75e53b73b1bdff949f3"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "ca6359b10e9dd50a3b05cb9204c04edcbd346b51093e31921f7509d08a28daa8",
+      "error": "路面改变会覆盖手刷材质或事件，已保留原道路",
+      "identical": true,
+      "input_sha256": "67a779d0dcc3e3b2c129a01f5f1a588db5ff6a9318a66ad2127b5c96eed2e4ae",
+      "name": "event_rejects_changed_geometry",
+      "ok": false,
+      "reference_sha256": "ca6359b10e9dd50a3b05cb9204c04edcbd346b51093e31921f7509d08a28daa8"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "20f2c452aada8ee968f25e5354bf21b1b84a748e86f2f5bd349c7a4338e3ee54",
+      "error": "道路铺面已被手改或删除；请恢复修改，或解除铺面关联后自行处理",
+      "identical": true,
+      "input_sha256": "40f72e563e47eff20a97f86ccc26394bc1ac865b31928b9fba2a49c68be9fd20",
+      "name": "tampered_pavement_source",
+      "ok": false,
+      "reference_sha256": "20f2c452aada8ee968f25e5354bf21b1b84a748e86f2f5bd349c7a4338e3ee54"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "b5570b826e1f77c8cb36c09953147fdfdb623f5ece2421d2afe292da695f1d9e",
+      "error": "道路铺面包含锁定、隐藏或隔层构件",
+      "identical": true,
+      "input_sha256": "bf7d4a24bd07936a865ddff404f014f14eff27e2e1275fcf09c01ec6c6eee5f5",
+      "name": "protected_pavement_editor_hidden",
+      "ok": false,
+      "reference_sha256": "b5570b826e1f77c8cb36c09953147fdfdb623f5ece2421d2afe292da695f1d9e"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "b5570b826e1f77c8cb36c09953147fdfdb623f5ece2421d2afe292da695f1d9e",
+      "error": "道路铺面包含锁定、隐藏或隔层构件",
+      "identical": true,
+      "input_sha256": "d3c769d6f3c6da5864f94010cbcf6bf42192cfda78b476c4c79fc657a4463c82",
+      "name": "protected_pavement_editor_locked",
+      "ok": false,
+      "reference_sha256": "b5570b826e1f77c8cb36c09953147fdfdb623f5ece2421d2afe292da695f1d9e"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "6d2ed3ecf1b4401ac8875dab67ea0ec17a5121c458c3343c373d3eb227d2c2df",
+      "error": "",
+      "identical": true,
+      "input_sha256": "bd8d0c3127a747b350c305a11e8af6457f5fbf7b6d4bf5a863d872c8e238c6ad",
+      "name": "mutation_far",
+      "ok": true,
+      "reference_sha256": "6d2ed3ecf1b4401ac8875dab67ea0ec17a5121c458c3343c373d3eb227d2c2df"
+    },
+    {
+      "conflicts": [
+        "moving"
+      ],
+      "current_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "1af980873b4bab89f07c178b600d02e6b58f58b813ccef50109952933f8f1f13",
+      "name": "mutation_same_uuid_near",
+      "ok": false,
+      "reference_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "6d2ed3ecf1b4401ac8875dab67ea0ec17a5121c458c3343c373d3eb227d2c2df",
+      "error": "",
+      "identical": true,
+      "input_sha256": "13f982a3d75aff32a2a3beeb2810c4636f8705ed8ea54a0b9b4004a37a2a0215",
+      "name": "mutation_native_undo",
+      "ok": true,
+      "reference_sha256": "6d2ed3ecf1b4401ac8875dab67ea0ec17a5121c458c3343c373d3eb227d2c2df"
+    },
+    {
+      "conflicts": [
+        "moving"
+      ],
+      "current_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "7a40278d432756c6dd45abfc9c51ba015101acf3981d43080e2842d79b08704c",
+      "name": "mutation_native_redo",
+      "ok": false,
+      "reference_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "ed73ad952c9726e0746be11b75f0e14248a8edb013b11b7a8657c77175c8f04e",
+      "error": "",
+      "identical": true,
+      "input_sha256": "7e2c74fd7e201a19f116f4b2e1cc65297a85963d177b79e7441156f079e3a7fb",
+      "name": "mutation_delete",
+      "ok": true,
+      "reference_sha256": "ed73ad952c9726e0746be11b75f0e14248a8edb013b11b7a8657c77175c8f04e"
+    },
+    {
+      "conflicts": [
+        "moving"
+      ],
+      "current_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6",
+      "error": "路面或通行净空与现有物件重叠",
+      "identical": true,
+      "input_sha256": "3c4b92e42e1c32917b24faecfd7484ba30abd517a029b727ef668cdbee942e0d",
+      "name": "mutation_restore_deleted",
+      "ok": false,
+      "reference_sha256": "b5ec28f530e859692df9a033a327b79de79d94fc61100cad9a82a6696b5352b6"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "6a2147ed53fd78f2ccd54f58a6950cd8d379344f2b2243d2abbcca2924c09514",
+      "error": "",
+      "identical": true,
+      "input_sha256": "aa6d55ba78c20466f888309429126c79e103cfd0d5f17278fb8e845594ce3b98",
+      "name": "terrain64_wavy",
+      "ok": true,
+      "reference_sha256": "6a2147ed53fd78f2ccd54f58a6950cd8d379344f2b2243d2abbcca2924c09514"
+    },
+    {
+      "conflicts": [],
+      "current_sha256": "1452ffad9e0f7c8c9afd94c0086ea9a218a4ac7a4ad45dd745e7e8794db78192",
+      "error": "",
+      "identical": true,
+      "input_sha256": "c7a376cda45886a0d6c33ea0785625c46865c5ddb1b0cffdd18a47851d1f808f",
+      "name": "terrain64_existing",
+      "ok": true,
+      "reference_sha256": "1452ffad9e0f7c8c9afd94c0086ea9a218a4ac7a4ad45dd745e7e8794db78192"
+    }
+  ],
+  "checks": [
+    {
+      "details": {},
+      "label": "d2cd069 independent paint chain bytes pinned",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen dependency bytes road_tools_ref.gd",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen dependency bytes road_surface_ref.gd",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen dependency bytes surface_materials_ref.gd",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "selected fixture exists",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "junction_kerbs fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "junction_kerbs full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_local fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "terrain64_local full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_far_complex fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "terrain64_far_complex full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "waterway_bound_bridge fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "waterway_bound_bridge full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "frozen_stone_bridge_approaches fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "frozen_stone_bridge_approaches full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "near_obstacle_ordinary fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "near_obstacle_ordinary full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "obstacle"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "near_obstacle_ordinary expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "obstacle"
+      ],
+      "label": "near_obstacle_ordinary exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_ordinary ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_ordinary state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "near_obstacle_editor_hidden fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "near_obstacle_editor_hidden full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "obstacle"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "near_obstacle_editor_hidden expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "obstacle"
+      ],
+      "label": "near_obstacle_editor_hidden exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_editor_hidden ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_editor_hidden state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "near_obstacle_collision_none fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "near_obstacle_collision_none full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "obstacle"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "near_obstacle_collision_none expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "obstacle"
+      ],
+      "label": "near_obstacle_collision_none exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_collision_none ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_collision_none state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "near_obstacle_editor_locked fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "near_obstacle_editor_locked full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "obstacle"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "near_obstacle_editor_locked expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "obstacle"
+      ],
+      "label": "near_obstacle_editor_locked exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_editor_locked ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "near_obstacle_editor_locked state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "first_conflict_reverse_false fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "first_conflict_reverse_false full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "first"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "first_conflict_reverse_false expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "first"
+      ],
+      "label": "first_conflict_reverse_false exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "first_conflict_reverse_false ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "first_conflict_reverse_false state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "first_conflict_reverse_true fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "first_conflict_reverse_true full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "second"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "first_conflict_reverse_true expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "second"
+      ],
+      "label": "first_conflict_reverse_true exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "first_conflict_reverse_true ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "first_conflict_reverse_true state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "protected_graph_hidden fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "protected_graph_hidden full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "生成前请显示并解锁道路骨架",
+        "ok": false
+      },
+      "label": "protected_graph_hidden expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_graph_hidden ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_graph_hidden state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "protected_graph_locked fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "protected_graph_locked full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "生成前请显示并解锁道路骨架",
+        "ok": false
+      },
+      "label": "protected_graph_locked expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_graph_locked ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_graph_locked state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "rotated_scaled_asset_clearance fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "rotated_scaled_asset_clearance full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "rotated_asset"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "rotated_scaled_asset_clearance expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "rotated_asset"
+      ],
+      "label": "rotated_scaled_asset_clearance exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "rotated_scaled_asset_clearance ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "rotated_scaled_asset_clearance state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "inclined_existing_road_clearance fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "inclined_existing_road_clearance full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "inclined_road"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "inclined_existing_road_clearance expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "inclined_road"
+      ],
+      "label": "inclined_existing_road_clearance exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "inclined_existing_road_clearance ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "inclined_existing_road_clearance state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "sloped_new_road_obstacle fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "sloped_new_road_obstacle full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "on_ramp"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "sloped_new_road_obstacle expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "on_ramp"
+      ],
+      "label": "sloped_new_road_obstacle exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "sloped_new_road_obstacle ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "sloped_new_road_obstacle state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "tilted_terrain_not_flat_support fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "tilted_terrain_not_flat_support full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "tilted_ground"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "tilted_terrain_not_flat_support expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "tilted_ground"
+      ],
+      "label": "tilted_terrain_not_flat_support exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "tilted_terrain_not_flat_support ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "tilted_terrain_not_flat_support state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "raised_furrow_occupancy fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "raised_furrow_occupancy full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "farm"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "raised_furrow_occupancy expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "farm"
+      ],
+      "label": "raised_furrow_occupancy exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "raised_furrow_occupancy ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "raised_furrow_occupancy state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "per_road_supporting_terrain_ids fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "per_road_supporting_terrain_ids full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "per_road_supporting_terrain_ids expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "per_road_supporting_terrain_ids ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "per_road_supporting_terrain_ids state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "waterway_tampered_member fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "waterway_tampered_member full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "河道或挖河地面已被手改 / 删除，请恢复修改，或解除关联后保留现场",
+        "ok": false
+      },
+      "label": "waterway_tampered_member expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_tampered_member ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_tampered_member state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "stone_bridge_moved_source fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "stone_bridge_moved_source full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "道路石桥已被手改或删除，不能重新铺路",
+        "ok": false
+      },
+      "label": "stone_bridge_moved_source expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "stone_bridge_moved_source ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "stone_bridge_moved_source state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "actual_stone_wing_post fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "actual_stone_wing_post full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "fixture_bridge"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "actual_stone_wing_post expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "fixture_bridge"
+      ],
+      "label": "actual_stone_wing_post exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "actual_stone_wing_post ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "actual_stone_wing_post state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "original native pavement seed succeeds",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "unchanged_existing_pavement fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "unchanged_existing_pavement full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "unchanged_existing_pavement expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "unchanged_existing_pavement ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "unchanged_existing_pavement state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "preserve_event_and_group fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "preserve_event_and_group full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "preserve_event_and_group expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "preserve_event_and_group ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "preserve_event_and_group state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "decorated record retains original author bytes",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "event_rejects_changed_geometry fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "event_rejects_changed_geometry full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "路面改变会覆盖手刷材质或事件，已保留原道路",
+        "ok": false
+      },
+      "label": "event_rejects_changed_geometry expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "event_rejects_changed_geometry ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "event_rejects_changed_geometry state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "tampered_pavement_source fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "tampered_pavement_source full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "道路铺面已被手改或删除；请恢复修改，或解除铺面关联后自行处理",
+        "ok": false
+      },
+      "label": "tampered_pavement_source expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "tampered_pavement_source ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "tampered_pavement_source state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "protected_pavement_editor_hidden fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "protected_pavement_editor_hidden full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "道路铺面包含锁定、隐藏或隔层构件",
+        "ok": false
+      },
+      "label": "protected_pavement_editor_hidden expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_pavement_editor_hidden ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_pavement_editor_hidden state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "protected_pavement_editor_locked fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "protected_pavement_editor_locked full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "道路铺面包含锁定、隐藏或隔层构件",
+        "ok": false
+      },
+      "label": "protected_pavement_editor_locked expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_pavement_editor_locked ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "protected_pavement_editor_locked state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_far full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_far expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_far ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_far state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_same_uuid_near full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "moving"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "mutation_same_uuid_near expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "moving"
+      ],
+      "label": "mutation_same_uuid_near exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_same_uuid_near ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_same_uuid_near state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "native undo moving obstacle",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_native_undo full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_native_undo expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_native_undo ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_native_undo state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "native redo moving obstacle",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_native_redo full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "moving"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "mutation_native_redo expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "moving"
+      ],
+      "label": "mutation_native_redo exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_native_redo ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_native_redo state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_delete full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_delete expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_delete ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_delete state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "native undo deleted obstacle",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "mutation_restore_deleted full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {
+        "conflicts": [
+          "moving"
+        ],
+        "error": "路面或通行净空与现有物件重叠",
+        "ok": false
+      },
+      "label": "mutation_restore_deleted expected outcome",
+      "ok": true
+    },
+    {
+      "details": [
+        "moving"
+      ],
+      "label": "mutation_restore_deleted exact first conflict",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_restore_deleted ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "mutation_restore_deleted state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_wavy fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "terrain64_wavy full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_existing fixture construction",
+      "ok": true
+    },
+    {
+      "details": {
+        "first_difference": ""
+      },
+      "label": "terrain64_existing full bytes equal",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing ON/OFF exact and disabled profile empty",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing state, history, authoring and arguments unchanged",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "junction_kerbs native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "junction_kerbs/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_local native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/4 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/4 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/4 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/5 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/5 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/5 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/6 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/6 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/6 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/7 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_local/7 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local/7 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_far_complex native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/4 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/4 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/4 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/5 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/5 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/5 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/6 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/6 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/6 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/7 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_far_complex/7 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex/7 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "waterway_bound_bridge native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/4 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/4 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/4 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/5 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/5 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/5 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/6 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/6 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/6 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/7 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "waterway_bound_bridge/7 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge/7 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "frozen_stone_bridge_approaches native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "frozen_stone_bridge_approaches/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "frozen_stone_bridge_approaches/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_wavy native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/4 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/4 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/4 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/5 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/5 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/5 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/6 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/6 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/6 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/7 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_wavy/7 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_wavy/7 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": "",
+      "label": "terrain64_existing native paint seed",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/0 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/0 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/0 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/1 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/1 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/1 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/2 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/2 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/2 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/3 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/3 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/3 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/4 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/4 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/4 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/5 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/5 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/5 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/6 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/6 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/6 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/7 entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "terrain64_existing/7 expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_existing/7 input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "top includes exact arrays, face roots, order and signature",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "partial analysis never fills full manual-paint cache",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "full manual geometry remains byte identical after top-only call",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "full cache can serve the exact top-only view",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "top-only cache view never truncates full result",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "单个材质槽需包含 1–50000 个三角面",
+        "ok": false
+      },
+      "label": "unused slot rejects exactly: empty",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "单个材质槽需包含 1–50000 个三角面",
+        "ok": false
+      },
+      "label": "unused slot rejects exactly: over_budget",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "含自定义顶点通道的模型暂不支持表面绘制",
+        "ok": false
+      },
+      "label": "unused slot rejects exactly: custom",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "蒙皮模型暂不支持表面绘制",
+        "ok": false
+      },
+      "label": "unused slot rejects exactly: bones",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "real PBR fixture available",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "actual_PBR entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "actual_PBR expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "actual_PBR input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "路面材质无效或贴图依赖缺失",
+        "ok": false
+      },
+      "label": "invalid_material entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "路面材质无效或贴图依赖缺失",
+        "ok": false
+      },
+      "label": "invalid_material expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "invalid_material input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "missing dependency fixture is absent",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "路面材质无效或贴图依赖缺失",
+        "ok": false
+      },
+      "label": "missing_dependency entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "路面材质无效或贴图依赖缺失",
+        "ok": false
+      },
+      "label": "missing_dependency expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "missing_dependency input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "code": "road_paint_face_limit",
+        "error": "单块路面需要 129 个刷面，超过 128 个预算",
+        "ok": false
+      },
+      "label": "129_disjoint_faces entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "code": "road_paint_face_limit",
+        "error": "单块路面需要 129 个刷面，超过 128 个预算",
+        "ok": false
+      },
+      "label": "129_disjoint_faces expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "129_disjoint_faces input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "128_disjoint_faces_allowed entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "128_disjoint_faces_allowed expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "128_disjoint_faces_allowed input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "单个材质槽需包含 1–50000 个三角面",
+        "ok": false
+      },
+      "label": "unpainted_kerb_triangle_budget entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "error": "单个材质槽需包含 1–50000 个三角面",
+        "ok": false
+      },
+      "label": "unpainted_kerb_triangle_budget expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "unpainted_kerb_triangle_budget input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "changed_UV entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "changed_UV expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "changed_UV input record and material immutable",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "changed_thickness entire paint result and author record exact",
+      "ok": true
+    },
+    {
+      "details": {
+        "ok": true
+      },
+      "label": "changed_thickness expected outcome",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "changed_thickness input record and material immutable",
+      "ok": true
+    }
+  ],
+  "display": "headless",
+  "engine": {
+    "build": "official",
+    "hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+    "hex": 263938,
+    "major": 4,
+    "minor": 7,
+    "patch": 2,
+    "status": "stable",
+    "string": "4.7.2-stable (official)",
+    "timestamp": 0
+  },
+  "engine_executable_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+  "failures": 0,
+  "head_commit": "d2cd0699b0e1a4f11ac66aaf88c85c5ba9ae6840",
+  "material_dependencies": {
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/ao.png": "23347b9345e4f90249ad0795ff78d7675f70a6c2a7e029968b0a8b4f128b1d8c",
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/normal.png": "3093bb5505b0a4a93d3522565c741c63ff261840e49036120a976ffc379f402b",
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/texture.jpg": "4b65c89db97fb16eb06bb8727c25766dbee39acbc5b7bbba7720cf34d99fe442"
+  },
+  "method": {
+    "comparison": "Full prepare and direct paint return/record bytes; full manual geometry and selected top arrays/face IDs/signatures exact. No normalization or omissions.",
+    "reference": "Frozen d2cd069 road_tools -> original surface_materials and road_surface; all other helpers shared and unchanged.",
+    "scope": "CPU correctness only. Real UI/HTTP, rendering batches, sculpt follow and save/reopen verified separately."
+  },
+  "reference_sha256": "96b5ff93d77ea323fe70003aa4399d1bb37810f2951ea66e0dcc1eefb55cc5a9",
+  "script_sha256": {
+    "res://project.godot": "e1d1bb7c924bd22ffaef450ff75c4440577af3a0fa885d84732e7bf868ee6ea3",
+    "res://scripts/world3d/asset_bounds_manifest.gd": "531e648cd6857fb8a8f1e02035ea6187b98256f8238b6918b872af7f91223b1d",
+    "res://scripts/world3d/asset_memory_estimate.gd": "80757b6230c0f4813eda763fb8acce9c4f00fac747f527c7c616b6ab9164144d",
+    "res://scripts/world3d/asset_residency.gd": "8dab2c9d2e6c49ae6defff1c4f0742c0ae03c1f7c8dba43181d3041449b1dfbc",
+    "res://scripts/world3d/asset_road_contact.gd": "fbb93f94665fb0b226ce35ff98b8babdc01e2308ff3003fe5712c015522dac1f",
+    "res://scripts/world3d/asset_visibility_range.gd": "5f25ab489f833c0fe454711c08f8b015b61c1566363fb620200269b3fe635837",
+    "res://scripts/world3d/asset_worker_drainer.gd": "6424317c1d52bce6a1825eb52a63ea5e0d3c8df95601e0365ad4a8853b2d649c",
+    "res://scripts/world3d/atomic_file.gd": "e4772462587285efd72ec64eee3467de88832572fb2e4f188bb26285bc475295",
+    "res://scripts/world3d/auto_tile_kit.gd": "c68e75107d5cabb763159f659f254e8d4819b1935ae722364caa855f0a120017",
+    "res://scripts/world3d/auto_tile_mesh.gd": "3980a881183f2f4ca3322139e0ba620d46774e123d7d30cdd3384dded92f802a",
+    "res://scripts/world3d/auto_tile_rules.gd": "442ded05977a223e8da1a22d431b84f5fe47330473025b813e76534eb523da69",
+    "res://scripts/world3d/banner_streetlamp.gd": "8cb6da2681800ee5257ce8faf30bd163a7544732cd7e6d9d906dc07c47f63253",
+    "res://scripts/world3d/batch_transform_watch.gd": "f9c54f85660d64d2ce4e596baf18f2bd6ad2bb4da3606ab84cca58e25ee095c4",
+    "res://scripts/world3d/bridge_data.gd": "7036f78c05219ce9bab6a4686d3be7beae69603a41b2876405221456b971cdcc",
+    "res://scripts/world3d/bridge_deck_rim.gd": "5857625401b60e14ba1d640bbb3068be07b7c9a8ba65a6cab179a97cea5796c7",
+    "res://scripts/world3d/bridge_lod_preparation.gd": "ceba97d53712b14244c15909960e092d3a76cd8bdf5caf44d0632f4e6e4050d3",
+    "res://scripts/world3d/bridge_mesh.gd": "3f234a8c90f8f98a0d4193b706f9509aaa491b368d2e42bce6b18094d74f73a0",
+    "res://scripts/world3d/bridge_surface_repair.gd": "3df1c37ada56caaf67e809a1866ae2f43e3b9a95444092c641143c8f1317faa8",
+    "res://scripts/world3d/building_blueprint.gd": "939e961523375947841f60936ed5b4cb301d9e37bdfb5bfd3813da07c9f8276a",
+    "res://scripts/world3d/building_cutaway.gd": "abae39c58ba33def474c0ca195b2145c861625a6d348b72028a09d1eb809d725",
+    "res://scripts/world3d/building_entry_transaction.gd": "9990b9a97d4752ec7aee1b5de5e8ae3c7693f8894445da1533c48d7d88cf27bc",
+    "res://scripts/world3d/building_fixtures.gd": "d84d35cc5387ef5dafe448feececc043f224cc2162442aedbb8f546ef76ed997",
+    "res://scripts/world3d/building_geometry.gd": "515c515bcbf01be97782adca79af72bead7d08f6564154db2e48b6967c9fd41f",
+    "res://scripts/world3d/building_membership.gd": "1edd1ed6a871e4495893a64af4bdbbe96cb35d659dbd75924b002d96e04f7a2a",
+    "res://scripts/world3d/building_readiness_evidence.gd": "9600732f6e3a145453753f7d20351f852a3d5f916b6a405f898c8aeeb01ab308",
+    "res://scripts/world3d/building_shadow_proxy.gd": "07b2d1aef5f56c10f908780b3fbf85f095c74b6bbcc47b22a79439afcaae5dee",
+    "res://scripts/world3d/building_traversal_barrier.gd": "592a88467efb55cb79652156a0e4261286a4992cccb8b13433527da541e596ca",
+    "res://scripts/world3d/candle_sconce_data.gd": "519d50b1543ca1f6cc289fd5efb0e65efa4d6bc341c9bd0e382b1fac7b8ce345",
+    "res://scripts/world3d/candle_sconce_mesh.gd": "0a8ef1124324a74a260dfb3d32a20641b9e2efeb22b8e2612312046329069790",
+    "res://scripts/world3d/celestial_cycle.gd": "cdf4f1fe0db44d750d1f14e16bb404a3311cc7834aeb52ca098e61ccdb6a709a",
+    "res://scripts/world3d/channel_surface.gd": "db34f4d66d5357c9cb2afbd618f4ecc68c9a5afe23e4370c1adccab1b4dc7462",
+    "res://scripts/world3d/chunk_actor_table.gd": "512ed13945317fa5506fcc0e06faffdc3a473b1f6bacee04f99cefa097354c59",
+    "res://scripts/world3d/chunk_actor_worker.gd": "d3e05428415bbeab7033b3d04448bd80828bb4fc244ee8450635fef747fa3c0c",
+    "res://scripts/world3d/chunk_reference_preparation.gd": "9a1d278a70d5dc5fea3a3448d4490c5b82c9109c5b4d46ad627bfcf7ad7fb936",
+    "res://scripts/world3d/city_blocks.gd": "df5a8da4ad993e523362bbba67ec52a1f2c2e605067d52e3ae649f0a1e9ba9f2",
+    "res://scripts/world3d/city_layout.gd": "d7c7cfecd807bb9ae65118d6076d972b485c8c024c5a220f918015e1ccdd87c7",
+    "res://scripts/world3d/cloud_resources.gd": "08d75c779b037dc6ffab62766b91eb5cfe15f50d75f450cfaea106bb22fe9f94",
+    "res://scripts/world3d/collision_asset_builder.gd": "05b70912044aa82a51695770455f5817dc97ff6f627c0c5c4b4b52eb1e783db7",
+    "res://scripts/world3d/collision_asset_descriptor.gd": "6c692aaf5c259caf933caa5aa1805acce5696dfc1af18e7c334b13ece08ac505",
+    "res://scripts/world3d/collision_dependency_loader.gd": "c788b328fd8f5c3d15513dd28673c4e7a75cf29d76ed97e25fd482956c3d9e24",
+    "res://scripts/world3d/collision_face_prefetch.gd": "47e1add104a6932a617518fc215c0e62b9868bd732eb8dca1c37ae9dd2292351",
+    "res://scripts/world3d/collision_instance_preparation.gd": "adee7282dc39fe8bc1c5c17f7cd68be87ff50ea423f20a0f32545a46097ebbed",
+    "res://scripts/world3d/collision_instance_residency.gd": "c62ac4cba4c82963f70f21d0fbf7fbd830a4f49f53da633f43c27c3295b1a4b2",
+    "res://scripts/world3d/collision_not_required_preparation.gd": "b1784db2ffb2ccc82a486e42a70f3b36e42cff82878536958104536ba8235627",
+    "res://scripts/world3d/collision_product_cache.gd": "1f3ba1df9ac93ad79270f42dff86ac649204e292233d91afe4869a64d8d08f9c",
+    "res://scripts/world3d/compiled_asset_cache.gd": "9f3092b194f41bede645c73576134b39cb9bb8769efbb6202fc20425da67dbec",
+    "res://scripts/world3d/compiled_asset_footprint.gd": "be8b239cfbb9c4c7660f85b7a125a01423070ebaf18aaa1963a33639b4a7f4ac",
+    "res://scripts/world3d/compiled_asset_preparation.gd": "fe4efdd404dc055c759bf70355b694bfb3d24ae44fe235a3ba34a5f0f83aad6f",
+    "res://scripts/world3d/cpu_worker_retirement.gd": "76eab42f1d65e52828e7dee134792e4eb05aa9413ab6235d6c062c1ca94beb5d",
+    "res://scripts/world3d/curtain_mesh.gd": "633f295bfd7cb9806c5cbf6e2bc3db4b42a494926beb08bb058dade857c5236e",
+    "res://scripts/world3d/day_night_review_item.gd": "6fc8c1b5c73f45398f48a594ed1a5ecafa6cb347f41fc4e6c3769356a307cff4",
+    "res://scripts/world3d/deferred_asset_loader.gd": "e9f4045d7c48790e328a5d00be25e8dec0469e8fdd8c299cf5a1291d6aebdf96",
+    "res://scripts/world3d/definition_cache_policy.gd": "b19288495e0c451834d7d66876aa570a8a9e85ce7255fa338a4c80f211249d23",
+    "res://scripts/world3d/dependency_index_proof.gd": "bf6b8eb6029c01c1c1e56f94e88226e4fed231027ebf86af147e9e5011d11c93",
+    "res://scripts/world3d/document_open_cursor.gd": "2486fbb7da41a2f2a753f2e3b07fbb1e44a8df8b0025d181233b8d30ba1b250e",
+    "res://scripts/world3d/document_schema.gd": "715d4b825e763430efe8172f4e7aaeca774e0e65f97c9b5c96432a18743799be",
+    "res://scripts/world3d/document_source_snapshot.gd": "e310812bad82835561325b64eaabf495025d968de0f8fc5c46bc7f7fb92e4313",
+    "res://scripts/world3d/editor_view_settings.gd": "d7c1a453c103f8baf64685d35ebd92875c4c7a57ceaef9618feb7b06ce28984c",
+    "res://scripts/world3d/embedded_glb.gd": "01a066bb5c8412f2efb610883869dfd9991fdca2dd2e3f737620d32db27ff753",
+    "res://scripts/world3d/entry_plan.gd": "dcaef505a244b9a94b938b4709f31cc69d6d26584e6f3eaf69df52a7a2169701",
+    "res://scripts/world3d/entry_readiness.gd": "de322d97e4222f1b5018ae872a4bf1cdd6dd31cee22057d390b70145202bdf1f",
+    "res://scripts/world3d/entry_readiness_observer.gd": "5072d4c0a92b33b37876c3fa41488789707f13b333421499b5a506eb72857b7d",
+    "res://scripts/world3d/environment_settings.gd": "0d4147fe882f933279602c14ffd6f8140e0dc8517e1d54cfb90cee21e575b1ea",
+    "res://scripts/world3d/event_templates.gd": "84859bca72032cbc2a943deea80706dfb73c9390a109bdb2efa7bcbffd7b9094",
+    "res://scripts/world3d/export_cpu_texture.gd": "ba1c1845f48e62cb95efaaaebc475587b70e64b7e1481f0980ac44c87fe9a180",
+    "res://scripts/world3d/flat_terrain_collision.gd": "b00d588927d244b507a06497a67570f4d71f61bc1dd1d214b9c332673c34e473",
+    "res://scripts/world3d/floor_contact_recovery.gd": "aa6b5740e7e683270bdcc6c3ed6f787c0f87077a6892b2895c20b2864d96f498",
+    "res://scripts/world3d/fortification_access.gd": "c868a41f356f6e2697bd916b98933527c6c2225b3c540ff8dad69984a502f5bf",
+    "res://scripts/world3d/fortification_art.gd": "3e4ebe6da80d1beed72f9dcf6c98e11fccd7eec2c77481f84201cddd60a32319",
+    "res://scripts/world3d/fortification_collision_batcher.gd": "6609b078c4855652ff9f3f1dc98a1be22c3774973aa57c4b96ab8c965a4d33b3",
+    "res://scripts/world3d/fortification_data.gd": "068726f74f552873acf38e789a8beff87e52380cac8c12c7d43521b394477fe9",
+    "res://scripts/world3d/fortification_deck_cleanup.gd": "8210920c621c7f011b8c6dfc724105a2455c61b29822d4bc808b75d84756bef1",
+    "res://scripts/world3d/fortification_plan.gd": "1c20e30ac22b7595398c81de7bb9d73e1b42b46c413a5af01229e124161ced49",
+    "res://scripts/world3d/fortification_ring.gd": "73dcc00d0b5d2da4f1e497f3badfd045cd419b0cc37add9249c238eb07464cd0",
+    "res://scripts/world3d/fortification_spacing.gd": "919bc821bfa66dd2da86657ff97ebdffecc29d41311156030372db1690aa9f9d",
+    "res://scripts/world3d/fortification_spline.gd": "f21efa8d9c6d63dbe1d99c87144d79f07f2855ee5495bf70f2e553c51700668e",
+    "res://scripts/world3d/fortification_stair_mesh.gd": "b710e27bd8a7f6cbf418454505da56059e9878b59abdab30a472a977f3457169",
+    "res://scripts/world3d/fortification_terrain.gd": "519ad5a15b1acaedbc4f8579ae97158aa3b0bbe52896b4adf42d97726a8d525f",
+    "res://scripts/world3d/frame_work_budget.gd": "9cdb169367bf422a6e2953d309ee62ea7237603e8565e62d46ef99c785bfeb34",
+    "res://scripts/world3d/frozen_placement_contact.gd": "147751ef2ad12542b07cf546fba995c05bff890689738a90de9ab4f170ee1d0c",
+    "res://scripts/world3d/frozen_road_contact.gd": "9cf6aa54f8041c969bf7c3d0da050485da8d4a15f90502194aaf13dfa0d368a4",
+    "res://scripts/world3d/gltf_delta_graph.gd": "9927daaa82937327ebe0bd860283349fd9a878e158de1fdd7d8282b3d48db531",
+    "res://scripts/world3d/gltf_map_io.gd": "5ea03206090f7c4c43001498c67f3f84d85be306f4770febf898a60695b1b5bc",
+    "res://scripts/world3d/gltf_static_geometry.gd": "daf4286e07a2f2355bed6c5fc21da3906b1482f667b5d0bad62088dbb61a371d",
+    "res://scripts/world3d/grass_texture_cache.gd": "043f9c7f988b0bef45eaa029361f366df6c67b1317b87009b237b7ceec3c1bd7",
+    "res://scripts/world3d/ground_batch_geometry.gd": "f72fd371c9767f84bd4b834a16f0b60c9a8708ca5cecb2326fdc1ee2f955ddff",
+    "res://scripts/world3d/ground_batcher.gd": "7afe8febc6db913f67c21d1ef4c2b6bbfcb81d63484788c77fd019d588565130",
+    "res://scripts/world3d/ground_cpu_mesh.gd": "dd89078f4895dbc5c5ddcc86fafb905ee2a5cd39fee653ea3cc5e6569ee5903a",
+    "res://scripts/world3d/house_arched_entrance.gd": "0af3b6cba8b143cf19fab11a5042b3d67b7cb1d521dbd2c975d704c8f02af652",
+    "res://scripts/world3d/house_candle_layout.gd": "f0a799ce3d9619baf24cfb5c4255b057fc5044001fb8c4bec3f5a6cfa134b5af",
+    "res://scripts/world3d/house_candle_lights.gd": "caeae0393ef1581d7680471ab2a0dc4b80b410d4f1fd4f0adef7edfec3f35a88",
+    "res://scripts/world3d/house_gable_oculus.gd": "5781b055756500f22c4009021101c2986263260f75504f0ae157e605df45db55",
+    "res://scripts/world3d/house_prefab.gd": "3d86d759820b08946fa97d27495cb01571037313ff5a780a52bec53f4249db0a",
+    "res://scripts/world3d/house_stairs.gd": "069002b10c22b7c6e2785110037ecefc528d324cc0b029bf6f4eadae46ebf44e",
+    "res://scripts/world3d/house_wall_contacts.gd": "8ff1faa29b4715784d3e551df28d209b5fce1b1a8f0ea3ce832278a4a4a73283",
+    "res://scripts/world3d/house_wall_mesh.gd": "735441af747fbcd43bb1565826cb984c4270b2276e017cdbb2beca99515cf257",
+    "res://scripts/world3d/house_window_styles.gd": "636e80a74572531d88f365a7744d5f8dff48d6925a2a83c6d6f9bddccdfb8d75",
+    "res://scripts/world3d/imported_building.gd": "99036633ad4ccad2c75618ac60a130c37b56c72120efe7b243f1bd41edc2779c",
+    "res://scripts/world3d/incremental_save.gd": "51d4c4520d0f006a511b19f36b40e777d4ae4b6976a80a62e19e0cbf733254ac",
+    "res://scripts/world3d/initial_model_prefetch.gd": "ad4cbe41ac7d088af05b74c73173422dc5bd730f120c7d41694f9d362bc6a730",
+    "res://scripts/world3d/interior_door_layout.gd": "c79474109a049d5a068fd5a4902c5a78afbe1ada54f81e1cbade0321c80d7b91",
+    "res://scripts/world3d/interior_door_mesh.gd": "2480019cd53c8b60e4fc71f631e564dcf60042f4287a01c5431b7e9a5a4694b0",
+    "res://scripts/world3d/joined_box_mesh.gd": "6bbaded3191fb28494b5bde90de6394c3ab382719ffbd00904d186372c24841e",
+    "res://scripts/world3d/leaf_backlight.gd": "7c0aa910c690cae5c7292d96a6d7ad7ea5592c0cd511769e39c813ee816e2cd7",
+    "res://scripts/world3d/lightning_runtime.gd": "229d1f2683a84d83cc5ce24a2c3a9849966c851defbb9cf2e59455984327f039",
+    "res://scripts/world3d/linen_curtain_data.gd": "0abb1021c46d416e7686e02c430209513c1170c3c4392cd82b4774d0d436b6dc",
+    "res://scripts/world3d/load_trace.gd": "52bce3ee2ec6bd5079802795566b7c454664a7ec0f193c3f5d5233381fe1f58d",
+    "res://scripts/world3d/local_entry_authority.gd": "2b386591165d6eb35bc23c0443a24d556ffdd110577d738f8ce2a25df1bc8b2d",
+    "res://scripts/world3d/map_dependency_index.gd": "664054aed2363d64b7f2243f3706a83fabad49a13787d640a4b49ef1513ff7ad",
+    "res://scripts/world3d/map_loader.gd": "ec7e7533790dc3c049a98a6361f1967b35ae83b808ae002736a1c1c14e98d861",
+    "res://scripts/world3d/map_metadata_cache.gd": "45429f43fd959990be753c0bf92721663ed11e96c64ddb954bc1fb239763b39b",
+    "res://scripts/world3d/map_paths.gd": "834701a798623026604d3be5c76824c4360aedbfeedb630eb7bbfc12b13c8a7f",
+    "res://scripts/world3d/map_resource_store.gd": "44ac16f39f189def2190888a2d5b764c7799546a8cb7094a829a3363afff47f6",
+    "res://scripts/world3d/medieval_building.gd": "a5c989c26f8a59ed1aed6c2048e2622ddb7207ad63f8a3a0a1828d970463b359",
+    "res://scripts/world3d/medieval_dormers.gd": "081dc5bc9894268ec7aacaa9bb06018871f222b69b10de9a958cede49a2eb8d5",
+    "res://scripts/world3d/mesh_tangent_repair.gd": "ece46c9d21086c3b09ed19a66e15482b3f9e472758fb884006a960b5ffcb2535",
+    "res://scripts/world3d/model_collision_requirements.gd": "d93b9a5dcc27c8627a23cce7ef3d20ddcdbba5634b4f073418b2bf863642085e",
+    "res://scripts/world3d/model_components.gd": "1684a2af5cff507f0ea9adc117a44e5a6bd4e296f8e6a6dfe885c39902027fba",
+    "res://scripts/world3d/model_lod_preparation.gd": "c108130149d3ea9f9fd2d27390f65596316f4e30d824a7d9ba78d080bb726b5b",
+    "res://scripts/world3d/model_parse_preparation.gd": "9636452b170ff299fab67d6fd84a9456dec842a2072a998532c0ef76794b0060",
+    "res://scripts/world3d/model_source_hashes.gd": "507ccd0a39f33702d7298ed04e27a77e62233f50efd741d83c0cf999fa8c3a8a",
+    "res://scripts/world3d/model_texture_cache.gd": "1bb8f6438c39191ae5e3ad778f1918d9fe68edd0a35b36ad8425714c9ac8b0e3",
+    "res://scripts/world3d/native_road_preparation.gd": "8cc37045d0a58875a0b4d552909125c06e91bdc709d9fcaf1c2cb5de3b011d88",
+    "res://scripts/world3d/navigation_cache.gd": "f913ecb9f5af2f8ae2b0e11ea0fbbec12899e7d8009668f150e9e49177526ff9",
+    "res://scripts/world3d/navigation_source_job.gd": "a3243e995cb981eb3b6710bc9cf1761bac00491db31a43dcd2eba267fe91d6d4",
+    "res://scripts/world3d/navigation_surface_index.gd": "3dd58e4025f9ac731537b5c9e74cacb0a319cb146c6676efe0b526dc4f274a60",
+    "res://scripts/world3d/nearby_navigation.gd": "fd1bdf6e15eb6062768043e462ec8eb7ccbe59971694a9c8c28c0e25ef4825fb",
+    "res://scripts/world3d/night_sky.gd": "1897bc39f0350860e6fd790474827c43af319de84dbba2968d948bd02a4e836c",
+    "res://scripts/world3d/npc_crowd.gd": "42194f24f62bb5e5cd96478e44ca8d8d0cd6d45744b1ef6189793f04a1d23592",
+    "res://scripts/world3d/occlusion_outline.gd": "bdfffde466854e2cbe66bd69418a7ab35911e58d120be0ca8c77d8247d1032d1",
+    "res://scripts/world3d/parametric_tree.gd": "b31d6f6a95e0486c9a8e61266723ea157002a378859fa089cd3745b17efc588a",
+    "res://scripts/world3d/physical_traversal.gd": "1142cfe2fb2682659bd06f3201a36f9d971dfca9604241e2e6bd0813d161413a",
+    "res://scripts/world3d/planning_zones.gd": "e4acf6aab759ffb1d20f6c9daf04fe57116bedf45a132963a9d882d6bd3a22c8",
+    "res://scripts/world3d/player_clearance.gd": "a98d3a7388b2757f20882254fa8a87dd778fd29a347e8eeb6c585d8bbb85994f",
+    "res://scripts/world3d/pose_save.gd": "fa4b4bf5b682ecf9de7e6e21157695288174d0f557d6fed79fd7f9755bf3f6ba",
+    "res://scripts/world3d/prefab_texture_preparation.gd": "3b263af06632355ee87590fad8f3f0c3507af01e95773a8ea9d6bd8c0d358d4f",
+    "res://scripts/world3d/prefab_warm_preparation.gd": "eb738ae6d6abd8b11b51f6263ecb804098bd1c62ad742bba298769b8034854f4",
+    "res://scripts/world3d/reference_map_save.gd": "a7d8b02d545849aeb4d65788e8c34e9f0b0c35fc2dc964d2a985584edf567d72",
+    "res://scripts/world3d/resource_admission.gd": "0520dfe89674de8d6ff83aa6df84ec5d8c5261bf4d9ff1f48926fae21828af13",
+    "res://scripts/world3d/river_material_data.gd": "a05540fcd475512ee8b34c51e081f831db6d8ec401fd9da3bbc1dcc75f231839",
+    "res://scripts/world3d/river_materials.gd": "9dd3e7fd93e4453e1621890cd0361755344d5fe23d0c9a602602039b2727a76c",
+    "res://scripts/world3d/road_bridge_approach.gd": "4861f190de14ac1173580689a8bbfad9444c5e1d83c744b69d31f87b8a9e230a",
+    "res://scripts/world3d/road_bridges.gd": "9734ca1673dc1bb2d73c89c9c72ac6db54f216a2d2f9fe202638904b07543093",
+    "res://scripts/world3d/road_intersections.gd": "4547c731716ee669a1209663dc2be027dc0611b488261a2ec36f66c67347250c",
+    "res://scripts/world3d/road_kerb.gd": "a6924c0f5225e3380181fe4b6f58e99abeea314b647d6d90016cd287fe5da2a8",
+    "res://scripts/world3d/road_plan.gd": "6584e9ed6f643df984b55609f24042b36db5352ea069aedad4abed894c33d089",
+    "res://scripts/world3d/road_surface.gd": "1a180bbd5c8ed09cdd434d23412e42bea2fe81ad2d618a07ae9065efc181e176",
+    "res://scripts/world3d/road_terrain_fit.gd": "3a7a25f49c4702a7d0334d705d733b3e8ae0d68223fbd8e8d6e714e85dc570fc",
+    "res://scripts/world3d/rock_bank_mesh.gd": "3abb16f3feb0fc1323c89ee9a82a1d0cd14eb63465dd052aa3c9d0994a78a7d5",
+    "res://scripts/world3d/roof_mesh.gd": "949be7c1b765dcdfeb492d07d1953d35273bb54f3a1994e6a7dccca850a5a13c",
+    "res://scripts/world3d/roof_plan.gd": "e267ba2ed33e6ca6b88130263770b0b9788b3554c90faa94b3fff53a9cb9bd5e",
+    "res://scripts/world3d/runtime_mesh_cache.gd": "1cebaba00a4c2182c7f3829876b297b836468d64ae3c736d8f16005e1a7902d8",
+    "res://scripts/world3d/runtime_texture_cache.gd": "49c2ce8eafba070d189a78a96c0dabf776337ff8e486eaa4af7f3cfe3dbdf2fa",
+    "res://scripts/world3d/save_mesh_cache.gd": "b4fdd4a2f77faf329eca3f602a42af5397c3883f97859f567e01a9ee5a9e581d",
+    "res://scripts/world3d/scene_integrity.gd": "1f4a951229a5f4d506ccf4b0b484388c96ab910599d71798b2ae9c836f037951",
+    "res://scripts/world3d/shared_prefab_images.gd": "075f443ecdc0ecd19a5f1aa692c0801034c3a445ec35903e4d09d0e77ff8705c",
+    "res://scripts/world3d/spline_route.gd": "2238cba559bd1905f5afb269d9a0312307171492b0b9d34ac3561d8d6f844eda",
+    "res://scripts/world3d/startup_profile.gd": "4ed46f7b47b80c41ac73864c1820cd40779aca814443b2412d9654e78cbd14ee",
+    "res://scripts/world3d/step_descent.gd": "1b312a5be9ea0d875cc49ce658f4e581b42364c49621044ae540d5badb797523",
+    "res://scripts/world3d/step_support.gd": "1aaefa8a3fdc238a2721022284f6e793c334e821cf8807dfc585abb01ff07eb9",
+    "res://scripts/world3d/stream_candidate_plan.gd": "521fd21b405a8c495212b09e5459ced8b885853240504986d8476fae6d80302c",
+    "res://scripts/world3d/stream_collision_preparer.gd": "be2b14e4bb6a8fc9d9d376ac7a5ab19315855b1358754601b6b977c9bef27026",
+    "res://scripts/world3d/stream_index.gd": "8f52d737cf2bf7ba3e1f2db088ad482486c2766b0604bac97d470f75a771bb83",
+    "res://scripts/world3d/stream_landscape.gd": "d0fef4d350b5ffa2127e3ffe033b88771d27e2c1d0b3cca18ef82d46265d81b9",
+    "res://scripts/world3d/streetlamp_banner.gd": "894a18269f4d211214c0a4c4857b2c162ff0cc435bf905281003077d1cd37029",
+    "res://scripts/world3d/streetlamp_lights.gd": "bc4f88b585d56fb1bafae57c6a29763703d207f3aabf94c1c3b66838b0a43384",
+    "res://scripts/world3d/structure_prefab.gd": "ed967d339ecd8caa91e13000dd360d40cf757876e8a6f0553ec0fc0ec30f91a5",
+    "res://scripts/world3d/surface_materials.gd": "b94a2cdea948649ab844516ac001438d6fc842181c6642e056773cf06e265310",
+    "res://scripts/world3d/terrain_collision_preparer.gd": "fe9e60627602cc10b0c12eb51f43d1fc8cfbb3d373e59aab6f5c11b8d8b5e80a",
+    "res://scripts/world3d/terrain_context_cache.gd": "f48d1d1894d9bb44df41cfd894622be336a9121d0f88d9ddcda25459ed6e85f7",
+    "res://scripts/world3d/terrain_erosion.gd": "31ed45705da2582167d58f151f57a4a3bcd72ff762a293607dc5ab1dd6169ce0",
+    "res://scripts/world3d/terrain_furrows.gd": "e8e69c3a833bc2a0de15fcef67d034c61de32f0bc730f938a2e404133f1a5cc5",
+    "res://scripts/world3d/terrain_neighbors.gd": "d75e7cc8a61d218744dafc18a63a3cd83970b03b8119636131be4aac54491e53",
+    "res://scripts/world3d/terrain_plant_support.gd": "a6985b9c3bccfaa7e129d2675ce0a51002baa61237906b8aa7fbe886e9fbcb09",
+    "res://scripts/world3d/terrain_projection.gd": "1b8b339d47ac00786bfe597543812c05a5584ad0621a205efb3bff644f520615",
+    "res://scripts/world3d/terrain_regions.gd": "cfff891be3257e35d6eb413ccf220050d35b2c0fdfe7c157c97c1faf96567058",
+    "res://scripts/world3d/terrain_river_layer.gd": "7ee1ce9a923db25cb40503a79854aaf980f9ace9dea206de1e2648cdda87a1b9",
+    "res://scripts/world3d/terrain_river_outlet.gd": "4262210f2c9797aef540397dd5014baa4d981482f071c5a1ae11cd3d8b2e0f4c",
+    "res://scripts/world3d/terrain_river_profile.gd": "9e225b16dc240174eeb89af2e3ea4aeb06a846d76a0e1fb0bcff9b4cf10a5909",
+    "res://scripts/world3d/terrain_stroke_batch.gd": "afb3cd7cc4d68d40c1729064913bf487eb446558f4e60ec155f5b31ebbc9cd64",
+    "res://scripts/world3d/terrain_surface.gd": "feeaabe1bcfa66156f7e30da274f3888a065d68e2bb1088fd1bd33ac17d4c0d5",
+    "res://scripts/world3d/terrain_volume.gd": "9bd0fe4b0ac1b72ce62971e9d692732fea0010b4007c4af05d62bcba2ca603e5",
+    "res://scripts/world3d/terrain_warning.gd": "a9ad58977bc8df28edf1b4ca134ff06688a4d2bfb17aa7f8d32d5e2daf88c47f",
+    "res://scripts/world3d/third_person_camera.gd": "4d7a04ad57dd9141798c6bf5ea51a0fe54c71f2547957ae937bc67ce9a9b3eef",
+    "res://scripts/world3d/timber_door_mesh.gd": "4a902bff8d8504a72c747de3df2bade7e0d50f50f3ae11d8136798d8d6577a5d",
+    "res://scripts/world3d/tinted_glass.gd": "3a285d4ab87818e0265c4d736ee0b4695bdb1bd3fa13ba51f1a67f58e3583998",
+    "res://scripts/world3d/town_whitebox.gd": "540d8e4c1d0bb6c844888ce5df32cf391157fffcfe072a3ff3afb40f03cc24c3",
+    "res://scripts/world3d/transfer_loading.gd": "3858e74ef91f07b00b0462ba8735e19d2c148d1d9cb182221d4adb53d473975d",
+    "res://scripts/world3d/urban_building.gd": "e4554996c6e3e0aabc7f3aa80d4015fa41fedd14b1599b8fb3e9c182452a9a91",
+    "res://scripts/world3d/vegetation_render.gd": "c35c297610094f7570b825373e40aeb63d1405010065864ff2c0e41392d2d9f4",
+    "res://scripts/world3d/vegetation_scatter.gd": "6d66b7786a7ae3e750660d3acc100286f1265f519077d4a5389670e4d428067d",
+    "res://scripts/world3d/view_actors.gd": "e117c1a2710845938fd5371f6931a3cac8a14e76badf127533b0ec984a01c482",
+    "res://scripts/world3d/water_gate_mesh.gd": "eda5ebf70122e2d96db864aaed5a290463a385601e5e082f084ccd9cdc952231",
+    "res://scripts/world3d/waterway_data.gd": "2c6ed0828a1ed4c307982e3156a44fce7a8869d530e0294fc739f49e83c417a6",
+    "res://scripts/world3d/waterway_plan.gd": "8446c05513d995bdc078d1462613f5515f0e96917eb28ac06282f08be8623854",
+    "res://scripts/world3d/weather_controller.gd": "d43c78810ea50b5af8bf88320a76efd52f7051842846dd8ed73c80b45da909b0",
+    "res://scripts/world3d/weather_precipitation.gd": "63449b9654d23d4bff065d7229ecf8222464aca1006412f724ec0c4a7ab50d94",
+    "res://scripts/world3d/weather_profile.gd": "c43d1fd2987b16487106bdebb7c5bd896027f6ddf78e85d33b949277a667fda4",
+    "res://scripts/world3d/weather_sound.gd": "47ba06a685ee5baadf4adc0db6df2d6881417bf3e1bde49f8160341b16b57025",
+    "res://scripts/world3d/wet_surface_runtime.gd": "533962a6401b660da00614877dd9ff6a12554eb3357ae59f8caca88a5ee80c75",
+    "res://scripts/world3d/wind_material.gd": "7c8baa4088e4df23327abfb0c9285151b3ea4ac58ff8ba11e6f990221afb5754",
+    "res://scripts/world3d/wind_material_preparer.gd": "8474c61e542bb5e7bc7ce2443a6d1f15bd14028613b1f76f6abcba00455182c3",
+    "res://scripts/world3d/wind_response.gd": "78bda76b684d262ff5d91bb3ede06d14933ce6837f4d56d58a08a4c9fd362af6",
+    "res://scripts/world3d/wind_runtime.gd": "620151629d303c2d46db237bff0c3aa7e477c65e0939fd8b275905325c3291b0",
+    "res://scripts/world3d/wind_shared_state.gd": "7246d89cae72f1e05d8b45ba56363d6c30f0b44d3523abccd8d8221fb51292b4",
+    "res://scripts/world3d/world_3d.gd": "7f61163c3d281f718432f8a60ca8fb6c631eb3710616a346d1dedf2d0ece8b91",
+    "res://scripts/world3d/world_authority.gd": "c3c98a51e1af930726dac7e2073f3d8c8f3a70d3be2da9e86447bef99637b6a0",
+    "res://scripts/world3d/world_combat.gd": "23c1f3cd96b01c8f7d49e4dd0fb25558cb5a9329f1d50916fa6b1c5e2530f794",
+    "res://scripts/world3d/world_document.gd": "859bb50bb80837d735d476b650481c95820346789d586a00a57e83b274ace1aa",
+    "res://scripts/world3d/world_events.gd": "afe60dab59bebe571dfffa328072fa22b14ef4d43c67285ff5feb75ac105e21a",
+    "res://scripts/world3d/world_furniture.gd": "7f30009cae16971ee450c5d99d98fe2bb2a743b89cbfde7163ed93f7afed61ca",
+    "res://scripts/world3d/world_import.gd": "436e5fb0025a2ccca7b21a6233b1511af8179c7ec9dc059094834fe6c7621e8f",
+    "res://scripts/world3d/world_location.gd": "3dcae208e28a2be5e56d1361333b35aebded53b3edebe508e6793005613c8c15",
+    "res://scripts/world3d/world_map_data.gd": "e3ad2696214d2bb1d7960d5131aeffbed18f018dbb22f5d00ad4e381360458ac",
+    "res://scripts/world3d/world_modules.gd": "bfe9442f8a6d6dc847f9c2148c49fa36b8e36421539804e4329d86edd191debd",
+    "res://scripts/world3d/world_motion.gd": "574338e706492698ea2b904d19c6e825805b442e0afa48c8621c9c3cc7fe826d",
+    "res://scripts/world3d/world_navigation.gd": "6e6ec495bce5448fbd8e59c2c2a695bd9d8dd680a2478104652e618c2d619b98",
+    "res://scripts/world3d/world_npc.gd": "01de2ea9af2a8d34712ccbf8cd0e7a4b7f06b9259e961954c4fdfc41e3f64705",
+    "res://scripts/world3d/world_paint.gd": "eacec63506a7559ba3b0ca2b7e58ea4ae873c7a7b71808815d934a369c8d4a15",
+    "res://scripts/world3d/world_player.gd": "97b11deb2c9b00383f620816bf6304e8f6e641ffec54d134780bc8f3139d1644",
+    "res://scripts/world3d/world_remote_players.gd": "baf01879792b70e9db78b763b3849bda6b06c744098fa37812f65bb94fd15710",
+    "res://scripts/world3d/world_residency.gd": "bde3c54106aa87c07e5920130c8570f5a1eb8a7c80d7668ee6bff3177f35d1a9",
+    "res://scripts/world3d/world_state.gd": "378faaa5e0de38a0d475ab9745befbb8bc527ebbfe47f6e35c7c4369b7f22a6f",
+    "res://scripts/world3d/world_stream.gd": "1e011b30a6ffc9c47598f751be148fce49f242e2e096f166dd72aef568b32469",
+    "res://scripts/world3d/world_summons.gd": "46d8f0530c6fc06832c219f2ce3dfb5b4dc8ded9e5b2d115316af2b265a8b3cb",
+    "res://scripts/world3d/world_surface.gd": "e0e3f32ec19dc26ea8045e6be5601d579cf0811c7873330291ea56bf3e68f7cf",
+    "res://scripts/world3d/world_travel.gd": "ce649f468c7615561ff9378dc1f3d2316bc65b808da23f2161e71132e318d1cc",
+    "res://scripts/world_editor/asset_library.gd": "ce56759cceec5849f38477279b958364a44edabd68226aeb2c9454a49972e0aa",
+    "res://scripts/world_editor/asset_palette.gd": "92721a287bb72711d466649723447432a221d0aaa5b16fbee01f9cd0e66bfe2e",
+    "res://scripts/world_editor/asset_preview.gd": "a1cf3da3d8b0feed3f82b6e1e1b516f7deb7e5e149b16507ee0b0e4446d766e4",
+    "res://scripts/world_editor/asset_preview_environment.gd": "9923c57b1c72fe08e8586d639a18d838bb48f171fc8a08fd90f9c6df69fd11b8",
+    "res://scripts/world_editor/asset_thumbnails.gd": "49d47b1ea545e5ea5c5b761b8012c87a291c136a4abc85f6d2602a5b73636150",
+    "res://scripts/world_editor/authoring_view.gd": "2a3c3a191ae08053140ab2fe30163fec8f03e8f38fc8c33c0aa820cac596fade",
+    "res://scripts/world_editor/auto_tile_panel.gd": "fe0f60698360e335d2f5e6a77f8947a9f2d48d5c58247b7e74c1b9b94b975feb",
+    "res://scripts/world_editor/auto_tile_preview.gd": "0dbb0b98419fe36ca1187d087d38e7817bdbdbfac9f678815395f63fa219c939",
+    "res://scripts/world_editor/auto_tile_stroke.gd": "b03f3055eef8366763436b951e7a1072a78c348360325de0bdb21e1bf903cf98",
+    "res://scripts/world_editor/banner_panel.gd": "0b26137cebce2f9c48c91b28c373cb8fdb320d01d47e89a56559650c9aeba181",
+    "res://scripts/world_editor/banner_tools.gd": "d5329d4ed9ef5b01ca0dd5e950c2defac9a1c97bce7b5ef32095059e304ac7a6",
+    "res://scripts/world_editor/block_panel.gd": "f2f021ce04487cc7ff27314bec5db9fdb1676d6b33cd080491e2ef3dee76322c",
+    "res://scripts/world_editor/block_tools.gd": "5e2a4a250c2f196a86e6dcba2d4c78fea5228d388810fe7993948268d396f370",
+    "res://scripts/world_editor/bridge_clearance.gd": "2f7259c9788ace8fe0a81d9314a4292247b5ef8fbe38824f5c44c36de65f1ea5",
+    "res://scripts/world_editor/bridge_library.gd": "67813e371c31f9835c44f50906d23a7f17f0d7569c32a578119d17879ae01aaa",
+    "res://scripts/world_editor/bridge_panel.gd": "c2bd8e9eb62dcffad2585ee9ccc09a4d949bf5399bbc615c208d1366ecd89743",
+    "res://scripts/world_editor/bridge_road_cut.gd": "619630869a1d17d2ad0a90d127ea813d4ad4dba15526f90a1a244ecdbea72936",
+    "res://scripts/world_editor/bridge_road_tools.gd": "bb2d52a3c3f1d13e3c0351b639ce5c8e1969a2b6027565e7bed1d715bc8b2975",
+    "res://scripts/world_editor/bridge_stream_clearance.gd": "dadf77d1fceb5df4444d0e4cded1ca5a53147d6a4fe1c4cd78caa941471a5119",
+    "res://scripts/world_editor/bridge_tools.gd": "67653be8a3d8dc26a582c7c235fa301674f227ebde066d62aef1a877b726dbe4",
+    "res://scripts/world_editor/building_clearance_snapshot.gd": "4a66232c6d5aafc838289f184f2bb3b862dc50948d509a8d5ffde9caac883382",
+    "res://scripts/world_editor/building_fixture_panel.gd": "d388818996c9245cbb54e349a888237fa6495cb45a6e55cf7dd9f0c90c3a1067",
+    "res://scripts/world_editor/building_fixture_tools.gd": "ba787e461fd9111bab70c511fab4b729e7894d67e786bb1fd3b21caec981e7fe",
+    "res://scripts/world_editor/building_footprint.gd": "4dc94e5a3dabb30ef2dde0fc56ba5f57df80a1ff9d9af0d5c88fb4ade1f64faa",
+    "res://scripts/world_editor/building_motion.gd": "75a87d1eadba75ba4622a048368b91cf18f2dc02b7e9bf8791caf194b222d329",
+    "res://scripts/world_editor/building_panel.gd": "dede82faf0b84ad4f024c7016f7f4d89e146394bd9652445ea9e8c62c5bf6ba7",
+    "res://scripts/world_editor/building_region.gd": "4aef891f19ee8869e6e26103bcb17ff5dd46a97c268a6553ce4b9e90ff9110f4",
+    "res://scripts/world_editor/building_region_panel.gd": "788314b12032b0b21dc0409e7d53ec69aca4e687fa9a52a9c1b761d982f760bb",
+    "res://scripts/world_editor/building_shadow_preview.gd": "864a219f89dbd97ee2453d69eea27330ef3900a653b5f20363bbe3fcc1c44f8a",
+    "res://scripts/world_editor/building_street.gd": "21d55a5e2ac318f5a1f719108f8e57ed646e83654ed8b60cc74d641e0498013f",
+    "res://scripts/world_editor/building_street_panel.gd": "24df6d883ef39d1e98fa678e40010b8103b364ed6b6789d63ac0c6116a88a459",
+    "res://scripts/world_editor/building_tools.gd": "bd3307b81434cfbee11f5f3ed0c80f2d8ca0c9076c56c0ae9ff7e47c6af44013",
+    "res://scripts/world_editor/building_window_tools.gd": "c147cba88502e136c85f9ffb9d83c5842c3eb94c3a7003c5e1f30bcf374e34eb",
+    "res://scripts/world_editor/camera_navigation.gd": "620b2d07cddef228fe9dc7958aba31ccb7743b631b83eaa7d969d8b20d108314",
+    "res://scripts/world_editor/city_overlay.gd": "b3bd0508a359c48dbe6856e6d355e857b039b75c08fdd6f6e6217ed0d8cf578a",
+    "res://scripts/world_editor/city_panel.gd": "62b9fe2ea6aa970bfafbe57c40fd18a7472bc6b4be9c68da4e6b287fc7462fd8",
+    "res://scripts/world_editor/city_tools.gd": "fb4fa0ea3ce9711870e86d45a2ceafeb38d6f62d0c51bc5b57f30b09bf384648",
+    "res://scripts/world_editor/document_safety.gd": "09d8cf205c7490e2c076b5159b070437b1752b16209137ba3745a60ccafd89a6",
+    "res://scripts/world_editor/draft_store.gd": "6235ec5578fe3cd72c07f83fd68c275adf216a0c083b23fd02ec70f013666810",
+    "res://scripts/world_editor/environment_panel.gd": "175e75378138563bee546662b74c6f941c44e746b33a309e01bd5c771b23d628",
+    "res://scripts/world_editor/event_panel.gd": "14500c6d0134ab34b9d7b0341968b1677730633d6f4e8160d9225868b7af2e8f",
+    "res://scripts/world_editor/fortification_panel.gd": "c545e70f83c636937d7df955e51bbe3523b13b5e94b9dbfa523e6f0d3ca322d5",
+    "res://scripts/world_editor/fortification_site.gd": "75979ff99843f607a5863fe6042cc76bfb0f2fa0fae216d60b95bee39f1b0a86",
+    "res://scripts/world_editor/fortification_tools.gd": "31a75cf035ebdb396347f01688d31e4095dfa21d54ee9128ed09f46947a7262a",
+    "res://scripts/world_editor/gameplay_tools.gd": "9fdd807adaf212d8131ba44e18628b86c1fc1eecda63bdc70acb6a2e70ad604d",
+    "res://scripts/world_editor/gravity_placement.gd": "9b3d7b92c2e403f5bd3036ba9aac0de8dea4c7cf723eea5dfb2e9d314c27007f",
+    "res://scripts/world_editor/inspector.gd": "885fc384777e523f6ac6ba746b7ad67a808823775914c15387ef539c4923c591",
+    "res://scripts/world_editor/load_job.gd": "65697f6d5c3f49dc91b7f47bcb10384e56f1c2f96b7aadf3d6c603095bea9ea5",
+    "res://scripts/world_editor/load_preparation_queue.gd": "8145b24495b68218167418b6e4830e0e0b0783a8c5437494ff58c3a45729e23f",
+    "res://scripts/world_editor/material_choice.gd": "c7f7bb4158070a9b8bce067b09863f2bdea6920df877a869b3bead3d4d3dca31",
+    "res://scripts/world_editor/material_thumbnails.gd": "fa80ec3cdd441364e0c9d1d7795abfc0cbce84678c31d7801cc37f3d15aecbcd",
+    "res://scripts/world_editor/mcp_ops.gd": "0ef94f169c4a0198fec6c850e81b7f1c74168eed7de1be15db809aa4777318e6",
+    "res://scripts/world_editor/mcp_schema.gd": "cde2c90ebf944564791804cc1fa6088d0897b5a02f27e8000bfaffdf870bca50",
+    "res://scripts/world_editor/mcp_server.gd": "6fe31c9d1429f8f2fc0da8044c88c561ce90d976d7068685c48a5440aa0f458f",
+    "res://scripts/world_editor/model_component_panel.gd": "77f9754f311a136ff36ff3ae81fb6eeca81db31c2677995c0ad24b392a6c249e",
+    "res://scripts/world_editor/model_component_tools.gd": "c31f65f337a40b0581935ac61470187f82a57cf763a083a82a8a4957e0319786",
+    "res://scripts/world_editor/object_list.gd": "4affd6cbed330183e3eb61ea7ca52f2b82330771dad4f2cd4379f00502889de9",
+    "res://scripts/world_editor/object_selection.gd": "e684baea534a3e6f59c0ef80a75e6455818c5e1aea3451c9f9a00bc995f1d321",
+    "res://scripts/world_editor/pack_map_dialog.gd": "909a5cafa19e93fb37a86fdb26b6bda6049d3c6859cbe1a731d4d7a32b689ad3",
+    "res://scripts/world_editor/picking_load_preparation.gd": "372d8313c099cc1a44b5361fb1900ef0da0a6ce8945eb7d31264581f1904f4de",
+    "res://scripts/world_editor/picking_lod_policy.gd": "0be5840e0e7456602cd21e2e9b517f6956af3380486823c835c2f34730a8be29",
+    "res://scripts/world_editor/picking_shape_cache.gd": "3306103c5edc510a4155bd0611725bac391f1c23ec42217206985386f57d8fae",
+    "res://scripts/world_editor/placement_panel.gd": "06164cc00e7b3c1145cbf9bd6029d76a1d804e89258eb858121579d71445b952",
+    "res://scripts/world_editor/placement_tools.gd": "66db0312bc5f3e4e372f3b8eeaa977cc306f5938ad5d4a8eb5b1fee286da06c8",
+    "res://scripts/world_editor/playtest_session.gd": "e7c7b4663c85b9c0c9b63d8995d6301e950e4c31bc160405ee76b7fe318f5062",
+    "res://scripts/world_editor/prefab_library.gd": "9be01d5ef42d539a7209bfa72afbea748f058be87d017655f414ea9eb0c7f09e",
+    "res://scripts/world_editor/prepared_model_ownership.gd": "e33844eb14f0d8939efba3061236128fa0228856b3e3655296b1638d3702d4be",
+    "res://scripts/world_editor/recovery_panel.gd": "bf3f03562e638ebea521131bde8fd7ffbcc29984858db1f2c2afdb91327ca2f3",
+    "res://scripts/world_editor/residential_access.gd": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+    "res://scripts/world_editor/residential_placement_panel.gd": "a84e0e375fd769a72314971ff2f86e44c2f80be4eb488f3f0341fa5cc368d021",
+    "res://scripts/world_editor/residential_placement_tools.gd": "2d837cd1ca08b40a5f2eaae4774fc1de882ca502fc8db7178445e00833a68c3d",
+    "res://scripts/world_editor/residential_support.gd": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+    "res://scripts/world_editor/resource_pack_catalog.gd": "aba418ec00f3f231c3312febf8007013e0174c73787c23c657087bec782e5a73",
+    "res://scripts/world_editor/river_material_tools.gd": "c58c0080dabd955ff4c27ae8ccefc11010ae2c0ea16efce3bcda15d327e1137e",
+    "res://scripts/world_editor/road_connection_tools.gd": "ec3142244d6913fc4d067bb098091349d494aae9e2974659d94a4095d8868719",
+    "res://scripts/world_editor/road_panel.gd": "513565ff78be70be9e7ae93b4f75efa496b2211f636ab81602ae093e83760014",
+    "res://scripts/world_editor/road_tools.gd": "2105e499e12839cdf912786b81cd8bec2b4204feefa2b27646678c0a2d4f98f8",
+    "res://scripts/world_editor/rock_bank_panel.gd": "cee3617038b1dcfa6a658468c0c5c169514f3d68c0c1aa964e6fac71b01cd91f",
+    "res://scripts/world_editor/rock_bank_tools.gd": "219728e72f50358a8806455cde3ea6dbdae4806adaafd4946a4f62e513734b86",
+    "res://scripts/world_editor/save_job.gd": "0e754ee597a93e9fb7f13168da5c6c66b1927e50b54f5c87377bd4fb03ddcdb9",
+    "res://scripts/world_editor/scatter_panel.gd": "c313feddb827cd20e6fe022399c760d43bb21258f22d787d4fd46b3293b8b942",
+    "res://scripts/world_editor/scatter_tools.gd": "a914b8ffcc38bdc4fde687232b7cdc469b5a97b47e86e864e6308d5ae81f45b3",
+    "res://scripts/world_editor/selection_geometry.gd": "834298dc9f1dbfde77c9ef90083ea41111af748763a451616409a4d44b74b08d",
+    "res://scripts/world_editor/settings_form.gd": "4344948377bb931d50bfbf31e98410128c6b5e38c09d44fb2de2cd1f2955e6df",
+    "res://scripts/world_editor/surface_material_drawer.gd": "2654b11a880209afc54bc59c66a091ea6f6e6b3378b90a89f7b5c7e2a2b1cf9d",
+    "res://scripts/world_editor/surface_material_library.gd": "792a8909bee13c251c7c411fd1b50067b91ad363f11392d3403f8b8c2f50cb7b",
+    "res://scripts/world_editor/surface_paint_panel.gd": "0dccdf1e86bcece14cb16fe2eca37cdccf8f7e26b8f708c8f7fa46de46ccf455",
+    "res://scripts/world_editor/surface_paint_tool.gd": "eacb31e0d9788334cd757af0c4568be61650d5ec2e2aac39ef42f4f280f73a7a",
+    "res://scripts/world_editor/terrain_bridge_contact.gd": "8ca43403dcbe8ac01822c14e29186fecdf6be5e23868bd9c618c29ee53cd5651",
+    "res://scripts/world_editor/terrain_brush.gd": "3ddabedf339a17cd29cb9f82fcbf6c2d306b56e9335a0d93ceb3167db9ba87ce",
+    "res://scripts/world_editor/terrain_follow_tools.gd": "4e4c5edcb9e38c8e28f2740f01c5dc1d464fb606f528fde29ee1f5de7c02523f",
+    "res://scripts/world_editor/terrain_form_layout.gd": "9707c29c1e822cc37b24f580448729379949eb8c36a3c5bc3aea15122a0b586a",
+    "res://scripts/world_editor/terrain_furrow_tools.gd": "489f7b1a0fe76de99d43b2dd10a0bddd12682e856e2144989960235c600849fb",
+    "res://scripts/world_editor/terrain_layout_panel.gd": "9bf2dd48e1da2e5fdbb4689035ba74fd7797f810b62043223637add94e339049",
+    "res://scripts/world_editor/terrain_layout_tools.gd": "527057b56dd2c747de958ea09067928e2dffbb01c474d078ec169f35cb54858d",
+    "res://scripts/world_editor/terrain_load_preparation.gd": "df518ecdbaaf964bcc6438b1238c5ae84aa12e6f2db792dfe7b89cd60f5332d4",
+    "res://scripts/world_editor/terrain_panel.gd": "a4381bb8bb68c839321bd93c541eacd3f59e1cdef33672903f4cd235676bf1bb",
+    "res://scripts/world_editor/terrain_prop_contact.gd": "d9565941a23be302d1aec8eae31a87af7b2043d80ab0ff3aadd12742cc9b774b",
+    "res://scripts/world_editor/terrain_region_draw.gd": "2f5261473fd169c9c6f21b98dc0b7aa26af61818780d8d5949319efdaebe96b6",
+    "res://scripts/world_editor/terrain_region_tools.gd": "0e178f426b32919acaa683b569fd63986258f0312be8919da679ea7cd3d7fb12",
+    "res://scripts/world_editor/terrain_river_panel.gd": "4bacae9dd9cdcca46812cdadf425b172f92d393e2f163c9b57c230b4573b93a7",
+    "res://scripts/world_editor/terrain_river_tools.gd": "1f651bf03debe7fe37f8bae854daf66c23aaf7f019dee138bb3ad0b406a5ab9b",
+    "res://scripts/world_editor/terrain_texture_preparation.gd": "c981097005fc0e3ec330fc179f407e11882717d69aaaa58a72c9858ee1b6acbb",
+    "res://scripts/world_editor/terrain_tools.gd": "608f43edd30070e90b82736d5b2fcb2962a3507d504a742631cb100106c547aa",
+    "res://scripts/world_editor/terrain_volume_panel.gd": "28efce58957e664a079a6ab57ff0c58047c5e7b9e1f0add7292e0f87cb952167",
+    "res://scripts/world_editor/terrain_volume_tools.gd": "abcfa4969acda31df0e15b5b4daa8d126daabfb3a8467e5823ce08fce3f7dff3",
+    "res://scripts/world_editor/transform_drag.gd": "804323b2db63d0b4f9d4ac36ddb95162b56f3423752f2a4c4684ce4ef1bd5af0",
+    "res://scripts/world_editor/transform_gizmo.gd": "d3e1286a74634396ab1400a420b99d39d654609b64df4af697f9c51941f0f58e",
+    "res://scripts/world_editor/tree_panel.gd": "ca3752edaba7ec898995e9e9e75b564d280b455d1ab845bec7aec9e08d926852",
+    "res://scripts/world_editor/tree_tools.gd": "6df2e29453b0d4137d98cacb64bd0edd58aa6ded53b10f8c689dddac0cc1266b",
+    "res://scripts/world_editor/view_panel.gd": "1b702f533cca4b08cde2e58ed4b6dcb1a69d6183f485a0b10ee0f5b82b40bc36",
+    "res://scripts/world_editor/walk_mode.gd": "a490f34071d46a7c40f83647fb8c13d64c19dcd2ca3ef59f04762f98bc3f757c",
+    "res://scripts/world_editor/waterway_panel.gd": "d90ec74d434832b3840f138553d2e0c5f0eaa3c13d6fbc173f540cd96b7e8652",
+    "res://scripts/world_editor/waterway_tools.gd": "d44f6ec46603b84eb62843a6c88f78356138f0b0013a888a757742458f2132b0",
+    "res://scripts/world_editor/wind_panel.gd": "31f972eeb358eb9e34513dd318cf8af75ad20999202991021e36769e123b48d5",
+    "res://scripts/world_editor/wind_tools.gd": "2c9b57dbd3517fa6fdb6192202b2720585f8739c27eeed606d6fb4780b0ec191",
+    "res://scripts/world_editor/workspace.gd": "c55447510479c9c10b559cc132643b86a0fd496241116d27509e23a3c4dc0201",
+    "res://scripts/world_editor/workspace_feedback.gd": "c0086c6e4925355318e2b8865a2aec2dacc6d4dd34aca5d02de7c87c5062200b",
+    "res://scripts/world_editor/workspace_preferences.gd": "9b9c685648104d219873d45966140a20fb1cc14278d1dff36985e35b346c420a",
+    "res://scripts/world_editor/workspace_theme.gd": "5dc36dbb7086ba8abbef9649109a12689090d0f67703f47d0a1814cfb5c07301",
+    "res://scripts/world_editor/workspace_typography.gd": "f0892be2bea2a048ab92a9493c8363e913871f0166041734035e0f56bf660bf2",
+    "res://scripts/world_editor/world_editor.gd": "f107983d7623bb4bd23a6a7cfc5686b82da926646b43d70fbada7b3644ff81d1",
+    "res://tools/benchmark_road_paint.gd": "9341fe013f4b82fb63c12281bf2b24616167dcd2ed5f51be332b12e5ac4d5a6c",
+    "res://tools/benchmark_road_prepare.gd": "9cecd3fbd3ab7c03d469552b61c88bdde8ef22d3375294a9130bb59832875185",
+    "res://tools/road_prepare_fixture.gd": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea",
+    "res://tools/test_road_default_paint.gd": "2e701cc9ad58b6efd5c3508f9adf7a63709b7ec31a91d0e060c4d3384e5038ad",
+    "res://tools/test_road_prepare_differential.gd": "43072360771e6c8cdb207066cbe82638ab47a26d964bd5a8dce41e322f506966"
+  },
+  "version": 1
+}

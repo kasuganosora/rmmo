@@ -145,8 +145,10 @@ static func _root_of(parents: PackedInt32Array, at: int) -> int:
 static func _vertex_key(point: Vector3) -> String:
 	return "%d,%d,%d" % [roundi(point.x * 100000), roundi(point.y * 100000), roundi(point.z * 100000)]
 
-static func geometry(node: MeshInstance3D) -> Dictionary:
-	if node.has_meta("paint_geometry"): return node.get_meta("paint_geometry")
+static func geometry(node: MeshInstance3D, first_surface_only:bool=false) -> Dictionary:
+	if node.has_meta("paint_geometry"):
+		var cached:Dictionary=node.get_meta("paint_geometry")
+		return {"ok":true,"surfaces":cached.surfaces.slice(0,1)} if first_surface_only else cached
 	var mesh := source(node)
 	if mesh == null or (mesh is ArrayMesh and mesh.get_blend_shape_count() > 0) or node.skin != null: return fail("蒙皮或变形模型暂不支持表面绘制")
 	if mesh.get_surface_count() > 128: return fail("模型材质槽超过 128 个")
@@ -163,6 +165,10 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 			for index in vertices.size(): indices.append(index)
 		var count := indices.size() / 3
 		if count > MAX_TRIANGLES or count < 1: return fail("单个材质槽需包含 1–50000 个三角面")
+		# Default road paint only uses the pavement slot. Still validate every
+		# slot above: an oversized kerb or unsupported channel must reject just
+		# as before, even though its face grouping/signature will not be used.
+		if first_surface_only and slot>0:continue
 		var parents := PackedInt32Array()
 		var normals := PackedVector3Array()
 		var origins := PackedVector3Array()
@@ -199,7 +205,8 @@ static func geometry(node: MeshInstance3D) -> Dictionary:
 		var signature := "box-v1" if mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size != Vector3.ZERO) else hasher.finish().hex_encode()
 		surfaces.append({"arrays": arrays, "indices": indices, "face_for_triangle": parents, "faces": faces, "signature": signature})
 	var result := {"ok": true, "surfaces": surfaces}
-	node.set_meta("paint_geometry", result)
+	# A partial result must never hide faces from later manual painting.
+	if not first_surface_only:node.set_meta("paint_geometry", result)
 	return result
 
 static func texture(material: Dictionary, field: String = "texture_path",path_checks:Variant=null) -> Texture2D:

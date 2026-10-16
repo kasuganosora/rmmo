@@ -1,0 +1,22 @@
+{
+  "commit": "d2cd0699b0e1a4f11ac66aaf88c85c5ba9ae6840",
+  "files": {
+    "road_tools_ref.gd": {
+      "source": "scripts/world_editor/road_tools.gd",
+      "sha256": "b1b169a32b060479b41f296f157c09d0318c0fbc1eb699216b68159a38fb3130"
+    },
+    "road_surface_ref.gd": {
+      "source": "scripts/world3d/road_surface.gd",
+      "sha256": "1a180bbd5c8ed09cdd434d23412e42bea2fe81ad2d618a07ae9065efc181e176"
+    },
+    "surface_materials_ref.gd": {
+      "source": "scripts/world3d/surface_materials.gd",
+      "sha256": "fc3aeff3ed221c2813b6853938180c60d4e05c4f1d72e83894b2417122049b01"
+    }
+  },
+  "adapter": {
+    "path": "road_tools_chain_ref.gd",
+    "sha256": "96b5ff93d77ea323fe70003aa4399d1bb37810f2951ea66e0dcc1eefb55cc5a9",
+    "only_changes": "Two preload redirects: road_surface and surface_materials. All other helpers shared and captured per run."
+  }
+}

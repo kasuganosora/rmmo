@@ -1,0 +1,1870 @@
+{
+  "checks": [
+    {
+      "details": {},
+      "label": "junction_kerbs exact instrumented result 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs unchanged inputs 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs exact instrumented result 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs unchanged inputs 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs exact instrumented result 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "junction_kerbs unchanged inputs 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local exact instrumented result 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local unchanged inputs 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local exact instrumented result 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local unchanged inputs 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local exact instrumented result 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_local unchanged inputs 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex exact instrumented result 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex unchanged inputs 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex exact instrumented result 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex unchanged inputs 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex exact instrumented result 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "terrain64_far_complex unchanged inputs 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge exact instrumented result 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge unchanged inputs 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge exact instrumented result 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge unchanged inputs 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge exact instrumented result 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "waterway_bound_bridge unchanged inputs 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches exact instrumented result 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches unchanged inputs 0",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches exact instrumented result 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches unchanged inputs 1",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches exact instrumented result 2",
+      "ok": true
+    },
+    {
+      "details": {},
+      "label": "frozen_stone_bridge_approaches unchanged inputs 2",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "fixtures": [
+    {
+      "input_sha256": "0de1a183a67aa53f4a88aeae74991f4c9a4135d386a8b03fd81558b4edf56c54",
+      "name": "junction_kerbs",
+      "result_sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "rounds": [
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.024,
+              "faces": 2,
+              "geometry_ms": 3.517,
+              "mesh_ms": 2.167,
+              "missing_ms": 0.021,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.105
+            },
+            {
+              "entries_ms": 0.022,
+              "faces": 2,
+              "geometry_ms": 4.723,
+              "mesh_ms": 2.522,
+              "missing_ms": 0.02,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.129
+            },
+            {
+              "entries_ms": 0.019,
+              "faces": 2,
+              "geometry_ms": 2.714,
+              "mesh_ms": 1.862,
+              "missing_ms": 0.019,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.099
+            },
+            {
+              "entries_ms": 0.019,
+              "faces": 2,
+              "geometry_ms": 2.785,
+              "mesh_ms": 1.998,
+              "missing_ms": 0.019,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.098
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.084,
+            "geometry_ms": 13.739,
+            "mesh_ms": 8.549,
+            "missing_ms": 0.079,
+            "valid_ms": 0.431
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.03,
+            "collision": 0.845,
+            "finalize": 0.114,
+            "intersection_split": 1.376,
+            "material_lookup": 0.682,
+            "obstacle_shapes": 0.059,
+            "record_preservation": 29.834,
+            "road_build": 17.149,
+            "source_validation": 0.077,
+            "terrain_fit": 0.007
+          },
+          "total_ms": 50.177
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.022,
+              "faces": 2,
+              "geometry_ms": 3.482,
+              "mesh_ms": 2.218,
+              "missing_ms": 0.03,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.11
+            },
+            {
+              "entries_ms": 0.029,
+              "faces": 2,
+              "geometry_ms": 5.562,
+              "mesh_ms": 3.318,
+              "missing_ms": 0.026,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.14
+            },
+            {
+              "entries_ms": 0.02,
+              "faces": 2,
+              "geometry_ms": 4.4,
+              "mesh_ms": 3.117,
+              "missing_ms": 0.022,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.115
+            },
+            {
+              "entries_ms": 0.02,
+              "faces": 2,
+              "geometry_ms": 3.892,
+              "mesh_ms": 2.687,
+              "missing_ms": 0.022,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.113
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.091,
+            "geometry_ms": 17.336,
+            "mesh_ms": 11.34,
+            "missing_ms": 0.1,
+            "valid_ms": 0.478
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.021,
+            "collision": 1.336,
+            "finalize": 0.133,
+            "intersection_split": 0.898,
+            "material_lookup": 1.09,
+            "obstacle_shapes": 0.062,
+            "record_preservation": 40.566,
+            "road_build": 11.201,
+            "source_validation": 0.088,
+            "terrain_fit": 0.013
+          },
+          "total_ms": 55.413
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.017,
+              "faces": 2,
+              "geometry_ms": 2.959,
+              "mesh_ms": 1.813,
+              "missing_ms": 0.018,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.092
+            },
+            {
+              "entries_ms": 0.018,
+              "faces": 2,
+              "geometry_ms": 2.829,
+              "mesh_ms": 2.239,
+              "missing_ms": 0.018,
+              "polygons": 5,
+              "surface_triangles": [
+                17,
+                17,
+                54,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.09
+            },
+            {
+              "entries_ms": 0.014,
+              "faces": 2,
+              "geometry_ms": 2.684,
+              "mesh_ms": 1.646,
+              "missing_ms": 0.017,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.082
+            },
+            {
+              "entries_ms": 0.013,
+              "faces": 2,
+              "geometry_ms": 3.094,
+              "mesh_ms": 1.583,
+              "missing_ms": 0.02,
+              "polygons": 4,
+              "surface_triangles": [
+                16,
+                16,
+                48,
+                168
+              ],
+              "surfaces": 4,
+              "valid_ms": 0.125
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.062,
+            "geometry_ms": 11.566,
+            "mesh_ms": 7.281,
+            "missing_ms": 0.073,
+            "valid_ms": 0.389
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.014,
+            "collision": 1.318,
+            "finalize": 0.121,
+            "intersection_split": 0.672,
+            "material_lookup": 0.649,
+            "obstacle_shapes": 0.054,
+            "record_preservation": 25.667,
+            "road_build": 11.58,
+            "source_validation": 0.058,
+            "terrain_fit": 0.005
+          },
+          "total_ms": 40.143
+        }
+      ]
+    },
+    {
+      "input_sha256": "91e7cf6fd971a988e4778254e8a8d67c197b2e1cf87c44d0afa53b27223f1136",
+      "name": "terrain64_local",
+      "result_sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "rounds": [
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.014,
+              "faces": 1,
+              "geometry_ms": 7.306,
+              "mesh_ms": 3.356,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            },
+            {
+              "entries_ms": 0.023,
+              "faces": 1,
+              "geometry_ms": 26.278,
+              "mesh_ms": 3.62,
+              "missing_ms": 0.025,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.109
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.494,
+              "mesh_ms": 5.411,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.073
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.785,
+              "mesh_ms": 3.487,
+              "missing_ms": 0.016,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.076
+            },
+            {
+              "entries_ms": 0.014,
+              "faces": 1,
+              "geometry_ms": 8.921,
+              "mesh_ms": 3.498,
+              "missing_ms": 0.017,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.076
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 7.452,
+              "mesh_ms": 3.245,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.081
+            },
+            {
+              "entries_ms": 0.013,
+              "faces": 1,
+              "geometry_ms": 8.258,
+              "mesh_ms": 3.638,
+              "missing_ms": 0.015,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.07
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.499,
+              "mesh_ms": 3.884,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.126,
+            "geometry_ms": 81.993,
+            "mesh_ms": 30.139,
+            "missing_ms": 0.143,
+            "valid_ms": 0.636
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.011,
+            "collision": 6.455,
+            "finalize": 0.908,
+            "intersection_split": 0.002,
+            "material_lookup": 0.389,
+            "obstacle_shapes": 0.061,
+            "record_preservation": 130.53,
+            "road_build": 1.59,
+            "source_validation": 0.041,
+            "terrain_fit": 164.924
+          },
+          "total_ms": 304.915
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.014,
+              "faces": 1,
+              "geometry_ms": 7.552,
+              "mesh_ms": 3.333,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.622,
+              "mesh_ms": 3.958,
+              "missing_ms": 0.017,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.078
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 7.344,
+              "mesh_ms": 3.734,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.079
+            },
+            {
+              "entries_ms": 0.021,
+              "faces": 1,
+              "geometry_ms": 18.345,
+              "mesh_ms": 3.932,
+              "missing_ms": 0.024,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.107
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 9.284,
+              "mesh_ms": 4.059,
+              "missing_ms": 0.018,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.081
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 7.785,
+              "mesh_ms": 3.681,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.082
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 8.138,
+              "mesh_ms": 3.581,
+              "missing_ms": 0.016,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.065,
+              "mesh_ms": 3.276,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.075
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.132,
+            "geometry_ms": 74.135,
+            "mesh_ms": 29.554,
+            "missing_ms": 0.144,
+            "valid_ms": 0.653
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.011,
+            "collision": 6.367,
+            "finalize": 1.047,
+            "intersection_split": 0.004,
+            "material_lookup": 0.388,
+            "obstacle_shapes": 0.062,
+            "record_preservation": 123.074,
+            "road_build": 1.538,
+            "source_validation": 0.045,
+            "terrain_fit": 132.51
+          },
+          "total_ms": 265.052
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.439,
+              "mesh_ms": 3.259,
+              "missing_ms": 0.025,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.019,
+              "faces": 1,
+              "geometry_ms": 9.811,
+              "mesh_ms": 3.664,
+              "missing_ms": 0.016,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.084
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 7.213,
+              "mesh_ms": 3.495,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.242,
+              "mesh_ms": 3.805,
+              "missing_ms": 0.016,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.32,
+              "mesh_ms": 3.806,
+              "missing_ms": 0.016,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            },
+            {
+              "entries_ms": 0.018,
+              "faces": 1,
+              "geometry_ms": 8.029,
+              "mesh_ms": 3.35,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.081
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.664,
+              "mesh_ms": 3.704,
+              "missing_ms": 0.018,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.076
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 7.175,
+              "mesh_ms": 3.256,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.079
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.133,
+            "geometry_ms": 64.893,
+            "mesh_ms": 28.339,
+            "missing_ms": 0.143,
+            "valid_ms": 0.631
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.012,
+            "collision": 6.103,
+            "finalize": 0.921,
+            "intersection_split": 0.003,
+            "material_lookup": 0.412,
+            "obstacle_shapes": 0.069,
+            "record_preservation": 112.167,
+            "road_build": 1.559,
+            "source_validation": 0.057,
+            "terrain_fit": 135.193
+          },
+          "total_ms": 256.502
+        }
+      ]
+    },
+    {
+      "input_sha256": "696e3fc19cb7865d158415ca1ba14a3da90b17297d03873f23a77fdc7a641354",
+      "name": "terrain64_far_complex",
+      "result_sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "rounds": [
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 7.345,
+              "mesh_ms": 3.674,
+              "missing_ms": 0.018,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.073
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.425,
+              "mesh_ms": 3.887,
+              "missing_ms": 0.017,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.071
+            },
+            {
+              "entries_ms": 0.013,
+              "faces": 1,
+              "geometry_ms": 7.156,
+              "mesh_ms": 3.213,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.07
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 8.026,
+              "mesh_ms": 3.494,
+              "missing_ms": 0.017,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 8.262,
+              "mesh_ms": 3.538,
+              "missing_ms": 0.018,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.073
+            },
+            {
+              "entries_ms": 0.019,
+              "faces": 1,
+              "geometry_ms": 7.495,
+              "mesh_ms": 3.231,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.224,
+              "mesh_ms": 3.829,
+              "missing_ms": 0.017,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            },
+            {
+              "entries_ms": 0.014,
+              "faces": 1,
+              "geometry_ms": 7.046,
+              "mesh_ms": 3.26,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.073
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.125,
+            "geometry_ms": 61.979,
+            "mesh_ms": 28.126,
+            "missing_ms": 0.136,
+            "valid_ms": 0.588
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.011,
+            "collision": 10.797,
+            "finalize": 22.037,
+            "intersection_split": 0.005,
+            "material_lookup": 0.412,
+            "obstacle_shapes": 14.372,
+            "record_preservation": 110.47,
+            "road_build": 1.533,
+            "source_validation": 0.053,
+            "terrain_fit": 128.195
+          },
+          "total_ms": 287.898
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 10.248,
+              "mesh_ms": 3.843,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.082
+            },
+            {
+              "entries_ms": 0.018,
+              "faces": 1,
+              "geometry_ms": 9.358,
+              "mesh_ms": 3.819,
+              "missing_ms": 0.019,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.092
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.194,
+              "mesh_ms": 4.354,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.075
+            },
+            {
+              "entries_ms": 0.019,
+              "faces": 1,
+              "geometry_ms": 8.448,
+              "mesh_ms": 3.667,
+              "missing_ms": 0.016,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.081
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 9.589,
+              "mesh_ms": 3.557,
+              "missing_ms": 0.019,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.087
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.067,
+              "mesh_ms": 4.433,
+              "missing_ms": 0.017,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.38,
+              "mesh_ms": 3.669,
+              "missing_ms": 0.017,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 7.252,
+              "mesh_ms": 3.22,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.075
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.136,
+            "geometry_ms": 68.536,
+            "mesh_ms": 30.562,
+            "missing_ms": 0.136,
+            "valid_ms": 0.652
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.013,
+            "collision": 39.835,
+            "finalize": 25.173,
+            "intersection_split": 0.003,
+            "material_lookup": 0.431,
+            "obstacle_shapes": 14.188,
+            "record_preservation": 121.102,
+            "road_build": 1.556,
+            "source_validation": 0.057,
+            "terrain_fit": 153.044
+          },
+          "total_ms": 355.416
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.029,
+              "faces": 1,
+              "geometry_ms": 7.264,
+              "mesh_ms": 3.354,
+              "missing_ms": 0.029,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.117
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.49,
+              "mesh_ms": 3.831,
+              "missing_ms": 0.018,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 7.5,
+              "mesh_ms": 3.243,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            },
+            {
+              "entries_ms": 0.017,
+              "faces": 1,
+              "geometry_ms": 8.163,
+              "mesh_ms": 3.653,
+              "missing_ms": 0.018,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.077
+            },
+            {
+              "entries_ms": 0.016,
+              "faces": 1,
+              "geometry_ms": 8.345,
+              "mesh_ms": 3.642,
+              "missing_ms": 0.018,
+              "polygons": 84,
+              "surface_triangles": [
+                111,
+                111,
+                558
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.076
+            },
+            {
+              "entries_ms": 0.012,
+              "faces": 1,
+              "geometry_ms": 7.271,
+              "mesh_ms": 3.192,
+              "missing_ms": 0.015,
+              "polygons": 78,
+              "surface_triangles": [
+                94,
+                94,
+                500
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.072
+            },
+            {
+              "entries_ms": 0.015,
+              "faces": 1,
+              "geometry_ms": 8.205,
+              "mesh_ms": 3.812,
+              "missing_ms": 0.017,
+              "polygons": 85,
+              "surface_triangles": [
+                113,
+                113,
+                566
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.076
+            },
+            {
+              "entries_ms": 0.014,
+              "faces": 1,
+              "geometry_ms": 7.07,
+              "mesh_ms": 3.176,
+              "missing_ms": 0.016,
+              "polygons": 78,
+              "surface_triangles": [
+                92,
+                92,
+                496
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.074
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.135,
+            "geometry_ms": 62.308,
+            "mesh_ms": 27.903,
+            "missing_ms": 0.147,
+            "valid_ms": 0.646
+          },
+          "stages_ms": {
+            "bridge_bindings": 0.016,
+            "collision": 10.819,
+            "finalize": 20.638,
+            "intersection_split": 0.005,
+            "material_lookup": 0.41,
+            "obstacle_shapes": 14.069,
+            "record_preservation": 110.312,
+            "road_build": 3.564,
+            "source_validation": 0.092,
+            "terrain_fit": 153.568
+          },
+          "total_ms": 313.505
+        }
+      ]
+    },
+    {
+      "input_sha256": "0e6ff765d0529e12f78df2832c2b04c1955fa8a87c501ee2f5d535a11164fdd7",
+      "name": "waterway_bound_bridge",
+      "result_sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "rounds": [
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.01,
+              "faces": 1,
+              "geometry_ms": 0.398,
+              "mesh_ms": 0.899,
+              "missing_ms": 0.015,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.068
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.363,
+              "mesh_ms": 0.791,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.047
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.329,
+              "mesh_ms": 0.692,
+              "missing_ms": 0.01,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.043
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.322,
+              "mesh_ms": 0.68,
+              "missing_ms": 0.01,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.043
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.386,
+              "mesh_ms": 0.703,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.364,
+              "mesh_ms": 0.706,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.028,
+              "faces": 1,
+              "geometry_ms": 1.448,
+              "mesh_ms": 1.408,
+              "missing_ms": 0.042,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.181
+            },
+            {
+              "entries_ms": 0.027,
+              "faces": 1,
+              "geometry_ms": 1.4,
+              "mesh_ms": 2.896,
+              "missing_ms": 0.04,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.176
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.102,
+            "geometry_ms": 5.01,
+            "mesh_ms": 8.775,
+            "missing_ms": 0.15,
+            "valid_ms": 0.646
+          },
+          "stages_ms": {
+            "bridge_bindings": 2.805,
+            "collision": 3.706,
+            "finalize": 3.007,
+            "intersection_split": 0.004,
+            "material_lookup": 0.362,
+            "obstacle_shapes": 4.877,
+            "record_preservation": 17.178,
+            "road_build": 2.178,
+            "source_validation": 0.11,
+            "terrain_fit": 0.003
+          },
+          "total_ms": 34.237
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.012,
+              "faces": 1,
+              "geometry_ms": 0.532,
+              "mesh_ms": 1.116,
+              "missing_ms": 0.018,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.08
+            },
+            {
+              "entries_ms": 0.012,
+              "faces": 1,
+              "geometry_ms": 0.692,
+              "mesh_ms": 1.125,
+              "missing_ms": 0.018,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.081
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.343,
+              "mesh_ms": 0.751,
+              "missing_ms": 0.012,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.055
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.326,
+              "mesh_ms": 0.703,
+              "missing_ms": 0.012,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.048
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.374,
+              "mesh_ms": 0.716,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.046
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.364,
+              "mesh_ms": 0.71,
+              "missing_ms": 0.01,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.323,
+              "mesh_ms": 0.681,
+              "missing_ms": 0.011,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.008,
+              "faces": 1,
+              "geometry_ms": 0.316,
+              "mesh_ms": 0.678,
+              "missing_ms": 0.011,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.07,
+            "geometry_ms": 3.27,
+            "mesh_ms": 6.48,
+            "missing_ms": 0.103,
+            "valid_ms": 0.442
+          },
+          "stages_ms": {
+            "bridge_bindings": 4.49,
+            "collision": 1.022,
+            "finalize": 1.243,
+            "intersection_split": 0.006,
+            "material_lookup": 0.429,
+            "obstacle_shapes": 1.065,
+            "record_preservation": 11.982,
+            "road_build": 2.88,
+            "source_validation": 0.297,
+            "terrain_fit": 0.003
+          },
+          "total_ms": 23.422
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.009,
+              "faces": 1,
+              "geometry_ms": 0.444,
+              "mesh_ms": 0.902,
+              "missing_ms": 0.014,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.067
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.36,
+              "mesh_ms": 0.758,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.046
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.331,
+              "mesh_ms": 0.698,
+              "missing_ms": 0.01,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.322,
+              "mesh_ms": 0.682,
+              "missing_ms": 0.01,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.372,
+              "mesh_ms": 0.706,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.045
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.363,
+              "mesh_ms": 0.701,
+              "missing_ms": 0.011,
+              "polygons": 2,
+              "surface_triangles": [
+                5,
+                5,
+                18
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.045
+            },
+            {
+              "entries_ms": 0.007,
+              "faces": 1,
+              "geometry_ms": 0.323,
+              "mesh_ms": 0.682,
+              "missing_ms": 0.011,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.044
+            },
+            {
+              "entries_ms": 0.011,
+              "faces": 1,
+              "geometry_ms": 0.439,
+              "mesh_ms": 0.676,
+              "missing_ms": 0.011,
+              "polygons": 1,
+              "surface_triangles": [
+                5,
+                5,
+                14
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.059
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.062,
+            "geometry_ms": 2.954,
+            "mesh_ms": 5.805,
+            "missing_ms": 0.089,
+            "valid_ms": 0.394
+          },
+          "stages_ms": {
+            "bridge_bindings": 2.786,
+            "collision": 1.019,
+            "finalize": 1.245,
+            "intersection_split": 0.003,
+            "material_lookup": 0.366,
+            "obstacle_shapes": 1.094,
+            "record_preservation": 10.793,
+            "road_build": 2.273,
+            "source_validation": 0.12,
+            "terrain_fit": 0.003
+          },
+          "total_ms": 19.705
+        }
+      ]
+    },
+    {
+      "input_sha256": "bb8b582eccbe17ec08a5a6a357269548e469c4a6b20f4739aea7197c03a5c81c",
+      "name": "frozen_stone_bridge_approaches",
+      "result_sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "rounds": [
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.016,
+              "faces": 2,
+              "geometry_ms": 2.749,
+              "mesh_ms": 1.706,
+              "missing_ms": 0.017,
+              "polygons": 24,
+              "surface_triangles": [
+                40,
+                40,
+                176
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.092
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.016,
+            "geometry_ms": 2.749,
+            "mesh_ms": 1.706,
+            "missing_ms": 0.017,
+            "valid_ms": 0.092
+          },
+          "stages_ms": {
+            "bridge_bindings": 9.264,
+            "collision": 17.098,
+            "finalize": 9.841,
+            "intersection_split": 0.005,
+            "material_lookup": 0.357,
+            "obstacle_shapes": 0.081,
+            "record_preservation": 5.546,
+            "road_build": 1.451,
+            "source_validation": 0.053,
+            "terrain_fit": 3.789
+          },
+          "total_ms": 47.503
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.018,
+              "faces": 2,
+              "geometry_ms": 2.874,
+              "mesh_ms": 1.756,
+              "missing_ms": 0.018,
+              "polygons": 24,
+              "surface_triangles": [
+                40,
+                40,
+                176
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.098
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.018,
+            "geometry_ms": 2.874,
+            "mesh_ms": 1.756,
+            "missing_ms": 0.018,
+            "valid_ms": 0.098
+          },
+          "stages_ms": {
+            "bridge_bindings": 9.03,
+            "collision": 17.003,
+            "finalize": 9.4,
+            "intersection_split": 0.005,
+            "material_lookup": 0.372,
+            "obstacle_shapes": 0.088,
+            "record_preservation": 5.804,
+            "road_build": 1.444,
+            "source_validation": 0.085,
+            "terrain_fit": 3.791
+          },
+          "total_ms": 47.047
+        },
+        {
+          "paint_samples": [
+            {
+              "entries_ms": 0.025,
+              "faces": 2,
+              "geometry_ms": 2.875,
+              "mesh_ms": 1.758,
+              "missing_ms": 0.018,
+              "polygons": 24,
+              "surface_triangles": [
+                40,
+                40,
+                176
+              ],
+              "surfaces": 3,
+              "valid_ms": 0.128
+            }
+          ],
+          "paint_totals_ms": {
+            "entries_ms": 0.025,
+            "geometry_ms": 2.875,
+            "mesh_ms": 1.758,
+            "missing_ms": 0.018,
+            "valid_ms": 0.128
+          },
+          "stages_ms": {
+            "bridge_bindings": 9.258,
+            "collision": 32.068,
+            "finalize": 11.207,
+            "intersection_split": 0.003,
+            "material_lookup": 0.362,
+            "obstacle_shapes": 0.094,
+            "record_preservation": 5.942,
+            "road_build": 1.454,
+            "source_validation": 0.057,
+            "terrain_fit": 3.79
+          },
+          "total_ms": 64.258
+        }
+      ]
+    }
+  ],
+  "method": "Diagnostic breakdown of exact baseline paint_default; warm prepare three times, all substage markers ON. No OFF or end-to-end speed claim."
+}

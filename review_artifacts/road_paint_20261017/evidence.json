@@ -1,0 +1,338 @@
+{
+  "version": 1,
+  "captured_utc": "2026-10-16T20:15:32.900462+00:00",
+  "merged_main_commit": "d2cd0699b0e1a4f11ac66aaf88c85c5ba9ae6840",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "scope": "Default road painting CPU mesh and first-slot face grouping. All slots still validated; full manual geometry cache never receives partial results. Frozen references match the newly merged main commit.",
+  "isolation": "All checkout changes stay in this worktree. CPU timed pairs completed before GPU regression jobs. GPU runs use run_godot_background.py on private never-activated desktops; all map/pack writes are unique test fixtures, not the scene-building map. Other sessions and system load unmanaged.",
+  "delivery": "Separate local optimization commit after merging latest origin/main; no new push or main publication in this batch.",
+  "tested_sources": {
+    "scripts/world_editor/road_tools.gd": {
+      "sha256": "2105e499e12839cdf912786b81cd8bec2b4204feefa2b27646678c0a2d4f98f8",
+      "lf_sha256": "dbb6e62fa8b4c2eff3a0b3022c7d0b4e0851ff2b2efd403d46f86ee960ca0041"
+    },
+    "scripts/world3d/surface_materials.gd": {
+      "sha256": "b94a2cdea948649ab844516ac001438d6fc842181c6642e056773cf06e265310",
+      "lf_sha256": "1e3b59298aff027392b1e225301b09c10a7d97bb12a48c97573166adb9eb3b91"
+    },
+    "scripts/world3d/road_surface.gd": {
+      "sha256": "1a180bbd5c8ed09cdd434d23412e42bea2fe81ad2d618a07ae9065efc181e176",
+      "lf_sha256": "27e30e25beda3d3bc37fb6c8a4c7238fa533044684b7ad9ad7870d6a621a8692"
+    },
+    "scripts/world3d/ground_cpu_mesh.gd": {
+      "sha256": "dd89078f4895dbc5c5ddcc86fafb905ee2a5cd39fee653ea3cc5e6569ee5903a",
+      "lf_sha256": "4327675536a7645ae40cd4047cc3c0d61dcf3bfa3c141a8bbc2049c54ea2719f"
+    },
+    "scripts/world_editor/terrain_follow_tools.gd": {
+      "sha256": "4e4c5edcb9e38c8e28f2740f01c5dc1d464fb606f528fde29ee1f5de7c02523f",
+      "lf_sha256": "97c9844c88f04300e82bf4cc845200f5cdf3fe8203633ae4c5a01059ea5ebecf"
+    },
+    "scripts/world3d/frozen_road_contact.gd": {
+      "sha256": "9cf6aa54f8041c969bf7c3d0da050485da8d4a15f90502194aaf13dfa0d368a4",
+      "lf_sha256": "e611ec6f20c5bb97df1f27bc13401bf112159bc4a26cbd57e2ba851d21c45bf0"
+    },
+    "scripts/world3d/asset_road_contact.gd": {
+      "sha256": "fbb93f94665fb0b226ce35ff98b8babdc01e2308ff3003fe5712c015522dac1f",
+      "lf_sha256": "ab2858c66b35d54a2a9743b160d74e2821851b1a8e690cc3f7a9bbc7d7538b7f"
+    },
+    "tools/test_road_default_paint.gd": {
+      "sha256": "cf79f94b3c8be305b3afd94a3f0c3119e091a96aa2bea6019e0b4d117ef8c363",
+      "lf_sha256": "cf79f94b3c8be305b3afd94a3f0c3119e091a96aa2bea6019e0b4d117ef8c363",
+      "measured_sha256": "2e701cc9ad58b6efd5c3508f9adf7a63709b7ec31a91d0e060c4d3384e5038ad"
+    },
+    "tools/benchmark_road_paint.gd": {
+      "sha256": "9341fe013f4b82fb63c12281bf2b24616167dcd2ed5f51be332b12e5ac4d5a6c",
+      "lf_sha256": "9341fe013f4b82fb63c12281bf2b24616167dcd2ed5f51be332b12e5ac4d5a6c"
+    },
+    "tools/road_prepare_fixture.gd": {
+      "sha256": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea",
+      "lf_sha256": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea"
+    },
+    "tools/test_road_prepare_differential.gd": {
+      "sha256": "43072360771e6c8cdb207066cbe82638ab47a26d964bd5a8dce41e322f506966",
+      "lf_sha256": "43072360771e6c8cdb207066cbe82638ab47a26d964bd5a8dce41e322f506966"
+    },
+    "tools/test_road_prepare_district_http.gd": {
+      "sha256": "5773628ac027c1ad6aa47623b78adcbf2d2412a42c93636cd3df25b1994a1c63",
+      "lf_sha256": "5773628ac027c1ad6aa47623b78adcbf2d2412a42c93636cd3df25b1994a1c63"
+    },
+    "tools/test_residential_placement_http.gd": {
+      "sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "lf_sha256": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    },
+    "tools/test_adaptive_terrain_roads.gd": {
+      "sha256": "5feb16f66df8ce08f8a76d1900e22972e50bc50ebd2ccf562b316eeb417a09dc",
+      "lf_sha256": "74500e453b845755b9b9ae8e33ee62686f3fd6c824af639af1bce22b9fab282d"
+    },
+    "tools/test_terrain_follow_paint_http.gd": {
+      "sha256": "0c79206b894768a0faed2a39ad396e73d82a5bf7923776aa718b926c388a2cef",
+      "lf_sha256": "181e9116f3944daf9dcf2cf8db5d23369ece4e16630237b159dc04c44742efb7"
+    },
+    "tools/test_surface_uv_batch.gd": {
+      "sha256": "4b87b3b06d19478cc193dbbe08bb36e689c865b1778f1923f8fc8dc0b7b8606c",
+      "lf_sha256": "5573698967a9495a6331f1159a96c25b6588cefab29a470555ee8aa859f031ae"
+    },
+    "tools/run_godot_background.py": {
+      "sha256": "d9add9a15d8729b0221054b2c20189b9c69e230526d04166ea9ecc2d87a0ad2e",
+      "lf_sha256": "b182b46ff6d8b1b1facedbc7ffda813ab74a1b83075667a01cadf6d9bbe9c3d6"
+    }
+  },
+  "gpu_executable": {
+    "path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424"
+  },
+  "test_results": {
+    "profile.json": {
+      "checks": 30,
+      "failures": 0,
+      "sha256": "547d9b6786c053df2d0e30421aee4842ed5f60275254ec27544a54ec1109fc7a"
+    },
+    "paired/result.json": {
+      "checks": 580,
+      "failures": 0,
+      "sha256": "9b0fcda60f74fdc98b0013bcef4969c1764f0d4185b443a647e5a2527d61395e"
+    },
+    "differential.json": {
+      "checks": 376,
+      "failures": 0,
+      "sha256": "5d5e4112bd533f6ea0ce0527ec4037433230a1e01b283c84bcede7ba535a2f2d"
+    },
+    "district_http.json": {
+      "checks": 113,
+      "failures": 0,
+      "sha256": "28adabe4ad7289a9c6f3e672554544d9a82d81c870ef1e08f4da9cfc3935e7a1"
+    },
+    "residential_http.json": {
+      "checks": 127,
+      "failures": 0,
+      "sha256": "6a03c8ec7a9e81920ba6769c96d2af89b1e0ca2be297ff8fab0288b153d51788"
+    },
+    "surface_uv_batch.log": {
+      "checks": 6,
+      "failures": 0,
+      "sha256": "69f7dab90949f3196dc295a6b6f8a024f4dbb6d35a6a59108ba156effe5e688e"
+    },
+    "adaptive_textured.log": {
+      "checks": 70,
+      "failures": 0,
+      "sha256": "fd8ad083fe92eb1840d64fb19fec8bf474e35fab36993f4e1aaf80480c464e8c"
+    },
+    "terrain_follow_paint.log": {
+      "checks": 33,
+      "failures": 0,
+      "sha256": "0be24798e9fb2a9466b98739ca200bae1ae4152f3c1999a4a07f9a6fed0ef2da"
+    }
+  },
+  "external_dependencies": {
+    "D:/code/rmmo_runtime/packs/default/assets/bridges/medieval_stone/stone_segmental.glb": "308b971639dabd7e9abe2c13d8a4d46dd2067607bead8b8efabf58a1b2f84ffb",
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/ao.png": "23347b9345e4f90249ad0795ff78d7675f70a6c2a7e029968b0a8b4f128b1d8c",
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/normal.png": "3093bb5505b0a4a93d3522565c741c63ff261840e49036120a976ffc379f402b",
+    "D:/code/rmmo_runtime/packs/default/assets/materials/paving/outdoor_flagstone/texture.jpg": "4b65c89db97fb16eb06bb8727c25766dbee39acbc5b7bbba7720cf34d99fe442"
+  },
+  "saved_maps": {
+    "district_http.json": {
+      "path": "D:\\code\\rmmo_runtime\\__road_prepare_district_4528_13255905\\maps\\test\\map.gltf",
+      "sha256": "155ec80ed97596359ad90875dea45fc64e0ae06a2cf81b3bd2ecc19b33fd045b",
+      "author_snapshot": "saved_maps/district_http/map.gltf"
+    },
+    "residential_http.json": {
+      "path": "D:\\code\\rmmo_runtime\\__residential_placement_19432_12065120\\maps\\test\\map.gltf",
+      "sha256": "dc6a80bbb644b0674a403ac7de70d203b12a8d4aeff1723665377445543e5869",
+      "author_snapshot": "saved_maps/residential_http/map.gltf"
+    },
+    "adaptive_textured.log": {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\adaptive_terrain_roads_15065119\\map.gltf",
+      "sha256": "485169b9233db7ce3f5f49b03e5263f41a853b35119ffe82a17aa2b944508609",
+      "author_snapshot": "saved_maps/adaptive_textured/map.gltf"
+    },
+    "terrain_follow_paint.log": {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\terrain_follow_paint_12311018\\map.gltf",
+      "sha256": "8b24d376b4206620595c384c93d76f710f15fdcbc2a6e932d9e40abce87d3354",
+      "author_snapshot": "saved_maps/terrain_follow_paint/map.gltf"
+    }
+  },
+  "map_scope": "Author snapshots, not portable pack exports. Referenced resources remain in the runtime content root.",
+  "iterations": {
+    "differential_initial.json": "370/0 with same production code; harness then extended with reference-file hashes, explicit allowed 128-face boundary and complete --case selection. Initial harness archived.",
+    "profile.json": "Pre-change baseline-only diagnostic, exact complete result parity against uninstrumented baseline; no performance claim based on probe cost."
+  },
+  "artifacts": {
+    "adaptive_textured.log": {
+      "sha256": "fd8ad083fe92eb1840d64fb19fec8bf474e35fab36993f4e1aaf80480c464e8c",
+      "bytes": 4616
+    },
+    "differential.json": {
+      "sha256": "5d5e4112bd533f6ea0ce0527ec4037433230a1e01b283c84bcede7ba535a2f2d",
+      "bytes": 114593
+    },
+    "differential.log": {
+      "sha256": "81ce9e0026c182e4022464ad974166c11991513254b481f5bc0775aba032c454",
+      "bytes": 22219
+    },
+    "differential_initial.json": {
+      "sha256": "7040919826649f597347e612ca57dfbb0c5a2ae7232c85676a979c52bd093d6a",
+      "bytes": 113814
+    },
+    "differential_initial.log": {
+      "sha256": "fb710af413a36129bb6a4847a0b8e75035d63c9b079bafa97e67227931bc28a3",
+      "bytes": 21870
+    },
+    "district_http.json": {
+      "sha256": "28adabe4ad7289a9c6f3e672554544d9a82d81c870ef1e08f4da9cfc3935e7a1",
+      "bytes": 22543
+    },
+    "district_http.log": {
+      "sha256": "2c23f2809a54c2b9dc04d25f1a246a21827f59b9cc30711352bb9a0119836459",
+      "bytes": 7455
+    },
+    "paired/frozen_stone_bridge_approaches_input.bin": {
+      "sha256": "451a38126c6c065e0894411a0e1377f3bf4d6b94528b54aba8c0b05cf35a1513",
+      "bytes": 723700
+    },
+    "paired/frozen_stone_bridge_approaches_result.bin": {
+      "sha256": "a564b561cd91cfb88c61dc24305a9edfbe4479816bd96e132e32894b6561076e",
+      "bytes": 8064
+    },
+    "paired/junction_kerbs_input.bin": {
+      "sha256": "953cd37395286dc9b5311522eca11ff3d5b6a13c4b44662f1167165b6864d84a",
+      "bytes": 1464
+    },
+    "paired/junction_kerbs_result.bin": {
+      "sha256": "e69b36da8abe901df79475aa867daa7a9c97736d783f00aa6ad04cf2739d7011",
+      "bytes": 42012
+    },
+    "paired/result.json": {
+      "sha256": "9b0fcda60f74fdc98b0013bcef4969c1764f0d4185b443a647e5a2527d61395e",
+      "bytes": 213670
+    },
+    "paired/terrain64_existing_input.bin": {
+      "sha256": "28982300d46ab85c9189cdf173a32d82f51d38b02ac1acd569f1cb9f2336ec27",
+      "bytes": 169156
+    },
+    "paired/terrain64_existing_result.bin": {
+      "sha256": "1452ffad9e0f7c8c9afd94c0086ea9a218a4ac7a4ad45dd745e7e8794db78192",
+      "bytes": 102524
+    },
+    "paired/terrain64_far_complex_input.bin": {
+      "sha256": "8e775caf37a7c395843ef886a4b9e59fb5873c25bad37d5340cc0363fa0cbd0a",
+      "bytes": 578036
+    },
+    "paired/terrain64_far_complex_result.bin": {
+      "sha256": "919c4a4adb6fae79266b7528e944d77072eed078490f3c0ca6b4537802855cc3",
+      "bytes": 102140
+    },
+    "paired/terrain64_local_input.bin": {
+      "sha256": "98565fae9613959ddba1b7d00447752c3f242ea4b303e9043b302c26660330d8",
+      "bytes": 67816
+    },
+    "paired/terrain64_local_result.bin": {
+      "sha256": "1cc6169454edc4555da7fcc635c1d2f007b62813d8313a69cd7187ad4b31fce8",
+      "bytes": 102140
+    },
+    "paired/terrain64_wavy_input.bin": {
+      "sha256": "eb7fc5d26452ad9608ca66a17c61f34949c2089838b88e5fd332802d72bd1fd8",
+      "bytes": 84712
+    },
+    "paired/terrain64_wavy_result.bin": {
+      "sha256": "6a2147ed53fd78f2ccd54f58a6950cd8d379344f2b2243d2abbcca2924c09514",
+      "bytes": 322756
+    },
+    "paired/waterway_bound_bridge_input.bin": {
+      "sha256": "1e9f7cfb447a7d274cef2b807514c0eaf0d0623e67067d9cba3651af99cd5e69",
+      "bytes": 32028
+    },
+    "paired/waterway_bound_bridge_result.bin": {
+      "sha256": "bac873b8e5e9f02555cf76bce1366a81b7d6aaf3b29c46dda08ca57740d528f3",
+      "bytes": 14044
+    },
+    "paired.log": {
+      "sha256": "6a26466307ab61406946ddc26dfd1ce92be4fdf7065c3628f80284a181f0632a",
+      "bytes": 29508
+    },
+    "profile.json": {
+      "sha256": "547d9b6786c053df2d0e30421aee4842ed5f60275254ec27544a54ec1109fc7a",
+      "bytes": 50206
+    },
+    "profile.log": {
+      "sha256": "2c9e45e99ed9a66647d9b2795715f72366475889e16b066e8946257a98800330",
+      "bytes": 3757
+    },
+    "profile_paint.gd": {
+      "sha256": "bd18aee2db884ad97d36b2585a389c6b39b342f8012132fb1d24af875ecc17c7",
+      "bytes": 1846
+    },
+    "profile_run.gd": {
+      "sha256": "95db91213c57fe927801e267a0b3d5b99079d72f564c5fc3eb6b894da8be56b4",
+      "bytes": 1817
+    },
+    "reference.json": {
+      "sha256": "82d8acf6e1bca46cfe0152c6c0e40566a65d7151765295acbf9cabd5683efcd8",
+      "bytes": 888
+    },
+    "residential_http.json": {
+      "sha256": "6a03c8ec7a9e81920ba6769c96d2af89b1e0ca2be297ff8fab0288b153d51788",
+      "bytes": 429170
+    },
+    "residential_http.log": {
+      "sha256": "c57cdebcd3ddcceea9287e3a3f5e3fcb7d14f6bb5b7eba9260966c4b9253f375",
+      "bytes": 7545
+    },
+    "road_surface_ref.gd": {
+      "sha256": "1a180bbd5c8ed09cdd434d23412e42bea2fe81ad2d618a07ae9065efc181e176",
+      "bytes": 6416
+    },
+    "road_tools_chain_ref.gd": {
+      "sha256": "96b5ff93d77ea323fe70003aa4399d1bb37810f2951ea66e0dcc1eefb55cc5a9",
+      "bytes": 20766
+    },
+    "road_tools_ref.gd": {
+      "sha256": "b1b169a32b060479b41f296f157c09d0318c0fbc1eb699216b68159a38fb3130",
+      "bytes": 20716
+    },
+    "saved_maps/adaptive_textured/map.gltf": {
+      "sha256": "485169b9233db7ce3f5f49b03e5263f41a853b35119ffe82a17aa2b944508609",
+      "bytes": 31616
+    },
+    "saved_maps/district_http/map.gltf": {
+      "sha256": "155ec80ed97596359ad90875dea45fc64e0ae06a2cf81b3bd2ecc19b33fd045b",
+      "bytes": 24632
+    },
+    "saved_maps/residential_http/map.gltf": {
+      "sha256": "dc6a80bbb644b0674a403ac7de70d203b12a8d4aeff1723665377445543e5869",
+      "bytes": 53013
+    },
+    "saved_maps/terrain_follow_paint/map.gltf": {
+      "sha256": "8b24d376b4206620595c384c93d76f710f15fdcbc2a6e932d9e40abce87d3354",
+      "bytes": 4213
+    },
+    "surface_materials_ref.gd": {
+      "sha256": "fc3aeff3ed221c2813b6853938180c60d4e05c4f1d72e83894b2417122049b01",
+      "bytes": 33330
+    },
+    "surface_uv_batch.log": {
+      "sha256": "69f7dab90949f3196dc295a6b6f8a024f4dbb6d35a6a59108ba156effe5e688e",
+      "bytes": 599
+    },
+    "terrain_follow_paint.log": {
+      "sha256": "0be24798e9fb2a9466b98739ca200bae1ae4152f3c1999a4a07f9a6fed0ef2da",
+      "bytes": 2237
+    },
+    "test_initial.gd.txt": {
+      "sha256": "f7cdf6f3f0b69bb210b15f715282e59a5fd6cd532ee52c83c8eb76e4dd30ea60",
+      "bytes": 10492
+    },
+    "test_measured.gd.txt": {
+      "sha256": "2e701cc9ad58b6efd5c3508f9adf7a63709b7ec31a91d0e060c4d3384e5038ad",
+      "bytes": 10909
+    }
+  },
+  "post_test_formatting": {
+    "tools/test_road_default_paint.gd": {
+      "change": "Removed one extra blank line at EOF after git diff --check. No tokens or behavior changed; measured source is archived verbatim.",
+      "measured_sha256": "2e701cc9ad58b6efd5c3508f9adf7a63709b7ec31a91d0e060c4d3384e5038ad",
+      "measured_archive": "test_measured.gd.txt",
+      "current_sha256": "cf79f94b3c8be305b3afd94a3f0c3119e091a96aa2bea6019e0b4d117ef8c363"
+    }
+  }
+}

@@ -264,8 +264,12 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	return result
 
 func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:
-	var node:=MeshInstance3D.new(); node.mesh=Surface.mesh(record,null)
-	var geometry:=Paint.geometry(node); node.free()
+	# Preparation needs author face IDs, not a renderable mesh or materials.
+	# Keep the exact generator arrays for every slot and all paint validation.
+	var cpu:=preload("res://scripts/world3d/ground_cpu_mesh.gd").new()
+	cpu.surfaces=Surface.arrays(record)
+	var node:=MeshInstance3D.new();node.set_meta("paint_source",cpu)
+	var geometry:=Paint.geometry(node,true); node.free()
 	if not geometry.ok: return geometry
 	var surface: Dictionary=geometry.surfaces[0]; var entries: Array=[]; var tile: Array=material.get("tile_size",[1,1])
 	if surface.faces.size()>Paint.MAX_OVERRIDES:return {"ok":false,"code":"road_paint_face_limit","error":"单块路面需要 %d 个刷面，超过 %d 个预算"%[surface.faces.size(),Paint.MAX_OVERRIDES]}

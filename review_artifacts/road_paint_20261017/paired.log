@@ -1,0 +1,591 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS d2cd069 independent paint chain bytes pinned
+PASS frozen dependency bytes road_tools_ref.gd
+PASS frozen dependency bytes road_surface_ref.gd
+PASS frozen dependency bytes surface_materials_ref.gd
+PASS selected fixture exists
+PASS junction_kerbs native fixture built
+PASS junction_kerbs untimed baseline seed immutable
+PASS open evidence junction_kerbs_input.bin
+PASS open evidence junction_kerbs_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED junction_kerbs {"current_slower_pairs":0,"median_ms":{"baseline":46.6125,"current":32.7125},"n_pairs":10,"paired_delta_median_ms":-13.6325,"paired_ratio_median":0.711488525188402,"raw_ms":{"baseline":[46.874,44.392,43.287,50.059,56.534,50.966,44.851,66.581,40.689,46.351],"current":[38.671,24.579,32.417,36.747,27.249,34.942,30.898,26.97,33.008,37.555]}}
+PASS terrain64_local native fixture built
+PASS terrain64_local untimed baseline seed immutable
+PASS open evidence terrain64_local_input.bin
+PASS open evidence terrain64_local_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED terrain64_local {"current_slower_pairs":0,"median_ms":{"baseline":328.109,"current":250.6445},"n_pairs":10,"paired_delta_median_ms":-79.6135,"paired_ratio_median":0.761749797846513,"raw_ms":{"baseline":[338.835,340.392,319.075,357.43,328.335,327.883,299.334,336.229,309.989,293.96],"current":[281.128,259.012,207.796,222.047,266.196,250.036,259.811,251.253,226.264,226.871]}}
+PASS terrain64_far_complex native fixture built
+PASS terrain64_far_complex untimed baseline seed immutable
+PASS open evidence terrain64_far_complex_input.bin
+PASS open evidence terrain64_far_complex_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED terrain64_far_complex {"current_slower_pairs":0,"median_ms":{"baseline":384.443,"current":294.4105},"n_pairs":10,"paired_delta_median_ms":-72.5445,"paired_ratio_median":0.801147559190772,"raw_ms":{"baseline":[403.889,381.762,363.767,364.975,346.174,387.124,399.838,376.169,404.351,414.597],"current":[282.819,302.231,302.374,305.176,280.616,285.445,347.7,326.553,286.59,274.826]}}
+PASS waterway_bound_bridge native fixture built
+PASS waterway_bound_bridge untimed baseline seed immutable
+PASS open evidence waterway_bound_bridge_input.bin
+PASS open evidence waterway_bound_bridge_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED waterway_bound_bridge {"current_slower_pairs":0,"median_ms":{"baseline":22.546,"current":13.525},"n_pairs":10,"paired_delta_median_ms":-8.5145,"paired_ratio_median":0.636725275000428,"raw_ms":{"baseline":[35.032,26.435,34.004,26.816,22.496,19.54,19.086,21.147,22.596,20.052],"current":[19.451,12.372,13.46,17.148,13.385,12.388,12.951,13.985,14.678,13.59]}}
+PASS frozen_stone_bridge_approaches native fixture built
+PASS frozen_stone_bridge_approaches untimed baseline seed immutable
+PASS open evidence frozen_stone_bridge_approaches_input.bin
+PASS open evidence frozen_stone_bridge_approaches_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+PASS frozen_stone_bridge_approaches unchanged external source stone_segmental.glb
+ROAD_PAINT_PAIRED frozen_stone_bridge_approaches {"current_slower_pairs":4,"median_ms":{"baseline":58.381,"current":53.812},"n_pairs":10,"paired_delta_median_ms":-8.8875,"paired_ratio_median":0.846838357340085,"raw_ms":{"baseline":[73.826,60.415,55.956,67.242,75.629,56.347,54.699,60.452,54.966,53.569],"current":[46.583,47.536,66.833,54.048,53.576,82.856,47.636,49.74,64.384,56.976]}}
+PASS terrain64_wavy native fixture built
+PASS terrain64_wavy untimed baseline seed immutable
+PASS open evidence terrain64_wavy_input.bin
+PASS open evidence terrain64_wavy_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED terrain64_wavy {"current_slower_pairs":0,"median_ms":{"baseline":345.284,"current":277.189},"n_pairs":10,"paired_delta_median_ms":-67.919,"paired_ratio_median":0.783977827228856,"raw_ms":{"baseline":[344.406,389.921,356.856,407.347,371.276,346.162,329.104,300.34,276.461,329.547],"current":[278.294,277.942,313.603,355.015,285.265,276.436,241.242,251.508,212.704,217.489]}}
+PASS terrain64_existing native fixture built
+PASS terrain64_existing untimed baseline seed immutable
+PASS open evidence terrain64_existing_input.bin
+PASS open evidence terrain64_existing_result.bin
+PASS baseline warmup 0 exact full return
+PASS baseline warmup 0 unchanged state and arguments
+PASS baseline warmup 0 expected probe state
+PASS baseline warmup 1 exact full return
+PASS baseline warmup 1 unchanged state and arguments
+PASS baseline warmup 1 expected probe state
+PASS current warmup 0 exact full return
+PASS current warmup 0 unchanged state and arguments
+PASS current warmup 0 expected probe state
+PASS current warmup 1 exact full return
+PASS current warmup 1 unchanged state and arguments
+PASS current warmup 1 expected probe state
+PASS baseline pair 0 exact full return
+PASS baseline pair 0 unchanged state and arguments
+PASS baseline pair 0 expected probe state
+PASS current pair 0 exact full return
+PASS current pair 0 unchanged state and arguments
+PASS current pair 0 expected probe state
+PASS current pair 1 exact full return
+PASS current pair 1 unchanged state and arguments
+PASS current pair 1 expected probe state
+PASS baseline pair 1 exact full return
+PASS baseline pair 1 unchanged state and arguments
+PASS baseline pair 1 expected probe state
+PASS baseline pair 2 exact full return
+PASS baseline pair 2 unchanged state and arguments
+PASS baseline pair 2 expected probe state
+PASS current pair 2 exact full return
+PASS current pair 2 unchanged state and arguments
+PASS current pair 2 expected probe state
+PASS current pair 3 exact full return
+PASS current pair 3 unchanged state and arguments
+PASS current pair 3 expected probe state
+PASS baseline pair 3 exact full return
+PASS baseline pair 3 unchanged state and arguments
+PASS baseline pair 3 expected probe state
+PASS baseline pair 4 exact full return
+PASS baseline pair 4 unchanged state and arguments
+PASS baseline pair 4 expected probe state
+PASS current pair 4 exact full return
+PASS current pair 4 unchanged state and arguments
+PASS current pair 4 expected probe state
+PASS current pair 5 exact full return
+PASS current pair 5 unchanged state and arguments
+PASS current pair 5 expected probe state
+PASS baseline pair 5 exact full return
+PASS baseline pair 5 unchanged state and arguments
+PASS baseline pair 5 expected probe state
+PASS baseline pair 6 exact full return
+PASS baseline pair 6 unchanged state and arguments
+PASS baseline pair 6 expected probe state
+PASS current pair 6 exact full return
+PASS current pair 6 unchanged state and arguments
+PASS current pair 6 expected probe state
+PASS current pair 7 exact full return
+PASS current pair 7 unchanged state and arguments
+PASS current pair 7 expected probe state
+PASS baseline pair 7 exact full return
+PASS baseline pair 7 unchanged state and arguments
+PASS baseline pair 7 expected probe state
+PASS baseline pair 8 exact full return
+PASS baseline pair 8 unchanged state and arguments
+PASS baseline pair 8 expected probe state
+PASS current pair 8 exact full return
+PASS current pair 8 unchanged state and arguments
+PASS current pair 8 expected probe state
+PASS current pair 9 exact full return
+PASS current pair 9 unchanged state and arguments
+PASS current pair 9 expected probe state
+PASS baseline pair 9 exact full return
+PASS baseline pair 9 unchanged state and arguments
+PASS baseline pair 9 expected probe state
+PASS baseline ON diagnostic exact full return
+PASS baseline ON diagnostic unchanged state and arguments
+PASS baseline ON diagnostic expected probe state
+PASS current ON diagnostic exact full return
+PASS current ON diagnostic unchanged state and arguments
+PASS current ON diagnostic expected probe state
+ROAD_PAINT_PAIRED terrain64_existing {"current_slower_pairs":0,"median_ms":{"baseline":272.3155,"current":214.959},"n_pairs":10,"paired_delta_median_ms":-62.2625,"paired_ratio_median":0.76847602237569,"raw_ms":{"baseline":[275.757,487.277,399.482,291.646,268.874,286.031,267.544,267.21,264.593,267.011],"current":[231.791,255.507,257.608,223.521,205.663,205.877,206.288,205.896,228.357,206.397]}}
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_paint_20261017/paired/result.json checks=580 failures=0

@@ -1,0 +1,38 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated default-paint fixture saved
+PASS: real default-paint HTTP listens on loopback
+PASS: current 3D terrain and road tools discovered
+PASS: HTTP generate_road_surface succeeds
+PASS: native textured terrain-follow road exists
+PASS: JSON zero offsets retain valid automatic UV paint
+PASS: HTTP sculpt_terrain succeeds
+PASS: JSON default paint permits one terrain-and-road transaction
+PASS: refitted pavement retains valid default PBR paint
+PASS: HTTP undo succeeds
+PASS: undo restores terrain pavement and JSON paint together
+PASS: HTTP redo succeeds
+PASS: redo restores complete follower transaction
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: JSON-paint sculpt result survives native save and reopen
+PASS: sloped fixture has distinct faces for mixed-material protection
+PASS: valid manual offset is distinguished from default paint
+PASS: HTTP sculpt_terrain rejects invalid operation
+PASS: manual offset rejects for paint protection specifically
+PASS: manual offset rejection has no terrain road metadata or history side effects
+PASS: valid manual rotation is distinguished from default paint
+PASS: HTTP sculpt_terrain rejects invalid operation
+PASS: manual rotation rejects for paint protection specifically
+PASS: manual rotation rejection has no terrain road metadata or history side effects
+PASS: valid manual scale is distinguished from default paint
+PASS: HTTP sculpt_terrain rejects invalid operation
+PASS: manual scale rejects for paint protection specifically
+PASS: manual scale rejection has no terrain road metadata or history side effects
+PASS: valid manual mixed_material is distinguished from default paint
+PASS: HTTP sculpt_terrain rejects invalid operation
+PASS: manual mixed_material rejects for paint protection specifically
+PASS: manual mixed_material rejection has no terrain road metadata or history side effects
+TERRAIN_FOLLOW_PAINT_HTTP D:/code/rmmo_runtime/cache/world3d/terrain_follow_paint_12311018 failures=0

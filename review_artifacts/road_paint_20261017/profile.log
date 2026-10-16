@@ -1,0 +1,49 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS junction_kerbs exact instrumented result 0
+PASS junction_kerbs unchanged inputs 0
+PAINT_PROFILE junction_kerbs 0 {"entries_ms":0.084,"geometry_ms":13.739,"mesh_ms":8.549,"missing_ms":0.079,"valid_ms":0.431}
+PASS junction_kerbs exact instrumented result 1
+PASS junction_kerbs unchanged inputs 1
+PAINT_PROFILE junction_kerbs 1 {"entries_ms":0.091,"geometry_ms":17.336,"mesh_ms":11.34,"missing_ms":0.1,"valid_ms":0.478}
+PASS junction_kerbs exact instrumented result 2
+PASS junction_kerbs unchanged inputs 2
+PAINT_PROFILE junction_kerbs 2 {"entries_ms":0.062,"geometry_ms":11.566,"mesh_ms":7.281,"missing_ms":0.073,"valid_ms":0.389}
+PASS terrain64_local exact instrumented result 0
+PASS terrain64_local unchanged inputs 0
+PAINT_PROFILE terrain64_local 0 {"entries_ms":0.126,"geometry_ms":81.993,"mesh_ms":30.139,"missing_ms":0.143,"valid_ms":0.636}
+PASS terrain64_local exact instrumented result 1
+PASS terrain64_local unchanged inputs 1
+PAINT_PROFILE terrain64_local 1 {"entries_ms":0.132,"geometry_ms":74.135,"mesh_ms":29.554,"missing_ms":0.144,"valid_ms":0.653}
+PASS terrain64_local exact instrumented result 2
+PASS terrain64_local unchanged inputs 2
+PAINT_PROFILE terrain64_local 2 {"entries_ms":0.133,"geometry_ms":64.893,"mesh_ms":28.339,"missing_ms":0.143,"valid_ms":0.631}
+PASS terrain64_far_complex exact instrumented result 0
+PASS terrain64_far_complex unchanged inputs 0
+PAINT_PROFILE terrain64_far_complex 0 {"entries_ms":0.125,"geometry_ms":61.979,"mesh_ms":28.126,"missing_ms":0.136,"valid_ms":0.588}
+PASS terrain64_far_complex exact instrumented result 1
+PASS terrain64_far_complex unchanged inputs 1
+PAINT_PROFILE terrain64_far_complex 1 {"entries_ms":0.136,"geometry_ms":68.536,"mesh_ms":30.562,"missing_ms":0.136,"valid_ms":0.652}
+PASS terrain64_far_complex exact instrumented result 2
+PASS terrain64_far_complex unchanged inputs 2
+PAINT_PROFILE terrain64_far_complex 2 {"entries_ms":0.135,"geometry_ms":62.308,"mesh_ms":27.903,"missing_ms":0.147,"valid_ms":0.646}
+PASS waterway_bound_bridge exact instrumented result 0
+PASS waterway_bound_bridge unchanged inputs 0
+PAINT_PROFILE waterway_bound_bridge 0 {"entries_ms":0.102,"geometry_ms":5.01,"mesh_ms":8.775,"missing_ms":0.15,"valid_ms":0.646}
+PASS waterway_bound_bridge exact instrumented result 1
+PASS waterway_bound_bridge unchanged inputs 1
+PAINT_PROFILE waterway_bound_bridge 1 {"entries_ms":0.07,"geometry_ms":3.27,"mesh_ms":6.48,"missing_ms":0.103,"valid_ms":0.442}
+PASS waterway_bound_bridge exact instrumented result 2
+PASS waterway_bound_bridge unchanged inputs 2
+PAINT_PROFILE waterway_bound_bridge 2 {"entries_ms":0.062,"geometry_ms":2.954,"mesh_ms":5.805,"missing_ms":0.089,"valid_ms":0.394}
+PASS frozen_stone_bridge_approaches exact instrumented result 0
+PASS frozen_stone_bridge_approaches unchanged inputs 0
+PAINT_PROFILE frozen_stone_bridge_approaches 0 {"entries_ms":0.016,"geometry_ms":2.749,"mesh_ms":1.706,"missing_ms":0.017,"valid_ms":0.092}
+PASS frozen_stone_bridge_approaches exact instrumented result 1
+PASS frozen_stone_bridge_approaches unchanged inputs 1
+PAINT_PROFILE frozen_stone_bridge_approaches 1 {"entries_ms":0.018,"geometry_ms":2.874,"mesh_ms":1.756,"missing_ms":0.018,"valid_ms":0.098}
+PASS frozen_stone_bridge_approaches exact instrumented result 2
+PASS frozen_stone_bridge_approaches unchanged inputs 2
+PAINT_PROFILE frozen_stone_bridge_approaches 2 {"entries_ms":0.025,"geometry_ms":2.875,"mesh_ms":1.758,"missing_ms":0.018,"valid_ms":0.128}
+ROAD_PREPARE_BENCHMARK res://review_artifacts/road_paint_20261017/profile.json checks=30 failures=0
