@@ -37,6 +37,7 @@ static var bridge_texture_preparation_enabled:=true # Demanded native bridges, a
 static var native_preparation_enabled:=true # Probe-only old native/readmission path.
 static var native_budget_enabled:=true # Validated native reservations; invalid candidates use full raw admission.
 static var ready_worker_yield_enabled:=true # Bytes remain charged after join.
+static var fair_publication_enabled:=true # Probe may select the old distance-only order.
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
@@ -98,6 +99,7 @@ var _dispatch_fence:=""
 var _dispatch_deadline:=0
 var _scheduler_epoch:=0
 var _publication_queues:Dictionary={}
+var _publication_order=preload("res://scripts/world3d/publication_order.gd").new()
 var _demanded_priority:Dictionary={}
 var _path_first:Dictionary={}
 var ready_job_limit:=0 # 0: two complete closures per execution slot, at least four.
@@ -1406,7 +1408,8 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 	while timing.units==0 or Time.get_ticks_usec()-began<budget_usec:
 		var heads:=_publication_ready()
 		if heads.is_empty():break
-		var item:Dictionary=heads[0]
+		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs) if fair_publication_enabled else heads[0]
+		if item.path!=heads[0].path:profile.fair_publication_units=int(profile.get("fair_publication_units",0))+1
 		if item.get("published",false) or instance_errors.has(item.record.uuid) or path_errors.has(item.path):continue
 		var unit_began:=Time.get_ticks_usec()
 		var publication_id:String=item.record.uuid

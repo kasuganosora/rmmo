@@ -17,7 +17,7 @@ class Store extends Node:
 class Document extends RefCounted:
 	var calls:Dictionary={}
 	var after_instance:Callable
-	func _mesh(record:Dictionary)->Node3D:
+	func _mesh(record:Dictionary,_effects:bool=true,_timings:Variant=null)->Node3D:
 		calls[record.uuid]=int(calls.get(record.uuid,0))+1
 		if after_instance.is_valid():after_instance.call(record.uuid)
 		return Node3D.new()
