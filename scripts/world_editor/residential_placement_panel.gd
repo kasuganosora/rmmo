@@ -33,7 +33,7 @@ func setup(owner: VBoxContainer) -> void:
 		body.visible=open
 		if open: refresh_catalogs()
 	)
-	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线地面道路。路网须已有沿地形铺面，可包含已绑定桥梁；保持桥梁和河道不变，不直接接入桥面或桥头节点。在允许范围内检查标高和门前退距，保留邻物；默认保留地形，也可开启下方联合整地。")
+	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线／弯曲地面道路。路网须已有沿地形铺面，可包含已绑定桥梁；保持桥梁和河道不变，不直接接入桥面或桥头节点。在允许范围内检查标高和门前退距，保留邻物；默认保留地形，也可开启下方联合整地。")
 	note(body,"住宅预制件（当前与共享素材库）")
 	asset_choice=OptionButton.new(); asset_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(asset_choice)
 	var row:=HBoxContainer.new(); body.add_child(row)
@@ -91,7 +91,7 @@ func refresh_catalogs() -> void:
 	road_choice.clear(); road_choice.add_item("请选择已有道路"); road_choice.set_item_metadata(0,"")
 	for edge:Dictionary in City.resolve(editor._doc.map_meta).roads.edges:
 		if not Placement.supports_target(edge):continue
-		road_choice.add_item("%s · %s"%[str(edge.get("name",edge.id)),str(edge.id)]); road_choice.set_item_metadata(road_choice.item_count-1,str(edge.id))
+		road_choice.add_item("%s · %s · %s"%[str(edge.get("name",edge.id)),"弯路" if edge.has("controls") else "直路",str(edge.id)]); road_choice.set_item_metadata(road_choice.item_count-1,str(edge.id))
 		if str(edge.id)==road_id: road_choice.select(road_choice.item_count-1)
 	if selected(asset_choice)!=asset_id or selected(road_choice)!=road_id: invalidate_preview("素材或道路列表已变化，请重新预览。")
 
@@ -185,6 +185,10 @@ func report(result: Dictionary, applied: bool=false) -> void:
 			if p.size()==3: text_+="\n最终位置：%.3f, %.3f, %.3f 米"%[p[0],p[1],p[2]]
 			if delta.size()==3: text_+=" · 标高调整 %+.3f 米"%float(delta[1])
 			text_+="\n门前退距 %.2f 米 · 路宽 %.2f 米"%[float(result.get("setback",0)),float(result.get("width",0))]
+		if result.has("road_connection"):
+			var connection:Dictionary=result.road_connection
+			text_+="\n接入%s · 接点 %.3f, %.3f, %.3f 米"%["弯路" if connection.kind=="cubic" else "直路",connection.position[0],connection.position[1],connection.position[2]]
+			if connection.kind=="cubic" and connection.split:text_+="\n保留原曲线形状和宽度变化，接点拆分为两个可编辑路段。"
 		if result.has("changes"):
 			var work:Dictionary=result.earthwork;var changes:Dictionary=result.changes
 			text_+=("\n整地、住宅与接路已一起应用。" if applied else "\n最终整地与住宅接路联合检查通过。")

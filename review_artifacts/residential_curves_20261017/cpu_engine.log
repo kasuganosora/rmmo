@@ -1,0 +1,56 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: S bend with vertical guide and tapered width: bounded projection succeeds
+PASS: S bend with vertical guide and tapered width: no worse than independent dense reference within declared scalar search bound
+PASS: S bend with vertical guide and tapered width: projection deterministic
+PASS: S bend with vertical guide and tapered width: double authoring child curves preserve original XYZ independently of native rendering
+PASS: S bend with vertical guide and tapered width: native float32 deviation within explicit coordinate-scaled tolerance
+PASS: S bend with vertical guide and tapered width: join preserves tangent continuity
+PASS: S bend with vertical guide and tapered width: source authoring graph unchanged
+PASS: symmetric arch: bounded projection succeeds
+PASS: symmetric arch: no worse than independent dense reference within declared scalar search bound
+PASS: symmetric arch: projection deterministic
+PASS: symmetric arch: double authoring child curves preserve original XYZ independently of native rendering
+PASS: symmetric arch: native float32 deviation within explicit coordinate-scaled tolerance
+PASS: symmetric arch: join preserves tangent continuity
+PASS: symmetric arch: source authoring graph unchanged
+PASS: multiple nearby branches: bounded projection succeeds
+PASS: multiple nearby branches: no worse than independent dense reference within declared scalar search bound
+PASS: multiple nearby branches: projection deterministic
+PASS: multiple nearby branches: double authoring child curves preserve original XYZ independently of native rendering
+PASS: multiple nearby branches: native float32 deviation within explicit coordinate-scaled tolerance
+PASS: multiple nearby branches: join preserves tangent continuity
+PASS: multiple nearby branches: source authoring graph unchanged
+PASS: endpoint minimum: bounded projection succeeds
+PASS: endpoint minimum: no worse than independent dense reference within declared scalar search bound
+PASS: endpoint minimum: projection deterministic
+PASS: endpoint minimum: source authoring graph unchanged
+PASS: translated curve: bounded projection succeeds
+PASS: translated curve: no worse than independent dense reference within declared scalar search bound
+PASS: translated curve: projection deterministic
+PASS: translated curve: double authoring child curves preserve original XYZ independently of native rendering
+PASS: translated curve: native float32 deviation within explicit coordinate-scaled tolerance
+PASS: translated curve: join preserves tangent continuity
+PASS: translated curve: source authoring graph unchanged
+PASS: rotated curve: bounded projection succeeds
+PASS: rotated curve: no worse than independent dense reference within declared scalar search bound
+PASS: rotated curve: projection deterministic
+PASS: rotated curve: double authoring child curves preserve original XYZ independently of native rendering
+PASS: rotated curve: native float32 deviation within explicit coordinate-scaled tolerance
+PASS: rotated curve: join preserves tangent continuity
+PASS: rotated curve: source authoring graph unchanged
+PASS: exhausted projection budget refuses, never succeeds with partial samples
+PASS: shared target filter accepts ordinary cubic
+PASS: real residential connection splits cubic and adds connector
+PASS: both editable children retain cubic controls
+PASS: split interpolates native parameter-based width without widening
+PASS: native graph accepts complete curved junction
+PASS: connection never mutates source graph
+PASS: endpoint attachment retains entire original cubic unchanged
+PASS: curved endpoint cannot attach directly to protected bridgehead
+PASS: native full-road validator rejects a self-crossing cubic
+PASS: locked curve refuses
+PASS: hidden endpoint refuses
+PASS: bridge targets still excluded
+RESIDENTIAL_CURVES_CPU checks=52 failures=0

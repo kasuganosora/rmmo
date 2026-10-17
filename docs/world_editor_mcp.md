@@ -289,7 +289,7 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
     "residential": {
       "asset_id": "<冻结住宅 ID>",
       "position": [0, 0, 0],
-      "road_edge_id": "<普通直线 ground 道路 ID>",
+      "road_edge_id": "<普通直线或三次贝塞尔 ground 道路 ID>",
       "elevation_min": -0.5, "elevation_max": 0.5,
       "setback_min": 0.8, "setback_max": 3, "width": 1.6
     },
@@ -322,7 +322,7 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 
 2026-10-15 首个限定住宅闭环已在隔离分支通过功能验收，并提交为 `391d47818be733ffc0eca11af816a5a9ddff11e0`：带原生路缘的真实控件／HTTP 回归 **127 项通过、0 失败**，同一保存结果的玩家室外道路与入口往返 **21 项通过、0 失败**。`codex/editor-reliability` 尚未合并或推送，不代表 E1/E2 整包完成或正式场景接入。原功能证据在该提交前捕获，未提交状态字段保留历史原样。
 
-建筑页「冻结住宅与入户路」与以下三个工具共用 `residential_placement_tools.gd`。只支持一个冻结 `townhouse/hall` 住宅、可确认的首层入口和已有普通直线 `ground` 道路；整张路网须已有沿地形铺面，允许包含 `bridge_ref/stone_bridge` 绑定；目标仍限定为普通地面直路，不直接接桥面或桥头节点。桥梁／关联河道构件与元数据、桥头节点、净宽和资源身份受到保护，仍执行完整原生道路、引道和净空校验。不移动邻物、不改变地形；普通手动布置规则不因此增加美术间距禁令。普通高度场、未知入口等具体支持边界及参数范围见 [建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
+建筑页「冻结住宅与入户路」与以下三个工具共用 `residential_placement_tools.gd`。只支持一个冻结 `townhouse/hall` 住宅、可确认的首层入口和已有普通直线或三次贝塞尔 `ground` 道路；整张路网须已有沿地形铺面，允许包含 `bridge_ref/stone_bridge` 绑定；目标限定为普通地面道路，不直接接桥面或桥头节点。桥梁／关联河道构件与元数据、桥头节点、净宽和资源身份受到保护，仍执行完整原生道路、引道和净空校验。不移动邻物、不改变地形；普通手动布置规则不因此增加美术间距禁令。普通高度场、未知入口等具体支持边界及参数范围见 [建筑说明](world_editor_buildings.md#冻结住宅与入户路候选)。
 
 先通过 `list_assets` 取得预制件 `asset_id`，通过 `get_city_layout` 取得道路边 ID，再请求：
 
@@ -813,3 +813,9 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 ```
 
 真实 UI／HTTP **73 项通过、0 失败**，覆盖源精度、原生边界、翻转、PNG8、PNG16 拒绝、坏尺寸、超预算、真实链接、源变化、极细参数变化、过期地图、候选损坏、整组撤销重做、自动合批、保存重开及继续雕刻。保存图另执行四块交点的上下坡物理通行；具体结果与源／代码／地图身份见[本批证据](../review_artifacts/heightmap_import_20261017/evidence.json)。全部使用独立临时地图和不激活图形桌面，未修改正式场景；高度图可表达陡坡，此导入功能不承诺任意输入都可通行。
+
+### 住宅接入弯曲道路（E1-E，2026-10-17）
+
+现有 `preview_residential_placement` 与 `preview_residential_site.residential` 的 `road_edge_id` 可选择普通三次贝塞尔 `ground` 边，无新增必填参数。共享服务对原曲线求接点，保持子曲线作者形状、切向与宽度变化；新增入户路仍为直线，完整原生路网、地形和桥梁保护继续执行。应用／放弃接口与一次撤销、保存语义不变。
+
+预览增加 `road_connection:{edge_id,kind,parameter,position,tangent,width,split,join_node_id,child_edge_ids}`；`kind` 为 `straight/cubic`，`parameter` 为源曲线参数，`position` 为源道路骨架世界坐标（贴地铺面标高另由地形决定），`tangent` 是原生参数导数。弯路另含 `projection:{distance_error_bound_m,visits}`，距离界只说明数学曲线投影搜索，不是世界坐标或物理精度证明。子边保存原生控制点，端点接入不拆分。超预算／退化返回具体失败，候选搜索不穷尽所有可能接点；桥头和保护状态限制不变。详见[弯路接入范围与验收](world_editor_buildings.md#住宅连接弯曲道路2026-10-17e1-e)。

@@ -16,6 +16,7 @@ const Foot=preload("res://scripts/world_editor/building_footprint.gd")
 const BridgeContext=preload("res://scripts/world_editor/residential_bridge_context.gd")
 const Waterways=preload("res://scripts/world_editor/waterway_tools.gd")
 const BridgeApproach=preload("res://scripts/world3d/road_bridge_approach.gd")
+const CurveConnection=preload("res://scripts/world_editor/residential_curve_connection.gd")
 const STEP=.05
 const MAX_CANDIDATES=157
 var editor:Node3D
@@ -198,6 +199,9 @@ func preview(args:Dictionary)->Dictionary:
 	for id:String in old:changed.append(id)
 	var a:=Data.vec(road_check.a.position);var b:=Data.vec(road_check.b.position);var start:=Data.vec(linked.points[0])
 	var scope:=Rect2(Vector2(a.x,a.z),Vector2.ZERO).expand(Vector2(b.x,b.z)).expand(Vector2(start.x,start.z))
+	# Exact cubic geometry is contained by its control hull, including bends
+	# outside the endpoint rectangle. Authoring outside this edge stays intact.
+	for handle:Array in road_check.edge.get("controls",[]):scope=scope.expand(Vector2(handle[0],handle[2]))
 	scope=scope.grow(maxf(maxf(road_check.edge.width_start,road_check.edge.width_end),p.width)+32.)
 	for r:Dictionary in before.records:
 		if r.has("road_source") and changed.has(r.uuid):
@@ -205,7 +209,7 @@ func preview(args:Dictionary)->Dictionary:
 			if not scope.intersects(Rect2(bounds_.position.x,bounds_.position.z,bounds_.size.x,bounds_.size.z),true):return fail("scope_conflict","候选会改变接路范围以外的道路铺面，已保留原地图")
 	var bounds:=Geometry.bounds(house_records)
 	var token:=Crypto.new().generate_random_bytes(24).hex_encode()
-	var summary:Dictionary={"ok":true,"plan_token":token,"source_sha256":source_sha,"base_version":base_version,"position":Data.xyz(position),"adjustment":Data.xyz(position-input),"road_points":linked.points,"setback":linked.setback,"width":p.width,"building_id":house_records[0].building.id,"building_ids":[house_records[0].building.id],"house_ids":placed.ids,"changed_ids":changed,"support":solved.support,"access":access,"bridges":bridges.summary,"bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"checks":{"continuous_support":true,"native_house_geometry":true,"full_road_graph":true,"bridge_context":true,"entrance_corridor":true,"native_save":true,"runtime_traversal":"requires_runtime_verification"},"search":{"attempts":attempts,"full_graph_checks":full_graph_checks,"budget":count,"step":STEP,"prepare_ms":(Time.get_ticks_usec()-started)/1000.}}
+	var summary:Dictionary={"ok":true,"plan_token":token,"source_sha256":source_sha,"base_version":base_version,"position":Data.xyz(position),"adjustment":Data.xyz(position-input),"road_points":linked.points,"road_connection":linked.road_connection,"setback":linked.setback,"width":p.width,"building_id":house_records[0].building.id,"building_ids":[house_records[0].building.id],"house_ids":placed.ids,"changed_ids":changed,"support":solved.support,"access":access,"bridges":bridges.summary,"bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"checks":{"continuous_support":true,"native_house_geometry":true,"full_road_graph":true,"bridge_context":true,"entrance_corridor":true,"native_save":true,"runtime_traversal":"requires_runtime_verification"},"search":{"attempts":attempts,"full_graph_checks":full_graph_checks,"budget":count,"step":STEP,"prepare_ms":(Time.get_ticks_usec()-started)/1000.}}
 	_profile_end("result",phase);phase=_profile_start()
 	var current:=base_version==_version() and _dependencies_current(dependencies)
 	_profile_end("final_identity",phase);phase=_profile_start()
@@ -286,13 +290,13 @@ static func _same(left:Variant,right:Variant)->bool:
 	return left==right
 
 static func supports_target(edge:Dictionary)->bool:
-	return edge.get("kind")=="ground" and not edge.has("controls") and not edge.has("bridge_ref") and not edge.has("stone_bridge")
+	return edge.get("kind")=="ground" and not edge.has("bridge_ref") and not edge.has("stone_bridge")
 
 static func _target(graph:Dictionary,id:String)->Dictionary:
 	var rows:Array=graph.edges.filter(func(e):return e.id==id)
 	if rows.size()!=1:return fail("road_not_found","目标道路不存在")
 	var edge:Dictionary=rows[0]
-	if not supports_target(edge):return fail("unsupported","当前接路目标需要普通直线地面道路")
+	if not supports_target(edge):return fail("unsupported","当前接路目标需要普通直线或三次贝塞尔地面道路")
 	var nodes:Dictionary={}
 	for n:Dictionary in graph.nodes:nodes[n.id]=n
 	for item:Dictionary in [edge,nodes[edge.from],nodes[edge.to]]:
@@ -307,18 +311,27 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 	if ab.length_squared()<.01:return fail("invalid_road","目标道路过短")
 	var t:=clampf(Vector2(start.x-a.x,start.z-a.z).dot(ab)/ab.length_squared(),0,1)
 	var end:=a.lerp(b,t)
+	var curve:bool=target.edge.has("controls");var nodes:Dictionary={target.edge.from:target.a,target.edge.to:target.b};var projection:Dictionary={}
+	if curve:
+		projection=CurveConnection.nearest(target.edge,nodes,start)
+		if not projection.ok:return projection
+		t=projection.t;end=projection.point
 	if Vector2(end.x-start.x,end.z-start.z).length()<1 or (end-start).dot(out)<.1:return fail("access_direction","目标道路位于入口背后或退距超过接路位置")
 	var prefix:="home_"+key;var join:String=prefix+"_join"
-	if t<.001:join=target.edge.from;end=a
-	elif t>.999:join=target.edge.to;end=b
+	if (curve and t==0.) or (not curve and t<.001):join=target.edge.from;end=a;t=0.
+	elif (curve and t==1.) or (not curve and t>.999):join=target.edge.to;end=b;t=1.
 	else:
 		var old_to:String=target.edge.to;var mid_width:float=lerpf(target.edge.width_start,target.edge.width_end,t)
+		var subcurves:Array=CurveConnection.controls(target.edge,nodes,t) if curve else []
 		for e:Dictionary in graph.edges:
-			if e.id==target.edge.id:e.to=join;e.width_end=mid_width
+			if e.id==target.edge.id:
+				e.to=join;e.width_end=mid_width
+				if curve:e.controls=subcurves[0]
 		var tail:Dictionary=target.edge.duplicate(true);tail.id=prefix+"_tail";tail.from=join;tail.to=old_to;tail.width_start=mid_width
-		graph.edges.append(tail);graph.nodes.append({"id":join,"position":Data.xyz(end)})
+		if curve:tail.controls=subcurves[1]
+		graph.edges.append(tail);graph.nodes.append({"id":join,"position":projection.position if curve else Data.xyz(end)})
 	for edge:Dictionary in original.roads.edges:
-		if join in [edge.from,edge.to] and (edge.has("bridge_ref") or edge.has("stone_bridge")):return fail("bridgehead_target","住宅入户路不能直接接入桥头节点，请选择桥外普通地面直路的内部位置","bridge_context")
+		if join in [edge.from,edge.to] and (edge.has("bridge_ref") or edge.has("stone_bridge")):return fail("bridgehead_target","住宅入户路不能直接接入桥头节点，请选择桥外普通地面道路的内部位置","bridge_context")
 		if join in [edge.from,edge.to] and (edge.get("locked",false) or edge.get("hidden",false)):return fail("protected_scope","接驳节点关联了受保护道路")
 	# Terrain-following pavement uses the true heightfield, not this guide's Y.
 	start.y=end.y
@@ -326,7 +339,10 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 	graph.edges.append({"id":prefix+"_access","from":prefix+"_door","to":join,"name":"住宅入户路","kind":"ground","width_start":width,"width_end":width})
 	var checked:=Data.analyze(graph)
 	if not checked.ok:return checked
-	return {"ok":true,"data":data,"points":[Data.xyz(start),Data.xyz(end)],"setback":setback}
+	var split:bool=join==prefix+"_join"
+	var connection:Dictionary={"edge_id":target.edge.id,"kind":"cubic" if curve else "straight","parameter":t,"position":projection.position if curve else Data.xyz(end),"tangent":Data.xyz(projection.tangent if curve else b-a),"width":lerpf(target.edge.width_start,target.edge.width_end,t),"split":split,"join_node_id":join,"child_edge_ids":[target.edge.id,prefix+"_tail"] if split else [target.edge.id]}
+	if curve:connection.projection={"distance_error_bound_m":projection.distance_error_bound_m,"visits":projection.visits}
+	return {"ok":true,"data":data,"points":[Data.xyz(start),Data.xyz(end)],"setback":setback,"road_connection":connection}
 
 static func _connector_ground(doc,linked:Dictionary,width:float)->Dictionary:
 	var start:=Data.vec(linked.points[0]);var finish:=Data.vec(linked.points[1])

@@ -193,7 +193,7 @@ func run() -> void:
 		if edge.id=="main_lane":edge.controls=[[-4.,0.,-16.],[4.,0.,-16.]]
 	editor._doc.apply_recovery(curved_graph)
 	await reject("preview_residential_placement",args,"stale_road_surface")
-	check(editor._residential._target(curved_graph.map_meta.editor_layout.roads,"main_lane").get("code")=="unsupported","pure target check identifies curved roads as unsupported")
+	check(editor._residential._target(curved_graph.map_meta.editor_layout.roads,"main_lane").get("ok",false),"pure target accepts cubic roads while stale pavement still rejects")
 	editor._doc.apply_recovery(ordinary_graph)
 	var city_state:=await call_tool("get_city_layout")
 	await call_tool("update_planning_zones",{"expected_token":city_state.zone_token,"zones":[{"id":"residential_access_reserve","purpose":"no_build","polygon":[[-4.4,-11.],[-2.4,-11.],[-2.4,-9.],[-4.4,-9.]],"min_y":-1.,"max_y":3.}]})

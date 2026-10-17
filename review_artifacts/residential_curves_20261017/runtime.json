@@ -1,0 +1,60 @@
+{
+	"collisions": 58,
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/maps/test/map.gltf",
+	"map_sha256": "b19e021ceb5924a9c864405cb26b2d7bb74a7325e6ae2e06e7152a56739ca212",
+	"passed": 14,
+	"scope": "Saved native colliders and production WorldAuthority capsule movement; exterior only, no avatar renderer, full streaming or arbitrary curve walkability claim",
+	"walks": [
+		{
+			"airborne": 0,
+			"case": "exterior entrance to curved street",
+			"distance": 0.127207115292549,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 160
+		},
+		{
+			"airborne": 0,
+			"case": "curved street to exterior entrance",
+			"distance": 0.127214029431343,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 160
+		},
+		{
+			"airborne": 0,
+			"case": "curved street forward across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "curved street reverse across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge eastbound",
+			"distance": 0.122692108154297,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge westbound",
+			"distance": 0.123541831970215,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		}
+	]
+}

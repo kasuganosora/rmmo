@@ -1,0 +1,237 @@
+{
+  "feature": "E1-E residential access connected to an existing cubic ground road",
+  "date": "2026-10-17",
+  "base_commit": "d10af23e9ba2d9401bd42e1752c278add2e71ef6",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "checks": {
+    "geometry_cpu": 52,
+    "curved_http_ui": 92,
+    "native_exterior_physics": 14,
+    "existing_straight_http_ui": 127
+  },
+  "failures": 0,
+  "engine": {
+    "path": "D:\\tools\\godot\\Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "version": "4.7.2.stable.official.ed1daf0bf",
+    "renderer": "Vulkan Forward+ / AMD Radeon RX 7900 XTX"
+  },
+  "sources": [
+    {
+      "path": "scripts/world_editor/residential_curve_connection.gd",
+      "sha256_worktree_bytes": "30284bc33abe15bdaee3167e7d0b428ac313691ca07f9a07ea4efd82055ad976",
+      "sha256_lf": "47c8de4f9412e97b7b2a512ccf5efad8a6378e2269a6c820292869524c1c42d8"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "sha256_worktree_bytes": "8d29e1023fdcacb9c021759c151ad969dbf9dcc30b10967437db7876d36fb240",
+      "sha256_lf": "f5a65d100f5ad189117ea1eb9bbf0a0948a8f26c28f0e4d2a8fd4244b6ce9709"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "sha256_worktree_bytes": "4b174d2335a12960340b39818646fb4ba82ad0abd7afa2e8cb5bb74caeb13fbd",
+      "sha256_lf": "3b5240fdc67c31d72c3c9bc7fcd238eff311c4b66e6a327f8cc62705e55cb489"
+    },
+    {
+      "path": "scripts/world_editor/residential_site_tools.gd",
+      "sha256_worktree_bytes": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4",
+      "sha256_lf": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4"
+    },
+    {
+      "path": "scripts/world_editor/residential_bridge_context.gd",
+      "sha256_worktree_bytes": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0",
+      "sha256_lf": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "sha256_worktree_bytes": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+      "sha256_lf": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd",
+      "sha256_worktree_bytes": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+      "sha256_lf": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8"
+    },
+    {
+      "path": "scripts/world_editor/road_tools.gd",
+      "sha256_worktree_bytes": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+      "sha256_lf": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_worktree_bytes": "35b3089a6ca881ae209bf595fc9a23a1a35234253d2aff5cb714d7f24094c395",
+      "sha256_lf": "a23263b1ef4beceba74ffbe63e131c786c12e047a3d0bcc818a3b3a33ba14180"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_worktree_bytes": "c77f793b20135172e506c92aecd92f8f7fc676eae1cda28e94dca8356d97be62",
+      "sha256_lf": "189ed5da02f1bb3874a0dfee94f861692777a3f45ee81000e04c33999be4a0d4"
+    },
+    {
+      "path": "scripts/world3d/city_layout.gd",
+      "sha256_worktree_bytes": "d7c7cfecd807bb9ae65118d6076d972b485c8c024c5a220f918015e1ccdd87c7",
+      "sha256_lf": "5e4def0f2fc7729fd2a17575deb70c06d939e93ec3b80fb5ad55fb3f36d15c46"
+    },
+    {
+      "path": "scripts/world3d/road_plan.gd",
+      "sha256_worktree_bytes": "6584e9ed6f643df984b55609f24042b36db5352ea069aedad4abed894c33d089",
+      "sha256_lf": "5c4c898c1921eb0599bb139eac26de59ad4662ce1a0558e2ec58417021d4767e"
+    },
+    {
+      "path": "scripts/world3d/road_intersections.gd",
+      "sha256_worktree_bytes": "4547c731716ee669a1209663dc2be027dc0611b488261a2ec36f66c67347250c",
+      "sha256_lf": "a102e608d74c9e5d7917e454164718e92a12efc967c72fd0fb7f2c3cecaf15dc"
+    },
+    {
+      "path": "tools/test_residential_curves.gd",
+      "sha256_worktree_bytes": "0656805fc9b8613adb4b56c46f1aa9e952d13d14fd139e1e7cc1d1b89c2617fb",
+      "sha256_lf": "b7046809a9386aed49cca1b8bd07c1d9655ffbe4fb5b1034d2019013b0bceb6b"
+    },
+    {
+      "path": "tools/test_residential_curves_http.gd",
+      "sha256_worktree_bytes": "2cb738b8a54a9fd49a4e3a0732f188ed208f6a394fcadde38c363db56e74a6ab",
+      "sha256_lf": "7947ca0c1e740c4d3fd7fd7bae39eda604474638171473424576a064cf28ddc6"
+    },
+    {
+      "path": "tools/test_residential_curves_runtime.gd",
+      "sha256_worktree_bytes": "73b692f166faecf06252304cb033a9be8f3bbc1ef72d7ceb201669c407c34c79",
+      "sha256_lf": "73b692f166faecf06252304cb033a9be8f3bbc1ef72d7ceb201669c407c34c79"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "sha256_worktree_bytes": "49cb440bff427e521baeee42c765b10c63bfef16de9df3e494649406fab734f1",
+      "sha256_lf": "cb61b973c8bbe9e925482bb5d53f29401373f68777bae314e3d381ba2391a40e"
+    },
+    {
+      "path": "tools/test_residential_bridges_http.gd",
+      "sha256_worktree_bytes": "900bff93f33102bf8f3603e34d124028dce263656c4108110d9683126475b1a7",
+      "sha256_lf": "0b7f417fce89fff74728adf0e19ed1064a4b664768165e4f3e0a30be86b8c832"
+    },
+    {
+      "path": "tools/test_residential_bridges_runtime.gd",
+      "sha256_worktree_bytes": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f",
+      "sha256_lf": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "compression.json",
+      "sha256": "db2357e232e9b97957659ba1511da5f6ca4f3b1efe99cf8d353ba46db0d5d28f"
+    },
+    {
+      "path": "console.log",
+      "sha256": "034a90f66998393e46c75f0a181c2a9df0b98590fc672bff975b080fd5896dfe"
+    },
+    {
+      "path": "cpu.json",
+      "sha256": "6131cbd6dff9c2cb88175aac575188b9e3e32b5c1f9e362da29e4df4cd2d050c"
+    },
+    {
+      "path": "cpu_engine.log",
+      "sha256": "eeeea454f6311934e62e7f89f5f49e59494715bdb107d3fd090b2be8420ee2d1"
+    },
+    {
+      "path": "engine.log",
+      "sha256": "fd879e7b78004b639f9ea00d2924ee9779104a828f5c27e0a5761c8c06322a7d"
+    },
+    {
+      "path": "http.json",
+      "sha256": "beff8ae0138d802b8c47ee034a6050db0fdc86c5a69ef53cfddd1eac00bc2d25"
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "2c10901b8592adf59f7a4adbe6c0d796de25e6513061b0a3d0c612207d3da435"
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "d8361fd5d57748e511a6848d623b23a564661ba3e7dc3b04c24d80c1a9d772b3"
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "e6ef22c7cbdfd299a6e2d15a820bee4de48f318ef2d144a5f0dcc9946b0ba7c0"
+    },
+    {
+      "path": "straight/console.log",
+      "sha256": "942dc69b9fdf03bdd09fac3d779f3325474e89e2a69e57afde0ed480b96b2f45"
+    },
+    {
+      "path": "straight/engine.log",
+      "sha256": "126fb418cf53cdb0cd184550cda1543acf2c1f71aa5768e8728399e987cb8d92"
+    },
+    {
+      "path": "straight/http.json",
+      "sha256": "5e9056225539dc42550f5f103a372beebf3ec5baca07519bff7d9f4acd856fa0"
+    },
+    {
+      "path": "ui.webp",
+      "sha256": "a5dac641dae29f68d416b883c15376192f56a7e83115e5deba79babb42a4992a"
+    }
+  ],
+  "fixture": {
+    "map": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/maps/test/map.gltf",
+    "map_sha256": "b19e021ceb5924a9c864405cb26b2d7bb74a7325e6ae2e06e7152a56739ca212",
+    "prefab": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json",
+    "prefab_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+    "source_report": "review_artifacts/residential_bridges_20261017/http.json",
+    "source_report_sha256": "c646349ef6c8c0745b07d863c0deb7036f88878e54e1ab168426f6899dddf82d",
+    "road_connection": {
+      "child_edge_ids": [
+        "main_lane",
+        "home_e60faaa984431e_tail"
+      ],
+      "edge_id": "main_lane",
+      "join_node_id": "home_e60faaa984431e_join",
+      "kind": "cubic",
+      "parameter": 0.37994384765625,
+      "position": [
+        -3.56015432431559,
+        0.0,
+        -14.2470775442607
+      ],
+      "projection": {
+        "distance_error_bound_m": 0.0001,
+        "visits": 62.0
+      },
+      "split": true,
+      "tangent": [
+        28.9622268676758,
+        0.0,
+        -1.04044103622437
+      ],
+      "width": 3.31398315429688
+    },
+    "native_collision_count": 58,
+    "batch_stats": {
+      "base_work_budget_usec": 2000,
+      "building_mesh_hits": 0,
+      "enabled": true,
+      "groups": 1,
+      "instanced_groups": 0,
+      "last_build_ms": 2.673,
+      "last_commit_ms": 0.267,
+      "last_sync_ms": 7.84,
+      "loading_budget_scopes": 0,
+      "max_build_ms": 44.158,
+      "max_commit_ms": 1.974,
+      "pending_groups": 0,
+      "rebuild_count": 4,
+      "release_groups_visited": 3,
+      "render_surfaces": 2,
+      "render_vertices": 19596,
+      "source_objects": 4,
+      "source_surfaces": 16,
+      "source_vertices": 19596,
+      "sync_count": 21,
+      "sync_profile_us": {
+        "capture_us": 106,
+        "geometry_us": 1,
+        "material_us": 6574
+      },
+      "work_budget_usec": 2000
+    }
+  },
+  "scope": "Existing frozen residential and bridge fixtures reused without regeneration for the curved test. True current 3D loopback HTTP and UI with grading, no-side-effect failures, stale control edits, one undo/redo, native batching and save/reopen. Saved native collider and production WorldAuthority capsule checks cover the exterior access, both directions along the curved street continuously across the new junction, and adjacent stone bridge. No avatar renderer, full streaming, arbitrary-input walkability or performance improvement claim. No formal map or scene checkout changes. Q90 lossy VP8 image verified before viewing.",
+  "precision": "Authoring join and control arrays use double scalar de Casteljau subdivision. CPU independent Bernstein evaluation max authoring deviation 1.82e-12 m in tested cases; native float32 curve evaluation at translated 5 km / -7 km coordinates differed by 0.002014 m at most. The 0.0001 m nearest-distance bound is a scalar mathematical projection search bound, not a world-position or collision-precision guarantee.",
+  "publication": "Separate local feature commit only; this batch was not pushed or merged."
+}
