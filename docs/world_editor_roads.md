@@ -165,3 +165,10 @@ UI 的预览／应用按钮、当前 3D MCP 的 `preview_road_surface`／`genera
 每块记录自身的结构、透明度等独立约束仍执行，贴图存在性也逐记录检查；共享材质定义与资源根／链接检查仅在同次不可变操作内复用。8 块路面的材质路径检查从 59 次降至 10 次，下一次调用再次执行这 10 次。没有修改生成顶点、碰撞、合批粒度、手刷／事件保护、作者身份和保存格式，也没有新增同路径纹理字节的 SHA 版本锁。
 
 UI、当前 3D MCP 的 `preview_road_surface`／`generate_road_surface`、道路骨架联动及住宅／联合候选共用此实现。完整返回与作者数据按字节对照冻结基线；真实 UI／HTTP 验证非法请求原子性、外部材质变化、撤销重做、原生保存重开及派生就绪。性能原始配对、较慢样本和范围见[统一方案](seamless_streaming_optimization_plan_20261014.md)及[本批证据](../review_artifacts/road_record_prepare_20261017/evidence.json)。
+
+
+### 2026-10-17 连续路缘随地形起伏
+
+修复长路缘只投影两端、在下凹路面上悬空或埋入凸坡的问题。`terrain_kerb_fit.gd` 在所有截面纵向边与实际地形网格线、三角形对角线的交点处分段，再由共享 `terrain_projection.fit` 采样。保留原作者截面、道路骨架、世界 UV 距离、端帽及独立道路身份；内部细分不增加端帽。单块仍受 8192 段限制，超预算沿用自动分块，不放宽孔洞、坡度、锁定、手刷及障碍保护。
+
+UI 道路面板、当前 3D `preview_road_surface` / `generate_road_surface` 和雕刻跟随共用修复；工具名称与输入 schema 不变。已保存旧地图的派生路缘需要通过“生成道路铺面”重建；单纯重启不会改写地图。`tools/test_terrain_kerb_conformity.gd --textured` 实际 88 项通过、0 失败，覆盖凹凸坡、旋转地形、完整纵向轮廓、重复拟合、材质、HTTP 发现和失败无副作用、撤销重做、保存重开与雕刻跟随。相同逻辑用旧代码运行时有 2 项失败，复现中段悬空。城镇候选与画面记录见 `docs/axel_road_kerb_conformity_20261017.md`。

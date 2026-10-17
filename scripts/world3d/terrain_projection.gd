@@ -115,7 +115,10 @@ static func fit(record:Dictionary,terrains:Array,offset:float=.025,max_grade:flo
 	next[field].polygons=output;next[field].elevations=heights;next[field].erase("grade")
 	# Existing kerbs are regenerated against the fitted surface below.
 	var source_kerbs:Array=record.get("terrain_follow",{}).get("kerbs",record[field].get("kerbs",[])).duplicate(true)
-	if not source_kerbs.is_empty():next[field].kerbs=source_kerbs.duplicate(true)
+	if not source_kerbs.is_empty():
+		var strips:=preload("res://scripts/world3d/terrain_kerb_fit.gd").split(source_kerbs,record,terrains)
+		if not strips.ok:return strips
+		next[field].kerbs=strips.kerbs
 	var terrain_poses:Array[Transform3D]=[];var terrain_inverses:Array[Transform3D]=[]
 	if not next[field].get("kerbs",[]).is_empty():
 		for terrain:Dictionary in terrains:

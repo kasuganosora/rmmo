@@ -21,7 +21,7 @@ static func fit(records:Array,terrains:Array,offset:float=.025,top_triangle_limi
 			# paint face. Reserve the existing override budget now, so editing
 			# heights never requires replacing the persisted follower IDs.
 			fitted={"ok":false,"code":"road_paint_piece_limit","error":"贴地路面默认材质超过 %d 个刷面预算，请分区规划"%top_triangle_limit}
-		if fitted.get("code","") not in ["terrain_projection_piece_limit","road_paint_piece_limit"]:return fitted
+		if fitted.get("code","") not in ["terrain_projection_piece_limit","terrain_projection_kerb_limit","road_paint_piece_limit"]:return fitted
 		if minf(source.size[0],source.size[2])<=.25:return fitted
 		var children:=split(source)
 		if children.is_empty():return City.fail("贴地细分无法保留道路轮廓")
