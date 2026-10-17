@@ -19,6 +19,7 @@ var info: Label
 var tasks: TabContainer
 var rock_banks
 var terrain_layout
+var ramp
 var begin_button: Button
 var end_button: Button
 var river_fields: VBoxContainer
@@ -132,6 +133,8 @@ func setup(value: Node3D) -> void:
 	tasks = TabContainer.new(); tasks.name = "TerrainTasks"; tasks.size_flags_vertical=Control.SIZE_EXPAND_FILL; tasks.use_hidden_tabs_for_min_size=false; add_child(tasks)
 	var sculpt:=_task_page("雕刻")
 	var surface:=_task_page("表面")
+	var ramp_page:=_task_page("坡道")
+	ramp=preload("res://scripts/world_editor/terrain_ramp_panel.gd").new();ramp_page.body.add_child(ramp);ramp.setup(editor,self,ramp_page.footer)
 	var joint:=_task_page("联合整坡")
 	terrain_layout=preload("res://scripts/world_editor/terrain_layout_panel.gd").new();joint.body.add_child(terrain_layout);terrain_layout.setup(editor,self)
 	var rivers:=VBoxContainer.new(); rivers.name="河流"; tasks.add_child(rivers)
@@ -196,6 +199,7 @@ func _update_brush_fields()->void:
 		Compact.show_field(brush_fields,key,show)
 
 func refresh(preferred: String="") -> void:
+	if ramp!=null:ramp.refresh()
 	if terrain_layout!=null:terrain_layout.refresh()
 	if rock_banks!=null:rock_banks.refresh()
 	if river_panel!=null:river_panel.refresh_catalog()

@@ -1,0 +1,28 @@
+{
+	"collisions": 7,
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/terrain_ramp_http_12973900/map.gltf",
+	"map_sha256": "0522b57a7c4289f7bc3bebd1e275b65c1dd9c99085533f415fbabdc3582e5770",
+	"passed": 4,
+	"scope": "production native mesh/collider and WorldAuthority movement; no avatar renderer, no formal map edits",
+	"walks": [
+		{
+			"airborne": 0,
+			"case": "uphill across mixed-resolution seam",
+			"distance": 0.0941926091909409,
+			"max_floor_error": 0.0275294604990005,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 302
+		},
+		{
+			"airborne": 0,
+			"case": "downhill across mixed-resolution seam",
+			"distance": 0.0883800387382507,
+			"max_floor_error": 0.0269701456563197,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 302
+		}
+	]
+}

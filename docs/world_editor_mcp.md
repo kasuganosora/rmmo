@@ -606,6 +606,12 @@ UI 道路预览／应用与当前 3D `preview_road_surface`、`generate_road_sur
 
 UI 地形笔刷与当前 3D `sculpt_terrain` 的铺面跟随更新改为数值识别零 UV 偏移，兼容 JSON 的浮点零，避免将未改默认材质误判为手刷。仍拒绝真实偏移、旋转、倍率或分面材质变化；无新工具/schema 参数，碰撞、坡度和原子失败保护不变。[test_terrain_follow_paint_http.gd](../tools/test_terrain_follow_paint_http.gd) 实际 HTTP **33 项通过，0 失败**，包括 JSON 往返、合法雕刻、四类手刷拒绝无副作用、撤销重做和保存重开；日志 `review_artifacts/axel_town_houses_20261014/terrain_follow_paint_http.log`，细节见 [道路说明](world_editor_roads.md#2026-10-15-贴地默认材质的-json-数值兼容)。
 
+### 2026-10-17 地形取高与两端定高坡道
+
+新增只读 `sample_terrain_height`、`preview_terrain_ramp` 及原子 `apply_terrain_ramp`，与地形面板“坡道”页复用同一服务、完整最终状态保护及一次撤销事务。以世界 XYZ 两端、净宽、柔边定义坡道，默认跨相邻块；预览返回实际全宽三角面证明、挖填量、网格外扩、受影响构件和版本 token，应用可用 `expected_token` 拒绝过期草案。普通高度场首版，孔洞／多层／体积／垄沟／无碰撞支撑拒绝；旧二维适配器保持下线。
+
+参数、数值边界、外围柔边与重复应用语义见 [地形取高与两端定高坡道](world_editor_terrain_sculpt.md#地形取高与两端定高坡道2026-10-17)；真实 HTTP、UI 回调、原子失败、撤销重做、保存重开及原生碰撞行走回执见 [T4-A 证据](../review_artifacts/terrain_ramp_20261017/evidence.json)。没有正式场景内容变更。
+
 ### 2026-10-15 雕刻时普通物件的实际接触保护
 
 `preview_terrain_stroke` / `sculpt_terrain` 与 UI 共享 [terrain_prop_contact.gd](../scripts/world_editor/terrain_prop_contact.gd) 的普通物件接触细查：保留原变化体积粗筛，对完整变换后的局部底面和实际地形三角求交，允许仍有承托的已埋草根随微量降土变浅；真实丢失承托、加深侵入、洞口及复杂结构仍保护。锁定和隐藏物件不跳过，地形可编辑性规则不变；无新工具或输入字段，不提高原接触容差。结构范围及限制见 [地形说明](world_editor_terrain_sculpt.md#普通物件的地面接触保护2026-10-15)。[test_terrain_prop_contact_http.gd](../tools/test_terrain_prop_contact_http.gd) 实际 HTTP **57 项通过，0 失败**，日志同目录 `terrain_prop_contact_http.log`；覆盖真实草资源、跨缝、完整变换、合法微量降土和真实非法操作、无副作用失败、撤销重做及原生保存重开。正式地图接入单独验收。

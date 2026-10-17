@@ -276,6 +276,10 @@ static func preview(editor:Node3D,args:Dictionary)->Dictionary:
 
 static func apply(editor:Node3D,args:Dictionary)->Dictionary:
 	var result:=prepare(editor,args)
+	return commit_prepared(editor,result)
+
+## Only synchronous, fully validated private candidates may enter this boundary.
+static func commit_prepared(editor:Node3D,result:Dictionary)->Dictionary:
 	if not result.ok or not result.changed:return public_result(result)
 	editor._doc.checkpoint_recovery()
 	editor._doc.records=result.records;editor._doc.map_meta=result.map_meta

@@ -1,0 +1,245 @@
+{
+  "feature": "T4-A terrain height sampling and endpoint-constrained terrain ramp",
+  "date": "2026-10-17",
+  "branch": "codex/editor-reliability",
+  "implementation_base": "5bce863fbe745828e4d71c7161ed9818dca74bc1",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "source_identity": "Uncommitted tested bytes at capture; LF-normalized digests survive Git newline conversion. Committed with this evidence.",
+  "sources": [
+    {
+      "path": "scripts/world_editor/terrain_ramp_tools.gd",
+      "sha256_worktree_bytes": "911ef127119e45315f1d097ee960bfca6808c05ffd3d9f1b6300495fc914e0ec",
+      "sha256_lf": "911ef127119e45315f1d097ee960bfca6808c05ffd3d9f1b6300495fc914e0ec"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_panel.gd",
+      "sha256_worktree_bytes": "a6314795b8ab21b8a4fcf7ab27b6a0b5cea616c6144d0a5e737973c672ec3246",
+      "sha256_lf": "a6314795b8ab21b8a4fcf7ab27b6a0b5cea616c6144d0a5e737973c672ec3246"
+    },
+    {
+      "path": "scripts/world_editor/terrain_panel.gd",
+      "sha256_worktree_bytes": "168ef5efa7643d8496f6f4e6b7a174bbfe57804b7e358e29bee3783ccb444bdc",
+      "sha256_lf": "00b1ee4fb576574ac9746b2c3db91a39dc7af0a7e1009df8a13e8390ce1df130"
+    },
+    {
+      "path": "scripts/world_editor/terrain_layout_tools.gd",
+      "sha256_worktree_bytes": "bde577e5d31b1943c0062f1237bc747f63b5c1d1d73bb99ad38b59fc1c7039fc",
+      "sha256_lf": "23e8b752eb8dc1ae7f42be554f6b273766a5451132c23b21d6198bf7330b59f3"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_worktree_bytes": "c99c503f223ac89893957b8b6c8ca8392b13d59d5fafe2a4b81d8457a148f60e",
+      "sha256_lf": "e1aa1af30d973ffbaa894ff53079cb342759ae34069a39986aa0923a893b746b"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_worktree_bytes": "bfde0f2086e2b1dd2c8bbed2e6f565b7c1faaf36cbfe2868d64ee4efe56205fd",
+      "sha256_lf": "de25a29db2ef0a2ef440a453b2df317e7794e10d6cbefa9238318390ec752033"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "sha256_worktree_bytes": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+      "sha256_lf": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb"
+    },
+    {
+      "path": "scripts/world_editor/terrain_tools.gd",
+      "sha256_worktree_bytes": "608f43edd30070e90b82736d5b2fcb2962a3507d504a742631cb100106c547aa",
+      "sha256_lf": "e5bc65ff04870a5752c92135d77476144627aa0907bc0b8f63aa713a33b48ea6"
+    },
+    {
+      "path": "scripts/world_editor/terrain_follow_tools.gd",
+      "sha256_worktree_bytes": "4e4c5edcb9e38c8e28f2740f01c5dc1d464fb606f528fde29ee1f5de7c02523f",
+      "sha256_lf": "97c9844c88f04300e82bf4cc845200f5cdf3fe8203633ae4c5a01059ea5ebecf"
+    },
+    {
+      "path": "scripts/world3d/terrain_surface.gd",
+      "sha256_worktree_bytes": "feeaabe1bcfa66156f7e30da274f3888a065d68e2bb1088fd1bd33ac17d4c0d5",
+      "sha256_lf": "392a0d6e11c2273fbd862065eddb7653ced268a7547873a766b72b88c40c8e70"
+    },
+    {
+      "path": "scripts/world3d/terrain_stroke_batch.gd",
+      "sha256_worktree_bytes": "afb3cd7cc4d68d40c1729064913bf487eb446558f4e60ec155f5b31ebbc9cd64",
+      "sha256_lf": "cb002e53eeec5c62b52bd668d08361d12284c9ffb10e9be9744f00863d695472"
+    },
+    {
+      "path": "scripts/world3d/world_document.gd",
+      "sha256_worktree_bytes": "859bb50bb80837d735d476b650481c95820346789d586a00a57e83b274ace1aa",
+      "sha256_lf": "c46f2f3879c64a91cf0bc00c3bcfb7536b7cb72db543ca9b5481eb21f0e6218d"
+    },
+    {
+      "path": "scripts/world3d/world_authority.gd",
+      "sha256_worktree_bytes": "c3c98a51e1af930726dac7e2073f3d8c8f3a70d3be2da9e86447bef99637b6a0",
+      "sha256_lf": "d8a2a5d02480bbbc534c748817818e0a60c6e300f44fc0c2e3de738246a27b65"
+    },
+    {
+      "path": "scripts/world3d/ground_batcher.gd",
+      "sha256_worktree_bytes": "7afe8febc6db913f67c21d1ef4c2b6bbfcb81d63484788c77fd019d588565130",
+      "sha256_lf": "6f6dc1a8e07e20ff307f6393994ae873ecf07adc003f1d7a83975c11ee8079c2"
+    },
+    {
+      "path": "tools/test_terrain_ramp.gd",
+      "sha256_worktree_bytes": "8aef7dad3df684fff49c81264c08ea97059be5c430dd787f72dbc8b88b2fb853",
+      "sha256_lf": "8aef7dad3df684fff49c81264c08ea97059be5c430dd787f72dbc8b88b2fb853"
+    },
+    {
+      "path": "tools/test_terrain_ramp_http.gd",
+      "sha256_worktree_bytes": "4de41f1652d383d5b2d343002a8858220257ea76ca6cfe348dfb61bd7ae3158f",
+      "sha256_lf": "4de41f1652d383d5b2d343002a8858220257ea76ca6cfe348dfb61bd7ae3158f"
+    },
+    {
+      "path": "tools/test_terrain_ramp_runtime.gd",
+      "sha256_worktree_bytes": "e4b029bee6dd2b39ca28e66db58e44b7bc46c6b50f16ffbc924e4f4f57909159",
+      "sha256_lf": "e4b029bee6dd2b39ca28e66db58e44b7bc46c6b50f16ffbc924e4f4f57909159"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "logic.json",
+      "sha256": "8715480ced8ec06f72080addace4a92b62e6bcc95927e2955c1bf47923c6798f",
+      "bytes": 33
+    },
+    {
+      "path": "logic.log",
+      "sha256": "bac3b09ddf8b55691cee8fab99bc5d40d83d405444bf2ce041fb3269b3494fa9",
+      "bytes": 787
+    },
+    {
+      "path": "http.json",
+      "sha256": "c4d436837f51eec1c749e032a7058a910b039f90cf54b33d8ffa8fb121c44a2d",
+      "bytes": 10832
+    },
+    {
+      "path": "http_engine.log",
+      "sha256": "cbe51c02fce53d6ec1a5a449d4ff58495292398416348b82a1efea39e6f962be",
+      "bytes": 6021
+    },
+    {
+      "path": "http_console.log",
+      "sha256": "e34532fba11f8e6bce3500d09cae85a477deb7b726c752bd62b7a5da3b70f7ac",
+      "bytes": 6135
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "667c46640b13360ff4c196483e64d856977b260d63743d334ac8d81a554cca34",
+      "bytes": 760
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "e92522414a2f9f8e223a9248f837b90b2418fd04cb510feb9af4f56ddea4440c",
+      "bytes": 641
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "1e9cff15155a73b3269a9f89c0411f79bda7ccc86720a6add8c2e8aede3c55df",
+      "bytes": 650
+    },
+    {
+      "path": "ramp_ui.webp",
+      "sha256": "2a3efd520172f2098a9af3255c99ce51b2ca37ed1065ad26d44a91bc5e4443c6",
+      "bytes": 176418
+    },
+    {
+      "path": "ramp_ui_compression.json",
+      "sha256": "e5bcbcbc0569b7e069c13e75a29032ad893313304f0064683426e68b94d916df",
+      "bytes": 343
+    }
+  ],
+  "checks": {
+    "logic": 10,
+    "http": 109,
+    "runtime": 4
+  },
+  "total_assertions": 123,
+  "failures": 0,
+  "negative_http_cases": 21,
+  "map": "D:/code/rmmo_runtime/cache/world3d/terrain_ramp_http_12973900/map.gltf",
+  "map_sha256": "0522b57a7c4289f7bc3bebd1e275b65c1dd9c99085533f415fbabdc3582e5770",
+  "engine": {
+    "version": "4.7.2.stable.official.ed1daf0bf",
+    "gui_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424"
+  },
+  "execution": "Pure logic headless; HTTP/UI and saved-map physical traversal via run_godot_background.py on an inactive private Windows desktop. Disposable maps only.",
+  "validation": {
+    "ui_mcp_shared_result": true,
+    "native_undo_redo_save_reopen": true,
+    "full_width_triangles": true,
+    "positive_and_negative_grade": true,
+    "mixed_resolution_seams": true,
+    "protection_and_stale_failures_atomic": true,
+    "actual_bidirectional_world_authority_walks": [
+      {
+        "airborne": 0,
+        "case": "uphill across mixed-resolution seam",
+        "distance": 0.0941926091909409,
+        "max_floor_error": 0.0275294604990005,
+        "passed": true,
+        "rejected": 0,
+        "ticks": 302
+      },
+      {
+        "airborne": 0,
+        "case": "downhill across mixed-resolution seam",
+        "distance": 0.0883800387382507,
+        "max_floor_error": 0.0269701456563197,
+        "passed": true,
+        "rejected": 0,
+        "ticks": 302
+      }
+    ],
+    "actual_batch_stats": {
+      "base_work_budget_usec": 2000,
+      "building_mesh_hits": 0,
+      "enabled": true,
+      "groups": 1,
+      "instanced_groups": 0,
+      "last_build_ms": 27.325,
+      "last_commit_ms": 0.723,
+      "last_sync_ms": 0.298,
+      "loading_budget_scopes": 0,
+      "max_build_ms": 27.325,
+      "max_commit_ms": 0.723,
+      "pending_groups": 0,
+      "rebuild_count": 6,
+      "release_groups_visited": 1,
+      "render_surfaces": 1,
+      "render_vertices": 1196,
+      "source_objects": 2,
+      "source_surfaces": 4,
+      "source_vertices": 2221,
+      "sync_count": 40,
+      "sync_profile_us": {
+        "capture_us": 0,
+        "geometry_us": 0,
+        "material_us": 0
+      },
+      "work_budget_usec": 2000
+    },
+    "independent_selection_and_collision_identity": true
+  },
+  "limits": [
+    "Ordinary heightfield only; no holes, stacked/volume/tilted terrain or furrows.",
+    "1-48m length, 1-32m width, max 15% requested grade.",
+    "Automatic cell-diagonal padding is reported and included in protection checks.",
+    "Outer blend is not a walkability guarantee and repeated stamping continues to blend it.",
+    "Ground surface proof does not certify whole-route capsule clearance or connectivity.",
+    "No production scene changes, main merge, remote push or performance project."
+  ],
+  "discarded_test_attempts": [
+    "Initial negative-case harness used duplicate() on the string selection field; its zero-failure summary was invalid and is excluded. Fixed harness and asserted executed negative-case count.",
+    "The original two different-resolution tiles could not form an eligible render batch. A same-resolution neighbor was added to the disposable fixture; final assertions verify a real merge. No production batching code changed.",
+    "The initial screenshot used save_webp(lossy=false) despite an incorrect quality-90 metadata claim. Fixed to true/0.9, reran the final UI/HTTP and saved-map traversal, and replaced the image and SHA. Final archived bytes are verified VP8 lossy, not VP8L."
+  ],
+  "next_feature": "E1-C residential access in a road graph containing bridges; performance remains deferred",
+  "screenshot_validation": {
+    "codec": "RIFF WEBP VP8 lossy (not VP8L)",
+    "quality": 90,
+    "encoder_argument": "Image.save_webp(path, true, 0.9)",
+    "sha256": "2a3efd520172f2098a9af3255c99ce51b2ca37ed1065ad26d44a91bc5e4443c6",
+    "dimensions": [
+      1600,
+      1000
+    ],
+    "viewed_payload_mime": "image/webp",
+    "viewed_detail": "original"
+  }
+}
