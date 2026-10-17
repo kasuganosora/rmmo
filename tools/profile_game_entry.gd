@@ -206,6 +206,10 @@ func run()->void:
 		elif arg=="--with-background-wind":preload("res://scripts/world3d/world_3d.gd").wind_background_enabled=true
 		elif arg=="--without-background-wind":preload("res://scripts/world3d/world_3d.gd").wind_background_enabled=false
 		elif arg=="--with-building-readiness":preload("res://scripts/world3d/world_3d.gd").building_readiness_enabled=true
+		elif arg=="--without-staged-entry":
+			preload("res://scripts/world3d/world_3d.gd").automatic_staged_entry_enabled=false
+			preload("res://scripts/world3d/world_3d.gd").navigation_background_enabled=false
+			preload("res://scripts/world3d/world_3d.gd").wind_background_enabled=false
 		elif arg=="--with-collision-first":preload("res://scripts/world3d/deferred_asset_loader.gd").collision_first_enabled=true
 		elif arg=="--with-no-collision-proof":preload("res://scripts/world3d/collision_dependency_loader.gd").no_collision_proof_enabled=true
 		elif arg=="--without-no-collision-proof":preload("res://scripts/world3d/collision_dependency_loader.gd").no_collision_proof_enabled=false
@@ -252,6 +256,7 @@ func run()->void:
 	report.background_navigation=preload("res://scripts/world3d/world_3d.gd").navigation_background_enabled
 	report.background_wind=preload("res://scripts/world3d/world_3d.gd").wind_background_enabled
 	report.building_readiness=preload("res://scripts/world3d/world_3d.gd").building_readiness_enabled
+	report.automatic_staged_entry=preload("res://scripts/world3d/world_3d.gd").automatic_staged_entry_enabled
 	report.collision_first=preload("res://scripts/world3d/deferred_asset_loader.gd").collision_first_enabled
 	report.collision_query_cache=preload("res://scripts/world3d/deferred_asset_loader.gd").collision_query_cache_enabled
 	report.no_collision_proof=preload("res://scripts/world3d/collision_dependency_loader.gd").no_collision_proof_enabled

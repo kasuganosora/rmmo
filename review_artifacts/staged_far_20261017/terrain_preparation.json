@@ -1,0 +1,129 @@
+{
+  "grid": [
+    64,
+    64
+  ],
+  "measurements": [
+    {
+      "enabled": false,
+      "ms": 11.806,
+      "round": 0,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": true,
+      "ms": 61.376,
+      "round": 0,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": true,
+      "ms": 33.279,
+      "round": 1,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": false,
+      "ms": 13.199,
+      "round": 1,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": false,
+      "ms": 11.913,
+      "round": 2,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": true,
+      "ms": 38.388,
+      "round": 2,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": true,
+      "ms": 35.724,
+      "round": 3,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": false,
+      "ms": 15.902,
+      "round": 3,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": false,
+      "ms": 12.25,
+      "round": 4,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": true,
+      "ms": 32.267,
+      "round": 4,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": true,
+      "ms": 36.482,
+      "round": 5,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": false,
+      "ms": 12.971,
+      "round": 5,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": false,
+      "ms": 11.967,
+      "round": 6,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": true,
+      "ms": 34.295,
+      "round": 6,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": true,
+      "ms": 39.328,
+      "round": 7,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": false,
+      "ms": 12.245,
+      "round": 7,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": false,
+      "ms": 11.719,
+      "round": 8,
+      "serialized_work_bytes": 332952
+    },
+    {
+      "enabled": true,
+      "ms": 37.527,
+      "round": 8,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": true,
+      "ms": 54.762,
+      "round": 9,
+      "serialized_work_bytes": 422564
+    },
+    {
+      "enabled": false,
+      "ms": 11.86,
+      "round": 9,
+      "serialized_work_bytes": 332952
+    }
+  ],
+  "scope": "bounded CPU batch preparation, no upload; extra work runs on existing background geometry workers"
+}

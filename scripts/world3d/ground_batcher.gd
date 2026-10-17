@@ -6,6 +6,7 @@ const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var groups: Dictionary = {}
+var terrain_lod_visuals:Dictionary={}
 var pending: Array[String] = []
 var enabled := true
 var rebuild_count := 0
@@ -101,6 +102,7 @@ func clear(restore_sources: bool = true) -> void:
 	_preparation.clear();_residency_descriptors.clear()
 	for group: Dictionary in groups.values(): _drop(group,restore_sources)
 	groups.clear(); pending.clear(); _material_keys.clear(); _instance_meshes.clear(); _member_groups.clear();_building_meshes.clear()
+	terrain_lod_visuals.clear()
 	_audit_keys.clear();_audit_cursor=0
 
 func release(ids: Array) -> void:
@@ -140,7 +142,8 @@ func _drop(group: Dictionary, restore_sources: bool = true) -> void:
 		if callback.is_valid() and node.tree_exiting.is_connected(callback):node.tree_exiting.disconnect(callback)
 		var visible_callback:Callable=group.get("visible_callback",Callable())
 		if visible_callback.is_valid() and node.visibility_changed.is_connected(visible_callback):node.visibility_changed.disconnect(visible_callback)
-	if is_instance_valid(group.get("visual")): group.visual.free()
+	if is_instance_valid(group.get("visual")):
+		terrain_lod_visuals.erase(group.visual.get_instance_id());group.visual.free()
 	if not restore_sources: return
 	for node in group.members:
 		if is_instance_valid(node) and not node.is_queued_for_deletion(): restore(node)
@@ -232,6 +235,9 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	if not node is MeshInstance3D or not node.has_meta("ground_batch_record") or str(node.name) in excluded: return
 	if not node.is_visible_in_tree() or node.transparency > 0 or node.material_overlay != null or node.skin != null: return
 	var record: Dictionary = node.get_meta("ground_batch_record")
+	# Authored glTF wind can exist without a record override. Instancing must
+	# never hide receivers from the runtime or strip their deformation shader.
+	if record.get("vegetation_batch",false) and node.get_meta("extras",{}).get("rmmo_wind",{}).get("profile","off")!="off":return
 	if not Geometry.candidate(record) or not node.global_basis.is_conformal() or (not record.get("vegetation_batch",false) and not node.global_basis.get_scale().is_equal_approx(Vector3.ONE)) or node.global_basis.determinant() < 0: return
 	# Runtime residency only adds/removes immutable sources. Their captured
 	# grouping data survives chunk crossings and CPU/GPU mesh substitution.
@@ -245,8 +251,10 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	var mark:=Time.get_ticks_usec()
 	for slot in node.mesh.get_surface_count():
 		var material: Material = node.get_active_material(slot)
-		if not _material_keys.has(material): _material_keys[material] = Geometry.material_key(material)
-		var key: String = _material_keys[material]
+		var cutout:bool=preload("res://scripts/world3d/vegetation_render.gd").eligible(record)
+		var material_key_:Array=[material,cutout]
+		if not _material_keys.has(material_key_): _material_keys[material_key_] = Geometry.material_key(material,cutout)
+		var key: String = _material_keys[material_key_]
 		if key.is_empty(): eligible = false; break
 		keys.append(key)
 		if material is ShaderMaterial and (absf(node.global_basis.y.x) > .00001 or absf(node.global_basis.y.z) > .00001): eligible = false
@@ -328,7 +336,9 @@ func _prepare_step(budget_usec:int)->void:
 						else:
 							desired[target].members.append_array(source.members);desired[target].signature.append_array(source.signature);desired[target].vertices+=source.vertices
 				"filter":
-					if desired[item].members.size()<2:desired.erase(item)
+					# A lone heightfield still benefits from distant index LODs.
+					# Other categories retain the original two-member minimum.
+					if desired[item].members.size()<2 and not preload("res://scripts/world3d/terrain_render_lod.gd").eligible(desired[item].members[0].get_meta("ground_batch_record")):desired.erase(item)
 				"drop":
 					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
 						_drop(groups[item]);groups.erase(item);pending.erase(item)
@@ -543,6 +553,9 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 		var info:Dictionary=data.duplicate();info.erase("mesh");info.erase("slots")
 		_building_meshes[group.mesh_cache_key]={"reference":weakref(data.mesh),"data":info,"poses":group.cache_poses}
 	var visual := MeshInstance3D.new(); visual.mesh = data.mesh
+	if visual.mesh.has_meta("terrain_render_lod"):
+		visual.lod_bias=1000000. # Runtime distance policy opts into distant indices.
+		terrain_lod_visuals[visual.get_instance_id()]=weakref(visual)
 	visual.cast_shadow = group.members[0].cast_shadow; visual.layers = group.members[0].layers
 	visual.set_meta("ground_render_batch", true)
 	if group.category=="ground" and data.source_surfaces == group.members.size(): visual.set_meta("extras", {"kind":"ground"})

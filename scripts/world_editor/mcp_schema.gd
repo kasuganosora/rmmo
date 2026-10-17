@@ -161,7 +161,7 @@ static func native_tools() -> Array:
 		spec("pick_playtest_spawn", "点击当前编辑画布像素位置拾取朝上的地面，设置出生脚点，一次撤销。", {"screen":vector(2,0)}, ["screen"]),
 		spec("start_playtest", "启动未保存地图副本的独立试玩；不保存正式地图或角色进度。异步准备，查询 playtest_state；图形编辑器可用。可临时覆盖出生脚点，不改变文档设置。", {"position":vector(3,-100000,100000)}),
 		spec("stop_playtest", "结束临时试玩并恢复原编辑器、选择、镜头和撤销历史。", {}),
-		spec("playtest_state", "查询试玩准备/运行/失败/停止状态和错误。", {}, [], true),
+		spec("playtest_state", "查询试玩准备/运行/失败/停止状态和错误；preparation 同步返回分阶段入场策略、可操作状态、点击寻路与风动接入状态。必要碰撞及建筑成员未就绪不会放行。", {}, [], true),
 		spec("list_event_templates", "列出 3D 事件模板、默认参数和参数 schema。复用现有事件页/命令运行逻辑。", {}, [], true),
 		spec("list_event_resources", "分页查询事件可用物品和商店 ID。", pagination, [], true),
 		spec("create_event_template", "在指定脚点新建事件标记，模板为对话/宝箱/采集/传送/商店，一次撤销。接近跨图入口自动尝试预读并预加载目标画面资源；传送自动淡出淡入并显示等待阶段；完整就绪后恢复操作。", {"template": choice(["dialogue", "chest", "gather", "transfer", "shop"]), "position": vector(3, -100000, 100000), "parameters": preload("res://scripts/world3d/event_templates.gd").parameters_schema()}, ["template", "position"]),

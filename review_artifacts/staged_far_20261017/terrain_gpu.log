@@ -1,0 +1,31 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS save real mixed-grid terrain with full riverbank PBR dependencies
+PASS native reopening restores all author identities
+PASS derived batch never changes source positions normals UVs indices or exact collision faces
+PASS actual renderer thresholds/index buffers match worker-owned LOD data
+PASS actual renderer thresholds/index buffers match worker-owned LOD data
+PASS native terrain enters real render-only LOD batches
+PASS A/A submitted primitive count is stable: near
+PASS near base geometry stays exact and image stays within one output LSB: near
+PASS A/A submitted primitive count is stable: detail
+PASS near base geometry stays exact and image stays within one output LSB: detail
+PASS A/A submitted primitive count is stable: mid
+PASS A/A submitted primitive count is stable: far
+PASS far policy reduces actual submitted primitives beyond A/A noise
+PASS far render LOD preserves original physical terrain height
+PASS all distance changes leave saved author data unchanged
+PASS save actual steep bank and two-cell hole fixture
+PASS topology with real holes retains exact full render/collision fallback
+PASS steep cut edges and hole boundaries remain exact: hole_bank_near
+PASS steep cut edges and hole boundaries remain exact: hole_bank_far
+PASS actual physical ray still passes through the authored hole
+PASS actual native manifest exists; no source-only import is mistaken for native acceptance
+PASS cutout actual immutable native product reopens through production validation
+PASS cutout unique texture/native costs measured from actual reopened product
+PASS isolated initial preparation owns a real authority ticket
+PASS initial preparation really waits for the next physics publication
+PASS destroyed initial world resumes safely without dereferencing it or activating entry
+STAGED_FAR_GPU failures=0 media=D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/terrain_9442457

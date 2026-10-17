@@ -35,7 +35,7 @@ var _caption: Label
 func _ready() -> void: process_mode = Node.PROCESS_MODE_ALWAYS
 func active() -> bool: return phase in ["preparing","loading","running","stopping"]
 func state() -> Dictionary:
-	return {"ok":true,"phase":phase,"active":active(),"error":last_error,"source_path":source_path,"temporary_path":map_path,"spawn":[spawn.x,spawn.y,spawn.z]}
+	return {"ok":true,"phase":phase,"active":active(),"error":last_error,"source_path":source_path,"temporary_path":map_path,"spawn":[spawn.x,spawn.y,spawn.z],"preparation":world.preparation_state() if is_instance_valid(world) else {}}
 func start(position: Variant = null) -> Dictionary:
 	var ready: Dictionary = editor._gameplay.guard()
 	if not ready.ok: return ready
@@ -102,6 +102,9 @@ func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
 	# Build the same validated native snapshot for play, with fresh stream owners
 	# after the isolated collision probe has been freed.
 	session.prepared_world3d = clone.build(); session.world3d_switches = {}; session.world3d_loading = false
+	# This native snapshot was just saved from this exact isolated clone. Give
+	# the shared entry authority its real revision, as MapLoader does in game.
+	session.prepared_world3d.set_meta("source_map_sha256",FileAccess.get_sha256(map_path))
 	session.world3d_requested = true; session.editor_return = true
 	session.world3d_map_path = map_path; session.world3d_spawn = spawn+Vector3(0,.9,0)
 	session.selected_character = character.duplicate(true)

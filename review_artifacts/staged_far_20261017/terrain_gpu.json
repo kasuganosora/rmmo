@@ -1,0 +1,447 @@
+{
+  "checks": [
+    {
+      "label": "save real mixed-grid terrain with full riverbank PBR dependencies",
+      "ok": true
+    },
+    {
+      "label": "native reopening restores all author identities",
+      "ok": true
+    },
+    {
+      "label": "derived batch never changes source positions normals UVs indices or exact collision faces",
+      "ok": true
+    },
+    {
+      "label": "actual renderer thresholds/index buffers match worker-owned LOD data",
+      "ok": true
+    },
+    {
+      "label": "actual renderer thresholds/index buffers match worker-owned LOD data",
+      "ok": true
+    },
+    {
+      "label": "native terrain enters real render-only LOD batches",
+      "ok": true
+    },
+    {
+      "label": "A/A submitted primitive count is stable: near",
+      "ok": true
+    },
+    {
+      "label": "near base geometry stays exact and image stays within one output LSB: near",
+      "ok": true
+    },
+    {
+      "label": "A/A submitted primitive count is stable: detail",
+      "ok": true
+    },
+    {
+      "label": "near base geometry stays exact and image stays within one output LSB: detail",
+      "ok": true
+    },
+    {
+      "label": "A/A submitted primitive count is stable: mid",
+      "ok": true
+    },
+    {
+      "label": "A/A submitted primitive count is stable: far",
+      "ok": true
+    },
+    {
+      "label": "far policy reduces actual submitted primitives beyond A/A noise",
+      "ok": true
+    },
+    {
+      "label": "far render LOD preserves original physical terrain height",
+      "ok": true
+    },
+    {
+      "label": "all distance changes leave saved author data unchanged",
+      "ok": true
+    },
+    {
+      "label": "save actual steep bank and two-cell hole fixture",
+      "ok": true
+    },
+    {
+      "label": "topology with real holes retains exact full render/collision fallback",
+      "ok": true
+    },
+    {
+      "label": "steep cut edges and hole boundaries remain exact: hole_bank_near",
+      "ok": true
+    },
+    {
+      "label": "steep cut edges and hole boundaries remain exact: hole_bank_far",
+      "ok": true
+    },
+    {
+      "label": "actual physical ray still passes through the authored hole",
+      "ok": true
+    },
+    {
+      "label": "actual native manifest exists; no source-only import is mistaken for native acceptance",
+      "ok": true
+    },
+    {
+      "label": "cutout actual immutable native product reopens through production validation",
+      "ok": true
+    },
+    {
+      "label": "cutout unique texture/native costs measured from actual reopened product",
+      "ok": true
+    },
+    {
+      "label": "isolated initial preparation owns a real authority ticket",
+      "ok": true
+    },
+    {
+      "label": "initial preparation really waits for the next physics publication",
+      "ok": true
+    },
+    {
+      "label": "destroyed initial world resumes safely without dereferencing it or activating entry",
+      "ok": true
+    }
+  ],
+  "cutout_audit": {
+    "generator": "c6d8d9c635240464cd86a65d7765bf49a9b4640f78f5abf8e4857644fc847e17",
+    "native": "D:/code/rmmo_runtime/cache/world3d/compiled_assets_v1/709ae2f03a7458b0af87e915507767ff8159a8d43f56dee179a23d10c8c7dfca.scn",
+    "native_bytes": 6490,
+    "native_sha256": "709ae2f03a7458b0af87e915507767ff8159a8d43f56dee179a23d10c8c7dfca",
+    "note": "texture/mesh storage accounting is not measured process RSS/VRAM",
+    "source": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/cutout_13513275/assets/6a21bc309fad0b92150cc93a3a6624e60d59dfc99dd9227beb55365f78cdacf0.glb",
+    "source_bytes": 6260,
+    "source_sha256": "6a21bc309fad0b92150cc93a3a6624e60d59dfc99dd9227beb55365f78cdacf0",
+    "stats": {
+      "collision_face_bytes": 864,
+      "container_bytes": 2176,
+      "gpu_rgba_bytes": 87380,
+      "image_mip_bytes": 87380,
+      "images": 1,
+      "materials": 1,
+      "mesh_capture_bytes": 2592,
+      "mesh_storage_bytes": 912,
+      "meshes": 1,
+      "native_uncompressed_bytes": 0,
+      "nodes": 3,
+      "other_packed_bytes": 0,
+      "resources": 4,
+      "surfaces": 1,
+      "textures": 1
+    }
+  },
+  "failures": 0,
+  "geometry": {
+    "author_sha256": "ff9187c5f16f8db91bbae3c1fdee423e10466a968570ece0eeb15bf7041b44cc",
+    "base_indices": 66072,
+    "extra_index_bytes": 236448,
+    "levels": 6,
+    "native_bytes": 4564,
+    "normal_decoded_bytes": 49152,
+    "normal_gpu_rgba8_mip_budget_bytes": 87381,
+    "normal_sha256": "57d3bd52103a4bd88ab2661b327c905d4d611385c0b6b23decdd4678f2bf5ba6",
+    "normal_source_bytes": 8424
+  },
+  "hole_map": {
+    "path": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/terrain_9442457/hole_bank.gltf",
+    "sha256": "0dd1410a75dcd9133d0c2671314f390694946acffb825b29fdf89ecd6642ba2d"
+  },
+  "measurements": [
+    {
+      "gpu_ms": [
+        0.140000000596046,
+        0.136000007390976,
+        0.137999996542931,
+        0.137999996542931,
+        0.140000000596046,
+        0.137999996542931,
+        0.141000002622604,
+        0.14300000667572,
+        0.138999998569489,
+        0.137999996542931,
+        0.138999998569489,
+        0.138999998569489,
+        0.138999998569489,
+        0.137999996542931,
+        0.138999998569489,
+        0.136000007390976,
+        0.137999996542931,
+        0.136999994516373,
+        0.140000000596046,
+        0.141000002622604,
+        0.136999994516373,
+        0.138999998569489,
+        0.136999994516373,
+        0.140000000596046,
+        0.137999996542931,
+        0.137999996542931,
+        0.141000002622604,
+        0.136000007390976,
+        0.138999998569489,
+        0.138999998569489,
+        0.140000000596046,
+        0.140000000596046,
+        0.140000000596046,
+        0.138999998569489,
+        0.137999996542931,
+        0.136999994516373,
+        0.141000002622604,
+        0.138999998569489,
+        0.140000000596046,
+        0.141000002622604
+      ],
+      "label": "baseline_a"
+    },
+    {
+      "gpu_ms": [
+        0.141000002622604,
+        0.137999996542931,
+        0.142000004649162,
+        0.141000002622604,
+        0.142000004649162,
+        0.137999996542931,
+        0.136999994516373,
+        0.140000000596046,
+        0.137999996542931,
+        0.138999998569489,
+        0.140000000596046,
+        0.137999996542931,
+        0.142000004649162,
+        0.137999996542931,
+        0.141000002622604,
+        0.140000000596046,
+        0.138999998569489,
+        0.140000000596046,
+        0.141000002622604,
+        0.138999998569489,
+        0.138999998569489,
+        0.137999996542931,
+        0.140000000596046,
+        0.137999996542931,
+        0.138999998569489,
+        0.136999994516373,
+        0.136000007390976,
+        0.136999994516373,
+        0.136000007390976,
+        0.137999996542931,
+        0.137999996542931,
+        0.136999994516373,
+        0.141000002622604,
+        0.137999996542931,
+        0.140000000596046,
+        0.137999996542931,
+        0.138999998569489,
+        0.137999996542931,
+        0.138999998569489,
+        0.140000000596046
+      ],
+      "label": "baseline_a_repeat"
+    },
+    {
+      "gpu_ms": [
+        0.123000003397465,
+        0.118000000715256,
+        0.122000001370907,
+        0.119999997317791,
+        0.119999997317791,
+        0.119999997317791,
+        0.122000001370907,
+        0.120999999344349,
+        0.122000001370907,
+        0.118000000715256,
+        0.122000001370907,
+        0.120999999344349,
+        0.120999999344349,
+        0.119999997317791,
+        0.120999999344349,
+        0.122000001370907,
+        0.120999999344349,
+        0.122000001370907,
+        0.125,
+        0.122000001370907,
+        0.119999997317791,
+        0.123000003397465,
+        0.122000001370907,
+        0.123000003397465,
+        0.119999997317791,
+        0.123000003397465,
+        0.122000001370907,
+        0.123000003397465,
+        0.122000001370907,
+        0.122000001370907,
+        0.122000001370907,
+        0.119000002741814,
+        0.123000003397465,
+        0.122000001370907,
+        0.123000003397465,
+        0.119000002741814,
+        0.120999999344349,
+        0.120999999344349,
+        0.120999999344349,
+        0.120999999344349
+      ],
+      "label": "candidate_b"
+    },
+    {
+      "gpu_ms": [
+        0.138999998569489,
+        0.138999998569489,
+        0.140000000596046,
+        0.137999996542931,
+        0.136999994516373,
+        0.137999996542931,
+        0.138999998569489,
+        0.136999994516373,
+        0.141000002622604,
+        0.138999998569489,
+        0.137999996542931,
+        0.140000000596046,
+        0.140000000596046,
+        0.137999996542931,
+        0.142000004649162,
+        0.136999994516373,
+        0.137999996542931,
+        0.137999996542931,
+        0.136999994516373,
+        0.137999996542931,
+        0.140000000596046,
+        0.136999994516373,
+        0.138999998569489,
+        0.137999996542931,
+        0.140000000596046,
+        0.137999996542931,
+        0.140000000596046,
+        0.138999998569489,
+        0.137999996542931,
+        0.138999998569489,
+        0.137999996542931,
+        0.138999998569489,
+        0.136000007390976,
+        0.136999994516373,
+        0.136000007390976,
+        0.138999998569489,
+        0.140000000596046,
+        0.137999996542931,
+        0.138999998569489,
+        0.137999996542931
+      ],
+      "label": "baseline_a_return"
+    },
+    {
+      "gpu_ms": [
+        0.122000001370907,
+        0.122000001370907,
+        0.125,
+        0.119999997317791,
+        0.123000003397465,
+        0.120999999344349,
+        0.122000001370907,
+        0.123000003397465,
+        0.122000001370907,
+        0.120999999344349,
+        0.120999999344349,
+        0.123000003397465,
+        0.122000001370907,
+        0.123000003397465,
+        0.120999999344349,
+        0.122000001370907,
+        0.119999997317791,
+        0.120999999344349,
+        0.123000003397465,
+        0.122000001370907,
+        0.122000001370907,
+        0.122000001370907,
+        0.122000001370907,
+        0.122000001370907,
+        0.123000003397465,
+        0.120999999344349,
+        0.123000003397465,
+        0.120999999344349,
+        0.123000003397465,
+        0.122000001370907,
+        0.123000003397465,
+        0.122000001370907,
+        0.119999997317791,
+        0.119999997317791,
+        0.120999999344349,
+        0.120999999344349,
+        0.120999999344349,
+        0.120999999344349,
+        0.122000001370907,
+        0.123000003397465
+      ],
+      "label": "candidate_b_repeat"
+    }
+  ],
+  "media": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/terrain_9442457",
+  "views": [
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 22024,
+      "image_delta": {
+        "max": 0.00392156862745098,
+        "mean": 0.0000000038296568627451
+      },
+      "name": "near",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 22024,
+      "image_delta": {
+        "max": 0.0,
+        "mean": 0.0
+      },
+      "name": "detail",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 6152,
+      "image_delta": {
+        "max": 0.00784313725490196,
+        "mean": 0.0000521075878267974
+      },
+      "name": "mid",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 6152,
+      "image_delta": {
+        "max": 0.00784313725490196,
+        "mean": 0.0000278007557189542
+      },
+      "name": "far",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_primitives": 4356,
+      "candidate_primitives": 4356,
+      "image_delta": {
+        "max": 0.0,
+        "mean": 0.0
+      },
+      "name": "hole_bank_near"
+    },
+    {
+      "baseline_primitives": 4356,
+      "candidate_primitives": 4356,
+      "image_delta": {
+        "max": 0.0117647058823529,
+        "mean": 0.00021753089256536
+      },
+      "name": "hole_bank_far"
+    }
+  ]
+}

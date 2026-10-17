@@ -1,0 +1,1433 @@
+WorkerThreadPool: 12 threads, 3 max low-priority.
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+TextServer: Added interface "Dummy"
+TextServer: Added interface "ICU / HarfBuzz / Graphite (Built-in)"
+Accessibility: AccessKit driver loaded.
+Accessibility: window 0 adapter created.
+Devices:
+  #0: AMD AMD Radeon RX 7900 XTX - Supported, Discrete
+Optional Vulkan device extension VK_EXT_fragment_density_map not found
+Optional Vulkan device extension VK_EXT_fragment_density_map2 not found
+Optional Vulkan device extension VK_QCOM_fragment_density_map_offset not found
+Optional Vulkan device extension VK_EXT_astc_decode_mode not found
+Optional Vulkan device extension VK_EXT_texture_compression_astc_hdr not found
+Optional Vulkan device extension VK_NV_ray_tracing_validation not found
+Optional Vulkan device extension VK_KHR_external_memory_fd not found
+Optional Vulkan device extension VK_EXT_debug_marker not found
+- Vulkan Fragment Shading Rate supported:
+  Pipeline fragment shading rate
+  Primitive fragment shading rate
+  Attachment fragment shading rate, min texel size: (8, 8), max texel size: (8, 8), max fragment size: (2, 2)
+- Vulkan Fragment Density Map not supported
+- Vulkan multiview supported:
+  max view count: 6
+  max instances: 4294967295
+- Vulkan subgroup:
+  size: 64
+  min size: 32
+  max size: 64
+  stages: STAGE_VERTEX, STAGE_TESSELLATION_CONTROL, STAGE_TESSELLATION_EVALUATION, STAGE_GEOMETRY, STAGE_FRAGMENT, STAGE_COMPUTE, STAGE_RAYGEN_KHR, STAGE_ANY_HIT_KHR, STAGE_CLOSEST_HIT_KHR, STAGE_MISS_KHR, STAGE_INTERSECTION_KHR, STAGE_CALLABLE_KHR, STAGE_TASK_NV, STAGE_MESH_NV
+  supported ops: FEATURE_BASIC, FEATURE_VOTE, FEATURE_ARITHMETIC, FEATURE_BALLOT, FEATURE_SHUFFLE, FEATURE_SHUFFLE_RELATIVE, FEATURE_CLUSTERED, FEATURE_QUAD
+  quad operations in all stages
+- Vulkan Acceleration Structure supported
+  min acceleration structure scratch offset alignment: 256
+- Vulkan Raytracing supported
+  shader group handle size: 32
+  shader group handle alignment: 4
+  shader group handle size aligned: 32
+  shader group base alignment: 64
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+Startup PSO cache (74.1 MiB)
+SDL: Init OK!
+Using "winink" pen tablet driver...
+Creating VMA small objects pool for memory type index 0
+Shader 'CanvasSdfShaderRD' (group 0) SHA256: a4f6d732dba9a4cc0c37a1ca52936369e2ee148e9d03efe1b81bfed822adb1eb
+Loading cache for shader CanvasSdfShaderRD, variant 0
+Loading cache for shader CanvasSdfShaderRD, variant 1
+Loading cache for shader CanvasSdfShaderRD, variant 2
+Loading cache for shader CanvasSdfShaderRD, variant 3
+Loading cache for shader CanvasSdfShaderRD, variant 4
+Loading cache for shader CanvasSdfShaderRD, variant 5
+Shader 'SkeletonShaderRD' (group 0) SHA256: e6bc641e2a094416c99b1294ac5e453c55d24e0b62c1da47c8f7f93ae7877bfa
+Loading cache for shader SkeletonShaderRD, variant 0
+Loading cache for shader SkeletonShaderRD, variant 1
+Shader 'SortShaderRD' (group 0) SHA256: d8d77897b86870d358bf870233e14233981c2db9ff06641cd8f405379ac8872f
+Loading cache for shader SortShaderRD, variant 0
+Loading cache for shader SortShaderRD, variant 1
+Loading cache for shader SortShaderRD, variant 2
+Shader 'ParticlesShaderRD' (group 0) SHA256: f645828ab356b17f1478c77373935ecd2417e1c227a96b62417396293d13970e
+Loading cache for shader ParticlesShaderRD, variant 0
+Shader 'ParticlesCopyShaderRD' (group 0) SHA256: ce2b95c8a6b9e21f14c989c3ca095de77d9bb5e86213ae4180fb97cbd2c02a10
+Loading cache for shader ParticlesCopyShaderRD, variant 0
+Loading cache for shader ParticlesCopyShaderRD, variant 1
+Loading cache for shader ParticlesCopyShaderRD, variant 2
+Loading cache for shader ParticlesCopyShaderRD, variant 3
+Loading cache for shader ParticlesCopyShaderRD, variant 4
+Loading cache for shader ParticlesCopyShaderRD, variant 5
+Loading cache for shader ParticlesCopyShaderRD, variant 6
+Loading cache for shader ParticlesCopyShaderRD, variant 7
+Loading cache for shader ParticlesCopyShaderRD, variant 8
+Loading cache for shader ParticlesCopyShaderRD, variant 9
+Loading cache for shader ParticlesCopyShaderRD, variant 10
+Loading cache for shader ParticlesCopyShaderRD, variant 11
+Loading cache for shader ParticlesCopyShaderRD, variant 12
+Loading cache for shader ParticlesCopyShaderRD, variant 13
+Loading cache for shader ParticlesCopyShaderRD, variant 14
+Loading cache for shader ParticlesCopyShaderRD, variant 15
+Loading cache for shader ParticlesCopyShaderRD, variant 16
+Loading cache for shader ParticlesCopyShaderRD, variant 17
+Loading cache for shader ParticlesCopyShaderRD, variant 18
+Loading cache for shader ParticlesCopyShaderRD, variant 19
+Loading cache for shader ParticlesCopyShaderRD, variant 20
+Shader 'CanvasShaderRD' (group 0) SHA256: 5454ca85157b6953b76bf324ebe90594c466e36301bf1b3e6adcce117d705c79
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+Shader 'CanvasOcclusionShaderRD' (group 0) SHA256: 606df5c981910bc4bc719cf497719273e80d1f314f65e68820bf8e2111368cdb
+Loading cache for shader CanvasOcclusionShaderRD, variant 0
+Loading cache for shader CanvasOcclusionShaderRD, variant 1
+Loading cache for shader CanvasOcclusionShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+Shader 'TexBlitShaderRD' (group 0) SHA256: fd9c885eab1da0d330a04ebfd7796019cde57f82208202f3bfc96cae74155212
+Loading cache for shader TexBlitShaderRD, variant 0
+Loading cache for shader TexBlitShaderRD, variant 1
+Loading cache for shader TexBlitShaderRD, variant 2
+Loading cache for shader TexBlitShaderRD, variant 3
+Shader 'ClusterRenderShaderRD' (group 0) SHA256: 092c9f39b8c42523662d45db394a8d4f7f068d617876866d55d9fd69e5afb357
+Loading cache for shader ClusterRenderShaderRD, variant 0
+Loading cache for shader ClusterRenderShaderRD, variant 1
+Shader 'ClusterStoreShaderRD' (group 0) SHA256: 77e74456f71eccced2f4bd06086f33d4ae56a013ce717690f960759226272eb4
+Loading cache for shader ClusterStoreShaderRD, variant 0
+Shader 'ClusterDebugShaderRD' (group 0) SHA256: 25eb5280da03a5dfefcf122ab21c9f6184c2a0d8edfb398d0b9e784c99ede8d6
+Loading cache for shader ClusterDebugShaderRD, variant 0
+Shader 'SceneForwardClusteredShaderRD' (group 0) SHA256: cdfe2a8d86deff48154b1cd0d6e857301f5e37f0d8930754f63ff9c2c85045a6
+Shader 'SceneForwardClusteredShaderRD' (group 1) SHA256: 073f74b951c9d31091a21a83f7ed2a449ca9faa4f0b5a7052db58dd352175ef7
+Shader 'SceneForwardClusteredShaderRD' (group 2) SHA256: 0e2560bbe3adf526b738f6b3c67897e10ea21a0e17c56f7a5ecbf6797f8e6991
+Shader 'SceneForwardClusteredShaderRD' (group 3) SHA256: 6cb1159e6a2acf7ea3d926a7f1b088c77adebfa34de42d2b2b3c59641632a4d3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Shader 'BestFitNormalShaderRD' (group 0) SHA256: c4b1d2e5a1d6f84559f49734aae94706b402e2be89eae7753b8b413800d96d42
+Loading cache for shader BestFitNormalShaderRD, variant 0
+Shader 'IntegrateDfgShaderRD' (group 0) SHA256: 4d699e26d43b88b86cb33c2b829767ea8e935055bb48dea880f66eb29760577a
+Loading cache for shader IntegrateDfgShaderRD, variant 0
+Shader 'TaaResolveShaderRD' (group 0) SHA256: a1ca2d745847530de0720910ad5bfa2466e0ab33647b7a631f2900d7b4617a60
+Loading cache for shader TaaResolveShaderRD, variant 0
+Shader 'Fsr2DepthClipPassShaderRD' (group 0) SHA256: 4a735c315dc3644fbdbbe70afdfe9bce327e4a10441982ebb38e87c22d502c41
+Shader 'Fsr2ReconstructPreviousDepthPassShaderRD' (group 0) SHA256: c41c89f4fe2f3dc313a48a2ae22a3c88e6ce5e90f5f660b5484d53a3360ab28d
+Shader 'Fsr2LockPassShaderRD' (group 0) SHA256: ba10724396561abfafe1196b0531eeb403087c1e05c5656de71d642bab4d8d3b
+Shader 'Fsr2AccumulatePassShaderRD' (group 0) SHA256: cb0552a6babfc28ea4bdf33f963848da4261ac9b71b063ca392b2e970b4e0680
+Shader 'Fsr2RcasPassShaderRD' (group 0) SHA256: f03d67b5589dcb7ff3abc9fb2a85d5345f179d8e38be7157a9ea142344aa89b1
+Shader 'Fsr2ComputeLuminancePyramidPassShaderRD' (group 0) SHA256: 57b9d245efe60faebf93a8eee4616627480b31f632f2022b12f9fa7b9cf988af
+Shader 'Fsr2AutogenReactivePassShaderRD' (group 0) SHA256: 5aebe0a8d7f2d8328a9a028998145d3b09c1e863870f7b14623d7b876278e897
+Shader 'Fsr2TcrAutogenPassShaderRD' (group 0) SHA256: 5e552f2c8d02cc61ac623cb99ef41218c906a66d96895d32e0e33d953ec53436
+Shader 'SsEffectsDownsampleShaderRD' (group 0) SHA256: d2ccd37f99a0b00eca4ba6f53cddf8d03f02119a69a0b02dc777026129561703
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 0
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 1
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 2
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 3
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 4
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 5
+Loading cache for shader SsEffectsDownsampleShaderRD, variant 6
+Shader 'SsilShaderRD' (group 0) SHA256: 17c51ec55574b54c0834b41688f478d19599eb3f90a1230981e06d74d89473e1
+Loading cache for shader SsilShaderRD, variant 0
+Loading cache for shader SsilShaderRD, variant 1
+Loading cache for shader SsilShaderRD, variant 2
+Shader 'SsilImportanceMapShaderRD' (group 0) SHA256: bf370911d6b5be81e5fbf6014d236deb74697ee1b3e2eeb870f5140913d9bee6
+Loading cache for shader SsilImportanceMapShaderRD, variant 0
+Loading cache for shader SsilImportanceMapShaderRD, variant 1
+Loading cache for shader SsilImportanceMapShaderRD, variant 2
+Shader 'SsilBlurShaderRD' (group 0) SHA256: 4f0d60ba5581090f5efc9941b040e46832bf6864d77d52e8631cea227b5d8279
+Loading cache for shader SsilBlurShaderRD, variant 0
+Loading cache for shader SsilBlurShaderRD, variant 1
+Loading cache for shader SsilBlurShaderRD, variant 2
+Shader 'SsilInterleaveShaderRD' (group 0) SHA256: 0f78dde6bc33a0264706f9a466ae77f41b24641381aa171c2b1ee40923f6547c
+Loading cache for shader SsilInterleaveShaderRD, variant 0
+Loading cache for shader SsilInterleaveShaderRD, variant 1
+Loading cache for shader SsilInterleaveShaderRD, variant 2
+Shader 'SsaoShaderRD' (group 0) SHA256: 40091d5cef6924b0632dfb92dbf5a6c61f97edd6dd653d20e2c7662009912eed
+Loading cache for shader SsaoShaderRD, variant 0
+Loading cache for shader SsaoShaderRD, variant 1
+Loading cache for shader SsaoShaderRD, variant 2
+Shader 'SsaoImportanceMapShaderRD' (group 0) SHA256: 72382d26e5b22e99ee9ed29670565e78ff7ee01c960072119a5be86db2ee0fc8
+Loading cache for shader SsaoImportanceMapShaderRD, variant 0
+Loading cache for shader SsaoImportanceMapShaderRD, variant 1
+Loading cache for shader SsaoImportanceMapShaderRD, variant 2
+Shader 'SsaoBlurShaderRD' (group 0) SHA256: 379e714dbee2f412e6657f0557a56dd9f4a00c93ed1aef7af78b047b59ef4bcb
+Loading cache for shader SsaoBlurShaderRD, variant 0
+Loading cache for shader SsaoBlurShaderRD, variant 1
+Loading cache for shader SsaoBlurShaderRD, variant 2
+Shader 'SsaoInterleaveShaderRD' (group 0) SHA256: cb27e637ffea15e2c6c4ae1b2c90deac962dae9481ef866601d8ecb863d6a9b6
+Loading cache for shader SsaoInterleaveShaderRD, variant 0
+Loading cache for shader SsaoInterleaveShaderRD, variant 1
+Loading cache for shader SsaoInterleaveShaderRD, variant 2
+Shader 'ScreenSpaceReflectionDownsampleShaderRD' (group 0) SHA256: f6b46656954490c0153a8a5200455cc0834ec5881821ec7bf328b4c688fc4f6f
+Loading cache for shader ScreenSpaceReflectionDownsampleShaderRD, variant 0
+Loading cache for shader ScreenSpaceReflectionDownsampleShaderRD, variant 1
+Loading cache for shader ScreenSpaceReflectionDownsampleShaderRD, variant 2
+Loading cache for shader ScreenSpaceReflectionDownsampleShaderRD, variant 3
+Shader 'ScreenSpaceReflectionHizShaderRD' (group 0) SHA256: 4c407c9b5cd4f954c012a0de78629e18a5e9268536eb1d78853c8a247ef0a772
+Loading cache for shader ScreenSpaceReflectionHizShaderRD, variant 0
+Loading cache for shader ScreenSpaceReflectionHizShaderRD, variant 1
+Loading cache for shader ScreenSpaceReflectionHizShaderRD, variant 2
+Loading cache for shader ScreenSpaceReflectionHizShaderRD, variant 3
+Shader 'ScreenSpaceReflectionShaderRD' (group 0) SHA256: a2d0cb08973e8562ed3b82d74b6f0f1ecf1dbd2ac788049eaa06925ad6c28bed
+Loading cache for shader ScreenSpaceReflectionShaderRD, variant 0
+Shader 'ScreenSpaceReflectionFilterShaderRD' (group 0) SHA256: fda60a18cb83e7ff26ce7ee2f43dce1d37326b2767d06922b0e5f9356abd1a1e
+Loading cache for shader ScreenSpaceReflectionFilterShaderRD, variant 0
+Shader 'ScreenSpaceReflectionResolveShaderRD' (group 0) SHA256: b29422945b4d1600883d0fcf89124633e34efb678505e5bcb9fdb6623fbfb8d4
+Loading cache for shader ScreenSpaceReflectionResolveShaderRD, variant 0
+Shader 'SubsurfaceScatteringShaderRD' (group 0) SHA256: 4870fb4fc36514a7031473d566046fc2841628db992f9421056a8dfbc0830d97
+Loading cache for shader SubsurfaceScatteringShaderRD, variant 0
+Loading cache for shader SubsurfaceScatteringShaderRD, variant 1
+Loading cache for shader SubsurfaceScatteringShaderRD, variant 2
+Shader 'SkyShaderRD' (group 0) SHA256: 25c4162ba5ed1f15e722f73bf07201837a6ae7b301288dd32ff9f71634118d9c
+Loading cache for shader SkyShaderRD, variant 0
+Loading cache for shader SkyShaderRD, variant 1
+Loading cache for shader SkyShaderRD, variant 2
+Loading cache for shader SkyShaderRD, variant 3
+Loading cache for shader SkyShaderRD, variant 4
+Loading cache for shader SkyShaderRD, variant 5
+Loading cache for shader SkyShaderRD, variant 0
+Loading cache for shader SkyShaderRD, variant 1
+Loading cache for shader SkyShaderRD, variant 2
+Loading cache for shader SkyShaderRD, variant 3
+Loading cache for shader SkyShaderRD, variant 4
+Loading cache for shader SkyShaderRD, variant 5
+Shader 'VoxelGiShaderRD' (group 0) SHA256: cf478b2dd85c8c4b0519274ac94659b26ee34e27a1714122915056a7010b4b7c
+Loading cache for shader VoxelGiShaderRD, variant 0
+Loading cache for shader VoxelGiShaderRD, variant 1
+Loading cache for shader VoxelGiShaderRD, variant 2
+Loading cache for shader VoxelGiShaderRD, variant 3
+Loading cache for shader VoxelGiShaderRD, variant 4
+Loading cache for shader VoxelGiShaderRD, variant 5
+Loading cache for shader VoxelGiShaderRD, variant 6
+Loading cache for shader VoxelGiShaderRD, variant 7
+Shader 'VoxelGiDebugShaderRD' (group 0) SHA256: e7afc074bea566006e261dd7312ae8e5c1a6a22e1eab6aa29b590ca925df679b
+Loading cache for shader VoxelGiDebugShaderRD, variant 0
+Loading cache for shader VoxelGiDebugShaderRD, variant 1
+Loading cache for shader VoxelGiDebugShaderRD, variant 2
+Loading cache for shader VoxelGiDebugShaderRD, variant 3
+Shader 'SdfgiPreprocessShaderRD' (group 0) SHA256: 548b5bca0563ad9662e1e9577ac4921dfc156154487ba331733b0283ce26fcb9
+Loading cache for shader SdfgiPreprocessShaderRD, variant 0
+Loading cache for shader SdfgiPreprocessShaderRD, variant 1
+Loading cache for shader SdfgiPreprocessShaderRD, variant 2
+Loading cache for shader SdfgiPreprocessShaderRD, variant 3
+Loading cache for shader SdfgiPreprocessShaderRD, variant 4
+Loading cache for shader SdfgiPreprocessShaderRD, variant 5
+Loading cache for shader SdfgiPreprocessShaderRD, variant 6
+Loading cache for shader SdfgiPreprocessShaderRD, variant 7
+Loading cache for shader SdfgiPreprocessShaderRD, variant 8
+Shader 'SdfgiDirectLightShaderRD' (group 0) SHA256: 59245d18d90efd79551ef5eda25bbda9867cb893341a1d23b0f75db5d4490716
+Loading cache for shader SdfgiDirectLightShaderRD, variant 0
+Loading cache for shader SdfgiDirectLightShaderRD, variant 1
+Shader 'SdfgiIntegrateShaderRD' (group 0) SHA256: f20a6d93247c8e2db82979d4e6477fa070ed91e03db2b1320e32dffabdb4ff23
+Loading cache for shader SdfgiIntegrateShaderRD, variant 0
+Loading cache for shader SdfgiIntegrateShaderRD, variant 1
+Loading cache for shader SdfgiIntegrateShaderRD, variant 2
+Loading cache for shader SdfgiIntegrateShaderRD, variant 3
+Shader 'GiShaderRD' (group 0) SHA256: 3fa2391092c717dea4bdf7f4f65ccf42ffd4018c158c431a4e234d9fa17737a6
+Shader 'GiShaderRD' (group 1) SHA256: 87dc8f2e3eb0653ed625d759392e8a08fcd79fe90d61dcc8f6ce34a8cfe35f7f
+Loading cache for shader GiShaderRD, variant 0
+Loading cache for shader GiShaderRD, variant 1
+Loading cache for shader GiShaderRD, variant 2
+Loading cache for shader GiShaderRD, variant 3
+Loading cache for shader GiShaderRD, variant 4
+Loading cache for shader GiShaderRD, variant 0
+Loading cache for shader GiShaderRD, variant 1
+Loading cache for shader GiShaderRD, variant 2
+Loading cache for shader GiShaderRD, variant 3
+Loading cache for shader GiShaderRD, variant 4
+Shader 'SdfgiDebugShaderRD' (group 0) SHA256: 365142e07e83cbbda433d4ed971a1c8413d3a400e8646e2ed2a0f7dda127068a
+Loading cache for shader SdfgiDebugShaderRD, variant 0
+Shader 'SdfgiDebugProbesShaderRD' (group 0) SHA256: 05e9a03efe957bf14f0a60730a97ab25e037f5a3f347b3427feb9723fd82fb1c
+Loading cache for shader SdfgiDebugProbesShaderRD, variant 0
+Loading cache for shader SdfgiDebugProbesShaderRD, variant 1
+Loading cache for shader SdfgiDebugProbesShaderRD, variant 2
+Loading cache for shader SdfgiDebugProbesShaderRD, variant 3
+Shader 'VolumetricFogShaderRD' (group 0) SHA256: 69e78fd970058cf62da4f8df24a6d7f3acd2d0effbade0dc171226be830ee241
+Shader 'VolumetricFogShaderRD' (group 1) SHA256: fa6cfa14ca66356dd4818ce06073abdefc4058f2531727ea90fe9ea340cc66e5
+Shader 'VolumetricFogShaderRD' (group 2) SHA256: 8454dc7c2a5c9574b6123e01388a4c83969bb236ab7422fd0eb06b91dd9f7449
+Shader 'VolumetricFogShaderRD' (group 3) SHA256: d5ef183ef6e53033bfb50eb7047a431514f4d6533e95530b67e06839ff9676a1
+Loading cache for shader VolumetricFogShaderRD, variant 0
+Shader 'VolumetricFogProcessShaderRD' (group 0) SHA256: ee9496dfb3b0e489158503ab6e3539129bf5f78706cdb7c9ed4d8701f17f14ec
+Shader 'VolumetricFogProcessShaderRD' (group 1) SHA256: 9828e14ae2e94efc4823f8b077ba661a03ef3ba9726264ff7e359144a9b1214b
+Shader 'VolumetricFogProcessShaderRD' (group 2) SHA256: 7ac17802c709a8ec8fb2d47fade023ddd95a3c675451c8e53ce81469b4ce8b5d
+Shader 'VolumetricFogProcessShaderRD' (group 3) SHA256: c75a607ad6ee761bd49d7318ec8f4a39798fcc3822b7360641394f5dc36f0c2a
+Loading cache for shader VolumetricFogProcessShaderRD, variant 0
+Loading cache for shader VolumetricFogProcessShaderRD, variant 1
+Loading cache for shader VolumetricFogProcessShaderRD, variant 2
+Loading cache for shader VolumetricFogProcessShaderRD, variant 3
+Loading cache for shader VolumetricFogProcessShaderRD, variant 4
+Shader 'BokehDofShaderRD' (group 0) SHA256: 8c692c9cd2f46f54f2c82d9a4a12be5f889d873a3c9698546a6eb5ec0c263647
+Loading cache for shader BokehDofShaderRD, variant 0
+Loading cache for shader BokehDofShaderRD, variant 1
+Loading cache for shader BokehDofShaderRD, variant 3
+Loading cache for shader BokehDofShaderRD, variant 5
+Loading cache for shader BokehDofShaderRD, variant 6
+Shader 'CopyShaderRD' (group 0) SHA256: c374588e7ae9bf64919d0186bea3104b4f721cc0691d284a9998e1e7d06c5eb8
+Loading cache for shader CopyShaderRD, variant 0
+Loading cache for shader CopyShaderRD, variant 1
+Loading cache for shader CopyShaderRD, variant 2
+Loading cache for shader CopyShaderRD, variant 3
+Loading cache for shader CopyShaderRD, variant 4
+Loading cache for shader CopyShaderRD, variant 5
+Loading cache for shader CopyShaderRD, variant 6
+Loading cache for shader CopyShaderRD, variant 7
+Loading cache for shader CopyShaderRD, variant 8
+Loading cache for shader CopyShaderRD, variant 9
+Loading cache for shader CopyShaderRD, variant 10
+Loading cache for shader CopyShaderRD, variant 11
+Loading cache for shader CopyShaderRD, variant 12
+Shader 'CopyToFbShaderRD' (group 0) SHA256: 72456b3a82af4da12c412275d4c8ffa4a6a5447d9daffeeef86bc16965803813
+Loading cache for shader CopyToFbShaderRD, variant 0
+Loading cache for shader CopyToFbShaderRD, variant 1
+Loading cache for shader CopyToFbShaderRD, variant 2
+Loading cache for shader CopyToFbShaderRD, variant 3
+Shader 'CubeToDpShaderRD' (group 0) SHA256: da14e2c9b701a4bd7336b87667bf4f3b4f645de09781824763d2bbceead56c83
+Loading cache for shader CubeToDpShaderRD, variant 0
+Shader 'CubeToOctmapShaderRD' (group 0) SHA256: 7a5a6871c4fae131d3fef2e125ac23cbe81a1a042028f8c294461282de463c9a
+Loading cache for shader CubeToOctmapShaderRD, variant 0
+Shader 'OctmapDownsamplerShaderRD' (group 0) SHA256: 17404978f453a0a0388dfb81b2d08f173476d2c3b680e2e6aa35bcf438e24f11
+Loading cache for shader OctmapDownsamplerShaderRD, variant 0
+Loading cache for shader OctmapDownsamplerShaderRD, variant 1
+Shader 'OctmapFilterShaderRD' (group 0) SHA256: cd03c4ea34362e2724f4d4536156039ee5ca21c31167b8840dfc65dad2d6bb11
+Loading cache for shader OctmapFilterShaderRD, variant 0
+Loading cache for shader OctmapFilterShaderRD, variant 1
+Loading cache for shader OctmapFilterShaderRD, variant 2
+Loading cache for shader OctmapFilterShaderRD, variant 3
+Loading cache for shader OctmapFilterShaderRD, variant 4
+Loading cache for shader OctmapFilterShaderRD, variant 5
+Loading cache for shader OctmapFilterShaderRD, variant 6
+Loading cache for shader OctmapFilterShaderRD, variant 7
+Shader 'OctmapRoughnessShaderRD' (group 0) SHA256: 8470960c68b74292e24251e3b7e41d28e9a5054dce0cd1d77c2a2a865a10af43
+Loading cache for shader OctmapRoughnessShaderRD, variant 0
+Loading cache for shader OctmapRoughnessShaderRD, variant 1
+Shader 'SpecularMergeShaderRD' (group 0) SHA256: 70920fc883de48dd253fbc2503dd8f4e65941df0da07e074541df12df090de98
+Loading cache for shader SpecularMergeShaderRD, variant 0
+Loading cache for shader SpecularMergeShaderRD, variant 1
+Loading cache for shader SpecularMergeShaderRD, variant 2
+Loading cache for shader SpecularMergeShaderRD, variant 3
+Shader 'ShadowFrustumShaderRD' (group 0) SHA256: 248bc9deb54d10af912f2da1bd4b006bc43cfe08659a206fa573baf48e4050e0
+Loading cache for shader ShadowFrustumShaderRD, variant 0
+Shader 'MotionVectorsShaderRD' (group 0) SHA256: 4d3ba0c01e8b64c74a0f2f0fd20ddc8099d56cfbb3ee9e7dbe6dc3c54c174725
+Loading cache for shader MotionVectorsShaderRD, variant 0
+Shader 'LuminanceReduceShaderRD' (group 0) SHA256: c759f2761a12e9ff1fa625818963f94aa0ff511eb314a313ea89c615c37dd078
+Loading cache for shader LuminanceReduceShaderRD, variant 0
+Loading cache for shader LuminanceReduceShaderRD, variant 1
+Loading cache for shader LuminanceReduceShaderRD, variant 2
+Shader 'SmaaEdgeDetectionShaderRD' (group 0) SHA256: 8879d099a2601bd01d4582b1e86a091c5f89a7bc46aecc9e805410f75bcda245
+Loading cache for shader SmaaEdgeDetectionShaderRD, variant 0
+Shader 'SmaaWeightCalculationShaderRD' (group 0) SHA256: de1d49d5ff947e8b8382f43a79f57c4cceb02eed6f86d5175093ca63e94052bf
+Loading cache for shader SmaaWeightCalculationShaderRD, variant 0
+Shader 'SmaaBlendingShaderRD' (group 0) SHA256: d7b7c8cec00f24f9aa8db356b4df88c5fe032d38ce38673bd520c280c936fb80
+Loading cache for shader SmaaBlendingShaderRD, variant 0
+Shader 'TonemapShaderRD' (group 0) SHA256: 1b9049fef136690ef56085339cc9ad699de6d63e5d3afa1677201c6dedd6f2a8
+Loading cache for shader TonemapShaderRD, variant 0
+Loading cache for shader TonemapShaderRD, variant 1
+Loading cache for shader TonemapShaderRD, variant 2
+Loading cache for shader TonemapShaderRD, variant 3
+Shader 'VrsShaderRD' (group 0) SHA256: fa59a74699f8241cd3f8174eaef045dc8d40f3b29bf36af5414713c289f82717
+Loading cache for shader VrsShaderRD, variant 0
+Loading cache for shader VrsShaderRD, variant 2
+Loading cache for shader VrsShaderRD, variant 3
+Shader 'FsrUpscaleShaderRD' (group 0) SHA256: a8da3dfed3e309742ca78c4162d15f2ab08af4f694a51407089ecec1d1be54be
+Loading cache for shader FsrUpscaleShaderRD, variant 0
+Loading cache for shader FsrUpscaleShaderRD, variant 1
+Shader 'ResolveShaderRD' (group 0) SHA256: 58e536c56eaff31a31ef93f224579af7b242a06469b7b0a7736cdeb7e16898b6
+Loading cache for shader ResolveShaderRD, variant 0
+Loading cache for shader ResolveShaderRD, variant 1
+Loading cache for shader ResolveShaderRD, variant 2
+Shader 'BlitShaderRD' (group 0) SHA256: ae4daaa7a60bb17ebd7e9de5db9422fb448b52ad89776ae7aa53fee442f7cc60
+WASAPI: Activated output_device using IAudioClient3 interface
+WASAPI: wFormatTag = 65534
+WASAPI: nChannels = 2
+WASAPI: nSamplesPerSec = 48000
+WASAPI: nAvgBytesPerSec = 384000
+WASAPI: nBlockAlign = 8
+WASAPI: wBitsPerSample = 32
+WASAPI: cbSize = 22
+WASAPI: mix_rate = 48000
+WASAPI: fundamental_period_frames = 480
+WASAPI: min_period_frames = 480
+WASAPI: max_period_frames = 480
+WASAPI: selected a period frame size of 480
+WASAPI: detected 2 channels
+WASAPI: audio buffer frames: 480 calculated latency: 10ms
+
+Loading cache for shader BlitShaderRD, variant 0
+Loading cache for shader BlitShaderRD, variant 1
+Loading cache for shader BlitShaderRD, variant 2
+Loading cache for shader BlitShaderRD, variant 3
+TextServer: Primary interface set to: "ICU / HarfBuzz / Graphite (Built-in)".
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+CORE API HASH: 2004498165
+EDITOR API HASH: 1696660745
+Loading resource: res://tools/test_automatic_staged_entry_gpu.gd remapped: res://tools/test_automatic_staged_entry_gpu.gd
+Loading resource: res://scripts/world3d/river_terrain.gdshader remapped: res://scripts/world3d/river_terrain.gdshader
+Completed load for: 'res://scripts/world3d/river_terrain.gdshader' remapped 'res://scripts/world3d/river_terrain.gdshader' at thread -1
+Loading resource: res://scripts/world3d/river_water.gdshader remapped: res://scripts/world3d/river_water.gdshader
+Completed load for: 'res://scripts/world3d/river_water.gdshader' remapped 'res://scripts/world3d/river_water.gdshader' at thread -1
+Loading resource: res://scripts/world3d/river_bank.gdshader remapped: res://scripts/world3d/river_bank.gdshader
+Completed load for: 'res://scripts/world3d/river_bank.gdshader' remapped 'res://scripts/world3d/river_bank.gdshader' at thread -1
+Loading resource: res://scripts/world3d/skill_area.gdshader remapped: res://scripts/world3d/skill_area.gdshader
+Completed load for: 'res://scripts/world3d/skill_area.gdshader' remapped 'res://scripts/world3d/skill_area.gdshader' at thread -1
+Loading resource: res://scripts/world3d/wind_material.gdshader remapped: res://scripts/world3d/wind_material.gdshader
+Completed load for: 'res://scripts/world3d/wind_material.gdshader' remapped 'res://scripts/world3d/wind_material.gdshader' at thread -1
+Loading resource: res://scripts/world3d/occlusion_outline.gdshader remapped: res://scripts/world3d/occlusion_outline.gdshader
+Completed load for: 'res://scripts/world3d/occlusion_outline.gdshader' remapped 'res://scripts/world3d/occlusion_outline.gdshader' at thread -1
+Loading resource: res://scripts/world3d/weather_sky.gdshader remapped: res://scripts/world3d/weather_sky.gdshader
+Loading resource: res://scripts/world3d/star_field.gdshaderinc remapped: res://scripts/world3d/star_field.gdshaderinc
+Completed load for: 'res://scripts/world3d/star_field.gdshaderinc' remapped 'res://scripts/world3d/star_field.gdshaderinc' at thread -1
+Loading resource: res://scripts/world3d/cloud_volume.gdshaderinc remapped: res://scripts/world3d/cloud_volume.gdshaderinc
+Completed load for: 'res://scripts/world3d/cloud_volume.gdshaderinc' remapped 'res://scripts/world3d/cloud_volume.gdshaderinc' at thread -1
+Completed load for: 'res://scripts/world3d/weather_sky.gdshader' remapped 'res://scripts/world3d/weather_sky.gdshader' at thread -1
+Loading resource: res://scripts/world3d/weather_particle.gdshader remapped: res://scripts/world3d/weather_particle.gdshader
+Completed load for: 'res://scripts/world3d/weather_particle.gdshader' remapped 'res://scripts/world3d/weather_particle.gdshader' at thread -1
+Loading resource: res://scripts/world3d/wet_surface.gdshader remapped: res://scripts/world3d/wet_surface.gdshader
+Completed load for: 'res://scripts/world3d/wet_surface.gdshader' remapped 'res://scripts/world3d/wet_surface.gdshader' at thread -1
+Loading resource: res://scripts/world3d/lightning_bolt.gdshader remapped: res://scripts/world3d/lightning_bolt.gdshader
+Completed load for: 'res://scripts/world3d/lightning_bolt.gdshader' remapped 'res://scripts/world3d/lightning_bolt.gdshader' at thread -1
+Completed load for: 'res://tools/test_automatic_staged_entry_gpu.gd' remapped 'res://tools/test_automatic_staged_entry_gpu.gd' at thread -1
+SceneTreeFTI: traversal method DEFAULT
+Loading resource: res://scripts/net/mock_server.gd remapped: res://scripts/net/mock_server.gd
+Completed load for: 'res://scripts/net/mock_server.gd' remapped 'res://scripts/net/mock_server.gd' at thread -1
+Loading resource: res://scripts/net/game_session.gd remapped: res://scripts/net/game_session.gd
+Completed load for: 'res://scripts/net/game_session.gd' remapped 'res://scripts/net/game_session.gd' at thread -1
+Loading resource: res://scripts/asset/asset_manager.gd remapped: res://scripts/asset/asset_manager.gd
+Completed load for: 'res://scripts/asset/asset_manager.gd' remapped 'res://scripts/asset/asset_manager.gd' at thread -1
+Loading resource: res://scripts/game/game_settings.gd remapped: res://scripts/game/game_settings.gd
+Completed load for: 'res://scripts/game/game_settings.gd' remapped 'res://scripts/game/game_settings.gd' at thread -1
+Loading resource: res://addons/godot_ai/runtime/game_helper.gd remapped: res://addons/godot_ai/runtime/game_helper.gd
+Completed load for: 'res://addons/godot_ai/runtime/game_helper.gd' remapped 'res://addons/godot_ai/runtime/game_helper.gd' at thread -1
+Loaded system CA certificates
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS production defaults select the protocol automatically
+PASS save real complete and unsupported cross-chunk building maps
+Loading resource: res://scenes/loading.tscn remapped: res://scenes/loading.tscn
+Loading resource: res://scripts/ui/loading_screen.gd remapped: res://scripts/ui/loading_screen.gd
+Loading resource: res://scripts/map/tile_anim_blend.gdshader remapped: res://scripts/map/tile_anim_blend.gdshader
+Completed load for: 'res://scripts/map/tile_anim_blend.gdshader' remapped 'res://scripts/map/tile_anim_blend.gdshader' at thread -1
+Loading resource: res://scripts/map/snow_crystal.gdshader remapped: res://scripts/map/snow_crystal.gdshader
+Completed load for: 'res://scripts/map/snow_crystal.gdshader' remapped 'res://scripts/map/snow_crystal.gdshader' at thread -1
+Loading resource: res://scripts/map/surface_lighting.gdshader remapped: res://scripts/map/surface_lighting.gdshader
+Completed load for: 'res://scripts/map/surface_lighting.gdshader' remapped 'res://scripts/map/surface_lighting.gdshader' at thread -1
+Loading resource: res://scripts/map/fountain_water.gdshader remapped: res://scripts/map/fountain_water.gdshader
+Completed load for: 'res://scripts/map/fountain_water.gdshader' remapped 'res://scripts/map/fountain_water.gdshader' at thread -1
+Completed load for: 'res://scripts/ui/loading_screen.gd' remapped 'res://scripts/ui/loading_screen.gd' at thread -1
+Completed load for: 'res://scenes/loading.tscn' remapped 'res://scenes/loading.tscn' at thread -1
+load_threaded_get_status(): No threaded load for resource path 'res://scenes/world_3d.tscn' has been initiated or its result has already been collected.
+load_threaded_get_status(): No threaded load for resource path 'res://scenes/ui/game_hud.tscn' has been initiated or its result has already been collected.
+Loading resource: res://scenes/world_3d.tscn remapped: res://scenes/world_3d.tscn
+Loading resource: res://scenes/ui/game_hud.tscn remapped: res://scenes/ui/game_hud.tscn
+Completed load for: 'res://scenes/world_3d.tscn' remapped 'res://scenes/world_3d.tscn' at thread 7
+Loading resource: res://scripts/ui/game_hud.gd remapped: res://scripts/ui/game_hud.gd
+glTF: Total buffers: 1
+glTF: Total buffer views: 307
+glTF: Total accessors: 190
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] install (res://scripts/char/character_imported_rig.gd:122)
+       [1] configure (res://scripts/char/character_model_3d.gd:120)
+       [2] _ready (res://scripts/char/character_model_3d.gd:43)
+       [3] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [4] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] install (res://scripts/char/character_imported_rig.gd:122)
+       [1] configure (res://scripts/char/character_model_3d.gd:120)
+       [2] _ready (res://scripts/char/character_model_3d.gd:43)
+       [3] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [4] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] install (res://scripts/char/character_imported_rig.gd:122)
+       [1] configure (res://scripts/char/character_model_3d.gd:120)
+       [2] _ready (res://scripts/char/character_model_3d.gd:43)
+       [3] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [4] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] install (res://scripts/char/character_imported_rig.gd:122)
+       [1] configure (res://scripts/char/character_model_3d.gd:120)
+       [2] _ready (res://scripts/char/character_model_3d.gd:43)
+       [3] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [4] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+glTF: Total images: 5
+Total materials: 12
+glTF: Total skins: 1
+glTF: Parsing mesh: 0
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 1
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 2
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 3
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 4
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 5
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 6
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Mesh has targets
+glTF: Parsing mesh: 7
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 8
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 9
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 10
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+Loading resource: res://scripts/ui/radar_circle.gdshader remapped: res://scripts/ui/radar_circle.gdshader
+glTF: Total meshes: 11
+Completed load for: 'res://scripts/ui/radar_circle.gdshader' remapped 'res://scripts/ui/radar_circle.gdshader' at thread 8
+glTF: Converting spatial: Armature
+glTF: Creating mesh for: BaseBottom
+glTF: Creating mesh for: Belt
+glTF: Creating mesh for: Body
+glTF: Creating mesh for: Boots
+glTF: Creating mesh for: Clothing1
+glTF: Creating mesh for: Clothing2
+glTF: Creating mesh for: Face
+glTF: Creating mesh for: Hair
+glTF: Creating mesh for: HairBack
+glTF: Creating mesh for: SkirtVariant
+glTF: Creating mesh for: Stockings
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] apply_maps (res://scripts/char/character_skin_material.gd:40)
+       [1] _tint_mesh (res://scripts/char/character_imported_rig.gd:212)
+       [2] install (res://scripts/char/character_imported_rig.gd:160)
+       [3] configure (res://scripts/char/character_model_3d.gd:120)
+       [4] _ready (res://scripts/char/character_model_3d.gd:43)
+       [5] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [6] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] apply_maps (res://scripts/char/character_skin_material.gd:40)
+       [1] _tint_mesh (res://scripts/char/character_imported_rig.gd:212)
+       [2] install (res://scripts/char/character_imported_rig.gd:160)
+       [3] configure (res://scripts/char/character_model_3d.gd:120)
+       [4] _ready (res://scripts/char/character_model_3d.gd:43)
+       [5] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [6] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+WARNING: Image format RGB8 not supported by hardware, converting to RGBA8.
+   at: _validate_texture_format (servers/rendering/renderer_rd/storage_rd/texture_storage.cpp:2855)
+   GDScript backtrace (most recent call first):
+       [0] apply_maps (res://scripts/char/character_skin_material.gd:40)
+       [1] _tint_mesh (res://scripts/char/character_imported_rig.gd:212)
+       [2] install (res://scripts/char/character_imported_rig.gd:160)
+       [3] configure (res://scripts/char/character_model_3d.gd:120)
+       [4] _ready (res://scripts/char/character_model_3d.gd:43)
+       [5] prepare_world_actor (res://scripts/net/game_session.gd:100)
+       [6] _prepare_world3d (res://scripts/ui/loading_screen.gd:234)
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+glTF: Total buffers: 1
+glTF: Total buffer views: 32
+glTF: Total accessors: 30
+glTF: Total images: 2
+Total materials: 5
+glTF: Total skins: 1
+glTF: Parsing mesh: 0
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 1
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 2
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Parsing mesh: 3
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+WARNING: glTF import: Buffer view byte stride should be declared for vertex attributes. Assuming packed data and reading anyway.
+glTF: Total meshes: 4
+glTF: Converting spatial: Armature
+glTF: Creating mesh for: MaidDress
+glTF: Creating mesh for: MaidHeadpiece
+glTF: Creating mesh for: MaidShoes
+glTF: Creating mesh for: MaidStockings
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading resource: D:/code/rmmo_runtime/assets/characters/animations/male_universal.res remapped: D:/code/rmmo_runtime/assets/characters/animations/male_universal.res
+Completed load for: 'D:/code/rmmo_runtime/assets/characters/animations/male_universal.res' remapped 'D:/code/rmmo_runtime/assets/characters/animations/male_universal.res' at thread -1
+Loading resource: D:/code/rmmo_runtime/assets/characters/animations/male_combat.res remapped: D:/code/rmmo_runtime/assets/characters/animations/male_combat.res
+Completed load for: 'D:/code/rmmo_runtime/assets/characters/animations/male_combat.res' remapped 'D:/code/rmmo_runtime/assets/characters/animations/male_combat.res' at thread -1
+Loading cache for shader SkyShaderRD, variant 0
+Loading cache for shader SkyShaderRD, variant 1
+Loading cache for shader SkyShaderRD, variant 2
+Loading cache for shader SkyShaderRD, variant 3
+Loading cache for shader SkyShaderRD, variant 4
+Loading cache for shader SkyShaderRD, variant 5
+Completed load for: 'res://scripts/ui/game_hud.gd' remapped 'res://scripts/ui/game_hud.gd' at thread 8
+Completed load for: 'res://scenes/ui/game_hud.tscn' remapped 'res://scenes/ui/game_hud.tscn' at thread 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+MultiUmaBuffer 'RENDER_LIST_OPAQUE' used a total of 0 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+MultiUmaBuffer 'RENDER_LIST_SECONDARY' used a total of 0 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+Loading resource: res://scripts/world3d/world_player.gd remapped: res://scripts/world3d/world_player.gd
+Completed load for: 'res://scripts/world3d/world_player.gd' remapped 'res://scripts/world3d/world_player.gd' at thread -1
+Loading resource: res://scripts/world3d/third_person_camera.gd remapped: res://scripts/world3d/third_person_camera.gd
+Completed load for: 'res://scripts/world3d/third_person_camera.gd' remapped 'res://scripts/world3d/third_person_camera.gd' at thread -1
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 0
+Loading cache for shader SceneForwardClusteredShaderRD, variant 1
+Loading cache for shader SceneForwardClusteredShaderRD, variant 2
+Loading cache for shader SceneForwardClusteredShaderRD, variant 3
+Loading cache for shader SceneForwardClusteredShaderRD, variant 4
+Loading cache for shader SceneForwardClusteredShaderRD, variant 5
+Loading cache for shader SceneForwardClusteredShaderRD, variant 6
+Loading cache for shader SceneForwardClusteredShaderRD, variant 7
+Loading cache for shader SceneForwardClusteredShaderRD, variant 8
+Loading cache for shader SceneForwardClusteredShaderRD, variant 9
+Loading cache for shader SceneForwardClusteredShaderRD, variant 10
+Loading cache for shader SceneForwardClusteredShaderRD, variant 11
+Loading cache for shader SceneForwardClusteredShaderRD, variant 12
+Loading cache for shader SceneForwardClusteredShaderRD, variant 13
+Loading cache for shader SceneForwardClusteredShaderRD, variant 14
+Loading cache for shader SceneForwardClusteredShaderRD, variant 15
+Loading cache for shader SceneForwardClusteredShaderRD, variant 16
+Loading cache for shader SceneForwardClusteredShaderRD, variant 17
+Loading cache for shader SceneForwardClusteredShaderRD, variant 18
+Loading cache for shader SceneForwardClusteredShaderRD, variant 19
+Loading cache for shader CanvasShaderRD, variant 0
+Loading cache for shader CanvasShaderRD, variant 1
+Loading cache for shader CanvasShaderRD, variant 2
+Loading cache for shader CanvasShaderRD, variant 3
+Loading cache for shader CanvasShaderRD, variant 4
+Loading cache for shader CanvasShaderRD, variant 5
+PASS complete building becomes playable while real navigation is held
+PASS complete members, physics and real first frame still authorize entry
+PASS UI describes keyboard movement and pending click navigation
+PASS manual movement retains actual physical and building traversal proof
+PASS unready click navigation never pretends to have a route
+PASS background completion publishes real ready state to shared contract
+PASS unsupported target with no support fails under complete waiting policy
+PASS failed fallback restores source policy and fresh authority evidence
+PASS unsupported catalogue can use the complete legacy wait at a valid outdoor destination
+PASS missing semantics keep full wait and release previous building ticket
+PASS full-wait map can hand off back into automatically verified building
+PASS round 0 latest request cancels and leaves no transaction owner
+PASS round 1 latest request cancels and leaves no transaction owner
+PASS round 2 latest request cancels and leaves no transaction owner
+PASS round 3 latest request cancels and leaves no transaction owner
+PASS round 4 latest request cancels and leaves no transaction owner
+PASS round 5 latest request cancels and leaves no transaction owner
+PASS round 6 latest request cancels and leaves no transaction owner
+PASS round 7 latest request cancels and leaves no transaction owner
+PASS round 8 latest request cancels and leaves no transaction owner
+PASS round 9 latest request cancels and leaves no transaction owner
+PASS round 10 latest request cancels and leaves no transaction owner
+PASS round 11 latest request cancels and leaves no transaction owner
+PASS round 12 latest request cancels and leaves no transaction owner
+PASS round 13 latest request cancels and leaves no transaction owner
+PASS round 14 latest request cancels and leaves no transaction owner
+PASS round 15 latest request cancels and leaves no transaction owner
+PASS round 16 latest request cancels and leaves no transaction owner
+PASS round 17 latest request cancels and leaves no transaction owner
+PASS round 18 latest request cancels and leaves no transaction owner
+PASS round 19 latest request cancels and leaves no transaction owner
+PASS staged/fallback/cancel/revisit never edits authored maps
+TRANSFER_REF {"class":"RefCounted","id":"-9223370276085946458","id_hi":2147484057,"id_lo":4127205286,"label":"/root/World3D._building_entry","refs":3,"script":"res://scripts/world3d/building_entry_transaction.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795548076216","id_hi":2147483704,"id_lo":788531016,"label":"/root/World3D._building_entry.authority","refs":5,"script":"res://scripts/world3d/local_entry_authority.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223370276052393958","id_hi":2147484057,"id_lo":4160757786,"label":"/root/World3D._building_entry.gate","refs":3,"script":"res://scripts/world3d/entry_readiness.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370276069171335","id_hi":2147484057,"id_lo":4143980409,"label":"/root/World3D._building_entry.root","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223370266506161994","id_hi":2147484060,"id_lo":822087862,"label":"/root/World3D._building_traversal","refs":3,"script":"res://scripts/world3d/building_traversal_barrier.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370266489386822","id_hi":2147484060,"id_lo":838863034,"label":"/root/World3D._building_traversal.owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370266472601691","id_hi":2147484060,"id_lo":855648165,"label":"/root/World3D._building_traversal.root","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593651058232","id_hi":2147483751,"id_lo":822086088,"label":"/root/World3D._approach_preparation","refs":3,"script":"res://scripts/world3d/approach_preparation.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593634281017","id_hi":2147483751,"id_lo":838863303,"label":"/root/World3D._prefetch_fallback_ledger","refs":3,"script":"res://scripts/world3d/resource_admission.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593500063723","id_hi":2147483751,"id_lo":973080597,"label":"/root/World3D._travel","refs":3,"script":"res://scripts/world3d/world_travel.gd"}
+TRANSFER_REF {"class":"Environment","id":"-9223371593449732072","id_hi":2147483751,"id_lo":1023412248,"label":"/root/World3D._env","refs":6,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371584557807573","id_hi":2147483753,"id_lo":1325402155,"label":"/root/World3D._entry_readiness_shadow","refs":3,"script":"res://scripts/world3d/entry_readiness_observer.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371584541029727","id_hi":2147483753,"id_lo":1342180001,"label":"/root/World3D._entry_readiness_shadow._contract","refs":3,"script":"res://scripts/world3d/entry_readiness.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593617503802","id_hi":2147483751,"id_lo":855640518,"label":"/root/World3D._map_data","refs":5,"script":"res://scripts/world3d/world_map_data.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593600726587","id_hi":2147483751,"id_lo":872417733,"label":"/root/World3D.furniture","refs":3,"script":"res://scripts/world3d/world_furniture.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371593583949372","id_hi":2147483751,"id_lo":889194948,"label":"/root/World3D.remote_players","refs":3,"script":"res://scripts/world3d/world_remote_players.gd"}
+TRANSFER_REF {"class":"NavigationMesh","id":"-9223370275951734523","id_hi":2147484057,"id_lo":4261417221,"label":"/root/World3D/@Node@2383.mesh","refs":4,"script":"<native>"}
+TRANSFER_REF {"class":"NavigationMeshSourceGeometryData3D","id":"-9223370275213538714","id_hi":2147484058,"id_lo":704645734,"label":"/root/World3D/@Node@2383.source","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223370961636546896","id_hi":2147483898,"id_lo":1476404912,"label":"/root/World3D/@Node@2078.summons","refs":3,"script":"res://scripts/world3d/world_summons.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371058977961717","id_hi":2147483875,"id_lo":2919237899,"label":"/root/World3D/rmmo_world/StreamCollisionPreparer._terrain","refs":3,"script":"res://scripts/world3d/terrain_collision_preparer.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371058961184518","id_hi":2147483875,"id_lo":2936015098,"label":"/root/World3D/rmmo_world/StreamCollisionPreparer._terrain.face_prefetch","refs":4,"script":"res://scripts/world3d/collision_face_prefetch.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371058944407406","id_hi":2147483875,"id_lo":2952792210,"label":"/root/World3D/rmmo_world/StreamCollisionPreparer._terrain.face_prefetch._charge","refs":3,"script":""}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127278002426","id_hi":2147483859,"id_lo":3338673926,"label":"/root/World3D/rmmo_world/DeferredAssets._admission","refs":3,"script":"res://scripts/world3d/resource_admission.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127261225215","id_hi":2147483859,"id_lo":3355451137,"label":"/root/World3D/rmmo_world/DeferredAssets._doc","refs":3,"script":"res://scripts/world3d/world_document.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127244448000","id_hi":2147483859,"id_lo":3372228352,"label":"/root/World3D/rmmo_world/DeferredAssets._doc.terrain_neighbors","refs":3,"script":"res://scripts/world3d/terrain_neighbors.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127227670785","id_hi":2147483859,"id_lo":3389005567,"label":"/root/World3D/rmmo_world/DeferredAssets._doc._save_meshes","refs":3,"script":"res://scripts/world3d/save_mesh_cache.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371143501570033","id_hi":2147483856,"id_lo":8207,"label":"/root/World3D/rmmo_world/DeferredAssets._reference_proof","refs":3,"script":"res://scripts/world3d/dependency_index_proof.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371889836030427","id_hi":2147483682,"id_lo":989857317,"label":"/root/World3D/rmmo_world/DeferredAssets._reference_proof._issuer","refs":4,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127210893570","id_hi":2147483859,"id_lo":3405782782,"label":"/root/World3D/rmmo_world/DeferredAssets._shared_images","refs":3,"script":"res://scripts/world3d/shared_prefab_images.gd"}
+TRANSFER_REF {"class":"Mutex","id":"-9223371127194116355","id_hi":2147483859,"id_lo":3422559997,"label":"/root/World3D/rmmo_world/DeferredAssets._shared_images._mutex","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371127177339140","id_hi":2147483859,"id_lo":3439337212,"label":"/root/World3D/rmmo_world/DeferredAssets._publication_order","refs":3,"script":"res://scripts/world3d/publication_order.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497651826080","id_hi":2147483773,"id_lo":2332037728,"label":"/root/World3D/@CanvasLayer@387/GameHud._warehouse_panel_logic","refs":8,"script":"res://scripts/ui/panels/warehouse_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497635048863","id_hi":2147483773,"id_lo":2348814945,"label":"/root/World3D/@CanvasLayer@387/GameHud._trade_panel_logic","refs":3,"script":"res://scripts/ui/panels/trade_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497618271646","id_hi":2147483773,"id_lo":2365592162,"label":"/root/World3D/@CanvasLayer@387/GameHud._titles_panel_logic","refs":9,"script":"res://scripts/ui/panels/titles_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497601494429","id_hi":2147483773,"id_lo":2382369379,"label":"/root/World3D/@CanvasLayer@387/GameHud._target_panel_logic","refs":3,"script":"res://scripts/ui/panels/target_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497584717212","id_hi":2147483773,"id_lo":2399146596,"label":"/root/World3D/@CanvasLayer@387/GameHud._status_panel_logic","refs":3,"script":"res://scripts/ui/panels/status_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497567939995","id_hi":2147483773,"id_lo":2415923813,"label":"/root/World3D/@CanvasLayer@387/GameHud._skills_panel_logic","refs":4,"script":"res://scripts/ui/panels/skills_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497551162778","id_hi":2147483773,"id_lo":2432701030,"label":"/root/World3D/@CanvasLayer@387/GameHud._shop_panel_logic","refs":3,"script":"res://scripts/ui/panels/shop_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497534385561","id_hi":2147483773,"id_lo":2449478247,"label":"/root/World3D/@CanvasLayer@387/GameHud._quest_panel_logic","refs":4,"script":"res://scripts/ui/panels/quest_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497517608344","id_hi":2147483773,"id_lo":2466255464,"label":"/root/World3D/@CanvasLayer@387/GameHud._party_panel_logic","refs":4,"script":"res://scripts/ui/panels/party_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497500831127","id_hi":2147483773,"id_lo":2483032681,"label":"/root/World3D/@CanvasLayer@387/GameHud._npc_dialogue_panel_logic","refs":3,"script":"res://scripts/ui/panels/npc_dialogue_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497484053910","id_hi":2147483773,"id_lo":2499809898,"label":"/root/World3D/@CanvasLayer@387/GameHud._minimap_panel_logic","refs":3,"script":"res://scripts/ui/panels/minimap_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497467276693","id_hi":2147483773,"id_lo":2516587115,"label":"/root/World3D/@CanvasLayer@387/GameHud._mail_panel_logic","refs":12,"script":"res://scripts/ui/panels/mail_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497450499476","id_hi":2147483773,"id_lo":2533364332,"label":"/root/World3D/@CanvasLayer@387/GameHud._loot_panel_logic","refs":3,"script":"res://scripts/ui/panels/loot_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497433722259","id_hi":2147483773,"id_lo":2550141549,"label":"/root/World3D/@CanvasLayer@387/GameHud._inventory_panel_logic","refs":3,"script":"res://scripts/ui/panels/inventory_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497416945042","id_hi":2147483773,"id_lo":2566918766,"label":"/root/World3D/@CanvasLayer@387/GameHud._guild_panel_logic","refs":4,"script":"res://scripts/ui/panels/guild_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497400167825","id_hi":2147483773,"id_lo":2583695983,"label":"/root/World3D/@CanvasLayer@387/GameHud._ground_drop_panel_logic","refs":3,"script":"res://scripts/ui/panels/ground_drop_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497383390608","id_hi":2147483773,"id_lo":2600473200,"label":"/root/World3D/@CanvasLayer@387/GameHud._friends_panel_logic","refs":6,"script":"res://scripts/ui/panels/friends_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497366613391","id_hi":2147483773,"id_lo":2617250417,"label":"/root/World3D/@CanvasLayer@387/GameHud._equipment_panel_logic","refs":3,"script":"res://scripts/ui/panels/equipment_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497349836174","id_hi":2147483773,"id_lo":2634027634,"label":"/root/World3D/@CanvasLayer@387/GameHud._emote_panel_logic","refs":5,"script":"res://scripts/ui/panels/emote_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497333058957","id_hi":2147483773,"id_lo":2650804851,"label":"/root/World3D/@CanvasLayer@387/GameHud._dungeon_panel_logic","refs":3,"script":"res://scripts/ui/panels/dungeon_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497316281740","id_hi":2147483773,"id_lo":2667582068,"label":"/root/World3D/@CanvasLayer@387/GameHud._duel_panel_logic","refs":3,"script":"res://scripts/ui/panels/duel_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497299504523","id_hi":2147483773,"id_lo":2684359285,"label":"/root/World3D/@CanvasLayer@387/GameHud._death_panel_logic","refs":5,"script":"res://scripts/ui/panels/death_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497282727306","id_hi":2147483773,"id_lo":2701136502,"label":"/root/World3D/@CanvasLayer@387/GameHud._craft_panel_logic","refs":5,"script":"res://scripts/ui/panels/craft_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497265950089","id_hi":2147483773,"id_lo":2717913719,"label":"/root/World3D/@CanvasLayer@387/GameHud._chat_panel_logic","refs":8,"script":"res://scripts/ui/panels/chat_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497249172872","id_hi":2147483773,"id_lo":2734690936,"label":"/root/World3D/@CanvasLayer@387/GameHud._cast_bar_panel_logic","refs":3,"script":"res://scripts/ui/panels/cast_bar_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497232395655","id_hi":2147483773,"id_lo":2751468153,"label":"/root/World3D/@CanvasLayer@387/GameHud._auction_panel_logic","refs":8,"script":"res://scripts/ui/panels/auction_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497215618438","id_hi":2147483773,"id_lo":2768245370,"label":"/root/World3D/@CanvasLayer@387/GameHud._toast_panel_logic","refs":3,"script":"res://scripts/ui/panels/toast_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497198841221","id_hi":2147483773,"id_lo":2785022587,"label":"/root/World3D/@CanvasLayer@387/GameHud._system_panel_logic","refs":5,"script":"res://scripts/ui/panels/system_panel.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371497182064004","id_hi":2147483773,"id_lo":2801799804,"label":"/root/World3D/@CanvasLayer@387/GameHud._window_manager_logic","refs":3,"script":"res://scripts/ui/panels/window_manager.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371449534768209","id_hi":2147483784,"id_lo":3204455343,"label":"/root/World3D/@CanvasLayer@387/GameHud._combat_log","refs":3,"script":"res://scripts/game/combat_log.gd"}
+TRANSFER_REF {"class":"StyleBoxTexture","id":"-9223371481210153574","id_hi":2147483777,"id_lo":1593841050,"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._empty_sb","refs":111,"script":"<native>"}
+TRANSFER_REF {"class":"StyleBoxTexture","id":"-9223371481126267493","id_hi":2147483777,"id_lo":1677727131,"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._filled_sb","refs":67,"script":"<native>"}
+TRANSFER_REF {"class":"StyleBoxTexture","id":"-9223371469063448616","id_hi":2147483780,"id_lo":855644120,"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._disabled_sb","refs":45,"script":"<native>"}
+TRANSFER_REF {"class":"ShaderMaterial","id":"-9223371499933527495","id_hi":2147483773,"id_lo":50336313,"label":"/root/World3D/@Node3D@371.sky_material","refs":4,"script":"<native>"}
+TRANSFER_REF {"class":"Sky","id":"-9223371499916750278","id_hi":2147483773,"id_lo":67113530,"label":"/root/World3D/@Node3D@371.sky","refs":4,"script":"<native>"}
+TRANSFER_REF {"class":"RandomNumberGenerator","id":"-9223371500822719965","id_hi":2147483772,"id_lo":3456111139,"label":"/root/World3D/@Node3D@371.rng","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371500805942748","id_hi":2147483772,"id_lo":3472888356,"label":"/root/World3D/@Node3D@371.night_sky","refs":3,"script":"res://scripts/world3d/night_sky.gd"}
+TRANSFER_REF {"class":"Image","id":"-9223371499983859145","id_hi":2147483773,"id_lo":4663,"label":"/root/World3D/@Node3D@371/@Node3D@375.height_image","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"ImageTexture","id":"-9223371499967081928","id_hi":2147483773,"id_lo":16781880,"label":"/root/World3D/@Node3D@371/@Node3D@375.height_texture","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RandomNumberGenerator","id":"-9223371500772388314","id_hi":2147483772,"id_lo":3506442790,"label":"/root/World3D/@Node3D@371/@Node3D@372.rng","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"PhysicsRayQueryParameters3D","id":"-9223371500755611097","id_hi":2147483772,"id_lo":3523220007,"label":"/root/World3D/@Node3D@371/@Node3D@372.ray_query","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371501208598458","id_hi":2147483772,"id_lo":3070232646,"label":"/root/World3D/FollowCamera.cutaway","refs":3,"script":"res://scripts/world3d/building_cutaway.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371716862932914","id_hi":2147483722,"id_lo":2164262990,"label":"/root/World3D/Player/CharacterModel3D.imported_rig","refs":3,"script":"res://scripts/char/character_imported_rig.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371716846155699","id_hi":2147483722,"id_lo":2181040205,"label":"/root/World3D/Player/CharacterModel3D.imported_rig.animations","refs":3,"script":"res://scripts/char/character_animation_library.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371716829378480","id_hi":2147483722,"id_lo":2197817424,"label":"/root/World3D/Player/CharacterModel3D.imported_rig.soft_motion","refs":3,"script":"res://scripts/char/character_soft_motion.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371716812601263","id_hi":2147483722,"id_lo":2214594641,"label":"/root/World3D/Player/CharacterModel3D.imported_rig.garment_motion","refs":3,"script":"res://scripts/char/character_garment_motion.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371716795824046","id_hi":2147483722,"id_lo":2231371858,"label":"/root/World3D/Player/CharacterModel3D.imported_rig.hair_motion","refs":4,"script":"res://scripts/char/character_hair_3d.gd"}
+TRANSFER_REF {"class":"Logger","id":"-9223371775482525688","id_hi":2147483708,"id_lo":3674212360,"label":"/root/_mcp_game_helper._logger","refs":4,"script":"res://addons/godot_ai/runtime/game_logger.gd"}
+TRANSFER_REF {"class":"Mutex","id":"-9223371775465748471","id_hi":2147483708,"id_lo":3690989577,"label":"/root/_mcp_game_helper._logger._mutex","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371792091969692","id_hi":2147483704,"id_lo":4244637540,"label":"/root/AssetManager._actor_interest_module_logic","refs":3,"script":"res://scripts/asset/actor_interest_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371792075192472","id_hi":2147483704,"id_lo":4261414760,"label":"/root/AssetManager._content_path_resolver_logic","refs":3,"script":"res://scripts/asset/content_path_resolver.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371792058415252","id_hi":2147483704,"id_lo":4278191980,"label":"/root/AssetManager._content_config_module_logic","refs":3,"script":"res://scripts/asset/content_config_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796185610791","id_hi":2147483704,"id_lo":150996441,"label":"/root/MockServer.sky_authority","refs":3,"script":"res://scripts/net/server/sky_module.gd"}
+TRANSFER_REF {"class":"RandomNumberGenerator","id":"-9223371796168833573","id_hi":2147483704,"id_lo":167773659,"label":"/root/MockServer.sky_authority.rng","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796135279131","id_hi":2147483704,"id_lo":201328101,"label":"/root/MockServer._chat_module_logic","refs":3,"script":"res://scripts/net/server/chat_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796118501912","id_hi":2147483704,"id_lo":218105320,"label":"/root/MockServer._refine_module_logic","refs":3,"script":"res://scripts/net/server/refine_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796101724689","id_hi":2147483704,"id_lo":234882543,"label":"/root/MockServer._dps_module_logic","refs":3,"script":"res://scripts/net/server/dps_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796084947486","id_hi":2147483704,"id_lo":251659746,"label":"/root/MockServer._death_drops_module_logic","refs":3,"script":"res://scripts/net/server/death_drops_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796068170185","id_hi":2147483704,"id_lo":268437047,"label":"/root/MockServer._daily_module_logic","refs":3,"script":"res://scripts/net/server/daily_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796051392610","id_hi":2147483704,"id_lo":285214622,"label":"/root/MockServer._progression_module_logic","refs":3,"script":"res://scripts/net/server/progression_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796034615769","id_hi":2147483704,"id_lo":301991463,"label":"/root/MockServer._equipment_module_logic","refs":3,"script":"res://scripts/net/server/equipment_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796017838541","id_hi":2147483704,"id_lo":318768691,"label":"/root/MockServer._titles_module_logic","refs":3,"script":"res://scripts/net/server/titles_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371796001061333","id_hi":2147483704,"id_lo":335545899,"label":"/root/MockServer._auction_module_logic","refs":3,"script":"res://scripts/net/server/auction_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795984284035","id_hi":2147483704,"id_lo":352323197,"label":"/root/MockServer._achievements_module_logic","refs":3,"script":"res://scripts/net/server/achievements_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795967506955","id_hi":2147483704,"id_lo":369100277,"label":"/root/MockServer._inventory_module_logic","refs":3,"script":"res://scripts/net/server/inventory_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795950729555","id_hi":2147483704,"id_lo":385877677,"label":"/root/MockServer._dungeon_module_logic","refs":3,"script":"res://scripts/net/server/dungeon_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795933952326","id_hi":2147483704,"id_lo":402654906,"label":"/root/MockServer._combat_module_logic","refs":3,"script":"res://scripts/net/server/combat_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795917175099","id_hi":2147483704,"id_lo":419432133,"label":"/root/MockServer._world_module_logic","refs":3,"script":"res://scripts/net/server/world_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795900397873","id_hi":2147483704,"id_lo":436209359,"label":"/root/MockServer._movement_module_logic","refs":3,"script":"res://scripts/net/server/movement_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795883620631","id_hi":2147483704,"id_lo":452986601,"label":"/root/MockServer._npc_ai_module_logic","refs":3,"script":"res://scripts/net/server/npc_ai_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795866843411","id_hi":2147483704,"id_lo":469763821,"label":"/root/MockServer._emote_module_logic","refs":3,"script":"res://scripts/net/server/emote_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795850066189","id_hi":2147483704,"id_lo":486541043,"label":"/root/MockServer._remote_module_logic","refs":3,"script":"res://scripts/net/server/remote_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795833288968","id_hi":2147483704,"id_lo":503318264,"label":"/root/MockServer._quest_module_logic","refs":3,"script":"res://scripts/net/server/quest_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795816511743","id_hi":2147483704,"id_lo":520095489,"label":"/root/MockServer._profession_module_logic","refs":3,"script":"res://scripts/net/server/profession_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795799734526","id_hi":2147483704,"id_lo":536872706,"label":"/root/MockServer._sustain_module_logic","refs":3,"script":"res://scripts/net/server/sustain_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795782957307","id_hi":2147483704,"id_lo":553649925,"label":"/root/MockServer._warehouse_module_logic","refs":3,"script":"res://scripts/net/server/warehouse_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795766180087","id_hi":2147483704,"id_lo":570427145,"label":"/root/MockServer._event_module_logic","refs":3,"script":"res://scripts/net/server/event_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795749402867","id_hi":2147483704,"id_lo":587204365,"label":"/root/MockServer._session_module_logic","refs":3,"script":"res://scripts/net/server/session_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795732625647","id_hi":2147483704,"id_lo":603981585,"label":"/root/MockServer._pet_module_logic","refs":3,"script":"res://scripts/net/server/pet_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795715848430","id_hi":2147483704,"id_lo":620758802,"label":"/root/MockServer._shop_module_logic","refs":3,"script":"res://scripts/net/server/shop_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795699071211","id_hi":2147483704,"id_lo":637536021,"label":"/root/MockServer._loot_module_logic","refs":3,"script":"res://scripts/net/server/loot_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795682293993","id_hi":2147483704,"id_lo":654313239,"label":"/root/MockServer._duel_module_logic","refs":3,"script":"res://scripts/net/server/duel_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795665516774","id_hi":2147483704,"id_lo":671090458,"label":"/root/MockServer._trade_module_logic","refs":3,"script":"res://scripts/net/server/trade_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795648739554","id_hi":2147483704,"id_lo":687867678,"label":"/root/MockServer._mail_module_logic","refs":3,"script":"res://scripts/net/server/mail_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795631962326","id_hi":2147483704,"id_lo":704644906,"label":"/root/MockServer._friends_module_logic","refs":3,"script":"res://scripts/net/server/friends_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795615185101","id_hi":2147483704,"id_lo":721422131,"label":"/root/MockServer._guild_module_logic","refs":3,"script":"res://scripts/net/server/guild_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795598407882","id_hi":2147483704,"id_lo":738199350,"label":"/root/MockServer._party_module_logic","refs":3,"script":"res://scripts/net/server/party_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371776153614329","id_hi":2147483708,"id_lo":3003123719,"label":"/root/MockServer.map_collision","refs":4,"script":"res://scripts/map/map_collision.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371776220723194","id_hi":2147483708,"id_lo":2936014854,"label":"/root/MockServer.map_collision.ext","refs":4,"script":"res://scripts/map/map_ext.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371787377571907","id_hi":2147483706,"id_lo":369100733,"label":"/root/MockServer._map_pack","refs":3,"script":"res://scripts/map/tilemap_pack.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789894154368","id_hi":2147483705,"id_lo":2147485568,"label":"/root/MockServer.combat_stats","refs":4,"script":"res://scripts/net/combat/combat_stats.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789877377149","id_hi":2147483705,"id_lo":2164262787,"label":"/root/MockServer.combat_stats.statuses","refs":3,"script":"res://scripts/net/combat/status_effects.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789860599929","id_hi":2147483705,"id_lo":2181040007,"label":"/root/MockServer.combat_stats.skill_book","refs":3,"script":"res://scripts/net/combat/skill_book.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788400982095","id_hi":2147483705,"id_lo":3640657841,"label":"/root/MockServer.combat_engine","refs":3,"script":"res://scripts/net/combat/combat_engine.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789843822711","id_hi":2147483705,"id_lo":2197817225,"label":"/root/MockServer.combat_engine.skills","refs":4,"script":"res://scripts/net/combat/skill_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789726382198","id_hi":2147483705,"id_lo":2315257738,"label":"/root/MockServer.combat_engine.items","refs":8,"script":"res://scripts/net/combat/item_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788786858075","id_hi":2147483705,"id_lo":3254781861,"label":"/root/MockServer.combat_engine.bag","refs":4,"script":"res://scripts/net/combat/inventory.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788669417555","id_hi":2147483705,"id_lo":3372222381,"label":"/root/MockServer.combat_engine.gear","refs":4,"script":"res://scripts/net/combat/equipment.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788384204878","id_hi":2147483705,"id_lo":3657435058,"label":"/root/MockServer.combat_engine.cast","refs":3,"script":"res://scripts/net/combat/cast_state.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788367427661","id_hi":2147483705,"id_lo":3674212275,"label":"/root/MockServer.combat_engine._player_state_module_logic","refs":3,"script":"res://scripts/net/combat/engine/player_state_module.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223371788350650444","id_hi":2147483705,"id_lo":3690989492,"label":"/root/MockServer.combat_engine._player_state_module_logic._owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788333873227","id_hi":2147483705,"id_lo":3707766709,"label":"/root/MockServer.combat_engine._targeting_module_logic","refs":3,"script":"res://scripts/net/combat/engine/targeting_module.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223371788317096010","id_hi":2147483705,"id_lo":3724543926,"label":"/root/MockServer.combat_engine._targeting_module_logic._owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788300318793","id_hi":2147483705,"id_lo":3741321143,"label":"/root/MockServer.combat_engine._dps_module_logic","refs":3,"script":"res://scripts/net/combat/engine/dps_module.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223371788283541576","id_hi":2147483705,"id_lo":3758098360,"label":"/root/MockServer.combat_engine._dps_module_logic._owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788266764359","id_hi":2147483705,"id_lo":3774875577,"label":"/root/MockServer.combat_engine._cast_module_logic","refs":3,"script":"res://scripts/net/combat/engine/cast_module.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223371788249987142","id_hi":2147483705,"id_lo":3791652794,"label":"/root/MockServer.combat_engine._cast_module_logic._owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788233209925","id_hi":2147483705,"id_lo":3808430011,"label":"/root/MockServer.combat_engine._skill_effects_module_logic","refs":3,"script":"res://scripts/net/combat/engine/skill_effects_module.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223371788216432708","id_hi":2147483705,"id_lo":3825207228,"label":"/root/MockServer.combat_engine._skill_effects_module_logic._owner","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789608941685","id_hi":2147483705,"id_lo":2432698251,"label":"/root/MockServer.recipe_catalog","refs":3,"script":"res://scripts/net/combat/recipe_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789491501162","id_hi":2147483705,"id_lo":2550138774,"label":"/root/MockServer.gather_catalog","refs":3,"script":"res://scripts/net/combat/gather_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789374060644","id_hi":2147483705,"id_lo":2667579292,"label":"/root/MockServer.fish_catalog","refs":3,"script":"res://scripts/net/combat/fish_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789256620136","id_hi":2147483705,"id_lo":2785019800,"label":"/root/MockServer.title_catalog","refs":3,"script":"res://scripts/net/combat/title_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789139179622","id_hi":2147483705,"id_lo":2902460314,"label":"/root/MockServer.achievement_catalog","refs":3,"script":"res://scripts/net/combat/achievement_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371789021739104","id_hi":2147483705,"id_lo":3019900832,"label":"/root/MockServer.safe_zone_catalog","refs":3,"script":"res://scripts/net/combat/safe_zone_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788770080857","id_hi":2147483705,"id_lo":3271559079,"label":"/root/MockServer.warehouse","refs":3,"script":"res://scripts/net/combat/warehouse.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788753303640","id_hi":2147483705,"id_lo":3288336296,"label":"/root/MockServer.warehouse._bag","refs":3,"script":"res://scripts/net/combat/inventory.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788736526423","id_hi":2147483705,"id_lo":3305113513,"label":"/root/MockServer.friend_list","refs":3,"script":"res://scripts/net/combat/friend_list.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788719749206","id_hi":2147483705,"id_lo":3321890730,"label":"/root/MockServer.guild","refs":3,"script":"res://scripts/net/combat/guild.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788702971989","id_hi":2147483705,"id_lo":3338667947,"label":"/root/MockServer.mailbox","refs":3,"script":"res://scripts/net/combat/mailbox.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788686194772","id_hi":2147483705,"id_lo":3355445164,"label":"/root/MockServer.auction","refs":3,"script":"res://scripts/net/combat/auction.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788904298589","id_hi":2147483705,"id_lo":3137341347,"label":"/root/MockServer.loot_catalog","refs":3,"script":"res://scripts/net/combat/loot_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788652640338","id_hi":2147483705,"id_lo":3388999598,"label":"/root/MockServer.quest_journal","refs":3,"script":"res://scripts/net/combat/quest_journal.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788535199825","id_hi":2147483705,"id_lo":3506440111,"label":"/root/MockServer.shop_catalog","refs":3,"script":"res://scripts/net/combat/shop_catalog.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371788417759312","id_hi":2147483705,"id_lo":3623880624,"label":"/root/MockServer.event_runtime","refs":3,"script":"res://scripts/net/combat/event_runtime.gd"}
+TRANSFER_REF {"class":"RandomNumberGenerator","id":"-9223371795581630659","id_hi":2147483704,"id_lo":754976573,"label":"/root/MockServer._weather_rng","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370961619769602","id_hi":2147483898,"id_lo":1493182206,"label":"/root/MockServer.world3d_summons","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795564853434","id_hi":2147483704,"id_lo":771753798,"label":"/root/MockServer.world3d_state","refs":3,"script":"res://scripts/world3d/world_state.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795531298998","id_hi":2147483704,"id_lo":805308234,"label":"/root/MockServer.world3d_events","refs":3,"script":"res://scripts/world3d/world_events.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795514521780","id_hi":2147483704,"id_lo":822085452,"label":"/root/MockServer.world3d_events.runtime","refs":3,"script":"res://scripts/net/combat/event_runtime.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795497744562","id_hi":2147483704,"id_lo":838862670,"label":"/root/MockServer.world3d_authority","refs":3,"script":"res://scripts/world3d/world_authority.gd"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370275582635769","id_hi":2147484058,"id_lo":335548679,"label":"/root/MockServer.world3d_authority._body","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"WeakRef","id":"-9223370275565860498","id_hi":2147484058,"id_lo":352323950,"label":"/root/MockServer.world3d_authority._navigation","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"KinematicCollision3D","id":"-9223371795480967344","id_hi":2147483704,"id_lo":855639888,"label":"/root/MockServer.world3d_authority._step_contact","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795464190126","id_hi":2147483704,"id_lo":872417106,"label":"/root/MockServer.world3d_authority._descent","refs":3,"script":"res://scripts/world3d/step_descent.gd"}
+TRANSFER_REF {"class":"KinematicCollision3D","id":"-9223371795447412908","id_hi":2147483704,"id_lo":889194324,"label":"/root/MockServer.world3d_authority._descent._contact","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RandomNumberGenerator","id":"-9223371795430635690","id_hi":2147483704,"id_lo":905971542,"label":"/root/MockServer._loot_roll_rng","refs":3,"script":"<native>"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795413858472","id_hi":2147483704,"id_lo":922748760,"label":"/root/MockServer.facial_expressions","refs":3,"script":"res://scripts/net/server/facial_expression_module.gd"}
+TRANSFER_REF {"class":"RefCounted","id":"-9223371795397081254","id_hi":2147483704,"id_lo":939525978,"label":"/root/MockServer.furniture","refs":3,"script":"res://scripts/net/server/furniture_module.gd"}
+TRANSFER_CLEANUP_BEFORE_FREE {"active_bakes":[],"drainer_jobs":0,"loaders":[],"navigation":[{"bake_pending":"","baking":false,"fully_ready":false,"nearby_baking":false,"node":"/root/World3D/@Node@2383","orphan_sources":0,"phase":"waiting_geometry","source_jobs":0,"workers":{"_cache_writer":false,"_face_worker":false,"_surface_index_worker":false}}]}
+PASS world freed, all map loaders retired, navigation bakes finished and orphan asset workers joined
+TRANSFER_CLEANUP_FINISHED {"elapsed_ms":451,"live_candidates":[{"candidate":{"label":"/root/World3D._building_entry.authority","script":"res://scripts/world3d/local_entry_authority.gd"},"id":"-9223371795548076216","id_hi":2147483704,"id_lo":788531016},{"candidate":{"label":"/root/World3D/rmmo_world/DeferredAssets._reference_proof._issuer","script":"<native>"},"id":"-9223371889836030427","id_hi":2147483682,"id_lo":989857317},{"candidate":{"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._empty_sb","script":"<native>"},"id":"-9223371481210153574","id_hi":2147483777,"id_lo":1593841050},{"candidate":{"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._filled_sb","script":"<native>"},"id":"-9223371481126267493","id_hi":2147483777,"id_lo":1677727131},{"candidate":{"label":"/root/World3D/@CanvasLayer@387/GameHud/AuctionPanel/@MarginContainer@969/@VBoxContainer@970/@VBoxContainer@981/AuctionItemPicker/@ScrollContainer@997/ItemCells/@PanelContainer@1017._disabled_sb","script":"<native>"},"id":"-9223371469063448616","id_hi":2147483780,"id_lo":855644120},{"candidate":{"label":"/root/_mcp_game_helper._logger","script":"res://addons/godot_ai/runtime/game_logger.gd"},"id":"-9223371775482525688","id_hi":2147483708,"id_lo":3674212360},{"candidate":{"label":"/root/_mcp_game_helper._logger._mutex","script":"<native>"},"id":"-9223371775465748471","id_hi":2147483708,"id_lo":3690989577},{"candidate":{"label":"/root/AssetManager._actor_interest_module_logic","script":"res://scripts/asset/actor_interest_module.gd"},"id":"-9223371792091969692","id_hi":2147483704,"id_lo":4244637540},{"candidate":{"label":"/root/AssetManager._content_path_resolver_logic","script":"res://scripts/asset/content_path_resolver.gd"},"id":"-9223371792075192472","id_hi":2147483704,"id_lo":4261414760},{"candidate":{"label":"/root/AssetManager._content_config_module_logic","script":"res://scripts/asset/content_config_module.gd"},"id":"-9223371792058415252","id_hi":2147483704,"id_lo":4278191980},{"candidate":{"label":"/root/MockServer.sky_authority","script":"res://scripts/net/server/sky_module.gd"},"id":"-9223371796185610791","id_hi":2147483704,"id_lo":150996441},{"candidate":{"label":"/root/MockServer.sky_authority.rng","script":"<native>"},"id":"-9223371796168833573","id_hi":2147483704,"id_lo":167773659},{"candidate":{"label":"/root/MockServer._chat_module_logic","script":"res://scripts/net/server/chat_module.gd"},"id":"-9223371796135279131","id_hi":2147483704,"id_lo":201328101},{"candidate":{"label":"/root/MockServer._refine_module_logic","script":"res://scripts/net/server/refine_module.gd"},"id":"-9223371796118501912","id_hi":2147483704,"id_lo":218105320},{"candidate":{"label":"/root/MockServer._dps_module_logic","script":"res://scripts/net/server/dps_module.gd"},"id":"-9223371796101724689","id_hi":2147483704,"id_lo":234882543},{"candidate":{"label":"/root/MockServer._death_drops_module_logic","script":"res://scripts/net/server/death_drops_module.gd"},"id":"-9223371796084947486","id_hi":2147483704,"id_lo":251659746},{"candidate":{"label":"/root/MockServer._daily_module_logic","script":"res://scripts/net/server/daily_module.gd"},"id":"-9223371796068170185","id_hi":2147483704,"id_lo":268437047},{"candidate":{"label":"/root/MockServer._progression_module_logic","script":"res://scripts/net/server/progression_module.gd"},"id":"-9223371796051392610","id_hi":2147483704,"id_lo":285214622},{"candidate":{"label":"/root/MockServer._equipment_module_logic","script":"res://scripts/net/server/equipment_module.gd"},"id":"-9223371796034615769","id_hi":2147483704,"id_lo":301991463},{"candidate":{"label":"/root/MockServer._titles_module_logic","script":"res://scripts/net/server/titles_module.gd"},"id":"-9223371796017838541","id_hi":2147483704,"id_lo":318768691},{"candidate":{"label":"/root/MockServer._auction_module_logic","script":"res://scripts/net/server/auction_module.gd"},"id":"-9223371796001061333","id_hi":2147483704,"id_lo":335545899},{"candidate":{"label":"/root/MockServer._achievements_module_logic","script":"res://scripts/net/server/achievements_module.gd"},"id":"-9223371795984284035","id_hi":2147483704,"id_lo":352323197},{"candidate":{"label":"/root/MockServer._inventory_module_logic","script":"res://scripts/net/server/inventory_module.gd"},"id":"-9223371795967506955","id_hi":2147483704,"id_lo":369100277},{"candidate":{"label":"/root/MockServer._dungeon_module_logic","script":"res://scripts/net/server/dungeon_module.gd"},"id":"-9223371795950729555","id_hi":2147483704,"id_lo":385877677},{"candidate":{"label":"/root/MockServer._combat_module_logic","script":"res://scripts/net/server/combat_module.gd"},"id":"-9223371795933952326","id_hi":2147483704,"id_lo":402654906},{"candidate":{"label":"/root/MockServer._world_module_logic","script":"res://scripts/net/server/world_module.gd"},"id":"-9223371795917175099","id_hi":2147483704,"id_lo":419432133},{"candidate":{"label":"/root/MockServer._movement_module_logic","script":"res://scripts/net/server/movement_module.gd"},"id":"-9223371795900397873","id_hi":2147483704,"id_lo":436209359},{"candidate":{"label":"/root/MockServer._npc_ai_module_logic","script":"res://scripts/net/server/npc_ai_module.gd"},"id":"-9223371795883620631","id_hi":2147483704,"id_lo":452986601},{"candidate":{"label":"/root/MockServer._emote_module_logic","script":"res://scripts/net/server/emote_module.gd"},"id":"-9223371795866843411","id_hi":2147483704,"id_lo":469763821},{"candidate":{"label":"/root/MockServer._remote_module_logic","script":"res://scripts/net/server/remote_module.gd"},"id":"-9223371795850066189","id_hi":2147483704,"id_lo":486541043},{"candidate":{"label":"/root/MockServer._quest_module_logic","script":"res://scripts/net/server/quest_module.gd"},"id":"-9223371795833288968","id_hi":2147483704,"id_lo":503318264},{"candidate":{"label":"/root/MockServer._profession_module_logic","script":"res://scripts/net/server/profession_module.gd"},"id":"-9223371795816511743","id_hi":2147483704,"id_lo":520095489},{"candidate":{"label":"/root/MockServer._sustain_module_logic","script":"res://scripts/net/server/sustain_module.gd"},"id":"-9223371795799734526","id_hi":2147483704,"id_lo":536872706},{"candidate":{"label":"/root/MockServer._warehouse_module_logic","script":"res://scripts/net/server/warehouse_module.gd"},"id":"-9223371795782957307","id_hi":2147483704,"id_lo":553649925},{"candidate":{"label":"/root/MockServer._event_module_logic","script":"res://scripts/net/server/event_module.gd"},"id":"-9223371795766180087","id_hi":2147483704,"id_lo":570427145},{"candidate":{"label":"/root/MockServer._session_module_logic","script":"res://scripts/net/server/session_module.gd"},"id":"-9223371795749402867","id_hi":2147483704,"id_lo":587204365},{"candidate":{"label":"/root/MockServer._pet_module_logic","script":"res://scripts/net/server/pet_module.gd"},"id":"-9223371795732625647","id_hi":2147483704,"id_lo":603981585},{"candidate":{"label":"/root/MockServer._shop_module_logic","script":"res://scripts/net/server/shop_module.gd"},"id":"-9223371795715848430","id_hi":2147483704,"id_lo":620758802},{"candidate":{"label":"/root/MockServer._loot_module_logic","script":"res://scripts/net/server/loot_module.gd"},"id":"-9223371795699071211","id_hi":2147483704,"id_lo":637536021},{"candidate":{"label":"/root/MockServer._duel_module_logic","script":"res://scripts/net/server/duel_module.gd"},"id":"-9223371795682293993","id_hi":2147483704,"id_lo":654313239},{"candidate":{"label":"/root/MockServer._trade_module_logic","script":"res://scripts/net/server/trade_module.gd"},"id":"-9223371795665516774","id_hi":2147483704,"id_lo":671090458},{"candidate":{"label":"/root/MockServer._mail_module_logic","script":"res://scripts/net/server/mail_module.gd"},"id":"-9223371795648739554","id_hi":2147483704,"id_lo":687867678},{"candidate":{"label":"/root/MockServer._friends_module_logic","script":"res://scripts/net/server/friends_module.gd"},"id":"-9223371795631962326","id_hi":2147483704,"id_lo":704644906},{"candidate":{"label":"/root/MockServer._guild_module_logic","script":"res://scripts/net/server/guild_module.gd"},"id":"-9223371795615185101","id_hi":2147483704,"id_lo":721422131},{"candidate":{"label":"/root/MockServer._party_module_logic","script":"res://scripts/net/server/party_module.gd"},"id":"-9223371795598407882","id_hi":2147483704,"id_lo":738199350},{"candidate":{"label":"/root/MockServer.map_collision","script":"res://scripts/map/map_collision.gd"},"id":"-9223371776153614329","id_hi":2147483708,"id_lo":3003123719},{"candidate":{"label":"/root/MockServer.map_collision.ext","script":"res://scripts/map/map_ext.gd"},"id":"-9223371776220723194","id_hi":2147483708,"id_lo":2936014854},{"candidate":{"label":"/root/MockServer._map_pack","script":"res://scripts/map/tilemap_pack.gd"},"id":"-9223371787377571907","id_hi":2147483706,"id_lo":369100733},{"candidate":{"label":"/root/MockServer.combat_stats","script":"res://scripts/net/combat/combat_stats.gd"},"id":"-9223371789894154368","id_hi":2147483705,"id_lo":2147485568},{"candidate":{"label":"/root/MockServer.combat_stats.statuses","script":"res://scripts/net/combat/status_effects.gd"},"id":"-9223371789877377149","id_hi":2147483705,"id_lo":2164262787},{"candidate":{"label":"/root/MockServer.combat_stats.skill_book","script":"res://scripts/net/combat/skill_book.gd"},"id":"-9223371789860599929","id_hi":2147483705,"id_lo":2181040007},{"candidate":{"label":"/root/MockServer.combat_engine","script":"res://scripts/net/combat/combat_engine.gd"},"id":"-9223371788400982095","id_hi":2147483705,"id_lo":3640657841},{"candidate":{"label":"/root/MockServer.combat_engine.skills","script":"res://scripts/net/combat/skill_catalog.gd"},"id":"-9223371789843822711","id_hi":2147483705,"id_lo":2197817225},{"candidate":{"label":"/root/MockServer.combat_engine.items","script":"res://scripts/net/combat/item_catalog.gd"},"id":"-9223371789726382198","id_hi":2147483705,"id_lo":2315257738},{"candidate":{"label":"/root/MockServer.combat_engine.bag","script":"res://scripts/net/combat/inventory.gd"},"id":"-9223371788786858075","id_hi":2147483705,"id_lo":3254781861},{"candidate":{"label":"/root/MockServer.combat_engine.gear","script":"res://scripts/net/combat/equipment.gd"},"id":"-9223371788669417555","id_hi":2147483705,"id_lo":3372222381},{"candidate":{"label":"/root/MockServer.combat_engine.cast","script":"res://scripts/net/combat/cast_state.gd"},"id":"-9223371788384204878","id_hi":2147483705,"id_lo":3657435058},{"candidate":{"label":"/root/MockServer.combat_engine._player_state_module_logic","script":"res://scripts/net/combat/engine/player_state_module.gd"},"id":"-9223371788367427661","id_hi":2147483705,"id_lo":3674212275},{"candidate":{"label":"/root/MockServer.combat_engine._player_state_module_logic._owner","script":"<native>"},"id":"-9223371788350650444","id_hi":2147483705,"id_lo":3690989492},{"candidate":{"label":"/root/MockServer.combat_engine._targeting_module_logic","script":"res://scripts/net/combat/engine/targeting_module.gd"},"id":"-9223371788333873227","id_hi":2147483705,"id_lo":3707766709},{"candidate":{"label":"/root/MockServer.combat_engine._targeting_module_logic._owner","script":"<native>"},"id":"-9223371788317096010","id_hi":2147483705,"id_lo":3724543926},{"candidate":{"label":"/root/MockServer.combat_engine._dps_module_logic","script":"res://scripts/net/combat/engine/dps_module.gd"},"id":"-9223371788300318793","id_hi":2147483705,"id_lo":3741321143},{"candidate":{"label":"/root/MockServer.combat_engine._dps_module_logic._owner","script":"<native>"},"id":"-9223371788283541576","id_hi":2147483705,"id_lo":3758098360},{"candidate":{"label":"/root/MockServer.combat_engine._cast_module_logic","script":"res://scripts/net/combat/engine/cast_module.gd"},"id":"-9223371788266764359","id_hi":2147483705,"id_lo":3774875577},{"candidate":{"label":"/root/MockServer.combat_engine._cast_module_logic._owner","script":"<native>"},"id":"-9223371788249987142","id_hi":2147483705,"id_lo":3791652794},{"candidate":{"label":"/root/MockServer.combat_engine._skill_effects_module_logic","script":"res://scripts/net/combat/engine/skill_effects_module.gd"},"id":"-9223371788233209925","id_hi":2147483705,"id_lo":3808430011},{"candidate":{"label":"/root/MockServer.combat_engine._skill_effects_module_logic._owner","script":"<native>"},"id":"-9223371788216432708","id_hi":2147483705,"id_lo":3825207228},{"candidate":{"label":"/root/MockServer.recipe_catalog","script":"res://scripts/net/combat/recipe_catalog.gd"},"id":"-9223371789608941685","id_hi":2147483705,"id_lo":2432698251},{"candidate":{"label":"/root/MockServer.gather_catalog","script":"res://scripts/net/combat/gather_catalog.gd"},"id":"-9223371789491501162","id_hi":2147483705,"id_lo":2550138774},{"candidate":{"label":"/root/MockServer.fish_catalog","script":"res://scripts/net/combat/fish_catalog.gd"},"id":"-9223371789374060644","id_hi":2147483705,"id_lo":2667579292},{"candidate":{"label":"/root/MockServer.title_catalog","script":"res://scripts/net/combat/title_catalog.gd"},"id":"-9223371789256620136","id_hi":2147483705,"id_lo":2785019800},{"candidate":{"label":"/root/MockServer.achievement_catalog","script":"res://scripts/net/combat/achievement_catalog.gd"},"id":"-9223371789139179622","id_hi":2147483705,"id_lo":2902460314},{"candidate":{"label":"/root/MockServer.safe_zone_catalog","script":"res://scripts/net/combat/safe_zone_catalog.gd"},"id":"-9223371789021739104","id_hi":2147483705,"id_lo":3019900832},{"candidate":{"label":"/root/MockServer.warehouse","script":"res://scripts/net/combat/warehouse.gd"},"id":"-9223371788770080857","id_hi":2147483705,"id_lo":3271559079},{"candidate":{"label":"/root/MockServer.warehouse._bag","script":"res://scripts/net/combat/inventory.gd"},"id":"-9223371788753303640","id_hi":2147483705,"id_lo":3288336296},{"candidate":{"label":"/root/MockServer.friend_list","script":"res://scripts/net/combat/friend_list.gd"},"id":"-9223371788736526423","id_hi":2147483705,"id_lo":3305113513},{"candidate":{"label":"/root/MockServer.guild","script":"res://scripts/net/combat/guild.gd"},"id":"-9223371788719749206","id_hi":2147483705,"id_lo":3321890730},{"candidate":{"label":"/root/MockServer.mailbox","script":"res://scripts/net/combat/mailbox.gd"},"id":"-9223371788702971989","id_hi":2147483705,"id_lo":3338667947},{"candidate":{"label":"/root/MockServer.auction","script":"res://scripts/net/combat/auction.gd"},"id":"-9223371788686194772","id_hi":2147483705,"id_lo":3355445164},{"candidate":{"label":"/root/MockServer.loot_catalog","script":"res://scripts/net/combat/loot_catalog.gd"},"id":"-9223371788904298589","id_hi":2147483705,"id_lo":3137341347},{"candidate":{"label":"/root/MockServer.quest_journal","script":"res://scripts/net/combat/quest_journal.gd"},"id":"-9223371788652640338","id_hi":2147483705,"id_lo":3388999598},{"candidate":{"label":"/root/MockServer.shop_catalog","script":"res://scripts/net/combat/shop_catalog.gd"},"id":"-9223371788535199825","id_hi":2147483705,"id_lo":3506440111},{"candidate":{"label":"/root/MockServer.event_runtime","script":"res://scripts/net/combat/event_runtime.gd"},"id":"-9223371788417759312","id_hi":2147483705,"id_lo":3623880624},{"candidate":{"label":"/root/MockServer._weather_rng","script":"<native>"},"id":"-9223371795581630659","id_hi":2147483704,"id_lo":754976573},{"candidate":{"label":"/root/MockServer.world3d_summons","script":"<native>"},"id":"-9223370961619769602","id_hi":2147483898,"id_lo":1493182206},{"candidate":{"label":"/root/MockServer.world3d_state","script":"res://scripts/world3d/world_state.gd"},"id":"-9223371795564853434","id_hi":2147483704,"id_lo":771753798},{"candidate":{"label":"/root/MockServer.world3d_events","script":"res://scripts/world3d/world_events.gd"},"id":"-9223371795531298998","id_hi":2147483704,"id_lo":805308234},{"candidate":{"label":"/root/MockServer.world3d_events.runtime","script":"res://scripts/net/combat/event_runtime.gd"},"id":"-9223371795514521780","id_hi":2147483704,"id_lo":822085452},{"candidate":{"label":"/root/MockServer.world3d_authority","script":"res://scripts/world3d/world_authority.gd"},"id":"-9223371795497744562","id_hi":2147483704,"id_lo":838862670},{"candidate":{"label":"/root/MockServer.world3d_authority._step_contact","script":"<native>"},"id":"-9223371795480967344","id_hi":2147483704,"id_lo":855639888},{"candidate":{"label":"/root/MockServer.world3d_authority._descent","script":"res://scripts/world3d/step_descent.gd"},"id":"-9223371795464190126","id_hi":2147483704,"id_lo":872417106},{"candidate":{"label":"/root/MockServer.world3d_authority._descent._contact","script":"<native>"},"id":"-9223371795447412908","id_hi":2147483704,"id_lo":889194324},{"candidate":{"label":"/root/MockServer._loot_roll_rng","script":"<native>"},"id":"-9223371795430635690","id_hi":2147483704,"id_lo":905971542},{"candidate":{"label":"/root/MockServer.facial_expressions","script":"res://scripts/net/server/facial_expression_module.gd"},"id":"-9223371795413858472","id_hi":2147483704,"id_lo":922748760},{"candidate":{"label":"/root/MockServer.furniture","script":"res://scripts/net/server/furniture_module.gd"},"id":"-9223371795397081254","id_hi":2147483704,"id_lo":939525978}],"status":{"active_bakes":[],"drainer_jobs":0,"loaders":[],"navigation":[]}}
+AUTOMATIC_STAGED_ENTRY failures=0 checks=35
+XR: Clearing primary interface
+XR: Removed interface "Native mobile"
+XR: Removed interface "OpenXR"
+Freeing Default Tex_Blit Shader
+MultiUmaBuffer 'RENDER_LIST_OPAQUE' used a total of 1 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+MultiUmaBuffer 'RENDER_LIST_MOTION' used a total of 0 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+MultiUmaBuffer 'RENDER_LIST_ALPHA' used a total of 1 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+MultiUmaBuffer 'RENDER_LIST_SECONDARY' used a total of 2 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+MultiUmaBuffer 'CANVAS_INSTANCE_DATA' used a total of 2 buffers. A large number may indicate a waste of VRAM and can be brought down by tweaking MAX_EXTRA_BUFFERS for this buffer.
+Accessibility: window 0 adapter destroyed.

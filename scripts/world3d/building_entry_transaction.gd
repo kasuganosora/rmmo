@@ -11,10 +11,13 @@ var state_applied_frame:=-1
 var state_snapshot:Dictionary={}
 var residency_pins:Array[String]=[]
 
-func begin(adapter:RefCounted,map_root:Node,session:String,world:String,map_ref:String,revision:String,feet:Vector3,reason:String)->Dictionary:
+func begin(adapter:RefCounted,map_root:Node,session:String,world:String,map_ref:String,revision:String,feet:Vector3,reason:String,reuse_catalogue:bool=false)->Dictionary:
 	authority=adapter;root=weakref(map_root)
-	var registered:Dictionary=authority.register_root(map_ref,revision,map_root)
-	if not registered.ok:return registered
+	# Only the same immutable runtime root/revision selected by the authority
+	# may reuse its catalogue. Direct callers still rebuild after author edits.
+	if not reuse_catalogue or not authority.registered_root_current(map_ref,revision,map_root):
+		var registered:Dictionary=authority.register_root(map_ref,revision,map_root)
+		if not registered.ok:return registered
 	issued=authority.begin(session,world,map_ref,revision,feet,reason)
 	if not issued.ok:return issued
 	gate=Gate.new()
@@ -26,6 +29,8 @@ func begin(adapter:RefCounted,map_root:Node,session:String,world:String,map_ref:
 	return {"ok":true}
 
 func prepare(world:Node,host:Node,centre:Vector3,cover:Node=null,cancelled:Callable=Callable())->String:
+	var tree:SceneTree=world.get_tree() if is_instance_valid(world) else null
+	if tree==null:return "entry_cancelled"
 	var map:Node=root.get_ref()
 	if not is_instance_valid(map):return "map_unavailable"
 	var clip:AABB=map.get_meta("entry_stream_clip",preload("res://scripts/world3d/entry_plan.gd").create(centre).safety_clip)
@@ -49,7 +54,7 @@ func prepare(world:Node,host:Node,centre:Vector3,cover:Node=null,cancelled:Calla
 		if Time.get_ticks_msec()>=deadline:return "building_preparation_timeout"
 		if cover!=null:cover.update_progress("准备所在建筑的完整成员与碰撞")
 		else:world._loading_stage("准备所在建筑的完整成员与碰撞")
-		await world.get_tree().process_frame
+		await tree.process_frame
 	gate.mark("geometry",gate.token())
 	state_snapshot=issued.snapshot.duplicate(true)
 	if issued.snapshot.membership=="indoor":
@@ -60,8 +65,9 @@ func prepare(world:Node,host:Node,centre:Vector3,cover:Node=null,cancelled:Calla
 	# The signal is emitted before the physics iteration; wait until a later
 	# process frame as well before inspecting actual server publication stamps.
 	while Engine.get_physics_frames()<=state_applied_frame:
-		await world.get_tree().physics_frame
-		await world.get_tree().process_frame
+		await tree.physics_frame
+		await tree.process_frame
+		if not is_instance_valid(world) or not world.is_inside_tree() or not is_instance_valid(map) or map.is_queued_for_deletion():return "entry_cancelled"
 	if cancelled.is_valid() and cancelled.call():return "entry_cancelled"
 	var valid:Dictionary=authority.validate(issued.ticket)
 	if not valid.ok:return str(valid.reason)

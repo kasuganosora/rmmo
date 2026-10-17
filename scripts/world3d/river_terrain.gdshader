@@ -1,5 +1,8 @@
 shader_type spatial;
 render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+uniform bool far_detail_enabled = true;
+uniform float far_detail_start = 160.;
+uniform float far_detail_end = 320.;
 uniform float terrain_saturation = 1.;
 uniform float wet_height = .3;
 uniform float wet_darkening = 0.;
@@ -197,6 +200,7 @@ vec4 height_weights(vec4 weights,vec3 n) {
 	return mix(weights,shaped/max(.00001,shaped.x+shaped.y+shaped.z+shaped.w),height_blend_strength);
 }
 void fragment() {
+	float detail=far_detail_enabled ? 1.-smoothstep(far_detail_start,far_detail_end,distance(CAMERA_POSITION_WORLD,world_position)) : 1.;
 	vec3 up=normalize(world_normal);
 	// At near-vertical cuts, interpolated crest normals stretch grass and XZ UVs
 	// down long triangles. Use the true face normal increasingly on steep faces.
@@ -282,10 +286,10 @@ void fragment() {
 		if (base_metallic>0.) { METALLIC+=(base_has_metal?sample_surface(base_metal,base_tile,projection_normal).r:1.)*base_metallic*weights.x; }
 		AO+=(base_has_ao?sample_surface(base_ao,base_tile,projection_normal).r:1.)*weights.x;
 		if (slope_aware) {
-			surface+=(base_strength>0.?surface_normal(base_normal,base_tile,base_strength,projection_normal):projection_normal)*weights.x;
+			surface+=(base_strength*detail>.00001?surface_normal(base_normal,base_tile,base_strength*detail,projection_normal):projection_normal)*weights.x;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (base_strength>0.) { n=texture(base_normal,world_position.xz/base_tile).rgb*2.-1.; n=normalize(vec3(n.xy*base_strength,max(.01,n.z))); }
+			if (base_strength*detail>.00001) { n=texture(base_normal,world_position.xz/base_tile).rgb*2.-1.; n=normalize(vec3(n.xy*base_strength*detail,max(.01,n.z))); }
 			surface+=n*weights.x;
 		}
 	}
@@ -295,10 +299,10 @@ void fragment() {
 		if (region_a_metallic>0.) { METALLIC+=(region_a_has_metal?sample_surface(region_a_metal,region_a_tile,projection_normal).r:1.)*region_a_metallic*region_weights.x; }
 		AO+=(region_a_has_ao?sample_surface(region_a_ao,region_a_tile,projection_normal).r:1.)*region_weights.x;
 		if (slope_aware) {
-			surface+=(region_a_strength>0.?surface_normal(region_a_normal,region_a_tile,region_a_strength,projection_normal):projection_normal)*region_weights.x;
+			surface+=(region_a_strength*detail>.00001?surface_normal(region_a_normal,region_a_tile,region_a_strength*detail,projection_normal):projection_normal)*region_weights.x;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (region_a_strength>0.) { n=texture(region_a_normal,world_position.xz/region_a_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_a_strength,max(.01,n.z))); }
+			if (region_a_strength*detail>.00001) { n=texture(region_a_normal,world_position.xz/region_a_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_a_strength*detail,max(.01,n.z))); }
 			surface+=n*region_weights.x;
 		}
 	}
@@ -308,10 +312,10 @@ void fragment() {
 		if (region_b_metallic>0.) { METALLIC+=(region_b_has_metal?sample_surface(region_b_metal,region_b_tile,projection_normal).r:1.)*region_b_metallic*region_weights.y; }
 		AO+=(region_b_has_ao?sample_surface(region_b_ao,region_b_tile,projection_normal).r:1.)*region_weights.y;
 		if (slope_aware) {
-			surface+=(region_b_strength>0.?surface_normal(region_b_normal,region_b_tile,region_b_strength,projection_normal):projection_normal)*region_weights.y;
+			surface+=(region_b_strength*detail>.00001?surface_normal(region_b_normal,region_b_tile,region_b_strength*detail,projection_normal):projection_normal)*region_weights.y;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (region_b_strength>0.) { n=texture(region_b_normal,world_position.xz/region_b_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_b_strength,max(.01,n.z))); }
+			if (region_b_strength*detail>.00001) { n=texture(region_b_normal,world_position.xz/region_b_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_b_strength*detail,max(.01,n.z))); }
 			surface+=n*region_weights.y;
 		}
 	}
@@ -321,10 +325,10 @@ void fragment() {
 		if (sand_metallic>0.) { METALLIC+=(sand_has_metal?sample_surface(sand_metal,sand_tile,projection_normal).r:1.)*sand_metallic*weights.y; }
 		AO+=(sand_has_ao?sample_surface(sand_ao,sand_tile,projection_normal).r:1.)*weights.y;
 		if (slope_aware) {
-			surface+=(sand_strength>0.?surface_normal(sand_normal,sand_tile,sand_strength,projection_normal):projection_normal)*weights.y;
+			surface+=(sand_strength*detail>.00001?surface_normal(sand_normal,sand_tile,sand_strength*detail,projection_normal):projection_normal)*weights.y;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (sand_strength>0.) { n=texture(sand_normal,world_position.xz/sand_tile).rgb*2.-1.; n=normalize(vec3(n.xy*sand_strength,max(.01,n.z))); }
+			if (sand_strength*detail>.00001) { n=texture(sand_normal,world_position.xz/sand_tile).rgb*2.-1.; n=normalize(vec3(n.xy*sand_strength*detail,max(.01,n.z))); }
 			surface+=n*weights.y;
 		}
 	}
@@ -334,10 +338,10 @@ void fragment() {
 		if (rock_metallic>0.) { METALLIC+=(rock_has_metal?sample_surface(rock_metal,rock_tile,projection_normal).r:1.)*rock_metallic*weights.z; }
 		AO+=(rock_has_ao?sample_surface(rock_ao,rock_tile,projection_normal).r:1.)*weights.z;
 		if (slope_aware) {
-			surface+=(rock_strength>0.?surface_normal(rock_normal,rock_tile,rock_strength,projection_normal):projection_normal)*weights.z;
+			surface+=(rock_strength*detail>.00001?surface_normal(rock_normal,rock_tile,rock_strength*detail,projection_normal):projection_normal)*weights.z;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (rock_strength>0.) { n=texture(rock_normal,world_position.xz/rock_tile).rgb*2.-1.; n=normalize(vec3(n.xy*rock_strength,max(.01,n.z))); }
+			if (rock_strength*detail>.00001) { n=texture(rock_normal,world_position.xz/rock_tile).rgb*2.-1.; n=normalize(vec3(n.xy*rock_strength*detail,max(.01,n.z))); }
 			surface+=n*weights.z;
 		}
 	}
@@ -347,10 +351,10 @@ void fragment() {
 		if (soil_metallic>0.) { METALLIC+=(soil_has_metal?sample_surface(soil_metal,soil_tile,projection_normal).r:1.)*soil_metallic*weights.w; }
 		AO+=(soil_has_ao?sample_surface(soil_ao,soil_tile,projection_normal).r:1.)*weights.w;
 		if (slope_aware) {
-			surface+=(soil_strength>0.?surface_normal(soil_normal,soil_tile,soil_strength,projection_normal):projection_normal)*weights.w;
+			surface+=(soil_strength*detail>.00001?surface_normal(soil_normal,soil_tile,soil_strength*detail,projection_normal):projection_normal)*weights.w;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (soil_strength>0.) { n=texture(soil_normal,world_position.xz/soil_tile).rgb*2.-1.; n=normalize(vec3(n.xy*soil_strength,max(.01,n.z))); }
+			if (soil_strength*detail>.00001) { n=texture(soil_normal,world_position.xz/soil_tile).rgb*2.-1.; n=normalize(vec3(n.xy*soil_strength*detail,max(.01,n.z))); }
 			surface+=n*weights.w;
 		}
 	}

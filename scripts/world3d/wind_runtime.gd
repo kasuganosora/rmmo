@@ -24,6 +24,7 @@ var _shared_state:RefCounted
 const REFRESH_BUDGET_USEC := 2000
 var _active_indices:Dictionary={}
 var _scan_pending:=false
+var _initial_refresh_completed:=false
 var _scan_nodes:Array=[]
 var _scan_cleanup:Array=[]
 var _scan_cursor:=0
@@ -61,6 +62,7 @@ func set_enabled(value: bool) -> void:
 	enabled=value; set_physics_process(value); scan_left=0
 	range_camera_position=Vector3(INF,INF,INF)
 	if not enabled:
+		_initial_refresh_completed=false
 		_cancel_refresh()
 		for row in receivers.values(): _restore(row)
 		_clear_active(); receivers.clear()
@@ -71,7 +73,7 @@ func capability_status()->Dictionary:
 	var keys:Dictionary={}
 	for row:Dictionary in _variant_pending.values():
 		for key:String in row["keys"]:keys[key]=true
-	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else ""}
+	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready":not enabled or (_initial_refresh_completed and keys.is_empty()),"scanning":_scan_pending,"ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else ""}
 
 func _prune_variant_pending()->void:
 	for id:int in _variant_pending.keys():
@@ -182,6 +184,7 @@ func _advance_refresh(budget_usec:int)->void:
 		mark=Time.get_ticks_usec();_remove_active(id);receivers.erase(id);erase_usec+=Time.get_ticks_usec()-mark;removed+=1
 	var complete:=_scan_cleaning and _cleanup_cursor>=_scan_cleanup.size()
 	if complete:
+		_initial_refresh_completed=true
 		_cancel_refresh()
 		cancel_nodes_usec=_cancel_nodes_usec;cancel_keys_usec=_cancel_keys_usec
 		# The synchronous interface historically updates every active uniform.

@@ -1,0 +1,88 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS derive three bounded levels 16
+PASS LOD triangles preserve winding and exact full surface coverage 16/0
+PASS every original perimeter segment survives independent LOD 16/0
+PASS no internal T junctions even with odd grid dimensions 16/0
+PASS render triangle reduction 16/0
+PASS measured coarse surface deviations stay inside declared conservative bound 16/0
+PASS LOD triangles preserve winding and exact full surface coverage 16/1
+PASS every original perimeter segment survives independent LOD 16/1
+PASS no internal T junctions even with odd grid dimensions 16/1
+PASS render triangle reduction 16/1
+PASS measured coarse surface deviations stay inside declared conservative bound 16/1
+PASS LOD triangles preserve winding and exact full surface coverage 16/2
+PASS every original perimeter segment survives independent LOD 16/2
+PASS no internal T junctions even with odd grid dimensions 16/2
+PASS render triangle reduction 16/2
+PASS measured coarse surface deviations stay inside declared conservative bound 16/2
+PASS base render and collision arrays remain byte exact 16
+PASS real holes remain exact and never get filled by LOD
+PASS derive three bounded levels 31
+PASS LOD triangles preserve winding and exact full surface coverage 31/0
+PASS every original perimeter segment survives independent LOD 31/0
+PASS no internal T junctions even with odd grid dimensions 31/0
+PASS render triangle reduction 31/0
+PASS measured coarse surface deviations stay inside declared conservative bound 31/0
+PASS LOD triangles preserve winding and exact full surface coverage 31/1
+PASS every original perimeter segment survives independent LOD 31/1
+PASS no internal T junctions even with odd grid dimensions 31/1
+PASS render triangle reduction 31/1
+PASS measured coarse surface deviations stay inside declared conservative bound 31/1
+PASS LOD triangles preserve winding and exact full surface coverage 31/2
+PASS every original perimeter segment survives independent LOD 31/2
+PASS no internal T junctions even with odd grid dimensions 31/2
+PASS render triangle reduction 31/2
+PASS measured coarse surface deviations stay inside declared conservative bound 31/2
+PASS base render and collision arrays remain byte exact 31
+PASS real holes remain exact and never get filled by LOD
+PASS derive three bounded levels 32
+PASS LOD triangles preserve winding and exact full surface coverage 32/0
+PASS every original perimeter segment survives independent LOD 32/0
+PASS no internal T junctions even with odd grid dimensions 32/0
+PASS render triangle reduction 32/0
+PASS measured coarse surface deviations stay inside declared conservative bound 32/0
+PASS LOD triangles preserve winding and exact full surface coverage 32/1
+PASS every original perimeter segment survives independent LOD 32/1
+PASS no internal T junctions even with odd grid dimensions 32/1
+PASS render triangle reduction 32/1
+PASS measured coarse surface deviations stay inside declared conservative bound 32/1
+PASS LOD triangles preserve winding and exact full surface coverage 32/2
+PASS every original perimeter segment survives independent LOD 32/2
+PASS no internal T junctions even with odd grid dimensions 32/2
+PASS render triangle reduction 32/2
+PASS measured coarse surface deviations stay inside declared conservative bound 32/2
+PASS base render and collision arrays remain byte exact 32
+PASS real holes remain exact and never get filled by LOD
+PASS derive three bounded levels 64
+PASS LOD triangles preserve winding and exact full surface coverage 64/0
+PASS every original perimeter segment survives independent LOD 64/0
+PASS no internal T junctions even with odd grid dimensions 64/0
+PASS render triangle reduction 64/0
+PASS measured coarse surface deviations stay inside declared conservative bound 64/0
+PASS LOD triangles preserve winding and exact full surface coverage 64/1
+PASS every original perimeter segment survives independent LOD 64/1
+PASS no internal T junctions even with odd grid dimensions 64/1
+PASS render triangle reduction 64/1
+PASS measured coarse surface deviations stay inside declared conservative bound 64/1
+PASS LOD triangles preserve winding and exact full surface coverage 64/2
+PASS every original perimeter segment survives independent LOD 64/2
+PASS no internal T junctions even with odd grid dimensions 64/2
+PASS render triangle reduction 64/2
+PASS measured coarse surface deviations stay inside declared conservative bound 64/2
+PASS base render and collision arrays remain byte exact 64
+PASS real holes remain exact and never get filled by LOD
+PASS unknown non-grid topologies keep exact fallback without missing lookup keys
+PASS unproven cutout instancing remains disabled by default
+PASS alpha cutout accepted only for explicit vegetation instancing
+PASS blended transparency retains independent ordering
+PASS billboard per-view geometry remains independent
+PASS one isolated native heightfield also receives render LODs
+PASS near camera retains original geometry
+PASS far camera uses conservative screen-error selection
+PASS clear releases every registered weak LOD visual
+PASS authority binds reusable catalogue to the actual root and revision
+PASS equal paths or roots alone cannot reuse another catalogue
+PASS catalogue weak owner never retains a retired map
+STAGED_FAR_CONTRACT checks=84 failures=0

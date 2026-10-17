@@ -12,6 +12,7 @@ static func flatten(holder:Node3D,r:Dictionary)->Node3D:
 	var meshes:=preload("res://scripts/world3d/surface_materials.gd").meshes(holder)
 	if meshes.size()!=1:return holder
 	var mesh:MeshInstance3D=meshes[0]
+	if mesh.get_meta("extras",{}).get("rmmo_wind",{}).get("profile","off")!="off":return holder
 	if mesh.mesh==null or not plain_hierarchy(holder,mesh):return holder
 	if mesh.skin!=null or mesh.skeleton!=NodePath("") and mesh.get_node_or_null(mesh.skeleton) is Skeleton3D:return holder
 	if mesh.mesh is ArrayMesh and mesh.mesh.get_blend_shape_count()>0:return holder
