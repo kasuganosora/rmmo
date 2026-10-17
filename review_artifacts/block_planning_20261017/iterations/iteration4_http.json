@@ -1,0 +1,132 @@
+{
+	"checks": [
+		{
+			"label": "isolated native map saved",
+			"ok": true
+		},
+		{
+			"label": "initial native map load has completed",
+			"ok": true
+		},
+		{
+			"label": "private loopback HTTP starts",
+			"ok": true
+		},
+		{
+			"label": "3D discovery exposes shared block update lifecycle, no 2D tools",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_road_path succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP get_city_blocks succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_waterway succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "native river and both banks automatically reserve affected frontage lots",
+			"ok": true
+		},
+		{
+			"label": "automatic reservation preview is read only",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "new lot bindings save explicit reflow anchors",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_event_template succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP select_objects succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP transform_selection succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "road width and both linked house poses are staged without live effects",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "unchanged candidate and version are reused deterministically",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": false
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/block_update_6680_13766799",
+	"engine": "4.7.2-stable (official)",
+	"failures": 1,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/block_update_6680_13766799/map.gltf"
+}

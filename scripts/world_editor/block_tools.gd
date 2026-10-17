@@ -5,6 +5,7 @@ const Blueprint=preload("res://scripts/world3d/building_blueprint.gd")
 const Footprint=preload("res://scripts/world_editor/building_footprint.gd")
 const Region=preload("res://scripts/world_editor/building_region.gd")
 const Zones=preload("res://scripts/world3d/planning_zones.gd")
+const Constraints=preload("res://scripts/world_editor/block_constraints.gd")
 var editor: Node3D
 var overlay_plan: Dictionary={}
 
@@ -29,6 +30,8 @@ func prepare(args: Dictionary) -> Dictionary:
 	if not issue.is_empty(): return Data.fail(issue)
 	var data:=Data.resolve(editor._doc.map_meta); var catalog_:=catalog()
 	if not catalog_.ok: return catalog_
+	var constraints:=Constraints.collect(editor._doc)
+	if not constraints.ok:return constraints
 	var settings:=Blocks.defaults(); settings.merge(catalog_.settings,true)
 	for key in settings:
 		if args.has(key): settings[key]=args[key]
@@ -45,7 +48,7 @@ func prepare(args: Dictionary) -> Dictionary:
 	for binding in bindings:
 		by_lot[binding.lot_id]=binding
 		if selected.has(binding.block_id) and binding.source_token!=Blocks.source_token(ids[binding.block_id],settings):
-			return Data.fail("道路边界或地块尺寸已改变；先解除该街区的地块关联，现有房屋会保留")
+			return Data.fail("道路边界或地块尺寸已改变；请先预览并应用已有街区更新。无法对应的地块可显式解除关联，现有房屋会保留")
 	var plans: Array=[]; var lots: Array=[]; var skipped:=0; var obstacles: Array=[]
 	for record in editor._doc.records:
 		for shape in Footprint.record_shapes(record): obstacles.append({"record":record,"shape":shape})
@@ -63,6 +66,10 @@ func prepare(args: Dictionary) -> Dictionary:
 				lot.building_id=by_lot[lot.id].building_id
 				lot.status="retained" if editor._buildings.instances().has(lot.building_id) else "missing"
 				continue
+			var constraint:=Constraints.conflict(lot.polygon,block.height-1.2,block.height+40,constraints.reservations)
+			if not constraint.is_empty():
+				lot.status=str(constraint.kind)+"_reserved";lot.reservation=constraint;continue
+			if not Constraints.flat_ground(editor._doc,lot.polygon,block.height):lot.status="ground_unavailable";continue
 			var reservation:=volume(lot.polygon,block.height-1.2,block.height+40)
 			if Footprint.batches_overlap([reservation],zones): lot.status="reserved"; continue
 			if blocked([reservation],obstacles,block.height,false) or Footprint.batches_overlap([reservation],occupied): lot.status="occupied"; continue
@@ -90,6 +97,9 @@ func prepare(args: Dictionary) -> Dictionary:
 				var access_poly: Array=[]
 				for p in [street-side,entrance-side,entrance+side,street+side]: access_poly.append([p.x,p.z])
 				var access:=volume(access_poly,block.height+.06,block.height+3)
+				constraint=Constraints.conflict(access_poly,block.height+.06,block.height+3,constraints.reservations)
+				if not constraint.is_empty():lot.status="access_blocked";lot.reservation=constraint;continue
+				if not Constraints.flat_ground(editor._doc,access_poly,block.height):lot.status="access_blocked";continue
 				# Road pavement is allowed beneath the connection, all props and zones remain blockers.
 				if blocked([access],obstacles,block.height,true) or Footprint.batches_overlap([access],zones) or Footprint.batches_overlap([access],occupied): lot.status="access_blocked"; continue
 				var placement:={"parameters":building.parameters,"position":Data.xyz(origin),"yaw":lot.yaw}
@@ -108,14 +118,14 @@ func prepare(args: Dictionary) -> Dictionary:
 				lot.building_polygon=[]
 				for point in [Vector3(bounds.position.x,0,bounds.position.z),Vector3(bounds.end.x,0,bounds.position.z),Vector3(bounds.end.x,0,bounds.end.z),Vector3(bounds.position.x,0,bounds.end.z)]:
 					var world: Vector3=origin+basis*point; lot.building_polygon.append([world.x,world.z])
-				bindings.append({"lot_id":lot.id,"block_id":block.id,"building_id":plan.instance_id,"source_token":Blocks.source_token(block,settings)})
+				bindings.append({"lot_id":lot.id,"block_id":block.id,"building_id":plan.instance_id,"source_token":Blocks.source_token(block,settings),"anchor":{"position":lot.position.duplicate(),"yaw":lot.yaw,"entrance_local":Data.xyz(basis.inverse()*(Data.vec(plan.entrance)-origin))}})
 				accepted=true; break
 			if not accepted and lot.status=="vacant": lot.status="too_small"
 	if bindings.size()>4096 or editor._buildings.instances().size()+plans.size()>4096: return Data.fail("地块关联或建筑数量超过 4096")
 	# BuildingTools.commit checks the baked component count, not source pieces.
-	var token:=Data.token([settings,selected,data,editor._doc.records,editor._doc.map_meta.get("building_instances",{})])
+	var token:=Data.token([settings,selected,data,editor._doc.records,editor._doc.map_meta])
 	if args.has("plan_token") and args.plan_token!=token: return Data.fail("预览后地图或参数已变化，请重新预览")
-	return {"ok":true,"plans":plans,"lots":lots,"blocks":selected_blocks,"skipped_corners":skipped,"settings":settings,"plan_token":token,"manifest":{"version":1,"settings":settings,"lots":bindings},"orphaned_blocks":catalog_.orphaned_blocks}
+	return {"ok":true,"plans":plans,"lots":lots,"blocks":selected_blocks,"reservations":constraints.reservations,"skipped_corners":skipped,"settings":settings,"plan_token":token,"manifest":{"version":1,"settings":settings,"lots":bindings},"orphaned_blocks":catalog_.orphaned_blocks}
 
 func blocked(shapes: Array, obstacles: Array, foot: float, access: bool) -> bool:
 	for obstacle in obstacles:

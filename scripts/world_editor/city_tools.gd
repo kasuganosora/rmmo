@@ -276,6 +276,22 @@ func recall(id: String) -> Dictionary:
 func update_roads(args: Dictionary) -> Dictionary:
 	var ready:=guard()
 	if not ready.ok: return ready
+	if args.get("update_blocks",false) and not Data.resolve(editor._doc.map_meta).get("block_layout",{}).get("lots",[]).is_empty():
+		var changes:=args.duplicate(true);changes.erase("update_blocks")
+		var candidate:Dictionary=editor._block_update.preview({"road_changes":changes})
+		if not candidate.ok:return candidate
+		return editor._block_update.apply({"plan_token":candidate.plan_token})
+	var prepared:=prepare_roads(args)
+	if not prepared.ok:return prepared
+	var result:=commit(prepared.value)
+	result.road_token=Data.token(prepared.value.roads);result.diagnostics=prepared.diagnostics
+	return result
+
+func follow_blocks()->bool:
+	return panel!=null and panel.block_panel!=null and panel.block_panel.follow_roads!=null and panel.block_panel.follow_roads.button_pressed
+
+func prepare_roads(args:Dictionary)->Dictionary:
+	# Shared read-only graph validation for ordinary edits and private block candidates.
 	var value:=Data.resolve(editor._doc.map_meta); var graph: Dictionary=value.roads
 	var original: Dictionary=graph.duplicate(true)
 	if str(args.get("expected_token",""))!=Data.token(graph): return Data.fail("道路草案已变化，请重新读取 road_token 再修改")
@@ -325,9 +341,7 @@ func update_roads(args: Dictionary) -> Dictionary:
 	if not checked.ok: return checked
 	var binding:=preload("res://scripts/world3d/road_bridges.gd").resolve(value)
 	if not binding.ok: return binding
-	var result:=commit(value)
-	result.road_token=Data.token(graph); result.diagnostics=checked.diagnostics
-	return result
+	return {"ok":true,"value":value,"diagnostics":checked.diagnostics}
 
 func add_path(points: Array, width: float, kind: String) -> Dictionary:
 	var value:=Data.resolve(editor._doc.map_meta); var nodes: Array=[]; var edges: Array=[]; var ids: Array=[]
@@ -521,6 +535,6 @@ func finish_node_drag(cancel: bool = false) -> Dictionary:
 	var moved:=drag_moved
 	drag_node={}; drag_moved=false
 	var result:={"ok":true,"changed":false}
-	if moved and not cancel: result=update_roads({"expected_token":drag_token,"nodes":[node]})
+	if moved and not cancel: result=update_roads({"expected_token":drag_token,"nodes":[node],"update_blocks":follow_blocks()})
 	if cancel or not moved or not result.ok: refresh()
 	return result

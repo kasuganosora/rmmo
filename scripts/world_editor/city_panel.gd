@@ -100,7 +100,7 @@ func setup(host: Node3D, fortification_parent: Node = null) -> void:
 	refresh()
 
 func request() -> Dictionary:
-	return {"expected_token":Data.token(Data.resolve(editor._doc.map_meta).roads)}
+	return {"expected_token":Data.token(Data.resolve(editor._doc.map_meta).roads),"update_blocks":city.follow_blocks()}
 func refresh() -> void:
 	var data: Dictionary=city.data
 	if overview==null: return

@@ -1,0 +1,32 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS complete-area ground check catches narrow gap between corner samples
+PASS adjacent native ground pieces jointly cover the region
+PASS lower ground is not accepted as support at a higher elevation
+PASS native bent waterway fixture builds
+PASS native river creates one complete bank envelope
+PASS collect does not mutate document or signatures
+PASS dry bank inside carving envelope is reserved too
+PASS nearby dry site outside bank envelope stays available
+PASS hidden source river still protects its banks
+PASS native legacy bridge fixture builds
+PASS unchanged legacy deck reserves both bridgeheads
+PASS moved legacy deck cannot silently reuse stale recipe endpoints
+PASS bridge uses valid native recipe and transform
+PASS unbound physical bridge reserves both heads
+PASS bridgehead corridor extends ten metres beyond actual deck
+PASS bridgehead corridor does not block unrelated flank
+PASS vertically separate site is not rejected by low bridgehead
+PASS rotated translated hidden bridge uses current world pose
+PASS native land gate fixture builds
+PASS actual gate hinges define one corridor
+PASS gate approach is protected beyond wall body
+PASS both sides of gate remain available for passage
+PASS gate reservation does not invent tower-spacing ban
+PASS gate open state cannot remove approach reservation
+PASS native gate can be frozen through the production pipeline
+PASS frozen gate keeps actual hinge-based approach semantics
+PASS freezing gate does not alter reserved ground passage
+PASS missing actual gate leaf fails safely, no recipe guessed passage
+BLOCK_RESERVATIONS checks=28 failures=0

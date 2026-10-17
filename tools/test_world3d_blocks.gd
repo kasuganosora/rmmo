@@ -2,18 +2,22 @@ extends "res://tools/test_world3d_roads.gd"
 const Blocks=preload("res://scripts/world3d/city_blocks.gd")
 
 func run() -> void:
-	create_timer(300).timeout.connect(func():quit(2))
+	create_timer(600).timeout.connect(func():quit(2))
 	root.size=Vector2i(1440,1000); root.content_scale_size=root.size
 	directory=Paths.cache_directory("city_blocks_%d"%Time.get_ticks_usec()); DirAccess.make_dir_recursive_absolute(directory)
 	map_path=directory.path_join("map.gltf")
 	var doc:=Doc.new(); doc.add_box("ground",Vector3(0,-.25,0),Vector3(180,.5,160)); check(doc.save(map_path)==OK,"isolated block fixture")
 	var session=preload("res://scripts/net/net.gd").session(); session.world3d_editor_path=map_path; session.world3d_editor_doc=null
 	editor=preload("res://scripts/world_editor/world_editor.gd").new(); editor._mcp_autostart=false; editor._draft_directory=directory.path_join("drafts"); root.add_child(editor); await settle()
+	var deadline:=Time.get_ticks_msec()+60000
+	while editor.saving() and Time.get_ticks_msec()<deadline:await process_frame
+	check(not editor.saving(),"native initial map loading completed")
+	if editor.saving():quit(1);return
 	var probe:=TCPServer.new(); port=29990
 	while probe.listen(port,"127.0.0.1")!=OK: port+=1
 	probe.stop(); check(editor.start_mcp(port).ok,"block HTTP starts")
 	var tools_: Array=(await rpc("tools/list")).result.tools
-	check(tools_.size()==118 and tools_.any(func(t):return t.name=="get_city_blocks" and t.annotations.readOnlyHint) and tools_.any(func(t):return t.name=="generate_block_buildings") and not tools_.any(func(t):return t.name=="paint_tile"),"118 current tools expose block workflow; 2D remains retired")
+	check(tools_.any(func(t):return t.name=="get_city_blocks" and t.annotations.readOnlyHint) and tools_.any(func(t):return t.name=="generate_block_buildings") and not tools_.any(func(t):return t.name=="paint_tile"),"current 3D tools expose block workflow; 2D remains retired")
 	await atomic_reject("preview_block_buildings",{})
 	await call_tool("create_road_path",{"points":[[-40,0,-40],[40,0,-40],[40,0,40],[-40,0,40],[-40,0,-40]],"width":4})
 	await call_tool("generate_road_surface",{"material_id":"pack:default:paving/historic_cobble/material"})

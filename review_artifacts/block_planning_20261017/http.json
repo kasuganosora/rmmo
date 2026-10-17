@@ -1,0 +1,926 @@
+{
+	"checks": [
+		{
+			"label": "isolated native map saved",
+			"ok": true
+		},
+		{
+			"label": "initial native map load has completed",
+			"ok": true
+		},
+		{
+			"label": "private loopback HTTP starts",
+			"ok": true
+		},
+		{
+			"label": "3D discovery exposes shared block update lifecycle, no 2D tools",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_road_path succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP get_city_blocks succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_waterway succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "native river and both banks automatically reserve affected frontage lots",
+			"ok": true
+		},
+		{
+			"label": "automatic reservation preview is read only",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "new lot bindings save explicit reflow anchors",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_event_template succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP list_object_surfaces succeeds",
+			"ok": true
+		},
+		{
+			"label": "native component exposes editable surface targets",
+			"ok": true
+		},
+		{
+			"label": "HTTP paint_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: paint_surface",
+			"ok": true
+		},
+		{
+			"label": "native generated house has editable fixtures",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_building_component_state succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP select_objects succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP transform_selection succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "road width and both linked house poses are staged without live effects",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "unchanged candidate and version are reused deterministically",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "roads, building transforms and bindings commit as one undo",
+			"ok": true
+		},
+		{
+			"label": "building / component identity, recipe and seed preserved: building_0a684d5434c7d65b6942",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_2",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_3",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_4",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_5",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_6",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_7",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_8",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_9",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_10",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_11",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_12",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_13",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_14",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_15",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_16",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_17",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_18",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_19",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_20",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_21",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_22",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_23",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_24",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_25",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_26",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_27",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_28",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_29",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_30",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_31",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_32",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_33",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_34",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_35",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_36",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_37",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_38",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_39",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_40",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_41",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_42",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_43",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_44",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_45",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_46",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_47",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_48",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_49",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_50",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_51",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_52",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_53",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_54",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_55",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_56",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_57",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_58",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_59",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_60",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_61",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_62",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_63",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_64",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_65",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_66",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_67",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_68",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_69",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_70",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_71",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_72",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_73",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_74",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_75",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_76",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_77",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_78",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_79",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_80",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_81",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_82",
+			"ok": true
+		},
+		{
+			"label": "building / component identity, recipe and seed preserved: building_a100adac7e67889d3a27",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_83",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_84",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_85",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_86",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_87",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_88",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_89",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_90",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_91",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_92",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_93",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_94",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_95",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_96",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_97",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_98",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_99",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_100",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_101",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_102",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_103",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_104",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_105",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_106",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_107",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_108",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_109",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_110",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_111",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_112",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_113",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_114",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_115",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_116",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_117",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_118",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_119",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_120",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_121",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_122",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_123",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_124",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_125",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_126",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_127",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_128",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_129",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_130",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_131",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_132",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_133",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_134",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_135",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_136",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_137",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_138",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_139",
+			"ok": true
+		},
+		{
+			"label": "native geometry, materials, events and fixture states preserved: obj_140",
+			"ok": true
+		},
+		{
+			"label": "manual event remains attached to original component",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "undo restores exact pre-update records and metadata",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "redo restores final joint result",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "unchanged reflow has no extra history entry",
+			"ok": true
+		},
+		{
+			"label": "UI previews existing street update",
+			"ok": true
+		},
+		{
+			"label": "UI applies exactly one shared transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_object_properties succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP discard_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "real road HTTP entry shares joint block transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP delete_building succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "deleted linked building is reported, never silently recreated",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "tombstone survives reflow",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "native save / reopen preserves bindings, native materials and component identities",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "reflow remains available after native reopen",
+			"ok": true
+		},
+		{
+			"label": "updated houses and roads publish to real shared static batches",
+			"ok": true
+		},
+		{
+			"label": "each updated component remains independently addressable: building_0a684d5434c7d65b6942",
+			"ok": true
+		},
+		{
+			"label": "each updated component remains independently addressable: building_a100adac7e67889d3a27",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/block_update_23484_14487041",
+	"engine": "4.7.2-stable (official)",
+	"evidence": {
+		"editor_batches": {
+			"base_work_budget_usec": 2000,
+			"building_mesh_hits": 0,
+			"enabled": true,
+			"groups": 5,
+			"instanced_groups": 0,
+			"last_build_ms": 3.914,
+			"last_commit_ms": 0.224,
+			"last_sync_ms": 12.87,
+			"loading_budget_scopes": 0,
+			"max_build_ms": 225.192,
+			"max_commit_ms": 0.799,
+			"pending_groups": 0,
+			"rebuild_count": 22,
+			"release_groups_visited": 6,
+			"render_surfaces": 11,
+			"render_vertices": 2628,
+			"source_objects": 14,
+			"source_surfaces": 32,
+			"source_vertices": 2628,
+			"sync_count": 51,
+			"sync_profile_us": {
+				"capture_us": 296,
+				"geometry_us": 5,
+				"material_us": 10118
+			},
+			"work_budget_usec": 2000
+		}
+	},
+	"failures": 0,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/block_update_23484_14487041/map.gltf"
+}

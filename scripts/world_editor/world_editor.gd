@@ -103,6 +103,7 @@ var _residential_block = preload("res://scripts/world_editor/residential_block_t
 var _residential_relocation = preload("res://scripts/world_editor/residential_relocation_tools.gd").new()
 var _residential_site = preload("res://scripts/world_editor/residential_site_tools.gd").new()
 var _blocks = preload("res://scripts/world_editor/block_tools.gd").new()
+var _block_update = preload("res://scripts/world_editor/block_update_tools.gd").new()
 var _scatter = preload("res://scripts/world_editor/scatter_tools.gd").new()
 var _waterways = preload("res://scripts/world_editor/waterway_tools.gd").new()
 var _bridges = preload("res://scripts/world_editor/bridge_tools.gd").new()
@@ -151,6 +152,7 @@ func _ready() -> void:
 	_residential_block.editor = self
 	_residential_relocation.editor = self
 	_blocks.editor = self
+	_block_update.editor = self
 	_scatter.editor = self
 	_waterways.editor = self
 	_bridges.editor = self

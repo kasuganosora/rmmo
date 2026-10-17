@@ -1,0 +1,117 @@
+{
+	"checks": [
+		{
+			"label": "complete-area ground check catches narrow gap between corner samples",
+			"ok": true
+		},
+		{
+			"label": "adjacent native ground pieces jointly cover the region",
+			"ok": true
+		},
+		{
+			"label": "lower ground is not accepted as support at a higher elevation",
+			"ok": true
+		},
+		{
+			"label": "native bent waterway fixture builds",
+			"ok": true
+		},
+		{
+			"label": "native river creates one complete bank envelope",
+			"ok": true
+		},
+		{
+			"label": "collect does not mutate document or signatures",
+			"ok": true
+		},
+		{
+			"label": "dry bank inside carving envelope is reserved too",
+			"ok": true
+		},
+		{
+			"label": "nearby dry site outside bank envelope stays available",
+			"ok": true
+		},
+		{
+			"label": "hidden source river still protects its banks",
+			"ok": true
+		},
+		{
+			"label": "native legacy bridge fixture builds",
+			"ok": true
+		},
+		{
+			"label": "unchanged legacy deck reserves both bridgeheads",
+			"ok": true
+		},
+		{
+			"label": "moved legacy deck cannot silently reuse stale recipe endpoints",
+			"ok": true
+		},
+		{
+			"label": "bridge uses valid native recipe and transform",
+			"ok": true
+		},
+		{
+			"label": "unbound physical bridge reserves both heads",
+			"ok": true
+		},
+		{
+			"label": "bridgehead corridor extends ten metres beyond actual deck",
+			"ok": true
+		},
+		{
+			"label": "bridgehead corridor does not block unrelated flank",
+			"ok": true
+		},
+		{
+			"label": "vertically separate site is not rejected by low bridgehead",
+			"ok": true
+		},
+		{
+			"label": "rotated translated hidden bridge uses current world pose",
+			"ok": true
+		},
+		{
+			"label": "native land gate fixture builds",
+			"ok": true
+		},
+		{
+			"label": "actual gate hinges define one corridor",
+			"ok": true
+		},
+		{
+			"label": "gate approach is protected beyond wall body",
+			"ok": true
+		},
+		{
+			"label": "both sides of gate remain available for passage",
+			"ok": true
+		},
+		{
+			"label": "gate reservation does not invent tower-spacing ban",
+			"ok": true
+		},
+		{
+			"label": "gate open state cannot remove approach reservation",
+			"ok": true
+		},
+		{
+			"label": "native gate can be frozen through the production pipeline",
+			"ok": true
+		},
+		{
+			"label": "frozen gate keeps actual hinge-based approach semantics",
+			"ok": true
+		},
+		{
+			"label": "freezing gate does not alter reserved ground passage",
+			"ok": true
+		},
+		{
+			"label": "missing actual gate leaf fails safely, no recipe guessed passage",
+			"ok": true
+		}
+	],
+	"failures": 0
+}

@@ -1,0 +1,172 @@
+{
+	"checks": [
+		{
+			"label": "source fixture passed its own lifecycle checks",
+			"ok": true
+		},
+		{
+			"label": "native source fixture copied to independent temporary map",
+			"ok": true
+		},
+		{
+			"label": "native fixture loading completed",
+			"ok": true
+		},
+		{
+			"label": "boundary HTTP server uses an unused loopback port",
+			"ok": true
+		},
+		{
+			"label": "legacy anchor-free binding remains a valid document",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy baseline adoption is read only until apply",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy source anchors and joint road update commit together",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy upgrade undo restores original format",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "update classifies affected and unaffected frontages",
+			"ok": false
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "road property UI updates linked houses in one transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "UI candidate for stale-parameter test",
+			"ok": true
+		},
+		{
+			"label": "changing fields after preview requires a fresh UI preview",
+			"ok": true
+		},
+		{
+			"label": "separate natural-river fixture saved",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": false
+		},
+		{
+			"label": "HTTP create_terrain succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_terrain_river succeeds",
+			"ok": false
+		},
+		{
+			"label": "HTTP create_road_path succeeds",
+			"ok": false
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "curved heightfield river protects real sampled bank envelope through HTTP",
+			"ok": false
+		},
+		{
+			"label": "HTTP set_editor_camera succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/block_boundaries_13128_14170507",
+	"engine": "4.7.2-stable (official)",
+	"failures": 5,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/block_boundaries_13128_14170507/map.gltf"
+}

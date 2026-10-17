@@ -11,6 +11,9 @@ var picking: CheckButton
 var preview: Dictionary={}
 var view_blocks: Array=[]
 var graph_token: String=""
+var follow_roads:CheckButton
+var update_preview:=false
+var update_request_token:=""
 
 func setup(panel: VBoxContainer) -> void:
 	host=panel; editor=panel.editor
@@ -27,8 +30,12 @@ func setup(panel: VBoxContainer) -> void:
 	host.button(row,"预览方案",show_preview)
 	host.button(row,"换一个方案",func(): fields.fields.seed.value=posmod(int(fields.fields.seed.value)+1,2147483647); show_preview())
 	host.button(body,"生成空地块房屋",apply)
+	host.button(body,"预览已有街区更新",show_update)
+	host.button(body,"应用已有街区更新",apply_update)
+	follow_roads=CheckButton.new();follow_roads.text="编辑道路时联动更新已有街区";body.add_child(follow_roads)
+	host.note(body,"联动保留房屋身份、材质、事件及手工偏移；无法映射或发生冲突时整组保持原状。蓝色保留，橙色为待移动。")
 	host.button(body,"解除所选街区地块关联（保留房屋）",detach)
-	info=host.note(body,"先识别街区。改变道路或地块尺寸后，应先解除旧地块关联；现有房屋继续作为障碍保留。")
+	info=host.note(body,"先识别街区。河流、桥头及城门自动预留；改变道路或地块尺寸后可预览已有街区更新。")
 
 func scan() -> void:
 	var result: Dictionary=editor._blocks.catalog()
@@ -49,18 +56,32 @@ func request() -> Dictionary:
 	if choice.item_count>0 and not str(choice.get_item_metadata(choice.selected)).is_empty(): args.block_ids=[choice.get_item_metadata(choice.selected)]
 	return args
 func show_preview() -> void:
+	update_preview=false
 	var result: Dictionary=editor._blocks.summary(request())
 	host.report(result)
 	if not result.ok: preview={}; editor._blocks.overlay_plan={}; return
 	preview=result; editor._blocks.overlay_plan=result
 	var counts:={}
 	for lot in result.lots: counts[lot.status]=int(counts.get(lot.status,0))+1
-	info.text="%d 个临街地块 · 本批生成 %d 栋 · 保留已有 %d · 障碍 / 保留区 %d · 下一批 %d\n转角、窄地和无法接路的位置保持空白。"%[result.lots.size(),result.building_count,counts.get("retained",0)+counts.get("missing",0),counts.get("occupied",0)+counts.get("reserved",0)+counts.get("access_blocked",0),counts.get("pending",0)]
+	info.text="%d 个临街地块 · 本批生成 %d 栋 · 保留已有 %d · 障碍 / 保留区 %d · 下一批 %d\n自动保留：河道 %d · 桥头 %d · 城门 %d · 缺少平地 %d。"%[result.lots.size(),result.building_count,counts.get("retained",0)+counts.get("missing",0),counts.get("occupied",0)+counts.get("reserved",0)+counts.get("access_blocked",0),counts.get("pending",0),counts.get("river_reserved",0),counts.get("bridge_access_reserved",0),counts.get("gate_access_reserved",0),counts.get("ground_unavailable",0)]
 func apply() -> void:
-	if preview.is_empty(): host.report(Data.fail("请先预览方案")); return
+	if preview.is_empty() or update_preview: host.report(Data.fail("请先预览空地块生成方案")); return
 	var result: Dictionary=editor._blocks.generate(request().merged({"plan_token":preview.plan_token}))
 	host.report(result)
 	if result.ok: preview={}; editor._blocks.overlay_plan={}; scan()
+func show_update()->void:
+	var args:=request();var result:Dictionary=editor._block_update.preview(args)
+	update_request_token=Data.token(args)
+	host.report(result);update_preview=true
+	if not result.ok:preview={};editor._blocks.overlay_plan={};info.text=str(result.get("error","更新失败"));return
+	preview=result;editor._blocks.overlay_plan=result
+	info.text="已有街区更新：移动 %d 栋 · 原位保留 %d 栋 · 已删除 %d 栋（不补回）\n保留全部构件身份、原房型、材质、事件与活动件状态；一次撤销。"%[result.updated_building_ids.size(),result.retained_building_ids.size(),result.missing_building_ids.size()]
+func apply_update()->void:
+	if preview.is_empty() or not update_preview:host.report(Data.fail("请先预览已有街区更新"));return
+	if Data.token(request())!=update_request_token:host.report(Data.fail("参数已变化，请重新预览已有街区更新"));return
+	var result:Dictionary=editor._block_update.apply({"plan_token":preview.plan_token})
+	host.report(result)
+	if result.ok:preview={};editor._blocks.overlay_plan={};scan()
 func detach() -> void:
 	var args:=request(); var ids: Array=args.get("block_ids",[])
 	if ids.is_empty():

@@ -1,0 +1,25 @@
+{
+	"errors": [],
+	"maps": [
+		{
+			"dependencies": {
+				"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/ao.png": "da18b0082a32607e00754c2fff00645d26074c770783d53c27cb8e438c0962a5",
+				"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/normal.png": "82c7f3f1ada1effac04f3eb57620bc45502db8a1da6b69866b45be32c71fdcf1",
+				"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/roughness.png": "4e3ff8feff68d1018a1db4cb9bac77b9521d6c824c28b9db5dc7ae0c6d9c90b7",
+				"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/texture.jpg": "9a4370051fb8b110007485df71233434ab4d6f62691adc2cf2dc3fb14dc5ee11",
+				"D:/code/rmmo_runtime/packs/default/assets/materials/wood/solid_timber/texture.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+			},
+			"map_path": "D:/code/rmmo_runtime/cache/world3d/block_update_23484_14487041/map.gltf",
+			"map_sha256": "148eafbfcf51975ccdf50386313892c2780290acf579921c4c7676ea1cbcad25",
+			"record_count": 152,
+			"report": "http.json"
+		},
+		{
+			"dependencies": {},
+			"map_path": "D:/code/rmmo_runtime/cache/world3d/block_boundaries_4736_14114657/river.gltf",
+			"map_sha256": "f6380fbc40f30a1c180f1fac00fc800e34dde0bbf7e9686da37156c89de36283",
+			"record_count": 5,
+			"report": "boundaries.json"
+		}
+	]
+}
