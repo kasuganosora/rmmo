@@ -1,0 +1,42 @@
+{
+	"collisions": 58,
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/__residential_placement_bridges_19904_13700165/maps/test/map.gltf",
+	"map_sha256": "8901ba93144a001c9361d5c7c27d9f5728681575c9bbc160bdab015b248cd264",
+	"passed": 11,
+	"scope": "saved native meshes/colliders and WorldAuthority movement; exterior only, no repeated house interior review, no avatar renderer or formal map edits",
+	"walks": [
+		{
+			"airborne": 0,
+			"case": "entrance exterior to main road",
+			"distance": 0.126025199890137,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 202
+		},
+		{
+			"airborne": 0,
+			"case": "main road to entrance exterior",
+			"distance": 0.125458717346191,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 202
+		},
+		{
+			"airborne": 0,
+			"case": "native stone bridge and both approaches eastbound",
+			"distance": 0.122627258300781,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		},
+		{
+			"airborne": 0,
+			"case": "native stone bridge and both approaches westbound",
+			"distance": 0.123292922973633,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		}
+	]
+}

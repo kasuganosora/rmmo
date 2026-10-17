@@ -1,0 +1,161 @@
+{
+  "feature": "E1-C residential access in a graph with bound bridges",
+  "date": "2026-10-17",
+  "branch": "codex/editor-reliability",
+  "implementation_base": "f7f9c740345802caffd69807758580602cc348f6",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "source_identity": "Tested working bytes committed with this report; LF-normalized SHA survives checkout newline conversion.",
+  "sources": [
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "sha256_worktree_bytes": "7cdcb7e455e0f222f601b5b9fa31a407d3ffad71a6933c121d49eea363db1a44",
+      "sha256_lf": "0a633f906c39f6b0d90176f6dc933df6ffd7ca434d723f31d7387f1ed286df1c"
+    },
+    {
+      "path": "scripts/world_editor/residential_bridge_context.gd",
+      "sha256_worktree_bytes": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0",
+      "sha256_lf": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "sha256_worktree_bytes": "de9f03a712ea5fc037f0fa6a5de10ffa96293319bb58fcdd070903a184941524",
+      "sha256_lf": "f7832a67a7a72a72dc5251adcbfab8fa77a529d75025df0f18509051472f7320"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_worktree_bytes": "7d33160398e3ee503541a7953b86a8c1bd409acf9ae7f0e3496a575f8571a8ad",
+      "sha256_lf": "6566e191a8a26a42ba609a376ac42f5f0989c7253f6767043a7453172e7f43a8"
+    },
+    {
+      "path": "scripts/world_editor/road_tools.gd",
+      "sha256_worktree_bytes": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+      "sha256_lf": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da"
+    },
+    {
+      "path": "scripts/world_editor/waterway_tools.gd",
+      "sha256_worktree_bytes": "d44f6ec46603b84eb62843a6c88f78356138f0b0013a888a757742458f2132b0",
+      "sha256_lf": "eccfb75c23d40812ed2f3b902584fe3a1fe6033172b76ac3d6341bedb91e18c6"
+    },
+    {
+      "path": "scripts/world_editor/bridge_road_tools.gd",
+      "sha256_worktree_bytes": "bb2d52a3c3f1d13e3c0351b639ce5c8e1969a2b6027565e7bed1d715bc8b2975",
+      "sha256_lf": "29217a57bb1cda31e980846b231b01c2440896e21fd9736b9c9cd236cf27d8d8"
+    },
+    {
+      "path": "scripts/world3d/road_bridges.gd",
+      "sha256_worktree_bytes": "9734ca1673dc1bb2d73c89c9c72ac6db54f216a2d2f9fe202638904b07543093",
+      "sha256_lf": "01089a3201473e566416b4fd72c07490cb2811085a85031bc33b575fba6644e8"
+    },
+    {
+      "path": "scripts/world3d/road_bridge_approach.gd",
+      "sha256_worktree_bytes": "4861f190de14ac1173580689a8bbfad9444c5e1d83c744b69d31f87b8a9e230a",
+      "sha256_lf": "2e282610f36233010ca9f72dccc314d030bc0fab9d467820317fc8a70bfd34d3"
+    },
+    {
+      "path": "tools/test_residential_bridges_http.gd",
+      "sha256_worktree_bytes": "900bff93f33102bf8f3603e34d124028dce263656c4108110d9683126475b1a7",
+      "sha256_lf": "0b7f417fce89fff74728adf0e19ed1064a4b664768165e4f3e0a30be86b8c832"
+    },
+    {
+      "path": "tools/test_residential_bridges_runtime.gd",
+      "sha256_worktree_bytes": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f",
+      "sha256_lf": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "sha256_worktree_bytes": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "sha256_lf": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    },
+    {
+      "path": "tools/test_residential_connector.gd",
+      "sha256_worktree_bytes": "c982716fd4ac416b2a9965f103914b0fad2bfddddc21e15dc3a7474d15af46a1",
+      "sha256_lf": "c982716fd4ac416b2a9965f103914b0fad2bfddddc21e15dc3a7474d15af46a1"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "http.json",
+      "sha256": "c646349ef6c8c0745b07d863c0deb7036f88878e54e1ab168426f6899dddf82d"
+    },
+    {
+      "path": "http_console.log",
+      "sha256": "26d6d1a5bb5d96eed98744d0c78c34ad540c3817625e44a1ef7e327c44948878"
+    },
+    {
+      "path": "http_engine.log",
+      "sha256": "5aa5cfa8ea20181e16aa05bd5ac4d3474ca0584af6427944d6ebd63cf0e0848d"
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "99c5bc124a2845971bc7ee3b551eecf69298a435ae389a8bf4f232384c97aacd"
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "a16814f5dd1dc62f4a919e40e6f634bf1bafdd0a1bc347be91f4c21c83e41206"
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "d17336164948a7bb43d2c6ba3855f9a22cb609c309feada9f195ed5e1aed3b31"
+    },
+    {
+      "path": "no_bridge_http.json",
+      "sha256": "b4455dbe4a9d197f6d5d60de8adeece62af62bfe3004b83bce8f1e062b76f11b"
+    },
+    {
+      "path": "no_bridge_console.log",
+      "sha256": "28fe94be1c297e9766bfa081b655702713faa7715e9bdc5b9fd71a62a79426c7"
+    },
+    {
+      "path": "no_bridge_engine.log",
+      "sha256": "782c9d8bd0dc938043625f556831c641fbfbcf558f7d6ad3096b2c1c94ce8994"
+    },
+    {
+      "path": "connector.json",
+      "sha256": "e1a7f34c542652eab4fbaa1c75d1136fae4d035d3db648a569f57d6b904b4f1a"
+    }
+  ],
+  "engine": {
+    "version": "Godot 4.7.2.stable.official.ed1daf0bf",
+    "path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "renderer": "Vulkan Forward+ / AMD Radeon RX 7900 XTX"
+  },
+  "checks": {
+    "http.json": 102,
+    "runtime.json": 11,
+    "no_bridge_http.json": 127,
+    "connector.json": 14
+  },
+  "total_passed": 254,
+  "failures": 0,
+  "fixture": {
+    "map": "D:/code/rmmo_runtime/__residential_placement_bridges_19904_13700165/maps/test/map.gltf",
+    "map_sha256": "8901ba93144a001c9361d5c7c27d9f5728681575c9bbc160bdab015b248cd264",
+    "house_source": "D:/code/rmmo_runtime/__residential_placement_9968_13060647/assets/prefabs/6832b815acc257a9eee0860d09028d26bac34942fab00ab1bb5f9527b305991a.json",
+    "house_source_sha256": "08761f458c6cf952a9325b84f27b0b1bf90f34bbe8eaaf75f5a2321a5b354081",
+    "bridge_texture": "D:/code/rmmo_runtime/__residential_placement_bridges_19904_13700165/materials/776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3.png",
+    "bridge_texture_sha256": "776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3"
+  },
+  "scope": [
+    "UI and current 3D loopback HTTP use the same candidate and transaction; request schema unchanged, bridge summary added.",
+    "Mixed native stone_bridge and waterway bridge_ref; target ordinary straight ground road adjoining stone bridge.",
+    "Protected/missing/modified bridge, locked/modified waterway member, invalid bridge endpoint/width, direct bridge/bridgehead target, real corridor obstruction and changed bridge-only texture reject atomically.",
+    "Bridge, river ownership, terrain and scope-external road values and identities preserved; one undo/redo; native save/reopen.",
+    "Four kerb volume cases: clear approach, actual wing collision, bridge body, unknown frozen payload.",
+    "Four exterior routes use native saved geometry, 58 production colliders and WorldAuthority movement; every route grounded with no rejected moves.",
+    "Native static batching retained: mixed fixture 16 to 2 render surfaces, 12852 vertices unchanged, zero pending groups; this is a correctness check, not a performance claim."
+  ],
+  "limitations": [
+    "Ordinary heightfield support and straight ground target only; bridge deck/bridgehead joins and terrain editing remain outside this operation.",
+    "Runtime evidence uses the production movement authority and a capsule, without player avatar rendering or full game streaming readiness; no repeated house interior review.",
+    "Waterway bridge_ref ownership is covered by HTTP; physical walks cover the stone bridge and residential exterior, not the separate legacy waterway bridge.",
+    "Reopen permits only 1e-10 numeric serialization difference; observed maximum 4.44089209850063e-16. Existing bridge/river/outside-scope records additionally checked for exact numeric equality.",
+    "No formal map content, new art asset delivery, performance project, push or merge.",
+    "Each new candidate continues to report requires_runtime_verification; one fixture does not prove arbitrary future placement."
+  ],
+  "development_findings": [
+    "Initial mixed graph exposed a conservative kerb vs whole-bridge-bounds false positive; fixed by reusing frozen approach triangle checks with the complete kerb prism.",
+    "An overly strict test of newly generated double precision numbers across native serialization observed 4.44e-16 roundtrip difference. Final regression records the maximum and enforces 1e-10; no geometry tolerance in production was widened."
+  ],
+  "execution": "All graphical tests ran via tools/run_godot_background.py on a private inactive Windows desktop with unique temporary maps/packs and loopback ports. CPU connector regression was headless; its default runtime report was copied here and restored from the archived prior report; tracked prior evidence remains unchanged."
+}

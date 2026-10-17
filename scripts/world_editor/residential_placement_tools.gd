@@ -13,6 +13,9 @@ const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Thumbnails=preload("res://scripts/world_editor/asset_thumbnails.gd")
 const Plan=preload("res://scripts/world3d/road_plan.gd")
 const Foot=preload("res://scripts/world_editor/building_footprint.gd")
+const BridgeContext=preload("res://scripts/world_editor/residential_bridge_context.gd")
+const Waterways=preload("res://scripts/world_editor/waterway_tools.gd")
+const BridgeApproach=preload("res://scripts/world3d/road_bridge_approach.gd")
 const STEP=.05
 const MAX_CANDIDATES=157
 var editor:Node3D
@@ -33,6 +36,7 @@ class PreparationContext extends Node3D:
 	var _doc
 	var _authoring
 	var _material_tool
+	var _waterways
 	var source:Node3D
 	func _record_editable(record:Dictionary)->bool:return source._record_editable(record)
 
@@ -96,9 +100,12 @@ func preview(args:Dictionary)->Dictionary:
 	var data:=Data.resolve(editor._doc.map_meta)
 	if not data.has("road_surface") or not data.road_surface.settings.get("follow_terrain",false):return fail("unsupported","请先生成沿地形的已有道路铺面，再连接住宅")
 	if data.road_surface.graph_token!=Data.token(data.roads):return fail("stale_road_surface","道路草案与铺面不一致，请先完成已有道路生成")
-	if data.roads.edges.any(func(e):return e.has("bridge_ref") or e.has("stone_bridge")):return fail("unsupported","此版本不在含桥梁绑定的道路图中求解住宅接路")
 	var road_check:=_target(data.roads,p.road_edge_id)
 	if not road_check.ok:return road_check
+	var bridges:=BridgeContext.capture(editor,data)
+	if not bridges.ok:return bridges
+	dependency_issue=_dependencies(bridges.records,dependencies)
+	if not dependency_issue.is_empty():return fail("resource_missing",dependency_issue,"resource")
 	var local:=_oriented(loaded,float(p.yaw))
 	var input:=Data.vec(p.position)
 	_profile_end("source_and_target",phase);phase=_profile_start()
@@ -128,6 +135,7 @@ func preview(args:Dictionary)->Dictionary:
 	_profile_end("native_house_placement",phase);phase=_profile_start()
 	if not entry_info.ok:return entry_info
 	var context:=PreparationContext.new();context.source=editor;context._doc=staged;context._authoring=editor._authoring;context._material_tool=editor._material_tool
+	context._waterways=Waterways.new();context._waterways.editor=context
 	var roads:=Roads.new();roads.editor=context
 	var last:Dictionary={};var prepared:Dictionary={};var linked:Dictionary={};var access:Dictionary={};var attempts:=0
 	var full_graph_checks:=0
@@ -176,6 +184,8 @@ func preview(args:Dictionary)->Dictionary:
 	staged.records=staged.records.filter(func(r):return not prepared.excluded.has(r.uuid))
 	staged.records.append_array(prepared.records)
 	linked.data.roads=prepared.graph;linked.data.road_surface=prepared.manifest;staged.map_meta.editor_layout=linked.data
+	var preserved:=BridgeContext.verify(staged,linked.data,bridges)
+	if not preserved.ok:return preserved
 	dependency_issue=_dependencies(prepared.records,dependencies)
 	if not dependency_issue.is_empty():return fail("resource_missing",dependency_issue,"resource")
 	if staged.validate_save()!=OK:return fail("candidate_invalid","组合候选未通过原生保存校验","save_validation")
@@ -195,7 +205,7 @@ func preview(args:Dictionary)->Dictionary:
 			if not scope.intersects(Rect2(bounds_.position.x,bounds_.position.z,bounds_.size.x,bounds_.size.z),true):return fail("scope_conflict","候选会改变接路范围以外的道路铺面，已保留原地图")
 	var bounds:=Geometry.bounds(house_records)
 	var token:=Crypto.new().generate_random_bytes(24).hex_encode()
-	var summary:Dictionary={"ok":true,"plan_token":token,"source_sha256":source_sha,"base_version":base_version,"position":Data.xyz(position),"adjustment":Data.xyz(position-input),"road_points":linked.points,"setback":linked.setback,"width":p.width,"building_id":house_records[0].building.id,"building_ids":[house_records[0].building.id],"house_ids":placed.ids,"changed_ids":changed,"support":solved.support,"access":access,"bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"checks":{"continuous_support":true,"native_house_geometry":true,"full_road_graph":true,"entrance_corridor":true,"native_save":true,"runtime_traversal":"requires_runtime_verification"},"search":{"attempts":attempts,"full_graph_checks":full_graph_checks,"budget":count,"step":STEP,"prepare_ms":(Time.get_ticks_usec()-started)/1000.}}
+	var summary:Dictionary={"ok":true,"plan_token":token,"source_sha256":source_sha,"base_version":base_version,"position":Data.xyz(position),"adjustment":Data.xyz(position-input),"road_points":linked.points,"setback":linked.setback,"width":p.width,"building_id":house_records[0].building.id,"building_ids":[house_records[0].building.id],"house_ids":placed.ids,"changed_ids":changed,"support":solved.support,"access":access,"bridges":bridges.summary,"bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"checks":{"continuous_support":true,"native_house_geometry":true,"full_road_graph":true,"bridge_context":true,"entrance_corridor":true,"native_save":true,"runtime_traversal":"requires_runtime_verification"},"search":{"attempts":attempts,"full_graph_checks":full_graph_checks,"budget":count,"step":STEP,"prepare_ms":(Time.get_ticks_usec()-started)/1000.}}
 	_profile_end("result",phase);phase=_profile_start()
 	var current:=base_version==_version() and _dependencies_current(dependencies)
 	_profile_end("final_identity",phase);phase=_profile_start()
@@ -210,7 +220,7 @@ func apply(args:Dictionary)->Dictionary:
 	if _publishing:return fail("busy","正在发布住宅候选")
 	if args.size()!=1 or not args.get("plan_token") is String:return fail("invalid_arguments","应用只接受预览返回的 plan_token")
 	if _candidate.is_empty() or args.plan_token!=_candidate.summary.plan_token:return fail("candidate_missing","候选已放弃或不存在，请重新预览")
-	if not _dependencies_current(_candidate.dependencies):_candidate={};return fail("source_changed","住宅或材质资源已变化，请重新预览")
+	if not _dependencies_current(_candidate.dependencies):_candidate={};return fail("source_changed","住宅、桥梁或材质资源已变化，请重新预览")
 	if _version()!=_candidate.summary.base_version:_candidate={};return fail("base_changed","地图、撤销历史或隔离范围已变化，请重新预览")
 	_publishing=true
 	var before:Dictionary=editor._doc.recovery_snapshot()
@@ -275,11 +285,14 @@ static func _same(left:Variant,right:Variant)->bool:
 		return true
 	return left==right
 
+static func supports_target(edge:Dictionary)->bool:
+	return edge.get("kind")=="ground" and not edge.has("controls") and not edge.has("bridge_ref") and not edge.has("stone_bridge")
+
 static func _target(graph:Dictionary,id:String)->Dictionary:
 	var rows:Array=graph.edges.filter(func(e):return e.id==id)
 	if rows.size()!=1:return fail("road_not_found","目标道路不存在")
 	var edge:Dictionary=rows[0]
-	if edge.kind!="ground" or edge.has("controls"):return fail("unsupported","当前接路目标需要普通直线地面道路")
+	if not supports_target(edge):return fail("unsupported","当前接路目标需要普通直线地面道路")
 	var nodes:Dictionary={}
 	for n:Dictionary in graph.nodes:nodes[n.id]=n
 	for item:Dictionary in [edge,nodes[edge.from],nodes[edge.to]]:
@@ -305,6 +318,7 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 		var tail:Dictionary=target.edge.duplicate(true);tail.id=prefix+"_tail";tail.from=join;tail.to=old_to;tail.width_start=mid_width
 		graph.edges.append(tail);graph.nodes.append({"id":join,"position":Data.xyz(end)})
 	for edge:Dictionary in original.roads.edges:
+		if join in [edge.from,edge.to] and (edge.has("bridge_ref") or edge.has("stone_bridge")):return fail("bridgehead_target","住宅入户路不能直接接入桥头节点，请选择桥外普通地面直路的内部位置","bridge_context")
 		if join in [edge.from,edge.to] and (edge.get("locked",false) or edge.get("hidden",false)):return fail("protected_scope","接驳节点关联了受保护道路")
 	# Terrain-following pavement uses the true heightfield, not this guide's Y.
 	start.y=end.y
@@ -353,10 +367,22 @@ static func _kerb_shapes(record:Dictionary)->Array:
 		result.append(Foot.from_points(points))
 	return result
 
+static func _kerb_bridge_intersects(kerb:Dictionary,bridge:Dictionary,cache:Dictionary)->bool:
+	# Use the complete kerb's conservative vertical prism as a temporary road
+	# volume. The shared frozen-triangle refinement only opens outside-deck
+	# approach space; bridge bodies and unknown collision payloads stay blocked.
+	var bounds_:AABB=kerb.bounds
+	var polygon:Array=[]
+	for point:Vector2 in kerb.polygon:polygon.append([point.x,point.y])
+	if polygon.size()>1 and polygon[0]==polygon[-1]:polygon.pop_back()
+	var volume:Dictionary={"rotation":[0,0,0],"position":[0,bounds_.get_center().y,0],"size":[1,bounds_.size.y,1],"road_mesh":{"polygons":[polygon]},"road_clearance":0.}
+	return BridgeApproach.intersects(volume,bridge,[kerb],Foot.record_shape(bridge),cache)
+
 static func _candidate_clearance(prepared:Dictionary,doc,house_shapes:Array)->Dictionary:
 	var zones_meta:Dictionary={"editor_layout":{"zones":doc.map_meta.get("editor_layout",{}).get("zones",[]).filter(func(z):return z.purpose=="no_build")}}
 	var zones:Array=preload("res://scripts/world3d/planning_zones.gd").obstacles(zones_meta)
 	var poly=preload("res://scripts/world3d/roof_plan.gd")
+	var bridge_cache:Dictionary={}
 	for record:Dictionary in prepared.records:
 		var previous:Dictionary=doc._find(record.uuid)
 		if _same(record,previous):continue
@@ -366,7 +392,9 @@ static func _candidate_clearance(prepared:Dictionary,doc,house_shapes:Array)->Di
 			for obstacle:Dictionary in doc.records:
 				if prepared.excluded.has(obstacle.uuid) or obstacle.has("terrain_mesh"):continue
 				var shapes:Array=Foot.components([obstacle],Vector3.ZERO,Basis.IDENTITY) if obstacle.has("building") else Foot.record_shapes(obstacle)
-				if Foot.batches_overlap([kerb],shapes):return fail("kerb_conflict","连续路缘与已有物件重叠").merged({"conflicts":[obstacle.uuid]})
+				if not Foot.batches_overlap([kerb],shapes):continue
+				if obstacle.has("bridge_mesh") and not _kerb_bridge_intersects(kerb,obstacle,bridge_cache):continue
+				return fail("kerb_conflict","连续路缘与已有物件重叠").merged({"conflicts":[obstacle.uuid]})
 		var prior_shapes:Array=[] if previous.is_empty() else Foot.record_shapes(previous)+_kerb_shapes(previous)
 		for shape:Dictionary in Foot.record_shapes(record)+kerbs:
 			for zone:Dictionary in zones:

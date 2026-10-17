@@ -27,7 +27,7 @@ func setup(owner: VBoxContainer) -> void:
 		body.visible=open
 		if open: refresh_catalogs()
 	)
-	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线地面道路。路网须已有沿地形铺面且无桥梁绑定；在允许范围内检查标高和门前退距，保留邻物与地形。")
+	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线地面道路。路网须已有沿地形铺面，可包含已绑定桥梁；保持桥梁和河道不变，不直接接入桥面或桥头节点。在允许范围内检查标高和门前退距，保留邻物与地形。")
 	note(body,"住宅预制件（当前与共享素材库）")
 	asset_choice=OptionButton.new(); asset_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(asset_choice)
 	var row:=HBoxContainer.new(); body.add_child(row)
@@ -73,6 +73,7 @@ func refresh_catalogs() -> void:
 		if id==asset_id: asset_choice.select(asset_choice.item_count-1)
 	road_choice.clear(); road_choice.add_item("请选择已有道路"); road_choice.set_item_metadata(0,"")
 	for edge:Dictionary in City.resolve(editor._doc.map_meta).roads.edges:
+		if not Placement.supports_target(edge):continue
 		road_choice.add_item("%s · %s"%[str(edge.get("name",edge.id)),str(edge.id)]); road_choice.set_item_metadata(road_choice.item_count-1,str(edge.id))
 		if str(edge.id)==road_id: road_choice.select(road_choice.item_count-1)
 	if selected(asset_choice)!=asset_id or selected(road_choice)!=road_id: invalidate_preview("素材或道路列表已变化，请重新预览。")
@@ -155,6 +156,8 @@ func report(result: Dictionary, applied: bool=false) -> void:
 			if p.size()==3: text_+="\n最终位置：%.3f, %.3f, %.3f 米"%[p[0],p[1],p[2]]
 			if delta.size()==3: text_+=" · 标高调整 %+.3f 米"%float(delta[1])
 			text_+="\n门前退距 %.2f 米 · 路宽 %.2f 米"%[float(result.get("setback",0)),float(result.get("width",0))]
+		var bridge_count:int=result.get("bridges",{}).get("binding_count",0)
+		if bridge_count>0:text_+="\n已校验并保留 %d 处桥梁绑定及关联河道。"%bridge_count
 	else:
 		text_=str(result.get("error","方案未通过"))
 		if result.has("code"): text_+="\n"+str(result.code)

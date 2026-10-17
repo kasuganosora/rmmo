@@ -39,11 +39,13 @@
 | `setback_min / setback_max` | 首层入口向外的入户路起点退距，0.2～8 米，下限不大于上限 | 0.8／3 |
 | `width` | 入户路宽度，1～4 米 | 1.6 |
 
-「预览并检查」调用 [residential_placement_tools.gd](../scripts/world_editor/residential_placement_tools.gd)，先求连续支撑的安全标高区间，再以固定 0.05 米步长、最多 157 次的退距搜索准备候选。候选结合实际住宅、首层承托和入口语义，再通过原生住宅放置与完整道路校验；不靠有限点采样宣称连续承托成立。不会移动邻物、修改地形或放宽既有几何、锁定、隐藏及保留区保护。首版范围为 `townhouse/hall` 用途为 `house` 的单栋冻结住宅、可确认的首层入口和普通直线 `ground` 道路；路网须已有沿地形铺面，整张路网不能包含桥梁绑定。支撑须来自有碰撞的普通高度场，倾斜地块、体积地形、垄沟、多层／重叠支撑及未知入口语义会明确拒绝。超出范围返回 `unsupported` 类错误（含 `residential_support_unsupported`），给定范围内搜索穷尽返回 `search_exhausted`，不代表任意位置都不可行。
+「预览并检查」调用 [residential_placement_tools.gd](../scripts/world_editor/residential_placement_tools.gd)，先求连续支撑的安全标高区间，再以固定 0.05 米步长、最多 157 次的退距搜索准备候选。候选结合实际住宅、首层承托和入口语义，再通过原生住宅放置与完整道路校验；不靠有限点采样宣称连续承托成立。不会移动邻物、修改地形或放宽既有几何、锁定、隐藏及保留区保护。当前范围为 `townhouse/hall` 用途为 `house` 的单栋冻结住宅、可确认的首层入口和普通直线 `ground` 道路；路网须已有沿地形铺面，允许整张路网含 `bridge_ref/stone_bridge` 绑定，目标仍是普通地面直路；不直接接入桥面或桥头节点。桥梁绑定、实际构件、河道归属、桥头净宽／引道与整张路网净空均参与校验，桥梁与关联河道保持原值；冻结桥头路缘使用实际碰撞面核对翼墙空隙，未知碰撞结构保守拒绝。支撑须来自有碰撞的普通高度场，倾斜地块、体积地形、垄沟、多层／重叠支撑及未知入口语义会明确拒绝。超出范围返回 `unsupported` 类错误（含 `residential_support_unsupported`），给定范围内搜索穷尽返回 `search_exhausted`，不代表任意位置都不可行。
 
 预览显示实际新增／变化记录的半透明几何，不生成可选对象或碰撞体，也不写入地图或撤销历史。面板报告最终位置、标高调整、门前退距和路宽；失败显示错误码、阶段及已有见证位置／冲突 ID，搜索失败中的 `last_failure`、承托标高中的上下界见证也用于「定位结果／冲突」。参数或选项变化即释放旧候选并禁用应用；放弃预览同样不改地图。预览的几何检查不等于玩家已经实际走过；`checks.runtime_traversal` 明确保留 `requires_runtime_verification`。
 
-「应用整套方案」只提交本会话的 `plan_token`，再次核对地图版本与实际模板身份，住宅与完整道路变化作为一笔撤销记录发布。过期候选拒绝后重新预览；应用后按既有保存流程保存。普通手动放置入口不增加自动布局的美术禁令。UI 与当前 3D MCP 的 `preview_residential_placement`、`apply_residential_placement`、`discard_residential_placement` 使用同一服务；二维工具保持停用。本段描述接口与实现边界，具体通过项以对应回归报告为准。
+「应用整套方案」只提交本会话的 `plan_token`，再次核对地图版本、实际模板和桥梁／河道资源依赖身份，住宅与完整道路变化作为一笔撤销记录发布。过期候选拒绝后重新预览；应用后按既有保存流程保存。普通手动放置入口不增加自动布局的美术禁令。UI 与当前 3D MCP 的 `preview_residential_placement`、`apply_residential_placement`、`discard_residential_placement` 使用同一服务；二维工具保持停用。本段描述接口与实现边界，具体通过项以对应回归报告为准。
+
+2026-10-17 含桥扩展已完成隔离验收：UI／HTTP 102/0、保存后室外与石桥引道原生碰撞 11/0，另有原有无桥闭环 127/0 和连接段几何 14/0；范围、源码与资源身份见[本批证据](../review_artifacts/residential_bridges_20261017/evidence.json)。该样例不证明任意候选或完整游戏流式通行，未修改正式场景。
 
 当前验证：连续承托 [52 项](../review_artifacts/editor_reliability/residential_support/result.json)、入口 [47 项](../review_artifacts/editor_reliability/residential_access/result.json)、完整连接段 [14 项](../review_artifacts/editor_reliability/residential_connector/result.json) 均为 0 失败。入口按真实支撑切换断面比较台阶，连续缓坡按坡度／接缝检查；无碰撞装饰不提供踏面或阻挡净空。连接段验证全宽地形覆盖及内部接缝，并按实际贴地几何区分高处保留区与地面冲突。
 
