@@ -1,0 +1,29 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS disposable native target saved
+PASS speculation borrows source admission byte ledger
+PASS background CPU preparation shares the source worker and byte limits
+PASS native snapshot and selected dependency closure prepared
+PASS hydration cannot spawn workers outside the shared single slot
+PASS joined ready packet frees its worker slot while bytes remain charged
+PASS critical exclusive demand requests speculative preemption
+PASS preempted ready packet is discarded before byte release
+PASS exclusive source work can proceed after retirement
+PASS target can be requested again after preemption
+PASS single-use handoff releases the shared lease
+PASS ordinary native loader accepts typed speculative packet
+PASS real parse and hydration consume preloaded source with normal integrity gates
+PASS prepare source-change case
+PASS changed target bytes fall back to fresh source; stale packet is never authoritative
+PASS resource-root violation has no lease side effect
+PASS nonfinite destination is rejected without starting work
+PASS cancelled speculative work produces no packet
+PASS exit case starts a real CPU worker
+PASS owner exit drains late worker output and lease
+PASS forward demand promotes complete building groups below live player priority
+PASS lookahead reaches beyond the live player ring
+PASS touching one forward member prepares the whole indexed building, including the far side
+PASS current player demand overrides forward-building preparation
+PASS stopping releases speculative building demand
+APPROACH_PREFETCH {"checks":25,"failures":0,"prefetch_profile":{"cancelled":0,"hits":2,"misses":0,"ready":3,"started":3}}

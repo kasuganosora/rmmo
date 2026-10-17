@@ -1,0 +1,387 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: private texture worker retains DirectX normal flip and mipmaps
+PASS: worker confines paths to captured content root
+PASS: small terrain texture map saved
+PASS: real HTTP terrain texture server
+PASS: HTTP open_world succeeds
+PASS: load texture scope restores caller images and clears load checks
+PASS: declared textures decoded on private worker
+PASS: target texture was evicted by real LRU capacity
+PASS: HTTP open_world succeeds
+PASS: same-path changed pixels refresh shader after texture eviction without mutating old resource
+PASS: HTTP save_world succeeds
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] decode (res://scripts/world_editor/terrain_texture_preparation.gd:25)
+       [3] _decode_textures (res://scripts/world_editor/load_job.gd:518)
+       [4] _invoke (res://scripts/world_editor/load_preparation_queue.gd:366)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] decode (res://scripts/world_editor/terrain_texture_preparation.gd:25)
+       [3] _decode_textures (res://scripts/world_editor/load_job.gd:518)
+       [4] _invoke (res://scripts/world_editor/load_preparation_queue.gd:366)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] decode (res://scripts/world_editor/terrain_texture_preparation.gd:25)
+       [3] _decode_textures (res://scripts/world_editor/load_job.gd:518)
+       [4] _invoke (res://scripts/world_editor/load_preparation_queue.gd:366)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] decode (res://scripts/world_editor/terrain_texture_preparation.gd:25)
+       [3] _decode_textures (res://scripts/world_editor/load_job.gd:518)
+       [4] _invoke (res://scripts/world_editor/load_preparation_queue.gd:366)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] texture_error (res://scripts/world3d/surface_materials.gd:367)
+       [5] _mesh (res://scripts/world3d/world_document.gd:431)
+       [6] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [7] _run (res://scripts/world_editor/load_job.gd:174)
+       [8] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] texture_error (res://scripts/world3d/surface_materials.gd:367)
+       [5] _mesh (res://scripts/world3d/world_document.gd:431)
+       [6] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [7] _run (res://scripts/world_editor/load_job.gd:174)
+       [8] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] texture_error (res://scripts/world3d/surface_materials.gd:367)
+       [5] _mesh (res://scripts/world3d/world_document.gd:431)
+       [6] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [7] _run (res://scripts/world_editor/load_job.gd:174)
+       [8] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] texture_error (res://scripts/world3d/surface_materials.gd:367)
+       [5] _mesh (res://scripts/world3d/world_document.gd:431)
+       [6] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [7] _run (res://scripts/world_editor/load_job.gd:174)
+       [8] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] _make_material (res://scripts/world3d/surface_materials.gd:398)
+       [5] make_material (res://scripts/world3d/surface_materials.gd:374)
+       [6] _mesh (res://scripts/world3d/world_document.gd:487)
+       [7] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [8] _run (res://scripts/world_editor/load_job.gd:174)
+       [9] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] _make_material (res://scripts/world3d/surface_materials.gd:398)
+       [5] make_material (res://scripts/world3d/surface_materials.gd:374)
+       [6] _mesh (res://scripts/world3d/world_document.gd:487)
+       [7] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [8] _run (res://scripts/world_editor/load_job.gd:174)
+       [9] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] _make_material (res://scripts/world3d/surface_materials.gd:398)
+       [5] make_material (res://scripts/world3d/surface_materials.gd:374)
+       [6] _mesh (res://scripts/world3d/world_document.gd:487)
+       [7] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [8] _run (res://scripts/world_editor/load_job.gd:174)
+       [9] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] _make_material (res://scripts/world3d/surface_materials.gd:398)
+       [5] make_material (res://scripts/world3d/surface_materials.gd:374)
+       [6] _mesh (res://scripts/world3d/world_document.gd:487)
+       [7] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [8] _run (res://scripts/world_editor/load_job.gd:174)
+       [9] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:56)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+WARNING: Not a PNG file
+   at: check_error (drivers/png/png_driver_common.cpp:57)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:57)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Condition "!success" is true. Returning: ERR_FILE_CORRUPT
+   at: png_to_image (drivers/png/png_driver_common.cpp:70)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:57)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Error loading image: 'D:/code/rmmo_runtime/cache/world3d/terrain_texture_scope_13607477/color.png'.
+   at: load_image (core/io/image_loader.cpp:102)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:57)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+ERROR: Failed to load image. Error 16
+   at: load_from_file (core/io/image.cpp:2787)
+   GDScript backtrace (most recent call first):
+       [0] _image (res://scripts/world3d/runtime_texture_cache.gd:139)
+       [1] image (res://scripts/world3d/runtime_texture_cache.gd:97)
+       [2] _texture (res://scripts/world3d/surface_materials.gd:329)
+       [3] texture (res://scripts/world3d/surface_materials.gd:289)
+       [4] bind (res://scripts/world3d/river_materials.gd:28)
+       [5] terrain (res://scripts/world3d/river_materials.gd:57)
+       [6] apply (res://scripts/world3d/river_materials.gd:169)
+       [7] _mesh (res://scripts/world3d/world_document.gd:579)
+       [8] _prepared_mesh (res://scripts/world_editor/load_job.gd:317)
+       [9] _run (res://scripts/world_editor/load_job.gd:174)
+       [10] _prepare_terrain (res://scripts/world_editor/load_job.gd:401)
+PASS: HTTP open_world succeeds
+PASS: existing but corrupt PNG cannot reuse old texture or shader
+PASS: HTTP save_world succeeds
+PASS: reference save preserves external image references without exporting the failed view
+PASS: corrupt view cannot change authored material definitions
+PASS: corrupt view cannot change authored metadata
+PASS: corrupt view cannot change saved map bytes
+PASS: HTTP save_world succeeds
+PASS: repair permits save without rewriting unchanged author definitions
+PASS: HTTP open_world succeeds
+PASS: next load repairs corrupted image with no persistent negative cache
+PASS: HTTP save_world rejects invalid operation
+PASS: missing image save fails without replacing map
+PASS: HTTP save_world succeeds
+PASS: missing image repair permits save without restarting editor
+EDITOR_TERRAIN_TEXTURE_SCOPE_FAILED=0

@@ -1,0 +1,37 @@
+{
+  "failures": 0,
+  "full_bytes": 1792100,
+  "images": [
+    {
+      "exact_pixels": true,
+      "view": "near"
+    },
+    {
+      "exact_pixels": true,
+      "view": "middle"
+    },
+    {
+      "exact_pixels": true,
+      "view": "far"
+    },
+    {
+      "exact_pixels": true,
+      "view": "hole"
+    }
+  ],
+  "last_work": {
+    "bytes": 676,
+    "collision_blocks": 1,
+    "cpu_patch": {
+      "changed_vertices": 49,
+      "incremental": true,
+      "prepared_cells": 64,
+      "total_cells": 4096
+    },
+    "private_copy": false,
+    "regions": 12,
+    "total_blocks": 16
+  },
+  "partial_bytes": 3380,
+  "raster_method": "960x720, MSAA unchanged, TAA disabled equally for deterministic pixels, same camera/material/light/exposure, no actor"
+}

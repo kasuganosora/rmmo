@@ -11,8 +11,12 @@ func to_final(value:RefCounted)->void:
 
 func run()->void:
 	directory=Paths.cache_directory("source_snapshot_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)
-	var data:=fixture(1)
-	var path:=write("snapshot",data)
+	# Exercise the current native reference format; v1 is now migration-only.
+	var path:=directory.path_join("snapshot.gltf");var document:=Doc.new()
+	document.add_box("block",Vector3(0,1,0),Vector3.ONE)
+	check(document.save(path)==OK,"save disposable current-format snapshot fixture")
+	var data:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(path))
+	check(not Snapshot.read_file(path,1024,1).error.is_empty(),"speculative read limit rejects before reading oversized source")
 	var source:Snapshot=Snapshot.read_file(path)
 	check(source.error.is_empty() and source._retained and source._signature==source._bytes.get_string_from_utf8().sha256_text() and source._data==JSON.parse_string(source._bytes.get_string_from_utf8()),"digest and parsed JSON both match the same retained read")
 	var callbacks:Array=[]

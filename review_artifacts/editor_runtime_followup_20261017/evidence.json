@@ -1,0 +1,285 @@
+{
+  "baseline_commit": "3f7b835e6685d46f115b890c5e3dd1a51989bebe",
+  "branch": "codex/editor-reliability",
+  "engine": "Godot 4.7.2 ed1daf0bf; Vulkan Forward+ Radeon RX 7900 XTX for GPU tests",
+  "workspace": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "external_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\editor_runtime_followup_20261017",
+  "checks": 1322,
+  "failures": 0,
+  "test_rows": [
+    {
+      "test": "test_terrain_cpu_patch",
+      "checks": 254,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_terrain_cpu_patch.log"
+    },
+    {
+      "test": "test_approach_prefetch",
+      "checks": 25,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_approach_prefetch.log"
+    },
+    {
+      "test": "test_resource_admission",
+      "checks": 20,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_resource_admission.log"
+    },
+    {
+      "test": "test_deferred_native_admission",
+      "checks": 493,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_deferred_native_admission.log"
+    },
+    {
+      "test": "test_deferred_admission_priority",
+      "checks": 6,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_deferred_admission_priority.log"
+    },
+    {
+      "test": "test_map_dependency_index",
+      "checks": 42,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_map_dependency_index.log"
+    },
+    {
+      "test": "test_index_path_batch",
+      "checks": 40,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_index_path_batch.log"
+    },
+    {
+      "test": "test_document_source_snapshot",
+      "checks": 17,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_document_source_snapshot.log"
+    },
+    {
+      "test": "test_runtime_material_pool",
+      "checks": 17,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_runtime_material_pool.log"
+    },
+    {
+      "test": "test_deferred_ready_progress",
+      "checks": 16,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_deferred_ready_progress.log"
+    },
+    {
+      "test": "test_material_residency_budget",
+      "checks": 8,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_material_residency_budget.log"
+    },
+    {
+      "test": "test_material_publication",
+      "checks": 46,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_material_publication.log"
+    },
+    {
+      "test": "test_house_texture_tickets",
+      "checks": 18,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_house_texture_tickets.log"
+    },
+    {
+      "test": "test_shared_prefab_images",
+      "checks": 37,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_shared_prefab_images.log"
+    },
+    {
+      "test": "test_editor_terrain_texture_scope",
+      "checks": 26,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 21,
+      "log": "test_editor_terrain_texture_scope.log"
+    },
+    {
+      "test": "test_house_residency",
+      "checks": 17,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_house_residency.log"
+    },
+    {
+      "test": "test_terrain_local_publish",
+      "checks": 104,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_terrain_local_publish.log"
+    },
+    {
+      "test": "test_approach_prefetch_http",
+      "checks": 49,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "test_approach_prefetch_http.log"
+    },
+    {
+      "test": "terrain_ui_final",
+      "checks": 87,
+      "failures": 0,
+      "expected_corrupt_image_error_lines": 0,
+      "log": "terrain_ui_final.log"
+    }
+  ],
+  "sources": {
+    "scripts/world3d/approach_preparation.gd": {
+      "working_sha256": "d1730df85a028725f23c5055de9430dce7ed739ae0d31d51e31f3201ff51a92a",
+      "git_lf_sha256": "6e162885f4512c77236e49318653f85fae0f5f5949d5f7ffe918091bf6c8d793"
+    },
+    "scripts/world3d/cross_map_prefetch.gd": {
+      "working_sha256": "bfc8648081b1bc1b300ea6e633a636c368a68804789fa3cf2fa688c3f6c8902c",
+      "git_lf_sha256": "a865587a3ba8468ad4d4c00f12604dd608ca1d69ff14ce318ae630b30142912b"
+    },
+    "scripts/world3d/deferred_asset_loader.gd": {
+      "working_sha256": "fe4939eaa5d5fc850c30cb71b7fb8d55a190d3d512f2e46da9139d85b6a32912",
+      "git_lf_sha256": "3de17c68cb0a3b34e65bb71c9c9aeac1beee940be086e976f7e4ea499892eb01"
+    },
+    "scripts/world3d/document_open_cursor.gd": {
+      "working_sha256": "89ac4705e23e1554a8af4b9e8ba00a8170da2bda6cfdd4523a1006cca476b87e",
+      "git_lf_sha256": "ae4a2b1484050855589aa901454c1b5765e5275778363d700999674b111b3a6e"
+    },
+    "scripts/world3d/document_source_snapshot.gd": {
+      "working_sha256": "07cd1d4ac7a5d929b2d2b35f4e8b70cf9e9d4192e6c83ab86f57301803f14715",
+      "git_lf_sha256": "990e4b37aaf1c10927b79bccf3baa14a022428e7e8dfa207a18f7656a69fa498"
+    },
+    "scripts/world3d/map_dependency_index.gd": {
+      "working_sha256": "76e6d68af0a3dbb147829b2fde57a8885419643dd71437b45c3010f0f1d3ec7f",
+      "git_lf_sha256": "12987b868bfc0a295474d2cc2e9d4740aecf7139d0fe2fcd58e670b6509843f0"
+    },
+    "scripts/world3d/map_loader.gd": {
+      "working_sha256": "b0e77f4e35ca9be9980740d99a0102afd019cf07a4c8f638bce00d8644b5173b",
+      "git_lf_sha256": "168b7f842942f53d774c21273cec65d175effc5ebd46729c3480e6664be54d12"
+    },
+    "scripts/world3d/material_publication.gd": {
+      "working_sha256": "40432d7bfaadcdb914f4a7639f1bbfd55b7d01bcfc650490cd962fc1d519f292",
+      "git_lf_sha256": "a58c6bbcc6eec683ab6f4895ee3759f7980445d8b7a5762e98872bd4275c5c9b"
+    },
+    "scripts/world3d/resource_admission.gd": {
+      "working_sha256": "c7716cdded8a591cc5d910d95a2327bd464915f2b36c0925f4692d3bb6423d82",
+      "git_lf_sha256": "a8fe7796d865181f12231e222daec07a1856951cd87c8ffee7c3a7102b8f8530"
+    },
+    "scripts/world3d/surface_materials.gd": {
+      "working_sha256": "1b5a1b7a3df5ec1075186b7ed85cee3169580ddae58186c2f4ccc79e0a83b231",
+      "git_lf_sha256": "33963c517c770f42aff6dea393cadcc2c9868a2f686fe06f3d1b80231189cee5"
+    },
+    "scripts/world3d/world_3d.gd": {
+      "working_sha256": "833e1e573df88ef083eec676baf26d1f682cfb261586a9b8528c832f9e963a3f",
+      "git_lf_sha256": "f9d60156e6bbcc8144ab438226b8fe19196aac40c0fc1b73794834b7fd903168"
+    },
+    "scripts/world_editor/event_panel.gd": {
+      "working_sha256": "3739dc77bd1d5c191fb6468ce3c9d8052c69566783a1160156f79c52a96eaf7e",
+      "git_lf_sha256": "865334110abde7c63ea1372ea9ce2c0a4747774e1042a9b7a6118add4943803d"
+    },
+    "scripts/world_editor/mcp_schema.gd": {
+      "working_sha256": "d6a2db3624b66ee0284ed8321d167685433cb15a7231dc431d823cd8fb0e5119",
+      "git_lf_sha256": "ab4bbfa333698a146e5ebc2fadd14a25bab8c7e018202602bde2931b0d1cbaf3"
+    },
+    "scripts/world_editor/terrain_local_publish.gd": {
+      "working_sha256": "259756c5cfdfe64a232d4f92937836c14a46676e1d1eaf393b6620b64a7169d6",
+      "git_lf_sha256": "3127858acb45e787c35f4db61defca14af00cf810cc8cd2280aa58e71d9bf56c"
+    },
+    "scripts/world_editor/terrain_mesh_incremental.gd": {
+      "working_sha256": "621bdf1ce7ae3f68b1fac0990e6e5b6e2f9cda14cef5a5c6a68c0efbe5daf6cf",
+      "git_lf_sha256": "1b1acbcc9ce237f5487a1e3e380cfa28392b903f46fd24e2bff8c83acd8ba655"
+    },
+    "tools/benchmark_terrain_incremental_ui.gd": {
+      "working_sha256": "b0ebc1cd8ad362d79dfa8abcf95ab764f5a03825cddb4bf2e67f8ee5034f0120",
+      "git_lf_sha256": "568b66c94a35299c224fb7e11f7dc2337881354735886215f883bfed6e1fb91d"
+    },
+    "tools/test_approach_prefetch.gd": {
+      "working_sha256": "7dae79daa4c3760f6b934901889f0bcf505caedd447df6da6271e46b8d84d2c5",
+      "git_lf_sha256": "1a709396d0983318700e4371256d6e49dab6eafc2c17d7ed9fb272ea1cfe0d5d"
+    },
+    "tools/test_approach_prefetch_http.gd": {
+      "working_sha256": "e0413e604d9828a2d87543bcd75075223694db5aefc67e764ee77fe923f16cf2",
+      "git_lf_sha256": "e0413e604d9828a2d87543bcd75075223694db5aefc67e764ee77fe923f16cf2"
+    },
+    "tools/test_document_source_snapshot.gd": {
+      "working_sha256": "e0af5709ac2728082b9d3f0d97df550b7c94f3d6dc118177241780241dee1214",
+      "git_lf_sha256": "4ca068542a238ca0bf39cc5a405973c8255a04accbad5358a230e63058106f6b"
+    },
+    "tools/test_material_publication.gd": {
+      "working_sha256": "0d646c49198a28ac5f3fd010872904ce74403fd4d008d8702271a69fb4e05aee",
+      "git_lf_sha256": "d7675f33e9f510b6f76aace6ff8df4d1acc3bbd001553d855e7206a11c95f46c"
+    },
+    "tools/test_material_residency_budget.gd": {
+      "working_sha256": "72f66db2db6f9dac3fcdc07f8867d049ba3e70a75a2c457f19b1847e2a911628",
+      "git_lf_sha256": "8c37aa01ef7128a9c2e92f42c80409eb56c76d9a94c301f50f0192e6c6f58d5e"
+    },
+    "tools/test_terrain_cpu_patch.gd": {
+      "working_sha256": "03415300977c3013eda7d3b5d711de7cce92697eb5c40b704e5876776bd72f3a",
+      "git_lf_sha256": "1f49757866a68a9f47bfcf0f05b78edad260b53472c65fdd87dbc9cffcdec720"
+    },
+    "tools/test_terrain_local_publish.gd": {
+      "working_sha256": "d28ec0e9f371aa056314bbed23b77fbf21d8378cf365a17f574880dcdef382d6",
+      "git_lf_sha256": "316dd47a7ace0d23851bd25d440e263d5f3dc4903e0e70a1f87b125f4a509222"
+    }
+  },
+  "artifacts": {
+    "comparison.json": "bffdb1926b48e3d41dcded7808d41eb20f7468a6b55f5149e8bced1d592bd0a7",
+    "cpu_patch.json": "962bb8b3746761c5e65243c9fdf07f5c14ce2a3907ef4fdf898e465c997a0bb3",
+    "material_residency.json": "be31efb523adb680e5970805642669a6fdfa7158af810160381523a104f2dba4",
+    "prefetch.json": "c66b30e94110e7ee6c621021fdb085d50deb87b11dce64253d34b88ab58cbc59",
+    "terrain_publish.json": "872bbd8abb5e682adb24a717b7c08e1e3996808d0135c0553f9b8be6bd4ee334",
+    "terrain_ui.json": "132682b699005f6b7480bdeca0c40a89ff1b3518b1899761c0e96bc0c4d9579d",
+    "terrain_ui_final.log": "e9122facdbc12837c455b15b0e1b04d229c4cd4ec8f4ef3afaa32646886609ef",
+    "test_approach_prefetch.log": "e44c284ccd976686068d9eab3d9f945ede71bb8a42f23293e46a9dc51fc6da9f",
+    "test_approach_prefetch_http.log": "10116f43c50552ba0ca50530770f08b77e7f4e5f1ea4da64913701e08929a9d6",
+    "test_deferred_admission_priority.log": "4aa3b49050cba8a054485460002b5bdc64af14a7c397592e04db8ab3911c72c2",
+    "test_deferred_native_admission.log": "cfb7caa37fb501564ee3745ef13b59d0c69b30b8f76bb7e55e96516583c76c64",
+    "test_deferred_ready_progress.log": "fd9102e12eabf5d70526c8280d8ed3ef0ff71e309e74cfefc804cb501a63aa9d",
+    "test_document_source_snapshot.log": "1f739787bac08020eb9ca6cef6ff2203bf6e6182e905802ba5f5342259644b98",
+    "test_editor_terrain_texture_scope.log": "7107557470e471dfd201dc679f580ccba5da9557084b42273a1787504f30ec9e",
+    "test_house_residency.log": "5a065d89502fbcc4390a90d1fe2637a655319eed581a22cdac9b65acb046fb62",
+    "test_house_texture_tickets.log": "b6e88aca254c489c5ec778ad2b0f98bf860748203df378ba4d1bb8cc7e03bb68",
+    "test_index_path_batch.log": "783dbaaf77fec5a05a15205a7fdb3355bd17b54635687e12aee7fcd528a4b0e0",
+    "test_map_dependency_index.log": "d3c700a6555fa7ce5eca17cc6e725b3deb0d369abe7ed94d48b0e18fb963568f",
+    "test_material_publication.log": "dadf1554e851478eb9593422c6c62cba26a24f8e1ade7f5af4b0a19393b28bb2",
+    "test_material_residency_budget.log": "05e0aead5e28f6c979af6b5195c20e601f9307a48a94b6a5ccb9e3dd795f9ca7",
+    "test_resource_admission.log": "af1c9d2062678bfaf8dae0c4f492076d66cbc1f4bc26f64ab0cde68f5efb5b1f",
+    "test_runtime_material_pool.log": "18db9eabd76f9ed72a965419fe01d3ad7470004a59033a86955ffa7baa7f88ac",
+    "test_shared_prefab_images.log": "678b17d4a09ca28c93e9d143876b8d7aacc857ce899e859ff90ddd17477baf86",
+    "test_terrain_cpu_patch.log": "bddeb9ab29c6655a1d69903110f094e9a36024b4ee4b2c7273e2672e589ac6e4",
+    "test_terrain_local_publish.log": "1389f75a1920c0d6f9cdeebc1de7700a3788b68a2fde8d3c494b33c088ef0d31",
+    "transfer_http.json": "13123d22cb81a00fae977a169526440ee4a253e9d988493b649bf63311b748b4",
+    "webp_manifest.json": "b9892fc28d80d3c663853e1dd206bd672f9cf1756e1bbe9e6a7a110a2d17ceb6"
+  },
+  "scope": [
+    "Exact interior CPU terrain meshing; canonical fallback for exposed edges, changed normal context and broad edits",
+    "Native paint hot-cache footprint budget plus weak reuse and bounded material-publication handoffs",
+    "Complete-building forward priority and one CPU-only native cross-map snapshot/dependency prefetch, shared source byte/worker limits"
+  ],
+  "limits": [
+    "No raw model or target scene/GPU/nav speculative preparation",
+    "Early-building entry flags remain disabled; all confirmed-transfer gates preserved",
+    "No new authored geometry/LOD or distant proxy; not complete building/terrain retirement",
+    "Renderer texture memory is a fixture counter, not RSS or total GPU VRAM",
+    "Final UI 3 A/A and 8 alternating A/B pairs; uncontrolled external workload, no cold/tail or statistical significance claim"
+  ],
+  "test_notes": [
+    "Corrupt image diagnostics are intentional negative inputs in terrain texture scope; all its 26 assertions pass. Other accepted logs contain no engine/script errors or failed checks.",
+    "Current-format source snapshot regression replaces obsolete v1 fixture; test outputs remain external.",
+    "UI measurement captures source SHAs before execution; all measured source bytes match final working files.",
+    "GPU tests serial on private nonactivated desktop; source scene checkout and formal maps untouched."
+  ]
+}

@@ -1,0 +1,42 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS atomic bundle charges one workspace and one shared output
+PASS duplicate shared reservation fails without partial entries
+PASS running worker cannot surrender temporary bytes
+PASS only a joined worker shrinks to its retained bound
+PASS continuation reuses reserved scratch without acquiring extra bytes
+PASS job retirement cannot release a shared output owned by other consumers
+PASS last shared output retires its own charge
+PASS first image producer reserves workspace and unique outputs
+PASS second consumer charges verification scratch but no duplicate image output
+PASS missing image dependencies return immediately instead of blocking a worker
+PASS producer publishes exactly two immutable orientations
+PASS continuation consumes exact shared Images without a second decode
+PASS producer retirement leaves another consumer's images and charge intact
+PASS last consumer clears image owners before releasing unique bytes
+PASS private two-consumer index builds
+PASS real native queue starts prepare-only shared transaction
+PASS deadline-bounded dispatch eventually fills both producer/consumer slots at cap two
+PASS scheduler parks a dependent reference packet and frees its worker slot
+PASS parked packet retains final-proof scratch and geometry until continuation
+PASS dependent reference resumes or safely retries after producer cancellation
+PASS shared ready packets remain unpublished before core handoff
+PASS quiesce clears all packets before final shared/resource ledger release
+PASS real native queue starts prepare-only shared transaction
+PASS deadline-bounded dispatch eventually fills both producer/consumer slots at cap two
+PASS scheduler parks a dependent reference packet and frees its worker slot
+PASS parked packet retains final-proof scratch and geometry until continuation
+PASS dependent reference resumes or safely retries after producer cancellation
+PASS shared ready packets remain unpublished before core handoff
+PASS quiesce clears all packets before final shared/resource ledger release
+PASS GPU ticket case runs with real private renderer
+PASS baseline publication creates real immutable material textures
+PASS actual cached material consumers verify sources without decompressing pictures
+PASS verified texture tickets preserve prefab geometry-cache publication
+PASS same dimensions but new pixels reject resident proof and request full readmission
+PASS verified newer texture tickets invalidate an older prefab material generation
+PASS ticket-only rebuild preserves the exact new GPU pixels
+PASS zero engine/script errors
+SHARED_PREFAB_IMAGES passed=37 failures=0

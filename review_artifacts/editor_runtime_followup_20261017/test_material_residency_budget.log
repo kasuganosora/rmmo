@@ -1,0 +1,13 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS unique hot-cache texture footprint obeys byte budget
+PASS retiring cache-only resources releases actual renderer texture memory
+PASS live material/texture are reused after strong-cache eviction
+PASS changed source digest cannot reuse a weak material/texture ticket
+PASS active source material remains immutable
+PASS job-scoped complete textures finish one-slot-per-turn publication even with zero hot budget
+PASS published live material survives without any strong hot-cache residency
+PASS already-completed shared material also clears an obsolete handoff
+MATERIAL_RESIDENCY {"alive_textures":4,"checks":8,"failures":0,"renderer_texture_after":12019760,"renderer_texture_before":29321264,"trim":{"after_bytes":4194300,"before_bytes":22369600,"budget_bytes":4194304,"evicted_materials":13,"evicted_textures":13,"scope":"unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"},"zero_budget_material_turns":3}

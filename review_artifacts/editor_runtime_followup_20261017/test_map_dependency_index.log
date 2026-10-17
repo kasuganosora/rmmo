@@ -1,0 +1,46 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: build persistent directory from exact hydrated author snapshot
+PASS: read validates index identity without claiming far resource integrity
+PASS: local demand selects nearby and conservative global in original order
+PASS: subset extras preserve complete author metadata
+PASS: deferred compact records retain exact source index and real bounds
+PASS: selected dependency closure deduplicates shared references
+PASS: ordinary resource validation verifies selected closure before use
+PASS: two demand sources pin origin and destination
+PASS: cross-chunk geometry covers both chunks including exact boundary
+PASS: no demand retains global records only
+PASS: negative demand extent rejected
+PASS: out-of-root map rejected
+PASS: caller source SHA mismatch rejected
+PASS: unsaved pose cannot be indexed under old author SHA
+PASS: unsaved definition cannot borrow reference SHA
+PASS: corrupt payload rejects before decode
+PASS: stale generator rejects even valid envelope checksum
+PASS: row ordering corruption rejects with recomputed checksum
+PASS: full source bytes invalidate index even when parsed document unchanged
+PASS: index read/local hydration do not open undemanded far resource
+PASS: missing far dependency fails when demanded; index grants no loading safety
+PASS: model bounds come from source hierarchy, never locator proxy dimensions
+PASS: changed model geometry becomes global rather than skipping using stale bounds
+PASS: terrain real height bounds and material/interpolation halo retained conservatively global
+PASS: prefab actual vertex bounds ignore locator and stored mesh proxy; complete building gets a group
+PASS: complete building groups contain every authored member
+PASS: touching one floor loads all same-house parts but leaves far house deferred
+PASS: fixture bounds include full hinge sweep rather than current pose only
+PASS: selected building uses original validator with filtered registry while full metadata remains intact
+PASS: partial building cannot pass selected validation
+PASS: hydrated locked status must match full-snapshot proof
+PASS: selected resource cannot change source-bound building ownership
+PASS: forged unlocked proof in a baked group fails complete compact ownership validation
+PASS: wrong group identity rejects even with a recomputed envelope checksum
+PASS: group directory cannot drop an authored member
+PASS: valid complete group directory roundtrips after tamper fixtures
+PASS: baked registry with a missing part cannot produce a directory
+PASS: unlocked baked prefab cannot be promoted to a trusted proof
+PASS: one unknown component forces its complete building global, never an undersized union
+PASS: changed compact author ownership invalidates index source identity
+PASS: expanding only distant region leaves initial selected workload unchanged
+PASS: author map bytes untouched by index operations
+MAP_DEPENDENCY_INDEX passed=42 failures=0

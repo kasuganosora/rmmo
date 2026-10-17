@@ -12,6 +12,7 @@ class Document extends RefCounted:
 		return Node3D.new()
 func clear_caches()->void:
 	Prefab._meshes.clear();Prefab._render_meshes.clear();Paint._textures.clear();Paint._materials.clear()
+	Paint._texture_refs.clear();Paint._material_refs.clear()
 func run()->void:
 	if not check_gpu():quit(1);return
 	var logger:=Errors.new();OS.add_logger(logger)
@@ -94,6 +95,7 @@ func scheduler_cases(record:Dictionary,cpu:Dictionary)->void:
 	clear_caches();service._publish_ready(Time.get_ticks_usec()-1000000)
 	var job:Dictionary=service._jobs[item.path]
 	service._discard_job(item.path)
+	check(not job.has("material_textures"),"cancel drops current material texture handoff before releasing its lease")
 	check(not service._jobs.has(item.path) and service._admission.count()==1 and service._admission.reserved_bytes==1 and doc.calls.is_empty(),"cancel during material preparation releases admission without publishing components")
 	check(not job.has("material_cursor") and doc.load_material_pool.is_empty() and Paint.prepared_images.is_empty(),"cancel leaves no partial material or CPU image handoff owner")
 	check(Paint._textures.size()==1,"completed texture remains in the ordinary bounded reusable cache")

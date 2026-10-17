@@ -12,12 +12,13 @@ var _bytes := PackedByteArray()
 var _retained := false
 var error := "Cannot read map source"
 
-static func read_file(path: String, retain_limit: int = RETAIN_LIMIT) -> RefCounted:
+static func read_file(path: String, retain_limit: int = RETAIN_LIMIT, read_limit:int=0) -> RefCounted:
 	var result := new()
 	result._path = path
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null: return result
 	var size := file.get_length()
+	if read_limit>0 and size>read_limit:return result
 	var bytes := file.get_buffer(size)
 	if bytes.size() != size or file.get_error() != OK: return result
 	file.close()

@@ -1449,7 +1449,8 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				and prepared.get("sha256")==item.record.house_prefab.sha256 and prepared.get("data") is Dictionary
 				and prepared.get("geometry_keys",[]).size()==prepared.data.meshes.size()
 				and prepared.get("collision_faces",[]).size()==prepared.data.meshes.size()):
-				var phase:=preload("res://scripts/world3d/material_publication.gd").step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool)
+				if not pixel_job.has("material_textures"):pixel_job.material_textures={}
+				var phase:=preload("res://scripts/world3d/material_publication.gd").step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures)
 				if phase!=0:
 					if phase<0:
 						_instance_failed(publication_id,"预制件材质准备失败："+publication_id)
@@ -2159,7 +2160,7 @@ func _discard_job(path:String)->void:
 	if job.has("staged"):job.staged.clear()
 	if job.has("collision_staged"):job.collision_staged.clear()
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")
-	job.erase("pixel_tickets");job.erase("shared_pixels")
+	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures")
 	Drainer.release_shared(job.token)
 	# Unpublished ready definitions must not outlive their released reservation.
 	# Published specs/runtime records retain their independently resident data.

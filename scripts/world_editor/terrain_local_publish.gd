@@ -3,6 +3,7 @@ extends RefCounted
 ## CPU geometry is authoritative for painting, batching and export consumers.
 const T=preload("res://scripts/world3d/terrain_surface.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const Incremental=preload("res://scripts/world_editor/terrain_mesh_incremental.gd")
 const BLOCK=16
 const META="terrain_local_publication"
 static var enabled:=true # Diagnostic A/B, shared by UI and HTTP operations.
@@ -38,7 +39,7 @@ static func initialize(node:MeshInstance3D,r:Dictionary,body:StaticBody3D,contex
 			var soup:=faces(r,key)
 			if soup.is_empty():continue
 			geometry.set_faces(soup);shape.shape=geometry;body.add_child(shape);blocks[key]=shape
-	node.set_meta(META,{"record":r.duplicate(true),"arrays":cpu.surfaces,"blocks":blocks,"body":body,"normals":context.get("normals",{}).duplicate(true)})
+	node.set_meta(META,{"record":r.duplicate(true),"arrays":cpu.surfaces,"vertex_map":Incremental.mapping(r,cpu.surfaces),"blocks":blocks,"body":body,"normals":context.get("normals",{}).duplicate(true)})
 	return true
 static func encode16(value:float)->int:
 	# Match RenderingServer's float32 multiplication before uint16 truncation.
@@ -72,7 +73,8 @@ static func prepare(node:Node,r:Dictionary,context:Dictionary)->Dictionary:
 	if signature(state.record)!=signature(r):return {}
 	var old:Array=state.arrays
 	var geometry_unchanged:bool=state.record==r and state.normals==context.get("normals",{})
-	var arrays:Array=old if geometry_unchanged else T.arrays(r,context)
+	var patch:Dictionary={} if geometry_unchanged else Incremental.patch(state,r,context)
+	var arrays:Array=old if geometry_unchanged else (patch.arrays if not patch.is_empty() else T.arrays(r,context))
 	if arrays.size()!=2 or old.size()!=2 or node.mesh.get_surface_count()!=2:return {}
 	var updates:Array=[];var bytes:=0
 	for slot in (0 if geometry_unchanged else 2):
@@ -111,7 +113,7 @@ static func prepare(node:Node,r:Dictionary,context:Dictionary)->Dictionary:
 	for key:Vector2i in blocks:
 		if not state.blocks.has(key) or not is_instance_valid(state.blocks[key]):return {}
 		var shape:=ConcavePolygonShape3D.new();shape.set_faces(faces(r,key));shapes[key]=shape
-	return {"arrays":arrays,"updates":updates,"shapes":shapes,"record":r,"bytes":bytes}
+	return {"arrays":arrays,"updates":updates,"shapes":shapes,"record":r,"bytes":bytes,"cpu_patch":Incremental.last_work.duplicate() if not geometry_unchanged else {"unchanged":true}}
 static func publish(node:MeshInstance3D,packet:Dictionary,context:Dictionary)->void:
 	var state:Dictionary=node.get_meta(META);var r:Dictionary=packet.record;var mesh:ArrayMesh=node.mesh
 	var copied:bool=not packet.updates.is_empty() and state.get("owned_mesh",0)!=mesh.get_instance_id()
@@ -147,7 +149,7 @@ static func publish(node:MeshInstance3D,packet:Dictionary,context:Dictionary)->v
 	node.set_meta("ground_batch_record",r.duplicate(true))
 	preload("res://scripts/world3d/river_materials.gd").apply(node,r,context)
 	state.record=r.duplicate(true);state.arrays=packet.arrays;state.normals=context.get("normals",{}).duplicate(true)
-	last_work={"private_copy":copied,"bytes":packet.bytes,"regions":packet.updates.size(),"collision_blocks":packet.shapes.size(),"total_blocks":state.blocks.size()}
+	last_work={"private_copy":copied,"bytes":packet.bytes,"regions":packet.updates.size(),"collision_blocks":packet.shapes.size(),"total_blocks":state.blocks.size(),"cpu_patch":packet.get("cpu_patch",{})}
 
 	node.set_meta("terrain_local_stats",last_work.duplicate())
 

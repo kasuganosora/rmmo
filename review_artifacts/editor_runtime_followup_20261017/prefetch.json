@@ -1,0 +1,11 @@
+{
+  "checks": 25,
+  "failures": 0,
+  "prefetch_profile": {
+    "cancelled": 0,
+    "hits": 2,
+    "misses": 0,
+    "ready": 3,
+    "started": 3
+  }
+}

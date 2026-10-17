@@ -17,7 +17,8 @@ func active_workers()->int:
 	return count_
 
 func has_capacity()->bool:
-	if active_workers()>=worker_limit or reserved_bytes>=byte_limit:return false
+	if active_workers()>=worker_limit or reserved_bytes>=byte_limit:
+		_preempt_background();return false
 	for entry:Dictionary in _entries.values():
 		if entry.exclusive:return false
 	return true
@@ -32,11 +33,14 @@ func blocking_reason(key:String,estimate:Dictionary)->String:
 	var exclusive:=requires_exclusive(estimate)
 	# Report the drain requirement before generic capacity; it explains why an
 	# empty sibling slot cannot safely be filled by a lower-priority request.
-	if exclusive and not _entries.is_empty():return "exclusive_drain"
+	if exclusive and not _entries.is_empty():
+		_preempt_background();return "exclusive_drain"
 	for entry:Dictionary in _entries.values():
 		if entry.exclusive:return "active_exclusive"
-	if active_workers()>=worker_limit:return "worker_limit"
-	if not exclusive and reserved_bytes+size>byte_limit:return "byte_limit"
+	if active_workers()>=worker_limit:
+		_preempt_background();return "worker_limit"
+	if not exclusive and reserved_bytes+size>byte_limit:
+		_preempt_background();return "byte_limit"
 	return ""
 
 func can_admit(key:String,estimate:Dictionary)->bool:
@@ -116,3 +120,15 @@ func inspect(key:String,estimate:Dictionary)->Dictionary:
 	result.requested_bytes=maxi(1,int(estimate.get("estimated_bytes",byte_limit)))
 	result.requested_exclusive=requires_exclusive(estimate)
 	return result
+
+func reserve_background(key:String,size:int,cancel:Callable)->bool:
+	if size<=0 or not cancel.is_valid() or not reserve(key,{"estimated_bytes":size,"exclusive":false,"stage":"speculative_cpu"}):return false
+	_entries[key].preempt=cancel
+	return true
+func _preempt_background()->void:
+	# Cancellation only requests retirement. The same byte lease remains held
+	# until its worker joins and the owner/drainer discards the actual output.
+	for entry:Dictionary in _entries.values():
+		if entry.has("preempt"):
+			var callback:Callable=entry.preempt
+			if callback.is_valid():callback.call()

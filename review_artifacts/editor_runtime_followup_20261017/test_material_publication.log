@@ -1,0 +1,51 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS --gpu requires private real renderer
+PASS save isolated alpha/normal fixture
+PASS prepare exact native prefab geometry
+PASS first turn completes one texture, no partial material
+PASS next turn prepares distinct DirectX normal orientation
+PASS third turn restores one complete material using shared textures
+PASS complete pool is immediately ready and identity stays shared
+PASS ordinary prefab restore consumes prepared material pool
+PASS prefab and incremental material use identical resource identity
+PASS legacy synchronous prefab restore succeeds
+PASS albedo_texture exact GPU pixels and mips match
+PASS normal_texture exact GPU pixels and mips match
+PASS roughness_texture exact GPU pixels and mips match
+PASS ao_texture exact GPU pixels and mips match
+PASS albedo_color retains synchronous material semantics
+PASS normal_scale retains synchronous material semantics
+PASS normal_enabled retains synchronous material semantics
+PASS ao_enabled retains synchronous material semantics
+PASS transparency retains synchronous material semantics
+PASS texture_filter retains synchronous material semantics
+PASS roughness retains synchronous material semantics
+PASS cull_mode retains synchronous material semantics
+PASS alpha and exact immutable source SHA retained
+PASS render arrays and collision triangles unchanged
+PASS vertex tint gets an independent material without mutating shared walls
+PASS stored material uses validated property restoration
+PASS null slot is a complete valid material entry
+PASS wrong stored property type fails
+PASS stored script injection fails
+PASS out-of-root texture fails without resource publication
+PASS eviction between turns recovers one complete texture
+PASS exhausted frame budget advances one material unit without displaying partial group 0
+PASS exhausted frame budget advances one material unit without displaying partial group 1
+PASS exhausted frame budget advances one material unit without displaying partial group 2
+PASS same component resumes after textures and stays staged until whole building ready
+PASS second component publishes the whole building atomically
+PASS cancel drops current material texture handoff before releasing its lease
+PASS cancel during material preparation releases admission without publishing components
+PASS cancel leaves no partial material or CPU image handoff owner
+PASS completed texture remains in the ordinary bounded reusable cache
+PASS wrapped ready scan retains exact final-member index after staged prefix
+PASS material work on final member completes the original atomic group
+PASS missing texture fails safely before scene publication, grouped=false
+PASS missing texture fails safely before scene publication, grouped=true
+PASS subsequent group completion propagates material failure and clears staging
+PASS zero engine/script errors
+MATERIAL_PUBLICATION passed=46 failures=0

@@ -47,12 +47,12 @@ static func cache_path(path: String, content_root: String) -> String:
 	var target := content_root.path_join("cache/world3d/dependency_indexes").path_join(path.replace("\\", "/").simplify_path().sha256_text() + ".bin")
 	return target if Paths.allowed(target, content_root) else ""
 
-static func _source(path: String, content_root: String, expected_sha: String) -> Dictionary:
+static func _source(path: String, content_root: String, expected_sha: String, source_limit:int=Snapshot.RETAIN_LIMIT) -> Dictionary:
 	if cache_path(path, content_root).is_empty(): return _fail("invalid_map_path")
 	var source_file := FileAccess.open(path, FileAccess.READ)
-	if source_file == null or source_file.get_length() > Snapshot.RETAIN_LIMIT: return _fail("source_missing_or_too_large")
+	if source_file == null or source_file.get_length() > source_limit: return _fail("source_missing_or_too_large")
 	source_file.close()
-	var source = Snapshot.read_file(path)
+	var source = Snapshot.read_file(path,Snapshot.RETAIN_LIMIT,source_limit)
 	if not source.error.is_empty() or (not expected_sha.is_empty() and source._signature != expected_sha): return _fail("source_sha_mismatch")
 	var native: int = Cursor.native_root(source._data)
 	if native < 0: return _fail("not_native_v2")
@@ -85,8 +85,8 @@ static func _compact_closure(extra: Dictionary, path: String, content_root: Stri
 ## The caller supplies its fully hydrated, semantically validated snapshot.
 ## Re-encoding unique definitions proves it is the exact compact source snapshot;
 ## a caller cannot accidentally publish bounds from a different edited document.
-static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "") -> Dictionary:
-	var opened := _source(path, content_root, source_sha)
+static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT) -> Dictionary:
+	var opened := _source(path, content_root, source_sha,source_limit)
 	if not opened.ok: return opened
 	var compact: Array = opened.extras.rmmo_records
 	if compact.size() != hydrated_records.size(): return _fail("hydrated_count_mismatch")
@@ -140,7 +140,7 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
 	if not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
 	if not _imported_sources_valid(opened.extras, rows): return _fail("imported_building_source_mismatch")
-	if not Store.verify_dependencies(opened.dependencies, path, content_root) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
+	if not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
 	for model_path: String in models:
 		var current: Dictionary = Manifest.read(model_path)
 		if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
@@ -161,14 +161,14 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		DirAccess.remove_absolute(temporary); return _fail("index_publish_failed")
 	return _result(payload, opened.extras, target)
 
-static func read(path: String, content_root: String, expected_source_sha: String = "") -> Dictionary:
-	var opened := _source(path, content_root, expected_source_sha)
+static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
+	var opened := _source(path, content_root, expected_source_sha,source_limit)
 	if not opened.ok: return opened
 	var target := cache_path(path, content_root)
 	var file := FileAccess.open(target, FileAccess.READ)
 	if file == null or file.get_length() < 49 or file.get_buffer(9).get_string_from_ascii() != MAGIC: return _fail("index_missing_or_header")
 	var length := file.get_64()
-	if length <= 0 or length > MAX_BYTES or file.get_length() != length + 49: return _fail("invalid_index_length")
+	if length <= 0 or length > mini(MAX_BYTES,index_limit) or file.get_length() != length + 49: return _fail("invalid_index_length")
 	var checksum := file.get_buffer(32); var bytes := file.get_buffer(length); file.close()
 	if bytes.size() != length or Store._sha(bytes).hex_decode() != checksum: return _fail("index_payload_sha_mismatch")
 	var data: Variant = bytes_to_var(bytes) # Never allow Objects or scripts.
@@ -194,8 +194,8 @@ static func _result(data: Dictionary, extras: Dictionary, path: String) -> Dicti
 
 ## Only this disk-reading factory issues a process-local proof. Ordinary read()
 ## stays mutable and retains its complete validation path for callers/tests.
-static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "") -> Dictionary:
-	var index := read(path, content_root, expected_source_sha)
+static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
+	var index := read(path, content_root, expected_source_sha,source_limit,index_limit)
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
 	# read() has already downgraded changed model footprints and made its final
 	# source observation. No reference to this fresh result has escaped yet.

@@ -1,0 +1,435 @@
+{
+  "checks": [
+    {
+      "label": "create isolated native maps",
+      "ok": true
+    },
+    {
+      "label": "start isolated loopback 3D MCP",
+      "ok": true
+    },
+    {
+      "label": "real discovery documents shared transfer presentation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "invalid requests leave author data and history untouched",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event undo removes exact instance",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event redo restores identity",
+      "ok": true
+    },
+    {
+      "label": "HTTP select_objects succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI event form applies shared parameters and shows automatic transition help",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI and MCP authored events survive native save/reopen",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_playtest_spawn succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "playtest mounts real native author records instead of reference glTF proxies",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "approaching saved UI/MCP transfer automatically prepares native target",
+      "ok": true
+    },
+    {
+      "label": "preparation preserves source world, physics and playable input",
+      "ok": true
+    },
+    {
+      "label": "speculative hydration uses its one admitted worker with no nested reader threads",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "UI explains automatic approach preparation",
+      "ok": true
+    },
+    {
+      "label": "real current 3D MCP discovery explains the same preparation",
+      "ok": true
+    },
+    {
+      "label": "confirmed real cross-map transfer consumes speculative snapshot and hydration",
+      "ok": true
+    },
+    {
+      "label": "real handoff retires all speculative lease and worker ownership",
+      "ok": true
+    },
+    {
+      "label": "exit probe reaches real covered transfer",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "stop during covered transfer destroys only owned world, viewport and cover",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "undrawable source viewport yields explicit failure exit without moving/unlocking actor",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "playtest restores real server and inventory without edits",
+      "ok": true
+    },
+    {
+      "label": "runtime experience leaves both authored maps unchanged",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_13787471",
+  "passed": 49,
+  "prefetch": [
+    {
+      "load": {
+        "asset_admission": {
+          "inflight_budget_bytes": 4294967296,
+          "inflight_jobs_at_return": 0,
+          "inflight_reserved_at_return": 0,
+          "initial_required_resident_estimate_bytes": 0,
+          "native_cache_hits": 0,
+          "native_cache_misses": 0,
+          "peak_inflight_estimate_bytes": 0,
+          "peak_inflight_jobs": 0,
+          "peak_live_estimate_bytes": 0,
+          "result_resident_estimate_bytes": 0,
+          "retired_native_estimate_bytes": 0,
+          "worker_limit": 4
+        },
+        "asset_admission_details": {
+          "blocked_polls_by_reason": {},
+          "blocked_us": 0,
+          "blocked_us_by_reason": {},
+          "definition_cache": {
+            "budget_bytes": 0,
+            "bypasses": 5,
+            "entries": 0,
+            "evictions": 0,
+            "generation": 0,
+            "hits": 0,
+            "insertions": 0,
+            "misses": 0,
+            "peak_bytes": 0,
+            "resident_bytes": 0,
+            "scope": "process-wide retained definitions; conservative accounted bytes, not RSS"
+          },
+          "elapsed_us": 8,
+          "finished_us": 35756283,
+          "ledger_at_return": {
+            "active_workers": 0,
+            "byte_limit": 4294967296,
+            "exclusive_keys": [],
+            "jobs": 0,
+            "peak_bytes": 0,
+            "peak_jobs": 0,
+            "peak_workers": 0,
+            "reserved_bytes": 0,
+            "stages": {},
+            "worker_limit": 4
+          },
+          "max_task_queue_us": 0,
+          "policy": "conservative_bytes_held_until_join_then_full_result_charge",
+          "stages": {},
+          "started_us": 35756275,
+          "task_queue_us": 0,
+          "tasks": {},
+          "timing_scope": "scheduler wall time; task waits and overlapping worker stages are not additive CPU time"
+        },
+        "asset_eligibility_us": 1,
+        "asset_fallback_count": 0,
+        "asset_generate_us": 0,
+        "asset_instantiate_us": 0,
+        "asset_parallel_batches": 0,
+        "asset_parallel_eligible_count": 0,
+        "asset_parse_us": 0,
+        "asset_parse_wall_us": 72,
+        "asset_parses": [],
+        "build_total_us": 39096,
+        "cache_pack_us": 123,
+        "collision_first_core_deferred": 0,
+        "collision_first_core_deferred_ids": [],
+        "cooked_meshes": 0,
+        "cooked_restore_parts": {},
+        "cooked_restore_us": 14,
+        "cooked_specs": 0,
+        "core_resources_ready_us": 35810005,
+        "deferred_asset_instances": 0,
+        "definition_cache": {
+          "budget_bytes": 0,
+          "bypasses": 5,
+          "entries": 0,
+          "evictions": 0,
+          "generation": 0,
+          "hits": 0,
+          "insertions": 0,
+          "misses": 0,
+          "peak_bytes": 0,
+          "resident_bytes": 0,
+          "scope": "process-wide retained definitions; conservative accounted bytes, not RSS"
+        },
+        "entry_conservative_global_records": 0,
+        "entry_core_cell": [
+          -1,
+          0
+        ],
+        "final_integrity_us": 5482,
+        "frames": 1,
+        "hit_us": 0,
+        "hydrate_us": 5108,
+        "hydration_prefetch_hit": true,
+        "index_worker_us": 16767,
+        "initial_asset_paths": 0,
+        "initial_integrity_us": 5220,
+        "initial_models_prefetch_accepted": false,
+        "initial_models_prefetch_started_us": 0,
+        "initial_models_prefetched": false,
+        "mesh_cache_candidate": false,
+        "mesh_cache_path": "user://world3d_meshes/selected/ebc4e3770379a98b017e8c90eb7eb2eaeea1b6839f0d1ba081274ccfd3191dc5/58d55d742f8e711c27206695cb7ab9cbcfa55f232d985a01380610357ff2da38.bin",
+        "mesh_cache_read_wait_us": 1447,
+        "mesh_cache_scope": "selected_reference_closure",
+        "mesh_cache_selection": "58d55d742f8e711c27206695cb7ab9cbcfa55f232d985a01380610357ff2da38",
+        "mesh_categories": {
+          "other": 359
+        },
+        "mesh_us": 359,
+        "metadata_cache_bypassed": "reference_integrity",
+        "metadata_cache_hit": false,
+        "miss_us": 359,
+        "model_source_hash_barrier_avoided": 0,
+        "model_source_identity_mode": "verified_prepared_result",
+        "ownership_us": 153,
+        "paint_identity_count": 1,
+        "parse_us": 28359,
+        "parser_total_us": 52009,
+        "prefab_decode_us": 24,
+        "reference_deferred_count": 0,
+        "reference_index_hit": true,
+        "reference_index_read_us": 22883,
+        "reference_index_reason": "",
+        "reference_index_rebuilt_before_models": false,
+        "reference_read": {
+          "completed": 1,
+          "definition_cache_bypasses": 1,
+          "definition_cache_hits": 0,
+          "definition_cache_misses": 0,
+          "elapsed_us": 286,
+          "fallback_count": 0,
+          "peak_active": 1,
+          "reads_started": 1,
+          "threads_started": 0,
+          "unique_resources": 1,
+          "worker_limit": 1,
+          "workers_joined": 0
+        },
+        "reference_selected_count": 1,
+        "reference_selected_groups": 0,
+        "source_hash_profile": {
+          "active_at_return": 0,
+          "cancelled": false,
+          "elapsed_us": 9,
+          "entries": [],
+          "error": 0,
+          "error_path": "",
+          "fallback_count": 0,
+          "hash_calls": 0,
+          "hash_us": 0,
+          "peak_active": 0,
+          "preflight_us": 6,
+          "reason": "",
+          "signatures": {},
+          "threads_joined": 0,
+          "threads_started": 0,
+          "unique_count": 0,
+          "worker_limit": 4
+        },
+        "source_hash_us": 9,
+        "source_prefetch_hit": true,
+        "source_read_us": 221,
+        "source_scan_us": 9,
+        "spec_us": 149,
+        "terrain_context_cache_hit": false,
+        "terrain_context_worker_us": 59,
+        "terrain_join_wait_us": 25,
+        "terrain_ready_prefix_records": 0,
+        "texture_decode_us": 397,
+        "validate_us": 736,
+        "validation_parts": {
+          "dependencies": 13,
+          "other": 14,
+          "paint": 42,
+          "terrain": 19
+        }
+      },
+      "service": {
+        "cancelled": 0,
+        "hits": 1,
+        "misses": 0,
+        "ready": 1,
+        "started": 1
+      }
+    }
+  ],
+  "transfers": [
+    {
+      "committed": true,
+      "covered_ms": 34869,
+      "drawn_frame": 115,
+      "elapsed_ms": 668,
+      "fade_out_started_ms": 34655,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 35320,
+      "map_reused": true,
+      "ok": true,
+      "phase": "revealed",
+      "radar_ready_at_retire": true,
+      "radar_region_ready_at_retire": true,
+      "ready_frame": 126,
+      "ready_ms": 35053,
+      "reveal_started_ms": 35053,
+      "revealed_ms": 35320,
+      "same_map": true,
+      "target": "D:/code/rmmo_runtime/cache/world3d/playtests/26a48e4a480653d18602c826/map.gltf",
+      "viewport_id": 1419402820435
+    },
+    {
+      "committed": true,
+      "covered_ms": 35703,
+      "drawn_frame": 164,
+      "elapsed_ms": 776,
+      "fade_out_started_ms": 35479,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 36254,
+      "ok": true,
+      "phase": "revealed",
+      "ready_frame": 181,
+      "ready_ms": 35988,
+      "reveal_started_ms": 35988,
+      "revealed_ms": 36254,
+      "target": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_13787471/target.gltf",
+      "viewport_id": 1419402820435
+    }
+  ]
+}

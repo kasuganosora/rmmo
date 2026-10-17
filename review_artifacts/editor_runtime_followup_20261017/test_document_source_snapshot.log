@@ -1,0 +1,21 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: save disposable current-format snapshot fixture
+PASS: speculative read limit rejects before reading oversized source
+PASS: digest and parsed JSON both match the same retained read
+PASS: snapshot cursor publishes without a callback after final complete byte check
+PASS: published document retains source SHA for save conflict checks
+PASS: synchronous open remains equivalent
+PASS: ordinary synchronous caller keeps final SHA path
+PASS: over retention limit frees raw bytes and falls back to complete final SHA
+PASS: same-length fixture rewrite preserves exact Windows UTC mtime
+PASS: late same-length same-mtime rewrite rejects actual cursor publication
+PASS: over-limit SHA fallback also rejects changed file
+PASS: prepared keys cannot forge a byte-check capability or skip final SHA
+PASS: read failure at final cursor stage never publishes
+PASS: initial source read failure rejects
+PASS: invalid JSON cannot produce a trusted snapshot
+PASS: complete compare handles multiple chunks and short final chunk
+PASS: last-byte modification beyond first chunk rejects publication
+DOCUMENT_SOURCE_SNAPSHOT_FINISHED failures=0

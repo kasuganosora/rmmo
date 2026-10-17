@@ -1,0 +1,46 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: build small real dependency index from authored reference records
+PASS: both path modes read the same valid repeated-model directory
+PASS: complete directory contents and author metadata match between modes
+PASS: many records share one model identity; final global path is absent from models
+PASS: fixture exercises both seeded and first-seen global paths
+PASS: selected/deferred order, globals, bounds and closure match for 0 demand regions
+PASS: both modes hydrate identical records with real resource checks for 0 regions
+PASS: selected/deferred order, globals, bounds and closure match for 1 demand regions
+PASS: both modes hydrate identical records with real resource checks for 1 regions
+PASS: selected/deferred order, globals, bounds and closure match for 2 demand regions
+PASS: both modes hydrate identical records with real resource checks for 2 regions
+PASS: batch=false retains genuine sealed loading proof
+PASS: batch=true retains genuine sealed loading proof
+PASS: reading and sealing leave authored records and map bytes intact
+SKIP: embedded NUL is not representable by this Godot String fixture; production NUL defense remains unchanged
+PASS: late global non-model external sibling rejects with batch=false
+PASS: late global non-model external sibling rejects with batch=true
+PASS: model dictionary external sibling rejects with batch=false
+PASS: model dictionary external sibling rejects with batch=true
+PASS: late global non-model adjacent root prefix rejects with batch=false
+PASS: late global non-model adjacent root prefix rejects with batch=true
+PASS: model dictionary adjacent root prefix rejects with batch=false
+PASS: model dictionary adjacent root prefix rejects with batch=true
+PASS: late global non-model relative path rejects with batch=false
+PASS: late global non-model relative path rejects with batch=true
+PASS: model dictionary relative path rejects with batch=false
+PASS: model dictionary relative path rejects with batch=true
+PASS: late global non-string path rejects with batch=false
+PASS: late global non-string path rejects with batch=true
+PASS: late previously repeated row changes to a new external path rejects with batch=false
+PASS: late previously repeated row changes to a new external path rejects with batch=true
+PASS: valid restored directory reads again after tamper probes with batch=false
+PASS: valid restored directory reads again after tamper probes with batch=true
+PASS: same-path model replacement remains observable on the next read in both modes
+PASS: every repeated source instance is downgraded when actual GLB bounds change
+PASS: changed model cannot remain hidden in an undemanded chunk
+PASS: restored source is reconsidered independently with batch=false
+PASS: restored source is reconsidered independently with batch=true
+PASS: optional link fixture starts from the owned ordinary file
+SKIP: DirAccess.create_link unavailable under current account/platform: Failed
+PASS: unsupported link attempt restores the valid ordinary fixture
+PASS: all probes preserve the original test map and restore its index exactly
+INDEX_PATH_BATCH passed=40 failures=0 skipped=2

@@ -1,0 +1,12 @@
+{
+  "checks": 254,
+  "exact": 80,
+  "failed": 0,
+  "fallback": 0,
+  "method": "80 deterministic interior brush differentials with full-array equality and input immutability, separate 24 nonuniform/hole/stable-normal cases, 8 sequential publications and 5 canonical fallback cases. Aggregate timings exclude no-op strokes and only cover changed original cases; not end-to-end, no formal statistical claim.",
+  "new_us": 236427,
+  "old_us": 7427895,
+  "timed_changed_cases": 73,
+  "unchanged_cases": 7,
+  "worst": 0.0
+}

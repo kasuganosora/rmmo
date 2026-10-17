@@ -6,7 +6,10 @@ const ON=preload("res://review_artifacts/terrain_incremental_20261017/terrain_ne
 const P=preload("res://scripts/world_editor/terrain_local_publish.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
-const Output="D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/"
+const Incremental=preload("res://scripts/world_editor/terrain_mesh_incremental.gd")
+var cpu_only_ab:=false
+var measured_sources:Dictionary={}
+var Output="D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/"
 var initial:Dictionary
 var expected:PackedByteArray
 var rows:Array=[]
@@ -24,7 +27,8 @@ func event(at:Vector3,kind:String)->InputEvent:
 		var value:=InputEventMouseMotion.new();value.position=screen;value.button_mask=MOUSE_BUTTON_MASK_LEFT;return value
 	var value:=InputEventMouseButton.new();value.position=screen;value.button_index=MOUSE_BUTTON_LEFT;value.pressed=kind=="down";return value
 func sample(version:String,label:String)->void:
-	P.enabled=version=="new"
+	P.enabled=cpu_only_ab or version=="new"
+	Incremental.enabled=version=="new"
 	editor._terrain=Current.new() if P.enabled else Old.new();editor._terrain.editor=editor
 	editor._doc.terrain_neighbors=N.new() if P.enabled else ON.new()
 	editor._doc.apply_recovery(initial);editor._rebuild();await ready()
@@ -48,6 +52,12 @@ func sample(version:String,label:String)->void:
 	FileAccess.open(Output+"ui_progress.json",FileAccess.WRITE).store_string(JSON.stringify(rows,"  "))
 	print("TERRAIN_UI_SAMPLE ",JSON.stringify(record))
 func run()->void:
+	for path:String in ["scripts/world_editor/terrain_mesh_incremental.gd","scripts/world_editor/terrain_local_publish.gd","scripts/world_editor/terrain_tools.gd","scripts/world3d/terrain_neighbors.gd","scripts/world3d/terrain_surface.gd","scripts/world3d/surface_materials.gd"]:
+		measured_sources[path]=FileAccess.get_sha256("res://"+path)
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--evidence-dir="):Output=arg.trim_prefix("--evidence-dir=").trim_suffix("/")+"/"
+		if arg=="--cpu-only-ab":cpu_only_ab=true
+	DirAccess.make_dir_recursive_absolute(Output)
 	create_timer(600).timeout.connect(func():quit(2));root.size=Vector2i(1280,900);root.content_scale_size=root.size;Engine.max_fps=60
 	var dir:=Paths.cache_directory("terrain_incremental_ui_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(dir)
 	var path:=dir.path_join("map.gltf");var doc:=Doc.new()
@@ -83,5 +93,7 @@ func run()->void:
 	var saved:Array=editor._doc.records.duplicate(true);await call_tool("open_world",{"path":path});await ready()
 	check(equivalent(saved,editor._doc.records),"HTTP local publication save reopen")
 	var report:={"failures":failed,"samples":rows,"method":"Four 64x64 terrain tiles. Same real UI brush input handler, 3 dabs plus release. Warm caches; warmup, 3 A/A pairs, 8 alternating A/B pairs. Full author bytes compared. Callback-to-ready includes batch queue empty, two physics frames and drawn frame. Baseline frozen prepare/neighbors plus full publication; both use current canonical CPU array retention and current pick broadphase. Regression threshold 10% for ready median, report A/A range; no GPU-time or cold/tail claim."}
+	if cpu_only_ab:report.method="Same current terrain tools, neighbor index, local GPU/collision publication and real UI input in both arms; only CPU interior meshing toggled. Four 64x64 tiles, 3 dabs plus release. Warmup, 3 A/A pairs and 8 alternating A/B pairs. Complete author bytes, transaction, HTTP undo/redo/save/reopen and face IDs compared. Ready includes queue empty, two physics frames and drawn frame. No cold/tail or GPU-time claim."
+	report.sources=measured_sources
 	FileAccess.open(Output+"ui.json",FileAccess.WRITE).store_string(JSON.stringify(report,"  "));print("TERRAIN_UI_FINISHED failures=",failed)
 	editor._mcp.stop();editor.queue_free();await settle();quit(1 if failed else 0)

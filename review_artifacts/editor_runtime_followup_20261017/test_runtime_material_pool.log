@@ -1,0 +1,21 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: one immutable load shares exactly equal material definitions
+PASS: pool preserves every stored value without mutating definitions
+PASS: different material values remain separate
+PASS: independent editor restores never share the runtime pool
+PASS: populated pool cannot bypass invalid property types
+PASS: populated pool cannot attach a script
+PASS: binary material identity shares equal copies and separates different roughness
+PASS: changed rendering property changes identity: albedo_color
+PASS: changed rendering property changes identity: uv1_scale
+PASS: changed rendering property changes identity: emission
+PASS: changed rendering property changes identity: normal_enabled
+PASS: shared texture identity is retained and differs from an untextured material
+PASS: unsupported batching remains excluded: transparency
+PASS: unsupported batching remains excluded: uv1_triplanar
+PASS: unsupported batching remains excluded: grow
+PASS: unsupported batching remains excluded: next_pass
+PASS: per-patch terrain span remains outside the shared material identity
+RUNTIME_MATERIAL_POOL_FINISHED failures=0

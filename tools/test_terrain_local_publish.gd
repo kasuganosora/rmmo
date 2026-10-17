@@ -3,6 +3,7 @@ const T=preload("res://scripts/world3d/terrain_surface.gd")
 const P=preload("res://scripts/world_editor/terrain_local_publish.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var failures:=0
+var directory:="D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/"
 func check(ok:bool,label:String)->void:
 	if not ok:failures+=1;push_error(label)
 	else:print("PASS ",label)
@@ -13,6 +14,10 @@ func triangles(faces:PackedVector3Array)->Dictionary:
 		var key:=var_to_bytes(faces.slice(i,i+3)).hex_encode();result[key]=result.get(key,0)+1
 	return result
 func run()->void:
+	for arg:String in OS.get_cmdline_user_args():
+		if arg=="--full-cpu":preload("res://scripts/world_editor/terrain_mesh_incremental.gd").enabled=false
+		if arg.begins_with("--evidence-dir="):directory=arg.trim_prefix("--evidence-dir=").trim_suffix("/")+"/"
+	DirAccess.make_dir_recursive_absolute(directory)
 	var r:=preload("res://tools/test_terrain_incremental.gd").fixture()
 	for z in 65:
 		for x in 65:r.terrain_mesh.heights[z*65+x]=sin(x*.11)*cos(z*.17)*1.5
@@ -85,9 +90,9 @@ func run()->void:
 		node.hide();full.show();await process_frame;await RenderingServer.frame_post_draw;await RenderingServer.frame_post_draw
 		var rebuilt:=root.get_texture().get_image()
 		var same:bool=partial.get_data()==rebuilt.get_data();check(same,"same camera/light raster %s"%view[0])
-		partial.save_png("D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/"+view[0]+"_partial.png")
-		rebuilt.save_png("D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/"+view[0]+"_full.png")
+		partial.save_png(directory+view[0]+"_partial.png")
+		rebuilt.save_png(directory+view[0]+"_full.png")
 		image_results.append({"view":view[0],"exact_pixels":same})
 	var record:={"raster_method":"960x720, MSAA unchanged, TAA disabled equally for deterministic pixels, same camera/material/light/exposure, no actor", "images":image_results,"failures":failures,"partial_bytes":total,"full_bytes":all_bytes,"last_work":P.last_work}
-	FileAccess.open("D:/code/rmmo_runtime/review_artifacts/terrain_incremental_20261017/publish.json",FileAccess.WRITE).store_string(JSON.stringify(record,"  "))
+	FileAccess.open(directory+"publish.json",FileAccess.WRITE).store_string(JSON.stringify(record,"  "))
 	print("TERRAIN_LOCAL_PUBLISH ",JSON.stringify(record));node.free();body.free();blocker.free();quit(1 if failures else 0)

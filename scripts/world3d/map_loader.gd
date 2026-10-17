@@ -1,5 +1,6 @@
 extends Node
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const CrossMapPrefetch=preload("res://scripts/world3d/cross_map_prefetch.gd")
 const OwnershipProof=preload("res://scripts/world3d/dependency_index_proof.gd")
 ## Parse external glTF off the scene thread. Generate nodes only on the main thread.
 signal finished(scene: Node, path: String, error: String)
@@ -43,6 +44,7 @@ var _reference_dependencies:Dictionary={}
 var _full_reference_dependencies:Dictionary={} # Cold selection retains the fully verified publication closure.
 var _failure_reason:=""
 var near_first:=false
+var source_prefetch:CrossMapPrefetch.Packet
 var _entry_origin:=Vector3(0,.9,4)
 var _deferred_assets:Array=[]
 var _deferred_ids:Dictionary={}
@@ -114,7 +116,9 @@ func _parse_inner() -> void:
 	# Native maps are reference documents. The glTF locator nodes are not their
 	# runtime visuals. Resolve and verify definitions before any cache is used.
 	if _path.get_extension().to_lower() == "gltf":
-		_source_snapshot=preload("res://scripts/world3d/document_source_snapshot.gd").read_file(_path)
+		if source_prefetch!=null and source_prefetch.path==_path and source_prefetch.snapshot.matches_disk():
+			_source_snapshot=source_prefetch.snapshot;_profile.source_prefetch_hit=true
+		else:_source_snapshot=preload("res://scripts/world3d/document_source_snapshot.gd").read_file(_path)
 		_profile.source_read_us=Time.get_ticks_usec()-started
 		Trace.elapsed("game.source_read",started)
 		if not _source_snapshot.error.is_empty():
@@ -166,7 +170,12 @@ func _parse_inner() -> void:
 			_build_dependency_index=_dependency_index.is_empty()
 		for i in _author_reference_meta.rmmo_records.size():_record_order[_author_reference_meta.rmmo_records[i].uuid]=i
 		var hydrate_started:=Time.get_ticks_usec()
-		var restored:Dictionary=Cursor.hydrate_references(requested_extra,_path,_content_root)
+		var restored:Dictionary={}
+		if source_prefetch!=null and source_prefetch.snapshot==_source_snapshot and source_prefetch.selected==_selected_record_indices and source_prefetch.restored.get("dependencies",{})==requested_extra.rmmo_resource_dependencies:
+			if preload("res://scripts/world3d/map_resource_store.gd").verify_dependencies(source_prefetch.restored.dependencies,_path,_content_root):
+				restored=source_prefetch.restored;_profile.hydration_prefetch_hit=true
+		if restored.is_empty():restored=Cursor.hydrate_references(requested_extra,_path,_content_root)
+		source_prefetch=null
 		_profile.hydrate_us=Time.get_ticks_usec()-hydrate_started
 		_profile.reference_read=restored.get("read_profile",{})
 		Trace.elapsed("game.hydrate",hydrate_started)

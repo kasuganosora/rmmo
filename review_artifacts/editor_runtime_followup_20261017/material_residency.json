@@ -1,0 +1,16 @@
+{
+  "alive_textures": 4,
+  "checks": 8,
+  "failures": 0,
+  "renderer_texture_after": 12019760,
+  "renderer_texture_before": 29321264,
+  "trim": {
+    "after_bytes": 4194300,
+    "before_bytes": 22369600,
+    "budget_bytes": 4194304,
+    "evicted_materials": 13,
+    "evicted_textures": 13,
+    "scope": "unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"
+  },
+  "zero_budget_material_turns": 3
+}

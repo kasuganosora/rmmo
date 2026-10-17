@@ -1,0 +1,79 @@
+{
+  "ui": {
+    "callbacks_ms": {
+      "before_median": 1376.0895,
+      "after_median": 1194.475,
+      "change_percent": -13.197869760651482,
+      "before_range": [
+        1261.889,
+        1649.357
+      ],
+      "after_range": [
+        982.56,
+        1474.751
+      ],
+      "AA_range": [
+        1248.205,
+        1376.32
+      ],
+      "slower_pairs": 1
+    },
+    "ready_ms": {
+      "before_median": 1527.701,
+      "after_median": 1354.932,
+      "change_percent": -11.3090846965473,
+      "before_range": [
+        1411.394,
+        1812.492
+      ],
+      "after_range": [
+        1139.334,
+        1650.871
+      ],
+      "AA_range": [
+        1413.654,
+        1540.715
+      ],
+      "slower_pairs": 1
+    }
+  },
+  "ui_failures": 0,
+  "checks": 87,
+  "method": "Same current terrain tools, neighbor index, local GPU/collision publication and real UI input in both arms; only CPU interior meshing toggled. Four 64x64 tiles, 3 dabs plus release. Warmup, 3 A/A pairs and 8 alternating A/B pairs. Complete author bytes, transaction, HTTP undo/redo/save/reopen and face IDs compared. Ready includes queue empty, two physics frames and drawn frame. No cold/tail or GPU-time claim.",
+  "sources": {
+    "scripts/world3d/surface_materials.gd": "1b5a1b7a3df5ec1075186b7ed85cee3169580ddae58186c2f4ccc79e0a83b231",
+    "scripts/world3d/terrain_neighbors.gd": "37b9500cf60933d41de7edd2465db70bb7617d2efa086eea1abcfdaa38659f33",
+    "scripts/world3d/terrain_surface.gd": "cb77956b9bbf27ee5246e4b0ce631d3b31ce0728016063c873e74742e44a6386",
+    "scripts/world_editor/terrain_local_publish.gd": "259756c5cfdfe64a232d4f92937836c14a46676e1d1eaf393b6620b64a7169d6",
+    "scripts/world_editor/terrain_mesh_incremental.gd": "621bdf1ce7ae3f68b1fac0990e6e5b6e2f9cda14cef5a5c6a68c0efbe5daf6cf",
+    "scripts/world_editor/terrain_tools.gd": "ab1d1d41785f74af86796841eb2733c1a0621b5a98e2c96abccb4d64ca62a400"
+  },
+  "cpu": {
+    "checks": 254,
+    "exact": 80,
+    "failed": 0,
+    "fallback": 0,
+    "method": "80 deterministic interior brush differentials with full-array equality and input immutability, separate 24 nonuniform/hole/stable-normal cases, 8 sequential publications and 5 canonical fallback cases. Aggregate timings exclude no-op strokes and only cover changed original cases; not end-to-end, no formal statistical claim.",
+    "new_us": 236427,
+    "old_us": 7427895,
+    "timed_changed_cases": 73,
+    "unchanged_cases": 7,
+    "worst": 0.0
+  },
+  "material": {
+    "alive_textures": 4,
+    "checks": 8,
+    "failures": 0,
+    "renderer_texture_after": 12019760,
+    "renderer_texture_before": 29321264,
+    "trim": {
+      "after_bytes": 4194300,
+      "before_bytes": 22369600,
+      "budget_bytes": 4194304,
+      "evicted_materials": 13,
+      "evicted_textures": 13,
+      "scope": "unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"
+    },
+    "zero_budget_material_turns": 3
+  }
+}

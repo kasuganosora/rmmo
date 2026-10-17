@@ -226,6 +226,12 @@ UI 笔刷及中心线河道与当前 3D `preview_terrain_stroke` / `sculpt_terra
 
 Godot 的 region upload 不会刷新 ArrayMesh 的全部 CPU 几何缓存，因此作者读取使用新的 CPU 网格，绘制缓存同步失效，裁剪和合批使用更新后的包围盒。物理形状在引擎物理步内同步；同步间隙内的编辑器射线排除旧形状，并查询当前版本的精确三角面，原碰撞层、遮挡物和排除规则继续生效。正常物理步后回到原生射线。UI 回调和 MCP 返回前，作者记录、渲染数据、CPU 几何与新碰撞资源均已发布；操作到就绪计时另外等待物理步、合批和绘制。
 
-洞格拓扑、材质、尺寸、变换、底床、垄沟或索引布局改变使用完整重建。当前仍对实际几何变化地块运行完整 CPU 三角网格／切线生成，未实现目标地块的 CPU 网格局部生成；未变化且法线不变的邻块直接复用几何，只更新材料上下文。这是后续可测热点，不影响本批笔刷增量、依赖索引及局部 GPU／碰撞发布的交付范围。没有新增渲染分块或 draw call，也未改运行时地形加载格式。
+洞格拓扑、材质、尺寸、变换、底床、垄沟或索引布局改变使用完整重建。首批仍对实际几何变化地块生成完整 CPU 网格／切线；后续局部生成见下节。未变化且法线不变的邻块继续直接复用几何，只更新材料上下文。没有新增渲染分块或 draw call，也未改运行时地形加载格式。
 
 引擎依据：[ArrayMesh region 更新 API](https://docs.godotengine.org/en/latest/classes/class_arraymesh.html)、[本机 Godot ed1daf0bf 的 Mesh 实现](https://github.com/godotengine/godot/blob/ed1daf0bf/scene/resources/mesh.cpp)、[RenderingServer 顶点和法线切线编码](https://github.com/godotengine/godot/blob/ed1daf0bf/servers/rendering/rendering_server.cpp)。实现按本机编码验证，遇到压缩或不支持的缓冲布局保留完整重建。
+
+### 变化地块的 CPU 网格局部生成（2026-10-17 后续）
+
+`terrain_mesh_incremental` 为固定拓扑高度场保存格点到原顶点索引的映射。内部高度变化只准备受影响位置、法线和相邻完整三角形贡献，再以原顺序执行相同 SurfaceTool 切线生成，将结果写入私有 CPU 数组；原索引、UV、底面和切边数组保持。稳定的接缝法线覆盖参与相同计算，原数组不被修改，连续发布可继续增量处理。UI 和 `sculpt_terrain` 自动共用，整笔事务、同步发布和保存格式不变。
+
+触及外边界或洞口切边、法线上下文变化、局部包围区域超过半块，以及原有拓扑／布局限制，均自动回到完整生成。它仍扫描高度差和复制变化通道，未将整个编辑流程改成常数时间；不减少实际三角面、渲染分块或碰撞精度。完整数组差分、原生 GPU 缓冲／碰撞／近中远画面，以及真实 UI／HTTP 撤销重做和保存重开见[本轮证据](../review_artifacts/editor_runtime_followup_20261017/evidence.json)。

@@ -73,11 +73,11 @@ static func claims_native(data: Variant) -> bool:
 		if node is Dictionary and node.get("extras") is Dictionary and node.extras.get("rmmo_format")==WorldLocation.FORMAT:return true
 	return false
 
-static func hydrate_references(extra: Dictionary, path: String, content_root: String) -> Dictionary:
+static func hydrate_references(extra: Dictionary, path: String, content_root: String, worker_limit:int=4) -> Dictionary:
 	if extra.get("rmmo_version")!=WorldLocation.FORMAT_VERSION or extra.get("rmmo_storage")!=WorldLocation.STORAGE or not extra.get("rmmo_records") is Array or not extra.get("rmmo_resource_dependencies") is Dictionary:
 		return {"ok":false,"reason":"Invalid reference-map header"}
 	var store=load("res://scripts/world3d/map_resource_store.gd")
-	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root,extra.rmmo_resource_dependencies)
+	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root,extra.rmmo_resource_dependencies,worker_limit)
 	if not restored.get("ok",false):return restored
 	var dependencies:Dictionary=extra.rmmo_resource_dependencies
 	var actual:Variant=restored.get("dependencies")
@@ -85,7 +85,7 @@ static func hydrate_references(extra: Dictionary, path: String, content_root: St
 	if dependencies.size()!=actual.size():return {"ok":false,"reason":"Reference dependency manifest does not match the resource closure"}
 	for uri in actual:
 		if dependencies.get(uri)!=actual[uri]:return {"ok":false,"reason":"Reference resource is missing from the dependency manifest"}
-	if not store.verify_dependencies(dependencies,path,content_root):return {"ok":false,"reason":"Reference resource integrity check failed"}
+	if not store.verify_dependencies(dependencies,path,content_root,worker_limit):return {"ok":false,"reason":"Reference resource integrity check failed"}
 	var hydrated:=extra.duplicate()
 	hydrated.rmmo_records=restored.records
 	return {"ok":true,"extras":hydrated,"dependencies":dependencies.duplicate(),"read_profile":restored.get("read_profile",{})}

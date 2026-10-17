@@ -5,6 +5,7 @@ const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
 const WorldMapPaths = preload("res://scripts/world3d/map_paths.gd")
 const Travel = preload("res://scripts/world3d/world_travel.gd")
 const Stream = preload("res://scripts/world3d/world_stream.gd")
+const CrossMapPrefetch=preload("res://scripts/world3d/cross_map_prefetch.gd")
 const Net = preload("res://scripts/net/net.gd")
 static var navigation_background_enabled:=false
 static var wind_background_enabled:=false
@@ -13,6 +14,11 @@ var _building_entry:RefCounted
 var _building_transfer:RefCounted
 var _building_traversal:RefCounted
 var _building_lease_clock:=0.0
+var _approach_clock:=0.
+var _approach_preparation=preload("res://scripts/world3d/approach_preparation.gd").new()
+var _cross_map_prefetch:CrossMapPrefetch
+var _prefetch_fallback_ledger=preload("res://scripts/world3d/resource_admission.gd").new()
+
 
 var _player: CharacterBody3D
 var _transfer_viewport_restore:Variant=null
@@ -578,7 +584,10 @@ func _process(delta: float) -> void:
 		if _building_lease_clock>=.1:
 			_building_lease_clock=0;_building_entry.release_if_left(_player.global_position-Vector3.UP*.9)
 	_guard_deferred_geometry()
-	if not _transfer_pending:furniture.tick()
+	if not _transfer_pending:
+		_approach_clock+=delta
+		if _approach_clock>=.25:_approach_clock=0.;_update_approach_preparation()
+		furniture.tick()
 	if profiling:marks.append(Time.get_ticks_usec())
 	if _ready_for_play and not _transfer_pending and is_instance_valid(_navigation):
 		_navigation.follow(_player.position)
@@ -1372,7 +1381,10 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 		if not _local_transfer.get("committed",false):_local_transfer.cancelled=true
 		while _transfer_pending:await get_tree().process_frame
 		if request!=_transfer_request_serial:return false
-	if _same_map_target(target):return await _transfer_within_map(target,destination,before_commit,request)
+	_approach_preparation.release(_map_root.get_node_or_null("DeferredAssets"))
+	if _same_map_target(target):
+		if is_instance_valid(_cross_map_prefetch):_cross_map_prefetch.cancel()
+		return await _transfer_within_map(target,destination,before_commit,request)
 	_transfer_pending = true
 	var original:Dictionary={"combat_processing":_combat.is_physics_processing(),"locked":_player.input_locked,"physics":_player.is_physics_processing(),"velocity":_player.velocity,"geometry_blocked":_player.geometry_blocked,"geometry_wait_locked":_geometry_wait_locked,"transform":_player.global_transform,"disable_3d":get_viewport().disable_3d}
 	_transfer_viewport_restore=original.disable_3d
@@ -1399,7 +1411,12 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_combat._save_map_state()
 	_status.text = "读取目标地图…"
 	cover.update_progress("读取目标地图与附近素材（后台）")
+	var prefetched:CrossMapPrefetch.Packet
+	if is_instance_valid(_cross_map_prefetch):
+		prefetched=_cross_map_prefetch.take(target,destination)
+		await _cross_map_prefetch.drain()
 	var loader = preload("res://scripts/world3d/map_loader.gd").new()
+	loader.source_prefetch=prefetched
 	loader.near_first=true
 	_transfer_loader = loader
 	loader.progress.connect(func(stage: String, done: int, total: int):
@@ -2010,3 +2027,35 @@ func request_pet_summon(id: String = "default") -> void:
 
 func request_pet_dismiss() -> void:
 	_combat.summons.pet_dismiss()
+
+func _update_approach_preparation()->void:
+	if not is_instance_valid(_map_root) or not is_instance_valid(_player):return
+	var deferred:Node=_map_root.get_node_or_null("DeferredAssets")
+	_approach_preparation.update(deferred,_player.global_position,_player.velocity)
+	preload("res://scripts/world3d/surface_materials.gd").trim_cached_resources()
+	if not CrossMapPrefetch.enabled:return
+	if not is_instance_valid(_cross_map_prefetch):
+		_cross_map_prefetch=CrossMapPrefetch.new();_cross_map_prefetch.name="CrossMapPrefetch";add_child(_cross_map_prefetch)
+	var chosen:="";var destination:=Vector3.ZERO;var distance:=24.
+	for body:Node in _warp_candidates:
+		if not is_instance_valid(body):continue
+		var centre:Vector3=body.get_meta("center",Vector3.INF);var d:=_player.global_position.distance_to(centre)
+		var target:String=_approach_map_target(body.get_meta("target_path",""));var spawn:Variant=body.get_meta("spawn",[])
+		if d>=distance or target.is_empty() or not spawn is Array or spawn.size()!=3:continue
+		chosen=target;destination=Vector3(spawn[0],spawn[1],spawn[2]);distance=d
+	for spec:Dictionary in Net.server().world3d_events.targets.values():
+		var template:Dictionary=spec.get("template",{})
+		if template.get("template","")!="transfer":continue
+		var d:float=_player.global_position.distance_to(spec.position);var params:Dictionary=template.parameters
+		var target:String=_approach_map_target(params.map_path)
+		if d>=distance or target.is_empty():continue
+		chosen=target;destination=Vector3(params.spawn[0],params.spawn[1]+.9,params.spawn[2]);distance=d
+	if chosen.is_empty():_cross_map_prefetch.cancel();return
+	var ledger:RefCounted=deferred._admission if deferred!=null else _prefetch_fallback_ledger
+	if deferred==null:ledger.byte_limit=CrossMapPrefetch.LEASE_BYTES
+	_cross_map_prefetch.request(chosen,destination,ledger)
+
+func _approach_map_target(target:String)->String:
+	if target.is_empty():return ""
+	if is_instance_valid(Net.session().editor_playtest):target=Net.session().editor_playtest.resolve_map(target)
+	return "" if _same_map_target(target) else target

@@ -1,0 +1,109 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS bounded collision initialization
+PASS local packet 0
+PASS private storage preserves shared original
+PASS GPU buffer exact 0/0/vertex_data
+PASS GPU buffer exact 0/0/attribute_data
+PASS GPU buffer exact 0/0/index_data
+PASS GPU buffer exact 0/1/vertex_data
+PASS GPU buffer exact 0/1/attribute_data
+PASS GPU buffer exact 0/1/index_data
+PASS canonical CPU arrays 0
+PASS culling and authoring bounds 0
+PASS exact bounded collider triangles 0
+PASS only touched collision blocks 0
+PASS picking sees current revision 0
+PASS local packet 1
+PASS same GPU mesh identity 1
+PASS GPU buffer exact 1/0/vertex_data
+PASS GPU buffer exact 1/0/attribute_data
+PASS GPU buffer exact 1/0/index_data
+PASS GPU buffer exact 1/1/vertex_data
+PASS GPU buffer exact 1/1/attribute_data
+PASS GPU buffer exact 1/1/index_data
+PASS canonical CPU arrays 1
+PASS culling and authoring bounds 1
+PASS exact bounded collider triangles 1
+PASS only touched collision blocks 1
+PASS same-frame picking revision 1
+PASS native obstacle still occludes current terrain 1
+PASS CPU fallback respects exclusions 1
+PASS CPU fallback respects layers 1
+PASS picking sees current revision 1
+PASS local packet 2
+PASS same GPU mesh identity 2
+PASS GPU buffer exact 2/0/vertex_data
+PASS GPU buffer exact 2/0/attribute_data
+PASS GPU buffer exact 2/0/index_data
+PASS GPU buffer exact 2/1/vertex_data
+PASS GPU buffer exact 2/1/attribute_data
+PASS GPU buffer exact 2/1/index_data
+PASS canonical CPU arrays 2
+PASS culling and authoring bounds 2
+PASS exact bounded collider triangles 2
+PASS only touched collision blocks 2
+PASS same-frame picking revision 2
+PASS native obstacle still occludes current terrain 2
+PASS CPU fallback respects exclusions 2
+PASS CPU fallback respects layers 2
+PASS picking sees current revision 2
+PASS local packet 3
+PASS same GPU mesh identity 3
+PASS GPU buffer exact 3/0/vertex_data
+PASS GPU buffer exact 3/0/attribute_data
+PASS GPU buffer exact 3/0/index_data
+PASS GPU buffer exact 3/1/vertex_data
+PASS GPU buffer exact 3/1/attribute_data
+PASS GPU buffer exact 3/1/index_data
+PASS canonical CPU arrays 3
+PASS culling and authoring bounds 3
+PASS exact bounded collider triangles 3
+PASS only touched collision blocks 3
+PASS same-frame picking revision 3
+PASS native obstacle still occludes current terrain 3
+PASS CPU fallback respects exclusions 3
+PASS CPU fallback respects layers 3
+PASS picking sees current revision 3
+PASS local packet 4
+PASS same GPU mesh identity 4
+PASS GPU buffer exact 4/0/vertex_data
+PASS GPU buffer exact 4/0/attribute_data
+PASS GPU buffer exact 4/0/index_data
+PASS GPU buffer exact 4/1/vertex_data
+PASS GPU buffer exact 4/1/attribute_data
+PASS GPU buffer exact 4/1/index_data
+PASS canonical CPU arrays 4
+PASS culling and authoring bounds 4
+PASS exact bounded collider triangles 4
+PASS only touched collision blocks 4
+PASS same-frame picking revision 4
+PASS native obstacle still occludes current terrain 4
+PASS CPU fallback respects exclusions 4
+PASS CPU fallback respects layers 4
+PASS picking sees current revision 4
+PASS local packet 5
+PASS same GPU mesh identity 5
+PASS GPU buffer exact 5/0/vertex_data
+PASS GPU buffer exact 5/0/attribute_data
+PASS GPU buffer exact 5/0/index_data
+PASS GPU buffer exact 5/1/vertex_data
+PASS GPU buffer exact 5/1/attribute_data
+PASS GPU buffer exact 5/1/index_data
+PASS canonical CPU arrays 5
+PASS culling and authoring bounds 5
+PASS exact bounded collider triangles 5
+PASS only touched collision blocks 5
+PASS same-frame picking revision 5
+PASS native obstacle still occludes current terrain 5
+PASS CPU fallback respects exclusions 5
+PASS CPU fallback respects layers 5
+PASS picking sees current revision 5
+PASS topology change uses complete rebuild
+PASS same camera/light raster near
+PASS same camera/light raster middle
+PASS same camera/light raster far
+PASS same camera/light raster hole
+TERRAIN_LOCAL_PUBLISH {"failures":0,"full_bytes":1792100,"images":[{"exact_pixels":true,"view":"near"},{"exact_pixels":true,"view":"middle"},{"exact_pixels":true,"view":"far"},{"exact_pixels":true,"view":"hole"}],"last_work":{"bytes":676,"collision_blocks":1,"cpu_patch":{"changed_vertices":49,"incremental":true,"prepared_cells":64,"total_cells":4096},"private_copy":false,"regions":12,"total_blocks":16},"partial_bytes":3380,"raster_method":"960x720, MSAA unchanged, TAA disabled equally for deterministic pixels, same camera/material/light/exposure, no actor"}

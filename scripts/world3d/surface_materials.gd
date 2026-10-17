@@ -9,6 +9,77 @@ const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_
 static var _textures := {}
 static var prepared_images:Dictionary={}
 static var _materials := {}
+# Strong hot caches have a byte ceiling; weak catalogues reuse resources still
+# owned by live maps after cache eviction, without extending their residency.
+static var residency_budget_enabled:=true
+static var cache_byte_budget:=256*1024*1024
+static var _texture_refs:Dictionary={}
+static var _material_refs:Dictionary={}
+static var _cache_serial:=0
+static var _cache_use:Dictionary={}
+static var cache_residency_profile:Dictionary={}
+const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
+static func _touch_cache(kind:String,key:String)->void:
+	_cache_serial+=1;_cache_use[kind+key]=_cache_serial
+static func _remember_weak(catalog:Dictionary,key:String,value:RefCounted)->void:
+	catalog[key]=weakref(value)
+	if catalog.size()>1024:
+		for id:String in catalog.keys():
+			if catalog[id].get_ref()==null:catalog.erase(id)
+	while catalog.size()>4096:catalog.erase(catalog.keys()[0])
+static func _texture_cost(texture:Texture2D)->int:
+	return int(texture.get_meta("runtime_upload_bytes",ceili(float(texture.get_width())*texture.get_height()*4.*4./3.)))
+static func retained_texture(key:String)->Texture2D:
+	var texture:Texture2D=_textures.get(key)
+	if texture==null and residency_budget_enabled and _texture_refs.has(key):texture=_texture_refs[key].get_ref()
+	if texture!=null and prepared_images.has(key) and texture.get_meta("runtime_source_sha256","")!=prepared_images[key].get_meta("runtime_source_sha256",""):return null
+	return texture
+static func trim_cached_resources()->Dictionary:
+	if not residency_budget_enabled:return {}
+	# Legacy publication owners may clear either hot dictionary directly.
+	for id:String in _cache_use.keys():
+		if not (_materials if id.begins_with("m:") else _textures).has(id.substr(2)):_cache_use.erase(id)
+	var counts:Dictionary={};var costs:Dictionary={};var dependencies:Dictionary={};var candidates:Array=[];var total:=0
+	for kind:String in ["m:","t:"]:
+		var cache:Dictionary=_materials if kind=="m:" else _textures
+		for key:String in cache:
+			var ids:Array=[];var textures:Array=[]
+			if kind=="t:":textures.append(cache[key])
+			else:
+				for property:String in TEXTURE_PROPERTIES:
+					var texture:Texture2D=cache[key].get(property)
+					if texture!=null:textures.append(texture)
+			for texture:Texture2D in textures:
+				var id:=texture.get_instance_id()
+				if id in ids:continue
+				ids.append(id);counts[id]=int(counts.get(id,0))+1
+				if not costs.has(id):costs[id]=_texture_cost(texture);total+=costs[id]
+			dependencies[kind+key]=ids;candidates.append({"kind":kind,"key":key,"use":int(_cache_use.get(kind+key,0))})
+	var before:=total;var materials:=0;var textures:=0
+	candidates.sort_custom(func(a,b):return a.use<b.use)
+	for candidate:Dictionary in candidates:
+		if total<=maxi(0,cache_byte_budget):break
+		var kind:String=candidate.kind;var key:String=candidate.key
+		if kind=="m:":_remember_weak(_material_refs,key,_materials[key]);_materials.erase(key);materials+=1
+		else:_remember_weak(_texture_refs,key,_textures[key]);_textures.erase(key);textures+=1
+		for id:int in dependencies[kind+key]:
+			counts[id]-=1
+			if counts[id]==0:total-=costs[id]
+		_cache_use.erase(kind+key)
+	cache_residency_profile={"before_bytes":before,"after_bytes":total,"budget_bytes":cache_byte_budget,"evicted_materials":materials,"evicted_textures":textures,"scope":"unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"}
+	return cache_residency_profile.duplicate()
+static func _material_current(material:StandardMaterial3D)->bool:
+	var definition:Dictionary=material.get_meta("runtime_paint_definition",{})
+	for i in MAP_FIELDS.size():
+		var path:String=definition.get(MAP_FIELDS[i],"")
+		if path.is_empty():continue
+		var key:=path+("|flip_y" if MAP_FIELDS[i]=="normal_path" and definition.get("normal_format","opengl")=="directx" else "")
+		var texture:Texture2D=material.get(TEXTURE_PROPERTIES[i])
+		var digest:String=texture.get_meta("runtime_source_sha256","") if texture!=null else ""
+		if prepared_images.has(key) and digest!=prepared_images[key].get_meta("runtime_source_sha256",""):return false
+		if _textures.has(key) and digest!=_textures[key].get_meta("runtime_source_sha256",""):return false
+	return true
+
 # Enable before starting the measured operation. Uses Pixels' mutex-protected
 # aggregate, so either reset_profile clears both paint.* and texture.* stages.
 static var texture_profile_enabled:=false
@@ -19,9 +90,13 @@ static func profile_snapshot()->Dictionary:return TextureCache.profile_snapshot(
 static func prepare_images(images:Dictionary)->void:
 	var changed:=false
 	for key in images:
+		var weak:Variant=_texture_refs.get(key)
+		if weak!=null:
+			var texture:Texture2D=weak.get_ref()
+			if texture!=null and texture.get_meta("runtime_source_sha256","")!=images[key].get_meta("runtime_source_sha256",""):_texture_refs.erase(key);changed=true
 		if _textures.has(key) and _textures[key].get_meta("runtime_source_sha256","")!=images[key].get_meta("runtime_source_sha256",""):
 			_textures.erase(key);changed=true
-	if changed:_materials.clear()
+	if changed:_materials.clear();_material_refs.clear()
 	prepared_images.merge(images,true)
 
 static func fail(message: String) -> Dictionary: return {"ok": false, "error": message}
@@ -230,10 +305,20 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
 	var cache_key := key + ("|flip_y" if flip_normal else "")
 	if key.is_empty(): return null
+	var restored_weak:=false
+	if not _textures.has(cache_key) and residency_budget_enabled and _texture_refs.has(cache_key):
+		var retained:Texture2D=_texture_refs[cache_key].get_ref()
+		if retained!=null and (not prepared_images.has(cache_key) or retained.get_meta("runtime_source_sha256","")==prepared_images[cache_key].get_meta("runtime_source_sha256","")):
+			if _textures.size()>=64:
+				var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
+			_textures[cache_key]=retained;restored_weak=true
 	if _textures.has(cache_key):
+		_touch_cache("t:",cache_key)
 		if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_hit")
 		prepared_images.erase(cache_key)
-		return _textures[cache_key]
+		var cached:Texture2D=_textures[cache_key]
+		if restored_weak:trim_cached_resources()
+		return cached
 	var image: Image
 	if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_miss")
 	if key == "checker":
@@ -262,10 +347,13 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	if texture_profile_enabled:
 		TextureCache._profile_elapsed("paint.texture.upload",began,{"path":path,"flip":flip_normal,"format":image.get_format(),"width":image.get_width(),"height":image.get_height(),"bytes":image.get_data_size()})
 		TextureCache._profile_count("paint.texture.upload_bytes",image.get_data_size())
+	result.set_meta("runtime_upload_bytes",image.get_data_size())
 	result.set_meta("surface_has_alpha",has_alpha)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
-	if _textures.size() >= 64: _textures.erase(_textures.keys()[0])
+	if _textures.size() >= 64:
+		var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 	_textures[cache_key] = result
+	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);trim_cached_resources()
 	return result
 
 static func texture_error(record: Dictionary, checks: Variant = null) -> String:
@@ -294,9 +382,19 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 	# Paint definitions are immutable; UVs live on the mesh. Reuse equivalent
 	# materials so glTF packs ORM textures once, not once for every wall face.
 	var key := str(cull_mode) + "|" + JSON.stringify(value, "", true)
+	var restored_weak:=false
+	if not _materials.has(key) and residency_budget_enabled and _material_refs.has(key):
+		var retained:StandardMaterial3D=_material_refs[key].get_ref()
+		if retained!=null and _material_current(retained):
+			if _materials.size()>=128:
+				var oldest:String=_materials.keys()[0];_materials.erase(oldest);_cache_use.erase("m:"+oldest)
+			_materials[key]=retained;restored_weak=true
 	if _materials.has(key):
+		_touch_cache("m:",key)
 		if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_hit")
-		return _materials[key]
+		var cached:StandardMaterial3D=_materials[key]
+		if restored_weak:trim_cached_resources()
+		return cached
 	if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_miss")
 	var result := StandardMaterial3D.new()
 	result.cull_mode = cull_mode
@@ -318,9 +416,11 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 	result.texture_repeat = true
 	result.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if result.albedo_color.a < 1 or (result.albedo_texture != null and bool(result.albedo_texture.get_meta("surface_has_alpha",false))): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	if _materials.size() >= 128: _materials.erase(_materials.keys()[0])
+	if _materials.size() >= 128:
+		var oldest:String=_materials.keys()[0];_materials.erase(oldest);_cache_use.erase("m:"+oldest)
 	result.set_meta("runtime_paint_definition",value.duplicate(true))
 	_materials[key] = result
+	_touch_cache("m:",key);_remember_weak(_material_refs,key,result);trim_cached_resources()
 	return result
 
 static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
