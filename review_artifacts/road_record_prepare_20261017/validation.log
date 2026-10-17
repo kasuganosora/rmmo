@@ -1,0 +1,28 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS actual dual PBR preparation succeeds
+PASS instrumented baseline complete bytes equal, call 0
+PASS instrumented baseline complete bytes equal, call 1
+PASS instrumented current complete bytes equal, call 0
+PASS instrumented current complete bytes equal, call 1
+PASS actual path-validation work decreases
+PASS next prepare repeats fresh required validation
+PASS shared cache keeps exact validation and author result: []
+PASS invalid definition cannot reuse an earlier material proof: []
+PASS shared cache keeps exact validation and author result: ["roughness"]
+PASS invalid definition cannot reuse an earlier material proof: ["roughness"]
+PASS shared cache keeps exact validation and author result: ["color"]
+PASS invalid definition cannot reuse an earlier material proof: ["color"]
+PASS shared cache keeps exact validation and author result: ["normal_strength"]
+PASS invalid definition cannot reuse an earlier material proof: ["normal_strength"]
+PASS shared cache keeps exact validation and author result: ["texture_path"]
+PASS invalid definition cannot reuse an earlier material proof: ["texture_path"]
+PASS shared cache keeps exact validation and author result: ["normal_format"]
+PASS invalid definition cannot reuse an earlier material proof: ["normal_format"]
+PASS shared cache keeps exact validation and author result: ["tile_size"]
+PASS invalid definition cannot reuse an earlier material proof: ["tile_size"]
+PASS cached material cannot bypass independent record constraints
+PASS existing temporary dependency validates
+PASS even reused material proof cannot hide a missing texture on another record
+PASS standalone next operation sees restored dependency

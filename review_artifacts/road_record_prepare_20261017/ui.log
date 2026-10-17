@@ -1,0 +1,511 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: real renderer required
+PASS: isolated native fixture saved
+PASS: private HTTP MCP loopback available
+PASS: current 3D discovery and terrain-follow schema
+PASS: actual shared PBR fixture required; no fallback for timing
+PASS: initial terrain derived state ready
+PASS: warmup_baseline exact initial authored state
+PASS: warmup_baseline all form fields accepted
+PASS: warmup_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: warmup_baseline real preview button succeeds
+PASS: warmup_baseline preview is read only
+PASS: warmup_baseline real native library version; no subclass fallback during timing
+PASS: warmup_baseline real apply creates one transaction
+PASS: warmup_baseline editor nodes picking bodies batches and later render ready
+PASS: warmup_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":1464.005,"apply_profile":{},"apply_to_ready_ms":1674.225,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"warmup_baseline","preview_callback_ms":475.719,"preview_draw_wait_ms":14.575,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.558,"last_commit_ms":1.171,"last_sync_ms":13.481,"loading_budget_scopes":0,"max_build_ms":17.432,"max_commit_ms":1.171,"pending_groups":0,"rebuild_count":4,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":5,"sync_profile_us":{"capture_us":210,"geometry_us":1,"material_us":11867},"work_budget_usec":2000},"draw_frame":41,"ok":true,"physics_frame":95,"wait_ms":210.148},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: warmup_baseline native undo restores exact fixture
+PASS: warmup_baseline undo publication ready before next sample
+PASS: warmup_current exact initial authored state
+PASS: warmup_current all form fields accepted
+PASS: warmup_current actual UI request exactly matches intended terrain and kerb settings
+PASS: warmup_current real preview button succeeds
+PASS: warmup_current preview is read only
+PASS: warmup_current real native library version; no subclass fallback during timing
+PASS: warmup_current real apply creates one transaction
+PASS: warmup_current editor nodes picking bodies batches and later render ready
+PASS: warmup_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":737.572,"apply_profile":{},"apply_to_ready_ms":893.769,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"warmup_current","preview_callback_ms":374.075,"preview_draw_wait_ms":15.34,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.265,"last_commit_ms":0.572,"last_sync_ms":9.578,"loading_budget_scopes":0,"max_build_ms":17.812,"max_commit_ms":1.171,"pending_groups":0,"rebuild_count":8,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":9,"sync_profile_us":{"capture_us":161,"geometry_us":1,"material_us":8257},"work_budget_usec":2000},"draw_frame":59,"ok":true,"physics_frame":134,"wait_ms":156.125},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: warmup_current native undo restores exact fixture
+PASS: warmup_current undo publication ready before next sample
+PASS: AA_0_first exact initial authored state
+PASS: AA_0_first all form fields accepted
+PASS: AA_0_first actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_0_first real preview button succeeds
+PASS: AA_0_first preview is read only
+PASS: AA_0_first real native library version; no subclass fallback during timing
+PASS: AA_0_first real apply creates one transaction
+PASS: AA_0_first editor nodes picking bodies batches and later render ready
+PASS: AA_0_first complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":831.709,"apply_profile":{},"apply_to_ready_ms":989.827,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_0_first","preview_callback_ms":463.751,"preview_draw_wait_ms":4.775,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.215,"last_commit_ms":0.574,"last_sync_ms":10.176,"loading_budget_scopes":0,"max_build_ms":17.944,"max_commit_ms":1.171,"pending_groups":0,"rebuild_count":12,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":13,"sync_profile_us":{"capture_us":156,"geometry_us":3,"material_us":8854},"work_budget_usec":2000},"draw_frame":78,"ok":true,"physics_frame":175,"wait_ms":158.083},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_0_first native undo restores exact fixture
+PASS: AA_0_first undo publication ready before next sample
+PASS: AA_0_second exact initial authored state
+PASS: AA_0_second all form fields accepted
+PASS: AA_0_second actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_0_second real preview button succeeds
+PASS: AA_0_second preview is read only
+PASS: AA_0_second real native library version; no subclass fallback during timing
+PASS: AA_0_second real apply creates one transaction
+PASS: AA_0_second editor nodes picking bodies batches and later render ready
+PASS: AA_0_second complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":814.576,"apply_profile":{},"apply_to_ready_ms":951.335,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_0_second","preview_callback_ms":451.311,"preview_draw_wait_ms":4.722,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.376,"last_commit_ms":1.124,"last_sync_ms":7.55,"loading_budget_scopes":0,"max_build_ms":33.527,"max_commit_ms":1.229,"pending_groups":0,"rebuild_count":16,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":17,"sync_profile_us":{"capture_us":122,"geometry_us":1,"material_us":6621},"work_budget_usec":2000},"draw_frame":96,"ok":true,"physics_frame":214,"wait_ms":136.724},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_0_second native undo restores exact fixture
+PASS: AA_0_second undo publication ready before next sample
+PASS: AA_1_first exact initial authored state
+PASS: AA_1_first all form fields accepted
+PASS: AA_1_first actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_1_first real preview button succeeds
+PASS: AA_1_first preview is read only
+PASS: AA_1_first real native library version; no subclass fallback during timing
+PASS: AA_1_first real apply creates one transaction
+PASS: AA_1_first editor nodes picking bodies batches and later render ready
+PASS: AA_1_first complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":832.722,"apply_profile":{},"apply_to_ready_ms":985.846,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_1_first","preview_callback_ms":466.309,"preview_draw_wait_ms":4.615,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.291,"last_commit_ms":0.599,"last_sync_ms":9.328,"loading_budget_scopes":0,"max_build_ms":33.527,"max_commit_ms":1.229,"pending_groups":0,"rebuild_count":20,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":21,"sync_profile_us":{"capture_us":154,"geometry_us":2,"material_us":8041},"work_budget_usec":2000},"draw_frame":115,"ok":true,"physics_frame":254,"wait_ms":153.094},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_1_first native undo restores exact fixture
+PASS: AA_1_first undo publication ready before next sample
+PASS: AA_1_second exact initial authored state
+PASS: AA_1_second all form fields accepted
+PASS: AA_1_second actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_1_second real preview button succeeds
+PASS: AA_1_second preview is read only
+PASS: AA_1_second real native library version; no subclass fallback during timing
+PASS: AA_1_second real apply creates one transaction
+PASS: AA_1_second editor nodes picking bodies batches and later render ready
+PASS: AA_1_second complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":813.904,"apply_profile":{},"apply_to_ready_ms":966.954,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_1_second","preview_callback_ms":486.659,"preview_draw_wait_ms":4.971,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.253,"last_commit_ms":0.603,"last_sync_ms":9.708,"loading_budget_scopes":0,"max_build_ms":33.527,"max_commit_ms":1.229,"pending_groups":0,"rebuild_count":24,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":25,"sync_profile_us":{"capture_us":160,"geometry_us":3,"material_us":8341},"work_budget_usec":2000},"draw_frame":133,"ok":true,"physics_frame":293,"wait_ms":153.02},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_1_second native undo restores exact fixture
+PASS: AA_1_second undo publication ready before next sample
+PASS: AA_2_first exact initial authored state
+PASS: AA_2_first all form fields accepted
+PASS: AA_2_first actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_2_first real preview button succeeds
+PASS: AA_2_first preview is read only
+PASS: AA_2_first real native library version; no subclass fallback during timing
+PASS: AA_2_first real apply creates one transaction
+PASS: AA_2_first editor nodes picking bodies batches and later render ready
+PASS: AA_2_first complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":826.987,"apply_profile":{},"apply_to_ready_ms":955.037,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_2_first","preview_callback_ms":452.079,"preview_draw_wait_ms":5.084,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.686,"last_commit_ms":0.589,"last_sync_ms":7.681,"loading_budget_scopes":0,"max_build_ms":33.527,"max_commit_ms":1.229,"pending_groups":0,"rebuild_count":28,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":29,"sync_profile_us":{"capture_us":122,"geometry_us":2,"material_us":6730},"work_budget_usec":2000},"draw_frame":149,"ok":true,"physics_frame":331,"wait_ms":128.016},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_2_first native undo restores exact fixture
+PASS: AA_2_first undo publication ready before next sample
+PASS: AA_2_second exact initial authored state
+PASS: AA_2_second all form fields accepted
+PASS: AA_2_second actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_2_second real preview button succeeds
+PASS: AA_2_second preview is read only
+PASS: AA_2_second real native library version; no subclass fallback during timing
+PASS: AA_2_second real apply creates one transaction
+PASS: AA_2_second editor nodes picking bodies batches and later render ready
+PASS: AA_2_second complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":927.452,"apply_profile":{},"apply_to_ready_ms":1073.381,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_2_second","preview_callback_ms":452.145,"preview_draw_wait_ms":10.121,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":33.893,"last_commit_ms":1.248,"last_sync_ms":9.197,"loading_budget_scopes":0,"max_build_ms":33.893,"max_commit_ms":1.25,"pending_groups":0,"rebuild_count":32,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":33,"sync_profile_us":{"capture_us":164,"geometry_us":3,"material_us":8041},"work_budget_usec":2000},"draw_frame":167,"ok":true,"physics_frame":369,"wait_ms":145.893},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_2_second native undo restores exact fixture
+PASS: AA_2_second undo publication ready before next sample
+PASS: AA_3_first exact initial authored state
+PASS: AA_3_first all form fields accepted
+PASS: AA_3_first actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_3_first real preview button succeeds
+PASS: AA_3_first preview is read only
+PASS: AA_3_first real native library version; no subclass fallback during timing
+PASS: AA_3_first real apply creates one transaction
+PASS: AA_3_first editor nodes picking bodies batches and later render ready
+PASS: AA_3_first complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":863.009,"apply_profile":{},"apply_to_ready_ms":989.211,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_3_first","preview_callback_ms":506.858,"preview_draw_wait_ms":4.639,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.787,"last_commit_ms":0.582,"last_sync_ms":7.804,"loading_budget_scopes":0,"max_build_ms":33.893,"max_commit_ms":1.25,"pending_groups":0,"rebuild_count":36,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":37,"sync_profile_us":{"capture_us":141,"geometry_us":1,"material_us":6811},"work_budget_usec":2000},"draw_frame":184,"ok":true,"physics_frame":407,"wait_ms":126.164},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_3_first native undo restores exact fixture
+PASS: AA_3_first undo publication ready before next sample
+PASS: AA_3_second exact initial authored state
+PASS: AA_3_second all form fields accepted
+PASS: AA_3_second actual UI request exactly matches intended terrain and kerb settings
+PASS: AA_3_second real preview button succeeds
+PASS: AA_3_second preview is read only
+PASS: AA_3_second real native library version; no subclass fallback during timing
+PASS: AA_3_second real apply creates one transaction
+PASS: AA_3_second editor nodes picking bodies batches and later render ready
+PASS: AA_3_second complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":791.229,"apply_profile":{},"apply_to_ready_ms":911.413,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AA_3_second","preview_callback_ms":461.075,"preview_draw_wait_ms":4.56,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.29,"last_commit_ms":0.46,"last_sync_ms":7.977,"loading_budget_scopes":0,"max_build_ms":33.893,"max_commit_ms":1.25,"pending_groups":0,"rebuild_count":40,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":41,"sync_profile_us":{"capture_us":137,"geometry_us":1,"material_us":6864},"work_budget_usec":2000},"draw_frame":201,"ok":true,"physics_frame":444,"wait_ms":120.149},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AA_3_second native undo restores exact fixture
+PASS: AA_3_second undo publication ready before next sample
+PASS: AB_0_baseline exact initial authored state
+PASS: AB_0_baseline all form fields accepted
+PASS: AB_0_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_0_baseline real preview button succeeds
+PASS: AB_0_baseline preview is read only
+PASS: AB_0_baseline real native library version; no subclass fallback during timing
+PASS: AB_0_baseline real apply creates one transaction
+PASS: AB_0_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_0_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":966.554,"apply_profile":{},"apply_to_ready_ms":1114.942,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_0_baseline","preview_callback_ms":506.359,"preview_draw_wait_ms":5.72,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.12,"last_commit_ms":0.378,"last_sync_ms":13.473,"loading_budget_scopes":0,"max_build_ms":33.893,"max_commit_ms":1.25,"pending_groups":0,"rebuild_count":44,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":45,"sync_profile_us":{"capture_us":253,"geometry_us":2,"material_us":11735},"work_budget_usec":2000},"draw_frame":219,"ok":true,"physics_frame":483,"wait_ms":148.32},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_0_baseline native undo restores exact fixture
+PASS: AB_0_baseline undo publication ready before next sample
+PASS: AB_0_current exact initial authored state
+PASS: AB_0_current all form fields accepted
+PASS: AB_0_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_0_current real preview button succeeds
+PASS: AB_0_current preview is read only
+PASS: AB_0_current real native library version; no subclass fallback during timing
+PASS: AB_0_current real apply creates one transaction
+PASS: AB_0_current editor nodes picking bodies batches and later render ready
+PASS: AB_0_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":717.03,"apply_profile":{},"apply_to_ready_ms":873.293,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_0_current","preview_callback_ms":363.893,"preview_draw_wait_ms":5.378,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.641,"last_commit_ms":1.28,"last_sync_ms":9.145,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":48,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":49,"sync_profile_us":{"capture_us":150,"geometry_us":0,"material_us":8020},"work_budget_usec":2000},"draw_frame":237,"ok":true,"physics_frame":524,"wait_ms":156.188},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_0_current native undo restores exact fixture
+PASS: AB_0_current undo publication ready before next sample
+PASS: AB_1_current exact initial authored state
+PASS: AB_1_current all form fields accepted
+PASS: AB_1_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_1_current real preview button succeeds
+PASS: AB_1_current preview is read only
+PASS: AB_1_current real native library version; no subclass fallback during timing
+PASS: AB_1_current real apply creates one transaction
+PASS: AB_1_current editor nodes picking bodies batches and later render ready
+PASS: AB_1_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":713.389,"apply_profile":{},"apply_to_ready_ms":837.746,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_1_current","preview_callback_ms":372.381,"preview_draw_wait_ms":4.614,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.621,"last_commit_ms":1.29,"last_sync_ms":8.244,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":52,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":53,"sync_profile_us":{"capture_us":135,"geometry_us":1,"material_us":7253},"work_budget_usec":2000},"draw_frame":254,"ok":true,"physics_frame":563,"wait_ms":124.277},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_1_current native undo restores exact fixture
+PASS: AB_1_current undo publication ready before next sample
+PASS: AB_1_baseline exact initial authored state
+PASS: AB_1_baseline all form fields accepted
+PASS: AB_1_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_1_baseline real preview button succeeds
+PASS: AB_1_baseline preview is read only
+PASS: AB_1_baseline real native library version; no subclass fallback during timing
+PASS: AB_1_baseline real apply creates one transaction
+PASS: AB_1_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_1_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":863.292,"apply_profile":{},"apply_to_ready_ms":1001.475,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_1_baseline","preview_callback_ms":458.072,"preview_draw_wait_ms":4.701,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.503,"last_commit_ms":0.593,"last_sync_ms":14.157,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":56,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":57,"sync_profile_us":{"capture_us":229,"geometry_us":2,"material_us":12525},"work_budget_usec":2000},"draw_frame":272,"ok":true,"physics_frame":602,"wait_ms":138.147},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_1_baseline native undo restores exact fixture
+PASS: AB_1_baseline undo publication ready before next sample
+PASS: AB_2_baseline exact initial authored state
+PASS: AB_2_baseline all form fields accepted
+PASS: AB_2_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_2_baseline real preview button succeeds
+PASS: AB_2_baseline preview is read only
+PASS: AB_2_baseline real native library version; no subclass fallback during timing
+PASS: AB_2_baseline real apply creates one transaction
+PASS: AB_2_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_2_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":792.73,"apply_profile":{},"apply_to_ready_ms":957.588,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_2_baseline","preview_callback_ms":467.404,"preview_draw_wait_ms":4.812,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.625,"last_commit_ms":1.216,"last_sync_ms":10.042,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":60,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":61,"sync_profile_us":{"capture_us":155,"geometry_us":2,"material_us":8563},"work_budget_usec":2000},"draw_frame":291,"ok":true,"physics_frame":643,"wait_ms":164.826},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_2_baseline native undo restores exact fixture
+PASS: AB_2_baseline undo publication ready before next sample
+PASS: AB_2_current exact initial authored state
+PASS: AB_2_current all form fields accepted
+PASS: AB_2_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_2_current real preview button succeeds
+PASS: AB_2_current preview is read only
+PASS: AB_2_current real native library version; no subclass fallback during timing
+PASS: AB_2_current real apply creates one transaction
+PASS: AB_2_current editor nodes picking bodies batches and later render ready
+PASS: AB_2_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":713.102,"apply_profile":{},"apply_to_ready_ms":876.324,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_2_current","preview_callback_ms":364.039,"preview_draw_wait_ms":4.513,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.224,"last_commit_ms":0.992,"last_sync_ms":9.836,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":64,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":65,"sync_profile_us":{"capture_us":167,"geometry_us":1,"material_us":8348},"work_budget_usec":2000},"draw_frame":309,"ok":true,"physics_frame":682,"wait_ms":163.121},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_2_current native undo restores exact fixture
+PASS: AB_2_current undo publication ready before next sample
+PASS: AB_3_current exact initial authored state
+PASS: AB_3_current all form fields accepted
+PASS: AB_3_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_3_current real preview button succeeds
+PASS: AB_3_current preview is read only
+PASS: AB_3_current real native library version; no subclass fallback during timing
+PASS: AB_3_current real apply creates one transaction
+PASS: AB_3_current editor nodes picking bodies batches and later render ready
+PASS: AB_3_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":720.312,"apply_profile":{},"apply_to_ready_ms":840.163,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_3_current","preview_callback_ms":377.947,"preview_draw_wait_ms":4.618,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.636,"last_commit_ms":0.566,"last_sync_ms":7.795,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":68,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":69,"sync_profile_us":{"capture_us":127,"geometry_us":1,"material_us":6816},"work_budget_usec":2000},"draw_frame":326,"ok":true,"physics_frame":719,"wait_ms":119.818},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_3_current native undo restores exact fixture
+PASS: AB_3_current undo publication ready before next sample
+PASS: AB_3_baseline exact initial authored state
+PASS: AB_3_baseline all form fields accepted
+PASS: AB_3_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_3_baseline real preview button succeeds
+PASS: AB_3_baseline preview is read only
+PASS: AB_3_baseline real native library version; no subclass fallback during timing
+PASS: AB_3_baseline real apply creates one transaction
+PASS: AB_3_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_3_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":881.438,"apply_profile":{},"apply_to_ready_ms":1068.396,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_3_baseline","preview_callback_ms":447.706,"preview_draw_wait_ms":4.681,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.668,"last_commit_ms":0.58,"last_sync_ms":18.469,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":72,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":73,"sync_profile_us":{"capture_us":362,"geometry_us":5,"material_us":16190},"work_budget_usec":2000},"draw_frame":346,"ok":true,"physics_frame":760,"wait_ms":186.899},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_3_baseline native undo restores exact fixture
+PASS: AB_3_baseline undo publication ready before next sample
+PASS: AB_4_baseline exact initial authored state
+PASS: AB_4_baseline all form fields accepted
+PASS: AB_4_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_4_baseline real preview button succeeds
+PASS: AB_4_baseline preview is read only
+PASS: AB_4_baseline real native library version; no subclass fallback during timing
+PASS: AB_4_baseline real apply creates one transaction
+PASS: AB_4_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_4_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":820.142,"apply_profile":{},"apply_to_ready_ms":965.168,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_4_baseline","preview_callback_ms":446.987,"preview_draw_wait_ms":5.199,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.842,"last_commit_ms":0.639,"last_sync_ms":9.589,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":76,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":77,"sync_profile_us":{"capture_us":159,"geometry_us":0,"material_us":8272},"work_budget_usec":2000},"draw_frame":363,"ok":true,"physics_frame":798,"wait_ms":144.992},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_4_baseline native undo restores exact fixture
+PASS: AB_4_baseline undo publication ready before next sample
+PASS: AB_4_current exact initial authored state
+PASS: AB_4_current all form fields accepted
+PASS: AB_4_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_4_current real preview button succeeds
+PASS: AB_4_current preview is read only
+PASS: AB_4_current real native library version; no subclass fallback during timing
+PASS: AB_4_current real apply creates one transaction
+PASS: AB_4_current editor nodes picking bodies batches and later render ready
+PASS: AB_4_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":749.013,"apply_profile":{},"apply_to_ready_ms":905.733,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_4_current","preview_callback_ms":366.286,"preview_draw_wait_ms":5.089,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.898,"last_commit_ms":0.761,"last_sync_ms":9.288,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":80,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":81,"sync_profile_us":{"capture_us":143,"geometry_us":3,"material_us":7990},"work_budget_usec":2000},"draw_frame":381,"ok":true,"physics_frame":837,"wait_ms":156.684},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_4_current native undo restores exact fixture
+PASS: AB_4_current undo publication ready before next sample
+PASS: AB_5_current exact initial authored state
+PASS: AB_5_current all form fields accepted
+PASS: AB_5_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_5_current real preview button succeeds
+PASS: AB_5_current preview is read only
+PASS: AB_5_current real native library version; no subclass fallback during timing
+PASS: AB_5_current real apply creates one transaction
+PASS: AB_5_current editor nodes picking bodies batches and later render ready
+PASS: AB_5_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":711.14,"apply_profile":{},"apply_to_ready_ms":835.297,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_5_current","preview_callback_ms":362.9,"preview_draw_wait_ms":4.649,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.729,"last_commit_ms":0.595,"last_sync_ms":8.616,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":84,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":85,"sync_profile_us":{"capture_us":107,"geometry_us":2,"material_us":7747},"work_budget_usec":2000},"draw_frame":398,"ok":true,"physics_frame":875,"wait_ms":124.124},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_5_current native undo restores exact fixture
+PASS: AB_5_current undo publication ready before next sample
+PASS: AB_5_baseline exact initial authored state
+PASS: AB_5_baseline all form fields accepted
+PASS: AB_5_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_5_baseline real preview button succeeds
+PASS: AB_5_baseline preview is read only
+PASS: AB_5_baseline real native library version; no subclass fallback during timing
+PASS: AB_5_baseline real apply creates one transaction
+PASS: AB_5_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_5_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":825.478,"apply_profile":{},"apply_to_ready_ms":964.725,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_5_baseline","preview_callback_ms":460.093,"preview_draw_wait_ms":4.536,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":33.199,"last_commit_ms":1.206,"last_sync_ms":8.491,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.502,"pending_groups":0,"rebuild_count":88,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":89,"sync_profile_us":{"capture_us":149,"geometry_us":0,"material_us":7373},"work_budget_usec":2000},"draw_frame":415,"ok":true,"physics_frame":914,"wait_ms":139.177},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_5_baseline native undo restores exact fixture
+PASS: AB_5_baseline undo publication ready before next sample
+PASS: AB_6_baseline exact initial authored state
+PASS: AB_6_baseline all form fields accepted
+PASS: AB_6_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_6_baseline real preview button succeeds
+PASS: AB_6_baseline preview is read only
+PASS: AB_6_baseline real native library version; no subclass fallback during timing
+PASS: AB_6_baseline real apply creates one transaction
+PASS: AB_6_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_6_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":846.642,"apply_profile":{},"apply_to_ready_ms":985.834,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_6_baseline","preview_callback_ms":594.849,"preview_draw_wait_ms":7.512,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.321,"last_commit_ms":0.662,"last_sync_ms":8.3,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.542,"pending_groups":0,"rebuild_count":92,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":93,"sync_profile_us":{"capture_us":132,"geometry_us":1,"material_us":7284},"work_budget_usec":2000},"draw_frame":433,"ok":true,"physics_frame":953,"wait_ms":139.12},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_6_baseline native undo restores exact fixture
+PASS: AB_6_baseline undo publication ready before next sample
+PASS: AB_6_current exact initial authored state
+PASS: AB_6_current all form fields accepted
+PASS: AB_6_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_6_current real preview button succeeds
+PASS: AB_6_current preview is read only
+PASS: AB_6_current real native library version; no subclass fallback during timing
+PASS: AB_6_current real apply creates one transaction
+PASS: AB_6_current editor nodes picking bodies batches and later render ready
+PASS: AB_6_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":727.442,"apply_profile":{},"apply_to_ready_ms":887.741,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_6_current","preview_callback_ms":402.611,"preview_draw_wait_ms":5.778,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.536,"last_commit_ms":0.813,"last_sync_ms":9.431,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.542,"pending_groups":0,"rebuild_count":96,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":97,"sync_profile_us":{"capture_us":146,"geometry_us":4,"material_us":8069},"work_budget_usec":2000},"draw_frame":452,"ok":true,"physics_frame":994,"wait_ms":160.263},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_6_current native undo restores exact fixture
+PASS: AB_6_current undo publication ready before next sample
+PASS: AB_7_current exact initial authored state
+PASS: AB_7_current all form fields accepted
+PASS: AB_7_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_7_current real preview button succeeds
+PASS: AB_7_current preview is read only
+PASS: AB_7_current real native library version; no subclass fallback during timing
+PASS: AB_7_current real apply creates one transaction
+PASS: AB_7_current editor nodes picking bodies batches and later render ready
+PASS: AB_7_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":785.551,"apply_profile":{},"apply_to_ready_ms":941.689,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_7_current","preview_callback_ms":386.443,"preview_draw_wait_ms":10.381,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.247,"last_commit_ms":0.574,"last_sync_ms":9.605,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.542,"pending_groups":0,"rebuild_count":100,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":101,"sync_profile_us":{"capture_us":169,"geometry_us":3,"material_us":8221},"work_budget_usec":2000},"draw_frame":471,"ok":true,"physics_frame":1034,"wait_ms":156.104},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_7_current native undo restores exact fixture
+PASS: AB_7_current undo publication ready before next sample
+PASS: AB_7_baseline exact initial authored state
+PASS: AB_7_baseline all form fields accepted
+PASS: AB_7_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_7_baseline real preview button succeeds
+PASS: AB_7_baseline preview is read only
+PASS: AB_7_baseline real native library version; no subclass fallback during timing
+PASS: AB_7_baseline real apply creates one transaction
+PASS: AB_7_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_7_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":814.068,"apply_profile":{},"apply_to_ready_ms":940.301,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_7_baseline","preview_callback_ms":501.25,"preview_draw_wait_ms":4.747,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.728,"last_commit_ms":0.589,"last_sync_ms":8.358,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.542,"pending_groups":0,"rebuild_count":104,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":105,"sync_profile_us":{"capture_us":147,"geometry_us":1,"material_us":7341},"work_budget_usec":2000},"draw_frame":487,"ok":true,"physics_frame":1071,"wait_ms":126.198},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_7_baseline native undo restores exact fixture
+PASS: AB_7_baseline undo publication ready before next sample
+PASS: AB_8_baseline exact initial authored state
+PASS: AB_8_baseline all form fields accepted
+PASS: AB_8_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_8_baseline real preview button succeeds
+PASS: AB_8_baseline preview is read only
+PASS: AB_8_baseline real native library version; no subclass fallback during timing
+PASS: AB_8_baseline real apply creates one transaction
+PASS: AB_8_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_8_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":823.55,"apply_profile":{},"apply_to_ready_ms":950.657,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_8_baseline","preview_callback_ms":451.845,"preview_draw_wait_ms":5.045,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.696,"last_commit_ms":0.582,"last_sync_ms":7.73,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.542,"pending_groups":0,"rebuild_count":108,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":109,"sync_profile_us":{"capture_us":129,"geometry_us":1,"material_us":6768},"work_budget_usec":2000},"draw_frame":503,"ok":true,"physics_frame":1109,"wait_ms":127.032},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_8_baseline native undo restores exact fixture
+PASS: AB_8_baseline undo publication ready before next sample
+PASS: AB_8_current exact initial authored state
+PASS: AB_8_current all form fields accepted
+PASS: AB_8_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_8_current real preview button succeeds
+PASS: AB_8_current preview is read only
+PASS: AB_8_current real native library version; no subclass fallback during timing
+PASS: AB_8_current real apply creates one transaction
+PASS: AB_8_current editor nodes picking bodies batches and later render ready
+PASS: AB_8_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":748.043,"apply_profile":{},"apply_to_ready_ms":894.726,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_8_current","preview_callback_ms":388.283,"preview_draw_wait_ms":5.194,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.581,"last_commit_ms":0.408,"last_sync_ms":8.691,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":112,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":113,"sync_profile_us":{"capture_us":155,"geometry_us":1,"material_us":7509},"work_budget_usec":2000},"draw_frame":521,"ok":true,"physics_frame":1147,"wait_ms":146.648},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_8_current native undo restores exact fixture
+PASS: AB_8_current undo publication ready before next sample
+PASS: AB_9_current exact initial authored state
+PASS: AB_9_current all form fields accepted
+PASS: AB_9_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_9_current real preview button succeeds
+PASS: AB_9_current preview is read only
+PASS: AB_9_current real native library version; no subclass fallback during timing
+PASS: AB_9_current real apply creates one transaction
+PASS: AB_9_current editor nodes picking bodies batches and later render ready
+PASS: AB_9_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":774.376,"apply_profile":{},"apply_to_ready_ms":912.541,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_9_current","preview_callback_ms":389.771,"preview_draw_wait_ms":10.868,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.744,"last_commit_ms":0.669,"last_sync_ms":10.763,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":116,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":117,"sync_profile_us":{"capture_us":180,"geometry_us":2,"material_us":9260},"work_budget_usec":2000},"draw_frame":539,"ok":true,"physics_frame":1186,"wait_ms":138.114},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_9_current native undo restores exact fixture
+PASS: AB_9_current undo publication ready before next sample
+PASS: AB_9_baseline exact initial authored state
+PASS: AB_9_baseline all form fields accepted
+PASS: AB_9_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_9_baseline real preview button succeeds
+PASS: AB_9_baseline preview is read only
+PASS: AB_9_baseline real native library version; no subclass fallback during timing
+PASS: AB_9_baseline real apply creates one transaction
+PASS: AB_9_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_9_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":932.872,"apply_profile":{},"apply_to_ready_ms":1091.279,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_9_baseline","preview_callback_ms":493.653,"preview_draw_wait_ms":10.343,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.471,"last_commit_ms":0.614,"last_sync_ms":14.399,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":120,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":121,"sync_profile_us":{"capture_us":230,"geometry_us":1,"material_us":12603},"work_budget_usec":2000},"draw_frame":557,"ok":true,"physics_frame":1226,"wait_ms":158.361},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_9_baseline native undo restores exact fixture
+PASS: AB_9_baseline undo publication ready before next sample
+PASS: AB_10_baseline exact initial authored state
+PASS: AB_10_baseline all form fields accepted
+PASS: AB_10_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_10_baseline real preview button succeeds
+PASS: AB_10_baseline preview is read only
+PASS: AB_10_baseline real native library version; no subclass fallback during timing
+PASS: AB_10_baseline real apply creates one transaction
+PASS: AB_10_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_10_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":1024.018,"apply_profile":{},"apply_to_ready_ms":1150.106,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_10_baseline","preview_callback_ms":594.92,"preview_draw_wait_ms":5.325,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.46,"last_commit_ms":0.676,"last_sync_ms":9.138,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":124,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":125,"sync_profile_us":{"capture_us":145,"geometry_us":2,"material_us":7968},"work_budget_usec":2000},"draw_frame":574,"ok":true,"physics_frame":1264,"wait_ms":126.053},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_10_baseline native undo restores exact fixture
+PASS: AB_10_baseline undo publication ready before next sample
+PASS: AB_10_current exact initial authored state
+PASS: AB_10_current all form fields accepted
+PASS: AB_10_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_10_current real preview button succeeds
+PASS: AB_10_current preview is read only
+PASS: AB_10_current real native library version; no subclass fallback during timing
+PASS: AB_10_current real apply creates one transaction
+PASS: AB_10_current editor nodes picking bodies batches and later render ready
+PASS: AB_10_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":810.618,"apply_profile":{},"apply_to_ready_ms":932.264,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_10_current","preview_callback_ms":420.999,"preview_draw_wait_ms":6.033,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.679,"last_commit_ms":0.577,"last_sync_ms":7.78,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":128,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":129,"sync_profile_us":{"capture_us":127,"geometry_us":1,"material_us":6809},"work_budget_usec":2000},"draw_frame":590,"ok":true,"physics_frame":1301,"wait_ms":121.606},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_10_current native undo restores exact fixture
+PASS: AB_10_current undo publication ready before next sample
+PASS: AB_11_current exact initial authored state
+PASS: AB_11_current all form fields accepted
+PASS: AB_11_current actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_11_current real preview button succeeds
+PASS: AB_11_current preview is read only
+PASS: AB_11_current real native library version; no subclass fallback during timing
+PASS: AB_11_current real apply creates one transaction
+PASS: AB_11_current editor nodes picking bodies batches and later render ready
+PASS: AB_11_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":804.27,"apply_profile":{},"apply_to_ready_ms":930.541,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_11_current","preview_callback_ms":425.047,"preview_draw_wait_ms":5.692,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.65,"last_commit_ms":0.601,"last_sync_ms":8.541,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":132,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":133,"sync_profile_us":{"capture_us":142,"geometry_us":1,"material_us":7449},"work_budget_usec":2000},"draw_frame":607,"ok":true,"physics_frame":1339,"wait_ms":126.237},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: AB_11_current native undo restores exact fixture
+PASS: AB_11_current undo publication ready before next sample
+PASS: AB_11_baseline exact initial authored state
+PASS: AB_11_baseline all form fields accepted
+PASS: AB_11_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: AB_11_baseline real preview button succeeds
+PASS: AB_11_baseline preview is read only
+PASS: AB_11_baseline real native library version; no subclass fallback during timing
+PASS: AB_11_baseline real apply creates one transaction
+PASS: AB_11_baseline editor nodes picking bodies batches and later render ready
+PASS: AB_11_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":940.865,"apply_profile":{},"apply_to_ready_ms":1098.842,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"AB_11_baseline","preview_callback_ms":516.849,"preview_draw_wait_ms":5.937,"preview_profile":{},"profile_enabled":false,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":17.768,"last_commit_ms":1.11,"last_sync_ms":10.063,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":136,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":137,"sync_profile_us":{"capture_us":165,"geometry_us":3,"material_us":8683},"work_budget_usec":2000},"draw_frame":625,"ok":true,"physics_frame":1379,"wait_ms":157.918},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: AB_11_baseline native undo restores exact fixture
+PASS: AB_11_baseline undo publication ready before next sample
+PASS: ON_baseline exact initial authored state
+PASS: ON_baseline all form fields accepted
+PASS: ON_baseline actual UI request exactly matches intended terrain and kerb settings
+PASS: ON_baseline real preview button succeeds
+PASS: ON_baseline preview is read only
+PASS: ON_baseline real native library version; no subclass fallback during timing
+PASS: ON_baseline real apply creates one transaction
+PASS: ON_baseline editor nodes picking bodies batches and later render ready
+PASS: ON_baseline complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":962.14,"apply_profile":{"counts":{"obstacle_records_expanded":0,"obstacle_shapes":0,"potential_shape_pairs":0,"road_records":8,"source_records":1,"terrain_records_skipped":1},"ok":true,"stages_ms":{"bridge_bindings":0.019,"collision":6.636,"finalize":1.091,"intersection_split":0.551,"material_lookup":201.477,"obstacle_shapes":0.078,"record_preservation":181.207,"road_build":5.452,"source_validation":0.095,"terrain_fit":134.616},"total_ms":531.228},"apply_to_ready_ms":1118.742,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"ON_baseline","preview_callback_ms":582.995,"preview_draw_wait_ms":8.434,"preview_profile":{"counts":{"obstacle_records_expanded":0,"obstacle_shapes":0,"potential_shape_pairs":0,"road_records":8,"source_records":1,"terrain_records_skipped":1},"ok":true,"stages_ms":{"bridge_bindings":0.029,"collision":6.243,"finalize":1.093,"intersection_split":0.886,"material_lookup":190.453,"obstacle_shapes":0.08,"record_preservation":191.977,"road_build":10.067,"source_validation":0.13,"terrain_fit":179.353},"total_ms":580.319},"profile_enabled":true,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":16.483,"last_commit_ms":0.591,"last_sync_ms":9.489,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":140,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":141,"sync_profile_us":{"capture_us":162,"geometry_us":2,"material_us":8092},"work_budget_usec":2000},"draw_frame":643,"ok":true,"physics_frame":1419,"wait_ms":156.558},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"baseline"}
+PASS: HTTP undo succeeds
+PASS: ON_baseline native undo restores exact fixture
+PASS: ON_baseline undo publication ready before next sample
+PASS: ON_current exact initial authored state
+PASS: ON_current all form fields accepted
+PASS: ON_current actual UI request exactly matches intended terrain and kerb settings
+PASS: ON_current real preview button succeeds
+PASS: ON_current preview is read only
+PASS: ON_current real native library version; no subclass fallback during timing
+PASS: ON_current real apply creates one transaction
+PASS: ON_current editor nodes picking bodies batches and later render ready
+PASS: ON_current complete committed author bytes equal
+MATERIAL_LOOKUP_UI_SAMPLE {"apply_callback_ms":808.529,"apply_profile":{"counts":{"obstacle_records_expanded":0,"obstacle_shapes":0,"potential_shape_pairs":0,"road_records":8,"source_records":1,"terrain_records_skipped":1},"ok":true,"stages_ms":{"bridge_bindings":0.029,"collision":5.988,"finalize":1.319,"intersection_split":0.973,"material_lookup":164.02,"obstacle_shapes":0.061,"record_preservation":73.511,"road_build":11.486,"source_validation":0.142,"terrain_fit":188.056},"total_ms":445.593},"apply_to_ready_ms":932.393,"author_sha256":"1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8","label":"ON_current","preview_callback_ms":385.527,"preview_draw_wait_ms":6.778,"preview_profile":{"counts":{"obstacle_records_expanded":0,"obstacle_shapes":0,"potential_shape_pairs":0,"road_records":8,"source_records":1,"terrain_records_skipped":1},"ok":true,"stages_ms":{"bridge_bindings":0.011,"collision":7.245,"finalize":1.043,"intersection_split":0.318,"material_lookup":156.109,"obstacle_shapes":0.06,"record_preservation":71.5,"road_build":3.629,"source_validation":0.056,"terrain_fit":143.755},"total_ms":383.732},"profile_enabled":true,"publication":{"batch_stats":{"base_work_budget_usec":2000,"building_mesh_hits":0,"enabled":true,"groups":4,"instanced_groups":0,"last_build_ms":15.56,"last_commit_ms":0.564,"last_sync_ms":9.216,"loading_budget_scopes":0,"max_build_ms":34.436,"max_commit_ms":1.546,"pending_groups":0,"rebuild_count":144,"release_groups_visited":0,"render_surfaces":12,"render_vertices":18792,"source_objects":8,"source_surfaces":24,"source_vertices":18792,"sync_count":145,"sync_profile_us":{"capture_us":162,"geometry_us":1,"material_us":8092},"work_budget_usec":2000},"draw_frame":660,"ok":true,"physics_frame":1457,"wait_ms":123.799},"request":{"clearance":3.0,"follow_terrain":true,"kerb_enabled":true,"kerb_height":0.055,"kerb_material_id":"pack:default:paving/automatic_limestone_kerb/material","kerb_width":0.28,"lift":0.025,"material_id":"pack:default:paving/historic_cobble/material","thickness":0.2},"version":"current"}
+PASS: HTTP undo succeeds
+PASS: ON_current native undo restores exact fixture
+PASS: ON_current undo publication ready before next sample
+PASS: HTTP preview_road_surface succeeds
+PASS: HTTP preview leaves author and undo state intact
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP generate_road_surface succeeds
+PASS: real HTTP and UI all fields exactly equal allowing only JSON numeric types and key order
+PASS: HTTP undo succeeds
+PASS: HTTP undo restores original
+PASS: HTTP redo succeeds
+PASS: HTTP redo restores exact road record and metadata bytes
+PASS: all editor derived groups finish before batch assertions
+PASS: actual editor batching reduces surfaces
+PASS: batched roads retain independent authoring nodes and editor picking identities
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save reopen preserves terrain road kerb material and IDs
+PASS: HTTP import_surface_material succeeds
+PASS: HTTP preview_road_surface succeeds
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP preview_road_surface succeeds
+PASS: same descriptor ID changed between preview and apply invalidates token
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP preview_road_surface succeeds
+PASS: restored descriptor is reread without persistent catalog state
+PASS: HTTP preview_road_surface succeeds
+PASS: HTTP generate_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: generate_road_surface
+PASS: HTTP preview_road_surface rejects invalid operation
+PASS: invalid operation preserves exact document/history/selection/dirty: preview_road_surface
+ROAD_PREPARE_DISTRICT_REPORT D:/code/rmmo_runtime/review_artifacts/road_record_prepare_completed_20261017/ui.json
+ROAD_PREPARE_DISTRICT_FINISHED checks=469 failures=0

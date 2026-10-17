@@ -1,0 +1,37 @@
+{
+  "baseline_commit": "b04623f0eb7ac9efefefb23b68c8a964ee55f977",
+  "slice": "T1 operation-local default road material validation reuse, selected after current W0-E remeasurement",
+  "hypothesis": "avoid repeating identical material path/definition checks across 8 prepared road records; keep each record validation, missing dependencies, and exact outputs",
+  "cpu": {
+    "cases": [
+      "dual PBR",
+      "single PBR",
+      "plain control",
+      "same local edit plus far terrain/building",
+      "existing generated roads"
+    ],
+    "warmups_per_version": 2,
+    "aa_pairs": 4,
+    "ab_pairs": 12,
+    "order": "alternate AB / BA",
+    "primary": "whole prepare OFF median; every result byte and input state checked outside timing"
+  },
+  "ui": {
+    "warmups_per_version": 1,
+    "aa_pairs": 4,
+    "ab_pairs": 12,
+    "primary": "actual preview callback and apply callback to editor nodes/picking/batches/two physics frames/later rendered frame",
+    "regression_tolerance": "10 percent or paired A/A absolute variation, preserve raw slower samples"
+  },
+  "diagnostics": "ON stages and independent work-count copies are attribution only, excluded from OFF medians",
+  "environment": "serial tests on inactive private desktop; user and other session load not controlled; no OS cold, tail, GPU, FPS, RSS or statistical significance claim",
+  "correctness": [
+    "whole-output differential",
+    "external descriptor/path changes visible per prepare",
+    "illegal no-side-effect HTTP",
+    "one undo/redo",
+    "native save reopen",
+    "real shared batching and unchanged geometry"
+  ],
+  "resumption": "Re-measure after all agreed features shipped; baseline road source unchanged from paused experiment; select a hotspot only after fresh UI and CPU attribution."
+}

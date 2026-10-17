@@ -1,0 +1,140 @@
+{
+	"checks": [
+		{
+			"label": "actual dual PBR preparation succeeds",
+			"ok": true
+		},
+		{
+			"label": "instrumented baseline complete bytes equal, call 0",
+			"ok": true
+		},
+		{
+			"label": "instrumented baseline complete bytes equal, call 1",
+			"ok": true
+		},
+		{
+			"label": "instrumented current complete bytes equal, call 0",
+			"ok": true
+		},
+		{
+			"label": "instrumented current complete bytes equal, call 1",
+			"ok": true
+		},
+		{
+			"label": "actual path-validation work decreases",
+			"ok": true
+		},
+		{
+			"label": "next prepare repeats fresh required validation",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: []",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: []",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"roughness\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"roughness\"]",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"color\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"color\"]",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"normal_strength\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"normal_strength\"]",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"texture_path\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"texture_path\"]",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"normal_format\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"normal_format\"]",
+			"ok": true
+		},
+		{
+			"label": "shared cache keeps exact validation and author result: [\"tile_size\"]",
+			"ok": true
+		},
+		{
+			"label": "invalid definition cannot reuse an earlier material proof: [\"tile_size\"]",
+			"ok": true
+		},
+		{
+			"label": "cached material cannot bypass independent record constraints",
+			"ok": true
+		},
+		{
+			"label": "existing temporary dependency validates",
+			"ok": true
+		},
+		{
+			"label": "even reused material proof cannot hide a missing texture on another record",
+			"ok": true
+		},
+		{
+			"label": "standalone next operation sees restored dependency",
+			"ok": true
+		}
+	],
+	"counts": [
+		{
+			"cache_hits": 0,
+			"call": 0,
+			"path_checks": 59,
+			"road_records": 8,
+			"version": "baseline",
+			"visits": 17
+		},
+		{
+			"cache_hits": 0,
+			"call": 1,
+			"path_checks": 59,
+			"road_records": 8,
+			"version": "baseline",
+			"visits": 17
+		},
+		{
+			"cache_hits": 14,
+			"call": 0,
+			"path_checks": 10,
+			"road_records": 8,
+			"version": "current",
+			"visits": 17
+		},
+		{
+			"cache_hits": 14,
+			"call": 1,
+			"path_checks": 10,
+			"road_records": 8,
+			"version": "current",
+			"visits": 17
+		}
+	],
+	"failures": 0,
+	"scope": "counter copies outside timing; exact complete output; material proofs local to one prepare; per-record structural and dependency checks retained"
+}

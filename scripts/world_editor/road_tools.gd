@@ -180,6 +180,10 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	_profile_next("record_preservation")
 	var manifest:={"version":1,"settings":settings,"graph_token":Data.token(data.roads),"parts":[]}
 	var seen:={}; var added:=0; var updated:=0; var unchanged:=0
+	# Definitions are immutable for this synchronous prepare. Reuse the native
+	# validation cache across its records only; preview/apply always start fresh.
+	# Per-record constraints and missing-file checks still run on every record.
+	var material_checks:Dictionary={}
 	for record_index in result.records.size():
 		var record:Dictionary=result.records[record_index]
 		if not editor._authoring.Settings.contains(record,editor._authoring.settings): return Data.fail("道路铺面落在当前隔离楼层外")
@@ -188,7 +192,7 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 		if not by_key.has(key) and editor._doc.has_uuid(record.uuid): return Data.fail("道路构件 ID 已被其他物件占用")
 		if record.road_mesh.has("kerbs"):record.road_kerb_material=kerb_material.duplicate(true)
 		if not material.is_empty():
-			var painted:=paint_default(record,material)
+			var painted:=paint_default(record,material,material_checks)
 			if not painted.ok: return painted
 		var automatic:=Data.token(record.get("surface_paint",[]))
 		if by_key.has(key):
@@ -268,7 +272,7 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	result.plan_token=JSON.stringify([settings,data.roads,editor._doc.records,old,material,kerb_material]).sha256_text()
 	return result
 
-func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:
+func paint_default(record: Dictionary, material: Dictionary, material_checks:Variant=null) -> Dictionary:
 	# Preparation needs author face IDs, not a renderable mesh or materials.
 	# Keep the exact generator arrays for every slot and all paint validation.
 	var cpu:=preload("res://scripts/world3d/ground_cpu_mesh.gd").new()
@@ -281,7 +285,7 @@ func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:
 	for face in surface.faces:
 		entries.append({"mesh":".","surface":0,"face":face,"geometry":surface.signature,"material":material.duplicate(true),"mapping":"uv","scale":[1.0/tile[0],1.0/tile[1]],"offset":[0,0],"rotation":0.0})
 	record.surface_paint=entries
-	return {"ok":true} if Paint.valid(record) and Paint.missing([record]).is_empty() else Data.fail("路面材质无效或贴图依赖缺失")
+	return {"ok":true} if Paint.valid(record,false,"",material_checks) and Paint.missing([record]).is_empty() else Data.fail("路面材质无效或贴图依赖缺失")
 
 func summary(args: Dictionary) -> Dictionary:
 	var result:=prepare(args)
