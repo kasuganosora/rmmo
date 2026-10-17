@@ -1,0 +1,13 @@
+{
+  "verified_at_utc": "2026-10-17T03:11:35.071886+00:00",
+  "remote": "origin",
+  "operation": "git push --atomic origin HEAD:refs/heads/codex/editor-reliability HEAD:refs/heads/main",
+  "published_feature_and_regression_commit": "0d68fb7fa9bd1f94ab12a13731c4ba11045e8d84",
+  "verified_remote_refs": {
+    "refs/heads/codex/editor-reliability": "0d68fb7fa9bd1f94ab12a13731c4ba11045e8d84",
+    "refs/heads/main": "0d68fb7fa9bd1f94ab12a13731c4ba11045e8d84"
+  },
+  "scene_checkout": "D:/code/rmmo",
+  "scene_checkout_head": "8ad5e103085199dedfdec838a82a0fb7f27da7fb",
+  "scope": "Fast-forward remote main and feature branch. No local main checkout/reset/merge, no scene checkout/map edits. A following documentation-only commit records this verified publication."
+}
