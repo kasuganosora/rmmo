@@ -1,0 +1,1167 @@
+{
+  "asset_id": "D:/code/rmmo_runtime/__residential_site_8664_12829358/assets/prefabs/ecc0228a9e40532009715cd6200fa5e1cd27d3b443c40cb3c519fd8eb32a044d.json",
+  "checks": [
+    {
+      "label": "prior mixed bridge fixture is verified read-only",
+      "ok": true
+    },
+    {
+      "label": "validated frozen house read without regeneration",
+      "ok": true
+    },
+    {
+      "label": "native prefab copy and resources confined to new pack",
+      "ok": true
+    },
+    {
+      "label": "temporary hill and mixed bridge baseline saved",
+      "ok": true
+    },
+    {
+      "label": "independent 3D loopback HTTP starts",
+      "ok": true
+    },
+    {
+      "label": "all three site tools discovered without retired 2D tools",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_road_surface succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_placement rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_placement",
+      "ok": true
+    },
+    {
+      "label": "ungraded hill fails continuous residential support, not an unrelated precondition",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "terrain, house and road preview leaves live map/history/selection/dirty unchanged",
+      "ok": true
+    },
+    {
+      "label": "complete combined candidate passes native terrain, house, road and bridge checks",
+      "ok": true
+    },
+    {
+      "label": "preview exposes real cut/fill and the changed terrain",
+      "ok": true
+    },
+    {
+      "label": "final combined terrain retains full-width endpoint ramp proof",
+      "ok": true
+    },
+    {
+      "label": "preview contains complete house and actual access road changes",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "identical source and request reuse the same candidate",
+      "ok": true
+    },
+    {
+      "label": "HTTP discard_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "discard keeps all live state unchanged",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: candidate_missing",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "final-state obstruction was a real temporary object",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "34 terrain steps prepare despite full 32-entry live history",
+      "ok": true
+    },
+    {
+      "label": "34 private steps do not consume live history",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "single undo restores the outer start after 34 internal steps",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: candidate_invalid",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_object_properties succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: candidate_missing",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_site",
+      "ok": true
+    },
+    {
+      "label": "failed candidate never rolls back a subsequent edit",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_object_properties succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: base_changed",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_site",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: source_changed",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_residential_site",
+      "ok": true
+    },
+    {
+      "label": "copied house source restored exactly; original asset never edited",
+      "ok": true
+    },
+    {
+      "label": "UI selects the same house and ground road",
+      "ok": true
+    },
+    {
+      "label": "actual UI emits the same plot and endpoint ramp request as MCP",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "real UI preview agrees with HTTP final geometry and changes",
+      "ok": true
+    },
+    {
+      "label": "UI combined preview is private",
+      "ok": true
+    },
+    {
+      "label": "UI shows combined geometry, earthwork and explicit change list",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_editor_camera succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI screenshot uses actual lossy WebP quality 90",
+      "ok": true
+    },
+    {
+      "label": "editing a terrain field invalidates the whole candidate",
+      "ok": true
+    },
+    {
+      "label": "actual UI applies the full site once",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "single HTTP undo restores UI terrain, house and road transaction",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_residential_site succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP commits exactly one outer history entry",
+      "ok": true
+    },
+    {
+      "label": "publication has pending derived groups with independent source geometry",
+      "ok": true
+    },
+    {
+      "label": "empty derived worker result keeps real independent source meshes",
+      "ok": true
+    },
+    {
+      "label": "derived failure never rolls back accepted authoring or history",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_object_properties succeeds",
+      "ok": true
+    },
+    {
+      "label": "later edit survives after failed derived publication",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: far_ground",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: fixture_bridge",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: obj_1",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_water_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_water_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_water_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_water_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_end_0",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_end_1",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: pavement_bf2adbf77bde4c66c808",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: pavement_65ed056dbc0335a35ab7",
+      "ok": true
+    },
+    {
+      "label": "out-of-scope record preserved: pavement_a3f5a158b3909322d69f",
+      "ok": true
+    },
+    {
+      "label": "grading and access retain bridge and waterway authored identity",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "undo restores complete site baseline",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "redo restores exact complete site identities",
+      "ok": true
+    },
+    {
+      "label": "native shared batching completes and reduces surfaces",
+      "ok": true
+    },
+    {
+      "label": "house components retain independent identities after publication",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "complete site survives native save/reopen within serialization precision",
+      "ok": true
+    },
+    {
+      "label": "reopened site passes full native validation",
+      "ok": true
+    },
+    {
+      "label": "source mixed-bridge fixture stays byte-identical",
+      "ok": true
+    }
+  ],
+  "directory": "D:/code/rmmo_runtime/__residential_site_8664_12829358",
+  "editor_batch_stats": {
+    "base_work_budget_usec": 2000,
+    "building_mesh_hits": 0,
+    "enabled": true,
+    "groups": 1,
+    "instanced_groups": 0,
+    "last_build_ms": 1.936,
+    "last_commit_ms": 0.278,
+    "last_sync_ms": 7.801,
+    "loading_budget_scopes": 0,
+    "max_build_ms": 101.618,
+    "max_commit_ms": 1.453,
+    "pending_groups": 0,
+    "rebuild_count": 6,
+    "release_groups_visited": 3,
+    "render_surfaces": 2,
+    "render_vertices": 12852,
+    "source_objects": 4,
+    "source_surfaces": 16,
+    "source_vertices": 12852,
+    "sync_count": 30,
+    "sync_profile_us": {
+      "capture_us": 103,
+      "geometry_us": 0,
+      "material_us": 6565
+    },
+    "work_budget_usec": 2000
+  },
+  "elapsed_ms": 58822,
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/__residential_site_8664_12829358/maps/test/map.gltf",
+  "graphical": true,
+  "kerb_material": {
+    "id": "pack:default:paving/automatic_limestone_kerb/material",
+    "source": "native_default"
+  },
+  "kerbs_mode": false,
+  "map_sha256": "82fc2377a65e9b9163eae8f9fc0fe8330e2f478c3e7e27329625e36af66865a7",
+  "persistence": {
+    "differences": [],
+    "max_numeric_delta": 0.000000000000000444089209850063
+  },
+  "plan": {
+    "access": {
+      "connector_ground": {
+        "area": 13.6679994712472,
+        "area_tolerance": 0.0000001,
+        "conservative": false,
+        "counts": {
+          "cells_scanned": 4096.0,
+          "cells_visited": 108.0,
+          "overlaps": 88.0,
+          "solid_skipped": 3988.0,
+          "terrain_candidates": 1.0,
+          "triangle_clips": 90.0
+        },
+        "covered_area": 13.6679994712472,
+        "exact": true,
+        "grade_witness": {
+          "cell": [
+            15.0,
+            17.0
+          ],
+          "grade": 0.0312512159347534,
+          "position": [
+            -4.11550073996251,
+            0.162258237356884,
+            -10.8077503699813
+          ],
+          "terrain_id": "residential_ground",
+          "triangle_index": 0.0
+        },
+        "height_range": [
+          0.00000020023435354,
+          0.26695328521746
+        ],
+        "max_grade": 0.0312512159347534,
+        "max_seam_step": 0.0,
+        "ok": true,
+        "scope": "continuous_heightfield_region_only",
+        "seam_witness": {},
+        "stage": "residential_support",
+        "terrain_ids": [
+          "residential_ground"
+        ]
+      },
+      "corridor_width": 0.8,
+      "door_id": "obj_162",
+      "fixture_id": "f0/north/entrance/door",
+      "intervals": 13.0,
+      "max_grade": 0.0639280319213867,
+      "max_seam_step": 0.0,
+      "max_step": 0.15,
+      "ok": true,
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "threshold": [
+        -3.31550097465515,
+        0.489540100097656,
+        -5.25750017166138
+      ]
+    },
+    "adjustment": [
+      0.0,
+      0.171540081501007,
+      0.0
+    ],
+    "base_version": "3f5dd390d6ed70f35a58bffbef501c2fa700479541f16a561783c6a5b56efc6c",
+    "bounds": {
+      "position": [
+        -24.0,
+        -8.0,
+        -22.0
+      ],
+      "size": [
+        80.0,
+        15.6659812927246,
+        40.0
+      ]
+    },
+    "bridges": {
+      "binding_count": 2.0,
+      "bridgehead_node_ids": [
+        "main_b",
+        "bridge_b",
+        "bridge_link_3adb073b0aed4781_0",
+        "bridge_link_3adb073b0aed4781_1"
+      ],
+      "preserved_ids": [
+        "fixture_bridge",
+        "obj_1",
+        "river_5f5a8ed8f139be6d_water_4_0_0",
+        "river_5f5a8ed8f139be6d_water_4_m1_0",
+        "river_5f5a8ed8f139be6d_water_5_0_0",
+        "river_5f5a8ed8f139be6d_water_5_m1_0",
+        "river_5f5a8ed8f139be6d_bed_4_0_0",
+        "river_5f5a8ed8f139be6d_bed_4_m1_0",
+        "river_5f5a8ed8f139be6d_bed_5_0_0",
+        "river_5f5a8ed8f139be6d_bed_5_m1_0",
+        "river_5f5a8ed8f139be6d_bank_4_0_0",
+        "river_5f5a8ed8f139be6d_bank_4_m1_0",
+        "river_5f5a8ed8f139be6d_bank_5_0_0",
+        "river_5f5a8ed8f139be6d_bank_5_m1_0",
+        "river_5f5a8ed8f139be6d_abutment_4_0_0",
+        "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+        "river_5f5a8ed8f139be6d_abutment_5_0_0",
+        "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+        "river_5f5a8ed8f139be6d_end_0",
+        "river_5f5a8ed8f139be6d_end_1",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+      ],
+      "waterway_count": 1.0
+    },
+    "building_id": "building_29b854f9ddab89cacad7",
+    "building_ids": [
+      "building_29b854f9ddab89cacad7"
+    ],
+    "changed_ids": [
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173",
+      "residential_ground",
+      "pavement_993600ba1e5c0bde643e",
+      "pavement_9f4cb035258a4eec34b9"
+    ],
+    "changes": {
+      "added": [
+        "obj_140",
+        "obj_141",
+        "obj_142",
+        "obj_143",
+        "obj_144",
+        "obj_145",
+        "obj_146",
+        "obj_147",
+        "obj_148",
+        "obj_149",
+        "obj_150",
+        "obj_151",
+        "obj_152",
+        "obj_153",
+        "obj_154",
+        "obj_155",
+        "obj_156",
+        "obj_157",
+        "obj_158",
+        "obj_159",
+        "obj_160",
+        "obj_161",
+        "obj_162",
+        "obj_163",
+        "obj_164",
+        "obj_165",
+        "obj_166",
+        "obj_167",
+        "obj_168",
+        "obj_169",
+        "obj_170",
+        "obj_171",
+        "obj_172",
+        "obj_173"
+      ],
+      "follower_ids": [],
+      "removed": [],
+      "road_ids": [
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "updated": [
+        "residential_ground",
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ]
+    },
+    "checks": {
+      "bridge_context": true,
+      "continuous_support": true,
+      "entrance_corridor": true,
+      "final_combined_save": true,
+      "final_terrain": true,
+      "full_road_graph": true,
+      "native_house_geometry": true,
+      "native_save": true,
+      "runtime_traversal": "requires_runtime_verification"
+    },
+    "earthwork": {
+      "cut_m3": 253.878107351868,
+      "fill_m3": 83.0583414429416,
+      "max_cut_m": 0.950000047683716,
+      "max_fill_m": 0.28125,
+      "scope": "all_changed_solid_triangles_including_padding_and_blend"
+    },
+    "house_ids": [
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173"
+    ],
+    "ok": true,
+    "plan_token": "002d8750da3e078f1d2a916d243a38068617d1234ffce380",
+    "position": [
+      0.0,
+      0.171540081501007,
+      0.0
+    ],
+    "publication": {
+      "authoring": "single_synchronous_transaction",
+      "derived": "native_refresh_and_shared_batches",
+      "runtime": "requires_runtime_verification"
+    },
+    "road_points": [
+      [
+        -3.31550097465515,
+        0.0,
+        -7.45750045776367
+      ],
+      [
+        -3.31550025939941,
+        0.0,
+        -16.0
+      ]
+    ],
+    "search": {
+      "attempts": 29.0,
+      "budget": 45.0,
+      "full_graph_checks": 1.0,
+      "prepare_ms": 1258.5,
+      "step": 0.05
+    },
+    "setback": 2.2,
+    "source_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+    "support": {
+      "area_tolerance": 0.0000001,
+      "components": [
+        {
+          "area": 99.0,
+          "covered_area": 99.0,
+          "floor_bottom": 0.0799999907612801,
+          "foundation_bottom": -1.22000002861023,
+          "foundation_id": "obj_5/support_triangle_824",
+          "missing_area": 0.0,
+          "part": "main/baked_2",
+          "record_id": "obj_4",
+          "terrain_range": [
+            0.25,
+            0.251540076641959
+          ]
+        }
+      ],
+      "counts": {
+        "cells_scanned": 4096.0,
+        "cells_visited": 242.0,
+        "overlaps": 303.0,
+        "solid_skipped": 3854.0,
+        "terrain_candidates": 1.0,
+        "triangle_clips": 304.0
+      },
+      "entrance_maximum_y": 0.457313994880301,
+      "excluded_landings": [],
+      "geometric_interval": [
+        0.171540085880679,
+        1.47000002861023
+      ],
+      "interval": [
+        0.171540085880679,
+        0.5
+      ],
+      "lower_witness": {
+        "cell": [
+          15.0,
+          26.0
+        ],
+        "floor_bottom": 0.0799999907612801,
+        "foundation_bottom": -1.22000002861023,
+        "foundation_id": "obj_5/support_triangle_824",
+        "part": "main/baked_2",
+        "position": [
+          -4.46500015258789,
+          0.251540076641959,
+          -5.35750007629395
+        ],
+        "record_id": "obj_4",
+        "terrain_height": 0.251540076641959,
+        "terrain_id": "residential_ground",
+        "triangle_index": 0.0
+      },
+      "requires_native_placement_validation": true,
+      "scope": "continuous_ground_floor_foundation_only",
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "upper_witness": {
+        "cell": [
+          15.0,
+          26.0
+        ],
+        "floor_bottom": 0.0799999907612801,
+        "foundation_bottom": -1.22000002861023,
+        "foundation_id": "obj_5/support_triangle_824",
+        "part": "main/baked_2",
+        "position": [
+          -4.0,
+          0.25,
+          -5.125
+        ],
+        "record_id": "obj_4",
+        "terrain_height": 0.25,
+        "terrain_id": "residential_ground",
+        "triangle_index": 0.0
+      }
+    },
+    "terrain": {
+      "changed": true,
+      "changed_cells": 1039.0,
+      "changed_ids": [
+        "residential_ground",
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "ok": true,
+      "ramp": {
+        "blend_margin": 1.0,
+        "corridor": [
+          [
+            -4.316,
+            -8.0
+          ],
+          [
+            -4.316,
+            -16.0
+          ],
+          [
+            -2.316,
+            -16.0
+          ],
+          [
+            -2.316,
+            -8.0
+          ]
+        ],
+        "earthwork": {
+          "cut_m3": 253.878107351868,
+          "fill_m3": 83.0583414429416,
+          "max_cut_m": 0.950000047683716,
+          "max_fill_m": 0.28125,
+          "scope": "all_changed_solid_triangles_including_padding_and_blend"
+        },
+        "end": [
+          -3.316,
+          0.0,
+          -16.0
+        ],
+        "grade": -0.03125,
+        "grid_padding": 1.39754247665405,
+        "height_tolerance": 0.0002,
+        "length": 8.0,
+        "max_grade": 0.0312512159347534,
+        "max_height_error": 0.00000050663948059,
+        "max_seam_step": 0.0,
+        "ok": true,
+        "scope": "full_width_native_heightfield; outer_blend_not_walkability_certified",
+        "start": [
+          -3.316,
+          0.25,
+          -8.0
+        ],
+        "token": "1c155ee51e7d82e9e2d94592e443cc3af2d040856dd17f1a443ec597e925bb41",
+        "width": 2.0
+      },
+      "road_diff": {
+        "added": 0.0,
+        "removed": 0.0,
+        "unchanged": 3.0,
+        "updated": 2.0
+      },
+      "road_token": "2e50122bff9db6d2ba627e2dcd8efaa09e4c5c9f563a7553b5c61a8d70f52995",
+      "samples": 2.0,
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "updated_road_nodes": [
+        "far_a"
+      ]
+    },
+    "terrain_operation_count": 2.0,
+    "width": 1.6
+  },
+  "request": {
+    "residential": {
+      "asset_id": "D:/code/rmmo_runtime/__residential_site_8664_12829358/assets/prefabs/ecc0228a9e40532009715cd6200fa5e1cd27d3b443c40cb3c519fd8eb32a044d.json",
+      "elevation_max": 0.5,
+      "elevation_min": -0.5,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "road_edge_id": "main_lane",
+      "setback_max": 3.0,
+      "setback_min": 0.8,
+      "width": 1.6,
+      "yaw": 0.0
+    },
+    "terrain": {
+      "expected_road_token": "6e8291b1cd45a01f36eea4c070266dcf3ee1fd27e5abe872cb5a61398a72c6d3",
+      "ramp": {
+        "blend_margin": 1.0,
+        "cross_tiles": true,
+        "end": [
+          -3.316,
+          0.0,
+          -16.0
+        ],
+        "id": "residential_ground",
+        "start": [
+          -3.316,
+          0.25,
+          -8.0
+        ],
+        "width": 2.0
+      },
+      "road_nodes": [
+        {
+          "id": "far_a",
+          "position": [
+            78.0,
+            0.1,
+            -12.0
+          ]
+        }
+      ],
+      "strokes": [
+        {
+          "blend_margin": 2.0,
+          "cross_tiles": true,
+          "id": "residential_ground",
+          "mode": "flatten",
+          "plot_depth": 22.0,
+          "plot_grade": [
+            0.0,
+            0.0
+          ],
+          "plot_width": 24.0,
+          "plot_yaw": 0.0,
+          "points": [
+            [
+              0.0,
+              1.0
+            ]
+          ],
+          "shape": "rectangle",
+          "strength": 1.0,
+          "target_height": 0.25
+        }
+      ]
+    }
+  },
+  "road_points": [
+    [
+      -3.31550097465515,
+      0.0,
+      -7.45750045776367
+    ],
+    [
+      -3.31550025939941,
+      0.0,
+      -16.0
+    ]
+  ],
+  "runtime_verified": false,
+  "source_path": "D:/code/rmmo_runtime/__residential_site_8664_12829358/assets/prefabs/ecc0228a9e40532009715cd6200fa5e1cd27d3b443c40cb3c519fd8eb32a044d.json",
+  "source_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+  "ui_request": {
+    "residential": {
+      "asset_id": "D:/code/rmmo_runtime/__residential_site_8664_12829358/assets/prefabs/ecc0228a9e40532009715cd6200fa5e1cd27d3b443c40cb3c519fd8eb32a044d.json",
+      "elevation_max": 0.5,
+      "elevation_min": -0.5,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "road_edge_id": "main_lane",
+      "setback_max": 3.0,
+      "setback_min": 0.8,
+      "width": 1.6,
+      "yaw": 0.0
+    },
+    "terrain": {
+      "expected_road_token": "6e8291b1cd45a01f36eea4c070266dcf3ee1fd27e5abe872cb5a61398a72c6d3",
+      "ramp": {
+        "blend_margin": 1.0,
+        "cross_tiles": true,
+        "end": [
+          -3.31600000000617,
+          0.0,
+          -16.0
+        ],
+        "id": "residential_ground",
+        "start": [
+          -3.31600000000617,
+          0.25,
+          -8.0
+        ],
+        "width": 2.0
+      },
+      "road_nodes": [
+        {
+          "id": "far_a",
+          "position": [
+            78.0,
+            0.100000000005821,
+            -12.0
+          ]
+        }
+      ],
+      "strokes": [
+        {
+          "blend_margin": 2.0,
+          "cross_tiles": true,
+          "id": "residential_ground",
+          "mode": "flatten",
+          "plot_depth": 22.0,
+          "plot_grade": [
+            0.0,
+            0.0
+          ],
+          "plot_width": 24.0,
+          "plot_yaw": 0.0,
+          "points": [
+            [
+              0.0,
+              1.0
+            ]
+          ],
+          "shape": "rectangle",
+          "strength": 1.0,
+          "target_height": 0.25
+        }
+      ]
+    }
+  }
+}

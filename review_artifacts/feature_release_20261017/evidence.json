@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-17",
+  "tested_code_commit": "2ff012014683f5f744e941428c41f672bf29e11d",
+  "remote_main_before_publication": "7be7f41d9d7ee74099e2db14f3f1852c234c44e7",
+  "checks": {
+    "combined_site_http_ui": 128,
+    "ramp_http_ui": 109
+  },
+  "failures": 0,
+  "component_evidence": [
+    {
+      "evidence": "review_artifacts/editor_diagnostics_20261017/evidence.json",
+      "sha256": "3923ceefd8fcc4f44ed5462ae168f99f76d3aa0413d2e9008c905200d53d9c5f",
+      "checks": {
+        "initial_http_ui": 36
+      }
+    },
+    {
+      "evidence": "review_artifacts/terrain_analysis_20261017/evidence.json",
+      "sha256": "8f0257c18e5f5cfe4ce7f642f201399811439f9a32cad87635db658aae8bb23a",
+      "checks": {
+        "analysis_http_ui": 38,
+        "diagnostic_reopen_regression": 40
+      }
+    },
+    {
+      "evidence": "review_artifacts/heightmap_import_20261017/evidence.json",
+      "sha256": "5b06b00dbf4d479cdc3addd59af501fefc02eebbe4137c745788f387ce149dec",
+      "checks": {
+        "http_ui": 73,
+        "native_physics": 4
+      }
+    }
+  ],
+  "sources": [
+    {
+      "path": "tools/test_residential_site_http.gd",
+      "sha256_lf": "44499e506e533b370234c712e23b17b84485428c71b46291fadb014bd9f65568"
+    },
+    {
+      "path": "tools/test_residential_bridges_http.gd",
+      "sha256_lf": "0b7f417fce89fff74728adf0e19ed1064a4b664768165e4f3e0a30be86b8c832"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "sha256_lf": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    },
+    {
+      "path": "tools/test_terrain_ramp_http.gd",
+      "sha256_lf": "4bda338ec6f27288f7f3637cb665d0ab19bc3ee3f71181ed58029dc8ec7e1485"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_lf": "189ed5da02f1bb3874a0dfee94f861692777a3f45ee81000e04c33999be4a0d4"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_lf": "75ef28c0c18e62ceb19d5bc45fca750802a417e4eec47d13eff09ade77742ba4"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "sha256_lf": "e8750a49c7cdd72219898d0bd1d0c1700fc37253f98ae6bb8f34f9c9be926b8b"
+    },
+    {
+      "path": "scripts/world_editor/terrain_panel.gd",
+      "sha256_lf": "feeb503ecfcb6e28223037d3dd62d79a45cc955a1a80a4a6e7ec08c963a2b9b8"
+    },
+    {
+      "path": "scripts/world_editor/residential_site_tools.gd",
+      "sha256_lf": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_tools.gd",
+      "sha256_lf": "f083298b95fae4ad98dd544c9af0cb2b35bbd3dd8a7e26893300b83ca394d791"
+    },
+    {
+      "path": "scripts/world_editor/editor_diagnostics.gd",
+      "sha256_lf": "1eaeb9346d514a747e83636261e8ec1146102d39b89d0196673d45aeaa122208"
+    },
+    {
+      "path": "scripts/world_editor/terrain_analysis.gd",
+      "sha256_lf": "67659220281193f46523286691338ccbd10ef79f222ad4c16bfba673f516488e"
+    },
+    {
+      "path": "scripts/world_editor/terrain_heightmap.gd",
+      "sha256_lf": "f79816cc606064bf95b69af4a0d64d6998e7c14feb4a4bce23bca926fb315813"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "ramp/console.log",
+      "sha256": "e34532fba11f8e6bce3500d09cae85a477deb7b726c752bd62b7a5da3b70f7ac"
+    },
+    {
+      "path": "ramp/engine.log",
+      "sha256": "cbe51c02fce53d6ec1a5a449d4ff58495292398416348b82a1efea39e6f962be"
+    },
+    {
+      "path": "ramp/http.json",
+      "sha256": "401ec9abaa7ba1495c9f2c05323677b6157e3362900b8b13ba71ed92740bc1c0"
+    },
+    {
+      "path": "ramp/ramp_ui.webp",
+      "sha256": "d03e7b15fcc7298df8559e8200351cf997e114b45c50ed6ebf485382449e1a4e"
+    },
+    {
+      "path": "ramp/ramp_ui_compression.json",
+      "sha256": "14990c4f865a24aacfe7299db8b7ea9a4fc73e3db16a0fc7d8936261e1886bbe"
+    },
+    {
+      "path": "site_console.log",
+      "sha256": "3f24df5b4e57dfe6d10a193a44be0e9ed5fa774dc0ebfa7e1a7294960a9027f1"
+    },
+    {
+      "path": "site_engine.log",
+      "sha256": "c9e4e3ca192812b54c255d573895feb0a9d8a19a653dfb4036d2023b622b97c3"
+    },
+    {
+      "path": "site_http.json",
+      "sha256": "6e0e61668ddb4bede1c864155a5918cfd7ba8aa18284e374fa26f8fc74d5e345"
+    },
+    {
+      "path": "site_ui.webp",
+      "sha256": "a9ee47791132fe9c107e7565035c4677f2af1c837d6d6eb6d61e001012f10af5"
+    },
+    {
+      "path": "site_ui_compression.json",
+      "sha256": "a44f9b3827d4c110376f6208cd1ef5e58ddcfe3135352de0718e4a82af2cda84"
+    }
+  ],
+  "scope": "Final compatibility regression of existing combined residential site and two-end ramp features with all three new features integrated. Sequential inactive private GPU desktop runs, true loopback HTTP, temporary maps and resource packs; no formal maps or scene checkout modified. Component reports describe their individual tested source snapshots; counts are not unique independent test cases and no performance improvement is claimed."
+}

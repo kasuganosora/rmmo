@@ -17,3 +17,4 @@
 /review_artifacts/editor_diagnostics_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
 /review_artifacts/terrain_analysis_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
 /review_artifacts/heightmap_import_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
+/review_artifacts/feature_release_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol

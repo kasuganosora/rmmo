@@ -1,0 +1,10 @@
+{
+	"avatar": "not instantiated",
+	"encoder": "Godot Image.save_webp(lossy=true, quality=0.9)",
+	"height": 1000,
+	"lossy": true,
+	"path": "D:/code/rmmo_runtime/review_artifacts/feature_release_20261017/site_ui.webp",
+	"quality": 90,
+	"sha256": "a9ee47791132fe9c107e7565035c4677f2af1c837d6d6eb6d61e001012f10af5",
+	"width": 1600
+}
