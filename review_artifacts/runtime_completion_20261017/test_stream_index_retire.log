@@ -1,0 +1,74 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS partial imported namespace rejects atomically
+PASS invalid late ID after complete namespace rejects atomically
+PASS duplicate requested UUID rejects atomically
+PASS non-string late UUID rejects atomically
+PASS empty UUID rejects atomically
+PASS preflight is read-only and reports authored order
+PASS retire returns original removed specs in stable order
+PASS library compaction preserves survivor order
+PASS survivor objects, maps and draw order remain unchanged
+PASS touched and untouched surviving buckets retain identity and order
+PASS empty spatial buckets are removed
+PASS namespace, known and count are retired together
+PASS retired index equals a fresh index of survivors
+PASS complete namespace can be published again after retirement
+PASS empty retirement leaves index unchanged
+PASS dependent type pin_0 rejects atomically
+PASS dependent type pin_1 rejects atomically
+PASS dependent type pin_2 rejects atomically
+PASS dependent type pin_3 rejects atomically
+PASS dependent type pin_4 rejects atomically
+PASS dependent type pin_5 rejects atomically
+PASS dependent type pin_6 rejects atomically
+PASS dependent type pin_7 rejects atomically
+PASS dependent type pin_8 rejects atomically
+PASS dependent type pin_9 rejects atomically
+PASS dependent type pin_10 rejects atomically
+PASS dependent type pin_11 rejects atomically
+PASS dependent type pin_12 rejects atomically
+PASS dependent type pin_13 rejects atomically
+PASS dependent type pin_14 rejects atomically
+PASS dependent type pin_15 rejects atomically
+PASS dependent type pin_16 rejects atomically
+PASS dependent type pin_17 rejects atomically
+PASS dependent type pin_18 rejects atomically
+PASS dependent type pin_19 rejects atomically
+PASS dependent type pin_20 rejects atomically
+PASS dependent type pin_21 rejects atomically
+PASS dependent type pin_22 rejects atomically
+PASS dependent type pin_23 rejects atomically
+PASS dependent type pin_24 rejects atomically
+PASS dependent type pin_25 rejects atomically
+PASS inferred tall imported building rejects atomically
+PASS equal-value library with different spec identities rejects atomically
+PASS bare independent static prop supports pure index consumers
+PASS only short-lived removal receipt retains retired mesh
+PASS mesh is released after caller drops removal receipt
+PASS successive retirement 0 keeps exact spatial and append semantics
+PASS successive retirement 1 keeps exact spatial and append semantics
+PASS successive retirement 2 keeps exact spatial and append semantics
+PASS successive retirement 3 keeps exact spatial and append semantics
+PASS successive retirement 4 keeps exact spatial and append semantics
+PASS successive retirement 5 keeps exact spatial and append semantics
+PASS successive retirement 6 keeps exact spatial and append semantics
+PASS successive retirement 7 keeps exact spatial and append semantics
+PASS successive retirement 8 keeps exact spatial and append semantics
+PASS successive retirement 9 keeps exact spatial and append semantics
+PASS successive retirement 10 keeps exact spatial and append semantics
+PASS successive retirement 11 keeps exact spatial and append semantics
+PASS successive retirement 12 keeps exact spatial and append semantics
+PASS successive retirement 13 keeps exact spatial and append semantics
+PASS successive retirement 14 keeps exact spatial and append semantics
+PASS successive retirement 15 keeps exact spatial and append semantics
+PASS successive retirement 16 keeps exact spatial and append semantics
+PASS successive retirement 17 keeps exact spatial and append semantics
+PASS successive retirement 18 keeps exact spatial and append semantics
+PASS successive retirement 19 keeps exact spatial and append semantics
+PASS successive retirement 20 keeps exact spatial and append semantics
+PASS successive retirement 21 keeps exact spatial and append semantics
+PASS successive retirement 22 keeps exact spatial and append semantics
+PASS successive retirement 23 keeps exact spatial and append semantics
+STREAM_INDEX_RETIRE_FINISHED checks=70 failures=0

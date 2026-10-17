@@ -13,7 +13,7 @@ var _entries:Dictionary={}
 func active_workers()->int:
 	var count_:=0
 	for entry:Dictionary in _entries.values():
-		if entry.get("occupies_worker",true):count_+=1
+		if entry.get("occupies_worker",true):count_+=int(entry.get("worker_slots",1))
 	return count_
 
 func has_capacity()->bool:
@@ -121,9 +121,11 @@ func inspect(key:String,estimate:Dictionary)->Dictionary:
 	result.requested_exclusive=requires_exclusive(estimate)
 	return result
 
-func reserve_background(key:String,size:int,cancel:Callable)->bool:
+func reserve_background(key:String,size:int,cancel:Callable,worker_slots:int=1)->bool:
+	if worker_slots<1 or active_workers()+worker_slots>worker_limit:return false
 	if size<=0 or not cancel.is_valid() or not reserve(key,{"estimated_bytes":size,"exclusive":false,"stage":"speculative_cpu"}):return false
 	_entries[key].preempt=cancel
+	_entries[key].worker_slots=worker_slots;peak_workers=maxi(peak_workers,active_workers())
 	return true
 func _preempt_background()->void:
 	# Cancellation only requests retirement. The same byte lease remains held

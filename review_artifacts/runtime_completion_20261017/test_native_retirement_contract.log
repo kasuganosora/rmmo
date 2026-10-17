@@ -1,0 +1,20 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS partial building atomic refusal
+PASS surviving building terrain dependency atomic refusal
+PASS late unknown identity atomic refusal
+PASS duplicate identity atomic refusal
+PASS whole native building retires while preserving independent survivors
+PASS removed ownership cannot pin terrain through stale derived dependencies
+PASS surviving spec identities remain stable
+PASS last terrain owner and full spatial bookkeeping retire together
+PASS exact whole building and support can be republished under original UUIDs
+PASS live gameplay owner atomic refusal
+PASS save two continuous isolated terrain records
+PASS build verified complete native ownership directory
+PASS retired terrain reconstruction hydrates the render record plus private seam closure
+PASS restored CPU vertex, index, UV and tangent arrays equal full original terrain context
+PASS restored height/material halo and seam normals match complete map
+PASS neighbor SHA is verified without retaining neighbor decoded geometry in the result
+NATIVE_RETIREMENT_CONTRACT checks=16 failures=0

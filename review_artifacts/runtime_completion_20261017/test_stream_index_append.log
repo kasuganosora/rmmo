@@ -1,0 +1,72 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS append succeeds and touches only intersected/new groups
+PASS residency invalidation keeps unique old reference: house_a_floor
+PASS residency invalidation keeps unique old reference: house_a_roof
+PASS residency invalidation keeps unique old reference: ground_a
+PASS new building invalidates existing support only, not unrelated or incoming specs
+PASS existing dictionary reference retained: stream_index
+PASS existing dictionary reference retained: stream_by_id
+PASS existing dictionary reference retained: stream_known
+PASS existing dictionary reference retained: stream_prop_index
+PASS existing dictionary reference retained: stream_collision_index
+PASS existing dictionary reference retained: stream_building_groups
+PASS existing index bucket reference retained
+PASS existing and incoming author specs keep their identity
+PASS affected existing render-bounds dictionary retained
+PASS unaffected far building dependencies retain their references
+PASS first append matches full build: stream_index
+PASS first append matches full build: stream_by_id
+PASS first append matches full build: stream_known
+PASS first append matches full build: stream_landscape
+PASS first append matches full build: stream_building_groups
+PASS first append matches full build: stream_prop_index
+PASS first append matches full build: stream_collision_index
+PASS first append matches full build: stream_building_count
+PASS later ground patches can update existing complete groups
+PASS new ground invalidates old whole building and old support, excluding incoming specs
+PASS second append matches full build: stream_index
+PASS second append matches full build: stream_by_id
+PASS second append matches full build: stream_known
+PASS second append matches full build: stream_landscape
+PASS second append matches full build: stream_building_groups
+PASS second append matches full build: stream_prop_index
+PASS second append matches full build: stream_collision_index
+PASS second append matches full build: stream_building_count
+PASS empty append is a no-op
+PASS existing UUID rejects without modifying either input
+PASS duplicate inside batch rejects without modifying either input
+PASS partial imported namespace rejects without modifying either input
+PASS late plain UUID sharing imported namespace rejects without modifying either input
+PASS late namespace sharing an existing plain UUID rejects without modifying either input
+PASS partial native building rejects without modifying either input
+PASS partial lamp group rejects without modifying either input
+PASS partial active fixture rejects without modifying either input
+PASS malformed spec rejects without modifying either input
+PASS mixed invalid batch rejects without modifying either input
+PASS random ordered batch 0 equals full public index and dependency bookkeeping
+PASS random ordered batch 1 equals full public index and dependency bookkeeping
+PASS random ordered batch 2 equals full public index and dependency bookkeeping
+PASS random ordered batch 3 equals full public index and dependency bookkeeping
+PASS random ordered batch 4 equals full public index and dependency bookkeeping
+PASS random ordered batch 5 equals full public index and dependency bookkeeping
+PASS random ordered batch 6 equals full public index and dependency bookkeeping
+PASS random ordered batch 7 equals full public index and dependency bookkeeping
+PASS random ordered batch 8 equals full public index and dependency bookkeeping
+PASS random ordered batch 9 equals full public index and dependency bookkeeping
+PASS random ordered batch 10 equals full public index and dependency bookkeeping
+PASS random ordered batch 11 equals full public index and dependency bookkeeping
+PASS random ordered batch 12 equals full public index and dependency bookkeeping
+PASS random ordered batch 13 equals full public index and dependency bookkeeping
+PASS random ordered batch 14 equals full public index and dependency bookkeeping
+PASS random ordered batch 15 equals full public index and dependency bookkeeping
+PASS random ordered batch 16 equals full public index and dependency bookkeeping
+PASS random ordered batch 17 equals full public index and dependency bookkeeping
+PASS random ordered batch 18 equals full public index and dependency bookkeeping
+PASS random ordered batch 19 equals full public index and dependency bookkeeping
+PASS random ordered batch 20 equals full public index and dependency bookkeeping
+PASS random ordered batch 21 equals full public index and dependency bookkeeping
+PASS random ordered batch 22 equals full public index and dependency bookkeeping
+PASS random ordered batch 23 equals full public index and dependency bookkeeping
+STREAM_INDEX_APPEND_FINISHED failures=0

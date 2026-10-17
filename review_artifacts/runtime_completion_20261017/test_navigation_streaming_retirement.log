@@ -1,0 +1,47 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS non-streaming completion behavior remains unchanged
+PASS non-streaming navigation rejects the new retirement path
+PASS invalid provider cannot enter streaming lifecycle
+PASS streaming lifecycle is configured before build
+PASS already built navigation cannot switch lifecycle
+PASS streaming readiness consults region provider
+PASS empty pending queue cannot mark resident world permanently complete
+PASS unloaded region becomes pending again on revisit
+PASS streaming completion never starts a full-map bake
+PASS streaming navigation accepts complete model and door records
+PASS unknown retirement UUID fails without mutation
+PASS invalid retirement UUID fails without mutation
+PASS active source cursor protects its immutable input order
+PASS active nearby cursor rejects even unrelated removals
+PASS refusal preserves nearby cursor
+PASS queued nearby footprint stays pinned until consumed
+PASS source worker snapshot prevents premature release
+PASS orphan source snapshot remains charged until joined
+PASS start bounded CPU face worker fixture
+PASS live face worker is rejected without blocking main thread
+PASS frame continues while refused worker still owns its snapshot
+PASS completed but unconsumed worker still owns its result
+PASS queued source-face data blocks retirement before a worker starts
+PASS submitted bake cannot lose source leases
+PASS completed bake must be consumed before source release
+PASS pending server publication cannot be retired
+PASS idle window atomically removes specs, doors and UUID ownership
+PASS survivor spec retains original identity and order
+PASS only face caches without surviving geometry owners are released
+PASS retiring source references preserves published navigation queries
+PASS revisit can append the same UUID and rebind door data
+PASS live duplicate UUID remains rejected
+PASS empty retirement is an idempotent no-op
+PASS real navigation uses explicit resident geometry lifecycle
+PASS real initial region publishes without a full-map bake
+PASS local route is usable before retirement
+PASS inactive remote source retires after initial native bake finishes
+PASS revisit waits for remote source demand instead of querying stale global completeness
+PASS local route survives remote readiness wait
+PASS same remote UUID republishes after a real retirement
+PASS revisit publishes a bounded nearby bake and stays in streaming lifecycle
+PASS newly reloaded remote floor supports a real navigation route
+PASS revisit replacement keeps source region covered when requested together
+NAVIGATION_STREAMING_RETIREMENT_FINISHED passed=43 failures=0

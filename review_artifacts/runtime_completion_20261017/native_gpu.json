@@ -1,0 +1,12 @@
+{
+  "failures": 0,
+  "native": {
+    "last_wait": "",
+    "retired_specs": 20,
+    "retired_units": 10,
+    "revisits": 8
+  },
+  "passed": 26,
+  "path": "D:/code/rmmo_runtime/cache/world3d/native_resident_10666284/map.gltf",
+  "sha256": "1cff24aae4a0d6aa673fec697441b2cd18fe89d1d299a0395ea514ee249bfd20"
+}

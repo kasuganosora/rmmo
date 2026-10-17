@@ -1,0 +1,43 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS legacy frozen geometry without lods remains valid
+PASS no-LOD and explicit empty LODs retain the old exact geometry signature
+PASS offline simplification starts as a CPU worker
+PASS offline derivation adds real LOD buffers without changing the base arrays
+PASS shared old render/collision entry splits while the collision row remains byte-exact
+PASS all base positions normals UV colors indices and material slots remain unchanged
+PASS derived LOD schema validates and contains distance-index tables
+PASS cooked restore retains visual LODs and legacy collision-only mesh
+PASS render and source collision extraction always use exact base faces
+PASS cooked reserialization preserves every LOD distance and index buffer
+PASS compaction cannot reindex a LOD surface without remapping its indices
+PASS immutable House identities include visual LOD data but preserve source/no-LOD identities
+PASS worker-owned LOD packed buffers cannot mutate canonical decoded geometry
+PASS equal base arrays with different LOD thresholds cannot share render identity
+PASS equal base arrays and thresholds with different LOD indices cannot share render identity
+PASS derivation is idempotent and never mutates the legacy input
+PASS malformed LOD schema rejected: bad
+PASS malformed LOD schema rejected: [{  }, {  }]
+PASS malformed LOD schema rejected: [{ 0.0: [0, 1, 2] }]
+PASS malformed LOD schema rejected: [{ inf: [0, 1, 2] }]
+PASS malformed LOD schema rejected: [{ 1.0: [-1, 1, 2] }]
+PASS malformed LOD schema rejected: [{ 1.0: [0, 1, 289] }]
+PASS malformed LOD schema rejected: [{ 1.0: [0, 1] }]
+PASS malformed LOD schema rejected: [{ 1.0: [0, 1, 2] }]
+PASS LOD level count has a bounded validation/allocation contract
+PASS cumulative LOD indices allow the exact sixteen-base limit
+PASS seventeen full-base LOD levels exceed the cumulative index limit even below the level-count cap
+PASS finite float64 threshold that becomes zero or infinity in float32 is rejected: 0.0
+PASS finite float64 threshold that becomes zero or infinity in float32 is rejected: 1000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0
+PASS distinct float64 thresholds that collapse to one renderer threshold are rejected
+PASS normal ImporterMesh float32 thresholds and index buffers are validated without normalization
+PASS GPU LOD verification requires a private renderer
+PASS two real restored frozen payloads with different LODs never deduplicate
+PASS actual GPU index buffers and thresholds match reopened frozen data
+PASS restored GPU mesh retains the original CPU LOD owner without readback
+PASS per-instance material fork preserves LODs through editor freeze/restore
+PASS cancelled offline derivation cannot publish new geometry
+PASS zero engine/script errors
+BRIDGE_LOD_RETENTION passed=38 failures=0

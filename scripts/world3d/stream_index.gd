@@ -217,6 +217,50 @@ static func validate_retire(existing:Dictionary,library:Array,ids:Array)->Dictio
 	if not plan.ok:return plan
 	return {"ok":true,"error":"","removed":plan.removed_ids.size(),"removed_ids":plan.removed_ids}
 
+## Complete static ownership units. The caller additionally protects live draw,
+## collision, navigation, source pins and transient work before committing.
+static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var selected:Dictionary={};var prefixes:Dictionary={}
+	if library.size()!=existing.get("stream_by_id",{}).size() or library.size()!=int(existing.get("stream_building_count",-1)):return _retire_failure("library/index size mismatch")
+	var seen:Dictionary={}
+	for spec:Dictionary in library:
+		if seen.has(spec.get("uuid")) or not _valid_append_spec(spec) or not is_same(existing.get("stream_by_id",{}).get(spec.uuid),spec):return _retire_failure("library/index identity mismatch")
+		seen[spec.uuid]=true
+	for id:Variant in ids:
+		if not id is String or selected.has(id) or not existing.get("stream_by_id",{}).has(id):return _retire_failure("invalid complete retirement identity")
+		var spec:Dictionary=existing.stream_by_id[id]
+		if not _valid_append_spec(spec) or spec.get("native_visual",false):return _retire_failure("active native owner")
+		var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+		for field in ["event","event_template","hostile","ally","seat"]:
+			if extra.has(field) or record.has(field):return _retire_failure("active gameplay owner")
+		if extra.get("kind","") in ["npc","gather","event","teleport","warp"]:return _retire_failure("active gameplay owner")
+		selected[id]=true;prefixes[id.get_slice("__",0)]=true
+	for spec:Dictionary in library:
+		if prefixes.has(str(spec.uuid).get_slice("__",0)) and not selected.has(spec.uuid):return _retire_failure("split namespace")
+	for members:Array in existing.get("stream_building_groups",{}).values():
+		var touched:=members.any(func(spec):return selected.has(spec.uuid))
+		if touched and not members.all(func(spec):return selected.has(spec.uuid)):return _retire_failure("split building group")
+		if not touched:
+			for support:Dictionary in members[0].get("render_supports",[]):
+				if selected.has(support.uuid):return _retire_failure("retained building needs landscape support")
+	return {"ok":true,"error":"","removed":selected.size()}
+
+static func retire_owned(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var checked:=validate_owned_retire(existing,library,ids)
+	if not checked.ok:return checked
+	if ids.is_empty():return {"ok":true,"error":"","removed":0,"removed_ids":[],"data":existing}
+	var selected:Dictionary={}
+	for id:String in ids:selected[id]=true
+	var survivors:Array=[]
+	for spec:Dictionary in library:
+		if selected.has(spec.uuid):continue
+		# Rebind every surviving support/dependent link to live source identities.
+		for field in ["render_building","render_bounds","render_supports","render_dependents"]:spec.erase(field)
+		survivors.append(spec)
+	var rebuilt:=build(survivors)
+	library.clear();library.append_array(survivors)
+	return {"ok":true,"error":"","removed":ids.size(),"removed_ids":ids.duplicate(),"data":rebuilt}
+
 static func _retire_bucket(buckets:Dictionary,key:Vector2i,selected:Dictionary,by_spec:bool)->void:
 	if not buckets.has(key):return
 	var bucket:Array=buckets[key];var write:=0

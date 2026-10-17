@@ -1,0 +1,497 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: park rejects a nonexistent reservation
+PASS: live reservation occupies the only worker
+PASS: parking is idempotent and retains the entire result charge
+PASS: parked bytes still reject an oversized sibling
+PASS: released worker can admit only the remaining byte allowance
+PASS: all workers parked does not bypass a full byte budget
+PASS: snapshot separates held jobs from actual worker slots
+PASS: an oversize exclusive result can finish and park
+PASS: parked exclusive output continues blocking all siblings
+PASS: disabled dispatch remains disabled after parking
+PASS: success: starts off-tree private preparation
+PASS: native candidate plus two reference outputs reserves 20 + 10
+PASS: unjoined worker remains charged as active
+PASS: native result joins individually
+PASS: dispatch holds a fixed candidate independently of later provider changes
+PASS: joined native result parks its slot but retains resources and bytes
+PASS: native success: prefetch performs no acceptance/publication
+PASS: native success: no shared template cache mutation
+PASS: native success: no shared template cache mutation
+PASS: native success: quiesce retires jobs and every charge
+PASS: native success: drainer has no unjoined worker
+PASS: native success: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: one-worker queue cannot refill before joining its first result
+PASS: parked ready output permits the next bounded worker to finish
+PASS: refill retains both native results while peak live workers stays one
+PASS: parked refill: prefetch performs no acceptance/publication
+PASS: parked refill: no shared template cache mutation
+PASS: parked refill: no shared template cache mutation
+PASS: parked refill: quiesce retires jobs and every charge
+PASS: parked refill: drainer has no unjoined worker
+PASS: parked refill: all synthetic resources released only on main
+PASS: premiss: starts off-tree private preparation
+PASS: premiss: retry eventually becomes ready
+PASS: premiss: retry refreshes raw envelope and runs each stage once
+PASS: premiss: raw obtains a separate complete 60 + 10 reservation
+PASS: premiss: native resource is gone before raw reservation starts
+PASS: premiss: native and raw reservations never coexist
+PASS: premiss: fresh raw identity remains privately owned
+PASS: premiss: prefetch performs no acceptance/publication
+PASS: premiss: no shared template cache mutation
+PASS: premiss: no shared template cache mutation
+PASS: premiss: quiesce retires jobs and every charge
+PASS: premiss: drainer has no unjoined worker
+PASS: premiss: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: source_retry: retry eventually becomes ready
+PASS: source_retry: retry refreshes raw envelope and runs each stage once
+PASS: source_retry: raw obtains a separate complete 60 + 10 reservation
+PASS: source_retry: native resource is gone before raw reservation starts
+PASS: source_retry: native and raw reservations never coexist
+PASS: source_retry: main releases old native while its original budget is still held
+PASS: source_retry: fresh raw identity remains privately owned
+PASS: source_retry: prefetch performs no acceptance/publication
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: quiesce retires jobs and every charge
+PASS: source_retry: drainer has no unjoined worker
+PASS: source_retry: all synthetic resources released only on main
+PASS: raw_failure: starts off-tree private preparation
+PASS: raw_failure: retry eventually becomes ready
+PASS: raw_failure: retry refreshes raw envelope and runs each stage once
+PASS: raw_failure: raw obtains a separate complete 60 + 10 reservation
+PASS: raw_failure: native resource is gone before raw reservation starts
+PASS: raw_failure: native and raw reservations never coexist
+PASS: raw_failure: main releases old native while its original budget is still held
+PASS: raw failure is fatal and cannot retry again
+PASS: raw_failure: prefetch performs no acceptance/publication
+PASS: raw_failure: no shared template cache mutation
+PASS: raw_failure: no shared template cache mutation
+PASS: raw_failure: quiesce retires jobs and every charge
+PASS: raw_failure: drainer has no unjoined worker
+PASS: raw_failure: all synthetic resources released only on main
+PASS: wrong_digest: starts off-tree private preparation
+PASS: wrong_digest: invalid or forbidden retry terminates
+PASS: wrong_digest: validation failure is visible
+PASS: wrong_digest: failure never obtains raw admission
+PASS: wrong_digest: failed resource retired before releasing all charge
+PASS: wrong_digest: prefetch performs no acceptance/publication
+PASS: wrong_digest: no shared template cache mutation
+PASS: wrong_digest: no shared template cache mutation
+PASS: wrong_digest: quiesce retires jobs and every charge
+PASS: wrong_digest: drainer has no unjoined worker
+PASS: wrong_digest: all synthetic resources released only on main
+PASS: wrong_digest_type: starts off-tree private preparation
+PASS: wrong_digest_type: invalid or forbidden retry terminates
+PASS: wrong_digest_type: validation failure is visible
+PASS: wrong_digest_type: failure never obtains raw admission
+PASS: wrong_digest_type: failed resource retired before releasing all charge
+PASS: wrong_digest_type: prefetch performs no acceptance/publication
+PASS: wrong_digest_type: no shared template cache mutation
+PASS: wrong_digest_type: no shared template cache mutation
+PASS: wrong_digest_type: quiesce retires jobs and every charge
+PASS: wrong_digest_type: drainer has no unjoined worker
+PASS: wrong_digest_type: all synthetic resources released only on main
+PASS: wrong_error: starts off-tree private preparation
+PASS: wrong_error: invalid or forbidden retry terminates
+PASS: wrong_error: validation failure is visible
+PASS: wrong_error: failure never obtains raw admission
+PASS: wrong_error: failed resource retired before releasing all charge
+PASS: wrong_error: prefetch performs no acceptance/publication
+PASS: wrong_error: no shared template cache mutation
+PASS: wrong_error: no shared template cache mutation
+PASS: wrong_error: quiesce retires jobs and every charge
+PASS: wrong_error: drainer has no unjoined worker
+PASS: wrong_error: all synthetic resources released only on main
+PASS: wrong_error_type: starts off-tree private preparation
+PASS: wrong_error_type: invalid or forbidden retry terminates
+PASS: wrong_error_type: validation failure is visible
+PASS: wrong_error_type: failure never obtains raw admission
+PASS: wrong_error_type: failed resource retired before releasing all charge
+PASS: wrong_error_type: prefetch performs no acceptance/publication
+PASS: wrong_error_type: no shared template cache mutation
+PASS: wrong_error_type: no shared template cache mutation
+PASS: wrong_error_type: quiesce retires jobs and every charge
+PASS: wrong_error_type: drainer has no unjoined worker
+PASS: wrong_error_type: all synthetic resources released only on main
+PASS: wrong_compiled: starts off-tree private preparation
+PASS: wrong_compiled: invalid or forbidden retry terminates
+PASS: wrong_compiled: validation failure is visible
+PASS: wrong_compiled: failure never obtains raw admission
+PASS: wrong_compiled: failed resource retired before releasing all charge
+PASS: wrong_compiled: prefetch performs no acceptance/publication
+PASS: wrong_compiled: no shared template cache mutation
+PASS: wrong_compiled: no shared template cache mutation
+PASS: wrong_compiled: quiesce retires jobs and every charge
+PASS: wrong_compiled: drainer has no unjoined worker
+PASS: wrong_compiled: all synthetic resources released only on main
+PASS: wrong_compiled_type: starts off-tree private preparation
+PASS: wrong_compiled_type: invalid or forbidden retry terminates
+PASS: wrong_compiled_type: validation failure is visible
+PASS: wrong_compiled_type: failure never obtains raw admission
+PASS: wrong_compiled_type: failed resource retired before releasing all charge
+PASS: wrong_compiled_type: prefetch performs no acceptance/publication
+PASS: wrong_compiled_type: no shared template cache mutation
+PASS: wrong_compiled_type: no shared template cache mutation
+PASS: wrong_compiled_type: quiesce retires jobs and every charge
+PASS: wrong_compiled_type: drainer has no unjoined worker
+PASS: wrong_compiled_type: all synthetic resources released only on main
+PASS: wrong_reason: starts off-tree private preparation
+PASS: wrong_reason: invalid or forbidden retry terminates
+PASS: wrong_reason: validation failure is visible
+PASS: wrong_reason: failure never obtains raw admission
+PASS: wrong_reason: failed resource retired before releasing all charge
+PASS: wrong_reason: prefetch performs no acceptance/publication
+PASS: wrong_reason: no shared template cache mutation
+PASS: wrong_reason: no shared template cache mutation
+PASS: wrong_reason: quiesce retires jobs and every charge
+PASS: wrong_reason: drainer has no unjoined worker
+PASS: wrong_reason: all synthetic resources released only on main
+PASS: wrong_reason_type: starts off-tree private preparation
+PASS: wrong_reason_type: invalid or forbidden retry terminates
+PASS: wrong_reason_type: validation failure is visible
+PASS: wrong_reason_type: failure never obtains raw admission
+PASS: wrong_reason_type: failed resource retired before releasing all charge
+PASS: wrong_reason_type: prefetch performs no acceptance/publication
+PASS: wrong_reason_type: no shared template cache mutation
+PASS: wrong_reason_type: no shared template cache mutation
+PASS: wrong_reason_type: quiesce retires jobs and every charge
+PASS: wrong_reason_type: drainer has no unjoined worker
+PASS: wrong_reason_type: all synthetic resources released only on main
+PASS: wrong_marker_type: starts off-tree private preparation
+PASS: wrong_marker_type: invalid or forbidden retry terminates
+PASS: wrong_marker_type: validation failure is visible
+PASS: wrong_marker_type: failure never obtains raw admission
+PASS: wrong_marker_type: failed resource retired before releasing all charge
+PASS: wrong_marker_type: prefetch performs no acceptance/publication
+PASS: wrong_marker_type: no shared template cache mutation
+PASS: wrong_marker_type: no shared template cache mutation
+PASS: wrong_marker_type: quiesce retires jobs and every charge
+PASS: wrong_marker_type: drainer has no unjoined worker
+PASS: wrong_marker_type: all synthetic resources released only on main
+PASS: false_marker: starts off-tree private preparation
+PASS: false_marker: invalid or forbidden retry terminates
+PASS: false_marker: validation failure is visible
+PASS: false_marker: failure never obtains raw admission
+PASS: false_marker: failed resource retired before releasing all charge
+PASS: false_marker: prefetch performs no acceptance/publication
+PASS: false_marker: no shared template cache mutation
+PASS: false_marker: no shared template cache mutation
+PASS: false_marker: quiesce retires jobs and every charge
+PASS: false_marker: drainer has no unjoined worker
+PASS: false_marker: all synthetic resources released only on main
+PASS: missing_marker: starts off-tree private preparation
+PASS: missing_marker: invalid or forbidden retry terminates
+PASS: missing_marker: validation failure is visible
+PASS: missing_marker: failure never obtains raw admission
+PASS: missing_marker: failed resource retired before releasing all charge
+PASS: missing_marker: prefetch performs no acceptance/publication
+PASS: missing_marker: no shared template cache mutation
+PASS: missing_marker: no shared template cache mutation
+PASS: missing_marker: quiesce retires jobs and every charge
+PASS: missing_marker: drainer has no unjoined worker
+PASS: missing_marker: all synthetic resources released only on main
+PASS: marker_and_fallback: starts off-tree private preparation
+PASS: marker_and_fallback: invalid or forbidden retry terminates
+PASS: marker_and_fallback: validation failure is visible
+PASS: marker_and_fallback: failure never obtains raw admission
+PASS: marker_and_fallback: failed resource retired before releasing all charge
+PASS: marker_and_fallback: prefetch performs no acceptance/publication
+PASS: marker_and_fallback: no shared template cache mutation
+PASS: marker_and_fallback: no shared template cache mutation
+PASS: marker_and_fallback: quiesce retires jobs and every charge
+PASS: marker_and_fallback: drainer has no unjoined worker
+PASS: marker_and_fallback: all synthetic resources released only on main
+PASS: marker_and_false_fallback: starts off-tree private preparation
+PASS: marker_and_false_fallback: invalid or forbidden retry terminates
+PASS: marker_and_false_fallback: validation failure is visible
+PASS: marker_and_false_fallback: failure never obtains raw admission
+PASS: marker_and_false_fallback: failed resource retired before releasing all charge
+PASS: marker_and_false_fallback: prefetch performs no acceptance/publication
+PASS: marker_and_false_fallback: no shared template cache mutation
+PASS: marker_and_false_fallback: no shared template cache mutation
+PASS: marker_and_false_fallback: quiesce retires jobs and every charge
+PASS: marker_and_false_fallback: drainer has no unjoined worker
+PASS: marker_and_false_fallback: all synthetic resources released only on main
+PASS: wrong_packed_type: starts off-tree private preparation
+PASS: wrong_packed_type: invalid or forbidden retry terminates
+PASS: wrong_packed_type: validation failure is visible
+PASS: wrong_packed_type: failure never obtains raw admission
+PASS: wrong_packed_type: failed resource retired before releasing all charge
+PASS: wrong_packed_type: prefetch performs no acceptance/publication
+PASS: wrong_packed_type: no shared template cache mutation
+PASS: wrong_packed_type: no shared template cache mutation
+PASS: wrong_packed_type: quiesce retires jobs and every charge
+PASS: wrong_packed_type: drainer has no unjoined worker
+PASS: wrong_packed_type: all synthetic resources released only on main
+PASS: resource_fallback: starts off-tree private preparation
+PASS: resource_fallback: invalid or forbidden retry terminates
+PASS: resource_fallback: validation failure is visible
+PASS: resource_fallback: failure never obtains raw admission
+PASS: resource_fallback: failed resource retired before releasing all charge
+PASS: resource_fallback: prefetch performs no acceptance/publication
+PASS: resource_fallback: no shared template cache mutation
+PASS: resource_fallback: no shared template cache mutation
+PASS: resource_fallback: quiesce retires jobs and every charge
+PASS: resource_fallback: drainer has no unjoined worker
+PASS: resource_fallback: all synthetic resources released only on main
+PASS: scene_fallback: starts off-tree private preparation
+PASS: scene_fallback: invalid or forbidden retry terminates
+PASS: scene_fallback: validation failure is visible
+PASS: scene_fallback: failure never obtains raw admission
+PASS: scene_fallback: failed resource retired before releasing all charge
+PASS: scene_fallback: prefetch performs no acceptance/publication
+PASS: scene_fallback: no shared template cache mutation
+PASS: scene_fallback: no shared template cache mutation
+PASS: scene_fallback: quiesce retires jobs and every charge
+PASS: scene_fallback: drainer has no unjoined worker
+PASS: scene_fallback: all synthetic resources released only on main
+PASS: retained_fallback: starts off-tree private preparation
+PASS: retained_fallback: invalid or forbidden retry terminates
+PASS: retained_fallback: validation failure is visible
+PASS: retained_fallback: failure never obtains raw admission
+PASS: retained_fallback: failed resource retired before releasing all charge
+PASS: retained_fallback: prefetch performs no acceptance/publication
+PASS: retained_fallback: no shared template cache mutation
+PASS: retained_fallback: no shared template cache mutation
+PASS: retained_fallback: quiesce retires jobs and every charge
+PASS: retained_fallback: drainer has no unjoined worker
+PASS: retained_fallback: all synthetic resources released only on main
+PASS: false_fallback: starts off-tree private preparation
+PASS: false_fallback: invalid or forbidden retry terminates
+PASS: false_fallback: validation failure is visible
+PASS: false_fallback: failure never obtains raw admission
+PASS: false_fallback: failed resource retired before releasing all charge
+PASS: false_fallback: prefetch performs no acceptance/publication
+PASS: false_fallback: no shared template cache mutation
+PASS: false_fallback: no shared template cache mutation
+PASS: false_fallback: quiesce retires jobs and every charge
+PASS: false_fallback: drainer has no unjoined worker
+PASS: false_fallback: all synthetic resources released only on main
+PASS: empty_wrapper_error: starts off-tree private preparation
+PASS: empty_wrapper_error: invalid or forbidden retry terminates
+PASS: empty_wrapper_error: validation failure is visible
+PASS: empty_wrapper_error: failure never obtains raw admission
+PASS: empty_wrapper_error: failed resource retired before releasing all charge
+PASS: empty_wrapper_error: prefetch performs no acceptance/publication
+PASS: empty_wrapper_error: no shared template cache mutation
+PASS: empty_wrapper_error: no shared template cache mutation
+PASS: empty_wrapper_error: quiesce retires jobs and every charge
+PASS: empty_wrapper_error: drainer has no unjoined worker
+PASS: empty_wrapper_error: all synthetic resources released only on main
+PASS: wrong_wrapper_error_type: starts off-tree private preparation
+PASS: wrong_wrapper_error_type: invalid or forbidden retry terminates
+PASS: wrong_wrapper_error_type: validation failure is visible
+PASS: wrong_wrapper_error_type: failure never obtains raw admission
+PASS: wrong_wrapper_error_type: failed resource retired before releasing all charge
+PASS: wrong_wrapper_error_type: prefetch performs no acceptance/publication
+PASS: wrong_wrapper_error_type: no shared template cache mutation
+PASS: wrong_wrapper_error_type: no shared template cache mutation
+PASS: wrong_wrapper_error_type: quiesce retires jobs and every charge
+PASS: wrong_wrapper_error_type: drainer has no unjoined worker
+PASS: wrong_wrapper_error_type: all synthetic resources released only on main
+PASS: top_packed_fallback: starts off-tree private preparation
+PASS: top_packed_fallback: invalid or forbidden retry terminates
+PASS: top_packed_fallback: validation failure is visible
+PASS: top_packed_fallback: failure never obtains raw admission
+PASS: top_packed_fallback: failed resource retired before releasing all charge
+PASS: top_packed_fallback: prefetch performs no acceptance/publication
+PASS: top_packed_fallback: no shared template cache mutation
+PASS: top_packed_fallback: no shared template cache mutation
+PASS: top_packed_fallback: quiesce retires jobs and every charge
+PASS: top_packed_fallback: drainer has no unjoined worker
+PASS: top_packed_fallback: all synthetic resources released only on main
+PASS: private_packet_fallback: starts off-tree private preparation
+PASS: private_packet_fallback: invalid or forbidden retry terminates
+PASS: private_packet_fallback: validation failure is visible
+PASS: private_packet_fallback: failure never obtains raw admission
+PASS: private_packet_fallback: failed resource retired before releasing all charge
+PASS: private_packet_fallback: prefetch performs no acceptance/publication
+PASS: private_packet_fallback: no shared template cache mutation
+PASS: private_packet_fallback: no shared template cache mutation
+PASS: private_packet_fallback: quiesce retires jobs and every charge
+PASS: private_packet_fallback: drainer has no unjoined worker
+PASS: private_packet_fallback: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: source_retry: invalid or forbidden retry terminates
+PASS: source_retry: validation failure is visible
+PASS: source_retry: failure never obtains raw admission
+PASS: source_retry: failed resource retired before releasing all charge
+PASS: source_retry: prefetch performs no acceptance/publication
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: quiesce retires jobs and every charge
+PASS: source_retry: drainer has no unjoined worker
+PASS: source_retry: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: fixed_native: failed worker start terminates
+PASS: fixed_native: thread failure is reported
+PASS: fixed_native: failed launch returns its reservation
+PASS: fixed_native: prefetch performs no acceptance/publication
+PASS: fixed_native: no shared template cache mutation
+PASS: fixed_native: no shared template cache mutation
+PASS: fixed_native: quiesce retires jobs and every charge
+PASS: fixed_native: drainer has no unjoined worker
+PASS: fixed_native: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: raw_import: failed worker start terminates
+PASS: raw_import: thread failure is reported
+PASS: raw_import: failed launch returns its reservation
+PASS: raw_import: prefetch performs no acceptance/publication
+PASS: raw_import: no shared template cache mutation
+PASS: raw_import: no shared template cache mutation
+PASS: raw_import: quiesce retires jobs and every charge
+PASS: raw_import: drainer has no unjoined worker
+PASS: raw_import: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: scope cancellation preserves the live worker's old charge
+PASS: scope cancellation joins the late native result
+PASS: cancelled retry neither dispatches raw nor leaks its native packet
+PASS: scope cancelled: quiesce retires jobs and every charge
+PASS: scope cancelled: drainer has no unjoined worker
+PASS: scope cancelled: all synthetic resources released only on main
+PASS: premiss: starts off-tree private preparation
+PASS: changed demand raw retry reaches ready
+PASS: raw redispatch refreshes publication IDs and reference-byte estimate
+PASS: changed demand: prefetch performs no acceptance/publication
+PASS: changed demand: no shared template cache mutation
+PASS: changed demand: no shared template cache mutation
+PASS: changed demand: quiesce retires jobs and every charge
+PASS: changed demand: drainer has no unjoined worker
+PASS: changed demand: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: quiesce: cancellation joins native work without a raw retry
+PASS: quiesce: owner or drainer retires every worker and reservation
+PASS: quiesce: late native packet released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: shutdown: cancellation joins native work without a raw retry
+PASS: shutdown: owner or drainer retires every worker and reservation
+PASS: shutdown: late native packet released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: offtree_free: cancellation joins native work without a raw retry
+PASS: offtree_free: owner or drainer retires every worker and reservation
+PASS: offtree_free: late native packet released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: tree_exit: cancellation joins native work without a raw retry
+PASS: tree_exit: owner or drainer retires every worker and reservation
+PASS: tree_exit: late native packet released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: abandoned live worker's token alone retains its admission ledger
+PASS: test retains no strong ledger alias while abandoned output stays charged
+PASS: drain releases the token's ledger owner after disposal and reservation release
+PASS: late native resource releases on main while the sole token-owned ledger still holds its charge
+PASS: success: starts off-tree private preparation
+PASS: conservative native: fixed reader reserves raw model 40 + references 10
+PASS: conservative native: unjoined worker occupies its slot
+PASS: conservative native: fixed result joins individually
+PASS: conservative native: reader keeps the dispatch candidate and source identity
+PASS: conservative native: full reservation does not switch the reader to raw
+PASS: conservative native: parking retains all 50 units of its reservation
+PASS: conservative native: prefetch performs no acceptance/publication
+PASS: conservative native: no shared template cache mutation
+PASS: conservative native: no shared template cache mutation
+PASS: conservative native: quiesce retires jobs and every charge
+PASS: conservative native: drainer has no unjoined worker
+PASS: conservative native: all synthetic resources released only on main
+PASS: premiss: starts off-tree private preparation
+PASS: premiss: retry eventually becomes ready
+PASS: premiss: retry refreshes raw envelope and runs each stage once
+PASS: premiss: raw obtains a separate complete 60 + 10 reservation
+PASS: premiss: native resource is gone before raw reservation starts
+PASS: premiss: native and raw reservations never coexist
+PASS: premiss: fresh raw identity remains privately owned
+PASS: premiss: prefetch performs no acceptance/publication
+PASS: premiss: no shared template cache mutation
+PASS: premiss: no shared template cache mutation
+PASS: premiss: quiesce retires jobs and every charge
+PASS: premiss: drainer has no unjoined worker
+PASS: premiss: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: source_retry: retry eventually becomes ready
+PASS: source_retry: retry refreshes raw envelope and runs each stage once
+PASS: source_retry: raw obtains a separate complete 60 + 10 reservation
+PASS: source_retry: native resource is gone before raw reservation starts
+PASS: source_retry: native and raw reservations never coexist
+PASS: source_retry: main releases old native while its original budget is still held
+PASS: source_retry: fresh raw identity remains privately owned
+PASS: source_retry: prefetch performs no acceptance/publication
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: quiesce retires jobs and every charge
+PASS: source_retry: drainer has no unjoined worker
+PASS: source_retry: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: source_retry: invalid or forbidden retry terminates
+PASS: source_retry: validation failure is visible
+PASS: source_retry: failure never obtains raw admission
+PASS: source_retry: failed resource retired before releasing all charge
+PASS: source_retry: prefetch performs no acceptance/publication
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: no shared template cache mutation
+PASS: source_retry: quiesce retires jobs and every charge
+PASS: source_retry: drainer has no unjoined worker
+PASS: source_retry: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: equal/larger native bound keeps fixed identity and full credit: 40 reduced=true
+PASS: equal/larger native result joins
+PASS: joined larger native retains all model and reference bytes
+PASS: larger native bound: quiesce retires jobs and every charge
+PASS: larger native bound: drainer has no unjoined worker
+PASS: larger native bound: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: equal/larger native bound keeps fixed identity and full credit: 40 reduced=false
+PASS: equal/larger native result joins
+PASS: joined larger native retains all model and reference bytes
+PASS: larger native bound: quiesce retires jobs and every charge
+PASS: larger native bound: drainer has no unjoined worker
+PASS: larger native bound: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: equal/larger native bound keeps fixed identity and full credit: 80 reduced=true
+PASS: equal/larger native result joins
+PASS: joined larger native retains all model and reference bytes
+PASS: larger native bound: quiesce retires jobs and every charge
+PASS: larger native bound: drainer has no unjoined worker
+PASS: larger native bound: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: equal/larger native bound keeps fixed identity and full credit: 80 reduced=false
+PASS: equal/larger native result joins
+PASS: joined larger native retains all model and reference bytes
+PASS: larger native bound: quiesce retires jobs and every charge
+PASS: larger native bound: drainer has no unjoined worker
+PASS: larger native bound: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: legacy preparation opt-out preserves max(raw,native) plus reference credit
+PASS: legacy max-bound result joins
+PASS: legacy max envelope: quiesce retires jobs and every charge
+PASS: legacy max envelope: drainer has no unjoined worker
+PASS: legacy max envelope: all synthetic resources released only on main
+PASS: success: starts off-tree private preparation
+PASS: exclusive fixture starts with a real held lease
+PASS: raw<cap<native waits for the existing held lease
+PASS: oversized native is admitted alone with model plus reference bytes
+PASS: live exclusive native prevents sibling admission
+PASS: exclusive native result joins
+PASS: parked exclusive native retains its fence until actual disposal
+PASS: larger exclusive native: quiesce retires jobs and every charge
+PASS: larger exclusive native: drainer has no unjoined worker
+PASS: larger exclusive native: all synthetic resources released only on main
+PASS: premiss: starts off-tree private preparation
+PASS: larger native retry reaches fresh raw readiness
+PASS: larger native retry refreshes and separately reserves smaller raw model plus references
+PASS: larger native is disposed before raw credit starts without overlapping reservations
+PASS: larger native retry: quiesce retires jobs and every charge
+PASS: larger native retry: drainer has no unjoined worker
+PASS: larger native retry: all synthetic resources released only on main
+PASS: source_retry: starts off-tree private preparation
+PASS: larger native retry reaches fresh raw readiness
+PASS: larger native retry refreshes and separately reserves smaller raw model plus references
+PASS: larger native is disposed before raw credit starts without overlapping reservations
+PASS: larger native source retry disposal occurs on main while its full old credit is held
+PASS: larger native retry: quiesce retires jobs and every charge
+PASS: larger native retry: drainer has no unjoined worker
+PASS: larger native retry: all synthetic resources released only on main
+DEFERRED_NATIVE_ADMISSION passed=493 failures=0

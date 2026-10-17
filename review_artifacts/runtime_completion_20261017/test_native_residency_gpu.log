@@ -1,0 +1,31 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS save native terrain plus complete frozen house/roof/door units
+PASS verify complete native fixture dependency directory
+PASS real native MapLoader prepares initial district
+PASS native A settles real model/native workers, stream and navigation
+PASS complete A is resident while far B remains a compact reference
+PASS change real door pose before retirement
+PASS simulate decoded instance-cache eviction while its independent render-cache owner survives
+PASS native B settles real model/native workers, stream and navigation
+PASS transfer source pin prevents full native retirement
+PASS unpin native B settles real model/native workers, stream and navigation
+PASS complete far house and its terrain leave the resident index
+PASS current district remains resident
+PASS native far district releases mesh after final consumer
+PASS native far district releases material after final consumer
+PASS native far district releases texture after final consumer
+PASS native revisit A 0 settles real model/native workers, stream and navigation
+PASS revisit restores original door identity and runtime open state 0
+PASS revisit restores terrain while retiring the previous district 0
+PASS native revisit B 0 settles real model/native workers, stream and navigation
+PASS repeated districts return to bounded native resident count 0
+PASS native revisit A 1 settles real model/native workers, stream and navigation
+PASS revisit restores original door identity and runtime open state 1
+PASS revisit restores terrain while retiring the previous district 1
+PASS native revisit B 1 settles real model/native workers, stream and navigation
+PASS repeated districts return to bounded native resident count 1
+PASS runtime retirement preserves complete author metadata and disk source SHA
+NATIVE_RESIDENCY_GPU {"failures":0,"native":{"last_wait":"","retired_specs":20,"retired_units":10,"revisits":8},"passed":26,"path":"D:/code/rmmo_runtime/cache/world3d/native_resident_10666284/map.gltf","sha256":"1cff24aae4a0d6aa673fec697441b2cd18fe89d1d299a0395ea514ee249bfd20"}

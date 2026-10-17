@@ -12,6 +12,22 @@ static var _decoded:Dictionary={}
 static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
 static var _decode_issuer:=RefCounted.new()
+static func evict_geometry(digests:Dictionary)->void:
+	var meshes:Dictionary={}
+	for key:String in _meshes.keys():
+		if not digests.has(key.get_slice(":",0)):continue
+		meshes[_meshes[key].mesh.get_instance_id()]=true;_meshes.erase(key)
+	# The independent 512-entry caches can evict at different times (painted
+	# variants only occupy _meshes). Retire orphan render-cache owners as well.
+	var live:Dictionary={}
+	for entry:Dictionary in _meshes.values():live[entry.mesh.get_instance_id()]=true
+	for key:String in _render_meshes.keys():
+		var id:int=_render_meshes[key].get_instance_id()
+		if meshes.has(id) or not live.has(id):_render_meshes.erase(key)
+	_decode_mutex.lock()
+	for key:String in digests:
+		if _decoded.has(key):_decoded_bytes-=int(_decoded[key].length);_decoded.erase(key)
+	_decode_mutex.unlock()
 const DECODE_MAX_DEPTH:=64
 const DECODE_MAX_VALUES:=2000000
 const DECODE_BUDGET=536870912

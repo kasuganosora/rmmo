@@ -1,0 +1,14 @@
+{
+  "checks": 25,
+  "failures": 0,
+  "profile": {
+    "cancelled": 12,
+    "hits": 1,
+    "misses": 0,
+    "ready": 3,
+    "started": 5,
+    "warmed_meshes": 9
+  },
+  "source_sha256": "c3566848e2583d2e058c31fd13606476624978e0bc68c3ae8d711b49ea40c963",
+  "source_worker_peak": 2
+}

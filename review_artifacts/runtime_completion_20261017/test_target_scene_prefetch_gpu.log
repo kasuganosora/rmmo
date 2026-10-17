@@ -1,0 +1,30 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS create bounded real textured GLB target dependency
+PASS save isolated native target
+PASS prepare verified CPU target and complete GPU envelope
+PASS GPU plan covers current source and selected rmres identities
+PASS private target loader acquires shared source lease
+PASS target coordinator and one nested worker share two admitted source slots
+PASS target GPU buffers/materials draw in private warmup viewport
+PASS ready GPU result retains resource charge after workers join
+PASS real imported target material and texture are uploaded and privately drawn
+PASS private target preparation preserves the active source scene cache owner
+PASS single-use scene handoff preserves off-tree target ownership
+PASS handoff transfers the exact GPU owners out of the speculative lease
+PASS confirmed target reuses the same uploaded buffer RIDs
+PASS second target is independently prepared
+PASS changed target bytes reject stale GPU scene without activation
+PASS stale GPU scene and workers retire before byte release
+PASS prepare independently verified model dependency
+PASS changed external model bytes reject stale target GPU resources
+PASS start cancellation with an actual private loader
+PASS source critical task preempts speculative target
+PASS cancel joins workers and drops GPU results before release
+PASS warmup never writes authored map contents
+PASS start real target worker before owner exit
+PASS owner exit joins private preparation and releases its full lease
+PASS oversize target declines speculation without changing author eligibility
+TARGET_GPU {"checks":25,"failures":0,"profile":{"cancelled":12,"hits":1,"misses":0,"ready":3,"started":5,"warmed_meshes":9},"source_sha256":"c3566848e2583d2e058c31fd13606476624978e0bc68c3ae8d711b49ea40c963","source_worker_peak":2}

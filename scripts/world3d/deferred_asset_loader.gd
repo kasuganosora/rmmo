@@ -79,6 +79,7 @@ var _reference_map_path:=""
 var _reference_root:=""
 var _reference_proof:OwnershipProof
 var _runtime_record_ids:Dictionary={}
+var runtime_fixture_states:Dictionary={} # Scalar state survives render retirement.
 var _memory_estimates:Dictionary={}
 var _entry_loading:Dictionary={}
 var _scene_handoff:=false
@@ -408,7 +409,9 @@ func requeue_reference(entry:Dictionary)->bool:
 	var uuid:String=entry.compact_record.uuid
 	if pending.any(func(item):return item.record.uuid==uuid):return false
 	var path:String=entry.asset_path
-	if path.is_empty() or _reference_index.is_empty():return false
+	if _reference_index.is_empty():return false
+	var native:=path.is_empty()
+	if native:path="reference:"+(entry.group_id if not str(entry.get("group_id","")).is_empty() else str(entry.record_index))
 	var extra:Dictionary=_map.get_meta("extras",{})
 	var records:Array=extra.get("rmmo_records",[])
 	for i in range(records.size()-1,-1,-1):
@@ -418,7 +421,7 @@ func requeue_reference(entry:Dictionary)->bool:
 	# admitted before carries its original decoded-size estimate. An initially
 	# resident-only path without that estimate safely retries in exclusive mode.
 	var memory:Dictionary=_memory_estimates.get(path,{"estimated_bytes":_admission.byte_limit,"exclusive":true,"known":false})
-	pending.append({"record":entry.compact_record,"path":path,"bounds":entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":false,"group_id":""})
+	pending.append({"record":entry.compact_record,"path":path,"bounds":entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")})
 	_indexed=false;_pending_index.clear();_large_pending.clear();_demand_revision+=1
 	_invalidate_collision_queries()
 	_completion_emitted=false;set_process(_active)
@@ -991,6 +994,10 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Dictionary:
 	var reference_bytes:=0
 	for request:Dictionary in requests:reference_bytes+=int(request.get("memory_bytes",65536))
+	var positions:Array=[]
+	for request:Dictionary in requests:
+		if request.has("record_index"):positions.append(int(request.record_index))
+	for row:Dictionary in preload("res://scripts/world3d/map_dependency_index.gd").terrain_context_rows(_reference_index,positions):reference_bytes+=int(row.memory_bytes)
 	var texture_plan:Dictionary=_prefab_texture_plan(item,requests)
 	var texture_bytes:int=int(texture_plan.get("estimated_bytes",0))
 	if item.get("native_reference",false):
@@ -1060,7 +1067,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 	if model_route.get("filter_collision_geometry",false) and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false):
 		result.collision_geometry_mode=int(geometry.mode);result.collision_definitions=geometry.definitions
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
-	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","waiting_pixels"]:
+	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","waiting_pixels","terrain_contexts"]:
 		if prepared.has(field):result[field]=prepared[field]
 	return result
 
@@ -1172,6 +1179,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 	for record:Dictionary in result.get("records",[]):records[record.uuid]=record
 	if not records.is_empty():_invalidate_collision_queries()
 	var surfaces:Dictionary=result.get("surface_arrays",{})
+	_doc.terrain_neighbors.data.merge(result.get("terrain_contexts",{}),true)
 	if not surfaces.is_empty():
 		_doc.load_surface_arrays.merge(surfaces)
 		profile.native_surface_records=int(profile.get("native_surface_records",0))+surfaces.size()
@@ -1208,6 +1216,11 @@ func _job_consumed(job:Dictionary)->bool:
 func _publish_items(items:Array,specs:Array)->bool:
 	# Stream indexes require a whole building/fixture namespace in one atomic
 	# append. Staging can span frames; no component becomes visible beforehand.
+	for spec:Dictionary in specs:
+		var extra:Dictionary=spec.get("extras",{});var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
+		if extra.has("fixture") and runtime_fixture_states.has(uuid):
+			extra.fixture.open=runtime_fixture_states[uuid]
+			spec.transform=preload("res://scripts/world3d/building_fixtures.gd").pose(spec.closed_transform,extra.fixture,float(extra.fixture.open));spec.position=spec.transform.origin
 	var registered:Dictionary=Stream.append_specs(_map,specs)
 	if not registered.ok:
 		if registered.get("error","")=="promotion_collision_pending":
@@ -2154,9 +2167,11 @@ func _discard_job(path:String)->void:
 		if key[0]==path:_prefab_texture_attempts.erase(key)
 	# The main-thread document borrows the worker output only for this job.
 	# Published Mesh/CPU-mesh resources retain their own array references.
-	for uuid:String in job.get("result",{}).get("surface_arrays",{}):
+	var output:Dictionary=job.get("result",{}) if job.get("result",{}) is Dictionary else {}
+	for uuid:String in output.get("surface_arrays",{}):
 		_doc.load_surface_arrays.erase(uuid)
-	if job.has("result"):Drainer.dispose_result(job.result)
+	for uuid:String in output.get("terrain_contexts",{}):_doc.terrain_neighbors.data.erase(uuid)
+	if not output.is_empty():Drainer.dispose_result(output)
 	if job.has("staged"):job.staged.clear()
 	if job.has("collision_staged"):job.collision_staged.clear()
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")

@@ -1,0 +1,62 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+ASSET_RESIDENCY_GPU_TEMP D:/code/rmmo_runtime/cache/world3d/asset_residency_gpu_22252_12799426
+PASS write isolated standard GLB with real embedded texture
+PASS fixture is eligible for conservative deferred GLB path
+PASS explicitly compile the temporary GLB before map entry
+PASS verify the native PackedScene cache product
+PASS write native reference map with verified dependency directory
+PASS real MapLoader finishes local closure
+PASS initial authored references preserve exact JSON values from the writer
+ASSET_RESIDENCY_AUTHOR_BASELINE {"first_difference":{"left":"0.0","left_type":"float","path":"$[0].position[2]","right":"0","right_type":"int"},"semantic_equal":true,"source_sha":"d3cdb0ec5617815a745ef0db799c678ef1ed05546c971617e4714c0993e6f774","writer_strict_equal":false}
+PASS loader uses the dependency index and hydrated runtime subset
+PASS initial MapLoader consumes the verified compiled PackedScene
+PASS production initial adoption registers original GLB namespace before binding
+PASS production World3D binding creates residency and streaming navigation
+PASS initial A settles real model/native workers, stream and navigation
+PASS initial loader releases its model preparation owners
+PASS initial geometry contains A but leaves distant B cold
+PASS capture only weak references to real mesh/material/texture
+PASS initial model has a prepared cache template
+PASS actual collider retains namespace: prop_a
+PASS first B settles real model/native workers, stream and navigation
+PASS second shared instance reuses the existing model template
+PASS pinned origin and target settles real model/native workers, stream and navigation
+PASS origin plus destination demand pins reject retirement across grace
+PASS render/physics origin pin alone refuses retirement
+PASS unpin at B settles real model/native workers, stream and navigation
+PASS far A drops stream specs, hydrated record and navigation identity
+PASS shared model cache stays alive until B also leaves
+PASS retired A returns as a cold compact reference request
+PASS actual collider retains namespace: prop_b
+PASS empty C settles real model/native workers, stream and navigation
+PASS last instance releases hydrated record and shared model cache
+PASS A/B departure releases mesh after final consumer
+PASS A/B departure releases material after final consumer
+PASS A/B departure releases texture after final consumer
+PASS revisit A settles real model/native workers, stream and navigation
+PASS revisit performs verified worker preparation and restores the original UUID
+PASS cold revisit reloads compiled resources on the worker without raw GLTF fallback
+PASS revisit appends navigation and retains the once-only minimap projection
+PASS actual collider retains namespace: prop_a
+PASS loop B 0 settles real model/native workers, stream and navigation
+PASS loop retires A while retaining B 0
+PASS loop A 0 settles real model/native workers, stream and navigation
+PASS loop retires B and restores stable A 0
+PASS loop B 1 settles real model/native workers, stream and navigation
+PASS loop retires A while retaining B 1
+PASS loop A 1 settles real model/native workers, stream and navigation
+PASS loop retires B and restores stable A 1
+PASS loop B 2 settles real model/native workers, stream and navigation
+PASS loop retires A while retaining B 2
+PASS loop A 2 settles real model/native workers, stream and navigation
+PASS loop retires B and restores stable A 2
+PASS repeated travel returns to the same resident count instead of accumulating
+PASS repeated travel keeps minimap shape count and error state stable
+PASS complete authored snapshot remains strictly unchanged throughout retirement
+PASS final authored references retain exact writer JSON semantics
+PASS map source bytes retain their original SHA throughout retirement
+ASSET_RESIDENCY_GPU_PROFILE {"map_shapes":5,"queue":{"active_jobs":0,"admission":{"active_workers":0,"byte_limit":8510964736,"exclusive_keys":[],"jobs":0,"peak_bytes":16910880,"peak_jobs":2,"peak_workers":2,"reserved_bytes":0,"stages":{},"worker_limit":2},"admission_drain_path":"","capture_bytes":304,"capture_us":46238,"captured_meshes":1,"collision_product_bytes":0,"collision_product_hits":0,"collision_product_misses":0,"collision_product_workspace_bytes":0,"collision_product_write_skips":0,"collision_product_writes":0,"compiled_hits":1,"deferred_instances":1,"definition_cache_reserved_bytes":0,"demand_refresh_us":2197,"demand_refreshes":23,"demanded_instances":0,"dispatch_attempts":10,"dispatch_cursor":0,"dispatch_path_reorders":10,"dispatch_paths":0,"dispatch_scan_us":15391,"dispatch_scanned":31,"entry_prefetch_budget_bytes":8510964736,"entry_prefetch_finished_us":14156632,"entry_prefetch_max_pump_us":128,"entry_prefetch_mode":"handoff","entry_prefetch_pump_us":184,"entry_prefetch_pumps":2,"entry_prefetch_ready_jobs":0,"entry_prefetch_started_us":14115884,"face_bytes":432,"face_us":13,"frame_bookkeeping_us":67,"frame_publication_allowance_us":2000,"geometry_definition_reserved_bytes":0,"initial_retained_estimate_bytes":16797772,"instances":10,"main_thread_budget_mode":"interactive","main_thread_budget_us":2000,"main_thread_budgets":{"interactive":{"acceptance_units":10,"acceptance_us":1879,"budget_us":2000,"elapsed_us":70635,"frames":256,"max_acceptance_unit_us":1017,"max_elapsed_us":9550,"max_publication_unit_us":1379,"over_budget_frames":1,"publication_units":10,"publication_us":10490}},"max_demand_refresh_us":243,"max_dispatch_scan_us":9358,"max_publish_us":9550,"max_ready_scan_us":50,"max_total_jobs":2,"models":1,"native_candidate_lookups":1,"peak_jobs":2,"peak_reserved_bytes":16910880,"publication_units":10,"ready_heads":0,"ready_job_limit":4,"ready_scan_items":10,"ready_scan_us":1571,"reference_preflight_ownership_us":221,"reference_preflight_us":22268,"reference_proof_jobs":10,"reference_records":10,"reference_selected_ownership_us":123,"reference_selected_uuid_lookup_us":20,"reference_worker_us":202601,"reserved_bytes":0,"reuse_reference_jobs":7,"reuse_reference_reservation_bytes":117911808,"shared_pixels":{"consumers":0,"outputs":0,"peak_outputs":0,"peak_retained_bytes":0,"produced":0,"retained_bytes":0,"shared_hits":0,"waits":0},"skipped_geometry_nodes":0,"slowest_publication":{"append_us":674,"collect_us":210,"covered":false,"elapsed_us":1352,"group_id":"","instance_us":443,"path":"D:/code/rmmo_runtime/cache/world3d/asset_residency_gpu_22252_12799426/textured_crate.glb","prefab_us":25,"uuid":"prop_b"},"specs":10,"total_jobs":0,"worker_capacity":{"byte_limit":8510964736,"effective_limit":2,"interactive_limit":2,"loading_configured":6,"loading_override":0,"logical_threads":12,"mode":"interactive"},"worker_us":318098},"residency":{"evicted_models":1,"last_wait":"","resident_instances":1,"retired_instances":8,"retired_specs":8,"revisits":7},"resident_counts":[4,4,4,4,4,4]}
+ASSET_RESIDENCY_GPU_FINISHED passed=54 failures=0

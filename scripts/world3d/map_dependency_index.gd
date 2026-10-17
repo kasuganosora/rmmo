@@ -118,6 +118,7 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		# Variant/string/container overhead and both immutable geometry handoffs.
 		# This is deliberately conservative; compressed rmres bytes are not RAM.
 		row.memory_bytes = mini(64 * 1024 * 1024 * 1024, definition_bytes[sha] * 8 + int(record.get("house_prefab", {}).get("length", 0)) * 4 + 65536)
+		if record.has("terrain_mesh"):row.memory_bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024+1048576
 		# Paths only: current bounded image headers are read at job admission, so
 		# changing image dimensions does not leave a stale persisted byte estimate.
 		row.prefab_textures = PrefabTextures.sources(record)
@@ -529,6 +530,18 @@ static func _valid_payload(data: Dictionary, compact: Array, root: String) -> bo
 
 static func _overlaps_xz(a: AABB, b: AABB) -> bool:
 	return a.position.x <= b.end.x and a.end.x >= b.position.x and a.position.z <= b.end.z and a.end.z >= b.position.z
+
+static func terrain_context_rows(index:Dictionary,positions:Array)->Array:
+	if positions.is_empty() or not index.has("rows"):return []
+	var clips:Array=[];var result:Array=[]
+	for at:int in positions:
+		var row:Dictionary=index.rows[at]
+		if row.reason=="terrain_context_global":clips.append(row.bounds.grow(float(row.terrain_halo)))
+	for row:Dictionary in index.rows:
+		if row.reason!="terrain_context_global" or not row.bounds_known:continue
+		for clip:AABB in clips:
+			if _overlaps_xz(row.bounds.grow(float(row.terrain_halo)),clip):result.append(row);break
+	return result
 
 ## Multiple simultaneous demand clips support origin/teleport pins. Empty clips
 ## select globals only. Original indices make render order/UUID identity stable.

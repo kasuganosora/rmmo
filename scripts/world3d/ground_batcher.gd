@@ -95,6 +95,9 @@ static func restore(node: MeshInstance3D) -> void:
 	if node.mesh is Cpu: node.mesh = node.mesh.restore()
 
 func clear(restore_sources: bool = true) -> void:
+	if get_parent()!=null:
+		var proxy:=get_parent().get_node_or_null("DistantBuildingProxy")
+		if proxy!=null:proxy.clear()
 	_preparation.clear();_residency_descriptors.clear()
 	for group: Dictionary in groups.values(): _drop(group,restore_sources)
 	groups.clear(); pending.clear(); _material_keys.clear(); _instance_meshes.clear(); _member_groups.clear();_building_meshes.clear()

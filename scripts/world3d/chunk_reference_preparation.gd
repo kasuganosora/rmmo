@@ -125,6 +125,21 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var validation_us := Time.get_ticks_usec() - validation_started
 	var surface_arrays := {}; var road_array_us := 0; var road_array_bytes := 0; var road_estimated_bytes := 0
+	var terrain_contexts:Dictionary={};var terrain_rows:=Index.terrain_context_rows(index,positions)
+	if not terrain_rows.is_empty():
+		var terrain_compact:Array=[];var terrain_dependencies:Dictionary={}
+		for row:Dictionary in terrain_rows:
+			var ref:Dictionary=index.extras.rmmo_records[row.order];terrain_compact.append(ref);terrain_dependencies[ref.rmmo_ref.uri]=ref.rmmo_ref.sha256
+		var terrain_data:=Store.read_records(terrain_compact,path,content_root,terrain_dependencies,1)
+		if not terrain_data.ok:return _fail("地形接缝依赖无法读取")
+		var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.update(terrain_data.records)
+		for record:Dictionary in restored.records:
+			if not record.has("terrain_mesh"):continue
+			var current:Dictionary=context.data.get(record.uuid,{})
+			surface_arrays[record.uuid]=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,current)
+			# Keep only the requested tile's rendered halo, never decoded neighbors.
+			current=current.duplicate();current.signature=[];terrain_contexts[record.uuid]=current
+		dependencies.merge(terrain_dependencies,true)
 	for record: Dictionary in roads:
 		var road := RoadPreparation.prepare(record, token)
 		if not road.error.is_empty(): return _fail(str(road.error), bool(road.cancelled), str(record.uuid))
@@ -163,4 +178,4 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.road_instances = roads.size(); profile.road_array_prepare_us = road_array_us; profile.road_array_upper_bytes = road_array_bytes; profile.road_estimated_bytes = road_estimated_bytes
 	profile.prefab_textures=texture_packet.get("profile",{})
 	profile.collision_products=collision_metrics
-	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}
+	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays,"terrain_contexts":terrain_contexts, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}

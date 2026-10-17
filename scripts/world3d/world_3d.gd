@@ -17,6 +17,7 @@ var _building_lease_clock:=0.0
 var _approach_clock:=0.
 var _approach_preparation=preload("res://scripts/world3d/approach_preparation.gd").new()
 var _cross_map_prefetch:CrossMapPrefetch
+var _target_scene_prefetch:Node
 var _prefetch_fallback_ledger=preload("res://scripts/world3d/resource_admission.gd").new()
 
 
@@ -328,6 +329,7 @@ func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 			var residency:=preload("res://scripts/world3d/asset_residency.gd").new()
 			var adoption_complete:bool=int(map_root.get_meta("stream_children",-1))==map_root.get_child_count()
 			residency.configure(self,map_root,deferred);map_root.add_child(residency)
+			var native:=preload("res://scripts/world3d/native_residency.gd").new();native.configure(self,map_root,deferred);map_root.add_child(native)
 			if adoption_complete:map_root.set_meta("stream_children",map_root.get_child_count())
 	else:
 		navigation.set_geometry_pending(true)
@@ -1384,6 +1386,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_approach_preparation.release(_map_root.get_node_or_null("DeferredAssets"))
 	if _same_map_target(target):
 		if is_instance_valid(_cross_map_prefetch):_cross_map_prefetch.cancel()
+		if is_instance_valid(_target_scene_prefetch):_target_scene_prefetch.cancel()
 		return await _transfer_within_map(target,destination,before_commit,request)
 	_transfer_pending = true
 	var original:Dictionary={"combat_processing":_combat.is_physics_processing(),"locked":_player.input_locked,"physics":_player.is_physics_processing(),"velocity":_player.velocity,"geometry_blocked":_player.geometry_blocked,"geometry_wait_locked":_geometry_wait_locked,"transform":_player.global_transform,"disable_3d":get_viewport().disable_3d}
@@ -1411,25 +1414,28 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_combat._save_map_state()
 	_status.text = "读取目标地图…"
 	cover.update_progress("读取目标地图与附近素材（后台）")
-	var prefetched:CrossMapPrefetch.Packet
-	if is_instance_valid(_cross_map_prefetch):
-		prefetched=_cross_map_prefetch.take(target,destination)
-		await _cross_map_prefetch.drain()
-	var loader = preload("res://scripts/world3d/map_loader.gd").new()
-	loader.source_prefetch=prefetched
-	loader.near_first=true
-	_transfer_loader = loader
-	loader.progress.connect(func(stage: String, done: int, total: int):
-		_status.text = "%s %d/%d" % [stage, done, total]
-		if is_instance_valid(cover):cover.update_progress(stage,done,total)
-	)
-	Net.session().add_child(loader)
-	loader.start(target,destination)
-	var result: Array = await loader.finished
-	_transfer_loader = null
-	var prepared: Node = result[0]
-	if prepared == null:
-		return await _transfer_failed(original,cover,str(result[2]))
+	var prepared:Node
+	if is_instance_valid(_target_scene_prefetch):
+		prepared=_target_scene_prefetch.take(target,destination)
+		await _target_scene_prefetch.drain()
+	if prepared==null:
+		var prefetched:CrossMapPrefetch.Packet
+		if is_instance_valid(_cross_map_prefetch):
+			prefetched=_cross_map_prefetch.take(target,destination)
+			await _cross_map_prefetch.drain()
+		var loader = preload("res://scripts/world3d/map_loader.gd").new()
+		loader.source_prefetch=prefetched;loader.near_first=true;_transfer_loader=loader
+		loader.progress.connect(func(stage: String, done: int, total: int):
+			_status.text = "%s %d/%d" % [stage, done, total]
+			if is_instance_valid(cover):cover.update_progress(stage,done,total)
+		)
+		Net.session().add_child(loader);loader.start(target,destination)
+		var result:Array=await loader.finished;_transfer_loader=null;prepared=result[0]
+		if prepared==null:return await _transfer_failed(original,cover,str(result[2]))
+	# The local lease keeps warmed buffers alive through target draw/adoption,
+	# then releases them. It cannot pin all resources for the map's lifetime.
+	var gpu_owners:Array=prepared.get_meta("prefetched_gpu_owners",[])
+	if prepared.has_meta("prefetched_gpu_owners"):prepared.remove_meta("prefetched_gpu_owners")
 	# Prepare and validate in an isolated physics world. The current map and
 	# inventory stay intact until navigation and the destination capsule fit.
 	var viewport := SubViewport.new()
@@ -1580,6 +1586,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	get_viewport().disable_3d=bool(original.disable_3d)
 	_camera.snap_to(_player.global_position)
 	if not await cover.finish(_camera.camera):return _hold_transfer_presentation(cover)
+	gpu_owners.clear() # Target instances now own the exact buffers used in its drawn frame.
 	if building_readiness_enabled and not _activate_building_transfer(cover):return false
 	if not await cover.reveal():return _hold_transfer_presentation(cover)
 	cover.retire()
@@ -2030,12 +2037,18 @@ func request_pet_dismiss() -> void:
 
 func _update_approach_preparation()->void:
 	if not is_instance_valid(_map_root) or not is_instance_valid(_player):return
+	if _map_root.get_node_or_null("DistantBuildingProxy")==null:
+		var adopted:bool=int(_map_root.get_meta("stream_children",-1))==_map_root.get_child_count()
+		var proxy:=preload("res://scripts/world3d/distant_building_proxy.gd").new();proxy.name="DistantBuildingProxy";_map_root.add_child(proxy)
+		if adopted:_map_root.set_meta("stream_children",_map_root.get_child_count())
 	var deferred:Node=_map_root.get_node_or_null("DeferredAssets")
 	_approach_preparation.update(deferred,_player.global_position,_player.velocity)
 	preload("res://scripts/world3d/surface_materials.gd").trim_cached_resources()
 	if not CrossMapPrefetch.enabled:return
 	if not is_instance_valid(_cross_map_prefetch):
 		_cross_map_prefetch=CrossMapPrefetch.new();_cross_map_prefetch.name="CrossMapPrefetch";add_child(_cross_map_prefetch)
+	if not is_instance_valid(_target_scene_prefetch):
+		_target_scene_prefetch=preload("res://scripts/world3d/target_scene_prefetch.gd").new();_target_scene_prefetch.name="TargetScenePrefetch";add_child(_target_scene_prefetch)
 	var chosen:="";var destination:=Vector3.ZERO;var distance:=24.
 	for body:Node in _warp_candidates:
 		if not is_instance_valid(body):continue
@@ -2050,10 +2063,11 @@ func _update_approach_preparation()->void:
 		var target:String=_approach_map_target(params.map_path)
 		if d>=distance or target.is_empty():continue
 		chosen=target;destination=Vector3(params.spawn[0],params.spawn[1]+.9,params.spawn[2]);distance=d
-	if chosen.is_empty():_cross_map_prefetch.cancel();return
+	if chosen.is_empty():_cross_map_prefetch.cancel();_target_scene_prefetch.cancel();return
 	var ledger:RefCounted=deferred._admission if deferred!=null else _prefetch_fallback_ledger
-	if deferred==null:ledger.byte_limit=CrossMapPrefetch.LEASE_BYTES
-	_cross_map_prefetch.request(chosen,destination,ledger)
+	if deferred==null:ledger.byte_limit=preload("res://scripts/world3d/target_scene_prefetch.gd").LEASE_BYTES+CrossMapPrefetch.LEASE_BYTES
+	if not _target_scene_prefetch.matches(chosen,destination):_cross_map_prefetch.request(chosen,destination,ledger)
+	_target_scene_prefetch.request(chosen,destination,ledger,_cross_map_prefetch)
 
 func _approach_map_target(target:String)->String:
 	if target.is_empty():return ""

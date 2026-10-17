@@ -1,0 +1,33 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS generate representative three-storey house through the shared editor/MCP blueprint
+PASS bake actual floor roof door components without changing the master plan
+PASS save real frozen native source with full ownership
+PASS reopen actual native resources before visual and semantic checks
+PROXY_STATUS {"active":0,"invalidated":0,"last_wait":"","prepared":0,"proxy_draws":0,"source_draws":0}
+PASS distance policy and same-camera rendered comparison near
+PROXY_STATUS {"active":0,"invalidated":0,"last_wait":"","prepared":0,"proxy_draws":0,"source_draws":0}
+PASS distance policy and same-camera rendered comparison middle
+PROXY_STATUS {"active":2,"invalidated":0,"last_wait":"","prepared":2,"proxy_draws":20,"source_draws":58}
+PASS distance policy and same-camera rendered comparison far
+PASS actual far visible draw calls decrease
+PASS actual far rendered triangles use index LODs
+PASS repeated distance polling retains proxy without hide/rebuild oscillation
+PROXY_STATUS {"active":2,"invalidated":2,"last_wait":"","prepared":4,"proxy_draws":40,"source_draws":116}
+PASS distance policy and same-camera rendered comparison detail
+PASS proxy leaves source UUIDs exact collision objects and author records unchanged
+PASS floor visibility immediately withdraws affected proxy
+PASS source pose invalidates proxy before the next distance poll
+PASS cancelled worker cannot install stale proxy
+PASS near reentry restores original render layers
+PASS worker derives real index LODs with byte-exact base arrays
+PASS actual GPU LOD indices and thresholds match worker output
+PASS index LODs leave exact collision triangle soup unchanged
+PASS transparent source stays independent
+PASS per-instance override stays independent
+PASS wind and arbitrary shader sources stay independent
+PASS source native bytes and rollback master stay unchanged
+PASS zero engine/script errors including notification-time invalidation
+DISTANT_PROXY_GPU checks=24 failures=0

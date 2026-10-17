@@ -19,6 +19,7 @@ class Packet extends RefCounted:
 	var selected:Array=[]
 	var path:=""
 	var cell:=Vector2i.ZERO
+	var scene_plan:Dictionary={}
 var profile:Dictionary={"started":0,"ready":0,"hits":0,"cancelled":0,"misses":0}
 var _thread:Thread
 var _token:RefCounted
@@ -91,6 +92,7 @@ static func prepare(path:String,origin:Vector3,root:String,token:RefCounted,budg
 	var restored:Dictionary=Cursor.hydrate_references(selection.extras,path,root,1)
 	if not restored.get("ok",false) or token.is_cancelled() or not source.matches_disk():return {}
 	var packet:=Packet.new();packet.snapshot=source;packet.restored=restored;packet.selected=selection.record_indices.duplicate();packet.path=path;packet.cell=Plan.create(origin).cell
+	packet.scene_plan=preload("res://scripts/world3d/target_scene_prefetch.gd").plan(restored.extras.rmmo_records,root,path,source._signature,restored.dependencies)
 	return {"packet":packet}
 func _process(_delta:float)->void:
 	poll()

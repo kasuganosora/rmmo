@@ -12,7 +12,9 @@ static func matches(mesh:Mesh,expected:Array)->bool:
 		for row:Dictionary in actual:
 			var distance:float=row.edge_length;var selected:Variant=null
 			for key:float in expected[slot]:
-				if is_equal_approx(key,distance):selected=expected[slot][key];break
+				# Nearby tiny error thresholds can differ by less than the generic
+				# absolute epsilon. Match the renderer's exact float32 key instead.
+				if float(PackedFloat32Array([key])[0])==distance:selected=expected[slot][key];break
 			if selected==null or row.index_data.size()!=selected.size()*stride:return false
 			for i in selected.size():
 				var index:int=row.index_data.decode_u16(i*2) if stride==2 else row.index_data.decode_u32(i*4)

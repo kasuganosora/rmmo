@@ -143,6 +143,7 @@ static func upload(data: Dictionary) -> Dictionary:
 	# undo/save/scene exit must never wait for a RenderingServer main-thread call.
 	assert(Thread.is_main_thread())
 	var result:=ArrayMesh.new()
+	var cpu_arrays:Array=[];var cpu_lods:Array=[]
 	var height_array: Texture2DArray
 	if not data.images.is_empty():
 		height_array=Texture2DArray.new()
@@ -164,8 +165,11 @@ static func upload(data: Dictionary) -> Dictionary:
 			material.set_shader_parameter("batch_spans",spans)
 		var flags:=Mesh.ARRAY_CUSTOM_R_FLOAT<<Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT if row.layered else 0
 		if data.get("compressed",false) and row.arrays[Mesh.ARRAY_NORMAL]!=null and row.arrays[Mesh.ARRAY_TANGENT]!=null: flags|=Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES
-		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],{},flags)
+		var levels:Dictionary=row.get("lods",{})
+		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],levels,flags)
 		result.surface_set_material(result.get_surface_count()-1,material)
+		cpu_arrays.append(row.arrays);cpu_lods.append(levels)
+	Cpu.remember(result,cpu_arrays,cpu_lods)
 	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 
 static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:

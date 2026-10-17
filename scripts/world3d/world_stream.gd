@@ -290,7 +290,7 @@ static func _resident_index_data(map_root:Node)->Dictionary:
 		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
 	return data
 
-static func can_retire_specs(map_root:Node,ids:Array)->Dictionary:
+static func can_retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->Dictionary:
 	# Entry temporarily masks distant demand; it never withdraws existing leases.
 	if _entry_clip(map_root)!=null:return {"ok":false,"error":"entry_scope"}
 	# Retire only between residency plans. No candidate cursor or batch worker
@@ -298,7 +298,10 @@ static func can_retire_specs(map_root:Node,ids:Array)->Dictionary:
 	if not map_root.has_meta("stream_chunk") or not _jobs(map_root).is_empty() or map_root.has_meta("stream_candidate_work") or not map_root.get_meta("stream_append_pending",[]).is_empty():return {"ok":false,"error":"stream_busy"}
 	var batcher=map_root.get_node_or_null("GroundRenderBatches")
 	if batcher!=null and (not batcher._workers.is_empty() or not batcher.pending.is_empty() or not batcher._preparation.is_empty()):return {"ok":false,"error":"batch_leased"}
-	var checked:Dictionary=preload("res://scripts/world3d/stream_index.gd").validate_retire(_resident_index_data(map_root),_library(map_root),ids)
+	var proxy=map_root.get_node_or_null("DistantBuildingProxy")
+	if proxy!=null and not proxy._job.is_empty():return {"ok":false,"error":"proxy_leased"}
+	var index=preload("res://scripts/world3d/stream_index.gd")
+	var checked:Dictionary=index.validate_owned_retire(_resident_index_data(map_root),_library(map_root),ids) if complete_unit else index.validate_retire(_resident_index_data(map_root),_library(map_root),ids)
 	if not checked.ok:return checked
 	var target:Vector2i=map_root.get_meta("stream_chunk")
 	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
@@ -311,10 +314,11 @@ static func can_retire_specs(map_root:Node,ids:Array)->Dictionary:
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
 	return {"ok":true,"error":""}
 
-static func retire_specs(map_root:Node,ids:Array)->Dictionary:
-	var checked:=can_retire_specs(map_root,ids)
+static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->Dictionary:
+	var checked:=can_retire_specs(map_root,ids,complete_unit)
 	if not checked.ok:return checked
-	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").retire(_resident_index_data(map_root),_library(map_root),ids)
+	var index=preload("res://scripts/world3d/stream_index.gd")
+	var result:Dictionary=index.retire_owned(_resident_index_data(map_root),_library(map_root),ids) if complete_unit else index.retire(_resident_index_data(map_root),_library(map_root),ids)
 	if not result.ok:return result
 	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
 	var nodes:Array=[]

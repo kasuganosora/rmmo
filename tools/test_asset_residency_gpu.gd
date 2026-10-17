@@ -53,7 +53,7 @@ func dump_state(label:String)->void:
 	if is_instance_valid(deferred):
 		for item:Dictionary in deferred.pending:pending.append({"uuid":item.record.uuid,"published":item.get("published",false),"prepared":item.get("reference_prepared",false),"compact":item.record.has("rmmo_ref"),"native":item.get("native_reference",false)})
 	print("ASSET_RESIDENCY_STATE ",JSON.stringify({"label":label,"specs":specs,"runtime_records":records,"pending":pending,"visuals":visuals,"compiled_owners":compiled_owners,"by_id":map_root.get_meta("stream_by_id",{}).keys(),"mesh_ids":map_root.get_meta("stream_meshes",{}).keys(),"body_ids":map_root.get_meta("stream_bodies",{}).keys(),"children_marker":map_root.get_meta("stream_children",-2),"children_actual":map_root.get_child_count(),"stream_chunk":str(map_root.get_meta("stream_chunk",null)),"resident":residency._resident if is_instance_valid(residency) else {},"nav_ids":navigation._spec_ids.keys() if is_instance_valid(navigation) else [],"cache_present":Assets.has_cached_scene(asset_path)}))
-func textured_fixture(path:String)->Error:
+static func textured_fixture(path:String)->Error:
 	# Standard glTF 2.0, embedded PNG, no exporter-specific extensions. All
 	# material/texture weak-reference probes therefore test real imported assets.
 	var binary:=PackedFloat32Array([-.5,-.5,-.5,.5,-.5,-.5,.5,.5,-.5,-.5,.5,-.5,-.5,-.5,.5,.5,-.5,.5,.5,.5,.5,-.5,.5,.5]).to_byte_array()
@@ -211,12 +211,16 @@ func run()->void:
 	if not await adopt_initial():await cleanup();quit(1);return
 	navigation=Navigation.new();host.add_child(navigation);host._navigation=navigation
 	host._map_data.build(map_root);host._bind_deferred_geometry(map_root,navigation)
+	# This regression isolates ordinary-model ownership. Native retirement has a
+	# separate full-consumer test; production completes and releases entry pins.
+	map_root.get_node("NativeResidency").set_process(false)
 	residency=map_root.get_node_or_null("AssetResidency")
 	check(residency!=null and navigation.streaming_geometry,"production World3D binding creates residency and streaming navigation")
 	if residency==null:await cleanup();quit(1);return
 	residency.set_process(false);residency.grace_msec=25
 	navigation.build(map_root.get_meta("stream_library"),A);deferred.activate(host)
 	if not await settle(A,"initial A"):await cleanup();quit(1);return
+	deferred.end_entry_loading();deferred.release_demand("entry_safety")
 	while is_instance_valid(loader) and Time.get_ticks_msec()<deadline:await process_frame
 	check(not is_instance_valid(loader),"initial loader releases its model preparation owners")
 	var original_a:=prop_ids("prop_a");var initial_ok:=original_a.size()==1 and prop_ids("prop_b").is_empty()

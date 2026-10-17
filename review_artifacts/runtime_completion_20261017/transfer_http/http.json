@@ -1,0 +1,251 @@
+{
+  "checks": [
+    {
+      "label": "create isolated native maps",
+      "ok": true
+    },
+    {
+      "label": "start isolated loopback 3D MCP",
+      "ok": true
+    },
+    {
+      "label": "real discovery documents shared transfer presentation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "invalid requests leave author data and history untouched",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event undo removes exact instance",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event redo restores identity",
+      "ok": true
+    },
+    {
+      "label": "HTTP select_objects succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI event form applies shared parameters and shows automatic transition help",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI and MCP authored events survive native save/reopen",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_playtest_spawn succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "playtest mounts real native author records instead of reference glTF proxies",
+      "ok": true
+    },
+    {
+      "label": "UI documents automatic GPU preparation alongside shared transfer behavior",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "UI documents automatic GPU preparation alongside shared transfer behavior",
+      "ok": true
+    },
+    {
+      "label": "saved UI/MCP event automatically prepares target GPU resources before trigger",
+      "ok": true
+    },
+    {
+      "label": "source remains visible and playable throughout GPU preload",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "real confirmed cross-map transfer consumes GPU-ready target",
+      "ok": true
+    },
+    {
+      "label": "target draw takes ownership without a map-lifetime preload pin",
+      "ok": true
+    },
+    {
+      "label": "exit probe reaches real covered transfer",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "stop during covered transfer destroys only owned world, viewport and cover",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "undrawable source viewport yields explicit failure exit without moving/unlocking actor",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "playtest restores real server and inventory without edits",
+      "ok": true
+    },
+    {
+      "label": "runtime experience leaves both authored maps unchanged",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_14405064",
+  "gpu": [
+    {
+      "cancelled": 0,
+      "hits": 1,
+      "misses": 0,
+      "ready": 1,
+      "started": 1,
+      "warmed_meshes": 1
+    }
+  ],
+  "passed": 48,
+  "transfers": [
+    {
+      "committed": true,
+      "covered_ms": 35472,
+      "drawn_frame": 116,
+      "elapsed_ms": 654,
+      "fade_out_started_ms": 35254,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 35906,
+      "map_reused": true,
+      "ok": true,
+      "phase": "revealed",
+      "radar_ready_at_retire": true,
+      "radar_region_ready_at_retire": true,
+      "ready_frame": 126,
+      "ready_ms": 35639,
+      "reveal_started_ms": 35639,
+      "revealed_ms": 35905,
+      "same_map": true,
+      "target": "D:/code/rmmo_runtime/cache/world3d/playtests/345de460af9090fddc24f689/map.gltf",
+      "viewport_id": 1419302157144
+    },
+    {
+      "committed": true,
+      "covered_ms": 36623,
+      "drawn_frame": 182,
+      "elapsed_ms": 746,
+      "fade_out_started_ms": 36397,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 37141,
+      "ok": true,
+      "phase": "revealed",
+      "ready_frame": 197,
+      "ready_ms": 36874,
+      "reveal_started_ms": 36874,
+      "revealed_ms": 37141,
+      "target": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_14405064/target.gltf",
+      "viewport_id": 1419302157144
+    }
+  ]
+}

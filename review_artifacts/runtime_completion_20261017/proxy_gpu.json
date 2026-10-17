@@ -1,0 +1,983 @@
+{
+  "checks": 24,
+  "environment": {
+    "ambient": 0.5,
+    "exposure": 1.0,
+    "light_degrees": [
+      -45,
+      -35,
+      0
+    ],
+    "msaa": 4,
+    "resolution": [
+      1280,
+      960
+    ]
+  },
+  "failures": 0,
+  "frozen_components": 81,
+  "lod": {
+    "base_triangles": 8192,
+    "triangles": [
+      [
+        4096,
+        2048,
+        1024,
+        512,
+        256
+      ]
+    ]
+  },
+  "profile": {
+    "active": 0,
+    "invalidated": 7,
+    "last_wait": "",
+    "prepared": 7,
+    "proxy_draws": 67,
+    "source_draws": 195
+  },
+  "source_parts": 2209,
+  "source_path": "D:/code/rmmo_runtime/cache/world3d/distant_review_11689964/map.gltf",
+  "source_sha256": "8e99fc83908eae0197c914e38a41e4d572168e09d23642101b0da9aee9feddb9",
+  "sources": [
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_0",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_1",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_2",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_3",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_4",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": true,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 4,
+      "uuid": "house_5",
+      "vertices": 912,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_6",
+      "vertices": 50,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 9,
+      "uuid": "house_7",
+      "vertices": 15090,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_8",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_9",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_10",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_11",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_12",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_13",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_14",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_15",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_16",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_17",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_18",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_19",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 2,
+      "uuid": "house_20",
+      "vertices": 1494,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_21",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_22",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_23",
+      "vertices": 36,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_24",
+      "vertices": 36,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_25",
+      "vertices": 24,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_26",
+      "vertices": 24,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 7,
+      "uuid": "house_27",
+      "vertices": 16886,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_28",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_29",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_30",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_31",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_32",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_33",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_34",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_35",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_36",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_37",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_38",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_39",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_40",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_41",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_42",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_43",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_44",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_45",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_46",
+      "vertices": 36,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_47",
+      "vertices": 36,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_48",
+      "vertices": 24,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_49",
+      "vertices": 24,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 6,
+      "uuid": "house_50",
+      "vertices": 15446,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_51",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_52",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_53",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_54",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_55",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_56",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_57",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_58",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_59",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_60",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_61",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_62",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_63",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_64",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_65",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_66",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_67",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_68",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_69",
+      "vertices": 24,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 7,
+      "uuid": "house_70",
+      "vertices": 3936,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_71",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_72",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_73",
+      "vertices": 144,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_74",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 3,
+      "uuid": "house_75",
+      "vertices": 588,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 8,
+      "uuid": "house_76",
+      "vertices": 1502,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": false,
+      "surfaces": 1,
+      "uuid": "house_77",
+      "vertices": 72,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 2,
+      "uuid": "house_78",
+      "vertices": 826,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 2,
+      "uuid": "house_79",
+      "vertices": 826,
+      "visible": true
+    },
+    {
+      "cpu": false,
+      "eligible": true,
+      "fixture": true,
+      "surfaces": 2,
+      "uuid": "house_80",
+      "vertices": 826,
+      "visible": true
+    }
+  ],
+  "views": [
+    {
+      "after": {
+        "camera": "Transform3D(-0.7893523, -0.123089924, 0.60147476, 0, 0.97969544, 0.2004916, -0.61394054, 0.15825851, -0.77332485, 21, 13, -27)",
+        "fov": 50.0,
+        "label": "near_candidate",
+        "lod": [],
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/near_candidate.png",
+        "sha256": "b7ba9da97171b5aeb6ed47fc9def5400abad584ee09b0f42e8cbd25bd10a048d",
+        "shadow_draws": 44,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "before": {
+        "camera": "Transform3D(-0.7893523, -0.123089924, 0.60147476, 0, 0.97969544, 0.2004916, -0.61394054, 0.15825851, -0.77332485, 21, 13, -27)",
+        "fov": 50.0,
+        "label": "near_base",
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/near_base.png",
+        "sha256": "b7ba9da97171b5aeb6ed47fc9def5400abad584ee09b0f42e8cbd25bd10a048d",
+        "shadow_draws": 44,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "proxies": 0
+    },
+    {
+      "after": {
+        "camera": "Transform3D(-0.7445695, -0.19355343, 0.6388688, 0, 0.95704234, 0.28994817, -0.66754496, 0.21588655, -0.7125845, 130, 65, -145)",
+        "fov": 50.0,
+        "label": "middle_candidate",
+        "lod": [],
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/middle_candidate.png",
+        "sha256": "fd2362ff6ea0aa2b1987af4b59254d001399f1097788b5061fdea8d906c27f99",
+        "shadow_draws": 68,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "before": {
+        "camera": "Transform3D(-0.7445695, -0.19355343, 0.6388688, 0, 0.95704234, 0.28994817, -0.66754496, 0.21588655, -0.7125845, 130, 65, -145)",
+        "fov": 50.0,
+        "label": "middle_base",
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/middle_base.png",
+        "sha256": "fd2362ff6ea0aa2b1987af4b59254d001399f1097788b5061fdea8d906c27f99",
+        "shadow_draws": 68,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "proxies": 0
+    },
+    {
+      "after": {
+        "camera": "Transform3D(-0.76675767, -0.18421678, 0.6149365, 0, 0.95793945, 0.28697035, -0.64193666, 0.22003672, -0.73450744, 180, 90, -215)",
+        "fov": 50.0,
+        "label": "far_candidate",
+        "lod": [
+          {
+            "base_triangles": 2100,
+            "triangles": [
+              [],
+              [],
+              [],
+              [
+                60
+              ],
+              [],
+              [],
+              []
+            ]
+          },
+          {
+            "base_triangles": 48960,
+            "triangles": [
+              [
+                968
+              ],
+              [
+                4986,
+                2052,
+                780,
+                84,
+                36
+              ],
+              [
+                12708,
+                6354,
+                1546,
+                24
+              ],
+              [
+                3402,
+                1700
+              ],
+              [
+                1540,
+                674
+              ],
+              [
+                42
+              ],
+              [
+                24
+              ],
+              [],
+              [],
+              [],
+              [],
+              [],
+              []
+            ]
+          }
+        ],
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/far_candidate.png",
+        "sha256": "e45390727112eb3477b9cc82715e03b30c83df7d37778e1da345d6671f1bbb98",
+        "shadow_draws": 25,
+        "visible_draws": 43,
+        "visible_triangles": 49016
+      },
+      "before": {
+        "camera": "Transform3D(-0.76675767, -0.18421678, 0.6149365, 0, 0.95793945, 0.28697035, -0.64193666, 0.22003672, -0.73450744, 180, 90, -215)",
+        "fov": 50.0,
+        "label": "far_base",
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/far_base.png",
+        "sha256": "e45390727112eb3477b9cc82715e03b30c83df7d37778e1da345d6671f1bbb98",
+        "shadow_draws": 34,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "proxies": 2
+    },
+    {
+      "after": {
+        "camera": "Transform3D(-0.76675767, -0.18421678, 0.6149365, 0, 0.95793945, 0.28697035, -0.64193666, 0.22003672, -0.73450744, 180, 90, -215)",
+        "fov": 8.0,
+        "label": "detail_candidate",
+        "lod": [
+          {
+            "base_triangles": 2100,
+            "triangles": [
+              [],
+              [],
+              [],
+              [
+                60
+              ],
+              [],
+              [],
+              []
+            ]
+          },
+          {
+            "base_triangles": 48960,
+            "triangles": [
+              [
+                968
+              ],
+              [
+                4986,
+                2052,
+                780,
+                84,
+                36
+              ],
+              [
+                12708,
+                6354,
+                1546,
+                24
+              ],
+              [
+                3402,
+                1700
+              ],
+              [
+                1540,
+                674
+              ],
+              [
+                42
+              ],
+              [
+                24
+              ],
+              [],
+              [],
+              [],
+              [],
+              [],
+              []
+            ]
+          }
+        ],
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/detail_candidate.png",
+        "sha256": "1b602d26efbc491459671e3d1b67b3c81bf39b5e00c09e137a19e53c5548b714",
+        "shadow_draws": 30,
+        "visible_draws": 43,
+        "visible_triangles": 63734
+      },
+      "before": {
+        "camera": "Transform3D(-0.76675767, -0.18421678, 0.6149365, 0, 0.95793945, 0.28697035, -0.64193666, 0.22003672, -0.73450744, 180, 90, -215)",
+        "fov": 8.0,
+        "label": "detail_base",
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/detail_base.png",
+        "sha256": "88da1defd4d44c6f50a331035eae1d2ece6318e747017d71b7f50afecd527e1e",
+        "shadow_draws": 42,
+        "visible_draws": 76,
+        "visible_triangles": 82796
+      },
+      "proxies": 2
+    }
+  ]
+}
