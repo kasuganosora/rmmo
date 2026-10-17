@@ -1,0 +1,33 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: saved block map matches actual HTTP fixture SHA
+PASS: saved native house, road, terrain and bridge collider construction
+PASS: saved block entrance identity resolves for home_1
+PASS: home_1 exterior treads through access to street: native support below exterior start
+PASS: home_1 exterior treads through access to street: every waypoint reached with native support within controller step reach, no rejected move or ground penetration
+PASS: home_1 street through access to exterior treads: native support below exterior start
+PASS: home_1 street through access to exterior treads: every waypoint reached with native support within controller step reach, no rejected move or ground penetration
+PASS: home_1 access toward street: start has real native support
+PASS: home_1 access toward street: reaches destination grounded with no rejected moves
+PASS: home_1 street toward access: start has real native support
+PASS: home_1 street toward access: reaches destination grounded with no rejected moves
+PASS: saved block entrance identity resolves for home_2
+PASS: home_2 exterior treads through access to street: native support below exterior start
+PASS: home_2 exterior treads through access to street: every waypoint reached with native support within controller step reach, no rejected move or ground penetration
+PASS: home_2 street through access to exterior treads: native support below exterior start
+PASS: home_2 street through access to exterior treads: every waypoint reached with native support within controller step reach, no rejected move or ground penetration
+PASS: home_2 access toward street: start has real native support
+PASS: home_2 access toward street: reaches destination grounded with no rejected moves
+PASS: home_2 street toward access: start has real native support
+PASS: home_2 street toward access: reaches destination grounded with no rejected moves
+PASS: curved street forward across new junction: actual native support at route start
+PASS: curved street forward across new junction: continuous curved route crosses junction grounded, no resets between waypoints
+PASS: curved street reverse across new junction: actual native support at route start
+PASS: curved street reverse across new junction: continuous curved route crosses junction grounded, no resets between waypoints
+PASS: adjacent stone bridge eastbound: start has real native support
+PASS: adjacent stone bridge eastbound: reaches destination grounded with no rejected moves
+PASS: adjacent stone bridge westbound: start has real native support
+PASS: adjacent stone bridge westbound: reaches destination grounded with no rejected moves
+RESIDENTIAL_BLOCK_RUNTIME passed=28 failures=0

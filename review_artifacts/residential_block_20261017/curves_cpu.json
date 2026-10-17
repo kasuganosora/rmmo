@@ -1,0 +1,262 @@
+{
+	"cases": [
+		{
+			"case": "S bend with vertical guide and tapered width",
+			"max_authoring_error": 0.000000000000007105427357601,
+			"max_shape_error": 0.00000770446604292374,
+			"t": 0.396186828613281,
+			"visits": 433
+		},
+		{
+			"case": "symmetric arch",
+			"max_authoring_error": 0.0,
+			"max_shape_error": 0.00000384438408218557,
+			"t": 0.5,
+			"visits": 1
+		},
+		{
+			"case": "multiple nearby branches",
+			"max_authoring_error": 0.0000000000000035527136788005,
+			"max_shape_error": 0.00000506884862261359,
+			"t": 0.915386199951172,
+			"visits": 753
+		},
+		{
+			"case": "translated curve",
+			"max_authoring_error": 0.00000000000181898940354586,
+			"max_shape_error": 0.00201323512010276,
+			"t": 0.396186828613281,
+			"visits": 433
+		},
+		{
+			"case": "rotated curve",
+			"max_authoring_error": 0.000000000000007105427357601,
+			"max_shape_error": 0.00000770446604292374,
+			"t": 0.396186828613281,
+			"visits": 433
+		}
+	],
+	"checks": [
+		{
+			"label": "S bend with vertical guide and tapered width: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: double authoring child curves preserve original XYZ independently of native rendering",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: native float32 deviation within explicit coordinate-scaled tolerance",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: join preserves tangent continuity",
+			"ok": true
+		},
+		{
+			"label": "S bend with vertical guide and tapered width: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: double authoring child curves preserve original XYZ independently of native rendering",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: native float32 deviation within explicit coordinate-scaled tolerance",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: join preserves tangent continuity",
+			"ok": true
+		},
+		{
+			"label": "symmetric arch: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: double authoring child curves preserve original XYZ independently of native rendering",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: native float32 deviation within explicit coordinate-scaled tolerance",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: join preserves tangent continuity",
+			"ok": true
+		},
+		{
+			"label": "multiple nearby branches: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "endpoint minimum: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "endpoint minimum: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "endpoint minimum: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "endpoint minimum: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "translated curve: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "translated curve: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "translated curve: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "translated curve: double authoring child curves preserve original XYZ independently of native rendering",
+			"ok": true
+		},
+		{
+			"label": "translated curve: native float32 deviation within explicit coordinate-scaled tolerance",
+			"ok": true
+		},
+		{
+			"label": "translated curve: join preserves tangent continuity",
+			"ok": true
+		},
+		{
+			"label": "translated curve: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: bounded projection succeeds",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: no worse than independent dense reference within declared scalar search bound",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: projection deterministic",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: double authoring child curves preserve original XYZ independently of native rendering",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: native float32 deviation within explicit coordinate-scaled tolerance",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: join preserves tangent continuity",
+			"ok": true
+		},
+		{
+			"label": "rotated curve: source authoring graph unchanged",
+			"ok": true
+		},
+		{
+			"label": "exhausted projection budget refuses, never succeeds with partial samples",
+			"ok": true
+		},
+		{
+			"label": "shared target filter accepts ordinary cubic",
+			"ok": true
+		},
+		{
+			"label": "real residential connection splits cubic and adds connector",
+			"ok": true
+		},
+		{
+			"label": "both editable children retain cubic controls",
+			"ok": true
+		},
+		{
+			"label": "split interpolates native parameter-based width without widening",
+			"ok": true
+		},
+		{
+			"label": "native graph accepts complete curved junction",
+			"ok": true
+		},
+		{
+			"label": "connection never mutates source graph",
+			"ok": true
+		},
+		{
+			"label": "endpoint attachment retains entire original cubic unchanged",
+			"ok": true
+		},
+		{
+			"label": "near-endpoint reconnect reuses node and preserves cubic instead of making a degenerate child",
+			"ok": true
+		},
+		{
+			"label": "endpoint reuse reports separate raw projection and bounded topological adjustment",
+			"ok": true
+		},
+		{
+			"label": "endpoint reuse does not silently extend beyond five centimetres",
+			"ok": true
+		},
+		{
+			"label": "curved endpoint cannot attach directly to protected bridgehead",
+			"ok": true
+		},
+		{
+			"label": "native full-road validator rejects a self-crossing cubic",
+			"ok": true
+		},
+		{
+			"label": "locked curve refuses",
+			"ok": true
+		},
+		{
+			"label": "hidden endpoint refuses",
+			"ok": true
+		},
+		{
+			"label": "bridge targets still excluded",
+			"ok": true
+		}
+	],
+	"failures": 0
+}

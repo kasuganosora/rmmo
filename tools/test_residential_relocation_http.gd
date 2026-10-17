@@ -110,6 +110,7 @@ func run()->void:
 	before=snapshot();var plan:=await call_tool("preview_residential_relocation",args)
 	if not plan.get("ok",false):manifest.last_failure=plan;await finish();return
 	same_snapshot(before,"graded relocation preview is private")
+	check(plan.relocation.old_access.removed_edge_ids==[receipt.edge.id] and plan.relocation.old_access.removed_node_ids==[receipt.door.id],"old-road summary reports exact deleted edge and terminal node")
 	check(plan.earthwork.fill_m3>0. and plan.terrain_operation_count==1 and plan.road_connection.kind=="cubic","final candidate includes real grading, rotation and curved reconnect")
 	var old_state:Dictionary=editor._doc.recovery_snapshot();editor._doc.add_box("unrelated",Vector3(49,1,12),Vector3.ONE)
 	await reject("apply_residential_relocation",{"plan_token":plan.plan_token},"base_changed");restore(old_state)

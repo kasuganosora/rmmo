@@ -27,6 +27,8 @@ var relocation_enabled:CheckButton
 var building_choice:OptionButton
 var old_access_choice:OptionButton
 var relocation_body:VBoxContainer
+var block_enabled:CheckButton
+var block_draft:VBoxContainer
 
 func setup(owner: VBoxContainer) -> void:
 	panel=owner; editor=panel.editor
@@ -60,8 +62,11 @@ func setup(owner: VBoxContainer) -> void:
 	form=preload("res://scripts/world_editor/settings_form.gd").new(); body.add_child(form)
 	var values:Dictionary={"position":[0,0,0]}
 	values.merge(Placement.defaults(),true); values.erase("asset_id"); values.erase("road_edge_id")
-	form.build(Placement.request_schema(),values,{"position":"住宅原点 XYZ（米）","yaw":"附加旋转（度）","elevation_min":"允许降低至（相对输入 Y，米）","elevation_max":"允许升高至（相对输入 Y，米）","setback_min":"门前退距下限（米）","setback_max":"门前退距上限（米）","width":"入户路宽度（米）"})
+	form.build(Placement.request_schema(),values,{"position":"住宅／素材放置点 XYZ（米）","yaw":"附加旋转（度）","elevation_min":"允许降低至（相对输入 Y，米）","elevation_max":"允许升高至（相对输入 Y，米）","setback_min":"门前退距下限（米）","setback_max":"门前退距上限（米）","width":"入户路宽度（米）"})
 	action(body,"取画面中心表面坐标",use_view_center)
+	block_enabled=CheckButton.new();block_enabled.text="多栋住宅：街区联合候选";body.add_child(block_enabled)
+	block_draft=preload("res://scripts/world_editor/residential_block_panel.gd").new();body.add_child(block_draft);block_draft.setup(self);block_draft.hide()
+	block_enabled.toggled.connect(func(value):invalidate_preview();block_draft.visible=value)
 	site_enabled=CheckButton.new();site_enabled.text="同时整地：联合预览与一次应用";body.add_child(site_enabled)
 	site_draft=preload("res://scripts/world_editor/residential_site_panel.gd").new();body.add_child(site_draft);site_draft.setup(self);site_draft.hide()
 	site_draft.changed.connect(invalidate_preview)
@@ -120,17 +125,27 @@ func refresh_catalogs() -> void:
 		if str(edge.id)==road_id: road_choice.select(road_choice.item_count-1)
 	if selected(asset_choice)!=asset_id or selected(road_choice)!=road_id: invalidate_preview("素材或道路列表已变化，请重新预览。")
 
-func request() -> Dictionary:
+func house_request()->Dictionary:
 	var result:Dictionary=form.values()
-	result.asset_id=selected(asset_choice); result.road_edge_id=selected(road_choice)
+	result.asset_id=selected(asset_choice);result.road_edge_id=selected(road_choice)
 	if relocation_enabled.button_pressed:
 		result.erase("asset_id");result.building_id=selected(building_choice);result.old_access=selected(old_access_choice)
+	return result
+
+func request() -> Dictionary:
+	if block_enabled.button_pressed:
+		var block:Dictionary={"homes":block_draft.homes.duplicate(true)}
+		if site_enabled.button_pressed:block.terrain=site_draft.request()
+		return block
+	var result:=house_request()
+	if relocation_enabled.button_pressed:
 		var migration:Dictionary={"residential":result}
 		if site_enabled.button_pressed:migration.terrain=site_draft.request()
 		return migration
 	return {"residential":result,"terrain":site_draft.request()} if site_enabled.button_pressed else result
 
 func service():
+	if block_enabled.button_pressed:return editor._residential_block
 	if relocation_enabled.button_pressed:return editor._residential_relocation
 	return editor._residential_site if site_enabled.button_pressed else editor._residential
 
@@ -203,7 +218,7 @@ func invalidate_preview(message: String="参数已变化，请重新预览。") 
 	var had_preview:=not plan_token.is_empty()
 	if had_preview and is_instance_valid(editor):
 		editor._residential.discard(plan_token);editor._residential_site.discard(plan_token)
-		editor._residential_relocation.discard(plan_token)
+		editor._residential_relocation.discard(plan_token);editor._residential_block.discard(plan_token)
 	plan_token=""
 	if is_instance_valid(ghost): ghost.free()
 	ghost=null
@@ -219,7 +234,7 @@ func discard_preview() -> void:
 	invalidate_preview("已放弃候选；地图未修改。")
 
 func report(result: Dictionary, applied: bool=false) -> void:
-	result=editor._diagnostics.explain(result,("apply_" if applied else "preview_")+("residential_relocation" if relocation_enabled.button_pressed else ("residential_site" if site_enabled.button_pressed else "residential_placement")))
+	result=editor._diagnostics.explain(result,("apply_" if applied else "preview_")+("residential_block" if block_enabled.button_pressed else ("residential_relocation" if relocation_enabled.button_pressed else ("residential_site" if site_enabled.button_pressed else "residential_placement"))))
 	diagnostics.display(result)
 	last_result=result.duplicate(true)
 	var text_:String
@@ -230,7 +245,12 @@ func report(result: Dictionary, applied: bool=false) -> void:
 			text_="候选已通过共享校验，尚未写入地图。"
 			if p.size()==3: text_+="\n最终位置：%.3f, %.3f, %.3f 米"%[p[0],p[1],p[2]]
 			if delta.size()==3: text_+=" · 标高调整 %+.3f 米"%float(delta[1])
-			text_+="\n门前退距 %.2f 米 · 路宽 %.2f 米"%[float(result.get("setback",0)),float(result.get("width",0))]
+			if not result.has("homes"):text_+="\n门前退距 %.2f 米 · 路宽 %.2f 米"%[float(result.get("setback",0)),float(result.get("width",0))]
+		if result.has("homes"):
+			text_+="\n街区共 %d 栋，最终逐户入口与路缘检查通过。"%result.homes.size()
+			for home:Dictionary in result.homes:
+				text_+="\n%s · %s · 原点 (%.3f, %.3f, %.3f) · 退距 %.2f 米"%[home.id,"迁移保留身份" if home.operation=="relocate" else "新增",home.building_position[0],home.building_position[1],home.building_position[2],home.setback]
+				if home.has("relocation"):text_+=" · 旧路"+("移除归属支路" if home.relocation.old_access.policy=="remove_owned" else "保留")
 		if result.has("road_connection"):
 			var connection:Dictionary=result.road_connection
 			text_+="\n接入%s · 接点 %.3f, %.3f, %.3f 米"%["弯路" if connection.kind=="cubic" else "直路",connection.position[0],connection.position[1],connection.position[2]]
@@ -249,6 +269,7 @@ func report(result: Dictionary, applied: bool=false) -> void:
 		if bridge_count>0:text_+="\n已校验并保留 %d 处桥梁绑定及关联河道。"%bridge_count
 	else:
 		text_=str(result.get("error","方案未通过"))
+		if result.has("home_id"):text_="第 %d 户 %s："%[int(result.home_index)+1,result.home_id]+text_
 		if result.has("code"): text_+="\n"+str(result.code)
 		if result.has("stage"): text_+=" · "+str(result.stage)
 		var last:Dictionary=result.get("last_failure",{})

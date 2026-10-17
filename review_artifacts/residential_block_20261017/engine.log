@@ -1,0 +1,151 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: verified frozen source map remains read-only
+PASS: private mixed-house baseline saved
+PASS: private 3D loopback server starts
+PASS: current 3D discovers all block tools without retired 2D
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: access_unowned
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: unsupported
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: stale_road_surface
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: placement_conflict
+PASS: rejection is atomic: preview_residential_block
+PASS: last-house conflict identifies the row and a locatable witness after private grading/first placement
+PASS: HTTP preview_residential_block succeeds
+PASS: mixed block preview preserves authoring, history and selection
+PASS: mixed new and existing houses share one result
+PASS: both houses use shared real grading
+PASS: second home connects to correct descendant of same original cubic
+PASS: HTTP preview_residential_block succeeds
+PASS: unchanged block request reuses one token
+PASS: HTTP discard_residential_block succeeds
+PASS: HTTP apply_residential_block rejects invalid operation
+PASS: specific rejection: candidate_missing
+PASS: rejection is atomic: apply_residential_block
+PASS: HTTP preview_residential_block succeeds
+PASS: final gate catches a later object obstructing the earlier house's exterior corridor
+PASS: final gate rejects raised kerbs above controller step limit
+PASS: scope regression uses an actual distant kerb
+PASS: final per-house proof does not turn an unrelated distant road/object pair into a new block restriction
+PASS: final corridor failure remains private
+PASS: HTTP apply_residential_block rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_block
+PASS: HTTP preview_residential_block succeeds
+PASS: HTTP apply_residential_block rejects invalid operation
+PASS: specific rejection: source_changed
+PASS: rejection is atomic: apply_residential_block
+PASS: HTTP preview_residential_block succeeds
+PASS: HTTP apply_residential_block rejects invalid operation
+PASS: specific rejection: candidate_invalid
+PASS: rejection is atomic: apply_residential_block
+PASS: UI chooses shared existing road
+PASS: UI chooses existing frozen house
+PASS: UI chooses shared existing road
+PASS: UI chooses frozen asset
+PASS: real UI queue stores mixed rows with stable IDs
+PASS: UI can reorder rows
+PASS: UI reorder restores original identities
+PASS: load/update roundtrip preserves row parameters and shared terrain
+PASS: HTTP preview_residential_block succeeds
+PASS: real UI and HTTP share identical per-house candidate results
+PASS: UI block ghost has no authored effects
+PASS: UI reports per-house results and shared scope
+PASS: editing the queue invalidates its preview
+PASS: HTTP preview_residential_block succeeds
+PASS: HTTP set_editor_camera succeeds
+PASS: actual UI apply publishes the block
+PASS: block relocation: building, part, recipe identities retained
+PASS: block relocation: exact shared rigid motion preserves all fixture, event, resource and floor fields
+PASS: block relocation: no building copy/delete identity substitution
+PASS: block relocation: authored open window state survives
+PASS: block relocation: distant road authoring and IDs untouched
+PASS: block relocation: moved geometry signatures remain valid
+PASS: block relocation: both bridge contexts remain valid
+PASS: block relocation: unrelated object preserved far_ground
+PASS: block relocation: unrelated object preserved fixture_bridge
+PASS: block relocation: unrelated object preserved obj_1
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_4_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_4_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_5_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_5_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_0_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_m1_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_end_0
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_end_1
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1
+PASS: block relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1
+PASS: whole block produces exactly one undo entry
+PASS: HTTP undo succeeds
+PASS: one undo restores every house, terrain and road
+PASS: HTTP redo succeeds
+PASS: one redo restores exactly the same block identities
+PASS: HTTP preview_residential_block rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: preview_residential_block
+PASS: HTTP preview_residential_block succeeds
+PASS: HTTP apply_residential_block succeeds
+PASS: two occupied homes swap positions without copies or collisions against their former sites
+PASS: swap retains part IDs for swap_first
+PASS: old-access summary lists the exact removed edge and leaf for swap_first
+PASS: swap removes only owned terminal edges and retains public joins
+PASS: swap retains part IDs for swap_second
+PASS: old-access summary lists the exact removed edge and leaf for swap_second
+PASS: swap removes only owned terminal edges and retains public joins
+PASS: HTTP undo succeeds
+PASS: one swap undo restores both homes and their owned roads
+PASS: applied retains actual native kerb profiles and mesh vertices
+PASS: applied retains valid kerb material dependencies
+PASS: applied includes kerbs in the changed house-approach road scope
+PASS: whole block participates in actual shared static batches
+PASS: all components remain individually addressable
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen preserves all houses, shared terrain, road lineage and receipts
+PASS: reopened access ownership remains usable for home_1
+PASS: reopened access ownership remains usable for home_2
+PASS: reopened retains actual native kerb profiles and mesh vertices
+PASS: reopened retains valid kerb material dependencies
+PASS: reopened includes kerbs in the changed house-approach road scope
+PASS: native save/reopen preserves actual kerb geometry and material identity
+PASS: final save validation and source map preservation
+RESIDENTIAL_PLACEMENT_HTTP D:\code\rmmo_runtime\review_artifacts\residential_block_20261017\http.json failures=0

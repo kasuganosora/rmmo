@@ -1,0 +1,43 @@
+{
+	"dependencies": {
+		"D:/code/rmmo_runtime/__residential_block_22448_12996880/source_dependency.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7",
+		"D:/code/rmmo_runtime/__residential_curves_18648_12979753/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7",
+		"D:/code/rmmo_runtime/__residential_curves_18648_12979753/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+		"D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7",
+		"D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+		"D:/code/rmmo_runtime/__residential_placement_2268_12499401/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7",
+		"D:/code/rmmo_runtime/__residential_placement_2268_12499401/assets/prefabs/6f2bf6e93e012c83268e1c4e98bf3a9b401b81c7c0adcca5be71d100022e73d8.json": "6abb3c01fdc552f7e3a3f8bc5bb27552e2f64404df22bccef475386e75a8f680",
+		"D:/code/rmmo_runtime/__residential_placement_bridges_19904_13700165/materials/776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3.png": "776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3",
+		"D:/code/rmmo_runtime/__residential_relocation_20596_12376471/source_dependency.png": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7",
+		"D:/code/rmmo_runtime/packs/default/assets/bridges/medieval_stone/stone_segmental.glb": "308b971639dabd7e9abe2c13d8a4d46dd2067607bead8b8efabf58a1b2f84ffb",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/normal.png": "b9af76c52ea7ffcbfab227ed1ff8c7d295952fbdabe4af64f0a27526fbf03f2c",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/roughness.png": "0bf22b9cd27e305b62610f9453cf42ef6b0cb8b198e960674633f00cd3b9f4df",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/texture.png": "74d16083107589ea878c9b49eb7a58ebf3bff89b17ead3d09a95deedb4063620"
+	},
+	"fixtures": [
+		{
+			"fixture": "D:/code/rmmo_runtime/__residential_block_22448_12996880/maps/test/map.gltf",
+			"native_save_valid": true,
+			"report": "http.json",
+			"sha256": "09efcb27274e076ae9f1ef3c3b4598ff3b4f8be14e8293ce94cfd630ad432a31"
+		},
+		{
+			"fixture": "D:/code/rmmo_runtime/__residential_relocation_20596_12376471/maps/test/map.gltf",
+			"native_save_valid": true,
+			"report": "compat_relocation/http.json",
+			"sha256": "983afa3bbf76955fcd699e4ee57cc555679acbfea2ce2343c89ca2576889340c"
+		},
+		{
+			"fixture": "D:/code/rmmo_runtime/__residential_curves_18648_12979753/maps/test/map.gltf",
+			"native_save_valid": true,
+			"report": "compat_curves/http.json",
+			"sha256": "fb7283c759fcb1d28acb17438bd34f96bf0923be2610d3c3d3e92b047d16aeff"
+		},
+		{
+			"fixture": "D:/code/rmmo_runtime/__residential_placement_2268_12499401/maps/test/map.gltf",
+			"native_save_valid": true,
+			"report": "compat_straight/http.json",
+			"sha256": "0fe182a7efa983631d513a4b83f293e62bf849014dfbe72d403f27af308d12a1"
+		}
+	]
+}

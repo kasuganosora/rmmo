@@ -22,6 +22,8 @@ const MAX_CANDIDATES=157
 var editor:Node3D
 var _candidate:Dictionary={}
 var _publishing:=false
+## Private block orchestration may resolve descendants of ONE requested edge.
+var target_edges:Array=[]
 ## Opt-in diagnostics for controlled editor benchmarks. Never authoring state.
 var profile_enabled:=false
 var last_profile:Dictionary={}
@@ -159,7 +161,8 @@ func preview(args:Dictionary)->Dictionary:
 		phase=_profile_start()
 		var setback:float=minf(p.setback_max,p.setback_min+i*STEP)
 		attempts+=1
-		linked=_connect(data,road_check,entry_info,setback,p.width,request_id.left(14))
+		var chosen:=_nearest_target(data.roads,target_edges,entry_info.position+entry_info.outward*setback) if not target_edges.is_empty() else road_check
+		linked=_connect(data,chosen,entry_info,setback,p.width,request_id.left(14)) if chosen.ok else chosen
 		_profile_end("connect",phase);phase=_profile_start()
 		if not linked.ok:last=linked;continue
 		var quick:=_connector_clearance(linked,data.road_surface.settings,occupancy,editor._doc.map_meta)
@@ -216,6 +219,10 @@ func preview(args:Dictionary)->Dictionary:
 	# Exact cubic geometry is contained by its control hull, including bends
 	# outside the endpoint rectangle. Authoring outside this edge stays intact.
 	for handle:Array in road_check.edge.get("controls",[]):scope=scope.expand(Vector2(handle[0],handle[2]))
+	for id:String in target_edges:
+		var related:=_target(data.roads,id)
+		if not related.ok:return related
+		for point:Array in [related.a.position,related.b.position]+related.edge.get("controls",[]):scope=scope.expand(Vector2(point[0],point[2]))
 	scope=scope.grow(maxf(maxf(road_check.edge.width_start,road_check.edge.width_end),p.width)+32.)
 	for r:Dictionary in before.records:
 		if r.has("road_source") and changed.has(r.uuid):
@@ -229,6 +236,7 @@ func preview(args:Dictionary)->Dictionary:
 	_profile_end("final_identity",phase);phase=_profile_start()
 	if not current:return fail("base_changed","输入或资源已变化，请重新预览")
 	summary.access_binding=binding.duplicate(true)
+	summary.building_position=staged.map_meta.building_instances[summary.building_id].position.duplicate()
 	_candidate={"summary":summary,"request_id":request_id,"dependencies":dependencies,"after":staged.recovery_snapshot(),"visual":visual}
 	_profile_end("candidate_snapshot",phase)
 	return summary.duplicate(true)
@@ -331,6 +339,18 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 		projection=CurveConnection.nearest(target.edge,nodes,start)
 		if not projection.ok:return projection
 		t=projection.t;end=projection.point
+		projection.nearest_parameter=t;projection.nearest_position=projection.position.duplicate();projection.endpoint_adjustment_m=0.
+		# Reconnecting at a saved junction can project a few millimetres inside
+		# its child curve. Reuse that endpoint within 5 cm instead of creating
+		# a forbidden tiny segment. No control point or existing node moves.
+		var from_gap:=Vector2(end.x-a.x,end.z-a.z).length();var to_gap:=Vector2(end.x-b.x,end.z-b.z).length()
+		if t>0. and t<1. and minf(from_gap,to_gap)<.05:
+			t=0. if from_gap<=to_gap else 1.
+			end=a if t==0. else b
+			projection.endpoint_adjustment_m=minf(from_gap,to_gap)
+			projection.position=target.a.position.duplicate() if t==0. else target.b.position.duplicate()
+			projection.tangent=CurveConnection.Split.derivative(target.edge,nodes,t)
+			if Vector2(projection.tangent.x,projection.tangent.z).length()<.0001:return fail("curve_tangent_degenerate","端点切向退化，请调整道路控制点")
 	if Vector2(end.x-start.x,end.z-start.z).length()<1 or (end-start).dot(out)<.1:return fail("access_direction","目标道路位于入口背后或退距超过接路位置")
 	var prefix:="home_"+key;var join:String=prefix+"_join"
 	if (curve and t==0.) or (not curve and t<.001):join=target.edge.from;end=a;t=0.
@@ -356,7 +376,7 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 	if not checked.ok:return checked
 	var split:bool=join==prefix+"_join"
 	var connection:Dictionary={"edge_id":target.edge.id,"kind":"cubic" if curve else "straight","parameter":t,"position":projection.position if curve else Data.xyz(end),"tangent":Data.xyz(projection.tangent if curve else b-a),"width":lerpf(target.edge.width_start,target.edge.width_end,t),"split":split,"join_node_id":join,"child_edge_ids":[target.edge.id,prefix+"_tail"] if split else [target.edge.id]}
-	if curve:connection.projection={"distance_error_bound_m":projection.distance_error_bound_m,"visits":projection.visits}
+	if curve:connection.projection={"distance_error_bound_m":projection.distance_error_bound_m,"visits":projection.visits,"nearest_parameter":projection.nearest_parameter,"nearest_position":projection.nearest_position,"endpoint_adjustment_m":projection.endpoint_adjustment_m}
 	return {"ok":true,"data":data,"points":[Data.xyz(start),Data.xyz(end)],"setback":setback,"road_connection":connection}
 
 static func _connector_ground(doc,linked:Dictionary,width:float)->Dictionary:
@@ -440,3 +460,21 @@ static func _candidate_clearance(prepared:Dictionary,doc,house_shapes:Array)->Di
 				for piece:Array in fresh:area+=poly.area(piece)
 				if area>.000001:return fail("reserved_zone","新增道路或路缘进入禁止自动建设的保留区").merged({"conflicts":[zone.zone_id]})
 	return {"ok":true}
+
+static func _nearest_target(graph:Dictionary,ids:Array,point:Vector3)->Dictionary:
+	var best:Dictionary={};var distance:=INF
+	for id:String in ids:
+		var target:=_target(graph,id)
+		if not target.ok:return target
+		var a:=Data.vec(target.a.position);var b:=Data.vec(target.b.position)
+		var ab:=Vector2(b.x-a.x,b.z-a.z)
+		if ab.length_squared()<.01:return fail("invalid_road","目标道路过短")
+		var t:=clampf(Vector2(point.x-a.x,point.z-a.z).dot(ab)/ab.length_squared(),0.,1.)
+		var projected:=a.lerp(b,t)
+		if target.edge.has("controls"):
+			var projection:=CurveConnection.nearest(target.edge,{target.edge.from:target.a,target.edge.to:target.b},point)
+			if not projection.ok:return projection
+			projected=projection.point
+		var gap:=Vector2(point.x-projected.x,point.z-projected.z).length()
+		if gap<distance:distance=gap;best=target
+	return best if not best.is_empty() else fail("road_not_found","目标道路及其本批次拆分路段不存在")

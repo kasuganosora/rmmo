@@ -1,0 +1,1802 @@
+{
+  "feature": "E2-D multi-house block candidate: shared grading, placement/relocation, per-house access and final validation",
+  "date": "2026-10-17",
+  "base_commit": "6a78b25a34070dacc3fb08e3a2c8eb508e793a77",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "checks": {
+    "block_ui_http": 146,
+    "curve_geometry": 55,
+    "native_exterior_physics": 28,
+    "existing_relocation_ui_http": 169,
+    "existing_curve_ui_http": 92,
+    "existing_straight_ui_http": 127
+  },
+  "total_checks": 617,
+  "failures": 0,
+  "engine": {
+    "path": "D:\\tools\\godot\\Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "bytes": 180858888,
+    "version": "4.7.2.stable.official.ed1daf0bf",
+    "renderer": "Vulkan Forward+ / AMD Radeon RX 7900 XTX"
+  },
+  "sources": [
+    {
+      "path": "scripts/world3d/physical_traversal.gd",
+      "sha256_worktree_bytes": "1142cfe2fb2682659bd06f3201a36f9d971dfca9604241e2e6bd0813d161413a",
+      "sha256_lf": "26224d00fe4736650f8a2eb509b2ff53e77c53e5497f88310fbe14dc29edd20a"
+    },
+    {
+      "path": "scripts/world3d/road_intersections.gd",
+      "sha256_worktree_bytes": "4547c731716ee669a1209663dc2be027dc0611b488261a2ec36f66c67347250c",
+      "sha256_lf": "a102e608d74c9e5d7917e454164718e92a12efc967c72fd0fb7f2c3cecaf15dc"
+    },
+    {
+      "path": "scripts/world3d/world_authority.gd",
+      "sha256_worktree_bytes": "c3c98a51e1af930726dac7e2073f3d8c8f3a70d3be2da9e86447bef99637b6a0",
+      "sha256_lf": "d8a2a5d02480bbbc534c748817818e0a60c6e300f44fc0c2e3de738246a27b65"
+    },
+    {
+      "path": "scripts/world3d/world_document.gd",
+      "sha256_worktree_bytes": "859bb50bb80837d735d476b650481c95820346789d586a00a57e83b274ace1aa",
+      "sha256_lf": "c46f2f3879c64a91cf0bc00c3bcfb7536b7cb72db543ca9b5481eb21f0e6218d"
+    },
+    {
+      "path": "scripts/world_editor/building_motion.gd",
+      "sha256_worktree_bytes": "246c383d6634551295fc120b339f8c0ab4e36fb0c106fcb736fe56a9dc62d942",
+      "sha256_lf": "063b42e30da296688a380b40ca240fb4f2c63b77ef6a40672ec3a2625c565c82"
+    },
+    {
+      "path": "scripts/world_editor/building_tools.gd",
+      "sha256_worktree_bytes": "2c57e71b515d9f0910e8d456dc040676f9868f9af8981b206a3f16b2c78cf19e",
+      "sha256_lf": "0265fe3605bb768dd0f18ba61bc0ebd98d710231133188cde9f898f8ac6456cf"
+    },
+    {
+      "path": "scripts/world_editor/editor_diagnostics.gd",
+      "sha256_worktree_bytes": "d61b622d567a0ea07b7e15a49783d34834df5c5184c487438308117ba44292b4",
+      "sha256_lf": "1eaeb9346d514a747e83636261e8ec1146102d39b89d0196673d45aeaa122208"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_worktree_bytes": "7fb1dafc645efaa009117ad2237b4e6af894e3d631b6fde61c94044cd5cf1474",
+      "sha256_lf": "10beb5d7e0bd6c4733a546898fe28397d5693b3545f1e6c37ffcffd1576671d1"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_worktree_bytes": "3eb5babadfc8f66bc90e9babfba9e3eddf06d3ebc934e177643795293686b5c1",
+      "sha256_lf": "dc3a97d20213a41410e0d41819ee8dc805b5d3edea456b6e8b753ee1c272846f"
+    },
+    {
+      "path": "scripts/world_editor/object_selection.gd",
+      "sha256_worktree_bytes": "e684baea534a3e6f59c0ef80a75e6455818c5e1aea3451c9f9a00bc995f1d321",
+      "sha256_lf": "7c13876379b8746f313cfbf93ff1b10e94fa136d2d2844cb0fc8c12864552580"
+    },
+    {
+      "path": "scripts/world_editor/prefab_library.gd",
+      "sha256_worktree_bytes": "ca40b895db25ad3fe1de10487e00c448dc6def146d8bf95d713d199b51190ec3",
+      "sha256_lf": "ada9c93ba3754d541951c3ca09513fe93ca7f6910d49157c063cac31cecec649"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd",
+      "sha256_worktree_bytes": "6c615064c4184db90fe125e36993bd3e72cc2a6ed007d469886f5b719400d8d6",
+      "sha256_lf": "6c615064c4184db90fe125e36993bd3e72cc2a6ed007d469886f5b719400d8d6"
+    },
+    {
+      "path": "scripts/world_editor/residential_access_binding.gd",
+      "sha256_worktree_bytes": "8bbbf55b05d0edf6ad6a6b668cbafa4e8142c07196f9b0f1b4c4e8741d2cddf8",
+      "sha256_lf": "8bbbf55b05d0edf6ad6a6b668cbafa4e8142c07196f9b0f1b4c4e8741d2cddf8"
+    },
+    {
+      "path": "scripts/world_editor/residential_block_panel.gd",
+      "sha256_worktree_bytes": "860abc85ae80f1cb73f10cbf9bcfb80d4d41d098cb14afb40a5cc84f23122889",
+      "sha256_lf": "22744679915251fb0aea0d3c4a419513cdcb616b3db33a7597fe55252d952544"
+    },
+    {
+      "path": "scripts/world_editor/residential_block_tools.gd",
+      "sha256_worktree_bytes": "24729bf2bed1fa3f7cf48e469a9b47e521df575c70e11021302b715e61b73551",
+      "sha256_lf": "91d98e6948caffc2ff611bd8f93ecf9432ea72b61d69fb7489d40c869317a6d7"
+    },
+    {
+      "path": "scripts/world_editor/residential_bridge_context.gd",
+      "sha256_worktree_bytes": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0",
+      "sha256_lf": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0"
+    },
+    {
+      "path": "scripts/world_editor/residential_curve_connection.gd",
+      "sha256_worktree_bytes": "30284bc33abe15bdaee3167e7d0b428ac313691ca07f9a07ea4efd82055ad976",
+      "sha256_lf": "47c8de4f9412e97b7b2a512ccf5efad8a6378e2269a6c820292869524c1c42d8"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "sha256_worktree_bytes": "913ad5c505ae7718a8081a38327e4492fe5eead53f3953ab4fd83d636ca1f3da",
+      "sha256_lf": "8870d8de35d1f4759160ea02104ec420cbe0dbb7be30b50c22f4d0723cfc395d"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "sha256_worktree_bytes": "4190725ac45a33afbc71cca5e1f7ea0ee80afbdca28940a34824b08f3d4fe914",
+      "sha256_lf": "2e40f753593fd679abb47ab15e7b9dae7038e2befe2e73cc98fa48e231e226f0"
+    },
+    {
+      "path": "scripts/world_editor/residential_relocation_tools.gd",
+      "sha256_worktree_bytes": "0e0de5ede9f24ea2ab1ecf200ce14bc98e51becebcaef247944fad586a631a69",
+      "sha256_lf": "e6f7b9029b427d5012c37c5a87075e505fcadd52afd04b9c79988c0db030264c"
+    },
+    {
+      "path": "scripts/world_editor/residential_site_panel.gd",
+      "sha256_worktree_bytes": "823f68e8b943548aac3b77ad23f2f1087be8728d470664900a818bee86e6714e",
+      "sha256_lf": "bfc5a58ec23ea3a32a9ae3493a6b438a01d1c9ea62b51ec104bbfef090ab0139"
+    },
+    {
+      "path": "scripts/world_editor/residential_site_tools.gd",
+      "sha256_worktree_bytes": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4",
+      "sha256_lf": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "sha256_worktree_bytes": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+      "sha256_lf": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb"
+    },
+    {
+      "path": "scripts/world_editor/road_tools.gd",
+      "sha256_worktree_bytes": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+      "sha256_lf": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da"
+    },
+    {
+      "path": "scripts/world_editor/terrain_layout_tools.gd",
+      "sha256_worktree_bytes": "8b2f6b152902694f6472b0f7e557206dd574aebd936c17edd8d44b4ef099b8a4",
+      "sha256_lf": "531755fa07f0f6dde162bf476930fc9162e59d166b7210ac612c24fef391f999"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_tools.gd",
+      "sha256_worktree_bytes": "8955446641cf5ce5ff0eada72157567627d917a3d4352433d4a762f4a0f9f158",
+      "sha256_lf": "f083298b95fae4ad98dd544c9af0cb2b35bbd3dd8a7e26893300b83ca394d791"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "sha256_worktree_bytes": "95bac2b9f21bbd340861e95e27ce7f612e38c2bf0ba8d6e82cff41d3e98672c6",
+      "sha256_lf": "52c059da6d4b73124359183ef22314850850608415449f8ed5e7796fc46917b5"
+    },
+    {
+      "path": "tools/run_godot_background.py",
+      "sha256_worktree_bytes": "d9add9a15d8729b0221054b2c20189b9c69e230526d04166ea9ecc2d87a0ad2e",
+      "sha256_lf": "b182b46ff6d8b1b1facedbc7ffda813ab74a1b83075667a01cadf6d9bbe9c3d6"
+    },
+    {
+      "path": "tools/test_residential_access.gd",
+      "sha256_worktree_bytes": "baef71d099eef96681c4fdb17d384e45e616e1a2e2cc4e50d6a85f9d7f613d7e",
+      "sha256_lf": "baef71d099eef96681c4fdb17d384e45e616e1a2e2cc4e50d6a85f9d7f613d7e"
+    },
+    {
+      "path": "tools/test_residential_block_http.gd",
+      "sha256_worktree_bytes": "32c5308ab5c79f85efb66e09a0fad405486dab19ffec79ff0eeb74e6a54f1af1",
+      "sha256_lf": "b447bef80864737fed026eb8342c7cf221ca024c7b310cf5ad22822ad92480c0"
+    },
+    {
+      "path": "tools/test_residential_block_runtime.gd",
+      "sha256_worktree_bytes": "5a9f2e2a0504a52f17adf2367b7c3db25449fad3c27c9c11c6db915a50e0b27b",
+      "sha256_lf": "5f147a66513a5769da830e1e715085240dfa5e6139eeddcd21deeca71b517aa1"
+    },
+    {
+      "path": "tools/test_residential_bridges_http.gd",
+      "sha256_worktree_bytes": "900bff93f33102bf8f3603e34d124028dce263656c4108110d9683126475b1a7",
+      "sha256_lf": "0b7f417fce89fff74728adf0e19ed1064a4b664768165e4f3e0a30be86b8c832"
+    },
+    {
+      "path": "tools/test_residential_bridges_runtime.gd",
+      "sha256_worktree_bytes": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f",
+      "sha256_lf": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f"
+    },
+    {
+      "path": "tools/test_residential_curves.gd",
+      "sha256_worktree_bytes": "caf65983b14deb6c794b52fdfe1f4106a101a06aee6ddc7d324047cf86c6cb4d",
+      "sha256_lf": "d18b6d51e0f0ccf910d07129e084ea7462e08817f847ec657e07ccffe93eea23"
+    },
+    {
+      "path": "tools/test_residential_curves_http.gd",
+      "sha256_worktree_bytes": "2cb738b8a54a9fd49a4e3a0732f188ed208f6a394fcadde38c363db56e74a6ab",
+      "sha256_lf": "7947ca0c1e740c4d3fd7fd7bae39eda604474638171473424576a064cf28ddc6"
+    },
+    {
+      "path": "tools/test_residential_curves_runtime.gd",
+      "sha256_worktree_bytes": "73b692f166faecf06252304cb033a9be8f3bbc1ef72d7ceb201669c407c34c79",
+      "sha256_lf": "73b692f166faecf06252304cb033a9be8f3bbc1ef72d7ceb201669c407c34c79"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "sha256_worktree_bytes": "49cb440bff427e521baeee42c765b10c63bfef16de9df3e494649406fab734f1",
+      "sha256_lf": "cb61b973c8bbe9e925482bb5d53f29401373f68777bae314e3d381ba2391a40e"
+    },
+    {
+      "path": "tools/test_residential_relocation_http.gd",
+      "sha256_worktree_bytes": "c7ce61ee39975441eb2b5c4bac2066480c18cdd050f499ee86a827a7a2a29290",
+      "sha256_lf": "c1ef93ec60e4c06f0922820e827bbb9b88df63a0844855d199a4468102e1698a"
+    },
+    {
+      "path": "tools/test_residential_relocation_runtime.gd",
+      "sha256_worktree_bytes": "2f1a4a93cd2def086b71bf73ffe09c5ef41ffd7e6a9644328d2767983a63ccdf",
+      "sha256_lf": "1bcd6f78b5dbe86db05dbcfd68ca355abb7fc3e8aa5c1da58b4b74c545cec5fe"
+    },
+    {
+      "path": "tools/test_world3d_mcp.gd",
+      "sha256_worktree_bytes": "c52900364801ecbbede19bfb530944af35f04ffec0669796084f39c51d4f9244",
+      "sha256_lf": "1cbdc36a43abcf10dbd9a523bc255ec13ff3186c23c26e94f3bb0ab4641f3328"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "http.json",
+      "sha256": "14a00b8ae3fb51b7d45637a3bef7077b6ba65c7b72ee21f0cf9c855dcd39e8ee",
+      "bytes": 837832
+    },
+    {
+      "path": "curves_cpu.json",
+      "sha256": "d67aa30e6d7df62c1de087a640396f933506babf8a59f13d5c5fcef838514f85",
+      "bytes": 6773
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "a0c34dafe4cd7d3895ff628129fbaab5b6ab9fe5da67400febc48a6bd7eb7f22",
+      "bytes": 3004
+    },
+    {
+      "path": "compat_relocation/http.json",
+      "sha256": "900d23c50e5f6eac5084567c8c7c78479dc96cb255c5e8caf46141066b67b696",
+      "bytes": 896635
+    },
+    {
+      "path": "compat_curves/http.json",
+      "sha256": "dfcc5fb6039c6a7f2e6747f687dffe560501126b2a8a6885ecfc1f4a6b982a22",
+      "bytes": 591243
+    },
+    {
+      "path": "compat_straight/http.json",
+      "sha256": "16023539335488f00a3dec619b06a2760008f417427afeeb6c6d433551ce05d5",
+      "bytes": 430664
+    },
+    {
+      "path": "console.log",
+      "sha256": "5b0a1e7818562a8133eb4952cdbc5f78a5a6bdae468580456ba16bb4be74400f",
+      "bytes": 9205
+    },
+    {
+      "path": "engine.log",
+      "sha256": "e5c1220b790bcaf1c718ad02aba3452a824ed3e6bf0e1b8f8e065ffa23342346",
+      "bytes": 9054
+    },
+    {
+      "path": "curves_cpu_engine.log",
+      "sha256": "b1a2ee1d56127d083e3beb07e25d051baf34f4ebe055f62723ca6445ae1139f0",
+      "bytes": 4243
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "1fd3c8d3a3a7de8dda02129cd68922bcf6b0264d213dbfbcdec42263440e2afc",
+      "bytes": 2937
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "5451b01d423abe2ba50189007d8c053920cff4ad30daa005d3b625d07f82aecc",
+      "bytes": 2904
+    },
+    {
+      "path": "ui.webp",
+      "sha256": "64d358446d5a9628f2549986b5470018a68ec4eb624174d7be8c8e034943b576",
+      "bytes": 168056
+    },
+    {
+      "path": "compression.json",
+      "sha256": "47fbe8cfa5086a89812627a355b3a8548317bded755748773f35b1dca2a04c3c",
+      "bytes": 207
+    },
+    {
+      "path": "resource_dependencies.json",
+      "sha256": "a25b0f665fe4240c6b37b721f60f849fce581e2bfcd454004d20ba8bffd83efb",
+      "bytes": 3559
+    },
+    {
+      "path": "compat_relocation/console.log",
+      "sha256": "c27827d8e1bff28383608bd71958dcee65bb7dc6ec15e821306e6380dab10f6d",
+      "bytes": 11476
+    },
+    {
+      "path": "compat_relocation/engine.log",
+      "sha256": "d521fccf5643b3dfe517db87d2c7177defa68aa65db097842d9847db15b2e5e7",
+      "bytes": 11302
+    },
+    {
+      "path": "compat_curves/console.log",
+      "sha256": "e77e120bb0356278025b7267ca3d0bee348525166c88da56a9e83fcca0dbc164",
+      "bytes": 5536
+    },
+    {
+      "path": "compat_curves/engine.log",
+      "sha256": "bcfbeaacb2a1d4005b233ccd91b559caf314a5e7544988acc789486cd1f8e6c6",
+      "bytes": 5439
+    },
+    {
+      "path": "compat_straight/console.log",
+      "sha256": "ba114dafa81573b04edc3e89d1322a77e6b32a545a50c035dad8526eb8090602",
+      "bytes": 7532
+    },
+    {
+      "path": "compat_straight/engine.log",
+      "sha256": "f5f0fa072ded5c8ff6ef57b0f41339e36aa7ed0e2db771393223c41d5723b2c5",
+      "bytes": 7400
+    }
+  ],
+  "fixtures": [
+    {
+      "report": "http.json",
+      "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf",
+      "sha256": "09efcb27274e076ae9f1ef3c3b4598ff3b4f8be14e8293ce94cfd630ad432a31",
+      "bytes": 123046,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1.rmres",
+          "sha256": "018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1",
+          "bytes": 272
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a.rmres",
+          "sha256": "01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a",
+          "bytes": 5851
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae.rmres",
+          "sha256": "04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae",
+          "bytes": 238
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981.rmres",
+          "sha256": "04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981",
+          "bytes": 2798
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd.rmres",
+          "sha256": "050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd",
+          "bytes": 7324
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1.rmres",
+          "sha256": "08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1",
+          "bytes": 5848
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a.rmres",
+          "sha256": "090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496.rmres",
+          "sha256": "0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b.rmres",
+          "sha256": "0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b",
+          "bytes": 6080
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6.rmres",
+          "sha256": "10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d.rmres",
+          "sha256": "1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d",
+          "bytes": 2186
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50.rmres",
+          "sha256": "1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50",
+          "bytes": 7164
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7.rmres",
+          "sha256": "1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7",
+          "bytes": 5828
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\274e2b72d914704d4fb440f8b3469600bcc6f63a13c190df4c7b3918372d7180.rmres",
+          "sha256": "274e2b72d914704d4fb440f8b3469600bcc6f63a13c190df4c7b3918372d7180",
+          "bytes": 15652
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff.rmres",
+          "sha256": "277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff",
+          "bytes": 5866
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3.rmres",
+          "sha256": "293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3",
+          "bytes": 263
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222.rmres",
+          "sha256": "295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222",
+          "bytes": 7305
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0.rmres",
+          "sha256": "2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a.rmres",
+          "sha256": "2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a",
+          "bytes": 260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0.rmres",
+          "sha256": "379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0",
+          "bytes": 5876
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985.rmres",
+          "sha256": "3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985",
+          "bytes": 250
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17.rmres",
+          "sha256": "3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17",
+          "bytes": 538225
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6.rmres",
+          "sha256": "410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6",
+          "bytes": 7296
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\5a72242fd88bd5308778dc99f6c098adfea169d87f62e2410a95bb70c132f5d8.rmres",
+          "sha256": "5a72242fd88bd5308778dc99f6c098adfea169d87f62e2410a95bb70c132f5d8",
+          "bytes": 125011
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046.rmres",
+          "sha256": "5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5.rmres",
+          "sha256": "5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f.rmres",
+          "sha256": "604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f",
+          "bytes": 267
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\6c6672984d707d41eabc8a618f8c85937975607a85aa556a85fb457425dd0108.rmres",
+          "sha256": "6c6672984d707d41eabc8a618f8c85937975607a85aa556a85fb457425dd0108",
+          "bytes": 13191
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b.rmres",
+          "sha256": "6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76.rmres",
+          "sha256": "6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76",
+          "bytes": 5873
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7.rmres",
+          "sha256": "77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7",
+          "bytes": 3219
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27.rmres",
+          "sha256": "7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27",
+          "bytes": 2747
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\87b059cd883e2185caa4bebe0e2ebf0fb195d6709832ae0873fd150e2275892a.rmres",
+          "sha256": "87b059cd883e2185caa4bebe0e2ebf0fb195d6709832ae0873fd150e2275892a",
+          "bytes": 478
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\889756fbb0304f351f2ac3909bf14e1920bca1e7af615d5cf3f76c0ef7a8319e.rmres",
+          "sha256": "889756fbb0304f351f2ac3909bf14e1920bca1e7af615d5cf3f76c0ef7a8319e",
+          "bytes": 6980
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc.rmres",
+          "sha256": "8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc",
+          "bytes": 7261
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1.rmres",
+          "sha256": "91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1",
+          "bytes": 269
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672.rmres",
+          "sha256": "946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626.rmres",
+          "sha256": "9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626",
+          "bytes": 5868
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75.rmres",
+          "sha256": "9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75",
+          "bytes": 5858
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1.rmres",
+          "sha256": "a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26.rmres",
+          "sha256": "a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26",
+          "bytes": 285
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099.rmres",
+          "sha256": "adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099",
+          "bytes": 5874
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683.rmres",
+          "sha256": "ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683",
+          "bytes": 7183
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\b165b995e5ef1a2876b72cd550ae3e8f1ca504ef1f56e22c640aee84699e484b.rmres",
+          "sha256": "b165b995e5ef1a2876b72cd550ae3e8f1ca504ef1f56e22c640aee84699e484b",
+          "bytes": 124326
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a.rmres",
+          "sha256": "b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce.rmres",
+          "sha256": "b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce",
+          "bytes": 7211
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7.rmres",
+          "sha256": "b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7",
+          "bytes": 5869
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\b6b04c137e410bfbdafc818b434bd1dbe3f8687c81875e676883bf87ddb8726e.rmres",
+          "sha256": "b6b04c137e410bfbdafc818b434bd1dbe3f8687c81875e676883bf87ddb8726e",
+          "bytes": 1452
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720.rmres",
+          "sha256": "bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720",
+          "bytes": 2444
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\c52663cba7f5b4758645b1ef21f476e216602e1cd6f8da155980e59b9f58af29.rmres",
+          "sha256": "c52663cba7f5b4758645b1ef21f476e216602e1cd6f8da155980e59b9f58af29",
+          "bytes": 6738
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\c8a784ef7f6abec8b9324d7e5bfecadf92e9f543b097ab8c272beb8014af226c.rmres",
+          "sha256": "c8a784ef7f6abec8b9324d7e5bfecadf92e9f543b097ab8c272beb8014af226c",
+          "bytes": 12092
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382.rmres",
+          "sha256": "d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382",
+          "bytes": 2592
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba.rmres",
+          "sha256": "d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba",
+          "bytes": 240
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b.rmres",
+          "sha256": "d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff.rmres",
+          "sha256": "db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff",
+          "bytes": 241
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e.rmres",
+          "sha256": "dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e",
+          "bytes": 255
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd.rmres",
+          "sha256": "e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd",
+          "bytes": 242
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\e2abde7fd2671544b263f917f5aebebc1047f2db1da84880884e643f7580cace.rmres",
+          "sha256": "e2abde7fd2671544b263f917f5aebebc1047f2db1da84880884e643f7580cace",
+          "bytes": 1466
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1.rmres",
+          "sha256": "e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1",
+          "bytes": 199
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86.rmres",
+          "sha256": "e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86",
+          "bytes": 7260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd.rmres",
+          "sha256": "e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd",
+          "bytes": 5777
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61.rmres",
+          "sha256": "ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f0e31e57b061e8f95a5ad957d4c33bbb8d1f7f2cf8e883f967e4b08afcae9ed4.rmres",
+          "sha256": "f0e31e57b061e8f95a5ad957d4c33bbb8d1f7f2cf8e883f967e4b08afcae9ed4",
+          "bytes": 13397
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07.rmres",
+          "sha256": "f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07",
+          "bytes": 7315
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170.rmres",
+          "sha256": "f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6.rmres",
+          "sha256": "f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6",
+          "bytes": 266
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9.rmres",
+          "sha256": "f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9",
+          "bytes": 5816
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_block_22448_12996880\\maps\\test\\map.gltf.resources\\f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401.rmres",
+          "sha256": "f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401",
+          "bytes": 2434
+        }
+      ]
+    },
+    {
+      "report": "compat_relocation/http.json",
+      "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf",
+      "sha256": "983afa3bbf76955fcd699e4ee57cc555679acbfea2ce2343c89ca2576889340c",
+      "bytes": 86546,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\0146798de9dd8cdb2f0814be851a8f0a6c11ec5c9079a9f6133c590cbb82aca7.rmres",
+          "sha256": "0146798de9dd8cdb2f0814be851a8f0a6c11ec5c9079a9f6133c590cbb82aca7",
+          "bytes": 3076
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1.rmres",
+          "sha256": "018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1",
+          "bytes": 272
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a.rmres",
+          "sha256": "01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a",
+          "bytes": 5851
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae.rmres",
+          "sha256": "04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae",
+          "bytes": 238
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981.rmres",
+          "sha256": "04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981",
+          "bytes": 2798
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd.rmres",
+          "sha256": "050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd",
+          "bytes": 7324
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1.rmres",
+          "sha256": "08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1",
+          "bytes": 5848
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a.rmres",
+          "sha256": "090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\0d68688ddeb84da5d49dd350194988dbd4a5fe97c53626aa9402c23d80461ae0.rmres",
+          "sha256": "0d68688ddeb84da5d49dd350194988dbd4a5fe97c53626aa9402c23d80461ae0",
+          "bytes": 125618
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496.rmres",
+          "sha256": "0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b.rmres",
+          "sha256": "0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b",
+          "bytes": 6080
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6.rmres",
+          "sha256": "10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\18d34d82a55be0656a9c369ba4b677c5eea77268a865590430f9a33313ab4795.rmres",
+          "sha256": "18d34d82a55be0656a9c369ba4b677c5eea77268a865590430f9a33313ab4795",
+          "bytes": 8973
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\19dca480ee6c878c3313c44a10e7d18caa4ade60512a54534c230b12748e7b55.rmres",
+          "sha256": "19dca480ee6c878c3313c44a10e7d18caa4ade60512a54534c230b12748e7b55",
+          "bytes": 1326
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d.rmres",
+          "sha256": "1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d",
+          "bytes": 2186
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50.rmres",
+          "sha256": "1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50",
+          "bytes": 7164
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\1baa96a356bfd69b5a31f5a1f573e25e706a23855f90976bcb1d7a34bcffe0ac.rmres",
+          "sha256": "1baa96a356bfd69b5a31f5a1f573e25e706a23855f90976bcb1d7a34bcffe0ac",
+          "bytes": 11762
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7.rmres",
+          "sha256": "1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7",
+          "bytes": 5828
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff.rmres",
+          "sha256": "277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff",
+          "bytes": 5866
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3.rmres",
+          "sha256": "293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3",
+          "bytes": 263
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222.rmres",
+          "sha256": "295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222",
+          "bytes": 7305
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0.rmres",
+          "sha256": "2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a.rmres",
+          "sha256": "2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a",
+          "bytes": 260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0.rmres",
+          "sha256": "379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0",
+          "bytes": 5876
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985.rmres",
+          "sha256": "3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985",
+          "bytes": 250
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17.rmres",
+          "sha256": "3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17",
+          "bytes": 538225
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6.rmres",
+          "sha256": "410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6",
+          "bytes": 7296
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\55d8a72bd694caf1804aa4033fc4f96d7275e9e7b4cd62bc0a51ce038154a353.rmres",
+          "sha256": "55d8a72bd694caf1804aa4033fc4f96d7275e9e7b4cd62bc0a51ce038154a353",
+          "bytes": 11947
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\5716eacb5d6e6fc7ecbdbb9c88cdf14610f9d205f0ff9aa086f83a00552c4183.rmres",
+          "sha256": "5716eacb5d6e6fc7ecbdbb9c88cdf14610f9d205f0ff9aa086f83a00552c4183",
+          "bytes": 6811
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\5bf5c25e981e49ef6546ae4de85ee1695f8ce04fb2cb5b65183d6f517ecbb4f9.rmres",
+          "sha256": "5bf5c25e981e49ef6546ae4de85ee1695f8ce04fb2cb5b65183d6f517ecbb4f9",
+          "bytes": 6831
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046.rmres",
+          "sha256": "5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5.rmres",
+          "sha256": "5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f.rmres",
+          "sha256": "604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f",
+          "bytes": 267
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b.rmres",
+          "sha256": "6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76.rmres",
+          "sha256": "6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76",
+          "bytes": 5873
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7.rmres",
+          "sha256": "77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7",
+          "bytes": 3219
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\7987bd572a0fa71aaf3833e71e078bf0888746ad8d9b9c81b3037841942a2f83.rmres",
+          "sha256": "7987bd572a0fa71aaf3833e71e078bf0888746ad8d9b9c81b3037841942a2f83",
+          "bytes": 11548
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27.rmres",
+          "sha256": "7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27",
+          "bytes": 2747
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\81606c8a716d61ce019b55515f04db483bffc484d71687d4d89398fcfceb208f.rmres",
+          "sha256": "81606c8a716d61ce019b55515f04db483bffc484d71687d4d89398fcfceb208f",
+          "bytes": 17624
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc.rmres",
+          "sha256": "8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc",
+          "bytes": 7261
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1.rmres",
+          "sha256": "91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1",
+          "bytes": 269
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672.rmres",
+          "sha256": "946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626.rmres",
+          "sha256": "9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626",
+          "bytes": 5868
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75.rmres",
+          "sha256": "9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75",
+          "bytes": 5858
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\a0daa3e7cdb1009200c13ceae41b0b021b6e3ef7f0c90f7791fd10f0f90877fa.rmres",
+          "sha256": "a0daa3e7cdb1009200c13ceae41b0b021b6e3ef7f0c90f7791fd10f0f90877fa",
+          "bytes": 6767
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\a1ba48b149f70e267c15bf84a5c098bfacdfb70c57338b83b87da6be597dde2b.rmres",
+          "sha256": "a1ba48b149f70e267c15bf84a5c098bfacdfb70c57338b83b87da6be597dde2b",
+          "bytes": 11757
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1.rmres",
+          "sha256": "a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26.rmres",
+          "sha256": "a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26",
+          "bytes": 285
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\abaf80d10b8b1622079104de4ab5ebd2b9e0db424d959782f4caf80dd1827c2e.rmres",
+          "sha256": "abaf80d10b8b1622079104de4ab5ebd2b9e0db424d959782f4caf80dd1827c2e",
+          "bytes": 537
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099.rmres",
+          "sha256": "adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099",
+          "bytes": 5874
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683.rmres",
+          "sha256": "ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683",
+          "bytes": 7183
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\b4ad9e6bd6b34ec3955d0ea09cdf3ee1e55e9f09e5c7c59b60539b33db7836d5.rmres",
+          "sha256": "b4ad9e6bd6b34ec3955d0ea09cdf3ee1e55e9f09e5c7c59b60539b33db7836d5",
+          "bytes": 4457
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a.rmres",
+          "sha256": "b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce.rmres",
+          "sha256": "b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce",
+          "bytes": 7211
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7.rmres",
+          "sha256": "b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7",
+          "bytes": 5869
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720.rmres",
+          "sha256": "bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720",
+          "bytes": 2444
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\bf58080cbd769339f40a07f8906b581618d72eb044e9dddf91f11374300812ac.rmres",
+          "sha256": "bf58080cbd769339f40a07f8906b581618d72eb044e9dddf91f11374300812ac",
+          "bytes": 9459
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\c493c70b2aa5b6c4b2870d037cda53119ec978e4200a0e8427ecd204c8491797.rmres",
+          "sha256": "c493c70b2aa5b6c4b2870d037cda53119ec978e4200a0e8427ecd204c8491797",
+          "bytes": 7309
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\c7207b81b036dabbcfee6a4be5cce30211b03354423d6871662ca573954b4189.rmres",
+          "sha256": "c7207b81b036dabbcfee6a4be5cce30211b03354423d6871662ca573954b4189",
+          "bytes": 2871
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\c8a784ef7f6abec8b9324d7e5bfecadf92e9f543b097ab8c272beb8014af226c.rmres",
+          "sha256": "c8a784ef7f6abec8b9324d7e5bfecadf92e9f543b097ab8c272beb8014af226c",
+          "bytes": 12092
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\d438f9f031d4378793b44439b7514e4dee21a9df88cdde66c1a485cd443b761e.rmres",
+          "sha256": "d438f9f031d4378793b44439b7514e4dee21a9df88cdde66c1a485cd443b761e",
+          "bytes": 8896
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382.rmres",
+          "sha256": "d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382",
+          "bytes": 2592
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba.rmres",
+          "sha256": "d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba",
+          "bytes": 240
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b.rmres",
+          "sha256": "d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff.rmres",
+          "sha256": "db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff",
+          "bytes": 241
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e.rmres",
+          "sha256": "dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e",
+          "bytes": 255
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd.rmres",
+          "sha256": "e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd",
+          "bytes": 242
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1.rmres",
+          "sha256": "e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1",
+          "bytes": 199
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86.rmres",
+          "sha256": "e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86",
+          "bytes": 7260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd.rmres",
+          "sha256": "e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd",
+          "bytes": 5777
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61.rmres",
+          "sha256": "ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f0e31e57b061e8f95a5ad957d4c33bbb8d1f7f2cf8e883f967e4b08afcae9ed4.rmres",
+          "sha256": "f0e31e57b061e8f95a5ad957d4c33bbb8d1f7f2cf8e883f967e4b08afcae9ed4",
+          "bytes": 13397
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07.rmres",
+          "sha256": "f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07",
+          "bytes": 7315
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170.rmres",
+          "sha256": "f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6.rmres",
+          "sha256": "f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6",
+          "bytes": 266
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9.rmres",
+          "sha256": "f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9",
+          "bytes": 5816
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_relocation_20596_12376471\\maps\\test\\map.gltf.resources\\f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401.rmres",
+          "sha256": "f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401",
+          "bytes": 2434
+        }
+      ]
+    },
+    {
+      "report": "compat_curves/http.json",
+      "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf",
+      "sha256": "fb7283c759fcb1d28acb17438bd34f96bf0923be2610d3c3d3e92b047d16aeff",
+      "bytes": 77106,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1.rmres",
+          "sha256": "018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1",
+          "bytes": 272
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a.rmres",
+          "sha256": "01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a",
+          "bytes": 5851
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae.rmres",
+          "sha256": "04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae",
+          "bytes": 238
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981.rmres",
+          "sha256": "04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981",
+          "bytes": 2798
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd.rmres",
+          "sha256": "050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd",
+          "bytes": 7324
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1.rmres",
+          "sha256": "08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1",
+          "bytes": 5848
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a.rmres",
+          "sha256": "090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496.rmres",
+          "sha256": "0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b.rmres",
+          "sha256": "0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b",
+          "bytes": 6080
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6.rmres",
+          "sha256": "10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\123e6f50c815df60d338233da7a3b68aa20579be00e84ba7c236dee1c04051ee.rmres",
+          "sha256": "123e6f50c815df60d338233da7a3b68aa20579be00e84ba7c236dee1c04051ee",
+          "bytes": 8977
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d.rmres",
+          "sha256": "1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d",
+          "bytes": 2186
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50.rmres",
+          "sha256": "1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50",
+          "bytes": 7164
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7.rmres",
+          "sha256": "1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7",
+          "bytes": 5828
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff.rmres",
+          "sha256": "277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff",
+          "bytes": 5866
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3.rmres",
+          "sha256": "293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3",
+          "bytes": 263
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222.rmres",
+          "sha256": "295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222",
+          "bytes": 7305
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0.rmres",
+          "sha256": "2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a.rmres",
+          "sha256": "2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a",
+          "bytes": 260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0.rmres",
+          "sha256": "379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0",
+          "bytes": 5876
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985.rmres",
+          "sha256": "3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985",
+          "bytes": 250
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17.rmres",
+          "sha256": "3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17",
+          "bytes": 538225
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6.rmres",
+          "sha256": "410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6",
+          "bytes": 7296
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\4c35d61171047dda898e06587238e0b6cf003110d44349ad40ac1b644ddfd688.rmres",
+          "sha256": "4c35d61171047dda898e06587238e0b6cf003110d44349ad40ac1b644ddfd688",
+          "bytes": 12181
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046.rmres",
+          "sha256": "5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5.rmres",
+          "sha256": "5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f.rmres",
+          "sha256": "604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f",
+          "bytes": 267
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b.rmres",
+          "sha256": "6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76.rmres",
+          "sha256": "6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76",
+          "bytes": 5873
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7.rmres",
+          "sha256": "77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7",
+          "bytes": 3219
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27.rmres",
+          "sha256": "7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27",
+          "bytes": 2747
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\81568db8b4089721d28588997baf95e115e21fb7fe94cb9bff90aa35889c5621.rmres",
+          "sha256": "81568db8b4089721d28588997baf95e115e21fb7fe94cb9bff90aa35889c5621",
+          "bytes": 124628
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\81606c8a716d61ce019b55515f04db483bffc484d71687d4d89398fcfceb208f.rmres",
+          "sha256": "81606c8a716d61ce019b55515f04db483bffc484d71687d4d89398fcfceb208f",
+          "bytes": 17624
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc.rmres",
+          "sha256": "8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc",
+          "bytes": 7261
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1.rmres",
+          "sha256": "91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1",
+          "bytes": 269
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672.rmres",
+          "sha256": "946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626.rmres",
+          "sha256": "9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626",
+          "bytes": 5868
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75.rmres",
+          "sha256": "9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75",
+          "bytes": 5858
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\a15dab28d573b4a307258ffd5d86ad83219e8606c25875e48c6e1f62d541b2ec.rmres",
+          "sha256": "a15dab28d573b4a307258ffd5d86ad83219e8606c25875e48c6e1f62d541b2ec",
+          "bytes": 13235
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\a1ba48b149f70e267c15bf84a5c098bfacdfb70c57338b83b87da6be597dde2b.rmres",
+          "sha256": "a1ba48b149f70e267c15bf84a5c098bfacdfb70c57338b83b87da6be597dde2b",
+          "bytes": 11757
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1.rmres",
+          "sha256": "a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26.rmres",
+          "sha256": "a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26",
+          "bytes": 285
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099.rmres",
+          "sha256": "adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099",
+          "bytes": 5874
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683.rmres",
+          "sha256": "ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683",
+          "bytes": 7183
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a.rmres",
+          "sha256": "b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce.rmres",
+          "sha256": "b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce",
+          "bytes": 7211
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7.rmres",
+          "sha256": "b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7",
+          "bytes": 5869
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720.rmres",
+          "sha256": "bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720",
+          "bytes": 2444
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\d1ae898509829894ec924623deaa9126c02496307d39e60f20fc9ac400d9aa82.rmres",
+          "sha256": "d1ae898509829894ec924623deaa9126c02496307d39e60f20fc9ac400d9aa82",
+          "bytes": 9417
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382.rmres",
+          "sha256": "d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382",
+          "bytes": 2592
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba.rmres",
+          "sha256": "d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba",
+          "bytes": 240
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b.rmres",
+          "sha256": "d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b",
+          "bytes": 237
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff.rmres",
+          "sha256": "db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff",
+          "bytes": 241
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e.rmres",
+          "sha256": "dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e",
+          "bytes": 255
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd.rmres",
+          "sha256": "e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd",
+          "bytes": 242
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1.rmres",
+          "sha256": "e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1",
+          "bytes": 199
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86.rmres",
+          "sha256": "e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86",
+          "bytes": 7260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd.rmres",
+          "sha256": "e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd",
+          "bytes": 5777
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61.rmres",
+          "sha256": "ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61",
+          "bytes": 247
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07.rmres",
+          "sha256": "f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07",
+          "bytes": 7315
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170.rmres",
+          "sha256": "f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170",
+          "bytes": 258
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6.rmres",
+          "sha256": "f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6",
+          "bytes": 266
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9.rmres",
+          "sha256": "f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9",
+          "bytes": 5816
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_curves_18648_12979753\\maps\\test\\map.gltf.resources\\f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401.rmres",
+          "sha256": "f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401",
+          "bytes": 2434
+        }
+      ]
+    },
+    {
+      "report": "compat_straight/http.json",
+      "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf",
+      "sha256": "0fe182a7efa983631d513a4b83f293e62bf849014dfbe72d403f27af308d12a1",
+      "bytes": 53479,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a.rmres",
+          "sha256": "01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a",
+          "bytes": 5851
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae.rmres",
+          "sha256": "04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae",
+          "bytes": 238
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981.rmres",
+          "sha256": "04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981",
+          "bytes": 2798
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd.rmres",
+          "sha256": "050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd",
+          "bytes": 7324
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1.rmres",
+          "sha256": "08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1",
+          "bytes": 5848
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a.rmres",
+          "sha256": "090822cfe6b2d1980c16a4dce7e2fe6a295ea50db6d9a0c366faf9070a6aee9a",
+          "bytes": 239
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496.rmres",
+          "sha256": "0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b.rmres",
+          "sha256": "0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b",
+          "bytes": 6080
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\16a07c876ee9e148a3e75c5a6fc996d82727210111253d89575bd3dab3bc3cc8.rmres",
+          "sha256": "16a07c876ee9e148a3e75c5a6fc996d82727210111253d89575bd3dab3bc3cc8",
+          "bytes": 2643
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d.rmres",
+          "sha256": "1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d",
+          "bytes": 2186
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50.rmres",
+          "sha256": "1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50",
+          "bytes": 7164
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7.rmres",
+          "sha256": "1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7",
+          "bytes": 5828
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff.rmres",
+          "sha256": "277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff",
+          "bytes": 5866
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222.rmres",
+          "sha256": "295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222",
+          "bytes": 7305
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0.rmres",
+          "sha256": "379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0",
+          "bytes": 5876
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6.rmres",
+          "sha256": "410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6",
+          "bytes": 7296
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\46b2265d9ddc3e18f10ca2a710690ff26795a95d87c67f437ed4cf07fb10f012.rmres",
+          "sha256": "46b2265d9ddc3e18f10ca2a710690ff26795a95d87c67f437ed4cf07fb10f012",
+          "bytes": 2635
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\68686b996d67ab1900d58705dd32faa12ea9ae5d175431cf85a8b2e15d332728.rmres",
+          "sha256": "68686b996d67ab1900d58705dd32faa12ea9ae5d175431cf85a8b2e15d332728",
+          "bytes": 9476
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\6b20ed3b71deaee4de8d9232606d8e3aac69f70d13aa08e82aa106a84392c54a.rmres",
+          "sha256": "6b20ed3b71deaee4de8d9232606d8e3aac69f70d13aa08e82aa106a84392c54a",
+          "bytes": 12129
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76.rmres",
+          "sha256": "6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76",
+          "bytes": 5873
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\72f8a56d2a4459c063ee93fc69c808b2154af3c4b2a6de60dd42e8bdd56820fe.rmres",
+          "sha256": "72f8a56d2a4459c063ee93fc69c808b2154af3c4b2a6de60dd42e8bdd56820fe",
+          "bytes": 4636
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\7500ea17da8ed4badf4b76a522893f692785013a7cd9ba1517151d3c2b3c997c.rmres",
+          "sha256": "7500ea17da8ed4badf4b76a522893f692785013a7cd9ba1517151d3c2b3c997c",
+          "bytes": 4622
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc.rmres",
+          "sha256": "8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc",
+          "bytes": 7261
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626.rmres",
+          "sha256": "9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626",
+          "bytes": 5868
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75.rmres",
+          "sha256": "9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75",
+          "bytes": 5858
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1.rmres",
+          "sha256": "a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1",
+          "bytes": 7248
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\adb3e50b0f59cbb2344c8f4eb5c195e1ad24c4a7c5888268370105dba9473c47.rmres",
+          "sha256": "adb3e50b0f59cbb2344c8f4eb5c195e1ad24c4a7c5888268370105dba9473c47",
+          "bytes": 125517
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099.rmres",
+          "sha256": "adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099",
+          "bytes": 5874
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683.rmres",
+          "sha256": "ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683",
+          "bytes": 7183
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\aedda0a2242da1fc4cd0348eb3cfe089464b1c1e947488ffd7b3021185f07400.rmres",
+          "sha256": "aedda0a2242da1fc4cd0348eb3cfe089464b1c1e947488ffd7b3021185f07400",
+          "bytes": 13327
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce.rmres",
+          "sha256": "b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce",
+          "bytes": 7211
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7.rmres",
+          "sha256": "b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7",
+          "bytes": 5869
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720.rmres",
+          "sha256": "bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720",
+          "bytes": 2444
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\d38ef227744ddd2edcf0ab10218eee9eeff2465399d426b049f1126dd2e518fa.rmres",
+          "sha256": "d38ef227744ddd2edcf0ab10218eee9eeff2465399d426b049f1126dd2e518fa",
+          "bytes": 84
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1.rmres",
+          "sha256": "e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1",
+          "bytes": 199
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86.rmres",
+          "sha256": "e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86",
+          "bytes": 7260
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd.rmres",
+          "sha256": "e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd",
+          "bytes": 5777
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07.rmres",
+          "sha256": "f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07",
+          "bytes": 7315
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9.rmres",
+          "sha256": "f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9",
+          "bytes": 5816
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\__residential_placement_2268_12499401\\maps\\test\\map.gltf.resources\\f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401.rmres",
+          "sha256": "f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401",
+          "bytes": 2434
+        }
+      ]
+    }
+  ],
+  "resource_dependencies": [
+    {
+      "path": "D:/code/rmmo_runtime/__residential_block_22448_12996880/source_dependency.png",
+      "sha256": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_curves_18648_12979753/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png",
+      "sha256": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_curves_18648_12979753/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json",
+      "sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png",
+      "sha256": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json",
+      "sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_placement_2268_12499401/assets/material_textures/ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7.png",
+      "sha256": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_placement_2268_12499401/assets/prefabs/6f2bf6e93e012c83268e1c4e98bf3a9b401b81c7c0adcca5be71d100022e73d8.json",
+      "sha256": "6abb3c01fdc552f7e3a3f8bc5bb27552e2f64404df22bccef475386e75a8f680"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_placement_bridges_19904_13700165/materials/776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3.png",
+      "sha256": "776c909384a311e42b006ab7aaaca6829c896a6566149ecb14a9e43b859187d3"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/__residential_relocation_20596_12376471/source_dependency.png",
+      "sha256": "ce1ab0ebfec2754c4445137553f68670c75591b22ce8bc5737906883480387c7"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/bridges/medieval_stone/stone_segmental.glb",
+      "sha256": "308b971639dabd7e9abe2c13d8a4d46dd2067607bead8b8efabf58a1b2f84ffb"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/normal.png",
+      "sha256": "b9af76c52ea7ffcbfab227ed1ff8c7d295952fbdabe4af64f0a27526fbf03f2c"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/roughness.png",
+      "sha256": "0bf22b9cd27e305b62610f9453cf42ef6b0cb8b198e960674633f00cd3b9f4df"
+    },
+    {
+      "path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/texture.png",
+      "sha256": "74d16083107589ea878c9b49eb7a58ebf3bff89b17ead3d09a95deedb4063620"
+    }
+  ],
+  "read_only_source_fixture": {
+    "path": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/maps/test/map.gltf",
+    "sha256": "b19e021ceb5924a9c864405cb26b2d7bb74a7325e6ae2e06e7152a56739ca212"
+  },
+  "result": {
+    "homes": [
+      {
+        "id": "home_1",
+        "operation": "relocate",
+        "building_id": "building_07faa0aaea387fe6ca02",
+        "building_position": [
+          -8.0,
+          0.119999997317791,
+          1.0
+        ],
+        "road_connection": {
+          "child_edge_ids": [
+            "main_lane",
+            "home_233c57f16817f3_tail"
+          ],
+          "edge_id": "main_lane",
+          "join_node_id": "home_233c57f16817f3_join",
+          "kind": "cubic",
+          "parameter": 0.1553955078125,
+          "position": [
+            -9.35599330432888,
+            0.0,
+            -14.6697707903004
+          ],
+          "projection": {
+            "distance_error_bound_m": 0.0001,
+            "endpoint_adjustment_m": 0.0,
+            "nearest_parameter": 0.1553955078125,
+            "nearest_position": [
+              -9.35599330432888,
+              0.0,
+              -14.6697707903004
+            ],
+            "visits": 321.0
+          },
+          "split": true,
+          "tangent": [
+            21.449836730957,
+            0.0,
+            5.41033506393433
+          ],
+          "width": 3.24661865234375
+        }
+      },
+      {
+        "id": "home_2",
+        "operation": "place",
+        "building_id": "building_e06aef664c3651236fdc",
+        "building_position": [
+          7.99999904632568,
+          0.119999997317791,
+          1.14249992370605
+        ],
+        "road_connection": {
+          "child_edge_ids": [
+            "home_233c57f16817f3_tail",
+            "home_a7cea251c44fbd_tail"
+          ],
+          "edge_id": "home_233c57f16817f3_tail",
+          "join_node_id": "home_a7cea251c44fbd_join",
+          "kind": "cubic",
+          "parameter": 0.55084228515625,
+          "position": [
+            3.57704284655392,
+            0.0,
+            -14.928172061915
+          ],
+          "projection": {
+            "distance_error_bound_m": 0.0001,
+            "endpoint_adjustment_m": 0.0,
+            "nearest_parameter": 0.55084228515625,
+            "nearest_position": [
+              3.57704284655392,
+              0.0,
+              -14.928172061915
+            ],
+            "visits": 228.0
+          },
+          "split": true,
+          "tangent": [
+            24.4530944824219,
+            0.0,
+            -3.3140025138855
+          ],
+          "width": 3.38619181290269
+        }
+      }
+    ],
+    "earthwork": {
+      "cut_m3": 0.0,
+      "fill_m3": 34.5739079683881,
+      "max_cut_m": 0.0,
+      "max_fill_m": 0.119999997317791,
+      "scope": "all_changed_solid_triangles_including_padding_and_blend"
+    },
+    "batch_stats": {
+      "base_work_budget_usec": 2000,
+      "building_mesh_hits": 0,
+      "enabled": true,
+      "groups": 2,
+      "instanced_groups": 0,
+      "last_build_ms": 2.412,
+      "last_commit_ms": 0.186,
+      "last_sync_ms": 8.663,
+      "loading_budget_scopes": 0,
+      "max_build_ms": 8.23,
+      "max_commit_ms": 1.071,
+      "pending_groups": 0,
+      "rebuild_count": 3,
+      "release_groups_visited": 4,
+      "render_surfaces": 4,
+      "render_vertices": 51540,
+      "source_objects": 9,
+      "source_surfaces": 36,
+      "source_vertices": 51540,
+      "sync_count": 16,
+      "sync_profile_us": {
+        "capture_us": 102,
+        "geometry_us": 1,
+        "material_us": 7212
+      },
+      "work_budget_usec": 2000
+    },
+    "persistence": {
+      "differences": [],
+      "max_numeric_delta": 1.77635683940025e-15
+    }
+  },
+  "scope": "1-16 ordered frozen townhouse/hall homes, optional shared 1-64 grading/ramp operations, explicit keep/remove_owned old-access policy, all movers vacated before staging, original-edge descendant tracking, final per-house geometry/corridor/connector-ground/kerb/ownership checks and one undo. UI callbacks and current 3D loopback HTTP cover mixed placement/relocation, swaps, duplicates, protected scope, last-row conflicts, stale/resource/integrity rejection, exact removal summaries, save/reopen and native batches. Native saved colliders plus production WorldAuthority validate both exterior approaches, both access roads, curved street and adjacent stone bridge in both directions. Step-up transition permits non-floor frames only with real support within step reach; no rejected or unsupported movement. No full streaming, interiors, arbitrary-candidate walkability or performance claim. Original scene checkout and formal maps untouched; WebP Q90 record and header verified.",
+  "resolved_during_validation": [
+    "Final corridor proof distinguishes walkable native low kerbs from above-step obstructions, with raised-kerb rejection and actual capsule checks.",
+    "Within-5-cm endpoint reuse avoids degenerate curve splits on reconnection, with raw projection and topological adjustment reported separately.",
+    "Final building_position distinguishes building identity origin from a prefab placement anchor; swaps use the actual origin.",
+    "Removal summary now overwrites its initial empty arrays; exact old edge/node IDs are asserted in block and single relocation."
+  ],
+  "publication": "Separate local commit only, no push/merge. Next E1-F multi-entrance/arcade/elevated support; performance remains deferred."
+}

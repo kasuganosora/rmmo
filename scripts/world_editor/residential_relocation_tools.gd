@@ -40,19 +40,11 @@ func preview(args:Dictionary)->Dictionary:
 	if not _candidate.is_empty() and _candidate.request_id==request_id and _candidate.summary.base_version==version and _dependencies_current(_candidate.dependencies):return _candidate.summary.duplicate(true)
 	_candidate={}
 	var id:String=args.residential.building_id
+	var inspected:=inspect_unit(editor,id)
+	if not inspected.ok:return inspected
+	var value:Dictionary=inspected.unit.value;var members:Array=inspected.unit.records
 	var registry:Dictionary=editor._doc.map_meta.get("building_instances",{})
-	if not registry.has(id):return fail("building_not_found","已有建筑不存在")
-	var value:Dictionary=registry[id];var members:Array=[]
-	if not value.get("baked",false) or value.parameters.get("template")!="house" or value.parameters.get("layout") not in ["townhouse","hall"]:return fail("unsupported","当前可靠迁移支持单栋冻结 townhouse／hall 住宅")
-	for part:String in value.parts:
-		var record:Dictionary=editor._doc._find(value.parts[part])
-		if record.is_empty() or record.get("building",{}).get("id")!=id or Blueprint.geometry_signature(record)!=value.signatures[part]:return fail("building_modified","建筑构件缺失或几何已手改，请先修复关联").merged({"conflicts":[value.parts[part]]})
-		if not editor._record_editable(record):return fail("protected_scope","建筑包含锁定、隐藏或隔层构件").merged({"conflicts":[record.uuid]})
-		members.append(record.duplicate(true))
-	if members.is_empty():return fail("building_modified","建筑没有构件")
 	var data:=Data.resolve(editor._doc.map_meta)
-	if not Data.valid(editor._doc.map_meta) or editor._doc.validate_save()!=OK:return fail("candidate_invalid","原地图关联或保存校验失败")
-	if data.get("block_layout",{}).get("lots",[]).any(func(l):return l.building_id==id):return fail("unsupported","自动街区管理的建筑请先解除街区归属再单栋迁移")
 	if not data.has("road_surface") or data.road_surface.graph_token!=Data.token(data.roads):return fail("stale_road_surface","请先完成已有道路铺面")
 	var requested_terrain:Dictionary=args.get("terrain",{})
 	if not requested_terrain.get("road_nodes",[]).is_empty() and requested_terrain.get("expected_road_token","")!=Data.token(data.roads):return fail("stale_road_surface","道路草案已变化，请重新读取 road_token")
@@ -68,7 +60,7 @@ func preview(args:Dictionary)->Dictionary:
 		if removal.edge_id==args.residential.road_edge_id:return fail("invalid_arguments","新接路目标不能是将被移除的旧支路")
 		data.roads.edges=data.roads.edges.filter(func(e):return e.id!=removal.edge_id)
 		data.roads.nodes=data.roads.nodes.filter(func(n):return n.id!=removal.node_id)
-		old_access.merge({"removed_edge_ids":[removal.edge_id],"removed_node_ids":[removal.node_id],"retained_join_id":removal.retained_join_id})
+		old_access.merge({"removed_edge_ids":[removal.edge_id],"removed_node_ids":[removal.node_id],"retained_join_id":removal.retained_join_id},true)
 	else:old_access.notice="保留全部旧道路及旧地块；原入户路不再归属迁移后的住宅"
 	# Exclude only the explicitly selected building in private staging. All
 	# other buildings and followers remain native terrain/collision participants.
@@ -130,3 +122,19 @@ func preview(args:Dictionary)->Dictionary:
 	if _version()!=version or not _dependencies_current(dependencies):return fail("base_changed","地图或资源变化，请重新预览")
 	_candidate={"summary":summary,"request_id":request_id,"dependencies":dependencies,"after":after,"integrity":Data.token(after),"visual":visual}
 	return summary.duplicate(true)
+
+static func inspect_unit(owner:Node3D,id:String)->Dictionary:
+	var registry:Dictionary=owner._doc.map_meta.get("building_instances",{})
+	if not registry.has(id):return fail("building_not_found","已有建筑不存在")
+	var value:Dictionary=registry[id];var members:Array=[]
+	if not value.get("baked",false) or value.parameters.get("template")!="house" or value.parameters.get("layout") not in ["townhouse","hall"]:return fail("unsupported","当前可靠迁移支持单栋冻结 townhouse／hall 住宅")
+	for part:String in value.parts:
+		var record:Dictionary=owner._doc._find(value.parts[part])
+		if record.is_empty() or record.get("building",{}).get("id")!=id or Blueprint.geometry_signature(record)!=value.signatures[part]:return fail("building_modified","建筑构件缺失或几何已手改，请先修复关联").merged({"conflicts":[value.parts[part]]})
+		if not owner._record_editable(record):return fail("protected_scope","建筑包含锁定、隐藏或隔层构件").merged({"conflicts":[record.uuid]})
+		members.append(record.duplicate(true))
+	if members.is_empty():return fail("building_modified","建筑没有构件")
+	var data:=Data.resolve(owner._doc.map_meta)
+	if not Data.valid(owner._doc.map_meta) or owner._doc.validate_save()!=OK:return fail("candidate_invalid","原地图关联或保存校验失败")
+	if data.get("block_layout",{}).get("lots",[]).any(func(l):return l.building_id==id):return fail("unsupported","自动街区管理的建筑请先解除街区归属再单栋迁移")
+	return {"ok":true,"unit":{"id":id,"value":value.duplicate(true),"records":members}}

@@ -99,6 +99,7 @@ var _heightmap=preload("res://scripts/world_editor/terrain_heightmap.gd").new()
 var _terrain_analysis=preload("res://scripts/world_editor/terrain_analysis.gd").new()
 var _diagnostics = preload("res://scripts/world_editor/editor_diagnostics.gd").new()
 var _residential = preload("res://scripts/world_editor/residential_placement_tools.gd").new()
+var _residential_block = preload("res://scripts/world_editor/residential_block_tools.gd").new()
 var _residential_relocation = preload("res://scripts/world_editor/residential_relocation_tools.gd").new()
 var _residential_site = preload("res://scripts/world_editor/residential_site_tools.gd").new()
 var _blocks = preload("res://scripts/world_editor/block_tools.gd").new()
@@ -147,6 +148,7 @@ func _ready() -> void:
 	_diagnostics.editor=self; add_child(_diagnostics)
 	_residential.editor = self
 	_residential_site.editor = self
+	_residential_block.editor = self
 	_residential_relocation.editor = self
 	_blocks.editor = self
 	_scatter.editor = self

@@ -852,3 +852,25 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 示例说明格式，不代表任意房型、位置或入口可行。`position` 是已有建筑的新原点；`yaw` 是相对原朝向的附加旋转。`terrain` 可整体省略；提供时需要 1–64 项矩形／坡道，可用与联合整地相同的 `road_nodes`、`expected_road_token` 和 `ramp` 字段。`old_access` 默认 `keep`；`remove_owned` 仅删除未改的唯一归属末端支路／门前节点，公共接点和主路保留。历史地图无记录时返回 `access_unowned`，手改为 `access_modified`，共享端点／多重归属为 `access_shared`；不猜测旧路归属。旧地形只在显式整地范围内改变。
 
 成功预览返回普通接路摘要，加上 `relocation:{building_id,from_position,from_yaw,old_access,identity_preserved}`、`changes`、`earthwork`、`terrain_operation_count` 和新 `access_binding`。新建住宅及联合整地的预览也返回 `access_binding`，应用时将其保存在对应建筑登记内。应用／放弃只传 `{"plan_token":"预览返回值"}`；应用前验证地图、资源及候选完整性，一次事务保留原建筑、构件、楼层、活动件和资源身份，再调用 `save_world`。范围和边界见[建筑迁移说明](world_editor_buildings.md#已有建筑可靠迁移重新整地及接路2026-10-17e2-c)。
+
+### 多栋住宅街区联合候选（E2-D，2026-10-17）
+
+当前 3D 新增 `preview_residential_block`、`apply_residential_block`、`discard_residential_block`，与 UI 队列使用同一业务和撤销事务。`homes` 为有序的 1–16 户，每户有唯一非空 `id`（结果和错误归因使用），以及 `residential`；后者必须且只能指定 `asset_id`（新增）或 `building_id`（迁移）。其他接路和升降范围同单栋；`old_access` 仅迁移可用，默认 `keep`。同一建筑不得重复迁移，也不能把本组待删除的旧支路作为任一户目标。
+
+```json
+{
+  "homes": [
+    {"id":"west", "residential":{"building_id":"<已有建筑 ID>", "position":[-8,0.12,1], "road_edge_id":"main_lane", "old_access":"keep"}},
+    {"id":"east", "residential":{"asset_id":"<冻结住宅素材 ID>", "position":[8,0.12,1], "road_edge_id":"main_lane"}}
+  ],
+  "terrain": {"strokes":[{"id":"<高度场 ID>", "mode":"flatten", "shape":"rectangle", "points":[[0,1]], "plot_width":30, "plot_depth":19, "target_height":0.12, "strength":1, "blend_margin":2, "cross_tiles":true}]}
+}
+```
+
+示例仅说明格式，不能保证任意房型／场景适用。`terrain` 可整体省略；提供时总共 1–64 项，支持与单栋联合整地相同的 `ramp/road_nodes/expected_road_token`。道路 token 对原图校验，再在私有旧支路删除后重基准。共享整地前移出全部迁移建筑，支持互换；每户仍保留身份和保护规则。
+
+成功返回一个全组 `plan_token`、`homes`（含行 ID、`operation:place/relocate`、建筑 ID、安放及接路证明、迁移处置）、`building_ids/house_ids/changed_ids`、`changes`、`earthwork`、`terrain_operation_count`、`road_lineage` 与总体边界。各户无可单独应用的子 token。`position` 是本次素材放置点或迁移原点；`building_position` 是最终登记的建筑原点，素材保存锚点有偏移时两者不同，后续互换／迁移使用后者。`road_lineage` 只表示本次准备中的原始边到最终子边，不推断历史整路。
+
+失败保留原始 `last_failure`，逐户失败另附 `home_id/home_index`（0 起算）、请求位置及通用定位诊断。最后一户失败也不改变作者记录、选择或历史。`apply_residential_block {plan_token}` 再次核对地图版本、资源、候选完整性和保存有效性，全组一次发布；`discard_residential_block {plan_token}` 仅丢弃候选。应用后仍调用 `save_world`。实际运行通行标记仍为待对应场景验证；本批临时场景验证不代表任意街区或整城流式性能。
+
+弯路原始投影距端点小于 0.05 米时复用现有端点，避免退化拆分；`projection.nearest_parameter/nearest_position` 是原投影，`endpoint_adjustment_m` 单独报告复用偏移。投影距离界不覆盖该偏移。支持边界和 UI 操作见[街区联合候选说明](world_editor_buildings.md#多栋住宅的街区联合候选2026-10-17e2-d)。

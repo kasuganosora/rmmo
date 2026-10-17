@@ -1,0 +1,128 @@
+{
+	"collisions": 94,
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/__residential_block_22448_12996880/maps/test/map.gltf",
+	"map_sha256": "09efcb27274e076ae9f1ef3c3b4598ff3b4f8be14e8293ce94cfd630ad432a31",
+	"passed": 28,
+	"scope": "Saved native colliders and production WorldAuthority capsule movement; exterior only, no avatar renderer, full streaming or arbitrary curve walkability claim",
+	"walks": [
+		{
+			"airborne": 2,
+			"case": "home_1 exterior treads through access to street",
+			"max_feet_clearance": 0.270831942558289,
+			"min_feet_clearance": 0.000203236937522888,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 235,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 3,
+			"case": "home_1 street through access to exterior treads",
+			"max_feet_clearance": 0.267980873584747,
+			"min_feet_clearance": 0.00050729513168335,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 236,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 0,
+			"case": "home_1 access toward street",
+			"distance": 0.0964758992195129,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 190
+		},
+		{
+			"airborne": 0,
+			"case": "home_1 street toward access",
+			"distance": 0.0962832123041153,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 190
+		},
+		{
+			"airborne": 2,
+			"case": "home_2 exterior treads through access to street",
+			"max_feet_clearance": 0.150835633277893,
+			"min_feet_clearance": -0.000521108508110046,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 241,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 2,
+			"case": "home_2 street through access to exterior treads",
+			"max_feet_clearance": 0.149445772171021,
+			"min_feet_clearance": 0.00012652575969696,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 242,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 0,
+			"case": "home_2 access toward street",
+			"distance": 0.119765669107437,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 195
+		},
+		{
+			"airborne": 0,
+			"case": "home_2 street toward access",
+			"distance": 0.120865978300571,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 195
+		},
+		{
+			"airborne": 0,
+			"case": "curved street forward across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "curved street reverse across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge eastbound",
+			"distance": 0.122406005859375,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge westbound",
+			"distance": 0.123558044433594,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		}
+	]
+}
