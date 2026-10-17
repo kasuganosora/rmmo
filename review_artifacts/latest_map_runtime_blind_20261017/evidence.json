@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-17",
+  "baseline_commit": "d1121df18039605a19a7f4aeedc9bd05b0e7b989",
+  "branch": "codex/latest-map-runtime-review",
+  "main_workspace_fast_forwarded_to_baseline": true,
+  "local_project_settings_sha_preserved": true,
+  "findings": [
+    {
+      "priority": "P2",
+      "scope": "active production",
+      "title": "Ready speculative target continues rendering every frame",
+      "idle_frame_draws_before": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "idle_frame_draws_after": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "warmed_meshes_preserved": 3
+    },
+    {
+      "priority": "P2",
+      "scope": "active production",
+      "title": "Denied speculative GPU reservation preempts its completed CPU prerequisite",
+      "gpu_denials_before": 3,
+      "gpu_denials_after": 3,
+      "cpu_worker_starts_before": 3,
+      "cpu_worker_starts_after": 1,
+      "oversize_speculative_allowed_before": true,
+      "oversize_speculative_allowed_after": false
+    },
+    {
+      "priority": "P3",
+      "scope": "compatibility helper; no current production caller",
+      "title": "Source refresh retains weak aliases to obsolete pixels",
+      "old_live_consumer_preserved": true,
+      "new_pixels_and_complete_source_sha_refreshed": true
+    }
+  ],
+  "dimensions": {
+    "fps": "not benchmarked",
+    "end_to_end_time": "not benchmarked",
+    "workload": "measured reduction in idle GPU draws and repeated CPU preparations",
+    "memory": "byte reservations are conservative accounting, not RSS/VRAM"
+  },
+  "validation": {
+    "runs": 13,
+    "checks_and_comparisons": 1674,
+    "failures": 0,
+    "rows": [
+      {
+        "name": "test_latest_runtime_blind_review",
+        "exit": 0,
+        "passes_printed": 18,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "headless_test_latest_runtime_blind_review.log",
+        "original_test_sha256": "12c90ca769eca52962d95a4552f3ac3b27ef1d1603fa5951ec1702cf11796f7b",
+        "executed_test_sha256": "12c90ca769eca52962d95a4552f3ac3b27ef1d1603fa5951ec1702cf11796f7b",
+        "output_redirect_only": false,
+        "checks": 18
+      },
+      {
+        "name": "test_resource_admission",
+        "exit": 0,
+        "passes_printed": 20,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "headless_test_resource_admission.log",
+        "original_test_sha256": "f851d7fe784375608b00cafceed19d5e93f916b2ae2aa993de556defc310e13c",
+        "executed_test_sha256": "f851d7fe784375608b00cafceed19d5e93f916b2ae2aa993de556defc310e13c",
+        "output_redirect_only": false,
+        "checks": 20
+      },
+      {
+        "name": "test_approach_prefetch",
+        "exit": 0,
+        "passes_printed": 25,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "remaining_test_approach_prefetch.log",
+        "original_test_sha256": "7dae79daa4c3760f6b934901889f0bcf505caedd447df6da6271e46b8d84d2c5",
+        "executed_test_sha256": "a70429b5498a1421f141f9b25dff532e2c9c58fb3d82b8a054a504b49594c73d",
+        "output_redirect_only": true,
+        "checks": 25
+      },
+      {
+        "name": "test_native_retirement_contract",
+        "exit": 0,
+        "passes_printed": 16,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "remaining_test_native_retirement_contract.log",
+        "original_test_sha256": "15815246ccad6824144a9cbdcdfa483b1d1de4196e92a14774e30867c1d1f887",
+        "executed_test_sha256": "bc56bcb2ab5266a15e40bc9ed30e0726d86c0753cb64a8de4472c9e871945123",
+        "output_redirect_only": true,
+        "checks": 16
+      },
+      {
+        "name": "test_terrain_incremental",
+        "exit": 0,
+        "passes_printed": 0,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "remaining_test_terrain_incremental.log",
+        "original_test_sha256": "90b04f22d6e7420d0676505a1121b30b75bc0b40759130d7c20d9acf30a5347e",
+        "executed_test_sha256": "6c661a4ac1916af2bc0bb1b74afc542248a647bce44a0871742a5d0fb0507a2f",
+        "output_redirect_only": true,
+        "checks": 1132
+      },
+      {
+        "name": "test_terrain_cpu_patch",
+        "exit": 0,
+        "passes_printed": 0,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "remaining_test_terrain_cpu_patch.log",
+        "original_test_sha256": "03415300977c3013eda7d3b5d711de7cce92697eb5c40b704e5876776bd72f3a",
+        "executed_test_sha256": "e3466e235a8aab6657ab5c76161ee8ffeb755f71a1e5a9d409e4a7ce0bc2d210",
+        "output_redirect_only": true,
+        "checks": 254
+      },
+      {
+        "name": "test_latest_runtime_blind_review",
+        "exit": 0,
+        "passes_printed": 33,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "gpu_test_latest_runtime_blind_review.log",
+        "original_test_sha256": "12c90ca769eca52962d95a4552f3ac3b27ef1d1603fa5951ec1702cf11796f7b",
+        "executed_test_sha256": "12c90ca769eca52962d95a4552f3ac3b27ef1d1603fa5951ec1702cf11796f7b",
+        "output_redirect_only": false,
+        "checks": 33
+      },
+      {
+        "name": "test_target_scene_prefetch_gpu",
+        "exit": 0,
+        "passes_printed": 25,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "gpu_test_target_scene_prefetch_gpu.log",
+        "original_test_sha256": "cc9646636c677103a7d4652036c18ec68862b5f9bf3341a7f206808b9a261810",
+        "executed_test_sha256": "491abb4aeecc38160e2d05e5349674a94a9420abbc210a804c670b28c9a3a0d5",
+        "output_redirect_only": true,
+        "checks": 25
+      },
+      {
+        "name": "test_material_residency_budget",
+        "exit": 0,
+        "passes_printed": 8,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "gpu_test_material_residency_budget.log",
+        "original_test_sha256": "72f66db2db6f9dac3fcdc07f8867d049ba3e70a75a2c457f19b1847e2a911628",
+        "executed_test_sha256": "ef403ec3ff35cec236d2a73c173c23165edf3d22efe35eb43dce97348e176f60",
+        "output_redirect_only": true,
+        "checks": 8
+      },
+      {
+        "name": "test_native_residency_gpu",
+        "exit": 0,
+        "passes_printed": 26,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "gpu_test_native_residency_gpu.log",
+        "original_test_sha256": "ef6e25795eea8773d0a56fa261286c49fe45b9a1c88f6664dc1cc15523082753",
+        "executed_test_sha256": "8a11bb7afc2cecc170bb72334d63ae652da0dfc38e9024df730aca95a5cdefee",
+        "output_redirect_only": true,
+        "checks": 26
+      },
+      {
+        "name": "test_distant_building_proxy_gpu",
+        "exit": 0,
+        "passes_printed": 24,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "gpu_test_distant_building_proxy_gpu.log",
+        "original_test_sha256": "106a81873754f123523cc66a7b7b1129f6c701616504a9726992ce1b90982e1d",
+        "executed_test_sha256": "8ab12835e84c3534310a4ee890022b4200f90c22da4f7328ca0aca1656d2676f",
+        "output_redirect_only": true,
+        "checks": 24
+      },
+      {
+        "name": "test_material_publication",
+        "exit": 0,
+        "passes_printed": 46,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "publication_test_material_publication.log",
+        "original_test_sha256": "0d646c49198a28ac5f3fd010872904ce74403fd4d008d8702271a69fb4e05aee",
+        "executed_test_sha256": "0d646c49198a28ac5f3fd010872904ce74403fd4d008d8702271a69fb4e05aee",
+        "output_redirect_only": false,
+        "checks": 46
+      },
+      {
+        "name": "test_latest_prefetch_http",
+        "exit": 0,
+        "passes_printed": 47,
+        "failures_printed": 0,
+        "script_errors": 0,
+        "log": "http_integration.log",
+        "checks": 47
+      }
+    ],
+    "baseline_probe_checks": 33,
+    "baseline_expected_failures": 11
+  },
+  "source_sha256": {
+    "scripts/world3d/target_scene_prefetch.gd": "0b0bd24667d1fc7b5ad99d7c540210234645f30da51551c1af9e413801487931",
+    "scripts/world3d/resource_admission.gd": "4660d843d7202835dddcfea9e99ac9367f0a6c7dc30684661d7ce9e35209f6b9",
+    "scripts/world3d/surface_materials.gd": "cd220d2dc39108fe5c9e60e7adcf6b0159a2bd4e3e24528f91444fc539739598",
+    "scripts/world3d/pose_save.gd": "e8f2370eb572049c7e8f3860e552fd400e6e456a828bfe6ba2e85bc3616dc3ce",
+    "tools/test_latest_runtime_blind_review.gd": "12c90ca769eca52962d95a4552f3ac3b27ef1d1603fa5951ec1702cf11796f7b",
+    "tools/test_latest_prefetch_http.gd": "0c49182ef3988039bbd6405a009716c0f582ed15bf121413710002cc1622a969"
+  },
+  "external_evidence_directory": "D:/code/rmmo_runtime/review_artifacts/latest_map_runtime_blind_20261017_d1121df",
+  "previous_review_fixes": {
+    "branch": "codex/map-load-render-review",
+    "head": "e26ed92",
+    "not_merged_into_this_base": true
+  },
+  "review_boundary": "Findings and baseline reproduction preceded accidental exposure to historical performance prose in the MCP entry document; that prose was not used for findings or benefit assessment.",
+  "rejected_hypothesis": "20 real terrain prepare/publish operations keep changed-signal connection count at 2; no growing watcher defect established",
+  "notes": [
+    "Wrong-mode headless material-publication call excluded; actual Vulkan run passes 46 checks",
+    "Fixed test output paths redirected in external copies only; assertions preserved",
+    "No axel_town whole-map FPS or loading-time claim; that investigation is a subsequent user-requested task"
+  ]
+}

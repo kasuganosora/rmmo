@@ -19,6 +19,12 @@ static var _cache_serial:=0
 static var _cache_use:Dictionary={}
 static var cache_residency_profile:Dictionary={}
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
+static func refresh_sources()->void:
+	# A source refresh starts a new identity generation. Live consumers keep
+	# their old resources; neither hot nor weak aliases may authorize new builds.
+	_materials.clear();_textures.clear();prepared_images.clear()
+	_material_refs.clear();_texture_refs.clear();_cache_use.clear()
+
 static func _touch_cache(kind:String,key:String)->void:
 	_cache_serial+=1;_cache_use[kind+key]=_cache_serial
 static func _remember_weak(catalog:Dictionary,key:String,value:RefCounted)->void:

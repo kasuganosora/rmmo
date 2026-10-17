@@ -123,7 +123,11 @@ func inspect(key:String,estimate:Dictionary)->Dictionary:
 
 func reserve_background(key:String,size:int,cancel:Callable,worker_slots:int=1)->bool:
 	if worker_slots<1 or active_workers()+worker_slots>worker_limit:return false
-	if size<=0 or not cancel.is_valid() or not reserve(key,{"estimated_bytes":size,"exclusive":false,"stage":"speculative_cpu"}):return false
+	# Speculation may use spare capacity only. Foreground reserve() retains its
+	# exclusive oversize/preemption policy; a denied upgrade must not cancel
+	# another useful speculative result (e.g. its own completed CPU target).
+	if size<=0 or size>byte_limit or reserved_bytes+size>byte_limit:return false
+	if not cancel.is_valid() or not reserve(key,{"estimated_bytes":size,"exclusive":false,"stage":"speculative_cpu"}):return false
 	_entries[key].preempt=cancel
 	_entries[key].worker_slots=worker_slots;peak_workers=maxi(peak_workers,active_workers())
 	return true

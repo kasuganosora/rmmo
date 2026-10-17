@@ -465,7 +465,7 @@ static func refresh_export_sources(document: RefCounted) -> void:
 	# export builds must not associate new disk hashes with old cached pixels.
 	document._save_meshes=load("res://scripts/world3d/save_mesh_cache.gd").new()
 	var paint=load("res://scripts/world3d/surface_materials.gd")
-	paint._materials.clear();paint._textures.clear();paint.prepared_images.clear()
+	paint.refresh_sources()
 	load("res://scripts/world_editor/asset_library.gd")._scenes.clear()
 	var prefab=load("res://scripts/world3d/house_prefab.gd")
 	prefab._meshes.clear();prefab._render_meshes.clear()

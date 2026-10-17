@@ -110,6 +110,9 @@ func _loaded(scene:Node,_target:String,error:String)->void:
 			if not child.has_meta("stream_instance"):stack.append({"node":child,"pose":pose})
 		if Time.get_ticks_usec()-slice>=2000:await get_tree().process_frame;slice=Time.get_ticks_usec()
 	await RenderingServer.frame_post_draw;await RenderingServer.frame_post_draw
+	# The warmed buffers stay owned by _warm/_scene until take or retirement.
+	# A parked result must not keep rendering beside the playable source world.
+	_viewport.render_target_update_mode=SubViewport.UPDATE_DISABLED
 	_warming=false
 	if _token==null or _token.is_cancelled():return
 	_verify=Thread.new();_verify_ticket=preload("res://scripts/world3d/cpu_worker_retirement.gd").watch(_verify,get_tree(),[_manifest])
