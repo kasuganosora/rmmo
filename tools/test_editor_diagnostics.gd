@@ -59,6 +59,11 @@ func run()->void:
 	await call_tool("save_world");await call_tool("open_world",{"path":path})
 	while editor._load_job!=null and editor._load_job.active:await process_frame
 	check(editor._doc.validate_save()==OK,"diagnostic UI does not alter saved document contract")
+	var old_diagnosis:=await call_tool("preview_terrain_ramp",args,false)
+	await call_tool("open_world",{"path":path})
+	while editor._load_job!=null and editor._load_job.active:await process_frame
+	var stale:=await call_tool("focus_editor_diagnostic",{"diagnostic_token":old_diagnosis.diagnostic_token},false)
+	check(stale.code=="diagnostic_stale","freshly reopened zero-revision document cannot reuse another document diagnosis")
 	FileAccess.open(output+"/result.json",FileAccess.WRITE).store_string(JSON.stringify({"checks":count,"failures":failed,"ramp_failure":result,"nested":nested,"map":path,"map_sha256":FileAccess.get_sha256(path)},"\t"))
 	editor._mcp.stop();editor.queue_free();await settle();session.world3d_editor_path="";session.world3d_editor_doc=null
 	print("EDITOR_DIAGNOSTICS checks=",count," failures=",failed);quit(1 if failed else 0)

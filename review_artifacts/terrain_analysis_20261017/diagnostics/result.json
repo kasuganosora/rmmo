@@ -1,0 +1,115 @@
+{
+	"checks": 40,
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/diagnostics_16915061/map.gltf",
+	"map_sha256": "b48b9893b3d1bb70c11edc1ca3a604c8af8f0afc52f6d5b0ea5434b659bafb55",
+	"nested": {
+		"category": "search_exhausted",
+		"code": "search_exhausted",
+		"items": [
+			{
+				"category": "search_exhausted",
+				"code": "search_exhausted",
+				"message": "search",
+				"object_ids": [],
+				"source": "",
+				"values": {}
+			},
+			{
+				"category": "unsupported",
+				"code": "unsupported",
+				"message": "unknown geometry",
+				"object_ids": [],
+				"source": "/last_failure",
+				"values": {}
+			},
+			{
+				"category": "constraint",
+				"code": "",
+				"message": "",
+				"object_ids": [
+					"terrain_8a49f99afd9b5ba0247fbf33"
+				],
+				"position": [
+					1.0,
+					2.0,
+					3.0
+				],
+				"source": "/last_failure/lower_witness",
+				"values": {
+					"terrain_height": 2.0
+				}
+			},
+			{
+				"category": "constraint",
+				"code": "",
+				"message": "",
+				"object_ids": [
+					"terrain_8a49f99afd9b5ba0247fbf33"
+				],
+				"position": [
+					3.0,
+					4.0,
+					5.0
+				],
+				"source": "/last_failure/upper_witness",
+				"values": {
+					"floor_bottom": 4.0
+				}
+			}
+		],
+		"message": "search",
+		"operation": "test",
+		"stage": "",
+		"truncated": false,
+		"version": 1
+	},
+	"ramp_failure": {
+		"code": "terrain_ramp_grade_conflict",
+		"diagnostic": {
+			"category": "conflict",
+			"code": "terrain_ramp_grade_conflict",
+			"items": [
+				{
+					"category": "conflict",
+					"code": "terrain_ramp_grade_conflict",
+					"locatable": true,
+					"message": "两端高差超过 15% 坡度，请延长坡道或调整标高",
+					"object_ids": [],
+					"objects": [],
+					"position": [
+						5.0,
+						4.0,
+						0.0
+					],
+					"source": "",
+					"values": {
+						"grade": 0.4,
+						"limits": {
+							"absolute_grade_max": 0.15
+						},
+						"minimum_length": 26.6666666666667
+					}
+				}
+			],
+			"message": "两端高差超过 15% 坡度，请延长坡道或调整标高",
+			"operation": "preview_terrain_ramp",
+			"stage": "",
+			"truncated": false,
+			"version": 1.0
+		},
+		"diagnostic_token": "5b0d54ba3e6662024815559d7301e008677866418c0194d010da7e46faa2f5f7",
+		"error": "两端高差超过 15% 坡度，请延长坡道或调整标高",
+		"grade": 0.4,
+		"limits": {
+			"absolute_grade_max": 0.15
+		},
+		"minimum_length": 26.6666666666667,
+		"ok": false,
+		"position": [
+			5.0,
+			4.0,
+			0.0
+		]
+	}
+}

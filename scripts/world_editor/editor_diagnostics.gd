@@ -39,7 +39,7 @@ static func normalize(result:Dictionary,operation:String)->Dictionary:
 	return {"version":1,"operation":operation,"category":category(result),"code":str(result.get("code","constraint")),"message":str(result.get("error","操作未通过")),"stage":str(result.get("stage","")),"items":items,"truncated":items.size()>=32}
 
 func version()->String:
-	return City.token([editor._doc.get_instance_id(),editor._doc.authoring_revision,editor._authoring.settings])
+	return City.token([str(editor._doc.get_instance_id()),editor._doc.authoring_revision,editor._authoring.settings])
 
 func explain(result:Dictionary,operation:String)->Dictionary:
 	if result.get("ok",false):return result

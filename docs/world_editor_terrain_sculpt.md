@@ -164,3 +164,14 @@ RX 7900 XTX、Forward+、独立后台测试视口，45 帧预热、80 帧采样�
 保留桥基承托的下挖可通过，基础掏空、桥基洞口及在实际结构投影内新增回填仍拒绝；原先埋在拱洞内的土可挖低。沿用 5 mm 接触容差与 10 µm 数值舍入。已知桥按实际 Node3D 的局部缩放再旋转处理；未知冻结布局、来源/配方不符、不能确认完整基础、木桥、桥或地形沿 X/Z 倾斜及起垄地形继续走原保守保护，不新增忽略碰撞开关。源文件 SHA、冻结数据摘要与完整实例姿态参与一次 prepare 的局部缓存，同路径替换来源不会沿用旧证明。
 
 UI 笔刷及中心线河道与当前 3D `preview_terrain_stroke` / `sculpt_terrain` / `preview_terrain_river` / `generate_terrain_river` 共用校验，不新增工具或参数。保留原拒绝错误与冲突 ID、锁定/隐藏保护、一次撤销、保存和派生渲染处理。[test_terrain_bridge_contact_http.gd](../tools/test_terrain_bridge_contact_http.gd) 实际 headless/HTTP **68 项通过，0 失败**：先造桥后跨两块地形生成河道、桥台/中墩/偏心分水尖承托、非法回填及深河冲基无副作用失败、源文件同路径变更失效、旋转非均匀缩放与真实冻结节点逐顶点对照、撤销重做及保存重开。证据：`D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/terrain_bridge_contact_http.log`、`terrain_bridge_contact_http_review.json`。本项不修改桥模型或正式地图，场景画面仍单独验收。
+
+
+## 等高线与坡度覆盖层（2026-10-17）
+
+地形页「分析」对所选原生高度场显示等高线、逐三角坡度色层和兼容邻块边界高差。等高距 0.1–100 米，陡坡阈值为坡度比值（0.15 表示 15%）；三个图层可独立开关。使用实际地形三角面、米制世界标高和旋转，不用颜色贴图近似坡度。洞格留空；首版支持绕 Y 旋转的普通高度场，不支持倾斜、体积地形或农田垄沟。白线为等高线，红色表示超过阈值的坡面，绿色表示其余坡面；相邻边界高差超过 0.002 米以紫色短线标记。边界查询包含可见、同朝向邻块两侧格点，兼容不同格距；边界高差展示不构成通行认证。
+
+当前 3D MCP：`query_terrain_analysis {id,interval?,slope_threshold?,contours?,slopes?,seams?}` 返回 `base_version/geometry_token`、逐段 `contours`、逐三角 `slopes` 和边界见证 `seams`；`set_terrain_analysis` 使用同参数并增加必填 `enabled`，关闭只需 `{enabled:false}`；`get_terrain_analysis` 返回开关、参数、统计与最近结果。最大 16384 等高线段、32 个兼容邻块，超预算拒绝；不丢掉部分几何后冒充完整分析。
+
+显示只生成会话内无碰撞、不可选择的派生网格，不修改地图、选择或撤销历史；修改、撤销、重开后按新文档身份与版本刷新，隐藏／不受支持时清除覆盖层。查询和 UI 使用相同计算。重开身份采用原生对象 ID 的字符串形式，避免大整数指纹溢出，同时修正 E1-D 的旧诊断定位身份。
+
+实际逻辑／UI／HTTP 38 项通过、0 失败，覆盖解析平面、负／零等高线、洞格、混合格距与真实高差、绕 Y 旋转、无效与超预算拒绝、查询／显示一致、雕刻／撤销／保存重开和隐藏恢复；原尺寸 Q90 WebP 已核对。[证据](../review_artifacts/terrain_analysis_20261017/evidence.json)。本项是地形辅助视图，未修改正式地图，不作为性能收益或玩家通行证据。

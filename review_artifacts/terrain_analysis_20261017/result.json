@@ -1,0 +1,35 @@
+{
+	"checks": 38,
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/analysis_15288560/map.gltf",
+	"map_sha256": "872fe5446fadd325c392295b42f66d1a3f37530336eb40e6c367b32bb88ab7d5",
+	"query_summary": {
+		"enabled": true,
+		"line_count": 20.0,
+		"ok": true,
+		"request": {
+			"contours": true,
+			"id": "left",
+			"interval": 0.2,
+			"seams": true,
+			"slope_threshold": 0.15,
+			"slopes": true
+		},
+		"result": {
+			"base_version": "907b99ed2e6126029d23e8429724593f07447e2a9c2c80299096a11ff53db420",
+			"geometry_token": "f4e1511a73ccc41e6ea374c6205f505f0f2006c8b631426f292a7a5618c5fc16",
+			"holes": 0.0,
+			"id": "left",
+			"interval": 0.2,
+			"max_boundary_step": 0.3,
+			"max_grade": 0.20000001215701,
+			"ok": true,
+			"scope": "surface analysis only; boundary knots of compatible neighbors, holes omitted; not a walkability certificate",
+			"slope_threshold": 0.15,
+			"source": "native_heightfield_triangles"
+		},
+		"seam_count": 5.0,
+		"triangle_count": 32.0
+	},
+	"scope": "native analytic geometry and current 3D HTTP/UI; read-only visualization, not runtime walkability"
+}

@@ -1,0 +1,45 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: native disposable map
+PASS: independent loopback server
+PASS: current 3D diagnostic tools discovered
+PASS: HTTP create_terrain succeeds
+PASS: HTTP preview_terrain_ramp rejects invalid operation
+PASS: real grade rejection includes measured value and actual limit
+PASS: failed diagnostic preparation leaves author history selection and dirty unchanged
+PASS: actual ramp UI and HTTP share identical structured diagnosis
+PASS: HTTP focus_editor_diagnostic succeeds
+PASS: HTTP focuses actual failure witness and renders transient highlight
+PASS: focus does not select or mutate authoring
+PASS: HTTP clear_editor_diagnostic succeeds
+PASS: clear releases derived highlight
+PASS: real UI locate button shares highlight operation
+PASS: HTTP focus_editor_diagnostic rejects invalid operation
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP focus_editor_diagnostic rejects invalid operation
+PASS: map revision invalidates highlight and old focus without overriding later edit
+PASS: HTTP undo succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP preview_terrain_layout rejects invalid operation
+PASS: joint terrain failure identifies protected terrain
+PASS: joint layout UI shares object diagnosis
+PASS: HTTP focus_editor_diagnostic succeeds
+PASS: object-bound focus preserves locked state and history
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: residential and combined failures share read-only diagnostic envelope: preview_residential_placement
+PASS: real residential panel shows HTTP diagnostic: preview_residential_placement
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: residential and combined failures share read-only diagnostic envelope: preview_residential_site
+PASS: real residential panel shows HTTP diagnostic: preview_residential_site
+PASS: bounded normalization preserves search outcome, unsupported cause and both witnesses
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: diagnostic UI does not alter saved document contract
+PASS: HTTP preview_terrain_ramp rejects invalid operation
+PASS: HTTP open_world succeeds
+PASS: HTTP focus_editor_diagnostic rejects invalid operation
+PASS: freshly reopened zero-revision document cannot reuse another document diagnosis
+EDITOR_DIAGNOSTICS checks=40 failures=0

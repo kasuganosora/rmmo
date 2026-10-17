@@ -20,6 +20,7 @@ var tasks: TabContainer
 var rock_banks
 var terrain_layout
 var ramp
+var analysis
 var begin_button: Button
 var end_button: Button
 var river_fields: VBoxContainer
@@ -135,6 +136,8 @@ func setup(value: Node3D) -> void:
 	var surface:=_task_page("表面")
 	var ramp_page:=_task_page("坡道")
 	ramp=preload("res://scripts/world_editor/terrain_ramp_panel.gd").new();ramp_page.body.add_child(ramp);ramp.setup(editor,self,ramp_page.footer)
+	var analysis_page:=_task_page("分析")
+	analysis=preload("res://scripts/world_editor/terrain_analysis_panel.gd").new();analysis_page.body.add_child(analysis);analysis.setup(editor,self)
 	var joint:=_task_page("联合整坡")
 	terrain_layout=preload("res://scripts/world_editor/terrain_layout_panel.gd").new();joint.body.add_child(terrain_layout);terrain_layout.setup(editor,self)
 	var rivers:=VBoxContainer.new(); rivers.name="河流"; tasks.add_child(rivers)
