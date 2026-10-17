@@ -216,12 +216,17 @@ static func room_label(type: String, floor_: int, index: int) -> String:
 
 static func geometry_signature(record: Dictionary) -> String:
 	var fields := {}
-	for key in ["kind","position","rotation","size","building_shape","roof_mesh","wall_grid","cloth","box_faces","collision"]:
+	for key in ["kind","position","rotation","size","building_shape","roof_mesh","wall_grid","cloth","box_faces","collision","residential_portals"]:
 		if not record.has(key): continue
 		if key=="cloth":
 			fields[key]=record[key].duplicate();fields[key].side=int(fields[key].side)
 		elif key=="box_faces":
 			fields[key]=record[key].map(func(patch):return patch.map(func(value):return snappedf(float(value),.000001)+0.0))
+		elif key=="residential_portals":
+			fields[key]=record[key].duplicate(true)
+			for portal:Dictionary in fields[key]:
+				for vector:String in ["position","outward"]:portal[vector]=portal[vector].map(func(value):return snappedf(float(value),.00001)+0.0)
+				portal.width=snappedf(float(portal.width),.00001)+0.0
 		elif record[key] is Array:
 			# glTF/JSON roundtrips must not turn binary floating-point noise into a hand edit.
 			# New prisms use micrometre coordinates: half of a 10um signature bin
@@ -231,6 +236,7 @@ static func geometry_signature(record: Dictionary) -> String:
 	return JSON.stringify(fields)
 
 static func valid_record(record: Dictionary) -> bool:
+	if not preload("res://scripts/world3d/residential_portals.gd").valid(record):return false
 	if record.has("window_design") and (record.window_design not in ["casement","cross_lattice","diamond_lattice"] or record.get("fixture",{}).get("kind")!="window" or not record.has("house_prefab")):return false
 	if not preload("res://scripts/world3d/house_prefab.gd").valid(record):return false
 	if not Fixtures.valid(record): return false
@@ -253,6 +259,7 @@ static func valid_meta(meta: Dictionary) -> bool:
 	if not meta.building_instances is Dictionary or meta.building_instances.size()>4096: return false
 	for id in meta.building_instances:
 		var b: Variant = meta.building_instances[id]
+		if b is Dictionary and b.has("residential_support_mode") and b.residential_support_mode not in ["continuous","piers"]:return false
 		if b is Dictionary and b.has("baked") and not b.baked is bool:return false
 		# JSON stores numbers as floats; Array.has/in distinguishes 4 from 4.0.
 		if not id is String or not b is Dictionary or (b.get("version")!=1 and b.get("version")!=2 and b.get("version")!=3 and b.get("version")!=4 and b.get("version")!=5 and b.get("version")!=6 and b.get("version")!=7 and b.get("version")!=VERSION) or not b.get("parameters") is Dictionary: return false

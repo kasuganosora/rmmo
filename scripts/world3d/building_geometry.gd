@@ -34,6 +34,13 @@ static func wall(plan: Dictionary, key: String, axis: String, fixed: float, star
 	wall_box(plan,key+"/solid",axis,fixed,(start+end)/2,y+height/2,end-start,height,WALL,colors.wall,floor_,"wall")
 	plan.records.back().building_shape="wall_grid"
 	grid.axis=axis;plan.records.back().wall_grid=grid
+	if floor_==0:
+		var host:Dictionary=plan.records.back()
+		for opening:Dictionary in openings:
+			if opening.type!="arch_passage" or not key.ends_with("north"):continue
+			var pose:=Transform3D(Basis.from_euler(vec(host.rotation)*PI/180),vec(host.position))
+			var at:=Vector3(opening.u,y,fixed) if axis=="x" else Vector3(fixed,y,opening.u)
+			host.residential_portals=[{"id":key+"/"+str(opening.id),"position":arr(pose.affine_inverse()*at),"outward":arr(pose.basis.inverse()*Vector3.FORWARD),"width":float(opening.width)}]
 	for opening in openings:
 		var o: Dictionary = opening.duplicate(true); o.wall = key; o.axis = axis; o.fixed = fixed; o.floor_y = y
 		plan.openings.append(o)

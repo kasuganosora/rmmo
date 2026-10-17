@@ -1,0 +1,147 @@
+{
+	"failures": 0,
+	"fixtures": [
+		{
+			"collisions": 66,
+			"fixture": "D:/code/rmmo_runtime/__residential_structure_15568_13105771/maps/arch/map.gltf",
+			"kind": "arch",
+			"map_sha256": "cf7d6ffe3bb170c6db67b6b62f9ccf3dfea42999b74779a81fb4b9dbff460c59"
+		},
+		{
+			"collisions": 99,
+			"fixture": "D:/code/rmmo_runtime/__residential_structure_15568_13105771/maps/multi/map.gltf",
+			"kind": "multi",
+			"map_sha256": "3149803f13250e563e56c8b2f7fc00e870f109d889eaac4008878d5dff6df1fe"
+		},
+		{
+			"collisions": 36,
+			"fixture": "D:/code/rmmo_runtime/__residential_structure_15568_13105771/maps/piers/map.gltf",
+			"kind": "piers",
+			"map_sha256": "f9bb47308770ef20729c480270cdadaafae3eb0abb5f090ad4c9e43afdf7fa94"
+		}
+	],
+	"passed": 30,
+	"scope": "Saved native collision and production capsule movement; exterior, new arch portal and underfloor passage only. No avatar, production art or streaming/performance acceptance.",
+	"walks": [
+		{
+			"airborne": 1,
+			"case": "arch exterior threshold to street",
+			"max_feet_clearance": 0.125840201973915,
+			"min_feet_clearance": 0.00081343948841095,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 229,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 2,
+			"case": "arch street to exterior threshold",
+			"max_feet_clearance": 0.124738767743111,
+			"min_feet_clearance": 0.000809654593467712,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 230,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 0,
+			"case": "arch portal outward",
+			"max_feet_clearance": 0.0188305974006653,
+			"min_feet_clearance": -0.00103825330734253,
+			"passed": true,
+			"reached": 2,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 19,
+			"unsupported_ticks": 0,
+			"waypoints": 2
+		},
+		{
+			"airborne": 0,
+			"case": "arch portal inward",
+			"max_feet_clearance": 0.1525659263134,
+			"min_feet_clearance": -0.000156313180923462,
+			"passed": true,
+			"reached": 2,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 20,
+			"unsupported_ticks": 0,
+			"waypoints": 2
+		},
+		{
+			"airborne": 2,
+			"case": "multi exterior threshold to street",
+			"max_feet_clearance": 0.150835871696472,
+			"min_feet_clearance": 0.000548571348190308,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 85,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 2,
+			"case": "multi street to exterior threshold",
+			"max_feet_clearance": 0.149738788604736,
+			"min_feet_clearance": 0.000469237565994263,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 86,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 18,
+			"case": "piers exterior threshold to street",
+			"max_feet_clearance": 0.150831937789917,
+			"min_feet_clearance": 0.000130116939544678,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 309,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 18,
+			"case": "piers street to exterior threshold",
+			"max_feet_clearance": 0.152686834335327,
+			"min_feet_clearance": 0.000189006328582764,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 311,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 0,
+			"case": "under raised slab forward",
+			"distance": 0.12501335144043,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 189
+		},
+		{
+			"airborne": 0,
+			"case": "under raised slab reverse",
+			"distance": 0.124996781349182,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 189
+		}
+	]
+}

@@ -29,6 +29,9 @@ var old_access_choice:OptionButton
 var relocation_body:VBoxContainer
 var block_enabled:CheckButton
 var block_draft:VBoxContainer
+var entrance_choice:OptionButton
+var entrance_feedback:Label
+var support_choice:OptionButton
 
 func setup(owner: VBoxContainer) -> void:
 	panel=owner; editor=panel.editor
@@ -55,10 +58,20 @@ func setup(owner: VBoxContainer) -> void:
 	relocation_enabled.toggled.connect(func(enabled):
 		invalidate_preview();relocation_body.visible=enabled;asset_choice.disabled=enabled;refresh_catalogs()
 	)
-	building_choice.item_selected.connect(func(_i):invalidate_preview())
+	building_choice.item_selected.connect(func(_i):invalidate_preview();refresh_entrances())
 	old_access_choice.item_selected.connect(func(_i):invalidate_preview())
 	note(body,"接入已有道路")
 	road_choice=OptionButton.new(); road_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(road_choice)
+	note(body,"接路入口（多入口时必须选择）")
+	entrance_choice=OptionButton.new();entrance_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS;body.add_child(entrance_choice)
+	entrance_choice.item_selected.connect(func(_i):invalidate_preview())
+	action(body,"读取入口和支撑域",refresh_entrances)
+	support_choice=OptionButton.new();body.add_child(support_choice)
+	support_choice.add_item("沿用已保存结构／新住宅采用连续基础");support_choice.set_item_metadata(0,"auto")
+	support_choice.add_item("明确采用连续基础");support_choice.set_item_metadata(1,"continuous")
+	support_choice.add_item("柱墩支撑（保留楼下净空）");support_choice.set_item_metadata(2,"piers")
+	support_choice.item_selected.connect(func(_i):invalidate_preview();refresh_entrances())
+	entrance_feedback=note(body,"读取实际冻结入口；入口可用后仍需预览整套方案。")
 	form=preload("res://scripts/world_editor/settings_form.gd").new(); body.add_child(form)
 	var values:Dictionary={"position":[0,0,0]}
 	values.merge(Placement.defaults(),true); values.erase("asset_id"); values.erase("road_edge_id")
@@ -83,7 +96,7 @@ func setup(owner: VBoxContainer) -> void:
 	feedback=note(body,"先选择住宅与道路，再预览。预制件的住宅结构由共享校验确认。")
 	diagnostics=preload("res://scripts/world_editor/diagnostic_panel.gd").new();body.add_child(diagnostics);diagnostics.setup(editor)
 	changes_view=TextEdit.new();changes_view.editable=false;changes_view.custom_minimum_size.y=140;changes_view.wrap_mode=TextEdit.LINE_WRAPPING_BOUNDARY;body.add_child(changes_view);changes_view.hide()
-	asset_choice.item_selected.connect(func(_i): invalidate_preview())
+	asset_choice.item_selected.connect(func(_i): invalidate_preview();refresh_entrances())
 	road_choice.item_selected.connect(func(_i): invalidate_preview())
 	for control in form.fields.values():
 		if control is SpinBox: control.value_changed.connect(func(_v): invalidate_preview())
@@ -124,10 +137,40 @@ func refresh_catalogs() -> void:
 		road_choice.add_item("%s · %s · %s"%[str(edge.get("name",edge.id)),"弯路" if edge.has("controls") else "直路",str(edge.id)]); road_choice.set_item_metadata(road_choice.item_count-1,str(edge.id))
 		if str(edge.id)==road_id: road_choice.select(road_choice.item_count-1)
 	if selected(asset_choice)!=asset_id or selected(road_choice)!=road_id: invalidate_preview("素材或道路列表已变化，请重新预览。")
+	refresh_entrances()
+
+func refresh_entrances()->void:
+	if entrance_choice==null:return
+	var previous:=selected(entrance_choice);entrance_choice.clear()
+	entrance_choice.add_item("自动（仅限唯一入口）");entrance_choice.set_item_metadata(0,"")
+	var key:="building_id" if relocation_enabled.button_pressed else "asset_id"
+	var id:=selected(building_choice if relocation_enabled.button_pressed else asset_choice)
+	if id.is_empty():entrance_feedback.text="请先选择住宅。";return
+	var args:Dictionary={key:id}
+	if selected(support_choice)!="auto":args.support_mode=selected(support_choice)
+	var result:Dictionary=editor._residential.inspect_entrances(args)
+	if not result.ok:entrance_feedback.text=result.get("error","入口读取失败");return
+	for row:Dictionary in result.entrances:
+		entrance_choice.add_item(("通廊 · " if row.kind=="passage" else "房门 · ")+row.id+("" if row.ok else " · 检查未通过"))
+		entrance_choice.set_item_metadata(entrance_choice.item_count-1,row.id)
+		if row.id==previous:entrance_choice.select(entrance_choice.item_count-1)
+	select_entrance(previous)
+	entrance_feedback.text="%d 个入口；%s。"%[result.entrances.size(),"多入口需明确选择" if result.requires_selection else "唯一入口可自动选择"]
+	if result.support.ok:entrance_feedback.text+=" 已识别 %d 个真实支撑域。"%result.support.components.size()
+	else:entrance_feedback.text+=" "+result.support.get("error","支撑结构尚不支持")
+
+func select_entrance(id:String)->void:
+	for i in entrance_choice.item_count:
+		if entrance_choice.get_item_metadata(i)==id:entrance_choice.select(i);return
+	# Preserve intent across source revisions/queue loading. Never silently
+	# replace a vanished explicit entrance with a different automatic doorway.
+	entrance_choice.add_item("入口已不可用 · "+id);entrance_choice.set_item_metadata(entrance_choice.item_count-1,id);entrance_choice.select(entrance_choice.item_count-1)
 
 func house_request()->Dictionary:
 	var result:Dictionary=form.values()
 	result.asset_id=selected(asset_choice);result.road_edge_id=selected(road_choice)
+	if not selected(entrance_choice).is_empty():result.entrance_id=selected(entrance_choice)
+	if selected(support_choice)!="auto":result.support_mode=selected(support_choice)
 	if relocation_enabled.button_pressed:
 		result.erase("asset_id");result.building_id=selected(building_choice);result.old_access=selected(old_access_choice)
 	return result
@@ -252,6 +295,8 @@ func report(result: Dictionary, applied: bool=false) -> void:
 				text_+="\n%s · %s · 原点 (%.3f, %.3f, %.3f) · 退距 %.2f 米"%[home.id,"迁移保留身份" if home.operation=="relocate" else "新增",home.building_position[0],home.building_position[1],home.building_position[2],home.setback]
 				if home.has("relocation"):text_+=" · 旧路"+("移除归属支路" if home.relocation.old_access.policy=="remove_owned" else "保留")
 		if result.has("road_connection"):
+			text_+="\n入口："+str(result.get("access",{}).get("entrance_id",""))
+			if result.get("support",{}).get("support_mode")=="piers":text_+=" · 已验证真实柱墩与楼下 1.8 米净空。"
 			var connection:Dictionary=result.road_connection
 			text_+="\n接入%s · 接点 %.3f, %.3f, %.3f 米"%["弯路" if connection.kind=="cubic" else "直路",connection.position[0],connection.position[1],connection.position[2]]
 			if connection.kind=="cubic" and connection.split:text_+="\n保留原曲线形状和宽度变化，接点拆分为两个可编辑路段。"

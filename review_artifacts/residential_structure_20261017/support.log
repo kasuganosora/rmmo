@@ -1,0 +1,56 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS ordinary foundation accepts continuous flat terrain
+PASS interval derives from actual slab bottom and foundation bottom
+PASS version and native-validation scope stay explicit
+PASS solver never mutates source records
+PASS floating placement moves down into the feasible interval
+PASS buried placement moves above actual floor intrusion
+PASS bounded adjustment rejects unreachable support
+PASS caller world-height interval participates in the solution
+PASS caller cannot enlarge geometric tolerances
+PASS narrow hole lies between all former 9 by 9 samples
+PASS continuous coverage detects the unsampled hole
+PASS hole failure includes reproducible source and polygon witness
+PASS narrow trench lies between former samples
+PASS actual relief defeats shallow foundation for unsampled -3.0
+PASS incompatible elevation constraints identify both limiting positions
+PASS narrow peak lies between former samples
+PASS actual relief defeats shallow foundation for unsampled 3.0
+PASS incompatible elevation constraints identify both limiting positions
+PASS terrain boundary cannot support a partially floating floor
+PASS overlapping heightfields are not silently combined
+PASS extra overlapping area cannot cancel a real hole in coverage accounting
+PASS overhanging eaves do not enlarge floor support domain
+PASS missing physical foundation is unsupported
+PASS misaligned foundation cannot support the full floor
+PASS metadata cannot invent deeper or higher foundations
+PASS tilted heightfield explicitly unsupported
+PASS raised furrows explicitly unsupported
+PASS hidden terrain cannot supply editor collision support
+PASS terrain with collision disabled cannot supply support
+PASS locked visible terrain remains valid read-only support
+PASS world translation and yaw preserve continuous support at (10000.0, 7.0, -10000.0)
+PASS far rotated hole remains visible to continuous clipping
+PASS world translation and yaw preserve continuous support at (-500.0, 7.0, 320.0)
+PASS far rotated hole remains visible to continuous clipping
+PASS unrelated far terrain leaves deterministic result unchanged
+PASS mixed-grid flat tiles report a real 30 cm boundary step
+PASS seam diagnostic identifies both terrain owners
+PASS continuous mixed-grid T junction has no invented step
+PASS corridor reports analytic plane slope and clipped height extrema
+PASS corridor uses continuous hole coverage too
+PASS nonconvex corridor rejects instead of using its convex hull
+PASS real native townhouse generates for frozen-payload regression
+PASS actual generated foundation passes continuous solver
+PASS native bake creates actual frozen collision payload
+PASS actual frozen floor and merged shell prove physical foundation
+PASS frozen geometry interval matches native geometry without regeneration
+PASS frozen analysis preserves exact payload bytes
+PASS frozen collision support survives far placement and yaw
+PASS validly rehashed open foundation geometry is not a closed support solid
+PASS changed frozen SHA cannot reuse a previous support proof
+PASS frozen missing foundation cannot borrow its recipe depth
+PASS fractional native dimensions retain frozen foundation support
+test_residential_support: checks=52 failures=0 elapsed_ms=6023.788

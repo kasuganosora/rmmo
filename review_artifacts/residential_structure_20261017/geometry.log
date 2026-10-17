@@ -1,0 +1,33 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS existing arched hall recipe generates
+PASS fixture bakes actual render and source collision payload
+PASS frozen arch retains explicit portal and proves actual floor/clearance
+PASS entrance analysis does not mutate author records
+PASS actual arched threshold and exterior treads connect to ground
+PASS a forged portal hint cannot cut through actual masonry
+PASS portal orientation follows actual frozen pose
+PASS existing native house and rear workshop supplies multiple exterior entrances
+PASS fixture bakes actual render and source collision payload
+PASS catalog exposes stable external door identities
+PASS ambiguous entrances never select first silently
+PASS explicit native exterior door resolves: f0/north/entrance/door
+PASS explicit native exterior door resolves: f0/south/yard_door/door
+PASS explicit native exterior door resolves: workshop/north/entry/door
+PASS unknown entrance is rejected
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS another moving door cannot occupy selected entrance corridor
+PASS fixture bakes actual render and source collision payload
+PASS four actual closed piers support a raised slab
+PASS only four real footing domains require terrain; void has separate clearance proof
+PASS real hole between piers is not filled or required for support
+PASS hole under an actual pier rejects
+PASS soil mound under raised slab cannot consume 1.8 m clearance
+PASS continuous mode does not invent a full foundation under piers
+PASS imported private proof fields cannot forge supporting geometry
+PASS scalar-double pier hull preserves far translated rotated support
+PASS fixture bakes actual render and source collision payload
+PASS three remaining supports cannot claim unsupported slab corner
+test_residential_access: checks=29 failures=0 elapsed_ms=4946.538

@@ -153,9 +153,12 @@ static func verify_final(stage:Node3D,homes:Array,rows:Array)->Dictionary:
 		var without:=Doc.new();without.apply_recovery(stage._doc.recovery_snapshot());without.records=without.records.filter(func(r):return r.uuid not in house.house_ids)
 		var geometry:=Prefabs.check_buildings(without,members,registry,[house.building_id])
 		if not geometry.ok:return row_failure(geometry.merged({"code":"placement_conflict"}),rows[i],i,"final_geometry")
+		if value.get("residential_support_mode")=="piers":
+			var proof:=Support.solve(stage._doc,members,Vector3.ZERO,0.,value.parameters,{"min_y":0.,"max_y":0.,"support_mode":"piers"})
+			if not proof.ok:return row_failure(proof,rows[i],i,"final_support")
 		var receipt:=Binding.removal(graph,value,registry)
 		if not receipt.ok:return row_failure(receipt,rows[i],i,"final_connection")
-		var entry:=Access.entrance(members,float(value.yaw))
+		var entry:=Access.entrance(members,float(value.yaw),rows[i].residential.get("entrance_id",""))
 		if not entry.ok:return row_failure(entry,rows[i],i,"final_entrance")
 		var access:=Access.check(stage._doc,members,entry,Data.vec(house.road_points[0]),house.width)
 		if not access.ok:return row_failure(access,rows[i],i,"final_entrance")

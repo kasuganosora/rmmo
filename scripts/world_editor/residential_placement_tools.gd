@@ -47,7 +47,7 @@ static func defaults()->Dictionary:
 	return {"yaw":0.0,"elevation_min":-.5,"elevation_max":.5,"setback_min":.8,"setback_max":3.0,"width":1.6}
 
 static func request_schema()->Dictionary:
-	return Data.object({"asset_id":Data.text(2048),"position":Data.S.vector(-100000,100000),"road_edge_id":Data.text(),"yaw":Data.S.number(-180,180),"elevation_min":Data.S.number(-3,0),"elevation_max":Data.S.number(0,3),"setback_min":Data.S.number(.2,8),"setback_max":Data.S.number(.2,8),"width":Data.S.number(1,4)},["asset_id","position","road_edge_id"])
+	return Data.object({"asset_id":Data.text(2048),"position":Data.S.vector(-100000,100000),"road_edge_id":Data.text(),"entrance_id":Data.text(180),"support_mode":Data.choice(["continuous","piers"]),"yaw":Data.S.number(-180,180),"elevation_min":Data.S.number(-3,0),"elevation_max":Data.S.number(0,3),"setback_min":Data.S.number(.2,8),"setback_max":Data.S.number(.2,8),"width":Data.S.number(1,4)},["asset_id","position","road_edge_id"])
 
 static func fail(code:String,message:String,stage:String="residential_placement")->Dictionary:
 	return {"ok":false,"code":code,"error":message,"stage":stage}
@@ -76,6 +76,35 @@ func source(p:Dictionary)->Dictionary:
 	return {"ok":true,"entry":entry,"sha":sha,"dependencies":{entry.prefab_path:sha}}
 
 func load_source(value:Dictionary)->Dictionary:return Prefabs.read(value.entry)
+
+static func inspection_schema()->Dictionary:
+	return Data.object({"asset_id":Data.text(2048),"building_id":Data.text(),"support_mode":Data.choice(["continuous","piers"])},[])
+
+func inspect_entrances(args:Dictionary)->Dictionary:
+	var issue:=Data.S.validate(args,inspection_schema())
+	if not issue.is_empty() or args.has("asset_id")==args.has("building_id"):return fail("invalid_arguments","请且仅指定 asset_id 或 building_id")
+	var records:Array=[];var value:Dictionary={}
+	if args.has("building_id"):
+		value=editor._doc.map_meta.get("building_instances",{}).get(args.building_id,{})
+		if value.is_empty():return fail("building_not_found","建筑不存在")
+		records=editor._doc.records.filter(func(r):return r.get("building",{}).get("id")==args.building_id)
+	else:
+		var found:=source(args)
+		if not found.ok:return found
+		var loaded:=load_source(found)
+		if not loaded.ok:return loaded
+		if loaded.building_instances.size()!=1:return fail("unsupported","需要恰好一栋冻结住宅")
+		records=loaded.records;value=loaded.building_instances.values()[0]
+	if not value.get("baked",false) or value.parameters.get("template")!="house":return fail("unsupported","请选择冻结住宅")
+	var rows:Array=[]
+	for choice:Dictionary in Access.entrances(records,float(value.yaw)):
+		var checked:=Access.entrance(records,float(value.yaw),choice.id)
+		var row:Dictionary={"id":choice.id,"kind":"passage" if choice.has("portal") else "door","record_id":choice.record.uuid,"outward":Data.xyz(choice.outward),"ok":checked.ok}
+		if checked.ok:row.position=Data.xyz(checked.position)
+		else:row.failure=checked
+		rows.append(row)
+	var support:=Support.support_components(records,0.,value.parameters,args.get("support_mode",value.get("residential_support_mode","continuous")))
+	return {"ok":true,"entrances":rows,"requires_selection":rows.size()!=1,"coordinate_space":"world" if args.has("building_id") else "prefab","support":support,"base_version":_version()}
 
 func place(doc,local:Dictionary,position:Vector3,label:String)->Dictionary:
 	return Prefabs.place_buildings(doc,local,position,label)
@@ -124,12 +153,12 @@ func preview(args:Dictionary)->Dictionary:
 	var local:=_oriented(loaded,float(p.yaw))
 	var input:=Data.vec(p.position)
 	_profile_end("source_and_target",phase);phase=_profile_start()
-	var solved:=Support.solve(editor._doc,loaded.records,input,float(p.yaw),instance.parameters,{"min_y":input.y+p.elevation_min,"max_y":input.y+p.elevation_max,"input_version":base_version})
+	var solved:=Support.solve(editor._doc,loaded.records,input,float(p.yaw),instance.parameters,{"min_y":input.y+p.elevation_min,"max_y":input.y+p.elevation_max,"input_version":base_version,"support_mode":p.get("support_mode",instance.get("residential_support_mode","continuous"))})
 	_profile_end("support",phase);phase=_profile_start()
 	if not solved.ok:return solved
 	var position:Vector3=solved.position
 	var initial_records:=_translated(local.records,position)
-	var initial_entry:=Access.entrance(initial_records,float(instance.yaw)+float(p.yaw))
+	var initial_entry:=Access.entrance(initial_records,float(instance.yaw)+float(p.yaw),p.get("entrance_id",""))
 	if not initial_entry.ok:return initial_entry
 	var entrance_limit:=Access.elevation_limit(editor._doc,initial_records,initial_entry)
 	if not entrance_limit.ok:return entrance_limit
@@ -146,7 +175,7 @@ func preview(args:Dictionary)->Dictionary:
 	for id:String in placed.ids:house_records.append(staged._find(id))
 	for r:Dictionary in house_records:
 		if not editor._authoring.Settings.contains(r,editor._authoring.settings):return fail("protected_scope","住宅落在当前隔离楼层外")
-	var entry_info:=Access.entrance(house_records,float(instance.yaw)+float(p.yaw))
+	var entry_info:=Access.entrance(house_records,float(instance.yaw)+float(p.yaw),p.get("entrance_id",""))
 	_profile_end("native_house_placement",phase);phase=_profile_start()
 	if not entry_info.ok:return entry_info
 	var context:=PreparationContext.new();context.source=editor;context._doc=staged;context._authoring=editor._authoring;context._material_tool=editor._material_tool
@@ -202,6 +231,7 @@ func preview(args:Dictionary)->Dictionary:
 	linked.data.roads=prepared.graph;linked.data.road_surface=prepared.manifest;staged.map_meta.editor_layout=linked.data
 	var binding:=preload("res://scripts/world_editor/residential_access_binding.gd").capture(linked.data.roads,request_id.left(14),staged.map_meta.building_instances[house_records[0].building.id])
 	staged.map_meta.building_instances[house_records[0].building.id].residential_access=binding
+	if solved.support.support_mode=="piers":staged.map_meta.building_instances[house_records[0].building.id].residential_support_mode="piers"
 	var preserved:=BridgeContext.verify(staged,linked.data,bridges)
 	if not preserved.ok:return preserved
 	dependency_issue=_dependencies(prepared.records,dependencies)

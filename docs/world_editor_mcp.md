@@ -874,3 +874,12 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 失败保留原始 `last_failure`，逐户失败另附 `home_id/home_index`（0 起算）、请求位置及通用定位诊断。最后一户失败也不改变作者记录、选择或历史。`apply_residential_block {plan_token}` 再次核对地图版本、资源、候选完整性和保存有效性，全组一次发布；`discard_residential_block {plan_token}` 仅丢弃候选。应用后仍调用 `save_world`。实际运行通行标记仍为待对应场景验证；本批临时场景验证不代表任意街区或整城流式性能。
 
 弯路原始投影距端点小于 0.05 米时复用现有端点，避免退化拆分；`projection.nearest_parameter/nearest_position` 是原投影，`endpoint_adjustment_m` 单独报告复用偏移。投影距离界不覆盖该偏移。支持边界和 UI 操作见[街区联合候选说明](world_editor_buildings.md#多栋住宅的街区联合候选2026-10-17e2-d)。
+
+
+### 入口选择与柱墩支撑（E1-F，2026-10-17）
+
+`inspect_residential_entrances` 必须且只能指定 `asset_id` 或 `building_id`，可附 `support_mode:continuous|piers`。只读返回 `entrances`（稳定 `id`、门／常开通廊类型、构件 ID、方位、实际校验与错误）、`requires_selection`、`coordinate_space:prefab|world`、真实 `support` 域及地图版本。该检查不等于整套安放可行。
+
+四类住宅预览的 `residential` 参数均支持可选 `entrance_id` 和 `support_mode`，单栋直接放在顶层。多个入口省略选择时拒绝，非法身份返回 `entrance_not_found`。选择后的实际入口在 `access.entrance_id` 中返回；柱墩模式在 `support.support_mode`、`components` 和 `underfloor_clearances` 中返回证明范围。`support_mode` 省略时沿用源建筑已保存模式，否则默认连续基础。应用／放弃仍只需原有 `plan_token`，应用后原生 `save_world`。
+
+柱墩、圆拱入口的限定结构、净空和旧模型边界见[建筑说明](world_editor_buildings.md#显式入口与柱墩支撑2026-10-17e1-f)。不以配方补造基础或凭入口标记跳过实际碰撞；只绑定 loopback，二维工具未恢复。

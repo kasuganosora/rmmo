@@ -1,0 +1,61 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS native single-house fixture generates
+PASS fixture bakes actual render and source collision payload
+PASS actual frozen first-floor entrance is recognized
+PASS entrance analysis does not mutate author records
+PASS ordinary low treads and clear doorway pass
+PASS rotated translated entrance has continuous full-width support: 5.0
+PASS rotated real terrain hole remains rejected: 5.0
+PASS rotated translated entrance has continuous full-width support: -17.0
+PASS rotated real terrain hole remains rejected: -17.0
+PASS rotated translated entrance has continuous full-width support: 43.0
+PASS rotated real terrain hole remains rejected: 43.0
+PASS rotated translated entrance has continuous full-width support: 90.0
+PASS rotated real terrain hole remains rejected: 90.0
+PASS rotated translated entrance has continuous full-width support: 179.0
+PASS rotated real terrain hole remains rejected: 179.0
+PASS entrance analysis does not mutate author records
+PASS continuous 10 percent descent across a long strip is not a step
+PASS entrance analysis does not mutate author records
+PASS continuous 10 percent ascent across a long strip is not a step
+PASS actual outermost complete tread produces an elevation bound
+PASS allowed elevation derives from the actual outer tread and terrain
+PASS high input elevation yields a necessary downward adjustment
+PASS entrance analysis does not mutate author records
+PASS applying the actual-tread elevation bound restores entrance access
+PASS hole beyond the outermost tread cannot produce a safe elevation bound
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS 30 cm unstepped threshold remains within conservative step reach
+PASS high-threshold negative fixture generates
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS 90 cm threshold without treads is rejected
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS non-colliding decorative treads cannot support a high entrance
+PASS decorative treads cannot fake the actual outer-tread elevation bound
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS own frozen low beam cannot be ignored as part of the same house
+PASS blocked own geometry reports a location or object witness
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS beam above player headroom does not falsely block access
+PASS fixture bakes actual render and source collision payload
+PASS decorative beam is a distinct frozen no-collision record
+PASS entrance analysis does not mutate author records
+PASS non-colliding decorative geometry cannot falsely block headroom
+PASS fixture bakes actual render and source collision payload
+PASS entrance analysis does not mutate author records
+PASS narrow own doorway rejects despite the original wide door leaf
+PASS physically narrow entry leaf cannot claim a full-width passage
+PASS unknown first-floor entrance semantics are unsupported
+PASS multiple entrance semantics are unsupported
+PASS entrance analysis does not mutate author records
+PASS real terrain hole in front of the steps rejects continuously
+PASS entrance analysis does not mutate author records
+PASS independent prop still blocks the entrance corridor
+test_residential_access: checks=57 failures=0 elapsed_ms=6782.467

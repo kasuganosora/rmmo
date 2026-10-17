@@ -14,12 +14,35 @@ const STEP_LIMIT=.35 # Existing controller's .40 m step reach, with skin margin.
 static func fail(code:String,message:String)->Dictionary:
 	return {"ok":false,"code":code,"error":message,"stage":"entrance_access"}
 
-static func entrance(records:Array,yaw:float)->Dictionary:
-	var doors:Array=records.filter(func(r):return r.get("building",{}).get("floor",-1)==0 and r.get("fixture",{}).get("kind")=="door" and (str(r.fixture.id).ends_with("/entrance/door") or str(r.fixture.id).ends_with("/entry/door")))
-	if doors.size()!=1:return fail("unsupported","当前需要一个明确的首层入户门；拱形通廊或多入口需单独建模入口语义")
-	var r:Dictionary=doors[0].duplicate(true);r.fixture.open=0.
-	var out:=Basis(Vector3.UP,deg_to_rad(yaw))*Vector3.FORWARD
-	var side:=Vector3(-out.z,0,out.x);var center:=Data.vec(r.position)
+static func entrances(records:Array,yaw:float)->Array:
+	var result:Array=[]
+	for r:Dictionary in records:
+		if preload("res://scripts/world3d/residential_portals.gd").valid(r):
+			var pose:=Transform3D(Basis.from_euler(Data.vec(r.rotation)*PI/180),Data.vec(r.position))
+			for hint:Dictionary in r.get("residential_portals",[]):
+				result.append({"id":hint.id,"record":r,"outward":pose.basis*Data.vec(hint.outward),"portal":hint,"position":pose*Data.vec(hint.position)})
+		if r.get("building",{}).get("floor",-1)!=0 or r.get("fixture",{}).get("kind")!="door":continue
+		var id:=str(r.fixture.id);var wall:=id.get_slice("/",id.get_slice_count("/")-3)
+		# These names survive native freezing; partition/wing-joining doors are
+		# deliberately excluded. A known exterior direction is not a proof of
+		# passage: the selected door still passes actual collision checks below.
+		if not (id.ends_with("/entrance/door") or id.ends_with("/entry/door") or id.ends_with("/yard_door/door")):continue
+		var normal:Vector3={"north":Vector3.FORWARD,"south":Vector3.BACK,"east":Vector3.RIGHT,"west":Vector3.LEFT}.get(wall,Vector3.ZERO)
+		if normal==Vector3.ZERO:continue
+		result.append({"id":id,"record":r,"outward":Basis(Vector3.UP,deg_to_rad(yaw))*normal})
+	return result
+
+static func entrance(records:Array,yaw:float,selected_id:String="")->Dictionary:
+	var choices:=entrances(records,yaw)
+	var ids:Array=choices.map(func(c):return c.id)
+	if selected_id.is_empty() and choices.size()!=1:return fail("unsupported","请选择一个明确的首层入口；无法自动选择多个入口或未知开口").merged({"entrance_ids":ids})
+	var selected:Array=choices.filter(func(c):return selected_id.is_empty() or c.id==selected_id)
+	if selected.size()!=1:return fail("entrance_not_found","所选入口不存在或身份不唯一，请刷新入口列表").merged({"entrance_ids":ids})
+	var choice:Dictionary=selected[0]
+	var r:Dictionary=choice.record.duplicate(true)
+	if r.has("fixture"):r.fixture.open=0.
+	var out:Vector3=selected[0].outward
+	var side:=Vector3(-out.z,0,out.x);var center:Vector3=choice.get("position",Data.vec(r.position))
 	var bounds:=Geometry.bounds([r]);var floor_top:=-INF
 	for floor_record:Dictionary in records:
 		if floor_record.get("building",{}).get("floor",-1)!=0 or floor_record.building.get("role")!="floor":continue
@@ -33,7 +56,26 @@ static func entrance(records:Array,yaw:float)->Dictionary:
 	var lo:=INF;var hi:=-INF
 	for point:Vector3 in Geometry.corners(r):lo=minf(lo,(point-center).dot(side));hi=maxf(hi,(point-center).dot(side))
 	if hi-lo<HALF_WIDTH*2+.1:return fail("entrance_too_narrow","实际冻结门口不足以容纳玩家胶囊和通行余量")
-	return {"ok":true,"position":center,"outward":out,"side":side,"door_id":r.uuid,"fixture_id":r.fixture.id,"floor_y":center.y,"door_bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)}}
+	var entry:Dictionary={"ok":true,"position":center,"outward":out,"side":side,"door_id":r.uuid if r.has("fixture") else "","fixture_id":r.get("fixture",{}).get("id",""),"floor_y":center.y,"door_bounds":{"position":Data.xyz(bounds.position),"size":Data.xyz(bounds.size)},"entrance_id":choice.id,"kind":"passage" if choice.has("portal") else "door"}
+	# Prove the complete portal, including a short inside section. A semantic
+	# hint alone cannot turn a wall/low arch/partial floor into an entrance.
+	var inside:=_polygon(entry,-.25,0.);var floor_polygons:Array=[]
+	for member:Dictionary in records:
+		if member.has("fixture"):
+			if member.get("fixture",{}).get("id")==entry.fixture_id:continue
+			var points:Array[Vector3]=[]
+			for point:Vector2 in _polygon(entry,-.25,.25):points.append(Vector3(point.x,center.y+.02,point.y));points.append(Vector3(point.x,center.y+1.8,point.y))
+			if Foot.batches_overlap([Foot.from_points(points)],Foot.fixture_shapes(member)):return fail("entrance_clearance","其他活动件的开合范围侵入所选入口").merged({"conflicts":[member.uuid]})
+			continue
+		if member.get("collision","")!="none" and not member.has("house_prefab"):return fail("unsupported","存在无法验证冻结碰撞的住宅构件").merged({"conflicts":[member.uuid]})
+		var faces:=_faces(member)
+		if _blocks(faces,_polygon(entry,-.25,.25),center.y+.02,center.y+1.8):return fail("entrance_clearance","入口实际冻结碰撞无法提供完整净宽和净高").merged({"conflicts":[member.uuid],"position":Data.xyz(center)})
+		if member.get("building",{}).get("role")!="floor":continue
+		for i in range(0,faces.size(),3):
+			if absf(faces[i].y-center.y)>.0001 or absf(faces[i+1].y-center.y)>.0001 or absf(faces[i+2].y-center.y)>.0001:continue
+			floor_polygons.append(_ccw([Vector2(faces[i].x,faces[i].z),Vector2(faces[i+1].x,faces[i+1].z),Vector2(faces[i+2].x,faces[i+2].z)]))
+	if not _covers(floor_polygons,inside):return fail("unsupported","入口内侧没有覆盖完整通行宽度的实际楼板")
+	return entry
 
 static func _faces(record:Dictionary)->PackedVector3Array:
 	if not record.has("house_prefab") or record.get("collision","")=="none":return PackedVector3Array()
@@ -158,7 +200,7 @@ static func elevation_limit(doc,house:Array,entry:Dictionary)->Dictionary:
 		var faces:=_faces(record)
 		for i in range(0,faces.size(),3):
 			var a:=faces[i];var b:=faces[i+1];var c:=faces[i+2]
-			if absf(a.y-b.y)>.0001 or absf(a.y-c.y)>.0001 or a.y>entry.floor_y+.01 or a.y<entry.floor_y-1.:continue
+			if absf(a.y-b.y)>.0001 or absf(a.y-c.y)>.0001 or a.y>entry.floor_y+.01:continue
 			var triangle:=_ccw([Vector2(a.x,a.z),Vector2(b.x,b.z),Vector2(c.x,c.z)])
 			var cut:=Clip.intersection(triangle,_polygon(entry,0,8))
 			if cut.size()<3 or Poly.area(cut)<.000001:continue
@@ -183,9 +225,11 @@ static func check(doc,house:Array,entry:Dictionary,start:Vector3,width:float)->D
 	var ground:Dictionary=Support.terrain_region(doc,corridor)
 	if not ground.ok:return ground.merged({"stage":"entrance_ground"},true)
 	if ground.get("max_grade",INF)>1.0 or ground.get("max_seam_step",INF)>STEP_LIMIT:return fail("access_slope","门前地面坡度或地块接缝超过玩家通行范围")
-	var heights:Dictionary={};var breaks:Array[float]=[0.,distance];var obstacles:Array=[]
+	var heights:Dictionary={};var breaks:Array[float]=[0.,distance];var obstacles:Array=[];var fixtures:Array=[]
 	for r:Dictionary in house:
-		if r.has("fixture"):continue
+		if r.has("fixture"):
+			if r.fixture.id!=entry.fixture_id and r.get("collision","")!="none":fixtures.append({"id":r.uuid,"shapes":Foot.fixture_shapes(r)})
+			continue
 		var faces:=_faces(r)
 		obstacles.append({"id":r.uuid,"faces":faces})
 		if r.get("building",{}).get("floor",-1)!=0:continue
@@ -231,6 +275,11 @@ static func check(doc,house:Array,entry:Dictionary,start:Vector3,width:float)->D
 			# Vertical risers at proven interval boundaries are governed by the
 			# step test; all collision faces inside the interval must clear feet.
 			if _blocks(obstacle.faces,_polygon(entry,a+.00001,b-.00001),low+.02,high+1.8):return fail("entrance_clearance","实际冻结墙体、门框或梁遮挡了入户走廊").merged({"conflicts":[obstacle.id],"position":Data.xyz(entry.position+entry.outward*(a+b)*.5)})
+		var sweep_points:Array[Vector3]=[]
+		for point:Vector2 in strip:sweep_points.append(Vector3(point.x,low+.02,point.y));sweep_points.append(Vector3(point.x,high+1.8,point.y))
+		var clearance:=Foot.from_points(sweep_points)
+		for fixture:Dictionary in fixtures:
+			if Foot.batches_overlap([clearance],fixture.shapes):return fail("entrance_clearance","其他活动件开合范围侵入入户走廊").merged({"conflicts":[fixture.id],"position":Data.xyz(entry.position+entry.outward*(a+b)*.5)})
 		previous=current;intervals+=1
 	# Independent nearby props cannot be hidden by a successful road-only check.
 	var ground_lo:float=ground.height_range[0];var ground_hi:float=maxf(ground.height_range[1],entry.floor_y)
@@ -243,4 +292,4 @@ static func check(doc,house:Array,entry:Dictionary,start:Vector3,width:float)->D
 		for shape:Dictionary in Foot.record_shapes(r):
 			if Foot.supporting_ground(r,shape.bounds.end.y,ground_lo):continue
 			if Foot.overlaps(envelope,shape):return fail("entrance_obstructed","住宅门前通行走廊被已有物件阻挡").merged({"conflicts":[r.uuid]})
-	return {"ok":true,"corridor_width":HALF_WIDTH*2,"intervals":intervals,"max_step":maximum_step,"max_grade":ground.max_grade,"max_seam_step":ground.max_seam_step,"door_id":entry.door_id,"fixture_id":entry.fixture_id,"threshold":Data.xyz(entry.position),"terrain_ids":ground.terrain_ids}
+	return {"ok":true,"corridor_width":HALF_WIDTH*2,"intervals":intervals,"max_step":maximum_step,"max_grade":ground.max_grade,"max_seam_step":ground.max_seam_step,"door_id":entry.door_id,"fixture_id":entry.fixture_id,"entrance_id":entry.get("entrance_id",entry.fixture_id),"threshold":Data.xyz(entry.position),"terrain_ids":ground.terrain_ids}

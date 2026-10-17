@@ -70,6 +70,22 @@ static func clean(polygon: Array) -> Array:
 		result.pop_back()
 	return result if result.size() >= 3 and area(result) > 1e-12 else []
 
+static func convex_hull(points:Array)->Array:
+	# Keep placement-relative scalar doubles, including far translated prefabs.
+	var sorted:=points.duplicate();sorted.sort_custom(func(a,b):return a[0]<b[0] or (a[0]==b[0] and a[1]<b[1]))
+	var halves:Array=[]
+	for reverse_ in [false,true]:
+		var chain:Array=[];var order:=sorted.duplicate()
+		if reverse_:order.reverse()
+		for p:Array in order:
+			while chain.size()>1:
+				var a:Array=chain[-2];var b:Array=chain[-1]
+				if (b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])>0.:break
+				chain.pop_back()
+			chain.append(p)
+		chain.pop_back();halves.append_array(chain)
+	return clean(halves)
+
 
 static func clip(polygon: Array, a: Array, b: Array, inside := true) -> Array:
 	var result: Array = []
@@ -136,10 +152,11 @@ static func box_polygon(record: Dictionary, yaw: float) -> Array:
 	return result
 
 
-static func support_components(records: Array, yaw: float, parameters: Dictionary) -> Dictionary:
+static func support_components(records: Array, yaw: float, parameters: Dictionary, mode: String = "continuous") -> Dictionary:
+	if mode not in ["continuous","piers"]:return unsupported("未知住宅支撑方式")
 	if parameters.get("layout", "") not in ["townhouse", "hall"]:
 		return unsupported("首版仅支持有真实连续基础的普通 townhouse/hall 住宅")
-	var frozen := frozen_support_records(records)
+	var frozen := frozen_support_records(records, mode)
 	if not frozen.ok:
 		return frozen
 	records = frozen.records
@@ -155,7 +172,7 @@ static func support_components(records: Array, yaw: float, parameters: Dictionar
 			return unsupported("基础构件身份不唯一", {"part": part})
 		foundations[part] = raw
 	var components: Array = []
-	var excluded: Array = []
+	var excluded: Array = []; var clearances: Array = []
 	for record: Dictionary in records:
 		var building: Dictionary = record.get("building", {})
 		if building.get("floor", -1) != 0 or building.get("role", "") != "floor":
@@ -171,6 +188,13 @@ static func support_components(records: Array, yaw: float, parameters: Dictionar
 				excluded.append(detail.record_id)
 				continue
 			return unsupported("架空或非首层支撑楼板需要明确的支撑域", detail)
+		if record.has("_support_piers"):
+			var slab_polygon:=box_polygon(record,yaw)
+			clearances.append(detail.merged({"polygon":slab_polygon,"bounds":bounds(slab_polygon),"area":area(slab_polygon),"floor_bottom":bottom-1.8,"foundation_bottom":-1000000.,"foundation_id":"","kind":"underfloor_clearance"}))
+			for pier:Dictionary in record._support_piers:
+				var footprint:=box_polygon(pier,yaw)
+				components.append(detail.merged({"polygon":footprint,"bounds":bounds(footprint),"area":area(footprint),"floor_bottom":bottom,"foundation_bottom":float(pier.position[1])-float(pier.size[1])*.5,"foundation_id":pier.uuid,"kind":"pier"}))
+			continue
 		if not foundations.has(detail.part + "/foundation"):
 			return unsupported("首层楼板缺少对应的真实基础，不能凭配方补出承托", detail)
 		var foundation: Dictionary = foundations[detail.part + "/foundation"]
@@ -190,7 +214,7 @@ static func support_components(records: Array, yaw: float, parameters: Dictionar
 			"foundation_id": str(foundation.get("uuid", ""))}))
 	if components.is_empty():
 		return unsupported("缺少可识别的首层楼板和基础支撑域")
-	return {"ok": true, "components": components, "excluded_landings": excluded}
+	return {"ok": true, "components": components, "excluded_landings": excluded,"clearances":clearances}
 
 
 static func frozen_faces(record: Dictionary) -> Dictionary:
@@ -270,8 +294,11 @@ static func box_record(parent: Dictionary, box: AABB) -> Dictionary:
 	return result
 
 
-static func frozen_support_records(records: Array) -> Dictionary:
+static func frozen_support_records(records: Array, mode: String = "continuous") -> Dictionary:
 	var result := records.duplicate(true)
+	# Private proof fields must never be accepted from an imported record.
+	for record in result:
+		if record is Dictionary:record.erase("_support_piers")
 	var shells: Array = []
 	for record in records:
 		if not record is Dictionary or not record.get("building", {}) is Dictionary:
@@ -304,7 +331,7 @@ static func frozen_support_records(records: Array) -> Dictionary:
 		if bottom > float(floor_record.building.get("floor_y", 0.0)) + 0.05:
 			floor_record.building.part = str(floor_record.building.part) + "/landing"
 			continue
-		var found := false
+		var found := false;var piers:Array=[]
 		for shell: Dictionary in shells:
 			for start in range(0, shell.faces.size() - 35, 3):
 				# The foundation's original collision box may follow arbitrary
@@ -319,6 +346,10 @@ static func frozen_support_records(records: Array) -> Dictionary:
 				var footprint := box_polygon(foundation, 0.0)
 				var common := area(intersection(polygon, footprint))
 				if absf(area(polygon) - common) > AREA_EPS or absf(area(footprint) - common) > AREA_EPS:
+					if mode=="piers" and common>AREA_EPS and absf(area(footprint)-common)<=AREA_EPS and foundation.size[1]>=1.8:
+						foundation.uuid=str(shell.record.uuid)+"/support_triangle_"+str(start/3)
+						if piers.size()>=64:return unsupported("单个楼板柱墩超过 64 个验证预算")
+						piers.append(foundation)
 					continue
 				foundation.uuid = str(shell.record.uuid) + "/support_triangle_" + str(start / 3)
 				foundation.building = floor_record.building.duplicate(true)
@@ -329,8 +360,18 @@ static func frozen_support_records(records: Array) -> Dictionary:
 				break
 			if found:
 				break
+		if not found and mode=="piers" and piers.size()>=3:
+			var points:Array=[]
+			for a in piers.size():
+				var footprint:=box_polygon(piers[a],0.)
+				points.append_array(footprint)
+				for b in a:
+					if area(intersection(footprint,box_polygon(piers[b],0.)))>AREA_EPS:return unsupported("柱墩投影重叠或身份重复")
+			var hull:=convex_hull(points)
+			if area(polygon)-area(intersection(polygon,hull))>AREA_EPS:return unsupported("柱墩支撑范围未包住实际楼板，不能验证悬挑结构")
+			floor_record._support_piers=piers;result[i]=floor_record;found=true
 		if not found:
-			return unsupported("冻结碰撞中无法证明与楼板连接的完整实体基础", {"record_id": floor_record.uuid})
+			return unsupported("冻结碰撞中无法证明连接楼板的完整基础或至少三个独立闭合柱墩", {"record_id": floor_record.uuid})
 	return {"ok": true, "records": result}
 
 
@@ -398,15 +439,15 @@ static func _solve(doc, local_records: Array, position: Vector3, yaw: float,
 	if not position.is_finite() or not is_finite(yaw):
 		return failure("residential_support_invalid_input", "安放位置和旋转必须为有限值")
 	for key in options:
-		if key not in ["min_y", "max_y", "max_shift", "input_version"]:
+		if key not in ["min_y", "max_y", "max_shift", "input_version", "support_mode"]:
 			return failure("residential_support_invalid_input", "未知支撑选项：" + str(key))
-		if key != "input_version" and not number(options[key]):
+		if key not in ["input_version","support_mode"] and not number(options[key]):
 			return failure("residential_support_invalid_input", "标高边界必须为有限值")
 	if options.get("max_shift", 0.0) < 0.0 or options.get("min_y", -INF) > options.get("max_y", INF):
 		return failure("residential_support_invalid_input", "标高边界顺序或最大调整量无效")
 	if doc == null or not doc.get("records") is Array:
 		return failure("residential_support_invalid_input", "缺少文档记录")
-	var extracted := support_components(local_records, yaw, parameters)
+	var extracted := support_components(local_records, yaw, parameters, options.get("support_mode","continuous"))
 	if not extracted.ok:
 		return extracted
 	var lower := -INF; var upper := INF
@@ -425,6 +466,12 @@ static func _solve(doc, local_records: Array, position: Vector3, yaw: float,
 			lower = checked.lower; lower_witness = checked.lower_witness
 		if checked.upper < upper:
 			upper = checked.upper; upper_witness = checked.upper_witness
+	var clearance_reports:Array=[]
+	for clearance:Dictionary in extracted.clearances:
+		var checked:=region(doc,clearance,position,counts,false,true)
+		if not checked.ok:return checked
+		clearance_reports.append(checked.component)
+		if checked.lower>lower:lower=checked.lower;lower_witness=checked.lower_witness
 	if lower > upper:
 		return failure("residential_support_height_interval", "地形起伏超过实际基础可承托高度，无法同时避免悬空和埋入楼板",
 			{"interval": [lower, upper], "lower_witness": lower_witness, "upper_witness": upper_witness, "counts": counts})
@@ -444,10 +491,10 @@ static func _solve(doc, local_records: Array, position: Vector3, yaw: float,
 		"geometric_interval": geometric_interval, "components": reports, "terrain_ids": terrain_ids,
 		"lower_witness": lower_witness, "upper_witness": upper_witness, "counts": counts,
 		"excluded_landings": extracted.excluded_landings, "area_tolerance": AREA_EPS,
-		"scope": "continuous_ground_floor_foundation_only", "requires_native_placement_validation": true}}
+		"support_mode":options.get("support_mode","continuous"),"underfloor_clearances":clearance_reports,"scope": "verified_frozen_support_domains", "requires_native_placement_validation": true}}
 
 
-static func region(doc, component: Dictionary, position: Vector3, counts: Dictionary, include_pieces := false) -> Dictionary:
+static func region(doc, component: Dictionary, position: Vector3, counts: Dictionary, include_pieces := false, allow_gaps := false) -> Dictionary:
 	var lower := -INF; var upper := INF
 	var lower_witness: Dictionary = {}; var upper_witness: Dictionary = {}
 	var terrain_ids: Array = []; var pieces: Array = []
@@ -558,7 +605,7 @@ static func region(doc, component: Dictionary, position: Vector3, counts: Dictio
 	var missing := 0.0
 	for fragment: Array in uncovered:
 		missing += area(fragment)
-	if missing > AREA_EPS:
+	if missing > AREA_EPS and not allow_gaps:
 		var location: Array = uncovered[0][0]
 		var detail: Dictionary = hole_witness.duplicate() if not hole_witness.is_empty() else {"record_id": component.record_id, "part": component.part}
 		detail.merge({"missing_area": missing, "support_area": component.area,
@@ -567,11 +614,11 @@ static func region(doc, component: Dictionary, position: Vector3, counts: Dictio
 		return failure("residential_support_coverage_gap", "实际首层支撑域存在地形孔洞或未覆盖区域", detail)
 	if covered - (float(component.area) - missing) > AREA_EPS:
 		return unsupported("支撑域存在重叠地形，无法确定唯一高度场", last_witness.merged({"overlap_area": covered - component.area + missing, "counts": counts}))
-	if not hole_witness.is_empty():
+	if not hole_witness.is_empty() and not allow_gaps:
 		return unsupported("地形洞口由其他地形覆盖，需明确多层支撑语义", hole_witness)
 	var report := {"record_id": component.record_id, "part": component.part, "foundation_id": component.foundation_id,
 		"area": component.area, "covered_area": covered, "missing_area": missing,
-		"terrain_range": [lowest, highest], "floor_bottom": component.floor_bottom, "foundation_bottom": component.foundation_bottom}
+		"terrain_range": [lowest, highest] if is_finite(lowest) else [], "floor_bottom": component.floor_bottom, "foundation_bottom": component.foundation_bottom}
 	return {"ok": true, "component": report, "lower": lower, "upper": upper, "lower_witness": lower_witness, "upper_witness": upper_witness, "terrain_ids": terrain_ids, "pieces": pieces, "counts": counts}
 
 

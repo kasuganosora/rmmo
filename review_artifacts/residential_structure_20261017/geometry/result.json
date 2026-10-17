@@ -1,0 +1,406 @@
+{
+  "checks": [
+    {
+      "detail": {},
+      "label": "existing arched hall recipe generates",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {
+        "door_bounds": {
+          "position": [
+            -6.17500019073486,
+            -1.22000002861023,
+            -6.17500019073486
+          ],
+          "size": [
+            12.3500003814697,
+            5.90460014343262,
+            12.3500003814697
+          ]
+        },
+        "door_id": "",
+        "entrance_id": "f0/north/entrance",
+        "fixture_id": "",
+        "floor_y": 0.318000018596649,
+        "kind": "passage",
+        "ok": true,
+        "outward": "(0.0, 0.0, -1.0)",
+        "position": "(-3.88, 0.318, -5.9)",
+        "side": "(1.0, 0.0, 0.0)"
+      },
+      "label": "frozen arch retains explicit portal and proves actual floor/clearance",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "actual arched threshold and exterior treads connect to ground",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "a forged portal hint cannot cut through actual masonry",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "portal orientation follows actual frozen pose",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "existing native house and rear workshop supplies multiple exterior entrances",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "catalog exposes stable external door identities",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "ambiguous entrances never select first silently",
+      "ok": true
+    },
+    {
+      "detail": {
+        "door_bounds": {
+          "position": [
+            -5.0310001373291,
+            0.324999809265137,
+            -7.03000020980835
+          ],
+          "size": [
+            1.43099975585938,
+            2.44500017166138,
+            0.260000228881836
+          ]
+        },
+        "door_id": "baked_29",
+        "entrance_id": "f0/north/entrance/door",
+        "fixture_id": "f0/north/entrance/door",
+        "floor_y": 0.318000018596649,
+        "kind": "door",
+        "ok": true,
+        "outward": "(0.0, 0.0, -1.0)",
+        "position": "(-4.3155, 0.318, -6.9)",
+        "side": "(1.0, 0.0, 0.0)"
+      },
+      "label": "explicit native exterior door resolves: f0/north/entrance/door",
+      "ok": true
+    },
+    {
+      "detail": {
+        "door_bounds": {
+          "position": [
+            -0.731000006198883,
+            0.324999809265137,
+            6.76999998092651
+          ],
+          "size": [
+            1.43099999427795,
+            2.44500017166138,
+            0.260000228881836
+          ]
+        },
+        "door_id": "baked_32",
+        "entrance_id": "f0/south/yard_door/door",
+        "fixture_id": "f0/south/yard_door/door",
+        "floor_y": 0.318000018596649,
+        "kind": "door",
+        "ok": true,
+        "outward": "(0.0, 0.0, 1.0)",
+        "position": "(-0.0155, 0.318, 6.9)",
+        "side": "(-1.0, 0.0, 0.0)"
+      },
+      "label": "explicit native exterior door resolves: f0/south/yard_door/door",
+      "ok": true
+    },
+    {
+      "detail": {
+        "door_bounds": {
+          "position": [
+            -0.731000006198883,
+            0.324999809265137,
+            9.97000026702881
+          ],
+          "size": [
+            1.43099999427795,
+            2.44500017166138,
+            0.260000228881836
+          ]
+        },
+        "door_id": "baked_86",
+        "entrance_id": "workshop/north/entry/door",
+        "fixture_id": "workshop/north/entry/door",
+        "floor_y": 0.318000018596649,
+        "kind": "door",
+        "ok": true,
+        "outward": "(0.0, 0.0, -1.0)",
+        "position": "(-0.0155, 0.318, 10.1)",
+        "side": "(1.0, 0.0, 0.0)"
+      },
+      "label": "explicit native exterior door resolves: workshop/north/entry/door",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "unknown entrance is rejected",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "entrance analysis does not mutate author records",
+      "ok": true
+    },
+    {
+      "detail": {
+        "code": "entrance_clearance",
+        "conflicts": [
+          "other_exterior_fixture"
+        ],
+        "error": "其他活动件开合范围侵入入户走廊",
+        "ok": false,
+        "position": [
+          -3.31550002098084,
+          0.318000018596649,
+          -5.81171846389771
+        ],
+        "stage": "entrance_access"
+      },
+      "label": "another moving door cannot occupy selected entrance corridor",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {
+        "input_version": null,
+        "ok": true,
+        "position": "(0.0, 0.0, 0.0)",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 0.25,
+              "covered_area": 0.25,
+              "floor_bottom": 2.40000009536743,
+              "foundation_bottom": -1.0,
+              "foundation_id": "baked_1/support_triangle_0",
+              "missing_area": 0.0,
+              "part": "main/baked_0",
+              "record_id": "baked_0",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "area": 0.25,
+              "covered_area": 0.25,
+              "floor_bottom": 2.40000009536743,
+              "foundation_bottom": -1.0,
+              "foundation_id": "baked_1/support_triangle_12",
+              "missing_area": 0.0,
+              "part": "main/baked_0",
+              "record_id": "baked_0",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "area": 0.25,
+              "covered_area": 0.25,
+              "floor_bottom": 2.40000009536743,
+              "foundation_bottom": -1.0,
+              "foundation_id": "baked_1/support_triangle_24",
+              "missing_area": 0.0,
+              "part": "main/baked_0",
+              "record_id": "baked_0",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "area": 0.25,
+              "covered_area": 0.25,
+              "floor_bottom": 2.40000009536743,
+              "foundation_bottom": -1.0,
+              "foundation_id": "baked_1/support_triangle_36",
+              "missing_area": 0.0,
+              "part": "main/baked_0",
+              "record_id": "baked_0",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 5120,
+            "cells_visited": 113,
+            "overlaps": 38,
+            "solid_skipped": 5007,
+            "terrain_candidates": 5,
+            "triangle_clips": 104
+          },
+          "excluded_landings": [],
+          "geometric_interval": [
+            -0.600000095367432,
+            1.0
+          ],
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "lower_witness": {
+            "cell": [
+              14,
+              14
+            ],
+            "floor_bottom": 0.600000095367432,
+            "foundation_bottom": -1000000.0,
+            "foundation_id": "",
+            "part": "main/baked_0",
+            "position": [
+              -2.0,
+              0.0,
+              -2.0
+            ],
+            "record_id": "baked_0",
+            "terrain_height": 0.0,
+            "terrain_id": "access_test_terrain",
+            "triangle_index": 0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "verified_frozen_support_domains",
+          "support_mode": "piers",
+          "terrain_ids": [
+            "access_test_terrain"
+          ],
+          "underfloor_clearances": [
+            {
+              "area": 16.0,
+              "covered_area": 16.0,
+              "floor_bottom": 0.600000095367432,
+              "foundation_bottom": -1000000.0,
+              "foundation_id": "",
+              "missing_area": 0.0,
+              "part": "main/baked_0",
+              "record_id": "baked_0",
+              "terrain_range": [
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "upper_witness": {
+            "cell": [
+              14,
+              14
+            ],
+            "floor_bottom": 2.40000009536743,
+            "foundation_bottom": -1.0,
+            "foundation_id": "baked_1/support_triangle_0",
+            "part": "main/baked_0",
+            "position": [
+              -2.0,
+              0.0,
+              -2.0
+            ],
+            "record_id": "baked_0",
+            "terrain_height": 0.0,
+            "terrain_id": "access_test_terrain",
+            "triangle_index": 0
+          }
+        }
+      },
+      "label": "four actual closed piers support a raised slab",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "only four real footing domains require terrain; void has separate clearance proof",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "real hole between piers is not filled or required for support",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "hole under an actual pier rejects",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "soil mound under raised slab cannot consume 1.8 m clearance",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "continuous mode does not invent a full foundation under piers",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "imported private proof fields cannot forge supporting geometry",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "scalar-double pier hull preserves far translated rotated support",
+      "ok": true
+    },
+    {
+      "detail": {
+        "error": ""
+      },
+      "label": "fixture bakes actual render and source collision payload",
+      "ok": true
+    },
+    {
+      "detail": {},
+      "label": "three remaining supports cannot claim unsupported slab corner",
+      "ok": true
+    }
+  ],
+  "elapsed_ms": 4946.538,
+  "failures": 0,
+  "ok": true,
+  "scope": "headless source collision geometry only; no map writes, GPU, UI, HTTP or gameplay traversal"
+}

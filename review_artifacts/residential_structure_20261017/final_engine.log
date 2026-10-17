@@ -1,0 +1,114 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: private test map saves
+PASS: private current 3D HTTP starts
+PASS: current discovery contains entrance inspection only on active 3D
+PASS: shared entrance/support schema: preview_residential_placement
+PASS: shared entrance/support schema: preview_residential_site
+PASS: shared entrance/support schema: preview_residential_relocation
+PASS: shared entrance/support schema: preview_residential_block
+PASS: HTTP inspect_residential_entrances rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: inspect_residential_entrances
+PASS: HTTP inspect_residential_entrances rejects invalid operation
+PASS: specific rejection: invalid_arguments
+PASS: rejection is atomic: inspect_residential_entrances
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP generate_buildings succeeds
+PASS: arch regression fixture freezes through native building pipeline
+PASS: HTTP select_objects succeeds
+PASS: HTTP save_prefab succeeds
+PASS: HTTP delete_building succeeds
+PASS: HTTP inspect_residential_entrances succeeds
+PASS: arch inspection does not change authoring/history/selection
+PASS: arch actual entrances and support domains inspect successfully
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: entrance_not_found
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: arch preview connects the explicit entrance
+PASS: arch UI selects source and road
+PASS: arch UI selects same actual entrance
+PASS: arch UI and HTTP share complete request
+PASS: arch UI and HTTP preview same geometry
+PASS: arch UI applies one transaction
+PASS: HTTP undo succeeds
+PASS: arch one undo restores complete map
+PASS: HTTP redo succeeds
+PASS: arch redo preserves identities and semantic hints
+PASS: arch native atomic save succeeds
+PASS: arch native reopen preserves exact semantics and geometry
+PASS: arch saved selected entrance remains verifiable
+PASS: HTTP select_objects succeeds
+PASS: HTTP focus_selection succeeds
+PASS: HTTP set_editor_camera succeeds
+PASS: private UI screenshot saved as lossy Q90 WebP
+PASS: HTTP generate_buildings succeeds
+PASS: multi regression fixture freezes through native building pipeline
+PASS: HTTP select_objects succeeds
+PASS: HTTP save_prefab succeeds
+PASS: HTTP delete_building succeeds
+PASS: HTTP inspect_residential_entrances succeeds
+PASS: multi inspection does not change authoring/history/selection
+PASS: multi actual entrances and support domains inspect successfully
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: entrance_not_found
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: unsupported
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: multi preview connects the explicit entrance
+PASS: HTTP preview_residential_block succeeds
+PASS: block final validation reuses the explicit multi-door selection
+PASS: HTTP discard_residential_block succeeds
+PASS: HTTP preview_residential_site succeeds
+PASS: joint grading forwards explicit multi-door selection
+PASS: HTTP discard_residential_site succeeds
+PASS: multi UI selects source and road
+PASS: multi UI selects same actual entrance
+PASS: multi UI and HTTP share complete request
+PASS: multi UI and HTTP preview same geometry
+PASS: multi UI applies one transaction
+PASS: HTTP undo succeeds
+PASS: multi one undo restores complete map
+PASS: HTTP redo succeeds
+PASS: multi redo preserves identities and semantic hints
+PASS: multi native atomic save succeeds
+PASS: multi native reopen preserves exact semantics and geometry
+PASS: multi saved selected entrance remains verifiable
+PASS: piers regression fixture freezes through native building pipeline
+PASS: HTTP select_objects succeeds
+PASS: HTTP save_prefab succeeds
+PASS: HTTP delete_building succeeds
+PASS: HTTP inspect_residential_entrances succeeds
+PASS: piers inspection does not change authoring/history/selection
+PASS: piers actual entrances and support domains inspect successfully
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: entrance_not_found
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: piers preview connects the explicit entrance
+PASS: piers UI selects source and road
+PASS: piers UI selects same actual entrance
+PASS: piers UI and HTTP share complete request
+PASS: piers UI and HTTP preview same geometry
+PASS: piers UI applies one transaction
+PASS: HTTP undo succeeds
+PASS: piers one undo restores complete map
+PASS: HTTP redo succeeds
+PASS: piers redo preserves identities and semantic hints
+PASS: piers native atomic save succeeds
+PASS: piers native reopen preserves exact semantics and geometry
+PASS: piers saved selected entrance remains verifiable
+PASS: saved raised house retains four real pier domains
+PASS: HTTP preview_terrain_layout rejects invalid operation
+PASS: specific rejection: residential_support_height_limit
+PASS: rejection is atomic: preview_terrain_layout
+PASS: HTTP preview_residential_relocation succeeds
+PASS: existing raised home inherits saved support mode during reliable relocation
+PASS: HTTP discard_residential_relocation succeeds
+RESIDENTIAL_PLACEMENT_HTTP D:/code/rmmo_runtime/review_artifacts/residential_structure_20261017/final_http.json failures=0

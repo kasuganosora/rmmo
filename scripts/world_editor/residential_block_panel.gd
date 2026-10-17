@@ -46,7 +46,9 @@ func load_current()->void:
 	if p.has("building_id"):
 		select_value(owner_panel.building_choice,p.building_id);select_value(owner_panel.old_access_choice,p.get("old_access","keep"))
 	else:select_value(owner_panel.asset_choice,p.asset_id)
-	for key in ["road_edge_id","building_id","asset_id","old_access"]:p.erase(key)
+	select_value(owner_panel.support_choice,p.get("support_mode","auto"))
+	owner_panel.refresh_entrances();owner_panel.select_entrance(p.get("entrance_id",""))
+	for key in ["road_edge_id","building_id","asset_id","old_access","entrance_id","support_mode"]:p.erase(key)
 	owner_panel.form.update_values(p);owner_panel.invalidate_preview("已载入此户，编辑后点击更新选中户。")
 
 static func select_value(control:OptionButton,id:String)->void:

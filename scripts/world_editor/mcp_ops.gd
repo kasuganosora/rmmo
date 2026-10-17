@@ -141,6 +141,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"update_road_graph": return editor._city.update_roads(args)
 		"create_road_path": return editor._city.add_path(args.points,args.get("width",8.0),args.get("kind","ground"))
 		"preview_region_buildings": return editor._buildings.summary(editor._buildings.prepare_region(args))
+		"inspect_residential_entrances": return editor._residential.inspect_entrances(args)
 		"preview_residential_block": return editor._residential_block.preview(args)
 		"apply_residential_block": return editor._residential_block.apply(args)
 		"discard_residential_block": return editor._residential_block.discard(str(args.plan_token))

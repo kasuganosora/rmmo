@@ -39,23 +39,7 @@ static func record_shapes(record: Dictionary) -> Array:
 					points.append(top); points.append(world*Vector3(p.x,t.floor*record.size[1],p.z))
 				out.append(from_points(points).merged({"top_min_y":top_low,"top_max_y":top_high}))
 		return out
-	if record.has("fixture") and record.has("fortification"):
-		var closed:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
-		var local:=AABB(-Geometry.vector(record,"size")*.5,Geometry.vector(record,"size")); var pivot: Vector3=closed*Vector3(record.fixture.pivot[0],record.fixture.pivot[1],record.fixture.pivot[2]); var radius:=0.0
-		for i in 8: radius=maxf(radius,(closed*local.get_endpoint(i)).distance_to(pivot))
-		var steps:=maxi(1,ceili(absf(record.fixture.angle)/5.0)); var points: Array[Vector3]=[]
-		for step in steps+1:
-			var pose:=preload("res://scripts/world3d/building_fixtures.gd").pose(closed,record.fixture,float(step)/steps)
-			for i in 8: points.append(pose*local.get_endpoint(i))
-		var shape:=from_points(points)
-		# Bound the missing arc between samples by its maximum sagitta. This
-		# reserves the actual full opening sweep, not an unrelated 360-degree box.
-		var padding:=radius*(1.0-cos(deg_to_rad(absf(record.fixture.angle)/steps)*.5))+.002
-		var expanded:=Geometry2D.offset_polygon(shape.polygon,padding,Geometry2D.JOIN_ROUND)
-		if not expanded.is_empty():
-			shape.polygon=expanded[0]; shape.polygon.append(shape.polygon[0])
-		shape.bounds=shape.bounds.grow(padding)
-		return [shape]
+	if record.has("fixture") and record.has("fortification"):return fixture_shapes(record)
 	if not record.has("road_mesh") and not record.has("channel_mesh"): return [record_shape(record)]
 	var transform:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
 	var shapes: Array=[]
@@ -68,6 +52,24 @@ static func record_shapes(record: Dictionary) -> Array:
 			points.append(transform*(p+Vector3.UP*clearance))
 		shapes.append(from_points(points))
 	return shapes
+
+static func fixture_shapes(record:Dictionary)->Array:
+	var closed:=Transform3D(Basis.from_euler(Geometry.vector(record,"rotation")*PI/180),Geometry.vector(record,"position"))
+	var local:=AABB(-Geometry.vector(record,"size")*.5,Geometry.vector(record,"size")); var pivot: Vector3=closed*Vector3(record.fixture.pivot[0],record.fixture.pivot[1],record.fixture.pivot[2]); var radius:=0.0
+	for i in 8: radius=maxf(radius,(closed*local.get_endpoint(i)).distance_to(pivot))
+	var steps:=maxi(1,ceili(absf(record.fixture.angle)/5.0)); var points: Array[Vector3]=[]
+	for step in steps+1:
+		var pose:=preload("res://scripts/world3d/building_fixtures.gd").pose(closed,record.fixture,float(step)/steps)
+		for i in 8: points.append(pose*local.get_endpoint(i))
+	var shape:=from_points(points)
+	# Bound the missing arc between samples by its maximum sagitta. This
+	# reserves the actual full opening sweep, not an unrelated 360-degree box.
+	var padding:=radius*(1.0-cos(deg_to_rad(absf(record.fixture.angle)/steps)*.5))+.002
+	var expanded:=Geometry2D.offset_polygon(shape.polygon,padding,Geometry2D.JOIN_ROUND)
+	if not expanded.is_empty():
+		shape.polygon=expanded[0]; shape.polygon.append(shape.polygon[0])
+	shape.bounds=shape.bounds.grow(padding)
+	return [shape]
 
 static func supporting_ground(record: Dictionary, top: float, foot: float) -> bool:
 	return not record.has("road_mesh") and not record.has("building") and record.get("surface_id") in ["ground","grass","dirt","road","stone","sand"] and top<=foot+.005

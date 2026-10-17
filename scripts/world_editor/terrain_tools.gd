@@ -114,6 +114,17 @@ func validate_change(record:Dictionary,result:Dictionary,participants:Array,brid
 		changed_volumes.append(Foot.from_points(points))
 	if Foot.batches_overlap(changed_volumes,preload("res://scripts/world3d/planning_zones.gd").obstacles(editor._doc.map_meta)):
 		return Terrain.fail("笔刷会改变建筑保留区或保留通道，整笔已拒绝")
+	# A saved pier-supported home reserves its actual support domains and
+	# underfloor clearance, including future brush/layout edits after reopening.
+	for id:String in editor._doc.map_meta.get("building_instances",{}):
+		var value:Dictionary=editor._doc.map_meta.building_instances[id]
+		if value.get("residential_support_mode")!="piers":continue
+		var members:Array=editor._doc.records.filter(func(r):return r.get("building",{}).get("id")==id)
+		if members.is_empty() or not Foot.batches_overlap(changed_volumes,Foot.components(members,Vector3.ZERO,Basis.IDENTITY)):continue
+		var staged=preload("res://scripts/world3d/world_document.gd").new()
+		staged.records=editor._doc.records.map(func(r):return next if r.uuid==next.uuid else r)
+		var proof:Dictionary=preload("res://scripts/world_editor/residential_support.gd").solve(staged,members,Vector3.ZERO,0.,value.parameters,{"min_y":0.,"max_y":0.,"support_mode":"piers"})
+		if not proof.ok:return proof.merged({"building_id":id,"error":"修改会破坏柱墩承托或楼下净空："+proof.error},true)
 	for obstacle in editor._doc.records:
 		if obstacle.uuid in participants: continue
 		# River water is a non-solid overlay; sculpting the bed through its level is

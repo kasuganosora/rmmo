@@ -426,8 +426,11 @@ static func bake(records:Array)->Dictionary:
 		groups[key].append(record)
 	for key:String in groups:
 		var sources:Array=groups[key];var members:Array=[];var collision:=PackedVector3Array();var bounds:=AABB();var first:=true
-		var fixture:Dictionary={};var pivot:=Vector3.ZERO
+		var fixture:Dictionary={};var pivot:=Vector3.ZERO;var portals:Array=[]
 		for record:Dictionary in sources:
+			var closed_portal_pose:=Transform3D(Basis.from_euler(vec(record.rotation)*PI/180),vec(record.position))
+			for hint:Dictionary in record.get("residential_portals",[]):
+				portals.append(hint.merged({"position":arr(closed_portal_pose*vec(hint.position)),"outward":arr(closed_portal_pose.basis*vec(hint.outward))},true))
 			if record.has("fixture"):
 				fixture=record.fixture.duplicate(true)
 				var closed:=Transform3D(Basis.from_euler(vec(record.rotation)*PI/180),vec(record.position))
@@ -487,6 +490,9 @@ static func bake(records:Array)->Dictionary:
 		for material:Dictionary in data.materials:
 			if material.has("paint") and not record.prefab_materials.has(material.paint):record.prefab_materials.append(material.paint)
 		if not fixture.is_empty():fixture.pivot=arr(pivot-center);record.fixture=fixture
+		if not portals.is_empty():
+			for hint:Dictionary in portals:hint.position=arr(vec(hint.position)-center)
+			record.residential_portals=portals
 		result.append(record)
 	return {"ok":true,"records":result,"source_count":records.size(),"component_count":result.size()}
 
