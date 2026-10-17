@@ -169,7 +169,7 @@ static func work_budget(stage:Node3D,strokes:Array)->Dictionary:
 	var work:=0;var by_seed:Dictionary={}
 	for stroke:Dictionary in strokes:
 		var seed:Dictionary=stage._doc._find(stroke.id)
-		if not seed.has("terrain_mesh") or not stage._record_editable(seed):return City.fail("目标必须是可见、解锁且在当前楼层的地形")
+		if not seed.has("terrain_mesh") or not stage._record_editable(seed):return City.fail("目标必须是可见、解锁且在当前楼层的地形").merged({"code":"protected_scope","terrain_id":stroke.id})
 		var key:=str([stroke.id,stroke.get("cross_tiles",true)])
 		if not by_seed.has(key):
 			var vertices:=0
@@ -205,14 +205,14 @@ static func prepare_stage(editor:Node3D,stage:Node3D,args:Dictionary)->Dictionar
 	var touched:Dictionary={};var samples:=0
 	for stroke:Dictionary in args.strokes:
 		var seed:Dictionary=stage._doc._find(stroke.id)
-		if not seed.has("terrain_mesh") or not stage._record_editable(seed):return City.fail("目标必须是可见、解锁且在当前楼层的地形")
+		if not seed.has("terrain_mesh") or not stage._record_editable(seed):return City.fail("目标必须是可见、解锁且在当前楼层的地形").merged({"code":"protected_scope","terrain_id":stroke.id})
 		if seed.has("surface_paint"):return City.fail("地形上有手刷表面，不能联合整坡")
 		var batch:=Batch.prepare(stage._doc.records,seed,stroke)
 		if not batch.ok:return batch
 		samples+=batch.samples
 		for entry:Dictionary in batch.entries:
 			var previous:Dictionary=stage._doc._find(entry.record.uuid)
-			if not stage._record_editable(previous) or previous.has("surface_paint"):return City.fail("跨块整坡触及锁定、隐藏、隔层或手刷地形，整组取消")
+			if not stage._record_editable(previous) or previous.has("surface_paint"):return City.fail("跨块整坡触及锁定、隐藏、隔层或手刷地形，整组取消").merged({"code":"protected_scope","terrain_id":previous.uuid})
 			touched[entry.record.uuid]=true
 		replace_records(stage._doc,batch.entries)
 	var changes:Array=[];var cell_count:=0

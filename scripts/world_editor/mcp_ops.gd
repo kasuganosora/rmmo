@@ -51,6 +51,9 @@ func state() -> Dictionary:
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
+	return editor._diagnostics.explain(_execute(name,args),name)
+
+func _execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
 		"list_terrain_rivers":return preload("res://scripts/world_editor/terrain_river_tools.gd").catalog(editor)
 		"remove_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args,false,true)
@@ -84,6 +87,8 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"set_river_materials": return preload("res://scripts/world_editor/river_material_tools.gd").apply(editor,args)
 		"set_terrain_slope_materials": return preload("res://scripts/world_editor/river_material_tools.gd").apply_slope(editor,args)
 		"list_terrains": return editor._terrain.catalog()
+		"focus_editor_diagnostic": return editor._diagnostics.focus(args)
+		"clear_editor_diagnostic": return editor._diagnostics.clear()
 		"sample_terrain_height": return preload("res://scripts/world_editor/terrain_ramp_tools.gd").sample(editor,args)
 		"preview_terrain_ramp": return preload("res://scripts/world_editor/terrain_ramp_tools.gd").preview(editor,args)
 		"apply_terrain_ramp": return preload("res://scripts/world_editor/terrain_ramp_tools.gd").apply(editor,args)

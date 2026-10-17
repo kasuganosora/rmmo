@@ -429,3 +429,10 @@ V7 验收记录：14 组覆盖/空洞/交接样例和 100 组随机尺寸（96 �
 真实土坡进入室内地板、墙体或活动门范围仍拒绝；抬高基座上限仍受参数和实际首层地板双重限制。倾斜地块、起垄保留原保守处理。`building_tools.prepare` 与 `prefab_library.place_buildings` 同步接入，UI、`preview_buildings` / `generate_buildings`、`place_asset` 无新工具或参数；失败附 `terrain_contact` 中的地形 ID、构件、网格和实际世界位置，便于定位内容冲突。原道路/其他房屋碰撞与原子事务不变。
 
 [test_house_terrain_contact_http.gd](../tools/test_house_terrain_contact_http.gd) 在真实 loopback HTTP **39 项通过，0 失败**：重现整格高角及整屋包络误报、合法斜地、真实室内土峰、平移/旋转、生成后冻结并另存素材库再放置、非法埋屋无副作用、撤销重做与保存重开。既有 [地基回归](../tools/test_house_foundation_support_http.gd) 同时复跑 **33 项通过，0 失败**。证据位于 `D:/code/rmmo_runtime/review_artifacts/axel_town_houses_20261014/house_terrain_contact_http.log` 和 `foundation_support_http_terrain_refinement.log`。S1 后排木构宅与 S12 前景宅的真实模板/两块宅基地 CPU 复现见同目录 `house_terrain_diagnostic.json`；该隔离检查不等于全部道路和正式场景已验收。
+
+
+### 跨工具冲突解释与定位（2026-10-17）
+
+住宅、联合住宅候选、两端定高坡道和联合整坡共用诊断列表。保留原始错误与几何校验，新增 `diagnostic`（类别、原原因码、阶段、对象 ID、位置、实际值／限制值、上下界见证）和会话内 `diagnostic_token`。搜索穷尽、暂不支持和具体冲突分别标识，不把缺少几何见证的错误伪装成可定位结果。UI 可选择具体条目并定位高亮，当前 3D MCP 使用 `focus_editor_diagnostic {diagnostic_token,index?}`（index 从 0 开始）与 `clear_editor_diagnostic`；均不修改选择、地图或撤销历史。诊断最多 32 条、缓存最近 8 份，地图／楼层查看范围变化后旧定位拒绝且高亮清除。坡度失败附实际坡度、15% 限制及端点位置；锁定整坡返回具体地形 ID。
+
+真实 UI／HTTP 36 项通过，0 失败，含同输入诊断一致、见证／对象定位、非法与过期定位、后续编辑保留、嵌套上下界和保存重开；[证据](../review_artifacts/editor_diagnostics_20261017/evidence.json)。定位覆盖层只用于解释既有检查，不放宽约束或替代运行时通行验证。

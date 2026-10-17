@@ -1,0 +1,66 @@
+{
+  "base_commit": "7c3199370e433ee2cbc935dad27598da294dc572",
+  "checks": 36,
+  "failures": 0,
+  "sources": [
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_lf": "237a55ff6736400e5912f2d6a1179414d8097d0279db024a0a12b88d802b54df"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_lf": "b6235c7e3298c00fe6d3e05978092d088bb7eaebcf57f7ac69a6dbbde30767f1"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "sha256_lf": "c67c3746cb94ff88483c994fd7968a5346fd98b17c8405f2f436918acc8d6cae"
+    },
+    {
+      "path": "scripts/world_editor/terrain_layout_panel.gd",
+      "sha256_lf": "964ae74832c5d90c36745699a07219086ed67f2174544ee63879983c81087a85"
+    },
+    {
+      "path": "scripts/world_editor/terrain_layout_tools.gd",
+      "sha256_lf": "531755fa07f0f6dde162bf476930fc9162e59d166b7210ac612c24fef391f999"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_panel.gd",
+      "sha256_lf": "4bd860a383b043c1186d4b8bb2dd20d9fe3e4fe8d02ac8a840ca088f64125116"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_tools.gd",
+      "sha256_lf": "f083298b95fae4ad98dd544c9af0cb2b35bbd3dd8a7e26893300b83ca394d791"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "sha256_lf": "46ffbb01341adab66b47656a253cd8da5ee07970081aff53d0cc4a7751d83b6b"
+    },
+    {
+      "path": "scripts/world_editor/editor_diagnostics.gd",
+      "sha256_lf": "3be9ca753ae2251133eedcb078b0df8578dd9b736b959e5197751eb83d42eb22"
+    },
+    {
+      "path": "scripts/world_editor/diagnostic_panel.gd",
+      "sha256_lf": "02290c46888bcec2aa2e9f1fbcf7d1f9b30daefb1213d970ee6423378ea119e1"
+    },
+    {
+      "path": "tools/test_editor_diagnostics.gd",
+      "sha256_lf": "5c74ba8f9254b2442713890afacb1ff4735813cc615e731ec5f1ed645240bc98"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "console.log",
+      "sha256": "7fcd848c97e95aafbec81b215bf3614f875d1166a5b3fdefca89d64aecabc9f2"
+    },
+    {
+      "path": "engine.log",
+      "sha256": "da2309602697722e0dec18776d1d27934597d395d32e71fdc189e60d1cf949c5"
+    },
+    {
+      "path": "result.json",
+      "sha256": "2dc230661463e9831651b57fc2cf399b9c04ecbb591219477b6e95685f74e839"
+    }
+  ],
+  "scope": "E1-D: original business failures preserved; shared bounded structured witnesses and session-only camera/highlight UI and current 3D HTTP; no authoring edits, model changes or formal maps. Independent inactive desktop. Native save/reopen and stale rejection verified."
+}

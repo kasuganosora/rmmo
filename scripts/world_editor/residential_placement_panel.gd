@@ -20,6 +20,7 @@ var ghost: Node3D
 var site_enabled:CheckButton
 var site_draft:VBoxContainer
 var changes_view:TextEdit
+var diagnostics:VBoxContainer
 var preview_doc_id:=0
 var preview_revision:=-1
 
@@ -58,6 +59,7 @@ func setup(owner: VBoxContainer) -> void:
 	discard_button=action(row,"放弃预览",discard_preview); discard_button.disabled=true
 	focus_button=action(body,"定位结果／冲突",focus_result); focus_button.disabled=true
 	feedback=note(body,"先选择住宅与道路，再预览。预制件的住宅结构由共享校验确认。")
+	diagnostics=preload("res://scripts/world_editor/diagnostic_panel.gd").new();body.add_child(diagnostics);diagnostics.setup(editor)
 	changes_view=TextEdit.new();changes_view.editable=false;changes_view.custom_minimum_size.y=140;changes_view.wrap_mode=TextEdit.LINE_WRAPPING_BOUNDARY;body.add_child(changes_view);changes_view.hide()
 	asset_choice.item_selected.connect(func(_i): invalidate_preview())
 	road_choice.item_selected.connect(func(_i): invalidate_preview())
@@ -162,6 +164,7 @@ func invalidate_preview(message: String="参数已变化，请重新预览。") 
 	if apply_button!=null: apply_button.disabled=true
 	if discard_button!=null: discard_button.disabled=true
 	last_result={}
+	if diagnostics!=null:diagnostics.display({})
 	if changes_view!=null:changes_view.hide();changes_view.text=""
 	if focus_button!=null: focus_button.disabled=true
 	if not message.is_empty() and feedback!=null: feedback.text=message; editor._status.text=message
@@ -170,6 +173,8 @@ func discard_preview() -> void:
 	invalidate_preview("已放弃候选；地图未修改。")
 
 func report(result: Dictionary, applied: bool=false) -> void:
+	result=editor._diagnostics.explain(result,("apply_" if applied else "preview_")+("residential_site" if site_enabled.button_pressed else "residential_placement"))
+	diagnostics.display(result)
 	last_result=result.duplicate(true)
 	var text_:String
 	if result.ok:

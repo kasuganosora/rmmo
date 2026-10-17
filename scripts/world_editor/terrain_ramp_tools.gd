@@ -34,7 +34,7 @@ static func height_at(doc,point:Array)->Dictionary:
 		if not record.has("terrain_mesh") and not record.has("terrain_volume"):continue
 		if record.has("terrain_volume") or record.rotation[0]!=0 or record.rotation[2]!=0:
 			var box:AABB=Geometry.bounds([record])
-			if point[0]>=box.position.x and point[0]<=box.end.x and point[1]>=box.position.z and point[1]<=box.end.z:return fail("取高暂不支持倾斜、体积或多层地形",{"terrain_id":record.uuid})
+			if point[0]>=box.position.x and point[0]<=box.end.x and point[1]>=box.position.z and point[1]<=box.end.z:return fail("取高暂不支持倾斜、体积或多层地形",{"code":"terrain_ramp_unsupported","terrain_id":record.uuid})
 			continue
 		if not T.valid(record):return fail("地形数据无效",{"terrain_id":record.uuid})
 		var angle:=deg_to_rad(float(record.rotation[1]));var dx:float=point[0]-record.position[0];var dz:float=point[1]-record.position[2]
@@ -82,9 +82,9 @@ static func recipe(editor:Node3D,args:Dictionary)->Dictionary:
 	var token:=request_token(editor,args)
 	if args.has("expected_token") and args.expected_token!=token:return fail("地形或参数已变化，请重新预览坡道",{"code":"terrain_ramp_stale_preview"})
 	var dx:float=args.end[0]-args.start[0];var dz:float=args.end[2]-args.start[2];var length:=sqrt(dx*dx+dz*dz)
-	if length<1 or length>48:return fail("两端水平距离须为 1–48 米")
+	if length<1 or length>48:return fail("两端水平距离须为 1–48 米",{"code":"terrain_ramp_invalid_length","position":args.end,"requested":length,"limits":{"length_min":1.,"length_max":48.}})
 	var grade:float=(args.end[1]-args.start[1])/length
-	if absf(grade)>MAX_GRADE:return fail("两端高差超过 15% 坡度，请延长坡道或调整标高",{"grade":grade,"minimum_length":absf(args.end[1]-args.start[1])/MAX_GRADE})
+	if absf(grade)>MAX_GRADE:return fail("两端高差超过 15% 坡度，请延长坡道或调整标高",{"code":"terrain_ramp_grade_conflict","position":args.end,"grade":grade,"limits":{"absolute_grade_max":MAX_GRADE},"minimum_length":absf(args.end[1]-args.start[1])/MAX_GRADE})
 	if absf(args.start[1])>1000 or absf(args.end[1])>1000:return fail("两端标高须在 -1000–1000 米内")
 	var polygon:=corridor(args);var original:=region(editor._doc,polygon)
 	if not original.ok:original.erase("origin");return original
@@ -122,7 +122,7 @@ static func prove(before,after,args:Dictionary,prepared:Dictionary,terrain_ids:A
 		max_grade=maxf(max_grade,sqrt(gx*gx+gz*gz))
 	var seams:=Support.seam_steps(proof.pieces,proof.origin)
 	if not seams.ok:return seams
-	if max_error>HEIGHT_TOLERANCE or max_grade>MAX_GRADE+0.00001 or seams.max_step>HEIGHT_TOLERANCE:return fail("实际地形未满足两端标高、全宽坡度或接缝约束；请调整范围或网格",{"max_height_error":max_error,"max_grade":max_grade,"max_seam_step":seams.max_step})
+	if max_error>HEIGHT_TOLERANCE or max_grade>MAX_GRADE+0.00001 or seams.max_step>HEIGHT_TOLERANCE:return fail("实际地形未满足两端标高、全宽坡度或接缝约束；请调整范围或网格",{"position":args.end,"max_height_error":max_error,"max_grade":max_grade,"max_seam_step":seams.max_step,"limits":{"height_error_max":HEIGHT_TOLERANCE,"grade_max":MAX_GRADE,"seam_step_max":HEIGHT_TOLERANCE}})
 	return {"ok":true,"token":prepared.token,"start":args.start,"end":args.end,"length":length,"width":args.width,"grade":grade,"max_grade":max_grade,"max_height_error":max_error,"height_tolerance":HEIGHT_TOLERANCE,"max_seam_step":seams.max_step,"corridor":polygon,"grid_padding":prepared.padding,"blend_margin":args.blend_margin,"earthwork":earthwork(before,after,terrain_ids),"scope":"full_width_native_heightfield; outer_blend_not_walkability_certified"}
 
 static func prepare(editor:Node3D,args:Dictionary)->Dictionary:

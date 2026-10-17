@@ -10,6 +10,7 @@ var apply_button:Button
 var preview_button:Button
 var preview_result:Dictionary={}
 var overlay:MeshInstance3D
+var diagnostics:VBoxContainer
 var document_id:=0
 var preview_revision:=-1
 
@@ -40,6 +41,7 @@ func setup(value:Node3D,owner_panel:VBoxContainer,footer:VBoxContainer)->void:
 	var cancel_button:=button("取消预览",invalidate)
 	result_label=note("预览通过后可应用；一次撤销包含地形与跟随构件。外围柔边不保证通行，重复应用会继续调整柔边。")
 	result_label.reparent(footer)
+	diagnostics=preload("res://scripts/world_editor/diagnostic_panel.gd").new();footer.add_child(diagnostics);diagnostics.setup(editor)
 	var actions:=HBoxContainer.new();footer.add_child(actions)
 	for item:Button in [preview_button,apply_button]:item.reparent(actions);item.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	preview_button.text="检查坡道";apply_button.text="应用坡道";cancel_button.reparent(footer)
@@ -57,6 +59,7 @@ func sample_endpoint(key:String,view_center:=false)->Dictionary:
 	return result
 func invalidate()->void:
 	preview_result.clear()
+	if diagnostics!=null:diagnostics.display({})
 	if apply_button!=null:apply_button.disabled=true
 	if is_instance_valid(overlay):overlay.queue_free();overlay=null
 	if result_label!=null:result_label.text="参数或地图可能已变化，请重新检查坡道。"
@@ -68,6 +71,7 @@ func execute(commit:bool)->Dictionary:
 		args.expected_token=preview_result.token
 	var result:=Tools.apply(editor,args) if commit else Tools.preview(editor,args)
 	invalidate()
+	result=editor._diagnostics.explain(result,"apply_terrain_ramp" if commit else "preview_terrain_ramp");diagnostics.display(result)
 	if result.ok:
 		if not commit:preview_result=result;preview_revision=editor._doc.authoring_revision;apply_button.disabled=false;show_preview(result)
 		result_label.text=("已应用，可一次撤销。\n" if commit else "检查通过，地图尚未修改。\n")+"坡度 %.2f%% · 最大实际坡度 %.2f%%\n端点及全宽误差 ≤ %.4f m · 接缝 %.4f m\n挖方 %.2f m³ / 填方 %.2f m³\n网格保障外扩 %.2f m + 柔边 %.2f m\n影响 %d 个构件"%[result.grade*100,result.max_grade*100,result.max_height_error,result.max_seam_step,result.earthwork.cut_m3,result.earthwork.fill_m3,result.grid_padding,result.blend_margin,result.affected_ids.size()]

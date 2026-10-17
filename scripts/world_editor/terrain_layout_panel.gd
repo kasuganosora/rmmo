@@ -17,6 +17,7 @@ var result_label:Label
 var strokes:Array=[]
 var road_nodes:Array=[]
 var road_token:=""
+var diagnostics:VBoxContainer
 var document_id:=0
 
 func label(text:String)->Label:
@@ -56,7 +57,9 @@ func setup(value:Node3D,owner_panel:VBoxContainer)->void:
 	button("检查最终布局",func():_execute(false))
 	button("应用联合调整",func():_execute(true))
 	button("清空草案",clear_draft)
-	result_label=label("");refresh()
+	result_label=label("")
+	diagnostics=preload("res://scripts/world_editor/diagnostic_panel.gd").new();add_child(diagnostics);diagnostics.setup(editor)
+	refresh()
 
 func _pin()->void:
 	if road_token.is_empty():road_token=City.token(City.resolve(editor._doc.map_meta).roads)
@@ -98,6 +101,7 @@ func request()->Dictionary:
 func _execute(commit:bool)->void:
 	editor._finish_edits()
 	var result:Dictionary=Tools.apply(editor,request()) if commit else Tools.preview(editor,request())
+	result=editor._diagnostics.explain(result,"apply_terrain_layout" if commit else "preview_terrain_layout");diagnostics.display(result)
 	if result.get("ok",false):
 		if commit:clear_draft();terrain_panel.refresh()
 		result_label.text="联合调整已应用，可一次撤销。" if commit else "最终布局检查通过，地图尚未修改。"
@@ -106,6 +110,7 @@ func _execute(commit:bool)->void:
 func clear_draft()->void:
 	strokes.clear();road_nodes.clear();road_token="";_refresh_draft()
 	if result_label!=null:result_label.text="草案已清空。"
+	if diagnostics!=null:diagnostics.display({})
 func _refresh_draft()->void:
 	if strokes.is_empty() and road_nodes.is_empty():road_token=""
 	plots.clear();node_changes.clear()
