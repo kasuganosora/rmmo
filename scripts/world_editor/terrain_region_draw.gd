@@ -21,7 +21,7 @@ func cancel() -> void:
 func pick(screen: Vector2) -> Vector3:
 	if not Rect2(Vector2.ZERO,editor._canvas.size).has_point(screen): return Vector3(INF,INF,INF)
 	var origin: Vector3=editor._camera.project_ray_origin(screen); var direction: Vector3=editor._camera.project_ray_normal(screen)
-	var hit: Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+direction*editor._camera.far))
+	var hit: Dictionary=editor._intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+direction*editor._camera.far))
 	if not hit.is_empty(): return hit.position
 	var at: Variant=Plane(Vector3.UP,0).intersects_ray(origin,direction)
 	return at if at!=null else Vector3(INF,INF,INF)

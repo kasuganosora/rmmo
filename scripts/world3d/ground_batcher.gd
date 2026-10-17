@@ -251,7 +251,7 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	sync_profile.material_us+=Time.get_ticks_usec()-mark
 	# Small surfaces use 128 m bins; a 200 m terrain uses 512 m bins. Never
 	# merge a whole city, so culling and local edits stay spatially bounded.
-	var extent: Vector3 = node.get_aabb().size
+	var extent: Vector3 = (node.custom_aabb if node.custom_aabb.has_volume() else node.get_aabb()).size
 	var kind:=Geometry.category(record)
 	var cell := maxf(32. if kind in ["fortification","vegetation"] else 128., pow(2., ceil(log(maxf(1., maxf(extent.x,extent.z))) / log(2.))) * (1. if kind in ["fortification","vegetation"] else 2.))
 	var center: Vector3 = node.global_position

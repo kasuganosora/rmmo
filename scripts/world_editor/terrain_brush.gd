@@ -51,8 +51,8 @@ func pick(screen: Vector2) -> Vector3:
 	var origin: Vector3=editor._camera.project_ray_origin(screen); var direction: Vector3=editor._camera.project_ray_normal(screen)
 	var query:=PhysicsRayQueryParameters3D.create(origin,origin+direction*editor._camera.far)
 	query.hit_back_faces=false
-	var hit: Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(query)
-	var targets:Array=preload("res://scripts/world3d/terrain_stroke_batch.gd").connected(editor._doc.records,record) if options.get("cross_tiles",true) else [record]
+	var hit: Dictionary=editor._intersect_ray(query)
+	var targets:Array=editor._terrain.spatial_index.connected(editor._doc.records,record) if options.get("cross_tiles",true) else [record]
 	if not hit.is_empty() and hit.normal.y>.01:
 		var hit_id:=preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 		for tile:Dictionary in targets:

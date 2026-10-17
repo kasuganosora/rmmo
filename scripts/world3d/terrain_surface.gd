@@ -81,6 +81,7 @@ static func mesh(record: Dictionary, fallback: Material, context: Dictionary={})
 	for slot in built.size():
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,built[slot]);result.surface_set_material(slot,material)
 		result.surface_set_name(slot,["terrain","bedrock_and_cut_edges","cultivation"][slot])
+	preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(result,built)
 	return result
 
 static func arrays(record:Dictionary,context:Dictionary={})->Array:
@@ -142,6 +143,30 @@ static func plot_height(world:Vector2,center:Vector2,args:Dictionary)->float:
 	var local:Vector2=(world-center).rotated(deg_to_rad(float(args.get("plot_yaw",0))))
 	var grade:Array=args.get("plot_grade",[0,0])
 	return float(args.target_height)+local.dot(Vector2(grade[0],grade[1]))
+static func boundary(t:Dictionary)->Array[Vector2i]:
+	# Preserve z-major order without visiting interior vertices.
+	var result:Array[Vector2i]=[]
+	for z in int(t.rows)+1:
+		if z==0 or z==int(t.rows):
+			for x in int(t.columns)+1:result.append(Vector2i(x,z))
+		else:result.append(Vector2i(0,z));result.append(Vector2i(int(t.columns),z))
+	return result
+
+static func brush_window(record:Dictionary,local:Vector3,reach:float,centers:bool=false)->Rect2i:
+	var t:Dictionary=record.terrain_mesh
+	var limit:=Vector2i(int(t.columns),int(t.rows))+(Vector2i.ZERO if centers else Vector2i.ONE)
+	# Retain the exact old path for tilted frames and large-coordinate rounding.
+	if record.rotation[0]!=0. or record.rotation[2]!=0. or maxf(absf(record.position[0]),absf(record.position[2]))>16384.:return Rect2i(Vector2i.ZERO,limit)
+	var step:=Vector2(record.size[0]/t.columns,record.size[2]/t.rows)
+	var precision_scale:=maxf(1.,maxf(maxf(absf(record.position[0]),absf(record.position[2])),maxf(record.size[0],record.size[2])))
+	if minf(step.x,step.y)<precision_scale*.00001:return Rect2i(Vector2i.ZERO,limit)
+	var shift:=.5 if centers else 0.
+	# One extra sample on either side conservatively covers float32 point math.
+	var lo:=Vector2i(floori((local.x-reach+record.size[0]*.5)/step.x-shift)-1,floori((local.z-reach+record.size[2]*.5)/step.y-shift)-1)
+	var hi:=Vector2i(ceili((local.x+reach+record.size[0]*.5)/step.x-shift)+2,ceili((local.z+reach+record.size[2]*.5)/step.y-shift)+2)
+	lo=lo.clamp(Vector2i.ZERO,limit);hi=hi.clamp(lo,limit)
+	return Rect2i(lo,hi-lo)
+
 static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 	var error:=S.validate(args,stroke_schema())
 	if not error.is_empty(): return fail(error)
@@ -169,17 +194,18 @@ static func stroke(record: Dictionary, args: Dictionary) -> Dictionary:
 		var local:=inverse*Vector3(world.x,record.position[1],world.y)
 		var reach:float=Vector2(float(args.get("plot_width",0)),float(args.get("plot_depth",0))).length()*.5+float(args.get("blend_margin",2)) if rectangular else radius
 		if absf(local.x)>record.size[0]*.5+reach or absf(local.z)>record.size[2]*.5+reach: continue
-		var old: Array=t.heights.duplicate()
+		var old: Array=t.heights.duplicate() if args.mode=="smooth" else t.heights
+		var window:=brush_window(record,local,reach,args.mode in ["hole","fill"])
 		if args.mode in ["hole","fill"]:
-			for z in int(t.rows):
-				for x in int(t.columns):
+			for z in range(window.position.y,window.end.y):
+				for x in range(window.position.x,window.end.x):
 					var p: Vector3=(point(next,x,z)+point(next,x+1,z+1))*.5
 					if Vector2(p.x-local.x,p.z-local.z).length()>radius: continue
 					var at: int=z*int(t.columns)+x; var hole: bool=args.mode=="hole"
 					if t.holes[at]!=hole: t.holes[at]=hole; touched[at]=true
 		else:
-			for z in range(int(t.rows)+1):
-				for x in range(int(t.columns)+1):
+			for z in range(window.position.y,window.end.y):
+				for x in range(window.position.x,window.end.x):
 					var p:=point(next,x,z); var w:=weight(Vector2(p.x-local.x,p.z-local.z).length(),radius,hardness)
 					var target:float=args.get("target_height",0)
 					if rectangular:

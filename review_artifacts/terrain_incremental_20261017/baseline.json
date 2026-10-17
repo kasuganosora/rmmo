@@ -1,0 +1,20 @@
+{
+  "commit": "c41f77c6a355e33b19da916ea69189483e503275",
+  "files": {
+    "terrain_surface_baseline.gd": {
+      "source": "scripts/world3d/terrain_surface.gd",
+      "sha256": "392a0d6e11c2273fbd862065eddb7653ced268a7547873a766b72b88c40c8e70"
+    },
+    "terrain_stroke_batch_baseline.gd": {
+      "source": "scripts/world3d/terrain_stroke_batch.gd",
+      "sha256": "cb002e53eeec5c62b52bd668d08361d12284c9ffb10e9be9744f00863d695472"
+    },
+    "terrain_neighbors_baseline.gd": {
+      "source": "scripts/world3d/terrain_neighbors.gd",
+      "sha256": "55dd226d8e2563594d2e1e9b95c76567931630dc29ae3e331b575698d192d99d"
+    }
+  },
+  "batch_adapter_sha256": "d4ef8d50c85b77f92f1b111cb59df937bebfa716128584346fdc2c0f601719c2",
+  "tools_source_sha256": "16c340e8efbd2b35f1b7602a8379546a530fb494d9a0534fdf695e6cd6880f79",
+  "tools_adapter_sha256": "b1c13f8bc68ff366873f966eea5d9db615fccfdf8d1f67c35f8babd975d789fd"
+}

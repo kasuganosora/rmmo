@@ -1,0 +1,1396 @@
+{
+  "failures": 0,
+  "method": "Four 64x64 terrain tiles. Same real UI brush input handler, 3 dabs plus release. Warm caches; warmup, 3 A/A pairs, 8 alternating A/B pairs. Full author bytes compared. Callback-to-ready includes batch queue empty, two physics frames and drawn frame. Baseline frozen prepare/neighbors plus full publication; both use current canonical CPU array retention and current pick broadphase. Regression threshold 10% for ready median, report A/A range; no GPU-time or cold/tail claim.",
+  "samples": [
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 59.84,
+        "last_commit_ms": 1.665,
+        "last_sync_ms": 4.801,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 93.989,
+        "max_commit_ms": 1.842,
+        "pending_groups": 0,
+        "rebuild_count": 3,
+        "release_groups_visited": 1,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 10,
+        "sync_profile_us": {
+          "capture_us": 84,
+          "geometry_us": 3,
+          "material_us": 4088
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1084.952,
+        1089.238,
+        1084.454,
+        1.493
+      ],
+      "callbacks_ms": 3260.168,
+      "label": "warmup_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3392.946,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 67.604,
+        "last_commit_ms": 1.175,
+        "last_sync_ms": 6.94,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 93.989,
+        "max_commit_ms": 1.989,
+        "pending_groups": 0,
+        "rebuild_count": 5,
+        "release_groups_visited": 2,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 16,
+        "sync_profile_us": {
+          "capture_us": 121,
+          "geometry_us": 0,
+          "material_us": 6050
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        474.187,
+        554.649,
+        588.741,
+        1.804
+      ],
+      "callbacks_ms": 1619.477,
+      "label": "warmup_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1771.744,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 66.813,
+        "last_commit_ms": 1.185,
+        "last_sync_ms": 3.416,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 93.989,
+        "max_commit_ms": 1.989,
+        "pending_groups": 0,
+        "rebuild_count": 7,
+        "release_groups_visited": 3,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 22,
+        "sync_profile_us": {
+          "capture_us": 68,
+          "geometry_us": 0,
+          "material_us": 2921
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1185.584,
+        1136.744,
+        1124.773,
+        1.487
+      ],
+      "callbacks_ms": 3448.62,
+      "label": "AA_0_a",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3583.898,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 66.887,
+        "last_commit_ms": 1.217,
+        "last_sync_ms": 3.396,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 93.989,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 9,
+        "release_groups_visited": 4,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 28,
+        "sync_profile_us": {
+          "capture_us": 68,
+          "geometry_us": 0,
+          "material_us": 2905
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1099.213,
+        1122.87,
+        1206.684,
+        1.488
+      ],
+      "callbacks_ms": 3430.287,
+      "label": "AA_0_b",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3573.902,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 118.699,
+        "last_commit_ms": 2.762,
+        "last_sync_ms": 3.175,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 11,
+        "release_groups_visited": 5,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 34,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 2,
+          "material_us": 2732
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1088.465,
+        1097.248,
+        1103.124,
+        1.496
+      ],
+      "callbacks_ms": 3290.366,
+      "label": "AA_1_a",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3471.025,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 84.071,
+        "last_commit_ms": 1.543,
+        "last_sync_ms": 3.126,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 13,
+        "release_groups_visited": 6,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 40,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 1,
+          "material_us": 2667
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1074.499,
+        1046.893,
+        1085.555,
+        1.503
+      ],
+      "callbacks_ms": 3208.481,
+      "label": "AA_1_b",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3355.863,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 83.448,
+        "last_commit_ms": 1.266,
+        "last_sync_ms": 3.454,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 15,
+        "release_groups_visited": 7,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 46,
+        "sync_profile_us": {
+          "capture_us": 69,
+          "geometry_us": 2,
+          "material_us": 2916
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1082.601,
+        1111.978,
+        1121.534,
+        1.473
+      ],
+      "callbacks_ms": 3317.62,
+      "label": "AA_2_a",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3477.13,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 68.638,
+        "last_commit_ms": 2.706,
+        "last_sync_ms": 3.127,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 17,
+        "release_groups_visited": 8,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 52,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 0,
+          "material_us": 2681
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1143.632,
+        1097.759,
+        1055.298,
+        1.502
+      ],
+      "callbacks_ms": 3298.225,
+      "label": "AA_2_b",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3428.175,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 110.665,
+        "last_commit_ms": 1.469,
+        "last_sync_ms": 4.726,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 19,
+        "release_groups_visited": 9,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 58,
+        "sync_profile_us": {
+          "capture_us": 112,
+          "geometry_us": 1,
+          "material_us": 4013
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1068.846,
+        1056.417,
+        1081.61,
+        1.531
+      ],
+      "callbacks_ms": 3208.44,
+      "label": "AB_0_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3389.526,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 82.735,
+        "last_commit_ms": 1.212,
+        "last_sync_ms": 3.863,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 21,
+        "release_groups_visited": 10,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 64,
+        "sync_profile_us": {
+          "capture_us": 84,
+          "geometry_us": 2,
+          "material_us": 3291
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        422.402,
+        443.856,
+        482.786,
+        1.822
+      ],
+      "callbacks_ms": 1350.926,
+      "label": "AB_0_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1504.291,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 100.742,
+        "last_commit_ms": 1.506,
+        "last_sync_ms": 3.068,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 23,
+        "release_groups_visited": 11,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 70,
+        "sync_profile_us": {
+          "capture_us": 49,
+          "geometry_us": 0,
+          "material_us": 2660
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        474.911,
+        413.647,
+        406.735,
+        1.823
+      ],
+      "callbacks_ms": 1297.17,
+      "label": "AB_1_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1461.704,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 102.756,
+        "last_commit_ms": 1.267,
+        "last_sync_ms": 3.411,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 118.699,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 25,
+        "release_groups_visited": 12,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 76,
+        "sync_profile_us": {
+          "capture_us": 73,
+          "geometry_us": 2,
+          "material_us": 2870
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1078.142,
+        1166.804,
+        1063.688,
+        1.55
+      ],
+      "callbacks_ms": 3310.219,
+      "label": "AB_1_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3489.882,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 83.846,
+        "last_commit_ms": 1.379,
+        "last_sync_ms": 3.119,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 27,
+        "release_groups_visited": 13,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 82,
+        "sync_profile_us": {
+          "capture_us": 58,
+          "geometry_us": 1,
+          "material_us": 2677
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1085.784,
+        1103.982,
+        1044.013,
+        1.479
+      ],
+      "callbacks_ms": 3235.291,
+      "label": "AB_2_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3382.326,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 67.854,
+        "last_commit_ms": 1.194,
+        "last_sync_ms": 8.091,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 29,
+        "release_groups_visited": 14,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 88,
+        "sync_profile_us": {
+          "capture_us": 136,
+          "geometry_us": 0,
+          "material_us": 7014
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        431.582,
+        407.502,
+        415.917,
+        9.26
+      ],
+      "callbacks_ms": 1264.387,
+      "label": "AB_2_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1423.948,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 83.794,
+        "last_commit_ms": 1.276,
+        "last_sync_ms": 3.157,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 31,
+        "release_groups_visited": 15,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 94,
+        "sync_profile_us": {
+          "capture_us": 49,
+          "geometry_us": 0,
+          "material_us": 2732
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        416.222,
+        406.102,
+        403.546,
+        1.792
+      ],
+      "callbacks_ms": 1227.719,
+      "label": "AB_3_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1375.937,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 84.65,
+        "last_commit_ms": 2.119,
+        "last_sync_ms": 3.216,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 33,
+        "release_groups_visited": 16,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 100,
+        "sync_profile_us": {
+          "capture_us": 60,
+          "geometry_us": 1,
+          "material_us": 2756
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1063.535,
+        1057.558,
+        1057.933,
+        1.546
+      ],
+      "callbacks_ms": 3180.607,
+      "label": "AB_3_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3327.542,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 83.815,
+        "last_commit_ms": 1.367,
+        "last_sync_ms": 3.164,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 35,
+        "release_groups_visited": 17,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 106,
+        "sync_profile_us": {
+          "capture_us": 60,
+          "geometry_us": 1,
+          "material_us": 2700
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1052.927,
+        1092.138,
+        1076.22,
+        1.544
+      ],
+      "callbacks_ms": 3222.866,
+      "label": "AB_4_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3369.265,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 85.52,
+        "last_commit_ms": 1.184,
+        "last_sync_ms": 3.243,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 37,
+        "release_groups_visited": 18,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 112,
+        "sync_profile_us": {
+          "capture_us": 51,
+          "geometry_us": 1,
+          "material_us": 2824
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        408.825,
+        405.554,
+        403.539,
+        1.815
+      ],
+      "callbacks_ms": 1219.788,
+      "label": "AB_4_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1381.268,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 100.358,
+        "last_commit_ms": 1.222,
+        "last_sync_ms": 3.09,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 39,
+        "release_groups_visited": 19,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 118,
+        "sync_profile_us": {
+          "capture_us": 54,
+          "geometry_us": 1,
+          "material_us": 2658
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        413.052,
+        416.649,
+        408.412,
+        1.809
+      ],
+      "callbacks_ms": 1239.981,
+      "label": "AB_5_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1403.739,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 85.066,
+        "last_commit_ms": 2.495,
+        "last_sync_ms": 3.15,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 41,
+        "release_groups_visited": 20,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 124,
+        "sync_profile_us": {
+          "capture_us": 60,
+          "geometry_us": 0,
+          "material_us": 2697
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1103.966,
+        1099.292,
+        1171.661,
+        1.522
+      ],
+      "callbacks_ms": 3376.474,
+      "label": "AB_5_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3522.802,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 100.355,
+        "last_commit_ms": 1.347,
+        "last_sync_ms": 3.291,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 43,
+        "release_groups_visited": 21,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 130,
+        "sync_profile_us": {
+          "capture_us": 65,
+          "geometry_us": 0,
+          "material_us": 2795
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1076.832,
+        1104.073,
+        1072.516,
+        1.488
+      ],
+      "callbacks_ms": 3254.943,
+      "label": "AB_6_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3418.936,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 85.34,
+        "last_commit_ms": 2.775,
+        "last_sync_ms": 3.235,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 45,
+        "release_groups_visited": 22,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 136,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 1,
+          "material_us": 2781
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        427.587,
+        424.981,
+        411.169,
+        1.803
+      ],
+      "callbacks_ms": 1265.602,
+      "label": "AB_6_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1412.821,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 100.821,
+        "last_commit_ms": 1.592,
+        "last_sync_ms": 3.136,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 47,
+        "release_groups_visited": 23,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 142,
+        "sync_profile_us": {
+          "capture_us": 46,
+          "geometry_us": 1,
+          "material_us": 2733
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        436.662,
+        428.132,
+        413.8,
+        1.775
+      ],
+      "callbacks_ms": 1280.422,
+      "label": "AB_7_new",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1443.547,
+      "version": "new"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 67.952,
+        "last_commit_ms": 2.025,
+        "last_sync_ms": 3.209,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 49,
+        "release_groups_visited": 24,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 148,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 1,
+          "material_us": 2767
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        1046.342,
+        1091.881,
+        1102.92,
+        1.528
+      ],
+      "callbacks_ms": 3242.706,
+      "label": "AB_7_old",
+      "local_work": [
+        {},
+        {},
+        {},
+        {}
+      ],
+      "ready_ms": 3373.277,
+      "version": "old"
+    },
+    {
+      "batches": {
+        "base_work_budget_usec": 2000,
+        "building_mesh_hits": 0,
+        "enabled": true,
+        "groups": 1,
+        "instanced_groups": 0,
+        "last_build_ms": 85.657,
+        "last_commit_ms": 1.376,
+        "last_sync_ms": 3.267,
+        "loading_budget_scopes": 0,
+        "max_build_ms": 125.196,
+        "max_commit_ms": 3.343,
+        "pending_groups": 0,
+        "rebuild_count": 51,
+        "release_groups_visited": 25,
+        "render_surfaces": 1,
+        "render_vertices": 19000,
+        "source_objects": 4,
+        "source_surfaces": 8,
+        "source_vertices": 36904,
+        "sync_count": 154,
+        "sync_profile_us": {
+          "capture_us": 59,
+          "geometry_us": 0,
+          "material_us": 2760
+        },
+        "work_budget_usec": 2000
+      },
+      "callbacks": [
+        436.835,
+        407.175,
+        415.194,
+        1.866
+      ],
+      "callbacks_ms": 1261.134,
+      "label": "contract_setup",
+      "local_work": [
+        {
+          "bytes": 268,
+          "collision_blocks": 1,
+          "private_copy": true,
+          "regions": 9,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 428,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        },
+        {
+          "bytes": 436,
+          "collision_blocks": 1,
+          "private_copy": false,
+          "regions": 8,
+          "total_blocks": 16
+        }
+      ],
+      "ready_ms": 1423.077,
+      "version": "new"
+    }
+  ]
+}

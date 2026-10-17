@@ -1,0 +1,180 @@
+{
+  "baseline_commit": "c41f77c6a355e33b19da916ea69189483e503275",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "engine": "Godot 4.7.2 stable ed1daf0bf Forward+ Vulkan AMD Radeon RX 7900 XTX",
+  "engine_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+  "source_sha256": {
+    "scripts/world3d/ground_batcher.gd": "cd9ad39debc33d189197f3526ed15929151e56bfccfcf6c33e6f3962bdde04e1",
+    "scripts/world3d/terrain_neighbors.gd": "37b9500cf60933d41de7edd2465db70bb7617d2efa086eea1abcfdaa38659f33",
+    "scripts/world3d/terrain_spatial_index.gd": "0fae488ad059d2f688fdb01a5be08eaebf560cee6de543395b453f4a4c1b6282",
+    "scripts/world3d/terrain_stroke_batch.gd": "13092531750b127a94aca9b73717cdb60a3fdbc7423b2d708dc8346452fce83b",
+    "scripts/world3d/terrain_surface.gd": "cb77956b9bbf27ee5246e4b0ce631d3b31ce0728016063c873e74742e44a6386",
+    "scripts/world3d/world_document.gd": "83a27ff068b7df32fd86d6db8ba493cde3cac3a3d4d009580907b676341273c8",
+    "scripts/world_editor/authoring_view.gd": "a7bf4ce4134755fe6603c1b9de2bfbbbc49bee57619ebc77eebd1e734bec803c",
+    "scripts/world_editor/placement_tools.gd": "b9cdd811a72a24e76a6e4051127ca5f95344cbca393fdba1ffcd51dddc3e39a6",
+    "scripts/world_editor/residential_placement_panel.gd": "83b625691cc01552401174bdb7be875f7dd3d52dafa6a9de5daf43814d339888",
+    "scripts/world_editor/surface_paint_tool.gd": "a65d926f9b111d01b03fa5ec2b58341bd2a02ad36278221f86e8086ac3b90ec0",
+    "scripts/world_editor/terrain_brush.gd": "465dad2dd7da189ddf7e1b3610d9c5aacb731936b4d997d048b4723182ddf4b6",
+    "scripts/world_editor/terrain_local_publish.gd": "0455206f0635d3fa521b11d4bc267d34660d430c4722d317fa13ee0e7c46c5bf",
+    "scripts/world_editor/terrain_region_draw.gd": "a9b928a9e4265b2404e54e358d092bdc53dfd09c5ddaf14e57828ae508c5fd0f",
+    "scripts/world_editor/terrain_tools.gd": "ab1d1d41785f74af86796841eb2733c1a0621b5a98e2c96abccb4d64ca62a400",
+    "scripts/world_editor/walk_mode.gd": "511e5090bfd37ca32e5015f72df262ff6139db9fda0ff579c620290913ffe2a3",
+    "scripts/world_editor/world_editor.gd": "a7926d7ef91e9764d216c926819be4bf80f2b8d4158d8d945a63d31a55e5b538",
+    "tools/benchmark_terrain_incremental_ui.gd": "1bc05bf73932036fd9a3fb1cf88f0e1d9924ac323c36aaf38b221ee337ee9cbd",
+    "tools/test_terrain_incremental.gd": "90b04f22d6e7420d0676505a1121b30b75bc0b40759130d7c20d9acf30a5347e",
+    "tools/test_terrain_local_publish.gd": "110696546d3ccec54069cc0070aaba459ca7653fb042df5b93157feeab4eab30",
+    "tools/test_terrain_validation.gd": "75ddb9c46d5fa4e8cb5569205a272001ab1d452874e3c0220de9693c56315584"
+  },
+  "tests": [
+    {
+      "test": "test_terrain_incremental",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 16.44,
+      "pass_lines": 0,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_surface",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 6.66,
+      "pass_lines": 15,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_erosion",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 6.78,
+      "pass_lines": 20,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_house_plot_coordinates",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 6.87,
+      "pass_lines": 11,
+      "errors": []
+    },
+    {
+      "test": "test_ground_cpu_mesh",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 6.81,
+      "pass_lines": 0,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_local_publish",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 12.91,
+      "pass_lines": 104,
+      "errors": []
+    },
+    {
+      "test": "test_world3d_terrain_sculpt",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 31.72,
+      "pass_lines": 113,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_cross_tiles",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 50.32,
+      "pass_lines": 70,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_follow_paint_http",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 30.11,
+      "pass_lines": 33,
+      "errors": []
+    },
+    {
+      "test": "test_world3d_ground_batching",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 29.47,
+      "pass_lines": 39,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_kerb_conformity",
+      "mode": "gpu",
+      "exit": 0,
+      "seconds": 47.68,
+      "pass_lines": 81,
+      "errors": []
+    },
+    {
+      "test": "test_terrain_validation",
+      "mode": "logic",
+      "exit": 0,
+      "seconds": 7.03,
+      "errors": [],
+      "fixture": "synthetic 2/8/16/64 grids, no formal-map dependency"
+    }
+  ],
+  "ui_benchmark": {
+    "file": "ui.json",
+    "sha256": "f98e8ba2cf7fca6caab404110c5ca5edeb76d4e3161eeb2b6a431987d0c170f0",
+    "pass_lines": 87
+  },
+  "algorithm_comparisons": 1132,
+  "validator_boundaries": 236,
+  "validator_fixtures": 8,
+  "gpu_pass_lines": 440,
+  "raster": [
+    {
+      "exact_pixels": true,
+      "view": "near"
+    },
+    {
+      "exact_pixels": true,
+      "view": "middle"
+    },
+    {
+      "exact_pixels": true,
+      "view": "far"
+    },
+    {
+      "exact_pixels": true,
+      "view": "hole"
+    }
+  ],
+  "metrics": "metrics.json",
+  "log_sha256": {
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_incremental.log": "3a41d72f4b4035bd34aa7156e66021e41a9740b7b094960bffbccb25538f1b97",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_surface.log": "109085060f1d18ef6ed1e4d25c7d9a104ef9146a805987f0bedca269963bcc24",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_erosion.log": "bc5d5523b0bf1ebdfa76478b516e48dbf95cbee2fb49a32d56fe62021e0ae816",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_house_plot_coordinates.log": "31632df328e7c044d6f804ce2e3e70a27599e524764ff0eeb70d7576f49685dd",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_ground_cpu_mesh.log": "0454afeb924402e5472a4a23fe13ce0081697da2a7ccbc635a884f645a64485e",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_local_publish.log": "da5295279b94e44a66826f44df43cbc2e9629ef036cb0296026d33851fea89be",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_world3d_terrain_sculpt.log": "76f6391a4c91e41c299eefc338c74160e442405a8db07092461d97f75d3ce07a",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_cross_tiles.log": "ac543d19e3ab5a9186736ea61f8b8d99a49c81e92c7aabbb4b8bdd3e81832cbf",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_follow_paint_http.log": "f6c80ed9423da7c96ccf92a4d7dd7c98777886cab1bbad2acde770f260540884",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_world3d_ground_batching.log": "0f39cc9d29f669225e7e10ccc81aebf61b33efb571b19db5f134713d3bb37d0b",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_kerb_conformity.log": "4d82a755de6ef7ec30d7cd5c4879adf3c4c22843ddca7f637be85c7ce01ae2c9",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\test_terrain_validation.log": "3bab568bdf2139b5b9211cf04405c5e23c7998d374c89088d4fb21a7f4f299f1",
+    "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\ui.log": "b7d0ce7ee4b625c34bed4e5fb0bf3ef9fc43bcc3bb6963aad5ef7226ff0ace0d"
+  },
+  "webp_manifest": "webp_compression.json",
+  "limitations": [
+    "Changed terrain still runs full CPU triangle/tangent generation; geometrically unchanged neighbor meshes are reused.",
+    "Topology/material/unsupported buffer layout changes retain full reconstruction.",
+    "First GPU edit copies private storage; later edits update regions.",
+    "Native shape queries synchronize on physics steps; transient editor rays use current exact CPU triangles.",
+    "Pixel oracle disables TAA jitter equally; actual UI benchmark retains project TAA settings.",
+    "Collider nodes increase to at most 16 exact shapes per 64x64 patch; no process RSS/VRAM reduction asserted."
+  ],
+  "isolation": "Only isolated worktree code/docs and disposable external maps/assets. No mutation of scene-building checkout, formal maps or its processes."
+}

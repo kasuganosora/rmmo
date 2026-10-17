@@ -1,0 +1,98 @@
+[
+  {
+    "test": "test_terrain_incremental",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 16.44,
+    "pass_lines": 0,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_surface",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 6.66,
+    "pass_lines": 15,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_erosion",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 6.78,
+    "pass_lines": 20,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_house_plot_coordinates",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 6.87,
+    "pass_lines": 11,
+    "errors": []
+  },
+  {
+    "test": "test_ground_cpu_mesh",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 6.81,
+    "pass_lines": 0,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_local_publish",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 12.91,
+    "pass_lines": 104,
+    "errors": []
+  },
+  {
+    "test": "test_world3d_terrain_sculpt",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 31.72,
+    "pass_lines": 113,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_cross_tiles",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 50.32,
+    "pass_lines": 70,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_follow_paint_http",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 30.11,
+    "pass_lines": 33,
+    "errors": []
+  },
+  {
+    "test": "test_world3d_ground_batching",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 29.47,
+    "pass_lines": 39,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_kerb_conformity",
+    "mode": "gpu",
+    "exit": 0,
+    "seconds": 47.68,
+    "pass_lines": 81,
+    "errors": []
+  },
+  {
+    "test": "test_terrain_validation",
+    "mode": "logic",
+    "exit": 0,
+    "seconds": 7.03,
+    "errors": [],
+    "fixture": "synthetic 2/8/16/64 grids, no formal-map dependency"
+  }
+]

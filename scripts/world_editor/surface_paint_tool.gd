@@ -72,7 +72,7 @@ func pick(screen: Vector2) -> Dictionary:
 	var direction: Vector3 = editor._camera.project_ray_normal(screen)
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * editor._camera.far)
 	query.hit_back_faces = false
-	var hit: Dictionary = editor.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit: Dictionary = editor._intersect_ray(query)
 	if hit.is_empty(): return Paint.fail("没有命中可绘制表面")
 	var id := preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit)
 	var record: Dictionary = editor._doc._find(id)

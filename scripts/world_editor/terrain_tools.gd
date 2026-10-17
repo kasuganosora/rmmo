@@ -4,6 +4,7 @@ const Geometry=preload("res://scripts/world_editor/selection_geometry.gd")
 const Foot=preload("res://scripts/world_editor/building_footprint.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 var editor: Node3D
+var spatial_index=preload("res://scripts/world3d/terrain_spatial_index.gd").new()
 
 func catalog() -> Dictionary:
 	var rows: Array=[]
@@ -80,7 +81,7 @@ func prepare(args: Dictionary,defer_fortifications:bool=false) -> Dictionary:
 	var record: Dictionary=editor._doc._find(args.id)
 	if not record.has("terrain_mesh") or not editor._record_editable(record): return Terrain.fail("目标必须是可见、解锁且在当前楼层的地形")
 	if record.has("surface_paint"): return Terrain.fail("地形上有手刷表面；请先清除表面绘制再雕刻，以免覆盖手工材质。整体地形材质不受影响")
-	var result:=preload("res://scripts/world3d/terrain_stroke_batch.gd").prepare(editor._doc.records,record,args)
+	var result:=preload("res://scripts/world3d/terrain_stroke_batch.gd").prepare(editor._doc.records,record,args,spatial_index)
 	if not result.ok or not result.changed:return result
 	var ids:Array=result.entries.map(func(entry):return entry.record.uuid)
 	ids.append_array(preload("res://scripts/world_editor/terrain_follow_tools.gd").affected(editor._doc.records,ids).map(func(r):return r.uuid))

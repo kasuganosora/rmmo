@@ -12,8 +12,8 @@ static func connected(records:Array, seed:Dictionary)->Array:
 			if adjacent(current,r):seen[str(r.uuid)]=true;result.append(r)
 	return result
 
-static func prepare(records:Array, seed:Dictionary, args:Dictionary)->Dictionary:
-	var sources:Array=connected(records,seed) if args.get("cross_tiles",true) else [seed]
+static func prepare(records:Array, seed:Dictionary, args:Dictionary,index:Variant=null)->Dictionary:
+	var sources:Array=(connected(records,seed) if index==null else index.connected(records,seed)) if args.get("cross_tiles",true) else [seed]
 	if sources.size()>256:return T.fail("单次跨块笔刷最多连接 256 块地形，请拆分地形组")
 	var entries:Array=[];var seams:Dictionary={}
 	for source:Dictionary in sources:
@@ -22,14 +22,13 @@ static func prepare(records:Array, seed:Dictionary, args:Dictionary)->Dictionary
 		if not entry.ok:return entry
 		entries.append(entry)
 		var r:Dictionary=entry.record;var data:Dictionary=r.terrain_mesh;var transform:=T.transform(r)
-		for z in int(data.rows)+1:
-			for x in int(data.columns)+1:
-				if x>0 and x<int(data.columns) and z>0 and z<int(data.rows):continue
-				var at:=z*(int(data.columns)+1)+x;var p:=transform*T.point(r,x,z)
-				var original:=transform*T.point(source,x,z)
-				var key:=Vector3i((original*1000.).round())
-				if not seams.has(key):seams[key]=[]
-				seams[key].append({"entry":entry,"source":source,"at":at,"height":p.y})
+		for grid:Vector2i in T.boundary(data):
+			var x:=grid.x;var z:=grid.y
+			var at:=z*(int(data.columns)+1)+x;var p:=transform*T.point(r,x,z)
+			var original:=transform*T.point(source,x,z)
+			var key:=Vector3i((original*1000.).round())
+			if not seams.has(key):seams[key]=[]
+			seams[key].append({"entry":entry,"source":source,"at":at,"height":p.y})
 	# Resolve shared samples from the same pre-stroke snapshot, once. Smoothing at
 	# tile edges must not depend on document order or accumulate a second stamp.
 	for bucket:Array in seams.values():
@@ -47,19 +46,20 @@ static func prepare(records:Array, seed:Dictionary, args:Dictionary)->Dictionary
 	# Mixed resolutions share a piecewise-linear boundary through their common
 	# knots. Fine-only samples are constrained to that curve (not independently
 	# raised), so both the rendered surface and collision meet without cracks.
+	var pairs:Array=[]
 	for i in entries.size():
 		for j in range(i+1,entries.size()):
-			if not adjacent(sources[i],sources[j]):continue
+			var linked:bool=adjacent(sources[i],sources[j]) if index==null else str(sources[j].uuid) in index.neighbors(str(sources[i].uuid))
+			if not linked:continue
+			pairs.append(Vector2i(i,j))
 			var joined:=join_edges(sources[i],sources[j],entries[i].record,entries[j].record)
 			if not joined.ok:return joined
 	# Partial edges and T junctions may not have enough common grid knots to
 	# represent a stamp on both sides. Check the complete result, since joining a
 	# later neighbour can also change a corner already used by an earlier pair.
-	for i in entries.size():
-		for j in range(i+1,entries.size()):
-			if not adjacent(sources[i],sources[j]):continue
-			var checked:=validate_edge_continuity(sources[i],sources[j],entries[i].record,entries[j].record)
-			if not checked.ok:return checked
+	for pair:Vector2i in pairs:
+		var checked:=validate_edge_continuity(sources[pair.x],sources[pair.y],entries[pair.x].record,entries[pair.y].record)
+		if not checked.ok:return checked
 	var changed:Array=[];var count:=0
 	for i in entries.size():
 		var entry:Dictionary=entries[i];var source:Dictionary=sources[i];var r:Dictionary=entry.record
@@ -67,7 +67,11 @@ static func prepare(records:Array, seed:Dictionary, args:Dictionary)->Dictionary
 		for z in int(r.terrain_mesh.rows):
 			for x in int(r.terrain_mesh.columns):
 				var at:=z*int(r.terrain_mesh.columns)+x
-				if r.terrain_mesh.holes[at]!=source.terrain_mesh.holes[at] or T.cell(r,x,z)!=T.cell(source,x,z):entry.cells.append(at)
+				var stride:=int(r.terrain_mesh.columns)+1;var vertex:=z*stride+x
+				var height_changed:=false
+				for k in [vertex,vertex+1,vertex+stride,vertex+stride+1]:
+					if r.terrain_mesh.heights[k]!=source.terrain_mesh.heights[k]:height_changed=true;break
+				if r.terrain_mesh.holes[at]!=source.terrain_mesh.holes[at] or (height_changed and T.cell(r,x,z)!=T.cell(source,x,z)):entry.cells.append(at)
 		entry.changed=not entry.cells.is_empty()
 		if entry.changed:changed.append(entry);count+=entry.cells.size()
 	var target:Dictionary=entries[sources.find(seed)]
@@ -81,10 +85,8 @@ static func adjacent(a:Dictionary,b:Dictionary)->bool:
 
 static func edge_vertices(r:Dictionary)->Array:
 	var result:Array=[];var pose:=T.transform(r);var t:Dictionary=r.terrain_mesh
-	for z in int(t.rows)+1:
-		for x in int(t.columns)+1:
-			if x!=0 and z!=0 and x!=int(t.columns) and z!=int(t.rows):continue
-			result.append({"at":z*(int(t.columns)+1)+x,"p":pose*T.point(r,x,z)})
+	for grid:Vector2i in T.boundary(t):
+		result.append({"at":grid.y*(int(t.columns)+1)+grid.x,"p":pose*T.point(r,grid.x,grid.y)})
 	return result
 
 static func edge_height(r:Dictionary,p:Vector3)->float:
@@ -113,8 +115,18 @@ static func validate_edge_continuity(a:Dictionary,b:Dictionary,na:Dictionary,nb:
 
 static func join_edges(a:Dictionary,b:Dictionary,na:Dictionary,nb:Dictionary)->Dictionary:
 	var av:=edge_vertices(a);var bv:=edge_vertices(b);var anchors:Array=[]
+	var buckets:Dictionary={}
+	for i in bv.size():
+		var p:Vector3=bv[i].p;var key:=Vector2i(floori(p.x*1000.),floori(p.z*1000.))
+		if not buckets.has(key):buckets[key]=[]
+		buckets[key].append(i)
 	for va:Dictionary in av:
-		for vb:Dictionary in bv:
+		var key:=Vector2i(floori(va.p.x*1000.),floori(va.p.z*1000.));var candidates:Array=[]
+		for dz in range(-2,3):
+			for dx in range(-2,3):candidates.append_array(buckets.get(key+Vector2i(dx,dz),[]))
+		candidates.sort() # Original edge order also determines common-knot rounding.
+		for i:int in candidates:
+			var vb:Dictionary=bv[i]
 			if Vector2(va.p.x,va.p.z).distance_to(Vector2(vb.p.x,vb.p.z))>.001:continue
 			if absf(va.p.y-vb.p.y)>.001:continue # Never silently repair pre-existing steps.
 			var ha:float=na.position[1]+na.terrain_mesh.heights[va.at]*na.size[1]

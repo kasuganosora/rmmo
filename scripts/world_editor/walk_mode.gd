@@ -164,7 +164,7 @@ func _clear(feet:Vector3)->bool:
 
 func _ground(point:Vector3,above:float,below:float)->Vector3:
 	var query:=PhysicsRayQueryParameters3D.create(point+Vector3.UP*above,point-Vector3.UP*below,WALK_MASK)
-	var hit:Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(query)
+	var hit:Dictionary=editor._intersect_ray(query)
 	if hit.is_empty() or hit.normal.y<cos(deg_to_rad(45)):return Vector3.INF
 	var feet:Vector3=hit.position+Vector3.UP*.025
 	return feet if _clear(feet) else Vector3.INF
@@ -173,7 +173,7 @@ func _entry_point()->Vector3:
 	var camera:Camera3D=editor._camera
 	var screen:Vector2=editor._canvas.size*.5
 	var origin:=camera.project_ray_origin(screen)
-	var hit:Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+camera.project_ray_normal(screen)*camera.far,WALK_MASK))
+	var hit:Dictionary=editor._intersect_ray(PhysicsRayQueryParameters3D.create(origin,origin+camera.project_ray_normal(screen)*camera.far,WALK_MASK))
 	var centers:Array[Vector3]=[editor._orbit_center,Vector3(editor._authoring.settings.spawn[0],editor._authoring.settings.spawn[1],editor._authoring.settings.spawn[2])]
 	if not hit.is_empty():centers.push_front(hit.position)
 	for center in centers:

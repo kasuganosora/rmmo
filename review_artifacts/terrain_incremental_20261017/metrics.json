@@ -1,0 +1,55 @@
+{
+  "ui": {
+    "old": {
+      "n": 8,
+      "callbacks_ms": {
+        "median": 3238.9985,
+        "min": 3180.607,
+        "max": 3376.474
+      },
+      "ready_ms": {
+        "median": 3385.926,
+        "min": 3327.542,
+        "max": 3522.802
+      }
+    },
+    "new": {
+      "n": 8,
+      "callbacks_ms": {
+        "median": 1264.9945,
+        "min": 1219.788,
+        "max": 1350.926
+      },
+      "ready_ms": {
+        "median": 1418.3845000000001,
+        "min": 1375.937,
+        "max": 1504.291
+      }
+    }
+  },
+  "aa": {
+    "callbacks_ms": {
+      "median": 3307.9224999999997,
+      "min": 3208.481,
+      "max": 3448.62
+    },
+    "ready_ms": {
+      "median": 3474.0775000000003,
+      "min": 3355.863,
+      "max": 3583.898
+    }
+  },
+  "relative": {
+    "callbacks_ms": -0.6094488774848151,
+    "ready_ms": -0.5810940640758244
+  },
+  "cpu_median_us": {
+    "brush_new_us": 4245.166666666665,
+    "brush_old_us": 127866.0,
+    "connected_new_us": 48.2,
+    "connected_old_us": 550.1,
+    "neighbors_new_us": 14594.5,
+    "neighbors_old_us": 27706.5
+  },
+  "scope": "Fixture-only warm CPU/UI measurements. No runtime streaming, cold-cache, GPU-time, process RSS or VRAM claim."
+}

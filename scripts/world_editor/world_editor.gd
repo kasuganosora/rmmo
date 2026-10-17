@@ -486,7 +486,7 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 			return
 	var end := origin + _camera.project_ray_normal(screen) * _camera.far
 	var query := PhysicsRayQueryParameters3D.create(origin, end)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := _intersect_ray(query)
 	if hit.is_empty():
 		if _mode == 1:
 			_inspector.select("")
@@ -690,7 +690,9 @@ func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> 
 		_bodies_by_uuid[uuid].append(body)
 		var shape := CollisionShape3D.new()
 		var collision_mesh:Mesh=visual.get_meta("paint_source",visual.mesh)
-		if collision_mesh is BoxMesh:
+		var local_terrain:=preload("res://scripts/world_editor/terrain_local_publish.gd").initialize(visual,visual.get_meta("ground_batch_record",{}),body,_doc.terrain_neighbors.data.get(uuid,{}))
+		if local_terrain:shape.free()
+		elif collision_mesh is BoxMesh:
 			var box := BoxShape3D.new()
 			box.size = visual.get_aabb().size
 			shape.shape = box
@@ -698,7 +700,7 @@ func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> 
 		else:
 			shape.shape = _picking_shapes.shape_for(collision_mesh)
 		body.transform = visual.global_transform
-		body.add_child(shape)
+		if not local_terrain:body.add_child(shape)
 		add_child(body)
 		body.force_update_transform()
 	if recursive:
@@ -838,6 +840,16 @@ func _refresh_records(ids: Array[String], record_index:Variant=null) -> void:
 	if is_instance_valid(_ground_batches): _ground_batches.release_sources(old_nodes)
 	# Rebuild only cells whose rule variant changed, including erased cells.
 	for uuid in ids:
+		var existing:=_view.get_node_or_null(NodePath(uuid))
+		var updated:Dictionary=by_id.get(uuid,{})
+		var context:Dictionary=_doc.terrain_neighbors.data.get(uuid,{})
+		var local_packet:=preload("res://scripts/world_editor/terrain_local_publish.gd").prepare(existing,updated,context)
+		if not local_packet.is_empty():
+			preload("res://scripts/world_editor/terrain_local_publish.gd").publish(existing,local_packet,context)
+			_authoring.decorate(updated,existing)
+			for body:StaticBody3D in _bodies_by_uuid.get(uuid,[]):body.collision_layer=_body_layers(existing) if _body_node_enabled(existing) else 0
+			if _city.overlay!=null:_city.overlay.invalidate_uuid(uuid,updated)
+			continue
 		for body in _bodies_by_uuid.get(uuid, []): body.free()
 		_bodies_by_uuid.erase(uuid)
 		var previous := _view.get_node_or_null(NodePath(uuid))
@@ -1433,7 +1445,7 @@ func _refresh_selection(sync_batches: bool=true, selected_records: Variant=null)
 func _pick_object(screen: Vector2) -> String:
 	var origin := _camera.project_ray_origin(screen)
 	var query := PhysicsRayQueryParameters3D.create(origin, origin + _camera.project_ray_normal(screen) * _camera.far)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := _intersect_ray(query)
 	return FortCollision.hit_uuid(hit)
 
 
@@ -1665,3 +1677,6 @@ func _restore_previous() -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	dialog.popup_centered()
+
+func _intersect_ray(query:PhysicsRayQueryParameters3D)->Dictionary:
+	return preload("res://scripts/world_editor/terrain_local_publish.gd").intersect_ray(get_world_3d().direct_space_state,query,self)

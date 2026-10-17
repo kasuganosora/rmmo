@@ -1,0 +1,106 @@
+[
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\far_full.png",
+    "source_sha256": "55b6ef5c84fcc02787d5b4b2be19784e65d291f3ca0b17e2e2249ad33e9125de",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\far_full.webp",
+    "sha256": "ec7fb67634d3bb92e9ef0de5a53d49c9109e3e2d5918528e4eb0e5093170b9f1",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\far_partial.png",
+    "source_sha256": "55b6ef5c84fcc02787d5b4b2be19784e65d291f3ca0b17e2e2249ad33e9125de",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\far_partial.webp",
+    "sha256": "ec7fb67634d3bb92e9ef0de5a53d49c9109e3e2d5918528e4eb0e5093170b9f1",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\hole_full.png",
+    "source_sha256": "f594016cf7bb83baf4bedd774c3b3db81787d95f2f343a9dd02d9e91ed81d7e8",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\hole_full.webp",
+    "sha256": "8c866a2e8ba4fcc1428cabb3fc06539c77c567dcdad71212fb8b2131448415d5",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\hole_partial.png",
+    "source_sha256": "f594016cf7bb83baf4bedd774c3b3db81787d95f2f343a9dd02d9e91ed81d7e8",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\hole_partial.webp",
+    "sha256": "8c866a2e8ba4fcc1428cabb3fc06539c77c567dcdad71212fb8b2131448415d5",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\middle_full.png",
+    "source_sha256": "299de79c3927b19ccc3807a96b4e455a1c642cd21b3ba0d10572b2cad327e0a2",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\middle_full.webp",
+    "sha256": "c741420beb4cf64906a9a26703793693c9186f782d57a70be3a6c4298c33b57a",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\middle_partial.png",
+    "source_sha256": "299de79c3927b19ccc3807a96b4e455a1c642cd21b3ba0d10572b2cad327e0a2",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\middle_partial.webp",
+    "sha256": "c741420beb4cf64906a9a26703793693c9186f782d57a70be3a6c4298c33b57a",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\near_full.png",
+    "source_sha256": "448e7dc5d7c19c7ada5df650eae78ea67a9408e89ca219e09af0c7b226c53ad5",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\near_full.webp",
+    "sha256": "fc97a7a9b772ce7b2367bd265efb9201c0b7be44f4d6b4b4e86e48da0b0dce29",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  },
+  {
+    "source": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\near_partial.png",
+    "source_sha256": "448e7dc5d7c19c7ada5df650eae78ea67a9408e89ca219e09af0c7b226c53ad5",
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\terrain_incremental_20261017\\near_partial.webp",
+    "sha256": "fc97a7a9b772ce7b2367bd265efb9201c0b7be44f4d6b4b4e86e48da0b0dce29",
+    "quality": 90,
+    "lossless": false,
+    "size": [
+      960,
+      720
+    ],
+    "format": "lossy WebP"
+  }
+]

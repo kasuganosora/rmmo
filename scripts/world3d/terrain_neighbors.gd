@@ -4,6 +4,11 @@ const Terrain=preload("res://scripts/world3d/terrain_surface.gd")
 var data: Dictionary={}
 var signature: Array=[]
 var sources: Dictionary={}
+var edge_cache:Dictionary={}
+var point_index:Dictionary={}
+var dependents:Dictionary={}
+var last_work:Dictionary={}
+
 static func compatible(a: Dictionary,b: Dictionary) -> bool:
 	var ta:=Terrain.transform(a); var tb:=Terrain.transform(b)
 	if not ta.basis.is_equal_approx(tb.basis): return false
@@ -19,26 +24,56 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 		if not r.has("terrain_mesh") or absf(r.rotation[0])>.00001 or absf(r.rotation[2])>.00001: continue
 		selected[str(r.uuid)]=r; next.append([r.uuid,r.position,r.rotation,r.size,r.terrain_mesh])
 	if signature==next: return []
+	last_work={"boundary_vertices":0,"contexts":0,"records":selected.size()}
+	var dirty:Dictionary={};var affected:Dictionary={}
+	for id:String in edge_cache:
+		var old:Dictionary=edge_cache[id]
+		var r:Dictionary=selected.get(id,{})
+		if not r.is_empty() and old.signature==[r.position,r.rotation,r.size,r.terrain_mesh]:continue
+		dirty[id]=true;affected[id]=true
+		for other:String in dependents.get(id,[]):affected[other]=true
+		for edge:Dictionary in old.edges:
+			var bucket:Array=point_index[edge.key]
+			for v:Dictionary in bucket:affected[v.id]=true
+			bucket.erase(edge)
+			if bucket.is_empty():point_index.erase(edge.key)
+	for id:String in dirty:edge_cache.erase(id)
 	signature=next.duplicate(true); sources=selected
-	var points:={}; var joins:={}; var normals:={}
-	for id: String in sources:
-		var r: Dictionary=sources[id]; var t: Dictionary=r.terrain_mesh; var world:=Terrain.transform(r)
-		joins[id]={}; normals[id]={}
-		for z in int(t.rows)+1:
-			for x in int(t.columns)+1:
-				if x>0 and x<int(t.columns) and z>0 and z<int(t.rows): continue
-				if not (Terrain.solid(t,x-1,z-1) or Terrain.solid(t,x,z-1) or Terrain.solid(t,x-1,z) or Terrain.solid(t,x,z)): continue
-				var k:=Vector3i((world*Terrain.point(r,x,z)*1000.).round())
-				if not points.has(k): points[k]=[]
-				points[k].append({"id":id,"at":z*(int(t.columns)+1)+x,"n":world.basis*Terrain.normal(r,x,z)})
-	for bucket: Array in points.values():
-		if bucket.size()<2: continue
-		for a: Dictionary in bucket:
-			var sum: Vector3=a.n; var count:=1
-			for b: Dictionary in bucket:
-				if a.id==b.id or not compatible(sources[a.id],sources[b.id]): continue
-				sum+=b.n; count+=1; joins[a.id][b.id]=true
-			if count>1: normals[a.id][a.at]=Terrain.transform(sources[a.id]).basis.inverse()*sum.normalized()
+	var ranks:Dictionary={};var rank:=0
+	for id:String in sources:
+		ranks[id]=rank;rank+=1
+		if edge_cache.has(id):continue
+		dirty[id]=true;affected[id]=true
+		var r:Dictionary=sources[id];var t:Dictionary=r.terrain_mesh;var world:=Terrain.transform(r)
+		var edges:Array=[]
+		for grid:Vector2i in Terrain.boundary(t):
+			var x:=grid.x;var z:=grid.y
+			if not (Terrain.solid(t,x-1,z-1) or Terrain.solid(t,x,z-1) or Terrain.solid(t,x-1,z) or Terrain.solid(t,x,z)):continue
+			var key:=Vector3i((world*Terrain.point(r,x,z)*1000.).round())
+			var edge:={"id":id,"key":key,"at":z*(int(t.columns)+1)+x,"n":world.basis*Terrain.normal(r,x,z)}
+			if not point_index.has(key):point_index[key]=[]
+			point_index[key].append(edge);edges.append(edge);last_work.boundary_vertices+=1
+			for other:Dictionary in point_index[key]:affected[other.id]=true
+		edge_cache[id]={"signature":[r.position,r.rotation,r.size,r.terrain_mesh].duplicate(true),"edges":edges}
+	var joins:Dictionary={};var normals:Dictionary={}
+	# Query only buckets belonging to invalidated boundaries. Unchanged edge
+	# descriptors and halo dependencies survive height-only edits elsewhere.
+	for id:String in sources:
+		joins[id]={};normals[id]={}
+		if not affected.has(id) and data.has(id):
+			for other:String in data[id].neighbors:joins[id][other]=true
+			normals[id]=data[id].normals;continue
+		var pairs:Dictionary={}
+		for edge:Dictionary in edge_cache[id].edges:
+			var bucket:Array=point_index[edge.key].duplicate()
+			bucket.sort_custom(func(a,b):return a.at<b.at if a.id==b.id else ranks[a.id]<ranks[b.id])
+			var sum:Vector3=edge.n;var count:=1
+			for other:Dictionary in bucket:
+				if id==other.id:continue
+				if not pairs.has(other.id):pairs[other.id]=compatible(sources[id],sources[other.id])
+				if not pairs[other.id]:continue
+				sum+=other.n;count+=1;joins[id][other.id]=true
+			if count>1:normals[id][edge.at]=Terrain.transform(sources[id]).basis.inverse()*sum.normalized()
 	var changed: Array[String]=[]; var fresh:={}; var pending:Array=[]
 	for id: String in sources:
 		var r: Dictionary=sources[id]; var neighbors: Array=joins[id].keys(); neighbors.sort()
@@ -46,6 +81,7 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 		for other: String in neighbors:
 			var n: Dictionary=sources[other]; local_signature.append([n.position,n.rotation,n.size,n.terrain_mesh])
 		if data.has(id) and data[id].signature==local_signature: fresh[id]=data[id]; continue
+		last_work.contexts+=1
 		pending.append({"id":id,"record":r,"neighbors":neighbors,"signature":local_signature,"normals":normals[id],"result":{}})
 		changed.append(id)
 	# Workers only own their output entry; source records remain immutable.
@@ -61,6 +97,11 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 	for entry:Dictionary in pending:fresh[entry.id]=entry.result
 	for id: String in data:
 		if not fresh.has(id): changed.append(id)
+	dependents.clear()
+	for id:String in fresh:
+		for other:String in fresh[id].neighbors:
+			if not dependents.has(other):dependents[other]=[]
+			dependents[other].append(id)
 	data=fresh
 	return changed
 

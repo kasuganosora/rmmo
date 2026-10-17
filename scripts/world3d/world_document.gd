@@ -491,7 +491,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 			var slot:=prepared.get_surface_count()-1
 			prepared.surface_set_material(slot,preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if record.has("road_mesh") and slot==3 else material)
 			prepared.surface_set_name(slot,(["volume_terrain"] if record.has("terrain_volume") else (["terrain","bedrock_and_cut_edges","cultivation"] if record.has("terrain_mesh") else ["pavement","underside","edge","automatic_kerb"]))[slot])
-		if record.has("road_mesh"):preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(prepared,load_surface_arrays[str(record.uuid)])
+		if record.has("road_mesh") or record.has("terrain_mesh"):preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(prepared,load_surface_arrays[str(record.uuid)])
 		mesh_node.mesh=prepared
 		if timings!=null:timings.arraymesh_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	else:

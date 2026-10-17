@@ -219,7 +219,7 @@ func use_view_center() -> void:
 	var screen:Vector2=editor._canvas.size*.5
 	var origin:Vector3=editor._camera.project_ray_origin(screen)
 	var ray:=PhysicsRayQueryParameters3D.create(origin,origin+editor._camera.project_ray_normal(screen)*editor._camera.far)
-	var hit:Dictionary=editor.get_world_3d().direct_space_state.intersect_ray(ray)
+	var hit:Dictionary=editor._intersect_ray(ray)
 	if hit.is_empty() or hit.normal.y<.5:
 		report({"ok":false,"error":"画面中心没有可拾取的朝上表面，请调整视角或填写 XYZ。"}); return
 	var values:Dictionary=form.values(); values.position=Blueprint.arr(hit.position)

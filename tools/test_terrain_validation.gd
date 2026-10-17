@@ -37,12 +37,18 @@ func run()->void:
 	var empty:Dictionary=base.duplicate(true);empty.terrain_mesh.holes.fill(true);cases.append(empty)
 	for r:Dictionary in cases:
 		if Terrain.valid(r)!=reference(r):failed+=1;push_error("terrain validator mismatch: "+str(r))
-	var Cache=preload("res://scripts/world3d/map_metadata_cache.gd")
-	var path:="D:/code/rmmo_runtime/maps/medieval_river_town/map.gltf";var metadata:=Cache.read(path,FileAccess.get_sha256(path))
+	# Keep correctness/large-grid coverage independent of a user's formal map.
+	var fixtures:Array=[]
+	for cells:int in [2,8,16,64]:
+		for holes_enabled:bool in [false,true]:
+			var r:Dictionary=base.duplicate(true);r.terrain_mesh.columns=cells;r.terrain_mesh.rows=cells
+			r.terrain_mesh.heights.resize((cells+1)*(cells+1));r.terrain_mesh.heights.fill(.25)
+			r.terrain_mesh.holes.resize(cells*cells);r.terrain_mesh.holes.fill(false);r.terrain_mesh.holes[0]=holes_enabled
+			fixtures.append(r)
 	var old_us:=0;var new_us:=0;var count:=0
-	for r:Dictionary in metadata.rmmo_records:
+	for r:Dictionary in fixtures:
 		if not r.has("terrain_mesh"):continue
 		var start:=Time.get_ticks_usec();var expected:=reference(r);old_us+=Time.get_ticks_usec()-start;start=Time.get_ticks_usec()
 		var actual:=Terrain.valid(r);new_us+=Time.get_ticks_usec()-start;count+=1
 		if actual!=expected:failed+=1
-	print("TERRAIN_VALIDATION ",JSON.stringify({"failures":failed,"boundaries":cases.size(),"town_patches":count,"old_us":old_us,"new_us":new_us}));quit(1 if failed else 0)
+	print("TERRAIN_VALIDATION ",JSON.stringify({"failures":failed,"boundaries":cases.size(),"fixture_patches":count,"old_us":old_us,"new_us":new_us}));quit(1 if failed else 0)

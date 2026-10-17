@@ -58,7 +58,7 @@ func _ray(from: Vector3, to: Vector3) -> Dictionary:
 			for body in editor._bodies_by_uuid.get(str(record.uuid), []): excluded.append(body.get_rid())
 	var query := PhysicsRayQueryParameters3D.create(from, to, 0xffffffff, excluded)
 	query.hit_back_faces = false
-	return editor.get_world_3d().direct_space_state.intersect_ray(query)
+	return editor._intersect_ray(query)
 
 func _screen_hit(screen: Vector2) -> Dictionary:
 	if not Rect2(Vector2.ZERO, editor._canvas.size).has_point(screen): return {}
