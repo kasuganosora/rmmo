@@ -883,3 +883,8 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 四类住宅预览的 `residential` 参数均支持可选 `entrance_id` 和 `support_mode`，单栋直接放在顶层。多个入口省略选择时拒绝，非法身份返回 `entrance_not_found`。选择后的实际入口在 `access.entrance_id` 中返回；柱墩模式在 `support.support_mode`、`components` 和 `underfloor_clearances` 中返回证明范围。`support_mode` 省略时沿用源建筑已保存模式，否则默认连续基础。应用／放弃仍只需原有 `plan_token`，应用后原生 `save_world`。
 
 柱墩、圆拱入口的限定结构、净空和旧模型边界见[建筑说明](world_editor_buildings.md#显式入口与柱墩支撑2026-10-17e1-f)。不以配方补造基础或凭入口标记跳过实际碰撞；只绑定 loopback，二维工具未恢复。
+
+
+### PNG16 高度图扩展（2026-10-17）
+
+`preview_heightmap_import.format` 新增 `png16`，只接受非交错 16 位单通道灰度且无透明／动画的 PNG，尺寸从 IHDR 获取；可选 `samples_x/z` 如提供须匹配。返回 `bit_depth:16`，原始采样精度为 `height_scale/65535`；不经过 gamma、重采样或 8 位转换。其余候选、资源根、输入预算、撤销与保存合同沿用原接口。见 [地形说明](world_editor_terrain_sculpt.md#png16-高度图2026-10-17)。

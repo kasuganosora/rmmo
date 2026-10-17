@@ -16,7 +16,7 @@ func button(text:String,callback:Callable)->Button:
 	var item:=Button.new();item.text=text;add_child(item);item.pressed.connect(callback);return item
 func setup(value:Node3D)->void:
 	editor=value
-	var note:=Label.new();note.text="导入空白区域。支持 8 位单通道灰度 PNG、无头 16 位小端 R16；宽高为 17/33/65/129/257/513 个采样点。按原采样分为可雕刻地块，共享边界，不缩放重采样、不覆盖既有内容。";note.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;add_child(note)
+	var note:=Label.new();note.text="导入空白区域。支持 8 位／16 位单通道灰度 PNG（16 位须非交错、无透明）、无头 16 位小端 R16；宽高为 17/33/65/129/257/513 个采样点。按原采样分为可雕刻地块，共享边界，不缩放重采样、不覆盖既有内容。";note.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;add_child(note)
 	path=LineEdit.new();path.placeholder_text="资源根内的高度图绝对路径";add_child(path);path.text_changed.connect(func(_s):invalidate())
 	button("选择高度图",func():
 		var dialog:=FileDialog.new();dialog.access=FileDialog.ACCESS_FILESYSTEM;dialog.file_mode=FileDialog.FILE_MODE_OPEN_FILE;dialog.current_dir=Importer.Paths.external_root();dialog.filters=PackedStringArray(["*.png,*.r16,*.raw ; 高度图"]);add_child(dialog)
@@ -37,7 +37,7 @@ func setup(value:Node3D)->void:
 	diagnostics=preload("res://scripts/world_editor/diagnostic_panel.gd").new();add_child(diagnostics);diagnostics.setup(editor)
 func request()->Dictionary:
 	var args:Dictionary=fields.values();args.path=path.text.strip_edges()
-	if args.format=="png8":args.erase("samples_x");args.erase("samples_z")
+	if args.format in ["png8","png16"]:args.erase("samples_x");args.erase("samples_z")
 	return args
 func invalidate()->void:
 	if not token.is_empty():editor._heightmap.discard(token)

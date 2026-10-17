@@ -1,0 +1,9 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: saved heightmap matches actual UI/HTTP fixture SHA
+PASS: four independent native terrain colliders from saved import
+PASS: uphill across four-way tile join reaches destination on continuous physical ground, with no unsupported/rejected ticks
+PASS: downhill across four-way tile join reaches destination on continuous physical ground, with no unsupported/rejected ticks
+HEIGHTMAP_RUNTIME passed=4 failures=0

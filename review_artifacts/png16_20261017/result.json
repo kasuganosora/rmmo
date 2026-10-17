@@ -1,0 +1,83 @@
+{
+	"batch_stats": {
+		"base_work_budget_usec": 2000,
+		"building_mesh_hits": 0,
+		"enabled": true,
+		"groups": 1,
+		"instanced_groups": 0,
+		"last_build_ms": 49.284,
+		"last_commit_ms": 0.279,
+		"last_sync_ms": 3.155,
+		"loading_budget_scopes": 0,
+		"max_build_ms": 49.284,
+		"max_commit_ms": 0.279,
+		"pending_groups": 0,
+		"rebuild_count": 1,
+		"release_groups_visited": 0,
+		"render_surfaces": 1,
+		"render_vertices": 19000,
+		"source_objects": 4,
+		"source_surfaces": 8,
+		"source_vertices": 36904,
+		"sync_count": 17,
+		"sync_profile_us": {
+			"capture_us": 56,
+			"geometry_us": 0,
+			"material_us": 2726
+		},
+		"work_budget_usec": 2000
+	},
+	"checks": 79,
+	"failures": 0,
+	"link_test": "not supplied; link guard not exercised",
+	"map": "D:/code/rmmo_runtime/cache/world3d/heightmap_12365665/map.gltf",
+	"map_sha256": "a05648f4c5a63779d672eb32347d7208ae87c36e57d6b11e89930f227e17184a",
+	"max_seam": 0.0,
+	"plan": {
+		"base_version": "8d852ee496e593f0f88e512275d04877eaa0376b7a99fff5a2fa87d88dece06b",
+		"bit_depth": 16.0,
+		"bounds": {
+			"position": [
+				16.0,
+				-16.0,
+				16.0
+			],
+			"size": [
+				32.0,
+				17.0,
+				32.0
+			]
+		},
+		"cell_count": 16384.0,
+		"cell_size": [
+			0.25,
+			0.25
+		],
+		"format": "png16",
+		"height_range": [
+			0.0,
+			1.0
+		],
+		"ok": true,
+		"orientation": "rows increase toward +Z",
+		"plan_token": "ce793c5760a74e367e78ee7b8afc9c40d336a4c11dc9b366",
+		"precision": "source samples retained without resampling or gamma conversion; native render/collision vertices use float32",
+		"publication": "single authoring transaction; native terrain refresh and shared derived batching",
+		"quantization_step": 0.00001525902189669,
+		"samples": [
+			129.0,
+			129.0
+		],
+		"source_bytes": 1346.0,
+		"source_sha256": "6d03a48a2ab6158153c16c0d91dfa6ef2cfc48e35765c7b51c96048d305fc92a",
+		"terrain_ids": [
+			"heightmap_79be5f1be0ee0bb4_0_0",
+			"heightmap_79be5f1be0ee0bb4_1_0",
+			"heightmap_79be5f1be0ee0bb4_0_1",
+			"heightmap_79be5f1be0ee0bb4_1_1"
+		],
+		"tile_count": 4.0
+	},
+	"source": "D:/code/rmmo_runtime/cache/world3d/heightmap_12365665/input16.png",
+	"source_sha256": "6d03a48a2ab6158153c16c0d91dfa6ef2cfc48e35765c7b51c96048d305fc92a"
+}

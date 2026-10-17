@@ -11,7 +11,7 @@ const MAX_BYTES:=4*1024*1024
 var editor:Node3D
 var candidate:Dictionary={}
 static func schema()->Dictionary:
-	return City.object({"path":City.text(2048),"format":{"type":"string","enum":["png8","r16le"]},"samples_x":{"type":"integer","minimum":17,"maximum":513},"samples_z":{"type":"integer","minimum":17,"maximum":513},"center":T.S.vector(-100000,100000),"width":T.S.number(2,2048),"depth":T.S.number(2,2048),"height_scale":T.S.number(.01,900),"bedrock_depth":T.S.number(1,100),"name":City.text(64),"flip_z":{"type":"boolean"}},["path","format","center","width","depth","height_scale"])
+	return City.object({"path":City.text(2048),"format":{"type":"string","enum":["png8","png16","r16le"]},"samples_x":{"type":"integer","minimum":17,"maximum":513},"samples_z":{"type":"integer","minimum":17,"maximum":513},"center":T.S.vector(-100000,100000),"width":T.S.number(2,2048),"depth":T.S.number(2,2048),"height_scale":T.S.number(.01,900),"bedrock_depth":T.S.number(1,100),"name":City.text(64),"flip_z":{"type":"boolean"}},["path","format","center","width","depth","height_scale"])
 static func fail(message:String,code:String="heightmap_constraint")->Dictionary:return {"ok":false,"code":code,"error":message}
 static func digest(bytes:PackedByteArray)->String:
 	var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256);hash.update(bytes);return hash.finish().hex_encode()
@@ -23,10 +23,15 @@ static func decode(args:Dictionary)->Dictionary:
 	if file.get_length()>MAX_BYTES:return fail("高度图文件超过 4 MiB 输入预算")
 	var bytes:=file.get_buffer(file.get_length());file.close()
 	var width:int=args.get("samples_x",0);var height:int=args.get("samples_z",0);var values:Array=[];var bits:=16
-	if args.format=="png8":
+	if args.format=="png16":
+		var decoded:=preload("res://scripts/world_editor/heightmap_png16.gd").decode(bytes)
+		if not decoded.ok:return decoded
+		width=decoded.width;height=decoded.height;values=decoded.values
+		if args.get("samples_x",width)!=width or args.get("samples_z",height)!=height:return fail("提供的采样尺寸与 PNG 头不一致")
+	elif args.format=="png8":
 		if bytes.size()<33 or bytes.slice(0,8).hex_encode()!="89504e470d0a1a0a" or bytes.slice(12,16).get_string_from_ascii()!="IHDR":return fail("需要有效的灰度 PNG 文件")
 		width=big32(bytes,16);height=big32(bytes,20);bits=int(bytes[24])
-		if bits!=8 or bytes[25]!=0:return fail("PNG 首版只接受 8 位单通道灰度；16 位请使用无头小端 R16，避免静默降精度","heightmap_format_unsupported")
+		if bits!=8 or bytes[25]!=0:return fail("png8 格式仅接受 8 位单通道灰度；16 位请选择 png16 或无头小端 R16","heightmap_format_unsupported")
 		if width not in DIMENSIONS or height not in DIMENSIONS:return fail("图像宽高须为 17、33、65、129、257 或 513 像素")
 		if args.get("samples_x",width)!=width or args.get("samples_z",height)!=height:return fail("提供的采样尺寸与 PNG 头不一致")
 		var image:=Image.new()

@@ -1,0 +1,76 @@
+{
+	"cases": [
+		{
+			"case": "filter_0.png",
+			"ok": true,
+			"source_sha256": "094f957a4f4d43ad05346cdc6324c09e42526866b9c8d286531410676265e86c"
+		},
+		{
+			"case": "filter_1.png",
+			"ok": true,
+			"source_sha256": "281a252b56ac5e83a472eb7c41f1e860f3b6845730842c00548de5559ed4ae19"
+		},
+		{
+			"case": "filter_2.png",
+			"ok": true,
+			"source_sha256": "4ac2a5fcb88fd595a94a9643b7c0a4a7ae5c3ef775535ad4d84a9a1f85a2a6ad"
+		},
+		{
+			"case": "filter_3.png",
+			"ok": true,
+			"source_sha256": "69aa6624d60240da9df00183419d5d3fa03bdf1d72c08a4886b01d92b2c92261"
+		},
+		{
+			"case": "filter_4.png",
+			"ok": true,
+			"source_sha256": "e33b8560103e266d444b108be3e619afa14b3254a97e53545b31b0ae658bc64d"
+		},
+		{
+			"case": "filter_5.png",
+			"ok": true,
+			"source_sha256": "b353460e24ed55a4292be045905a0e0f1e19ed743e1cb8e5c25edf61244ddfef"
+		},
+		{
+			"case": "interlace.png",
+			"ok": true,
+			"source_sha256": "b8f64f5012b74d6294cf59baf254664342f5d0f7f6f8e342a52aa6763237cae9"
+		},
+		{
+			"case": "rgb.png",
+			"ok": true,
+			"source_sha256": "d507a2caa6c678e1c47d83d889b1935818606f77869fd1ca52fd8c29f5efce00"
+		},
+		{
+			"case": "eight.png",
+			"ok": true,
+			"source_sha256": "773fc74cff13fc6a4813e38968a552d202f24877856ba1d9459e58168d20f7c1"
+		},
+		{
+			"case": "transparent.png",
+			"ok": true,
+			"source_sha256": "cba43b34df4fa5dddc53cc69cd2ec5c642ded3991d39a80741dd23b77468e7d7"
+		},
+		{
+			"case": "excess.png",
+			"ok": true,
+			"source_sha256": "ea3479db60721ad3d8ff26d4b4a214e3b256f935c60f0e3897e8a967384340aa"
+		},
+		{
+			"case": "crc.png",
+			"ok": true,
+			"source_sha256": "715a2ae857a9eab166285141d7a9b67389b58d4de2c00baff4b6f08d882fc0ac"
+		},
+		{
+			"case": "truncated.png",
+			"ok": true,
+			"source_sha256": "261743ce223658b71017038decf3a3171d05b5e11d896379c9377fb64ffa49ab"
+		},
+		{
+			"case": "tail.png",
+			"ok": true,
+			"source_sha256": "891acd170d9add5b19e56eb42d5b808f5d37c3e8d48744aaad7e352c0da69351"
+		}
+	],
+	"checks": 14,
+	"failures": 0
+}

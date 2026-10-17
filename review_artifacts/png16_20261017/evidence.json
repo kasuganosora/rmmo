@@ -1,0 +1,198 @@
+{
+  "feature": "T4-D bounded raw PNG16 heightmap import",
+  "base_commit": "f276796b637929a2de4bf7f03919f0b9ca4528f8",
+  "checks": {
+    "inputs/result.json": 14,
+    "result.json": 79,
+    "runtime.json": 4,
+    "compat/result.json": 70
+  },
+  "total_checks": 167,
+  "failures": 0,
+  "sources": [
+    {
+      "path": "scripts\\world_editor\\heightmap_png16.gd",
+      "sha256": "2015ecb6720debc92de1cac8ec1e5cdd4475e46979c8fbf1e27db9af5932a39a",
+      "bytes": 4034,
+      "lf_sha256": "2015ecb6720debc92de1cac8ec1e5cdd4475e46979c8fbf1e27db9af5932a39a"
+    },
+    {
+      "path": "scripts\\world_editor\\terrain_heightmap.gd",
+      "sha256": "880b7e7182eef47d18a2c7a0069ceaba0c1917cbc86f0e3928a907a823698ed3",
+      "bytes": 10478,
+      "lf_sha256": "7e61e6a40771598dd58dbb957716cb5015185843b9624a46424715f65cf4038d"
+    },
+    {
+      "path": "scripts\\world_editor\\terrain_heightmap_panel.gd",
+      "sha256": "76fb09439bb54e4c2373e22c43172e016d26ba98c2b1d790a6f453b4328ee751",
+      "bytes": 5326,
+      "lf_sha256": "7e6cd8e9d3c9adcb99476c340ad7c1f2f9c4d87cdd917cee9edbf146be0b3be9"
+    },
+    {
+      "path": "scripts\\world_editor\\mcp_schema.gd",
+      "sha256": "62334b9f4412c85157cd43dd2c80c5bf6b6e1f51288d787c410f918bef6a1a8b",
+      "bytes": 65535,
+      "lf_sha256": "1f86bf1641d8712d93b9dd51e62592485bc11fdd9c45b26c10581abb117fa0ef"
+    },
+    {
+      "path": "tools\\make_png16_test_inputs.py",
+      "sha256": "c090b9581f37ece0bfe54c5a8b763a595f4d80226bdb6e2f6b1b563f36f0bfbf",
+      "bytes": 2995,
+      "lf_sha256": "c090b9581f37ece0bfe54c5a8b763a595f4d80226bdb6e2f6b1b563f36f0bfbf"
+    },
+    {
+      "path": "tools\\test_png16_decode.gd",
+      "sha256": "4a6cf962d66aaaa957ffc431b0cdf1e82931fbaebdf0d947714dee047aee5278",
+      "bytes": 1127,
+      "lf_sha256": "4a6cf962d66aaaa957ffc431b0cdf1e82931fbaebdf0d947714dee047aee5278"
+    },
+    {
+      "path": "tools\\test_heightmap_import.gd",
+      "sha256": "3d2fcf1ce49027139c0f2f7507d70aa1f2f060cf25239ea43725634338cedd0a",
+      "bytes": 12469,
+      "lf_sha256": "a919f7e7df8e9afedac3aa2bab0717bafb73cb5d36421a7ec083fdb8863ef713"
+    },
+    {
+      "path": "tools\\test_heightmap_runtime.gd",
+      "sha256": "7a4c3881abc979fb8b1ac151e1a4c1d426b51aca2106e79713f6e2c191ce8f3a",
+      "bytes": 2536,
+      "lf_sha256": "7a4c3881abc979fb8b1ac151e1a4c1d426b51aca2106e79713f6e2c191ce8f3a"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "review_artifacts\\png16_20261017\\result.json",
+      "sha256": "789aec59def65a639ac8e74da6a1b88e57521f3cd093f3f72093d88ffb169949",
+      "bytes": 2182
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\http_engine.log",
+      "sha256": "3ce00680319f63810b3658fefc68e2f13f6b6e710de134930f053cf81100dc97",
+      "bytes": 5128
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\http_console.log",
+      "sha256": "4f515d83fe23c3819c9e61b70407c88af6cd528b8ece3e4a456809043ef0b9c4",
+      "bytes": 5227
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\runtime.json",
+      "sha256": "a0f783a6622d85265fe6224f7fe8e69a01b9156b30a08f0449f4fd9dd6536fc9",
+      "bytes": 770
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\runtime_engine.log",
+      "sha256": "dcda9b43f0c239c2481c8820e96db517783c224d3757bb5a82f2334bcec6f1c9",
+      "bytes": 643
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\runtime_console.log",
+      "sha256": "857a6ade5af24a4f459d6eae5e9982875f53261eceea53dc23e1d9577439e0ee",
+      "bytes": 652
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\decode.log",
+      "sha256": "f44edec732f98a6b1f1b3e3887f7cb51013ecf43b8018a068a23a1b762a4aac8",
+      "bytes": 663
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\inputs\\result.json",
+      "sha256": "6e95bbe16b86f5dc1e00b78884136509536eb7823ddc1ded1dbee867783eec76",
+      "bytes": 1966
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\inputs\\cases.json",
+      "sha256": "bd3041d9370e0e6d2e4865d5845b4e5382c1cb88628ef8468f134692f6cb177d",
+      "bytes": 12574
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\compat\\result.json",
+      "sha256": "6032360efc2653a2c5edc9310375d43e5b14317f81ee4002bc734ac89031e63c",
+      "bytes": 2180
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\compat\\engine.log",
+      "sha256": "f28cdc5307a9d513a63cf6052ac86dfa8015fd14c1aad850ad32ee79d55c1df4",
+      "bytes": 3637
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\compat\\console.log",
+      "sha256": "aa8d91b1c7a8bf8c8bd267367fb8d7417cc8fdfb0c8a5e45ad0de6a83fd0c743",
+      "bytes": 3712
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\ui.webp",
+      "sha256": "34cb3e9dbaf66af882b501c5c0dde3500712fc68c94133431cb0a3195f22ff1c",
+      "bytes": 161322
+    },
+    {
+      "path": "review_artifacts\\png16_20261017\\compression.json",
+      "sha256": "1ecd279c267d700916b3f6f132610b5e7fd9e145cb62e588e9a702bdb0fb78b5",
+      "bytes": 208
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12365665\\map.gltf",
+      "sha256": "a05648f4c5a63779d672eb32347d7208ae87c36e57d6b11e89930f227e17184a",
+      "bytes": 4767,
+      "source": {
+        "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12365665\\input16.png",
+        "sha256": "6d03a48a2ab6158153c16c0d91dfa6ef2cfc48e35765c7b51c96048d305fc92a",
+        "bytes": 1346
+      },
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12365665\\map.gltf.resources\\17254152139f835b4b3c9d6766eb1fa84ca757dfcac15da3ac2a0c55686950cd.rmres",
+          "sha256": "17254152139f835b4b3c9d6766eb1fa84ca757dfcac15da3ac2a0c55686950cd",
+          "bytes": 2041
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12365665\\map.gltf.resources\\1b2a710586da372e88ab530f6155b9803b49519abf21f276988da255f51efae0.rmres",
+          "sha256": "1b2a710586da372e88ab530f6155b9803b49519abf21f276988da255f51efae0",
+          "bytes": 1972
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12365665\\map.gltf.resources\\23909e89278b3e5c61d1097abd22da91a95ca9b397af057a16fa43d59ffb2999.rmres",
+          "sha256": "23909e89278b3e5c61d1097abd22da91a95ca9b397af057a16fa43d59ffb2999",
+          "bytes": 1920
+        }
+      ]
+    },
+    {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12787126\\map.gltf",
+      "sha256": "a383b26237a6e4fb6cd42eda278e5db261856784289ca69082caa953810b368e",
+      "bytes": 4766,
+      "source": {
+        "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12787126\\input.r16",
+        "sha256": "501c8c5342b13775410683ef359e4b171e52d970769cb552058da5ff0c175830",
+        "bytes": 33282
+      },
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12787126\\map.gltf.resources\\1d48c8b7d1e1b4ec924650a04fdcea1ddbaa78edb68d3743701b6690e7a0f2f6.rmres",
+          "sha256": "1d48c8b7d1e1b4ec924650a04fdcea1ddbaa78edb68d3743701b6690e7a0f2f6",
+          "bytes": 989
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12787126\\map.gltf.resources\\864f06bbd0747ea553fd053d4772e775027fe4a4f85ca25d13f6222e3ad81a8f.rmres",
+          "sha256": "864f06bbd0747ea553fd053d4772e775027fe4a4f85ca25d13f6222e3ad81a8f",
+          "bytes": 1163
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\heightmap_12787126\\map.gltf.resources\\91343a752382050338cc4030d2590ade0d6e3a79f457d90bb8f363942c2993e8.rmres",
+          "sha256": "91343a752382050338cc4030d2590ade0d6e3a79f457d90bb8f363942c2993e8",
+          "bytes": 1000
+        }
+      ]
+    }
+  ],
+  "reference": "https://www.w3.org/TR/png-3/",
+  "scope": [
+    "noninterlaced grayscale 16-bit PNG, filters 0-4, split IDAT, exact low bits and endpoints; no gamma conversion",
+    "real HTTP and UI parity; bad CRC, transparency, interlace, oversized decompressed stream rejected atomically; invalid decompression deliberately emits engine error in negative test",
+    "native save/reopen and sculptability, single undo/redo, shared static batches measured",
+    "native four-way tile collision crossing both directions; PNG8 and R16 compatibility; resource-link guard reuses prior unchanged contract"
+  ],
+  "engine": "Godot 4.7.2 stable ed1daf0bf"
+}

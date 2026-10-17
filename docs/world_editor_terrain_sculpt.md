@@ -196,3 +196,10 @@ UI 笔刷及中心线河道与当前 3D `preview_terrain_stroke` / `sculpt_terra
 ```
 
 真实 UI／HTTP **73 项通过、0 失败**，覆盖源精度、原生边界、翻转、PNG8、PNG16 拒绝、坏尺寸、超预算、真实链接、源变化、极细参数变化、过期地图、候选损坏、整组撤销重做、自动合批、保存重开及继续雕刻。保存图另执行四块交点的上下坡物理通行；具体结果与源／代码／地图身份见[本批证据](../review_artifacts/heightmap_import_20261017/evidence.json)。全部使用独立临时地图和不激活图形桌面，未修改正式场景；高度图可表达陡坡，此导入功能不承诺任意输入都可通行。
+
+
+## PNG16 高度图（2026-10-17）
+
+高度图页新增 `png16`：16 位单通道灰度、非交错、无透明／动画。使用 PNG 原始大端采样与五种标准行滤波，绕开图像颜色与 8 位转换，gAMA 等颜色提示不改变高度数据；按 `sample / 65535 × height_scale + center.Y` 映射米制标高。尺寸取自 PNG 头，不使用 RAW 采样数；支持范围和资源根、4 MiB 输入、64 块／262144 格、0.25–4 米格距预算与原导入相同。CRC、截断、压缩长度、关键块或滤波非法时拒绝；Adam7、彩色和透明图须先导出为受支持灰度格式。渲染／碰撞顶点仍受原生 float32 精度约束，保留源采样并不表示任意世界坐标都具有 16 位高度精度。
+
+参考 [W3C PNG 第三版](https://www.w3.org/TR/png-3/) 的字节顺序、块校验和滤波定义，以及 [Godot PackedByteArray](https://docs.godotengine.org/en/4.7/classes/class_packedbytearray.html) 的定长解压接口。UI 和 `preview_heightmap_import` 共用同一解码／候选，原有应用、放弃、源 SHA 变化检查及一次撤销不变。

@@ -5,6 +5,7 @@ const Batch=preload("res://scripts/world3d/terrain_stroke_batch.gd")
 var count:=0
 var link_test:="not_run"
 var link_source:=""
+var png16_source:=""
 var output:="D:/code/rmmo_runtime/review_artifacts/heightmap_import_20261017"
 func check(ok_:bool,label_:String)->void:count+=1;super.check(ok_,label_)
 func snapshot()->String:return City.token([editor._doc.recovery_snapshot(),editor._doc._undo,editor._doc._redo,editor._dirty,editor._selection_tools.ids])
@@ -14,6 +15,7 @@ func run()->void:
 	create_timer(420).timeout.connect(func():quit(2));rpc_timeout_ms=120000;root.size=Vector2i(1600,1000)
 	for argument:String in OS.get_cmdline_user_args():
 		if argument.begins_with("--output="):output=argument.trim_prefix("--output=")
+		if argument.begins_with("--png16-source="):png16_source=argument.trim_prefix("--png16-source=")
 		if argument.begins_with("--link-source="):link_source=argument.trim_prefix("--link-source=")
 	DirAccess.make_dir_recursive_absolute(output)
 	var directory:=Paths.cache_directory("heightmap_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)
@@ -22,6 +24,8 @@ func run()->void:
 		for x in 129:
 			var value:=mini(65535,(x+z)*256);var at:=(z*129+x)*2;raw[at]=value&255;raw[at+1]=(value>>8)&255
 	var source:=directory.path_join("input.r16");FileAccess.open(source,FileAccess.WRITE).store_buffer(raw)
+	if not png16_source.is_empty():
+		source=directory.path_join("input16.png");raw=FileAccess.get_file_as_bytes(png16_source);FileAccess.open(source,FileAccess.WRITE).store_buffer(raw)
 	var png:=Image.create(17,17,false,Image.FORMAT_L8)
 	for z in 17:
 		for x in 17:png.set_pixel(x,z,Color(float(x)/16.,float(x)/16.,float(x)/16.))
@@ -36,15 +40,17 @@ func run()->void:
 	var definitions:Array=(await rpc("tools/list")).result.tools
 	for name_:String in ["preview_heightmap_import","apply_heightmap_import","discard_heightmap_import"]:check(definitions.any(func(t):return t.name==name_),"discovered "+name_)
 	var args:Dictionary={"path":source,"format":"r16le","samples_x":129,"samples_z":129,"center":[32.,0.,32.],"width":32.,"depth":32.,"height_scale":1.,"bedrock_depth":16.,"name":"R16 测试地形","flip_z":false}
+	if not png16_source.is_empty():args.format="png16";args.erase("samples_x");args.erase("samples_z")
 	var before:=snapshot();var plan:=await call_tool("preview_heightmap_import",args)
 	if not plan.get("ok",false):quit(1);return
-	check(snapshot()==before and plan.tile_count==4 and plan.cell_count==16384 and plan.bit_depth==16,"private R16 preview creates four native tiles without author side effects")
+	check(snapshot()==before and plan.tile_count==4 and plan.cell_count==16384 and plan.bit_depth==16,"private 16-bit preview creates four native tiles without author side effects")
 	check(absf(plan.quantization_step-1./65535.)<1e-12 and plan.source_sha256==FileAccess.get_sha256(source),"true 16-bit source identity and quantization reported")
+	if not png16_source.is_empty():check(editor._heightmap.visual(plan.plan_token)[0].terrain_mesh.heights[1]==257./65535.,"PNG16 preserves low byte that an 8-bit image conversion would discard")
 	var again:=await call_tool("preview_heightmap_import",args);check(again.plan_token==plan.plan_token,"same request and source reuse candidate")
 	var precise:=await call_tool("preview_heightmap_import",args.merged({"height_scale":1.00000001},true));check(precise.plan_token!=plan.plan_token,"sub-microunit input changes cannot reuse another height candidate")
 	plan=await call_tool("preview_heightmap_import",args)
 	var records:Array=editor._heightmap.visual(plan.plan_token)
-	check(records[0].terrain_mesh.heights[1]==256./65535.,"R16 low byte precision is retained without 8-bit conversion")
+	check(records[0].terrain_mesh.heights[1]==(256. if png16_source.is_empty() else 257.)/65535.,"16-bit low byte precision is retained without 8-bit conversion")
 	var max_seam:=0.
 	for a:Dictionary in records:
 		for b:Dictionary in records:
@@ -67,6 +73,10 @@ func run()->void:
 	var invalid_png:=FileAccess.get_file_as_bytes(png_path);invalid_png[24]=16;var invalid_path:=directory.path_join("png16.png");FileAccess.open(invalid_path,FileAccess.WRITE).store_buffer(invalid_png)
 	var png_args:Dictionary={"path":png_path,"format":"png8","center":[-20.,0.,0.],"width":16.,"depth":16.,"height_scale":1.}
 	await reject("preview_heightmap_import",png_args.merged({"path":invalid_path},true))
+	if not png16_source.is_empty():
+		for bad_name:String in ["crc.png","interlace.png","transparent.png","excess.png"]:
+			var bad_path:=directory.path_join(bad_name);FileAccess.open(bad_path,FileAccess.WRITE).store_buffer(FileAccess.get_file_as_bytes(png16_source.get_base_dir().path_join(bad_name)))
+			await reject("preview_heightmap_import",args.merged({"path":bad_path},true))
 	var oversized:=directory.path_join("oversized.r16");var oversized_file:=FileAccess.open(oversized,FileAccess.WRITE);oversized_file.seek(Importer.MAX_BYTES);oversized_file.store_8(0);oversized_file.close()
 	await reject("preview_heightmap_import",args.merged({"path":oversized},true))
 	var eight:=await call_tool("preview_heightmap_import",png_args);check(eight.bit_depth==8 and eight.tile_count==1,"8-bit grayscale PNG imports without implicit resampling")
@@ -77,7 +87,7 @@ func run()->void:
 	plan=await call_tool("preview_heightmap_import",args)
 	await call_tool("create_terrain",{"center":[100.,0.,100.],"width":4.,"depth":4.,"cell_size":1.})
 	await reject("apply_heightmap_import",{"plan_token":plan.plan_token});await call_tool("undo")
-	var ui=editor._terrain_panel.heightmap;var values:=args.duplicate();values.erase("path");ui.path.text=source;ui.fields.update_values(values)
+	var ui=editor._terrain_panel.heightmap;var values:=args.duplicate();values.erase("path");ui.path.text=source;ui.fields.update_values(ui.fields.values().merged(values,true))
 	check(equivalent(ui.request(),args),"UI exposes the same explicit import parameters")
 	var ui_before:=snapshot();var ui_plan:Dictionary=ui.preview();check(ui_plan.ok and ui_plan.source_sha256==plan.source_sha256 and ui_plan.tile_count==4 and snapshot()==ui_before,"real UI preview matches HTTP geometry and source")
 	for i in editor._dock_tabs.get_tab_count():
