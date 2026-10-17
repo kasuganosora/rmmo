@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\04_s12_arch_side_detail_20261017.png",
+  "source_sha256": "7b924fa961de045690d773df71d54a000d82ca2513e8bda56b8f00011a32dca7",
+  "source_bytes": 171162,
+  "path": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\04_s12_arch_side_detail_20261017.webp",
+  "sha256": "65e96dfc8510fbe1f61458f6189c27316689c2b200b6494f4d84b85872a56fa2",
+  "bytes": 19836,
+  "dimensions": [
+    288,
+    305
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": false,
+  "intended_use": "openai_review"
+}

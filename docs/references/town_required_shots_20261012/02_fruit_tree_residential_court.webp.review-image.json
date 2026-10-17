@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\02_fruit_tree_residential_court.png",
+  "source_sha256": "a83db37fe2088d0492756bbeab6f20e4dcd5152380c87a5710bb9c417a93c9cd",
+  "source_bytes": 1599897,
+  "path": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\02_fruit_tree_residential_court.webp",
+  "sha256": "d1cd02f5ce071c9611649a41c865a07c6718213db26e4374ab07ead6019970ca",
+  "bytes": 141096,
+  "dimensions": [
+    1307,
+    735
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": true,
+  "intended_use": "openai_review"
+}

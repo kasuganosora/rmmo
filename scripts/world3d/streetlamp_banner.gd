@@ -57,13 +57,21 @@ static func apply(root:Node3D,record:Dictionary)->void:
 	# Fabric must not become a solid obstacle; post collision stays unchanged.
 	extras.rmmo_collision="none"
 	if value.wind_enabled:
-		extras.rmmo_wind={"profile":"cloth","mesh":"*","anchor":"top","amplitude":.45,"stiffness":.22,"shelter":true}
+		# Keep the reviewed anchor weights of an imported cloth style. Only the
+		# legacy slot or a newly generated shape needs the generic preset.
+		if not extras.has("rmmo_wind") or (record.has("banner") and value.shape!="pointed"):
+			extras.rmmo_wind={"profile":"cloth","mesh":"*","anchor":"top","amplitude":.45,"stiffness":.22,"shelter":true}
 	else:extras.erase("rmmo_wind")
 	node.set_meta("extras",extras)
 	if value.wind_enabled:load("res://scripts/world3d/wind_response.gd").register(node)
 
-static func build(source:Mesh,value:Dictionary)->ArrayMesh:
+static func build(source:Mesh,value:Dictionary)->Mesh:
 	var result:=ArrayMesh.new()
+	# Imported printed cloth has one material, rather than the legacy cloth
+	# plus separate crest surface. Keeping its original design preserves all
+	# PBR channels and makes a wind-only edit safe for this kind of slot.
+	if value.shape=="pointed" and value.design=="original" and source.get_surface_count()==1:
+		return source
 	var color:=Color(value.color[0],value.color[1],value.color[2])
 	var gold:=Color(value.trim_color[0],value.trim_color[1],value.trim_color[2])
 	var mat:=StandardMaterial3D.new();mat.albedo_color=color;mat.roughness=.9;mat.cull_mode=BaseMaterial3D.CULL_DISABLED

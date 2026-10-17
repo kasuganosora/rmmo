@@ -515,6 +515,8 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 
 `shape`: pointed/rectangle/swallowtail；`design`: original/plain/flag/emblem。`flag` 为整面设计，`emblem` 为保留底色的独立图案；`trim_color` 为原版刺绣 RGB。批量 1～256 个，必须有独立旗帜插槽且可编辑；缺图、非法形状、越界路径、锁定/隐藏/隔层均无副作用失败。UI「路灯旗帜」与 MCP 调用同一业务方法，一次撤销并随地图保存；图片纳入依赖和素材库打包。用 `tools/test_streetlamp_banner_mcp.gd` 验证真实 HTTP、保存重开、资源重定位与 Vulkan 风场。
 
+2026-10-17 导入印花长幡兼容：原始布形保留模型自带的 `rmmo_wind` 挂点参数；旧模型无此标签时仍使用既有默认值。单材质印花布的 `original` 模式保留原几何、颜色贴图、粗糙度和法线，切换 `wind_enabled` 不重染印花或访问不存在的第二材质。该模式中的底色/刺绣改色仍属旧双材质旗帜操作；导入单材质印花需切换 plain/flag/emblem 才修改设计。UI 与本 3D MCP 工具沿用同一处理逻辑和 schema。受影响项验证入口为 `tools/test_s2_hanging_textiles_published_20261017.gd`，交付状态见 [S2 布饰报告](s2_hanging_textiles_20261017.md)。
+
 
 2026-10-05 旗幡路灯昼夜接入：现有 `set_environment` 直接驱动游戏/编辑器共用的 `streetlamp_lights`，20:00–06:00 开启蓝色晶石、轻微光晕及所有已加载路灯的无阴影蓝灯（已取消按距离选最近两盏的限制）。工具清单和 schema 无新增；环境事务、撤销重做和保存语义不变。`tools/test_streetlamp_banner_mcp.gd` 已通过真实 HTTP 夜间切换、撤销熄灭、重做恢复及保存重开点亮检查，原换旗操作检查继续通过。详见 `banner_streetlamp_20261005.md`。
 

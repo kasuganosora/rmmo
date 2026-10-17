@@ -100,6 +100,11 @@ func model_evidence(uuid:String)->Dictionary:
 	result.valid=result.valid and result.meshes>0 and result.materials>0 and result.vertices>0 and result.picking_shapes>0
 	return result
 
+func test_component_id(row:Dictionary)->String:
+	for member:Dictionary in row.components:
+		if not str(member.id).contains("architecture:"):return str(member.id)
+	return ""
+
 func verify_item(row:Dictionary,map_path:String)->void:
 	var initial:=failed
 	audit.active={"id":row.id,"phase":"formal_catalog_http"};flush_report()
@@ -130,9 +135,7 @@ func verify_item(row:Dictionary,map_path:String)->void:
 	row.component_count=components.get("components",[]).size()
 	row.components=components.get("components",[])
 	if row.id=="axel_guild_repaired":check(row.component_count==37,"formal main guild exposes all 37 movable components")
-	var component:=""
-	for member:Dictionary in row.components:
-		if not str(member.id).contains("architecture:"):component=member.id;break
+	var component:=test_component_id(row)
 	if not component.is_empty():
 		var undo_count:int=editor._doc._undo.size()
 		await call_tool("set_building_component_state",{"id":uuid,"component_id":component,"open":0.5})
@@ -154,7 +157,17 @@ func verify_item(row:Dictionary,map_path:String)->void:
 	row.after_reopen=model_evidence(uuid)
 	check(row.after_reopen.valid and equivalent(row.before_save,row.after_reopen),"saved published mesh/material/collision reopens unchanged "+row.id)
 	check(not row.after_reopen.body_visuals.any(func(path):return str(path).ends_with("/AuthoredLightFlame") or str(path).ends_with("/StreetlampHalo")),"derived light effects never become picking or walking bodies "+row.id)
-	if not component.is_empty():check(editor._doc._find(uuid).get("model_component_states",{}).get(component)==0.5,"published activity state persists "+row.id)
+	if not component.is_empty():
+		var reopened_record:Dictionary=editor._doc._find(uuid)
+		# Authored imported buildings use the generic building contract; legacy
+		# guild fixtures use model_component_states. Inspect the correct stored
+		# field and the live component instead of mistaking valid new saves for loss.
+		var state_key:String="model_building_states" if reopened_record.has("model_building") else "model_component_states"
+		row.activity_state_field=state_key
+		row.activity_state_after_reopen=reopened_record.get(state_key,{})
+		check(row.activity_state_after_reopen.get(component)==0.5,"published activity state persists "+row.id)
+		var live_components:=Components.rows(editor._view.get_node(NodePath(uuid)))
+		check(live_components.any(func(member):return member.get("id")==component and member.get("open")==0.5),"reopened rendered component uses persisted activity "+row.id)
 	var reopened=Doc.open_file(map_path)
 	check(reopened!=null and reopened.records.size()==1 and reopened.records[0].get("asset_path")==row.output_path,"disk document references the formal catalog source "+row.id)
 	await call_tool("select_objects",{"ids":[uuid]});await call_tool("delete_selection");await wait_loaded()

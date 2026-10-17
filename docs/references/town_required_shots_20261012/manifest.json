@@ -1,5 +1,5 @@
 {
-  "source": "User explicitly required all three scenes on 2026-10-12, in addition to the classic stone bridge. Exact byte copies; characters, subtitles, playback controls and watermarks excluded from reconstruction scope.",
+  "source": "User-required town reference images. Each entry records whether it is an exact original or a Q90 review derivative. Characters, subtitles, playback controls and watermarks are excluded from reconstruction.",
   "images": [
     {
       "file": "01_sunset_stream_stepping_stones.png",
@@ -11,13 +11,39 @@
       "file": "02_fruit_tree_residential_court.png",
       "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-fa40abf1-2c67-42c3-9c8d-fb2ca676d4c2.png",
       "bytes": 1599897,
-      "sha256": "a83db37fe2088d0492756bbeab6f20e4dcd5152380c87a5710bb9c417a93c9cd"
+      "sha256": "a83db37fe2088d0492756bbeab6f20e4dcd5152380c87a5710bb9c417a93c9cd",
+      "review_file": "02_fruit_tree_residential_court.webp",
+      "review_sha256": "d1cd02f5ce071c9611649a41c865a07c6718213db26e4374ab07ead6019970ca",
+      "review_receipt": "02_fruit_tree_residential_court.webp.review-image.json",
+      "review_encoding": "lossy WebP quality90, original dimensions/colors"
     },
     {
       "file": "03_festival_residential_lane.png",
       "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-88a6cb9b-a3c6-4000-80b5-53dec5945d79.png",
       "bytes": 1563127,
       "sha256": "2e1cc5915ea2b2043f169ac27e2169a2a80b72a2c2a89da74f71af20b30dae24"
+    },
+    {
+      "file": "04_s12_arch_side_detail_20261017.webp",
+      "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-85379647-9b07-481d-a05a-aacdb1ff136a.png",
+      "source_sha256": "7b924fa961de045690d773df71d54a000d82ca2513e8bda56b8f00011a32dca7",
+      "bytes": 19836,
+      "sha256": "65e96dfc8510fbe1f61458f6189c27316689c2b200b6494f4d84b85872a56fa2",
+      "encoding": "lossy WebP quality 90, original dimensions/colors",
+      "receipt": "04_s12_arch_side_detail_20261017.webp.review-image.json",
+      "date": "2026-10-17",
+      "scope": "User correction: S12 arch/corner/side-door relationship and missing flags, beam, pottery, courtyard foliage."
+    },
+    {
+      "file": "05_s12_gate_frontage_correction_20261017.webp",
+      "source": "C:/Users/luna/AppData/Local/Temp/codex-clipboard-d42fd501-96ba-49d3-b360-82801c53d6d4.png",
+      "source_sha256": "86f647530550de68695f908aec6efbe3e7916a221e9f08c46730c30c1c2a2b12",
+      "bytes": 29180,
+      "sha256": "92627448bc896ea3d2e6480ecc67e6dffe45300a747379dc8a624b32c156ba68",
+      "encoding": "lossy WebP quality 90, original dimensions/colors",
+      "receipt": "05_s12_gate_frontage_correction_20261017.webp.review-image.json",
+      "date": "2026-10-17",
+      "scope": "User correction: gate must be parallel to the courtyard front wall and the house river-facing facade; current pictured side-facing placement is incorrect."
     }
   ]
 }

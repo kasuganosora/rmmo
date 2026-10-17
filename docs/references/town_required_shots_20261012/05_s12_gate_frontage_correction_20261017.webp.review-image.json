@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "source": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\05_s12_gate_frontage_correction_20261017.png",
+  "source_sha256": "86f647530550de68695f908aec6efbe3e7916a221e9f08c46730c30c1c2a2b12",
+  "source_bytes": 329834,
+  "path": "D:\\code\\rmmo\\docs\\references\\town_required_shots_20261012\\05_s12_gate_frontage_correction_20261017.webp",
+  "sha256": "92627448bc896ea3d2e6480ecc67e6dffe45300a747379dc8a624b32c156ba68",
+  "bytes": 29180,
+  "dimensions": [
+    500,
+    449
+  ],
+  "format": "WEBP",
+  "quality": 90,
+  "lossless": false,
+  "method": 6,
+  "source_retained": false,
+  "intended_use": "openai_review"
+}

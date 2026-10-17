@@ -169,12 +169,24 @@ def build_rock(key,w,d,h,seed):
 
 def build_steps(key,n):
     width=2.2;rise=.16;tread=.40;landing=.84;length=(n-1)*tread+landing
-    # Each tread has full masonry support to foundation. Adjacent regions do not overlap.
+    # Individual stones reach the base; their 4 mm joints still require bedding.
     for i in range(n):
         depth=tread if i<n-1 else landing;y=i*tread+depth*.5
         h=(i+1)*rise
         for c in range(4):
             box('Solid step masonry %d-%d'%(i,c),(-width/2+(c+.5)*width/4,y,h*.5),(width/4-.004,depth-.004,h),bevel=.007,collision='walk')
+    if n==4:
+        # 2026-10-17: X=0 through-joints defeated the real controller's support
+        # ray. Preserve stones and add visible 4 mm recessed mortar, never an
+        # invisible ramp. Existing three-step asset is outside this repair.
+        profile=[(.012,0),(length-.012,0),(length-.012,n*rise-.004)]
+        for i in range(n-1,0,-1):
+            profile.extend([(i*tread+.012,(i+1)*rise-.004),(i*tread+.012,i*rise-.004)])
+        profile.append((.012,rise-.004));count=len(profile)
+        vertices=[(x,y,z) for x in [-width/2+.014,width/2-.014] for y,z in profile]
+        faces=[tuple(range(count-1,-1,-1)),tuple(range(count,2*count))]+[(i,(i+1)%count,(i+1)%count+count,i+count) for i in range(count)]
+        mortar=plain('Recessed lime mortar',(.30,.28,.24),1.)
+        mesh('Continuous stepped mortar bed',vertices,faces,mortar,collision='walk')
     end(key,'S12 下水石阶台 '+str(n)+'级',{'width':width,'total_rise':n*rise,'rise':rise,'tread':tread,'upper_landing':landing,'length':length,'bottom_blender_y':0,'top_blender_y':length,'note':'Origin bottom-front foundation; lower end faces exported +Z water, upper end -Z land. Embed bottom .06m, adapt bed level rather than stretch risers.'})
 
 def evaluated(o):
