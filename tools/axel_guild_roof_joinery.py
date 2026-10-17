@@ -67,7 +67,7 @@ if __name__ == '__main__':
     from pathlib import Path
     from mathutils import Vector
     base = Path('D:/code/rmmo_runtime/art_sources/axel_guild/whitebox_v12')
-    out = Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011')
+    out = Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011')
     bpy.ops.wm.open_mainfile(filepath=str(base/'axel_guild_whitebox.blend'))
     def fingerprint(o):
         return repr((o.parent.name if o.parent else None, [list(r) for r in o.matrix_world],

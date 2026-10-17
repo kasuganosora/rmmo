@@ -17,7 +17,7 @@ from mathutils import Vector
 
 BASE = Path('D:/code/rmmo_runtime/art_sources/axel_guild/whitebox_v12')
 LIB = Path('D:/code/rmmo_runtime/packs/default/assets/materials')
-OUT = Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011')
+OUT = Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011')
 P = argparse.ArgumentParser()
 P.add_argument('--shots', default='exterior,entry,hall')
 P.add_argument('--render-only', action='store_true')

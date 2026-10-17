@@ -9,9 +9,9 @@ from axel_alarm_tower_shaft import install_shooting_slits
 
 P=argparse.ArgumentParser();P.add_argument('--render-only',action='store_true');P.add_argument('--shots',default='tower,crown,horn,site')
 A=P.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
-OUT=Path('D:/code/rmmo/review_artifacts/alarm_tower_materials_v3_20261011');OUT.mkdir(exist_ok=True)
+OUT=Path('D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011');OUT.mkdir(exist_ok=True)
 (OUT/'textures').mkdir(exist_ok=True)
-SOURCE=Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.blend')
+SOURCE=Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.blend')
 TARGET=OUT/'guild_and_alarm_tower_materials.blend'
 LIB=Path('D:/code/rmmo_runtime/packs/default/assets/materials')
 bpy.ops.wm.open_mainfile(filepath=str(TARGET if A.render_only else SOURCE))

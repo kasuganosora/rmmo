@@ -1,6 +1,6 @@
 extends "res://tools/test_world3d_mcp.gd"
 ## Production compiler, actual 3D editor API and native map reopen, isolated root.
-const DEST="D:/code/rmmo/review_artifacts/required_street_assets_20261013"
+const DEST="D:/code/rmmo_runtime/review_artifacts/required_street_assets_20261013"
 const Library=preload('res://scripts/world_editor/asset_library.gd')
 const Compile=preload('res://scripts/world3d/compiled_asset_cache.gd')
 const Paint=preload('res://scripts/world3d/surface_materials.gd')

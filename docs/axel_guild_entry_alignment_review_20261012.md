@@ -27,6 +27,6 @@
 
 [实际导入验收 JSON](../review_artifacts/axel_guild_finish_20261012/entry_extension/candidate.json) · [既有参考及限制](axel_guild_finish_review_20261012.md)
 
-![平台与石栏对齐](../review_artifacts/axel_guild_finish_20261012/entry_extension/candidate/entrance_detail_still.png)
+![平台与石栏对齐](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/entry_extension/candidate/entrance_detail_still.png)
 
-![侧面踏步衔接](../review_artifacts/axel_guild_finish_20261012/entry_extension/candidate/entry_side_still.png)
+![侧面踏步衔接](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/entry_extension/candidate/entry_side_still.png)

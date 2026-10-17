@@ -74,7 +74,7 @@ func run()->void:
 		check(not denied.ok and growing==before and bad==before_bad,"non-string authored owner rejected without mutating index or input: "+type_string(typeof(bad_id)))
 	var bad_shape:=part("invalid_shape__member",Vector2i.ZERO,{"building":"not_dictionary"})
 	check(not Index.append(growing,[bad_shape]).ok,"non-dictionary authored membership is rejected before grouping")
-	var destination:="D:/code/rmmo/review_artifacts/axel_landmarks_20261016/pipeline/imported_stream_index.json"
+	var destination:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline/imported_stream_index.json"
 	var file:=FileAccess.open(destination,FileAccess.WRITE)
 	file.store_string(JSON.stringify({"checks":checks,"passed":checks.size()-failed,"failed":failed,"scope":"CPU-only full and incremental spatial indexing; no GPU, maps or assets changed","source_sha256":FileAccess.get_sha256("res://scripts/world3d/stream_index.gd")},"\t"));file.close()
 	print("IMPORTED_STREAM_INDEX checks=",checks.size()," failures=",failed)

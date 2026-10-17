@@ -47,7 +47,7 @@ Godot 4.7.2 / Forward+ / RX 7900 XTX。GPU 测试均用隐藏独立桌面；临�
 ## 管线、功能与证据
 
 - [最终主楼 baseline](../review_artifacts/axel_guild_finish_20261012/repair_review/final_building/baseline.json) / [candidate](../review_artifacts/axel_guild_finish_20261012/repair_review/final_building/candidate.json)：真实导入、生产静态 schema、Native 保存重开、Footprint/Preparation 和源 SHA。
-- [运行组件](../review_artifacts/axel_guild_finish_20261012/repair_review/runtime.json)：四窗、37 动作组、碰撞与16灯；[客房灯光](../review_artifacts/axel_guild_finish_20261012/repair_review/guest_lighting.png)。夜景图为低环境光测试，正式地图的整体夜景曝光仍由场景调校决定。
+- [运行组件](../review_artifacts/axel_guild_finish_20261012/repair_review/runtime.json)：四窗、37 动作组、碰撞与16灯；[客房灯光](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/repair_review/guest_lighting.png)。夜景图为低环境光测试，正式地图的整体夜景曝光仍由场景调校决定。
 - [真实整楼 HTTP](../review_artifacts/axel_guild_finish_20261012/repair_guild_http_accepted.log)：自动合批95组、界面入口、工具发现、合法/非法调用、无副作用失败、一次撤销、重做、保存重开。临时图 `D:/code/rmmo_runtime/cache/world3d/model_components_10546320/map.gltf`；没有写正式地图。
 - [生命周期回归](../review_artifacts/axel_guild_finish_20261012/repair_batch_regression.log)、[导入模型选择/删除](../review_artifacts/axel_guild_finish_20261012/repair_imported_batch.log)、[共享纹理](../review_artifacts/axel_guild_finish_20261012/repair_texture_regression.log)、[边界42项](../review_artifacts/axel_guild_finish_20261012/repair_bounds.log)、[估算44项](../review_artifacts/axel_guild_finish_20261012/repair_estimate.log)。
 - [塔 LOD](../review_artifacts/axel_guild_finish_20261012/repair_review/tower/game_review.json)、[塔 Native](../review_artifacts/axel_guild_finish_20261012/repair_review/tower_native/baseline.json)、[家具逐件状态](../review_artifacts/axel_guild_finish_20261012/repair_review/acceptance_index.json)。

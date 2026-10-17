@@ -1,6 +1,6 @@
 extends SceneTree
 ## Isolated GLB/PBR integration check, no project maps or production catalogue.
-const OUT = "D:/code/rmmo/review_artifacts/axel_guild_materials_20261011"
+const OUT = "D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011"
 var errors: Array = []
 
 func _initialize() -> void:

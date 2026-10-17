@@ -2,8 +2,8 @@ extends "res://tools/build_medieval_material_demo.gd"
 ## Isolated normal/PBR review. No formal map, catalog, or material writes.
 ## --variant=baseline|candidate --label=balanced|strong --candidates=<family -> material.json mapping JSON>
 ## --only=roofs/terracotta_plain,... --syntax-only
-const INVENTORY="D:/code/rmmo/review_artifacts/house_surface_relief_20261014/baseline_inventory.json"
-const OUTPUT="D:/code/rmmo/review_artifacts/house_surface_relief_20261014/gallery"
+const INVENTORY="D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/baseline_inventory.json"
+const OUTPUT="D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery"
 const FORMAL="D:/code/rmmo_runtime/packs/default/assets/materials"
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
 const Compiler=preload("res://scripts/world_editor/building_tools.gd")

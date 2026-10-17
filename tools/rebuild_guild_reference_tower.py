@@ -43,7 +43,7 @@ def export(path,objects,mat_factors):
     path.write_bytes(struct.pack('<IIIII',0x46546c67,2,20+len(encoded)+len(binary),len(encoded),k)+encoded+binary)
 
 manifest=json.loads((OUT/'repair_manifest.json').read_text(encoding='utf8'))
-tower_master=Path('D:/code/rmmo/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend')
+tower_master=Path('D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend')
 sources[str(tower_master)]=digest(tower_master)
 bpy.ops.wm.open_mainfile(filepath=str(tower_master))
 tower_fixes=apply_tower()

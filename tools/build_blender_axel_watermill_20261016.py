@@ -8,7 +8,7 @@ from pathlib import Path
 from mathutils import Vector
 
 OUT = Path('D:/code/rmmo_runtime/art_sources/axel_landmarks_20261016/watermill')
-REVIEW = Path('D:/code/rmmo/review_artifacts/axel_landmarks_20261016/watermill')
+REVIEW = Path('D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/watermill')
 MATROOT = Path('D:/code/rmmo_runtime/packs/default/assets/materials')
 VERSION = 'v11'
 DEST = OUT / VERSION

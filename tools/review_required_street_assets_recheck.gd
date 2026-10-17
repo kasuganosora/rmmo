@@ -1,6 +1,6 @@
 extends "res://tools/review_guild_full_batch.gd"
 ## Isolated asset/native review. No publication and no user map writes.
-const DEST="D:/code/rmmo/review_artifacts/required_street_recheck_20261013"
+const DEST="D:/code/rmmo_runtime/review_artifacts/required_street_recheck_20261013"
 const MANIFEST="D:/code/rmmo_runtime/art_sources/required_street_assets_20261013/review_v2/manifest.json"
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Response=preload("res://scripts/world3d/wind_response.gd")

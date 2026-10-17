@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 ART=Path('D:/code/rmmo_runtime/art_sources/required_street_assets_20261013')
-DEST=Path('D:/code/rmmo/review_artifacts/required_street_assets_20261013')
+DEST=Path('D:/code/rmmo_runtime/review_artifacts/required_street_assets_20261013')
 def sha(b):return hashlib.sha256(b).hexdigest()
 def glb(p):
     b=p.read_bytes();n=struct.unpack_from('<I',b,12)[0]

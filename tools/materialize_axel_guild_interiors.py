@@ -15,7 +15,7 @@ from axel_guild_lantern_finish import apply_lantern_finish
 from mathutils import Vector
 from mathutils.kdtree import KDTree
 
-OUT = Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011')
+OUT = Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011')
 LIB = Path('D:/code/rmmo_runtime/art_sources/axel_guild')
 P = argparse.ArgumentParser()
 P.add_argument('--render-only', action='store_true')

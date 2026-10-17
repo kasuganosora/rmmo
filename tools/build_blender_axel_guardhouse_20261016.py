@@ -20,7 +20,7 @@ P.add_argument('--version', default='v1')
 ARGS = P.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 BASE = Path('D:/code/rmmo_runtime/art_sources/axel_landmarks_20261016/guardhouse')
 OUT = BASE/ARGS.version
-REVIEW = Path('D:/code/rmmo/review_artifacts/axel_landmarks_20261016/guardhouse')
+REVIEW = Path('D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/guardhouse')
 LIB = Path('D:/code/rmmo_runtime/packs/default/assets/materials')
 GUILD = Path('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v3/materials')
 OUT.mkdir(parents=True, exist_ok=True); REVIEW.mkdir(parents=True, exist_ok=True)

@@ -49,9 +49,9 @@
 
 同光照对比（WebP）：
 
-- 红陶瓦：[原版](../review_artifacts/house_surface_relief_20261014/gallery/diagnostic/baseline/roofs/terracotta_plain/roof_facing_raking_close.webp) / [选定版](../review_artifacts/house_surface_relief_20261014/gallery/diagnostic/strong/roofs/terracotta_plain/roof_facing_raking_close.webp)。
-- 泥灰墙：[原版](../review_artifacts/house_surface_relief_20261014/gallery/diagnostic/wall_v2/baseline/walls/earthen_plaster/facade_facing_raking_close.webp) / [选定版](../review_artifacts/house_surface_relief_20261014/gallery/diagnostic/wall_v2/wall_v2/walls/earthen_plaster/facade_facing_raking_close.webp)。
-- [组合样房](../review_artifacts/house_surface_relief_20261014/gallery/candidate/wall_v2/walls/earthen_plaster/house_near.webp)；[根代理逐款视觉结论](../review_artifacts/house_surface_relief_20261014/selected_visual_review.json)。
+- 红陶瓦：[原版](D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery/diagnostic/baseline/roofs/terracotta_plain/roof_facing_raking_close.webp) / [选定版](D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery/diagnostic/strong/roofs/terracotta_plain/roof_facing_raking_close.webp)。
+- 泥灰墙：[原版](D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery/diagnostic/wall_v2/baseline/walls/earthen_plaster/facade_facing_raking_close.webp) / [选定版](D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery/diagnostic/wall_v2/wall_v2/walls/earthen_plaster/facade_facing_raking_close.webp)。
+- [组合样房](D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014/gallery/candidate/wall_v2/walls/earthen_plaster/house_near.webp)；[根代理逐款视觉结论](../review_artifacts/house_surface_relief_20261014/selected_visual_review.json)。
 
 迎光诊断直接核对实际 MeshInstance3D 使用的材质，GPU读取的颜色、法线、粗糙度像素与相应源图一致，法线开关、强度和切线完整。每张诊断图记录光照对表面法线的入射点积；背光截图不单独作为凹凸效果的放行依据。远处和环境光占主导时细节仍会弱化，没有为了远处可见而夸大高频颗粒。
 

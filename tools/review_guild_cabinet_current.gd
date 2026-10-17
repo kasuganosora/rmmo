@@ -3,7 +3,7 @@ extends SceneTree
 var errors:Array=[]
 var reports:Array=[]
 const OUT="D:/code/rmmo_runtime/art_sources/axel_guild/guestroom_v1"
-const REPORT_OUT="D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/full_review"
+const REPORT_OUT="D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review"
 
 func _initialize()->void:
 	call_deferred("run")

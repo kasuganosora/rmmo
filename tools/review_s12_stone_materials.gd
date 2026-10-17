@@ -3,7 +3,7 @@ extends "res://tools/review_guild_full_batch.gd"
 ## --source=<GLB> --out=<isolated folder> --kind=arch|relief --variant=baseline|candidate
 var asset_kind := "arch"
 var variant := "candidate"
-const OUT_ROOT := "D:/code/rmmo/review_artifacts/s12_stone_materials_20261015/"
+const OUT_ROOT := "D:/code/rmmo_runtime/review_artifacts/s12_stone_materials_20261015/"
 const SOURCE_ROOT := "D:/code/rmmo_runtime/art_sources/s12_stone_materials_20261015/"
 const OLD_SOURCES := [
 	"D:/code/rmmo_runtime/packs/default/assets/11feb4a7d18c9fd25cef5ca588e55f1e518141b78acc5baaf3b1a048920f43be.glb",

@@ -262,7 +262,7 @@ func run()->void:
 		elif arg.begins_with("--detail="):detail_mode=arg.trim_prefix("--detail=")
 		elif arg.begins_with("--width="):dimensions.x=clampi(int(arg.trim_prefix("--width=")),640,2400)
 		elif arg.begins_with("--height="):dimensions.y=clampi(int(arg.trim_prefix("--height=")),640,1800)
-	var safe_out:=out.to_lower().begins_with("d:/code/rmmo/review_artifacts/axel_guild_finish_20261012/") or out.to_lower().begins_with("d:/code/rmmo_runtime/art_sources/axel_guild/finish_v1/")
+	var safe_out:=out.to_lower().begins_with("d:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/") or out.to_lower().begins_with("d:/code/rmmo_runtime/art_sources/axel_guild/finish_v1/")
 	if not safe_out or case_name not in ["baseline","candidate","compare"] or not FileAccess.file_exists(source) or not FileAccess.file_exists(candidate):push_error("Invalid source/candidate/case or output outside isolated review roots");quit(2);return
 	DirAccess.make_dir_recursive_absolute(out)
 	if case_name=="compare":compare_reports();return

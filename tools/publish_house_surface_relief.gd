@@ -6,7 +6,7 @@ extends SceneTree
 const Library = preload("res://scripts/world_editor/surface_material_library.gd")
 const Surfaces = preload("res://scripts/world3d/surface_materials.gd")
 const Paths = preload("res://scripts/world3d/map_paths.gd")
-const REVIEW := "D:/code/rmmo/review_artifacts/house_surface_relief_20261014"
+const REVIEW := "D:/code/rmmo_runtime/review_artifacts/house_surface_relief_20261014"
 const CANDIDATES := "D:/code/rmmo_runtime/art_sources/house_surface_relief_20261014"
 const MATERIALS := "D:/code/rmmo_runtime/packs/default/assets/materials"
 const BASELINE := REVIEW + "/baseline_inventory.json"

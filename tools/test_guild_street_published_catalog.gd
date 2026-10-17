@@ -5,7 +5,7 @@ extends "res://tools/test_guild_reference_import.gd"
 ## --syntax-only is the only supported headless mode. GPU: private desktop runner.
 const Packs=preload("res://scripts/world_editor/resource_pack_catalog.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
-var receipt_path:="D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/formal_import/receipt.json"
+var receipt_path:="D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/formal_import/receipt.json"
 var published:Dictionary={}
 var readonly_guards:Dictionary={}
 var fixture_directory:=""
@@ -183,7 +183,7 @@ func run()->void:
 		if arg.begins_with("--receipt="):receipt_path=canonical(arg.trim_prefix("--receipt="))
 		if arg.begins_with("--out="):output_dir=canonical(arg.trim_prefix("--out="))
 		if arg.begins_with("--only="):selected=arg.trim_prefix("--only=").split(",",false)
-	if output_dir=="D:/code/rmmo_runtime/review_artifacts/guild_reference_import_20261013":output_dir="D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/formal_import"
+	if output_dir=="D:/code/rmmo_runtime/review_artifacts/guild_reference_import_20261013":output_dir="D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/formal_import"
 	var confined:bool=Paths.allowed(output_dir,"D:/code/rmmo/review_artifacts") or Paths.allowed(output_dir,"D:/code/rmmo_runtime/review_artifacts")
 	if not confined or DisplayServer.get_name()=="headless":push_error("Explicit review output and private GPU desktop required");quit(2);return
 	Engine.max_fps=60;rpc_timeout_ms=120000;root.size=Vector2i(1000,720)

@@ -1,5 +1,5 @@
 extends "res://tools/review_axel_guild_finish.gd"
-const DEST="D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/full_review"
+const DEST="D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review"
 func run()->void:
 	var evidence:=read_json(DEST+'/building/baseline.json')
 	var packed:PackedScene=load(evidence.native.payload);var scene:=packed.instantiate();root.add_child(scene)

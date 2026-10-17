@@ -23,7 +23,7 @@
 
 证据：[几何射线与命中节点](../review_artifacts/axel_guild_finish_20261012/full_review/window_apertures.json)。该测试只临时构造墙体三角碰撞用来确认几何，不冒称正式游戏碰撞验证。
 
-![客房窗被内墙挡住](../review_artifacts/axel_guild_finish_20261012/full_review/building/baseline/guest_twin_still.png)
+![客房窗被内墙挡住](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review/building/baseline/guest_twin_still.png)
 
 ### P1：纹理 mip 不完整，画质尚不能放行
 
@@ -72,7 +72,7 @@
 - 告警塔的红砖屋顶、石砖塔身、金色黄铜号角、真实射击孔保留。新一轮在 38/42/108/112/250 m 比较自动选择与强制单级 LOD，均没有重叠渲染或空档。各级为 **157,112 / 80,104 / 46,802 三角面**，不能把 284,018 的三级合计当一帧面数。各级实际可见绘制均为 11 次。另完成当前生产 Native 导入/保存重开和准备流程。
 - 告警塔的材质缩小过滤仍待验；历史已知备用 scene 旧塔身及顶部 AABB 余量问题仍需清理/复核，不能因此称为完全交付。可进入的内部、声音告警及正式地图部署不在已有通过范围。
 
-塔文件：[guild_alarm_tower_game.glb](../review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb)，SHA256 `35d9c3ef6bd1ee98ff737ff87b1a6ade91af8a35be6e792a524256433aa0414c`。证据：[本轮 LOD 检查](../review_artifacts/axel_guild_finish_20261012/full_review/tower/game_review.json)、[本轮 Native 检查](../review_artifacts/axel_guild_finish_20261012/full_review/tower_native/baseline.json)。
+塔文件：[guild_alarm_tower_game.glb](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb)，SHA256 `35d9c3ef6bd1ee98ff737ff87b1a6ade91af8a35be6e792a524256433aa0414c`。证据：[本轮 LOD 检查](../review_artifacts/axel_guild_finish_20261012/full_review/tower/game_review.json)、[本轮 Native 检查](../review_artifacts/axel_guild_finish_20261012/full_review/tower_native/baseline.json)。
 
 ## 成本与最终状态
 

@@ -222,7 +222,7 @@ func run()->void:
 		if arg=="--physics-only":physics_only=true
 		if arg.begins_with("--views="):requested_views=arg.trim_prefix("--views=").split(",",false)
 	if DisplayServer.get_name()=="headless":print("AXEL_REVIEW_SYNTAX_OK");quit();return
-	if not source.begins_with("D:/code/rmmo_runtime/art_sources/axel_landmarks_20261016/") or not out.begins_with("D:/code/rmmo/review_artifacts/axel_landmarks_20261016/") or not fixture_root.begins_with("D:/code/rmmo_runtime/review_fixtures/axel_landmarks_20261016/") or asset_kind not in ["church","guardhouse","watermill"]:push_error("Review scope rejected");quit(2);return
+	if not source.begins_with("D:/code/rmmo_runtime/art_sources/axel_landmarks_20261016/") or not out.begins_with("D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/") or not fixture_root.begins_with("D:/code/rmmo_runtime/review_fixtures/axel_landmarks_20261016/") or asset_kind not in ["church","guardhouse","watermill"]:push_error("Review scope rejected");quit(2);return
 	report={"checks":[],"failures":[],"asset":asset_kind,"identity":{"path":source,"sha256":expected_sha,"bytes":size_of(source)},"engine":Engine.get_version_info(),"scope":"Candidate-only isolated native import/reopen and material/structure gallery. No production catalog/map mutation. Memory figures are measured resource bytes and conservative accounting, never actual process RSS/VRAM."}
 	if not check(FileAccess.get_sha256(source)==expected_sha,"exact requested source SHA"):close_report();return
 	DirAccess.make_dir_recursive_absolute(out);DirAccess.make_dir_recursive_absolute(fixture_root.path_join("assets"))

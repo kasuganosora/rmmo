@@ -3,7 +3,7 @@ import bpy, json
 from pathlib import Path
 from mathutils import Vector
 
-OUT=Path('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013')
+OUT=Path('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013')
 OUT.mkdir(parents=True,exist_ok=True)
 bpy.ops.wm.open_mainfile(filepath='D:/code/rmmo_runtime/art_sources/axel_guild/repair_v2/axel_guild_repaired.blend')
 rows=[]

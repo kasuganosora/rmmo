@@ -62,7 +62,7 @@
 - [九视角无损重打包对比](../review_artifacts/s2_green_pennant_post_20261015/repack_comparison_v3.json)
 - [WebP 迁移与 SHA 记录](../review_artifacts/s2_green_pennant_post_20261015/screenshot_migration_v3.json)
 - [最终候选验收凭据](../review_artifacts/s2_green_pennant_post_20261015/acceptance_v3_utf8.json)
-- [近景](../review_artifacts/s2_green_pennant_post_20261015/runtime_v3/near.webp)、[枝桩与上端](../review_artifacts/s2_green_pennant_post_20261015/runtime_v3/upper_join_detail.webp)、[木纹斜光](../review_artifacts/s2_green_pennant_post_20261015/runtime_v3/grazing.webp)
+- [近景](D:/code/rmmo_runtime/review_artifacts/s2_green_pennant_post_20261015/runtime_v3/near.webp)、[枝桩与上端](D:/code/rmmo_runtime/review_artifacts/s2_green_pennant_post_20261015/runtime_v3/upper_join_detail.webp)、[木纹斜光](D:/code/rmmo_runtime/review_artifacts/s2_green_pennant_post_20261015/runtime_v3/grazing.webp)
 
 ## 正式接入记录
 

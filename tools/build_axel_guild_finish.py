@@ -9,7 +9,7 @@ from pathlib import Path
 from mathutils import Vector
 
 ROOT=Path('D:/code/rmmo')
-BASE=ROOT/'review_artifacts/axel_guild_materials_20261011'
+BASE=ROOT.parent/'rmmo_runtime/review_artifacts/axel_guild_materials_20261011'
 OUT=Path('D:/code/rmmo_runtime/art_sources/axel_guild/finish_v1')
 OUT.mkdir(parents=True,exist_ok=True)
 bpy.ops.wm.open_mainfile(filepath=str(BASE/'axel_guild_materials_v4.blend'))

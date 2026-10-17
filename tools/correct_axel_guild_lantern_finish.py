@@ -10,7 +10,7 @@ from mathutils import Vector
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from axel_guild_lantern_finish import FINISHES, apply_lantern_finish
 
-OUT=Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011')
+OUT=Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011')
 bpy.ops.wm.open_mainfile(filepath=str(OUT/'axel_guild_materials_v2.blend'))
 roots=[o for o in bpy.data.objects if o.get('asset_source','').endswith('/guild_hall_lantern.glb')]
 assert len(roots)==6

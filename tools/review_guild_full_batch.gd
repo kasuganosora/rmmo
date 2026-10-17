@@ -1,6 +1,6 @@
 extends "res://tools/review_axel_guild_finish.gd"
 ## Read-only source review; every native write is restricted to this isolated root.
-const REVIEW_ROOT="D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/full_review"
+const REVIEW_ROOT="D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review"
 var mode:="library"
 var only_id:=""
 

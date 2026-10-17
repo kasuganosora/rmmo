@@ -1,5 +1,5 @@
 extends SceneTree
-const OUT = "D:/code/rmmo/review_artifacts/alarm_tower_materials_v3_20261011"
+const OUT = "D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011"
 var errors: Array = []
 func _initialize() -> void:
 	call_deferred("run")

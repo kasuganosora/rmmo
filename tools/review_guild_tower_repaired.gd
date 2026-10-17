@@ -1,7 +1,7 @@
 extends SceneTree
-var output_dir = "D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/repair_review/tower"
+var output_dir = "D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/repair_review/tower"
 var asset_path = "D:/code/rmmo_runtime/art_sources/axel_guild/repair_v2/guild_alarm_tower.glb"
-var source_path = "D:/code/rmmo/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb"
+var source_path = "D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb"
 const Visibility = preload("res://scripts/world3d/asset_visibility_range.gd")
 var errors: Array = []
 var report := {}

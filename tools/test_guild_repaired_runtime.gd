@@ -1,5 +1,5 @@
 extends "res://tools/review_axel_guild_finish.gd"
-var destination:="D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/repair_review"
+var destination:="D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/repair_review"
 var evidence_path:=""
 var source_path:=""
 var isolated_content_root:=""

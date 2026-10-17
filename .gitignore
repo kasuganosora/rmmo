@@ -24,6 +24,14 @@ _l2_inspect/
 **/*.ttf
 **/*.otf
 **/*.import
+**/*.glb
+**/*.gltf
+**/*.blend
+**/*.blend1
+**/*.fbx
+**/*.obj
+**/*.dae
+**/*.scn
 
 # Exports / local junk
 __pycache__/

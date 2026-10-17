@@ -6,7 +6,7 @@ from PIL import Image
 import audit_required_street_assets as common
 
 ART=Path('D:/code/rmmo_runtime/art_sources/required_street_assets_20261013/review_v2')
-DEST=Path('D:/code/rmmo/review_artifacts/required_street_recheck_20261013')
+DEST=Path('D:/code/rmmo_runtime/review_artifacts/required_street_recheck_20261013')
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def surface_rows(doc,binary,word):

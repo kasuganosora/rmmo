@@ -2,7 +2,7 @@
 import bpy, json
 from pathlib import Path
 from mathutils import Vector
-ROOT=Path('D:/code/rmmo')
+ROOT=Path('D:/code/rmmo_runtime')
 OUT=ROOT/'review_artifacts/axel_guild_finish_20261012'
 OUT.mkdir(parents=True,exist_ok=True)
 bpy.ops.wm.open_mainfile(filepath=str(ROOT/'review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.blend'))

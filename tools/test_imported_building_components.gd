@@ -89,7 +89,7 @@ func run()->void:
 	source_contract()
 	view_collision_policy()
 	map.free();model.free()
-	var directory:="D:/code/rmmo/review_artifacts/axel_landmarks_20261016/pipeline"
+	var directory:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline"
 	DirAccess.make_dir_recursive_absolute(directory)
 	var file:=FileAccess.open(directory+"/component_logic.json",FileAccess.WRITE)
 	file.store_string(JSON.stringify({"checks":checks,"passed":checks.size()-failed,"failed":failed},"\t"));file.close()
@@ -101,7 +101,7 @@ func source_contract()->void:
 	var data:Dictionary=maker.data()
 	data.nodes[0].extras={"rmmo_model_components":{"version":1},"rmmo_building":{"version":1,"regions":[{"id":"interior","floor":0,"min":[-3,0,-3],"max":[3,5,3]}]}}
 	data.nodes[1].extras={"uuid":"front_leaf","rmmo_part":{"floor":0,"floor_y":0,"role":"door","part":"front"},"rmmo_hinge":{"id":"front","pivot":[-1,0,-2],"angle":100,"open":0}}
-	var directory:="D:/code/rmmo/review_artifacts/axel_landmarks_20261016/pipeline"
+	var directory:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline"
 	DirAccess.make_dir_recursive_absolute(directory)
 	var path:=directory+"/source_contract_fixture.glb"
 	maker.write(path,data);maker.free()
@@ -185,6 +185,6 @@ func audit_candidates()->void:
 		check(Imported.valid_descriptor(descriptor),"complete exported source descriptor "+entry[0])
 		var row:={"asset":entry[0],"path":path,"sha256":digest,"ok":not descriptor.is_empty(),"member_count":descriptor.get("members",{}).size(),"fixtures":descriptor.get("fixtures",{}).size(),"rooms":descriptor.get("regions",[]).size()}
 		result.append(row);print(JSON.stringify(row))
-	var file:=FileAccess.open("D:/code/rmmo/review_artifacts/axel_landmarks_20261016/pipeline/source_contracts.json",FileAccess.WRITE)
+	var file:=FileAccess.open("D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline/source_contracts.json",FileAccess.WRITE)
 	file.store_string(JSON.stringify({"candidates":result,"failed":failed},"\t"));file.close()
 	quit(0 if failed==0 else 1)

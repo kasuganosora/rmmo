@@ -2,7 +2,7 @@
 import bpy,json,hashlib
 from pathlib import Path
 ROOT=Path('D:/code/rmmo_runtime/art_sources/axel_guild/whitebox_v12')
-OUT=Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011')
+OUT=Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011')
 OUT.mkdir(parents=True,exist_ok=True)
 bpy.ops.wm.open_mainfile(filepath=str(ROOT/'axel_guild_whitebox.blend'))
 rows=[]

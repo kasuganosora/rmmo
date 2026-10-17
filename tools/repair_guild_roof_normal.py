@@ -12,7 +12,7 @@ from axel_guild_reference_exterior_materials import _fishscale_relief_normal
 
 ROOT=Path('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v3')
 BACKUP=ROOT/'rollback_before_roof_normal_20261013'
-REPORT=Path('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/roof_normal_repair')
+REPORT=Path('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/roof_normal_repair')
 EXPECTED='e24b27bea05a283b3518f659f017f18868336117812674d3ee725eb8008fb7a7'
 NAME='Guild PBR | terracotta | reference 20261013'
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()

@@ -73,7 +73,7 @@ func run()->void:
  check(emitter.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and sibling.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_ON,'valid socket only changes its own subtree');model.free()
  var actual:Array=[]
  for aid:String in ['guild_hall_lantern','guild_facade_wall_lantern']:
-  var path:='D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/accepted_library/'+aid+'/asset.scn'
+  var path:='D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/accepted_library/'+aid+'/asset.scn'
   var packed:PackedScene=load(path);model=packed.instantiate();root.add_child(model)
   var shadow_before:Dictionary={}
   for part:MeshInstance3D in model.find_children('*','MeshInstance3D',true,false):shadow_before[part.get_instance_id()]=part.cast_shadow
@@ -85,5 +85,5 @@ func run()->void:
  var report:={'passed':failures.is_empty(),'checks':checks,'failures':failures,'actual_assets':actual,
   'implementation_sha256':FileAccess.get_sha256('res://scripts/world3d/model_components.gd'),
   'scope':'headless logic and actual Native nodes only; no GPU visual assertion'}
- var out:=FileAccess.open('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/socket_shadow_regression.json',FileAccess.WRITE)
+ var out:=FileAccess.open('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/socket_shadow_regression.json',FileAccess.WRITE)
  out.store_string(JSON.stringify(report,'  '));print('SOCKET_SHADOW_TEST ',JSON.stringify(report));quit(0 if failures.is_empty() else 1)

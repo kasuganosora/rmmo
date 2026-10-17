@@ -2,7 +2,7 @@
 import hashlib, json
 from pathlib import Path
 
-R=Path('D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/full_review')
+R=Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review')
 D=Path('D:/code/rmmo/docs')
 def read(p):return json.loads(p.read_text(encoding='utf8'))
 def link(p):return str(p).replace('\\','/')

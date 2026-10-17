@@ -118,7 +118,7 @@ assert len([o for o in bpy.data.objects if o.name.startswith('Reception identifi
 manifest.update(reference_revision='20261013',reference_fixes=fixes,source_rollback=str(BASE),final_sha256=digest(OUT/'axel_guild_repaired.glb'),source_master=str(master),saved_master_reopened=True)
 (OUT/'repair_manifest.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False,default=str),encoding='utf8')
 
-tower_master=Path('D:/code/rmmo/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend')
+tower_master=Path('D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend')
 sources[str(tower_master)]=digest(tower_master)
 bpy.ops.wm.open_mainfile(filepath=str(tower_master))
 tower_fixes=apply_tower()

@@ -2,12 +2,12 @@ extends "res://tools/review_guild_reference_camera.gd"
 ## Each independent final prop receives native roundtrip and the same PBR rig.
 func run()->void:
 	var filters:PackedStringArray=[]
-	var library_out:='D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/final_library'
+	var library_out:='D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/final_library'
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with('--only='):filters=arg.trim_prefix('--only=').split(',')
 		if arg.begins_with('--out='):library_out=arg.trim_prefix('--out=').replace('\\','/').simplify_path()
 	if DisplayServer.get_name()=='headless':print('REFERENCE_LIBRARY_SYNTAX_OK');quit();return
-	if not library_out.begins_with('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/'):quit(2);return
+	if not library_out.begins_with('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/'):quit(2);return
 	create_timer(2400).timeout.connect(func():push_error('REFERENCE_LIBRARY_TIMEOUT');quit(124))
 	var manifest:=read_json('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v3/repair_manifest.json')
 	var summaries:Array=[];var failed:Array=[]

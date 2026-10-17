@@ -603,7 +603,7 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 - Blender 4.5导出遗漏MixRGB常量调色系数，生成脚本在GLB的标准 `baseColorFactor` 中补齐；网格和内嵌图片的BIN数据保持不变。
 - 临时Godot `GLTFDocument` 直接加载时，内嵌贴图没有mipmap，远景产生噪点。验收脚本生成mipmap并启用各向异性过滤后正常显示。这是明确的接入要求；此次没有修改正式编辑器的GLB加载流程，也不将临时预览处理冒称生产管线已经接入。
 
-可编辑文件：[修正后的白模v13](../review_artifacts/axel_guild_materials_20261011/axel_guild_whitebox_v13.blend)、[材质母版](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v1.blend)、[材质GLB](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v1.glb)。预览：[前侧](../review_artifacts/axel_guild_materials_20261011/exterior.png)、[后侧](../review_artifacts/axel_guild_materials_20261011/rear.png)、[Godot实际加载](../review_artifacts/axel_guild_materials_20261011/godot_exterior.png)。
+可编辑文件：[修正后的白模v13](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_whitebox_v13.blend)、[材质母版](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v1.blend)、[材质GLB](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v1.glb)。预览：[前侧](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/exterior.png)、[后侧](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/rear.png)、[Godot实际加载](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/godot_exterior.png)。
 
 最终版本已在私有桌面的Godot Forward+中实际加载，检查通过：1,385个材质节点的序列化信息、2个独立主门铰链、9组基色/法线材质、7组粗糙度材质以及纹理UV均保留；截图隐藏比例人。前后檐穿出横线及后坡山墙条带已在新渲染中消失。[引擎检查记录](../review_artifacts/axel_guild_materials_20261011/godot_material_review.json)对应交付GLB SHA256：`0808e6808948d979414ae8812bd12d43289e265b3bf3438768815beadd4843a5`。
 
@@ -619,8 +619,8 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 恢复作用于134个独立家具/陈设根，以及雕像的身体、剑两个部件，共356个网格。按母版局部坐标逐面匹配材质，匹配容差0.08mm；共享网格只恢复一次，累计恢复81,477个非重复数据面。几何、拓扑、物件名称、摆放、父级和修改器指纹前后一致；保留原UV、独立柜门铰链及共享网格，不重建家具或改变门柜姿态。源母版和材质v1保留。
 
-- [室内材质母版v2](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v2.blend)、[完整建筑材质GLB v2](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v2.glb)。
-- [大厅](../review_artifacts/axel_guild_materials_20261011/interior_hall.png)、[客房](../review_artifacts/axel_guild_materials_20261011/interior_guestroom.png)、[招募柜台](../review_artifacts/axel_guild_materials_20261011/interior_reception.png)、[楼梯](../review_artifacts/axel_guild_materials_20261011/interior_stairs.png)、[卫生设备](../review_artifacts/axel_guild_materials_20261011/interior_washroom.png)。截图隐藏比例人；封闭客房及卫生间使用临时柔光验收材质，柔光在保存和导出后添加，不代表最终蜡烛、昼夜或运行时灯光效果。
+- [室内材质母版v2](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v2.blend)、[完整建筑材质GLB v2](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v2.glb)。
+- [大厅](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_hall.png)、[客房](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_guestroom.png)、[招募柜台](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_reception.png)、[楼梯](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_stairs.png)、[卫生设备](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_washroom.png)。截图隐藏比例人；封闭客房及卫生间使用临时柔光验收材质，柔光在保存和导出后添加，不代表最终蜡烛、昼夜或运行时灯光效果。
 - [逐面恢复记录](../review_artifacts/axel_guild_materials_20261011/interior_material_review.json)、[Godot实际导入记录](../review_artifacts/axel_guild_materials_20261011/godot_interior_material_review.json)。实际Forward+加载通过：1,785个网格、1,385个建筑材质节点、356个室内材质节点、2个主门活动根；48组基色、45组法线、56组粗糙度材质及纹理UV检查通过。验收器改用实际场景树遍历，避免Godot 4.7中部分生成节点已被替换后 `GLTFState.get_scene_node` 返回失效引用。
 
 本次验证GLB SHA256为 `edf4ba7aa19d377f053dda654da42606cbb94e5c564c17c1e9c47a1bbe68f2e2`。脚本为 `tools/materialize_axel_guild_interiors.py` 和 `tools/review_axel_guild_interiors.gd`。这是室内材质第一轮恢复；彩窗、地面木格带、进一步磨损及灯效仍需细化，尚未发布编辑器，也未修改用户地图或重复通行测试。
@@ -629,7 +629,7 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 用户明确指出灯柱应为烤黑金属，取消v2的灰绿色金属外观。修正参考保存为 [U26](references/axel_guild_plan_20261007/user_26_black_metal_lantern_correction.png)。六盏独立大厅立灯的底座、方柱、套箍、灯罩框和顶帽统一使用近黑色烤涂表面；凹部稍暗，保留柔和高光。玻璃灯片不改。黑色涂层按覆盖金属的表面处理，金属度0.15、主体粗糙度0.36、凹部0.43、薄涂层权重0.18，避免抛光裸金属或无高光纯黑效果。
 
-保存为 [材质母版v3](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v3.blend) 和 [GLB v3](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v3.glb)，保留v2作对照。[同相机、灯光与曝光预览](../review_artifacts/axel_guild_materials_20261011/interior_hall_black_lanterns.png)。六个实例沿用共享网格，只替换两处材质绑定；Blender几何/层级指纹一致，GLB全部网格、UV及图片二进制数据逐字节不变，其他材质不变。[修改核对](../review_artifacts/axel_guild_materials_20261011/lantern_black_finish_review.json) 与 [实际Godot导入验收](../review_artifacts/axel_guild_materials_20261011/godot_black_lantern_review.json) 均通过。
+保存为 [材质母版v3](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v3.blend) 和 [GLB v3](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v3.glb)，保留v2作对照。[同相机、灯光与曝光预览](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/interior_hall_black_lanterns.png)。六个实例沿用共享网格，只替换两处材质绑定；Blender几何/层级指纹一致，GLB全部网格、UV及图片二进制数据逐字节不变，其他材质不变。[修改核对](../review_artifacts/axel_guild_materials_20261011/lantern_black_finish_review.json) 与 [实际Godot导入验收](../review_artifacts/axel_guild_materials_20261011/godot_black_lantern_review.json) 均通过。
 
 独立家具生成脚本与室内材质恢复脚本均使用 `tools/axel_guild_lantern_finish.py`，后续生成保持用户修正。原runtime独立素材母版未覆盖，编辑器及用户地图未修改。
 
@@ -637,7 +637,7 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 用户进一步明确：灯罩是玻璃片，内部悬浮一颗菱形魔法石，石头发暖白光。替换原先整个实心磨砂灯罩，六盏灯分别使用四片独立透明玻璃与一颗竖向菱形晶石；烤黑金属框、灯柱及底座保持v3。玻璃不自发光，内部没有链条、灯泡或支撑杆。四片玻璃厚4mm，晶石约136×136×300mm，中心离地2.825m；具体尺寸与隐藏安装关系属于项目补充设计。
 
-可编辑文件：[建筑v4母版](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.blend)、[建筑v4 GLB](../review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.glb)、[独立魔法灯母版](../review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.blend)、[独立魔法灯GLB](../review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.glb)。[近景](../review_artifacts/axel_guild_materials_20261011/magic_lantern_detail.png)、[大厅效果](../review_artifacts/axel_guild_materials_20261011/hall_magic_lanterns.png)。
+可编辑文件：[建筑v4母版](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.blend)、[建筑v4 GLB](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/axel_guild_materials_v4.glb)、[独立魔法灯母版](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.blend)、[独立魔法灯GLB](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.glb)。[近景](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/magic_lantern_detail.png)、[大厅效果](D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/hall_magic_lanterns.png)。
 
 六个旧灯罩网格被替换为24片玻璃和6颗晶石，重复实例共享网格；其余模型几何、层级及材质指纹保持一致。玻璃采用透明混合以兼容实时显示，晶石使用暖白自发光。独立资产保留可替换部件和光源插槽，场景拍摄另加预览点光源；没有把预览灯光当作正式昼夜开关接入。[模型检查](../review_artifacts/axel_guild_materials_20261011/magic_lantern_review.json)、[Godot导入和材质检查](../review_artifacts/axel_guild_materials_20261011/godot_magic_lantern_review.json)通过，已检查玻璃透明且不发光、六颗晶石暖白发光和24片玻璃的序列化。GLB SHA256为 `3133db69a7c16b8415fffda54c5f80f7095a3ac1604992e51b4f7450ab260373`。
 
@@ -651,9 +651,9 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 以公会材质v4母版为输入，仅对告警塔265个网格（153份共享网格数据）分配七组基色、粗糙度和法线贴图；无几何置换。全场景顶点、拓扑、对象变换与父级指纹前后一致，公会灯具及室内保持原样。独立导出在临时副本变换下归零，底面为0，中心为原点，高度33.37m，母版中的场景摆放不变。八个中空号角及各部件根保留独立关系。
 
-- [公会与告警塔材质母版](../review_artifacts/alarm_tower_materials_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_tower.blend)、[独立告警塔GLB](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_tower.glb)。
-- 独立部件：[塔冠](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_crown.glb)、[锥顶](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_conical_roof.glb)、[环架](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_ring_supports.glb)、[黄铜号角](../review_artifacts/alarm_tower_materials_20261011/guild_alarm_horn.glb)。
-- 预览：[全塔](../review_artifacts/alarm_tower_materials_20261011/tower.png)、[塔冠](../review_artifacts/alarm_tower_materials_20261011/crown.png)、[号角近景](../review_artifacts/alarm_tower_materials_20261011/horn.png)、[公会旁位置](../review_artifacts/alarm_tower_materials_20261011/site.png)、[Godot实际显示](../review_artifacts/alarm_tower_materials_20261011/godot_crown.png)。
+- [公会与告警塔材质母版](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_tower.blend)、[独立告警塔GLB](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_tower.glb)。
+- 独立部件：[塔冠](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_crown.glb)、[锥顶](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_conical_roof.glb)、[环架](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_ring_supports.glb)、[黄铜号角](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/guild_alarm_horn.glb)。
+- 预览：[全塔](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/tower.png)、[塔冠](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/crown.png)、[号角近景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/horn.png)、[公会旁位置](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/site.png)、[Godot实际显示](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_20261011/godot_crown.png)。
 
 [材质与几何检查](../review_artifacts/alarm_tower_materials_20261011/material_review.json)及[Godot导入检查](../review_artifacts/alarm_tower_materials_20261011/godot_material_review.json)通过：265个材质网格、8个中空号角、7组完整PBR、全部UV以及独立模型原点/高度有效。Godot在私有桌面运行，以天空反射验收金属，临时生成mipmap并使用各向异性过滤；这些仍是正式接入时必须保留的条件。验证GLB SHA256：`ccb7e7245d0bc9ae58cdcaf936b7434cd64c558f4249c8bbe8093792580e41ee`。复现脚本为 `tools/materialize_axel_alarm_tower.py` 与 `tools/review_axel_alarm_tower.gd`。
 
@@ -665,8 +665,8 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 水平檐台使用平面UV，托拱径向侧面按半径和高度展开，外圆面沿圆周展开，避免侧面砖纹挤成线。此次仅修改材质和UV，265个网格的几何与层级指纹保持一致，仍保留8个独立中空号角。材质由七组收敛为六组，Godot实际加载逐一验证石质部件的材质绑定、纹理、UV、原点与高度，检查通过。原v1文件保留，v2为最新交付。
 
-- [整体母版v2](../review_artifacts/alarm_tower_materials_v2_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版v2](../review_artifacts/alarm_tower_materials_v2_20261011/guild_alarm_tower.blend)、[告警塔GLB v2](../review_artifacts/alarm_tower_materials_v2_20261011/guild_alarm_tower.glb)。独立塔冠、锥顶、环架和号角GLB在同目录同步输出。
-- [石砖近景](../review_artifacts/alarm_tower_materials_v2_20261011/stone_detail.png)、[塔冠全景](../review_artifacts/alarm_tower_materials_v2_20261011/crown.png)、[Godot预览](../review_artifacts/alarm_tower_materials_v2_20261011/godot_crown.png)。同名全塔、号角和场景位置预览也已更新至v2目录。
+- [整体母版v2](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版v2](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/guild_alarm_tower.blend)、[告警塔GLB v2](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/guild_alarm_tower.glb)。独立塔冠、锥顶、环架和号角GLB在同目录同步输出。
+- [石砖近景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/stone_detail.png)、[塔冠全景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/crown.png)、[Godot预览](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v2_20261011/godot_crown.png)。同名全塔、号角和场景位置预览也已更新至v2目录。
 - [材质记录](../review_artifacts/alarm_tower_materials_v2_20261011/material_review.json)、[引擎检查](../review_artifacts/alarm_tower_materials_v2_20261011/godot_material_review.json)。GLB SHA256：`ede4add0daffb27cb19223b4d043b6f235ff449611617bcd6bbec662ec684e0c`。
 
 仍为离线材质更新，未修改用户地图；塔身内部及正式资源库发布状态沿用上文。
@@ -681,8 +681,8 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 共用生成模块 `tools/axel_alarm_tower_shaft.py` 同时接入白模生成器与材质生成器，后续生成会保留这次修改。除塔身外，全场景对象的几何、变换及父级指纹不变；原v2母版保留。白模生成器调用共用模块，本轮未重新生成整座公会白模。
 
-- 最新文件：[整体母版v3](../review_artifacts/alarm_tower_materials_v3_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版v3](../review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.blend)、[告警塔GLB v3](../review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb)。
-- 预览：[全塔](../review_artifacts/alarm_tower_materials_v3_20261011/tower.png)、[塔身分布](../review_artifacts/alarm_tower_materials_v3_20261011/shaft.png)、[洞口近景](../review_artifacts/alarm_tower_materials_v3_20261011/slit_detail.png)、[场景关系](../review_artifacts/alarm_tower_materials_v3_20261011/site.png)、[Godot近景](../review_artifacts/alarm_tower_materials_v3_20261011/godot_slit_detail.png)。
+- 最新文件：[整体母版v3](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/guild_and_alarm_tower_materials.blend)、[独立告警塔母版v3](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.blend)、[告警塔GLB v3](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/guild_alarm_tower.glb)。
+- 预览：[全塔](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/tower.png)、[塔身分布](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/shaft.png)、[洞口近景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/slit_detail.png)、[场景关系](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/site.png)、[Godot近景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_materials_v3_20261011/godot_slit_detail.png)。
 - 验收：[建模检查](../review_artifacts/alarm_tower_materials_v3_20261011/shooting_slit_review.json)确认16处贯通且两侧墙体仍完整，非流形边为0；[Godot导出检查](../review_artifacts/alarm_tower_materials_v3_20261011/godot_material_review.json)针对实际GLB三角形重新进行16组洞口/邻墙线段检测，全部通过，265个网格、8个号角、6组PBR和33.37m总高保留。GLB SHA256：`f6f35dc0b9e73a30d7c4a84b3afbb89ce0d11c9817c3385b3c567b21b48f1b94`。
 
 验收在独立后台桌面运行，截图无角色遮挡。此次为离线建筑外观更新，未发布编辑器或修改用户地图。
@@ -710,8 +710,8 @@ v12核对：号角开口/内壁、骨架屋架净空、旧建筑家具几何保�
 
 验收在后台独立桌面进行：近景、号角特写、中景和远景使用相同相机、光照、曝光逐对比较，未发现明显轮廓或材质损失；保留微小高光变化，不声称逐像素无损。42m、112m同机位强制前一级/自动后一级对照没有明显跳变。38、42、108、112、250m的实际绘制面数与强制单级完全一致，证明不存在空档或三套同时绘制；36个LOD节点的元数据和距离经过GLB保存重开检查。全帧像素差包含背景，仅作辅助证据，不能替代人工对图。
 
-- [游戏GLB](../review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb)、[派生Blender文件](../review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend)、[交付清单](../review_artifacts/alarm_tower_game_20261011/asset_manifest.json)。
-- [母版特写](../review_artifacts/alarm_tower_game_20261011/master_horn_close.png) / [游戏版特写](../review_artifacts/alarm_tower_game_20261011/game_horn_close.png)，[母版中景](../review_artifacts/alarm_tower_game_20261011/master_medium.png) / [游戏版中景](../review_artifacts/alarm_tower_game_20261011/game_medium.png)。
+- [游戏GLB](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb)、[派生Blender文件](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.blend)、[交付清单](../review_artifacts/alarm_tower_game_20261011/asset_manifest.json)。
+- [母版特写](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/master_horn_close.png) / [游戏版特写](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/game_horn_close.png)，[母版中景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/master_medium.png) / [游戏版中景](D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/game_medium.png)。
 - [生成记录](../review_artifacts/alarm_tower_game_20261011/optimization_build.json)、[实际引擎与保存重开检查](../review_artifacts/alarm_tower_game_20261011/game_review.json)、[贴图和画面对比审查](../review_artifacts/alarm_tower_game_20261011/delivery_audit.json)。复现脚本为 `tools/optimize_axel_alarm_tower.py`、`tools/review_axel_alarm_tower_game.gd`、`tools/audit_axel_alarm_game.py`。
 
 游戏GLB SHA256：`35d9c3ef6bd1ee98ff737ff87b1a6ade91af8a35be6e792a524256433aa0414c`。本轮交付离线游戏优化资产，尚未发布资源库或替换用户地图；原母版保留，内部楼梯与入口状态沿用v3说明。

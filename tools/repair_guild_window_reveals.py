@@ -17,7 +17,7 @@ def values(doc,binary,index):
 
 ROOT=Path('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v3')
 ROLLBACK=ROOT/'rollback_before_window_reveal_20261013'
-REPORT=Path('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/window_reveal_repair')
+REPORT=Path('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/window_reveal_repair')
 EXPECTED='ff905eb6f9f47ec19b64b8b85ae200d28cbbc0bef5ae40bc77f28899dbdd1f8b'
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 master=ROOT/'axel_guild_repaired.blend';source=ROOT/'axel_guild_repaired.glb'

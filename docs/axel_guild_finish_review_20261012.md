@@ -40,10 +40,10 @@ GPU 在独立后台桌面执行，未激活前台窗口；使用临时内容根�
 
 最终证据：[candidate.json](../review_artifacts/axel_guild_finish_20261012/delivery/candidate.json)、[逐项摘要](../review_artifacts/axel_guild_finish_20261012/delivery_summary.json)、[独立立杆验收](../review_artifacts/axel_guild_finish_20261012/standard_final/baseline.json)。`clean_review/compare.json` 及 `finish_review_initial/compare.json` 为早期历史结果，不对应最终候选，不用于本轮通过判断。
 
-![门口及独立金色徽饰](../review_artifacts/axel_guild_finish_20261012/delivery/candidate/entrance_detail_still.png)
+![门口及独立金色徽饰](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/delivery/candidate/entrance_detail_still.png)
 
-![屋面交接、彩窗与布幡](../review_artifacts/axel_guild_finish_20261012/delivery/candidate/roof_detail_still.png)
+![屋面交接、彩窗与布幡](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/delivery/candidate/roof_detail_still.png)
 
-![布幡及三角支架](../review_artifacts/axel_guild_finish_20261012/delivery/candidate/banner_detail_still.png)
+![布幡及三角支架](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/delivery/candidate/banner_detail_still.png)
 
-![室内扇形彩窗](../review_artifacts/axel_guild_finish_20261012/delivery/candidate/fanlight_detail_still.png)
+![室内扇形彩窗](D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/delivery/candidate/fanlight_detail_still.png)

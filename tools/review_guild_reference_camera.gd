@@ -15,7 +15,7 @@ func run()->void:
 		if arg.begins_with('--kind='):review_kind=arg.trim_prefix('--kind=')
 		if arg.begins_with('--views='):requested_views=arg.trim_prefix('--views=').split(',')
 	if DisplayServer.get_name()=='headless':print('REFERENCE_REVIEW_SYNTAX_OK');quit();return
-	if not out.replace('\\','/').begins_with('D:/code/rmmo/review_artifacts/guild_reference_recheck_20261013/') or not FileAccess.file_exists(source):quit(2);return
+	if not out.replace('\\','/').begins_with('D:/code/rmmo_runtime/review_artifacts/guild_reference_recheck_20261013/') or not FileAccess.file_exists(source):quit(2);return
 	create_timer(600).timeout.connect(func():push_error('REFERENCE_REVIEW_TIMEOUT');quit(124))
 	var digest:=FileAccess.get_sha256(source)
 	var doc:=GLTFDocument.new();var state:=GLTFState.new()

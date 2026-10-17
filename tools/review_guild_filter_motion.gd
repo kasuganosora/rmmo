@@ -1,5 +1,5 @@
 extends "res://tools/review_axel_guild_finish.gd"
-const DEST="D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/repair_review"
+const DEST="D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/repair_review"
 func run()->void:
 	out=DEST;case_name="filter_motion"
 	var evidence:=read_json(DEST+"/final_building/candidate.json")

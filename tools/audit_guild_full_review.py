@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path('D:/code/rmmo_runtime/art_sources/axel_guild')
-OUT = Path('D:/code/rmmo/review_artifacts/axel_guild_finish_20261012/full_review')
+OUT = Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_finish_20261012/full_review')
 MAIN = ROOT / 'finish_v1/entry_extension/axel_guild_entry.glb'
 
 def read(path):
@@ -56,9 +56,9 @@ def main():
     extra=[('guild_statue_decorative_panel',ROOT/'decorative_panel_v1/guild_statue_decorative_panel_game.glb'),
            ('guild_hanging_skeleton',ROOT/'landmarks_v2/guild_hanging_skeleton.glb'),
            ('guild_fab_knight_statue',ROOT/'fab_knight_statue_v1/guild_knight_statue_whitebox.glb'),
-           ('guild_hall_magic_lantern',Path('D:/code/rmmo/review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.glb')),
+           ('guild_hall_magic_lantern',Path('D:/code/rmmo_runtime/review_artifacts/axel_guild_materials_20261011/guild_hall_magic_lantern.glb')),
            ('guild_entrance_crescent_standard',ROOT/'finish_v1/guild_entrance_crescent_standard.glb'),
-           ('guild_alarm_tower_game',Path('D:/code/rmmo/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb'))]
+           ('guild_alarm_tower_game',Path('D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb'))]
     for name,path in extra:
         if path.exists():
             row=audit(path);row.update(id=name,label=name,group='special');assets.append(row)

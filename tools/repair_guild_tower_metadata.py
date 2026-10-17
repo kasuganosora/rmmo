@@ -4,7 +4,7 @@ No mesh/material/image bytes are rewritten. LOD culling boxes gain 5 cm margin.
 """
 import copy,json,struct,hashlib
 from pathlib import Path
-source=Path('D:/code/rmmo/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb')
+source=Path('D:/code/rmmo_runtime/review_artifacts/alarm_tower_game_20261011/guild_alarm_tower_game.glb')
 out=Path('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v2/guild_alarm_tower.glb')
 b=source.read_bytes();n,k=struct.unpack_from('<II',b,12);j=json.loads(b[20:20+n]);old=copy.deepcopy(j)
 assert not j.get('animations') and not j.get('skins')

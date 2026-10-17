@@ -56,7 +56,7 @@ func run()->void:
 		if arg.begins_with("--out="):out=arg.trim_prefix("--out=")
 		if arg.begins_with("--label="):review_label=arg.trim_prefix("--label=")
 	if DisplayServer.get_name()=="headless":print("S2_REVIEW_SYNTAX_OK");quit();return
-	if not source.begins_with("D:/code/rmmo_runtime/art_sources/s2_green_pennant_post_20261015/") or not out.begins_with("D:/code/rmmo/review_artifacts/s2_green_pennant_post_20261015/"):push_error("Source/output outside isolated scope");quit(2);return
+	if not source.begins_with("D:/code/rmmo_runtime/art_sources/s2_green_pennant_post_20261015/") or not out.begins_with("D:/code/rmmo_runtime/review_artifacts/s2_green_pennant_post_20261015/"):push_error("Source/output outside isolated scope");quit(2);return
 	var identity:={"id":"s2_green_pennant_post","variant":review_label,"path":source,"sha256":FileAccess.get_sha256(source),"source_bytes":size_of(source)}
 	var doc:=GLTFDocument.new();var state:=GLTFState.new()
 	if doc.append_from_file(source,state)!=OK:push_error("GLB import failed");quit(2);return

@@ -1,5 +1,5 @@
 extends SceneTree
-const DEST="D:/code/rmmo/review_artifacts/required_street_recheck_20261013"
+const DEST="D:/code/rmmo_runtime/review_artifacts/required_street_recheck_20261013"
 const Authority=preload('res://scripts/world3d/world_authority.gd')
 const Paint=preload('res://scripts/world3d/surface_materials.gd')
 var results:Array=[]

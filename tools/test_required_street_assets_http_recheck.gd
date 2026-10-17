@@ -2,7 +2,7 @@ extends "res://tools/test_guild_reference_import.gd"
 ## Same audited source/native semantics and real HTTP contract, today's 11 assets.
 ## The originals and all formal maps/catalogues remain untouched.
 const MANIFEST="D:/code/rmmo_runtime/art_sources/required_street_assets_20261013/review_v2/manifest.json"
-const DEST="D:/code/rmmo/review_artifacts/required_street_recheck_20261013"
+const DEST="D:/code/rmmo_runtime/review_artifacts/required_street_recheck_20261013"
 var original_content_override:=""
 
 func configure_isolated_content(prior:Dictionary)->Dictionary:
