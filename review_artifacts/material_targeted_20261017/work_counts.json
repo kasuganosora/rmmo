@@ -1,0 +1,191 @@
+{
+	"checks": [
+		{
+			"label": "real_shared_dual baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "real_shared_dual instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "real_shared_dual parses only selected candidate descriptors",
+			"ok": true
+		},
+		{
+			"label": "real_shared_single baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "real_shared_single instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "real_shared_single parses only selected candidate descriptors",
+			"ok": true
+		},
+		{
+			"label": "builtin baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "builtin instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "builtin parses only selected candidate descriptors",
+			"ok": true
+		},
+		{
+			"label": "missing baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "missing instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "missing parses only selected candidate descriptors",
+			"ok": true
+		},
+		{
+			"label": "cap_fallback baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "cap_fallback instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "cap_fallback fallback reads original full catalog",
+			"ok": true
+		},
+		{
+			"label": "wide_fallback baseline/current bytes identical",
+			"ok": true
+		},
+		{
+			"label": "wide_fallback instrumentation preserves exact native outputs",
+			"ok": true
+		},
+		{
+			"label": "wide_fallback fallback reads original full catalog",
+			"ok": true
+		}
+	],
+	"failures": 0,
+	"samples": [
+		{
+			"baseline_reads": 52,
+			"candidate_scan": {
+				"complete": true,
+				"count": 54,
+				"directories": 62,
+				"paths": [
+					{
+						"base": "D:/code/rmmo_runtime/packs/default/assets/materials",
+						"full": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/material.json",
+						"id": "pack:default:paving/automatic_limestone_kerb/material",
+						"origin": "默认资源包",
+						"path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb",
+						"prefix": "pack:default:"
+					},
+					{
+						"base": "D:/code/rmmo_runtime/packs/default/assets/materials",
+						"full": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/material.json",
+						"id": "pack:default:paving/historic_cobble/material",
+						"origin": "默认资源包",
+						"path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble",
+						"prefix": "pack:default:"
+					}
+				]
+			},
+			"current_reads": 2,
+			"ids": [
+				"pack:default:paving/historic_cobble/material",
+				"pack:default:paving/automatic_limestone_kerb/material"
+			],
+			"name": "real_shared_dual"
+		},
+		{
+			"baseline_reads": 52,
+			"candidate_scan": {
+				"complete": true,
+				"count": 54,
+				"directories": 62,
+				"paths": [
+					{
+						"base": "D:/code/rmmo_runtime/packs/default/assets/materials",
+						"full": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/material.json",
+						"id": "pack:default:paving/historic_cobble/material",
+						"origin": "默认资源包",
+						"path": "D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble",
+						"prefix": "pack:default:"
+					}
+				]
+			},
+			"current_reads": 1,
+			"ids": [
+				"pack:default:paving/historic_cobble/material"
+			],
+			"name": "real_shared_single"
+		},
+		{
+			"baseline_reads": 52,
+			"candidate_scan": {
+				"complete": true,
+				"count": 54,
+				"directories": 62,
+				"paths": []
+			},
+			"current_reads": 0,
+			"ids": [
+				"builtin:white"
+			],
+			"name": "builtin"
+		},
+		{
+			"baseline_reads": 52,
+			"candidate_scan": {
+				"complete": true,
+				"count": 54,
+				"directories": 62,
+				"paths": []
+			},
+			"current_reads": 0,
+			"ids": [
+				"not-a-material"
+			],
+			"name": "missing"
+		},
+		{
+			"baseline_reads": 2046,
+			"candidate_scan": {
+				"complete": false,
+				"count": 2048,
+				"directories": 1,
+				"paths": []
+			},
+			"current_reads": 2046,
+			"ids": [
+				"2045",
+				"later/hidden"
+			],
+			"name": "cap_fallback"
+		},
+		{
+			"baseline_reads": 1,
+			"candidate_scan": {
+				"complete": false,
+				"count": 2,
+				"directories": 257,
+				"paths": []
+			},
+			"current_reads": 1,
+			"ids": [
+				"d256/valid"
+			],
+			"name": "wide_fallback"
+		}
+	]
+}

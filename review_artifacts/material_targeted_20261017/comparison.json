@@ -1,0 +1,648 @@
+{
+  "cpu": {
+    "dual": {
+      "baseline_ms": 1025.931,
+      "current_ms": 582.6595,
+      "change_pct": -43.20675562001733,
+      "aa_abs_delta_median_ms": 154.8315,
+      "slower_pairs": 0,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        1116.622,
+        1105.374,
+        1008.777,
+        1043.085,
+        956.039,
+        964.536,
+        1099.126,
+        1048.498,
+        996.885,
+        959.057,
+        938.378,
+        1130.579
+      ],
+      "raw_current_ms": [
+        669.865,
+        733.186,
+        606.86,
+        593.562,
+        521.085,
+        510.739,
+        537.681,
+        575.274,
+        551.313,
+        590.045,
+        562.965,
+        633.328
+      ]
+    },
+    "single": {
+      "baseline_ms": 929.6295,
+      "current_ms": 482.5525,
+      "change_pct": -48.0919549132208,
+      "aa_abs_delta_median_ms": 62.533500000000004,
+      "slower_pairs": 0,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        1149.442,
+        1047.239,
+        1034.406,
+        925.405,
+        1071.487,
+        933.854,
+        877.207,
+        810.392,
+        794.762,
+        852.093,
+        964.499,
+        909.552
+      ],
+      "raw_current_ms": [
+        409.722,
+        537.681,
+        543.723,
+        514.618,
+        468.599,
+        595.91,
+        488.145,
+        482.601,
+        416.864,
+        414.99,
+        415.555,
+        482.504
+      ]
+    },
+    "plain": {
+      "baseline_ms": 87.0685,
+      "current_ms": 87.91149999999999,
+      "change_pct": 0.9682031963339055,
+      "aa_abs_delta_median_ms": 9.163999999999998,
+      "slower_pairs": 5,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        114.197,
+        80.146,
+        99.341,
+        91.665,
+        76.666,
+        76.658,
+        59.624,
+        92.7,
+        98.368,
+        93.125,
+        63.456,
+        82.472
+      ],
+      "raw_current_ms": [
+        82.042,
+        95.576,
+        77.012,
+        90.092,
+        92.077,
+        87.056,
+        97.827,
+        86.211,
+        81.795,
+        91.253,
+        88.767,
+        57.399
+      ]
+    }
+  },
+  "cpu_diagnostic": [
+    {
+      "label": "dual_ON",
+      "prepare_ms": 1135.017,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.011,
+          "collision": 8.151,
+          "finalize": 0.982,
+          "intersection_split": 0.308,
+          "material_lookup": 691.042,
+          "obstacle_shapes": 0.083,
+          "record_preservation": 204.957,
+          "road_build": 3.648,
+          "source_validation": 0.05,
+          "terrain_fit": 225.773
+        },
+        "total_ms": 1135.01
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "kerb_enabled": true,
+        "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+        "material_id": "pack:default:paving/historic_cobble/material"
+      },
+      "result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+      "version": "baseline"
+    },
+    {
+      "label": "dual_ON",
+      "prepare_ms": 627.382,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.011,
+          "collision": 7.778,
+          "finalize": 1.423,
+          "intersection_split": 0.296,
+          "material_lookup": 198.922,
+          "obstacle_shapes": 0.065,
+          "record_preservation": 230.653,
+          "road_build": 3.833,
+          "source_validation": 0.049,
+          "terrain_fit": 184.338
+        },
+        "total_ms": 627.375
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "kerb_enabled": true,
+        "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+        "material_id": "pack:default:paving/historic_cobble/material"
+      },
+      "result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+      "version": "current"
+    },
+    {
+      "label": "single_ON",
+      "prepare_ms": 782.576,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.01,
+          "collision": 7.201,
+          "finalize": 1.445,
+          "intersection_split": 0.004,
+          "material_lookup": 552.851,
+          "obstacle_shapes": 0.062,
+          "record_preservation": 107.137,
+          "road_build": 1.595,
+          "source_validation": 0.047,
+          "terrain_fit": 112.21
+        },
+        "total_ms": 782.569
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "material_id": "pack:default:paving/historic_cobble/material"
+      },
+      "result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+      "version": "baseline"
+    },
+    {
+      "label": "single_ON",
+      "prepare_ms": 494.429,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.012,
+          "collision": 18.422,
+          "finalize": 3.5,
+          "intersection_split": 0.003,
+          "material_lookup": 149.45,
+          "obstacle_shapes": 0.099,
+          "record_preservation": 188.514,
+          "road_build": 2.414,
+          "source_validation": 0.055,
+          "terrain_fit": 131.933
+        },
+        "total_ms": 494.417
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "material_id": "pack:default:paving/historic_cobble/material"
+      },
+      "result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+      "version": "current"
+    },
+    {
+      "label": "plain_ON",
+      "prepare_ms": 90.687,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 4,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.01,
+          "collision": 13.157,
+          "finalize": 1.827,
+          "intersection_split": 0.003,
+          "material_lookup": 0.021,
+          "obstacle_shapes": 0.097,
+          "record_preservation": 37.775,
+          "road_build": 1.544,
+          "source_validation": 0.042,
+          "terrain_fit": 36.179
+        },
+        "total_ms": 90.674
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "material_id": ""
+      },
+      "result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+      "version": "baseline"
+    },
+    {
+      "label": "plain_ON",
+      "prepare_ms": 65.827,
+      "profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 4,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.028,
+          "collision": 6.325,
+          "finalize": 0.932,
+          "intersection_split": 0.013,
+          "material_lookup": 0.014,
+          "obstacle_shapes": 0.056,
+          "record_preservation": 12.954,
+          "road_build": 3.67,
+          "source_validation": 0.155,
+          "terrain_fit": 41.643
+        },
+        "total_ms": 65.802
+      },
+      "profile_enabled": true,
+      "request": {
+        "follow_terrain": true,
+        "material_id": ""
+      },
+      "result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+      "version": "current"
+    }
+  ],
+  "cpu_checks": 237,
+  "ui": {
+    "preview_callback_ms": {
+      "baseline_ms": 841.3865000000001,
+      "current_ms": 466.378,
+      "change_pct": -44.570301520169394,
+      "aa_abs_delta_median_ms": 26.521500000000003,
+      "slower_pairs": 0,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        796.018,
+        830.275,
+        816.82,
+        927.928,
+        887.67,
+        804.974,
+        810.062,
+        933.237,
+        909.402,
+        852.498,
+        811.498,
+        880.261
+      ],
+      "raw_current_ms": [
+        472.009,
+        465.181,
+        520.441,
+        469.208,
+        445.953,
+        456.08,
+        464.493,
+        452.14,
+        464.997,
+        467.575,
+        520.696,
+        492.541
+      ]
+    },
+    "apply_callback_ms": {
+      "baseline_ms": 1268.8355000000001,
+      "current_ms": 849.7505,
+      "change_pct": -33.02910424558583,
+      "aa_abs_delta_median_ms": 87.21000000000004,
+      "slower_pairs": 0,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        1263.939,
+        1184.29,
+        1281.462,
+        1276.546,
+        1228.729,
+        1311.541,
+        1180.667,
+        1273.732,
+        1229.022,
+        1236.132,
+        1346.152,
+        1305.765
+      ],
+      "raw_current_ms": [
+        809.222,
+        817.251,
+        866.429,
+        868.372,
+        868.08,
+        829.917,
+        794.351,
+        821.578,
+        887.277,
+        907.622,
+        833.072,
+        963.139
+      ]
+    },
+    "apply_to_ready_ms": {
+      "baseline_ms": 1393.3539999999998,
+      "current_ms": 996.0705,
+      "change_pct": -28.51274694011714,
+      "aa_abs_delta_median_ms": 84.46249999999998,
+      "slower_pairs": 0,
+      "pairs": 12,
+      "raw_baseline_ms": [
+        1386.374,
+        1328.821,
+        1410.175,
+        1435.262,
+        1357.215,
+        1450.528,
+        1345.215,
+        1398.233,
+        1357.938,
+        1388.475,
+        1482.579,
+        1447.428
+      ],
+      "raw_current_ms": [
+        954.908,
+        937.127,
+        1023.961,
+        1013.744,
+        1004.537,
+        966.744,
+        913.837,
+        981.392,
+        1042.336,
+        1062.999,
+        987.604,
+        1087.798
+      ]
+    }
+  },
+  "ui_diagnostic": [
+    {
+      "apply_callback_ms": 1312.526,
+      "apply_profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.014,
+          "collision": 6.148,
+          "finalize": 1.329,
+          "intersection_split": 0.533,
+          "material_lookup": 575.316,
+          "obstacle_shapes": 0.064,
+          "record_preservation": 178.662,
+          "road_build": 5.833,
+          "source_validation": 0.106,
+          "terrain_fit": 148.944
+        },
+        "total_ms": 916.959
+      },
+      "apply_to_ready_ms": 1469.65,
+      "author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+      "label": "ON_baseline",
+      "preview_callback_ms": 902.555,
+      "preview_draw_wait_ms": 4.487,
+      "preview_profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.012,
+          "collision": 6.999,
+          "finalize": 1.048,
+          "intersection_split": 0.331,
+          "material_lookup": 559.933,
+          "obstacle_shapes": 0.066,
+          "record_preservation": 159.223,
+          "road_build": 3.637,
+          "source_validation": 0.06,
+          "terrain_fit": 169.448
+        },
+        "total_ms": 900.762
+      },
+      "profile_enabled": true,
+      "publication": {
+        "batch_stats": {
+          "base_work_budget_usec": 2000,
+          "building_mesh_hits": 0,
+          "enabled": true,
+          "groups": 4,
+          "instanced_groups": 0,
+          "last_build_ms": 15.691,
+          "last_commit_ms": 0.618,
+          "last_sync_ms": 12.767,
+          "loading_budget_scopes": 0,
+          "max_build_ms": 33.548,
+          "max_commit_ms": 1.64,
+          "pending_groups": 0,
+          "rebuild_count": 140,
+          "release_groups_visited": 0,
+          "render_surfaces": 12,
+          "render_vertices": 18792,
+          "source_objects": 8,
+          "source_surfaces": 24,
+          "source_vertices": 18792,
+          "sync_count": 141,
+          "sync_profile_us": {
+            "capture_us": 215,
+            "geometry_us": 5,
+            "material_us": 11176
+          },
+          "work_budget_usec": 2000
+        },
+        "draw_frame": 629,
+        "ok": true,
+        "physics_frame": 1414,
+        "wait_ms": 157.052
+      },
+      "request": {
+        "clearance": 3.0,
+        "follow_terrain": true,
+        "kerb_enabled": true,
+        "kerb_height": 0.055,
+        "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+        "kerb_width": 0.28,
+        "lift": 0.025,
+        "material_id": "pack:default:paving/historic_cobble/material",
+        "thickness": 0.2
+      },
+      "version": "baseline"
+    },
+    {
+      "apply_callback_ms": 916.941,
+      "apply_profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.012,
+          "collision": 6.081,
+          "finalize": 1.592,
+          "intersection_split": 0.32,
+          "material_lookup": 153.227,
+          "obstacle_shapes": 0.073,
+          "record_preservation": 167.941,
+          "road_build": 3.651,
+          "source_validation": 0.064,
+          "terrain_fit": 161.312
+        },
+        "total_ms": 494.283
+      },
+      "apply_to_ready_ms": 1062.726,
+      "author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+      "label": "ON_current",
+      "preview_callback_ms": 617.949,
+      "preview_draw_wait_ms": 6.432,
+      "preview_profile": {
+        "counts": {
+          "obstacle_records_expanded": 0,
+          "obstacle_shapes": 0,
+          "potential_shape_pairs": 0,
+          "road_records": 8,
+          "source_records": 1,
+          "terrain_records_skipped": 1
+        },
+        "ok": true,
+        "stages_ms": {
+          "bridge_bindings": 0.017,
+          "collision": 22.416,
+          "finalize": 2.356,
+          "intersection_split": 0.335,
+          "material_lookup": 178.897,
+          "obstacle_shapes": 0.063,
+          "record_preservation": 193.964,
+          "road_build": 4.072,
+          "source_validation": 0.061,
+          "terrain_fit": 213.195
+        },
+        "total_ms": 615.385
+      },
+      "profile_enabled": true,
+      "publication": {
+        "batch_stats": {
+          "base_work_budget_usec": 2000,
+          "building_mesh_hits": 0,
+          "enabled": true,
+          "groups": 4,
+          "instanced_groups": 0,
+          "last_build_ms": 16.522,
+          "last_commit_ms": 0.597,
+          "last_sync_ms": 10.413,
+          "loading_budget_scopes": 0,
+          "max_build_ms": 33.548,
+          "max_commit_ms": 1.64,
+          "pending_groups": 0,
+          "rebuild_count": 144,
+          "release_groups_visited": 0,
+          "render_surfaces": 12,
+          "render_vertices": 18792,
+          "source_objects": 8,
+          "source_surfaces": 24,
+          "source_vertices": 18792,
+          "sync_count": 145,
+          "sync_profile_us": {
+            "capture_us": 137,
+            "geometry_us": 2,
+            "material_us": 9284
+          },
+          "work_budget_usec": 2000
+        },
+        "draw_frame": 646,
+        "ok": true,
+        "physics_frame": 1452,
+        "wait_ms": 145.667
+      },
+      "request": {
+        "clearance": 3.0,
+        "follow_terrain": true,
+        "kerb_enabled": true,
+        "kerb_height": 0.055,
+        "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+        "kerb_width": 0.28,
+        "lift": 0.025,
+        "material_id": "pack:default:paving/historic_cobble/material",
+        "thickness": 0.2
+      },
+      "version": "current"
+    }
+  ],
+  "ui_checks": 469
+}

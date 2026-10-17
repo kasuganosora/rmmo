@@ -2,6 +2,7 @@ extends RefCounted
 const Paths = preload("res://scripts/world3d/map_paths.gd")
 const Paint = preload("res://scripts/world3d/surface_materials.gd")
 const Atomic = preload("res://scripts/world3d/atomic_file.gd")
+const LOOKUP_DIRECTORY_LIMIT := 256
 var directory: String
 var include_shared := true
 
@@ -11,9 +12,7 @@ func _init(folder: String = "") -> void:
 
 func entries(content_root: String = "") -> Array:
 	if content_root.is_empty(): content_root = Paths.external_root()
-	var result: Array = [
-		{"material_id": "builtin:white", "material": {"name": "白色", "color": [1, 1, 1, 1], "roughness": 0.9}},
-		{"material_id": "builtin:checker", "material": {"name": "棋盘格 · 检查比例", "pattern": "checker", "color": [1, 1, 1, 1], "roughness": 0.9}}]
+	var result: Array = _builtins()
 	_collect(directory, directory, "", "导入材质", result, content_root)
 	if include_shared:
 		for pack in preload("res://scripts/world_editor/resource_pack_catalog.gd").new(content_root).packs():
@@ -22,6 +21,11 @@ func entries(content_root: String = "") -> Array:
 			_collect(base, base, "pack:" + str(pack.id) + ":", "默认资源包", result, content_root)
 	return result
 
+static func _builtins() -> Array:
+	return [
+		{"material_id": "builtin:white", "material": {"name": "白色", "color": [1, 1, 1, 1], "roughness": 0.9}},
+		{"material_id": "builtin:checker", "material": {"name": "棋盘格 · 检查比例", "pattern": "checker", "color": [1, 1, 1, 1], "roughness": 0.9}}]
+
 func _collect(path: String, base: String, prefix: String, origin: String, result: Array, content_root: String, depth: int = 0) -> void:
 	if depth > 8 or result.size() >= 2048 or not Paths.allowed(path, content_root): return
 	var dir := DirAccess.open(path)
@@ -29,22 +33,26 @@ func _collect(path: String, base: String, prefix: String, origin: String, result
 	for file in dir.get_files():
 		var full := path.path_join(file)
 		if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full, content_root): continue
-		var value: Variant = JSON.parse_string(FileAccess.get_file_as_string(full))
-		if not value is Dictionary or not value.get("material") is Dictionary: continue
-		for field in Paint.MAP_FIELDS:
-			if value.material.get(field) is String and not str(value.material[field]).is_empty():
-				var texture_path: String = value.material[field]
-				if not texture_path.is_absolute_path(): texture_path = path.path_join(texture_path).simplify_path()
-				# Pack descriptors cannot reach sibling packs or their sources folder.
-				if not prefix.is_empty() and not texture_path.replace("\\", "/").begins_with(base.replace("\\", "/").trim_suffix("/") + "/"): value.material[field] = "invalid:outside-material-library"
-				else: value.material[field] = texture_path
-		if not Paint.material_valid(value.material, false, content_root): continue
-		var relative := full.replace("\\", "/").trim_prefix(base.replace("\\", "/").trim_suffix("/") + "/").get_basename()
-		var category := str(value.get("category", "导入材质"))
-		result.append({"material_id": prefix + relative, "material": value.material, "category": category, "origin": origin, "source": value.get("source", {})})
+		var entry := _read_entry(full, path, base, prefix, origin, content_root)
+		if not entry.is_empty(): result.append(entry)
 	for folder in dir.get_directories():
 		if folder.begins_with(".") or dir.is_link(folder): continue
 		_collect(path.path_join(folder), base, prefix, origin, result, content_root, depth + 1)
+
+static func _read_entry(full: String, path: String, base: String, prefix: String, origin: String, content_root: String) -> Dictionary:
+	var value: Variant = JSON.parse_string(FileAccess.get_file_as_string(full))
+	if not value is Dictionary or not value.get("material") is Dictionary: return {}
+	for field in Paint.MAP_FIELDS:
+		if value.material.get(field) is String and not str(value.material[field]).is_empty():
+			var texture_path: String = value.material[field]
+			if not texture_path.is_absolute_path(): texture_path = path.path_join(texture_path).simplify_path()
+			# Pack descriptors cannot reach sibling packs or their sources folder.
+			if not prefix.is_empty() and not texture_path.replace("\\", "/").begins_with(base.replace("\\", "/").trim_suffix("/") + "/"): value.material[field] = "invalid:outside-material-library"
+			else: value.material[field] = texture_path
+	if not Paint.material_valid(value.material, false, content_root): return {}
+	var relative := full.replace("\\", "/").trim_prefix(base.replace("\\", "/").trim_suffix("/") + "/").get_basename()
+	var category := str(value.get("category", "导入材质"))
+	return {"material_id": prefix + relative, "material": value.material, "category": category, "origin": origin, "source": value.get("source", {})}
 
 func categories() -> Array:
 	var result: Array = []
@@ -65,14 +73,68 @@ func find(id: String) -> Dictionary:
 	return {}
 
 func find_many(ids: Array) -> Dictionary:
-	# One synchronous operation, never retained across previews, edits or loads.
-	# Keep entries() ordering, limits and subclass catalogs exactly as find().
+	if ids.is_empty(): return {}
+	# Subclasses can provide virtual catalogs or override collection. Retain
+	# that contract rather than inspecting only the native on-disk directory.
+	if get_script() != load("res://scripts/world_editor/surface_material_library.gd"):
+		return _find_many_entries(ids)
+	var result: Dictionary = {}
+	for entry in _builtins():
+		if entry.material_id in ids: result[entry.material_id] = entry.material
+	if ids.all(func(id):return result.has(id)): return result
+	var content_root := Paths.external_root()
+	var candidates := _lookup_candidates(ids, content_root)
+	if not candidates.complete: return _find_many_entries(ids)
+	for candidate in candidates.paths:
+		if result.has(candidate.id): continue
+		# Recheck selected leaves and ancestors before reading their definition.
+		if not Paths.allowed(candidate.full, content_root): continue
+		var entry := _read_entry(candidate.full, candidate.path, candidate.base, candidate.prefix, candidate.origin, content_root)
+		if not entry.is_empty(): result[entry.material_id] = entry.material.duplicate(true)
+	return result
+
+func _find_many_entries(ids: Array) -> Dictionary:
 	var result: Dictionary = {}
 	if ids.is_empty(): return result
 	for entry in entries():
 		if entry.material_id in ids and not result.has(entry.material_id):
 			result[entry.material_id] = entry.material.duplicate(true)
 	return result
+
+func _lookup_candidates(ids: Array, content_root: String) -> Dictionary:
+	# Count every .json name, including invalid descriptors, as an upper bound
+	# on valid entries. Below 2048 (including builtins), the catalog's per-
+	# directory cap cannot skip a branch. Otherwise use the original traversal.
+	var state := {"complete":true, "count":2, "directories":0, "paths":[]}
+	_candidate_paths(directory, directory, "", "导入材质", ids, content_root, state)
+	if include_shared and state.complete:
+		for pack in preload("res://scripts/world_editor/resource_pack_catalog.gd").new(content_root).packs():
+			if not pack.shared: continue
+			var base: String = str(pack.root).path_join("assets/materials")
+			_candidate_paths(base, base, "pack:" + str(pack.id) + ":", "默认资源包", ids, content_root, state)
+			if not state.complete: break
+	return state
+
+func _candidate_paths(path: String, base: String, prefix: String, origin: String, ids: Array, content_root: String, state: Dictionary, depth: int = 0) -> void:
+	if not state.complete or depth > 8 or not Paths.allowed(path, content_root): return
+	var dir := DirAccess.open(path)
+	if dir == null: return
+	state.directories += 1
+	if state.directories > LOOKUP_DIRECTORY_LIMIT:
+		state.complete = false; return
+	for file in dir.get_files():
+		if not file.ends_with(".json"): continue
+		state.count += 1
+		if state.count >= 2048:
+			state.complete = false; return
+		var full := path.path_join(file)
+		var relative := full.replace("\\", "/").trim_prefix(base.replace("\\", "/").trim_suffix("/") + "/").get_basename()
+		if prefix + relative in ids and not dir.is_link(file):
+			state.paths.append({"id":prefix + relative,"full":full,"path":path,"base":base,"prefix":prefix,"origin":origin})
+	for folder in dir.get_directories():
+		if not state.complete: return
+		if folder.begins_with(".") or dir.is_link(folder): continue
+		_candidate_paths(path.path_join(folder), base, prefix, origin, ids, content_root, state, depth + 1)
 
 func import_texture(path: String, label: String = "") -> Dictionary:
 	if not Paths.allowed(path) or path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"] or not FileAccess.file_exists(path): return Paint.fail("请选择内容目录内的 PNG / JPEG / WebP 贴图")

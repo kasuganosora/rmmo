@@ -1,0 +1,384 @@
+{
+	"checks": [
+		{
+			"label": "empty exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "empty exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "mixed and repeated IDs exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "mixed and repeated IDs exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "detached result exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "detached result exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "caller mutation never persists",
+			"ok": true
+		},
+		{
+			"label": "{  } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{  } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{  } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"kerb\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"pavement\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"pavement\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"pavement\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"missing\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"missing\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"missing\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "{ \"material_id\": \"pavement\", \"kerb_enabled\": true, \"kerb_material_id\": \"missing\" } expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "external replacement exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "external replacement exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "descriptor changes visible on next call",
+			"ok": true
+		},
+		{
+			"label": "same pavement ID with changed definition changes plan token",
+			"ok": true
+		},
+		{
+			"label": "same kerb ID with changed definition changes plan token",
+			"ok": true
+		},
+		{
+			"label": "external deletion exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "external deletion exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "external reappearance exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "external reappearance exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "invalid schema exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "invalid schema exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "depth hidden traversal extension case exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "depth hidden traversal extension case exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "duplicate shared identities preserve catalog winner exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "duplicate shared identities preserve catalog winner exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "shared pack texture confinement exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "shared pack texture confinement exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "pack identity changes visible exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "pack identity changes visible exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "shared switch visible exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "shared switch visible exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "texture before deletion exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "texture before deletion exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "missing file schema semantics exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "missing file schema semantics exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "lookup retains schema-only semantics for missing texture",
+			"ok": true
+		},
+		{
+			"label": "selected missing kerb texture rejected complete road success/error bytes match baseline",
+			"ok": true
+		},
+		{
+			"label": "selected missing kerb texture rejected no author/history mutation",
+			"ok": true
+		},
+		{
+			"label": "selected missing kerb texture rejected expected success or rejection",
+			"ok": true
+		},
+		{
+			"label": "resource root changes invalidate previous successes exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "resource root changes invalidate previous successes exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "before path replacement exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "before path replacement exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "ordinary folder material resolves",
+			"ok": true
+		},
+		{
+			"label": "remove only empty temporary link fixture directory",
+			"ok": true
+		},
+		{
+			"label": "create temporary junction without activating a window",
+			"ok": true
+		},
+		{
+			"label": "folder replaced by junction exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "folder replaced by junction exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "next call rejects formerly valid directory changed to junction",
+			"ok": true
+		},
+		{
+			"label": "unlink only temporary junction non-recursively",
+			"ok": true
+		},
+		{
+			"label": "virtual catalogs and first duplicate remain supported",
+			"ok": true
+		},
+		{
+			"label": "catalog cap exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "catalog cap exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "catalog cap excludes later directory exactly as before",
+			"ok": true
+		},
+		{
+			"label": "candidate upper bound reaches cap and explicitly falls back",
+			"ok": true
+		},
+		{
+			"label": "invalid candidates force exact fallback exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "invalid candidates force exact fallback exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "invalid rows never consume the actual catalog limit",
+			"ok": true
+		},
+		{
+			"label": "directory traversal budget explicitly falls back",
+			"ok": true
+		},
+		{
+			"label": "wide catalog fallback exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "wide catalog fallback exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "fallback resolves beyond speculative directory budget",
+			"ok": true
+		},
+		{
+			"label": "native fast path bounds 26 descriptors and only selects the requested one",
+			"ok": true
+		},
+		{
+			"label": "native targeted path exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "native targeted path exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "refactored listing retains all full entry bytes and order",
+			"ok": true
+		},
+		{
+			"label": "untrusted IDs exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "untrusted IDs exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "duplicate invalid first candidate exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "duplicate invalid first candidate exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "pack and local listing remain byte-identical",
+			"ok": true
+		},
+		{
+			"label": "directory switch exact materials and misses match frozen single lookup",
+			"ok": true
+		},
+		{
+			"label": "directory switch exact dictionary order and input unchanged",
+			"ok": true
+		},
+		{
+			"label": "selected directory is evaluated on every request",
+			"ok": true
+		}
+	],
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/cache/world3d/lookup_targeted_9732_9498044",
+	"skipped": [
+		{
+			"case": "file symlink rejection",
+			"exit_code": 1,
+			"output": [
+				"New-Item : 此操作需要管理员权限。\r\n所在位置 行:1 字符: 32\r\n+ ... nce='Stop'; New-Item -ItemType SymbolicLink -Path 'D:/code/rmmo_runti ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : PermissionDenied: (D:\\code\\rmmo_ru...ile_target.json:String) [New-Item], UnauthorizedAcc \r\n   essException\r\n    + FullyQualifiedErrorId : NewItemSymbolicLinkElevationRequired,Microsoft.PowerShell.Commands.NewItemCommand\r\n \r\n"
+			],
+			"reason": "Windows fixture creation unavailable"
+		}
+	]
+}

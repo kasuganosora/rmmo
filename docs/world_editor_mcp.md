@@ -721,3 +721,7 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 当前 3D `preview_road_surface`／`generate_road_surface` 与 UI 共用 `road_tools.prepare`，同次准备中的路面与路缘 ID 从一次新读取的目录解析。批量结果仅在该次同步调用内使用；后续请求重新读取材质和资源包身份，并继续校验选中材质的合法性、缺图与方案 token。`list_surface_materials`、导入、其他工具的单项查找以及所有 schema 保持原有合同，没有 MCP 专用缓存或新增性能参数。
 
 真实 HTTP 回归包含工具发现、合法生成、错误参数、预览后描述修改／删除与路缘贴图删除的无副作用拒绝、撤销重做及原生保存重开。具体证据及测量范围统一见[优化方案](seamless_streaming_optimization_plan_20261014.md)与[本批证据索引](../review_artifacts/material_lookup_20261017/evidence.json)。
+
+### 2026-10-17 道路材质的定向解析
+
+同一共享 `find_many` 后续改为逐次枚举候选名称，只解析当前选中的描述；数量上界达到 2048、预扫描超过 256 个目录或材质库由子类定制时，回退原完整查找。内置项、重复 ID 的首个有效项、资源根／链接保护及每次请求的外部变化可见性保持；回退预算不改变目录容量。当前 3D 道路 UI／HTTP 使用同一准备入口，没有新增工具、参数或 MCP 缓存；`list_surface_materials` 和其他单项查找合同保持。实测与失败原子性、撤销重做、保存重开记录见[统一方案](seamless_streaming_optimization_plan_20261014.md)和[定向解析证据](../review_artifacts/material_targeted_20261017/evidence.json)。

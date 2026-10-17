@@ -1,0 +1,15 @@
+{
+  "files": {
+    "baseline": {
+      "source": "review_artifacts/material_targeted_20261017/surface_material_library_baseline.gd",
+      "source_sha256": "a772befb14851ecc53f22f5b286eec0053b347a39413dd67dd30cd1ee13a3cfa",
+      "profile_sha256": "911e48c33b61e2a72cfa6e66fd7bc56c8493b3c1e46cba032599845b7e9a6775"
+    },
+    "current": {
+      "source": "scripts/world_editor/surface_material_library.gd",
+      "source_sha256": "14e4872d18e5f5e9702eefcc0eef920f74fa1ccf2c572ea9f98f781a98514da0",
+      "profile_sha256": "616ca495dd497fc912feb4327a564d5e39c7e91a8c69b69566a488a06d49aeb2"
+    }
+  },
+  "changes": "Read counter only; current copy's exact-script identity guard points to that same archived copy. No subclass bypass. Diagnostic counts, never OFF timings."
+}
