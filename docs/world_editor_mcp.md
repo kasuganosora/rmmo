@@ -715,3 +715,9 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 当前 3D `preview_road_surface`／`generate_road_surface`、道路图自动更新及 `sculpt_terrain` 的道路跟随，继续与 UI 共享 `terrain_projection.fit`。这次仅减少一次调用内的重复格点和路缘采样；工具发现、参数 schema、完整坡度错误见证、同步成功语义及事务／保存合同不变。缓存不跨请求保留，达到 4096 个路缘坐标后仍精确采样，不因此拒绝复杂道路。
 
 真实 UI／HTTP、街区、住宅、实际材质的自适应道路、雕刻跟随保护和坡度错误定位合计 **618 项通过、0 失败**。包含非法与过期请求无副作用、UI／HTTP 完整字段一致、撤销重做及保存重开。首次 UI 测量脚本未成功填入贴地参数，已作废并保留失败数据；修正脚本逐项核对实际表单后通过。记录见[道路说明](world_editor_roads.md)与[证据索引](../review_artifacts/road_projection_20261017/evidence.json)。没有重新启用二维适配器。
+
+### 2026-10-17 道路准备的批量材质查找
+
+当前 3D `preview_road_surface`／`generate_road_surface` 与 UI 共用 `road_tools.prepare`，同次准备中的路面与路缘 ID 从一次新读取的目录解析。批量结果仅在该次同步调用内使用；后续请求重新读取材质和资源包身份，并继续校验选中材质的合法性、缺图与方案 token。`list_surface_materials`、导入、其他工具的单项查找以及所有 schema 保持原有合同，没有 MCP 专用缓存或新增性能参数。
+
+真实 HTTP 回归包含工具发现、合法生成、错误参数、预览后描述修改／删除与路缘贴图删除的无副作用拒绝、撤销重做及原生保存重开。具体证据及测量范围统一见[优化方案](seamless_streaming_optimization_plan_20261014.md)与[本批证据索引](../review_artifacts/material_lookup_20261017/evidence.json)。

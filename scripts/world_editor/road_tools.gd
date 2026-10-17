@@ -165,13 +165,17 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 		if not fitted.ok:return fitted
 		result.records=fitted.records;result.chunks=fitted.chunks
 	_profile_next("material_lookup")
+	var material_ids: Array=[]
+	if not settings.material_id.is_empty():material_ids.append(settings.material_id)
+	if settings.kerb_enabled:material_ids.append(settings.kerb_material_id)
+	var materials: Dictionary=editor._material_tool.library.find_many(material_ids)
 	var material: Dictionary={}
 	if not settings.material_id.is_empty():
-		material=editor._material_tool.library.find(settings.material_id)
+		material=materials.get(settings.material_id,{})
 		if material.is_empty(): return Data.fail("所选铺路材质不存在")
 	var kerb_material:Dictionary={}
 	if settings.kerb_enabled:
-		kerb_material=editor._material_tool.library.find(settings.kerb_material_id)
+		kerb_material=materials.get(settings.kerb_material_id,{})
 		if kerb_material.is_empty() or not Paint.material_valid(kerb_material) or kerb_material.color[3]!=1 or not Paint.missing([{"road_kerb_material":kerb_material}]).is_empty():return Data.fail("路缘材质不存在或贴图依赖缺失")
 	_profile_next("record_preservation")
 	var manifest:={"version":1,"settings":settings,"graph_token":Data.token(data.roads),"parts":[]}
@@ -260,7 +264,8 @@ func _prepare(args: Dictionary, override_data:Dictionary={}) -> Dictionary:
 	if editor._doc.records.size()-excluded.size()+result.records.size()>100000: return Data.fail("生成后超过地图物件上限")
 	result.manifest=manifest; result.excluded=excluded;result.graph=data.roads
 	result.diff={"added":added,"updated":updated,"unchanged":unchanged,"removed":by_key.size()+added-result.records.size()}
-	result.plan_token=JSON.stringify([settings,data.roads,editor._doc.records,old]).sha256_text()
+	# IDs alone do not identify externally editable material descriptors.
+	result.plan_token=JSON.stringify([settings,data.roads,editor._doc.records,old,material,kerb_material]).sha256_text()
 	return result
 
 func paint_default(record: Dictionary, material: Dictionary) -> Dictionary:

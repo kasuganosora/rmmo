@@ -64,6 +64,16 @@ func find(id: String) -> Dictionary:
 		if entry.material_id == id: return entry.material.duplicate(true)
 	return {}
 
+func find_many(ids: Array) -> Dictionary:
+	# One synchronous operation, never retained across previews, edits or loads.
+	# Keep entries() ordering, limits and subclass catalogs exactly as find().
+	var result: Dictionary = {}
+	if ids.is_empty(): return result
+	for entry in entries():
+		if entry.material_id in ids and not result.has(entry.material_id):
+			result[entry.material_id] = entry.material.duplicate(true)
+	return result
+
 func import_texture(path: String, label: String = "") -> Dictionary:
 	if not Paths.allowed(path) or path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"] or not FileAccess.file_exists(path): return Paint.fail("请选择内容目录内的 PNG / JPEG / WebP 贴图")
 	var file := FileAccess.open(path, FileAccess.READ)

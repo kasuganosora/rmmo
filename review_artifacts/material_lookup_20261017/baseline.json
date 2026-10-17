@@ -1,0 +1,10 @@
+{
+  "base_commit": "8ad5e103085199dedfdec838a82a0fb7f27da7fb",
+  "performance_baseline_adjustment": "road_guarded_baseline differs from frozen road_baseline only by adding selected material and kerb_material definitions to the plan token; both benchmark versions have the same correctness fix.",
+  "files": {
+    "library_baseline.gd": "4471bd0fead79b5b8eedd5849a49098b7f53a393b16dc361c06dc72767e40e0c",
+    "library_profile.gd": "78ecd205a34cb7dfc770dabc77781a7124b617dc8ef83cd052d81f9deb838275",
+    "road_baseline.gd": "dbb6e62fa8b4c2eff3a0b3022c7d0b4e0851ff2b2efd403d46f86ee960ca0041",
+    "road_guarded_baseline.gd": "ae9e9785bde5456365b38f70eb38d6ea6df030af776bc9273bde3308c7c9e8d2"
+  }
+}
