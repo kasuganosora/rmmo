@@ -27,3 +27,6 @@
 /review_artifacts/png16_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
 
 /review_artifacts/volume_analysis_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
+
+/review_artifacts/block_planning_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
+/review_artifacts/road_record_prepare_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol

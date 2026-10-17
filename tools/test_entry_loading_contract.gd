@@ -25,12 +25,12 @@ func run()->void:
 	var host:=Host.new();root.add_child(host)
 	var map:=Node3D.new();host.add_child(map);map.set_meta("entry_plan",plan)
 	var queue:=Deferred.new();map.add_child(queue)
-	var cover:=Cover.new();host.add_child(cover);cover.drawn_frame=0
+	var cover:=Cover.new();host.add_child(cover);cover.drawn_frame=0;cover.opacity=1;cover.phase="waiting"
 	check(not queue.begin_entry_loading(host,plan.safety_clip,cover),"neighbours cannot begin before core milestone")
 	plan.core_resources_ready_us=Time.get_ticks_usec();map.set_meta("entry_plan",plan)
 	cover.drawn_frame=-1
 	check(not queue.begin_entry_loading(host,plan.safety_clip,cover),"undrawn cover cannot authorize loading publication")
-	cover.drawn_frame=0
+	cover.drawn_frame=0;cover.opacity=1;cover.phase="waiting"
 	check(not queue.begin_entry_loading(host,plan.core_clip,cover),"caller cannot substitute a different safety contract")
 	queue.set_demand("far",AABB(Vector3(1000,-1,1000),Vector3(20,2,20)))
 	check(queue.begin_entry_loading(host,plan.safety_clip,cover),"verified core starts explicitly scoped neighbour preparation")

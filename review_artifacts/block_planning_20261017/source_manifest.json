@@ -1,0 +1,226 @@
+[
+  {
+    "path": "project.godot",
+    "bytes": 1492,
+    "sha256": "e1d1bb7c924bd22ffaef450ff75c4440577af3a0fa885d84732e7bf868ee6ea3",
+    "lf_sha256": "62746f1cf61a57fab089da14d6365537c9ad2853f71d7f82825aacff5e51a1d8",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/building_blueprint.gd",
+    "bytes": 26477,
+    "sha256": "e0eef97616cdec4413b414063bfc35a80313ff7c75128b6366fee3e20ae2d39d",
+    "lf_sha256": "5d46b9e5b981ff8dd45c3e2d89b9266aa0cc2908f8a3ec77335a48dcf9984690",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/building_fixtures.gd",
+    "bytes": 6318,
+    "sha256": "d84d35cc5387ef5dafe448feececc043f224cc2162442aedbb8f546ef76ed997",
+    "lf_sha256": "79a9b024c7046ee43401617d8051779871240f198094b85dc986f4714f2747fd",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/city_blocks.gd",
+    "bytes": 9152,
+    "sha256": "c2f0191d730a832d81d39429bcdeaf55a4dc7e884839711b0606cc07af74e03c",
+    "lf_sha256": "bf22e6971d4db616cfcf2094160c959cedfa12de1be01a961492ae7acc9bac43",
+    "changed": true
+  },
+  {
+    "path": "scripts/world3d/city_layout.gd",
+    "bytes": 13417,
+    "sha256": "9034e031fe912e666500534e70e0190d57e3876e33f168e84abe8af355b792ff",
+    "lf_sha256": "5d5c1b74db5508b86a56fad2b964fcc1fcff45c8cb98219b39ee64072a460fda",
+    "changed": true
+  },
+  {
+    "path": "scripts/world3d/structure_prefab.gd",
+    "bytes": 4230,
+    "sha256": "ed967d339ecd8caa91e13000dd360d40cf757876e8a6f0553ec0fc0ec30f91a5",
+    "lf_sha256": "2e4f9c2da6ac69ec59f442883939c9f1d198b7d45e3c3205c5d0faa9d2dcbb08",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/terrain_river_profile.gd",
+    "bytes": 2532,
+    "sha256": "9e225b16dc240174eeb89af2e3ea4aeb06a846d76a0e1fb0bcff9b4cf10a5909",
+    "lf_sha256": "cb8312479fe6bcc755992305ab6c1fa35607cdc5c508303862d1781ce5d32bb2",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/waterway_plan.gd",
+    "bytes": 13523,
+    "sha256": "8446c05513d995bdc078d1462613f5515f0e96917eb28ac06282f08be8623854",
+    "lf_sha256": "c7969cd54864d693824338964426d036d5985838fee666bb44b402140982299b",
+    "changed": false
+  },
+  {
+    "path": "scripts/world3d/world_document.gd",
+    "bytes": 37307,
+    "sha256": "859bb50bb80837d735d476b650481c95820346789d586a00a57e83b274ace1aa",
+    "lf_sha256": "c46f2f3879c64a91cf0bc00c3bcfb7536b7cb72db543ca9b5481eb21f0e6218d",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/block_constraints.gd",
+    "bytes": 7238,
+    "sha256": "b1329ab008277d4196cacd03c9bd1fc5edd881b9c81972f18de3f9c61055292f",
+    "lf_sha256": "b1329ab008277d4196cacd03c9bd1fc5edd881b9c81972f18de3f9c61055292f",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/block_panel.gd",
+    "bytes": 7516,
+    "sha256": "40cdc6e7e822e308073e7e97c8e034e876397a3402a7940a4bcbcc941d500c0c",
+    "lf_sha256": "99c914cc9406e554698e596dc3e112c5718ac1ee48a47ba509cd0a92f68be34e",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/block_tools.gd",
+    "bytes": 11237,
+    "sha256": "b53554a48a70092648bbb45d52ab11b174be502e6d5e06c299f112cbe0d2f2cf",
+    "lf_sha256": "e395075166848068bb27cfb6dc382b92274e6b849a0968450d0f1cccd7110298",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/block_update_tools.gd",
+    "bytes": 14189,
+    "sha256": "262b486a1b169d56512aa7a769e866ac06052671966729786e98a518084d2f68",
+    "lf_sha256": "262b486a1b169d56512aa7a769e866ac06052671966729786e98a518084d2f68",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/building_footprint.gd",
+    "bytes": 13160,
+    "sha256": "8d0b8fa4ebfa9b29029b1574e8239bd6bc3ada3c3cc5971bdf240c683ba015c6",
+    "lf_sha256": "89d0d331914cfa6209f8e1673280038393699144a11fcafef771d38acff5d4e7",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/building_motion.gd",
+    "bytes": 10575,
+    "sha256": "246c383d6634551295fc120b339f8c0ab4e36fb0c106fcb736fe56a9dc62d942",
+    "lf_sha256": "063b42e30da296688a380b40ca240fb4f2c63b77ef6a40672ec3a2625c565c82",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/city_overlay.gd",
+    "bytes": 22242,
+    "sha256": "2e0a9eb242781470b31eb075191122a98cf0aa7cd3ee009ada500b596353423f",
+    "lf_sha256": "8ab69c16b30455d52dd45dbe3c457ce90c6c0e7a49c8e1d0e687082a4232e381",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/city_panel.gd",
+    "bytes": 13824,
+    "sha256": "87d9d4c0514a62d656429e5a619daa8aaa1b806f34d5596a6316fd49dc85e168",
+    "lf_sha256": "7ac164bb619e1d4b59f8fa93e202c37858027e6634531c18c16fd43a26452239",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/city_tools.gd",
+    "bytes": 29543,
+    "sha256": "e30ecd0f9d6f296abd37076574c4196e65960df2759f29dcf716fd0b230d2697",
+    "lf_sha256": "491a8868eaea1895b7af685b1671e2cc803b40844d5cad99ffee61969fc2cb9b",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/mcp_ops.gd",
+    "bytes": 37957,
+    "sha256": "1e625d2b3f307bbdd6138d709b4a133985a98bcb2351bcefe0e94d8b78b0c042",
+    "lf_sha256": "32f02463074af1dadcf1a9880ea198c3947c067f4de62ef80100b753edc271b8",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/mcp_schema.gd",
+    "bytes": 66802,
+    "sha256": "a30ce9b2e1cf47d38f91567d617fa2b0ed4c7628b699eaf54ba48ff1d4a4da87",
+    "lf_sha256": "4a1606c5185f7845ecd9375c48f9bb481e5cdf7516eed3730ed895abd247d650",
+    "changed": true
+  },
+  {
+    "path": "scripts/world_editor/residential_placement_tools.gd",
+    "bytes": 34923,
+    "sha256": "4b921f52fe5223788130283ab789cf94ba8d277d9f728ee7006273e7917c5a18",
+    "lf_sha256": "5b897b5939930353a941c1ae5d6071dc5bc4647092a33bc2b4762a0859239b24",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/residential_site_tools.gd",
+    "bytes": 7970,
+    "sha256": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4",
+    "lf_sha256": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/residential_support.gd",
+    "bytes": 39991,
+    "sha256": "6bd7282b638b590625a7f4915e004b1f1aa97e8516228b85b71821c16f8de124",
+    "lf_sha256": "350695004c0827a1f8baa982d9759ecdc2a0cef1fec70be875a59988b742f753",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/road_tools.gd",
+    "bytes": 21304,
+    "sha256": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+    "lf_sha256": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da",
+    "changed": false
+  },
+  {
+    "path": "scripts/world_editor/world_editor.gd",
+    "bytes": 72769,
+    "sha256": "c06c459e4a6f76f89455a6366c1729f36260a683df62d654a448fc1aa2192410",
+    "lf_sha256": "991771a973f0642f5072474c8017dffcca35f1e148e68531dca1147103f4a0b4",
+    "changed": true
+  },
+  {
+    "path": "tools/run_godot_background.py",
+    "bytes": 6514,
+    "sha256": "d9add9a15d8729b0221054b2c20189b9c69e230526d04166ea9ecc2d87a0ad2e",
+    "lf_sha256": "b182b46ff6d8b1b1facedbc7ffda813ab74a1b83075667a01cadf6d9bbe9c3d6",
+    "changed": false
+  },
+  {
+    "path": "tools/test_block_planning_update_http.gd",
+    "bytes": 13092,
+    "sha256": "1d3fe62bdbd0a1aede3684f1dbc99689ac64bc8737c97940dd452e27681ab950",
+    "lf_sha256": "206ed2bbf6d45314444f6cf92c31c090d7622df484fc65d17868f608e3bfa918",
+    "changed": true
+  },
+  {
+    "path": "tools/test_block_reservations.gd",
+    "bytes": 7987,
+    "sha256": "9dd8fc6d04677e6110ecb449a3d8badba52405425d993ec8948ed660e77d8205",
+    "lf_sha256": "9dd8fc6d04677e6110ecb449a3d8badba52405425d993ec8948ed660e77d8205",
+    "changed": true
+  },
+  {
+    "path": "tools/test_block_update_boundaries_http.gd",
+    "bytes": 10218,
+    "sha256": "e3c755a9b2e5927cb00e9df4b2ac1b0591a3c2ae21770a74f2527d9c5a54e809",
+    "lf_sha256": "e3c755a9b2e5927cb00e9df4b2ac1b0591a3c2ae21770a74f2527d9c5a54e809",
+    "changed": true
+  },
+  {
+    "path": "tools/test_city_blocks.gd",
+    "bytes": 5701,
+    "sha256": "d3c7139e93199f20c2e74c8e64ffe7774dba1afcc38a801ab42a255d05e38068",
+    "lf_sha256": "c95373fea1ba6d1970d129729884fb1d768dc8cb1b019dd607c943b57295b4a7",
+    "changed": false
+  },
+  {
+    "path": "tools/test_world3d_blocks.gd",
+    "bytes": 10713,
+    "sha256": "72ec30db67fdf55ac409e5906cecfb95bd33e5e27e4dd7a34e2ed6902a2395f4",
+    "lf_sha256": "b768287e5a191ec1ccb8cdd0cf8dc5d2afce61947e7125278f6de6742f360709",
+    "changed": true
+  },
+  {
+    "path": "tools/test_world3d_roads.gd",
+    "bytes": 12710,
+    "sha256": "57df2727590ee223ec3868ed4897ae359cbe87922bb8d952af70b68e0b80f443",
+    "lf_sha256": "fea2bed7fdf96dc791cb911cedaa6c1cf58244d48fb9586662a57f89b65fe648",
+    "changed": false
+  }
+]

@@ -34,7 +34,7 @@ func run()->void:
 	host._transfer_pending=true;root.disable_3d=true
 	update(service)
 	check(service._admission.worker_limit==2,"undrawn loading cover cannot increase capacity")
-	cover.drawn_frame=0
+	cover.drawn_frame=0;cover.opacity=1;cover.phase="waiting"
 	update(service)
 	check(service._admission.worker_limit==Deferred.automatic_loading_worker_limit(OS.get_processor_count()) and service._saved_interactive_worker_limit==2,"drawn scoped loading uses real CPU count while saving original interactive capacity")
 	check(service.profile.worker_capacity.loading_override==0 and service.profile.worker_capacity.byte_limit==1024,"production auto selection is reported without increasing the byte allowance")

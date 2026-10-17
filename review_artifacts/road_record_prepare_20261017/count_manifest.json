@@ -1,0 +1,14 @@
+{
+  "surface_materials": {
+    "source_sha256": "b94a2cdea948649ab844516ac001438d6fc842181c6642e056773cf06e265310",
+    "copy_sha256": "c414c4021c53bea9ae89551c03bb36a8f8d345449c49d1a676bfd54d5fbc0f11"
+  },
+  "baseline": {
+    "source_sha256": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da",
+    "copy_sha256": "03f3013fd75a2415f513e9da98be8e9a37fb0a13d5ddbdd6eec6e3b293e7d555"
+  },
+  "current": {
+    "source_sha256": "234fb65ffb2feef08a482e42a9d335e125a38e59932ce39fd1abecc08f063572",
+    "copy_sha256": "c034734130a17729da87a1d7016dc273318df44b2f3ef11f8346c9966d24bc02"
+  }
+}

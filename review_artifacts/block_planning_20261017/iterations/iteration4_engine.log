@@ -1,0 +1,37 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated native map saved
+PASS: initial native map load has completed
+PASS: private loopback HTTP starts
+PASS: 3D discovery exposes shared block update lifecycle, no 2D tools
+PASS: HTTP create_road_path succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP get_city_blocks succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_waterway succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: native river and both banks automatically reserve affected frontage lots
+PASS: automatic reservation preview is read only
+PASS: HTTP undo succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: new lot bindings save explicit reflow anchors
+PASS: HTTP set_event_template succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP select_objects succeeds
+PASS: HTTP transform_selection succeeds
+PASS: HTTP preview_block_update succeeds
+PASS: road width and both linked house poses are staged without live effects
+PASS: HTTP preview_block_update succeeds
+PASS: unchanged candidate and version are reused deterministically
+PASS: HTTP apply_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: apply_block_update
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+FAIL: HTTP apply_block_update succeeds
+{ "code": "candidate_missing", "diagnostic": { "category": "stale", "code": "candidate_missing", "items": [{ "category": "stale", "code": "candidate_missing", "locatable": false, "message": "候选已放弃或不存在，请重新预览", "object_ids": [], "objects": [], "source": "", "values": {  } }], "message": "候选已放弃或不存在，请重新预览", "operation": "apply_block_update", "stage": "residential_placement", "truncated": false, "version": 1.0 }, "diagnostic_token": "04237e92d5178032d5ed5c335e92ccd1250be41af0125657ea1766123faf5062", "error": "候选已放弃或不存在，请重新预览", "ok": false, "stage": "residential_placement" }
+BLOCK_PLANNING_UPDATE checks=31 failures=1

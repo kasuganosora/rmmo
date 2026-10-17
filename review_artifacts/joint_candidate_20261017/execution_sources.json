@@ -1,0 +1,13 @@
+{
+  "scripts/world_editor/joint_candidate_tools.gd": "abf6cfe16a5b137487a043f39281c2611dcd54c0a7a37ef5e594dfa41280b320",
+  "scripts/world_editor/joint_candidate_context.gd": "ae9c6a39469c933ef1ae1d13acce430a0915bde03242628a114cf0d23b49bd66",
+  "scripts/world_editor/joint_candidate_panel.gd": "e0fb18d26348455bee322b3f62662372f18071c44d7a3589cc1bc9459c5cb447",
+  "scripts/world_editor/mcp_schema.gd": "febae7bc5b9fac2a6a3f56e083c4691d8472be12bbabd35472c26689f23a4086",
+  "scripts/world_editor/mcp_ops.gd": "eaa7f43a6748f4cd45e1400ee17df3b2aef96cabc14b2cc5bed830c3b970ce1f",
+  "scripts/world_editor/world_editor.gd": "6aa02cd892c28d67921504fc6fd22f7d45b57cb3703a612f84f06410851f75ac",
+  "scripts/world_editor/city_panel.gd": "6046610784e34512dcb0b286d68a303ade0d1e91965e8aaaf7ade4095e118922",
+  "tools/test_joint_candidate_http.gd": "f975482c53b048283b923be9bd5f969831ec105ddccbf32fbf2ecb6a7a10fc8a",
+  "tools/test_joint_residential_http.gd": "0140bb4b4bc866b5a25c739ab60f23bb473e1aef9104a43d052b4331031f2250",
+  "tools/test_joint_generators_http.gd": "8b16f0417a644793f3b1cf1de88876219908fe9d0e85152f243a33ecf780321b",
+  "tools/test_residential_block_runtime.gd": "5f147a66513a5769da830e1e715085240dfa5e6139eeddcd21deeca71b517aa1"
+}

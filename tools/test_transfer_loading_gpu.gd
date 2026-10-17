@@ -247,6 +247,7 @@ func transfer(target:String,destination:Vector3,gate:Callable=Callable())->Dicti
 	var result:Dictionary={"done":false,"ok":false}
 	execute(target,destination,result,gate)
 	var saw_cover:=false;var frozen:=true;var stayed:=true;var draw_before_loader:=true;var captured:=false;var outgoing_idle:=true
+	var presentation:={"fade_out":false,"fade_in":false,"source_visible":true,"covered_permission":true,"camera_ready":true,"combat_frozen":true}
 	var started:=Time.get_ticks_msec()
 	while not result.done:
 		sample_refs()
@@ -254,19 +255,34 @@ func transfer(target:String,destination:Vector3,gate:Callable=Callable())->Dicti
 		var cover:=world.get_node_or_null("TransferLoading")
 		if cover!=null:
 			saw_cover=true
+			presentation.combat_frozen=presentation.combat_frozen and not world._combat.is_physics_processing()
+			if cover.phase=="covering":
+				presentation.fade_out=true
+				presentation.source_visible=presentation.source_visible and not world.get_viewport().disable_3d and world._map_root==old_map
+				presentation.covered_permission=presentation.covered_permission and not cover.is_opaque_drawn()
+			if cover.phase=="revealing":
+				presentation.fade_in=true
+				presentation.covered_permission=presentation.covered_permission and not cover.is_opaque_drawn()
+				presentation.camera_ready=presentation.camera_ready and world._camera.last_focus.distance_to(world._player.global_position+Vector3.UP*world._camera.pivot_height)<.01 and not world.get_viewport().disable_3d
 			frozen=frozen and world._player.input_locked and not world._player.is_physics_processing()
 			if is_instance_valid(world._transfer_loader):
 				draw_before_loader=draw_before_loader and cover.drawn_frame>=0
 				if is_instance_valid(outgoing):outgoing_idle=outgoing_idle and outgoing._jobs.is_empty() and not outgoing._active
 			if cover.drawn_frame>=0 and not captured:
-				get_root().get_texture().get_image().save_png(directory.path_join("loading_cover.png"));captured=true
+				var capture_path:=directory.path_join("loading_cover.webp")
+				var capture:=get_root().get_texture().get_image();capture.save_webp(capture_path,true,.9)
+				FileAccess.open(directory.path_join("loading_cover_compression.json"),FileAccess.WRITE).store_string(JSON.stringify({"sha256":FileAccess.get_sha256(capture_path),"quality":90,"lossy":true,"width":capture.get_width(),"height":capture.get_height(),"encoder":"Godot Image.save_webp(lossy=true,quality=.9)"}));captured=true
 			if world._map_root==old_map and not world._local_transfer.get("committed",false):stayed=stayed and world._player.global_position.is_equal_approx(old_position)
 		await process_frame
+	check(presentation.fade_out and presentation.fade_in and presentation.source_visible,"source rendering persists through fade-out and restored/target scene fades in")
+	check(presentation.covered_permission and presentation.combat_frozen,"partial covers never authorize covered budget; combat freezes through reveal")
+	check(presentation.camera_ready,"destination/rollback camera snaps before reveal including short teleports")
 	check(saw_cover and frozen,"loading cover stays visible with input and gravity frozen")
 	check(stayed and draw_before_loader,"old position remains until commit and cover draws before loader starts")
 	check(outgoing_idle,"cross-map loader starts only after outgoing workers retire and remain suspended")
 	var profile:Dictionary=world.get_meta("transfer_loading_profile",{})
 	check(profile.get("drawn_frame",-1)>=0 and profile.get("elapsed_ms",-1)>=0,"cover exposes actual draw and elapsed evidence")
+	check(profile.get("ready_ms",0)>=profile.get("covered_ms",1) and profile.get("reveal_started_ms",0)>=profile.get("ready_ms",1) and profile.get("input_restored_ms",0)>=profile.get("revealed_ms",1),"opaque frame, destination frame, reveal and input restoration are ordered")
 	if result.ok:check(profile.ready_frame>profile.drawn_frame,"destination gets a rendered frame before cover retirement")
 	if result.ok:
 		if profile.get("same_map",false):check(profile.get("radar_region_ready_at_retire",false),"destination radar region is prepared before loading cover retires")

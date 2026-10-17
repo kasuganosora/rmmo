@@ -277,6 +277,16 @@ func _draw() -> void:
 			if outline.size()>2:
 				draw_colored_polygon(outline,Color(.35,.85,.4,.24)); outline.append(outline[0]); draw_polyline(outline,Color("7fc686"),1.5,true)
 	var preview: Dictionary=city.editor._blocks.overlay_plan
+	for reservation:Dictionary in preview.get("reservations",[]):
+		var levels:Array=[]
+		for block:Dictionary in preview.get("blocks",[]):
+			if block.height+40<=reservation.min_y or block.height-1.2>=reservation.max_y:continue
+			if block.height not in levels:levels.append(block.height)
+		for level:float in levels:
+			var region:=project(reservation.polygon.map(func(p):return Vector3(p[0],level+.08,p[1])))
+			if region.size()>2:
+				var tint:=Color(.2,.55,.95,.2) if reservation.kind=="river" else Color(.95,.65,.15,.25)
+				draw_colored_polygon(region,tint);region.append(region[0]);draw_polyline(region,Color(tint,0.8),1.5,true)
 	for block in preview.get("blocks",[]):
 		var points: Array=[]
 		for p in block.polygon: points.append(Vector3(p[0],block.height+.1,p[1]))
@@ -287,6 +297,7 @@ func _draw() -> void:
 		for p in lot.polygon: points.append(Vector3(p[0],lot.position[1]+.12,p[1]))
 		var pixels:=project(points)
 		var color:=Color("82d9a4") if lot.status=="ready" else (Color("85b4ec") if lot.status in ["retained","missing"] else (Color("9399a4") if lot.status=="pending" else Color("e79a8a")))
+		if lot.status=="updated":color=Color("f2bb63")
 		if pixels.size()>2:
 			draw_colored_polygon(pixels,Color(color,.19)); pixels.append(pixels[0]); draw_polyline(pixels,Color(color,.85),1.5,true)
 		if lot.has("building_polygon"):

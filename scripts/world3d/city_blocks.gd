@@ -12,6 +12,12 @@ static func request_schema() -> Dictionary:
 	var p:Dictionary=settings_schema().properties
 	p.block_ids=Data.array(Data.text(80),64,1); p.plan_token=Data.text(64)
 	return Data.object(p)
+static func road_changes_schema() -> Dictionary:
+	return Data.object({"expected_token":Data.text(64),"nodes":Data.array(Data.node_schema(),256),"edges":Data.array(Data.edge_schema(),512),"remove_nodes":Data.array(Data.text(),256),"remove_edges":Data.array(Data.text(),512)},["expected_token"])
+static func update_schema() -> Dictionary:
+	var schema:=request_schema();schema.properties.erase("plan_token")
+	schema.properties.road_changes=road_changes_schema()
+	return schema
 static func signed_area(poly: Array) -> float:
 	var total:=0.0
 	for i in range(1,poly.size()-1): total+=(poly[i]-poly[0]).cross(poly[i+1]-poly[0])

@@ -236,7 +236,8 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 | 写实石桥及可复用桥型 | `list_bridge_prefabs`、`preview_bridge`、`generate_bridge`、`save_bridge_prefab` |
 | 河道开槽、河岸、桥梁与桥头、恢复地面 | `list_waterways`、`preview_waterway`、`generate_waterway`、`remove_waterway` |
 | 区域植被混合散布、重生成、保护与解除 | `list_vegetation_scatter`、`preview_vegetation_scatter`、`generate_vegetation_scatter`、`remove_vegetation_scatter` |
-| 闭合街区、临街地块与空位房屋 | `get_city_blocks`、`preview_block_buildings`、`generate_block_buildings`、`detach_block_buildings` |
+| 闭合街区、临街地块与空位房屋 | `get_city_blocks`、`preview_block_buildings`、`generate_block_buildings`、`detach_block_buildings`；自动避让原生河流／岸线、桥头与城门通道 |
+| 已有街区随道路更新 | `preview_block_update`、`apply_block_update`、`discard_block_update`；`update_road_graph` 可选 `update_blocks:true` 联动 |
 | 道路交叉拆分、真实铺面、保留区 | `split_road_intersections`、`preview_road_surface`、`generate_road_surface`、`detach_road_surface`、`update_planning_zones` |
 | 公里级视图、参考图标定、导航书签、可保存道路骨架 | `get_city_layout`、`set_editor_camera`、`focus_editor_view`、`set_map_reference`、`calibrate_map_reference`、`save_view_bookmark`、`delete_view_bookmark`、`recall_view_bookmark`、`update_road_graph`、`create_road_path` |
 | 状态、分页物件搜索、完整记录 | `editor_state`、`list_objects`、`get_object` |
@@ -431,7 +432,7 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 | 阶段 | 待实施范围 | 独立验收要求 |
 | --- | --- | --- |
 | 城市布局基础（部分完成） | 已交付公里级正交视野、全图/区域定位、底图标定/锁定、概览/书签、可保存道路骨架及节点拖动。已补交叉拆分、水平路口、桥下净空、多边形区域、植被执行规则；现增加直线坡道、桥梁显式接入和连通诊断 | UI/MCP 与真实碰撞、保护、撤销和保存测试共用；弯曲坡道、任意曲线交点、随地形贴合和整城性能仍有明确边界 |
-| 街区生成闭环（首批已交付） | 已有道路有界面提取、保守临街矩形地块、避让道路/保留区、入口净空、空位建筑批次与关联保护；待补河流专用扣除、桥头/城门通行、道路变化后的自动建筑替换与覆盖合并 | 现版本不替换已关联建筑，改边界需显式解除关联；后续目标为仅更新受影响内容并保留身份/种子/事件/材质，无法映射的覆盖明确拒绝 |
+| 街区生成闭环（2026-10-17 补完） | 道路有界面、保守临街矩形地块、原生河流／两岸和桥头／城门自动避让；已有街区随道路／地块设置联合更新 | 以实际原建筑刚体迁移保留身份／种子／事件／材质／门窗及手工偏移；无法映射、地面不连续或冲突则整批拒绝。异形地块与任意拓扑重排仍未开放 |
 | 环境与批量外观 | 已有河床河岸、齐平桥头、折线与圆/椭圆城墙、塔楼/垛口/活动城门、基础区域植被。桥梁和城墙美术仍待优化；待补聚簇/局部刷除、地表/农田/布景、建筑用途材质方案、关联预制件和连接点元数据 | 功能验收不等于用户美术验收；需保留种子、交互配方、保护、事件和材质，UI/MCP 同步 |
 | 整城承载 | 从第一阶段就测量分区/空间索引/增量刷新、列表虚拟化、增量撤销、后台保存与失败恢复、异步任务/取消、分区导航、轻量建筑/室内按需升级/LOD、预算与通行诊断 | 代表性弯路/Y口/不规则地块/河岸桥头/建筑植被街区逐级扩容；记录生成、编辑、保存、加载、导航、试玩成本；100000 记录上限不是性能承诺 |
 
@@ -897,3 +898,61 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 `query_terrain_analysis`／`set_terrain_analysis` 共用原有接口，选中体积地形时必须提供 `surface: all|upward|downward|walls`、`height_min`、`height_max`（严格递增的世界米制标高）；`seams` 省略或 false。例如 `{"id":"cave","surface":"downward","height_min":0,"height_max":3,"interval":0.5,"seams":false}` 查询洞顶方向的表面。高度场须省略这三个体积筛选参数。
 
 体积结果 `source=native_volume_triangles`，增加 `surface_counts`、`selected_triangles`、`vertical_triangles`、`max_angle_degrees` 和 `height_range`。逐面含 `normal`、`source_triangle`、`surface`、`angle_degrees`；垂直面 `grade=null`，存在垂直面时汇总 `max_grade=null`。`holes=null`、`seams=[]`、`max_boundary_step=0` 表示未提供高度场边界分析，不能解释为体积边界连续。详情与预算见 [地形文档](world_editor_terrain_sculpt.md#体积地形分析2026-10-17)。工具仍为只读，会话覆盖层不进入保存和撤销。
+
+
+### 自动街区保留与已有街区更新（2026-10-17）
+
+UI「城镇布局 → 街区围合、临街地块与房屋」与当前 3D MCP 同源。`preview_block_buildings`／`generate_block_buildings` 自动排除原生河流（含岸线）、桥头和城门通道，不需要先手绘禁建区；地块及入口连接检查完整同高地面覆盖。返回 `reservations` 和逐地块保留原因，不改变普通手动放置规则。
+
+新增 `preview_block_update`：沿用地块设置，可选 `block_ids`（省略选择全部已有绑定），并接受可选 `road_changes`。后者与 `update_road_graph` 的骨架修改参数相同，必须带读取时的 `expected_token`，不包含 `update_blocks`。候选返回 `updated_building_ids`、`retained_building_ids`、`missing_building_ids`、地块／保留区、`changes`、`changed_ids` 和 `plan_token`。`apply_block_update {plan_token}` 原子发布道路、已有铺面及住宅；`discard_block_update {plan_token}` 只放弃候选。`update_road_graph {expected_token,...,update_blocks:true}` 可直接走同一联合业务，默认仍为普通改路。
+
+该更新使用现有建筑和构件，保留 UUID、房型、种子、材质、事件、开合状态及手工整栋偏移；不重新生成覆盖原房屋，不自动补回已删除住宅。旧 v1 无更新基线时，只在原道路和入口仍能确认的情况下显式升级。拓扑／槽位无法一一对应、原房屋超出新地块、受保护或手改几何不可信均整批拒绝；一次最多移动 16 栋。实际冻结预制件的禁止单面刷材质规则继续生效。
+
+应用前复核版本、资源、完整候选和原生保存校验；共享一次撤销重做及原生派生刷新、静态合批、独立拾取和保存重开。联动不生成新台阶／坡道，也不把几何检查称为任意地图的玩家可达性证明。支持范围、UI 和证据见[街区说明](world_editor_blocks.md)及[本批证据](../review_artifacts/block_planning_20261017/evidence.json)。
+
+
+### 通用跨工具联合候选（2026-10-17）
+
+UI 入口为「城镇布局 → 跨工具联合候选」。先在原工具面板填写参数，选择来源并加入队列；已收集的参数独立保存，可上移、下移、替换或移除。原面板后续修改不会悄悄改变已收集步骤。预览显示逐步结果、整组增删改和半透明几何，失败定位到具体步骤并复用问题高亮；应用只使用当前预览。改队列、地图、撤销或重开后须重新预览。新道路还可在队列面板直接填写起终点。
+
+当前 3D MCP 新增四个工具：
+
+- `list_joint_candidate_operations {}`：返回 17 个允许操作的名称、中文说明和原生参数 schema。
+- `preview_joint_candidate {steps:[...]}`：每步必须包含唯一非空 `id` 以及**恰好一个**允许的操作名；该字段的值就是原工具参数。
+- `apply_joint_candidate {plan_token}`：整组一次应用，原生撤销、重做及保存；仍须 `save_world`。
+- `discard_joint_candidate {plan_token}`：丢弃预览，作者数据、选择和历史不变。
+
+例如：
+
+```json
+{
+  "steps": [
+    {"id":"street","create_road_path":{"points":[[-35,0,-35],[35,0,-35],[35,0,35],[-35,0,35],[-35,0,-35]],"width":4}},
+    {"id":"surface","generate_road_surface":{"material_id":"pack:default:paving/historic_cobble/material"}},
+    {"id":"homes","generate_block_buildings":{"max_buildings":2}}
+  ]
+}
+```
+
+这是参数结构示例，需在有完整水平地面承托的空白区域使用；沿街地块生成仍受原生约束。允许的业务包括联合整坡、两端坡道、道路节点/线段、路径、铺面、保留区、住宅接路/整地/迁移/多户候选、沿街地块生成与更新、河道、桥梁、河桥接路、城防和植被。`preview_residential_*`、`preview_block_update` 作为步骤时，其结果应用到**私有候选**；不会单独提交真实地图。任意文件读写、保存、打开地图和其他未列出的 MCP 工具不能作为步骤。
+
+步骤按顺序执行原生校验，不放宽中间步骤的保护。需要同时处理地形与建筑时，使用已有住宅/街区联合操作作为一整步。跨步骤引用使用原生稳定对象或配方 ID；本版不提供字符串占位符、任意脚本或自动重排搜索。单工具 `plan_token` 和坡道 `expected_token` 不接受，整组使用自己的 token；道路/保留区 `expected_token` 与 `expected_road_token` 均引用预览前的原地图，先核对再绑定到前一步私有结果。省略仍须遵守原工具必填约束。
+
+整组限 1–64 步、生成或迁移最多 16 栋住宅、最多 8192 个变化构件、每份私有快照最多 256 MiB；整地累计最多 64 次、200 万采样预算及 262144 变化格（跨块采样保守计入相邻地形）。这些是操作上限，不是实际 RSS/VRAM 测量。每步返回 `changes` 和原生结果，最终返回总 `changes`、最终道路派生的 `finalization_changes`、范围、检查回执和外层 token。末步失败返回 `step_id/step_index/operation`；最终交叉约束失败为 `stage=joint_final`，保留原生冲突见证。
+
+最终重验坡道端点与全宽标高、完整道路/路缘、桥梁关联、受影响建筑、已保存的住宅入户连接、街区入口/保留区及植被承托/避让，拒绝后续步骤破坏前面已验证的结果。资源按真实文件 SHA 固定；源地图/作者范围、撤销版本、资源、候选快照变化都会阻止应用。每步原生历史仅存在私有文档并及时释放，超过 32 步也不会挤掉真实地图的外层撤销。元数据变化仍标记待保存，空操作不新增历史。
+
+作者提交沿用同步原生事务，派生显示沿用后台准备、共享静态批次和回退，构件选择、物理、逐层/屋顶隐藏和活动件保持原生语义。该能力不承诺任意新组合均可解，也不将几何预检当作任意地图实际通行证明。本批证据见 [联合候选回执](../review_artifacts/joint_candidate_20261017/evidence.json)。
+
+
+### 传送体验扩展（2026-10-17）
+
+现有 3D 事件 UI、`create_event_template`／`set_event_template` 的 `transfer` 模板自动共享运行时淡出淡入和等待提示；参数 schema 不变，`spawn` 仍为目标**脚点**，无需手加角色中心偏移。约 180 ms 淡出和 220 ms 淡入只是展示参数，完整碰撞、必要导航、落点、目标首帧与适用权威校验通过后才恢复操作。长等待显示阶段、阶段内完成量及已用时间，不提供猜测百分比或提前解锁参数。
+
+`start_playtest` 首次进入使用原生文档快照构建运行场景，避免 reference glTF 的代理外形丢失作者事件。当前 HTTP 可配置事件并启动临时试玩；事件实际触发共用普通游戏的 `transfer_map`，没有新增远程强制传送接口。UI 修改、HTTP 非法请求无副作用、撤销重做、保存重开及试玩中实际同图／跨图事件均纳入[本批证据](../review_artifacts/transfer_experience_20261017/evidence.json)。该项真实 HTTP／UI／试玩联测 42 项通过；全批 487 项通过、0 失败。停止试玩与失败返回沿用原有退出方式，正式地图和角色进度不被写入。
+
+### 单次道路准备内的材质校验复用（2026-10-17）
+
+`preview_road_surface`／`generate_road_surface` 与 UI 继续共用 `road_tools.prepare`。同一次同步准备生成多块道路时，共享现有材质校验表，减少对相同 PBR 定义和路径的重复检查；每次调用新建局部表，没有持久保存“已验证文件”。每块构件自身的独立约束与缺图检查仍执行，预览后外部描述变化仍使方案 token 失效，缺失依赖拒绝应用。
+
+工具发现、参数 schema、同步成功语义、错误信息、一次撤销和保存格式不变；道路更新及住宅联合候选同样使用共享路径。验收包括真实 HTTP 与 UI 同输入作者数据等价、非法／过期无副作用、撤销重做和保存重开，见[本批证据](../review_artifacts/road_record_prepare_20261017/evidence.json)。

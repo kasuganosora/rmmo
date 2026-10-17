@@ -124,9 +124,15 @@ func respawn_cases(path:String)->void:
 	while not cancelled.done:await process_frame
 	check(not cancelled.ok and not server.combat_stats.player_alive() and world._revive.visible,"cancelled respawn preserves death and retry UI")
 	var result:Dictionary={"done":false,"ok":false};run_respawn(result)
-	var alive_early:=false
+	var alive_before_authority:=false;var reveal_frozen:=true
 	while not result.done:
-		alive_early=alive_early or server.combat_stats.player_alive()
+		if server.combat_stats.player_alive():
+			# HP commits after first-frame authority activation. The new reveal
+			# interval is presentation only: movement stays locked until it ends.
+			var cover:Node=world.get_node_or_null("TransferLoading")
+			alive_before_authority=alive_before_authority or world._building_entry==null or world._building_entry.report().state!="active" or cover==null or int(cover.milestones.get("ready_frame",-1))<0 or world._player.global_position.distance_to(destination)>.1
+			reveal_frozen=reveal_frozen and world._player.input_locked and not world._player.is_physics_processing()
 		await process_frame
-	check(result.ok and not alive_early and server.combat_stats.player_alive() and not world._player.input_locked,"HP and movement commit only after ready destination first-frame authorization")
+	check(result.ok and not alive_before_authority and server.combat_stats.player_alive() and not world._player.input_locked,"HP commits only after physical target and first-frame authority activation")
+	check(reveal_frozen,"activated respawn keeps movement frozen until reveal returns")
 	check(world._player.global_position.distance_to(destination)<.1,"async respawn enters the prepared target cell")

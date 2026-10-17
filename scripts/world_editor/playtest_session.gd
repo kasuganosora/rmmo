@@ -87,9 +87,9 @@ func _prepare(clone, character: Dictionary, generation: int) -> void:
 	if ground.is_empty() or ground.normal.y < .7 or absf(ground.position.y-spawn.y) > .12 or not space.intersect_shape(query,1).is_empty():
 		_fail("出生点没有支撑或角色空间被占用，请重新选择地面位置"); return
 	_stage.free(); _stage = null
-	_enter(character,generation)
+	_enter(character,generation,clone)
 
-func _enter(character: Dictionary, generation: int) -> void:
+func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
 	var session := Net.session()
 	_source_server = Net.server(); _source_mode = _source_server.process_mode; _override_before = Net._server_override
 	for property in session.get_property_list():
@@ -98,7 +98,10 @@ func _enter(character: Dictionary, generation: int) -> void:
 		_session_before[property.name] = value
 		if value is Dictionary or value is Array: session.set(property.name,value.duplicate(true))
 	session.editor_playtest = self
-	session.prepared_world3d = null; session.world3d_switches = {}; session.world3d_loading = false
+	# Reference glTF stores placement proxies, not authored events/materials.
+	# Build the same validated native snapshot for play, with fresh stream owners
+	# after the isolated collision probe has been freed.
+	session.prepared_world3d = clone.build(); session.world3d_switches = {}; session.world3d_loading = false
 	session.world3d_requested = true; session.editor_return = true
 	session.world3d_map_path = map_path; session.world3d_spawn = spawn+Vector3(0,.9,0)
 	session.selected_character = character.duplicate(true)

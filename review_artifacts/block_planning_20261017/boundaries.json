@@ -1,0 +1,397 @@
+{
+	"checks": [
+		{
+			"label": "source fixture passed its own lifecycle checks",
+			"ok": true
+		},
+		{
+			"label": "native source fixture copied to independent temporary map",
+			"ok": true
+		},
+		{
+			"label": "native fixture loading completed",
+			"ok": true
+		},
+		{
+			"label": "boundary HTTP server uses an unused loopback port",
+			"ok": true
+		},
+		{
+			"label": "legacy anchor-free binding remains a valid document",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy baseline adoption is read only until apply",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy source anchors and joint road update commit together",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "legacy upgrade undo restores original format",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_road_graph succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_block_update",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "update classifies affected and unaffected frontages",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "unaffected registry bytes unchanged: building_a81f3e1f5056aff9b656",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_332",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_333",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_334",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_335",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_336",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_337",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_338",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_339",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_340",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_341",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_342",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_343",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_344",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_345",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_346",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_347",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_348",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_349",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_350",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_351",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_352",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_353",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_354",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_355",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_356",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_357",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_358",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_359",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_360",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_361",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_362",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_363",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_364",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_365",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_366",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_367",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_368",
+			"ok": true
+		},
+		{
+			"label": "unaffected component bytes unchanged: obj_369",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "road property UI updates linked houses in one transaction",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "node movement and rotation map every linked house without rebuilding",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_block_update succeeds",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_0a684d5434c7d65b6942",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_a100adac7e67889d3a27",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_3823cb75caeff56ef92a",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_9e8d7e6f66e87dc9a531",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_39bbcd1370e9bc34e867",
+			"ok": true
+		},
+		{
+			"label": "joint road rotation preserves house identity and manual offset: building_a81f3e1f5056aff9b656",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one undo restores the full rotated road and house transaction",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_0a684d5434c7d65b6942",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_a100adac7e67889d3a27",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_3823cb75caeff56ef92a",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_9e8d7e6f66e87dc9a531",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_39bbcd1370e9bc34e867",
+			"ok": true
+		},
+		{
+			"label": "house retains its own real editor physics and picking bodies: building_a81f3e1f5056aff9b656",
+			"ok": true
+		},
+		{
+			"label": "UI candidate for stale-parameter test",
+			"ok": true
+		},
+		{
+			"label": "changing fields after preview requires a fresh UI preview",
+			"ok": true
+		},
+		{
+			"label": "separate natural-river fixture saved",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_terrain succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_terrain_river succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_road_path succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_block_buildings succeeds",
+			"ok": true
+		},
+		{
+			"label": "curved heightfield river protects real sampled bank envelope through HTTP",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_editor_camera succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/block_boundaries_4736_14114657",
+	"engine": "4.7.2-stable (official)",
+	"evidence": {},
+	"failures": 0,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/block_boundaries_4736_14114657/river.gltf"
+}

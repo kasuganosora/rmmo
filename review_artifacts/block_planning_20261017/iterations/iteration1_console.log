@@ -1,0 +1,26 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated native map saved
+PASS: private loopback HTTP starts
+PASS: 3D discovery exposes shared block update lifecycle, no 2D tools
+PASS: HTTP create_road_path succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP get_city_blocks succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_waterway succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: native river and both banks automatically reserve affected frontage lots
+PASS: automatic reservation preview is read only
+PASS: HTTP undo succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: new lot bindings save explicit reflow anchors
+PASS: HTTP set_event_template succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP select_objects succeeds
+PASS: HTTP transform_selection succeeds
+FAIL: HTTP preview_block_update succeeds
+{ "block_id": "block_cb269cbd3fcfeacd0369", "building_id": "building_fe1c659142b07e9572ef", "code": "access_blocked", "conflicts": ["pavement_bf2adbf77bde4c66c808"], "diagnostic": { "category": "conflict", "code": "access_blocked", "items": [{ "category": "conflict", "code": "access_blocked", "locatable": true, "message": "更新后的入口连接被物件阻挡", "object_ids": ["pavement_bf2adbf77bde4c66c808"], "objects": [{ "id": "pavement_bf2adbf77bde4c66c808", "name": "道路铺面 · 1,-1 / -0.00m" }], "source": "", "values": {  } }], "message": "更新后的入口连接被物件阻挡", "operation": "preview_block_update", "stage": "block_update", "truncated": false, "version": 1.0 }, "diagnostic_token": "8139aaeb6d3b680bfe9269e7e417f88e0bcfd72b0a415048f78df85ee21ca9d1", "error": "更新后的入口连接被物件阻挡", "lot_id": "lot_fe1c659142b07e9572ef", "ok": false, "stage": "block_update" }
+BLOCK_PLANNING_UPDATE checks=20 failures=1

@@ -1,0 +1,117 @@
+{
+  "checks": [
+    {
+      "label": "unprepared cover cannot grant ready/reveal",
+      "ok": true
+    },
+    {
+      "label": "actual fade has intermediate opacity; covered permission waits for opaque rendered frame",
+      "ok": true
+    },
+    {
+      "label": "fast transfer suppresses waiting text",
+      "ok": true
+    },
+    {
+      "label": "opaque GPU frame fully conceals source color",
+      "ok": true
+    },
+    {
+      "label": "slow waiting exposes real stage count and elapsed hint",
+      "ok": true
+    },
+    {
+      "label": "save Q90 WebP waiting",
+      "ok": true
+    },
+    {
+      "label": "disabled destination rendering cannot open readiness/reveal",
+      "ok": true
+    },
+    {
+      "label": "unmounted target camera cannot authorize first frame",
+      "ok": true
+    },
+    {
+      "label": "first destination frame still leaves opaque cover for authority checks",
+      "ok": true
+    },
+    {
+      "label": "destination marker follows opaque frame",
+      "ok": true
+    },
+    {
+      "label": "revealing frames cannot claim covered work budget",
+      "ok": true
+    },
+    {
+      "label": "reveal completes gradual fade after explicit permission",
+      "ok": true
+    },
+    {
+      "label": "retired cover ignores late progress without touching detached viewport",
+      "ok": true
+    },
+    {
+      "label": "save Q90 WebP failure",
+      "ok": true
+    },
+    {
+      "label": "real GUI mouse dispatch activates failure exit once while retaining cover",
+      "ok": true
+    },
+    {
+      "label": "focused failure action also accepts keyboard confirmation",
+      "ok": true
+    },
+    {
+      "label": "failure never opens reveal even after a drawn frame",
+      "ok": true
+    },
+    {
+      "label": "tree exit cancels in-flight fade without publishing a stale draw marker",
+      "ok": true
+    },
+    {
+      "label": "another viewport global draw cannot authorize a disabled target viewport",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "passed": 19,
+  "screenshots": [
+    {
+      "encoder": "Godot Image.save_webp(lossy=true,quality=.9)",
+      "height": 720,
+      "lossy": true,
+      "path": "waiting.webp",
+      "quality": 90,
+      "sha256": "80b0bb9f315df926cb77ddde46f341941d8d83546261ba0cba1b194fe2185a54",
+      "width": 1024,
+      "capture_path": "D:/code/rmmo_runtime/review_artifacts/transfer_experience_20261017/waiting.webp"
+    },
+    {
+      "encoder": "Godot Image.save_webp(lossy=true,quality=.9)",
+      "height": 720,
+      "lossy": true,
+      "path": "failure.webp",
+      "quality": 90,
+      "sha256": "cdefccd43f335cceb6a30abdbbf97bae32a173a2567642453e4e2f242fbf1759",
+      "width": 1024,
+      "capture_path": "D:/code/rmmo_runtime/review_artifacts/transfer_experience_20261017/failure.webp"
+    }
+  ],
+  "timeline": {
+    "covered_ms": 9188,
+    "drawn_frame": 12,
+    "elapsed_ms": 8642,
+    "fade_out_started_ms": 8972,
+    "headless": false,
+    "phase": "revealed",
+    "ready_frame": 14,
+    "ready_ms": 9317,
+    "reveal_started_ms": 9319,
+    "revealed_ms": 9588,
+    "viewport_id": 33638319556
+  }
+}

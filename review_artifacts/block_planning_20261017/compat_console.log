@@ -1,0 +1,90 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated block fixture
+PASS: native initial map loading completed
+PASS: block HTTP starts
+PASS: current 3D tools expose block workflow; 2D remains retired
+PASS: HTTP preview_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_buildings
+PASS: HTTP create_road_path succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP get_city_blocks succeeds
+PASS: HTTP exposes closed block
+PASS: HTTP preview_block_buildings succeeds
+PASS: first vacant-frontage batch contains two houses
+PASS: preview is readonly
+PASS: HTTP preview_block_buildings succeeds
+PASS: same seed gives identical preview and token
+PASS: HTTP set_editor_camera succeeds
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP preview_block_buildings succeeds
+PASS: hidden object blocks entire parcel
+PASS: HTTP update_planning_zones succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: hidden no-build polygon prevents generation
+PASS: HTTP undo succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: barrier outside the lot prevents a house with inaccessible entrance
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: batch houses and lot bindings are one undo transaction
+PASS: HTTP undo succeeds
+PASS: undo restores both buildings and city metadata (object allocator stays monotonic)
+PASS: HTTP redo succeeds
+PASS: redo restores stable building and parcel IDs
+PASS: HTTP set_event_template succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: next batch fills vacant lots and preserves earlier event / geometry
+PASS: repeat batch does not duplicate linked lots
+PASS: HTTP select_objects succeeds
+PASS: generated house selects as one whole building
+PASS: HTTP transform_selection succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: moving a whole house keeps original lot reserved
+PASS: HTTP undo succeeds
+PASS: HTTP delete_building succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: deleted house is never silently recreated
+PASS: HTTP undo succeeds
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP detach_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: detach_block_buildings
+PASS: HTTP undo succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP undo succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP generate_block_buildings rejects invalid operation
+PASS: rejection leaves document/history intact: generate_block_buildings
+PASS: HTTP undo succeeds
+PASS: HTTP detach_block_buildings succeeds
+PASS: detach preserves buildings and only releases city parcel association
+PASS: HTTP undo succeeds
+PASS: HTTP redo succeeds
+PASS: HTTP undo succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: save/reopen retains all parcel and building ownership
+PASS: HTTP preview_block_buildings succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: HTTP generate_block_buildings succeeds
+PASS: full block repeated generation is a no-op without an undo entry
+PASS: HTTP save_world succeeds
+PASS: HTTP set_editor_camera succeeds
+PASS: canvas click selects block and previews buildable lots
+PASS: HTTP set_editor_camera succeeds
+CITY_BLOCKS_ARTIFACTS D:/code/rmmo_runtime/cache/world3d/city_blocks_14280369
+WORLD3D_BLOCKS_FINISHED failures=0

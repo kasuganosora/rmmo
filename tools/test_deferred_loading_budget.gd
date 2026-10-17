@@ -62,17 +62,22 @@ func fixture(count:int=6)->Dictionary:
 	service.set_demand_scope(["transfer:7"]);service.set_process(false)
 	return {"host":host,"map":map,"service":service,"document":document,"cover":cover}
 func enable_cover(f:Dictionary)->void:
-	f.host._transfer_pending=true;f.cover.drawn_frame=0;root.disable_3d=true
+	f.host._transfer_pending=true;f.cover.drawn_frame=0;f.cover.opacity=1;f.cover.phase="waiting";root.disable_3d=true
 func run()->void:
 	var original_disable_3d:=root.disable_3d
 	var f:=fixture();var service:Probe=f.service
 	check(service._main_thread_budget_usec()==2000,"ordinary play uses the two millisecond slice")
 	f.host._transfer_pending=true;root.disable_3d=true
 	check(service._main_thread_budget_usec()==2000,"pending transfer and disabled 3D cannot boost an undrawn cover")
-	f.cover.drawn_frame=0;root.disable_3d=false
+	f.cover.drawn_frame=0;f.cover.opacity=1;f.cover.phase="waiting";root.disable_3d=false
 	check(service._main_thread_budget_usec()==2000,"drawn cover without disabled 3D remains interactive")
 	root.disable_3d=true
 	check(service._main_thread_budget_usec()==16000,"matching current transfer with visible drawn cover and disabled 3D receives sixteen milliseconds")
+	f.cover.opacity=.5
+	check(service._main_thread_budget_usec()==2000,"partial opacity revokes covered publication budget")
+	f.cover.opacity=1;f.cover.phase="revealing"
+	check(service._main_thread_budget_usec()==2000,"reveal phase revokes covered publication budget")
+	f.cover.phase="waiting"
 	f.host._local_transfer.scope_applied=false
 	check(service._main_thread_budget_usec()==2000,"drawn loading cover cannot boost before its destination scope is applied")
 	f.host._local_transfer.scope_applied=true;service.set_demand_scope(["different:scope"]);service.set_process(false)

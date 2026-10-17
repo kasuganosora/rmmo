@@ -1,0 +1,1511 @@
+{
+	"checks": [
+		{
+			"label": "isolated native map saved",
+			"ok": true
+		},
+		{
+			"label": "private loopback starts",
+			"ok": true
+		},
+		{
+			"label": "3D discovery advertises joint lifecycle only",
+			"ok": true
+		},
+		{
+			"label": "HTTP list_joint_candidate_operations succeeds",
+			"ok": true
+		},
+		{
+			"label": "native schema registry exposes every bounded adapter",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP discard_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP update_planning_zones succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "metadata-only candidate marks dirty and adds one history entry",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "no-op candidate leaves history intact",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "contract checks restore initial map",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "38 native operations prepare two houses and roads",
+			"ok": true
+		},
+		{
+			"label": "private preview changes no author records or history",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "same request reuses pinned candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "last failure has no author side effects",
+			"ok": true
+		},
+		{
+			"label": "last step failure reports precise position after 38 private operations",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "more than 32 native steps publish exactly one outer undo",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one undo restores all tools and metadata",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one redo restores final identities",
+			"ok": true
+		},
+		{
+			"label": "untouched ground record stays byte equivalent",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "final proof rejects a later zone invading existing house and preserves map",
+			"ok": true
+		},
+		{
+			"label": "UI snapshots native panel arguments",
+			"ok": true
+		},
+		{
+			"label": "UI reorders steps",
+			"ok": true
+		},
+		{
+			"label": "UI replaces selected step without adding",
+			"ok": true
+		},
+		{
+			"label": "UI removes selected step",
+			"ok": true
+		},
+		{
+			"label": "UI uses shared preview and apply lifecycle",
+			"ok": true
+		},
+		{
+			"label": "queue mutation invalidates preview",
+			"ok": true
+		},
+		{
+			"label": "document revision invalidates UI preview",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "UI shared apply clears completed queue",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "native save reopens",
+			"ok": true
+		},
+		{
+			"label": "saved author records and metadata round trip",
+			"ok": true
+		},
+		{
+			"label": "joint candidate publishes actual shared static batches",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/joint_candidate_16748_15394084",
+	"engine": "4.7.2-stable (official)",
+	"evidence": {
+		"editor_batches": {
+			"base_work_budget_usec": 2000,
+			"building_mesh_hits": 0,
+			"enabled": true,
+			"groups": 4,
+			"instanced_groups": 0,
+			"last_build_ms": 9.364,
+			"last_commit_ms": 0.519,
+			"last_sync_ms": 17.59,
+			"loading_budget_scopes": 0,
+			"max_build_ms": 9.364,
+			"max_commit_ms": 0.764,
+			"pending_groups": 0,
+			"rebuild_count": 4,
+			"release_groups_visited": 0,
+			"render_surfaces": 8,
+			"render_vertices": 780,
+			"source_objects": 12,
+			"source_surfaces": 24,
+			"source_vertices": 780,
+			"sync_count": 19,
+			"sync_profile_us": {
+				"capture_us": 381,
+				"geometry_us": 4,
+				"material_us": 13443
+			},
+			"work_budget_usec": 2000
+		},
+		"request": {
+			"steps": [
+				{
+					"id": "zone_0",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_0",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.0,
+										60
+									],
+									[
+										66.0,
+										60
+									],
+									[
+										66.0,
+										62
+									],
+									[
+										65.0,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_1",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_1",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.1,
+										60
+									],
+									[
+										66.1,
+										60
+									],
+									[
+										66.1,
+										62
+									],
+									[
+										65.1,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_2",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_2",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.2,
+										60
+									],
+									[
+										66.2,
+										60
+									],
+									[
+										66.2,
+										62
+									],
+									[
+										65.2,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_3",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_3",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.3,
+										60
+									],
+									[
+										66.3,
+										60
+									],
+									[
+										66.3,
+										62
+									],
+									[
+										65.3,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_4",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_4",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.4,
+										60
+									],
+									[
+										66.4,
+										60
+									],
+									[
+										66.4,
+										62
+									],
+									[
+										65.4,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_5",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_5",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.5,
+										60
+									],
+									[
+										66.5,
+										60
+									],
+									[
+										66.5,
+										62
+									],
+									[
+										65.5,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_6",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_6",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.6,
+										60
+									],
+									[
+										66.6,
+										60
+									],
+									[
+										66.6,
+										62
+									],
+									[
+										65.6,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_7",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_7",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.7,
+										60
+									],
+									[
+										66.7,
+										60
+									],
+									[
+										66.7,
+										62
+									],
+									[
+										65.7,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_8",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_8",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.8,
+										60
+									],
+									[
+										66.8,
+										60
+									],
+									[
+										66.8,
+										62
+									],
+									[
+										65.8,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_9",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_9",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										65.9,
+										60
+									],
+									[
+										66.9,
+										60
+									],
+									[
+										66.9,
+										62
+									],
+									[
+										65.9,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_10",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_10",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.0,
+										60
+									],
+									[
+										67.0,
+										60
+									],
+									[
+										67.0,
+										62
+									],
+									[
+										66.0,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_11",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_11",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.1,
+										60
+									],
+									[
+										67.1,
+										60
+									],
+									[
+										67.1,
+										62
+									],
+									[
+										66.1,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_12",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_12",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.2,
+										60
+									],
+									[
+										67.2,
+										60
+									],
+									[
+										67.2,
+										62
+									],
+									[
+										66.2,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_13",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_13",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.3,
+										60
+									],
+									[
+										67.3,
+										60
+									],
+									[
+										67.3,
+										62
+									],
+									[
+										66.3,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_14",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_14",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.4,
+										60
+									],
+									[
+										67.4,
+										60
+									],
+									[
+										67.4,
+										62
+									],
+									[
+										66.4,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_15",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_15",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.5,
+										60
+									],
+									[
+										67.5,
+										60
+									],
+									[
+										67.5,
+										62
+									],
+									[
+										66.5,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_16",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_16",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.6,
+										60
+									],
+									[
+										67.6,
+										60
+									],
+									[
+										67.6,
+										62
+									],
+									[
+										66.6,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_17",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_17",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.7,
+										60
+									],
+									[
+										67.7,
+										60
+									],
+									[
+										67.7,
+										62
+									],
+									[
+										66.7,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_18",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_18",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.8,
+										60
+									],
+									[
+										67.8,
+										60
+									],
+									[
+										67.8,
+										62
+									],
+									[
+										66.8,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_19",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_19",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										66.9,
+										60
+									],
+									[
+										67.9,
+										60
+									],
+									[
+										67.9,
+										62
+									],
+									[
+										66.9,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_20",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_20",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.0,
+										60
+									],
+									[
+										68.0,
+										60
+									],
+									[
+										68.0,
+										62
+									],
+									[
+										67.0,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_21",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_21",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.1,
+										60
+									],
+									[
+										68.1,
+										60
+									],
+									[
+										68.1,
+										62
+									],
+									[
+										67.1,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_22",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_22",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.2,
+										60
+									],
+									[
+										68.2,
+										60
+									],
+									[
+										68.2,
+										62
+									],
+									[
+										67.2,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_23",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_23",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.3,
+										60
+									],
+									[
+										68.3,
+										60
+									],
+									[
+										68.3,
+										62
+									],
+									[
+										67.3,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_24",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_24",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.4,
+										60
+									],
+									[
+										68.4,
+										60
+									],
+									[
+										68.4,
+										62
+									],
+									[
+										67.4,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_25",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_25",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.5,
+										60
+									],
+									[
+										68.5,
+										60
+									],
+									[
+										68.5,
+										62
+									],
+									[
+										67.5,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_26",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_26",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.6,
+										60
+									],
+									[
+										68.6,
+										60
+									],
+									[
+										68.6,
+										62
+									],
+									[
+										67.6,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_27",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_27",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.7,
+										60
+									],
+									[
+										68.7,
+										60
+									],
+									[
+										68.7,
+										62
+									],
+									[
+										67.7,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_28",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_28",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.8,
+										60
+									],
+									[
+										68.8,
+										60
+									],
+									[
+										68.8,
+										62
+									],
+									[
+										67.8,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_29",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_29",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										67.9,
+										60
+									],
+									[
+										68.9,
+										60
+									],
+									[
+										68.9,
+										62
+									],
+									[
+										67.9,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_30",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_30",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										68.0,
+										60
+									],
+									[
+										69.0,
+										60
+									],
+									[
+										69.0,
+										62
+									],
+									[
+										68.0,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_31",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_31",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										68.1,
+										60
+									],
+									[
+										69.1,
+										60
+									],
+									[
+										69.1,
+										62
+									],
+									[
+										68.1,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_32",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_32",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										68.2,
+										60
+									],
+									[
+										69.2,
+										60
+									],
+									[
+										69.2,
+										62
+									],
+									[
+										68.2,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_33",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_33",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										68.3,
+										60
+									],
+									[
+										69.3,
+										60
+									],
+									[
+										69.3,
+										62
+									],
+									[
+										68.3,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"id": "zone_34",
+					"update_planning_zones": {
+						"expected_token": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+						"zones": [
+							{
+								"id": "zone_34",
+								"max_y": 10.0,
+								"min_y": -1.0,
+								"polygon": [
+									[
+										68.4,
+										60
+									],
+									[
+										69.4,
+										60
+									],
+									[
+										69.4,
+										62
+									],
+									[
+										68.4,
+										62
+									]
+								],
+								"purpose": "no_vegetation"
+							}
+						]
+					}
+				},
+				{
+					"create_road_path": {
+						"points": [
+							[
+								-35,
+								0,
+								-35
+							],
+							[
+								35,
+								0,
+								-35
+							],
+							[
+								35,
+								0,
+								35
+							],
+							[
+								-35,
+								0,
+								35
+							],
+							[
+								-35,
+								0,
+								-35
+							]
+						],
+						"width": 4.0
+					},
+					"id": "roads"
+				},
+				{
+					"generate_road_surface": {
+						"material_id": "pack:default:paving/historic_cobble/material"
+					},
+					"id": "surface"
+				},
+				{
+					"generate_block_buildings": {
+						"max_buildings": 2
+					},
+					"id": "houses"
+				}
+			]
+		}
+	},
+	"failures": 0,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/joint_candidate_16748_15394084/map.gltf"
+}

@@ -1,0 +1,16 @@
+{
+  "source": "D:\\code\\rmmo_runtime\\cache\\world3d\\block_boundaries_4736_14114657\\planning_ui.png",
+  "source_sha256": "516a84258e34738a2d13b5536e411beb27ac611f3e8a85dab7d82d4c973f8dd9",
+  "target": "planning_ui.webp",
+  "target_sha256": "f1d5b4564a47dc0b236867cf0bc0f98d0b7f8577c5f62e5803c357f00d7118c8",
+  "dimensions": [
+    1440,
+    1000
+  ],
+  "mode": "RGB",
+  "quality": 90,
+  "method": 6,
+  "codec": "VP8 lossy",
+  "resized": false,
+  "color_conversion": false
+}

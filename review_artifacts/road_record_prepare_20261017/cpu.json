@@ -1,0 +1,4334 @@
+{
+	"checks": [
+		{
+			"label": "real shared PBR exists pack:default:paving/historic_cobble/material",
+			"ok": true
+		},
+		{
+			"label": "real shared PBR exists pack:default:paving/automatic_limestone_kerb/material",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_0_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_0_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_0_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_0_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_1_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_1_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_1_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_1_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_2_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_2_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_2_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_2_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_3_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_3_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_3_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AA_3_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "dual_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "dual_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_0_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_0_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_0_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_0_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_1_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_1_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_1_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_1_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_2_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_2_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_2_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_2_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_3_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_3_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AA_3_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AA_3_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "single_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "single_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_0_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_0_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_0_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_0_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_1_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_1_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_1_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_1_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_2_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_2_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_2_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_2_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_3_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_3_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_3_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AA_3_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "plain_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "plain_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_0_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_0_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_0_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_0_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_1_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_1_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_1_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_1_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_2_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_2_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_2_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_2_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_3_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_3_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AA_3_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AA_3_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "far_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "far_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing-road setup succeeds",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_warmup_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_0_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_0_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_0_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_0_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_1_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_1_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_1_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_1_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_2_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_2_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_2_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_2_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_3_first exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_3_first no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_3_second exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AA_3_second no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_0 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_0 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_1 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_1 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_2 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_2 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_3 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_3 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_4 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_4 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_5 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_5 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_6 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_6 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_7 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_7 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_8 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_8 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_9 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_9 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_10 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_10 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_11 exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_AB_11 no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "existing_ON exact complete successful result",
+			"ok": true
+		},
+		{
+			"label": "existing_ON no input/history mutation",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/texture.jpg",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/normal.png",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/roughness.png",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/ao.png",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/texture.png",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/normal.png",
+			"ok": true
+		},
+		{
+			"label": "actual texture dependency unchanged D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/roughness.png",
+			"ok": true
+		}
+	],
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"engine_executable_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+	"failures": 0,
+	"method": "Serial dual/single/plain/local+far/existing-road terrain preparation; 2 warmups/version, 4 A/A pairs, 12 alternating A/B pairs, final ON per version. Identical full bytes and authored state each call; real shared PBR. Other user/session load uncontrolled; no cold/tail/significance claim. Control regression tolerance 10% or A/A variation.",
+	"resources": {
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/normal.png": "b9af76c52ea7ffcbfab227ed1ff8c7d295952fbdabe4af64f0a27526fbf03f2c",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/roughness.png": "0bf22b9cd27e305b62610f9453cf42ef6b0cb8b198e960674633f00cd3b9f4df",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/automatic_limestone_kerb/texture.png": "74d16083107589ea878c9b49eb7a58ebf3bff89b17ead3d09a95deedb4063620",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/ao.png": "da18b0082a32607e00754c2fff00645d26074c770783d53c27cb8e438c0962a5",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/normal.png": "82c7f3f1ada1effac04f3eb57620bc45502db8a1da6b69866b45be32c71fdcf1",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/roughness.png": "4e3ff8feff68d1018a1db4cb9bac77b9521d6c824c28b9db5dc7ae0c6d9c90b7",
+		"D:/code/rmmo_runtime/packs/default/assets/materials/paving/historic_cobble/texture.jpg": "9a4370051fb8b110007485df71233434ab4d6f62691adc2cf2dc3fb14dc5ee11"
+	},
+	"samples": [
+		{
+			"label": "dual_warmup_0",
+			"prepare_ms": 473.055,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_warmup_0",
+			"prepare_ms": 450.267,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_warmup_1",
+			"prepare_ms": 575.542,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_warmup_1",
+			"prepare_ms": 411.014,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AA_0_first",
+			"prepare_ms": 485.894,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_0_second",
+			"prepare_ms": 497.508,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_1_first",
+			"prepare_ms": 444.184,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_1_second",
+			"prepare_ms": 444.931,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_2_first",
+			"prepare_ms": 518.282,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_2_second",
+			"prepare_ms": 450.685,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_3_first",
+			"prepare_ms": 508.766,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AA_3_second",
+			"prepare_ms": 588.963,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_0",
+			"prepare_ms": 531.184,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_0",
+			"prepare_ms": 428.123,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_1",
+			"prepare_ms": 428.819,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_1",
+			"prepare_ms": 480.606,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_2",
+			"prepare_ms": 505.122,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_2",
+			"prepare_ms": 405.065,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_3",
+			"prepare_ms": 368.685,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_3",
+			"prepare_ms": 517.11,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_4",
+			"prepare_ms": 621.292,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_4",
+			"prepare_ms": 432.385,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_5",
+			"prepare_ms": 457.665,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_5",
+			"prepare_ms": 490.811,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_6",
+			"prepare_ms": 490.377,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_6",
+			"prepare_ms": 466.053,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_7",
+			"prepare_ms": 415.302,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_7",
+			"prepare_ms": 486.071,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_8",
+			"prepare_ms": 525.325,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_8",
+			"prepare_ms": 382.053,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_9",
+			"prepare_ms": 406.715,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_9",
+			"prepare_ms": 554.38,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_10",
+			"prepare_ms": 568.377,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_AB_10",
+			"prepare_ms": 439.256,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_11",
+			"prepare_ms": 474.476,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "dual_AB_11",
+			"prepare_ms": 540.136,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_ON",
+			"prepare_ms": 513.762,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.013,
+					"collision": 6.053,
+					"finalize": 0.947,
+					"intersection_split": 0.595,
+					"material_lookup": 185.488,
+					"obstacle_shapes": 0.064,
+					"record_preservation": 179.217,
+					"road_build": 4.104,
+					"source_validation": 0.101,
+					"terrain_fit": 137.16
+				},
+				"total_ms": 513.75
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "baseline"
+		},
+		{
+			"label": "dual_ON",
+			"prepare_ms": 420.703,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.013,
+					"collision": 6.68,
+					"finalize": 2.007,
+					"intersection_split": 0.347,
+					"material_lookup": 171.583,
+					"obstacle_shapes": 0.061,
+					"record_preservation": 70.679,
+					"road_build": 3.646,
+					"source_validation": 0.066,
+					"terrain_fit": 165.599
+				},
+				"total_ms": 420.691
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "e7d7175771ad7a5f49f78b5e609e814d1cf7a62c6408d063e7709a1ab7138c07",
+			"version": "current"
+		},
+		{
+			"label": "single_warmup_0",
+			"prepare_ms": 487.084,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_warmup_0",
+			"prepare_ms": 398.353,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_warmup_1",
+			"prepare_ms": 592.325,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_warmup_1",
+			"prepare_ms": 359.084,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AA_0_first",
+			"prepare_ms": 486.963,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_0_second",
+			"prepare_ms": 452.449,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_1_first",
+			"prepare_ms": 465.584,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_1_second",
+			"prepare_ms": 421.216,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_2_first",
+			"prepare_ms": 442.759,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_2_second",
+			"prepare_ms": 363.345,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_3_first",
+			"prepare_ms": 402.209,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AA_3_second",
+			"prepare_ms": 377.552,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_0",
+			"prepare_ms": 445.806,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_0",
+			"prepare_ms": 359.211,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_1",
+			"prepare_ms": 419.478,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_1",
+			"prepare_ms": 470.783,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_2",
+			"prepare_ms": 446.778,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_2",
+			"prepare_ms": 359.839,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_3",
+			"prepare_ms": 351.154,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_3",
+			"prepare_ms": 380.308,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_4",
+			"prepare_ms": 417.074,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_4",
+			"prepare_ms": 331.241,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_5",
+			"prepare_ms": 399.309,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_5",
+			"prepare_ms": 419.751,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_6",
+			"prepare_ms": 452.97,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_6",
+			"prepare_ms": 342.875,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_7",
+			"prepare_ms": 397.619,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_7",
+			"prepare_ms": 487.895,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_8",
+			"prepare_ms": 459.817,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_8",
+			"prepare_ms": 349.268,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_9",
+			"prepare_ms": 360.928,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_9",
+			"prepare_ms": 404.689,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_10",
+			"prepare_ms": 386.729,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_AB_10",
+			"prepare_ms": 325.146,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_11",
+			"prepare_ms": 336.658,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "single_AB_11",
+			"prepare_ms": 370.91,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_ON",
+			"prepare_ms": 407.99,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.012,
+					"collision": 6.222,
+					"finalize": 0.964,
+					"intersection_split": 0.003,
+					"material_lookup": 161.066,
+					"obstacle_shapes": 0.061,
+					"record_preservation": 103.006,
+					"road_build": 1.556,
+					"source_validation": 0.047,
+					"terrain_fit": 135.04
+				},
+				"total_ms": 407.982
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "baseline"
+		},
+		{
+			"label": "single_ON",
+			"prepare_ms": 347.541,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.012,
+					"collision": 9.237,
+					"finalize": 4.063,
+					"intersection_split": 0.002,
+					"material_lookup": 161.341,
+					"obstacle_shapes": 0.071,
+					"record_preservation": 58.118,
+					"road_build": 1.551,
+					"source_validation": 0.046,
+					"terrain_fit": 113.059
+				},
+				"total_ms": 347.523
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "84ef90eeb1fb10fcf0febf6d68ec237fe23fa25d72ccf033cbb7dbe4f6a36c57",
+			"version": "current"
+		},
+		{
+			"label": "plain_warmup_0",
+			"prepare_ms": 74.484,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_warmup_0",
+			"prepare_ms": 88.466,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_warmup_1",
+			"prepare_ms": 81.499,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_warmup_1",
+			"prepare_ms": 61.731,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AA_0_first",
+			"prepare_ms": 109.729,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_0_second",
+			"prepare_ms": 58.949,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_1_first",
+			"prepare_ms": 86.496,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_1_second",
+			"prepare_ms": 65.635,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_2_first",
+			"prepare_ms": 95.71,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_2_second",
+			"prepare_ms": 95.04,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_3_first",
+			"prepare_ms": 60.37,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AA_3_second",
+			"prepare_ms": 63.769,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_0",
+			"prepare_ms": 91.937,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_0",
+			"prepare_ms": 59.531,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_1",
+			"prepare_ms": 68.881,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_1",
+			"prepare_ms": 64.988,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_2",
+			"prepare_ms": 85.2,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_2",
+			"prepare_ms": 89.993,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_3",
+			"prepare_ms": 87.29,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_3",
+			"prepare_ms": 87.28,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_4",
+			"prepare_ms": 57.184,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_4",
+			"prepare_ms": 78.837,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_5",
+			"prepare_ms": 124.201,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_5",
+			"prepare_ms": 96.572,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_6",
+			"prepare_ms": 72.26,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_6",
+			"prepare_ms": 57.238,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_7",
+			"prepare_ms": 58.175,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_7",
+			"prepare_ms": 61.216,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_8",
+			"prepare_ms": 56.437,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_8",
+			"prepare_ms": 86.544,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_9",
+			"prepare_ms": 57.304,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_9",
+			"prepare_ms": 60.936,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_10",
+			"prepare_ms": 57.267,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_AB_10",
+			"prepare_ms": 60.318,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_11",
+			"prepare_ms": 56.535,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "plain_AB_11",
+			"prepare_ms": 56.336,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_ON",
+			"prepare_ms": 83.817,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 4,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.01,
+					"collision": 9.874,
+					"finalize": 0.957,
+					"intersection_split": 0.003,
+					"material_lookup": 0.016,
+					"obstacle_shapes": 0.055,
+					"record_preservation": 15.661,
+					"road_build": 1.533,
+					"source_validation": 0.042,
+					"terrain_fit": 55.655
+				},
+				"total_ms": 83.809
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "baseline"
+		},
+		{
+			"label": "plain_ON",
+			"prepare_ms": 58.937,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 4,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.011,
+					"collision": 5.943,
+					"finalize": 0.941,
+					"intersection_split": 0.002,
+					"material_lookup": 0.011,
+					"obstacle_shapes": 0.057,
+					"record_preservation": 14.83,
+					"road_build": 1.564,
+					"source_validation": 0.049,
+					"terrain_fit": 35.517
+				},
+				"total_ms": 58.93
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"material_id": ""
+			},
+			"result_sha256": "a78dfc76be5d5904fc0f7d39ebb91f6cab31de6610ab9b19b6a83a16f00235f4",
+			"version": "current"
+		},
+		{
+			"label": "far_warmup_0",
+			"prepare_ms": 562.379,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_warmup_0",
+			"prepare_ms": 444.184,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_warmup_1",
+			"prepare_ms": 592.751,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_warmup_1",
+			"prepare_ms": 479.547,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AA_0_first",
+			"prepare_ms": 563.579,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_0_second",
+			"prepare_ms": 586.923,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_1_first",
+			"prepare_ms": 499.341,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_1_second",
+			"prepare_ms": 540.688,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_2_first",
+			"prepare_ms": 523.444,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_2_second",
+			"prepare_ms": 510.91,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_3_first",
+			"prepare_ms": 500.559,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AA_3_second",
+			"prepare_ms": 606.866,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_0",
+			"prepare_ms": 566.28,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_0",
+			"prepare_ms": 404.506,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_1",
+			"prepare_ms": 449.184,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_1",
+			"prepare_ms": 531.816,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_2",
+			"prepare_ms": 623.223,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_2",
+			"prepare_ms": 460.636,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_3",
+			"prepare_ms": 473.718,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_3",
+			"prepare_ms": 558.908,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_4",
+			"prepare_ms": 493.268,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_4",
+			"prepare_ms": 406.74,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_5",
+			"prepare_ms": 405.65,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_5",
+			"prepare_ms": 529.753,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_6",
+			"prepare_ms": 549.054,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_6",
+			"prepare_ms": 490.755,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_7",
+			"prepare_ms": 431.317,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_7",
+			"prepare_ms": 527.947,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_8",
+			"prepare_ms": 633.906,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_8",
+			"prepare_ms": 403.659,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_9",
+			"prepare_ms": 411.089,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_9",
+			"prepare_ms": 522.409,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_10",
+			"prepare_ms": 531.703,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_AB_10",
+			"prepare_ms": 422.618,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_11",
+			"prepare_ms": 442.487,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "far_AB_11",
+			"prepare_ms": 559.161,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_ON",
+			"prepare_ms": 546.159,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 603,
+					"obstacle_shapes": 603,
+					"potential_shape_pairs": 4824,
+					"road_records": 8,
+					"source_records": 610,
+					"terrain_records_skipped": 7
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.01,
+					"collision": 10.927,
+					"finalize": 43.573,
+					"intersection_split": 0.304,
+					"material_lookup": 179.442,
+					"obstacle_shapes": 14.026,
+					"record_preservation": 155.13,
+					"road_build": 3.851,
+					"source_validation": 0.055,
+					"terrain_fit": 138.819
+				},
+				"total_ms": 546.15
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "baseline"
+		},
+		{
+			"label": "far_ON",
+			"prepare_ms": 407.852,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 603,
+					"obstacle_shapes": 603,
+					"potential_shape_pairs": 4824,
+					"road_records": 8,
+					"source_records": 610,
+					"terrain_records_skipped": 7
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.011,
+					"collision": 11.079,
+					"finalize": 20.621,
+					"intersection_split": 0.307,
+					"material_lookup": 148.373,
+					"obstacle_shapes": 13.968,
+					"record_preservation": 68.811,
+					"road_build": 3.609,
+					"source_validation": 0.057,
+					"terrain_fit": 140.995
+				},
+				"total_ms": 407.842
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "8fe717ce24e90709f0feee7c2d8f2c314066fd6f86a3f89b4fb1627bcb0dfb02",
+			"version": "current"
+		},
+		{
+			"label": "existing_warmup_0",
+			"prepare_ms": 529.165,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_warmup_0",
+			"prepare_ms": 416.215,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_warmup_1",
+			"prepare_ms": 574.413,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_warmup_1",
+			"prepare_ms": 433.745,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AA_0_first",
+			"prepare_ms": 532.541,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_0_second",
+			"prepare_ms": 567.617,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_1_first",
+			"prepare_ms": 524.013,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_1_second",
+			"prepare_ms": 517.067,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_2_first",
+			"prepare_ms": 491.4,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_2_second",
+			"prepare_ms": 484.194,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_3_first",
+			"prepare_ms": 513.886,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AA_3_second",
+			"prepare_ms": 541.437,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_0",
+			"prepare_ms": 531.348,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_0",
+			"prepare_ms": 438.061,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_1",
+			"prepare_ms": 426.468,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_1",
+			"prepare_ms": 517.13,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_2",
+			"prepare_ms": 574.251,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_2",
+			"prepare_ms": 582.824,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_3",
+			"prepare_ms": 426.897,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_3",
+			"prepare_ms": 515.663,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_4",
+			"prepare_ms": 489.231,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_4",
+			"prepare_ms": 444.048,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_5",
+			"prepare_ms": 406.942,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_5",
+			"prepare_ms": 522.876,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_6",
+			"prepare_ms": 581.103,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_6",
+			"prepare_ms": 506.35,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_7",
+			"prepare_ms": 401.917,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_7",
+			"prepare_ms": 550.296,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_8",
+			"prepare_ms": 522.861,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_8",
+			"prepare_ms": 416.055,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_9",
+			"prepare_ms": 398.802,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_9",
+			"prepare_ms": 556.68,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_10",
+			"prepare_ms": 503.908,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_AB_10",
+			"prepare_ms": 399.161,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_11",
+			"prepare_ms": 439.129,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		},
+		{
+			"label": "existing_AB_11",
+			"prepare_ms": 514.373,
+			"profile": {},
+			"profile_enabled": false,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_ON",
+			"prepare_ms": 581.18,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 9,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.012,
+					"collision": 6.05,
+					"finalize": 10.978,
+					"intersection_split": 0.337,
+					"material_lookup": 219.944,
+					"obstacle_shapes": 0.068,
+					"record_preservation": 186.303,
+					"road_build": 5.114,
+					"source_validation": 19.213,
+					"terrain_fit": 133.146
+				},
+				"total_ms": 581.172
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "baseline"
+		},
+		{
+			"label": "existing_ON",
+			"prepare_ms": 427.243,
+			"profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 9,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.012,
+					"collision": 6.013,
+					"finalize": 11.783,
+					"intersection_split": 0.321,
+					"material_lookup": 157.615,
+					"obstacle_shapes": 0.064,
+					"record_preservation": 77.555,
+					"road_build": 3.633,
+					"source_validation": 20.083,
+					"terrain_fit": 150.138
+				},
+				"total_ms": 427.228
+			},
+			"profile_enabled": true,
+			"request": {
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"material_id": "pack:default:paving/historic_cobble/material"
+			},
+			"result_sha256": "b782eb186e1236a8b4c77607000734fe81005bfe97a3f9b9a7dbd6f9d55c072c",
+			"version": "current"
+		}
+	],
+	"sources": {
+		"res://review_artifacts/road_record_prepare_20261017/road_tools_baseline.gd": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da",
+		"res://scripts/world_editor/road_tools.gd": "234fb65ffb2feef08a482e42a9d335e125a38e59932ce39fd1abecc08f063572",
+		"res://scripts/world_editor/surface_material_library.gd": "14e4872d18e5f5e9702eefcc0eef920f74fa1ccf2c572ea9f98f781a98514da0",
+		"res://tools/benchmark_road_record_prepare.gd": "004ae46fda9e7737f5e87caa2f67d2735afdbfdec11ff1547df4ca8924cfbbe8",
+		"res://tools/road_prepare_fixture.gd": "7df8d35bd42aa2daafca975479080a301b525914dc5b725428e17d28b4c06fea"
+	}
+}

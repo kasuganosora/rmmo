@@ -1,0 +1,102 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: source fixture passed its own lifecycle checks
+PASS: native source fixture copied to independent temporary map
+PASS: native fixture loading completed
+PASS: boundary HTTP server uses an unused loopback port
+PASS: legacy anchor-free binding remains a valid document
+PASS: HTTP preview_block_update succeeds
+PASS: legacy baseline adoption is read only until apply
+PASS: HTTP apply_block_update succeeds
+PASS: legacy source anchors and joint road update commit together
+PASS: HTTP undo succeeds
+PASS: legacy upgrade undo restores original format
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP undo succeeds
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP preview_block_update rejects invalid operation
+PASS: rejection leaves document/history intact: preview_block_update
+PASS: HTTP generate_block_buildings succeeds
+PASS: HTTP preview_block_update succeeds
+PASS: update classifies affected and unaffected frontages
+PASS: HTTP apply_block_update succeeds
+PASS: unaffected registry bytes unchanged: building_a81f3e1f5056aff9b656
+PASS: unaffected component bytes unchanged: obj_332
+PASS: unaffected component bytes unchanged: obj_333
+PASS: unaffected component bytes unchanged: obj_334
+PASS: unaffected component bytes unchanged: obj_335
+PASS: unaffected component bytes unchanged: obj_336
+PASS: unaffected component bytes unchanged: obj_337
+PASS: unaffected component bytes unchanged: obj_338
+PASS: unaffected component bytes unchanged: obj_339
+PASS: unaffected component bytes unchanged: obj_340
+PASS: unaffected component bytes unchanged: obj_341
+PASS: unaffected component bytes unchanged: obj_342
+PASS: unaffected component bytes unchanged: obj_343
+PASS: unaffected component bytes unchanged: obj_344
+PASS: unaffected component bytes unchanged: obj_345
+PASS: unaffected component bytes unchanged: obj_346
+PASS: unaffected component bytes unchanged: obj_347
+PASS: unaffected component bytes unchanged: obj_348
+PASS: unaffected component bytes unchanged: obj_349
+PASS: unaffected component bytes unchanged: obj_350
+PASS: unaffected component bytes unchanged: obj_351
+PASS: unaffected component bytes unchanged: obj_352
+PASS: unaffected component bytes unchanged: obj_353
+PASS: unaffected component bytes unchanged: obj_354
+PASS: unaffected component bytes unchanged: obj_355
+PASS: unaffected component bytes unchanged: obj_356
+PASS: unaffected component bytes unchanged: obj_357
+PASS: unaffected component bytes unchanged: obj_358
+PASS: unaffected component bytes unchanged: obj_359
+PASS: unaffected component bytes unchanged: obj_360
+PASS: unaffected component bytes unchanged: obj_361
+PASS: unaffected component bytes unchanged: obj_362
+PASS: unaffected component bytes unchanged: obj_363
+PASS: unaffected component bytes unchanged: obj_364
+PASS: unaffected component bytes unchanged: obj_365
+PASS: unaffected component bytes unchanged: obj_366
+PASS: unaffected component bytes unchanged: obj_367
+PASS: unaffected component bytes unchanged: obj_368
+PASS: unaffected component bytes unchanged: obj_369
+PASS: HTTP undo succeeds
+PASS: road property UI updates linked houses in one transaction
+PASS: HTTP undo succeeds
+PASS: HTTP preview_block_update succeeds
+PASS: node movement and rotation map every linked house without rebuilding
+PASS: HTTP apply_block_update succeeds
+PASS: joint road rotation preserves house identity and manual offset: building_0a684d5434c7d65b6942
+PASS: joint road rotation preserves house identity and manual offset: building_a100adac7e67889d3a27
+PASS: joint road rotation preserves house identity and manual offset: building_3823cb75caeff56ef92a
+PASS: joint road rotation preserves house identity and manual offset: building_9e8d7e6f66e87dc9a531
+PASS: joint road rotation preserves house identity and manual offset: building_39bbcd1370e9bc34e867
+PASS: joint road rotation preserves house identity and manual offset: building_a81f3e1f5056aff9b656
+PASS: HTTP undo succeeds
+PASS: one undo restores the full rotated road and house transaction
+PASS: house retains its own real editor physics and picking bodies: building_0a684d5434c7d65b6942
+PASS: house retains its own real editor physics and picking bodies: building_a100adac7e67889d3a27
+PASS: house retains its own real editor physics and picking bodies: building_3823cb75caeff56ef92a
+PASS: house retains its own real editor physics and picking bodies: building_9e8d7e6f66e87dc9a531
+PASS: house retains its own real editor physics and picking bodies: building_39bbcd1370e9bc34e867
+PASS: house retains its own real editor physics and picking bodies: building_a81f3e1f5056aff9b656
+PASS: UI candidate for stale-parameter test
+PASS: changing fields after preview requires a fresh UI preview
+PASS: separate natural-river fixture saved
+PASS: HTTP open_world succeeds
+PASS: HTTP create_terrain succeeds
+PASS: HTTP generate_terrain_river succeeds
+PASS: HTTP create_road_path succeeds
+PASS: HTTP preview_block_buildings succeeds
+PASS: curved heightfield river protects real sampled bank envelope through HTTP
+PASS: HTTP set_editor_camera succeeds
+PASS: HTTP save_world succeeds
+BLOCK_PLANNING_UPDATE checks=97 failures=0

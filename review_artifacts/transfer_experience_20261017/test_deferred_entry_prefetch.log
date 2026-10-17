@@ -1,0 +1,46 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: invalid prefetch clip has no effect
+PASS: off-tree queue enters explicit prepare-only phase
+PASS: prefetch uses the same physical-RAM budget as ordinary activation
+PASS: second begin cannot replace a live prefetch transaction
+PASS: active prefetch cannot be bypassed by ordinary activation or entry loading
+PASS: dispatch selects new safety models, deduplicates path and excludes native/core/far rows
+PASS: same real admission ledger charges both in-flight tasks
+PASS: CPU worker results reached ready state
+PASS: ready results retain slots and bytes instead of growing an unbounded prefetch backlog
+PASS: prepare-only phase never activates a scene node
+PASS: prefetch never accepts records or publishes geometry
+PASS: prefetch does not alter the shared model cache
+PASS: prepared models remain private and outside every SceneTree
+PASS: handoff restores real scope while retaining the required safety ticket
+PASS: handoff preserves exact job/token ownership without scope-driven cancellation
+PASS: handoff stops pumping without repeating preparation or releasing reservations
+PASS: attached queues cannot start a second off-tree prefetch
+PASS: normal entry takes ownership after core readiness
+PASS: existing ready jobs pass through normal acceptance without reparse
+PASS: only normal entry stamps and publishes verified model templates
+PASS: consumption retires original reservations and preserves handoff byte allowance
+PASS: entry completion cannot strand the queue in a removed temporary ticket
+PASS: previous ordinary demand is usable again after entry
+PASS: deadline-bounded prefetch dispatch reached the requested worker count
+PASS: CPU worker results reached ready state
+PASS: off-tree quiesce cancels live work while retaining its charge until join
+PASS: already joined unpublished scene is safely disposed
+PASS: off-tree quiesce yields main frames instead of blocking on a live worker
+PASS: late result observes cancellation and joins before owner resumes
+PASS: cancelled late result and all reservations are gone before free
+PASS: drainer ownership and temporary scope are fully released
+PASS: cancellation cannot publish or accept prefetch output
+PASS: deadline-bounded prefetch dispatch reached the requested worker count
+PASS: off-tree cancellation remains valid after successful finish handoff
+PASS: worker validation failure follows existing per-path isolation
+PASS: failure returns its reservation without publishing invalid content
+PASS: failed private model is destroyed
+PASS: deadline-bounded prefetch dispatch reached the requested worker count
+PASS: explicit shutdown safely drains a never-attached queue
+PASS: shutdown is permanent and releases drainer ownership
+PASS: deadline-bounded prefetch dispatch reached the requested worker count
+PASS: forced off-tree free has a last-resort lifetime drain without _exit_tree
+DEFERRED_ENTRY_PREFETCH passed=42 failures=0

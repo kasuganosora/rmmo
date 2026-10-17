@@ -40,9 +40,15 @@ func run()->void:
 	check(view._terrain_warm_budget_usec()==1000,"queued cover removal immediately restores runtime budget")
 	session._world_transition_active=false;world._transfer_pending=true
 	check(view._terrain_warm_budget_usec()==1000,"transfer flag alone retains runtime budget")
-	var transfer_cover:=CanvasLayer.new();transfer_cover.name="TransferLoading";world.add_child(transfer_cover)
+	var transfer_cover:=View.TransferLoading.new();world.add_child(transfer_cover)
+	check(view._terrain_warm_budget_usec()==1000,"fade-out cover retains interactive radar budget")
+	transfer_cover.drawn_frame=0;transfer_cover.opacity=1;transfer_cover.phase="waiting"
 	check(view._terrain_warm_budget_usec()==4000,"visible same-world transfer cover increases radar budget")
-	transfer_cover.visible=false
+	transfer_cover.phase="revealing"
+	check(view._terrain_warm_budget_usec()==1000,"reveal phase retains interactive radar budget")
+	transfer_cover.phase="waiting";transfer_cover.opacity=.5
+	check(view._terrain_warm_budget_usec()==1000,"partial opacity cannot claim covered radar budget")
+	transfer_cover.opacity=1;transfer_cover.visible=false
 	check(view._terrain_warm_budget_usec()==1000,"hidden transfer cover retains runtime budget")
 	transfer_cover.visible=true;world._transfer_pending=false
 	check(view._terrain_warm_budget_usec()==1000,"finished transfer restores runtime radar budget")

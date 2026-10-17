@@ -6,6 +6,7 @@ var editor: Node3D
 var type_select: OptionButton
 var form: VBoxContainer
 var position_form: VBoxContainer
+var transfer_hint:Label
 var note: Label
 var preview: TextEdit
 var _key := ""
@@ -30,6 +31,7 @@ func setup(host: Node3D) -> void:
 	position_form = Form.new(); create_box.add_child(position_form)
 	position_form.build({"properties": {"position": Templates.Schema.vector(-100000, 100000)}}, {"position": [0,0,0]}, {"position": "新建位置脚点（米）"})
 	button(create_box, "在此位置新建事件", create_event)
+	transfer_hint=Label.new();transfer_hint.text="传送自动淡出、淡入；场景准备完成后恢复操作。等待较长时显示当前阶段与已用时间。";transfer_hint.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;add_child(transfer_hint)
 	form = Form.new(); add_child(form)
 	preview = TextEdit.new(); preview.editable = false; preview.custom_minimum_size.y = 130; preview.visible = false; add_child(preview)
 	visibility_changed.connect(refresh)
@@ -57,6 +59,7 @@ func refresh() -> void:
 	fill(record.get("event_template", {}).get("parameters", Templates.defaults(type)))
 
 func fill(values: Dictionary) -> void:
+	transfer_hint.visible=values.has("map_path")
 	var choices: Dictionary = editor._gameplay.resources()
 	var blank := [{"id": "", "name": "无"}]
 	var ordered := {}

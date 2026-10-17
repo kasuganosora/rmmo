@@ -19,7 +19,7 @@ static func choice(values: Array) -> Dictionary:
 static func spec(name: String, description: String, properties: Dictionary = {}, required: Array = [], read_only: bool = false) -> Dictionary:
 	return {"name": name, "description": description, "inputSchema": {"type": "object", "properties": properties, "required": required, "additionalProperties": false}, "annotations": {"readOnlyHint": read_only}}
 
-static func tools() -> Array:
+static func native_tools() -> Array:
 	var city = preload("res://scripts/world3d/city_layout.gd")
 	var site:Dictionary=preload("res://scripts/world_editor/residential_site_tools.gd").schema()
 	var residential_block:Dictionary=preload("res://scripts/world_editor/residential_block_tools.gd").block_schema()
@@ -106,8 +106,11 @@ static func tools() -> Array:
 		spec("generate_vegetation_scatter", "按相同参数创建或更新一个植被区域，一次撤销；可传 plan_token 固定预览。同种子可复现，数量不足返回 shortfall。已有成员手改/删除、隐藏/锁定/隔层时拒绝更新。", scatter.properties, scatter.required),
 		spec("remove_vegetation_scatter", "解除植被区域关联，keep_objects 默认 true 保留全部现场；false 删除仍未手改的生成成员。锁定/隐藏/隔层均拒绝，一次撤销。", {"id":city.text(),"keep_objects":{"type":"boolean"}}, ["id"]),
 		spec("get_city_blocks", "识别平面道路闭合街区，含曲线边界、稳定ID、保护状态和地块建筑关联；桥面不围合，断头路只作为避让。只读。", {}, [], true),
-		spec("preview_block_buildings", "预览沿街矩形地块及空位建筑方案，含地块状态、入口接路、跳过原因和plan_token；block_ids省略表示全部。避让屋檐/活动门窗、已有物体、禁建区和保留通道。每批最多16栋，地块未覆盖的区域保持空白。", preload("res://scripts/world3d/city_blocks.gd").request_schema().properties, [], true),
-		spec("generate_block_buildings", "只在街区空地块生成房屋，整体一次撤销；已有地块关联保持原房屋、材质和事件，删除/移动后不会自动补回。plan_token固定预览；道路边界或地块尺寸变化需先显式解除关联。", preload("res://scripts/world3d/city_blocks.gd").request_schema().properties),
+		spec("preview_block_buildings", "预览沿街矩形地块及空位建筑方案，含地块状态、入口接路、跳过原因和plan_token；block_ids省略表示全部。避让屋檐/活动门窗、已有物体、禁建区和保留通道，自动预留河道两岸、桥头和城门通道。每批最多16栋，地块未覆盖的区域保持空白。", preload("res://scripts/world3d/city_blocks.gd").request_schema().properties, [], true),
+		spec("generate_block_buildings", "只在街区空地块生成房屋，整体一次撤销；已有地块关联保持原房屋、材质和事件，删除/移动后不会自动补回。plan_token固定预览；道路边界或地块尺寸变化可使用 preview_block_update/apply_block_update 保留身份更新。", preload("res://scripts/world3d/city_blocks.gd").request_schema().properties),
+		spec("preview_block_update", "只读预览已有街区随道路或地块尺寸更新；保留建筑/构件身份、原房型、种子、材质、事件及手工位姿偏移。可选 road_changes 与道路更新同参数（不含 update_blocks），与房屋在私有最终状态中一起校验。一次最多移动16栋；拓扑/旧关联无法映射时拒绝，不猜测、不删房。", preload("res://scripts/world3d/city_blocks.gd").update_schema().properties, [], true),
+		spec("apply_block_update", "原子应用已有街区候选，包含道路铺面及关联更新，一次撤销；过期或资源变化无副作用拒绝。", {"plan_token":city.text(64)}, ["plan_token"]),
+		spec("discard_block_update", "丢弃已有街区更新候选，不修改地图和历史。", {"plan_token":city.text(64)}, ["plan_token"]),
 		spec("detach_block_buildings", "解除指定街区的地块关联，保留房屋及其参数化建筑身份。含锁定/隐藏房屋时拒绝；可清理已消失街区关联。一次撤销。", {"block_ids":city.array(city.text(80),128,1)}, ["block_ids"]),
 		spec("split_road_intersections", "拆分同层同类型道路交叉点并保留宽度/三次曲线。稳定路口ID，一次撤销；自交、重叠或受保护节点拒绝。桥下穿越不合并。", {}),
 		spec("preview_road_surface", "预览道路/独立桥面的32米分块连续铺面和路口，三次曲线缓弯共用连续边缘，返回面积、增删改数量和plan_token；不改文档。支持带平坦接头的直线坡道，曲线坡道暂不支持；检查桥下净空和已有物件碰撞。省略参数沿用上次设置。kerb_enabled 开启自动外露路缘并连接同层交叉；kerb_width 为向路面内侧宽度，kerb_height 为高出路面高度，kerb_material_id 来自材质库；预览返回 kerb_length。", road_settings, [], true),
@@ -122,7 +125,7 @@ static func tools() -> Array:
 		spec("save_view_bookmark", "将当前相机保存为地图书签；id 可指定以更新已有书签，省略生成稳定ID。最多32个，一次撤销。", {"name":city.text(80),"id":city.text()}, ["name"]),
 		spec("delete_view_bookmark", "删除指定书签，一次撤销。", {"id":city.text()}, ["id"]),
 		spec("recall_view_bookmark", "恢复指定书签的中心、投影、视距/范围和朝向；不改地图或撤销栈。", {"id":city.text()}, ["id"]),
-		spec("update_road_graph", "原子增改/删除道路节点和线段，全部使用稳定ID；expected_token 传读取时的 road_token 防止覆盖较新草案。nodes/edges 每项为完整替换；删除节点须同时显式删除连接线。支持宽度变化、三次曲线两控制柄、标高和 ground/bridge。锁定/隐藏需先单独解除；受保护线段也保护端点移动。一次撤销；已启用kerb_enabled时同层交叉及铺面/路缘一并更新，否则随后使用split_road_intersections和generate_road_surface生成路面。", {"expected_token":city.text(64),"nodes":city.array(city.node_schema(),256),"edges":city.array(city.edge_schema(),512),"remove_nodes":city.array(city.text(),256),"remove_edges":city.array(city.text(),512)}, ["expected_token"]),
+		spec("update_road_graph", "可选 update_blocks=true 联动更新已关联街区，整组一次撤销；原子增改/删除道路节点和线段，全部使用稳定ID；expected_token 传读取时的 road_token 防止覆盖较新草案。nodes/edges 每项为完整替换；删除节点须同时显式删除连接线。支持宽度变化、三次曲线两控制柄、标高和 ground/bridge。锁定/隐藏需先单独解除；受保护线段也保护端点移动。一次撤销；已启用kerb_enabled时同层交叉及铺面/路缘一并更新，否则随后使用split_road_intersections和generate_road_surface生成路面。", {"update_blocks":{"type":"boolean"},"expected_token":city.text(64),"nodes":city.array(city.node_schema(),256),"edges":city.array(city.edge_schema(),512),"remove_nodes":city.array(city.text(),256),"remove_edges":city.array(city.text(),512)}, ["expected_token"]),
 		spec("create_road_path", "与画布点选共用：从XYZ点列创建连续道路骨架，端点在0.25米内复用已有节点；不会自动拆分穿越线段。保护节点拒绝连接。整笔一次撤销，返回新road_token及诊断。", {"points":city.array(city.S.vector(-100000,100000),64,2),"width":number(1,60),"kind":choice(["ground","bridge"])}, ["points"]),
 		spec("preview_region_buildings", "在矩形平地区域内按种子随机规划单栋或成片建筑，避让全部已有物体，含隐藏/锁定物体；计入屋檐、阳台、雨棚和入口。只读，返回 plan_token 供确认同一方案。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"], true),
 		spec("generate_region_buildings", "应用区域随机建筑方案，最多16栋且整批一次撤销；提交前再次校验碰撞。传预览的 plan_token 时方案改变会无副作用拒绝。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"]),
@@ -161,8 +164,8 @@ static func tools() -> Array:
 		spec("playtest_state", "查询试玩准备/运行/失败/停止状态和错误。", {}, [], true),
 		spec("list_event_templates", "列出 3D 事件模板、默认参数和参数 schema。复用现有事件页/命令运行逻辑。", {}, [], true),
 		spec("list_event_resources", "分页查询事件可用物品和商店 ID。", pagination, [], true),
-		spec("create_event_template", "在指定脚点新建事件标记，模板为对话/宝箱/采集/传送/商店，一次撤销。", {"template": choice(["dialogue", "chest", "gather", "transfer", "shop"]), "position": vector(3, -100000, 100000), "parameters": preload("res://scripts/world3d/event_templates.gd").parameters_schema()}, ["template", "position"]),
-		spec("set_event_template", "为单个可编辑物件挂载或修改事件。省略 template 则沿用原类型；同类型 parameters 为增量修改，切换类型使用该类型默认值。", {"id": text_field(), "template": choice(["dialogue", "chest", "gather", "transfer", "shop"]), "parameters": preload("res://scripts/world3d/event_templates.gd").parameters_schema()}, ["id", "parameters"]),
+		spec("create_event_template", "在指定脚点新建事件标记，模板为对话/宝箱/采集/传送/商店，一次撤销。传送自动淡出淡入并显示等待阶段；完整就绪后恢复操作。", {"template": choice(["dialogue", "chest", "gather", "transfer", "shop"]), "position": vector(3, -100000, 100000), "parameters": preload("res://scripts/world3d/event_templates.gd").parameters_schema()}, ["template", "position"]),
+		spec("set_event_template", "为单个可编辑物件挂载或修改事件。传送与 UI 共用自动淡出淡入和完整就绪保障。省略 template 则沿用原类型；同类型 parameters 为增量修改，切换类型使用该类型默认值。", {"id": text_field(), "template": choice(["dialogue", "chest", "gather", "transfer", "shop"]), "parameters": preload("res://scripts/world3d/event_templates.gd").parameters_schema()}, ["id", "parameters"]),
 		spec("clear_event_template", "移除所选物件的事件模板，保留物件和原有非模板数据，一次撤销。", {"id": text_field()}, ["id"]),
 		spec("get_environment", "读取地图日夜、连续日月、本地湿润初值 / 积水、室内外声音、3D 天气 / 风 / 天空 / 空间雷电、主光、雾、轮廓及第三人称室内相机 / 遮挡楼层配置。返回保存的目标值，天气过渡中的瞬时显示值不写入地图。", {}, [], true),
 		spec("set_environment", "修改地图环境，一次撤销。weather=clear/rain/storm/snow/fog；weather_intensity 0～1；wind_speed 0～18 米/秒；wind_direction -180～180 度（0 向 +X，90 向 +Z）；weather_transition 0～20 秒。sky_enabled 控制云层天空；cloud_altitude 200～3000 为世界云底高度，cloud_thickness 100～1800 为云厚，cloud_scale 400～8000 为云团尺度（米）；cirrus_amount 0～1 控制高空薄云。云种子与漂移沿用服务器种子、风和时间，cloud_quality 仅为客户端设置，不是本工具参数。lightning_enabled 控制世界坐标雷电；thunder_enabled 控制按距离延迟雷声，lightning_center / lightning_radius 指定落点范围。celestial_cycle 开启连续日月与光照，关闭后使用手工主光；environment_audio 控制环境声。surface_wetness 控制本地湿润，initial_wetness 0～1 是进入地图的初值，wetting_seconds 10～3600 / drying_seconds 30～7200 为响应时间，puddle_strength 0～1；实时湿润度不由服务器保存。star_intensity 0～2；meteors_enabled 夜间流星开关；meteor_frequency 0～12 次/分钟。time_hours 0～24 决定时段，time_speed 0～3600 游戏秒/秒（0 暂停）；运行时由服务器推进时间、天气、星空种子与流星事件。雨雪为世界空间碰撞粒子；编辑器预览静音，隐藏或楼层排除物件不参与编辑器遮雨，实际试玩使用完整碰撞。interior_cutaway 默认关闭；启用后只在第三人称角色室内、相机至角色射线首先击中所属建筑上方楼板/天花板时隐藏天花板和上层；无障碍、先碰墙/普通物件均不触发，第一人称/VR 禁用。indoor_camera_distance 为室内第三人称最远距离（米）；相机效果需试玩。sun_shadows 控制太阳投影，ambient_occlusion 控制接缝环境遮蔽（Forward+）。preset 填入光照，显式参数再覆盖。", preload("res://scripts/world3d/environment_settings.gd").schema().properties),
@@ -244,3 +247,15 @@ static func validate(value: Variant, schema: Dictionary, path: String = "argumen
 	# JSON numbers arrive as floats; numeric enum equality must accept 4 and 4.0.
 	if schema.has("enum") and not schema.enum.any(func(option): return option == value): return path + " has an unsupported value"
 	return ""
+
+
+static func tools()->Array:
+	# Runtime lookup avoids a preload cycle: joint schemas reuse native contracts.
+	var joint=load("res://scripts/world_editor/joint_candidate_tools.gd")
+	var schema:Dictionary=joint.joint_schema()
+	return native_tools()+[
+		spec("list_joint_candidate_operations","列出联合候选允许的原生操作及共享参数 schema。只读。每步包含唯一 id 和恰好一个操作名字段。",{},[],true),
+		spec("preview_joint_candidate","按顺序在私有文档准备1–64步跨工具候选：整地、道路、住宅/街区、河道、桥梁、城防和植被。每步字段为id及一个操作名，值为该操作参数；不执行保存或文件写入。步骤expected_token均引用原地图，校验后自动绑定前一步结果；不能带单工具plan_token。失败返回step_id/index；最后重验完整道路、住宅入口与街区保留区。最多16栋住宅、8192变化构件、256MiB快照，整地总计64次。返回逐步影响、最终增删改及一个plan_token。",schema.properties,schema.required,true),
+		spec("apply_joint_candidate","应用整组联合候选；地图、资源或快照完整性变化拒绝。一次原生撤销/重做，保留独立选择、碰撞、保存和自动派生批次。成功后仍须save_world。",{"plan_token":text_field()},["plan_token"]),
+		spec("discard_joint_candidate","丢弃联合候选，不改变地图、选择或历史。",{"plan_token":text_field()},["plan_token"],true)
+	]

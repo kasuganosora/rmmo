@@ -112,7 +112,7 @@ func run()->void:
 	var map:=Node3D.new();host.add_child(map);map.set_meta("extras",{"rmmo_records":[]})
 	map.set_meta("entry_plan",{"core_resources_ready_us":1,"safety_clip":CLIP})
 	map.add_child(service)
-	var cover:=QuietCover.new();host.add_child(cover);cover.drawn_frame=0
+	var cover:=QuietCover.new();host.add_child(cover);cover.drawn_frame=0;cover.opacity=1;cover.phase="waiting"
 	check(not start_prefetch(service),"attached queues cannot start a second off-tree prefetch")
 	check(service.begin_entry_loading(host,CLIP,cover),"normal entry takes ownership after core readiness")
 	service.set_process(false);service._admission.worker_limit=0

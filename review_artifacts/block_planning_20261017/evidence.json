@@ -1,0 +1,328 @@
+{
+  "status": "validated_before_publication",
+  "captured_utc": "2026-10-17T07:47:48.329112+00:00",
+  "base_commit": "5fd9aacdcb1e25e53d10be6ddcbfbd9123eb2648",
+  "origin_main_at_validation": "5fd9aacdcb1e25e53d10be6ddcbfbd9123eb2648",
+  "branch": "codex/editor-reliability",
+  "workspace": "C:\\Users\\luna\\.codex\\worktrees\\editor-reliability\\rmmo",
+  "parked_performance_stash": "d70e9ed03f734263cb26e727c69e120d12e85e2f",
+  "scope": [
+    "Automatic native river/bank, bridgehead and land-gate reservations for block generation",
+    "Atomic identity-preserving update of existing block buildings with roads; shared UI and 3D HTTP MCP"
+  ],
+  "suites": [
+    {
+      "name": "http",
+      "checks": 222,
+      "failures": 0,
+      "report": "http.json"
+    },
+    {
+      "name": "boundaries",
+      "checks": 97,
+      "failures": 0,
+      "report": "boundaries.json"
+    },
+    {
+      "name": "reservations",
+      "checks": 28,
+      "failures": 0,
+      "report": "reservations.json"
+    },
+    {
+      "name": "math",
+      "checks": 131,
+      "failures": 0,
+      "report": "math.log"
+    },
+    {
+      "name": "compat_engine",
+      "checks": 84,
+      "failures": 0,
+      "report": "compat_engine.log"
+    }
+  ],
+  "total_checks": 562,
+  "failures": 0,
+  "counting": "Assertions, including per-component checks; not 562 independent scenarios. Earlier failed iterations are excluded.",
+  "engine": {
+    "path": "D:\\tools\\godot\\Godot_v4.7.2-stable_win64.exe",
+    "bytes": 180858888,
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424"
+  },
+  "headless_engine": {
+    "path": "D:\\tools\\godot\\Godot_v4.7.2-stable_win64_console.exe",
+    "bytes": 198152,
+    "sha256": "c8f0a6bc45a19b33541501e57f6f7cd972ab18453743266339d495cbbe846643"
+  },
+  "gpu_execution": "tools/run_godot_background.py, never-activated private Windows desktop, serial tests, temporary native maps and unique loopback ports",
+  "editor_batches": {
+    "base_work_budget_usec": 2000,
+    "building_mesh_hits": 0,
+    "enabled": true,
+    "groups": 5,
+    "instanced_groups": 0,
+    "last_build_ms": 3.914,
+    "last_commit_ms": 0.224,
+    "last_sync_ms": 12.87,
+    "loading_budget_scopes": 0,
+    "max_build_ms": 225.192,
+    "max_commit_ms": 0.799,
+    "pending_groups": 0,
+    "rebuild_count": 22,
+    "release_groups_visited": 6,
+    "render_surfaces": 11,
+    "render_vertices": 2628,
+    "source_objects": 14,
+    "source_surfaces": 32,
+    "source_vertices": 2628,
+    "sync_count": 51,
+    "sync_profile_us": {
+      "capture_us": 296,
+      "geometry_us": 5,
+      "material_us": 10118
+    },
+    "work_budget_usec": 2000
+  },
+  "source_manifest": "source_manifest.json",
+  "fixture_manifest": "native_fixtures.json",
+  "external_dependencies": "native_dependencies.json",
+  "screenshot": "planning_ui.webp",
+  "compression": "compression.json",
+  "test_script_note": {
+    "executed_boundary_snapshot": "iterations/executed_boundary_test.gd.txt",
+    "post_run_change": "Only the unused default source report path changed from iteration5_http.json to http.json; final run explicitly supplied --source-report=.../http.json. Production sources unchanged; final harness passed check-only.",
+    "parse_log": "parse_boundary.log"
+  },
+  "limitations": [
+    "Planar same-height continuous ground and conservative rectangular lots; no automatic grading or new access pavement",
+    "Stable one-to-one block/lot correspondence required; no topology guessing, house rescaling/rebuilding/deletion",
+    "Legacy anchor-free bindings require still-identifiable original graph and unique entrance",
+    "At most 16 moved houses and 1024 preview lots",
+    "Tests use existing native generators as fixtures; no new model art acceptance or production-map delivery",
+    "Geometry, real editor physics/picking and batch publication verified; no new player traversal run or whole-city performance benchmark",
+    "Existing fixed-prefab face-paint prohibition remains enforced; original materials/events/fixture state are preserved"
+  ],
+  "iteration_notes": {
+    "iteration1": "Production bug: ground pavement was misclassified using its clearance envelope; fixed to inspect actual mesh top",
+    "iteration2": "Harness startup load race; await native loader",
+    "iteration3": "Harness called nonexistent busy helper; use actual native load/save state",
+    "iteration4": "Failed preview intentionally cleared candidate; harness now repreviews before apply",
+    "iteration5": "Earlier 242 checks passed before added boundary coverage",
+    "iteration6": "Harness attempted forbidden fixed-prefab face painting; corrected to test native atomic rejection",
+    "boundaries1": "Harness did not cover a second frontage and omitted discard_changes when opening independent temporary river map",
+    "boundaries2": "Earlier 133 checks passed; final expands actual node rotation/picking and displays UI controls"
+  },
+  "artifacts": [
+    {
+      "path": "boundaries.json",
+      "sha256": "70da0c972c7476438560a6b87e722857fa1107d2931b0b02bb75e15073fd0a64",
+      "bytes": 8887
+    },
+    {
+      "path": "boundaries_console.log",
+      "sha256": "e0bdf215e58a0c35fa8b94131e2ee666cbb8634833836a20bbda633fd7bee0bb",
+      "bytes": 5893
+    },
+    {
+      "path": "boundaries_engine.log",
+      "sha256": "2b62b2939c720d87e8783577d3510aa40d4c2627d2bb972f00f48d3324eb8611",
+      "bytes": 5791
+    },
+    {
+      "path": "collect_dependencies.gd",
+      "sha256": "63300d60be0ed2e71c3320b4143853b94c04ac47782e0ea3e599bef2483ced75",
+      "bytes": 1209
+    },
+    {
+      "path": "compat_console.log",
+      "sha256": "32693fc4e4e53b72839b8b2dfe8e900945bf67a9938de78c042b6567ab3fcb08",
+      "bytes": 4445
+    },
+    {
+      "path": "compat_engine.log",
+      "sha256": "3cb219b583b3b8d0e8f451d13fff3241ff46575656a3042e24117c1060c44ceb",
+      "bytes": 4355
+    },
+    {
+      "path": "compression.json",
+      "sha256": "5a7d8dde706d65b6ca2aee75fd1d1f7c36d463e231a8443b62ea6a115964edb2",
+      "bytes": 490
+    },
+    {
+      "path": "dependencies.log",
+      "sha256": "fd19355dd8afe75e915b28202f5ef877f2f9092b4de15d020361c3bad4285e88",
+      "bytes": 192
+    },
+    {
+      "path": "http.json",
+      "sha256": "ba5cb927e03b4acf9c33e7ad92a9307c90992456411f8ff10e0f090dd65d35a2",
+      "bytes": 23001
+    },
+    {
+      "path": "http_console.log",
+      "sha256": "2fa59058bc9721110ff420d4be5bd0d6735c1226c97a7219c7a78b3bb2ac5ef1",
+      "bytes": 15460
+    },
+    {
+      "path": "http_engine.log",
+      "sha256": "bcd06183b5c7af13ab6445422c48ce8940eb051f777674181852d2c57064a8ce",
+      "bytes": 15233
+    },
+    {
+      "path": "iterations/boundaries1.json",
+      "sha256": "dd6e43436772bbc77ea4ad0b61fbc6e978d4eff9a2b947f350dc54b8d0d6311d",
+      "bytes": 3598
+    },
+    {
+      "path": "iterations/boundaries1_console.log",
+      "sha256": "b32041603aec8dd7003d6f1af9fe9da31b67270943dde32a53bed48fbd68cd35",
+      "bytes": 4304
+    },
+    {
+      "path": "iterations/boundaries1_engine.log",
+      "sha256": "39823043291c10ac4633682d06cd0940ad4862653533d9d279de5a1642095cdb",
+      "bytes": 4255
+    },
+    {
+      "path": "iterations/boundaries2.json",
+      "sha256": "76751ad9c638015d6e693e8757fe08c9666f4e2bc29f15e0adcc5c5daf59fdc4",
+      "bytes": 11344
+    },
+    {
+      "path": "iterations/boundaries2_console.log",
+      "sha256": "c55bed203a506c0fc5d169346fcd52c7be2a4f0d7f3d412bb0b985f714bb8f0d",
+      "bytes": 7250
+    },
+    {
+      "path": "iterations/boundaries2_engine.log",
+      "sha256": "a1fc264b1a9436ae3f481b6bc3a11de08c958f0981ecc8e59d77b932bbee1cf2",
+      "bytes": 7112
+    },
+    {
+      "path": "iterations/executed_boundary_test.gd.txt",
+      "sha256": "0e7cd1eb5711166c144b70731acf63b92a812976d9859ad5692103bc4607ace3",
+      "bytes": 10229
+    },
+    {
+      "path": "iterations/iteration1_console.log",
+      "sha256": "d6c586e1bf183dbe7be905422a22701f048af0e1b8a03951dc7c7494162abd4f",
+      "bytes": 2085
+    },
+    {
+      "path": "iterations/iteration1_engine.log",
+      "sha256": "bc3475f5db6d8ca9da2f0ead2a53d2451d5363ea215430cf99c070f424c62eca",
+      "bytes": 2059
+    },
+    {
+      "path": "iterations/iteration1_http.json",
+      "sha256": "dd5b41221833abaf8d2c739b828fde41a8141d33ce1499a603a74c30128c5fcc",
+      "bytes": 1750
+    },
+    {
+      "path": "iterations/iteration2_console.log",
+      "sha256": "6053b7ee811bf84b38d53736e4d65b2355053207cc9d4c9fb89e52a690b012f9",
+      "bytes": 973
+    },
+    {
+      "path": "iterations/iteration2_engine.log",
+      "sha256": "ad862e5ad78cc2300d20113f7f0d68c78d5560e4223cc99a11a77faea1fc9572",
+      "bytes": 956
+    },
+    {
+      "path": "iterations/iteration3_console.log",
+      "sha256": "91d36627682f48dc0e8bd1f9973318588c1ba58953fbc3c069482894b5540dd8",
+      "bytes": 601
+    },
+    {
+      "path": "iterations/iteration3_engine.log",
+      "sha256": "2b9498959118d7d7067703e28d64b6f73e3ee4aaab2afb03892b97f510673a82",
+      "bytes": 591
+    },
+    {
+      "path": "iterations/iteration4_console.log",
+      "sha256": "ab80317f9d32a4063d2efb0dffc11b468689a6db4d760fab84feb49d773552e5",
+      "bytes": 2490
+    },
+    {
+      "path": "iterations/iteration4_engine.log",
+      "sha256": "57ba485fdb107ea9d7f768c64c8109c967b4daabb2805d8b5a4d8a22ed2c8619",
+      "bytes": 2453
+    },
+    {
+      "path": "iterations/iteration4_http.json",
+      "sha256": "58169aa21e4aa5812089d66bfd4e742fba703ea259e0df1437e783fe91d35ce9",
+      "bytes": 2745
+    },
+    {
+      "path": "iterations/iteration5_console.log",
+      "sha256": "b0bdee0ad8f492541749f2764bfafd32ac9140af7ee4e1365ca604842a5094d0",
+      "bytes": 17204
+    },
+    {
+      "path": "iterations/iteration5_engine.log",
+      "sha256": "edb8f35a8c61835d6d344d98964a2d04257185a9b54f1e8c45fd8ba52e95f10f",
+      "bytes": 16957
+    },
+    {
+      "path": "iterations/iteration5_http.json",
+      "sha256": "52417a8f6be6f219a5860d66343c62760aacdbf94dd9c83b43f73fc390321b3a",
+      "bytes": 24667
+    },
+    {
+      "path": "iterations/iteration6_http.json",
+      "sha256": "d4e141da171a6bff4ddd9d02a3f35c33cf1fe0672cab8b74e3085be1fc0a20b7",
+      "bytes": 19888
+    },
+    {
+      "path": "iterations/iteration6_http_console.log",
+      "sha256": "d4d1ff84a8d77107b63cc5cb0173581a932916f6004f18e8abfcb50e97305e47",
+      "bytes": 13775
+    },
+    {
+      "path": "iterations/iteration6_http_engine.log",
+      "sha256": "7725aea93e5fa45e6854865c0a5cf3b6d03b5a22050385a46ebd676f98f08b4d",
+      "bytes": 13575
+    },
+    {
+      "path": "math.log",
+      "sha256": "2edc8d56c207c424ee89fe8c3983f0eee3bce144437634ace874d828bca8d392",
+      "bytes": 4536
+    },
+    {
+      "path": "native_dependencies.json",
+      "sha256": "5fd7406c94072f80b8eb44c73d0d577001a14330d13cb54f0bb51e132edb8089",
+      "bytes": 1356
+    },
+    {
+      "path": "native_fixtures.json",
+      "sha256": "b32f6841ebcd7f5e58534c435f6085e0da4d20109eb321f019779938c9c0a36e",
+      "bytes": 297727
+    },
+    {
+      "path": "parse_boundary.log",
+      "sha256": "6d1c065383a27c36804949b6ffa4b09714470b112e5dacc0bd5aeb7b9c147c4e",
+      "bytes": 73
+    },
+    {
+      "path": "planning_ui.webp",
+      "sha256": "f1d5b4564a47dc0b236867cf0bc0f98d0b7f8577c5f62e5803c357f00d7118c8",
+      "bytes": 84474
+    },
+    {
+      "path": "reservations.json",
+      "sha256": "e8413c163d316454669aed0561af6233d4d40cbf08fb796888ab7be97eb92803",
+      "bytes": 2522
+    },
+    {
+      "path": "reservations.log",
+      "sha256": "ad885d73456b87cc655df4b7eb7f04f94748eebe3094157e6675a490402da03b",
+      "bytes": 1760
+    },
+    {
+      "path": "source_manifest.json",
+      "sha256": "22ddd597008585d3ee74b2ba8cd7f5d9355194100b27701cbc8ead57ef4bb032",
+      "bytes": 8778
+    }
+  ]
+}

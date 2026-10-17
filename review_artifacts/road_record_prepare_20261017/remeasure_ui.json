@@ -1,0 +1,1270 @@
+{
+	"batch_stats": {
+		"base_work_budget_usec": 2000,
+		"building_mesh_hits": 0,
+		"enabled": true,
+		"groups": 4,
+		"instanced_groups": 0,
+		"last_build_ms": 0.592,
+		"last_commit_ms": 0.157,
+		"last_sync_ms": 7.499,
+		"loading_budget_scopes": 0,
+		"max_build_ms": 34.351,
+		"max_commit_ms": 1.678,
+		"pending_groups": 0,
+		"rebuild_count": 32,
+		"release_groups_visited": 0,
+		"render_surfaces": 12,
+		"render_vertices": 18792,
+		"source_objects": 8,
+		"source_surfaces": 24,
+		"source_vertices": 18792,
+		"sync_count": 39,
+		"sync_profile_us": {
+			"capture_us": 101,
+			"geometry_us": 1,
+			"material_us": 6700
+		},
+		"work_budget_usec": 2000
+	},
+	"checks": [
+		{
+			"label": "real renderer required",
+			"ok": true
+		},
+		{
+			"label": "isolated native fixture saved",
+			"ok": true
+		},
+		{
+			"label": "private HTTP MCP loopback available",
+			"ok": true
+		},
+		{
+			"label": "current 3D discovery and terrain-follow schema",
+			"ok": true
+		},
+		{
+			"label": "actual shared PBR fixture required; no fallback for timing",
+			"ok": true
+		},
+		{
+			"label": "initial terrain derived state ready",
+			"ok": true
+		},
+		{
+			"label": "warmup exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "warmup all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "warmup actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "warmup real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "warmup preview is read only",
+			"ok": true
+		},
+		{
+			"label": "warmup real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "warmup real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "warmup editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "warmup complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "warmup native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "warmup undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "remeasure_0 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "remeasure_1 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "remeasure_2 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "ON_0 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "ON_0 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "ON_0 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "ON_0 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_0 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "ON_0 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "ON_0 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "ON_0 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "ON_0 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_0 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "ON_0 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "ON_1 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "ON_1 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "ON_1 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "ON_1 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_1 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "ON_1 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "ON_1 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "ON_1 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "ON_1 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_1 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "ON_1 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "ON_2 exact initial authored state",
+			"ok": true
+		},
+		{
+			"label": "ON_2 all form fields accepted",
+			"ok": true
+		},
+		{
+			"label": "ON_2 actual UI request exactly matches intended terrain and kerb settings",
+			"ok": true
+		},
+		{
+			"label": "ON_2 real preview button succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_2 preview is read only",
+			"ok": true
+		},
+		{
+			"label": "ON_2 real native library version; no subclass fallback during timing",
+			"ok": true
+		},
+		{
+			"label": "ON_2 real apply creates one transaction",
+			"ok": true
+		},
+		{
+			"label": "ON_2 editor nodes picking bodies batches and later render ready",
+			"ok": true
+		},
+		{
+			"label": "ON_2 complete committed author bytes equal",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "ON_2 native undo restores exact fixture",
+			"ok": true
+		},
+		{
+			"label": "ON_2 undo publication ready before next sample",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview leaves author and undo state intact",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "real HTTP and UI all fields exactly equal allowing only JSON numeric types and key order",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo restores original",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo restores exact road record and metadata bytes",
+			"ok": true
+		},
+		{
+			"label": "all editor derived groups finish before batch assertions",
+			"ok": true
+		},
+		{
+			"label": "actual editor batching reduces surfaces",
+			"ok": true
+		},
+		{
+			"label": "batched roads retain independent authoring nodes and editor picking identities",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP open_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "native save reopen preserves terrain road kerb material and IDs",
+			"ok": true
+		},
+		{
+			"label": "HTTP import_surface_material succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "same descriptor ID changed between preview and apply invalidates token",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "restored descriptor is reread without persistent catalog state",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP generate_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: generate_road_surface",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_road_surface rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "invalid operation preserves exact document/history/selection/dirty: preview_road_surface",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/__road_record_ui_1452_16402808",
+	"elapsed_ms": 37375,
+	"engine": {
+		"build": "official",
+		"hash": "ed1daf0bf001b61586d9930840f2f1394092c079",
+		"hex": 263938,
+		"major": 4,
+		"minor": 7,
+		"patch": 2,
+		"status": "stable",
+		"string": "4.7.2-stable (official)",
+		"timestamp": 0
+	},
+	"engine_executable_sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/__road_record_ui_1452_16402808/maps/test/map.gltf",
+	"graphical": true,
+	"map_sha256": "6c25255a8753d771b161275ef189ccce7804ea1d69008a352303d229de0943e4",
+	"materials": [
+		"pack:default:paving/historic_cobble/material",
+		"pack:default:paving/automatic_limestone_kerb/material"
+	],
+	"method": {
+		"criterion": "CPU prepare primary; UI callback-to-ready regression tolerance 10% after considering A/A variation. Small sample medians/raw values only; no tail or significance claim.",
+		"environment": "Private Windows desktop, other user/session load unmanaged, 1280x900, max_fps 60",
+		"order": "Current-version remeasurement only: one warmup, three OFF samples, three ON attribution samples. Not an A/B comparison.",
+		"scope": "Real UI text preview callback and later rendered frame; actual apply callback to all road editor nodes/picking bodies, pending groups zero, two physics frames and rendered frame. No ghost mesh in this panel; not gameplay traversal, photon latency or GPU duration."
+	},
+	"port": 32020,
+	"rejections": [
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"plan_token": "stale",
+				"thickness": 0.2
+			},
+			"result": {
+				"diagnostic": {
+					"category": "constraint",
+					"code": "constraint",
+					"items": [
+						{
+							"category": "constraint",
+							"code": "",
+							"locatable": false,
+							"message": "道路方案或现有物件已改变，请重新预览",
+							"object_ids": [],
+							"objects": [],
+							"source": "",
+							"values": {}
+						}
+					],
+					"message": "道路方案或现有物件已改变，请重新预览",
+					"operation": "generate_road_surface",
+					"stage": "",
+					"truncated": false,
+					"version": 1.0
+				},
+				"diagnostic_token": "fd10b8470b2a5101a60e5981fe11899ad2df738237bf2baa570a7eaf3700f8cd",
+				"error": "道路方案或现有物件已改变，请重新预览",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "33e9989c482ad9944f35fdc90dc1fb07fcbe0843a7759f951332a2f063127e83",
+				"plan_token": "7a386f4937fa00c1b1edcb16ead0537f3b9046a7593c60f8b451c732786c0601",
+				"thickness": 0.2
+			},
+			"result": {
+				"diagnostic": {
+					"category": "constraint",
+					"code": "constraint",
+					"items": [
+						{
+							"category": "constraint",
+							"code": "",
+							"locatable": false,
+							"message": "道路方案或现有物件已改变，请重新预览",
+							"object_ids": [],
+							"objects": [],
+							"source": "",
+							"values": {}
+						}
+					],
+					"message": "道路方案或现有物件已改变，请重新预览",
+					"operation": "generate_road_surface",
+					"stage": "",
+					"truncated": false,
+					"version": 1.0
+				},
+				"diagnostic_token": "7c0b7cdfbf1b23c1c434949e612d0fe7389db7349257b5a0fc2c19f4b8e6cfd6",
+				"error": "道路方案或现有物件已改变，请重新预览",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "33e9989c482ad9944f35fdc90dc1fb07fcbe0843a7759f951332a2f063127e83",
+				"plan_token": "b1a39287d3331566963967cb2034d7e35de3b528840cdcb98ce0e65a3912b845",
+				"thickness": 0.2
+			},
+			"result": {
+				"diagnostic": {
+					"category": "constraint",
+					"code": "constraint",
+					"items": [
+						{
+							"category": "constraint",
+							"code": "",
+							"locatable": false,
+							"message": "所选铺路材质不存在",
+							"object_ids": [],
+							"objects": [],
+							"source": "",
+							"values": {}
+						}
+					],
+					"message": "所选铺路材质不存在",
+					"operation": "generate_road_surface",
+					"stage": "",
+					"truncated": false,
+					"version": 1.0
+				},
+				"diagnostic_token": "10126f46a4817de7db96af56dcce2f3a35973b70faa68a46e9f1d578b2c977d7",
+				"error": "所选铺路材质不存在",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "33e9989c482ad9944f35fdc90dc1fb07fcbe0843a7759f951332a2f063127e83",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"plan_token": "0a61a8347205b1a509ff27849a216fa5854173100ed22b27457032f59b3e2ecd",
+				"thickness": 0.2
+			},
+			"result": {
+				"diagnostic": {
+					"category": "constraint",
+					"code": "constraint",
+					"items": [
+						{
+							"category": "constraint",
+							"code": "",
+							"locatable": false,
+							"message": "路缘材质不存在或贴图依赖缺失",
+							"object_ids": [],
+							"objects": [],
+							"source": "",
+							"values": {}
+						}
+					],
+					"message": "路缘材质不存在或贴图依赖缺失",
+					"operation": "generate_road_surface",
+					"stage": "",
+					"truncated": false,
+					"version": 1.0
+				},
+				"diagnostic_token": "46d5c1d47c0506f0fdb6343b12fcc1dbf67bb6157fb5f544f27f4dfb2ac8e351",
+				"error": "路缘材质不存在或贴图依赖缺失",
+				"ok": false
+			},
+			"tool": "generate_road_surface"
+		},
+		{
+			"arguments": {
+				"material_id": 17
+			},
+			"result": {
+				"error": "arguments.material_id must be a bounded string",
+				"ok": false
+			},
+			"tool": "preview_road_surface"
+		}
+	],
+	"samples": [
+		{
+			"apply_callback_ms": 1789.185,
+			"apply_profile": {},
+			"apply_to_ready_ms": 1950.276,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "warmup",
+			"preview_callback_ms": 526.937,
+			"preview_draw_wait_ms": 12.278,
+			"preview_profile": {},
+			"profile_enabled": false,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 16.686,
+					"last_commit_ms": 1.212,
+					"last_sync_ms": 8.064,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 16.686,
+					"max_commit_ms": 1.212,
+					"pending_groups": 0,
+					"rebuild_count": 4,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 5,
+					"sync_profile_us": {
+						"capture_us": 132,
+						"geometry_us": 3,
+						"material_us": 7071
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 39,
+				"ok": true,
+				"physics_frame": 97,
+				"wait_ms": 161.017
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 919.423,
+			"apply_profile": {},
+			"apply_to_ready_ms": 1096.597,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "remeasure_0",
+			"preview_callback_ms": 476.569,
+			"preview_draw_wait_ms": 14.54,
+			"preview_profile": {},
+			"profile_enabled": false,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 17.526,
+					"last_commit_ms": 0.783,
+					"last_sync_ms": 13.161,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 18.422,
+					"max_commit_ms": 1.212,
+					"pending_groups": 0,
+					"rebuild_count": 8,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 9,
+					"sync_profile_us": {
+						"capture_us": 251,
+						"geometry_us": 1,
+						"material_us": 11388
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 59,
+				"ok": true,
+				"physics_frame": 137,
+				"wait_ms": 177.133
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 831.542,
+			"apply_profile": {},
+			"apply_to_ready_ms": 969.301,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "remeasure_1",
+			"preview_callback_ms": 449.797,
+			"preview_draw_wait_ms": 5.127,
+			"preview_profile": {},
+			"profile_enabled": false,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 18.337,
+					"last_commit_ms": 1.029,
+					"last_sync_ms": 8.491,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 18.422,
+					"max_commit_ms": 1.239,
+					"pending_groups": 0,
+					"rebuild_count": 12,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 13,
+					"sync_profile_us": {
+						"capture_us": 139,
+						"geometry_us": 2,
+						"material_us": 7435
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 77,
+				"ok": true,
+				"physics_frame": 176,
+				"wait_ms": 137.708
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 816.228,
+			"apply_profile": {},
+			"apply_to_ready_ms": 970.165,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "remeasure_2",
+			"preview_callback_ms": 469.639,
+			"preview_draw_wait_ms": 5.394,
+			"preview_profile": {},
+			"profile_enabled": false,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 16.755,
+					"last_commit_ms": 1.285,
+					"last_sync_ms": 9.41,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 34.351,
+					"max_commit_ms": 1.678,
+					"pending_groups": 0,
+					"rebuild_count": 16,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 17,
+					"sync_profile_us": {
+						"capture_us": 160,
+						"geometry_us": 3,
+						"material_us": 8239
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 95,
+				"ok": true,
+				"physics_frame": 215,
+				"wait_ms": 153.89
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 926.615,
+			"apply_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.015,
+					"collision": 6.412,
+					"finalize": 1.168,
+					"intersection_split": 0.451,
+					"material_lookup": 151.675,
+					"obstacle_shapes": 0.065,
+					"record_preservation": 156.642,
+					"road_build": 5.557,
+					"source_validation": 0.086,
+					"terrain_fit": 143.085
+				},
+				"total_ms": 465.164
+			},
+			"apply_to_ready_ms": 1079.872,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "ON_0",
+			"preview_callback_ms": 529.903,
+			"preview_draw_wait_ms": 8.767,
+			"preview_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.014,
+					"collision": 6.132,
+					"finalize": 1.542,
+					"intersection_split": 0.415,
+					"material_lookup": 167.65,
+					"obstacle_shapes": 0.069,
+					"record_preservation": 179.332,
+					"road_build": 4.798,
+					"source_validation": 0.068,
+					"terrain_fit": 166.848
+				},
+				"total_ms": 526.882
+			},
+			"profile_enabled": true,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 16.992,
+					"last_commit_ms": 0.609,
+					"last_sync_ms": 10.018,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 34.351,
+					"max_commit_ms": 1.678,
+					"pending_groups": 0,
+					"rebuild_count": 20,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 21,
+					"sync_profile_us": {
+						"capture_us": 215,
+						"geometry_us": 3,
+						"material_us": 8591
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 114,
+				"ok": true,
+				"physics_frame": 256,
+				"wait_ms": 153.213
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 964.195,
+			"apply_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.012,
+					"collision": 10.991,
+					"finalize": 1.62,
+					"intersection_split": 0.414,
+					"material_lookup": 155.162,
+					"obstacle_shapes": 0.101,
+					"record_preservation": 214.261,
+					"road_build": 5.268,
+					"source_validation": 0.1,
+					"terrain_fit": 145.823
+				},
+				"total_ms": 533.762
+			},
+			"apply_to_ready_ms": 1103.495,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "ON_1",
+			"preview_callback_ms": 657.807,
+			"preview_draw_wait_ms": 8.302,
+			"preview_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.019,
+					"collision": 17.562,
+					"finalize": 1.211,
+					"intersection_split": 0.561,
+					"material_lookup": 193.237,
+					"obstacle_shapes": 0.189,
+					"record_preservation": 190.07,
+					"road_build": 8.771,
+					"source_validation": 0.083,
+					"terrain_fit": 242.387
+				},
+				"total_ms": 654.102
+			},
+			"profile_enabled": true,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 15.878,
+					"last_commit_ms": 0.715,
+					"last_sync_ms": 7.902,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 34.351,
+					"max_commit_ms": 1.678,
+					"pending_groups": 0,
+					"rebuild_count": 24,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 25,
+					"sync_profile_us": {
+						"capture_us": 144,
+						"geometry_us": 2,
+						"material_us": 6876
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 132,
+				"ok": true,
+				"physics_frame": 294,
+				"wait_ms": 139.221
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		},
+		{
+			"apply_callback_ms": 883.662,
+			"apply_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.024,
+					"collision": 6.071,
+					"finalize": 1.003,
+					"intersection_split": 0.828,
+					"material_lookup": 171.717,
+					"obstacle_shapes": 0.089,
+					"record_preservation": 155.921,
+					"road_build": 9.595,
+					"source_validation": 0.138,
+					"terrain_fit": 145.749
+				},
+				"total_ms": 491.14
+			},
+			"apply_to_ready_ms": 1039.226,
+			"author_sha256": "1a2d9873f2792deea216b157dffc5165186778c94f31e05334a1323f02f5c7d8",
+			"label": "ON_2",
+			"preview_callback_ms": 484.436,
+			"preview_draw_wait_ms": 10.296,
+			"preview_profile": {
+				"counts": {
+					"obstacle_records_expanded": 0,
+					"obstacle_shapes": 0,
+					"potential_shape_pairs": 0,
+					"road_records": 8,
+					"source_records": 1,
+					"terrain_records_skipped": 1
+				},
+				"ok": true,
+				"stages_ms": {
+					"bridge_bindings": 0.01,
+					"collision": 6.019,
+					"finalize": 1.035,
+					"intersection_split": 0.311,
+					"material_lookup": 152.891,
+					"obstacle_shapes": 0.068,
+					"record_preservation": 174.879,
+					"road_build": 4.198,
+					"source_validation": 0.048,
+					"terrain_fit": 143.331
+				},
+				"total_ms": 482.796
+			},
+			"profile_enabled": true,
+			"publication": {
+				"batch_stats": {
+					"base_work_budget_usec": 2000,
+					"building_mesh_hits": 0,
+					"enabled": true,
+					"groups": 4,
+					"instanced_groups": 0,
+					"last_build_ms": 18.061,
+					"last_commit_ms": 1.393,
+					"last_sync_ms": 8.916,
+					"loading_budget_scopes": 0,
+					"max_build_ms": 34.351,
+					"max_commit_ms": 1.678,
+					"pending_groups": 0,
+					"rebuild_count": 28,
+					"release_groups_visited": 0,
+					"render_surfaces": 12,
+					"render_vertices": 18792,
+					"source_objects": 8,
+					"source_surfaces": 24,
+					"source_vertices": 18792,
+					"sync_count": 29,
+					"sync_profile_us": {
+						"capture_us": 173,
+						"geometry_us": 3,
+						"material_us": 7674
+					},
+					"work_budget_usec": 2000
+				},
+				"draw_frame": 150,
+				"ok": true,
+				"physics_frame": 335,
+				"wait_ms": 155.469
+			},
+			"request": {
+				"clearance": 3.0,
+				"follow_terrain": true,
+				"kerb_enabled": true,
+				"kerb_height": 0.055,
+				"kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+				"kerb_width": 0.28,
+				"lift": 0.025,
+				"material_id": "pack:default:paving/historic_cobble/material",
+				"thickness": 0.2
+			},
+			"version": "baseline"
+		}
+	],
+	"script_sha256": {
+		"res://review_artifacts/road_record_prepare_20261017/road_tools_baseline.gd": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da",
+		"res://scripts/world3d/terrain_projection.gd": "352364e4b168cbcb47d74ae1c5e60130e35d06618b1aa2d8b34417129748219a",
+		"res://scripts/world_editor/mcp_ops.gd": "2ac615c0824bad1935f982f958d637e62dcc2eb0b7a93399068f3c0e8d71a638",
+		"res://scripts/world_editor/mcp_schema.gd": "8b58d50201b731134e9df8772f740807e112bb52a0c0b4f36331b8efaaa14dfb",
+		"res://scripts/world_editor/road_panel.gd": "513565ff78be70be9e7ae93b4f75efa496b2211f636ab81602ae093e83760014",
+		"res://scripts/world_editor/road_tools.gd": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+		"res://scripts/world_editor/surface_material_library.gd": "14e4872d18e5f5e9702eefcc0eef920f74fa1ccf2c572ea9f98f781a98514da0",
+		"res://tools/benchmark_road_record_prepare_ui.gd": "6ccf26f1586db009d29132ae0e04c8c52a4ea0da087972b220057cbe065606b5"
+	}
+}

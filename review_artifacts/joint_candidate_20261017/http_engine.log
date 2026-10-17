@@ -1,0 +1,81 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated native map saved
+PASS: private loopback starts
+PASS: 3D discovery advertises joint lifecycle only
+PASS: HTTP list_joint_candidate_operations succeeds
+PASS: native schema registry exposes every bounded adapter
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: preview_joint_candidate
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP discard_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP update_planning_zones succeeds
+PASS: HTTP undo succeeds
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate succeeds
+PASS: metadata-only candidate marks dirty and adds one history entry
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate succeeds
+PASS: no-op candidate leaves history intact
+PASS: HTTP undo succeeds
+PASS: contract checks restore initial map
+PASS: HTTP preview_joint_candidate succeeds
+PASS: 38 native operations prepare two houses and roads
+PASS: private preview changes no author records or history
+PASS: HTTP preview_joint_candidate succeeds
+PASS: same request reuses pinned candidate
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: last failure has no author side effects
+PASS: last step failure reports precise position after 38 private operations
+PASS: HTTP preview_joint_candidate succeeds
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: HTTP apply_joint_candidate succeeds
+PASS: more than 32 native steps publish exactly one outer undo
+PASS: HTTP undo succeeds
+PASS: one undo restores all tools and metadata
+PASS: HTTP redo succeeds
+PASS: one redo restores final identities
+PASS: untouched ground record stays byte equivalent
+PASS: HTTP preview_joint_candidate rejects invalid operation
+PASS: final proof rejects a later zone invading existing house and preserves map
+PASS: UI snapshots native panel arguments
+PASS: UI reorders steps
+PASS: UI replaces selected step without adding
+PASS: UI removes selected step
+PASS: UI uses shared preview and apply lifecycle
+PASS: queue mutation invalidates preview
+PASS: document revision invalidates UI preview
+PASS: HTTP apply_joint_candidate rejects invalid operation
+PASS: rejection leaves document/history intact: apply_joint_candidate
+PASS: UI shared apply clears completed queue
+PASS: HTTP save_world succeeds
+PASS: native save reopens
+PASS: saved author records and metadata round trip
+PASS: joint candidate publishes actual shared static batches
+JOINT_CANDIDATE checks=76 failures=0
