@@ -1,0 +1,3339 @@
+{
+  "checks": [
+    {
+      "label": "verified frozen source map remains read-only",
+      "ok": true
+    },
+    {
+      "label": "private mixed-house baseline saved",
+      "ok": true
+    },
+    {
+      "label": "private 3D loopback server starts",
+      "ok": true
+    },
+    {
+      "label": "current 3D discovers all block tools without retired 2D",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_road_surface succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_joint_candidate succeeds",
+      "ok": true
+    },
+    {
+      "label": "general queue stages grading, migration, new home and paving privately",
+      "ok": true
+    },
+    {
+      "label": "joint queue preserves residential composite receipt and grading",
+      "ok": true
+    },
+    {
+      "label": "existing house retains exact component identities in generic candidate",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_joint_candidate rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: source_changed",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: apply_joint_candidate",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_joint_candidate rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: protected_scope",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_joint_candidate",
+      "ok": true
+    },
+    {
+      "label": "protected member reports composite step",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_joint_candidate rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "specific rejection: protected_scope",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_joint_candidate",
+      "ok": true
+    },
+    {
+      "label": "protected member reports composite step",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_joint_candidate succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP apply_joint_candidate succeeds",
+      "ok": true
+    },
+    {
+      "label": "grading, migration, new house and paving publish one transaction",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: far_ground",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: fixture_bridge",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: obj_1",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_water_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_water_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_water_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_water_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bed_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bed_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bed_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bed_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bank_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bank_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bank_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bank_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_abutment_4_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_abutment_4_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_abutment_5_0_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_abutment_5_m1_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_end_0",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_end_1",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+      "ok": true
+    },
+    {
+      "label": "unrelated author record remains exact: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_joint_candidate rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "rejection is atomic: preview_joint_candidate",
+      "ok": true
+    },
+    {
+      "label": "final proof protects saved residential connection from a later tool",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "one undo restores all residential and terrain content",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "one redo restores generic final candidate exactly",
+      "ok": true
+    },
+    {
+      "label": "joint house keeps native independent picking and physics",
+      "ok": true
+    },
+    {
+      "label": "joint house keeps native independent picking and physics",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "generic mixed residential candidate saves and reopens native records",
+      "ok": true
+    }
+  ],
+  "directory": "D:/code/rmmo_runtime/__joint_residential_22272_13321810",
+  "elapsed_ms": 45585,
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/__joint_residential_22272_13321810/maps/test/map.gltf",
+  "graphical": true,
+  "joint_plan": {
+    "base_version": "61443c477af48b70e3cdcbcb7ba85729af6dfeeb0303bdcf53af695d2dda07f1",
+    "bounds": {
+      "position": [
+        -24.0,
+        -8.0,
+        -22.0
+      ],
+      "size": [
+        80.0,
+        15.6144409179688,
+        40.0
+      ]
+    },
+    "changed": true,
+    "changed_ids": [
+      "obj_174",
+      "obj_175",
+      "obj_176",
+      "obj_177",
+      "obj_178",
+      "obj_179",
+      "obj_180",
+      "obj_181",
+      "obj_182",
+      "obj_183",
+      "obj_184",
+      "obj_185",
+      "obj_186",
+      "obj_187",
+      "obj_188",
+      "obj_189",
+      "obj_190",
+      "obj_191",
+      "obj_192",
+      "obj_193",
+      "obj_194",
+      "obj_195",
+      "obj_196",
+      "obj_197",
+      "obj_198",
+      "obj_199",
+      "obj_200",
+      "obj_201",
+      "obj_202",
+      "obj_203",
+      "obj_204",
+      "obj_205",
+      "obj_206",
+      "obj_207",
+      "pavement_d7326a6140ad18cda622",
+      "pavement_71070bf904669e866729",
+      "pavement_f0fb5c1dff0ebf342a85",
+      "pavement_b443278a65fb89bbdb3a",
+      "pavement_b9355cde01230326807a",
+      "pavement_6aee355c45cdde10af24",
+      "residential_ground",
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173",
+      "pavement_993600ba1e5c0bde643e",
+      "pavement_9f4cb035258a4eec34b9"
+    ],
+    "changes": {
+      "added": [
+        "obj_174",
+        "obj_175",
+        "obj_176",
+        "obj_177",
+        "obj_178",
+        "obj_179",
+        "obj_180",
+        "obj_181",
+        "obj_182",
+        "obj_183",
+        "obj_184",
+        "obj_185",
+        "obj_186",
+        "obj_187",
+        "obj_188",
+        "obj_189",
+        "obj_190",
+        "obj_191",
+        "obj_192",
+        "obj_193",
+        "obj_194",
+        "obj_195",
+        "obj_196",
+        "obj_197",
+        "obj_198",
+        "obj_199",
+        "obj_200",
+        "obj_201",
+        "obj_202",
+        "obj_203",
+        "obj_204",
+        "obj_205",
+        "obj_206",
+        "obj_207",
+        "pavement_d7326a6140ad18cda622",
+        "pavement_71070bf904669e866729",
+        "pavement_f0fb5c1dff0ebf342a85",
+        "pavement_b443278a65fb89bbdb3a",
+        "pavement_b9355cde01230326807a",
+        "pavement_6aee355c45cdde10af24"
+      ],
+      "follower_ids": [
+        "obj_140",
+        "obj_141",
+        "obj_142",
+        "obj_143",
+        "obj_144",
+        "obj_145",
+        "obj_146",
+        "obj_147",
+        "obj_148",
+        "obj_149",
+        "obj_150",
+        "obj_151",
+        "obj_152",
+        "obj_153",
+        "obj_154",
+        "obj_155",
+        "obj_156",
+        "obj_157",
+        "obj_158",
+        "obj_159",
+        "obj_160",
+        "obj_161",
+        "obj_162",
+        "obj_163",
+        "obj_164",
+        "obj_165",
+        "obj_166",
+        "obj_167",
+        "obj_168",
+        "obj_169",
+        "obj_170",
+        "obj_171",
+        "obj_172",
+        "obj_173"
+      ],
+      "removed": [
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "road_ids": [
+        "pavement_d7326a6140ad18cda622",
+        "pavement_71070bf904669e866729",
+        "pavement_f0fb5c1dff0ebf342a85",
+        "pavement_b443278a65fb89bbdb3a",
+        "pavement_b9355cde01230326807a",
+        "pavement_6aee355c45cdde10af24",
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "updated": [
+        "residential_ground",
+        "obj_140",
+        "obj_141",
+        "obj_142",
+        "obj_143",
+        "obj_144",
+        "obj_145",
+        "obj_146",
+        "obj_147",
+        "obj_148",
+        "obj_149",
+        "obj_150",
+        "obj_151",
+        "obj_152",
+        "obj_153",
+        "obj_154",
+        "obj_155",
+        "obj_156",
+        "obj_157",
+        "obj_158",
+        "obj_159",
+        "obj_160",
+        "obj_161",
+        "obj_162",
+        "obj_163",
+        "obj_164",
+        "obj_165",
+        "obj_166",
+        "obj_167",
+        "obj_168",
+        "obj_169",
+        "obj_170",
+        "obj_171",
+        "obj_172",
+        "obj_173"
+      ]
+    },
+    "checks": {
+      "bridge_context": true,
+      "final_block_reservations": true,
+      "final_building_geometry": true,
+      "final_ramps": true,
+      "final_residential_access": true,
+      "final_road_graph": true,
+      "final_vegetation": true,
+      "native_save": true,
+      "ok": true
+    },
+    "finalization_changes": {
+      "added": [],
+      "follower_ids": [],
+      "removed": [],
+      "road_ids": [],
+      "terrain_ids": [],
+      "updated": []
+    },
+    "house_ids": [
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173",
+      "obj_174",
+      "obj_175",
+      "obj_176",
+      "obj_177",
+      "obj_178",
+      "obj_179",
+      "obj_180",
+      "obj_181",
+      "obj_182",
+      "obj_183",
+      "obj_184",
+      "obj_185",
+      "obj_186",
+      "obj_187",
+      "obj_188",
+      "obj_189",
+      "obj_190",
+      "obj_191",
+      "obj_192",
+      "obj_193",
+      "obj_194",
+      "obj_195",
+      "obj_196",
+      "obj_197",
+      "obj_198",
+      "obj_199",
+      "obj_200",
+      "obj_201",
+      "obj_202",
+      "obj_203",
+      "obj_204",
+      "obj_205",
+      "obj_206",
+      "obj_207"
+    ],
+    "ok": true,
+    "plan_token": "57d3bff14c47e54f4d3928a178e245658bd4232d181374aa",
+    "publication": {
+      "authoring": "single_synchronous_transaction",
+      "derived": "native_refresh_and_shared_batches",
+      "runtime": "requires_runtime_verification"
+    },
+    "step_count": 2.0,
+    "steps": [
+      {
+        "changes": {
+          "added": [
+            "obj_174",
+            "obj_175",
+            "obj_176",
+            "obj_177",
+            "obj_178",
+            "obj_179",
+            "obj_180",
+            "obj_181",
+            "obj_182",
+            "obj_183",
+            "obj_184",
+            "obj_185",
+            "obj_186",
+            "obj_187",
+            "obj_188",
+            "obj_189",
+            "obj_190",
+            "obj_191",
+            "obj_192",
+            "obj_193",
+            "obj_194",
+            "obj_195",
+            "obj_196",
+            "obj_197",
+            "obj_198",
+            "obj_199",
+            "obj_200",
+            "obj_201",
+            "obj_202",
+            "obj_203",
+            "obj_204",
+            "obj_205",
+            "obj_206",
+            "obj_207",
+            "pavement_d7326a6140ad18cda622",
+            "pavement_71070bf904669e866729",
+            "pavement_f0fb5c1dff0ebf342a85",
+            "pavement_b443278a65fb89bbdb3a",
+            "pavement_b9355cde01230326807a",
+            "pavement_6aee355c45cdde10af24"
+          ],
+          "follower_ids": [
+            "obj_140",
+            "obj_141",
+            "obj_142",
+            "obj_143",
+            "obj_144",
+            "obj_145",
+            "obj_146",
+            "obj_147",
+            "obj_148",
+            "obj_149",
+            "obj_150",
+            "obj_151",
+            "obj_152",
+            "obj_153",
+            "obj_154",
+            "obj_155",
+            "obj_156",
+            "obj_157",
+            "obj_158",
+            "obj_159",
+            "obj_160",
+            "obj_161",
+            "obj_162",
+            "obj_163",
+            "obj_164",
+            "obj_165",
+            "obj_166",
+            "obj_167",
+            "obj_168",
+            "obj_169",
+            "obj_170",
+            "obj_171",
+            "obj_172",
+            "obj_173"
+          ],
+          "removed": [
+            "pavement_993600ba1e5c0bde643e",
+            "pavement_9f4cb035258a4eec34b9"
+          ],
+          "road_ids": [
+            "pavement_d7326a6140ad18cda622",
+            "pavement_71070bf904669e866729",
+            "pavement_f0fb5c1dff0ebf342a85",
+            "pavement_b443278a65fb89bbdb3a",
+            "pavement_b9355cde01230326807a",
+            "pavement_6aee355c45cdde10af24",
+            "pavement_993600ba1e5c0bde643e",
+            "pavement_9f4cb035258a4eec34b9"
+          ],
+          "terrain_ids": [
+            "residential_ground"
+          ],
+          "updated": [
+            "residential_ground",
+            "obj_140",
+            "obj_141",
+            "obj_142",
+            "obj_143",
+            "obj_144",
+            "obj_145",
+            "obj_146",
+            "obj_147",
+            "obj_148",
+            "obj_149",
+            "obj_150",
+            "obj_151",
+            "obj_152",
+            "obj_153",
+            "obj_154",
+            "obj_155",
+            "obj_156",
+            "obj_157",
+            "obj_158",
+            "obj_159",
+            "obj_160",
+            "obj_161",
+            "obj_162",
+            "obj_163",
+            "obj_164",
+            "obj_165",
+            "obj_166",
+            "obj_167",
+            "obj_168",
+            "obj_169",
+            "obj_170",
+            "obj_171",
+            "obj_172",
+            "obj_173"
+          ]
+        },
+        "id": "homes",
+        "operation": "preview_residential_block",
+        "result": {
+          "base_version": "ef080b8dc036b91e9ae09b9af6b3ccf839820e8a0e2cf2b6ab7392d9193d2c62",
+          "bounds": {
+            "position": [
+              -24.0,
+              -8.0,
+              -22.0
+            ],
+            "size": [
+              80.0,
+              15.6144409179688,
+              40.0
+            ]
+          },
+          "bridges": {
+            "binding_count": 2.0,
+            "bridgehead_node_ids": [
+              "main_b",
+              "bridge_b",
+              "bridge_link_3adb073b0aed4781_0",
+              "bridge_link_3adb073b0aed4781_1"
+            ],
+            "preserved_ids": [
+              "fixture_bridge",
+              "obj_1",
+              "river_5f5a8ed8f139be6d_water_4_0_0",
+              "river_5f5a8ed8f139be6d_water_4_m1_0",
+              "river_5f5a8ed8f139be6d_water_5_0_0",
+              "river_5f5a8ed8f139be6d_water_5_m1_0",
+              "river_5f5a8ed8f139be6d_bed_4_0_0",
+              "river_5f5a8ed8f139be6d_bed_4_m1_0",
+              "river_5f5a8ed8f139be6d_bed_5_0_0",
+              "river_5f5a8ed8f139be6d_bed_5_m1_0",
+              "river_5f5a8ed8f139be6d_bank_4_0_0",
+              "river_5f5a8ed8f139be6d_bank_4_m1_0",
+              "river_5f5a8ed8f139be6d_bank_5_0_0",
+              "river_5f5a8ed8f139be6d_bank_5_m1_0",
+              "river_5f5a8ed8f139be6d_abutment_4_0_0",
+              "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+              "river_5f5a8ed8f139be6d_abutment_5_0_0",
+              "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+              "river_5f5a8ed8f139be6d_end_0",
+              "river_5f5a8ed8f139be6d_end_1",
+              "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+              "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+              "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+            ],
+            "waterway_count": 1.0
+          },
+          "building_ids": [
+            "building_07faa0aaea387fe6ca02",
+            "building_2e640d94595221a1d2c8"
+          ],
+          "changed_ids": [
+            "obj_174",
+            "obj_175",
+            "obj_176",
+            "obj_177",
+            "obj_178",
+            "obj_179",
+            "obj_180",
+            "obj_181",
+            "obj_182",
+            "obj_183",
+            "obj_184",
+            "obj_185",
+            "obj_186",
+            "obj_187",
+            "obj_188",
+            "obj_189",
+            "obj_190",
+            "obj_191",
+            "obj_192",
+            "obj_193",
+            "obj_194",
+            "obj_195",
+            "obj_196",
+            "obj_197",
+            "obj_198",
+            "obj_199",
+            "obj_200",
+            "obj_201",
+            "obj_202",
+            "obj_203",
+            "obj_204",
+            "obj_205",
+            "obj_206",
+            "obj_207",
+            "pavement_d7326a6140ad18cda622",
+            "pavement_71070bf904669e866729",
+            "pavement_f0fb5c1dff0ebf342a85",
+            "pavement_b443278a65fb89bbdb3a",
+            "pavement_b9355cde01230326807a",
+            "pavement_6aee355c45cdde10af24",
+            "residential_ground",
+            "obj_140",
+            "obj_141",
+            "obj_142",
+            "obj_143",
+            "obj_144",
+            "obj_145",
+            "obj_146",
+            "obj_147",
+            "obj_148",
+            "obj_149",
+            "obj_150",
+            "obj_151",
+            "obj_152",
+            "obj_153",
+            "obj_154",
+            "obj_155",
+            "obj_156",
+            "obj_157",
+            "obj_158",
+            "obj_159",
+            "obj_160",
+            "obj_161",
+            "obj_162",
+            "obj_163",
+            "obj_164",
+            "obj_165",
+            "obj_166",
+            "obj_167",
+            "obj_168",
+            "obj_169",
+            "obj_170",
+            "obj_171",
+            "obj_172",
+            "obj_173",
+            "pavement_993600ba1e5c0bde643e",
+            "pavement_9f4cb035258a4eec34b9"
+          ],
+          "changes": {
+            "added": [
+              "obj_174",
+              "obj_175",
+              "obj_176",
+              "obj_177",
+              "obj_178",
+              "obj_179",
+              "obj_180",
+              "obj_181",
+              "obj_182",
+              "obj_183",
+              "obj_184",
+              "obj_185",
+              "obj_186",
+              "obj_187",
+              "obj_188",
+              "obj_189",
+              "obj_190",
+              "obj_191",
+              "obj_192",
+              "obj_193",
+              "obj_194",
+              "obj_195",
+              "obj_196",
+              "obj_197",
+              "obj_198",
+              "obj_199",
+              "obj_200",
+              "obj_201",
+              "obj_202",
+              "obj_203",
+              "obj_204",
+              "obj_205",
+              "obj_206",
+              "obj_207",
+              "pavement_d7326a6140ad18cda622",
+              "pavement_71070bf904669e866729",
+              "pavement_f0fb5c1dff0ebf342a85",
+              "pavement_b443278a65fb89bbdb3a",
+              "pavement_b9355cde01230326807a",
+              "pavement_6aee355c45cdde10af24"
+            ],
+            "follower_ids": [
+              "obj_140",
+              "obj_141",
+              "obj_142",
+              "obj_143",
+              "obj_144",
+              "obj_145",
+              "obj_146",
+              "obj_147",
+              "obj_148",
+              "obj_149",
+              "obj_150",
+              "obj_151",
+              "obj_152",
+              "obj_153",
+              "obj_154",
+              "obj_155",
+              "obj_156",
+              "obj_157",
+              "obj_158",
+              "obj_159",
+              "obj_160",
+              "obj_161",
+              "obj_162",
+              "obj_163",
+              "obj_164",
+              "obj_165",
+              "obj_166",
+              "obj_167",
+              "obj_168",
+              "obj_169",
+              "obj_170",
+              "obj_171",
+              "obj_172",
+              "obj_173"
+            ],
+            "removed": [
+              "pavement_993600ba1e5c0bde643e",
+              "pavement_9f4cb035258a4eec34b9"
+            ],
+            "road_ids": [
+              "pavement_d7326a6140ad18cda622",
+              "pavement_71070bf904669e866729",
+              "pavement_f0fb5c1dff0ebf342a85",
+              "pavement_b443278a65fb89bbdb3a",
+              "pavement_b9355cde01230326807a",
+              "pavement_6aee355c45cdde10af24",
+              "pavement_993600ba1e5c0bde643e",
+              "pavement_9f4cb035258a4eec34b9"
+            ],
+            "terrain_ids": [
+              "residential_ground"
+            ],
+            "updated": [
+              "residential_ground",
+              "obj_140",
+              "obj_141",
+              "obj_142",
+              "obj_143",
+              "obj_144",
+              "obj_145",
+              "obj_146",
+              "obj_147",
+              "obj_148",
+              "obj_149",
+              "obj_150",
+              "obj_151",
+              "obj_152",
+              "obj_153",
+              "obj_154",
+              "obj_155",
+              "obj_156",
+              "obj_157",
+              "obj_158",
+              "obj_159",
+              "obj_160",
+              "obj_161",
+              "obj_162",
+              "obj_163",
+              "obj_164",
+              "obj_165",
+              "obj_166",
+              "obj_167",
+              "obj_168",
+              "obj_169",
+              "obj_170",
+              "obj_171",
+              "obj_172",
+              "obj_173"
+            ]
+          },
+          "checks": {
+            "bridge_context": true,
+            "final_combined_save": true,
+            "final_house_geometry": true,
+            "final_per_house_access": true,
+            "runtime_traversal": "requires_runtime_verification"
+          },
+          "earthwork": {
+            "cut_m3": 0.0,
+            "fill_m3": 80.6408656713302,
+            "max_cut_m": 0.0,
+            "max_fill_m": 0.119999997317791,
+            "scope": "all_changed_solid_triangles_including_padding_and_blend"
+          },
+          "homes": [
+            {
+              "access": {
+                "connector_ground": {
+                  "area": 12.8208782769125,
+                  "area_tolerance": 0.0000001,
+                  "conservative": false,
+                  "counts": {
+                    "cells_scanned": 4096.0,
+                    "cells_visited": 119.0,
+                    "overlaps": 66.0,
+                    "solid_skipped": 3977.0,
+                    "terrain_candidates": 1.0,
+                    "triangle_clips": 112.0
+                  },
+                  "covered_area": 12.8208782769125,
+                  "exact": true,
+                  "grade_witness": {
+                    "cell": [
+                      9.0,
+                      20.0
+                    ],
+                    "grade": 0.0782815992832184,
+                    "position": [
+                      -11.6265088192253,
+                      0.103974341864712,
+                      -8.93825440961267
+                    ],
+                    "terrain_id": "residential_ground",
+                    "triangle_index": 0.0
+                  },
+                  "height_range": [
+                    -0.00000000000000001,
+                    0.119999997317791
+                  ],
+                  "max_grade": 0.0782815992832184,
+                  "max_seam_step": 0.0,
+                  "ok": true,
+                  "scope": "continuous_heightfield_region_only",
+                  "seam_witness": {},
+                  "stage": "residential_support",
+                  "terrain_ids": [
+                    "residential_ground"
+                  ]
+                },
+                "corridor_width": 0.8,
+                "door_id": "obj_162",
+                "entrance_id": "f0/north/entrance/door",
+                "fixture_id": "f0/north/entrance/door",
+                "intervals": 13.0,
+                "max_grade": 0.0,
+                "max_seam_step": 0.0,
+                "max_step": 0.150000002682209,
+                "ok": true,
+                "terrain_ids": [
+                  "residential_ground"
+                ],
+                "threshold": [
+                  -11.3155002593994,
+                  0.438000023365021,
+                  -4.40000009536743
+                ]
+              },
+              "access_binding": {
+                "door": {
+                  "id": "home_233c57f16817f3_door",
+                  "position": [
+                    -11.3155002593994,
+                    0.0,
+                    -6.90000009536743
+                  ]
+                },
+                "edge": {
+                  "from": "home_233c57f16817f3_door",
+                  "id": "home_233c57f16817f3_access",
+                  "kind": "ground",
+                  "name": "住宅入户路",
+                  "to": "home_233c57f16817f3_join",
+                  "width_end": 1.6,
+                  "width_start": 1.6
+                },
+                "join": {
+                  "id": "home_233c57f16817f3_join",
+                  "position": [
+                    -9.35599330432888,
+                    0.0,
+                    -14.6697707903004
+                  ]
+                },
+                "position": [
+                  -8.0,
+                  0.119999997317791,
+                  1.0
+                ],
+                "version": 1.0,
+                "yaw": 0.0
+              },
+              "adjustment": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "bounds": {
+                "position": [
+                  -12.9650001525879,
+                  -1.10000002384186,
+                  -5.25
+                ],
+                "size": [
+                  9.93000221252441,
+                  8.71444129943848,
+                  12.2150001525879
+                ]
+              },
+              "bridges": {
+                "binding_count": 2.0,
+                "bridgehead_node_ids": [
+                  "main_b",
+                  "bridge_b",
+                  "bridge_link_3adb073b0aed4781_0",
+                  "bridge_link_3adb073b0aed4781_1"
+                ],
+                "preserved_ids": [
+                  "fixture_bridge",
+                  "obj_1",
+                  "river_5f5a8ed8f139be6d_water_4_0_0",
+                  "river_5f5a8ed8f139be6d_water_4_m1_0",
+                  "river_5f5a8ed8f139be6d_water_5_0_0",
+                  "river_5f5a8ed8f139be6d_water_5_m1_0",
+                  "river_5f5a8ed8f139be6d_bed_4_0_0",
+                  "river_5f5a8ed8f139be6d_bed_4_m1_0",
+                  "river_5f5a8ed8f139be6d_bed_5_0_0",
+                  "river_5f5a8ed8f139be6d_bed_5_m1_0",
+                  "river_5f5a8ed8f139be6d_bank_4_0_0",
+                  "river_5f5a8ed8f139be6d_bank_4_m1_0",
+                  "river_5f5a8ed8f139be6d_bank_5_0_0",
+                  "river_5f5a8ed8f139be6d_bank_5_m1_0",
+                  "river_5f5a8ed8f139be6d_abutment_4_0_0",
+                  "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+                  "river_5f5a8ed8f139be6d_abutment_5_0_0",
+                  "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+                  "river_5f5a8ed8f139be6d_end_0",
+                  "river_5f5a8ed8f139be6d_end_1",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+                ],
+                "waterway_count": 1.0
+              },
+              "building_id": "building_07faa0aaea387fe6ca02",
+              "building_ids": [
+                "building_07faa0aaea387fe6ca02"
+              ],
+              "building_position": [
+                -8.0,
+                0.119999997317791,
+                1.0
+              ],
+              "changed_ids": [
+                "obj_140",
+                "obj_141",
+                "obj_142",
+                "obj_143",
+                "obj_144",
+                "obj_145",
+                "obj_146",
+                "obj_147",
+                "obj_148",
+                "obj_149",
+                "obj_150",
+                "obj_151",
+                "obj_152",
+                "obj_153",
+                "obj_154",
+                "obj_155",
+                "obj_156",
+                "obj_157",
+                "obj_158",
+                "obj_159",
+                "obj_160",
+                "obj_161",
+                "obj_162",
+                "obj_163",
+                "obj_164",
+                "obj_165",
+                "obj_166",
+                "obj_167",
+                "obj_168",
+                "obj_169",
+                "obj_170",
+                "obj_171",
+                "obj_172",
+                "obj_173",
+                "pavement_993600ba1e5c0bde643e",
+                "pavement_9f4cb035258a4eec34b9"
+              ],
+              "checks": {
+                "bridge_context": true,
+                "continuous_support": true,
+                "entrance_corridor": true,
+                "final_block": true,
+                "full_road_graph": true,
+                "native_house_geometry": true,
+                "native_save": true,
+                "runtime_traversal": "requires_runtime_verification"
+              },
+              "house_ids": [
+                "obj_140",
+                "obj_141",
+                "obj_142",
+                "obj_143",
+                "obj_144",
+                "obj_145",
+                "obj_146",
+                "obj_147",
+                "obj_148",
+                "obj_149",
+                "obj_150",
+                "obj_151",
+                "obj_152",
+                "obj_153",
+                "obj_154",
+                "obj_155",
+                "obj_156",
+                "obj_157",
+                "obj_158",
+                "obj_159",
+                "obj_160",
+                "obj_161",
+                "obj_162",
+                "obj_163",
+                "obj_164",
+                "obj_165",
+                "obj_166",
+                "obj_167",
+                "obj_168",
+                "obj_169",
+                "obj_170",
+                "obj_171",
+                "obj_172",
+                "obj_173"
+              ],
+              "id": "home_1",
+              "ok": true,
+              "operation": "relocate",
+              "position": [
+                -8.0,
+                0.119999997317791,
+                1.0
+              ],
+              "relocation": {
+                "building_id": "building_07faa0aaea387fe6ca02",
+                "from_position": [
+                  -0.0000009536743164,
+                  0.0,
+                  0.142499923706055
+                ],
+                "from_yaw": 0.0,
+                "identity_preserved": true,
+                "old_access": {
+                  "notice": "全部旧路保留；原入户路解除住宅归属",
+                  "policy": "keep",
+                  "removed_edge_ids": [],
+                  "removed_node_ids": [],
+                  "terrain": "preserved_unless_explicitly_graded"
+                }
+              },
+              "requested_road_edge_id": "main_lane",
+              "road_connection": {
+                "child_edge_ids": [
+                  "main_lane",
+                  "home_233c57f16817f3_tail"
+                ],
+                "edge_id": "main_lane",
+                "join_node_id": "home_233c57f16817f3_join",
+                "kind": "cubic",
+                "parameter": 0.1553955078125,
+                "position": [
+                  -9.35599330432888,
+                  0.0,
+                  -14.6697707903004
+                ],
+                "projection": {
+                  "distance_error_bound_m": 0.0001,
+                  "endpoint_adjustment_m": 0.0,
+                  "nearest_parameter": 0.1553955078125,
+                  "nearest_position": [
+                    -9.35599330432888,
+                    0.0,
+                    -14.6697707903004
+                  ],
+                  "visits": 321.0
+                },
+                "split": true,
+                "tangent": [
+                  21.449836730957,
+                  0.0,
+                  5.41033506393433
+                ],
+                "width": 3.24661865234375
+              },
+              "road_points": [
+                [
+                  -11.3155002593994,
+                  0.0,
+                  -6.90000009536743
+                ],
+                [
+                  -9.35599327087402,
+                  0.0,
+                  -14.669771194458
+                ]
+              ],
+              "search": {
+                "attempts": 1.0,
+                "budget": 11.0,
+                "full_graph_checks": 1.0,
+                "prepare_ms": 1814.117,
+                "step": 0.05
+              },
+              "setback": 2.5,
+              "source_sha256": "cc34391fd01e7a8a43135623a547f8c9375e665644b6c3f9d599c71b95522be7",
+              "support": {
+                "area_tolerance": 0.0000001,
+                "components": [
+                  {
+                    "area": 99.0,
+                    "covered_area": 99.0,
+                    "floor_bottom": 0.0799999907612801,
+                    "foundation_bottom": -1.22000002861023,
+                    "foundation_id": "obj_143/support_triangle_824",
+                    "missing_area": 0.0,
+                    "part": "main/baked_2",
+                    "record_id": "obj_142",
+                    "terrain_range": [
+                      0.119999997317791,
+                      0.119999997317791
+                    ]
+                  }
+                ],
+                "counts": {
+                  "cells_scanned": 4096.0,
+                  "cells_visited": 231.0,
+                  "overlaps": 288.0,
+                  "solid_skipped": 3865.0,
+                  "terrain_candidates": 1.0,
+                  "triangle_clips": 304.0
+                },
+                "entrance_maximum_y": 0.299999994635582,
+                "excluded_landings": [],
+                "geometric_interval": [
+                  0.0400000065565109,
+                  1.34000002592802
+                ],
+                "interval": [
+                  0.0400000065565109,
+                  0.619999997317791
+                ],
+                "lower_witness": {
+                  "cell": [
+                    9.0,
+                    28.0
+                  ],
+                  "floor_bottom": 0.0799999907612801,
+                  "foundation_bottom": -1.22000002861023,
+                  "foundation_id": "obj_143/support_triangle_824",
+                  "part": "main/baked_2",
+                  "position": [
+                    -12.5,
+                    0.119999997317791,
+                    -4.5
+                  ],
+                  "record_id": "obj_142",
+                  "terrain_height": 0.119999997317791,
+                  "terrain_id": "residential_ground",
+                  "triangle_index": 0.0
+                },
+                "requires_native_placement_validation": true,
+                "scope": "verified_frozen_support_domains",
+                "support_mode": "continuous",
+                "terrain_ids": [
+                  "residential_ground"
+                ],
+                "underfloor_clearances": [],
+                "upper_witness": {
+                  "cell": [
+                    9.0,
+                    28.0
+                  ],
+                  "floor_bottom": 0.0799999907612801,
+                  "foundation_bottom": -1.22000002861023,
+                  "foundation_id": "obj_143/support_triangle_824",
+                  "part": "main/baked_2",
+                  "position": [
+                    -12.5,
+                    0.119999997317791,
+                    -4.5
+                  ],
+                  "record_id": "obj_142",
+                  "terrain_height": 0.119999997317791,
+                  "terrain_id": "residential_ground",
+                  "triangle_index": 0.0
+                }
+              },
+              "width": 1.6
+            },
+            {
+              "access": {
+                "connector_ground": {
+                  "area": 13.1926126344737,
+                  "area_tolerance": 0.0000001,
+                  "conservative": false,
+                  "counts": {
+                    "cells_scanned": 4096.0,
+                    "cells_visited": 102.0,
+                    "overlaps": 64.0,
+                    "solid_skipped": 3994.0,
+                    "terrain_candidates": 1.0,
+                    "triangle_clips": 84.0
+                  },
+                  "covered_area": 13.1926126344737,
+                  "exact": true,
+                  "grade_witness": {
+                    "cell": [
+                      22.0,
+                      20.0
+                    ],
+                    "grade": 0.0782815992832184,
+                    "position": [
+                      3.50586144855896,
+                      0.0602294204425513,
+                      -9.49706927572052
+                    ],
+                    "terrain_id": "residential_ground",
+                    "triangle_index": 0.0
+                  },
+                  "height_range": [
+                    -0.00000000000000001,
+                    0.119999997317791
+                  ],
+                  "max_grade": 0.0782815992832184,
+                  "max_seam_step": 0.0,
+                  "ok": true,
+                  "scope": "continuous_heightfield_region_only",
+                  "seam_witness": {},
+                  "stage": "residential_support",
+                  "terrain_ids": [
+                    "residential_ground"
+                  ]
+                },
+                "corridor_width": 0.8,
+                "door_id": "obj_196",
+                "entrance_id": "f0/north/entrance/door",
+                "fixture_id": "f0/north/entrance/door",
+                "intervals": 13.0,
+                "max_grade": 0.0,
+                "max_seam_step": 0.0,
+                "max_step": 0.150000002682209,
+                "ok": true,
+                "terrain_ids": [
+                  "residential_ground"
+                ],
+                "threshold": [
+                  4.68449878692627,
+                  0.438000023365021,
+                  -4.25750017166138
+                ]
+              },
+              "access_binding": {
+                "door": {
+                  "id": "home_a7cea251c44fbd_door",
+                  "position": [
+                    4.68449878692627,
+                    0.0,
+                    -6.75750017166138
+                  ]
+                },
+                "edge": {
+                  "from": "home_a7cea251c44fbd_door",
+                  "id": "home_a7cea251c44fbd_access",
+                  "kind": "ground",
+                  "name": "住宅入户路",
+                  "to": "home_a7cea251c44fbd_join",
+                  "width_end": 1.6,
+                  "width_start": 1.6
+                },
+                "join": {
+                  "id": "home_a7cea251c44fbd_join",
+                  "position": [
+                    3.57704284655392,
+                    0.0,
+                    -14.928172061915
+                  ]
+                },
+                "position": [
+                  7.99999904632568,
+                  0.119999997317791,
+                  1.14249992370605
+                ],
+                "version": 1.0,
+                "yaw": 0.0
+              },
+              "adjustment": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "bounds": {
+                "position": [
+                  3.03499889373779,
+                  -1.10000002384186,
+                  -5.10750007629395
+                ],
+                "size": [
+                  9.93000221252441,
+                  8.71444129943848,
+                  12.2150001525879
+                ]
+              },
+              "bridges": {
+                "binding_count": 2.0,
+                "bridgehead_node_ids": [
+                  "main_b",
+                  "bridge_b",
+                  "bridge_link_3adb073b0aed4781_0",
+                  "bridge_link_3adb073b0aed4781_1"
+                ],
+                "preserved_ids": [
+                  "fixture_bridge",
+                  "obj_1",
+                  "river_5f5a8ed8f139be6d_water_4_0_0",
+                  "river_5f5a8ed8f139be6d_water_4_m1_0",
+                  "river_5f5a8ed8f139be6d_water_5_0_0",
+                  "river_5f5a8ed8f139be6d_water_5_m1_0",
+                  "river_5f5a8ed8f139be6d_bed_4_0_0",
+                  "river_5f5a8ed8f139be6d_bed_4_m1_0",
+                  "river_5f5a8ed8f139be6d_bed_5_0_0",
+                  "river_5f5a8ed8f139be6d_bed_5_m1_0",
+                  "river_5f5a8ed8f139be6d_bank_4_0_0",
+                  "river_5f5a8ed8f139be6d_bank_4_m1_0",
+                  "river_5f5a8ed8f139be6d_bank_5_0_0",
+                  "river_5f5a8ed8f139be6d_bank_5_m1_0",
+                  "river_5f5a8ed8f139be6d_abutment_4_0_0",
+                  "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+                  "river_5f5a8ed8f139be6d_abutment_5_0_0",
+                  "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+                  "river_5f5a8ed8f139be6d_end_0",
+                  "river_5f5a8ed8f139be6d_end_1",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+                  "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+                ],
+                "waterway_count": 1.0
+              },
+              "building_id": "building_2e640d94595221a1d2c8",
+              "building_ids": [
+                "building_2e640d94595221a1d2c8"
+              ],
+              "building_position": [
+                7.99999904632568,
+                0.119999997317791,
+                1.14249992370605
+              ],
+              "changed_ids": [
+                "obj_174",
+                "obj_175",
+                "obj_176",
+                "obj_177",
+                "obj_178",
+                "obj_179",
+                "obj_180",
+                "obj_181",
+                "obj_182",
+                "obj_183",
+                "obj_184",
+                "obj_185",
+                "obj_186",
+                "obj_187",
+                "obj_188",
+                "obj_189",
+                "obj_190",
+                "obj_191",
+                "obj_192",
+                "obj_193",
+                "obj_194",
+                "obj_195",
+                "obj_196",
+                "obj_197",
+                "obj_198",
+                "obj_199",
+                "obj_200",
+                "obj_201",
+                "obj_202",
+                "obj_203",
+                "obj_204",
+                "obj_205",
+                "obj_206",
+                "obj_207",
+                "pavement_d7326a6140ad18cda622",
+                "pavement_71070bf904669e866729",
+                "pavement_f0fb5c1dff0ebf342a85",
+                "pavement_b443278a65fb89bbdb3a",
+                "pavement_b9355cde01230326807a",
+                "pavement_6aee355c45cdde10af24",
+                "pavement_993600ba1e5c0bde643e",
+                "pavement_9f4cb035258a4eec34b9"
+              ],
+              "checks": {
+                "bridge_context": true,
+                "continuous_support": true,
+                "entrance_corridor": true,
+                "final_block": true,
+                "full_road_graph": true,
+                "native_house_geometry": true,
+                "native_save": true,
+                "runtime_traversal": "requires_runtime_verification"
+              },
+              "house_ids": [
+                "obj_174",
+                "obj_175",
+                "obj_176",
+                "obj_177",
+                "obj_178",
+                "obj_179",
+                "obj_180",
+                "obj_181",
+                "obj_182",
+                "obj_183",
+                "obj_184",
+                "obj_185",
+                "obj_186",
+                "obj_187",
+                "obj_188",
+                "obj_189",
+                "obj_190",
+                "obj_191",
+                "obj_192",
+                "obj_193",
+                "obj_194",
+                "obj_195",
+                "obj_196",
+                "obj_197",
+                "obj_198",
+                "obj_199",
+                "obj_200",
+                "obj_201",
+                "obj_202",
+                "obj_203",
+                "obj_204",
+                "obj_205",
+                "obj_206",
+                "obj_207"
+              ],
+              "id": "home_2",
+              "ok": true,
+              "operation": "place",
+              "position": [
+                8.0,
+                0.119999997317791,
+                1.0
+              ],
+              "requested_road_edge_id": "main_lane",
+              "road_connection": {
+                "child_edge_ids": [
+                  "home_233c57f16817f3_tail",
+                  "home_a7cea251c44fbd_tail"
+                ],
+                "edge_id": "home_233c57f16817f3_tail",
+                "join_node_id": "home_a7cea251c44fbd_join",
+                "kind": "cubic",
+                "parameter": 0.55084228515625,
+                "position": [
+                  3.57704284655392,
+                  0.0,
+                  -14.928172061915
+                ],
+                "projection": {
+                  "distance_error_bound_m": 0.0001,
+                  "endpoint_adjustment_m": 0.0,
+                  "nearest_parameter": 0.55084228515625,
+                  "nearest_position": [
+                    3.57704284655392,
+                    0.0,
+                    -14.928172061915
+                  ],
+                  "visits": 228.0
+                },
+                "split": true,
+                "tangent": [
+                  24.4530944824219,
+                  0.0,
+                  -3.3140025138855
+                ],
+                "width": 3.38619181290269
+              },
+              "road_points": [
+                [
+                  4.68449878692627,
+                  0.0,
+                  -6.75750017166138
+                ],
+                [
+                  3.57704281806946,
+                  0.0,
+                  -14.9281721115112
+                ]
+              ],
+              "search": {
+                "attempts": 1.0,
+                "budget": 11.0,
+                "full_graph_checks": 1.0,
+                "prepare_ms": 2345.085,
+                "step": 0.05
+              },
+              "setback": 2.5,
+              "source_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+              "support": {
+                "area_tolerance": 0.0000001,
+                "components": [
+                  {
+                    "area": 99.0,
+                    "covered_area": 98.9999999999961,
+                    "floor_bottom": 0.0799999907612801,
+                    "foundation_bottom": -1.22000002861023,
+                    "foundation_id": "obj_5/support_triangle_824",
+                    "missing_area": 0.0,
+                    "part": "main/baked_2",
+                    "record_id": "obj_4",
+                    "terrain_range": [
+                      0.119999997317791,
+                      0.119999997317791
+                    ]
+                  }
+                ],
+                "counts": {
+                  "cells_scanned": 4096.0,
+                  "cells_visited": 252.0,
+                  "overlaps": 305.0,
+                  "solid_skipped": 3844.0,
+                  "terrain_candidates": 1.0,
+                  "triangle_clips": 324.0
+                },
+                "entrance_maximum_y": 0.299999994635582,
+                "excluded_landings": [],
+                "geometric_interval": [
+                  0.0400000065565109,
+                  1.34000002592802
+                ],
+                "interval": [
+                  0.0400000065565109,
+                  0.619999997317791
+                ],
+                "lower_witness": {
+                  "cell": [
+                    21.0,
+                    28.0
+                  ],
+                  "floor_bottom": 0.0799999907612801,
+                  "foundation_bottom": -1.22000002861023,
+                  "foundation_id": "obj_5/support_triangle_824",
+                  "part": "main/baked_2",
+                  "position": [
+                    3.49999904632568,
+                    0.119999997317791,
+                    -4.35750007629395
+                  ],
+                  "record_id": "obj_4",
+                  "terrain_height": 0.119999997317791,
+                  "terrain_id": "residential_ground",
+                  "triangle_index": 0.0
+                },
+                "requires_native_placement_validation": true,
+                "scope": "verified_frozen_support_domains",
+                "support_mode": "continuous",
+                "terrain_ids": [
+                  "residential_ground"
+                ],
+                "underfloor_clearances": [],
+                "upper_witness": {
+                  "cell": [
+                    21.0,
+                    28.0
+                  ],
+                  "floor_bottom": 0.0799999907612801,
+                  "foundation_bottom": -1.22000002861023,
+                  "foundation_id": "obj_5/support_triangle_824",
+                  "part": "main/baked_2",
+                  "position": [
+                    3.49999904632568,
+                    0.119999997317791,
+                    -4.35750007629395
+                  ],
+                  "record_id": "obj_4",
+                  "terrain_height": 0.119999997317791,
+                  "terrain_id": "residential_ground",
+                  "triangle_index": 0.0
+                }
+              },
+              "width": 1.6
+            }
+          ],
+          "house_ids": [
+            "obj_140",
+            "obj_141",
+            "obj_142",
+            "obj_143",
+            "obj_144",
+            "obj_145",
+            "obj_146",
+            "obj_147",
+            "obj_148",
+            "obj_149",
+            "obj_150",
+            "obj_151",
+            "obj_152",
+            "obj_153",
+            "obj_154",
+            "obj_155",
+            "obj_156",
+            "obj_157",
+            "obj_158",
+            "obj_159",
+            "obj_160",
+            "obj_161",
+            "obj_162",
+            "obj_163",
+            "obj_164",
+            "obj_165",
+            "obj_166",
+            "obj_167",
+            "obj_168",
+            "obj_169",
+            "obj_170",
+            "obj_171",
+            "obj_172",
+            "obj_173",
+            "obj_174",
+            "obj_175",
+            "obj_176",
+            "obj_177",
+            "obj_178",
+            "obj_179",
+            "obj_180",
+            "obj_181",
+            "obj_182",
+            "obj_183",
+            "obj_184",
+            "obj_185",
+            "obj_186",
+            "obj_187",
+            "obj_188",
+            "obj_189",
+            "obj_190",
+            "obj_191",
+            "obj_192",
+            "obj_193",
+            "obj_194",
+            "obj_195",
+            "obj_196",
+            "obj_197",
+            "obj_198",
+            "obj_199",
+            "obj_200",
+            "obj_201",
+            "obj_202",
+            "obj_203",
+            "obj_204",
+            "obj_205",
+            "obj_206",
+            "obj_207"
+          ],
+          "ok": true,
+          "plan_token": "21cf44649e210fe1e6c1130fedee636e5b853f8153cb6b4e",
+          "publication": {
+            "authoring": "single_synchronous_transaction",
+            "derived": "native_refresh_and_shared_batches"
+          },
+          "road_lineage": {
+            "bridge_link_3adb073b0aed4781": [
+              "bridge_link_3adb073b0aed4781"
+            ],
+            "crossing": [
+              "crossing"
+            ],
+            "far_lane": [
+              "far_lane"
+            ],
+            "main_lane": [
+              "main_lane",
+              "home_233c57f16817f3_tail",
+              "home_a7cea251c44fbd_tail"
+            ]
+          },
+          "terrain": {
+            "changed": true,
+            "changed_cells": 1061.0,
+            "changed_ids": [
+              "residential_ground"
+            ],
+            "ok": true,
+            "road_diff": {
+              "added": 0.0,
+              "removed": 0.0,
+              "unchanged": 5.0,
+              "updated": 0.0
+            },
+            "road_token": "edda5eb773e02e8910df965f88c7611ef284dce6a8f65d65716ca6a3ec65cec1",
+            "samples": 1.0,
+            "terrain_ids": [
+              "residential_ground"
+            ],
+            "updated_road_nodes": []
+          },
+          "terrain_operation_count": 1.0
+        },
+        "title": "多户联合安放"
+      },
+      {
+        "changes": {
+          "added": [],
+          "follower_ids": [],
+          "removed": [],
+          "road_ids": [],
+          "terrain_ids": [],
+          "updated": []
+        },
+        "id": "paving",
+        "operation": "generate_road_surface",
+        "result": {
+          "changed": false,
+          "diff": {
+            "added": 0.0,
+            "removed": 0.0,
+            "unchanged": 9.0,
+            "updated": 0.0
+          },
+          "ok": true
+        },
+        "title": "道路铺面"
+      }
+    ],
+    "terrain_operation_count": 1.0
+  },
+  "kerbs_mode": false,
+  "map_sha256": "c86ed5bb7d0c205e631901f3900f885ed742872022fd03584cca36b8da9604fd",
+  "plan": {
+    "base_version": "ef080b8dc036b91e9ae09b9af6b3ccf839820e8a0e2cf2b6ab7392d9193d2c62",
+    "bounds": {
+      "position": [
+        -24.0,
+        -8.0,
+        -22.0
+      ],
+      "size": [
+        80.0,
+        15.6144409179688,
+        40.0
+      ]
+    },
+    "bridges": {
+      "binding_count": 2.0,
+      "bridgehead_node_ids": [
+        "main_b",
+        "bridge_b",
+        "bridge_link_3adb073b0aed4781_0",
+        "bridge_link_3adb073b0aed4781_1"
+      ],
+      "preserved_ids": [
+        "fixture_bridge",
+        "obj_1",
+        "river_5f5a8ed8f139be6d_water_4_0_0",
+        "river_5f5a8ed8f139be6d_water_4_m1_0",
+        "river_5f5a8ed8f139be6d_water_5_0_0",
+        "river_5f5a8ed8f139be6d_water_5_m1_0",
+        "river_5f5a8ed8f139be6d_bed_4_0_0",
+        "river_5f5a8ed8f139be6d_bed_4_m1_0",
+        "river_5f5a8ed8f139be6d_bed_5_0_0",
+        "river_5f5a8ed8f139be6d_bed_5_m1_0",
+        "river_5f5a8ed8f139be6d_bank_4_0_0",
+        "river_5f5a8ed8f139be6d_bank_4_m1_0",
+        "river_5f5a8ed8f139be6d_bank_5_0_0",
+        "river_5f5a8ed8f139be6d_bank_5_m1_0",
+        "river_5f5a8ed8f139be6d_abutment_4_0_0",
+        "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+        "river_5f5a8ed8f139be6d_abutment_5_0_0",
+        "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+        "river_5f5a8ed8f139be6d_end_0",
+        "river_5f5a8ed8f139be6d_end_1",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+        "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+      ],
+      "waterway_count": 1.0
+    },
+    "building_ids": [
+      "building_07faa0aaea387fe6ca02",
+      "building_2e640d94595221a1d2c8"
+    ],
+    "changed_ids": [
+      "obj_174",
+      "obj_175",
+      "obj_176",
+      "obj_177",
+      "obj_178",
+      "obj_179",
+      "obj_180",
+      "obj_181",
+      "obj_182",
+      "obj_183",
+      "obj_184",
+      "obj_185",
+      "obj_186",
+      "obj_187",
+      "obj_188",
+      "obj_189",
+      "obj_190",
+      "obj_191",
+      "obj_192",
+      "obj_193",
+      "obj_194",
+      "obj_195",
+      "obj_196",
+      "obj_197",
+      "obj_198",
+      "obj_199",
+      "obj_200",
+      "obj_201",
+      "obj_202",
+      "obj_203",
+      "obj_204",
+      "obj_205",
+      "obj_206",
+      "obj_207",
+      "pavement_d7326a6140ad18cda622",
+      "pavement_71070bf904669e866729",
+      "pavement_f0fb5c1dff0ebf342a85",
+      "pavement_b443278a65fb89bbdb3a",
+      "pavement_b9355cde01230326807a",
+      "pavement_6aee355c45cdde10af24",
+      "residential_ground",
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173",
+      "pavement_993600ba1e5c0bde643e",
+      "pavement_9f4cb035258a4eec34b9"
+    ],
+    "changes": {
+      "added": [
+        "obj_174",
+        "obj_175",
+        "obj_176",
+        "obj_177",
+        "obj_178",
+        "obj_179",
+        "obj_180",
+        "obj_181",
+        "obj_182",
+        "obj_183",
+        "obj_184",
+        "obj_185",
+        "obj_186",
+        "obj_187",
+        "obj_188",
+        "obj_189",
+        "obj_190",
+        "obj_191",
+        "obj_192",
+        "obj_193",
+        "obj_194",
+        "obj_195",
+        "obj_196",
+        "obj_197",
+        "obj_198",
+        "obj_199",
+        "obj_200",
+        "obj_201",
+        "obj_202",
+        "obj_203",
+        "obj_204",
+        "obj_205",
+        "obj_206",
+        "obj_207",
+        "pavement_d7326a6140ad18cda622",
+        "pavement_71070bf904669e866729",
+        "pavement_f0fb5c1dff0ebf342a85",
+        "pavement_b443278a65fb89bbdb3a",
+        "pavement_b9355cde01230326807a",
+        "pavement_6aee355c45cdde10af24"
+      ],
+      "follower_ids": [
+        "obj_140",
+        "obj_141",
+        "obj_142",
+        "obj_143",
+        "obj_144",
+        "obj_145",
+        "obj_146",
+        "obj_147",
+        "obj_148",
+        "obj_149",
+        "obj_150",
+        "obj_151",
+        "obj_152",
+        "obj_153",
+        "obj_154",
+        "obj_155",
+        "obj_156",
+        "obj_157",
+        "obj_158",
+        "obj_159",
+        "obj_160",
+        "obj_161",
+        "obj_162",
+        "obj_163",
+        "obj_164",
+        "obj_165",
+        "obj_166",
+        "obj_167",
+        "obj_168",
+        "obj_169",
+        "obj_170",
+        "obj_171",
+        "obj_172",
+        "obj_173"
+      ],
+      "removed": [
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "road_ids": [
+        "pavement_d7326a6140ad18cda622",
+        "pavement_71070bf904669e866729",
+        "pavement_f0fb5c1dff0ebf342a85",
+        "pavement_b443278a65fb89bbdb3a",
+        "pavement_b9355cde01230326807a",
+        "pavement_6aee355c45cdde10af24",
+        "pavement_993600ba1e5c0bde643e",
+        "pavement_9f4cb035258a4eec34b9"
+      ],
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "updated": [
+        "residential_ground",
+        "obj_140",
+        "obj_141",
+        "obj_142",
+        "obj_143",
+        "obj_144",
+        "obj_145",
+        "obj_146",
+        "obj_147",
+        "obj_148",
+        "obj_149",
+        "obj_150",
+        "obj_151",
+        "obj_152",
+        "obj_153",
+        "obj_154",
+        "obj_155",
+        "obj_156",
+        "obj_157",
+        "obj_158",
+        "obj_159",
+        "obj_160",
+        "obj_161",
+        "obj_162",
+        "obj_163",
+        "obj_164",
+        "obj_165",
+        "obj_166",
+        "obj_167",
+        "obj_168",
+        "obj_169",
+        "obj_170",
+        "obj_171",
+        "obj_172",
+        "obj_173"
+      ]
+    },
+    "checks": {
+      "bridge_context": true,
+      "final_combined_save": true,
+      "final_house_geometry": true,
+      "final_per_house_access": true,
+      "runtime_traversal": "requires_runtime_verification"
+    },
+    "earthwork": {
+      "cut_m3": 0.0,
+      "fill_m3": 80.6408656713302,
+      "max_cut_m": 0.0,
+      "max_fill_m": 0.119999997317791,
+      "scope": "all_changed_solid_triangles_including_padding_and_blend"
+    },
+    "homes": [
+      {
+        "access": {
+          "connector_ground": {
+            "area": 12.8208782769125,
+            "area_tolerance": 0.0000001,
+            "conservative": false,
+            "counts": {
+              "cells_scanned": 4096.0,
+              "cells_visited": 119.0,
+              "overlaps": 66.0,
+              "solid_skipped": 3977.0,
+              "terrain_candidates": 1.0,
+              "triangle_clips": 112.0
+            },
+            "covered_area": 12.8208782769125,
+            "exact": true,
+            "grade_witness": {
+              "cell": [
+                9.0,
+                20.0
+              ],
+              "grade": 0.0782815992832184,
+              "position": [
+                -11.6265088192253,
+                0.103974341864712,
+                -8.93825440961267
+              ],
+              "terrain_id": "residential_ground",
+              "triangle_index": 0.0
+            },
+            "height_range": [
+              -0.00000000000000001,
+              0.119999997317791
+            ],
+            "max_grade": 0.0782815992832184,
+            "max_seam_step": 0.0,
+            "ok": true,
+            "scope": "continuous_heightfield_region_only",
+            "seam_witness": {},
+            "stage": "residential_support",
+            "terrain_ids": [
+              "residential_ground"
+            ]
+          },
+          "corridor_width": 0.8,
+          "door_id": "obj_162",
+          "entrance_id": "f0/north/entrance/door",
+          "fixture_id": "f0/north/entrance/door",
+          "intervals": 13.0,
+          "max_grade": 0.0,
+          "max_seam_step": 0.0,
+          "max_step": 0.150000002682209,
+          "ok": true,
+          "terrain_ids": [
+            "residential_ground"
+          ],
+          "threshold": [
+            -11.3155002593994,
+            0.438000023365021,
+            -4.40000009536743
+          ]
+        },
+        "access_binding": {
+          "door": {
+            "id": "home_233c57f16817f3_door",
+            "position": [
+              -11.3155002593994,
+              0.0,
+              -6.90000009536743
+            ]
+          },
+          "edge": {
+            "from": "home_233c57f16817f3_door",
+            "id": "home_233c57f16817f3_access",
+            "kind": "ground",
+            "name": "住宅入户路",
+            "to": "home_233c57f16817f3_join",
+            "width_end": 1.6,
+            "width_start": 1.6
+          },
+          "join": {
+            "id": "home_233c57f16817f3_join",
+            "position": [
+              -9.35599330432888,
+              0.0,
+              -14.6697707903004
+            ]
+          },
+          "position": [
+            -8.0,
+            0.119999997317791,
+            1.0
+          ],
+          "version": 1.0,
+          "yaw": 0.0
+        },
+        "adjustment": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "bounds": {
+          "position": [
+            -12.9650001525879,
+            -1.10000002384186,
+            -5.25
+          ],
+          "size": [
+            9.93000221252441,
+            8.71444129943848,
+            12.2150001525879
+          ]
+        },
+        "bridges": {
+          "binding_count": 2.0,
+          "bridgehead_node_ids": [
+            "main_b",
+            "bridge_b",
+            "bridge_link_3adb073b0aed4781_0",
+            "bridge_link_3adb073b0aed4781_1"
+          ],
+          "preserved_ids": [
+            "fixture_bridge",
+            "obj_1",
+            "river_5f5a8ed8f139be6d_water_4_0_0",
+            "river_5f5a8ed8f139be6d_water_4_m1_0",
+            "river_5f5a8ed8f139be6d_water_5_0_0",
+            "river_5f5a8ed8f139be6d_water_5_m1_0",
+            "river_5f5a8ed8f139be6d_bed_4_0_0",
+            "river_5f5a8ed8f139be6d_bed_4_m1_0",
+            "river_5f5a8ed8f139be6d_bed_5_0_0",
+            "river_5f5a8ed8f139be6d_bed_5_m1_0",
+            "river_5f5a8ed8f139be6d_bank_4_0_0",
+            "river_5f5a8ed8f139be6d_bank_4_m1_0",
+            "river_5f5a8ed8f139be6d_bank_5_0_0",
+            "river_5f5a8ed8f139be6d_bank_5_m1_0",
+            "river_5f5a8ed8f139be6d_abutment_4_0_0",
+            "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+            "river_5f5a8ed8f139be6d_abutment_5_0_0",
+            "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+            "river_5f5a8ed8f139be6d_end_0",
+            "river_5f5a8ed8f139be6d_end_1",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+          ],
+          "waterway_count": 1.0
+        },
+        "building_id": "building_07faa0aaea387fe6ca02",
+        "building_ids": [
+          "building_07faa0aaea387fe6ca02"
+        ],
+        "building_position": [
+          -8.0,
+          0.119999997317791,
+          1.0
+        ],
+        "changed_ids": [
+          "obj_140",
+          "obj_141",
+          "obj_142",
+          "obj_143",
+          "obj_144",
+          "obj_145",
+          "obj_146",
+          "obj_147",
+          "obj_148",
+          "obj_149",
+          "obj_150",
+          "obj_151",
+          "obj_152",
+          "obj_153",
+          "obj_154",
+          "obj_155",
+          "obj_156",
+          "obj_157",
+          "obj_158",
+          "obj_159",
+          "obj_160",
+          "obj_161",
+          "obj_162",
+          "obj_163",
+          "obj_164",
+          "obj_165",
+          "obj_166",
+          "obj_167",
+          "obj_168",
+          "obj_169",
+          "obj_170",
+          "obj_171",
+          "obj_172",
+          "obj_173",
+          "pavement_993600ba1e5c0bde643e",
+          "pavement_9f4cb035258a4eec34b9"
+        ],
+        "checks": {
+          "bridge_context": true,
+          "continuous_support": true,
+          "entrance_corridor": true,
+          "final_block": true,
+          "full_road_graph": true,
+          "native_house_geometry": true,
+          "native_save": true,
+          "runtime_traversal": "requires_runtime_verification"
+        },
+        "house_ids": [
+          "obj_140",
+          "obj_141",
+          "obj_142",
+          "obj_143",
+          "obj_144",
+          "obj_145",
+          "obj_146",
+          "obj_147",
+          "obj_148",
+          "obj_149",
+          "obj_150",
+          "obj_151",
+          "obj_152",
+          "obj_153",
+          "obj_154",
+          "obj_155",
+          "obj_156",
+          "obj_157",
+          "obj_158",
+          "obj_159",
+          "obj_160",
+          "obj_161",
+          "obj_162",
+          "obj_163",
+          "obj_164",
+          "obj_165",
+          "obj_166",
+          "obj_167",
+          "obj_168",
+          "obj_169",
+          "obj_170",
+          "obj_171",
+          "obj_172",
+          "obj_173"
+        ],
+        "id": "home_1",
+        "ok": true,
+        "operation": "relocate",
+        "position": [
+          -8.0,
+          0.119999997317791,
+          1.0
+        ],
+        "relocation": {
+          "building_id": "building_07faa0aaea387fe6ca02",
+          "from_position": [
+            -0.0000009536743164,
+            0.0,
+            0.142499923706055
+          ],
+          "from_yaw": 0.0,
+          "identity_preserved": true,
+          "old_access": {
+            "notice": "全部旧路保留；原入户路解除住宅归属",
+            "policy": "keep",
+            "removed_edge_ids": [],
+            "removed_node_ids": [],
+            "terrain": "preserved_unless_explicitly_graded"
+          }
+        },
+        "requested_road_edge_id": "main_lane",
+        "road_connection": {
+          "child_edge_ids": [
+            "main_lane",
+            "home_233c57f16817f3_tail"
+          ],
+          "edge_id": "main_lane",
+          "join_node_id": "home_233c57f16817f3_join",
+          "kind": "cubic",
+          "parameter": 0.1553955078125,
+          "position": [
+            -9.35599330432888,
+            0.0,
+            -14.6697707903004
+          ],
+          "projection": {
+            "distance_error_bound_m": 0.0001,
+            "endpoint_adjustment_m": 0.0,
+            "nearest_parameter": 0.1553955078125,
+            "nearest_position": [
+              -9.35599330432888,
+              0.0,
+              -14.6697707903004
+            ],
+            "visits": 321.0
+          },
+          "split": true,
+          "tangent": [
+            21.449836730957,
+            0.0,
+            5.41033506393433
+          ],
+          "width": 3.24661865234375
+        },
+        "road_points": [
+          [
+            -11.3155002593994,
+            0.0,
+            -6.90000009536743
+          ],
+          [
+            -9.35599327087402,
+            0.0,
+            -14.669771194458
+          ]
+        ],
+        "search": {
+          "attempts": 1.0,
+          "budget": 11.0,
+          "full_graph_checks": 1.0,
+          "prepare_ms": 1814.117,
+          "step": 0.05
+        },
+        "setback": 2.5,
+        "source_sha256": "cc34391fd01e7a8a43135623a547f8c9375e665644b6c3f9d599c71b95522be7",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 99.0,
+              "covered_area": 99.0,
+              "floor_bottom": 0.0799999907612801,
+              "foundation_bottom": -1.22000002861023,
+              "foundation_id": "obj_143/support_triangle_824",
+              "missing_area": 0.0,
+              "part": "main/baked_2",
+              "record_id": "obj_142",
+              "terrain_range": [
+                0.119999997317791,
+                0.119999997317791
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 4096.0,
+            "cells_visited": 231.0,
+            "overlaps": 288.0,
+            "solid_skipped": 3865.0,
+            "terrain_candidates": 1.0,
+            "triangle_clips": 304.0
+          },
+          "entrance_maximum_y": 0.299999994635582,
+          "excluded_landings": [],
+          "geometric_interval": [
+            0.0400000065565109,
+            1.34000002592802
+          ],
+          "interval": [
+            0.0400000065565109,
+            0.619999997317791
+          ],
+          "lower_witness": {
+            "cell": [
+              9.0,
+              28.0
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "obj_143/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              -12.5,
+              0.119999997317791,
+              -4.5
+            ],
+            "record_id": "obj_142",
+            "terrain_height": 0.119999997317791,
+            "terrain_id": "residential_ground",
+            "triangle_index": 0.0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "verified_frozen_support_domains",
+          "support_mode": "continuous",
+          "terrain_ids": [
+            "residential_ground"
+          ],
+          "underfloor_clearances": [],
+          "upper_witness": {
+            "cell": [
+              9.0,
+              28.0
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "obj_143/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              -12.5,
+              0.119999997317791,
+              -4.5
+            ],
+            "record_id": "obj_142",
+            "terrain_height": 0.119999997317791,
+            "terrain_id": "residential_ground",
+            "triangle_index": 0.0
+          }
+        },
+        "width": 1.6
+      },
+      {
+        "access": {
+          "connector_ground": {
+            "area": 13.1926126344737,
+            "area_tolerance": 0.0000001,
+            "conservative": false,
+            "counts": {
+              "cells_scanned": 4096.0,
+              "cells_visited": 102.0,
+              "overlaps": 64.0,
+              "solid_skipped": 3994.0,
+              "terrain_candidates": 1.0,
+              "triangle_clips": 84.0
+            },
+            "covered_area": 13.1926126344737,
+            "exact": true,
+            "grade_witness": {
+              "cell": [
+                22.0,
+                20.0
+              ],
+              "grade": 0.0782815992832184,
+              "position": [
+                3.50586144855896,
+                0.0602294204425513,
+                -9.49706927572052
+              ],
+              "terrain_id": "residential_ground",
+              "triangle_index": 0.0
+            },
+            "height_range": [
+              -0.00000000000000001,
+              0.119999997317791
+            ],
+            "max_grade": 0.0782815992832184,
+            "max_seam_step": 0.0,
+            "ok": true,
+            "scope": "continuous_heightfield_region_only",
+            "seam_witness": {},
+            "stage": "residential_support",
+            "terrain_ids": [
+              "residential_ground"
+            ]
+          },
+          "corridor_width": 0.8,
+          "door_id": "obj_196",
+          "entrance_id": "f0/north/entrance/door",
+          "fixture_id": "f0/north/entrance/door",
+          "intervals": 13.0,
+          "max_grade": 0.0,
+          "max_seam_step": 0.0,
+          "max_step": 0.150000002682209,
+          "ok": true,
+          "terrain_ids": [
+            "residential_ground"
+          ],
+          "threshold": [
+            4.68449878692627,
+            0.438000023365021,
+            -4.25750017166138
+          ]
+        },
+        "access_binding": {
+          "door": {
+            "id": "home_a7cea251c44fbd_door",
+            "position": [
+              4.68449878692627,
+              0.0,
+              -6.75750017166138
+            ]
+          },
+          "edge": {
+            "from": "home_a7cea251c44fbd_door",
+            "id": "home_a7cea251c44fbd_access",
+            "kind": "ground",
+            "name": "住宅入户路",
+            "to": "home_a7cea251c44fbd_join",
+            "width_end": 1.6,
+            "width_start": 1.6
+          },
+          "join": {
+            "id": "home_a7cea251c44fbd_join",
+            "position": [
+              3.57704284655392,
+              0.0,
+              -14.928172061915
+            ]
+          },
+          "position": [
+            7.99999904632568,
+            0.119999997317791,
+            1.14249992370605
+          ],
+          "version": 1.0,
+          "yaw": 0.0
+        },
+        "adjustment": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "bounds": {
+          "position": [
+            3.03499889373779,
+            -1.10000002384186,
+            -5.10750007629395
+          ],
+          "size": [
+            9.93000221252441,
+            8.71444129943848,
+            12.2150001525879
+          ]
+        },
+        "bridges": {
+          "binding_count": 2.0,
+          "bridgehead_node_ids": [
+            "main_b",
+            "bridge_b",
+            "bridge_link_3adb073b0aed4781_0",
+            "bridge_link_3adb073b0aed4781_1"
+          ],
+          "preserved_ids": [
+            "fixture_bridge",
+            "obj_1",
+            "river_5f5a8ed8f139be6d_water_4_0_0",
+            "river_5f5a8ed8f139be6d_water_4_m1_0",
+            "river_5f5a8ed8f139be6d_water_5_0_0",
+            "river_5f5a8ed8f139be6d_water_5_m1_0",
+            "river_5f5a8ed8f139be6d_bed_4_0_0",
+            "river_5f5a8ed8f139be6d_bed_4_m1_0",
+            "river_5f5a8ed8f139be6d_bed_5_0_0",
+            "river_5f5a8ed8f139be6d_bed_5_m1_0",
+            "river_5f5a8ed8f139be6d_bank_4_0_0",
+            "river_5f5a8ed8f139be6d_bank_4_m1_0",
+            "river_5f5a8ed8f139be6d_bank_5_0_0",
+            "river_5f5a8ed8f139be6d_bank_5_m1_0",
+            "river_5f5a8ed8f139be6d_abutment_4_0_0",
+            "river_5f5a8ed8f139be6d_abutment_4_m1_0",
+            "river_5f5a8ed8f139be6d_abutment_5_0_0",
+            "river_5f5a8ed8f139be6d_abutment_5_m1_0",
+            "river_5f5a8ed8f139be6d_end_0",
+            "river_5f5a8ed8f139be6d_end_1",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+            "river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+          ],
+          "waterway_count": 1.0
+        },
+        "building_id": "building_2e640d94595221a1d2c8",
+        "building_ids": [
+          "building_2e640d94595221a1d2c8"
+        ],
+        "building_position": [
+          7.99999904632568,
+          0.119999997317791,
+          1.14249992370605
+        ],
+        "changed_ids": [
+          "obj_174",
+          "obj_175",
+          "obj_176",
+          "obj_177",
+          "obj_178",
+          "obj_179",
+          "obj_180",
+          "obj_181",
+          "obj_182",
+          "obj_183",
+          "obj_184",
+          "obj_185",
+          "obj_186",
+          "obj_187",
+          "obj_188",
+          "obj_189",
+          "obj_190",
+          "obj_191",
+          "obj_192",
+          "obj_193",
+          "obj_194",
+          "obj_195",
+          "obj_196",
+          "obj_197",
+          "obj_198",
+          "obj_199",
+          "obj_200",
+          "obj_201",
+          "obj_202",
+          "obj_203",
+          "obj_204",
+          "obj_205",
+          "obj_206",
+          "obj_207",
+          "pavement_d7326a6140ad18cda622",
+          "pavement_71070bf904669e866729",
+          "pavement_f0fb5c1dff0ebf342a85",
+          "pavement_b443278a65fb89bbdb3a",
+          "pavement_b9355cde01230326807a",
+          "pavement_6aee355c45cdde10af24",
+          "pavement_993600ba1e5c0bde643e",
+          "pavement_9f4cb035258a4eec34b9"
+        ],
+        "checks": {
+          "bridge_context": true,
+          "continuous_support": true,
+          "entrance_corridor": true,
+          "final_block": true,
+          "full_road_graph": true,
+          "native_house_geometry": true,
+          "native_save": true,
+          "runtime_traversal": "requires_runtime_verification"
+        },
+        "house_ids": [
+          "obj_174",
+          "obj_175",
+          "obj_176",
+          "obj_177",
+          "obj_178",
+          "obj_179",
+          "obj_180",
+          "obj_181",
+          "obj_182",
+          "obj_183",
+          "obj_184",
+          "obj_185",
+          "obj_186",
+          "obj_187",
+          "obj_188",
+          "obj_189",
+          "obj_190",
+          "obj_191",
+          "obj_192",
+          "obj_193",
+          "obj_194",
+          "obj_195",
+          "obj_196",
+          "obj_197",
+          "obj_198",
+          "obj_199",
+          "obj_200",
+          "obj_201",
+          "obj_202",
+          "obj_203",
+          "obj_204",
+          "obj_205",
+          "obj_206",
+          "obj_207"
+        ],
+        "id": "home_2",
+        "ok": true,
+        "operation": "place",
+        "position": [
+          8.0,
+          0.119999997317791,
+          1.0
+        ],
+        "requested_road_edge_id": "main_lane",
+        "road_connection": {
+          "child_edge_ids": [
+            "home_233c57f16817f3_tail",
+            "home_a7cea251c44fbd_tail"
+          ],
+          "edge_id": "home_233c57f16817f3_tail",
+          "join_node_id": "home_a7cea251c44fbd_join",
+          "kind": "cubic",
+          "parameter": 0.55084228515625,
+          "position": [
+            3.57704284655392,
+            0.0,
+            -14.928172061915
+          ],
+          "projection": {
+            "distance_error_bound_m": 0.0001,
+            "endpoint_adjustment_m": 0.0,
+            "nearest_parameter": 0.55084228515625,
+            "nearest_position": [
+              3.57704284655392,
+              0.0,
+              -14.928172061915
+            ],
+            "visits": 228.0
+          },
+          "split": true,
+          "tangent": [
+            24.4530944824219,
+            0.0,
+            -3.3140025138855
+          ],
+          "width": 3.38619181290269
+        },
+        "road_points": [
+          [
+            4.68449878692627,
+            0.0,
+            -6.75750017166138
+          ],
+          [
+            3.57704281806946,
+            0.0,
+            -14.9281721115112
+          ]
+        ],
+        "search": {
+          "attempts": 1.0,
+          "budget": 11.0,
+          "full_graph_checks": 1.0,
+          "prepare_ms": 2345.085,
+          "step": 0.05
+        },
+        "setback": 2.5,
+        "source_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+        "support": {
+          "area_tolerance": 0.0000001,
+          "components": [
+            {
+              "area": 99.0,
+              "covered_area": 98.9999999999961,
+              "floor_bottom": 0.0799999907612801,
+              "foundation_bottom": -1.22000002861023,
+              "foundation_id": "obj_5/support_triangle_824",
+              "missing_area": 0.0,
+              "part": "main/baked_2",
+              "record_id": "obj_4",
+              "terrain_range": [
+                0.119999997317791,
+                0.119999997317791
+              ]
+            }
+          ],
+          "counts": {
+            "cells_scanned": 4096.0,
+            "cells_visited": 252.0,
+            "overlaps": 305.0,
+            "solid_skipped": 3844.0,
+            "terrain_candidates": 1.0,
+            "triangle_clips": 324.0
+          },
+          "entrance_maximum_y": 0.299999994635582,
+          "excluded_landings": [],
+          "geometric_interval": [
+            0.0400000065565109,
+            1.34000002592802
+          ],
+          "interval": [
+            0.0400000065565109,
+            0.619999997317791
+          ],
+          "lower_witness": {
+            "cell": [
+              21.0,
+              28.0
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "obj_5/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              3.49999904632568,
+              0.119999997317791,
+              -4.35750007629395
+            ],
+            "record_id": "obj_4",
+            "terrain_height": 0.119999997317791,
+            "terrain_id": "residential_ground",
+            "triangle_index": 0.0
+          },
+          "requires_native_placement_validation": true,
+          "scope": "verified_frozen_support_domains",
+          "support_mode": "continuous",
+          "terrain_ids": [
+            "residential_ground"
+          ],
+          "underfloor_clearances": [],
+          "upper_witness": {
+            "cell": [
+              21.0,
+              28.0
+            ],
+            "floor_bottom": 0.0799999907612801,
+            "foundation_bottom": -1.22000002861023,
+            "foundation_id": "obj_5/support_triangle_824",
+            "part": "main/baked_2",
+            "position": [
+              3.49999904632568,
+              0.119999997317791,
+              -4.35750007629395
+            ],
+            "record_id": "obj_4",
+            "terrain_height": 0.119999997317791,
+            "terrain_id": "residential_ground",
+            "triangle_index": 0.0
+          }
+        },
+        "width": 1.6
+      }
+    ],
+    "house_ids": [
+      "obj_140",
+      "obj_141",
+      "obj_142",
+      "obj_143",
+      "obj_144",
+      "obj_145",
+      "obj_146",
+      "obj_147",
+      "obj_148",
+      "obj_149",
+      "obj_150",
+      "obj_151",
+      "obj_152",
+      "obj_153",
+      "obj_154",
+      "obj_155",
+      "obj_156",
+      "obj_157",
+      "obj_158",
+      "obj_159",
+      "obj_160",
+      "obj_161",
+      "obj_162",
+      "obj_163",
+      "obj_164",
+      "obj_165",
+      "obj_166",
+      "obj_167",
+      "obj_168",
+      "obj_169",
+      "obj_170",
+      "obj_171",
+      "obj_172",
+      "obj_173",
+      "obj_174",
+      "obj_175",
+      "obj_176",
+      "obj_177",
+      "obj_178",
+      "obj_179",
+      "obj_180",
+      "obj_181",
+      "obj_182",
+      "obj_183",
+      "obj_184",
+      "obj_185",
+      "obj_186",
+      "obj_187",
+      "obj_188",
+      "obj_189",
+      "obj_190",
+      "obj_191",
+      "obj_192",
+      "obj_193",
+      "obj_194",
+      "obj_195",
+      "obj_196",
+      "obj_197",
+      "obj_198",
+      "obj_199",
+      "obj_200",
+      "obj_201",
+      "obj_202",
+      "obj_203",
+      "obj_204",
+      "obj_205",
+      "obj_206",
+      "obj_207"
+    ],
+    "ok": true,
+    "plan_token": "21cf44649e210fe1e6c1130fedee636e5b853f8153cb6b4e",
+    "publication": {
+      "authoring": "single_synchronous_transaction",
+      "derived": "native_refresh_and_shared_batches"
+    },
+    "road_lineage": {
+      "bridge_link_3adb073b0aed4781": [
+        "bridge_link_3adb073b0aed4781"
+      ],
+      "crossing": [
+        "crossing"
+      ],
+      "far_lane": [
+        "far_lane"
+      ],
+      "main_lane": [
+        "main_lane",
+        "home_233c57f16817f3_tail",
+        "home_a7cea251c44fbd_tail"
+      ]
+    },
+    "terrain": {
+      "changed": true,
+      "changed_cells": 1061.0,
+      "changed_ids": [
+        "residential_ground"
+      ],
+      "ok": true,
+      "road_diff": {
+        "added": 0.0,
+        "removed": 0.0,
+        "unchanged": 5.0,
+        "updated": 0.0
+      },
+      "road_token": "edda5eb773e02e8910df965f88c7611ef284dce6a8f65d65716ca6a3ec65cec1",
+      "samples": 1.0,
+      "terrain_ids": [
+        "residential_ground"
+      ],
+      "updated_road_nodes": []
+    },
+    "terrain_operation_count": 1.0
+  },
+  "request": {
+    "steps": [
+      {
+        "id": "homes",
+        "preview_residential_block": {
+          "homes": [
+            {
+              "id": "home_1",
+              "residential": {
+                "building_id": "building_07faa0aaea387fe6ca02",
+                "elevation_max": 0.5,
+                "elevation_min": -0.5,
+                "position": [
+                  -8.0,
+                  0.12,
+                  1.0
+                ],
+                "road_edge_id": "main_lane",
+                "setback_max": 3.0,
+                "setback_min": 2.5,
+                "width": 1.6,
+                "yaw": 0.0
+              }
+            },
+            {
+              "id": "home_2",
+              "residential": {
+                "asset_id": "D:/code/rmmo_runtime/__residential_curves_9652_12782842/assets/prefabs/08a8616fcac50b9f2cf22002a2883e24a24a79da81e295adf6e213b54116927f.json",
+                "elevation_max": 0.5,
+                "elevation_min": -0.5,
+                "position": [
+                  8.0,
+                  0.12,
+                  1.0
+                ],
+                "road_edge_id": "main_lane",
+                "setback_max": 3.0,
+                "setback_min": 2.5,
+                "width": 1.6,
+                "yaw": 0.0
+              }
+            }
+          ],
+          "terrain": {
+            "strokes": [
+              {
+                "blend_margin": 2.0,
+                "cross_tiles": true,
+                "id": "residential_ground",
+                "mode": "flatten",
+                "plot_depth": 19.0,
+                "plot_grade": [
+                  0.0,
+                  0.0
+                ],
+                "plot_width": 30.0,
+                "plot_yaw": 0.0,
+                "points": [
+                  [
+                    0.0,
+                    1.0
+                  ]
+                ],
+                "shape": "rectangle",
+                "strength": 1.0,
+                "target_height": 0.12
+              }
+            ]
+          }
+        }
+      },
+      {
+        "generate_road_surface": {
+          "clearance": 3.0,
+          "follow_terrain": true,
+          "kerb_enabled": true,
+          "kerb_height": 0.055,
+          "kerb_material_id": "pack:default:paving/automatic_limestone_kerb/material",
+          "kerb_width": 0.28,
+          "lift": 0.025,
+          "material_id": "",
+          "thickness": 0.2
+        },
+        "id": "paving"
+      }
+    ]
+  },
+  "runtime_verified": false,
+  "source_graph": {
+    "edges": [
+      {
+        "controls": [
+          [
+            -8.0,
+            0.0,
+            -12.0
+          ],
+          [
+            8.0,
+            0.0,
+            -16.0
+          ]
+        ],
+        "from": "main_a",
+        "id": "main_lane",
+        "kind": "ground",
+        "to": "main_b",
+        "width_end": 3.5,
+        "width_start": 3.2
+      },
+      {
+        "from": "main_b",
+        "id": "crossing",
+        "kind": "bridge",
+        "stone_bridge": {
+          "end": [
+            30.0,
+            0.025,
+            -16.0
+          ],
+          "id": "fixture_bridge",
+          "signature": "fe28fbc3ddd8af4e934c75e16415c7cb8908ade58ab7b751960a3cc4ac711476",
+          "source_token": "a001ed3eab84e5286355736d63fdc931527b965a9a4f528e423cfe8d78a9f7ed",
+          "start": [
+            18.0,
+            0.025,
+            -16.0
+          ],
+          "width": 5.2
+        },
+        "to": "bridge_b",
+        "width_end": 4.0,
+        "width_start": 4.0
+      },
+      {
+        "from": "far_a",
+        "id": "far_lane",
+        "kind": "ground",
+        "to": "far_b",
+        "width_end": 3.5,
+        "width_start": 3.5
+      },
+      {
+        "bridge_ref": {
+          "bridge_id": "crossing",
+          "waterway_id": "river"
+        },
+        "from": "bridge_link_3adb073b0aed4781_0",
+        "id": "bridge_link_3adb073b0aed4781",
+        "kind": "bridge",
+        "name": "城镇河道 · 桥梁通行",
+        "to": "bridge_link_3adb073b0aed4781_1",
+        "width_end": 4.4,
+        "width_start": 4.4
+      }
+    ],
+    "nodes": [
+      {
+        "id": "main_a",
+        "position": [
+          -12.0,
+          0.0,
+          -16.0
+        ]
+      },
+      {
+        "id": "main_b",
+        "position": [
+          12.0,
+          0.0,
+          -16.0
+        ]
+      },
+      {
+        "id": "bridge_b",
+        "position": [
+          36.0,
+          0.0,
+          -16.0
+        ]
+      },
+      {
+        "id": "far_a",
+        "position": [
+          78.0,
+          0.0,
+          -12.0
+        ]
+      },
+      {
+        "id": "far_b",
+        "position": [
+          102.0,
+          0.0,
+          -12.0
+        ]
+      },
+      {
+        "id": "bridge_link_3adb073b0aed4781_0",
+        "position": [
+          171.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "id": "bridge_link_3adb073b0aed4781_1",
+        "position": [
+          149.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+{
+	"checks": [
+		{
+			"label": "UI uses passing joint map as read-only source",
+			"ok": true
+		},
+		{
+			"label": "UI edits separate temporary native map",
+			"ok": true
+		},
+		{
+			"label": "UI regression loopback starts",
+			"ok": true
+		},
+		{
+			"label": "HTTP set_editor_camera succeeds",
+			"ok": true
+		},
+		{
+			"label": "UI previews actual changed road meshes",
+			"ok": true
+		},
+		{
+			"label": "visible UI ghosts preserve live author records",
+			"ok": true
+		},
+		{
+			"label": "UI snapshots native panel arguments",
+			"ok": true
+		},
+		{
+			"label": "UI reorders steps",
+			"ok": true
+		},
+		{
+			"label": "UI replaces selected step without adding",
+			"ok": true
+		},
+		{
+			"label": "UI removes selected step",
+			"ok": true
+		},
+		{
+			"label": "UI uses shared preview and apply lifecycle",
+			"ok": true
+		},
+		{
+			"label": "queue mutation invalidates preview",
+			"ok": true
+		},
+		{
+			"label": "document revision invalidates UI preview",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "UI shared apply clears completed queue",
+			"ok": true
+		},
+		{
+			"label": "UI apply publishes the previewed native material change",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/cache/world3d/joint_ui_23948_15523707",
+	"engine": "4.7.2-stable (official)",
+	"evidence": {},
+	"failures": 0,
+	"map_path": "D:/code/rmmo_runtime/cache/world3d/joint_ui_23948_15523707/map.gltf"
+}

@@ -1,0 +1,144 @@
+{
+  "date": "2026-10-17",
+  "feature": "bounded_cross_tool_joint_candidates",
+  "base_commit": "04bb655ed9c1dbdf22d134212e6add6fa5902f6a",
+  "branch": "codex/editor-reliability",
+  "source_sha256_lf": {
+    "scripts/world_editor/joint_candidate_tools.gd": "abf6cfe16a5b137487a043f39281c2611dcd54c0a7a37ef5e594dfa41280b320",
+    "scripts/world_editor/joint_candidate_context.gd": "ae9c6a39469c933ef1ae1d13acce430a0915bde03242628a114cf0d23b49bd66",
+    "scripts/world_editor/joint_candidate_panel.gd": "fe2cc1974896ce0d30f4f48c4d852c1fcd7bfd50ab076f0ae6baa597dc8303e6",
+    "scripts/world_editor/mcp_schema.gd": "febae7bc5b9fac2a6a3f56e083c4691d8472be12bbabd35472c26689f23a4086",
+    "scripts/world_editor/mcp_ops.gd": "eaa7f43a6748f4cd45e1400ee17df3b2aef96cabc14b2cc5bed830c3b970ce1f",
+    "scripts/world_editor/world_editor.gd": "6aa02cd892c28d67921504fc6fd22f7d45b57cb3703a612f84f06410851f75ac",
+    "scripts/world_editor/city_panel.gd": "6046610784e34512dcb0b286d68a303ade0d1e91965e8aaaf7ade4095e118922",
+    "tools/test_joint_candidate_http.gd": "dd3a2d030ad038b6ce9c5803f16c860a6064e7e9c8dd291439c04e1d889b1d77",
+    "tools/test_joint_candidate_ui.gd": "b6a368ab3ddb25f54c0671bd9983ff254347ecddd29ca9898e0ee02ef0ea2bb0",
+    "tools/test_joint_residential_http.gd": "0140bb4b4bc866b5a25c739ab60f23bb473e1aef9104a43d052b4331031f2250",
+    "tools/test_joint_generators_http.gd": "8b16f0417a644793f3b1cf1de88876219908fe9d0e85152f243a33ecf780321b",
+    "tools/test_residential_block_runtime.gd": "5f147a66513a5769da830e1e715085240dfa5e6139eeddcd21deeca71b517aa1"
+  },
+  "validation": {
+    "suites": {
+      "http": {
+        "checks": 76,
+        "failures": 0,
+        "report": "http.json"
+      },
+      "residential": {
+        "checks": 58,
+        "failures": 0,
+        "report": "residential.json"
+      },
+      "generators": {
+        "checks": 27,
+        "failures": 0,
+        "report": "generators.json"
+      },
+      "runtime": {
+        "checks": 28,
+        "failures": 0,
+        "report": "runtime.json"
+      },
+      "ui": {
+        "checks": 17,
+        "failures": 0,
+        "report": "ui.json"
+      }
+    },
+    "total_checks": 206,
+    "failures": 0,
+    "executor": "tools/run_godot_background.py; non-activating Windows desktop; unique temporary maps; loopback HTTP"
+  },
+  "execution_identity_notes": [
+    "http/residential/runtime used execution_sources.json; subsequent UI labels/layout and screenshot scrolling were separately verified by ui.json and ui_execution_sources.json.",
+    "generators used generators_execution_sources.json; the only later core change copies validated no-motion block metadata, exercised by the final block/http suite."
+  ],
+  "limits": {
+    "operations": 17,
+    "steps": 64,
+    "homes": 16,
+    "changed_objects": 8192,
+    "snapshot_bytes": 268435456,
+    "terrain_strokes": 64,
+    "terrain_work_samples": 2000000,
+    "changed_terrain_cells": 262144
+  },
+  "scope": [
+    "Native synchronous authoring transaction; private native operations and history.",
+    "Final ramp, road, bridge, affected building, saved entrance, block reservation and vegetation checks.",
+    "38 operations, late failure, invalid/stale/tampered/resource/protected requests, one undo/redo, save/reopen, live UI meshes and shared static batches.",
+    "Runtime native saved colliders and production capsule movement: two homes, curved street and adjacent bridge; exterior only.",
+    "No new art delivered, no production map edits, no scene worktree switch, no performance optimization resumed.",
+    "No asynchronous critical publication protocol added; asynchronous fault/reentrant edit recovery remains future work if that protocol is introduced."
+  ],
+  "ui": {
+    "screenshot": "ui.webp",
+    "viewed_header": "RIFF/WEBPVP8 ",
+    "forwarded_mime": "image/webp",
+    "compression": "compression.json",
+    "review": "queue order/actions, real 12-record preview, result and apply button visible; no avatar overlay"
+  },
+  "publication_receipt": "D:/code/rmmo_runtime/review_artifacts/joint_candidate_20261017/publication.json",
+  "artifacts": {
+    "compression.json": {
+      "sha256": "9ac484b9ba3d6acc4bceae5ec50722eee61a32928e9cc38fdf1f4e9389bbf3bc",
+      "bytes": 207
+    },
+    "execution_sources.json": {
+      "sha256": "f6003c4b795ec34a4eda0c667d620904af917c2a673bd4069260e4c2ccd8b3c0",
+      "bytes": 1244
+    },
+    "generators.json": {
+      "sha256": "8c93163e3a02ef3deb3385e74f1f8dc69338edf71a407a75a6aca837d83a0f1e",
+      "bytes": 14894
+    },
+    "generators_engine.log": {
+      "sha256": "48d2912749abe21a084bdc78ad359607f1c3931d91b4b8dd92e0ad70b754a97f",
+      "bytes": 1602
+    },
+    "generators_execution_sources.json": {
+      "sha256": "d5cedc757a88ef832144e350203ebdeb21865b1672633f4ed9ae87a7995cfd53",
+      "bytes": 1246
+    },
+    "http.json": {
+      "sha256": "afa7ce0ed899e3eb8888b8219ad7213cb925b4d249a0adacc8b5da571c068e29",
+      "bytes": 27378
+    },
+    "http_engine.log": {
+      "sha256": "880e4475f26dfee7615bfe71d9738d5fe6e38468f833c73dd03303244a22f312",
+      "bytes": 4241
+    },
+    "residential.json": {
+      "sha256": "d13aec385074203580216300c61fd6e6b9a3eea2bbf4d632d978aa0b6d5bd074",
+      "bytes": 93006
+    },
+    "residential_engine.log": {
+      "sha256": "ebbbf2d19aebd23411df33e401081a2a33eb264a97fa825c7d6ec42214e8179c",
+      "bytes": 4018
+    },
+    "runtime.json": {
+      "sha256": "806440c623f89b7015788b1041b233333b9a01f719c32eed5e2b3fe1254664a5",
+      "bytes": 3003
+    },
+    "runtime_engine.log": {
+      "sha256": "5451b01d423abe2ba50189007d8c053920cff4ad30daa005d3b625d07f82aecc",
+      "bytes": 2904
+    },
+    "ui.json": {
+      "sha256": "529a1ade0318e78c7f51d3c7691de9698a54763474cff8ba3aad4690f7c39950",
+      "bytes": 1579
+    },
+    "ui.webp": {
+      "sha256": "f5e68329cd52fe6a82b19d847b2952180945318b3af7acf920d7e3a9626ddbd7",
+      "bytes": 87006
+    },
+    "ui_engine.log": {
+      "sha256": "8a5988fa86354f9ada4453761fe1f591409aafddea47de32c348ae82295ed0c6",
+      "bytes": 1053
+    },
+    "ui_execution_sources.json": {
+      "sha256": "7b28e16fee258f7736ff0f3afc47ecffb8b9bc633ea39ea1c5843a7d63f44dc0",
+      "bytes": 1353
+    }
+  }
+}

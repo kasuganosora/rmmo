@@ -23,6 +23,7 @@ var scatter_panel: VBoxContainer
 var waterway_panel: VBoxContainer
 var bridge_panel: VBoxContainer
 var fortification_panel: VBoxContainer
+var joint_panel: VBoxContainer
 var tab_index := 9
 
 func button(parent: Node, label_: String, action: Callable) -> Button:
@@ -96,6 +97,7 @@ func setup(host: Node3D, fortification_parent: Node = null) -> void:
 	(fortification_parent if fortification_parent != null else self).add_child(fortification_panel)
 	fortification_panel.setup(self)
 	button(self,"打开城防面板…",func(): editor._dock_tabs.current_tab=11)
+	joint_panel=preload("res://scripts/world_editor/joint_candidate_panel.gd").new(); add_child(joint_panel); joint_panel.setup(self)
 	diagnostics=note(self,"")
 	refresh()
 

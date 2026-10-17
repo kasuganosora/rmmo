@@ -1,0 +1,666 @@
+{
+	"checks": [
+		{
+			"label": "temporary logical scatter fixture exported",
+			"ok": true
+		},
+		{
+			"label": "temporary asset imported natively",
+			"ok": true
+		},
+		{
+			"label": "independent generator fixture saved",
+			"ok": true
+		},
+		{
+			"label": "private generator HTTP starts",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_terrain succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP create_terrain succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "later grading cannot invalidate earlier endpoint-height ramp",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "seven native generators remain private during preview",
+			"ok": true
+		},
+		{
+			"label": "terrain, ramps, river, both bridge types, walls and scatter share one candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: apply_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "rejection leaves document/history intact: preview_joint_candidate",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "HTTP apply_joint_candidate succeeds",
+			"ok": true
+		},
+		{
+			"label": "all seven generators commit once",
+			"ok": true
+		},
+		{
+			"label": "HTTP preview_joint_candidate rejects invalid operation",
+			"ok": true
+		},
+		{
+			"label": "later no-vegetation zone cannot strand an earlier scatter result",
+			"ok": true
+		},
+		{
+			"label": "native ownership manifests preserved",
+			"ok": true
+		},
+		{
+			"label": "HTTP undo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one undo restores every generator",
+			"ok": true
+		},
+		{
+			"label": "HTTP redo succeeds",
+			"ok": true
+		},
+		{
+			"label": "one redo restores stable generated identities",
+			"ok": true
+		},
+		{
+			"label": "HTTP save_world succeeds",
+			"ok": true
+		},
+		{
+			"label": "multi-generator native save round trip",
+			"ok": true
+		}
+	],
+	"directory": "D:/code/rmmo_runtime/__joint_generators_22604_14718483",
+	"engine": "4.7.2-stable (official)",
+	"evidence": {
+		"plan": {
+			"base_version": "84bd97c3656de81370689c646621691140f19c0158b50423edf3f1395f3ac918",
+			"bounds": {
+				"position": [
+					-90.0,
+					-16.0,
+					-40.0
+				],
+				"size": [
+					204.0,
+					25.8999996185303,
+					118.03018951416
+				]
+			},
+			"changed": true,
+			"changed_ids": [
+				"river_5f5a8ed8f139be6d_water_m2_0_0",
+				"river_5f5a8ed8f139be6d_water_m2_m1_0",
+				"river_5f5a8ed8f139be6d_bed_m2_0_0",
+				"river_5f5a8ed8f139be6d_bed_m2_m1_0",
+				"river_5f5a8ed8f139be6d_bank_m2_0_0",
+				"river_5f5a8ed8f139be6d_bank_m2_m1_0",
+				"river_5f5a8ed8f139be6d_abutment_m2_0_0",
+				"river_5f5a8ed8f139be6d_abutment_m2_m1_0",
+				"river_5f5a8ed8f139be6d_end_0",
+				"river_5f5a8ed8f139be6d_end_1",
+				"river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+				"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+				"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1",
+				"arch",
+				"fort_4d8aaa64f68587b1_baked_0",
+				"fort_4d8aaa64f68587b1_baked_1",
+				"vegetation_8a0e7f923a4d3e55_0",
+				"vegetation_8a0e7f923a4d3e55_1",
+				"vegetation_8a0e7f923a4d3e55_2",
+				"vegetation_8a0e7f923a4d3e55_3",
+				"obj_1",
+				"terrain_d9ca58ff14f657a30bbcbee7"
+			],
+			"changes": {
+				"added": [
+					"river_5f5a8ed8f139be6d_water_m2_0_0",
+					"river_5f5a8ed8f139be6d_water_m2_m1_0",
+					"river_5f5a8ed8f139be6d_bed_m2_0_0",
+					"river_5f5a8ed8f139be6d_bed_m2_m1_0",
+					"river_5f5a8ed8f139be6d_bank_m2_0_0",
+					"river_5f5a8ed8f139be6d_bank_m2_m1_0",
+					"river_5f5a8ed8f139be6d_abutment_m2_0_0",
+					"river_5f5a8ed8f139be6d_abutment_m2_m1_0",
+					"river_5f5a8ed8f139be6d_end_0",
+					"river_5f5a8ed8f139be6d_end_1",
+					"river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+					"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+					"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1",
+					"arch",
+					"fort_4d8aaa64f68587b1_baked_0",
+					"fort_4d8aaa64f68587b1_baked_1",
+					"vegetation_8a0e7f923a4d3e55_0",
+					"vegetation_8a0e7f923a4d3e55_1",
+					"vegetation_8a0e7f923a4d3e55_2",
+					"vegetation_8a0e7f923a4d3e55_3"
+				],
+				"follower_ids": [
+					"obj_1"
+				],
+				"removed": [],
+				"road_ids": [],
+				"terrain_ids": [
+					"terrain_d9ca58ff14f657a30bbcbee7"
+				],
+				"updated": [
+					"obj_1",
+					"terrain_d9ca58ff14f657a30bbcbee7"
+				]
+			},
+			"checks": {
+				"bridge_context": true,
+				"final_block_reservations": true,
+				"final_building_geometry": true,
+				"final_ramps": true,
+				"final_residential_access": true,
+				"final_road_graph": true,
+				"final_vegetation": true,
+				"native_save": true,
+				"ok": true
+			},
+			"finalization_changes": {
+				"added": [],
+				"follower_ids": [],
+				"removed": [],
+				"road_ids": [],
+				"terrain_ids": [],
+				"updated": []
+			},
+			"house_ids": [],
+			"ok": true,
+			"plan_token": "80e4801957afec3fa0b23df84f81f30c01f239b036bd16b1",
+			"publication": {
+				"authoring": "single_synchronous_transaction",
+				"derived": "native_refresh_and_shared_batches",
+				"runtime": "requires_runtime_verification"
+			},
+			"step_count": 7.0,
+			"steps": [
+				{
+					"changes": {
+						"added": [],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"updated": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						]
+					},
+					"id": "grade",
+					"operation": "apply_terrain_layout",
+					"result": {
+						"changed": true,
+						"changed_cells": 144.0,
+						"changed_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"ok": true,
+						"road_diff": {
+							"added": 0.0,
+							"removed": 0.0,
+							"unchanged": 0.0,
+							"updated": 0.0
+						},
+						"road_token": "57501e5c6808b3e14852a4ea21dc7873abf9409032a06f9b740c973e83f62cf7",
+						"samples": 1.0,
+						"terrain_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"updated_road_nodes": []
+					},
+					"title": "联合整地"
+				},
+				{
+					"changes": {
+						"added": [],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"updated": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						]
+					},
+					"id": "ramp",
+					"operation": "apply_terrain_ramp",
+					"result": {
+						"affected_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"blend_margin": 1.0,
+						"changed": true,
+						"changed_cells": 72.0,
+						"changed_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"corridor": [
+							[
+								56.0,
+								-4.0
+							],
+							[
+								64.0,
+								-4.0
+							],
+							[
+								64.0,
+								-2.0
+							],
+							[
+								56.0,
+								-2.0
+							]
+						],
+						"earthwork": {
+							"cut_m3": 0.0,
+							"fill_m3": 2.78931103274226,
+							"max_cut_m": 0.0,
+							"max_fill_m": 0.118934005498886,
+							"scope": "all_changed_solid_triangles_including_padding_and_blend"
+						},
+						"end": [
+							64.0,
+							0.15,
+							-3.0
+						],
+						"grade": 0.0,
+						"grid_padding": 1.41421353816986,
+						"height_tolerance": 0.0002,
+						"length": 8.0,
+						"max_grade": 0.0,
+						"max_height_error": 0.00000000596046448,
+						"max_seam_step": 0.0,
+						"ok": true,
+						"road_diff": {
+							"added": 0.0,
+							"removed": 0.0,
+							"unchanged": 0.0,
+							"updated": 0.0
+						},
+						"road_token": "57501e5c6808b3e14852a4ea21dc7873abf9409032a06f9b740c973e83f62cf7",
+						"samples": 1.0,
+						"scope": "full_width_native_heightfield; outer_blend_not_walkability_certified",
+						"start": [
+							56.0,
+							0.15,
+							-3.0
+						],
+						"terrain_ids": [
+							"terrain_d9ca58ff14f657a30bbcbee7"
+						],
+						"token": "6024aa8f4831a9737927de8beae6a5dc8dbd888023d66565c088b3d1c5680e84",
+						"updated_road_nodes": [],
+						"width": 2.0
+					},
+					"title": "两端定高坡道"
+				},
+				{
+					"changes": {
+						"added": [
+							"river_5f5a8ed8f139be6d_water_m2_0_0",
+							"river_5f5a8ed8f139be6d_water_m2_m1_0",
+							"river_5f5a8ed8f139be6d_bed_m2_0_0",
+							"river_5f5a8ed8f139be6d_bed_m2_m1_0",
+							"river_5f5a8ed8f139be6d_bank_m2_0_0",
+							"river_5f5a8ed8f139be6d_bank_m2_m1_0",
+							"river_5f5a8ed8f139be6d_abutment_m2_0_0",
+							"river_5f5a8ed8f139be6d_abutment_m2_m1_0",
+							"river_5f5a8ed8f139be6d_end_0",
+							"river_5f5a8ed8f139be6d_end_1",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+						],
+						"follower_ids": [
+							"obj_1"
+						],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [],
+						"updated": [
+							"obj_1"
+						]
+					},
+					"id": "river",
+					"operation": "generate_waterway",
+					"result": {
+						"changed": true,
+						"chunks": 14.0,
+						"ids": [
+							"obj_1",
+							"river_5f5a8ed8f139be6d_water_m2_0_0",
+							"river_5f5a8ed8f139be6d_water_m2_m1_0",
+							"river_5f5a8ed8f139be6d_bed_m2_0_0",
+							"river_5f5a8ed8f139be6d_bed_m2_m1_0",
+							"river_5f5a8ed8f139be6d_bank_m2_0_0",
+							"river_5f5a8ed8f139be6d_bank_m2_m1_0",
+							"river_5f5a8ed8f139be6d_abutment_m2_0_0",
+							"river_5f5a8ed8f139be6d_abutment_m2_m1_0",
+							"river_5f5a8ed8f139be6d_end_0",
+							"river_5f5a8ed8f139be6d_end_1",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1",
+							"river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1"
+						],
+						"ok": true
+					},
+					"title": "河道与河岸"
+				},
+				{
+					"changes": {
+						"added": [],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [],
+						"updated": []
+					},
+					"id": "connect",
+					"operation": "connect_waterway_bridge",
+					"result": {
+						"changed": true,
+						"edge_id": "bridge_link_3adb073b0aed4781",
+						"endpoints": [
+							[
+								-39.0,
+								0.0,
+								0.0
+							],
+							[
+								-61.0,
+								0.0,
+								0.0
+							]
+						],
+						"nodes": [
+							"bridge_link_3adb073b0aed4781_0",
+							"bridge_link_3adb073b0aed4781_1"
+						],
+						"ok": true,
+						"width": 4.4
+					},
+					"title": "河道桥梁接路"
+				},
+				{
+					"changes": {
+						"added": [
+							"arch"
+						],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [],
+						"updated": []
+					},
+					"id": "arch",
+					"operation": "generate_bridge",
+					"result": {
+						"arches": 1.0,
+						"changed": true,
+						"id": "arch",
+						"ok": true
+					},
+					"title": "桥梁"
+				},
+				{
+					"changes": {
+						"added": [
+							"fort_4d8aaa64f68587b1_baked_0",
+							"fort_4d8aaa64f68587b1_baked_1"
+						],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [],
+						"updated": []
+					},
+					"id": "wall",
+					"operation": "generate_fortification",
+					"result": {
+						"changed": true,
+						"count": 2.0,
+						"ids": [
+							"fort_4d8aaa64f68587b1_baked_0",
+							"fort_4d8aaa64f68587b1_baked_1"
+						],
+						"ok": true
+					},
+					"title": "城防"
+				},
+				{
+					"changes": {
+						"added": [
+							"vegetation_8a0e7f923a4d3e55_0",
+							"vegetation_8a0e7f923a4d3e55_1",
+							"vegetation_8a0e7f923a4d3e55_2",
+							"vegetation_8a0e7f923a4d3e55_3"
+						],
+						"follower_ids": [],
+						"removed": [],
+						"road_ids": [],
+						"terrain_ids": [],
+						"updated": []
+					},
+					"id": "grove",
+					"operation": "generate_vegetation_scatter",
+					"result": {
+						"changed": true,
+						"count": 4.0,
+						"ids": [
+							"vegetation_8a0e7f923a4d3e55_0",
+							"vegetation_8a0e7f923a4d3e55_1",
+							"vegetation_8a0e7f923a4d3e55_2",
+							"vegetation_8a0e7f923a4d3e55_3"
+						],
+						"ok": true,
+						"shortfall": 0.0
+					},
+					"title": "区域植被"
+				}
+			],
+			"terrain_operation_count": 2.0
+		},
+		"request": {
+			"steps": [
+				{
+					"apply_terrain_layout": {
+						"strokes": [
+							{
+								"blend_margin": 2.0,
+								"id": "terrain_d9ca58ff14f657a30bbcbee7",
+								"mode": "flatten",
+								"plot_depth": 8.0,
+								"plot_width": 8.0,
+								"points": [
+									[
+										60.0,
+										0.0
+									]
+								],
+								"shape": "rectangle",
+								"strength": 1.0,
+								"target_height": 0.15
+							}
+						]
+					},
+					"id": "grade"
+				},
+				{
+					"apply_terrain_ramp": {
+						"blend_margin": 1.0,
+						"end": [
+							64.0,
+							0.15,
+							-3.0
+						],
+						"id": "terrain_d9ca58ff14f657a30bbcbee7",
+						"start": [
+							56.0,
+							0.15,
+							-3.0
+						],
+						"width": 2.0
+					},
+					"id": "ramp"
+				},
+				{
+					"generate_waterway": {
+						"bridges": [
+							{
+								"approach": 3.0,
+								"id": "crossing",
+								"prefab_id": "legacy_flat",
+								"rail_height": 1.1,
+								"segment": 0,
+								"t": 0.5,
+								"width": 5.0
+							}
+						],
+						"ground_ids": [
+							"obj_1"
+						],
+						"id": "river",
+						"points": [
+							[
+								-50,
+								-25
+							],
+							[
+								-50,
+								25
+							]
+						]
+					},
+					"id": "river"
+				},
+				{
+					"connect_waterway_bridge": {
+						"bridge_id": "crossing",
+						"waterway_id": "river"
+					},
+					"id": "connect"
+				},
+				{
+					"generate_bridge": {
+						"arches": 1,
+						"auto_clearance": false,
+						"camber": 0.0,
+						"clearance_mode": "stream",
+						"depth": 1.5,
+						"end": [
+							114,
+							8.2,
+							0
+						],
+						"id": "arch",
+						"prefab_id": "stone_segmental",
+						"start": [
+							106,
+							8.2,
+							0
+						],
+						"width": 6.2,
+						"wing_length": 0.0
+					},
+					"id": "arch"
+				},
+				{
+					"generate_fortification": {
+						"closed": false,
+						"corner_towers": false,
+						"id": "wall",
+						"points": [
+							[
+								-20,
+								70
+							],
+							[
+								20,
+								70
+							]
+						],
+						"style": "plain",
+						"wall_access": false
+					},
+					"id": "wall"
+				},
+				{
+					"generate_vegetation_scatter": {
+						"asset_ids": [
+							"D:/code/rmmo_runtime/__joint_generators_22604_14718483/assets/ef95aebc789c0ef2d2fd16501d9cea3d2f31e8004a4a04b9aac76afbb97cbf75.glb"
+						],
+						"count": 4,
+						"id": "grove",
+						"polygon": [
+							[
+								50,
+								50
+							],
+							[
+								80,
+								50
+							],
+							[
+								80,
+								80
+							],
+							[
+								50,
+								80
+							]
+						],
+						"seed": 5
+					},
+					"id": "grove"
+				}
+			]
+		}
+	},
+	"failures": 0,
+	"map_path": "D:/code/rmmo_runtime/__joint_generators_22604_14718483/maps/test/map.gltf"
+}

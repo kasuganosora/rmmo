@@ -124,6 +124,10 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"get_city_blocks": return editor._blocks.catalog()
 		"preview_block_buildings": return editor._blocks.summary(args)
 		"generate_block_buildings": return editor._blocks.generate(args)
+		"list_joint_candidate_operations": return {"ok":true,"operations":editor._joint_candidate.catalog()}
+		"preview_joint_candidate": return editor._joint_candidate.preview(args)
+		"apply_joint_candidate": return editor._joint_candidate.apply(args)
+		"discard_joint_candidate": return editor._joint_candidate.discard(args.plan_token)
 		"preview_block_update": return editor._block_update.preview(args)
 		"apply_block_update": return editor._block_update.apply(args)
 		"discard_block_update": return editor._block_update.discard(args.plan_token)
