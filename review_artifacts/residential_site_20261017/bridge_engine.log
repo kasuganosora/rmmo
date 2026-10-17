@@ -1,0 +1,107 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: passing residential fixture is available read-only
+PASS: disposable native map saved outside scene checkout
+PASS: independent loopback HTTP service starts
+PASS: current 3D residential tools discovered; retired 2D stays absent
+PASS: HTTP import_surface_material succeeds
+PASS: HTTP generate_bridge succeeds
+PASS: existing native bridge recipe uses frozen geometry
+PASS: kerb volume inside broad bridge bounds can use actual open approach space
+PASS: kerb volume entering bridge body keeps conservative rejection
+PASS: unknown frozen bridge collision cannot waive a kerb conflict
+PASS: kerb volume touching actual frozen wing geometry remains rejected
+PASS: HTTP generate_waterway succeeds
+PASS: HTTP connect_waterway_bridge succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: generated retains actual native kerb profiles and mesh vertices
+PASS: generated retains valid kerb material dependencies
+PASS: HTTP save_world succeeds
+PASS: HTTP preview_residential_placement succeeds
+PASS: preview of mixed stone_bridge and bridge_ref graph has no authored side effects
+PASS: preview reports verified mixed bridge ownership
+PASS: bridge and river records are excluded from write set
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: unsupported
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: unsupported
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: search_exhausted
+PASS: rejection is atomic: preview_residential_placement
+PASS: direct bridgehead join is explained, not silently replanned
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: bridge_context_invalid
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: source_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: validated residential source remains unchanged
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: real obstacle across new access corridor still rejects
+PASS: blocker is a real temporary authored record
+PASS: UI offers ordinary ground target inside mixed bridge graph
+PASS: UI filters both bound bridge target kinds using shared predicate
+PASS: HTTP preview_residential_placement succeeds
+PASS: actual UI preview and HTTP share geometry and bridge checks
+PASS: UI bridge-aware preview stays private
+PASS: UI reports preserved bridge bindings
+PASS: UI commits house and access road once
+PASS: UI apply: terrain, bridge, waterway and distant road values and identities preserved
+PASS: UI apply: waterway recipe and ownership preserved
+PASS: UI apply: native bridge binding and source signature preserved
+PASS: HTTP undo succeeds
+PASS: HTTP undo reverses UI transaction including road graph
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement succeeds
+PASS: HTTP commits one native transaction
+PASS: HTTP apply: terrain, bridge, waterway and distant road values and identities preserved
+PASS: HTTP apply: waterway recipe and ownership preserved
+PASS: HTTP apply: native bridge binding and source signature preserved
+PASS: applied retains actual native kerb profiles and mesh vertices
+PASS: applied retains valid kerb material dependencies
+PASS: applied includes kerbs in the changed house-approach road scope
+PASS: HTTP undo succeeds
+PASS: undo restores full mixed bridge graph
+PASS: HTTP redo succeeds
+PASS: redo restores exact identities and values
+PASS: shared static rendering completes with actual surface reduction
+PASS: all house members retain editable identity after batching
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen retains house, road, bridge and river authored values within 1e-10 serialization precision
+PASS: reopen: terrain, bridge, waterway and distant road values and identities preserved
+PASS: reopen: waterway recipe and ownership preserved
+PASS: reopen: native bridge binding and source signature preserved
+PASS: reopened retains actual native kerb profiles and mesh vertices
+PASS: reopened retains valid kerb material dependencies
+PASS: reopened includes kerbs in the changed house-approach road scope
+PASS: native save/reopen preserves actual kerb geometry and material identity
+PASS: reopened mixed bridge map passes native save validation
+RESIDENTIAL_PLACEMENT_HTTP D:/code/rmmo_runtime/review_artifacts/residential_site_20261017/bridge_http.json failures=0

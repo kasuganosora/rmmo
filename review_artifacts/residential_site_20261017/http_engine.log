@@ -1,0 +1,133 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: prior mixed bridge fixture is verified read-only
+PASS: validated frozen house read without regeneration
+PASS: native prefab copy and resources confined to new pack
+PASS: temporary hill and mixed bridge baseline saved
+PASS: independent 3D loopback HTTP starts
+PASS: all three site tools discovered without retired 2D tools
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: ungraded hill fails continuous residential support, not an unrelated precondition
+PASS: HTTP preview_residential_site succeeds
+PASS: terrain, house and road preview leaves live map/history/selection/dirty unchanged
+PASS: complete combined candidate passes native terrain, house, road and bridge checks
+PASS: preview exposes real cut/fill and the changed terrain
+PASS: final combined terrain retains full-width endpoint ramp proof
+PASS: preview contains complete house and actual access road changes
+PASS: HTTP preview_residential_site succeeds
+PASS: identical source and request reuse the same candidate
+PASS: HTTP discard_residential_site succeeds
+PASS: discard keeps all live state unchanged
+PASS: HTTP apply_residential_site rejects invalid operation
+PASS: specific rejection: candidate_missing
+PASS: rejection is atomic: apply_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: final-state obstruction was a real temporary object
+PASS: HTTP preview_residential_site succeeds
+PASS: 34 terrain steps prepare despite full 32-entry live history
+PASS: 34 private steps do not consume live history
+PASS: HTTP apply_residential_site succeeds
+PASS: HTTP undo succeeds
+PASS: single undo restores the outer start after 34 internal steps
+PASS: HTTP preview_residential_site rejects invalid operation
+PASS: rejection is atomic: preview_residential_site
+PASS: HTTP preview_residential_site succeeds
+PASS: HTTP apply_residential_site rejects invalid operation
+PASS: specific rejection: candidate_invalid
+PASS: rejection is atomic: apply_residential_site
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_residential_site rejects invalid operation
+PASS: specific rejection: candidate_missing
+PASS: rejection is atomic: apply_residential_site
+PASS: failed candidate never rolls back a subsequent edit
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_site succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_residential_site rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_site
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_site succeeds
+PASS: HTTP apply_residential_site rejects invalid operation
+PASS: specific rejection: source_changed
+PASS: rejection is atomic: apply_residential_site
+PASS: copied house source restored exactly; original asset never edited
+PASS: UI selects the same house and ground road
+PASS: actual UI emits the same plot and endpoint ramp request as MCP
+PASS: HTTP preview_residential_site succeeds
+PASS: real UI preview agrees with HTTP final geometry and changes
+PASS: UI combined preview is private
+PASS: UI shows combined geometry, earthwork and explicit change list
+PASS: HTTP set_editor_camera succeeds
+PASS: UI screenshot uses actual lossy WebP quality 90
+PASS: editing a terrain field invalidates the whole candidate
+PASS: actual UI applies the full site once
+PASS: HTTP undo succeeds
+PASS: single HTTP undo restores UI terrain, house and road transaction
+PASS: HTTP preview_residential_site succeeds
+PASS: HTTP apply_residential_site succeeds
+PASS: HTTP commits exactly one outer history entry
+PASS: publication has pending derived groups with independent source geometry
+PASS: empty derived worker result keeps real independent source meshes
+PASS: derived failure never rolls back accepted authoring or history
+PASS: HTTP set_object_properties succeeds
+PASS: later edit survives after failed derived publication
+PASS: HTTP undo succeeds
+PASS: out-of-scope record preserved: far_ground
+PASS: out-of-scope record preserved: fixture_bridge
+PASS: out-of-scope record preserved: obj_1
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_water_4_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_water_4_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_water_5_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_water_5_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_4_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_4_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_5_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bed_5_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_4_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_4_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_5_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bank_5_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_4_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_4_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_5_0_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_abutment_5_m1_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_end_0
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_end_1
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1
+PASS: out-of-scope record preserved: river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1
+PASS: out-of-scope record preserved: pavement_bf2adbf77bde4c66c808
+PASS: out-of-scope record preserved: pavement_65ed056dbc0335a35ab7
+PASS: out-of-scope record preserved: pavement_a3f5a158b3909322d69f
+PASS: grading and access retain bridge and waterway authored identity
+PASS: HTTP undo succeeds
+PASS: undo restores complete site baseline
+PASS: HTTP redo succeeds
+PASS: redo restores exact complete site identities
+PASS: native shared batching completes and reduces surfaces
+PASS: house components retain independent identities after publication
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: complete site survives native save/reopen within serialization precision
+PASS: reopened site passes full native validation
+PASS: source mixed-bridge fixture stays byte-identical
+RESIDENTIAL_PLACEMENT_HTTP D:/code/rmmo_runtime/review_artifacts/residential_site_20261017/http.json failures=0

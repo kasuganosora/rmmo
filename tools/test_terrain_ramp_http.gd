@@ -2,7 +2,7 @@ extends "res://tools/test_world3d_mcp.gd"
 const Ramp=preload("res://scripts/world_editor/terrain_ramp_tools.gd")
 const T=preload("res://scripts/world3d/terrain_surface.gd")
 const City=preload("res://scripts/world3d/city_layout.gd")
-const OUT="D:/code/rmmo_runtime/review_artifacts/terrain_ramp_20261017"
+var OUT="D:/code/rmmo_runtime/review_artifacts/terrain_ramp_20261017"
 var evidence:Array=[]
 func snapshot()->Dictionary:
 	var value:Dictionary=editor._doc.recovery_snapshot()
@@ -15,6 +15,8 @@ func rejected(tool:String,args:Dictionary,label:String)->Dictionary:
 	evidence.append({"case":label,"result":result});return result
 func run()->void:
 	create_timer(360).timeout.connect(func():print("TERRAIN_RAMP_HTTP_TIMEOUT");quit(2));rpc_timeout_ms=90000;root.size=Vector2i(1600,1000)
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--output="):OUT=argument.trim_prefix("--output=")
 	DirAccess.make_dir_recursive_absolute(OUT)
 	var directory:=Paths.cache_directory("terrain_ramp_http_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)
 	var path:=directory.path_join("map.gltf");check(Doc.new().save(path)==OK,"isolated native map created")

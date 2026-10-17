@@ -272,10 +272,51 @@ WASD 行走、Shift 加速、空格跳跃、右键拖动转向、滚轮调距离
 | 沿街普通、中世纪、城中村建筑规划与生成 | `preview_street_buildings`、`generate_street_buildings` |
 | 矩形区域内随机单栋/成片建筑，避让已有物体 | `preview_region_buildings`、`generate_region_buildings` |
 | 冻结住宅与入户路候选、一次应用／放弃 | `preview_residential_placement`、`apply_residential_placement`、`discard_residential_placement` |
+| 整地＋住宅＋入户路联合候选、一次应用／放弃 | `preview_residential_site`、`apply_residential_site`、`discard_residential_site` |
 
 ## 语义与示例
 
 完整工具清单以当前服务 `tools/list` 为准。参数化建筑的外观/室内一致性、批量生成和修改保护见 [world_editor_buildings.md](world_editor_buildings.md)。楼层隔离、指定出生点和临时试玩见 [world_editor_playtest_floors.md](world_editor_playtest_floors.md)。事件模板、环境与人物遮挡轮廓见 [world_editor_events_environment.md](world_editor_events_environment.md)。高差、楼梯、屋顶、桥栏杆和自定义套件见 [world_editor_height_terrain.md](world_editor_height_terrain.md)。贴地、表面放置和排列的参数、完整组规则及接触精度边界见 [world_editor_placement.md](world_editor_placement.md)。这四项均使用当前选择，共享撤销事务，返回实际修改的 `changed_ids`。草稿/关闭工具见 [world_editor_recovery.md](world_editor_recovery.md)；材质库、选面、刷面及恢复原材质见 [world_editor_surface_materials.md](world_editor_surface_materials.md)。
+
+### 整地住宅与入户路联合候选
+
+2026-10-17：建筑页开启「同时整地：联合预览与一次应用」与以下三个当前 3D 工具使用同一 `residential_site_tools.gd`，不启用二维入口。先用 `list_assets`、`list_terrains`、`get_city_layout` 取得住宅、地形及道路的有效 ID。示例坐标仅说明格式，实际住宅入口与整地范围须匹配：
+
+```json
+{
+  "name": "preview_residential_site",
+  "arguments": {
+    "residential": {
+      "asset_id": "<冻结住宅 ID>",
+      "position": [0, 0, 0],
+      "road_edge_id": "<普通直线 ground 道路 ID>",
+      "elevation_min": -0.5, "elevation_max": 0.5,
+      "setback_min": 0.8, "setback_max": 3, "width": 1.6
+    },
+    "terrain": {
+      "strokes": [{
+        "id": "<高度场 ID>", "mode": "flatten", "shape": "rectangle",
+        "points": [[0, 1]], "plot_width": 24, "plot_depth": 22,
+        "plot_yaw": 0, "plot_grade": [0, 0], "target_height": 0.25,
+        "strength": 1, "blend_margin": 2, "cross_tiles": true
+      }],
+      "ramp": {
+        "id": "<高度场 ID>", "start": [-3.316, 0.25, -8],
+        "end": [-3.316, 0, -16], "width": 2,
+        "blend_margin": 1, "cross_tiles": true
+      }
+    }
+  }
+}
+```
+
+`residential` 与 `preview_residential_placement` 的参数、默认值和有界搜索相同。`terrain.strokes` 为 0–64 个单中心矩形 flatten，沿用原生宽深／坡度／强度／柔边和跨块约束；可省略。`terrain.ramp` 可选，参数沿用 `preview_terrain_ramp`，但不接受独立 `expected_token`；最后执行，整组矩形加坡道合计必须为 1–64 项。全组共享 2,000,000 工作顶点、262,144 变化格预算。可选 `terrain.road_nodes:[{id,position}]` 只调整最多 64 个不重复的已有节点；非空时必须同时提供当前 `terrain.expected_road_token`（来自 `get_city_layout` 的 `road_token`）。不允许通过该入口增加骨架节点或更改受保护桥头。
+
+预览只在私有文档内计算，先形成最终地形再运行住宅与完整路网校验。成功返回 `plan_token/base_version`、原住宅摘要，以及 `earthwork`、`terrain_operation_count`、`changes.{added,updated,removed,terrain_ids,road_ids,follower_ids}`、`changed_ids/bounds`；`terrain` 包含整地阶段影响、`updated_road_nodes/road_diff` 及可选最终 `ramp` 全宽证明。整地阶段的 `terrain.road_token` 不是组合接路后的骨架版本，应用后以 `get_city_layout` 重新读取。挖填是原图到最终地形的净变化积分。失败保留 `code/error/stage/last_failure` 和原检查的见证，不发布中间状态。
+
+`apply_residential_site {"plan_token":"<预览 token>"}` 仅接受同一会话的有效候选；资源字节、文档版本或隔离设置变化时无副作用拒绝，提交前另校验缓存完整性和原生保存结构。整地、住宅、道路和跟随构件同步提交为一次作者事务，可一次 undo/redo，之后仍需 `save_world`。`discard_residential_site` 接受同一 token，不改变地图、选择或历史。UI 参数变化自动丢弃旧预览。`publication` 明示同步作者提交与原生派生刷新／共享合批；派生合批空结果保留独立原网格，不回退已接受的作者记录或覆盖后续编辑。
+
+既有住宅、普通高度场和桥梁保护边界继续生效；单个坡道净宽的证明不包含外围柔边。`checks.runtime_traversal` 与 `publication.runtime` 继续为 `requires_runtime_verification`，不把生成成功当成任意场景已完成玩家行走。[真实 UI／HTTP 128 项、保存后双向物理行走 11 项及回归证据](../review_artifacts/residential_site_20261017/evidence.json)全部通过；地图、素材、端口和图形桌面独立，没有修改正式场景。
 
 ### 冻结住宅与入户路候选
 

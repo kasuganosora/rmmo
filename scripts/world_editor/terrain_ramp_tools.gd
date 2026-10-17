@@ -75,7 +75,8 @@ static func request_token(editor:Node3D,args:Dictionary)->String:
 	var inputs:=args.duplicate();inputs.erase("expected_token")
 	return City.token({"request":inputs,"document":editor._doc.get_instance_id(),"revision":editor._doc.authoring_revision,"records":editor._doc.records,"meta":editor._doc.map_meta})
 
-static func prepare(editor:Node3D,args:Dictionary)->Dictionary:
+## Shared recipe and final-state proof also serve the residential site candidate.
+static func recipe(editor:Node3D,args:Dictionary)->Dictionary:
 	var error:=T.S.validate(args,schema())
 	if not error.is_empty():return fail(error)
 	var token:=request_token(editor,args)
@@ -101,10 +102,12 @@ static func prepare(editor:Node3D,args:Dictionary)->Dictionary:
 	# native triangle vertex on the target plane, including both endpoint edges.
 	if length+2*padding>64 or args.width+2*padding>64:return fail("网格过粗，端点约束所需平台超出 64 米范围，请细化地形或缩短坡道")
 	var stroke:={"id":args.id,"mode":"flatten","shape":"rectangle","points":[[(args.start[0]+args.end[0])*.5,(args.start[2]+args.end[2])*.5]],"plot_width":length+2*padding,"plot_depth":args.width+2*padding,"plot_yaw":-rad_to_deg(atan2(dz,dx)),"plot_grade":[grade,0.],"target_height":(args.start[1]+args.end[1])*.5,"strength":1.,"blend_margin":args.blend_margin,"cross_tiles":args.get("cross_tiles",true)}
-	var result:=Layout.prepare(editor,{"strokes":[stroke]})
-	if not result.ok:return result
-	var candidate:=Layout.Doc.new();candidate.records=result.get("records",editor._doc.records)
-	var proof:=region(candidate,polygon)
+	return {"ok":true,"stroke":stroke,"token":token,"polygon":polygon,"grade":grade,"length":length,"padding":padding}
+
+static func prove(before,after,args:Dictionary,prepared:Dictionary,terrain_ids:Array)->Dictionary:
+	var polygon:Array=prepared.polygon;var grade:float=prepared.grade;var length:float=prepared.length
+	var dx:float=args.end[0]-args.start[0];var dz:float=args.end[2]-args.start[2]
+	var proof:=region(after,polygon)
 	if not proof.ok:proof.erase("origin");return proof
 	var max_error:=0.;var max_grade:=0.
 	for piece:Dictionary in proof.pieces:
@@ -120,7 +123,17 @@ static func prepare(editor:Node3D,args:Dictionary)->Dictionary:
 	var seams:=Support.seam_steps(proof.pieces,proof.origin)
 	if not seams.ok:return seams
 	if max_error>HEIGHT_TOLERANCE or max_grade>MAX_GRADE+0.00001 or seams.max_step>HEIGHT_TOLERANCE:return fail("实际地形未满足两端标高、全宽坡度或接缝约束；请调整范围或网格",{"max_height_error":max_error,"max_grade":max_grade,"max_seam_step":seams.max_step})
-	result.merge({"token":token,"start":args.start,"end":args.end,"length":length,"width":args.width,"grade":grade,"max_grade":max_grade,"max_height_error":max_error,"height_tolerance":HEIGHT_TOLERANCE,"max_seam_step":seams.max_step,"corridor":polygon,"grid_padding":padding,"blend_margin":args.blend_margin,"affected_ids":result.changed_ids,"earthwork":earthwork(editor._doc,candidate,result.terrain_ids),"scope":"full_width_native_heightfield; outer_blend_not_walkability_certified"})
+	return {"ok":true,"token":prepared.token,"start":args.start,"end":args.end,"length":length,"width":args.width,"grade":grade,"max_grade":max_grade,"max_height_error":max_error,"height_tolerance":HEIGHT_TOLERANCE,"max_seam_step":seams.max_step,"corridor":polygon,"grid_padding":prepared.padding,"blend_margin":args.blend_margin,"earthwork":earthwork(before,after,terrain_ids),"scope":"full_width_native_heightfield; outer_blend_not_walkability_certified"}
+
+static func prepare(editor:Node3D,args:Dictionary)->Dictionary:
+	var planned:=recipe(editor,args)
+	if not planned.ok:return planned
+	var result:=Layout.prepare(editor,{"strokes":[planned.stroke]})
+	if not result.ok:return result
+	var candidate:=Layout.Doc.new();candidate.records=result.get("records",editor._doc.records)
+	var proof:=prove(editor._doc,candidate,args,planned,result.terrain_ids)
+	if not proof.ok:return proof
+	result.merge(proof,true);result.affected_ids=result.changed_ids
 	return result
 
 ## Integrate the positive/negative linear height delta over each native triangle.

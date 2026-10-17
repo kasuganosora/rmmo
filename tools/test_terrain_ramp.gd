@@ -38,6 +38,9 @@ func _initialize()->void:
 	raised.records=[next]
 	var earth:=Ramp.earthwork(original,raised,["ground"])
 	check(absf(earth.fill_m3-16.)<.000001 and earth.cut_m3==0 and earth.max_fill_m==1.,"earthwork respects vertical scale and native cell area")
-	var directory:="D:/code/rmmo_runtime/review_artifacts/terrain_ramp_20261017";DirAccess.make_dir_recursive_absolute(directory)
+	var directory:="D:/code/rmmo_runtime/review_artifacts/terrain_ramp_20261017"
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--output="):directory=argument.trim_prefix("--output=")
+	DirAccess.make_dir_recursive_absolute(directory)
 	FileAccess.open(directory+"/logic.json",FileAccess.WRITE).store_string(JSON.stringify({"checks":checks,"failures":failures},"\t"))
 	print("TERRAIN_RAMP_LOGIC checks=",checks," failures=",failures);quit(1 if failures else 0)

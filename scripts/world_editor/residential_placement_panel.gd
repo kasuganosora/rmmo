@@ -17,6 +17,11 @@ var feedback: Label
 var plan_token := ""
 var last_result: Dictionary = {}
 var ghost: Node3D
+var site_enabled:CheckButton
+var site_draft:VBoxContainer
+var changes_view:TextEdit
+var preview_doc_id:=0
+var preview_revision:=-1
 
 func setup(owner: VBoxContainer) -> void:
 	panel=owner; editor=panel.editor
@@ -27,7 +32,7 @@ func setup(owner: VBoxContainer) -> void:
 		body.visible=open
 		if open: refresh_catalogs()
 	)
-	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线地面道路。路网须已有沿地形铺面，可包含已绑定桥梁；保持桥梁和河道不变，不直接接入桥面或桥头节点。在允许范围内检查标高和门前退距，保留邻物与地形。")
+	note(body,"选择已烘焙的单栋 townhouse／hall 住宅与普通直线地面道路。路网须已有沿地形铺面，可包含已绑定桥梁；保持桥梁和河道不变，不直接接入桥面或桥头节点。在允许范围内检查标高和门前退距，保留邻物；默认保留地形，也可开启下方联合整地。")
 	note(body,"住宅预制件（当前与共享素材库）")
 	asset_choice=OptionButton.new(); asset_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(asset_choice)
 	var row:=HBoxContainer.new(); body.add_child(row)
@@ -39,12 +44,21 @@ func setup(owner: VBoxContainer) -> void:
 	values.merge(Placement.defaults(),true); values.erase("asset_id"); values.erase("road_edge_id")
 	form.build(Placement.request_schema(),values,{"position":"住宅原点 XYZ（米）","yaw":"附加旋转（度）","elevation_min":"允许降低至（相对输入 Y，米）","elevation_max":"允许升高至（相对输入 Y，米）","setback_min":"门前退距下限（米）","setback_max":"门前退距上限（米）","width":"入户路宽度（米）"})
 	action(body,"取画面中心表面坐标",use_view_center)
+	site_enabled=CheckButton.new();site_enabled.text="同时整地：联合预览与一次应用";body.add_child(site_enabled)
+	site_draft=preload("res://scripts/world_editor/residential_site_panel.gd").new();body.add_child(site_draft);site_draft.setup(self);site_draft.hide()
+	site_draft.changed.connect(invalidate_preview)
+	site_enabled.toggled.connect(func(value):
+		invalidate_preview();site_draft.visible=value
+		if value and site_draft.plots.is_empty() and not site_draft.ramp_enabled.button_pressed:site_draft.add_plot()
+	)
+
 	row=HBoxContainer.new(); body.add_child(row)
 	preview_button=action(row,"预览并检查",preview)
 	apply_button=action(row,"应用整套方案",apply_candidate); apply_button.disabled=true
 	discard_button=action(row,"放弃预览",discard_preview); discard_button.disabled=true
 	focus_button=action(body,"定位结果／冲突",focus_result); focus_button.disabled=true
 	feedback=note(body,"先选择住宅与道路，再预览。预制件的住宅结构由共享校验确认。")
+	changes_view=TextEdit.new();changes_view.editable=false;changes_view.custom_minimum_size.y=140;changes_view.wrap_mode=TextEdit.LINE_WRAPPING_BOUNDARY;body.add_child(changes_view);changes_view.hide()
 	asset_choice.item_selected.connect(func(_i): invalidate_preview())
 	road_choice.item_selected.connect(func(_i): invalidate_preview())
 	for control in form.fields.values():
@@ -64,6 +78,7 @@ func selected(control: OptionButton) -> String:
 
 func refresh_catalogs() -> void:
 	if asset_choice==null or road_choice==null: return
+	if site_draft!=null:site_draft.refresh_catalogs()
 	var asset_id:=selected(asset_choice); var road_id:=selected(road_choice)
 	asset_choice.clear(); asset_choice.add_item("请选择住宅预制件"); asset_choice.set_item_metadata(0,"")
 	for entry:Dictionary in editor.asset_items():
@@ -81,7 +96,10 @@ func refresh_catalogs() -> void:
 func request() -> Dictionary:
 	var result:Dictionary=form.values()
 	result.asset_id=selected(asset_choice); result.road_edge_id=selected(road_choice)
-	return result
+	return {"residential":result,"terrain":site_draft.request()} if site_enabled.button_pressed else result
+
+func service():
+	return editor._residential_site if site_enabled.button_pressed else editor._residential
 
 func use_selected_asset() -> void:
 	refresh_catalogs()
@@ -106,10 +124,11 @@ func preview() -> void:
 	# Flush a number still being typed before capturing the request.
 	var args:=request()
 	panel.clear_preview()
-	var result:Dictionary=editor._residential.preview(args)
+	var result:Dictionary=service().preview(args)
 	if result.ok:
 		plan_token=str(result.plan_token)
-		show_visual(editor._residential.preview_visual(plan_token))
+		show_visual(service().preview_visual(plan_token))
+		preview_doc_id=editor._doc.get_instance_id();preview_revision=editor._doc.authoring_revision
 		apply_button.disabled=false; discard_button.disabled=false
 	report(result)
 
@@ -117,8 +136,9 @@ func show_visual(records: Array) -> void:
 	if records.is_empty(): return
 	ghost=Node3D.new(); ghost.name="ResidentialPlacementPreview"; editor.add_child(ghost)
 	for record:Dictionary in records:
-		var visual:MeshInstance3D=editor._doc._mesh(record)
-		visual.transparency=.4; visual.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var visual:Node3D=editor._doc._asset(record) if record.get("kind")=="asset" else editor._doc._mesh(record)
+		for mesh:MeshInstance3D in editor._doc.SurfaceMaterials.meshes(visual):
+			mesh.transparency=.4;mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ghost.add_child(visual)
 	# Preview meshes have no physics bodies and are outside the selectable view.
 
@@ -126,19 +146,23 @@ func apply_candidate() -> void:
 	# Applying a pending SpinBox edit triggers invalidation before this guard.
 	form.values()
 	if plan_token.is_empty(): report({"ok":false,"error":"请先预览当前参数。"}); return
-	var result:Dictionary=editor._residential.apply({"plan_token":plan_token})
+	if site_enabled.button_pressed:site_draft.request()
+	if plan_token.is_empty():report({"ok":false,"error":"参数已变化，请重新预览。"});return
+	var result:Dictionary=service().apply({"plan_token":plan_token})
 	invalidate_preview("")
 	report(result,true)
 
 func invalidate_preview(message: String="参数已变化，请重新预览。") -> void:
 	var had_preview:=not plan_token.is_empty()
-	if had_preview and is_instance_valid(editor): editor._residential.discard(plan_token)
+	if had_preview and is_instance_valid(editor):
+		editor._residential.discard(plan_token);editor._residential_site.discard(plan_token)
 	plan_token=""
 	if is_instance_valid(ghost): ghost.free()
 	ghost=null
 	if apply_button!=null: apply_button.disabled=true
 	if discard_button!=null: discard_button.disabled=true
 	last_result={}
+	if changes_view!=null:changes_view.hide();changes_view.text=""
 	if focus_button!=null: focus_button.disabled=true
 	if not message.is_empty() and feedback!=null: feedback.text=message; editor._status.text=message
 
@@ -156,6 +180,11 @@ func report(result: Dictionary, applied: bool=false) -> void:
 			if p.size()==3: text_+="\n最终位置：%.3f, %.3f, %.3f 米"%[p[0],p[1],p[2]]
 			if delta.size()==3: text_+=" · 标高调整 %+.3f 米"%float(delta[1])
 			text_+="\n门前退距 %.2f 米 · 路宽 %.2f 米"%[float(result.get("setback",0)),float(result.get("width",0))]
+		if result.has("changes"):
+			var work:Dictionary=result.earthwork;var changes:Dictionary=result.changes
+			text_+=("\n整地、住宅与接路已一起应用。" if applied else "\n最终整地与住宅接路联合检查通过。")
+			text_+="\n挖方 %.2f m³ / 填方 %.2f m³ · 整地 %d 项\n新增 %d / 修改 %d / 删除 %d 个对象"%[work.cut_m3,work.fill_m3,result.terrain_operation_count,changes.added.size(),changes.updated.size(),changes.removed.size()]
+			changes_view.text="新增：\n"+"\n".join(changes.added)+"\n修改：\n"+"\n".join(changes.updated)+"\n删除：\n"+"\n".join(changes.removed)+"\n道路影响：\n"+"\n".join(changes.road_ids)+"\n跟随构件：\n"+"\n".join(changes.follower_ids);changes_view.show()
 		var bridge_count:int=result.get("bridges",{}).get("binding_count",0)
 		if bridge_count>0:text_+="\n已校验并保留 %d 处桥梁绑定及关联河道。"%bridge_count
 	else:
@@ -195,6 +224,9 @@ func focus_result() -> void:
 	if not records.is_empty():
 		var bounds:=preload("res://scripts/world_editor/selection_geometry.gd").bounds(records)
 		panel.frame({"position":Blueprint.arr(bounds.position),"size":Blueprint.arr(bounds.size)})
+
+func _process(_delta:float)->void:
+	if not plan_token.is_empty() and (preview_doc_id!=editor._doc.get_instance_id() or preview_revision!=editor._doc.authoring_revision):invalidate_preview("地图已变化，请重新预览。")
 
 func _exit_tree() -> void:
 	invalidate_preview("")

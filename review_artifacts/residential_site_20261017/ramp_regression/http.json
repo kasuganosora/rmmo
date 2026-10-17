@@ -1,0 +1,461 @@
+{
+	"apply": {
+		"affected_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96",
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"blend_margin": 2.0,
+		"changed": true,
+		"changed_cells": 201.0,
+		"changed_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96",
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"corridor": [
+			[
+				-6.13435271088773,
+				-1.79082560201043
+			],
+			[
+				6.46564728911227,
+				-0.390825602010428
+			],
+			[
+				6.13435271088773,
+				2.59082560201043
+			],
+			[
+				-6.46564728911227,
+				1.19082560201043
+			]
+		],
+		"earthwork": {
+			"cut_m3": 7.38219952505659,
+			"fill_m3": 139.757805116829,
+			"max_cut_m": 0.278764992952347,
+			"max_fill_m": 1.3902440071106,
+			"scope": "all_changed_solid_triangles_including_padding_and_blend"
+		},
+		"end": [
+			6.3,
+			1.2,
+			1.1
+		],
+		"grade": 0.0946555937784399,
+		"grid_padding": 2.82842707633972,
+		"height_tolerance": 0.0002,
+		"length": 12.6775391933924,
+		"max_grade": 0.0946559896526738,
+		"max_height_error": 0.0000005063798785,
+		"max_seam_step": 0.00000002980232238,
+		"ok": true,
+		"road_diff": {
+			"added": 0.0,
+			"removed": 0.0,
+			"unchanged": 0.0,
+			"updated": 4.0
+		},
+		"road_token": "09976704904f8118c0dbbcc4fe75a1bddda0401cc43135c44175ad017e5a1262",
+		"samples": 1.0,
+		"scope": "full_width_native_heightfield; outer_blend_not_walkability_certified",
+		"start": [
+			-6.3,
+			0.0,
+			-0.3
+		],
+		"terrain_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96"
+		],
+		"token": "b6d4cec2ed49c182838b6cb981121a96a4b5e385ef232515791ddc2273e52984",
+		"updated_road_nodes": [],
+		"width": 3.0
+	},
+	"batch_stats": {
+		"base_work_budget_usec": 2000,
+		"building_mesh_hits": 0,
+		"enabled": true,
+		"groups": 1,
+		"instanced_groups": 0,
+		"last_build_ms": 15.238,
+		"last_commit_ms": 0.655,
+		"last_sync_ms": 0.403,
+		"loading_budget_scopes": 0,
+		"max_build_ms": 24.563,
+		"max_commit_ms": 0.807,
+		"pending_groups": 0,
+		"rebuild_count": 6,
+		"release_groups_visited": 1,
+		"render_surfaces": 1,
+		"render_vertices": 1196,
+		"source_objects": 2,
+		"source_surfaces": 4,
+		"source_vertices": 2221,
+		"sync_count": 40,
+		"sync_profile_us": {
+			"capture_us": 0,
+			"geometry_us": 0,
+			"material_us": 0
+		},
+		"work_budget_usec": 2000
+	},
+	"cases": [
+		{
+			"case": "unknown terrain id",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "请选择有效高度场地形",
+				"ok": false
+			}
+		},
+		{
+			"case": "out-of-map sample",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "取高点存在洞口或没有唯一实体地面",
+				"ok": false
+			}
+		},
+		{
+			"case": "zero length",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "两端水平距离须为 1–48 米",
+				"ok": false
+			}
+		},
+		{
+			"case": "excessive grade",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "两端高差超过 15% 坡度，请延长坡道或调整标高",
+				"grade": 0.315518645928133,
+				"minimum_length": 26.6666666666667,
+				"ok": false
+			}
+		},
+		{
+			"case": "invalid width schema",
+			"result": {
+				"error": "arguments.width is out of range",
+				"ok": false
+			}
+		},
+		{
+			"case": "cross-tile opt out",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "坡道超出所选地形范围，请选择相邻地形并启用跨块同步",
+				"ok": false,
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96"
+			}
+		},
+		{
+			"case": "protected adjacent terrain locked",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "坡道覆盖锁定、隐藏或隔层地形",
+				"ok": false,
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96"
+			}
+		},
+		{
+			"case": "protected adjacent terrain hidden",
+			"result": {
+				"code": "residential_support_unsupported",
+				"conservative": true,
+				"error": "隐藏地形不提供当前编辑器碰撞承托，请先显示地形",
+				"exact": false,
+				"ok": false,
+				"record_id": "",
+				"stage": "residential_support",
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96"
+			}
+		},
+		{
+			"case": "floor isolation",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "坡道覆盖锁定、隐藏或隔层地形",
+				"ok": false,
+				"terrain_id": "terrain_1d1d9e1799b564edf71f8368"
+			}
+		},
+		{
+			"case": "manual surface override",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "坡道覆盖手刷地形，请先处理手刷表面",
+				"ok": false,
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96"
+			}
+		},
+		{
+			"case": "hole between endpoints across full corridor",
+			"result": {
+				"cell": [
+					0.0,
+					6.0
+				],
+				"code": "residential_support_coverage_gap",
+				"conservative": false,
+				"counts": {
+					"cells_scanned": 480.0,
+					"cells_visited": 100.0,
+					"overlaps": 75.0,
+					"solid_skipped": 380.0,
+					"terrain_candidates": 2.0,
+					"triangle_clips": 94.0
+				},
+				"error": "实际首层支撑域存在地形孔洞或未覆盖区域",
+				"exact": true,
+				"floor_bottom": 0.0,
+				"foundation_bottom": 0.0,
+				"foundation_id": "",
+				"gap_polygon": [
+					[
+						0.816922292793876,
+						2.0
+					],
+					[
+						0.00000000000000088,
+						1.90923085635624
+					],
+					[
+						-0.00000000000000088,
+						0.00000000000000022
+					],
+					[
+						2.0,
+						0.00000000000000022
+					],
+					[
+						2.0,
+						2.0
+					]
+				],
+				"missing_area": 3.9629243315298,
+				"ok": false,
+				"part": "terrain_ramp",
+				"position": [
+					0.816922292793876,
+					0.0,
+					2.0
+				],
+				"record_id": "",
+				"stage": "residential_support",
+				"support_area": 38.0326175801771,
+				"terrain_height": 0.0,
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96",
+				"triangle_index": 1.0
+			}
+		},
+		{
+			"case": "sample hole",
+			"result": {
+				"code": "terrain_ramp_constraint",
+				"error": "取高点存在洞口或没有唯一实体地面",
+				"ok": false
+			}
+		},
+		{
+			"case": "stacked heightfield",
+			"result": {
+				"cell": [
+					3.0,
+					7.0
+				],
+				"code": "residential_support_unsupported",
+				"conservative": true,
+				"counts": {
+					"cells_scanned": 576.0,
+					"cells_visited": 136.0,
+					"overlaps": 99.0,
+					"solid_skipped": 440.0,
+					"terrain_candidates": 3.0,
+					"triangle_clips": 118.0
+				},
+				"error": "支撑域存在重叠地形，无法确定唯一高度场",
+				"exact": false,
+				"floor_bottom": 0.0,
+				"foundation_bottom": 0.0,
+				"foundation_id": "",
+				"ok": false,
+				"overlap_area": 19.0163087900886,
+				"part": "terrain_ramp",
+				"position": [
+					6.0,
+					3.0,
+					2.0
+				],
+				"record_id": "",
+				"stage": "residential_support",
+				"terrain_height": 3.0,
+				"terrain_id": "overlap",
+				"triangle_index": 1.0
+			}
+		},
+		{
+			"case": "missing physical terrain support",
+			"result": {
+				"code": "residential_support_unsupported",
+				"conservative": true,
+				"error": "支撑地形必须提供实际碰撞",
+				"exact": false,
+				"ok": false,
+				"stage": "residential_support",
+				"terrain_id": "terrain_95e3f7825ad566050a9d8a96"
+			}
+		},
+		{
+			"case": "existing prop intrusion",
+			"result": {
+				"conflicts": [
+					"protected_prop"
+				],
+				"error": "笔刷会侵入现有物件或移除其地面承托，整笔已拒绝",
+				"ok": false
+			}
+		},
+		{
+			"case": "planning zone",
+			"result": {
+				"error": "笔刷会改变建筑保留区或保留通道，整笔已拒绝",
+				"ok": false
+			}
+		},
+		{
+			"case": "locked following road",
+			"result": {
+				"error": "道路铺面包含锁定、隐藏或隔层构件",
+				"ok": false
+			}
+		},
+		{
+			"case": "stale preview token",
+			"result": {
+				"code": "terrain_ramp_stale_preview",
+				"error": "地形或参数已变化，请重新预览坡道",
+				"ok": false
+			}
+		},
+		{
+			"case": "parameters changed after preview",
+			"result": {
+				"code": "terrain_ramp_stale_preview",
+				"error": "地形或参数已变化，请重新预览坡道",
+				"ok": false
+			}
+		},
+		{
+			"case": "map changed after preview",
+			"result": {
+				"code": "terrain_ramp_stale_preview",
+				"error": "地形或参数已变化，请重新预览坡道",
+				"ok": false
+			}
+		},
+		{
+			"case": "solid bridge body cannot be filled",
+			"result": {
+				"conflicts": [
+					"protected_arch"
+				],
+				"error": "笔刷会侵入现有物件或移除其地面承托，整笔已拒绝",
+				"ok": false
+			}
+		}
+	],
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/terrain_ramp_http_12375193/map.gltf",
+	"map_sha256": "c11390fcfc6fc469e0727b504759bcc6dd298b396721a8aeac1521542f812105",
+	"preview": {
+		"affected_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96",
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"blend_margin": 2.0,
+		"changed": true,
+		"changed_cells": 201.0,
+		"changed_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96",
+			"pavement_95dbe641da91b6c6b952",
+			"pavement_993600ba1e5c0bde643e",
+			"pavement_7e8b2fc2a30eeea3bdd2",
+			"pavement_9f4cb035258a4eec34b9"
+		],
+		"corridor": [
+			[
+				-6.13435271088773,
+				-1.79082560201043
+			],
+			[
+				6.46564728911227,
+				-0.390825602010428
+			],
+			[
+				6.13435271088773,
+				2.59082560201043
+			],
+			[
+				-6.46564728911227,
+				1.19082560201043
+			]
+		],
+		"earthwork": {
+			"cut_m3": 7.38219952505659,
+			"fill_m3": 139.757805116829,
+			"max_cut_m": 0.278764992952347,
+			"max_fill_m": 1.3902440071106,
+			"scope": "all_changed_solid_triangles_including_padding_and_blend"
+		},
+		"end": [
+			6.3,
+			1.2,
+			1.1
+		],
+		"grade": 0.0946555937784399,
+		"grid_padding": 2.82842707633972,
+		"height_tolerance": 0.0002,
+		"length": 12.6775391933924,
+		"max_grade": 0.0946559896526738,
+		"max_height_error": 0.0000005063798785,
+		"max_seam_step": 0.00000002980232238,
+		"ok": true,
+		"road_diff": {
+			"added": 0.0,
+			"removed": 0.0,
+			"unchanged": 0.0,
+			"updated": 4.0
+		},
+		"road_token": "09976704904f8118c0dbbcc4fe75a1bddda0401cc43135c44175ad017e5a1262",
+		"samples": 1.0,
+		"scope": "full_width_native_heightfield; outer_blend_not_walkability_certified",
+		"start": [
+			-6.3,
+			0.0,
+			-0.3
+		],
+		"terrain_ids": [
+			"terrain_1d1d9e1799b564edf71f8368",
+			"terrain_95e3f7825ad566050a9d8a96"
+		],
+		"token": "b6d4cec2ed49c182838b6cb981121a96a4b5e385ef232515791ddc2273e52984",
+		"updated_road_nodes": [],
+		"width": 3.0
+	},
+	"scope": "true loopback HTTP and native UI in isolated background desktop; disposable map only"
+}

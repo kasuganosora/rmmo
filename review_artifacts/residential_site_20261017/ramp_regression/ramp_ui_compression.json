@@ -1,0 +1,11 @@
+{
+	"avatar": "not instantiated",
+	"encoder": "Godot Image.save_webp(lossy=true, quality=0.9)",
+	"format": "WebP",
+	"height": 1000,
+	"lossy": true,
+	"path": "D:/code/rmmo_runtime/review_artifacts/residential_site_20261017/ramp_regression/ramp_ui.webp",
+	"quality": 90,
+	"sha256": "275f7bfa0daddf2a50bf9497a51bb64df67d0a145ba2a0c33f22d7a72a7f4019",
+	"width": 1600
+}

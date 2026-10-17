@@ -1,0 +1,521 @@
+{
+  "feature": "E2-B combined terrain, frozen residential and access road candidate",
+  "captured_state": "Verified worktree sources before the separate feature commit; source LF hashes match the staged Git contents.",
+  "date": "2026-10-17",
+  "base_commit": "8ebbdee67d12d9a3d940ac97078aa28de6eed25e",
+  "branch": "codex/editor-reliability",
+  "worktree": "C:/Users/luna/.codex/worktrees/editor-reliability/rmmo",
+  "sources": [
+    {
+      "path": "scripts/world_editor/residential_site_tools.gd",
+      "sha256_worktree_bytes": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4",
+      "sha256_lf": "db2263fa7278b813164b66fe2c2f0b9c909a96e414be1afc6014207ea315b5d4"
+    },
+    {
+      "path": "scripts/world_editor/residential_site_panel.gd",
+      "sha256_worktree_bytes": "823f68e8b943548aac3b77ad23f2f1087be8728d470664900a818bee86e6714e",
+      "sha256_lf": "bfc5a58ec23ea3a32a9ae3493a6b438a01d1c9ea62b51ec104bbfef090ab0139"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_panel.gd",
+      "sha256_worktree_bytes": "0d6d97670f194f3fe71d43343b5dda469f78e099709884a107869675ca6d04e8",
+      "sha256_lf": "941d4c3215e686db593438d27b40d5eee491848c7e58cf3d3104ecaacb246906"
+    },
+    {
+      "path": "scripts/world_editor/residential_placement_tools.gd",
+      "sha256_worktree_bytes": "7cdcb7e455e0f222f601b5b9fa31a407d3ffad71a6933c121d49eea363db1a44",
+      "sha256_lf": "0a633f906c39f6b0d90176f6dc933df6ffd7ca434d723f31d7387f1ed286df1c"
+    },
+    {
+      "path": "scripts/world_editor/residential_bridge_context.gd",
+      "sha256_worktree_bytes": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0",
+      "sha256_lf": "0d246162fe6dbc9e51dbfb966feaeba509da844f8934d6817296e086b3bf00d0"
+    },
+    {
+      "path": "scripts/world_editor/residential_support.gd",
+      "sha256_worktree_bytes": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb",
+      "sha256_lf": "a1781b7889314ed64a7a64e566e84c463a3d33872651f751ba0ca62caba292bb"
+    },
+    {
+      "path": "scripts/world_editor/residential_access.gd",
+      "sha256_worktree_bytes": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8",
+      "sha256_lf": "e68be90734c4139227979f1237d0c5735a25e406942279332e2e735cc27c3bb8"
+    },
+    {
+      "path": "scripts/world_editor/terrain_ramp_tools.gd",
+      "sha256_worktree_bytes": "391507e52541a2899f4aac913ee8005d82c203f3ab421f0ba206616c0fcb60f6",
+      "sha256_lf": "f5f7bf2696315ac4fbedc820daba0125e6e03f184fc0909608a740d9cda3ce49"
+    },
+    {
+      "path": "scripts/world_editor/terrain_layout_tools.gd",
+      "sha256_worktree_bytes": "bde577e5d31b1943c0062f1237bc747f63b5c1d1d73bb99ad38b59fc1c7039fc",
+      "sha256_lf": "23e8b752eb8dc1ae7f42be554f6b273766a5451132c23b21d6198bf7330b59f3"
+    },
+    {
+      "path": "scripts/world_editor/terrain_follow_tools.gd",
+      "sha256_worktree_bytes": "4e4c5edcb9e38c8e28f2740f01c5dc1d464fb606f528fde29ee1f5de7c02523f",
+      "sha256_lf": "97c9844c88f04300e82bf4cc845200f5cdf3fe8203633ae4c5a01059ea5ebecf"
+    },
+    {
+      "path": "scripts/world_editor/terrain_tools.gd",
+      "sha256_worktree_bytes": "608f43edd30070e90b82736d5b2fcb2962a3507d504a742631cb100106c547aa",
+      "sha256_lf": "e5bc65ff04870a5752c92135d77476144627aa0907bc0b8f63aa713a33b48ea6"
+    },
+    {
+      "path": "scripts/world_editor/road_tools.gd",
+      "sha256_worktree_bytes": "569768047f0136f061966be17082193afb14ed774cf873c6e9602a63961cd208",
+      "sha256_lf": "4082e8f12238f08ce47011cbcc935d3cc11957c8317690c5ddd26e2e64ff18da"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "sha256_worktree_bytes": "bf01c372674bc8196b5df30350c69f6783c90b45e0500e62e693787108893878",
+      "sha256_lf": "1fab087fa547818484f558192e1e5c5f69d7d128d72fd33b08f7b65d190249bf"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_worktree_bytes": "141232fbf93925dd5b1fb630c3791362a3f463ad1eeb0df8997759eba901229a",
+      "sha256_lf": "6f1b325007f06536da55cd965522d0d96ba827da25d7f296efa74227882ea4a8"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_worktree_bytes": "7a5fd4a0d12b71e3ce4e4305f774db6fc3556a6360d567708d4f0a1144b22229",
+      "sha256_lf": "b394a16999978c4d8bde1d3231028e6fb0a4b1436bf3120a17c1964214a7ad90"
+    },
+    {
+      "path": "scripts/world3d/world_document.gd",
+      "sha256_worktree_bytes": "859bb50bb80837d735d476b650481c95820346789d586a00a57e83b274ace1aa",
+      "sha256_lf": "c46f2f3879c64a91cf0bc00c3bcfb7536b7cb72db543ca9b5481eb21f0e6218d"
+    },
+    {
+      "path": "scripts/world3d/ground_batcher.gd",
+      "sha256_worktree_bytes": "7afe8febc6db913f67c21d1ef4c2b6bbfcb81d63484788c77fd019d588565130",
+      "sha256_lf": "6f6dc1a8e07e20ff307f6393994ae873ecf07adc003f1d7a83975c11ee8079c2"
+    },
+    {
+      "path": "tools/test_residential_site_http.gd",
+      "sha256_worktree_bytes": "dd72945181fac01ad0fc8dc424d3c1be5e58d2e6b546cd972b5b5229e8519025",
+      "sha256_lf": "44499e506e533b370234c712e23b17b84485428c71b46291fadb014bd9f65568"
+    },
+    {
+      "path": "tools/test_residential_bridges_http.gd",
+      "sha256_worktree_bytes": "900bff93f33102bf8f3603e34d124028dce263656c4108110d9683126475b1a7",
+      "sha256_lf": "0b7f417fce89fff74728adf0e19ed1064a4b664768165e4f3e0a30be86b8c832"
+    },
+    {
+      "path": "tools/test_residential_bridges_runtime.gd",
+      "sha256_worktree_bytes": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f",
+      "sha256_lf": "3347d3d9d9654de43c677f380bf416570ad83d076aae6b5fdb795db37d51fb1f"
+    },
+    {
+      "path": "tools/test_residential_placement_http.gd",
+      "sha256_worktree_bytes": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c",
+      "sha256_lf": "745d9028ca1b08f10e42c6c25b402becf71cb2eb27e0d318da54a5049fee2e8c"
+    },
+    {
+      "path": "tools/test_terrain_ramp.gd",
+      "sha256_worktree_bytes": "564525857d686089b9444d7511eb26bb9fbf3e1e3ac8f08c1f4a513b35f4013e",
+      "sha256_lf": "9a1ac2a96bdb2ced4a279e92e6308ad92e2f61bd0096b195fee5716a974f52ff"
+    },
+    {
+      "path": "tools/test_terrain_ramp_http.gd",
+      "sha256_worktree_bytes": "adcfd02ca6b602ecc8d160a666f3334918f69f4f3f45cf7cd4343801b940a407",
+      "sha256_lf": "4bda338ec6f27288f7f3637cb665d0ab19bc3ee3f71181ed58029dc8ec7e1485"
+    },
+    {
+      "path": "tools/run_godot_background.py",
+      "sha256_worktree_bytes": "d9add9a15d8729b0221054b2c20189b9c69e230526d04166ea9ecc2d87a0ad2e",
+      "sha256_lf": "b182b46ff6d8b1b1facedbc7ffda813ab74a1b83075667a01cadf6d9bbe9c3d6"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "bridge_console.log",
+      "sha256": "7ce19a035315e525fe915be109ba5d4718ad1cbce37966786600166db81fb2b1"
+    },
+    {
+      "path": "bridge_engine.log",
+      "sha256": "92a4ea446b2111c84f2fc88c0e959dbe8bb1a5f78cb58f33377b59759a431ef0"
+    },
+    {
+      "path": "bridge_http.json",
+      "sha256": "d96902e83cbfebff91d7ff53307e13ae4294a876274af9a2e10d8680df246bc6"
+    },
+    {
+      "path": "http.json",
+      "sha256": "14f6d0f2e558d9fff05b96ceef3a8b09bc17e0379f6c486c27e9702bfd772fe2"
+    },
+    {
+      "path": "http_console.log",
+      "sha256": "e7965d5d6448e0ce2d00139119cf9ccbcefb0fc720c741245da138dedb60fb81"
+    },
+    {
+      "path": "http_engine.log",
+      "sha256": "0009e684cd9340c746cbc0fb3c563968b2db71032cf53b2d79ef74b5f769505e"
+    },
+    {
+      "path": "ramp_regression/http.json",
+      "sha256": "4d4fd3aa2c51cf96cfe2f0069e33ae34143bb5f213c8d3d0eeb8f6e135f8283d"
+    },
+    {
+      "path": "ramp_regression/http_console.log",
+      "sha256": "e34532fba11f8e6bce3500d09cae85a477deb7b726c752bd62b7a5da3b70f7ac"
+    },
+    {
+      "path": "ramp_regression/http_engine.log",
+      "sha256": "cbe51c02fce53d6ec1a5a449d4ff58495292398416348b82a1efea39e6f962be"
+    },
+    {
+      "path": "ramp_regression/logic.json",
+      "sha256": "8715480ced8ec06f72080addace4a92b62e6bcc95927e2955c1bf47923c6798f"
+    },
+    {
+      "path": "ramp_regression/ramp_ui.webp",
+      "sha256": "275f7bfa0daddf2a50bf9497a51bb64df67d0a145ba2a0c33f22d7a72a7f4019"
+    },
+    {
+      "path": "ramp_regression/ramp_ui_compression.json",
+      "sha256": "18b0416345f82dac10785a2033f3871e95be1289b41c70d66d3640ceefb2d406"
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "8e0be1cf0f0968b743071c6de3bd71080b2c723870a2224f681f2adb01ac6374"
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "a16814f5dd1dc62f4a919e40e6f634bf1bafdd0a1bc347be91f4c21c83e41206"
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "d17336164948a7bb43d2c6ba3855f9a22cb609c309feada9f195ed5e1aed3b31"
+    },
+    {
+      "path": "site_ui.webp",
+      "sha256": "464bc0c86e058e25ebb4714550b7f49f6e1c5037df293d29cb3f28b4d1a7996b"
+    },
+    {
+      "path": "site_ui_compression.json",
+      "sha256": "dad31da822c57a79995509ace004f05cfa61bc40968c7caf6ace18353330caa6"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "site_ui.webp",
+      "sha256": "464bc0c86e058e25ebb4714550b7f49f6e1c5037df293d29cb3f28b4d1a7996b",
+      "width": 1600,
+      "height": 1000,
+      "lossy": true,
+      "quality": 90,
+      "container_verified": "RIFF WEBP VP8 (lossy)",
+      "compression_record": "site_ui_compression.json"
+    },
+    {
+      "path": "ramp_regression/ramp_ui.webp",
+      "sha256": "275f7bfa0daddf2a50bf9497a51bb64df67d0a145ba2a0c33f22d7a72a7f4019",
+      "width": 1600,
+      "height": 1000,
+      "lossy": true,
+      "quality": 90,
+      "container_verified": "RIFF WEBP VP8 (lossy)",
+      "compression_record": "ramp_regression/ramp_ui_compression.json"
+    }
+  ],
+  "engine": {
+    "version": "Godot 4.7.2.stable.official.ed1daf0bf",
+    "path": "D:/tools/godot/Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "renderer": "Vulkan Forward+ / AMD Radeon RX 7900 XTX"
+  },
+  "checks": {
+    "http.json": 128,
+    "runtime.json": 11,
+    "bridge_http.json": 102,
+    "ramp_regression/logic.json": 10,
+    "ramp_regression/http_console.log": 109
+  },
+  "total_passed": 360,
+  "failures": 0,
+  "counting": "Assertions, including repeated HTTP and atomicity assertions, not 360 independent scenarios. Ramp HTTP count comes from PASS lines; its JSON records negative cases and final failure count.",
+  "fixture": {
+    "map": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf",
+    "map_sha256": "5b131c005f288ef9296070502a238b033300b0fd9652fe71d8e5cf446357540d",
+    "house_source": "D:/code/rmmo_runtime/__residential_site_11760_14518281/assets/prefabs/ecc0228a9e40532009715cd6200fa5e1cd27d3b443c40cb3c519fd8eb32a044d.json",
+    "house_source_sha256": "ea0ca8ecdb85f8bc280f8439d827c25860a9ec94d0f3cbc05f934d370877dc87",
+    "previous_readonly_fixture_report": "review_artifacts/residential_bridges_20261017/http.json",
+    "previous_report_sha256": "c646349ef6c8c0745b07d863c0deb7036f88878e54e1ab168426f6899dddf82d",
+    "file_dependencies": [
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1.rmres",
+        "sha256": "018bd83ece406d70f86677648887418733b1e68e65caeaf4b47a1f9892063ae1"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a.rmres",
+        "sha256": "01c0c381f67508d2651ac1ace0f4a0b7c1e6dec2cae42faa9c0de5e5f8e4a48a"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae.rmres",
+        "sha256": "04c995e90b864751ed8a3b2c5fb30c0384f11b7ace94b0d908795e68ad98deae"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981.rmres",
+        "sha256": "04e63a3e183720f4b00872822f33831413b8f61f79a4fad4e6ec8483e30e6981"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd.rmres",
+        "sha256": "050b92f2cbbabfe714fafbd741482f6097eb6119618db095b1b7c029c496cadd"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/064ae45bbf898acb401848495dda461b61a3e63e7aa40db7f6a5a10392433b12.rmres",
+        "sha256": "064ae45bbf898acb401848495dda461b61a3e63e7aa40db7f6a5a10392433b12"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1.rmres",
+        "sha256": "08c8101fd8526742c00e60dd4eb5a04616405a9daa258a83812a5b5c49119ab1"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496.rmres",
+        "sha256": "0fc1962e9e4be999d10d3488cd01e8fcbd6c68f9b65d539191b113e6dfbd8496"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b.rmres",
+        "sha256": "0fd025b91960759c907b7483c22e3cce10a0caf22c6be7c0b2ace5ac8b04168b"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6.rmres",
+        "sha256": "10b2b4978684dbe6d7ebb602194398471a456ad91689e51e18ed9ff79d7f41a6"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d.rmres",
+        "sha256": "1a9db36cbbd79a7e8dd9cdbdd6ec8c191abeb7ecd1e2c2f38a1c8fc15cb2ff5d"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50.rmres",
+        "sha256": "1b0c1a9ef78e54d53a73eba85c8da820d04a3a2e1d7ffaa32c87608f71d83b50"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7.rmres",
+        "sha256": "1e7fd280e996c87fe4b14e85cccc64e91e04cb7311e9a00aba6e2071f16f5fd7"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff.rmres",
+        "sha256": "277e85013435e87f17e17faad1b9059b1a7874053afd6668013c8a9fcf5c3bff"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/28fec3608c3438b5942a539be5aca67285877356da27c18329b9652b827319c0.rmres",
+        "sha256": "28fec3608c3438b5942a539be5aca67285877356da27c18329b9652b827319c0"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3.rmres",
+        "sha256": "293beb6c36559baa3c92307af7d34c2714c19721d7e635b5afcc6c116aa615f3"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222.rmres",
+        "sha256": "295b34e59a13d8492c36ddfb766ad218331c376c6f88ba2129152cb76be87222"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0.rmres",
+        "sha256": "2aa2d4b47be8bb45f168b2e3abef9927b8c4af7e1f8395f9cca6588e461faab0"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a.rmres",
+        "sha256": "2d88aa1b753e6ebd341771d2993d50c476c36793f13626114329986e9348492a"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0.rmres",
+        "sha256": "379c81e7f05f9b1d57021e691103ff5cacf5d9c3f23162c3563b2f852bbb41f0"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/3a5d14e7948d9c297057408e253f5387dc987e6bbdb977a560f0d3b08810a4c4.rmres",
+        "sha256": "3a5d14e7948d9c297057408e253f5387dc987e6bbdb977a560f0d3b08810a4c4"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985.rmres",
+        "sha256": "3a8eee50884f67428952ebe643994371a8bd00d8c7165269e4fbc43c76a68985"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17.rmres",
+        "sha256": "3b4bdcebe198346da9a1fab6564a3e9edcbcae2270ba34c334183169e377bd17"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6.rmres",
+        "sha256": "410829e8747d0bcca4d063c578cfefcf28bbb1df43d96cbac6586af0d75b08b6"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046.rmres",
+        "sha256": "5c915f6d00d84d600b06432782bafa420aed6a4037241c0a09c9335931dd9046"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5.rmres",
+        "sha256": "5d140d54401ab4d106e67e4cfe9df1311b93d72ab0bd22ecfe9835af4e9907f5"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f.rmres",
+        "sha256": "604fc974daf00e22893cbf158563251d4c5cb832075508e778f98d5150c46f7f"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/60bc3d0fdaab624af3fc95fe718da8c9cf8827af3604eda6e4e7c764c658788b.rmres",
+        "sha256": "60bc3d0fdaab624af3fc95fe718da8c9cf8827af3604eda6e4e7c764c658788b"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b.rmres",
+        "sha256": "6d176bf5e3eb2686714b4538aa15d5aaee897e1f94f53b64883684b7192ccd4b"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76.rmres",
+        "sha256": "6fe1e116884e66df71cd337be043d8d922c59d5c520c23dd15c33598c2b8ab76"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7.rmres",
+        "sha256": "77e7ed32e930d05f7ed4977f1f8c90d605fc5625041a58b6570e76f57fb8abb7"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27.rmres",
+        "sha256": "7ce02bd5c8fc4a36d809ffe5190cfdea7d3d84a2fde8d37bc1c6ff215d0a9b27"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc.rmres",
+        "sha256": "8f098f4812257ccccec494beef9a1fa132cc6cdc8aeca7aa2fa61940b69825cc"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1.rmres",
+        "sha256": "91859c3abc2235f9183dbc9d1ee53864e19584b042d96138f12bcff8371c03d1"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672.rmres",
+        "sha256": "946558688a923e02f9ba6540b7498de44643564104fa7a5886f04ec16a549672"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626.rmres",
+        "sha256": "9aa775feecdc596a22264457ac9c96d28777f3c9604adf184c32e3a7ae084626"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75.rmres",
+        "sha256": "9dbfaaeef48c640fd7148de6ccca0b90f117697434926a1ef5b19bc5b80ffb75"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1.rmres",
+        "sha256": "a28971c74ca73f097bf54d7634cec02ebd38f45c723996d952eb661257acd5b1"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/a2d5ecaf0d8ac63f9b77e453c1bb22c52c477b87d3ae664f0ba1446e236b3282.rmres",
+        "sha256": "a2d5ecaf0d8ac63f9b77e453c1bb22c52c477b87d3ae664f0ba1446e236b3282"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26.rmres",
+        "sha256": "a983a0a235167554c8d7de41339958b6a67ac040c2298165661a9e64d7623f26"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099.rmres",
+        "sha256": "adc9338493ee781c698dce314c4a805bc22bb896f4802230cd4d291913c1f099"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683.rmres",
+        "sha256": "ae66c713b5d89b8565a84043913fc31886d4d59c9d23c9f557411416385ca683"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a.rmres",
+        "sha256": "b5d4ba037b99a97ed31721f36871d457176f042f3a5872f5789a52a6c574dc1a"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce.rmres",
+        "sha256": "b6011883bea621866454d7c8757a89769d21f29f7bacdf3ac4baeec3a5fac2ce"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7.rmres",
+        "sha256": "b629e4b3627ce44d5f9271e39276a1411cc5a9f09a0906b97d0ea7c9eda419c7"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720.rmres",
+        "sha256": "bc973c6d5d0e05a8dae9410903e9765b97c772a9f661dbe7b53fa8fa0cadb720"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382.rmres",
+        "sha256": "d6dd322315d130f477c3266bf40845f63ba5b011e68f0c41e7ececce60565382"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba.rmres",
+        "sha256": "d7a504267506e5768f14406aeb42059c2b66e8d257cb07d7450f69855d67d9ba"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b.rmres",
+        "sha256": "d8ea250be7fb124c88d6ef6e5f31bc91fe524e8b6934bd3e5ea977bedcfbe69b"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff.rmres",
+        "sha256": "db69e25e22bbc96408e336f0793da5658d5040e6e48f6de6b06a32cb25b746ff"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e.rmres",
+        "sha256": "dddd6596bed790f7896e3b9b8a9ddb5cb9555d8f4f0eef404cfb03bafc565c4e"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd.rmres",
+        "sha256": "e24d211b9116e9c2b531e0618675b4a7807c9bbc634ab999927d82ff042d44cd"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1.rmres",
+        "sha256": "e35c18fdfd0f984e4cbe05b83e8658191ef4a474eaf2d777135b6e4da68221b1"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86.rmres",
+        "sha256": "e50ab98a7cfdec0a3384023eb970300ef23ead07f5e3000593e190cb78fb3c86"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/e60d5f8887e74a5dcdd0133871f2a6c51931649f7b37f23b5340d54b1ed7b11c.rmres",
+        "sha256": "e60d5f8887e74a5dcdd0133871f2a6c51931649f7b37f23b5340d54b1ed7b11c"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd.rmres",
+        "sha256": "e77acbc68deb17e1cc39fe64c50778e5d433b6dd3386db7cdc4d42feea7c71bd"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61.rmres",
+        "sha256": "ef8dc296aeaec988736d951236d49df956de90e168a739ca4119364d21a68b61"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07.rmres",
+        "sha256": "f286f982f2b47de1a9d35ed28eae9418cf8b720ab546fb892e72e242116fba07"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170.rmres",
+        "sha256": "f624c190aea87b5bf991a0f4c2eb7607950d7fa3e3af00718f7186399077e170"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6.rmres",
+        "sha256": "f7140253e4a435a289fc5182e5b0aa200a8a234fba01749f398ee03d1dedcee6"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9.rmres",
+        "sha256": "f8a40abb7fe45c2fae677f472b4450517a796cc438ad37d4a791fee9b00b83e9"
+      },
+      {
+        "path": "D:/code/rmmo_runtime/__residential_site_11760_14518281/maps/test/map.gltf.resources/f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401.rmres",
+        "sha256": "f9d388a8b3e9932dedc5a8817bad2a0fd950a2f21f4ebf245927ce3cb05a3401"
+      }
+    ],
+    "dependency_scope": "Direct native map resource URIs (including packed metadata) and frozen prefab file references resolved relative to their owning file; these are identity hashes, not memory estimates."
+  },
+  "scope": [
+    "UI and current 3D loopback HTTP share preview/apply/discard, validation and authoring transaction. No retired 2D registration.",
+    "Hill rejects standalone house support; explicit plot and endpoint ramp then accept complete site. Actual UI input and final candidate match HTTP.",
+    "33 real rectangle steps plus one endpoint ramp with live history full at 32; private staging does not consume checkpoints, last house failure is atomic, and a single undo restores outer start.",
+    "Locked/hidden terrain, protected bridge, genuine obstruction, missing/changed source, invalid step counts, stale document and corrupted cached payload reject without authoring side effects.",
+    "Injected empty native derived batch result preserves independent source meshes; accepted author state and subsequent edits are never rolled back.",
+    "Bridge and river ownership and scope-external records preserved; undo/redo restores complete site identities; native save/reopen maximum numeric difference 4.44089209850063e-16 within test limit 1e-10.",
+    "Saved fixture traversed with 58 production colliders and WorldAuthority capsule: house exterior/main road both directions and native stone bridge/approaches both directions; zero airborne or rejected ticks.",
+    "Existing mixed-bridge residential UI/HTTP and standalone ramp logic/UI/HTTP pass after shared changes.",
+    "Native batching retains independent objects and reduces 16 source surfaces to 2 render surfaces with 12852 vertices unchanged and zero pending groups. Functional regression only."
+  ],
+  "limitations": [
+    "One frozen townhouse/hall with a confirmed entrance; ordinary heightfield and straight ground target only. Explicit grading recipe, not autonomous area selection or whole-town layout.",
+    "Total 1..64 plot/ramp operations and existing native aggregate budgets; optional last endpoint ramp. Full-width proof excludes outer blend.",
+    "Author publication is synchronous without await/event dispatch. This does not implement or certify a future general async critical publication/rollback framework.",
+    "Runtime test uses native colliders and movement authority without avatar renderer or complete game streaming readiness. No repeated interior review; waterway-bound bridge traversal not covered.",
+    "Every new candidate still reports requires_runtime_verification; passing one fixture does not certify arbitrary future placement.",
+    "No new model design/generator changes, formal map edits, performance project, push or merge."
+  ],
+  "development_findings": [
+    "Regression setup initially omitted shared kerb library configuration; fixture now uses inherited native material helper.",
+    "UI numeric fields use millimeter steps; fixture endpoint -3.3155 was rounded by the UI. Final shared request uses representable -3.316, with no production geometric tolerance change."
+  ],
+  "execution": "All graphical tests use tools/run_godot_background.py on a private inactive Windows desktop with unique disposable maps/packs and loopback ports. Logic test is headless. Output overrides keep older evidence unchanged. New archive copies final passing outputs byte-for-byte; screenshot MIME and lossy VP8 quality90 SHA record checked before viewing."
+}

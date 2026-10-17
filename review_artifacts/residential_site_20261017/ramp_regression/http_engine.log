@@ -1,0 +1,114 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: isolated native map created
+PASS: private editor exposes true loopback HTTP
+PASS: sample_terrain_height discovered in current 3D MCP
+PASS: preview_terrain_ramp discovered in current 3D MCP
+PASS: apply_terrain_ramp discovered in current 3D MCP
+PASS: retired 2D tools remain unregistered
+PASS: HTTP create_terrain succeeds
+PASS: HTTP create_terrain succeeds
+PASS: HTTP create_terrain succeeds
+PASS: HTTP sample_terrain_height rejects invalid operation
+PASS: unknown terrain id is atomic including dirty/history/selection
+PASS: HTTP sample_terrain_height rejects invalid operation
+PASS: out-of-map sample is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: zero length is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: excessive grade is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: invalid width schema is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: cross-tile opt out is atomic including dirty/history/selection
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: protected adjacent terrain locked is atomic including dirty/history/selection
+PASS: HTTP undo succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: protected adjacent terrain hidden is atomic including dirty/history/selection
+PASS: HTTP undo succeeds
+PASS: HTTP set_floor_view succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: floor isolation is atomic including dirty/history/selection
+PASS: HTTP undo succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: manual surface override is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: hole between endpoints across full corridor is atomic including dirty/history/selection
+PASS: HTTP sample_terrain_height rejects invalid operation
+PASS: sample hole is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: stacked heightfield is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: missing physical terrain support is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: existing prop intrusion is atomic including dirty/history/selection
+PASS: HTTP get_city_layout succeeds
+PASS: HTTP update_planning_zones succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: planning zone is atomic including dirty/history/selection
+PASS: HTTP undo succeeds
+PASS: HTTP get_city_layout succeeds
+PASS: HTTP update_road_graph succeeds
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP set_object_properties succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: locked following road is atomic including dirty/history/selection
+PASS: HTTP undo succeeds
+PASS: real UI form emits same endpoint parameters
+PASS: HTTP sample_terrain_height succeeds
+PASS: real UI height sampling equals HTTP
+PASS: HTTP preview_terrain_ramp succeeds
+PASS: actual UI preview callback equals true HTTP preview
+PASS: both previews are read-only
+PASS: full-width diagonal ramp satisfies endpoints and mixed-resolution seams
+PASS: checked ramp outline is an actual visible editor overlay
+PASS: UI capture encoded as lossy WebP quality 90
+PASS: changing UI constraint invalidates preview and disables apply
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: stale preview token is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: parameters changed after preview is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: map changed after preview is atomic including dirty/history/selection
+PASS: HTTP apply_terrain_ramp succeeds
+PASS: both terrain tiles and following road are a single transaction
+PASS: road retains native follow/edit/save semantics
+PASS: HTTP sample_terrain_height succeeds
+PASS: endpoint interior to grid reaches exact requested height
+PASS: HTTP sample_terrain_height succeeds
+PASS: endpoint interior to grid reaches exact requested height
+PASS: HTTP undo succeeds
+PASS: one undo restores whole ramp and road
+PASS: HTTP redo succeeds
+PASS: one redo restores whole ramp and road
+PASS: HTTP undo succeeds
+PASS: actual UI apply callback matches HTTP and clears draft preview
+PASS: HTTP apply_terrain_ramp succeeds
+PASS: repeated ramp remains one bounded transaction
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: save/reopen preserves endpoint ground and road metadata
+PASS: HTTP select_objects succeeds
+PASS: native automatic derived batches finish publication
+PASS: actual native terrain/road batching reduces surfaces after publication
+PASS: every affected terrain/road retains independent editor and picking identity
+PASS: HTTP create_terrain succeeds
+PASS: HTTP apply_terrain_ramp succeeds
+PASS: true flat no-op preserves metadata/history
+PASS: HTTP apply_terrain_layout succeeds
+PASS: HTTP undo succeeds
+PASS: existing joint-layout apply/undo retains shared transaction behavior
+PASS: HTTP preview_terrain_ramp succeeds
+PASS: rotated terrain supports descending two-endpoint ramp with both cut and fill
+PASS: HTTP create_terrain succeeds
+PASS: HTTP generate_bridge succeeds
+PASS: HTTP apply_terrain_ramp rejects invalid operation
+PASS: solid bridge body cannot be filled is atomic including dirty/history/selection
+PASS: bridge rejection names actual protected body
+PASS: all negative HTTP cases actually executed
+TERRAIN_RAMP_HTTP failures=0
