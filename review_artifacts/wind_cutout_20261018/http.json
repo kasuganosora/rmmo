@@ -1,0 +1,305 @@
+{
+  "checks": [
+    {
+      "label": "create isolated native maps",
+      "ok": true
+    },
+    {
+      "label": "start isolated loopback 3D MCP",
+      "ok": true
+    },
+    {
+      "label": "real discovery documents shared transfer presentation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "invalid requests leave author data and history untouched",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event undo removes exact instance",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "event redo restores identity",
+      "ok": true
+    },
+    {
+      "label": "HTTP select_objects succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI event form applies shared parameters and shows automatic transition help",
+      "ok": true
+    },
+    {
+      "label": "HTTP create_event_template succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "UI and MCP authored events survive native save/reopen",
+      "ok": true
+    },
+    {
+      "label": "HTTP set_playtest_spawn succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "playtest mounts real native author records instead of reference glTF proxies",
+      "ok": true
+    },
+    {
+      "label": "HTTP playtest_state succeeds",
+      "ok": true
+    },
+    {
+      "label": "real HTTP publishes automatically selected playable policy",
+      "ok": true
+    },
+    {
+      "label": "HTTP never equates keyboard readiness with navigation readiness",
+      "ok": true
+    },
+    {
+      "label": "UI and HTTP expose the same pending capability",
+      "ok": true
+    },
+    {
+      "label": "UI does not promise movement while physical preparation blocks it",
+      "ok": true
+    },
+    {
+      "label": "HTTP playtest_state succeeds",
+      "ok": true
+    },
+    {
+      "label": "real HTTP exposes newly streamed wind material as pending",
+      "ok": true
+    },
+    {
+      "label": "HTTP playtest_state succeeds",
+      "ok": true
+    },
+    {
+      "label": "real production world automatically completes pending wind after a drawn cover",
+      "ok": true
+    },
+    {
+      "label": "wind recovery records actual opaque draw and first-frame reveal",
+      "ok": true
+    },
+    {
+      "label": "wind recovery restores gameplay at the original position",
+      "ok": true
+    },
+    {
+      "label": "streamed receiver actually uses the prepared wind shader",
+      "ok": true
+    },
+    {
+      "label": "HTTP playtest_state succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP observes actual background navigation completion",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "wind stop probe reaches actual guarded production recovery",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "stopping wind cover destroys its coroutine owner and private viewport safely",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "HTTP playtest_state succeeds",
+      "ok": true
+    },
+    {
+      "label": "real HTTP publishes automatically selected playable policy",
+      "ok": true
+    },
+    {
+      "label": "saved event compiles to one current 3D transfer action",
+      "ok": true
+    },
+    {
+      "label": "authored event uses shared fade inside the actual playtest viewport",
+      "ok": true
+    },
+    {
+      "label": "authored feet convert once to body center and input resumes",
+      "ok": true
+    },
+    {
+      "label": "transfer preserves FOV, antialiasing and output resolution",
+      "ok": true
+    },
+    {
+      "label": "real target frame and fade finish before input resumes",
+      "ok": true
+    },
+    {
+      "label": "exit probe reaches real covered transfer",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "stop during covered transfer destroys only owned world, viewport and cover",
+      "ok": true
+    },
+    {
+      "label": "HTTP start_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase running ",
+      "ok": true
+    },
+    {
+      "label": "undrawable source viewport yields explicit failure exit without moving/unlocking actor",
+      "ok": true
+    },
+    {
+      "label": "HTTP stop_playtest succeeds",
+      "ok": true
+    },
+    {
+      "label": "playtest phase idle ",
+      "ok": true
+    },
+    {
+      "label": "playtest restores real server and inventory without edits",
+      "ok": true
+    },
+    {
+      "label": "runtime experience leaves both authored maps unchanged",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_14314921",
+  "passed": 64,
+  "transfers": [
+    {
+      "committed": true,
+      "covered_ms": 34497,
+      "drawn_frame": 182,
+      "elapsed_ms": 542,
+      "fade_out_started_ms": 34274,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 34815,
+      "map_reused": true,
+      "ok": true,
+      "phase": "revealed",
+      "radar_ready_at_retire": true,
+      "radar_region_ready_at_retire": true,
+      "ready_frame": 185,
+      "ready_ms": 34559,
+      "reveal_started_ms": 34560,
+      "revealed_ms": 34814,
+      "same_map": true,
+      "target": "D:/code/rmmo_runtime/cache/world3d/playtests/d59196141ecf2e147764918a/map.gltf",
+      "viewport_id": 1463644339080
+    },
+    {
+      "committed": true,
+      "covered_ms": 37835,
+      "drawn_frame": 227,
+      "elapsed_ms": 709,
+      "fade_out_started_ms": 37611,
+      "headless": false,
+      "input_locked_at_return": false,
+      "input_restored_ms": 38319,
+      "ok": true,
+      "phase": "revealed",
+      "ready_frame": 240,
+      "ready_ms": 38052,
+      "reveal_started_ms": 38053,
+      "revealed_ms": 38318,
+      "target": "D:/code/rmmo_runtime/cache/world3d/transfer_experience_14314921/target.gltf",
+      "viewport_id": 1671346262763
+    }
+  ]
+}

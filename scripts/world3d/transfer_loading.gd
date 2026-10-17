@@ -4,6 +4,8 @@ const FADE_OUT_SECONDS:=.18
 const FADE_IN_SECONDS:=.22
 const HINT_DELAY_MS:=700
 const SLOW_HINT_MS:=8000
+var title_text:="正在进入目标区域"
+var ready_text:="目标区域已准备好"
 var stage:="准备传送"
 var done:=0
 var total:=0
@@ -28,7 +30,7 @@ func _ready()->void:
 	var center:=CenterContainer.new();center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter=Control.MOUSE_FILTER_IGNORE;_background.add_child(center)
 	_column=VBoxContainer.new();_column.add_theme_constant_override("separation",18);center.add_child(_column)
-	_title=Label.new();_title.text="正在进入目标区域";_title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	_title=Label.new();_title.text=title_text;_title.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	_title.add_theme_font_size_override("font_size",28);_column.add_child(_title)
 	_label=Label.new();_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART;_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override("font_size",18);_column.add_child(_label)
@@ -99,7 +101,7 @@ func finish(expected_camera:Camera3D=null)->bool:
 	# AFTER this returns, then explicitly calls reveal. Failure stays opaque.
 	if not is_opaque_drawn() or phase!="waiting" or get_viewport().disable_3d:return false
 	if expected_camera!=null and get_viewport().get_camera_3d()!=expected_camera:return false
-	update_progress("目标区域已准备好")
+	update_progress(ready_text)
 	if not await _draw():return false
 	if expected_camera!=null and get_viewport().get_camera_3d()!=expected_camera:return false
 	milestones.viewport_id=get_viewport().get_instance_id()

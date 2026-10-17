@@ -4,6 +4,14 @@ const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
+const VegetationPolicy=preload("res://scripts/world3d/vegetation_instance_policy.gd")
+var cutout_visuals:Dictionary={}
+var view_camera:Camera3D
+var _cutout_camera_state:Array=[]
+var _cutout_timing:Dictionary={}
+var _cutout_samples:Array=[]
+var _cutout_gpu_samples:Array=[]
+var _cutout_admitted:=false
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var groups: Dictionary = {}
 var terrain_lod_visuals:Dictionary={}
@@ -70,9 +78,10 @@ static func _fingerprint(value:Variant)->String:
 	hash.update(var_to_bytes(value));return hash.finish().hex_encode()
 
 func _enter_tree()->void:
-	_retiring_workers=false;set_process(_resume_processing)
+	_retiring_workers=false;_cutout_camera_state.clear();set_process(_resume_processing)
 
 func _ready() -> void:
+	RenderingServer.frame_pre_draw.connect(update_cutout_visibility)
 	name = "GroundRenderBatches"
 	set_meta("stream_instance", true)
 
@@ -102,7 +111,7 @@ func clear(restore_sources: bool = true) -> void:
 	_preparation.clear();_residency_descriptors.clear()
 	for group: Dictionary in groups.values(): _drop(group,restore_sources)
 	groups.clear(); pending.clear(); _material_keys.clear(); _instance_meshes.clear(); _member_groups.clear();_building_meshes.clear()
-	terrain_lod_visuals.clear()
+	terrain_lod_visuals.clear();cutout_visuals.clear();_cutout_camera_state.clear();_cutout_timing.clear();_cutout_samples.clear();_cutout_gpu_samples.clear();_cutout_admitted=false
 	_audit_keys.clear();_audit_cursor=0
 
 func release(ids: Array) -> void:
@@ -138,12 +147,14 @@ func _drop(group: Dictionary, restore_sources: bool = true) -> void:
 	for node in group.members:
 		if not is_instance_valid(node):continue
 		_member_groups.erase(str(node.name))
+		if group.get("cutout_instanced",false):
+			RenderingServer.instance_set_visible(node.get_instance(),node.is_visible_in_tree())
 		var callback:Callable=group.get("exit_callback",Callable())
 		if callback.is_valid() and node.tree_exiting.is_connected(callback):node.tree_exiting.disconnect(callback)
 		var visible_callback:Callable=group.get("visible_callback",Callable())
 		if visible_callback.is_valid() and node.visibility_changed.is_connected(visible_callback):node.visibility_changed.disconnect(visible_callback)
 	if is_instance_valid(group.get("visual")):
-		terrain_lod_visuals.erase(group.visual.get_instance_id());group.visual.free()
+		terrain_lod_visuals.erase(group.visual.get_instance_id());cutout_visuals.erase(group.visual.get_instance_id());group.visual.free()
 	if not restore_sources: return
 	for node in group.members:
 		if is_instance_valid(node) and not node.is_queued_for_deletion(): restore(node)
@@ -160,10 +171,11 @@ func _watch_group(key:String,group:Dictionary)->void:
 	var callback:=_invalidate_group.bind(key,group.generation)
 	group.exit_callback=callback;group.member_ids=[]
 	group.moving=group.category=="building" and group.members[0].get_meta("ground_batch_record",{}).has("fixture")
-	if group.category=="building":
-		group.visible_callback=_sync_visibility.bind(key,group.generation)
-		group.members[0].visibility_changed.connect(group.visible_callback)
+	if group.category in ["building","vegetation"]:
+		group.visible_callback=(_invalidate_group if group.category=="vegetation" else _sync_visibility).bind(key,group.generation)
+		if group.category=="building":group.members[0].visibility_changed.connect(group.visible_callback)
 	for node in group.members:
+		if group.category=="vegetation":node.visibility_changed.connect(group.visible_callback)
 		group.member_ids.append(str(node.name))
 		node.tree_exiting.connect(callback)
 
@@ -259,6 +271,7 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 		keys.append(key)
 		if material is ShaderMaterial and (absf(node.global_basis.y.x) > .00001 or absf(node.global_basis.y.z) > .00001): eligible = false
 	if not eligible: return
+	if record.get("vegetation_batch",false) and VegetationPolicy.is_cutout(node) and not VegetationPolicy.preserves_lods(node.mesh):return
 	sync_profile.material_us+=Time.get_ticks_usec()-mark
 	# Small surfaces use 128 m bins; a 200 m terrain uses 512 m bins. Never
 	# merge a whole city, so culling and local edits stay spatially bounded.
@@ -267,7 +280,7 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	var cell := maxf(32. if kind in ["fortification","vegetation"] else 128., pow(2., ceil(log(maxf(1., maxf(extent.x,extent.z))) / log(2.))) * (1. if kind in ["fortification","vegetation"] else 2.))
 	var center: Vector3 = node.global_position
 	var shape: Array = [record.terrain_mesh.columns,record.terrain_mesh.rows] if record.has("terrain_mesh") else []
-	if kind=="vegetation":shape=[record.asset_path]
+	if kind=="vegetation":shape=[record.asset_path,_geometry_signature(Cpu.capture(node.mesh))]
 	if kind=="building":
 		var b:Dictionary=record.building
 		var presentation:String="ceiling" if str(b.part).ends_with("/ceiling") else ("roof" if b.role=="roof" else "body")
@@ -284,6 +297,9 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	var vertices := Geometry.vertex_count(node.mesh)
 	if vertices > Geometry.MAX_VERTICES: return
 	var descriptor:={"reference":weakref(node),"pose":node.global_transform,"base":base,"merge_base":merge_base,"category":kind,"vertices":vertices,"keys":keys,"limit":Geometry.member_limit(record),"origin":Vector3((floor(center.x/cell)+.5)*cell,0,(floor(center.z/cell)+.5)*cell)}
+	if kind=="vegetation" and VegetationPolicy.is_cutout(node):
+		# Identical geometry is shared; bound transforms, not duplicated vertices.
+		descriptor.vertices=0;descriptor.limit=2048
 	_residency_descriptors[identity]=descriptor
 	_append_descriptor(node,descriptor,desired)
 
@@ -336,9 +352,11 @@ func _prepare_step(budget_usec:int)->void:
 						else:
 							desired[target].members.append_array(source.members);desired[target].signature.append_array(source.signature);desired[target].vertices+=source.vertices
 				"filter":
+					var source:Dictionary=desired[item]
+					var sparse_cutout:bool=source.category=="vegetation" and VegetationPolicy.is_cutout(source.members[0]) and source.members.size()<VegetationPolicy.MIN_MEMBERS
+					# Sparse rejection must also reach the shared slice accounting.
 					# A lone heightfield still benefits from distant index LODs.
-					# Other categories retain the original two-member minimum.
-					if desired[item].members.size()<2 and not preload("res://scripts/world3d/terrain_render_lod.gd").eligible(desired[item].members[0].get_meta("ground_batch_record")):desired.erase(item)
+					if sparse_cutout or (source.members.size()<2 and not preload("res://scripts/world3d/terrain_render_lod.gd").eligible(source.members[0].get_meta("ground_batch_record"))):desired.erase(item)
 				"drop":
 					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
 						_drop(groups[item]);groups.erase(item);pending.erase(item)
@@ -418,6 +436,15 @@ func _build_next(background: bool = false) -> void:
 	group.reference_pose=group.members[0].global_transform
 	var snapshot: Array = []
 	group.cpu = []
+	if group.category=="vegetation" and VegetationPolicy.is_cutout(group.members[0]):
+		# Geometry identity was part of the immutable grouping key. Keep one CPU
+		# owner; per-member material reads/captures are redundant for this path.
+		var first:MeshInstance3D=group.members[0];group.cpu=[Cpu.capture(first.mesh)]
+		var materials:Array=[]
+		for slot in first.mesh.get_surface_count():materials.append(first.get_active_material(slot))
+		for node:MeshInstance3D in group.members:snapshot.append({"transform":node.global_transform})
+		snapshot[0].materials=materials
+		_commit_instances(group,snapshot,started);return
 	for node: MeshInstance3D in group.members:
 		var cpu: Mesh = Cpu.capture(node.mesh); var materials: Array = []
 		group.cpu.append(cpu)
@@ -516,7 +543,17 @@ func _commit_instances(group: Dictionary,snapshot: Array,started: int) -> void:
 	add_child(visual); visual.global_position=group.origin
 	var vertices:=Geometry.vertex_count(mesh)
 	group.visual=visual; group.data={"mesh":mesh,"source_surfaces":mesh.get_surface_count()*snapshot.size(),"source_vertices":vertices*snapshot.size(),"render_vertices":vertices,"instanced":true}
-	for i in group.members.size(): freeze(group.members[i],group.cpu[i])
+	var cutout:bool=group.category=="vegetation" and VegetationPolicy.is_cutout(group.members[0])
+	if cutout:
+		group.cutout_bounds=AABB()
+		for i in group.members.size():
+			var bounds:AABB=group.members[i].global_transform*group.members[i].get_aabb()
+			group.cutout_bounds=bounds if i==0 else group.cutout_bounds.merge(bounds)
+		group.cutout_instanced=false;visual.visible=false
+		cutout_visuals[visual.get_instance_id()]=group;_cutout_camera_state.clear()
+		update_cutout_visibility()
+	else:
+		for i in group.members.size():freeze(group.members[i],group.cpu[i])
 	group.erase("cpu"); rebuild_count+=1
 	last_build_ms=(Time.get_ticks_usec()-started)/1000.; max_build_ms=maxf(max_build_ms,last_build_ms); last_commit_ms=last_build_ms
 	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
@@ -541,6 +578,15 @@ func retire_workers(_tree:SceneTree=null)->void:
 
 func _exit_tree() -> void:
 	retire_workers()
+	# A batch owner can leave while editable sources stay. Release derived
+	# renderer suppression immediately; reparenting can evaluate again on entry.
+	for group:Dictionary in cutout_visuals.values():
+		if not group.get("cutout_instanced",false):continue
+		if is_instance_valid(group.get("visual")):group.visual.visible=false
+		for node in group.members:
+			if is_instance_valid(node):RenderingServer.instance_set_visible(node.get_instance(),node.is_visible_in_tree())
+		group.cutout_instanced=false
+	_cutout_camera_state.clear()
 
 func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	if data.is_empty(): return
@@ -579,6 +625,12 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 func stats(category: String="") -> Dictionary:
 	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
 	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
+	result.cutout_policy="measured_cpu_bound_distant_interior_no_native_lod"
+	result.cutout_admission=_cutout_timing.duplicate()
+	result.cutout_active_member_limit=VegetationPolicy.MAX_ACTIVE_MEMBERS
+	result.cutout_groups=cutout_visuals.size();result.active_cutout_groups=0
+	for group:Dictionary in cutout_visuals.values():
+		if group.cutout_instanced:result.active_cutout_groups+=1
 	result.building_mesh_hits=building_mesh_hits
 	result.work_budget_usec=effective_work_budget_usec();result.base_work_budget_usec=work_budget_usec
 	result.loading_budget_scopes=_loading_budgets.size()
@@ -591,3 +643,52 @@ func stats(category: String="") -> Dictionary:
 		result.render_surfaces += group.data.mesh.get_surface_count()
 		result.source_vertices += group.data.source_vertices; result.render_vertices += group.data.render_vertices
 	return result
+
+func update_cutout_visibility()->void:
+	if cutout_visuals.is_empty() or not is_inside_tree():return
+	var camera:=view_camera if is_instance_valid(view_camera) else get_viewport().get_camera_3d()
+	var viewport:=camera.get_viewport() if is_instance_valid(camera) else get_viewport()
+	_update_cutout_admission(viewport)
+	var state:Array=[_cutout_admitted,camera.get_instance_id(),camera.get_camera_transform(),camera.get_camera_projection(),viewport.get_visible_rect().size,viewport.use_occlusion_culling,viewport.use_xr] if is_instance_valid(camera) else []
+	if state==_cutout_camera_state:return
+	_cutout_camera_state=state
+	var remaining:=VegetationPolicy.MAX_ACTIVE_MEMBERS
+	for group:Dictionary in cutout_visuals.values():
+		var use_instances:bool=_cutout_admitted and group.members.size()<=remaining and VegetationPolicy.can_instance(group.cutout_bounds,camera)
+		if use_instances:remaining-=group.members.size()
+		if use_instances==group.cutout_instanced:continue
+		group.visual.visible=use_instances
+		for node:MeshInstance3D in group.members:
+			RenderingServer.instance_set_visible(node.get_instance(),not use_instances and node.is_visible_in_tree())
+		group.cutout_instanced=use_instances
+
+func _update_cutout_admission(viewport:Viewport)->void:
+	if _cutout_timing.is_empty() or _cutout_timing.get("viewport")!=viewport.get_instance_id():
+		_cutout_admitted=false;_cutout_samples.clear();_cutout_gpu_samples.clear()
+		RenderingServer.viewport_set_measure_render_time(viewport.get_viewport_rid(),true)
+		_cutout_timing={"viewport":viewport.get_instance_id(),"attempts":0,"state":"sampling_originals","frame":-1,"cpu_ms":0.,"gpu_ms":0.,"samples":0,"guard_samples":0}
+	var frame:=Engine.get_process_frames()
+	if int(_cutout_timing.frame)==frame:return
+	_cutout_timing.frame=frame
+	var cpu_ms:=RenderingServer.viewport_get_measured_render_time_cpu(viewport.get_viewport_rid())
+	var gpu_ms:=RenderingServer.viewport_get_measured_render_time_gpu(viewport.get_viewport_rid())
+	if _cutout_timing.state=="sampling_originals":
+		# Ignore cold initialization and unavailable timestamps. Twenty-four
+		# steady original frames precede any candidate draw in this viewport.
+		_cutout_timing.attempts+=1
+		if cpu_ms<=0 or gpu_ms<=0 or cpu_ms>10 or gpu_ms>10:
+			if int(_cutout_timing.attempts)>=120:_cutout_timing.state="originals_timing_unavailable"
+			return
+		_cutout_samples.append(cpu_ms);_cutout_gpu_samples.append(gpu_ms);_cutout_timing.samples=_cutout_samples.size()
+		if _cutout_samples.size()<24:return
+		_cutout_samples.sort();_cutout_gpu_samples.sort()
+		_cutout_timing.cpu_ms=_cutout_samples[12];_cutout_timing.gpu_ms=_cutout_gpu_samples[12]
+		_cutout_admitted=VegetationPolicy.profitable(_cutout_timing.cpu_ms,_cutout_timing.gpu_ms)
+		_cutout_timing.state="admitted" if _cutout_admitted else "originals_no_cpu_margin"
+		_cutout_samples.clear();_cutout_gpu_samples.clear()
+	elif _cutout_admitted:
+		# A later GPU-heavy scene cannot retain admission earned by a CPU-heavy
+		# scene. Use a consecutive window; a rejected lifetime stays conservative.
+		_cutout_timing.guard_samples=int(_cutout_timing.guard_samples)+1 if gpu_ms>maxf(1.,float(_cutout_timing.cpu_ms)) else 0
+		if int(_cutout_timing.guard_samples)>=12:
+			_cutout_admitted=false;_cutout_timing.state="originals_gpu_guard"

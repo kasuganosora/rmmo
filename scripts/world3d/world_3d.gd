@@ -8,13 +8,14 @@ const Stream = preload("res://scripts/world3d/world_stream.gd")
 const CrossMapPrefetch=preload("res://scripts/world3d/cross_map_prefetch.gd")
 const Net = preload("res://scripts/net/net.gd")
 static var navigation_background_enabled:=true
-static var wind_background_enabled:=false # Unseen variants must not leave streamed wind receivers static.
+static var wind_background_enabled:=true # Unknown variants recover automatically under a drawn cover.
 static var building_readiness_enabled:=false
 static var automatic_staged_entry_enabled:=true
 var _entry_policy:Dictionary={}
 var _preparation_hint:Label
 var _preparation_sample_at:=0
 var _last_optional_state:Dictionary={}
+var _wind_recovery_pending:=false
 var _building_entry:RefCounted
 var _building_transfer:RefCounted
 var _building_traversal:RefCounted
@@ -105,6 +106,8 @@ func _update_preparation_hint()->void:
 	var pending:bool=is_instance_valid(_navigation) and not _navigation.ready_for_queries
 	var wind:Dictionary=_weather.wind_objects.capability_status() if is_instance_valid(_weather) else {}
 	var wind_pending:bool=not wind.get("ready",true)
+	if wind_background_enabled and int(wind.get("pending_receivers",0))>0 and not _transfer_pending and not _wind_recovery_pending and not get_viewport().disable_3d:
+		_wind_recovery_pending=true;_recover_streamed_wind.call_deferred()
 	if _preparation_hint==null:
 		_preparation_hint=Label.new();_preparation_hint.name="PreparationStatus";_preparation_hint.position=_status.position+Vector2(0,26);_status.get_parent().add_child(_preparation_hint)
 	_preparation_hint.visible=(pending or wind_pending) and not _transfer_pending
@@ -2131,3 +2134,33 @@ func _approach_map_target(target:String)->String:
 	if target.is_empty():return ""
 	if is_instance_valid(Net.session().editor_playtest):target=Net.session().editor_playtest.resolve_map(target)
 	return "" if _same_map_target(target) else target
+
+func _recover_streamed_wind()->void:
+	# Shader reflection still serializes on the renderer. Unknown variants get
+	# an explicit automatic cover; cache-only receiver work remains background.
+	if not _ready_for_play or _transfer_pending or not is_instance_valid(_weather) or not is_instance_valid(_player):
+		_wind_recovery_pending=false;return
+	var runtime:Node3D=_weather.wind_objects
+	if runtime.pending_specs().is_empty():_wind_recovery_pending=false;return
+	var original_map:=_map_root;var viewport:=get_viewport()
+	var original:Dictionary={"locked":_player.input_locked,"physics":_player.is_physics_processing(),"combat":_combat.is_physics_processing(),"disable_3d":viewport.disable_3d}
+	_transfer_pending=true;_transfer_viewport_restore=original.disable_3d
+	_player.input_locked=true;_player.set_physics_process(false);_player.velocity=Vector3.ZERO;_combat.set_physics_process(false)
+	var cover:=preload("res://scripts/world3d/transfer_loading.gd").new()
+	cover.title_text="正在准备附近风动材质";cover.ready_text="风动材质已准备好"
+	add_child(cover);cover.update_progress("准备风动材质")
+	var covered:bool=await cover.wait_until_drawn()
+	if not is_instance_valid(self) or not is_inside_tree():return
+	var result:Dictionary={"ok":false,"reason":"cover_unavailable"}
+	if covered and is_instance_valid(runtime) and _map_root==original_map:
+		viewport.disable_3d=true
+		result=await runtime.prepare_pending_covered(cover)
+	if not is_instance_valid(self) or not is_inside_tree():return
+	viewport.disable_3d=original.disable_3d
+	if result.ok and is_instance_valid(cover) and await cover.finish(_camera.camera):await cover.reveal()
+	if not is_instance_valid(self) or not is_inside_tree():return
+	if is_instance_valid(cover):
+		set_meta("wind_recovery_profile",cover.profile().merged(result));cover.retire()
+	_player.set_physics_process(original.physics);_player.input_locked=original.locked;_combat.set_physics_process(original.combat)
+	_transfer_pending=false;_transfer_viewport_restore=null;_wind_recovery_pending=false
+	_preparation_sample_at=0

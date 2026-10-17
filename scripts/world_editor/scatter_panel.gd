@@ -11,6 +11,8 @@ var search: LineEdit
 var info: Label
 var selection_summary: Label
 var selected_chips: HFlowContainer
+var optimization_info:Label
+var _status_clock:=0.
 var current: Dictionary={}
 var preview: Dictionary={}
 var selected_assets: Array=[]
@@ -42,6 +44,7 @@ func setup(panel: VBoxContainer) -> void:
 	host.button(body,"应用散布方案",apply)
 	host.button(body,"解除关联，保留植被",func():remove_region(true))
 	host.button(body,"删除区域及生成植被",func():remove_region(false))
+	optimization_info=host.note(body,"")
 	info=host.note(body,"")
 	new_region(); refresh()
 
@@ -139,3 +142,9 @@ func remove_region(keep_objects: bool) -> void:
 func invalidate() -> void:
 	preview={}; editor._scatter.overlay_plan={}
 	if info!=null: info.text="请选择素材和边界，再预览。已有手改物件会阻止重生成；可先解除关联。"
+
+func _process(delta:float)->void:
+	_status_clock+=delta
+	if _status_clock<.5 or optimization_info==null or not optimization_info.is_visible_in_tree():return
+	_status_clock=0.
+	optimization_info.text=editor.vegetation_render_status().message

@@ -986,3 +986,6 @@ UI 与当前 3D MCP 的地形修改自动使用内部格点 CPU 网格／切线�
 上述上一批的未交付范围，本批继续补齐：UI 与 3D MCP 创建的建筑自动共享运行时远景代理／LOD；楼层、屋顶隐藏或构件移动立即退回原渲染，门窗及透明／风动组件独立。已验证空间边界和完整归属的静态建筑、地形、道路／冻结结构可以在所有使用者解除后整组退役，原生作者文档保持完整，回访走相同验证与发布路径。
 
 `create_event_template`／`set_event_template` 的发现说明与 UI 同步注明“预读并预加载目标画面资源”。沿用原参数与脚点定义，不新增绕过就绪检查的选项。接近入口时，预算内原生目标可在私有视口准备实际网格、材质与纹理；确认传送后复用资源，仍检查物理、导航、落点、目标实际首帧与权威。源／依赖变化、取消、预算或格式不适用时沿用确认加载。真实 HTTP 验证包括发现、非法请求无副作用、UI、撤销重做、保存重开与 GPU 命中的实际跨图传送，见[范围与验收](runtime_completion_20261017.md)。
+
+
+2026-10-18 风动与透明植被：`playtest_state.preparation.wind` 补充 `covered_preparation/last_recovery`。缓存内接收体后台绑定；运行期出现未知变体时自动绘制准备遮罩，准备完成并绘制相机首帧后恢复原位置操作，MCP 不得将 pending 记作 ready。`editor_state.vegetation_batching` 与散布面板共用 `vegetation_render_status()`，提供 `cutout_admission`（原路径采样、准入、CPU 余量不足或 GPU 保护回退）、`cutout_groups/active_cutout_groups/cutout_active_member_limit` 及提示文本。密集静态 alpha-scissor 仅在实测 CPU 有余量、远距全视野、无原生 LOD／遮挡／XR 的条件下自动实例化；风动和不兼容来源保留原路径。UI／HTTP 的预览、应用、撤销、保存重开及中途停止验收见[交付报告](wind_cutout_rollout_20261018.md)。没有新增工具或参数，也不恢复二维适配器。

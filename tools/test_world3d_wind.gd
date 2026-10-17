@@ -33,7 +33,7 @@ func red_center(image: Image, low: float, high: float) -> Vector2:
 func run() -> void:
 	create_timer(180).timeout.connect(func():push_error("wind test timeout");quit(2))
 	root.size=Vector2i(1280,800); root.content_scale_size=root.size
-	var directory := Paths.external_root().path_join("__wind_test_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
+	var directory := Review.review_path("wind_cutout_20261018/authoring_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
 	DirAccess.make_dir_recursive_absolute(directory)
 	var metadata := FileAccess.open(directory.path_join("metadata.json"),FileAccess.WRITE); metadata.store_string('{"id":"wind_test","name":"风场验收"}'); metadata.close()
 	var source := Node3D.new(); source.name="FlexibleModel"
@@ -81,7 +81,12 @@ func run() -> void:
 	# Give newly restored GPU pipelines a frame before starting the HTTP deadline.
 	await settle()
 	await call_tool("select_objects",{"ids":[id]})
+	# Restrict only this test process to the isolated pack catalogue during capture.
+	var manager:Node=root.get_node("AssetManager");var previous_root:String=manager.content_root_override
+	manager.content_root_override=directory.get_base_dir()
 	var prefab:=await call_tool("save_prefab",{"name":"受风旗帜","pack_root":directory})
+	manager.content_root_override=previous_root
+	if not prefab.has("asset_id"):quit(1);return
 	await call_tool("place_asset",{"asset_id":prefab.asset_id,"position":[-5,0,0]})
 	check(editor._doc._find(editor._selection_tools.ids[0]).wind_response.profile=="cloth","prefab retains wind response and independent identity")
 	if DisplayServer.get_name()!="headless": await visuals(id,other,mesh_path)
@@ -118,14 +123,14 @@ func visuals(id:String, other:String, mesh_path:String) -> void:
 	var materials:Array=runtime.receivers[visual.get_instance_id()].materials
 	check(materials[0].get_shader_parameter("tint")==Response.base_material(visual,0).albedo_color,"original PBR albedo survives wind binding")
 	runtime.advance(Vector3.ZERO,1)
-	var calm:=await shot(); calm.save_png(Review.review_path("weather3d/wind_calm.png"))
+	var calm:=await shot(); calm.save_png(Review.review_path("wind_cutout_20261018/authoring_visuals/wind_calm.png"))
 	runtime.advance(Vector3(16,0,0),1)
-	var windy:=await shot(); windy.save_png(Review.review_path("weather3d/wind_right.png"))
+	var windy:=await shot(); windy.save_png(Review.review_path("wind_cutout_20261018/authoring_visuals/wind_right.png"))
 	check(red_center(windy,.15,.55).x>red_center(calm,.15,.55).x+5,"GPU moves the free edge downwind")
 	var pin_y:float=editor._camera.unproject_position(Vector3(.75,.025,0)).y / calm.get_height()
 	check(absf(red_center(windy,pin_y-.003,pin_y).x-red_center(calm,pin_y-.003,pin_y).x)<2,"pinned lower edge stays fixed")
 	runtime.advance(Vector3(-16,0,0),1)
-	var reversed:=await shot(); reversed.save_png(Review.review_path("weather3d/wind_left.png"))
+	var reversed:=await shot(); reversed.save_png(Review.review_path("wind_cutout_20261018/authoring_visuals/wind_left.png"))
 	check(red_center(reversed,.15,.55).x<red_center(calm,.15,.55).x-5,"wind direction reversal reverses deformation")
 	check(visual.mesh==original_mesh and visual.transform==transform,"source geometry, transforms and collision basis remain unchanged")
 	var paint_preview:Dictionary=Response.Paint.painted_mesh(visual,[])
@@ -157,7 +162,7 @@ func visuals(id:String, other:String, mesh_path:String) -> void:
 	editor._camera.projection=Camera3D.PROJECTION_PERSPECTIVE; editor._camera.rotation_degrees=Vector3(16,28,0)
 	for preset in ["day","sunset","night"]:
 		rig.configure(Settings.updated({}, {"preset":preset,"weather":"clear","wind_speed":6}),true); rig._process(1)
-		var sky_image:=await shot(); sky_image.save_png(Review.review_path("weather3d/sky_"+preset+".png"))
+		var sky_image:=await shot(); sky_image.save_png(Review.review_path("wind_cutout_20261018/authoring_visuals/sky_"+preset+".png"))
 		check(rig.sky_material.get_shader_parameter("night_amount")== (1.0 if preset=="night" else 0.0),"sky celestial state matches "+preset)
 	await call_tool("set_object_properties",{"ids":[id],"wind":{"profile":"off"}})
 	check(not editor._view.get_node(NodePath(id)).get_node(NodePath(mesh_path)).has_meta("wind_original"),"disabling wind restores original materials")

@@ -561,6 +561,7 @@ func _sync_ground_batches(selection_only: bool=false, incremental: bool=false, f
 	if not is_instance_valid(_ground_batches):
 		_ground_batches = preload("res://scripts/world3d/ground_batcher.gd").new()
 		add_child(_ground_batches)
+	_ground_batches.view_camera=_camera
 	var excluded: Array=_selection_tools.ids if _selection_tools != null else []
 	if selection_only: _ground_batches.sync_selection(_view.get_children(),excluded)
 	elif incremental: _ground_batches.request_sync(_view.get_children(),excluded)
@@ -1680,3 +1681,8 @@ func _restore_previous() -> void:
 
 func _intersect_ray(query:PhysicsRayQueryParameters3D)->Dictionary:
 	return preload("res://scripts/world_editor/terrain_local_publish.gd").intersect_ray(get_world_3d().direct_space_state,query,self)
+
+func vegetation_render_status()->Dictionary:
+	var state:Dictionary=_ground_batches.stats("vegetation") if is_instance_valid(_ground_batches) else {}
+	state["message"]="远景自动优化 %d 组；近景与原有 LOD 保留细节。"%int(state.get("active_cutout_groups",0))
+	return state

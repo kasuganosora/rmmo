@@ -5,9 +5,9 @@ const TERRAIN_SHADER = preload("res://scripts/world3d/river_terrain.gdshader")
 const MAX_MEMBERS := 16
 const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
-# Kept as an independently testable candidate: the renderer already instances
-# some cutout draws, so a larger MultiMesh can lose fine visibility culling.
-static var static_scatter_instances_enabled:=false
+# Dense cutouts require measured CPU margin, an entirely visible distant AABB,
+# no native LOD and no occlusion. Other instances retain the engine draw path.
+static var static_scatter_instances_enabled:=true
 
 static func category(record: Dictionary) -> String:
 	if record.get("vegetation_batch",false):return "vegetation"
