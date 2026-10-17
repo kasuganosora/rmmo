@@ -1,0 +1,43 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: native triangle slopes on analytic plane
+PASS: negative and zero contours follow actual triangle elevations
+PASS: mixed resolution shared edge is continuous
+PASS: native neighboring height step measured
+PASS: hole cells never get slope surfaces
+PASS: yaw rotation preserves real slope
+PASS: tilted terrain explicitly unsupported
+PASS: flat plane at a contour elevation does not emit whole-cell edges
+PASS: contour expansion rejects bounded output overflow
+PASS: native analytic disposable map saved
+PASS: independent loopback server
+PASS: discovered query_terrain_analysis
+PASS: discovered set_terrain_analysis
+PASS: discovered get_terrain_analysis
+PASS: HTTP query_terrain_analysis succeeds
+PASS: HTTP set_terrain_analysis succeeds
+PASS: query and visible overlay share geometry/version with no author effects
+PASS: real UI uses same query and overlay
+PASS: overlays only render meshes without selectable or physics children
+PASS: HTTP set_editor_camera succeeds
+PASS: HTTP set_terrain_analysis rejects invalid operation
+PASS: invalid overlay parameters are atomic
+PASS: HTTP sculpt_terrain succeeds
+PASS: HTTP get_terrain_analysis succeeds
+PASS: native sculpt automatically refreshes overlay version
+PASS: HTTP undo succeeds
+PASS: HTTP query_terrain_analysis succeeds
+PASS: undo restores analytic overlay geometry
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: HTTP get_terrain_analysis succeeds
+PASS: reopen refreshes overlay against new document
+PASS: HTTP set_object_properties succeeds
+PASS: hidden target clears visible analysis
+PASS: HTTP undo succeeds
+PASS: undo hide restores analysis
+PASS: HTTP set_terrain_analysis succeeds
+PASS: disable releases overlay
+TERRAIN_ANALYSIS checks=38 failures=0

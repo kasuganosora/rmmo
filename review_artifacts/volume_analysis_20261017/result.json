@@ -1,0 +1,51 @@
+{
+	"checks": 48,
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/volume_analysis_13907278/map.gltf",
+	"map_sha256": "04d1c461f37f53f0dadeb2fd20c6b517b97c17ad6923c34ca435262ac7b1f006",
+	"query_summary": {
+		"enabled": true,
+		"line_count": 3027.0,
+		"ok": true,
+		"request": {
+			"contours": true,
+			"height_max": 6.0,
+			"height_min": -6.0,
+			"id": "cave",
+			"interval": 0.5,
+			"seams": false,
+			"slope_threshold": 0.15,
+			"slopes": true,
+			"surface": "all"
+		},
+		"result": {
+			"base_version": "a73782e87debc131db45d93d72b2143e2e4375afd47f09e2fc9575f6a45c59c4",
+			"geometry_token": "fda2a0b84d0fd2625ad2d62f3071c093dd21ebdd60fa78fe11844625102fceb6",
+			"height_range": [
+				-6.0,
+				6.0
+			],
+			"holes": null,
+			"id": "cave",
+			"interval": 0.5,
+			"max_angle_degrees": 90.0,
+			"max_boundary_step": 0.0,
+			"max_grade": null,
+			"ok": true,
+			"scope": "world height band clipped against actual triangles; upward normal.y > 0.05, downward < -0.05, otherwise walls; no heightfield seams or walkability certificate",
+			"selected_triangles": 6640.0,
+			"slope_threshold": 0.15,
+			"source": "native_volume_triangles",
+			"surface": "all",
+			"surface_counts": {
+				"downward": 1788.0,
+				"upward": 1788.0,
+				"walls": 3064.0
+			},
+			"vertical_triangles": 2974.0
+		},
+		"seam_count": 0.0,
+		"triangle_count": 6640.0
+	},
+	"scope": "actual volume triangles, UI and HTTP; no authoring changes from analysis; not runtime walkability or art acceptance"
+}

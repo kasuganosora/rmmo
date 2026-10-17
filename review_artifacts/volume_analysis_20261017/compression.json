@@ -1,0 +1,8 @@
+{
+	"encoder": "Godot Image.save_webp(lossy=true,quality=0.9)",
+	"height": 1000,
+	"lossy": true,
+	"quality": 90,
+	"sha256": "60384db2723c35269e05536f5b77422316e605f1effae51b264b4289f5267f78",
+	"width": 1600
+}

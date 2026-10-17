@@ -1,0 +1,135 @@
+{
+  "feature": "T4-E volume surface and world-height-band analysis",
+  "base_commit": "47e279f594e0734b86e330b4445e490b03f453bc",
+  "checks": {
+    "result.json": 48,
+    "heightfield/result.json": 38
+  },
+  "total_checks": 86,
+  "failures": 0,
+  "sources": [
+    {
+      "path": "scripts\\world_editor\\terrain_analysis.gd",
+      "sha256": "467bf1e3b462453612301d48cc40b86f061dc345566858bc90d4acac60d595dd",
+      "bytes": 9147,
+      "lf_sha256": "0e27c282df6583f8c995aecfd89f6d0b481cb0d3959554f2589dc3abee4a88e3"
+    },
+    {
+      "path": "scripts\\world_editor\\terrain_analysis_panel.gd",
+      "sha256": "661f1d02ae9d7fb1eaba202e1b31e0153128b181d836f1171ef45407af722257",
+      "bytes": 4735,
+      "lf_sha256": "101913756c05b8861ec9349de576a1e9bc675d8d11f1d8e6375edf80416acc84"
+    },
+    {
+      "path": "scripts\\world_editor\\terrain_volume_analysis.gd",
+      "sha256": "5fb9407b46b42287030bdff5fa0ee34c221827b7c7c235968826781fd440c98d",
+      "bytes": 5557,
+      "lf_sha256": "5fb9407b46b42287030bdff5fa0ee34c221827b7c7c235968826781fd440c98d"
+    },
+    {
+      "path": "scripts\\world_editor\\mcp_schema.gd",
+      "sha256": "8fc6c9a7b14196e6fe0304b1f56f7dbf9f6a7c2d297ffc31a2c5ee1cf6ea47c4",
+      "bytes": 65766,
+      "lf_sha256": "a47222849d1afb44661ae2436abb913569d55e1da995090cd1bf6189d4e4c3c1"
+    },
+    {
+      "path": "scripts\\world3d\\terrain_volume.gd",
+      "sha256": "9bd0fe4b0ac1b72ce62971e9d692732fea0010b4007c4af05d62bcba2ca603e5",
+      "bytes": 6056,
+      "lf_sha256": "d990a32c548fc8b33d0f7996acb6c639129f49d537da57993300ea98a75a7517"
+    },
+    {
+      "path": "tools\\test_volume_analysis.gd",
+      "sha256": "e26ce190efaf84873d7026c53473adac11e0a84b67eae8858e48811a9600607f",
+      "bytes": 9696,
+      "lf_sha256": "1ecb5425b21ddbf6c9c09ddfeca64d6cf7399017e596219fa95c2c09185da958"
+    },
+    {
+      "path": "tools\\test_terrain_analysis.gd",
+      "sha256": "86feaca28adcdb1b9596057ad5dfa8ec3c5a8178fe792cd5b8fc5e81e7e9ca90",
+      "bytes": 7937,
+      "lf_sha256": "0f9408628b7d85fce44ed6ed107cbb73e4639a677bd863eb3c093c7a1fa997fb"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\result.json",
+      "sha256": "d98a01cf8ad6aefccb986b68d101932f6e858207c64a3841091283015920d593",
+      "bytes": 1477
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\engine.log",
+      "sha256": "536e82e1ac9b9a258cb5b69f7ac5691bc2e36763b607d4b37f897b5403592195",
+      "bytes": 2770
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\console.log",
+      "sha256": "8cc51575e1859d1c02005cc4f0c94da77f623d6a90d94ddccfa7b0be5059eb42",
+      "bytes": 2823
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\ui.webp",
+      "sha256": "60384db2723c35269e05536f5b77422316e605f1effae51b264b4289f5267f78",
+      "bytes": 174610
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\compression.json",
+      "sha256": "c92a6a9714f0fcf4ee3daae96d2b03a591440b5e6c335aa2b835e9586b75c7a0",
+      "bytes": 207
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\heightfield\\result.json",
+      "sha256": "a659e8fc22914fd4ac442ec03e76537f18ed1d695bd2bc5bd060638ef032035e",
+      "bytes": 1089
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\heightfield\\engine.log",
+      "sha256": "356db02e448b52e733d0461672d6ac8a65a65cba2f71fe52b2627dd0881950f8",
+      "bytes": 1962
+    },
+    {
+      "path": "review_artifacts\\volume_analysis_20261017\\heightfield\\console.log",
+      "sha256": "7ab55183989a8165f7ad2bce5521efff24fa8b1dc281f13ed27a4490d9efff7f",
+      "bytes": 2005
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\volume_analysis_13907278\\map.gltf",
+      "sha256": "04d1c461f37f53f0dadeb2fd20c6b517b97c17ad6923c34ca435262ac7b1f006",
+      "bytes": 2571,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\volume_analysis_13907278\\map.gltf.resources\\15df883ba69bc160472af1b0ac3ba986bc1046b06c157d8e246da851ebd5c7fd.rmres",
+          "sha256": "15df883ba69bc160472af1b0ac3ba986bc1046b06c157d8e246da851ebd5c7fd",
+          "bytes": 273
+        }
+      ]
+    },
+    {
+      "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\analysis_14023663\\map.gltf",
+      "sha256": "872fe5446fadd325c392295b42f66d1a3f37530336eb40e6c367b32bb88ab7d5",
+      "bytes": 3193,
+      "native_sidecars": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\analysis_14023663\\map.gltf.resources\\935b416151f2deb72abfd4906f58f33d99e3b13e9c8d5bca0e2571bb2d442c27.rmres",
+          "sha256": "935b416151f2deb72abfd4906f58f33d99e3b13e9c8d5bca0e2571bb2d442c27",
+          "bytes": 256
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\cache\\world3d\\analysis_14023663\\map.gltf.resources\\aaf3d1e41563717ff83f151bd2c3c7952aecaf0b3fca08c4b8cd81fb23f7739a.rmres",
+          "sha256": "aaf3d1e41563717ff83f151bd2c3c7952aecaf0b3fca08c4b8cd81fb23f7739a",
+          "bytes": 240
+        }
+      ]
+    }
+  ],
+  "engine": "Godot 4.7.2 stable ed1daf0bf",
+  "scope": [
+    "actual native triangle source, explicit world height clipping and world normal classification",
+    "cave floor and ceiling independently selected; rotated volume; vertical grades remain JSON null; contour expansion budget",
+    "real current 3D HTTP tool discovery, UI parity, invalid request authoring and overlay atomicity",
+    "carve, undo, redo, hide and native save/reopen invalidation; no authoring, history, selection or collider mutations from analysis",
+    "temporary cave geometry and private inactive desktop; no production map writes, no new art model delivery, not a walkability certificate"
+  ]
+}

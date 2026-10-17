@@ -888,3 +888,10 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 ### PNG16 高度图扩展（2026-10-17）
 
 `preview_heightmap_import.format` 新增 `png16`，只接受非交错 16 位单通道灰度且无透明／动画的 PNG，尺寸从 IHDR 获取；可选 `samples_x/z` 如提供须匹配。返回 `bit_depth:16`，原始采样精度为 `height_scale/65535`；不经过 gamma、重采样或 8 位转换。其余候选、资源根、输入预算、撤销与保存合同沿用原接口。见 [地形说明](world_editor_terrain_sculpt.md#png16-高度图2026-10-17)。
+
+
+### 体积地形分析扩展（2026-10-17）
+
+`query_terrain_analysis`／`set_terrain_analysis` 共用原有接口，选中体积地形时必须提供 `surface: all|upward|downward|walls`、`height_min`、`height_max`（严格递增的世界米制标高）；`seams` 省略或 false。例如 `{"id":"cave","surface":"downward","height_min":0,"height_max":3,"interval":0.5,"seams":false}` 查询洞顶方向的表面。高度场须省略这三个体积筛选参数。
+
+体积结果 `source=native_volume_triangles`，增加 `surface_counts`、`selected_triangles`、`vertical_triangles`、`max_angle_degrees` 和 `height_range`。逐面含 `normal`、`source_triangle`、`surface`、`angle_degrees`；垂直面 `grade=null`，存在垂直面时汇总 `max_grade=null`。`holes=null`、`seams=[]`、`max_boundary_step=0` 表示未提供高度场边界分析，不能解释为体积边界连续。详情与预算见 [地形文档](world_editor_terrain_sculpt.md#体积地形分析2026-10-17)。工具仍为只读，会话覆盖层不进入保存和撤销。

@@ -11,7 +11,7 @@ var last:Dictionary={}
 var overlay:Node3D
 var observed:=""
 func version()->String:return City.token([str(editor._doc.get_instance_id()),editor._doc.authoring_revision,editor._authoring.settings])
-static func schema()->Dictionary:return City.object({"id":City.text(),"interval":T.S.number(.1,100),"slope_threshold":T.S.number(0,2),"contours":{"type":"boolean"},"slopes":{"type":"boolean"},"seams":{"type":"boolean"}},["id"])
+static func schema()->Dictionary:return City.object({"id":City.text(),"interval":T.S.number(.1,100),"slope_threshold":T.S.number(0,2),"contours":{"type":"boolean"},"slopes":{"type":"boolean"},"seams":{"type":"boolean"},"surface":{"type":"string","enum":["all","upward","downward","walls"]},"height_min":T.S.number(-100000,100000),"height_max":T.S.number(-100000,100000)},["id"])
 static func fail(message:String)->Dictionary:return {"ok":false,"code":"terrain_analysis_unsupported","error":message}
 static func supported(r:Dictionary)->bool:return r.has("terrain_mesh") and T.valid(r) and r.rotation[0]==0 and r.rotation[2]==0 and Furrows.maximum_height(r)==0
 
@@ -26,6 +26,8 @@ static func build(records:Array,args:Dictionary)->Dictionary:
 	var error:=T.S.validate(args,schema())
 	if not error.is_empty():return {"ok":false,"code":"invalid_arguments","error":error}
 	var matches:Array=records.filter(func(r):return r.uuid==args.id)
+	if not matches.is_empty() and matches[0].has("terrain_volume"):return preload("res://scripts/world_editor/terrain_volume_analysis.gd").build(matches[0],args)
+	if args.has("surface") or args.has("height_min") or args.has("height_max"):return fail("表面方向与标高筛选仅用于体积地形；高度场请省略这些参数")
 	if matches.is_empty() or not supported(matches[0]):return fail("覆盖层需要无倾斜、无垄沟的原生高度场")
 	var r:Dictionary=matches[0];var t:Dictionary=r.terrain_mesh;var pose:=T.transform(r)
 	var interval:float=args.get("interval",1.);var threshold:float=args.get("slope_threshold",.15)
@@ -109,13 +111,13 @@ func draw(result:Dictionary)->void:
 		var mesh:=ImmediateMesh.new();mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 		for triangle:Dictionary in result.slopes:
 			mesh.surface_set_color(Color(1.,.25,.08,.55) if triangle.steep else Color(.15,.7,.3,.28))
-			for point:Array in triangle.points:mesh.surface_add_vertex(City.vec(point)+Vector3.UP*.025)
+			for point:Array in triangle.points:mesh.surface_add_vertex(City.vec(point)+City.vec(triangle.get("normal",[0,1,0]))*.025)
 		mesh.surface_end();add_mesh(mesh,Color.WHITE)
 	if not result.contours.is_empty() or not result.seams.is_empty():
 		var lines:=ImmediateMesh.new();lines.surface_begin(Mesh.PRIMITIVE_LINES)
 		for contour:Dictionary in result.contours:
 			lines.surface_set_color(Color(.8,.95,1.))
-			for point:Array in contour.points:lines.surface_add_vertex(City.vec(point)+Vector3.UP*.045)
+			for point:Array in contour.points:lines.surface_add_vertex(City.vec(point)+City.vec(contour.get("normal",[0,1,0]))*.045)
 		for seam:Dictionary in result.seams:
 			lines.surface_set_color(Color(1.,.2,1.) if seam.step>.002 else Color(.1,.8,1.))
 			var a:=City.vec(seam.from)+Vector3.UP*.05;var b:=City.vec(seam.to)+Vector3.UP*.05

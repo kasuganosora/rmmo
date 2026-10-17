@@ -48,7 +48,7 @@ func run()->void:
 	var queried:=await call_tool("query_terrain_analysis",request_)
 	var shown:=await call_tool("set_terrain_analysis",request_.merged({"enabled":true}))
 	check(queried.geometry_token==shown.result.geometry_token and snapshot()==before,"query and visible overlay share geometry/version with no author effects")
-	var panel=editor._terrain_panel.analysis;editor._terrain_panel.refresh("left");var values:=request_.duplicate();values.erase("id");panel.fields.update_values(values)
+	var panel=editor._terrain_panel.analysis;editor._terrain_panel.refresh("left");var values:=request_.duplicate();values.erase("id");panel.fields.update_values(panel.fields.values().merged(values,true))
 	var ui:Dictionary=panel.show_analysis();check(ui.result.geometry_token==queried.geometry_token,"real UI uses same query and overlay")
 	check(editor._terrain_analysis.overlay.get_child_count()==2 and editor._terrain_analysis.overlay.get_children().all(func(n):return n is MeshInstance3D and n.get_child_count()==0),"overlays only render meshes without selectable or physics children")
 	for i in editor._dock_tabs.get_tab_count():

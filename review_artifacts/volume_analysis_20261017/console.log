@@ -1,0 +1,53 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: vertical native faces have nullable grade and finite 90 degree angle
+PASS: clockwise native winding classifies actual top surface upward
+PASS: volume analysis requires explicit layer and surface selection
+PASS: heightfield seam interpretation is never reused for volume
+PASS: empty height band rejects
+PASS: cave floor remains independently queryable below outer roof
+PASS: cave ceiling is independently selected and never shown as walkable floor
+PASS: actual triangles clipped at both world height planes
+PASS: volume contours remain at exact world heights
+PASS: every clipped output face lies on its actual native source triangle plane
+PASS: rotated volume selection uses world normals and world height band
+PASS: volume contour expansion stops at explicit output budget
+PASS: temporary native cave map saved
+PASS: isolated 3D loopback server
+PASS: tool discovery includes volume parameters: query_terrain_analysis
+PASS: tool discovery includes volume parameters: set_terrain_analysis
+PASS: HTTP query_terrain_analysis succeeds
+PASS: HTTP set_terrain_analysis succeeds
+PASS: volume HTTP query and visible overlay are authoring read-only
+PASS: real UI selects volume and matches actual HTTP geometry
+PASS: invalid UI band retains actionable error instead of old successful statistics
+PASS: volume overlay has no selectable or collision children
+PASS: HTTP set_terrain_analysis rejects invalid operation
+PASS: invalid query preserves authoring and previous visible overlay
+PASS: HTTP set_terrain_analysis rejects invalid operation
+PASS: invalid query preserves authoring and previous visible overlay
+PASS: HTTP set_terrain_analysis rejects invalid operation
+PASS: invalid query preserves authoring and previous visible overlay
+PASS: HTTP set_editor_camera succeeds
+PASS: HTTP sculpt_terrain_volume succeeds
+PASS: HTTP get_terrain_analysis succeeds
+PASS: native volume carving invalidates overlay
+PASS: HTTP undo succeeds
+PASS: HTTP query_terrain_analysis succeeds
+PASS: undo restores multi-surface analysis
+PASS: HTTP redo succeeds
+PASS: redo refreshes volume overlay
+PASS: HTTP undo succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: HTTP query_terrain_analysis succeeds
+PASS: save/reopen preserves editable volume and refreshes session geometry
+PASS: HTTP set_object_properties succeeds
+PASS: hidden volume clears overlay
+PASS: HTTP undo succeeds
+PASS: undo hidden volume restores overlay
+PASS: HTTP set_terrain_analysis succeeds
+PASS: disable releases volume analysis
+VOLUME_ANALYSIS checks=48 failures=0
