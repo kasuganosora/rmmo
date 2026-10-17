@@ -29,6 +29,7 @@ func list_buildings() -> Dictionary:
 	for id in registry:
 		var value: Dictionary = registry[id]
 		rows.append({"id":id,"parameters":value.parameters,"position":value.position,"yaw":value.yaw,"part_count":value.parts.size(),"baked":value.get("baked",false),"source_part_count":value.get("source_part_count",value.parts.size()),"conflicts":_conflicts(id,records)})
+		if value.get("residential_access") is Dictionary:rows[-1].residential_access=value.residential_access.duplicate(true)
 	return {"ok":true,"buildings":rows}
 
 func conflicts(id: String) -> Array:

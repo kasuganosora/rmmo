@@ -114,9 +114,14 @@ static func _section(terrain:Dictionary,entry:Dictionary,distance:float)->Dictio
 	# Height is affine on each interval, so its two endpoints prove its extrema;
 	# interval union proves the entire cross-section, without point sampling.
 	var origin:Vector3=terrain.origin
-	var center:Vector3=entry.position+entry.outward*distance
-	var q:Array=[float(center.x)-origin.x,float(center.z)-origin.z]
-	var direction:Array=[float(entry.side.x),float(entry.side.z)]
+	# Use the very same float32 endpoints/order as _polygon. Computing a
+	# separate center first can move the line outside its clipped support strip
+	# after rotation, producing a spurious full-width gap. Interpolate the
+	# shared endpoints with scalar doubles; do not widen coverage tolerances.
+	var left:Vector3=entry.position-entry.side*HALF_WIDTH+entry.outward*distance
+	var right:Vector3=entry.position+entry.side*HALF_WIDTH+entry.outward*distance
+	var q:Array=[(float(left.x)+right.x)*.5-origin.x,(float(left.z)+right.z)*.5-origin.z]
+	var direction:Array=[(float(right.x)-left.x)/(2.*HALF_WIDTH),(float(right.z)-left.z)/(2.*HALF_WIDTH)]
 	var intervals:Array=[];var lowest:=INF;var highest:=-INF
 	for piece:Dictionary in terrain.pieces:
 		var lo:=-HALF_WIDTH;var hi:=HALF_WIDTH

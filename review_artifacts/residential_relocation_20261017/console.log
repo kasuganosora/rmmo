@@ -1,0 +1,173 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: source curved residential fixture verified read-only
+PASS: resource mutation fixture copies one dependency into the private pack
+PASS: disposable relocation map saved
+PASS: isolated loopback 3D MCP starts
+PASS: current 3D discovery includes preview/apply/discard only
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: building_not_found
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: access_unowned
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: building_modified
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation succeeds
+PASS: legacy keep preview has no authored, selection or history effects
+PASS: unknown old roads default to keep and no implicit grading
+PASS: HTTP preview_residential_relocation succeeds
+PASS: same relocation request reuses candidate
+PASS: HTTP discard_residential_relocation succeeds
+PASS: HTTP apply_residential_relocation rejects invalid operation
+PASS: specific rejection: candidate_missing
+PASS: rejection is atomic: apply_residential_relocation
+PASS: HTTP preview_residential_relocation succeeds
+PASS: HTTP apply_residential_relocation succeeds
+PASS: legacy relocation: building, part, recipe identities retained
+PASS: legacy relocation: exact shared rigid motion preserves all fixture, event, resource and floor fields
+PASS: legacy relocation: no building copy/delete identity substitution
+PASS: legacy relocation: authored open window state survives
+PASS: legacy relocation: distant road authoring and IDs untouched
+PASS: legacy relocation: moved geometry signatures remain valid
+PASS: legacy relocation: both bridge contexts remain valid
+PASS: legacy relocation: unrelated object preserved residential_ground
+PASS: legacy relocation: unrelated object preserved far_ground
+PASS: legacy relocation: unrelated object preserved fixture_bridge
+PASS: legacy relocation: unrelated object preserved obj_1
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_4_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_4_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_5_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_water_5_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_0_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_m1_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_end_0
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_end_1
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1
+PASS: legacy relocation: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1
+PASS: legacy keep retains every existing road edge ID
+PASS: new access owns a validated terminal-only receipt
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: access_modified
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: access_shared
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: specific rejection: stale_road_surface
+PASS: rejection is atomic: preview_residential_relocation
+PASS: HTTP preview_residential_relocation rejects invalid operation
+PASS: rejection is atomic: preview_residential_relocation
+PASS: blocking geometry is authored in disposable map
+PASS: HTTP preview_residential_relocation succeeds
+PASS: graded relocation preview is private
+PASS: final candidate includes real grading, rotation and curved reconnect
+PASS: HTTP apply_residential_relocation rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_relocation
+PASS: HTTP preview_residential_relocation succeeds
+PASS: HTTP apply_residential_relocation rejects invalid operation
+PASS: specific rejection: source_changed
+PASS: rejection is atomic: apply_residential_relocation
+PASS: HTTP preview_residential_relocation succeeds
+PASS: HTTP apply_residential_relocation rejects invalid operation
+PASS: specific rejection: candidate_invalid
+PASS: rejection is atomic: apply_residential_relocation
+PASS: UI offers existing building, explicit old-road policy and curved target
+PASS: HTTP preview_residential_relocation succeeds
+PASS: actual UI and HTTP prepare identical migration geometry and policy
+PASS: UI relocation preview leaves live state untouched
+PASS: UI explains identity, old-road and old-plot treatment
+PASS: HTTP set_editor_camera succeeds
+PASS: UI publishes whole migration once
+PASS: graded migration: building, part, recipe identities retained
+PASS: graded migration: exact shared rigid motion preserves all fixture, event, resource and floor fields
+PASS: graded migration: no building copy/delete identity substitution
+PASS: graded migration: authored open window state survives
+PASS: graded migration: distant road authoring and IDs untouched
+PASS: graded migration: moved geometry signatures remain valid
+PASS: graded migration: both bridge contexts remain valid
+PASS: graded migration: unrelated object preserved far_ground
+PASS: graded migration: unrelated object preserved fixture_bridge
+PASS: graded migration: unrelated object preserved obj_1
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_water_4_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_water_4_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_water_5_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_water_5_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bed_4_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bed_5_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bank_4_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bank_5_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_abutment_4_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_0_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_abutment_5_m1_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_end_0
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_end_1
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_m1
+PASS: graded migration: unrelated object preserved river_5f5a8ed8f139be6d_bridge_d916ba52b3_rail_1
+PASS: remove_owned deletes only old terminal branch and retains public junction
+PASS: HTTP undo succeeds
+PASS: one undo restores old house, terrain, access and receipt
+PASS: HTTP redo succeeds
+PASS: redo restores same identities and final authoring data
+PASS: HTTP undo succeeds
+PASS: HTTP preview_residential_relocation succeeds
+PASS: HTTP apply_residential_relocation succeeds
+PASS: applied retains actual native kerb profiles and mesh vertices
+PASS: applied retains valid kerb material dependencies
+PASS: applied includes kerbs in the changed house-approach road scope
+PASS: migration retains actual shared static batching
+PASS: all moved components remain individually addressable
+PASS: HTTP duplicate_selection succeeds
+PASS: native duplicate never copies access ownership
+PASS: HTTP undo succeeds
+PASS: duplicate verification undo retains final migration
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen retains migrated authoring state
+PASS: new access receipt remains usable after save/reopen
+PASS: reopened retains actual native kerb profiles and mesh vertices
+PASS: reopened retains valid kerb material dependencies
+PASS: reopened includes kerbs in the changed house-approach road scope
+PASS: native save/reopen preserves actual kerb geometry and material identity
+PASS: exported building never carries map-local road ownership
+PASS: final native validation and untouched source map
+RESIDENTIAL_PLACEMENT_HTTP D:/code/rmmo_runtime/review_artifacts/residential_relocation_20261017/http.json failures=0

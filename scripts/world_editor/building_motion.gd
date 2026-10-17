@@ -72,7 +72,7 @@ func proposal(rows: Array, delta: Vector3, rotation: Basis, center: Vector3) -> 
 		var old: Dictionary = unit.value
 		var value: Dictionary = old.duplicate(true)
 		var origin := center+rotation*(Blueprint.vec(old.position)-center)+delta
-		if not origin.is_finite() or origin.abs()[origin.abs().max_axis_index()]>100000: return fail("建筑位置超出支持范围")
+		if not origin.is_finite() or origin.abs()[origin.abs().max_axis_index()]>100000: return {"ok":false,"error":"建筑位置超出支持范围"}
 		value.position = Blueprint.arr(origin); value.yaw = wrapf(float(old.yaw)+angle,-180,180)
 		var basis := Basis(Vector3.UP,deg_to_rad(value.yaw)); var local: Array = []; var records: Array = []
 		for previous in unit.records:
@@ -143,6 +143,7 @@ func commit(plans: Array, copy: bool) -> Dictionary:
 	var next_registry: Dictionary = registry().duplicate(true); var replacements := {}; var selected: Array = []; var remap := {}
 	for plan in plans:
 		var id: String = "building_"+Crypto.new().generate_random_bytes(10).hex_encode() if copy else plan.id
+		if copy:plan.value.erase("residential_access") # A copied building does not own the source access road.
 		for record in plan.records:
 			if copy:
 				var previous: String = record.uuid; record.uuid="obj_%d"%doc._next; doc._next+=1; remap[previous]=record.uuid

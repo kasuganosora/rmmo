@@ -22,6 +22,7 @@ static func spec(name: String, description: String, properties: Dictionary = {},
 static func tools() -> Array:
 	var city = preload("res://scripts/world3d/city_layout.gd")
 	var site:Dictionary=preload("res://scripts/world_editor/residential_site_tools.gd").schema()
+	var relocation:Dictionary=preload("res://scripts/world_editor/residential_relocation_tools.gd").relocation_schema()
 	var residential:Dictionary=preload("res://scripts/world_editor/residential_placement_tools.gd").request_schema()
 	var scatter: Dictionary=preload("res://scripts/world3d/vegetation_scatter.gd").request_schema()
 	var waterways: Dictionary=preload("res://scripts/world3d/waterway_data.gd").request_schema()
@@ -124,6 +125,9 @@ static func tools() -> Array:
 		spec("create_road_path", "与画布点选共用：从XYZ点列创建连续道路骨架，端点在0.25米内复用已有节点；不会自动拆分穿越线段。保护节点拒绝连接。整笔一次撤销，返回新road_token及诊断。", {"points":city.array(city.S.vector(-100000,100000),64,2),"width":number(1,60),"kind":choice(["ground","bridge"])}, ["points"]),
 		spec("preview_region_buildings", "在矩形平地区域内按种子随机规划单栋或成片建筑，避让全部已有物体，含隐藏/锁定物体；计入屋檐、阳台、雨棚和入口。只读，返回 plan_token 供确认同一方案。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"], true),
 		spec("generate_region_buildings", "应用区域随机建筑方案，最多16栋且整批一次撤销；提交前再次校验碰撞。传预览的 plan_token 时方案改变会无副作用拒绝。", preload("res://scripts/world_editor/building_region.gd").schema().properties, ["from","to"]),
+		spec("preview_residential_relocation", "只读准备已有冻结 townhouse／hall 住宅迁移、可选整地和重新接路。residential.building_id 来自 list_buildings，position 是最终原点，yaw 是相对原朝向的附加旋转；其他范围同住宅接路。old_access 默认 keep 保留全部旧路；remove_owned 仅移除有完整未改归属记录的专属末端支路，保留公共接点和主路，不推断旧路或回滚旧地形。terrain 可选，格式同联合整地。保留建筑/构件/楼层/活动件/资源身份；保护手改、锁定、隐藏、桥河和邻物，失败无副作用。返回 changes、挖填量、旧地块/旧路处置和新接点。", relocation.properties, relocation.required, true),
+		spec("apply_residential_relocation", "应用本会话迁移 plan_token；地图、资源与最终候选校验后一次提交，可一次撤销重做；调用 save_world 持久化。", {"plan_token":city.text(128)}, ["plan_token"]),
+		spec("discard_residential_relocation", "放弃迁移候选，地图与历史不变。", {"plan_token":city.text(128)}, ["plan_token"], true),
 		spec("preview_residential_site", "只读准备整地、冻结住宅和入户路联合候选。residential 与住宅接路参数相同；terrain.strokes 为按顺序执行的矩形 flatten，最后可附加一个 terrain.ramp 两端定高坡道，整组 1–64 项。可附 road_nodes 和 expected_road_token 调整已有节点。最终地形、住宅、接路与桥梁保护全部通过才返回 plan_token、挖填量 earthwork、变化集合 changes 和派生影响；失败不改变原图或历史。外围柔边与任意候选的实际通行仍须验证。", site.properties, site.required, true),
 		spec("apply_residential_site", "只应用本会话预览的联合候选 plan_token；地图、资源、候选完整性与原生保存校验通过后一次提交整地、住宅和入户路，可一次撤销重做。过期或发布前校验失败无作者副作用；派生渲染接原生刷新与共享批次，成功不代表任意场景已完成运行时通行。仍须 save_world。", {"plan_token":city.text(128)}, ["plan_token"]),
 		spec("discard_residential_site", "放弃联合候选，不修改地图、选择或历史。", {"plan_token":city.text(128)}, ["plan_token"], true),

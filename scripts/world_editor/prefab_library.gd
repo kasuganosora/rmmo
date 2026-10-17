@@ -25,6 +25,7 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 		if not registry.get(id,{}).get("baked",false):return {"ok":false,"error":"请从完整建筑选择中保存固定预制件"}
 		if not registry[id].parts.values().all(func(uuid):return selected.has(uuid)):return {"ok":false,"error":"不能将固定建筑的一部分另存为预制件"}
 		baked[id]=registry[id].duplicate(true)
+		baked[id].erase("residential_access") # Map-local road ownership never travels with a prefab.
 	if not baked.is_empty() and records.any(func(r):return not r.get("prefab_locked",false)):return {"ok":false,"error":"固定建筑请与普通物件分别保存"}
 	var bounds := Geometry.bounds(records)
 	var pivot := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
@@ -188,6 +189,7 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 	for id:String in loaded.building_instances:
 		var fresh:="building_"+Crypto.new().generate_random_bytes(10).hex_encode();remap[id]=fresh
 		var value:Dictionary=loaded.building_instances[id].duplicate(true)
+		value.erase("residential_access")
 		value.position=preload("res://scripts/world3d/house_prefab.gd").arr(preload("res://scripts/world3d/house_prefab.gd").vec(value.position)+position)
 		value.parts={};value.signatures={};registry[fresh]=value
 	for record:Dictionary in records:
@@ -197,10 +199,17 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 		record.editor_group=record.building.id;record.editor_group_name=label
 		var value:Dictionary=registry[record.building.id]
 		value.parts[record.building.part]=record.uuid;value.signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
+	var checked:=check_buildings(doc,records,registry,remap.values())
+	if not checked.ok:return checked
+	doc.checkpoint_recovery();doc._next=next;doc.records.append_array(records);doc.map_meta.building_instances=registry
+	return {"ok":true,"ids":ids}
+
+## Shared final geometry validation for new placement and identity-preserving relocation.
+static func check_buildings(doc,records:Array,registry:Dictionary,building_ids:Array)->Dictionary:
 	var Footprint=preload("res://scripts/world_editor/building_footprint.gd")
 	var occupied:Array=[]
 	var frozen_contact_cache:Dictionary={}
-	for fresh:String in remap.values():
+	for fresh:String in building_ids:
 		var members:Array=records.filter(func(r):return r.building.id==fresh)
 		var shape:Array=Footprint.components(members,Vector3.ZERO,Basis.IDENTITY)
 		var terrain_pieces:Array=Footprint.terrain_components(members)
@@ -221,5 +230,4 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 					if r.has("house_prefab") and not preload("res://scripts/world3d/frozen_placement_contact.gd").intersects(r,shape,obstacle,frozen_contact_cache):continue
 					return {"ok":false,"error":"预制件与已有物件重叠","conflicts":[str(r.uuid)]}
 		occupied.append_array(shape)
-	doc.checkpoint_recovery();doc._next=next;doc.records.append_array(records);doc.map_meta.building_instances=registry
-	return {"ok":true,"ids":ids}
+	return {"ok":true}

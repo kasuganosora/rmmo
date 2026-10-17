@@ -1,0 +1,97 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: verified mixed-bridge source remains read-only
+PASS: validated frozen house read without regeneration
+PASS: house resource copy confined to temporary pack
+PASS: temporary curved street baseline saved
+PASS: independent current 3D HTTP server starts
+PASS: discovery documents cubic capability without enabling 2D
+PASS: HTTP generate_road_surface succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP preview_residential_placement succeeds
+PASS: cubic preview does not mutate graph/history/selection/dirty
+PASS: preview exposes curved junction with both bridge contexts preserved
+PASS: HTTP preview_residential_placement succeeds
+PASS: same input reuses exact curved candidate
+PASS: HTTP discard_residential_placement succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: candidate_missing
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: unsupported
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: protected_scope
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement rejects invalid operation
+PASS: specific rejection: base_changed
+PASS: rejection is atomic: apply_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: stale_road_surface
+PASS: rejection is atomic: preview_residential_placement
+PASS: HTTP preview_residential_placement rejects invalid operation
+PASS: specific rejection: search_exhausted
+PASS: rejection is atomic: preview_residential_placement
+PASS: corridor blocker is a real authored object
+PASS: HTTP preview_residential_site succeeds
+PASS: combined grading candidate also supports the exact curved road
+PASS: HTTP apply_residential_site succeeds
+PASS: HTTP undo succeeds
+PASS: combined curved site undoes as one transaction
+PASS: UI offers and labels the curved ground road
+PASS: HTTP preview_residential_placement succeeds
+PASS: real UI and HTTP return identical curve geometry and connection
+PASS: actual UI curved preview is private
+PASS: UI explains curve junction and preserved editable subdivision
+PASS: HTTP set_editor_camera succeeds
+PASS: UI applies complete curved candidate once
+PASS: both persisted subedges remain editable cubic curves
+PASS: authoring join and handles preserve double-precision subdivision
+PASS: tapered widths agree at curved junction
+PASS: final curved graph has no topology diagnostics
+PASS: out-of-scope road edge unchanged: crossing
+PASS: out-of-scope road edge unchanged: far_lane
+PASS: out-of-scope road edge unchanged: bridge_link_3adb073b0aed4781
+PASS: UI curved apply: terrain, bridge, waterway and distant road values and identities preserved
+PASS: UI curved apply: waterway recipe and ownership preserved
+PASS: UI curved apply: native bridge binding and source signature preserved
+PASS: HTTP undo succeeds
+PASS: one undo restores original unsplit curve
+PASS: HTTP preview_residential_placement succeeds
+PASS: HTTP apply_residential_placement succeeds
+PASS: applied retains actual native kerb profiles and mesh vertices
+PASS: applied retains valid kerb material dependencies
+PASS: applied includes kerbs in the changed house-approach road scope
+PASS: HTTP undo succeeds
+PASS: HTTP redo succeeds
+PASS: redo restores curve, house and access IDs exactly
+PASS: native static batches actually reduce rendered surfaces
+PASS: house components retain independent identity
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: save/reopen retains curve and authoring data within native serialization precision
+PASS: both persisted subedges remain editable cubic curves
+PASS: authoring join and handles preserve double-precision subdivision
+PASS: tapered widths agree at curved junction
+PASS: final curved graph has no topology diagnostics
+PASS: out-of-scope road edge unchanged: crossing
+PASS: out-of-scope road edge unchanged: far_lane
+PASS: out-of-scope road edge unchanged: bridge_link_3adb073b0aed4781
+PASS: curve reopen: terrain, bridge, waterway and distant road values and identities preserved
+PASS: curve reopen: waterway recipe and ownership preserved
+PASS: curve reopen: native bridge binding and source signature preserved
+PASS: reopened retains actual native kerb profiles and mesh vertices
+PASS: reopened retains valid kerb material dependencies
+PASS: reopened includes kerbs in the changed house-approach road scope
+PASS: native save/reopen preserves actual kerb geometry and material identity
+PASS: reopened curve map passes full native validation
+PASS: original mixed bridge fixture remains byte-identical
+RESIDENTIAL_PLACEMENT_HTTP D:/code/rmmo_runtime/review_artifacts/residential_relocation_20261017/curves/http.json failures=0

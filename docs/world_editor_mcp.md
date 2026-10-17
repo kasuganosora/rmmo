@@ -819,3 +819,36 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 现有 `preview_residential_placement` 与 `preview_residential_site.residential` 的 `road_edge_id` 可选择普通三次贝塞尔 `ground` 边，无新增必填参数。共享服务对原曲线求接点，保持子曲线作者形状、切向与宽度变化；新增入户路仍为直线，完整原生路网、地形和桥梁保护继续执行。应用／放弃接口与一次撤销、保存语义不变。
 
 预览增加 `road_connection:{edge_id,kind,parameter,position,tangent,width,split,join_node_id,child_edge_ids}`；`kind` 为 `straight/cubic`，`parameter` 为源曲线参数，`position` 为源道路骨架世界坐标（贴地铺面标高另由地形决定），`tangent` 是原生参数导数。弯路另含 `projection:{distance_error_bound_m,visits}`，距离界只说明数学曲线投影搜索，不是世界坐标或物理精度证明。子边保存原生控制点，端点接入不拆分。超预算／退化返回具体失败，候选搜索不穷尽所有可能接点；桥头和保护状态限制不变。详见[弯路接入范围与验收](world_editor_buildings.md#住宅连接弯曲道路2026-10-17e1-e)。
+
+### 已有住宅迁移、整地和接路（E2-C，2026-10-17）
+
+当前 3D 工具新增 `preview_residential_relocation`、`apply_residential_relocation`、`discard_residential_relocation`，与建筑页迁移模式共用业务；不注册二维工具。`list_buildings` 提供建筑 ID，并在存在时返回 `residential_access` 归属快照，实际是否仍有效由迁移预览重新校验。
+
+```json
+{
+  "residential": {
+    "building_id": "list_buildings 返回的 ID",
+    "position": [2, 0.12, 2],
+    "yaw": 5,
+    "road_edge_id": "get_city_layout 返回的普通道路 ID",
+    "old_access": "remove_owned",
+    "elevation_min": -0.5,
+    "elevation_max": 0.5,
+    "setback_min": 0.8,
+    "setback_max": 3,
+    "width": 1.6
+  },
+  "terrain": {
+    "strokes": [{
+      "id": "list_terrains 返回的 ID",
+      "mode": "flatten", "shape": "rectangle", "points": [[2, 2]],
+      "plot_width": 16, "plot_depth": 19, "target_height": 0.12,
+      "strength": 1, "blend_margin": 2, "cross_tiles": true
+    }]
+  }
+}
+```
+
+示例说明格式，不代表任意房型、位置或入口可行。`position` 是已有建筑的新原点；`yaw` 是相对原朝向的附加旋转。`terrain` 可整体省略；提供时需要 1–64 项矩形／坡道，可用与联合整地相同的 `road_nodes`、`expected_road_token` 和 `ramp` 字段。`old_access` 默认 `keep`；`remove_owned` 仅删除未改的唯一归属末端支路／门前节点，公共接点和主路保留。历史地图无记录时返回 `access_unowned`，手改为 `access_modified`，共享端点／多重归属为 `access_shared`；不猜测旧路归属。旧地形只在显式整地范围内改变。
+
+成功预览返回普通接路摘要，加上 `relocation:{building_id,from_position,from_yaw,old_access,identity_preserved}`、`changes`、`earthwork`、`terrain_operation_count` 和新 `access_binding`。新建住宅及联合整地的预览也返回 `access_binding`，应用时将其保存在对应建筑登记内。应用／放弃只传 `{"plan_token":"预览返回值"}`；应用前验证地图、资源及候选完整性，一次事务保留原建筑、构件、楼层、活动件和资源身份，再调用 `save_world`。范围和边界见[建筑迁移说明](world_editor_buildings.md#已有建筑可靠迁移重新整地及接路2026-10-17e2-c)。

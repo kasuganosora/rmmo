@@ -23,6 +23,10 @@ var changes_view:TextEdit
 var diagnostics:VBoxContainer
 var preview_doc_id:=0
 var preview_revision:=-1
+var relocation_enabled:CheckButton
+var building_choice:OptionButton
+var old_access_choice:OptionButton
+var relocation_body:VBoxContainer
 
 func setup(owner: VBoxContainer) -> void:
 	panel=owner; editor=panel.editor
@@ -38,6 +42,19 @@ func setup(owner: VBoxContainer) -> void:
 	asset_choice=OptionButton.new(); asset_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(asset_choice)
 	var row:=HBoxContainer.new(); body.add_child(row)
 	action(row,"取当前素材",use_selected_asset); action(row,"刷新列表",refresh_catalogs)
+	relocation_enabled=CheckButton.new();relocation_enabled.text="迁移已有住宅（保留建筑与构件身份）";body.add_child(relocation_enabled)
+	relocation_body=VBoxContainer.new();body.add_child(relocation_body);relocation_body.hide()
+	building_choice=OptionButton.new();relocation_body.add_child(building_choice)
+	action(relocation_body,"取当前选中建筑及原点",use_selected_building)
+	old_access_choice=OptionButton.new();relocation_body.add_child(old_access_choice)
+	old_access_choice.add_item("保留旧入户路（默认）");old_access_choice.set_item_metadata(0,"keep")
+	old_access_choice.add_item("移除有归属且未改的旧支路");old_access_choice.set_item_metadata(1,"remove_owned")
+	note(relocation_body,"附加旋转相对原朝向。默认保留旧路、旧地形；仅凭已有归属记录移除专属末端支路，保留公共接点和主路。旧、新地块需整地时在下方显式添加。")
+	relocation_enabled.toggled.connect(func(enabled):
+		invalidate_preview();relocation_body.visible=enabled;asset_choice.disabled=enabled;refresh_catalogs()
+	)
+	building_choice.item_selected.connect(func(_i):invalidate_preview())
+	old_access_choice.item_selected.connect(func(_i):invalidate_preview())
 	note(body,"接入已有道路")
 	road_choice=OptionButton.new(); road_choice.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS; body.add_child(road_choice)
 	form=preload("res://scripts/world_editor/settings_form.gd").new(); body.add_child(form)
@@ -81,6 +98,14 @@ func selected(control: OptionButton) -> String:
 func refresh_catalogs() -> void:
 	if asset_choice==null or road_choice==null: return
 	if site_draft!=null:site_draft.refresh_catalogs()
+	if building_choice!=null:
+		var building_id:=selected(building_choice);building_choice.clear();building_choice.add_item("请选择已有住宅");building_choice.set_item_metadata(0,"")
+		for id:String in editor._doc.map_meta.get("building_instances",{}):
+			var value:Dictionary=editor._doc.map_meta.building_instances[id]
+			if not value.get("baked",false) or value.parameters.get("template")!="house" or value.parameters.get("layout") not in ["townhouse","hall"]:continue
+			building_choice.add_item(id);building_choice.set_item_metadata(building_choice.item_count-1,id)
+			if id==building_id:building_choice.select(building_choice.item_count-1)
+		if selected(building_choice)!=building_id:invalidate_preview("建筑列表已变化，请重新预览。")
 	var asset_id:=selected(asset_choice); var road_id:=selected(road_choice)
 	asset_choice.clear(); asset_choice.add_item("请选择住宅预制件"); asset_choice.set_item_metadata(0,"")
 	for entry:Dictionary in editor.asset_items():
@@ -98,10 +123,30 @@ func refresh_catalogs() -> void:
 func request() -> Dictionary:
 	var result:Dictionary=form.values()
 	result.asset_id=selected(asset_choice); result.road_edge_id=selected(road_choice)
+	if relocation_enabled.button_pressed:
+		result.erase("asset_id");result.building_id=selected(building_choice);result.old_access=selected(old_access_choice)
+		var migration:Dictionary={"residential":result}
+		if site_enabled.button_pressed:migration.terrain=site_draft.request()
+		return migration
 	return {"residential":result,"terrain":site_draft.request()} if site_enabled.button_pressed else result
 
 func service():
+	if relocation_enabled.button_pressed:return editor._residential_relocation
 	return editor._residential_site if site_enabled.button_pressed else editor._residential
+
+func use_selected_building()->void:
+	refresh_catalogs()
+	var ids:Array=[]
+	for record:Dictionary in editor._selection_tools.records():
+		var id:String=record.get("building",{}).get("id","")
+		if not id.is_empty() and id not in ids:ids.append(id)
+	if ids.size()!=1:report({"ok":false,"error":"请先选择一栋已有住宅。"});return
+	for i in building_choice.item_count:
+		if building_choice.get_item_metadata(i)==ids[0]:
+			building_choice.select(i);relocation_enabled.button_pressed=true
+			var values:Dictionary=form.values();values.position=editor._doc.map_meta.building_instances[ids[0]].position;values.yaw=0.;form.update_values(values)
+			invalidate_preview("已读取建筑原点；请设置目标位置后预览。");return
+	report({"ok":false,"error":"所选建筑不在本轮可靠迁移支持范围内。"})
 
 func use_selected_asset() -> void:
 	refresh_catalogs()
@@ -158,6 +203,7 @@ func invalidate_preview(message: String="参数已变化，请重新预览。") 
 	var had_preview:=not plan_token.is_empty()
 	if had_preview and is_instance_valid(editor):
 		editor._residential.discard(plan_token);editor._residential_site.discard(plan_token)
+		editor._residential_relocation.discard(plan_token)
 	plan_token=""
 	if is_instance_valid(ghost): ghost.free()
 	ghost=null
@@ -173,7 +219,7 @@ func discard_preview() -> void:
 	invalidate_preview("已放弃候选；地图未修改。")
 
 func report(result: Dictionary, applied: bool=false) -> void:
-	result=editor._diagnostics.explain(result,("apply_" if applied else "preview_")+("residential_site" if site_enabled.button_pressed else "residential_placement"))
+	result=editor._diagnostics.explain(result,("apply_" if applied else "preview_")+("residential_relocation" if relocation_enabled.button_pressed else ("residential_site" if site_enabled.button_pressed else "residential_placement")))
 	diagnostics.display(result)
 	last_result=result.duplicate(true)
 	var text_:String
@@ -189,6 +235,11 @@ func report(result: Dictionary, applied: bool=false) -> void:
 			var connection:Dictionary=result.road_connection
 			text_+="\n接入%s · 接点 %.3f, %.3f, %.3f 米"%["弯路" if connection.kind=="cubic" else "直路",connection.position[0],connection.position[1],connection.position[2]]
 			if connection.kind=="cubic" and connection.split:text_+="\n保留原曲线形状和宽度变化，接点拆分为两个可编辑路段。"
+		if result.has("relocation"):
+			var migration:Dictionary=result.relocation
+			text_+="\n迁移原建筑 %s：保留构件、楼层和活动件身份。"%migration.building_id
+			text_+="\n旧路："+("仅移除归属支路，保留公共接点。" if migration.old_access.policy=="remove_owned" else "全部保留，原路解除住宅归属。")
+			text_+="\n旧地块：仅改变显式整地范围。"
 		if result.has("changes"):
 			var work:Dictionary=result.earthwork;var changes:Dictionary=result.changes
 			text_+=("\n整地、住宅与接路已一起应用。" if applied else "\n最终整地与住宅接路联合检查通过。")

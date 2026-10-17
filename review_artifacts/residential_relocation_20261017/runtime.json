@@ -1,0 +1,86 @@
+{
+	"collisions": 64,
+	"failures": 0,
+	"fixture": "D:/code/rmmo_runtime/__residential_relocation_22504_12413057/maps/test/map.gltf",
+	"map_sha256": "5f6911ec712024fa8116e525e67411da159e3b7d141b87ed790e6978e75d8266",
+	"passed": 19,
+	"scope": "Saved native colliders and production WorldAuthority capsule movement; exterior only, no avatar renderer, full streaming or arbitrary curve walkability claim",
+	"walks": [
+		{
+			"airborne": 2,
+			"case": "migrated exterior treads through new access to street",
+			"max_feet_clearance": 0.150831937789917,
+			"min_feet_clearance": 0.0000192373991012573,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 252,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 3,
+			"case": "street through new access to migrated exterior treads",
+			"max_feet_clearance": 0.152590870857239,
+			"min_feet_clearance": 0.000454232096672058,
+			"passed": true,
+			"reached": 3,
+			"rejected": 0,
+			"settled_on_floor": true,
+			"ticks": 254,
+			"unsupported_ticks": 0,
+			"waypoints": 3
+		},
+		{
+			"airborne": 0,
+			"case": "exterior entrance to curved street",
+			"distance": 0.114368267357349,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 214
+		},
+		{
+			"airborne": 0,
+			"case": "curved street to exterior entrance",
+			"distance": 0.114776864647865,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 214
+		},
+		{
+			"airborne": 0,
+			"case": "curved street forward across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "curved street reverse across new junction",
+			"passed": true,
+			"reached": 25,
+			"rejected": 0,
+			"ticks": 548,
+			"waypoints": 25
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge eastbound",
+			"distance": 0.12261962890625,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		},
+		{
+			"airborne": 0,
+			"case": "adjacent stone bridge westbound",
+			"distance": 0.123530387878418,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 765
+		}
+	]
+}

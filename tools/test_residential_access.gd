@@ -55,6 +55,18 @@ func run()->void:
 	if not door.ok:finish(started);return
 	var ordinary:=evaluate(records)
 	check(ordinary.ok,"ordinary low treads and clear doorway pass",ordinary)
+	for angle:float in [5.,-17.,43.,90.,179.]:
+		var rotated:Array=preload("res://scripts/world_editor/residential_placement_tools.gd")._oriented({"records":records,"building_instances":{}},angle).records
+		for r:Dictionary in rotated:r.position=Blueprint.arr(Blueprint.vec(r.position)+Vector3(2.,.12,2.));r.building.floor_y+=.12
+		var ground:=field();ground.terrain_mesh.heights.fill(.12)
+		var rotated_doc:=Document.new();rotated_doc.records=[ground]+rotated
+		var entry:=Access.entrance(rotated,angle)
+		var result:=Access.check(rotated_doc,rotated,entry,entry.position+entry.outward*2.5,1.6) if entry.ok else entry
+		check(result.ok,"rotated translated entrance has continuous full-width support: "+str(angle),result)
+		var at:Vector3=entry.position+entry.outward*1.8
+		ground.terrain_mesh.holes[clampi(floori(at.z+16),0,31)*32+clampi(floori(at.x+16),0,31)]=true
+		var missing_rotated:=Access.check(rotated_doc,rotated,entry,entry.position+entry.outward*2.5,1.6)
+		check(not missing_rotated.ok and missing_rotated.get("code")=="residential_support_coverage_gap","rotated real terrain hole remains rejected: "+str(angle),missing_rotated)
 	for direction:float in [-1.,1.]:
 		var slope:=field()
 		for z in 33:

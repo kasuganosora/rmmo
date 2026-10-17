@@ -65,6 +65,19 @@ func preview_visual(token:String)->Array:
 	if _candidate.is_empty() or _candidate.summary.plan_token!=token:return []
 	return _candidate.visual.duplicate(true)
 
+func source(p:Dictionary)->Dictionary:
+	var entries:Array=editor.asset_items().filter(func(e):return Thumbnails.key_for(e)==p.asset_id and e.has("prefab_path"))
+	if entries.size()!=1:return fail("asset_not_found","请选择资源库中的冻结住宅预制件")
+	var entry:Dictionary=entries[0]
+	if not Paths.allowed(entry.prefab_path) or not FileAccess.file_exists(entry.prefab_path):return fail("resource_missing","住宅资源超出资源根或不存在")
+	var sha:=FileAccess.get_sha256(entry.prefab_path)
+	return {"ok":true,"entry":entry,"sha":sha,"dependencies":{entry.prefab_path:sha}}
+
+func load_source(value:Dictionary)->Dictionary:return Prefabs.read(value.entry)
+
+func place(doc,local:Dictionary,position:Vector3,label:String)->Dictionary:
+	return Prefabs.place_buildings(doc,local,position,label)
+
 func preview(args:Dictionary)->Dictionary:
 	last_profile={"cached":false,"stages_ms":{}} if profile_enabled else {}
 	var phase:=_profile_start()
@@ -75,11 +88,10 @@ func preview(args:Dictionary)->Dictionary:
 	if not issue.is_empty():return fail("invalid_arguments",issue)
 	var p:=defaults().merged(args,true)
 	if p.setback_min>p.setback_max:return fail("invalid_arguments","最小退距不能超过最大退距")
-	var entries:Array=editor.asset_items().filter(func(e):return Thumbnails.key_for(e)==p.asset_id and e.has("prefab_path"))
-	if entries.size()!=1:return fail("asset_not_found","请选择资源库中的冻结住宅预制件")
-	var entry:Dictionary=entries[0]
-	if not Paths.allowed(entry.prefab_path) or not FileAccess.file_exists(entry.prefab_path):return fail("resource_missing","住宅资源超出资源根或不存在")
-	var source_sha:=FileAccess.get_sha256(entry.prefab_path)
+	var source_info:=source(p)
+	if not source_info.ok:return source_info
+	var entry:Dictionary=source_info.entry
+	var source_sha:String=source_info.sha
 	var base_version:=_version()
 	var request_id:=Data.token(p)
 	if not _candidate.is_empty() and _candidate.request_id==request_id and _candidate.summary.base_version==base_version and _candidate.summary.source_sha256==source_sha and _dependencies_current(_candidate.dependencies):
@@ -89,13 +101,13 @@ func preview(args:Dictionary)->Dictionary:
 	_profile_end("lookup_identity",phase);phase=_profile_start()
 	_candidate={}
 	var started:=Time.get_ticks_usec()
-	var loaded:=Prefabs.read(entry)
+	var loaded:=load_source(source_info)
 	if not loaded.ok:return loaded.merged({"code":"invalid_prefab","stage":"resource"})
 	if loaded.building_instances.size()!=1:return fail("unsupported","当前闭环需要恰好一栋冻结住宅")
 	var instance:Dictionary=loaded.building_instances.values()[0]
 	if not instance.get("baked",false) or instance.parameters.get("layout") not in ["townhouse","hall"] or instance.parameters.get("template")!="house":return fail("unsupported","当前支持 townhouse / hall 的单栋冻结住宅；请选择住宅模板")
 	if loaded.records.any(func(r):return not r.has("building") or not r.get("prefab_locked",false)):return fail("unsupported","住宅包含未冻结或无归属构件")
-	var dependencies:Dictionary={entry.prefab_path:source_sha}
+	var dependencies:Dictionary=source_info.dependencies.duplicate(true)
 	var dependency_issue:=_dependencies(loaded.records,dependencies)
 	if not dependency_issue.is_empty():return fail("resource_missing",dependency_issue,"resource")
 	var data:=Data.resolve(editor._doc.map_meta)
@@ -126,7 +138,7 @@ func preview(args:Dictionary)->Dictionary:
 	_profile_end("entrance_elevation",phase);phase=_profile_start()
 	var before:Dictionary=editor._doc.recovery_snapshot()
 	var staged=Doc.new();staged.apply_recovery(before)
-	var placed:=Prefabs.place_buildings(staged,local,position,str(entry.get("label","住宅")))
+	var placed:=place(staged,local,position,str(entry.get("label","住宅")))
 	if not placed.ok:return placed.merged({"code":"placement_conflict","stage":"house_geometry"})
 	var house_records:Array=[]
 	for id:String in placed.ids:house_records.append(staged._find(id))
@@ -185,6 +197,8 @@ func preview(args:Dictionary)->Dictionary:
 	staged.records=staged.records.filter(func(r):return not prepared.excluded.has(r.uuid))
 	staged.records.append_array(prepared.records)
 	linked.data.roads=prepared.graph;linked.data.road_surface=prepared.manifest;staged.map_meta.editor_layout=linked.data
+	var binding:=preload("res://scripts/world_editor/residential_access_binding.gd").capture(linked.data.roads,request_id.left(14),staged.map_meta.building_instances[house_records[0].building.id])
+	staged.map_meta.building_instances[house_records[0].building.id].residential_access=binding
 	var preserved:=BridgeContext.verify(staged,linked.data,bridges)
 	if not preserved.ok:return preserved
 	dependency_issue=_dependencies(prepared.records,dependencies)
@@ -214,6 +228,7 @@ func preview(args:Dictionary)->Dictionary:
 	var current:=base_version==_version() and _dependencies_current(dependencies)
 	_profile_end("final_identity",phase);phase=_profile_start()
 	if not current:return fail("base_changed","输入或资源已变化，请重新预览")
+	summary.access_binding=binding.duplicate(true)
 	_candidate={"summary":summary,"request_id":request_id,"dependencies":dependencies,"after":staged.recovery_snapshot(),"visual":visual}
 	_profile_end("candidate_snapshot",phase)
 	return summary.duplicate(true)
