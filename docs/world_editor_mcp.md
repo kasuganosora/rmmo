@@ -792,3 +792,24 @@ UI「中心线河道」可切换逐点水位，在选中点的水位栏输入后
 显示只生成会话内无碰撞、不可选择的派生网格，不修改地图、选择或撤销历史；修改、撤销、重开后按新文档身份与版本刷新，隐藏／不受支持时清除覆盖层。查询和 UI 使用相同计算。重开身份采用原生对象 ID 的字符串形式，避免大整数指纹溢出，同时修正 E1-D 的旧诊断定位身份。
 
 实际逻辑／UI／HTTP 38 项通过、0 失败，覆盖解析平面、负／零等高线、洞格、混合格距与真实高差、绕 Y 旋转、无效与超预算拒绝、查询／显示一致、雕刻／撤销／保存重开和隐藏恢复；原尺寸 Q90 WebP 已核对。[证据](../review_artifacts/terrain_analysis_20261017/evidence.json)。本项是地形辅助视图，未修改正式地图，不作为性能收益或玩家通行证据。
+
+
+## 高度图导入（2026-10-17）
+
+地形页「高度图」导入空白区域，UI 与当前 3D MCP 使用同一私有候选。首版支持 **8 位单通道灰度 PNG** 和 **无头、无尾部的 16 位无符号小端 RAW（r16le）**；PNG16、彩色／调色板图明确拒绝，不经隐式 8 位转换。源文件必须位于外部资源根内，沿用原生路径／链接检查；实际 Windows 目录 junction 已通过拒绝测试。每轴支持 17、33、65、129、257、513 个采样点，按最多 64×64 格切为原生可雕刻地块，共享源边界采样，不重采样、不做 gamma 转换。最大 64 块、262144 格、4 MiB 输入，实际格距须为 0.25–4 米。
+
+`center:[x,y,z]` 中 X/Z 为整个导入区域的中心，Y 为黑色样本的世界垂直基准；`width/depth` 是世界宽深，`height_scale` 是黑到白的高差，均为米。高程为 `center.Y + normalized_sample × height_scale`，8/16 位源量化步长分别为 `height_scale/255`、`height_scale/65535`。作者高度保留原采样计算值，原生渲染／碰撞顶点仍为 float32；不把源量化步长冒称完整世界坐标误差上限。默认首行位于 -Z、列向 +X、行向 +Z，`flip_z:true` 翻转行向。底床默认在基准下 16 米，可用 `bedrock_depth:1..100` 调整。PNG 尺寸从文件头读取；R16 必须填写 `samples_x/samples_z`，字节数严格匹配。
+
+预览显示整组半透明实际地形，并报告来源 SHA、位深、米制范围、格距、块／格数、标高范围和量化步长。源数据、参数或地图变化使候选失效，极小参数差异也不会误用缓存。新地形与既有内容重叠会整组拒绝，包括旧地形、桥体和受保护物件；不覆盖原图、不自动填桥洞或挪动物件。导入后为原生高度场快照，可继续雕刻、跨块同步、独立选择和碰撞；无需保留对外部高度图文件的运行时依赖，也不提供修改源图后自动重导入覆盖。
+
+当前 3D 工具：
+
+- `preview_heightmap_import`：必填 `path,format,center,width,depth,height_scale`；R16 另需 `samples_x/samples_z`。可选 `name,bedrock_depth,flip_z`。返回 `plan_token/base_version`、源 SHA、`samples/cell_size/tile_count/cell_count/terrain_ids/height_range/quantization_step/bounds`。
+- `apply_heightmap_import {plan_token}`：再次核对源文件字节、路径约束、地图版本、候选完整性与原生保存校验；同步一次提交整组地形，原生刷新和共享静态合批继续执行。一次 undo/redo 恢复整组，随后仍需 `save_world`。
+- `discard_heightmap_import {plan_token}`：丢弃候选，不改变原图、选择和历史。
+
+```json
+{"name":"preview_heightmap_import","arguments":{"path":"<资源根内的 input.r16 绝对路径>","format":"r16le","samples_x":129,"samples_z":129,"center":[32,0,32],"width":32,"depth":32,"height_scale":1,"bedrock_depth":16,"flip_z":false}}
+```
+
+真实 UI／HTTP **73 项通过、0 失败**，覆盖源精度、原生边界、翻转、PNG8、PNG16 拒绝、坏尺寸、超预算、真实链接、源变化、极细参数变化、过期地图、候选损坏、整组撤销重做、自动合批、保存重开及继续雕刻。保存图另执行四块交点的上下坡物理通行；具体结果与源／代码／地图身份见[本批证据](../review_artifacts/heightmap_import_20261017/evidence.json)。全部使用独立临时地图和不激活图形桌面，未修改正式场景；高度图可表达陡坡，此导入功能不承诺任意输入都可通行。

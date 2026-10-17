@@ -1,0 +1,121 @@
+{
+  "feature": "T4-C native editable heightmap import",
+  "date": "2026-10-17",
+  "base_commit": "13164b92432b093604bf323ce07d212e71c71065",
+  "branch": "codex/editor-reliability",
+  "checks": {
+    "http_ui": 73,
+    "native_collision_and_movement": 4
+  },
+  "failures": 0,
+  "engine": {
+    "path": "D:\\tools\\godot\\Godot_v4.7.2-stable_win64.exe",
+    "sha256": "ab1824f85bfd8e0e4128182c000c4003a3e042245b2967848d089b2a04b22424",
+    "version": "4.7.2.stable.official.ed1daf0bf",
+    "renderer": "Vulkan Forward+ / AMD Radeon RX 7900 XTX"
+  },
+  "sources": [
+    {
+      "path": "scripts/world_editor/terrain_heightmap.gd",
+      "sha256_lf": "f79816cc606064bf95b69af4a0d64d6998e7c14feb4a4bce23bca926fb315813"
+    },
+    {
+      "path": "scripts/world_editor/terrain_heightmap_panel.gd",
+      "sha256_lf": "7a312067fe2ff6cdab53220100bd2c40e6f362024e01f18254ad1dcd095a27df"
+    },
+    {
+      "path": "scripts/world_editor/mcp_ops.gd",
+      "sha256_lf": "189ed5da02f1bb3874a0dfee94f861692777a3f45ee81000e04c33999be4a0d4"
+    },
+    {
+      "path": "scripts/world_editor/mcp_schema.gd",
+      "sha256_lf": "75ef28c0c18e62ceb19d5bc45fca750802a417e4eec47d13eff09ade77742ba4"
+    },
+    {
+      "path": "scripts/world_editor/terrain_panel.gd",
+      "sha256_lf": "feeb503ecfcb6e28223037d3dd62d79a45cc955a1a80a4a6e7ec08c963a2b9b8"
+    },
+    {
+      "path": "scripts/world_editor/world_editor.gd",
+      "sha256_lf": "e8750a49c7cdd72219898d0bd1d0c1700fc37253f98ae6bb8f34f9c9be926b8b"
+    },
+    {
+      "path": "tools/test_heightmap_import.gd",
+      "sha256_lf": "85eca433337545d9aa8036488f17d6e99b95e541ec1c766df8ba778450472a87"
+    },
+    {
+      "path": "tools/test_heightmap_runtime.gd",
+      "sha256_lf": "7a4c3881abc979fb8b1ac151e1a4c1d426b51aca2106e79713f6e2c191ce8f3a"
+    },
+    {
+      "path": "tools/test_terrain_ramp_runtime.gd",
+      "sha256_lf": "e4b029bee6dd2b39ca28e66db58e44b7bc46c6b50f16ffbc924e4f4f57909159"
+    },
+    {
+      "path": "scripts/world3d/terrain_surface.gd",
+      "sha256_lf": "392a0d6e11c2273fbd862065eddb7653ced268a7547873a766b72b88c40c8e70"
+    },
+    {
+      "path": "scripts/world3d/map_paths.gd",
+      "sha256_lf": "eea6c0848923a23b4d4607ddd5a82b71ecfa292f7ab63b2b570ba7b99cbb9b3a"
+    },
+    {
+      "path": "scripts/world3d/world_document.gd",
+      "sha256_lf": "c46f2f3879c64a91cf0bc00c3bcfb7536b7cb72db543ca9b5481eb21f0e6218d"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "compression.json",
+      "sha256": "90e3ff2666dfc274b1182e97d18bf241ab657a35b0d261f77b6ab3f8c0983816"
+    },
+    {
+      "path": "console.log",
+      "sha256": "cd43da0b6d63b890282f4d646dc0f25611c8601d9637f43a069d160119b85d28"
+    },
+    {
+      "path": "engine.log",
+      "sha256": "13cbac4f544788ca42e8374d74a9e16f58477e6d03fd3fbca69774be7847f10f"
+    },
+    {
+      "path": "input.r16",
+      "sha256": "501c8c5342b13775410683ef359e4b171e52d970769cb552058da5ff0c175830"
+    },
+    {
+      "path": "result.json",
+      "sha256": "0696f7866044519efdcfcb41d0f38c6d488f009990847a82c5e3f12bc56d70d1"
+    },
+    {
+      "path": "runtime.json",
+      "sha256": "9b8777fc963e7c860088a9aaf5955b194d575b199a197a08684d620790f61509"
+    },
+    {
+      "path": "runtime_console.log",
+      "sha256": "857a6ade5af24a4f459d6eae5e9982875f53261eceea53dc23e1d9577439e0ee"
+    },
+    {
+      "path": "runtime_engine.log",
+      "sha256": "dcda9b43f0c239c2481c8820e96db517783c224d3757bb5a82f2334bcec6f1c9"
+    },
+    {
+      "path": "ui.webp",
+      "sha256": "960fc866351c41ea83898e712e4d5dee0348888a42b31ea05d4d65be1408ca05"
+    }
+  ],
+  "fixture": {
+    "map": "D:/code/rmmo_runtime/cache/world3d/heightmap_14575297/map.gltf",
+    "map_sha256": "b99a9bf21e40c3d18a7e197d82b07f786c90fdea3f693204cfa7301a62ea4a5f",
+    "source": "D:/code/rmmo_runtime/cache/world3d/heightmap_14575297/input.r16",
+    "source_sha256": "501c8c5342b13775410683ef359e4b171e52d970769cb552058da5ff0c175830",
+    "tile_count": 4.0,
+    "max_seam": 0.0,
+    "source_surfaces": 8,
+    "render_surfaces": 1
+  },
+  "scope": "Independent temporary resources and inactive private GPU desktop. True loopback HTTP and real UI; 8-bit grayscale PNG and explicit little-endian unsigned 16-bit RAW. No resampling. Q90 lossy VP8 screenshot verified before viewing. Native saved collider / WorldAuthority capsule walk across four-way tile join both directions; no avatar, full streaming, arbitrary input walkability or performance claim. Formal scene content untouched.",
+  "regressions": [
+    "Real Windows directory junction rejected before decoding.",
+    "Raw request byte fingerprint distinguishes sub-micro input changes.",
+    "Entire candidate invalidates on source bytes or authoring version changes; one undo/redo restores all tile identities."
+  ]
+}

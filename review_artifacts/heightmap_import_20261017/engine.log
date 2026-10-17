@@ -1,0 +1,78 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: native 8-bit grayscale PNG fixture
+PASS: isolated native empty map
+PASS: private current 3D loopback server
+PASS: discovered preview_heightmap_import
+PASS: discovered apply_heightmap_import
+PASS: discovered discard_heightmap_import
+PASS: HTTP preview_heightmap_import succeeds
+PASS: private R16 preview creates four native tiles without author side effects
+PASS: true 16-bit source identity and quantization reported
+PASS: HTTP preview_heightmap_import succeeds
+PASS: same request and source reuse candidate
+PASS: HTTP preview_heightmap_import succeeds
+PASS: sub-microunit input changes cannot reuse another height candidate
+PASS: HTTP preview_heightmap_import succeeds
+PASS: R16 low byte precision is retained without 8-bit conversion
+PASS: all native split edges share source samples
+PASS: HTTP preview_heightmap_import succeeds
+PASS: explicit flip_z changes source-row orientation
+PASS: HTTP discard_heightmap_import succeeds
+PASS: discard is authoring read-only
+PASS: HTTP apply_heightmap_import rejects invalid operation
+PASS: atomic rejection: apply_heightmap_import
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: actual Windows junction source is rejected before image decoding
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: HTTP preview_heightmap_import succeeds
+PASS: 8-bit grayscale PNG imports without implicit resampling
+PASS: HTTP preview_heightmap_import succeeds
+PASS: HTTP apply_heightmap_import rejects invalid operation
+PASS: atomic rejection: apply_heightmap_import
+PASS: HTTP preview_heightmap_import succeeds
+PASS: HTTP apply_heightmap_import rejects invalid operation
+PASS: atomic rejection: apply_heightmap_import
+PASS: HTTP preview_heightmap_import succeeds
+PASS: HTTP create_terrain succeeds
+PASS: HTTP apply_heightmap_import rejects invalid operation
+PASS: atomic rejection: apply_heightmap_import
+PASS: HTTP undo succeeds
+PASS: UI exposes the same explicit import parameters
+PASS: real UI preview matches HTTP geometry and source
+PASS: HTTP set_editor_camera succeeds
+PASS: UI edit invalidates entire preview
+PASS: UI applies full group once
+PASS: HTTP undo succeeds
+PASS: one undo removes entire UI import
+PASS: HTTP preview_heightmap_import succeeds
+PASS: HTTP apply_heightmap_import succeeds
+PASS: HTTP preview_heightmap_import rejects invalid operation
+PASS: atomic rejection: preview_heightmap_import
+PASS: each tile has independent selection and native picking/collision
+PASS: HTTP undo succeeds
+PASS: HTTP group undoes atomically
+PASS: HTTP redo succeeds
+PASS: redo restores stable tile IDs
+PASS: native shared batches actually combine imported terrain surfaces
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: native save/reopen retains editable heights and tile identity
+PASS: HTTP sample_terrain_height succeeds
+PASS: reopened shared tile corner samples original 16-bit height
+PASS: HTTP sculpt_terrain succeeds
+PASS: HTTP undo succeeds
+PASS: imported native terrain remains sculptable and undoable
+HEIGHTMAP_IMPORT checks=73 failures=0

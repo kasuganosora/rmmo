@@ -1,0 +1,28 @@
+{
+	"collisions": 4,
+	"failures": 0,
+	"map": "D:/code/rmmo_runtime/cache/world3d/heightmap_14575297/map.gltf",
+	"map_sha256": "b99a9bf21e40c3d18a7e197d82b07f786c90fdea3f693204cfa7301a62ea4a5f",
+	"passed": 4,
+	"scope": "native terrain collision and WorldAuthority capsule movement; no avatar, full streaming or arbitrary heightmap safety claim",
+	"walks": [
+		{
+			"airborne": 0,
+			"case": "uphill across four-way tile join",
+			"distance": 0.0868346467614174,
+			"max_floor_error": 0.00100549993076127,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 541
+		},
+		{
+			"airborne": 0,
+			"case": "downhill across four-way tile join",
+			"distance": 0.109388940036297,
+			"max_floor_error": 0.00106040645605388,
+			"passed": true,
+			"rejected": 0,
+			"ticks": 540
+		}
+	]
+}

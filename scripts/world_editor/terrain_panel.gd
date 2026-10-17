@@ -21,6 +21,7 @@ var rock_banks
 var terrain_layout
 var ramp
 var analysis
+var heightmap
 var begin_button: Button
 var end_button: Button
 var river_fields: VBoxContainer
@@ -148,6 +149,8 @@ func setup(value: Node3D) -> void:
 	var volume_panel:=preload("res://scripts/world_editor/terrain_volume_panel.gd").new(); cave.body.add_child(volume_panel); volume_panel.setup(editor)
 	var rock:=_task_page("岩岸")
 	rock_banks=preload("res://scripts/world_editor/rock_bank_panel.gd").new(); rock.body.add_child(rock_banks); rock_banks.setup(editor)
+	var import_page:=_task_page("高度图")
+	heightmap=preload("res://scripts/world_editor/terrain_heightmap_panel.gd").new();import_page.body.add_child(heightmap);heightmap.setup(editor)
 	var create:=_task_page("新建")
 	_move_range(existing,creation_start,surface_start,create.body)
 	_move_range(existing,surface_start,region_start,surface.body)
