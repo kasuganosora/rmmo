@@ -1,4 +1,5 @@
 extends Control
+const TransferLoading=preload("res://scripts/world3d/transfer_loading.gd")
 ## North-up X/Z projection, shared by radar and resizable overview.
 static var terrain_cache_enabled:=true
 static var preparation_profile_enabled:=false
@@ -120,7 +121,7 @@ func _terrain_warm_budget_usec()->int:
 	var player:Node=world.get("_player")
 	if not is_instance_valid(player) or not "input_locked" in player or not player.input_locked:return TerrainLayer.WARM_BUDGET_USEC
 	var transfer_cover:Node=world.get_node_or_null("TransferLoading")
-	if "_transfer_pending" in world and world._transfer_pending and transfer_cover is CanvasLayer and not transfer_cover.is_queued_for_deletion() and transfer_cover.visible:return TerrainLayer.LOADING_WARM_BUDGET_USEC
+	if "_transfer_pending" in world and world._transfer_pending and transfer_cover is TransferLoading and transfer_cover.is_opaque_drawn():return TerrainLayer.LOADING_WARM_BUDGET_USEC
 	var session:Node=get_node_or_null("/root/GameSession")
 	if session==null or not session._world_transition_active:return TerrainLayer.WARM_BUDGET_USEC
 	var cover:Node=session.get_node_or_null("WorldTransition")

@@ -247,7 +247,7 @@ func begin_entry_loading(host:Node,clip:AABB,cover:Node=null)->bool:
 	if plan.is_empty() or int(plan.get("core_resources_ready_us",0))<=0 or not clip.position.is_finite() or not clip.size.is_finite():return false
 	if clip!=plan.safety_clip:return false
 	if cover!=null:
-		if not cover is TransferLoading or not cover.is_inside_tree() or not cover.visible or cover.drawn_frame<0:return false
+		if not cover is TransferLoading or not cover.is_opaque_drawn():return false
 	else:
 		var session:=host.get_node_or_null("/root/GameSession")
 		if not "_ready_for_play" in host or host._ready_for_play or session==null or not session.world3d_loading:return false
@@ -265,7 +265,7 @@ func _entry_loading_allowed()->bool:
 	if _entry_loading.is_empty() or _cancelled or not is_instance_valid(_host) or not _host.is_inside_tree():return false
 	if _entry_loading.get("host")!=_host or _entry_loading.get("map")!=_map or not is_instance_valid(_map) or not _demand_scope.has("entry_safety"):return false
 	var cover:Variant=_entry_loading.get("cover")
-	if cover!=null:return is_instance_valid(cover) and cover.is_inside_tree() and not cover.is_queued_for_deletion() and cover.visible and cover.drawn_frame>=0
+	if cover!=null:return is_instance_valid(cover) and cover.is_opaque_drawn()
 	var session:=_host.get_node_or_null("/root/GameSession")
 	return "_ready_for_play" in _host and not _host._ready_for_play and session!=null and session.world3d_loading
 
@@ -1349,7 +1349,7 @@ func _main_thread_budget_usec()->int:
 	if context.get("request")!=_host._transfer_request_serial:return INTERACTIVE_BUDGET_US
 	var cover:Variant=context.get("cover")
 	if not is_instance_valid(cover) or not cover is TransferLoading:return INTERACTIVE_BUDGET_US
-	if not cover.is_inside_tree() or cover.is_queued_for_deletion() or not cover.visible or cover.drawn_frame<0:return INTERACTIVE_BUDGET_US
+	if not cover.is_opaque_drawn():return INTERACTIVE_BUDGET_US
 	var viewport:=_host.get_viewport()
 	if cover.get_viewport()!=viewport or not viewport.disable_3d:return INTERACTIVE_BUDGET_US
 	return COVERED_LOADING_BUDGET_US

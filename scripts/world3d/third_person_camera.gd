@@ -91,6 +91,15 @@ func follow(pivot: Vector3, delta: float) -> void:
 		var finished:=Time.get_ticks_usec()
 		set_meta("frame_timing",{"frame":Engine.get_process_frames(),"locate_ms":(locate_end-started)/1000.0,"cutaway_first_ms":(first_update_end-first_update_started)/1000.0,"shorten_ms":(shorten_end-first_update_end)/1000.0,"cutaway_second_ms":(second_update_end-second_update_started)/1000.0,"other_ms":((first_update_started-locate_end)+(second_update_started-shorten_end)+(finished-second_update_end))/1000.0,"ms":(finished-started)/1000.0})
 
+func snap_to(pivot:Vector3)->void:
+	# Small/vertical teleports also reset follow smoothing. Keep orbit/FOV and
+	# the normal collision sweep; do not invent a renderer TAA reset API.
+	_initialized=false
+	follow(pivot,0.0)
+	reset_physics_interpolation()
+	camera.reset_physics_interpolation()
+
+
 func bind_map(map_root:Node,settings:Dictionary)->void:
 	cutaway.bind(map_root)
 	configure_environment(settings)

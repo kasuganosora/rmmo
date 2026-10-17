@@ -1,0 +1,25 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS target dispatch remains exclusive while origin collision tickets are retained
+PASS starting target preparation never releases the existing player/camera lease
+PASS transaction records only the pre-existing source movement leases
+PASS restricted prior scope explicitly permits the replacement player lease
+PASS successful handoff releases the stale origin sweep and target transaction after player owns destination
+PASS destination transaction survives both scope restoration and replacement acquisition
+PASS cancel restoration keeps source tickets and admits exact recovery queries before dropping cover
+PASS ordinary Stream empty-index readiness cannot bypass missing collision-only dependency proof
+PASS same physics tick ordinary-body publication keeps recovery blocked
+PASS recovery accepts verified collision dependencies only after real physics synchronization
+PASS removed collision layer invalidates recovery immediately
+PASS source failure prevents recovery despite live ordinary bodies
+PASS original stream residency requirement remains mandatory
+PASS obsolete map context cannot authorize recovery
+PASS unrecoverable source has a bounded failed terminal result
+PASS failed recovery never reenables player physics or input
+PASS failure retains cover and source ownership with an explicit return action
+PASS failure diagnostics distinguish failed recovery from an activated destination
+PASS default nonexperimental loading creates no additional collision retention
+PASS default scope and ordinary readiness behavior are unchanged
+PASS zero script/engine errors
+COLLISION_TRANSFER_SCOPE passed=21 failures=0

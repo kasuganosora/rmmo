@@ -1,0 +1,153 @@
+{
+  "feature": "传送体验扩展",
+  "base_commit": "59447de9d30650b5b1f9fd7fd3764e15f49c834f",
+  "scope": "3D 同图、跨图、编辑器原生试玩的淡出淡入、分阶段等待、失败退出；完整就绪保持",
+  "passed": 487,
+  "failed": 0,
+  "tests": [
+    {
+      "test": "tools/test_entry_loading_contract.gd",
+      "passed": 24,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_entry_loading_contract.log",
+      "log_sha256": "999d99e0c698b46aa35fc000bcbcbf0fe982f6f32b8602a9143eefd26d63919c",
+      "raw_log_sha256": "3735e0565b477c7a70e948e4a309af564a45831abcc067ef4e0d0c748bcae4a4"
+    },
+    {
+      "test": "tools/test_deferred_loading_budget.gd",
+      "passed": 32,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_deferred_loading_budget.log",
+      "log_sha256": "422a2efa90e1b37eb46c7b19e0a0dff73516fa30bbf77bb01165c83eec715387",
+      "raw_log_sha256": "6fd5eab530dbcb80579658dd44f841987e13fcc5ed9d4b86a396394cf9718dd6"
+    },
+    {
+      "test": "tools/test_deferred_loading_workers.gd",
+      "passed": 43,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_deferred_loading_workers.log",
+      "log_sha256": "f2aa0243d19a3b9f03c297795f771755459fdff2e128ca190f6f2761dbf97a09",
+      "raw_log_sha256": "63d96e2d38d221d3f9f25fcde8789a8b5d6761462ba94a51f39632d88535a4fb"
+    },
+    {
+      "test": "tools/test_deferred_entry_prefetch.gd",
+      "passed": 42,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_deferred_entry_prefetch.log",
+      "log_sha256": "0fbfd4ca78907a93c4998681c84b5a5910d99887d042bf062d62b89c76c70e89",
+      "raw_log_sha256": "0a6f45509b2ecd5b9b52e05d1ee05734e5cb456f998adb95c563c8255868f4f6"
+    },
+    {
+      "test": "tools/test_world_map_loading_budget.gd",
+      "passed": 18,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_world_map_loading_budget.log",
+      "log_sha256": "4546037b296160013aef73764219da3c32428a4cb7fffe2ab9fc52432b970755",
+      "raw_log_sha256": "e107a309af78bcbdf8c69289dcd420766791f6eaf9d9ca3ed043d9fb837d3081"
+    },
+    {
+      "test": "tools/test_transfer_cover_lifecycle.gd",
+      "passed": 9,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_transfer_cover_lifecycle.log",
+      "log_sha256": "6cd1acd1d6ff478b7d245e0521ea989e207e86e32798e86b8a1bbcd8b4dafdc8",
+      "raw_log_sha256": "02f03e73981f86a130949d35bad5280b5889d3a76d78686dc90cb36e264784a8"
+    },
+    {
+      "test": "tools/test_collision_transfer_scope.gd",
+      "passed": 21,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "headless logic",
+      "log": "test_collision_transfer_scope.log",
+      "log_sha256": "1d8f11f9a2d10188550f59eeb5840889902eda74fd5ab7908051b1c8f0b20fb7",
+      "raw_log_sha256": "731e40bd2b7e5f7905965c155b3ca82b11483203bfac728a75a36697af7a3960"
+    },
+    {
+      "test": "tools/test_transfer_experience_cover_gpu.gd",
+      "passed": 19,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "GPU private desktop",
+      "log": "cover_engine.log",
+      "log_sha256": "590dbb522bfdb028cdfcf2957f1b2e801f975b6e407190a6dee55572483ca424",
+      "raw_log_sha256": "590dbb522bfdb028cdfcf2957f1b2e801f975b6e407190a6dee55572483ca424"
+    },
+    {
+      "test": "tools/test_transfer_loading_gpu.gd",
+      "passed": 126,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "GPU private desktop",
+      "log": "runtime_engine.log",
+      "log_sha256": "56ca03abedec6bdfc186ad1854b64696f8b2f800f5ba82e8c2af374423380f96",
+      "raw_log_sha256": "52defe89a2562fa2c222af5fc4abe603ed05fa2d7095805b59846063b43b8319"
+    },
+    {
+      "test": "tools/test_same_map_transfer_gpu.gd",
+      "passed": 62,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "GPU private desktop",
+      "log": "same_map_engine.log",
+      "log_sha256": "71b0d12aec83586d1eea92516a4724162fbf46634c61f8707cdedd390e264c4c",
+      "raw_log_sha256": "32110353024174dec29093005dc027fbaac3167804118c1234979a28978811b7"
+    },
+    {
+      "test": "tools/test_building_entry_gpu.gd",
+      "passed": 49,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "GPU private desktop",
+      "log": "building_engine.log",
+      "log_sha256": "6ffb4ebd9cafbd6474d91d609bee0ad212ef2d7fc5d7d265c81d64a757a7c576",
+      "raw_log_sha256": "6ffb4ebd9cafbd6474d91d609bee0ad212ef2d7fc5d7d265c81d64a757a7c576"
+    },
+    {
+      "test": "tools/test_transfer_experience_http.gd",
+      "passed": 42,
+      "failed": 0,
+      "exit_code": 0,
+      "mode": "GPU private desktop",
+      "log": "http_engine.log",
+      "log_sha256": "c750bfa495d9e79b7bf27929419eb727ae6b9b916a5d7c1558ea51e8a13c36d1",
+      "raw_log_sha256": "769f9667b95c84a40b1056d53b1894419980e099e10384042ce49ac534e47cdc"
+    }
+  ],
+  "sources": "sources.json",
+  "gpu_sources_match_final": true,
+  "screenshots": "cover_gpu.json",
+  "http": "http.json",
+  "gpu_environment": "Godot 4.7.2 / Vulkan Forward+ / AMD Radeon RX 7900 XTX; tools/run_godot_background.py private desktop, serial GPU tests",
+  "semantic_notes": [
+    "约 180 ms 淡出 / 220 ms 淡入；阶段计数不等于总进度百分比。",
+    "复活在目标首帧权威激活后恢复 HP；新增淡入窗口仍锁输入和玩家物理，未将调用返回时间冒充首次激活时间。",
+    "修复编辑器试玩首次进入读 reference glTF 代理而丢失作者事件；UI/MCP 保持同一原生文档快照。",
+    "CPU cover doubles model opaque state; real GPU pixels, target viewport and event flows are checked separately."
+  ],
+  "isolation": {
+    "scene_checkout_written": false,
+    "production_maps_written": false,
+    "performance_stash": "d70e9ed03f734263cb26e727c69e120d12e85e2f",
+    "new_asset_delivery": false
+  },
+  "deferred": [
+    "W2 同图预取",
+    "W3 预取接管及加载提速",
+    "W4 跨图预取和双场景预算",
+    "任意硬件 TAA 残影保证"
+  ],
+  "archived_log_format": "UTF-8 LF; trailing line whitespace removed only. Raw logs retained in D:/code/rmmo_runtime/review_artifacts/transfer_experience_20261017, raw and archived SHA recorded."
+}

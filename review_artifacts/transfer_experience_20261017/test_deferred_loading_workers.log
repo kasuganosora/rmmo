@@ -1,0 +1,47 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: automatic cap for -1 logical threads is 2
+PASS: automatic cap for 0 logical threads is 2
+PASS: automatic cap for 1 logical threads is 2
+PASS: automatic cap for 2 logical threads is 2
+PASS: automatic cap for 3 logical threads is 2
+PASS: automatic cap for 4 logical threads is 2
+PASS: automatic cap for 5 logical threads is 2
+PASS: automatic cap for 6 logical threads is 3
+PASS: automatic cap for 8 logical threads is 4
+PASS: automatic cap for 10 logical threads is 5
+PASS: automatic cap for 12 logical threads is 6
+PASS: automatic cap for 24 logical threads is 6
+PASS: automatic cap for 128 logical threads is 6
+PASS: ordinary operation preserves its original two slots
+PASS: undrawn loading cover cannot increase capacity
+PASS: drawn scoped loading uses real CPU count while saving original interactive capacity
+PASS: production auto selection is reported without increasing the byte allowance
+PASS: explicit 2-worker probe survives automatic capacity refresh
+PASS: explicit 4-worker probe survives automatic capacity refresh
+PASS: explicit 6-worker probe survives automatic capacity refresh
+PASS: loading slot 0 can be admitted within unchanged byte limit
+PASS: loading slot 1 can be admitted within unchanged byte limit
+PASS: loading slot 2 can be admitted within unchanged byte limit
+PASS: loading slot 3 can be admitted within unchanged byte limit
+PASS: loading slot 4 can be admitted within unchanged byte limit
+PASS: loading slot 5 can be admitted within unchanged byte limit
+PASS: leaving covered loading restores saved interactive capacity
+PASS: reducing capacity preserves all completed results and their slots and bytes
+PASS: capacity reduction does not cancel admitted jobs and blocks fresh admission while over capacity
+PASS: normal consumption reaches the interactive limit without admitting too early
+PASS: only normal result consumption opens an interactive slot again
+PASS: cancelling covered transfer restores capacity without changing bytes
+PASS: an explicitly configured prior interactive limit is restored exactly
+PASS: explicit zero during loading disables dispatch and discards automatic restoration state
+PASS: leaving loading cannot revive explicitly disabled dispatch
+PASS: re-entering covered loading also preserves explicit zero
+PASS: cover without its current scope transaction cannot apply worker override
+PASS: stale transaction cannot increase admission capacity
+PASS: scope cleanup synchronously restores capacity even when processing is stopped
+PASS: scope setter never raises capacity ahead of the processing guard
+PASS: real processing applies production automatic capacity before dispatch
+PASS: real processing restores interactive capacity before subsequent dispatch
+PASS: complete queue restores interactive capacity before stopping process callbacks
+DEFERRED_LOADING_WORKERS passed=43 failures=0

@@ -9,9 +9,7 @@ class QuietWorld extends "res://scripts/world3d/world_3d.gd":
 	func _exit_tree()->void:pass
 class Player extends CharacterBody3D:
 	var input_locked:=false
-class Cover extends CanvasLayer:
-	var message:=""
-	func update_progress(value:String)->void:message=value
+const Cover=preload("res://scripts/world3d/transfer_loading.gd")
 
 func setup()->Dictionary:
 	var world:=QuietWorld.new();root.add_child(world)
@@ -105,7 +103,7 @@ func terminal_failure()->void:
 	var owners:Dictionary=f.loader.tickets.duplicate(true)
 	check(not f.world._hold_local_transfer_recovery(f.context,"source unavailable"),"unrecoverable source has a bounded failed terminal result")
 	check(f.player.input_locked and not f.player.is_physics_processing() and f.player.velocity==Vector3.ZERO,"failed recovery never reenables player physics or input")
-	check(cover.visible and cover.message=="source unavailable" and cover.get_child_count()==1 and f.loader.tickets==owners,"failure retains cover and source ownership with an explicit return action")
+	check(cover.visible and cover.stage=="source unavailable" and is_instance_valid(cover._back) and f.loader.tickets==owners,"failure retains cover and source ownership with an explicit return action")
 	check(f.world.get_meta("transfer_loading_profile").recovery_failed and f.context.recovery_failed,"failure diagnostics distinguish failed recovery from an activated destination")
 	f.world.free()
 

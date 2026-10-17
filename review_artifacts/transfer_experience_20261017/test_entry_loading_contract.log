@@ -1,0 +1,28 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS problem position maps to actual 32m cell
+PASS core is a cell not a 32m radius
+PASS negative coordinates use floor cell selection
+PASS nonfinite origin cannot create entry work
+PASS maximum camera sweep has safety coverage
+PASS maximum camera sweep has safety coverage
+PASS maximum camera sweep has safety coverage
+PASS maximum camera sweep has safety coverage
+PASS neighbours cannot begin before core milestone
+PASS undrawn cover cannot authorize loading publication
+PASS caller cannot substitute a different safety contract
+PASS verified core starts explicitly scoped neighbour preparation
+PASS far tickets are not admitted during safety preparation
+PASS phase order is timestamped
+PASS drawn cover plus disabled viewport permits bounded publication
+PASS rendering first frame restores interactive submission budget
+PASS hidden cover revokes entry authority
+PASS completion restores ordinary tickets without losing neighbours
+PASS completed entry cannot keep a loading publication permit
+PASS active queue cannot bypass cancellation during reparent
+PASS quiesced queue permits synchronous scene handoff
+PASS handoff preserves queue without starting publication before the first frame
+PASS committed map can resume neighbouring work
+PASS ordinary tree removal still cancels its workers
+ENTRY_LOADING_CONTRACT 24 checks / 0 failures

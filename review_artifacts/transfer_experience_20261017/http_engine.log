@@ -1,0 +1,49 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: create isolated native maps
+PASS: start isolated loopback 3D MCP
+PASS: real discovery documents shared transfer presentation
+PASS: HTTP create_event_template rejects invalid operation
+PASS: HTTP create_event_template rejects invalid operation
+PASS: invalid requests leave author data and history untouched
+PASS: HTTP create_event_template succeeds
+PASS: HTTP undo succeeds
+PASS: event undo removes exact instance
+PASS: HTTP redo succeeds
+PASS: event redo restores identity
+PASS: HTTP select_objects succeeds
+PASS: UI event form applies shared parameters and shows automatic transition help
+PASS: HTTP create_event_template succeeds
+PASS: HTTP save_world succeeds
+PASS: HTTP open_world succeeds
+PASS: UI and MCP authored events survive native save/reopen
+PASS: HTTP set_playtest_spawn succeeds
+PASS: HTTP start_playtest succeeds
+PASS: playtest phase running
+PASS: playtest mounts real native author records instead of reference glTF proxies
+EVENT_DIAGNOSTIC {"actions":[{"location":{"map_ref":"authored/destination","position_m":[3.0,0.0,1.0],"surface_id":"ground"},"path":"D:/code/rmmo_runtime/cache/world3d/transfer_experience_15561956/source.gltf","type":"world3d_transfer"}],"id":"obj_2","ready":true,"records":3,"targets":["obj_2","obj_3"]}
+PASS: saved event compiles to one current 3D transfer action
+PASS: authored event uses shared fade inside the actual playtest viewport
+PASS: authored feet convert once to body center and input resumes
+PASS: transfer preserves FOV, antialiasing and output resolution
+PASS: real target frame and fade finish before input resumes
+EVENT_DIAGNOSTIC {"actions":[{"location":{"map_ref":"authored/destination","position_m":[-3.0,0.0,1.0],"surface_id":"ground"},"path":"D:/code/rmmo_runtime/cache/world3d/transfer_experience_15561956/target.gltf","type":"world3d_transfer"}],"id":"obj_3","ready":true,"records":3,"targets":["obj_2","obj_3"]}
+PASS: saved event compiles to one current 3D transfer action
+PASS: authored event uses shared fade inside the actual playtest viewport
+PASS: authored feet convert once to body center and input resumes
+PASS: transfer preserves FOV, antialiasing and output resolution
+PASS: real target frame and fade finish before input resumes
+PASS: exit probe reaches real covered transfer
+PASS: HTTP stop_playtest succeeds
+PASS: playtest phase idle
+PASS: stop during covered transfer destroys only owned world, viewport and cover
+PASS: HTTP start_playtest succeeds
+PASS: playtest phase running
+PASS: undrawable source viewport yields explicit failure exit without moving/unlocking actor
+PASS: HTTP stop_playtest succeeds
+PASS: playtest phase idle
+PASS: playtest restores real server and inventory without edits
+PASS: runtime experience leaves both authored maps unchanged
+TRANSFER_EXPERIENCE_HTTP_FINISHED passed=42 failures=0

@@ -1,0 +1,23 @@
+{
+  "base_commit": "59447de9d30650b5b1f9fd7fd3764e15f49c834f",
+  "sha256": {
+    "scripts/ui/world_map_view_3d.gd": "550864f823fd344c618fa5a62ddb4651c40e74fd335127fb8a2b4415845422bc",
+    "scripts/world3d/deferred_asset_loader.gd": "d7365b0ef2a81a42b8c95c6032cb8787eb7a45269a1d06b633aaa11ee9f7064d",
+    "scripts/world3d/third_person_camera.gd": "a35701a5263eac53ccd576a5d6b0734128cf8a8377b31774513d85f91f0a8166",
+    "scripts/world3d/transfer_loading.gd": "3d45ca42e90edb34c721fc59b38971390c2bcbec541eeaae1daa5e59b51e94c6",
+    "scripts/world3d/world_3d.gd": "69bd756aec004422201a88006436d4f0440864e0218e4ba36901047ea1c4c94b",
+    "scripts/world_editor/event_panel.gd": "f99e0d737f566c866316ae36e31264a19abff6791acf6a33d68f6c27d7ddf68f",
+    "scripts/world_editor/mcp_schema.gd": "8b58d50201b731134e9df8772f740807e112bb52a0c0b4f36331b8efaaa14dfb",
+    "scripts/world_editor/playtest_session.gd": "0eab99cb9fbc72b4a4bcbed442f66713681ddefd261ebfc623c27e362da561d5",
+    "tools/test_building_entry_gpu.gd": "e382edcb5f98da3a43a0fb40b5956b5dbfe91dbc4dad24bc3b3f1ec4e0463bfd",
+    "tools/test_collision_transfer_scope.gd": "32184551a8d5248ef0f8f2507470ea3bea1f09e8d21bbe2d88d6ab2e89f11826",
+    "tools/test_deferred_entry_prefetch.gd": "1d14c02504463c0c988bb11981d96ca2b0d94df1afd49c3cfbd02c50b07607ba",
+    "tools/test_deferred_loading_budget.gd": "602835bf42da206b6e9501364ea799408112bce0c873c9cb3173cd63a72f9b0d",
+    "tools/test_deferred_loading_workers.gd": "cdc303ecb76d01aed390c3fe4a7448968fcf9b3433083617cb2bf00d508b7c17",
+    "tools/test_entry_loading_contract.gd": "4b1806cd64af3952dffa1c01310ed98f586656583c05c81f2e91b55e8e3b0425",
+    "tools/test_transfer_loading_gpu.gd": "e5cdfe6bd3c6d4c450a401a830f1a0f314c46bde14fad5a6b47f7798eb078a84",
+    "tools/test_world_map_loading_budget.gd": "e677141e9db957b1f30dd30cc854b00fea3fc1b7c5ed2e3480e56e96bd8fdf61",
+    "tools/test_transfer_experience_cover_gpu.gd": "e0846c1ecea39d46fb4dbb83e7090769ebfec527e1dc2e54af56d8d9b6648038",
+    "tools/test_transfer_experience_http.gd": "5d53b4642e8932f514f1a1fd816f6ed71d5f6d096f6b4fdd35380138a3926690"
+  }
+}

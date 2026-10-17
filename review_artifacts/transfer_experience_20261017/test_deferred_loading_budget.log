@@ -1,0 +1,36 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: ordinary play uses the two millisecond slice
+PASS: pending transfer and disabled 3D cannot boost an undrawn cover
+PASS: drawn cover without disabled 3D remains interactive
+PASS: matching current transfer with visible drawn cover and disabled 3D receives sixteen milliseconds
+PASS: partial opacity revokes covered publication budget
+PASS: reveal phase revokes covered publication budget
+PASS: drawn loading cover cannot boost before its destination scope is applied
+PASS: a replaced demand scope cannot inherit the old transfer budget
+PASS: cancelled transfer immediately loses the larger budget
+PASS: stale transaction serial cannot boost the queue
+PASS: a cover for another map cannot boost this queue
+PASS: transaction must name this exact deferred queue
+PASS: hidden cover cannot boost publication
+PASS: detached cover cannot boost publication
+PASS: completed transfer restores the interactive slice without a reset API
+PASS: cross-map transfer without a local cover transaction does not inherit a boost
+PASS: a cover queued for deletion cannot authorize more work
+PASS: a generic host without transfer properties safely defaults to interactive
+PASS: acceptance and publication receive the same original frame clock and interactive budget
+PASS: acceptance exhausting the slice still permits exactly one real publication unit
+PASS: interactive metrics count acceptance and publication separately
+PASS: uninterruptible acceptance overrun is exposed rather than reported as a hard two millisecond limit
+PASS: completed result remains charged while its publication is incomplete
+PASS: an indivisible slow publication advances once and keeps cumulative counts
+PASS: single publication duration and soft-budget overrun are measured
+PASS: real publication uses the larger budget only after the cover state qualifies
+PASS: covered publication drains remaining ready units without duplicating acceptance or publication
+PASS: interactive and covered metrics stay in separate buckets
+PASS: larger time slice releases consumed work without changing concurrency or byte limits
+PASS: ending the cover returns the next processing call to the smaller budget
+PASS: default expired-budget call still counts one failed real unit and preserves UUID isolation
+PASS: failure cannot prevent a healthy sibling progressing under the same default budget
+DEFERRED_LOADING_BUDGET passed=32 failures=0
