@@ -12,7 +12,9 @@ func traced(script:Script,map:Node,ids:Array)->Dictionary:
 	for row:Dictionary in trace.stats:counts[row.label]=row.count
 	return {"result":result,"counts":counts}
 func run()->void:
-	var control:Script=load(CONTROL) if FileAccess.file_exists(CONTROL) else Stream
+	var reference_path:String=CONTROL
+	if "--schema-guard-control" in OS.get_cmdline_user_args():reference_path="D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/world_stream_before_pin_schema_guard.gd"
+	var control:Script=load(reference_path) if FileAccess.file_exists(reference_path) else Stream
 	var library:Array=[];var ids:Array=[];var shared:=BoxMesh.new()
 	for i:int in 2151:
 		var item:=spec("guild__part%d"%i,Vector2i(100,100),Vector2i(100,100),{"kind":"asset","building":{"id":"group%d"%(i%156)}})
@@ -48,6 +50,20 @@ func run()->void:
 	check(not Stream.can_retire_specs(map,ids,true).ok,"full source schema still rejects a malformed surviving member")
 	keep.mesh=shared
 	check(data==before and library==original,"all pin checks and refusals leave the complete index and source identities unchanged")
+	a.erase("chunk")
+	check(Stream.can_retire_specs(map,ids,true).ok,"current min/max-only source envelope never eagerly reads a missing legacy chunk")
+	a.chunk=Vector2i(100,100)
+	var owner:Dictionary=a.render_bounds;var owner_chunk:Vector2i=owner.chunk;owner.erase("chunk")
+	check(Stream.can_retire_specs(map,ids,true).ok,"shared render bounds also support the current min/max-only contract")
+	owner.chunk=owner_chunk
+	for invalid:Variant in [null,false,{"chunk_min":false,"chunk_max":Vector2i.ZERO}]:
+		b.render_bounds=invalid
+		check(not Stream.can_retire_specs(map,ids,true).ok,"malformed render envelope fails without invoking a range calculation")
+	b.render_bounds=saved
+	for invalid:Variant in [null,false,[false],[{"chunk_min":false}]]:
+		b.render_dependents=invalid
+		check(not Stream.can_retire_specs(map,ids,true).ok,"malformed dependent envelope fails before any owning transaction")
+	b.erase("render_dependents")
 	var times:Dictionary={"before":[],"after":[]}
 	for round_:int in 12:
 		for label:String in (["before","after"] if round_%2==0 else ["after","before"]):

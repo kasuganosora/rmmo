@@ -266,6 +266,7 @@ func run()->void:
 	data.clear()
 	began=Time.get_ticks_usec();last=began;sampling=true;process_frame.connect(observe)
 	report.begin_ticks_us=began
+	report.cpu_time_anchor={"ticks_us":Time.get_ticks_usec(),"unix_us":int(Time.get_unix_time_from_system()*1000000)}
 	if monitored:monitor=preload("res://tools/load_monitor.gd").new();monitor.start(self)
 	create_timer(600 if "--settle-demands" in OS.get_cmdline_user_args() else 420).timeout.connect(func():report.failures.append("game entry timeout");finish(2))
 	print("AXEL_PIPELINE_BEGIN ",report.map_sha);save()

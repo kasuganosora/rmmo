@@ -356,17 +356,24 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 	for id:Variant in ids if not legacy_retirement_validation_enabled else []:
 		if not id is String or not by_id.get(id) is Dictionary:continue
 		var spec:Dictionary=by_id[id]
-		if not index._valid_append_spec(spec):continue # Full validation below reports malformed inputs.
+		# This pass may only reject a pinned request. Complete source schema is
+		# checked by the authoritative index validator below, including every
+		# selected member; checking it here too doubles that work for big units.
+		if not spec.get("chunk_min") is Vector2i or not spec.get("chunk_max") is Vector2i:continue
 		var draws:bool
-		if spec.has("render_building") and spec.has("render_bounds"):
-			var group:Variant=spec.render_building;var bounds:Variant=spec.render_bounds
-			var dependents:Variant=spec.get("render_dependents")
-			var previous:Variant=draw_groups.get(group)
+		if spec.has("render_bounds"):
+			var group:Variant=spec.get("render_building");var bounds:Variant=spec.render_bounds
+			var dependents:Variant=spec.get("render_dependents",EMPTY_RETIRE_DEPENDENTS)
+			var previous:Variant=draw_groups.get(group) if group!=null else null
 			# Names alone do not prove shared ownership. Cache only identical
 			# mutable envelopes/dependencies inside this synchronous transaction.
 			if previous!=null and is_same(previous.bounds,bounds) and is_same(previous.dependents,dependents):draws=previous.draws
 			else:
-				draws=_draws(spec,draw);draw_groups[group]={"bounds":bounds,"dependents":dependents,"draws":draws}
+				if not _retirement_bounds_valid(bounds) or not dependents is Array:return {"ok":false,"error":"invalid retirement bounds"}
+				for dependent:Variant in dependents:
+					if not _retirement_bounds_valid(dependent):return {"ok":false,"error":"invalid retirement bounds"}
+				draws=_draws(spec,draw)
+				if group!=null:draw_groups[group]={"bounds":bounds,"dependents":dependents,"draws":draws}
 		else:draws=_draws(spec,draw)
 		if draws:return {"ok":false,"error":"source_pinned"}
 		var low:Vector2i=spec.chunk_min;var high:Vector2i=spec.chunk_max
@@ -386,6 +393,10 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 	var collision=map_root.get_node_or_null("StreamCollisionPreparer")
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
 	return {"ok":true,"error":"","data":data,"library":library,"plan":checked}
+
+const EMPTY_RETIRE_DEPENDENTS:Array=[]
+static func _retirement_bounds_valid(value:Variant)->bool:
+	return value is Dictionary and value.get("chunk_min",value.get("chunk")) is Vector2i and value.get("chunk_max",value.get("chunk")) is Vector2i
 
 static func _retirement_budget(map_root:Node)->RefCounted:
 	if map_root.has_meta("retirement_frame_budget"):return map_root.get_meta("retirement_frame_budget")
@@ -1421,8 +1432,10 @@ static func _overlaps(spec: Dictionary, chunks: Dictionary) -> bool:
 	if chunks.has("entry_clip"):return _in_entry_scope(spec,chunks.entry_clip)
 	for area:Dictionary in chunks.get("sources",[]):
 		if _overlaps(spec,area):return true
-	var low: Vector2i = spec.get("chunk_min", spec["chunk"])
-	var high: Vector2i = spec.get("chunk_max", spec["chunk"])
+	# The fallback expression of get() is eager. A min/max-only envelope is
+	# valid; never read a missing legacy `chunk` key when those bounds exist.
+	var low: Vector2i = spec["chunk_min"] if spec.has("chunk_min") else spec["chunk"]
+	var high: Vector2i = spec["chunk_max"] if spec.has("chunk_max") else spec["chunk"]
 	var ring_low: Vector2i = chunks["low"]
 	var ring_high: Vector2i = chunks["high"]
 	return low.x <= ring_high.x and high.x >= ring_low.x and low.y <= ring_high.y and high.y >= ring_low.y
