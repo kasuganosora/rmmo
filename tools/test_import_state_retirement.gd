@@ -62,6 +62,16 @@ func run()->void:
 	data=fixture()
 	check(not Retirement.defer_import_packet({"records":[{"retained_resources":[data.state]}],"index":{"retained_resources":[data.state]}},Callable(ledger,"release").bind("absent"),ledger),"even a large importer inside borrowed author/index fields cannot enroll")
 	data.clear()
+	data=fixture();packet={"retained_resources":[data.state]};watches=data.watches;data.clear()
+	var queue:=preload("res://scripts/world3d/deferred_asset_loader.gd").new();root.add_child(queue);queue.set_process(false)
+	var queue_ledger:RefCounted=queue._admission
+	queue_ledger.reserve("queued",{"estimated_bytes":8192,"exclusive":false})
+	queue._jobs.queued={"result":packet,"token":Drainer.CancelToken.new()}
+	queue._discard_job("queued")
+	check(packet.is_empty() and queue._jobs.is_empty() and queue_ledger.reserved_bytes==8192 and queue_ledger.active_workers()==0,"actual queue discard clears the job while parking its original charged reservation")
+	queue.free()
+	while not service.pending.is_empty():await process_frame
+	check(queue_ledger.reserved_bytes==0 and watches.all(func(reference):return reference.get_ref()==null),"actual queue destruction leaves its importer and ledger safely owned until retirement completes")
 	data=fixture();packet={"retained_resources":[data.state]};watches=data.watches
 	ledger.reserve("abandoned",{"estimated_bytes":4096,"exclusive":false})
 	var token:=Drainer.CancelToken.new();token.set_meta("admission_release",Callable(ledger,"release").bind("abandoned"));token.set_meta("admission_owner",ledger)

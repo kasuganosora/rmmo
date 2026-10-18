@@ -11,13 +11,15 @@ var components:Dictionary={}
 var phase:=0
 var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0}
 func begin(doc:RefCounted,value:Dictionary,template:PackedScene)->void:
+	begin_from_source(doc,value,{"template":template})
+func begin_from_source(doc:RefCounted,value:Dictionary,prepared:Dictionary={})->void:
 	document=doc;record=value
 	var began:=Time.get_ticks_usec()
 	if value.has("house_prefab"):
 		holder=doc._mesh(value);phase=3
 		profile.elapsed_us=Time.get_ticks_usec()-began;profile.max_slice_us=profile.elapsed_us
 		return
-	var context:Dictionary=doc._begin_asset_instance(value,{"template":template})
+	var context:Dictionary=doc._begin_asset_instance(value,prepared)
 	holder=context.holder;model=context.model
 	if model!=null:nodes.append(model)
 	else:phase=2

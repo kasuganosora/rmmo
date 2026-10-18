@@ -52,6 +52,7 @@ var _failure_reason:=""
 var near_first:=false
 var background_preload:=false # Private GPU preload; no authority/global scene publication.
 var _private_assets:Dictionary={}
+var _asset_cursor:RefCounted
 var source_prefetch:CrossMapPrefetch.Packet
 var _entry_origin:=Vector3(0,.9,4)
 var _entry_origin_explicit:=false
@@ -812,6 +813,7 @@ func _exit_tree() -> void:
 	if is_instance_valid(_draining_deferred):
 		_draining_deferred.shutdown();_draining_deferred.free();_draining_deferred=null
 	if is_instance_valid(_prepared): _prepared.free()
+	if _asset_cursor!=null:_asset_cursor.dispose();_asset_cursor=null
 	if _thread != null:
 		preload("res://scripts/world3d/asset_worker_drainer.gd").drain_shutdown(_thread)
 	_early_models.drain_discarded()
@@ -1036,6 +1038,30 @@ func _prepare_static_asset_specs(root:Node3D,instance:Node,parts:Array,library:A
 	_profile.asset_static_spec_slices=int(_profile.get("asset_static_spec_slices",0))+slices
 	return true
 
+func _prepare_asset_instance(doc:RefCounted,record:Dictionary,prepared:Dictionary)->Node3D:
+	# Namespace and component semantics are shared with the synchronous editor
+	# operation. The loader owns this off-tree graph across every yield/exit.
+	_asset_cursor=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+	var began:=Time.get_ticks_usec()
+	_asset_cursor.begin_from_source(doc,record,prepared)
+	Trace.elapsed("game.asset_instance_begin",began,{"uuid":record.uuid})
+	var need_yield:=Time.get_ticks_usec()-began>=2000
+	while true:
+		if need_yield:
+			progress.emit("准备模型命名与组件",0,1)
+			await get_tree().process_frame
+			if _cancelled:
+				_asset_cursor.dispose();_asset_cursor=null;return null
+		var step_started:=Time.get_ticks_usec()
+		var done:bool=_asset_cursor.advance(2000)
+		Trace.elapsed("game.asset_instance_step",step_started,{"uuid":record.uuid,"done":done})
+		if done:break
+		need_yield=true
+	_profile.asset_instance_slices=int(_profile.get("asset_instance_slices",0))+int(_asset_cursor.profile.slices)
+	_profile.asset_instance_cpu_us=int(_profile.get("asset_instance_cpu_us",0))+int(_asset_cursor.profile.elapsed_us)
+	_profile.asset_instance_max_slice_us=maxi(int(_profile.get("asset_instance_max_slice_us",0)),int(_asset_cursor.profile.max_slice_us))
+	var result:Node3D=_asset_cursor.take_holder();_asset_cursor=null;return result
+
 func _build_records() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._build_records") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var build_started:=Time.get_ticks_usec()
@@ -1146,7 +1172,14 @@ func _build_records() -> void:
 					_profile.asset_generate_us+=Time.get_ticks_usec()-asset_started
 					Trace.elapsed("game.asset_generate",asset_started,{"path":asset_path})
 				var instance_started:=Time.get_ticks_usec()
-				var instance:Node=doc._asset(records[cursor],{"template":_private_assets[asset_path]} if background_preload else {})
+				# Do not stack a completed large template pack and instance creation
+				# in the same covered loading frame.
+				if Time.get_ticks_usec()-start>=(2000 if background_preload else 24000):
+					await get_tree().process_frame
+					if _cancelled:root.free();_prepared=null;await _retire();return
+					start=Time.get_ticks_usec()
+				var instance:Node=await _prepare_asset_instance(doc,records[cursor],{"template":_private_assets[asset_path]} if background_preload else {})
+				if _cancelled:root.free();_prepared=null;await _retire();return
 				_profile.asset_instantiate_us+=Time.get_ticks_usec()-instance_started
 				Trace.elapsed("game.asset_instantiate",instance_started,{"uuid":records[cursor].uuid,"path":asset_path})
 				if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)

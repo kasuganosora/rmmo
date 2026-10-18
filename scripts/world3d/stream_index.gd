@@ -3,6 +3,8 @@ extends RefCounted
 const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
 const EMPTY_RECORD:Dictionary={}
 const SPEC_FIELDS:Array=["uuid","mesh","transform","chunk_min","chunk_max"]
+const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
+const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
 static var legacy_owned_rebuild_enabled:=false
 static func build(library:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -138,7 +140,7 @@ static func _valid_append_spec(value:Variant)->bool:
 	var record_building:Variant=record.get("building",EMPTY_RECORD)
 	if not record_building is Dictionary or not record_building.get("id","") is String:return false
 	if not extra.get("rmmo_streetlamp_instance","") is String:return false
-	for field in ["fixture","building","fortification"]:
+	for field in DICTIONARY_EXTRAS_FIELDS:
 		if extra.has(field) and not extra[field] is Dictionary:return false
 	if not extra.get("building",EMPTY_RECORD).get("id","") is String:return false
 	if record.get("kind")=="box" and record.get("surface_id")=="ground":
@@ -257,6 +259,7 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 		seen[spec.uuid]=true
 		var prefix:String=str(spec.uuid).get_slice("__",0)
 		namespace_sizes[prefix]=int(namespace_sizes.get(prefix,0))+1
+	var checked_cells:Dictionary={};var checked_ground_cells:Dictionary={}
 	for id:Variant in ids:
 		if not id is String or selected.has(id) or not by_id.has(id):return _retire_failure("invalid complete retirement identity")
 		var spec:Dictionary=by_id[id]
@@ -265,9 +268,16 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 		if spec.get("native_visual",false):return _retire_failure("active native owner")
 		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
 			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
-				for field:String in ["stream_index","stream_prop_index","stream_collision_index"]:
-					if not existing[field].get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid spatial bucket: "+field)
-				if state.ground_order.has(id) and not state.ground_cells.get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid ground bucket")
+				var key:=Vector2i(x,z)
+				# This complete validation is synchronous and read-only. Thousands
+				# of parts can share one cell; validate each same bucket just once.
+				if not checked_cells.has(key):
+					for field:String in SPATIAL_FIELDS:
+						if not existing[field].get(key,[]) is Array:return _retire_failure("invalid spatial bucket: "+field)
+					checked_cells[key]=true
+				if state.ground_order.has(id) and not checked_ground_cells.has(key):
+					if not state.ground_cells.get(key,[]) is Array:return _retire_failure("invalid ground bucket")
+					checked_ground_cells[key]=true
 		if spec.has("render_building") and not existing.stream_building_groups.has(spec.render_building):return _retire_failure("missing derived building")
 		var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
 		for field in ["event","event_template","hostile","ally","seat"]:
@@ -277,6 +287,7 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 		var prefix:String=id.get_slice("__",0);prefixes[prefix]=int(prefixes.get(prefix,0))+1
 	for prefix:String in prefixes:
 		if prefixes[prefix]!=namespace_sizes[prefix]:return _retire_failure("split namespace")
+	var checked_group_cells:Dictionary={}
 	for group:String in existing.stream_building_groups:
 		var members:Variant=existing.stream_building_groups[group]
 		if not members is Array or members.is_empty():return _retire_failure("invalid building group")
@@ -291,7 +302,10 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 			if not bounds is Dictionary or not bounds.get("chunk_min") is Vector2i or not bounds.get("chunk_max") is Vector2i:return _retire_failure("invalid building bounds")
 			for z in range(bounds.chunk_min.y,bounds.chunk_max.y+1):
 				for x in range(bounds.chunk_min.x,bounds.chunk_max.x+1):
-					if not state.group_cells.get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid group bucket")
+					var key:=Vector2i(x,z)
+					if not checked_group_cells.has(key):
+						if not state.group_cells.get(key,[]) is Array:return _retire_failure("invalid group bucket")
+						checked_group_cells[key]=true
 			if not members[0].get("render_supports",[]) is Array:return _retire_failure("invalid building support")
 			for support:Variant in members[0].get("render_supports",[]):
 				if not support is Dictionary or not support.get("uuid") is String or not support.get("render_dependents") is Array or not state.dependents.get(support.uuid) is Array:return _retire_failure("invalid support dependencies")
