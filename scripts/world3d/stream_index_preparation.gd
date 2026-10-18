@@ -6,6 +6,9 @@ const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
 const DERIVED_FIELDS:Array=["render_building","render_bounds","render_supports","render_dependents"]
 const EMPTY_RECORD:Dictionary={}
 static var shared_signature_defaults_enabled:=true
+# Experimental native equality path: whole-route results have not justified
+# enabling its extra preparation/ownership cost. Benchmarks opt in explicitly.
+static var native_snapshot_validation_enabled:=false
 var source:Array=[]
 var projection:Array=[]
 var signatures:Array=[]
@@ -38,6 +41,9 @@ var owns_projection:=false
 var owned_groups:Dictionary={}
 var owned_bounds:Dictionary={}
 var owned_supports:Dictionary={}
+var validation_snapshot:Array=[]
+var snapshot_by_id:Dictionary={}
+var snapshot_bounds:Dictionary={}
 func begin(values:Array)->void:source=values.duplicate()
 ## Only for unpublished runtime specs exclusively owned by the calling job.
 ## Authored records/extras remain borrowed and untouched. Landscape uses the
@@ -47,6 +53,8 @@ func begin_owned(values:Array)->void:
 func accept()->void:owns_projection=false
 func _notification(what:int)->void:
 	# RefCounted is already marked invalid in PREDELETE; member calls fail here.
+	if what==NOTIFICATION_PREDELETE:
+		preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(validation_snapshot)
 	if what==NOTIFICATION_PREDELETE and owns_projection:
 		for spec:Dictionary in projection:
 			for field:String in DERIVED_FIELDS:spec.erase(field)
@@ -62,6 +70,22 @@ static func signature(spec:Dictionary)->Array:
 	var empty:Dictionary=EMPTY_RECORD if shared_signature_defaults_enabled else {}
 	var extra:Dictionary=spec.get("extras",empty);var record:Dictionary=spec.get("ground_batch_record",empty)
 	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",empty).get("id",""),record.get("building",empty).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
+func valid_owned_snapshot(values:Array)->bool:
+	if not native_snapshot_validation_enabled or not owns_projection or phase!=7 or not error.is_empty() or source.size()!=values.size() or validation_snapshot.size()!=values.size():return false
+	# Native deep equality includes exact Variant types and every authored field.
+	# Snapshots were copied immediately after full schema/signature validation,
+	# before yielding. Any mismatch uses the ordinary validator, never a hash.
+	if values!=validation_snapshot:return false
+	for i:int in values.size():
+		var spec:Dictionary=values[i]
+		if not is_same(spec,source[i]) or spec.mesh.get_aabb()!=signatures[i][5]:return false
+		if owned_groups.has(spec.uuid):
+			var id:String=owned_groups[spec.uuid]
+			if not is_same(spec.get("render_bounds"),owned_bounds[id]) or not is_same(spec.get("render_supports"),owned_supports[id]):return false
+	# Native value equality cannot prove the shared derived owners' identities.
+	for id:String in owned_bounds:
+		if owned_bounds[id]!=raw_bounds[id] or not owned_supports[id].is_empty():return false
+	return true
 func valid_for(values:Array,schema_checked:bool=false)->bool:
 	if phase!=7 or not error.is_empty() or source.size()!=values.size():return false
 	for i:int in values.size():
@@ -103,6 +127,9 @@ func _step()->void:
 				if value.has(field):error="existing_derived_fields";phase=7;return
 			if owns_projection and Landscape.landscape(value):error="owned_projection_ineligible";phase=7;return
 			signatures.append(signature(value))
+			if owns_projection and native_snapshot_validation_enabled:
+				var snapshot:Dictionary=value.duplicate(true)
+				validation_snapshot.append(snapshot);snapshot_by_id[value.uuid]=snapshot
 			var spec:Dictionary=value if owns_projection else value.duplicate();projection.append(spec)
 			by_id[spec.uuid]=spec;known[spec.uuid]=true
 			var prefix:String=spec.uuid.get_slice("__",0);append_state.prefixes[prefix]=true
@@ -158,6 +185,7 @@ func _step()->void:
 			if binding.is_empty():
 				binding=members[0].render_bounds.duplicate()
 				if owns_projection:owned_bounds[group_ids[cursor]]=binding;owned_supports[group_ids[cursor]]=attached
+				if not validation_snapshot.is_empty():snapshot_bounds[group_ids[cursor]]=binding.duplicate()
 			if subphase==0:
 				if part>=supports.size():subphase=1;part=0;return
 				var tile:Dictionary=supports[part];part+=1
@@ -168,6 +196,9 @@ func _step()->void:
 				binding.chunk_min=binding.chunk_min.min(tile.chunk_min);binding.chunk_max=binding.chunk_max.max(tile.chunk_max)
 			elif subphase==2:
 				if part>=members.size():subphase=3;part=0;return
+				if not validation_snapshot.is_empty():
+					var snapshot:Dictionary=snapshot_by_id[members[part].uuid]
+					snapshot.render_building=group_ids[cursor];snapshot.render_bounds=snapshot_bounds[group_ids[cursor]];snapshot.render_supports=[]
 				members[part].render_bounds=binding;members[part].render_supports=attached;part+=1
 			else:
 				if part<attached.size():attached[part].render_dependents.append(binding);part+=1;return
@@ -197,4 +228,6 @@ func advance(budget_usec:int)->bool:
 	return phase==7
 func dispose()->void:
 	_clear_owned_fields();owned_groups={};owned_bounds={};owned_supports={}
+	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(validation_snapshot)
+	validation_snapshot=[];snapshot_by_id={};snapshot_bounds={}
 	source=[];projection=[];signatures=[];result={};groups={};structures={};lamps={};by_id={};known={};spatial={};props={};collisions={};raw_bounds={};append_state={};cell={};binding={};attached=[];land=[];supports=[];group_ids=[];phase=7

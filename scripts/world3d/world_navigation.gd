@@ -303,12 +303,23 @@ func append_specs(additions:Array)->Dictionary:
 		if not bounds.position.is_finite() or not bounds.size.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
 		if ids.has(value.uuid) or _spec_ids.has(value.uuid):return {"ok":false,"reason":"duplicate_uuid","added":0}
 		ids[value.uuid]=true
-		if extra.get("fixture",EMPTY_APPEND_RECORD).get("kind")=="door" and extra.get("rmmo_collision","")!="none":doors.append(value)
-		if _collides(value):bounds_after=bounds_after.merge(bounds) if has_bounds_after else bounds;has_bounds_after=true
+		var door:bool=extra.get("fixture",EMPTY_APPEND_RECORD).get("kind")=="door"
+		if door and extra.get("rmmo_collision","")!="none":doors.append(value)
+		# Reuse the checked extras and role instead of looking them up again for
+		# every part. Keep _collides' conversions and the original merge order.
+		if not door and str(extra.get("rmmo_collision",""))!="none" and not bool(extra.get("hostile",false)) and not bool(extra.get("ally",false)):
+			bounds_after=bounds_after.merge(bounds) if has_bounds_after else bounds;has_bounds_after=true
 	# All source checks finished. Reuse those exact bounds and keep the source
 	# geometry-user lifecycle operation unchanged, including any old aliases.
 	_specs.append_array(additions);_spec_ids.merge(ids,true);_doors.append_array(doors)
-	for spec:Dictionary in additions:_remember_source_geometry(spec)
+	for spec:Dictionary in additions:
+		var id:String=spec.uuid
+		if _spec_geometry.has(id):_remember_source_geometry(spec);continue
+		# Validated new UUIDs normally have no geometry lease to forget. Old
+		# conservative aliases still take the full rebind path above.
+		var geometry:Resource=_source_geometry(spec)
+		var key:int=geometry.get_instance_id() if geometry!=null else 0
+		_spec_geometry[id]=key;_geometry_users[key]=int(_geometry_users.get(key,0))+1
 	_bounds=bounds_after;_has_bounds=has_bounds_after
 	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
 	if is_instance_valid(_resize_replacement):

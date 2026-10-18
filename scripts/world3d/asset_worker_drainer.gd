@@ -1,4 +1,5 @@
 extends Node
+const ModelOwners=preload("res://scripts/world3d/model_resource_owners.gd")
 ## SceneTree-owned worker lifetime, independent of any map/service being freed.
 ## Normal cancellation never waits on a live GPU worker on the scene thread.
 const NODE_NAME := "AssetWorkerDrainer"
@@ -62,7 +63,8 @@ static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
 	var result: Variant = worker.wait_to_finish()
 	var deferred_release:=false
 	if result is Dictionary and token!=null and token.has_meta("admission_release") and token.has_meta("admission_owner"):
-		deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
+		deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_model_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
+		if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
 	# A parser can hand off a private PackedScene/GLTFState without a Node.
 	# Finish its renderer commands before releasing the unconsumed resources.
 	if result is Dictionary:dispose_result(result)
@@ -108,6 +110,8 @@ static func _dispose_owned_packet(packet:Dictionary,seen:Array)->void:
 	if is_instance_valid(scene) and scene is Node and not scene.is_inside_tree() and scene.get_parent()==null:dispose_scene(scene)
 	for key:String in ["native_packet","private_preparation","prefab_texture_packet"]:
 		_dispose_owned_value(packet.get(key),seen)
+	var owners:Variant=packet.get("resource_owners")
+	if owners is ModelOwners:owners.release_now()
 	_dispose_owned_value(packet.get("retained_resources"),seen)
 	packet.clear()
 

@@ -522,8 +522,9 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 		if not state.get(key) is Dictionary:return _append_failure("invalid append bookkeeping")
 	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _append_failure("invalid existing index")
 	if additions.is_empty():return {"ok":true,"data":existing,"added":0,"affected_groups":0,"affected_existing_specs":[]}
+	var native_validated:bool=preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_owned_snapshot(additions)
 	for value:Variant in additions:
-		if not _valid_append_spec(value):return _append_failure("invalid spec")
+		if not native_validated and not _valid_append_spec(value):return _append_failure("invalid spec")
 		var id:String=value.uuid
 		if originals.has(id) or existing.stream_by_id.has(id):return _append_failure("duplicate UUID: "+id)
 		var prefix:=id.get_slice("__",0)
@@ -543,7 +544,7 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	if preparation!=null:
 		# Only our private cursor can donate a fragment. Schema validation above
 		# and these same-transaction identity/geometry/group checks remain fresh.
-		if preparation.get_script()!=load("res://scripts/world3d/stream_index_preparation.gd") or not preparation.valid_for(additions,true):return _append_failure("stale_private_index")
+		if preparation.get_script()!=load("res://scripts/world3d/stream_index_preparation.gd") or (not native_validated and not preparation.valid_for(additions,true)):return _append_failure("stale_private_index")
 		fragment=preparation.result
 		owned_projection=preparation.owns_projection
 	else:

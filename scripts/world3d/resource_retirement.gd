@@ -1,4 +1,5 @@
 extends Node
+const ModelOwners=preload("res://scripts/world3d/model_resource_owners.gd")
 ## Unused large templates relinquish GPU/CPU Resource owners on bounded main
 ## thread slices. Logical cache eviction is immediate; this queue owns disposal.
 const NODE_NAME:="ResourceRetirement"
@@ -9,7 +10,7 @@ var pending:Array=[]
 var known:Dictionary={}
 var exiting:=false
 var serial:=0
-var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0}
+var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0}
 static func _service()->Node:
 	if not Thread.is_main_thread():return null
 	var tree:SceneTree=Engine.get_main_loop() as SceneTree
@@ -26,6 +27,16 @@ static func defer_scene(scene:PackedScene)->bool:
 	var service:Node=_service()
 	if service==null:return false
 	service._enqueue(scene);return true
+static func defer_private_array(values:Array)->bool:
+	# Only exclusively owned, unpublished snapshots may donate this container.
+	# Items are unreferenced, never recursively cleared or otherwise mutated.
+	if values.size()<256 or not Thread.is_main_thread():return false
+	var service:Node=_service()
+	if service==null:return false
+	service.serial+=1;var id:="private:%d"%service.serial
+	service.pending.append({"kind":"private_array","source_id":id,"values":values})
+	service.known[id]=true;service.profile.private_arrays+=1;service.set_process(true)
+	return true
 static func defer_import_packet(packet:Dictionary,on_done:Callable,owner:RefCounted)->bool:
 	var _scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.resource_retirement.defer_import_packet") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not Thread.is_main_thread() or not on_done.is_valid() or owner==null:return false
@@ -35,6 +46,19 @@ static func defer_import_packet(packet:Dictionary,on_done:Callable,owner:RefCoun
 	var service:Node=_service()
 	if service==null:return false
 	service._enqueue_import(states,on_done,owner);return true
+static func defer_model_packet(packet:Dictionary,on_done:Callable,owner:RefCounted)->bool:
+	# Runtime model producers hand over one typed owner. No graph discovery and
+	# no legacy packet adapter: admission belongs to this ticket until completion.
+	var resources:Variant=packet.get("resource_owners")
+	if not resources is ModelOwners or not Thread.is_main_thread():return false
+	var service:Node=_service()
+	if service==null:return false
+	packet.erase("resource_owners")
+	service.serial+=1
+	var id:="model:%d"%service.serial
+	service.pending.append({"kind":"model","source_id":id,"resources":resources,"scene_ticket":{},"scene_queue":[],"scene_ids":{},"import_ticket":{},"on_done":on_done,"owner":owner,"phase":0})
+	service.known[id]=true;service.profile.models+=1;service.set_process(true)
+	return true
 static func _collect_imports(value:Variant,states:Array[GLTFState],seen:Array,ids:Dictionary)->void:
 	if value is GLTFState:
 		if ids.has(value.get_instance_id()):return
@@ -55,9 +79,13 @@ static func _collect_imports(value:Variant,states:Array[GLTFState],seen:Array,id
 func _enqueue_import(states:Array[GLTFState],on_done:Callable,owner:RefCounted)->void:
 	serial+=1
 	var id:="import:%d"%serial
-	var ticket:Dictionary={"kind":"import","source_id":id,"states":states,"state_index":0,"field":0,"metadata":[],"meta_index":0,"work":[],"resources":[],"seen":{},"phase":0,"release_index":0,"on_done":on_done,"owner":owner,"truncated":false}
+	var ticket:Dictionary=_import_ticket(states,on_done,owner)
+	ticket.source_id=id
+	known[id]=true;pending.append(ticket);set_process(true)
+func _import_ticket(states:Array[GLTFState],on_done:Callable,owner:RefCounted)->Dictionary:
+	var ticket:Dictionary={"kind":"import","states":states,"state_index":0,"field":0,"metadata":[],"meta_index":0,"work":[],"resources":[],"seen":{},"phase":0,"release_index":0,"on_done":on_done,"owner":owner,"truncated":false}
 	for state:GLTFState in states:_retain(ticket,state)
-	known[id]=true;pending.append(ticket);profile.imports+=1;set_process(true)
+	profile.imports+=1;return ticket
 func _enqueue(scene:PackedScene)->void:
 	var id:=scene.get_instance_id()
 	if known.has(id):return
@@ -70,6 +98,8 @@ func _retain(ticket:Dictionary,value:Variant)->void:
 	if not value is Resource or ticket.seen.has(value.get_instance_id()):return
 	ticket.seen[value.get_instance_id()]=true;ticket.resources.append(value)
 func _advance(ticket:Dictionary,budget_usec:int)->bool:
+	if ticket.get("kind","")=="model":return _advance_model(ticket,budget_usec)
+	if ticket.get("kind","")=="private_array":return _advance_private_array(ticket,budget_usec)
 	if ticket.get("kind","")=="import":return _advance_import(ticket,budget_usec)
 	var began:=Time.get_ticks_usec();var progressed:=false
 	while ticket.phase<2 and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
@@ -89,12 +119,64 @@ func _advance(ticket:Dictionary,budget_usec:int)->bool:
 		else:
 			if ticket.resources.is_empty():ticket.phase=2;break
 			var value:Resource=ticket.resources.pop_back()
-			if value is PackedScene:_enqueue(value)
+			if value is PackedScene:
+				if ticket.has("nested_scenes"):
+					var id:int=value.get_instance_id()
+					if not ticket.scene_ids.has(id):ticket.scene_ids[id]=true;ticket.nested_scenes.append(value)
+				else:_enqueue(value)
 			# Include the final destructor in the slice, not a later stack unwind.
 			value=null;profile.resources+=1
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	return ticket.phase==2
+func _advance_private_array(ticket:Dictionary,budget_usec:int)->bool:
+	var began:=Time.get_ticks_usec();var progressed:=false
+	while not ticket.values.is_empty() and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
+		progressed=true
+		var value:Variant=ticket.values.pop_back()
+		value=null;profile.private_values+=1
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
+	profile.private_slices+=1;profile.private_max_slice_us=maxi(int(profile.private_max_slice_us),elapsed)
+	return ticket.values.is_empty()
+func _advance_model(ticket:Dictionary,budget_usec:int)->bool:
+	var began:=Time.get_ticks_usec();var progressed:=false
+	var resources:ModelOwners=ticket.resources
+	while ticket.phase<4 and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
+		progressed=true
+		var remaining:int=maxi(1,budget_usec-(Time.get_ticks_usec()-began)) if budget_usec>0 else 0
+		match ticket.phase:
+			0:
+				if resources.packed!=null:
+					ticket.scene_queue.append(resources.packed);ticket.scene_ids[resources.packed.get_instance_id()]=true;resources.packed=null
+				if ticket.scene_ticket.is_empty() and not ticket.scene_queue.is_empty():
+					var packed:PackedScene=ticket.scene_queue.pop_back()
+					ticket.scene_ticket={"packed":packed,"state":packed.get_state(),"node":0,"property":-1,"resources":[],"seen":{},"phase":0,"nested_scenes":ticket.scene_queue,"scene_ids":ticket.scene_ids}
+				if not ticket.scene_ticket.is_empty() and not _advance(ticket.scene_ticket,remaining):break
+				ticket.scene_ticket.clear()
+				# Nested templates remain in this same reservation, not separate
+				# tickets that could outlive the parent's admission callback.
+				if ticket.scene_queue.is_empty():ticket.scene_ids.clear();ticket.phase=1
+			1:
+				var visuals:Array[Resource]=resources.visuals
+				var released:=false
+				while not visuals.is_empty() and (not released or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
+					released=true
+					var value:Resource=visuals.pop_back()
+					value=null;profile.model_values+=1
+				if visuals.is_empty():ticket.phase=2
+			2:
+				if resources.state!=null:
+					var states:Array[GLTFState]=[resources.state]
+					ticket.import_ticket=_import_ticket(states,Callable(),null)
+					resources.state=null
+				if not ticket.import_ticket.is_empty() and not _advance_import(ticket.import_ticket,remaining):break
+				ticket.import_ticket.clear();ticket.phase=3
+			3:
+				resources.document=null;ticket.resources=null;ticket.phase=4
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.model_slices+=1;profile.model_max_slice_us=maxi(int(profile.model_max_slice_us),elapsed)
+	return ticket.phase==4
 func _retain_import_value(ticket:Dictionary,value:Variant,depth:int)->void:
 	if value is Resource:
 		_retain(ticket,value)
@@ -156,7 +238,7 @@ func _advance_import(ticket:Dictionary,budget_usec:int)->bool:
 	return ticket.phase==2
 func _finish_front()->void:
 	var ticket:Dictionary=pending.pop_front();known.erase(ticket.source_id)
-	if ticket.get("kind","")=="import":
+	if ticket.get("kind","") in ["import","model"]:
 		var callback:Callable=ticket.on_done;ticket.on_done=Callable()
 		if callback.is_valid():callback.call()
 		ticket.owner=null

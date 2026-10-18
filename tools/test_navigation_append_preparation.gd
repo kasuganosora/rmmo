@@ -32,6 +32,15 @@ func run()->void:
 	for additions:Array in [[row("new",mesh),rows[0]],[row("new",mesh),{"uuid":"bad"}]]:
 		var old_state:=snapshot(old);var new_state:=snapshot(improved)
 		check(old.append_specs(additions)==improved.append_specs(additions) and snapshot(old)==old_state and snapshot(improved)==new_state,"late invalid/duplicate rows fail before modifying any source, bounds or geometry users")
+	var bulk:Array=[]
+	for i:int in 1200:
+		var item:=row("large__part%d"%i,mesh,{"hostile":i%3==0,"fixture":{"kind":"door" if i%7==0 else "window"}})
+		item.transform=Transform3D(Basis(Vector3.UP,.0123*i),Vector3(i*.00123,i%13*.1223,-i*.2345))
+		bulk.append(item)
+	# A UUID can have a conservative geometry alias before this catalogue append.
+	old._spec_geometry[bulk[0].uuid]=shared.get_instance_id();old._geometry_users[shared.get_instance_id()]=1
+	improved._spec_geometry[bulk[0].uuid]=shared.get_instance_id();improved._geometry_users[shared.get_instance_id()]=1
+	check(old.append_specs(bulk)==improved.append_specs(bulk) and snapshot(old)==snapshot(improved),"large append preserves exact float merge order and existing alias rebinding")
 	old.free();improved.free()
 	improved=fixture(candidate)
 	for field:String in ["shape","collision_mesh"]:

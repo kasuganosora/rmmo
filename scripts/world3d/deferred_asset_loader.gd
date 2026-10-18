@@ -698,6 +698,23 @@ func _in_clip(clip:AABB)->Array:
 				if not item.get("published",false) and _intersects(clip,item.bounds):candidates[item.record.uuid]=item
 	return candidates.values()
 
+func _has_pending_in_clip(clip:AABB)->bool:
+	# Readiness needs existence only. Do not allocate/deduplicate all matches or
+	# keep scanning after the first unpublished source proves it is not ready.
+	_index_pending()
+	for item:Dictionary in _large_pending:
+		if not item.get("published",false) and _intersects(clip,item.bounds):return true
+	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
+	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
+		for item:Dictionary in pending:
+			if not item.get("published",false) and _intersects(clip,item.bounds):return true
+		return false
+	for z in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
+				if not item.get("published",false) and _intersects(clip,item.bounds):return true
+	return false
+
 func _refresh_demanded()->void:
 	if _candidates_revision==_demand_revision:return
 	var began:=Time.get_ticks_usec()
@@ -817,11 +834,11 @@ func ensure_geometry(clip:AABB,id:String="navigation")->bool:
 	set_demand(id,requested,priority)
 	# The envelope only stabilizes preparation membership. Readiness remains the
 	# exact current footprint, including new edges while a worker is in flight.
-	return _in_clip(clip).is_empty()
+	return not _has_pending_in_clip(clip)
 
 func geometry_published(clip:AABB)->bool:
 	# A read-only narrower gate must not shrink/rebuild its owner's wider ticket.
-	return _in_clip(clip).is_empty()
+	return not _has_pending_in_clip(clip)
 
 func ensure_collision(clip:AABB,id:String="player_collision")->bool:
 	var began:=Time.get_ticks_usec() if collision_query_profile_enabled else 0
@@ -1358,8 +1375,10 @@ func _stage_publication_packet(items:Array,specs:Array)->Dictionary:
 
 func _apply_publication_fixture_states(specs:Array)->void:
 	for spec:Dictionary in specs:
-		var extra:Dictionary=spec.get("extras",{});var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
-		if extra.has("fixture") and runtime_fixture_states.has(uuid):
+		var extra:Dictionary=spec.get("extras",{})
+		if not extra.has("fixture"):continue
+		var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
+		if runtime_fixture_states.has(uuid):
 			extra.fixture.open=runtime_fixture_states[uuid]
 			spec.transform=preload("res://scripts/world3d/building_fixtures.gd").pose(spec.closed_transform,extra.fixture,float(extra.fixture.open));spec.position=spec.transform.origin
 
@@ -1453,6 +1472,14 @@ func _publication_discarded(item:Dictionary,staged:Dictionary)->bool:
 	if item.has("reference_entry") and not item.get("reference_prepared",false):return true
 	return not item.get("native_reference",false) and not item.get("model_verified",false)
 
+static func _without_published(values:Array,removed:Dictionary)->Array:
+	# Keep stable order and a fresh array, without one Variant callable dispatch
+	# per pending record during the synchronous publication transaction.
+	var remaining:Array=[]
+	for item:Dictionary in values:
+		if not removed.has(item.record.uuid):remaining.append(item)
+	return remaining
+
 func _remove_published_demand(items:Array)->void:
 	# Publishing does not change the relative priority of any remaining demand.
 	# Remove the completed batch once instead of rebuilding/sorting all tickets
@@ -1462,12 +1489,12 @@ func _remove_published_demand(items:Array)->void:
 		var uuid:String=item.record.uuid
 		removed[uuid]=true;paths[item.path]=true
 		_demanded_by_id.erase(uuid);_demanded_rank.erase(uuid);_demanded_priority.erase(uuid)
-	pending=pending.filter(func(item):return not removed.has(item.record.uuid))
+	pending=_without_published(pending,removed)
 	_invalidate_collision_queries()
-	_demanded=_demanded.filter(func(item):return not removed.has(item.record.uuid))
+	_demanded=_without_published(_demanded,removed)
 	for path:String in paths:
 		if not _demanded_by_path.has(path):continue
-		var remaining:Array=_demanded_by_path[path].filter(func(item):return not removed.has(item.record.uuid))
+		var remaining:Array=_without_published(_demanded_by_path[path],removed)
 		if remaining.is_empty():
 			_demanded_by_path.erase(path);_path_first.erase(path)
 		else:
@@ -1820,36 +1847,37 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if not compiled.hit and not compiled.get("retained_resources",[]).is_empty():
 		# Post-allocation schema/path failures are not resource-free misses.
 		# Keep the charged native result for main-thread failure disposal.
-		return {"error":"原生素材校验失败："+path,"retained_resources":[compiled]}
-	var retained:Array=[]
-	if compiled.get("packed")!=null:retained.append(compiled.packed)
+		return {"error":"原生素材校验失败："+path,"native_packet":compiled}
+	var owners:=preload("res://scripts/world3d/model_resource_owners.gd").new()
+	owners.packed=compiled.get("packed")
 	var scene:Node
 	if not compiled.hit:
 		var fallback:=_fallback_scene(path,token,content_root)
 		if not fallback.error.is_empty():return fallback
-		retained.append(fallback)
+		owners=fallback.resource_owners
+		fallback.erase("resource_owners")
 		scene=fallback.scene
-	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"retained_resources":retained}
+	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	# Bind deferred classification to the same header after the potentially slow
 	# full-file hash and parser read as well as before them.
 	if not expected_manifest.is_empty():
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
-			return {"error":"素材边界在后台准备期间发生变化："+path,"scene":scene,"retained_resources":retained}
+			return {"error":"素材边界在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
 	# The queue admits static self-contained files only. Every node/resource here
 	# belongs to this worker and has never entered a SceneTree or shared scene cache.
-	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"retained_resources":retained}
+	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	var generate_started:=Time.get_ticks_usec()
 	if compiled.hit:
 		scene=preload("res://scripts/world3d/compiled_asset_cache.gd").instantiate(compiled.packed)
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.compiled_instantiate",generate_started,{"path":path})
-	if scene==null:return {"error":"素材构建失败："+path,"retained_resources":retained}
-	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"retained_resources":retained}
+	if scene==null:return {"error":"素材构建失败："+path,"resource_owners":owners}
+	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	var capture_started:=Time.get_ticks_usec()
 	var captured:=_capture_static_meshes(scene,collision_faces_required,token,geometry_mode)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.cpu_capture",capture_started,{"path":path,"collision_faces":collision_faces_required})
 	if not captured.error.is_empty():
-		captured.scene=scene;captured.retained_resources=retained
+		captured.scene=scene;captured.resource_owners=owners
 		return captured
 	var packed:PackedScene
 	if pack_for_cache and not compiled.hit:
@@ -1857,26 +1885,24 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 		# acceptance never performs a whole imported hierarchy traversal/pack.
 		var pack_began:=Time.get_ticks_usec()
 		Assets._own(scene,scene);packed=PackedScene.new()
-		var code:=packed.pack(scene);retained.append(packed)
+		owners.packed=packed
+		var code:=packed.pack(scene)
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_pack",pack_began,{"path":path})
-		if code!=OK:return {"error":"后台素材打包失败："+path,"scene":scene,"retained_resources":retained}
+		if code!=OK:return {"error":"后台素材打包失败："+path,"scene":scene,"resource_owners":owners}
 	var final_sha_started:=Time.get_ticks_usec()
 	var final_digest:=FileAccess.get_sha256(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.final_source_sha",final_sha_started,{"path":path})
-	if final_digest!=source_digest or (not content_root.is_empty() and not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"retained_resources":retained}
-	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"retained_resources":retained}
+	if final_digest!=source_digest or (not content_root.is_empty() and not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
+	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	if packed!=null:
 		# The private Node instances can retire on their own worker, but every
 		# renderer Resource must survive until main has joined and synchronized.
-		var visual_resources:Array[Resource]=[]
-		Drainer._retain_visual_resources(scene,visual_resources);retained.append(visual_resources)
-		for value:Variant in retained:
-			if value is Dictionary and value.get("scene")==scene:value.scene=null
+		Drainer._retain_visual_resources(scene,owners.visuals)
 		var dispose_began:=Time.get_ticks_usec();scene.free();scene=null
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_private_disposal",dispose_began,{"path":path})
 		captured.packed=packed
 	else:captured.scene=scene
-	captured.merge({"retained_resources":retained,"elapsed_us":Time.get_ticks_usec()-began,"source_digest":source_digest,"compiled":compiled.hit,"compiled_read_us":compiled.elapsed_us})
+	captured.merge({"resource_owners":owners,"elapsed_us":Time.get_ticks_usec()-began,"source_digest":source_digest,"compiled":compiled.hit,"compiled_read_us":compiled.elapsed_us})
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path})
 	return captured
 
@@ -1894,21 +1920,23 @@ static func _fallback_scene(path:String,token:RefCounted,content_root:String)->D
 	if content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):
 		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材路径无效："+path}
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
+	var owners:=preload("res://scripts/world3d/model_resource_owners.gd").new()
+	owners.document=document;owners.state=state
 	preload("res://scripts/world3d/runtime_probe_controls.gd").configure_gltf(state)
 	var began:=Time.get_ticks_usec()
 	var code:=document.append_from_file(path,state,0,path.get_base_dir())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_parse",began,{"path":path})
 	if code!=OK:
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材读取失败："+path+" "+error_string(code),"retained_resources":[document,state]}
+		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材读取失败："+path+" "+error_string(code),"resource_owners":owners}
 	if preload("res://scripts/world3d/asset_bounds_manifest.gd").has_native_identity(state.json):
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"原生地图不能作为独立后台素材："+path,"retained_resources":[document,state]}
+		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"原生地图不能作为独立后台素材："+path,"resource_owners":owners}
 	if token!=null and token.is_cancelled():
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材准备已取消","cancelled":true,"retained_resources":[document,state]}
+		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材准备已取消","cancelled":true,"resource_owners":owners}
 	began=Time.get_ticks_usec()
 	var scene:=Io.generate_scene(document,state,true)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.scene_generate",began,{"path":path})
 	preparation.RAW_IMPORT_MUTEX.unlock()
-	return {"error":"" if scene!=null else "素材构建失败："+path,"scene":scene,"retained_resources":[document,state]}
+	return {"error":"" if scene!=null else "素材构建失败："+path,"scene":scene,"resource_owners":owners}
 
 static func _capture_static_meshes(scene:Node,faces_required:bool,token:RefCounted=null,geometry_mode:int=CollisionGeometry.ALL)->Dictionary:
 	return preload("res://scripts/world3d/static_mesh_cpu_preparation.gd").capture(scene,faces_required,token,geometry_mode)
@@ -1978,7 +2006,9 @@ func _process(_delta:float)->void:
 			if not cached:
 				job.result.erase("scene");_discard_job(path);_path_failed(path,"无法缓存后台素材："+path)
 				_account_work_unit(acceptance,unit_began);continue
-			if result.has("packed"):profile.worker_packed_models=int(profile.get("worker_packed_models",0))+1
+			if result.has("packed"):
+				if result.has("resource_owners"):result.resource_owners.transfer_template(result.packed)
+				profile.worker_packed_models=int(profile.get("worker_packed_models",0))+1
 			job.result.erase("scene");job.result.erase("packed");profile.models+=1
 			var cache_key:="compiled_hits" if result.get("compiled",false) else "compiled_misses"
 			profile[cache_key]=int(profile.get(cache_key,0))+1
@@ -2407,7 +2437,8 @@ func _discard_job(path:String)->void:
 	for uuid:String in output.get("terrain_contexts",{}):_doc.terrain_neighbors.data.erase(uuid)
 	# Large importer states retain thousands of GPU/CPU owners. Keep this same
 	# byte reservation until the tree-owned retirement cursor drops every alias.
-	var deferred_release:=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(output,Callable(_admission,"release").bind(path),_admission)
+	var deferred_release:=preload("res://scripts/world3d/resource_retirement.gd").defer_model_packet(output,Callable(_admission,"release").bind(path),_admission)
+	if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(output,Callable(_admission,"release").bind(path),_admission)
 	if deferred_release:
 		_admission.park(path);_admission.set_stage(path,"resource_retirement")
 	if not output.is_empty():Drainer.dispose_result(output)
