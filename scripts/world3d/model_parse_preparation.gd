@@ -18,7 +18,9 @@ var inflight_byte_limit:=4*1024*1024*1024
 var memory_estimator:Callable
 var cache_reader:Callable
 var eligibility_checker:Callable
+var prepare_static_scenes:=false # Game MapLoader owns the render pump and scene disposal.
 static var native_footprints_enabled:=true # Probe-only old-budget control.
+static var initial_scene_preparation_enabled:=true # Probe may retain main-thread generation.
 var candidate_provider:Callable
 var candidate_reader:Callable
 # An early private compiled read may precede authoritative record validation.
@@ -29,17 +31,20 @@ var _cancelled := false
 var _running := false
 
 func cancel() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	_cancelled = true
 	_mutex.unlock()
 
 func is_cancelled() -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.is_cancelled") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	var value := _cancelled
 	_mutex.unlock()
 	return value
 
 func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thread_starter: Callable = Callable(), content_root:String="", verified_sources:Dictionary={}) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.run") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	if _running:
 		_mutex.unlock()
@@ -56,7 +61,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 			seen[path] = true
 			unique.append(path)
 	var native_route:=not parser.is_valid() or cache_reader.is_valid()
-	var parse:=parser if parser.is_valid() else _parse_verified_fallback.bind(content_root,verified_sources)
+	var parse:=parser if parser.is_valid() else _parse_verified_fallback.bind(content_root,verified_sources,prepare_static_scenes)
 	var limit := clampi(worker_limit, 1, 4)
 	var eligibility_started := Time.get_ticks_usec()
 	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
@@ -234,6 +239,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		if entry.error!=OK and (error==OK or (error==ERR_SKIP and entry.error!=ERR_SKIP)):error=entry.error
 	var cancelled := is_cancelled()
 	return _finish({"error": ERR_SKIP if cancelled and error == OK else error, "cancelled": cancelled,
+		"retained_resources":entries.duplicate(),
 		"entries": entries, "unique_count": unique.size(), "worker_limit": limit,
 		"fallback_count": fallback_count, "parallel_eligible_count": eligible.size(),
 		"eligibility_us": eligibility_us, "parallel_batches": parallel_batches,"native_cache_hits":native_hits,"native_cache_misses":native_misses,
@@ -243,6 +249,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		"inflight_reserved_at_return":admission.reserved_bytes,"inflight_jobs_at_return":admission.count(),"resident_estimate_policy":"full_task_estimate_retained_until_caller_consumes","admission_profile":admission_profile}, started)
 
 static func _close_admission_wait(waiting:Dictionary,profile:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._close_admission_wait") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if waiting.is_empty():return
 	var elapsed:=maxi(0,Time.get_ticks_usec()-int(waiting.since_us));var reason:String=waiting.reason
 	profile.blocked_us+=elapsed;profile.blocked_us_by_reason[reason]=int(profile.blocked_us_by_reason.get(reason,0))+elapsed
@@ -252,6 +259,7 @@ static func _close_admission_wait(waiting:Dictionary,profile:Dictionary)->void:
 	waiting.clear()
 
 func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._guarded_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if fallback_gate.is_valid() and not fallback_gate.call():return {"error":ERR_SKIP}
 	# A source can change while a native candidate is being read. Recheck the
 	# conservative GLTF gate on the worker immediately before import; a changed
@@ -262,6 +270,7 @@ func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictio
 	return result if result is Dictionary else {"error":ERR_INVALID_DATA}
 
 func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._cache_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var compiled:Variant=cache_reader.call(path) if cache_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,str(verified_sources.get(path,"")),content_root)
 	if not compiled is Dictionary or not compiled.get("hit") is bool:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
 	if compiled.hit:
@@ -271,12 +280,14 @@ func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->
 	return {"error":OK,"fallback_required":true,"cache_reason":compiled.get("reason","")}
 
 static func _owned_cache_miss(compiled:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._owned_cache_miss") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var retry:bool=compiled.get("reason")=="source_changed_during_read"
 	var result:Dictionary={"error":ERR_BUSY if retry else ERR_INVALID_DATA,"cache_reason":compiled.get("reason","invalid_product"),"retained_resources":[compiled]}
 	if retry:result.legacy_native_retry=true
 	return result
 
 static func is_legacy_source_retry(packet:Dictionary)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.is_legacy_source_retry") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not packet.get("legacy_native_retry") is bool or not packet.legacy_native_retry or not packet.get("error") is int or packet.error!=ERR_BUSY or packet.get("cache_reason")!="source_changed_during_read":return false
 	if packet.has("packed") or packet.has("fallback_required") or packet.has("native_source_retry"):return false
 	var retained:Variant=packet.get("retained_resources")
@@ -287,6 +298,7 @@ static func is_legacy_source_retry(packet:Dictionary)->bool:
 	return resources is Array and resources.size()==1 and resources[0] is PackedScene
 
 func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root)
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	# Only a validated native product whose SOURCE changed can be retired and
@@ -300,13 +312,16 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 		result.erase("fallback_required");result.error=ERR_INVALID_DATA
 	return result
 
-static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary)->Dictionary:
-	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")))
+static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary,prepare_scene:bool=false)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_verified_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")),prepare_scene)
 
-static func _parse_fallback(path:String,content_root:String="",verified_digest:String="")->Dictionary:
-	return _source_transaction(path,content_root,verified_digest,_append_gltf)
+static func _parse_fallback(path:String,content_root:String="",verified_digest:String="",prepare_scene:bool=false)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	return _source_transaction(path,content_root,verified_digest,_append_gltf.bind(prepare_scene))
 
 static func _source_transaction(path:String,content_root:String,verified_digest:String,parse:Callable)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._source_transaction") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# The cache miss may wait behind other imports. Bind the geometry returned by
 	# the raw parser to the same source version the loader used for its Cook key.
 	# This shared guard also permits deterministic replacement-race CPU probes.
@@ -330,16 +345,40 @@ static func _source_transaction(path:String,content_root:String,verified_digest:
 	if result.error==OK:result.source_digest=before
 	return result
 
-static func _append_gltf(path:String)->Dictionary:
+static func _append_gltf(path:String,prepare_scene:bool=false)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._append_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var wait_started:=Time.get_ticks_usec()
 	RAW_IMPORT_MUTEX.lock()
 	var raw_import_wait_us:=Time.get_ticks_usec()-wait_started
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
+	preload("res://scripts/world3d/runtime_probe_controls.gd").configure_gltf(state)
+	var prepare_static:bool=prepare_scene and initial_scene_preparation_enabled and preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path).get("known",false)
+	var append_started:=Time.get_ticks_usec()
 	var error:=document.append_from_file(path,state,0,path.get_base_dir())
+	preload("res://scripts/world3d/load_trace.gd").elapsed("model.raw_append",append_started,{"path":path})
+	var result:Dictionary={"error":error,"document":document,"state":state,"compiled":false,"raw_import_wait_us":raw_import_wait_us}
+	if error==OK and prepare_static:
+		var scope:=preload("res://scripts/world3d/scene_preparation_pump.gd").new()
+		# The same static/self-contained gate used by deferred imports. Keep the
+		# private graph off-tree and under the shared raw import mutex. Source
+		# identity is checked again by _source_transaction after this entire stage.
+		var began:=Time.get_ticks_usec()
+		var scene:Node=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(document,state)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("model.private_generate",began,{"path":path})
+		if scene==null:result.error=ERR_CANT_CREATE
+		else:
+			# Packing queries renderer-backed node properties. On a worker those
+			# cheap getters become thousands of main-thread round trips. Hand over
+			# this owned, off-tree graph; the existing main cache packs and frees it.
+			result.scene=scene
+		result.private_scene_prepare_us=Time.get_ticks_usec()-began
+		preload("res://scripts/world3d/load_trace.gd").elapsed("model.private_scene_prepare",began,{"path":path})
+		scope=null
 	RAW_IMPORT_MUTEX.unlock()
-	return {"error":error,"document":document,"state":state,"compiled":false,"raw_import_wait_us":raw_import_wait_us}
+	return result
 
 func _finish(result: Dictionary, started: int) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._finish") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	result.elapsed_us = Time.get_ticks_usec() - started
 	_mutex.lock()
 	_running = false
@@ -347,6 +386,7 @@ func _finish(result: Dictionary, started: int) -> Dictionary:
 	return result
 
 static func _invoke(parser: Callable, path: String) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._invoke") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started := preload("res://scripts/world3d/load_trace.gd").begin("model.parse")
 	var raw: Variant = parser.call(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("model.parse",started,{"path":path})
@@ -358,9 +398,11 @@ static func _invoke(parser: Callable, path: String) -> Dictionary:
 	return result
 
 static func _parse_verified_gltf(path:String,content_root:String,verified_sources:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_verified_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return parse_gltf(path,content_root,str(verified_sources.get(path,"")))
 
 static func parse_gltf(path: String,content_root:String="",verified_digest:String="") -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.parse_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
 	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,verified_digest,content_root)
 	if compiled.hit:return {"error":OK,"packed":compiled.packed,"compiled":true,"source_digest":compiled.source_digest,"cache_us":compiled.elapsed_us}

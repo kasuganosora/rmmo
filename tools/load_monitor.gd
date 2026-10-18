@@ -10,6 +10,7 @@ var phase_frames:Dictionary={}
 var _previous_phase:="startup"
 var _sample_cost:Dictionary={"count":0,"total_us":0,"max_us":0}
 var _render_started:=0
+var _render_pipelines:=Vector3i.ZERO
 var _previous:=0
 var _sample_at:=0
 var _viewports:Array[Viewport]=[]
@@ -28,10 +29,20 @@ func _node_added(node:Node)->void:
 	if node is SubViewport:_watch(node)
 
 func _before_draw()->void:
-	if active:_render_started=Time.get_ticks_usec()
+	if active:
+		_render_started=Time.get_ticks_usec()
+		_render_pipelines=_pipeline_counts()
 
 func _after_draw()->void:
-	if active and _render_started>0:Trace.elapsed("monitor.render_frame_span",_render_started)
+	if active and _render_started>0:
+		var details:Dictionary={}
+		if Time.get_ticks_usec()-_render_started>20000:
+			var delta:=_pipeline_counts()-_render_pipelines
+			details={"pipeline_mesh_delta":delta.x,"pipeline_surface_delta":delta.y,"pipeline_draw_delta":delta.z}
+		Trace.elapsed("monitor.render_frame_span",_render_started,details)
+
+static func _pipeline_counts()->Vector3i:
+	return Vector3i(int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_MESH)),int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_SURFACE)),int(Performance.get_monitor(Performance.PIPELINE_COMPILATIONS_DRAW)))
 
 func _watch(viewport:Viewport)->void:
 	if _viewports.has(viewport):return
@@ -77,4 +88,4 @@ func finish()->Dictionary:
 		if is_instance_valid(viewport):RenderingServer.viewport_set_measure_render_time(viewport.get_viewport_rid(),false)
 	var phases:Dictionary={}
 	for phase:String in phase_frames:phases[phase]=_percentiles(phase_frames[phase])
-	return {"pid":OS.get_process_id(),"main_thread_id":main_thread_id,"start_ticks_us":started,"start_epoch_s":epoch,"span_ms":(Time.get_ticks_usec()-started)/1000.,"frame_count":frames.size(),"frame_percentiles_ms":_percentiles(frames),"phase_frame_percentiles_ms":phases,"sample_cost":_sample_cost,"samples":samples,"trace":Trace.stop(),"note":"Viewport times are the last rendered frame and may be stale while UPDATE_DISABLED; wall spans overlap. No GPU fences or OS wait reasons are measured."}
+	return {"pid":OS.get_process_id(),"main_thread_id":main_thread_id,"start_ticks_us":started,"start_epoch_s":epoch,"span_ms":(Time.get_ticks_usec()-started)/1000.,"frame_count":frames.size(),"frame_percentiles_ms":_percentiles(frames),"phase_frame_percentiles_ms":phases,"sample_cost":_sample_cost,"samples":samples,"trace":Trace.stop(),"note":"Viewport times are the last rendered frame and may be stale while UPDATE_DISABLED; wall spans overlap. Performance TIME_PROCESS/TIME_PHYSICS_PROCESS report maxima from the previous approximately one-second engine statistics window, not this frame's CPU time. No GPU fences or OS wait reasons are measured."}

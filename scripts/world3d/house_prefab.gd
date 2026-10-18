@@ -13,17 +13,18 @@ static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
 static var _decode_issuer:=RefCounted.new()
 static func evict_geometry(digests:Dictionary)->void:
-	var meshes:Dictionary={}
 	for key:String in _meshes.keys():
 		if not digests.has(key.get_slice(":",0)):continue
-		meshes[_meshes[key].mesh.get_instance_id()]=true;_meshes.erase(key)
+		_meshes.erase(key)
 	# The independent 512-entry caches can evict at different times (painted
 	# variants only occupy _meshes). Retire orphan render-cache owners as well.
 	var live:Dictionary={}
 	for entry:Dictionary in _meshes.values():live[entry.mesh.get_instance_id()]=true
 	for key:String in _render_meshes.keys():
 		var id:int=_render_meshes[key].get_instance_id()
-		if meshes.has(id) or not live.has(id):_render_meshes.erase(key)
+		# Different definitions may share the same immutable render content.
+		# Keep that lookup while any remaining definition still owns it.
+		if not live.has(id):_render_meshes.erase(key)
 	_decode_mutex.lock()
 	for key:String in digests:
 		if _decoded.has(key):_decoded_bytes-=int(_decoded[key].length);_decoded.erase(key)
@@ -154,8 +155,11 @@ static func local_bounds(value:Dictionary)->Dictionary:
 	# serialized bounds, preserving dependency-directory safety validation.
 	var packet:=_decode_packet(value)
 	if packet.is_empty():return {"known":false}
+	return packet.local_bounds.duplicate()
+
+static func _local_bounds(data:Dictionary)->Dictionary:
 	var bounds:=AABB();var first:=true
-	for mesh:Dictionary in packet.data.meshes:
+	for mesh:Dictionary in data.meshes:
 		if mesh.box_size!=Vector3.ZERO:
 			var box:=AABB(-mesh.box_size/2.0,mesh.box_size)
 			bounds=box if first else bounds.merge(box);first=false
@@ -166,7 +170,7 @@ static func local_bounds(value:Dictionary)->Dictionary:
 	return {"known":false} if first else {"known":true,"bounds":bounds}
 
 static func _packet_matches(packet:Dictionary,digest:String,encoded:String,length:int)->bool:
-	return packet.get("issuer")==_decode_issuer and packet.is_read_only() and packet.get("sha256")==digest and packet.get("encoded")==encoded and packet.get("length")==length and packet.get("data") is Dictionary and packet.data.is_read_only() and packet.get("geometry_keys") is Array and packet.geometry_keys.is_read_only()
+	return packet.get("issuer")==_decode_issuer and packet.is_read_only() and packet.get("sha256")==digest and packet.get("encoded")==encoded and packet.get("length")==length and packet.get("data") is Dictionary and packet.data.is_read_only() and packet.get("geometry_keys") is Array and packet.geometry_keys.is_read_only() and packet.get("local_bounds") is Dictionary and packet.local_bounds.is_read_only()
 
 static func _decode_packet(value:Dictionary)->Dictionary:
 	if value.get("version")!=1 or not value.get("data") is String or not value.get("sha256") is String:return {}
@@ -191,7 +195,8 @@ static func _decode_packet(value:Dictionary)->Dictionary:
 	var geometry_keys:Array=[]
 	for mesh:Dictionary in data.meshes:geometry_keys.append(Cpu.geometry_signature(mesh.surfaces,mesh.get("lods",[])))
 	geometry_keys.make_read_only()
-	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys}
+	var bounds:=_local_bounds(data);bounds.make_read_only()
+	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys,"local_bounds":bounds}
 	packet.make_read_only()
 	_decode_mutex.lock()
 	# Concurrent readers may have decoded the same immutable payload. Publish
@@ -300,9 +305,9 @@ static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validat
 		# Cook's caller-owned pool can outlive a texture's small global LRU too.
 		# Its old materials must not bypass the image-generation invalidation.
 		if material_pool!=null:
-			for key:String in texture_packet.images:
-				if not Cook.Paint._textures.has(key) or Cook.Paint._textures[key].get_meta("runtime_source_sha256","")!=texture_packet.images[key].get_meta("runtime_source_sha256",""):
-					material_pool.clear();break
+			# Hot-cache eviction is not a source replacement: live materials may
+			# still own the exact verified texture. Invalidate actual old versions.
+			if not _stale_material_keys(material_pool.values(),texture_packet.get("sources",{})).is_empty():material_pool.clear()
 		previous=load("res://scripts/world_editor/terrain_texture_preparation.gd").install({"images":texture_packet.images,"failed":[]})
 	var result:=_publish_prepared(record,prepared,paint_validation,material_pool,timings)
 	if previous!=null:load("res://scripts/world_editor/terrain_texture_preparation.gd").restore(previous)

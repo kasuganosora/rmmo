@@ -66,9 +66,29 @@ class ObservedPreparation extends "res://scripts/world3d/model_parse_preparation
 		observer.raw_result(result)
 		return result
 
+class CancelAfterScenePreparation extends ObservedPreparation:
+	func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictionary:
+		var result:=super._guarded_fallback(path,parse,require_eligible)
+		if result.get("scene") is Node:cancel()
+		return result
+
+func test_cancel_after_scene(raw_path:String)->void:
+	var observer:=Observer.new();observer.content_root=Paths.external_root()
+	var controller:=CancelAfterScenePreparation.new();controller.observer=observer;controller.cache_reader=observer.read
+	controller.prepare_static_scenes=true
+	var worker:=Thread.new();check(worker.start(controller.run.bind([raw_path],Callable(),1,Callable(),observer.content_root))==OK,"late cancellation: actual private scene worker starts")
+	while worker.is_alive():await process_frame
+	var result:Dictionary=worker.wait_to_finish()
+	check(result.cancelled and result.error==ERR_SKIP and result.entries.size()==1,"late cancellation: completed private allocation is rejected without losing its owner")
+	var source:Node=result.entries[0].scene
+	check(is_instance_valid(source) and source.get_parent()==null and result.inflight_reserved_at_return==0,"late cancellation: joined off-tree graph stays alive until main disposes it")
+	Drainer.dispose_result(result)
+	check(not is_instance_valid(source) and observer.all_released_on_main(),"late cancellation: private Node and parser resources retire on main")
+
 func make_controller(observer: Observer) -> RefCounted:
 	var controller := ObservedPreparation.new()
 	controller.observer = observer; controller.cache_reader = observer.read
+	controller.prepare_static_scenes=true
 	return controller
 
 func await_gate(observer: Observer, expected_hits: int) -> bool:
@@ -162,14 +182,17 @@ func test_raw_success(raw_path: String, expected: Dictionary) -> void:
 		if taken is Dictionary: taken.clear()
 		return
 	var entry: Dictionary = taken.result.entries[0]
-	check(not entry.get("compiled", false) and entry.get("document") is GLTFDocument and entry.get("state") is GLTFState and not entry.has("scene"), "raw: handoff contains private parser state, never an unowned worker Node")
+	check(not entry.get("compiled", false) and entry.get("document") is GLTFDocument and entry.get("state") is GLTFState and entry.get("scene") is Node, "raw: handoff contains verified parser state and an explicitly owned private Node")
 	check(entry.source_digest == FileAccess.get_sha256(raw_path), "raw: returned geometry identity matches complete current source SHA")
 	check(taken.result.threads_started == taken.result.threads_joined and taken.result.inflight_reserved_at_return == 0, "raw: all preparation workers and admission reservations are settled")
-	var scene: Node = Io.generate_scene(entry.document, entry.state)
-	check(scene != null, "raw: verified parser state generates a scene on main")
+	check(entry.get("scene") is Node and entry.get("private_scene_prepare_us",0)>0,"raw: static scene generation finishes on the preparation worker")
+	var private_scene:Node=entry.scene
+	var scene:Node=entry.scene
+	check(scene!=null and not scene.is_inside_tree() and scene.get_parent()==null,"raw: verified private graph stays off-tree until main consumes it")
 	if scene != null:
 		check(var_to_bytes(capture(scene)) == var_to_bytes(expected), "raw: generated geometry, pixels, material and metadata exactly match the serial fixture")
-		Drainer.dispose_scene(scene)
+	Drainer.dispose_result(taken.result)
+	check(not is_instance_valid(private_scene),"raw: private source Node is destroyed on main when its handoff is consumed")
 	entry.clear(); taken.clear()
 	Drainer.synchronize_transfer()
 	check(observer.snapshot().raw_returns == 1 and observer.all_released_on_main(), "raw: GLTFState ownership ends on main after its scene is safely destroyed")
@@ -202,7 +225,9 @@ func run() -> void:
 	await test_discard(compiled_path, raw_path, "abandon")
 	await test_discard(compiled_path, raw_path, "cancel")
 	await test_raw_success(raw_path, expected)
+	await test_cancel_after_scene(raw_path)
 	Drainer.synchronize_transfer()
+	check(not preload("res://scripts/world3d/scene_preparation_pump.gd").active(),"successful and cancelled private imports release their renderer pump scopes")
 	check(Library._scenes == library_before and not Library._scenes.has(compiled_path) and not Library._scenes.has(raw_path), "all prefetch outcomes preserve global AssetLibrary contents")
 	print("INITIAL_MODEL_PREFETCH_GPU failures=", failures)
 	quit(0 if failures == 0 else 1)

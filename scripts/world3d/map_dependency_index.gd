@@ -18,19 +18,21 @@ const Prefab = preload("res://scripts/world3d/house_prefab.gd")
 const PrefabTextures = preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const Bridge = preload("res://scripts/world3d/bridge_data.gd")
 const OwnershipProof = preload("res://scripts/world3d/dependency_index_proof.gd")
+const Trace = preload("res://scripts/world3d/load_trace.gd")
 static var _loading_proof_issuer := RefCounted.new()
 static var batch_path_validation:=true # Probe-only old-loop comparison switch.
+static var parallel_definition_checks:=true # Bounded CPU-only control, never skips validation.
 const VERSION := 4
 const MAGIC := "RMMODEPS1"
 const MAX_BYTES := 64 * 1024 * 1024
 const CHUNK_M := 32.0
 const MAX_CHUNK_SPAN := 256
 const COMMON_FIELDS := ["uuid", "position", "rotation", "size", "kind", "surface_id", "collision", "color", "invisible", "surface_paint", "editor_group", "editor_group_name", "editor_name", "editor_hidden", "editor_locked"]
-const ASSET_FIELDS := ["asset_path", "asset_id", "asset_name", "name", "label", "thumbnail_path", "bounds_position", "bounds_size", "category", "tags", "model_building", "model_building_states"]
+const ASSET_FIELDS := ["asset_path", "asset_id", "asset_name", "name", "label", "thumbnail_path", "bounds_position", "bounds_size", "category", "tags", "model_building", "model_building_states", "vegetation_batch"]
 const FROZEN_FIELDS := ["house_prefab", "prefab_locked", "prefab_materials"]
 const FORT_FIELDS := ["fortification", "fixture", "prefab_tower_center"]
 const BRIDGE_FIELDS := ["bridge_mesh", "bridge_materials", "asset_path", "bounds_position", "bounds_size"]
-const ROAD_FIELDS := ["road_mesh", "road_clearance", "road_source", "road_kerb_material"]
+const ROAD_FIELDS := ["road_mesh", "road_clearance", "road_source", "road_kerb_material", "terrain_follow"]
 
 static func _fail(reason: String) -> Dictionary:
 	return {"ok": false, "reason": reason, "closure_complete": false}
@@ -92,7 +94,11 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 	if compact.size() != hydrated_records.size(): return _fail("hydrated_count_mismatch")
 	if not Blueprint.valid_meta(opened.extras) or not Blueprint.valid_ownership(opened.extras, hydrated_records): return _fail("invalid_full_building_ownership")
 	var rows: Array = []; var models := {}; var definitions := {}; var definition_bytes := {}
+	var definition_jobs:Array=[]
+	# First prove every pose/state and unique definition before classification.
+	# Workers own their serialization workspace; authored containers are only read.
 	for i in compact.size():
+		var observed:=Time.get_ticks_usec()
 		var record: Variant = hydrated_records[i]
 		if not Store._shape(record) or record.uuid != compact[i].uuid: return _fail("hydrated_identity_mismatch")
 		for field in Store.FIELDS:
@@ -102,16 +108,27 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		for field in Store.STATE_FIELDS:
 			if record.has(field) != compact[i].rmmo_state.has(field) or not _json_equal(record.get(field), compact[i].rmmo_state.get(field), 0, [2000000]): return _fail("hydrated_state_mismatch")
 		var definition: Dictionary = Store._definition(record)
+		Trace.elapsed("index.build_identity",observed)
 		var sha: String = compact[i].rmmo_ref.sha256
 		if definitions.has(sha):
 			if definitions[sha] != definition: return _fail("hydrated_definition_mismatch")
 		else:
-			var encoded: Dictionary = Store._encode(definition)
-			if not encoded.ok or encoded.sha256 != sha or encoded.length != compact[i].rmmo_ref.length: return _fail("hydrated_definition_mismatch")
 			definitions[sha] = definition
-			definition_bytes[sha] = int(encoded.get("serialized_raw_bytes", 0))
-			if definition_bytes[sha] <= 0: definition_bytes[sha] = var_to_bytes(definition).size()
+			definition_jobs.append({"definition":definition,"sha256":sha,"length":compact[i].rmmo_ref.length})
+	var definition_started:=Time.get_ticks_usec()
+	var encoded_batch:Dictionary=Store._read_many(definition_jobs,false,worker_limit if parallel_definition_checks else 1,_encode_index_definition)
+	Trace.elapsed("index.definition_batch",definition_started,encoded_batch.get("read_profile",{}))
+	if not encoded_batch.ok:return _fail("hydrated_definition_mismatch")
+	for i:int in definition_jobs.size():
+		var job:Dictionary=definition_jobs[i];var encoded:Dictionary=encoded_batch.entries[i]
+		if encoded.sha256!=job.sha256 or encoded.length!=job.length:return _fail("hydrated_definition_mismatch")
+		definition_bytes[job.sha256]=encoded.serialized_raw_bytes
+	for i in compact.size():
+		var record:Dictionary=hydrated_records[i]
+		var sha:String=compact[i].rmmo_ref.sha256
+		var observed:=Time.get_ticks_usec()
 		var row := _classify(record, content_root, models)
+		Trace.elapsed("index.build_classify",observed,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
 		row.uuid = record.uuid; row.order = i; row.reference = compact[i].rmmo_ref.duplicate(true)
 		row.prefab_locked = record.get("prefab_locked", false) == true
 		row.group_id = "building:" + str(record.building.id) if record.has("building") else ""
@@ -123,7 +140,9 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		# changing image dimensions does not leave a stale persisted byte estimate.
 		row.prefab_textures = PrefabTextures.sources(record)
 		if row.reason == "native_road":
-			var preparation := RoadPreparation.estimate(record)
+			# _classify just validated this same immutable Road record. Repeating
+			# the full nested polygon/kerb schema for the estimate doubles cold work.
+			var preparation := RoadPreparation._estimate_validated(record)
 			if preparation.ok:
 				row.memory_bytes = mini(64 * 1024 * 1024 * 1024, row.memory_bytes + int(preparation.estimated_bytes))
 			else:
@@ -162,9 +181,23 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		DirAccess.remove_absolute(temporary); return _fail("index_publish_failed")
 	return _result(payload, opened.extras, target)
 
+## Reuse the bounded CPU queue, but retain only identity metadata per reply.
+## Compressed payloads are not retained in a second full directory build array.
+static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
+	var observed:=Time.get_ticks_usec()
+	var encoded:Dictionary=Store._encode(job.definition)
+	if not encoded.ok:return {"ok":false,"error":ERR_INVALID_DATA}
+	var raw_bytes:int=int(encoded.get("serialized_raw_bytes",0))
+	if raw_bytes<=0:raw_bytes=var_to_bytes(job.definition).size()
+	Trace.elapsed("index.build_definition",observed)
+	return {"ok":true,"error":OK,"length":encoded.length,"sha256":encoded.sha256,"serialized_raw_bytes":raw_bytes}
+
 static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
+	var observed:=Time.get_ticks_usec()
 	var opened := _source(path, content_root, expected_source_sha,source_limit)
+	Trace.elapsed("index.source",observed)
 	if not opened.ok: return opened
+	observed=Time.get_ticks_usec()
 	var target := cache_path(path, content_root)
 	var file := FileAccess.open(target, FileAccess.READ)
 	if file == null or file.get_length() < 49 or file.get_buffer(9).get_string_from_ascii() != MAGIC: return _fail("index_missing_or_header")
@@ -173,17 +206,30 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	var checksum := file.get_buffer(32); var bytes := file.get_buffer(length); file.close()
 	if bytes.size() != length or Store._sha(bytes).hex_decode() != checksum: return _fail("index_payload_sha_mismatch")
 	var data: Variant = bytes_to_var(bytes) # Never allow Objects or scripts.
-	if not data is Dictionary or not _valid_payload(data, opened.extras.rmmo_records, content_root) or not _ownership_valid(opened.extras, data.rows, data.groups): return _fail("invalid_index_schema")
+	Trace.elapsed("index.decode",observed,{"bytes":length})
+	observed=Time.get_ticks_usec()
+	var valid:bool=data is Dictionary and _valid_payload(data, opened.extras.rmmo_records, content_root)
+	Trace.elapsed("index.schema",observed)
+	if not valid:return _fail("invalid_index_schema")
+	observed=Time.get_ticks_usec()
+	valid=_ownership_valid(opened.extras,data.rows,data.groups)
+	Trace.elapsed("index.ownership",observed)
+	if not valid:return _fail("invalid_index_schema")
 	if data.source_sha256 != opened.source._signature or data.generator != generator_key(): return _fail("stale_index")
-	if not _imported_sources_valid(opened.extras, data.rows): return _fail("imported_building_source_mismatch")
+	observed=Time.get_ticks_usec()
+	valid=_imported_sources_valid(opened.extras,data.rows)
+	Trace.elapsed("index.imported",observed)
+	if not valid:return _fail("imported_building_source_mismatch")
 	# Bounds refer to the source accessor JSON. A changed or missing model cannot
 	# silently retain an old far-away footprint. Keep it eager until rebuilt.
 	var changed_models := {}
+	observed=Time.get_ticks_usec()
 	for model_path: String in data.models:
 		var current: Dictionary = Manifest.read(model_path) if Paths.allowed(model_path, content_root) else {}
 		var expected: Dictionary = data.models[model_path]
 		if not current.get("known", false) or current.get("json_sha256") != expected.json_sha256 or current.get("file_length") != expected.file_length or current.get("local_bounds") != expected.local_bounds:
 			changed_models[model_path] = true
+	Trace.elapsed("index.manifests",observed,{"models":data.models.size()})
 	for row: Dictionary in data.rows:
 		if changed_models.has(row.asset_path):
 			row.classification = "global"; row.reason = "model_bounds_changed"; row.bounds_known = false
@@ -200,7 +246,9 @@ static func read_for_loading(path: String, content_root: String, expected_source
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
 	# read() has already downgraded changed model footprints and made its final
 	# source observation. No reference to this fresh result has escaped yet.
+	var observed:=Time.get_ticks_usec()
 	var proof: OwnershipProof = OwnershipProof.issue(index, path, content_root, _loading_proof_issuer)
+	Trace.elapsed("index.seal",observed)
 	if proof == null: return {"ok": false, "reason": "unsealable_dependency_directory", "index": {}, "proof": null}
 	return {"ok": true, "reason": "", "index": index, "proof": proof}
 
@@ -289,6 +337,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 	return result
 
 static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary)->void:
+	if record.has("vegetation_batch") and not record.vegetation_batch is bool:result.reason="invalid_vegetation_batch";return
 	var path:=str(record.get("asset_path",""));result.asset_path=path
 	if not Paths.allowed(path,root):result.reason="invalid_model_path";return
 	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else Manifest.read(path)

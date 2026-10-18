@@ -139,6 +139,8 @@ static func water_top(record:Dictionary,slot:int,normals:PackedVector3Array)->bo
 	return normals[0].y>.99
 
 static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary={},validation_cache:Variant=null,validated:bool=false,cpu_index:bool=false) -> void:
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
+		node.material_override=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material();return
 	if not record.has("terrain_depth_blend") and not record.has("terrain_slope_blend") and not record.has("terrain_regions") and not record.has("terrain_saturation") and not record.has("water_depth_effect") and not record.has("bank_wetness"): return
 	if not validated and (not Data.valid(record) or not Paint.valid(record,false,"",validation_cache)): node.set_meta("paint_error","地形/河道材质参数无效"); return
 	var cpu_overrides:Variant=null

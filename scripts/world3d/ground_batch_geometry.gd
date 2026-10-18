@@ -7,14 +7,17 @@ const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
 
 static func category(record: Dictionary) -> String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.category") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if record.get("vegetation_batch",false):return "vegetation"
 	return "fortification" if record.has("fortification") else ("building" if record.has("building") else "ground")
 
 static func member_limit(record: Dictionary) -> int:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.member_limit") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if record.get("vegetation_batch",false):return 64
 	return MAX_FORTIFICATION_MEMBERS if record.has("fortification") or record.has("building") else MAX_MEMBERS
 
 static func candidate(record: Dictionary) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.candidate") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if preload("res://scripts/world3d/vegetation_render.gd").eligible(record):return true
 	if record.has("house_prefab"):return false
 	if record.get("kind") != "box" or record.get("invisible", false): return false
@@ -33,6 +36,7 @@ static func candidate(record: Dictionary) -> bool:
 	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
 
 static func material_key(material: Material) -> String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.material_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if material == null: return "default"
 	if material.next_pass != null: return ""
 	var values: Array = []
@@ -61,18 +65,21 @@ static func material_key(material: Material) -> String:
 	digest.update(var_to_bytes(values));return digest.finish().hex_encode()
 
 static func vertex_count(mesh: Mesh) -> int:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.vertex_count") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var total := 0
 	var cpu: Mesh = Cpu.capture(mesh)
 	for arrays: Array in cpu.surfaces: total += arrays[Mesh.ARRAY_VERTEX].size()
 	return total
 
 static func height_image(record: Dictionary) -> Image:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.height_image") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var t: Dictionary = record.terrain_mesh
 	var heights := PackedFloat32Array()
 	for height in t.heights: heights.append(float(height) * record.size[1])
 	return Image.create_from_data(int(t.columns)+1, int(t.rows)+1, false, Image.FORMAT_RF, heights.to_byte_array())
 
 static func build(members: Array, origin: Vector3, defer_upload: bool = false) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if (members[0].record.has("fortification") or members[0].record.has("building")) and not members[0].materials.any(func(material):return material is ShaderMaterial): return build_fortification(members,origin,defer_upload)
 	var slots := {}
 	var before := 0
@@ -89,7 +96,9 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 		var layer := origins.size()
 		origins.append(Vector4(local.origin.x, local.origin.y, local.origin.z, 0))
 		spans.append(Vector4(record.size[0], record.size[2], local.basis.x.x, local.basis.z.x))
-		if record.has("terrain_mesh"):
+		# These arrays feed layered terrain shaders only. Plain terrain batches
+		# need neither height textures nor region-mask metadata/material uploads.
+		if record.has("terrain_mesh") and source.materials.any(func(material):return material is ShaderMaterial):
 			images.append(source.materials[0].get_meta("terrain_height_image") if source.materials[0] is ShaderMaterial and source.materials[0].has_meta("terrain_height_image") else height_image(record))
 			if record.has("terrain_regions"):
 				# Snapshot uses the cached image; never rerasterize on the batch worker.
@@ -115,6 +124,7 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 	return data if defer_upload else upload(data)
 
 static func build_fortification(members: Array, origin: Vector3, defer_upload: bool) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.build_fortification") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Native append_from transforms positions/normals/tangents and rebases indices
 	# in C++, avoiding millions of interpreted per-vertex operations. The source
 	# is a worker-owned CPU Mesh, so this never downloads or uploads GPU buffers.
@@ -139,6 +149,7 @@ static func build_fortification(members: Array, origin: Vector3, defer_upload: b
 	return data if defer_upload else upload(data)
 
 static func upload(data: Dictionary) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.upload") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# GPU resources must be created on the main thread. Joining a worker during
 	# undo/save/scene exit must never wait for a RenderingServer main-thread call.
 	assert(Thread.is_main_thread())
@@ -173,6 +184,7 @@ static func upload(data: Dictionary) -> Dictionary:
 	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 
 static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.append_arrays") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var arrays := source.duplicate()
 	# Packed arrays are reference values in GDScript. Joining or rebasing an index
 	# buffer must never modify the CPU authoring mesh that the snapshot also owns.
@@ -208,6 +220,7 @@ static func append_arrays(row: Dictionary, source: Array, transform: Transform3D
 				var joined: Variant = output[channel]; joined.append_array(arrays[channel]); output[channel]=joined
 
 static func append_surface(st: SurfaceTool, arrays: Array, transform: Transform3D, layer: int, layered: bool, record: Dictionary, slot: int) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.append_surface") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
 	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
@@ -231,6 +244,7 @@ static func append_surface(st: SurfaceTool, arrays: Array, transform: Transform3
 			emit_vertex(st, arrays, bottom_corners[p], transform, layer, layered)
 
 static func emit_vertex(st: SurfaceTool, arrays: Array, at: int, transform: Transform3D, layer: int, layered: bool) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.emit_vertex") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	st.set_normal((transform.basis * arrays[Mesh.ARRAY_NORMAL][at]).normalized())
 	if arrays[Mesh.ARRAY_TEX_UV] != null: st.set_uv(arrays[Mesh.ARRAY_TEX_UV][at])
 	if arrays[Mesh.ARRAY_TEX_UV2] != null: st.set_uv2(arrays[Mesh.ARRAY_TEX_UV2][at])

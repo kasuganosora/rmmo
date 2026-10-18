@@ -262,11 +262,13 @@ static func _remove_file(path: String) -> void:
 
 
 static func load_scene(gltf_path: String) -> Node:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.gltf_map_io.load_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if gltf_path.is_empty() or not FileAccess.file_exists(gltf_path):
 		push_error("World glTF is missing: %s" % gltf_path)
 		return null
 	var doc := GLTFDocument.new()
 	var state := GLTFState.new()
+	preload("res://scripts/world3d/runtime_probe_controls.gd").configure_gltf(state)
 	var err := doc.append_from_file(gltf_path, state, 0, gltf_path.get_base_dir())
 	if err != OK:
 		var bytes := FileAccess.get_file_as_bytes(gltf_path)
@@ -299,10 +301,12 @@ static func extras_of(node: Node) -> Dictionary:
 
 
 static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.gltf_map_io.generate_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# An external model can be replaced with malformed but parseable JSON while
 	# the editor is open. Reject its invalid mesh references before scene creation.
 	for node:GLTFNode in state.nodes:
 		if node.mesh>=state.meshes.size():return null
+	preload("res://scripts/world3d/runtime_probe_controls.gd").prepare_gltf_materials(state)
 	var scene := document.generate_scene(state)
 	if scene == null: return null
 	var raw_nodes: Array = state.json.get("nodes", [])

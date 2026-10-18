@@ -174,4 +174,17 @@ func run() -> void:
 	check(taken.result.cancelled and taken.result.entries.is_empty() and probe.counts().cached == 0, "sticky cancellation prevents all source preparation")
 	taken.clear(); controller.fallback_gate = Callable(); helper = null; controller = null
 	print("INITIAL_MODEL_PREFETCH passed=", passed, " failures=", failures)
+	probe=Probe.new();controller=preparation(probe);helper=Prefetch.new()
+	check(not helper.allow_validated_raw(),"cold overlap cannot open a missing controller")
+	check(helper.start(["raw_cold"],controller,1,"") and wait_cached(probe,1),"cold overlap starts with ordinary validation gate closed")
+	check(helper.allow_validated_raw(),"validated full closure explicitly opens cold private preparation")
+	var deadline:=Time.get_ticks_msec()+3000
+	while probe.counts().raw==0 and Time.get_ticks_msec()<deadline:OS.delay_msec(1)
+	check(probe.counts().raw==1,"cold raw work runs before selected take while CPU directory may build")
+	taken=helper.take(["raw_cold"])
+	check(taken.accepted and taken.result.error==OK,"matching selected sources consume the overlapped result")
+	taken.clear();controller.fallback_gate=Callable();helper=null;controller=null
+	probe=Probe.new();controller=preparation(probe);helper=Prefetch.new();helper.cancel()
+	check(not helper.allow_validated_raw(),"cancelled cold gate cannot reopen")
+	print("INITIAL_MODEL_PREFETCH_COLD passed=",passed," failures=",failures)
 	quit(0 if failures == 0 else 1)

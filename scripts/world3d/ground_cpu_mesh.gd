@@ -85,6 +85,20 @@ static func capture(source: Mesh) -> Mesh:
 	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
 	return result
 
+static func from_surfaces(arrays:Array,slot_materials:Array)->Mesh:
+	# Immutable procedural preparation already owns its exact CPU buffers.
+	# Building an ArrayMesh here only uploads buffers that indexing discards.
+	var result=load("res://scripts/world3d/ground_cpu_mesh.gd").new()
+	result.surfaces=arrays;result.materials.assign(slot_materials)
+	var first:=true
+	var bounds:=AABB()
+	for surface:Array in arrays:
+		for point:Vector3 in surface[Mesh.ARRAY_VERTEX]:
+			bounds=AABB(point,Vector3.ZERO) if first else bounds.expand(point)
+			first=false
+	result.bounds=bounds
+	return result
+
 static func invalidate(reference: WeakRef) -> void:
 	var source: Mesh=reference.get_ref()
 	if source != null and source.has_meta("ground_cpu_cache"): source.remove_meta("ground_cpu_cache")
@@ -103,6 +117,7 @@ static func capture_lods(source:ArrayMesh,slot:int)->Dictionary:
 	return result
 
 func restore() -> Mesh:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_cpu_mesh.restore") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var original: Mesh=source_reference.get_ref() if source_reference!=null else null
 	if original!=null:
 		var compatible:=original.get_surface_count()==materials.size()

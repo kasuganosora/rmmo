@@ -412,7 +412,9 @@ func _find(uuid: String) -> Dictionary:
 
 
 func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> MeshInstance3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
+	var cpu_index:bool=effects and load_immutable_records and (preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record) or (record.has("water_depth_effect") and preload("res://scripts/world3d/river_materials.gd").water_cpu_index_enabled))
 	if record.has("house_prefab"):
 		var prefab=preload("res://scripts/world3d/house_prefab.gd")
 		# Runtime indexing consumes immutable CPU geometry. Upload only when the
@@ -482,16 +484,21 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	elif record.has("rock_bank") and load_surface_arrays.has(str(record.uuid)):
 		mesh_node.mesh=preload("res://scripts/world3d/rock_bank_mesh.gd").mesh(record,load_surface_arrays[str(record.uuid)])
 	elif load_surface_arrays.has(str(record.uuid)):
-		var prepared:=ArrayMesh.new()
+		var prepared:Mesh
 		if timings!=null:timings.setup_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") else box.material
 		if timings!=null:timings.material_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
-		for arrays:Array in load_surface_arrays[str(record.uuid)]:
-			prepared.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
-			var slot:=prepared.get_surface_count()-1
-			prepared.surface_set_material(slot,preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if record.has("road_mesh") and slot==3 else material)
-			prepared.surface_set_name(slot,(["volume_terrain"] if record.has("terrain_volume") else (["terrain","bedrock_and_cut_edges","cultivation"] if record.has("terrain_mesh") else ["pavement","underside","edge","automatic_kerb"]))[slot])
-		if record.has("road_mesh") or record.has("terrain_mesh"):preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(prepared,load_surface_arrays[str(record.uuid)])
+		var arrays:Array=load_surface_arrays[str(record.uuid)]
+		var slot_materials:Array=[]
+		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if record.has("road_mesh") and slot==3 else material)
+		if cpu_index:prepared=preload("res://scripts/world3d/ground_cpu_mesh.gd").from_surfaces(arrays,slot_materials)
+		else:
+			prepared=ArrayMesh.new()
+			for slot in arrays.size():
+				prepared.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays[slot])
+				prepared.surface_set_material(slot,slot_materials[slot])
+				prepared.surface_set_name(slot,(["volume_terrain"] if record.has("terrain_volume") else (["terrain","bedrock_and_cut_edges","cultivation"] if record.has("terrain_mesh") else ["pavement","underside","edge","automatic_kerb"]))[slot])
+			if record.has("road_mesh") or record.has("terrain_mesh"):preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(prepared,arrays)
 		mesh_node.mesh=prepared
 		if timings!=null:timings.arraymesh_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	else:
@@ -563,7 +570,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	if record.get("building_shape") in ["joined_box","timber_door","interior_door"]:mesh_node.set_meta("collision_solid",box)
 	if cached == null:
 		if timings!=null:timings.metadata_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
-		SurfaceMaterials.apply(mesh_node, record, load_paint_validation, load_texture_checks)
+		SurfaceMaterials.apply(mesh_node, record, load_paint_validation, load_texture_checks,cpu_index)
 		if timings!=null:timings.surface_paint_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		if not box_key.is_empty() and load_box_meshes.size()<4096 and not mesh_node.has_meta("paint_error"):
 			load_box_meshes[box_key]={"mesh":mesh_node.mesh,"source":mesh_node.get_meta("paint_source",mesh_node.mesh)}
@@ -575,7 +582,6 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		river_context.texture_checks=load_texture_checks
 		# Water keeps separate rendering/transparency, but its directory entry
 		# can retain CPU geometry and slot materials until the actual stream spawn.
-		var cpu_index:bool=load_immutable_records and (preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record) or (record.has("water_depth_effect") and preload("res://scripts/world3d/river_materials.gd").water_cpu_index_enabled))
 		preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record,river_context,load_paint_validation,load_immutable_records,cpu_index)
 		if timings!=null:timings.river_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
@@ -608,7 +614,17 @@ func missing_assets() -> Array:
 	return missing
 
 func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._asset") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if record.has("house_prefab"):return _mesh(record)
+	var context:=_begin_asset_instance(record,prepared)
+	var holder:Node3D=context.holder;var model:Node3D=context.model
+	if model!=null:
+		_namespace_asset(model,str(record.uuid),model,str(record.get("collision","")))
+		preload("res://scripts/world3d/model_components.gd").apply(model,record)
+		_asset_components_ready(holder,model)
+	return _finish_asset_instance(holder,record)
+
+func _begin_asset_instance(record:Dictionary,prepared:Dictionary)->Dictionary:
 	var holder := Node3D.new()
 	holder.name = str(record.uuid)
 	holder.set_meta("asset_uuid", str(record.uuid))
@@ -642,11 +658,14 @@ func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
 		holder.add_child(model)
 		var tree_error:=preload("res://scripts/world3d/parametric_tree.gd").apply(model,record)
 		if not tree_error.is_empty():holder.set_meta("paint_error",tree_error)
-		_namespace_asset(model, str(record.uuid), model, str(record.get("collision","")))
-		preload("res://scripts/world3d/model_components.gd").apply(model,record)
-		if model.has_meta("model_components_error"):holder.set_meta("paint_error",str(model.get_meta("model_components_error")))
-		if model.has_meta("model_component_batch_sources"):
-			holder.set_meta("model_component_batch_sources",model.get_meta("model_component_batch_sources"))
+	return {"holder":holder,"model":model}
+
+static func _asset_components_ready(holder:Node3D,model:Node3D)->void:
+	if model.has_meta("model_components_error"):holder.set_meta("paint_error",str(model.get_meta("model_components_error")))
+	if model.has_meta("model_component_batch_sources"):
+		holder.set_meta("model_component_batch_sources",model.get_meta("model_component_batch_sources"))
+
+func _finish_asset_instance(holder:Node3D,record:Dictionary)->Node3D:
 	preload("res://scripts/world3d/streetlamp_banner.gd").apply(holder,record)
 	SurfaceMaterials.apply(holder, record, load_paint_validation, load_texture_checks)
 	preload("res://scripts/world3d/wind_response.gd").annotate(holder,record)
@@ -656,10 +675,14 @@ func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
 	return preload("res://scripts/world3d/vegetation_render.gd").flatten(holder,record)
 
 func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._namespace_asset") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	_namespace_asset_node(node,prefix,asset_root,collision)
+	for child in node.get_children():_namespace_asset(child,prefix,asset_root,collision)
+
+static func _namespace_asset_node(node:Node,prefix:String,asset_root:Node,collision:String)->void:
 	if node is MeshInstance3D:
 		var extras: Dictionary = node.get_meta("extras", {}).duplicate(true)
 		if preload("res://scripts/world3d/imported_building.gd").valid_part(extras.get("rmmo_part")) and extras.has("uuid"):extras.rmmo_source_uuid=extras.uuid
 		extras["uuid"] = prefix + "__" + str(asset_root.get_path_to(node)).replace("/", "__")
 		if collision in ["none","walk","block"]: extras["rmmo_collision"]=collision
 		node.set_meta("extras", extras)
-	for child in node.get_children(): _namespace_asset(child, prefix, asset_root, collision)

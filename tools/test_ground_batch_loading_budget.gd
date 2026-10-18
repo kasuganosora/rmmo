@@ -61,6 +61,11 @@ func _run()->void:
 	batch._process(0.)
 	check(batch.finished_workers==0 and batch._workers.size()==Batch.MAX_WORKERS,"temporary 24 ms load never joins a live worker")
 	batch._workers.clear();batch.end_loading_budget(outer)
+	batch.work_budget_usec=24000
+	for i in Batch.MAX_WORKERS:batch._workers.append({"thread":WaitingWorker.new()})
+	batch._process(0.)
+	check(batch.finished_workers==0,"ordinary covered loading never joins a live worker when the shared ledger is disabled")
+	batch._workers.clear();batch.work_budget_usec=2000
 	batch.pending.assign(["first","second"]);batch.unit_delay_usec=4000
 	batch._process(0.)
 	check(batch.built_groups==1 and batch.pending.size()==1,"an indivisible over-budget unit defers the following group")

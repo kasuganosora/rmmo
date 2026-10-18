@@ -239,6 +239,7 @@ static func instantiate(path: String) -> Node3D:
 	return _instantiate(_scenes[path])
 
 static func _instantiate(packed:PackedScene)->Node3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_library._instantiate") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if packed.get_meta("compiled_asset_validated",false) and not packed.get_meta("compiled_grass_rebound",false):
 		var first:=preload("res://scripts/world3d/compiled_asset_cache.gd").instantiate(packed)
 		if first!=null:packed.set_meta("compiled_grass_rebound",true)

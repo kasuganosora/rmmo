@@ -210,6 +210,7 @@ static func face_key(entry: Dictionary) -> String:
 	return "%s|%d|%d" % [entry.mesh, entry.surface, entry.face]
 
 static func meshes(root: Node) -> Array[MeshInstance3D]:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.meshes") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result: Array[MeshInstance3D] = []
 	if root.get_meta("editor_shadow_proxy",false):return result
 	if root is MeshInstance3D and root.mesh != null: result.append(root)
@@ -227,6 +228,7 @@ static func _vertex_key(point: Vector3) -> String:
 	return "%d,%d,%d" % [roundi(point.x * 100000), roundi(point.y * 100000), roundi(point.z * 100000)]
 
 static func geometry(node: MeshInstance3D, first_surface_only:bool=false) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.geometry") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.has_meta("paint_geometry"):
 		var cached:Dictionary=node.get_meta("paint_geometry")
 		return {"ok":true,"surfaces":cached.surfaces.slice(0,1)} if first_surface_only else cached
@@ -298,6 +300,7 @@ static func texture(material: Dictionary, field: String = "texture_path",path_ch
 	return result
 
 static func _texture(material:Dictionary,field:String,path_checks:Variant)->Texture2D:
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return null
 	var path := str(material.get(field, ""))
 	# A caller-owned immutable-load scope checks each path once, never across
 	# separate loads or edits. Texture cache hits alone do not authorize a path.
@@ -363,6 +366,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	return result
 
 static func texture_error(record: Dictionary, checks: Variant = null) -> String:
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return ""
 	# A declared image that cannot decode must not silently become an untextured
 	# material in a new export. Cache only within the caller's immutable operation.
 	for definition: Dictionary in definitions(record):
@@ -379,12 +383,15 @@ static func texture_error(record: Dictionary, checks: Variant = null) -> String:
 	return ""
 
 static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CULL_BACK) -> StandardMaterial3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.make_material") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return preload("res://scripts/world3d/runtime_probe_controls.gd").white_material(cull_mode)
 	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
 	var result:=_make_material(value,cull_mode)
 	if texture_profile_enabled:TextureCache._profile_elapsed("paint.material",began,{"name":str(value.get("name","")),"cull":cull_mode})
 	return result
 
 static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials._make_material") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Paint definitions are immutable; UVs live on the mesh. Reuse equivalent
 	# materials so glTF packs ORM textures once, not once for every wall face.
 	var key := str(cull_mode) + "|" + JSON.stringify(value, "", true)
@@ -485,9 +492,11 @@ static func source_material(node: MeshInstance3D, slot: int) -> Material:
 		return node.mesh.surface_get_material(slot)
 	return node.get_active_material(slot)
 
-static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null) -> Dictionary:
+static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null, defer_upload:bool=false) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.painted_mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if keep_cpu: CpuMesh.capture(source(node))
-	var geo := geometry(node)
+	var first_only:bool=not entries.is_empty() and entries.all(func(entry):return int(entry.surface)==0)
+	var geo := geometry(node,first_only)
 	if not geo.ok: return geo
 	var mesh := source(node)
 	var overrides := {}
@@ -501,18 +510,30 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 			var material_key:=var_to_str(entry.material)
 			if texture_checks==null or not texture_checks.has(material_key):
 				for field in MAP_FIELDS:
-					if not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
+					if not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
 				if texture_checks!=null: texture_checks[material_key]=true
 			checked_materials.append(entry.material)
 		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
 		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
 		overrides["%d:%d" % [slot, entry.face]] = entry
 	if mesh.get_surface_count() + entries.size() > 256: return fail("绘制后材质槽超过 256 个，请拆分模型")
-	var output := ArrayMesh.new()
+	var output:Mesh
 	var cpu_arrays: Array=[]
+	var output_materials:Array=[]
 	var merged:Dictionary={}
 	for slot in mesh.get_surface_count():
-		var data: Dictionary = geo.surfaces[slot]
+		# Surface-zero paint (ordinary roads) needs face topology only there.
+		# geometry() still validated every other slot's topology/channel limits.
+		# Untouched surfaces keep their exact vertices, indices and material.
+		var data:Dictionary
+		if slot<geo.surfaces.size():data=geo.surfaces[slot]
+		else:
+			var arrays:Array=CpuMesh.capture(mesh).surfaces[slot]
+			var indices:PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
+			if indices.is_empty():
+				indices.resize(arrays[Mesh.ARRAY_VERTEX].size())
+				for i in indices.size():indices[i]=i
+			data={"arrays":arrays,"indices":indices,"faces":{},"face_for_triangle":PackedInt32Array()}
 		var groups := {}
 		var group_entries := {}
 		var face_groups := {}
@@ -533,6 +554,7 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 			key = face_groups.get(key, "original")
 			if not groups.has(key): groups[key] = PackedInt32Array()
 			for corner in 3: groups[key].append(data.indices[triangle * 3 + corner])
+		if slot>=geo.surfaces.size():groups.original=data.indices
 		for key in groups:
 			var arrays: Array = data.arrays.duplicate()
 			arrays[Mesh.ARRAY_INDEX] = groups[key]
@@ -564,13 +586,18 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 			merged[merge_key].builder.append_from(cpu,0,Transform3D.IDENTITY)
 	for row in merged.values():
 		var arrays:Array=row.builder.commit_to_arrays()
-		output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
-		output.surface_set_material(output.get_surface_count()-1,row.material)
-		if keep_cpu:cpu_arrays.append(arrays)
-	if keep_cpu: CpuMesh.remember(output,cpu_arrays)
+		cpu_arrays.append(arrays);output_materials.append(row.material)
+	if defer_upload:output=CpuMesh.from_surfaces(cpu_arrays,output_materials)
+	else:
+		output=ArrayMesh.new()
+		for slot in cpu_arrays.size():
+			output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,cpu_arrays[slot])
+			output.surface_set_material(slot,output_materials[slot])
+		if keep_cpu:CpuMesh.remember(output,cpu_arrays)
 	return {"ok": true, "mesh": output}
 
-static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null) -> void:
+static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null, defer_upload:bool=false) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not record.has("surface_paint"): return
 	if not valid(record,false,"",validation_cache): root.set_meta("paint_error", "表面材质记录损坏"); return
 	var unresolved: Array = record.surface_paint.duplicate()
@@ -579,15 +606,18 @@ static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=nu
 		var entries: Array = record.surface_paint.filter(func(entry): return entry.mesh == path)
 		if entries.is_empty(): continue
 		for entry in entries: unresolved.erase(entry)
-		var result := painted_mesh(node, entries, true, texture_checks)
+		var result := painted_mesh(node, entries, true, texture_checks,defer_upload)
 		if not result.ok: root.set_meta("paint_error", result.error); continue
 		var originals: Array = []
 		for slot in node.mesh.get_surface_count(): originals.append(source_material(node,slot))
 		node.set_meta("paint_source_materials", originals)
 		node.set_meta("paint_source", node.mesh)
+		# Reset the old per-instance slots while detaching their render mesh.
+		# CPU-only meshes deliberately have no renderer surfaces, so setters for
+		# their logical slots cannot be sent to RenderingServer.
+		node.mesh = null
 		node.mesh = result.mesh
 		node.material_override = null
-		for slot in node.get_surface_override_material_count(): node.set_surface_override_material(slot, null)
 	if not unresolved.is_empty(): root.set_meta("paint_error", "模型节点已改变，请清除旧面材质")
 
 static func definitions(record: Dictionary, include_paint:bool=true) -> Array:

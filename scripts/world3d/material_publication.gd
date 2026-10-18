@@ -15,7 +15,7 @@ static func step(materials:Array,validation:Variant,pool:Dictionary,texture_tick
 	var tickets:Dictionary={} if texture_tickets==null else texture_tickets
 	for value:Dictionary in materials:
 		if pool.has([value]):continue
-		if value.has("paint"):
+		if value.has("paint") and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:
 			if not Paint.material_valid(value.paint,false,"",validation):tickets.clear();return FAILED
 			for field:String in Paint.MAP_FIELDS:
 				var path:String=value.paint.get(field,"")

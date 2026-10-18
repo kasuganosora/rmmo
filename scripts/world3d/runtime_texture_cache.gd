@@ -93,6 +93,7 @@ static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:i
 	return true
 
 static func image(path:String,flip:bool)->Image:
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return null
 	var began:=Time.get_ticks_usec() if profile_enabled else 0
 	var result:=_image(path,flip)
 	if profile_enabled:

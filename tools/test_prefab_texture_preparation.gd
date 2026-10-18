@@ -218,6 +218,9 @@ func gpu_publication(record:Dictionary,cpu:Dictionary,packet:Dictionary)->void:
 	check(Paint.prepared_images.size()==1 and Paint.prepared_images.sentinel==sentinel,"publication restores unrelated pixel handoff scope")
 	check(timings.has("materials_ms") and timings.has("render_identity_ms"),"publication separates material CPU/upload from geometry identity")
 	var again:Dictionary={};check(Prefab.publish_prepared(record,cpu,{},pool,again,packet) and again.get("geometry_cache_hit",false),"identical prepared publication retains geometry reuse")
+	var retained_pool:=pool.duplicate()
+	Paint._textures.clear()
+	check(not retained_pool.is_empty() and Prefab.publish_prepared(record,cpu,{},pool,{},packet) and pool==retained_pool,"hot texture eviction preserves caller materials owning the verified source generation")
 	var path:String=record.prefab_materials[0].texture_path
 	var original:=FileAccess.get_file_as_bytes(path)
 	var replacement:=Image.create(19,13,false,Image.FORMAT_RGBA8);replacement.fill(Color(.1,.9,.3,.5));replacement.save_png(path)
@@ -259,7 +262,10 @@ func native_prefetch_cases(index:Dictionary,entries:Array,map_path:String,image_
 	check(job.has("result") and job.result.get("error","").is_empty() and job.result.prefab_texture_packet.images.size()==2,"real reference worker prepares geometry and pixels during core overlap")
 	check(queue.accepted==0 and queue.publication_calls==0 and queue._prepared_paths.is_empty(),"prefetch cannot accept records, publish specs or fill the main handoff table")
 	check(Prefab._meshes==meshes and Prefab._render_meshes==renders and Paint._textures==textures and Paint._materials==materials and Deferred.Assets._scenes==assets,"real native prefetch leaves all shared material, mesh and model caches unchanged")
-	check(queue._admission.reserved_bytes==charge and charge>=int(job.estimate.prefab_texture_plan.estimated_bytes),"ready native pixel packet retains its entire admission charge")
+	if job.estimate.has("pixel_retained_bytes"):
+		var retained:int=int(job.estimate.pixel_retained_bytes)-int(job.estimate.get("collision_workspace_bytes",0))+int(queue._shared_images.profile.retained_bytes)
+		check(queue._admission.reserved_bytes==retained and retained>0 and retained<=charge,"ready shared pixels and geometry remain charged after decoder scratch retires")
+	else:check(queue._admission.reserved_bytes==charge and charge>=int(job.estimate.prefab_texture_plan.estimated_bytes),"ready native pixel packet retains its entire admission charge")
 	var image_owner:WeakRef=weakref(job.result.prefab_texture_packet.images[image_path]);var alias:Dictionary=job.result.prefab_texture_packet
 	queue.finish_entry_prefetch();var map:=Node3D.new();root.add_child(map);map.set_meta("extras",{"rmmo_records":[]});map.add_child(queue);queue.activate(null);queue.set_process(false);queue._admission.worker_limit=0
 	queue._process(0)

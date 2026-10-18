@@ -10,6 +10,11 @@ const MAX_ESTIMATED_BYTES := 616497152
 static func estimate(record: Dictionary) -> Dictionary:
 	if not record.has("road_mesh") or not Road.valid(record):
 		return {"ok": false, "estimated_bytes": 0, "vertex_limit": 0, "output_bytes": 0, "reason": "Invalid or unsupported native road"}
+	return _estimate_validated(record)
+
+## Internal math only. The caller must just have passed Road.valid on the same
+## immutable record. Worker admission always enters through estimate() above.
+static func _estimate_validated(record:Dictionary)->Dictionary:
 	var top := 0; var sides := 0; var points := 0; var kerb_vertices := 0
 	for polygon: Array in record.road_mesh.polygons:
 		points += polygon.size()

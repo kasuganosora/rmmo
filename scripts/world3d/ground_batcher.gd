@@ -4,6 +4,7 @@ const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
+static var legacy_loading_worker_wait_enabled:=false # Diagnostic control; frame callbacks never wait on live workers.
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var groups: Dictionary = {}
 var pending: Array[String] = []
@@ -25,6 +26,8 @@ var last_sync_ms := 0.0
 var sync_profile: Dictionary={}
 var sync_count:=0
 var release_groups_visited:=0
+var live_worker_joins:=0
+var live_worker_join_us:=0
 var _member_groups: Dictionary={}
 var _audit_cursor:=0
 var _audit_keys:Array=[]
@@ -46,6 +49,7 @@ var last_prepare_slice_ms:=0.0
 var max_prepare_slice_ms:=0.0
 
 func begin_loading_budget(budget_usec:int=16000)->int:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.begin_loading_budget") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# A temporary scheduling allowance, not a deadline for native mesh uploads
 	# or one source's geometry capture. Callers end the token on success/failure.
 	if budget_usec<=0 or budget_usec>MAX_LOADING_WORK_BUDGET_USEC:return 0
@@ -54,6 +58,7 @@ func begin_loading_budget(budget_usec:int=16000)->int:
 	return _loading_budget_serial
 
 func end_loading_budget(token:int)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.end_loading_budget") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Removing an older load cannot undo a newer load's allowance. The base
 	# setting also remains editable while the temporary allowance is active.
 	var index:=_loading_budgets.find_custom(func(scope):return scope.token==token)
@@ -62,20 +67,25 @@ func end_loading_budget(token:int)->bool:
 	return true
 
 func effective_work_budget_usec()->int:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.effective_work_budget_usec") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return work_budget_usec if _loading_budgets.is_empty() else int(_loading_budgets.back().usec)
 
 static func _fingerprint(value:Variant)->String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._fingerprint") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256)
 	hash.update(var_to_bytes(value));return hash.finish().hex_encode()
 
 func _enter_tree()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._enter_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_retiring_workers=false;set_process(_resume_processing)
 
 func _ready() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._ready") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	name = "GroundRenderBatches"
 	set_meta("stream_instance", true)
 
 static func freeze(node: MeshInstance3D, captured: Mesh = null) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.freeze") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.mesh is Cpu: return
 	var cpu: Mesh = captured if captured != null else Cpu.capture(node.mesh)
 	var materials: Array[Material]=[]
@@ -92,9 +102,11 @@ static func freeze(node: MeshInstance3D, captured: Mesh = null) -> void:
 	if node.has_meta("paint_source"): node.set_meta("paint_source", Cpu.capture(node.get_meta("paint_source")))
 
 static func restore(node: MeshInstance3D) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.restore") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.mesh is Cpu: node.mesh = node.mesh.restore()
 
 func clear(restore_sources: bool = true) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.clear") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if get_parent()!=null:
 		var proxy:=get_parent().get_node_or_null("DistantBuildingProxy")
 		if proxy!=null:proxy.clear()
@@ -104,10 +116,12 @@ func clear(restore_sources: bool = true) -> void:
 	_audit_keys.clear();_audit_cursor=0
 
 func release(ids: Array) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.release") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_preparation.clear();_residency_descriptors.clear() # Editor mutations invalidate captured descriptors.
 	_release_groups(ids)
 
 func release_sources(nodes: Array) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.release_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# A local editor replacement knows exactly which sources are dirty. Keep
 	# immutable descriptors for every other source; regroup on the frame budget.
 	_preparation.clear()
@@ -118,7 +132,20 @@ func release_sources(nodes: Array) -> void:
 		_residency_descriptors.erase(node.get_instance_id())
 	_release_groups(ids)
 
-func _release_groups(ids: Array) -> void:
+func retire_sources(nodes:Array)->void:
+	# A retiring source is about to be destroyed, so rebuilding its GPU buffers
+	# just before free is wasted work. Surviving members still need their exact
+	# standalone draw until a replacement batch is published.
+	_preparation.clear()
+	var ids:Array=[];var retiring:Dictionary={}
+	for node in _expanded_sources(nodes):
+		if not is_instance_valid(node):continue
+		ids.append(str(node.name));retiring[node.get_instance_id()]=true
+		_residency_descriptors.erase(node.get_instance_id())
+	_release_groups(ids,retiring)
+
+func _release_groups(ids: Array,retiring:Dictionary={}) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._release_groups") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Editing is synchronous: remove the old combined draw before changing a source.
 	var affected: Dictionary={}
 	for id in ids:
@@ -126,9 +153,10 @@ func _release_groups(ids: Array) -> void:
 	for key: String in affected:
 		if not groups.has(key): continue
 		release_groups_visited+=1
-		_drop(groups[key]); groups.erase(key); pending.erase(key)
+		_drop(groups[key],true,retiring); groups.erase(key); pending.erase(key)
 
-func _drop(group: Dictionary, restore_sources: bool = true) -> void:
+func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={}) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var watcher=group.get("pose_watcher")
 	if is_instance_valid(watcher):
 		watcher.changed=Callable();watcher.set_notify_transform(false);watcher.queue_free()
@@ -143,15 +171,17 @@ func _drop(group: Dictionary, restore_sources: bool = true) -> void:
 	if is_instance_valid(group.get("visual")): group.visual.free()
 	if not restore_sources: return
 	for node in group.members:
-		if is_instance_valid(node) and not node.is_queued_for_deletion(): restore(node)
+		if is_instance_valid(node) and not node.is_queued_for_deletion() and not retiring.has(node.get_instance_id()): restore(node)
 
 func _invalidate_group(key:String,generation:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._invalidate_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
 	var group:Dictionary=groups[key]
 	groups.erase(key);pending.erase(key)
 	_drop(group)
 
 func _watch_group(key:String,group:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._watch_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Residency can free sources before the next sync. Invalidate the combined
 	# visual immediately, including when a non-leading member leaves the tree.
 	var callback:=_invalidate_group.bind(key,group.generation)
@@ -165,12 +195,14 @@ func _watch_group(key:String,group:Dictionary)->void:
 		node.tree_exiting.connect(callback)
 
 func _sync_visibility(key:String,generation:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._sync_visibility") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
 	var group:Dictionary=groups[key]
 	if is_instance_valid(group.get("visual")) and is_instance_valid(group.members[0]):
 		group.visual.visible=group.members[0].is_visible_in_tree()
 
 func _sync_pose(key:String,generation:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._sync_pose") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
 	var group:Dictionary=groups[key]
 	if not is_instance_valid(group.get("visual")) or group.members.is_empty() or not is_instance_valid(group.members[0]):return
@@ -179,11 +211,13 @@ func _sync_pose(key:String,generation:int)->void:
 		group.visual.global_transform=pose*group.relative_pose;group.last_source_pose=pose
 
 func sync(nodes: Array, excluded: Array = []) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.sync") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_residency_descriptors.clear() # Editor callers may have changed any material/geometry.
 	request_sync(nodes,excluded)
 	while not _preparation.is_empty(): _prepare_step(0)
 
 func sync_selection(nodes: Array, excluded: Array) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.sync_selection") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Selection changes no source geometry/materials. Restore selected sources
 	# immediately, then regroup remaining sources within the normal frame budget.
 	_preparation.clear()
@@ -191,11 +225,13 @@ func sync_selection(nodes: Array, excluded: Array) -> void:
 	request_sync(nodes,excluded)
 
 func invalidate_source(node: MeshInstance3D) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.invalidate_source") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# An excluded source may change size/materials without changing its pose.
 	# Its next selection release must recapture its own descriptor only.
 	_residency_descriptors.erase(node.get_instance_id())
 
 static func _expanded_sources(nodes:Array)->Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._expanded_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Array=[]
 	for node in nodes:
 		if not is_instance_valid(node):continue
@@ -206,6 +242,7 @@ static func _expanded_sources(nodes:Array)->Array:
 	return result
 
 static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._expanded_exclusions") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:=excluded.duplicate()
 	for node in nodes:
 		if not is_instance_valid(node) or str(node.name) not in excluded:continue
@@ -215,6 +252,7 @@ static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
 	return result
 
 func request_sync(nodes:Array,excluded:Array=[])->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.request_sync") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# New residency supersedes unfinished preparation. No source has been hidden
 	# by preparation; lifetime signals immediately remove already-built stale draws.
 	for id in _residency_descriptors.keys():
@@ -229,6 +267,7 @@ func request_sync(nodes:Array,excluded:Array=[])->void:
 		if _building_meshes[cached].reference.get_ref()==null:_building_meshes.erase(cached)
 
 func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._prepare_node") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not node is MeshInstance3D or not node.has_meta("ground_batch_record") or str(node.name) in excluded: return
 	if not node.is_visible_in_tree() or node.transparency > 0 or node.material_overlay != null or node.skin != null: return
 	var record: Dictionary = node.get_meta("ground_batch_record")
@@ -280,6 +319,7 @@ func _prepare_node(node:Node,desired:Dictionary,excluded:Array)->void:
 	_append_descriptor(node,descriptor,desired)
 
 func _append_descriptor(node:Node,descriptor:Dictionary,desired:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._append_descriptor") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var bin:=0;var key:String=descriptor.base+":0"
 	while desired.has(key) and (desired[key].members.size()>=descriptor.limit or desired[key].vertices+descriptor.vertices>Geometry.MAX_VERTICES):
 		bin+=1;key=descriptor.base+":"+str(bin)
@@ -288,6 +328,7 @@ func _append_descriptor(node:Node,descriptor:Dictionary,desired:Dictionary)->voi
 	desired[key].signature.append([node.get_instance_id(),node.global_transform])
 
 func _prepare_step(budget_usec:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._prepare_step") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _preparation.is_empty():return
 	var started:=Time.get_ticks_usec()
 	while not _preparation.is_empty():
@@ -348,6 +389,7 @@ func _prepare_step(budget_usec:int)->void:
 	max_prepare_slice_ms=maxf(max_prepare_slice_ms,last_prepare_slice_ms)
 
 func _process(_delta: float) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._process") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _retiring_workers:return
 	var wanted:=effective_work_budget_usec()
 	if residency_budget_frame==Engine.get_process_frames():wanted=mini(wanted,residency_budget_remaining_usec)
@@ -358,6 +400,7 @@ func _process(_delta: float) -> void:
 	FrameBudget.charge("batch",began)
 
 func _process_work(allowed:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._process_work") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if allowed<=0:return
 	var started:=Time.get_ticks_usec()
 	# Cursor work / one finished-worker commit must precede the optional audit.
@@ -371,7 +414,7 @@ func _process_work(allowed:int)->void:
 		if ready>=0:_finish_worker(ready);advanced=true;continue
 		if _workers.size()+WorkerRetirement.pending(_retired_leases)>=MAX_WORKERS:
 			# Retain only the explicit legacy covered-loading join policy.
-			if not _workers.is_empty() and not FrameBudget.enabled and _loading_budgets.is_empty() and work_budget_usec>=24000:_finish_worker(0);advanced=true;continue
+			if legacy_loading_worker_wait_enabled and not _workers.is_empty() and not FrameBudget.enabled and _loading_budgets.is_empty() and work_budget_usec>=24000:_finish_worker(0);advanced=true;continue
 			break
 		if pending.is_empty():break
 		_build_next(true);advanced=true
@@ -390,12 +433,14 @@ func _process_work(allowed:int)->void:
 			_invalidate_group(key,group.generation);continue
 
 func flush() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.flush") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _retiring_workers:return
 	while not _preparation.is_empty():_prepare_step(0)
 	while not _workers.is_empty(): _finish_worker(0)
 	while not pending.is_empty(): _build_next()
 
 func _build_next(background: bool = false) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._build_next") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _retiring_workers:return
 	var key: String = pending.pop_front()
 	if not groups.has(key): return
@@ -455,6 +500,7 @@ func _build_next(background: bool = false) -> void:
 	_commit(group,Geometry.build(snapshot,group.origin),started)
 
 func _compatible_poses(group:Dictionary,entry:Dictionary)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._compatible_poses") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Hash rounding is only a candidate lookup. Bound the world-position error
 	# over every source AABB, including very large authored parts, before reuse.
 	if group.cache_poses.size()!=entry.poses.size():return false
@@ -471,6 +517,7 @@ func _compatible_poses(group:Dictionary,entry:Dictionary)->bool:
 	return true
 
 func _identical_geometry(meshes: Array) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._identical_geometry") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var expected: String=""
 	for mesh: Mesh in meshes:
 		var signature:=_geometry_signature(mesh)
@@ -479,9 +526,11 @@ func _identical_geometry(meshes: Array) -> bool:
 	return true
 
 func _geometry_signature(mesh: Mesh) -> String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._geometry_signature") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return mesh.geometry_key()
 
 func _commit_instances(group: Dictionary,snapshot: Array,started: int) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._commit_instances") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var key: String=(str(group.cpu[0].get_meta("static_batch_geometry_signature"))+var_to_str(group.keys)).sha256_text()
 	var mesh: Mesh=_instance_meshes[key].get_ref() if _instance_meshes.has(key) else null
 	if mesh==null:
@@ -512,13 +561,17 @@ func _commit_instances(group: Dictionary,snapshot: Array,started: int) -> void:
 	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
 
 func _finish_worker(index: int) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._finish_worker") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var job: Dictionary=_workers[index]; _workers.remove_at(index)
+	var waiting:bool=job.thread.is_alive();var join_started:=Time.get_ticks_usec()
 	var data: Dictionary = job.thread.wait_to_finish()
+	if waiting:live_worker_joins+=1;live_worker_join_us+=Time.get_ticks_usec()-join_started
 	if groups.has(job.key) and groups[job.key].generation == job.generation:
 		_commit(groups[job.key],data,job.started)
 	WorkerRetirement.complete(job.get("retirement",{}))
 
 func retire_workers(_tree:SceneTree=null)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.retire_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not _retiring_workers:_resume_processing=is_processing()
 	_retiring_workers=true;set_process(false)
 	_loading_budgets.clear()
@@ -530,9 +583,11 @@ func retire_workers(_tree:SceneTree=null)->void:
 	_workers.clear()
 
 func _exit_tree() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	retire_workers()
 
 func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._commit") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if data.is_empty(): return
 	for node in group.members:
 		if not is_instance_valid(node): return
@@ -564,11 +619,13 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
 
 func stats(category: String="") -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.stats") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
 	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
 	result.building_mesh_hits=building_mesh_hits
 	result.work_budget_usec=effective_work_budget_usec();result.base_work_budget_usec=work_budget_usec
 	result.loading_budget_scopes=_loading_budgets.size()
+	result.live_worker_joins=live_worker_joins;result.live_worker_join_us=live_worker_join_us
 	for group: Dictionary in groups.values():
 		if not category.is_empty() and group.category!=category: continue
 		if not group.has("data"): continue

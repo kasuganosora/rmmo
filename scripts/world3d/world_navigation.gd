@@ -103,6 +103,9 @@ var geometry_error:=""
 var _geometry_was_pending:=false
 var _geometry_provider:Callable
 var _spec_ids:Dictionary={}
+var _spec_geometry:Dictionary={} # Scalar ownership, no second mesh/resource owner.
+var _geometry_users:Dictionary={}
+static var legacy_retirement_geometry_scan_enabled:=false
 var _nearby_request:Variant=null
 var _full_started:=false
 var streaming_geometry:=false
@@ -184,6 +187,7 @@ func configure_streaming_geometry(provider:Callable,release_request:Callable=Cal
 ## protect live render/collision cells, navigation clips, and transfer pins.
 ## No await or mutation precedes complete validation, so a busy retry is safe.
 func try_retire_specs(ids:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_navigation.try_retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not streaming_geometry:return {"ok":false,"reason":"not_streaming","removed":0}
 	var requested:Dictionary={}
 	for id:Variant in ids:
@@ -205,14 +209,17 @@ func try_retire_specs(ids:Array)->Dictionary:
 	for spec:Dictionary in _specs:
 		if requested.has(spec.get("uuid","")):continue
 		survivors.append(spec)
-		var geometry:Resource=_source_geometry(spec)
-		if geometry!=null:retained_geometry[geometry.get_instance_id()]=true
+		if legacy_retirement_geometry_scan_enabled:
+			var geometry:Resource=_source_geometry(spec)
+			if geometry!=null:retained_geometry[geometry.get_instance_id()]=true
 	for door:Dictionary in _doors:
 		if not requested.has(door.get("uuid","")):doors.append(door)
 	_specs=survivors;_doors=doors;_cursor=0
-	for id:String in requested:_spec_ids.erase(id)
-	for key:Variant in _faces.keys():
-		if not retained_geometry.has(key):_faces.erase(key)
+	for id:String in requested:
+		_spec_ids.erase(id);_forget_source_geometry(id)
+	if legacy_retirement_geometry_scan_enabled:
+		for key:Variant in _faces.keys():
+			if not retained_geometry.has(key):_faces.erase(key)
 	# The published mesh owns baked polygons, not this completed source soup.
 	# Future nearby work creates a separate source from freshly admitted specs.
 	source.clear()
@@ -295,6 +302,7 @@ func append_specs(additions:Array)->Dictionary:
 		ids[value.uuid]=true
 	for spec:Dictionary in additions:
 		_specs.append(spec);_spec_ids[spec.uuid]=true
+		_remember_source_geometry(spec)
 		if spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none":_doors.append(spec)
 		if _collides(spec):
 			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
@@ -552,6 +560,7 @@ func _resize_streaming_agent(height:float,specs:Array,origin:Vector3)->void:
 	map=replacement.map;region=replacement.region;mesh=replacement.mesh;source=replacement.source
 	replacement.map=RID();replacement.region=RID()
 	_specs=replacement._specs;_spec_ids=replacement._spec_ids;_doors=replacement._doors
+	_spec_geometry=replacement._spec_geometry;_geometry_users=replacement._geometry_users
 	_faces=replacement._faces;_box_faces=replacement._box_faces
 	_bounds=replacement._bounds;_has_bounds=replacement._has_bounds
 	_clip=replacement._clip;_local_clip=replacement._local_clip;_origin=origin;_staged=true
@@ -629,8 +638,10 @@ func build(specs: Array, origin: Variant = null) -> void:
 	mesh.filter_walkable_low_height_spans = true
 	_specs = specs.duplicate()
 	_spec_ids.clear()
+	_spec_geometry.clear();_geometry_users.clear()
 	for spec:Dictionary in _specs:
-		if spec.get("uuid") is String and not spec.uuid.is_empty():_spec_ids[spec.uuid]=true
+		if spec.get("uuid") is String and not spec.uuid.is_empty():
+			_spec_ids[spec.uuid]=true;_remember_source_geometry(spec)
 	# Hinges and handles follow the door but are not navigation obstacles.
 	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none")
 	_origin = origin
@@ -793,7 +804,27 @@ static func _source_geometry(spec:Dictionary)->Resource:
 	var shape: Shape3D = spec.get("shape")
 	return shape if shape is ConcavePolygonShape3D else spec.get("collision_mesh", spec["mesh"])
 
+func _forget_source_geometry(id:String)->void:
+	if not _spec_geometry.has(id):return
+	var key:int=_spec_geometry[id];_spec_geometry.erase(id)
+	var users:=int(_geometry_users.get(key,0))-1
+	if users<=0:_geometry_users.erase(key);_faces.erase(key)
+	else:_geometry_users[key]=users
+
+func _remember_source_geometry(spec:Dictionary)->void:
+	var id:String=spec.get("uuid","")
+	if id.is_empty():return
+	var geometry:Resource=_source_geometry(spec)
+	var key:int=geometry.get_instance_id() if geometry!=null else 0
+	if _spec_geometry.get(id,-1)==key:return
+	_forget_source_geometry(id)
+	_spec_geometry[id]=key;_geometry_users[key]=int(_geometry_users.get(key,0))+1
+
 func _add_source(target:NavigationMeshSourceGeometryData3D,spec:Dictionary)->bool:
+	# A prepared ConcavePolygonShape may replace the original mesh after append.
+	# Rebind when navigation consumes it; unconsumed old identities remain only
+	# conservative face-cache users until the next consumption or retirement.
+	_remember_source_geometry(spec)
 	var started:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	var geometry:Resource=_source_geometry(spec)
 	if geometry is BoxMesh and not geometry.flip_faces:
@@ -900,6 +931,7 @@ func _step_publication()->void:
 			if _cache_writer.start(func():preload("res://scripts/world3d/navigation_cache.gd").store_mesh(key,snapshot))!=OK:_cache_writer=null
 		source.clear()
 		_specs = []
+		_spec_geometry.clear();_geometry_users.clear()
 		_faces.clear()
 	else:_start_full_bake()
 

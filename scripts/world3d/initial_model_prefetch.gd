@@ -13,9 +13,11 @@ var _released := 0
 var started_us := 0
 
 func start(paths: Array, controller: RefCounted, workers: int, content_root: String, starter: Callable = Callable()) -> bool:
-	if paths.is_empty(): return false
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.start") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if paths.is_empty() or _worker!=null: return false
 	for path: String in paths: _paths[path] = true
 	_mutex.lock()
+	_raw_allowed=false
 	_controller = controller
 	if _cancelled: _controller.cancel()
 	_mutex.unlock()
@@ -30,12 +32,14 @@ func start(paths: Array, controller: RefCounted, workers: int, content_root: Str
 	return false
 
 func cancel() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	_cancelled = true
 	if _controller != null: _controller.cancel()
 	_mutex.unlock()
 
 func _wait_for_validation() -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch._wait_for_validation") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	while true:
 		_mutex.lock()
 		var cancelled := _cancelled
@@ -46,7 +50,18 @@ func _wait_for_validation() -> bool:
 		OS.delay_usec(500)
 	return false
 
+func allow_validated_raw()->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.allow_validated_raw") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	# The cold caller already validated its complete author closure. take()
+	# still checks the eventual authoritative selected source path set.
+	_mutex.lock()
+	var allowed:bool=not _cancelled and _worker!=null and _controller!=null and not _controller.is_cancelled()
+	if allowed:_raw_allowed=true
+	_mutex.unlock()
+	return allowed
+
 func take(actual_paths: Array) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.take") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _worker == null: return {"accepted": false}
 	var actual: Dictionary = {}
 	for path: String in actual_paths: actual[path] = true
@@ -73,18 +88,20 @@ func take(actual_paths: Array) -> Dictionary:
 	return {"accepted": false}
 
 func abandon() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.abandon") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _worker == null: return
 	_controller.cancel()
 	var packet: Dictionary = _worker.wait_to_finish(); _worker = null
 	_mutex.lock(); _discarded.append(packet); _mutex.unlock()
 
 func drain_discarded() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.initial_model_prefetch.drain_discarded") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	var packets := _discarded.duplicate()
 	_discarded.clear()
 	_mutex.unlock()
 	if packets.is_empty(): return
 	Drainer.synchronize_transfer()
-	for packet: Dictionary in packets: packet.clear()
+	for packet: Dictionary in packets: Drainer.dispose_result(packet)
 	Drainer.synchronize_transfer()
 	_mutex.lock(); _released += packets.size(); _mutex.unlock()

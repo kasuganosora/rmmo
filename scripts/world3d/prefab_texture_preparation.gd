@@ -45,6 +45,7 @@ static func _header(path:String,root:String)->Dictionary:
 	return {"width":header.width,"height":header.height,"source_bytes":length,"extension":extension}
 
 static func estimate(requested:Dictionary,root:String)->Dictionary:
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return {"rows":{},"estimated_bytes":0,"output_bytes":0}
 	var rows:Dictionary={};var output:=0;var scratch:=0
 	if not valid_sources(requested):return {"rows":{},"estimated_bytes":0,"output_bytes":0}
 	var keys:Array=requested.keys();keys.sort()

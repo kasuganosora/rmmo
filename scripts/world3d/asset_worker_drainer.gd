@@ -16,6 +16,7 @@ class CancelToken extends RefCounted:
 		mutex.lock(); var value := cancelled; mutex.unlock(); return value
 
 static func for_tree(tree: SceneTree) -> Node:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.for_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var existing := tree.root.get_node_or_null(NODE_NAME)
 	if existing != null: return existing
 	var owner := new()
@@ -25,15 +26,18 @@ static func for_tree(tree: SceneTree) -> Node:
 	return owner
 
 func watch(worker: Thread, token: RefCounted) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.watch") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	jobs.append({"worker":worker,"token":token,"abandoned":false})
 	set_process(true)
 
 func forget(worker: Thread) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.forget") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for i in range(jobs.size()-1,-1,-1):
 		if jobs[i].worker == worker: jobs.remove_at(i)
 	if jobs.is_empty(): set_process(false)
 
 func abandon(worker: Thread) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.abandon") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for job: Dictionary in jobs:
 		if job.worker == worker:
 			job.abandoned = true
@@ -41,6 +45,7 @@ func abandon(worker: Thread) -> void:
 	set_process(true)
 
 func _process(_delta: float) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._process") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for i in range(jobs.size()-1,-1,-1):
 		var job: Dictionary = jobs[i]
 		if not job.abandoned or job.worker.is_alive(): continue
@@ -52,6 +57,7 @@ func _process(_delta: float) -> void:
 	if jobs.is_empty(): set_process(false)
 
 static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_result") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not worker.is_started(): return
 	var result: Variant = worker.wait_to_finish()
 	# A parser can hand off a private PackedScene/GLTFState without a Node.
@@ -68,6 +74,7 @@ static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
 	if token!=null and token.has_meta("admission_owner"):token.remove_meta("admission_owner")
 
 static func release_shared(token:RefCounted)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.release_shared") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Both normal consumption and detached-map disposal call this only after the
 	# worker joined and every owned result alias was cleared on main.
 	if token==null:return
@@ -81,6 +88,7 @@ static func release_shared(token:RefCounted)->void:
 	if token is CancelToken:token.cancel_callback=Callable()
 
 static func dispose_result(result:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.dispose_result") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Clear the packet itself, not just a caller's reference. Polling code and a
 	# job can alias it; neither may retain native resources after budget release.
 	# Only ownership fields recurse: records/index/author dictionaries are borrowed
@@ -89,6 +97,7 @@ static func dispose_result(result:Dictionary)->void:
 	_dispose_owned_packet(result,[])
 
 static func _dispose_owned_packet(packet:Dictionary,seen:Array)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_owned_packet") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for previous:Variant in seen:
 		if previous is Dictionary and is_same(previous,packet):return
 	seen.append(packet)
@@ -100,22 +109,31 @@ static func _dispose_owned_packet(packet:Dictionary,seen:Array)->void:
 	packet.clear()
 
 static func _dispose_owned_value(value:Variant,seen:Array)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_owned_value") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if value is Dictionary:_dispose_owned_packet(value,seen)
 	elif value is Array:
 		for previous:Variant in seen:
 			if previous is Array and is_same(previous,value):return
 		seen.append(value)
-		for item:Variant in value:_dispose_owned_value(item,seen)
-		value.clear()
+		while not value.is_empty():
+			var item:Variant=value.pop_back()
+			_dispose_owned_value(item,seen)
+			if preload("res://scripts/world3d/load_trace.gd").enabled and item is Resource:
+				var kind:String=item.get_class();var began:=Time.get_ticks_usec()
+				item=null
+				preload("res://scripts/world3d/load_trace.gd").elapsed("retirement.resource_release",began,{"class":kind})
+			else:item=null
 	elif is_instance_valid(value) and value is Node and not value.is_inside_tree() and value.get_parent()==null:dispose_scene(value)
 
 static func synchronize_transfer() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.synchronize_transfer") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Joining a worker only joins CPU code. Its queued material/instance setup
 	# must be executed before main-thread pack/free can destroy those same RIDs.
 	# Do this on main, after the worker has returned; never on the GPU worker.
 	RenderingServer.force_sync()
 
 static func dispose_scene(scene: Node) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.dispose_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	synchronize_transfer()
 	if not is_instance_valid(scene): return
 	# MeshInstance3D's derived members (mesh/surface overrides) can drop their
@@ -129,6 +147,7 @@ static func dispose_scene(scene: Node) -> void:
 	retained.clear()
 
 static func _retain_visual_resources(node: Node, retained: Array[Resource]) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._retain_visual_resources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node is MeshInstance3D:
 		if node.mesh != null: retained.append(node.mesh)
 		if node.skin != null: retained.append(node.skin)
@@ -141,6 +160,7 @@ static func _retain_visual_resources(node: Node, retained: Array[Resource]) -> v
 	for child in node.get_children(): _retain_visual_resources(child,retained)
 
 static func drain_shutdown(worker: Thread, token: RefCounted = null) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.drain_shutdown") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if token != null: token.cancel()
 	# Engine shutdown has no future process frames. Godot's force_sync maps to
 	# RenderingServerDefault::sync: it flushes commands queued by other threads
@@ -151,6 +171,7 @@ static func drain_shutdown(worker: Thread, token: RefCounted = null) -> void:
 	_dispose_result(worker,token)
 
 func _exit_tree() -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for job: Dictionary in jobs:
 		if job.token != null: job.token.cancel()
 	for job: Dictionary in jobs: drain_shutdown(job.worker,job.token)

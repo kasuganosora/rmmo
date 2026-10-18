@@ -28,15 +28,18 @@ class Lease extends RefCounted:
 		bytes-=int(rows[key].bytes);rows.erase(key)
 
 static func key(source:Mesh,cpu:Mesh,basis:Basis)->String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return "%d:%d:"%[source.get_instance_id(),cpu.get_instance_id()]+var_to_bytes(basis).hex_encode()
 
 func _update_profile()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch._update_profile") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var draining_bytes:int=_draining.bytes if _draining!=null else 0
 	profile.reserved_bytes=_charge.bytes+draining_bytes
 	profile.queued=_charge.rows.size()+(_draining.rows.size() if _draining!=null else 0)
 	profile.peak_bytes=maxi(int(profile.peak_bytes),int(profile.reserved_bytes))
 
 func poll()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.poll") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _draining!=null and _draining.drained:_draining=null
 	if _thread==null or _thread.is_alive():_update_profile();return
 	# This join is already complete. No main-thread wait for active CPU work.
@@ -55,6 +58,7 @@ func poll()->void:
 	_update_profile()
 
 func request(requests:Array,tree:SceneTree)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.request") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	poll()
 	if tree==null or _draining!=null:return false
 	var wanted:Dictionary={}
@@ -98,6 +102,7 @@ func request(requests:Array,tree:SceneTree)->bool:
 	return true
 
 func take(source:Mesh,cpu:Mesh,basis:Basis)->PackedVector3Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.take") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	poll()
 	var id:=key(source,cpu,basis)
 	if not _ready.has(id):return PackedVector3Array()
@@ -107,12 +112,22 @@ func take(source:Mesh,cpu:Mesh,basis:Basis)->PackedVector3Array:
 	_ready.erase(id);lease.consumer=true;profile.hits+=1;_update_profile()
 	return faces
 
+func pending(source:Mesh,cpu:Mesh,basis:Basis)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.pending") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	poll()
+	var id:=key(source,cpu,basis)
+	# A batch already owns this exact extraction and its byte reservation.
+	# Consumers wait for that bounded producer instead of launching a duplicate.
+	return _thread!=null and _charge.rows.has(id) and not _ready.has(id) and not _charge.rows[id].get("consumer",false)
+
 func release(source:Mesh,cpu:Mesh,basis:Basis)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.release") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var id:=key(source,cpu,basis)
 	if _charge.rows.get(id,{}).get("consumer",false):_charge.erase(id)
 	_update_profile()
 
 func cancel()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _thread==null and _ready.is_empty() and _charge.rows.is_empty():_update_profile();return
 	_ready.clear()
 	# Leaving covered loading cancels lookahead, not a terrain consumer already
@@ -133,6 +148,7 @@ func cancel()->void:
 	_update_profile()
 
 func release_sources(meshes:Dictionary)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.release_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	poll()
 	for lease:Lease in [_charge,_draining]:
 		if lease==null:continue
@@ -146,6 +162,7 @@ func release_sources(meshes:Dictionary)->bool:
 	return true
 
 static func _snapshot(row:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch._snapshot") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var cpu:Mesh=row.cpu
 	if not cpu is Cpu:return {}
 	var basis:Basis=row.basis
@@ -170,6 +187,7 @@ static func _snapshot(row:Dictionary)->Dictionary:
 	return {"count":count,"faces":PackedVector3Array(),"basis":basis,"surfaces":surfaces}
 
 static func _build(snapshots:Array,token:RefCounted)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch._build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var output:Dictionary={}
 	for snapshot:Dictionary in snapshots:
 		if token.is_cancelled():return {}

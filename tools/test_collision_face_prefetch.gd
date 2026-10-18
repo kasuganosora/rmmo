@@ -20,6 +20,19 @@ class CoveredLookaheadGate extends "res://scripts/world3d/stream_collision_prepa
 		if hold_application: return false
 		return super.prepare(record, host, work_budget_usec)
 
+class DelayedBatch extends RefCounted:
+	var mutex:=Mutex.new()
+	var released:=false
+	func release()->void:
+		mutex.lock();released=true;mutex.unlock()
+	func start(worker:Thread,task:Callable)->int:
+		return worker.start(func():
+			while true:
+				mutex.lock();var ready:bool=released;mutex.unlock()
+				if ready:break
+				OS.delay_usec(500)
+			return task.call())
+
 func indexed_source(small: bool = false, offset: Vector3 = Vector3.ZERO) -> Mesh:
 	var original := source()
 	var faces: PackedVector3Array = original.surfaces[0][Mesh.ARRAY_VERTEX]
@@ -298,15 +311,49 @@ func finish_stream(fixture: Dictionary, enabled: bool) -> void:
 	var deadline := Time.get_ticks_msec() + 20000
 	while Time.get_ticks_msec() < deadline:
 		Stream.sync(fixture.map, fixture.host, Vector3.ZERO, Stream.LOAD_BUDGET)
-		if Stream.entry_scope_ready(fixture.map): break
+		if stream_is_ready(fixture.map): break
 		await process_frame
-	check(Stream.entry_scope_ready(fixture.map), "real covered WorldStream reaches visual and collision readiness")
+	check(stream_is_ready(fixture.map), "real loading WorldStream reaches visual and collision readiness")
 	check(fixture.map.get_meta("stream_bodies", {}).size() == fixture.records.size(), "every requested ordinary and sliced collision body is actually published")
 	print("STREAM_PREFETCH_RESULT mode=", fixture.mode, " profile=", JSON.stringify(fixture.preparer._face_prefetch.profile))
 	var bodies: Dictionary = fixture.map.get_meta("stream_bodies", {})
 	for record: Dictionary in fixture.records:
 		var body: StaticBody3D = bodies.get(record.uuid)
 		if check(body != null, "published body exists: " + record.uuid): geometry_equal(body, record.collision_mesh, record.transform, record.uuid)
+
+func stream_is_ready(map:Node)->bool:
+	if map.has_meta("entry_stream_clip"):return Stream.entry_scope_ready(map)
+	return map.get_meta("stream_chunk",Vector2i(2147483647,2147483647))==Vector2i.ZERO
+
+func unclipped_loading()->void:
+	var before:=stream_world("off");Stream.clear_entry_scope(before.map)
+	await finish_stream(before,false)
+	var after:=stream_world("on");Stream.clear_entry_scope(after.map)
+	await finish_stream(after,true)
+	check(after.preparer._face_prefetch.profile.hits>0,"unclipped loading consumes bounded batch results instead of one worker per mesh")
+	compare_streams(before,after,"unclipped loading exact collision")
+	await physics_equivalence(before,after)
+	before.viewport.free();after.viewport.free()
+
+func pending_batch_owns_extraction()->void:
+	for sliced:bool in [false,true]:
+		var host:=Node3D.new();root.add_child(host)
+		var preparer:=Preparer.new();host.add_child(preparer)
+		var gate:=DelayedBatch.new();preparer._face_prefetch.thread_starter=gate.start
+		var cpu:=indexed_source(not sliced)
+		var record:=full_spec(cpu,"pending_sliced" if sliced else "pending_small",Transform3D.IDENTITY)
+		check(preparer._face_prefetch.request([request(cpu,cpu)],self),"admit delayed exact face producer, sliced="+str(sliced))
+		check(not preparer.prepare(record,host) and preparer._thread==null and preparer._terrain._thread==null and preparer._terrain._body==null and preparer._terrain._spec.is_empty(),"pending batch keeps readiness false without duplicate extraction or empty body, sliced="+str(sliced))
+		gate.release();await settle(preparer._face_prefetch)
+		var deadline:=Time.get_ticks_msec()+15000
+		while not preparer.prepare(record,host) and Time.get_ticks_msec()<deadline:await process_frame
+		check(preparer.face_worker_starts==0 and preparer._terrain.face_expansions==0 and preparer._face_prefetch.profile.hits==1,"exact pending output is consumed once without a fallback worker, sliced="+str(sliced))
+		if sliced:
+			check(is_instance_valid(record.get("prepared_body")),"sliced pending result produces a complete disabled body")
+			if is_instance_valid(record.get("prepared_body")):geometry_equal(record.prepared_body,cpu,Transform3D.IDENTITY,"pending sliced exact faces")
+		else:face_equal(record.shape.get_faces(),cpu.collision_faces(),"pending ordinary exact faces")
+		await cancel_queue(preparer._face_prefetch)
+		host.free()
 
 func compare_streams(baseline: Dictionary, candidate: Dictionary, label: String) -> void:
 	var before: Dictionary = baseline.map.get_meta("stream_bodies", {})
@@ -459,6 +506,8 @@ func run() -> void:
 	await source_lifetime()
 	await cancelled_and_replaced()
 	await stream_integration()
+	await unclipped_loading()
+	await pending_batch_owns_extraction()
 	await stream_destination_switch()
 	await stream_budget_mode_switch()
 	await stream_exit_joins()

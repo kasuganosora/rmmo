@@ -28,10 +28,8 @@ const SharedImages=preload("res://scripts/world3d/shared_prefab_images.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const CollisionGeometry=preload("res://scripts/world3d/model_collision_requirements.gd")
-static var shared_prefab_texture_preparation_enabled:=false # S2 experiment; retained outputs are charged once.
-# Opt-in experiments: whole-entry ABBA regressed with per-group image work and
-# native overlap. Shared source tasks are required before enabling by default.
-static var prefab_texture_preparation_enabled:=false
+static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
+static var prefab_texture_preparation_enabled:=true
 static var native_entry_prefetch_enabled:=false
 static var bridge_texture_preparation_enabled:=true # Demanded native bridges, after core publication only; full entry ABBA verified.
 static var native_preparation_enabled:=true # Probe-only old native/readmission path.
@@ -80,6 +78,9 @@ var _reference_root:=""
 var _reference_proof:OwnershipProof
 var _runtime_record_ids:Dictionary={}
 var runtime_fixture_states:Dictionary={} # Scalar state survives render retirement.
+var _runtime_building_records:Dictionary={} # Verified live component adaptation; preserves long-view reload demand.
+var _runtime_building_supports:Dictionary={} # Authored IDs only; no mesh/record ownership.
+var _pending_by_record_id:Dictionary={}
 var _memory_estimates:Dictionary={}
 var _entry_loading:Dictionary={}
 var _scene_handoff:=false
@@ -290,6 +291,8 @@ func _init()->void:
 
 func configure_references(index:Dictionary,path:String,content_root:String,ownership_proof:OwnershipProof=null)->void:
 	_invalidate_collision_queries()
+	_runtime_building_records.clear()
+	_runtime_building_supports.clear();_pending_by_record_id.clear()
 	_reference_index=index;_reference_map_path=path;_reference_root=content_root;_reference_proof=ownership_proof
 	_collision_definition_modes.clear();_collision_definition_count=0;_collision_definition_bytes=0
 	_prefab_texture_attempts.clear();_prefab_texture_attempt_revision=-1
@@ -404,28 +407,56 @@ func _release_collision_request(id:String)->void:
 	if service!=null:service.release_request(id)
 
 func requeue_reference(entry:Dictionary)->bool:
+	return requeue_references([entry])==1
+
+static var native_reference_batching_enabled:=true
+const ROAD_REFERENCE_BATCH_SIZE:=16
+const ROAD_REFERENCE_BATCH_BYTES:=64*1024*1024
+static func reference_path(entry:Dictionary)->String:
+	var asset:String=entry.get("asset_path","")
+	if not asset.is_empty():return asset
+	var group:String=entry.get("group_id","")
+	if not group.is_empty():return "reference:"+group
+	# Independent road rows share one bounded read/validation transaction. Only
+	# live demands enter _reference_requests; spatial and publication units stay
+	# independent. Stable catalog pages also work after retirement and revisit.
+	if native_reference_batching_enabled and entry.get("reason","")=="native_road":
+		return "reference:road_batch:"+str(floori(float(entry.record_index)/ROAD_REFERENCE_BATCH_SIZE))
+	return "reference:"+str(entry.record_index)
+
+func requeue_references(entries:Array)->int:
 	# Called only after resident stream/navigation ownership has been released.
 	# Preserve the compact catalog and verified model version for a later revisit.
-	var uuid:String=entry.compact_record.uuid
-	if pending.any(func(item):return item.record.uuid==uuid):return false
-	var path:String=entry.asset_path
-	if _reference_index.is_empty():return false
-	var native:=path.is_empty()
-	if native:path="reference:"+(entry.group_id if not str(entry.get("group_id","")).is_empty() else str(entry.record_index))
+	if _reference_index.is_empty():return 0
+	var known:Dictionary={};var selected:Dictionary={};var accepted:Array=[]
+	for item:Dictionary in pending:known[item.record.uuid]=true
+	for entry:Dictionary in entries:
+		var uuid:String=entry.compact_record.uuid
+		if known.has(uuid):continue
+		known[uuid]=true;selected[uuid]=true;accepted.append(entry)
+	if accepted.is_empty():return 0
 	var extra:Dictionary=_map.get_meta("extras",{})
 	var records:Array=extra.get("rmmo_records",[])
-	for i in range(records.size()-1,-1,-1):
-		if records[i].uuid==uuid:records.remove_at(i)
-	_runtime_record_ids.erase(uuid)
+	var write:=0
+	for read:int in records.size():
+		if selected.has(records[read].uuid):continue
+		records[write]=records[read];write+=1
+	records.resize(write)
 	# Retirement is a scene-thread operation, not a new filesystem read. A path
 	# admitted before carries its original decoded-size estimate. An initially
 	# resident-only path without that estimate safely retries in exclusive mode.
-	var memory:Dictionary=_memory_estimates.get(path,{"estimated_bytes":_admission.byte_limit,"exclusive":true,"known":false})
-	pending.append({"record":entry.compact_record,"path":path,"bounds":entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")})
+	for entry:Dictionary in accepted:
+		var uuid:String=entry.compact_record.uuid;var path:String=entry.asset_path
+		var native:=path.is_empty()
+		if native:path=reference_path(entry)
+		_runtime_record_ids.erase(uuid)
+		var memory:Dictionary=_memory_estimates.get(path,{"estimated_bytes":_admission.byte_limit,"exclusive":true,"known":false})
+		var runtime_bounds:Variant=_runtime_building_records.get(uuid)
+		pending.append({"record":entry.compact_record,"path":path,"bounds":runtime_bounds if runtime_bounds is AABB else entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")})
 	_indexed=false;_pending_index.clear();_large_pending.clear();_demand_revision+=1
 	_invalidate_collision_queries()
 	_completion_emitted=false;set_process(_active)
-	return true
+	return accepted.size()
 
 func activate(host:Node)->void:
 	if not _entry_prefetch.is_empty():return # Only finish + entry ownership permits publication.
@@ -433,7 +464,8 @@ func activate(host:Node)->void:
 	_map=get_parent();_host=host;_active=true;set_process(true)
 	_lifetime_tree=get_tree()
 	_adopt_collision_prefetch()
-	for record:Dictionary in _map.get_meta("extras",{}).get("rmmo_records",[]):_runtime_record_ids[record.uuid]=true
+	_runtime_record_ids.clear()
+	for record:Dictionary in _map.get_meta("extras",{}).get("rmmo_records",[]):_runtime_record_ids[record.uuid]=record
 	for item:Dictionary in pending:
 		if not _memory_estimates.has(item.path) and item.has("memory"):_memory_estimates[item.path]=item.memory
 	# Keep decoded outputs and upload copies inside a conservative physical-RAM
@@ -514,6 +546,8 @@ func shutdown()->void:
 	profile.active_jobs=0;profile.reserved_bytes=_admission.reserved_bytes
 	_raw_retries.clear()
 	if _prefetch_budget_owned:profile.entry_prefetch_mode="shutdown"
+	_runtime_record_ids.clear()
+	_pending_by_record_id.clear();_runtime_building_records.clear();_runtime_building_supports.clear()
 
 func _notification(what:int)->void:
 	# An off-tree queue has never received _exit_tree. A forced loader teardown
@@ -630,7 +664,9 @@ func _instance_failed(uuid:String,reason:String)->void:
 
 func _index_pending()->void:
 	if _indexed:return
+	_pending_by_record_id.clear()
 	for item:Dictionary in pending:
+		_pending_by_record_id[item.record.uuid]=item
 		var box:AABB=item.bounds
 		var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
 		if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);continue
@@ -664,19 +700,29 @@ func _refresh_demanded()->void:
 	if _candidates_revision==_demand_revision:return
 	var began:=Time.get_ticks_usec()
 	var candidates:Dictionary={}
+	_index_pending()
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
 		var candidates_for_demand:Array=pending if demand.has("group_id") else _in_clip(demand.clip)
 		for item:Dictionary in candidates_for_demand:
 			if item.get("published",false) or (demand.has("group_id") and item.get("group_id","")!=demand.group_id):continue
-			if demand.get("kind","all")=="building" and not str(item.get("group_id","")).begins_with("building:"):continue
+			if demand.get("kind","all")=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
 			if demand.get("kind","all")=="road" and item.get("reference_entry",{}).get("reason","")!="native_road":continue
 			if demand.get("kind","all")=="structure" and item.get("reference_entry",{}).get("reason","") not in ["native_fortification","native_bridge"]:continue
 			var uuid:String=item.record.uuid
 			var distance:float=_distance_from(item,_priority if id=="player" else demand.clip.get_center())
 			var score:float=float(demand.priority)*1e15+distance
 			if not candidates.has(uuid) or score<float(candidates[uuid].score):candidates[uuid]={"item":item,"score":score,"priority":int(demand.priority)}
+			# Learned imported buildings retain the same supporting landscape as
+			# their last verified live index. This closure stays inside the allowed
+			# parent ticket/scope; it never broadens demand to unrelated far props.
+			for support:String in _runtime_building_supports.get(uuid,{}):
+				var dependency:Dictionary=_pending_by_record_id.get(support,{})
+				if dependency.is_empty() or dependency.get("published",false):continue
+				var priority:int=int(demand.priority)-1
+				var support_score:float=float(priority)*1e15+_distance_from(dependency,_priority)
+				if not candidates.has(support) or support_score<float(candidates[support].score):candidates[support]={"item":dependency,"score":support_score,"priority":priority}
 	var ordered:Array=candidates.values()
 	ordered.sort_custom(func(a,b):return a.score<b.score)
 	_demanded.clear()
@@ -700,6 +746,20 @@ func _refresh_demanded()->void:
 	profile.demand_refresh_us=int(profile.get("demand_refresh_us",0))+elapsed
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)
 	profile.demand_refreshes=int(profile.get("demand_refreshes",0))+1
+
+func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->void:
+	if _runtime_building_records.get(uuid)==bounds and _runtime_building_supports.get(uuid,{})==supports:return
+	_runtime_building_records[uuid]=bounds;_runtime_building_supports[uuid]=supports.duplicate()
+	_demand_revision+=1;set_process(_active)
+
+func _runtime_supports_ready(uuid:String)->bool:
+	_index_pending()
+	for id:String in _runtime_building_supports.get(uuid,{}):
+		var item:Dictionary=_pending_by_record_id.get(id,{})
+		if item.is_empty() or item.get("published",false):continue
+		if instance_errors.has(id) or path_errors.has(item.path):_instance_failed(uuid,"建筑支撑地形准备失败："+id)
+		return false
+	return true
 
 func ensure_geometry(clip:AABB,id:String="navigation")->bool:
 	var priority:=mini(-1,int(_demands.get(id,{}).get("priority",-1)))
@@ -891,9 +951,18 @@ func prioritize(position:Vector3)->void:
 
 func _reference_requests(path:String)->Array:
 	var requests:Array=[];var ids:Dictionary={};var groups:Dictionary={}
+	var road_batch:=path.begins_with("reference:road_batch:")
+	var priority:=_path_priority(path);var selected_bytes:=0
 	for item:Dictionary in _demanded_by_path.get(path,[]):
 		if instance_errors.has(item.record.uuid) or not item.has("reference_entry") or item.get("reference_prepared",false):continue
 		var entry:Dictionary=item.reference_entry
+		if road_batch:
+			# A critical local solid must not wait for lower-priority distant roads.
+			if int(_demanded_priority.get(str(item.record.uuid),2147483647))>priority:continue
+			var bytes:=int(entry.get("memory_bytes",65536))
+			# Large legal roads still run alone under their complete old estimate.
+			if not requests.is_empty() and selected_bytes+bytes>ROAD_REFERENCE_BATCH_BYTES:continue
+			selected_bytes+=bytes
 		if not str(entry.get("group_id","")).is_empty():
 			if groups.has(entry.group_id):continue
 			groups[entry.group_id]=true
@@ -907,6 +976,15 @@ func _reference_requests(path:String)->Array:
 		else:
 			if not ids.has(entry.record_index):requests.append(entry);ids[entry.record_index]=true
 	return requests
+
+func _job_publication_ids(path:String,requests:Array)->Array:
+	var result:Array=[]
+	if path.begins_with("reference:road_batch:"):
+		for entry:Dictionary in requests:result.append(str(entry.compact_record.uuid))
+	else:
+		for item:Dictionary in _demanded_by_path.get(path,[]):
+			if not instance_errors.has(item.record.uuid):result.append(str(item.record.uuid))
+	return result
 
 func _geometry_consumers(path:String)->Array:
 	# Include off-screen/future instances from the immutable directory, not only
@@ -1063,7 +1141,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		return prepared
 	var result:Dictionary
 	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode))
-	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode))
+	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true)
 	if model_route.get("filter_collision_geometry",false) and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false):
 		result.collision_geometry_mode=int(geometry.mode);result.collision_definitions=geometry.definitions
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
@@ -1197,11 +1275,15 @@ func _accept_prepared_records(result:Dictionary)->void:
 		var key:String="reference_proof_jobs" if reference_profile.get("ownership_proof_used",false) else "reference_full_scan_jobs"
 		profile[key]=int(profile.get(key,0))+1
 
+func runtime_record(uuid:String)->Dictionary:
+	var record:Variant=_runtime_record_ids.get(uuid)
+	return record if record is Dictionary else {}
+
 func _note_runtime_record(item:Dictionary)->void:
 	if not item.has("reference_entry") or _runtime_record_ids.has(item.record.uuid):return
 	var extra:Dictionary=_map.get_meta("extras",{})
 	if not extra.get("rmmo_records") is Array:return
-	extra.rmmo_records.append(item.record);_runtime_record_ids[item.record.uuid]=true
+	extra.rmmo_records.append(item.record);_runtime_record_ids[item.record.uuid]=item.record
 	var dependencies:Dictionary=extra.get("rmmo_resource_dependencies",{})
 	var reference:Dictionary=item.reference_entry.compact_record.rmmo_ref
 	dependencies[reference.uri]=reference.sha256;extra.rmmo_resource_dependencies=dependencies
@@ -1312,6 +1394,9 @@ func _publication_ready()->Array:
 	# siblings sharing the same model progress without rebuilding/sorting demand.
 	for path:String in _jobs:
 		if not _prepared_paths.has(path) or path_errors.has(path):continue
+		var instance:Dictionary=_jobs[path].get("instance_preparation",{})
+		if not instance.is_empty() and (not _demanded_by_id.has(instance.uuid) or instance_errors.has(instance.uuid)):
+			instance.cursor.dispose();_jobs[path].erase("instance_preparation");instance={}
 		var staged:Dictionary=_jobs.get(path,{}).get("staged",{})
 		if not _publication_queues.has(path):_publication_queues[path]={"items":_demanded_by_path.get(path,[]).duplicate(),"cursor":0,"scan":0}
 		var queue:Dictionary=_publication_queues[path]
@@ -1331,6 +1416,8 @@ func _publication_ready()->Array:
 			if at>=queue.items.size():at=queue.cursor
 			queue.scan=at
 			if _publication_discarded(item,staged):continue
+			if not instance.is_empty() and instance.uuid!=item.record.uuid:continue
+			if not _runtime_supports_ready(str(item.record.uuid)):continue
 			var collision:Dictionary=_collision_publication_status(str(item.record.uuid))
 			if collision.get("owned",false):
 				if not str(collision.get("error","")).is_empty():
@@ -1451,6 +1538,12 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			_publish_items(packet.items,packet.specs)
 			_account_work_unit(timing,unit_began)
 			continue
+		if pixel_job.has("instance_preparation"):
+			var revision:=_demand_revision
+			_advance_instance_specs(item,pixel_job,unit_began,maxi(1,budget_usec-(Time.get_ticks_usec()-began)))
+			_account_work_unit(timing,unit_began)
+			if _demand_revision!=revision:break
+			continue
 		var prefab_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
 		if item.record.has("house_prefab"):
 			var prepared:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_cpu",{}).get(item.record.house_prefab.sha256,{})
@@ -1485,32 +1578,73 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			textures={};prepared={}
 		var prefab_finished:=Time.get_ticks_usec()
 		var instance_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
-		var holder:Node3D=_doc._mesh(item.record,true,instance_parts) if item.get("native_reference",false) else _doc._asset(item.record)
-		if holder.has_meta("missing_asset") or holder.has_meta("paint_error") or holder.has_meta("tile_error"):
-			holder.free();_instance_failed(str(item.record.uuid),"后台物件构建失败："+str(item.record.uuid))
-			if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
-			_account_work_unit(timing,unit_began)
-			continue
-		var instance_finished:=Time.get_ticks_usec()
-		var specs:Array=[]
-		if collision_first_enabled and _collision_entry_supported(item) and preload("res://scripts/world3d/collision_instance_preparation.gd")._supported_record(item.record) and _collision_publication_status(publication_id).get("owned",false):
-			_collect_collision_asset(holder,specs)
-		else:_collect(holder,Transform3D.IDENTITY,specs)
-		for i in specs.size():specs[i].map_draw_order=int(item.get("draw_order",0))+i
-		holder.free()
-		var collect_finished:=Time.get_ticks_usec()
+		if not item.get("native_reference",false):
+			var cursor:=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+			cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
+			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts}
+		else:
+			var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
+			if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue
+			var cursor:=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
+			cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
+			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec","prefab_us":prefab_finished-unit_began,"instance_us":Time.get_ticks_usec()-prefab_finished,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts}
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_begin",unit_began,{"uuid":publication_id,"path":item.path})
 		var revision:=_demand_revision
-		if not str(item.get("group_id","")).is_empty():_stage_building(item,specs)
-		else:_publish_items([item],specs)
-		var publication:={"uuid":publication_id,"path":item.path,"group_id":str(item.get("group_id","")),"prefab_us":prefab_finished-unit_began,"instance_us":instance_finished-prefab_finished,"collect_us":collect_finished-instance_finished,"append_us":Time.get_ticks_usec()-collect_finished,"elapsed_us":Time.get_ticks_usec()-unit_began,"covered":_main_thread_budget_usec()==COVERED_LOADING_BUDGET_US}
-		if prefab_parts!=null:publication.prefab_parts_ms=prefab_parts
-		if instance_parts!=null:publication.instance_parts_ms=instance_parts
-		if int(publication.elapsed_us)>int(profile.get("slowest_publication",{}).get("elapsed_us",0)):profile.slowest_publication=publication
-		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publication",unit_began,publication)
+		_advance_instance_specs(item,pixel_job,unit_began,maxi(1,budget_usec-(Time.get_ticks_usec()-began)))
 		_account_work_unit(timing,unit_began)
 		if _demand_revision!=revision:break
 	profile.publication_units=int(profile.get("publication_units",0))+int(timing.units)
 	return timing
+
+func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,budget_usec:int)->void:
+	var preparation:Dictionary=job.instance_preparation
+	if preparation.get("phase","")=="asset":
+		var asset:RefCounted=preparation.cursor;var began:=Time.get_ticks_usec()
+		var ready:bool=asset.advance(budget_usec)
+		var elapsed:=Time.get_ticks_usec()-began
+		profile.asset_instance_units=int(profile.get("asset_instance_units",0))+1
+		profile.max_asset_instance_unit_us=maxi(int(profile.get("max_asset_instance_unit_us",0)),elapsed)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.asset_instance_step",began,{"uuid":item.record.uuid,"ready":ready})
+		if not ready:
+			var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen;return
+		var holder:Node3D=asset.take_holder()
+		if _instance_error(holder,item):job.erase("instance_preparation");return
+		preparation.instance_us=asset.profile.elapsed_us;preparation.instance_slices=asset.profile.slices
+		var prepared_specs:=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
+		prepared_specs.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
+		preparation.cursor=prepared_specs;preparation.phase="spec"
+		budget_usec=maxi(1,budget_usec-elapsed)
+	var cursor:RefCounted=preparation.cursor;var began:=Time.get_ticks_usec()
+	var ready:bool=cursor.advance(budget_usec)
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.instance_spec_units=int(profile.get("instance_spec_units",0))+1
+	profile.instance_spec_us=int(profile.get("instance_spec_us",0))+elapsed
+	profile.max_instance_spec_unit_us=maxi(int(profile.get("max_instance_spec_unit_us",0)),elapsed)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_specs",began,{"uuid":item.record.uuid,"ready":ready})
+	if not ready:
+		var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen
+		return
+	var specs:Array=cursor.specs
+	job.erase("instance_preparation")
+	var append_began:=Time.get_ticks_usec()
+	if not str(item.get("group_id","")).is_empty():_stage_building(item,specs)
+	else:_publish_items([item],specs)
+	var publication:={"uuid":item.record.uuid,"path":item.path,"group_id":str(item.get("group_id","")),"prefab_us":preparation.prefab_us,"instance_us":preparation.instance_us,"collect_us":cursor.profile.elapsed_us,"collect_slices":cursor.profile.slices,"preparation_spans_frames":cursor.profile.slices>1,"append_us":Time.get_ticks_usec()-append_began,"elapsed_us":Time.get_ticks_usec()-unit_began,"covered":_main_thread_budget_usec()==COVERED_LOADING_BUDGET_US}
+	publication.instance_slices=int(preparation.get("instance_slices",1))
+	publication.preparation_spans_frames=publication.preparation_spans_frames or publication.instance_slices>1
+	for field:String in ["prefab_parts_ms","instance_parts_ms"]:
+		if preparation[field]!=null:publication[field]=preparation[field]
+	if int(publication.elapsed_us)>int(profile.get("slowest_publication",{}).get("elapsed_us",0)):profile.slowest_publication=publication
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publication",unit_began,publication)
+
+func _local_collision_order(item:Dictionary)->bool:
+	return collision_first_enabled and _collision_entry_supported(item) and preload("res://scripts/world3d/collision_instance_preparation.gd")._supported_record(item.record) and _collision_publication_status(str(item.record.uuid)).get("owned",false)
+
+func _instance_error(holder:Node3D,item:Dictionary)->bool:
+	if not holder.has_meta("missing_asset") and not holder.has_meta("paint_error") and not holder.has_meta("tile_error"):return false
+	holder.free();_instance_failed(str(item.record.uuid),"后台物件构建失败："+str(item.record.uuid))
+	if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+	return true
 
 static func _manifest_matches(path:String,expected:Dictionary)->bool:
 	if expected.is_empty():return true
@@ -1557,7 +1691,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path,"fixed_native":true})
 	return result
 
-static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL)->Dictionary:
+static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL,pack_for_cache:bool=false)->Dictionary:
 	var began:=preload("res://scripts/world3d/load_trace.gd").begin("deferred.prepare")
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	if content_root.is_empty():
@@ -1611,12 +1745,32 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if not captured.error.is_empty():
 		captured.scene=scene;captured.retained_resources=retained
 		return captured
+	var packed:PackedScene
+	if pack_for_cache and not compiled.hit:
+		# This static graph is still exclusively worker-owned. Pack it here so
+		# acceptance never performs a whole imported hierarchy traversal/pack.
+		var pack_began:=Time.get_ticks_usec()
+		Assets._own(scene,scene);packed=PackedScene.new()
+		var code:=packed.pack(scene);retained.append(packed)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_pack",pack_began,{"path":path})
+		if code!=OK:return {"error":"后台素材打包失败："+path,"scene":scene,"retained_resources":retained}
 	var final_sha_started:=Time.get_ticks_usec()
 	var final_digest:=FileAccess.get_sha256(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.final_source_sha",final_sha_started,{"path":path})
 	if final_digest!=source_digest or (not content_root.is_empty() and not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"retained_resources":retained}
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"retained_resources":retained}
-	captured.merge({"scene":scene,"retained_resources":retained,"elapsed_us":Time.get_ticks_usec()-began,"source_digest":source_digest,"compiled":compiled.hit,"compiled_read_us":compiled.elapsed_us})
+	if packed!=null:
+		# The private Node instances can retire on their own worker, but every
+		# renderer Resource must survive until main has joined and synchronized.
+		var visual_resources:Array[Resource]=[]
+		Drainer._retain_visual_resources(scene,visual_resources);retained.append(visual_resources)
+		for value:Variant in retained:
+			if value is Dictionary and value.get("scene")==scene:value.scene=null
+		var dispose_began:=Time.get_ticks_usec();scene.free();scene=null
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_private_disposal",dispose_began,{"path":path})
+		captured.packed=packed
+	else:captured.scene=scene
+	captured.merge({"retained_resources":retained,"elapsed_us":Time.get_ticks_usec()-began,"source_digest":source_digest,"compiled":compiled.hit,"compiled_read_us":compiled.elapsed_us})
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path})
 	return captured
 
@@ -1634,6 +1788,7 @@ static func _fallback_scene(path:String,token:RefCounted,content_root:String)->D
 	if content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):
 		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材路径无效："+path}
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
+	preload("res://scripts/world3d/runtime_probe_controls.gd").configure_gltf(state)
 	var began:=Time.get_ticks_usec()
 	var code:=document.append_from_file(path,state,0,path.get_base_dir())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_parse",began,{"path":path})
@@ -1650,62 +1805,10 @@ static func _fallback_scene(path:String,token:RefCounted,content_root:String)->D
 	return {"error":"" if scene!=null else "素材构建失败："+path,"scene":scene,"retained_resources":[document,state]}
 
 static func _capture_static_meshes(scene:Node,faces_required:bool,token:RefCounted=null,geometry_mode:int=CollisionGeometry.ALL)->Dictionary:
-	# Only worker-owned imported arrays: PrimitiveMesh capture has a shared lazy
-	# box cache. Do not replace the visual mesh or publish any shared library state.
-	var Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
-	var profile:Dictionary={"error":"","capture_us":0,"face_us":0,"capture_bytes":0,"face_bytes":0,"captured_meshes":0,"skipped_geometry_nodes":0}
-	var seen:Dictionary={};var nodes:Array[Node]=[scene]
-	while not nodes.is_empty():
-		if token!=null and token.is_cancelled():
-			profile.error="素材准备已取消";profile.cancelled=true;return profile
-		var node:Node=nodes.pop_back()
-		nodes.append_array(node.get_children())
-		if not node is MeshInstance3D or not node.mesh is ArrayMesh or node.skin!=null:continue
-		# Filter before the shared-mesh seen set: any colliding use still wins,
-		# regardless of traversal order. Distance LOD never suppresses a solid.
-		if not node.has_meta("ground_batch_record") and not CollisionGeometry.needs_geometry(node.get_meta("extras",{}),geometry_mode):
-			profile.skipped_geometry_nodes+=1;continue
-		var mesh:ArrayMesh=node.mesh
-		if seen.has(mesh.get_instance_id()):continue
-		seen[mesh.get_instance_id()]=true
-		if mesh.get_blend_shape_count()!=0:continue
-		var triangles:=true
-		for slot in mesh.get_surface_count():
-			if mesh.surface_get_primitive_type(slot)!=Mesh.PRIMITIVE_TRIANGLES:triangles=false;break
-		if not triangles:continue
-		var began:=Time.get_ticks_usec()
-		var cpu:Mesh=Cpu.capture(mesh)
-		profile.capture_us+=Time.get_ticks_usec()-began;profile.captured_meshes+=1
-		for arrays:Array in cpu.surfaces:
-			for channel:Variant in arrays:profile.capture_bytes+=_packed_payload_bytes(channel)
-		if not faces_required:continue
-		# Validate before the unchecked packed-index expansion. No generated Node
-		# is released here; even a malformed result returns to the main drainer.
-		for arrays:Array in cpu.surfaces:
-			var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
-			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
-			var count:int=indices.size() if indices!=null and not indices.is_empty() else vertices.size()
-			if count%3!=0:profile.error="后台素材三角面记录不完整";return profile
-			if indices!=null:
-				for index:int in indices:
-					if index<0 or index>=vertices.size():profile.error="后台素材三角面索引越界";return profile
-		if token!=null and token.is_cancelled():
-			profile.error="素材准备已取消";profile.cancelled=true;return profile
-		began=Time.get_ticks_usec()
-		var faces:PackedVector3Array=cpu.collision_faces()
-		profile.face_us+=Time.get_ticks_usec()-began;profile.face_bytes+=faces.size()*12
-	return profile
+	return preload("res://scripts/world3d/static_mesh_cpu_preparation.gd").capture(scene,faces_required,token,geometry_mode)
 
 static func _packed_payload_bytes(value:Variant)->int:
-	# Packed buffer payload only, excluding Resource/container overhead. No extra
-	# to_byte_array copies just to collect diagnostics (standard single precision).
-	match typeof(value):
-		TYPE_PACKED_BYTE_ARRAY:return value.size()
-		TYPE_PACKED_INT32_ARRAY,TYPE_PACKED_FLOAT32_ARRAY:return value.size()*4
-		TYPE_PACKED_INT64_ARRAY,TYPE_PACKED_FLOAT64_ARRAY,TYPE_PACKED_VECTOR2_ARRAY:return value.size()*8
-		TYPE_PACKED_VECTOR3_ARRAY:return value.size()*12
-		TYPE_PACKED_VECTOR4_ARRAY,TYPE_PACKED_COLOR_ARRAY:return value.size()*16
-	return 0
+	return preload("res://scripts/world3d/static_mesh_cpu_preparation.gd").packed_payload_bytes(value)
 
 func _process(_delta:float)->void:
 	if not _active or _cancelled:return
@@ -1764,11 +1867,13 @@ func _process(_delta:float)->void:
 			if not Prefab.tickets_valid(job.pixel_tickets,texture_packet.get("sources",{})):
 				_retry_pixel_job(path,{},"Resident texture changed before acceptance");_account_work_unit(acceptance,unit_began);continue
 			texture_packet.resident_textures=job.pixel_tickets.duplicate()
-		if result.has("scene"):
-			if not Assets.cache_scene(path,result.scene,str(result.get("source_digest",""))):
+		if result.has("scene") or result.has("packed"):
+			var cached:bool=Assets.cache_packed(path,result.packed,str(result.get("source_digest",""))) if result.has("packed") else Assets.cache_scene(path,result.scene,str(result.get("source_digest","")))
+			if not cached:
 				job.result.erase("scene");_discard_job(path);_path_failed(path,"无法缓存后台素材："+path)
 				_account_work_unit(acceptance,unit_began);continue
-			job.result.erase("scene");profile.models+=1
+			if result.has("packed"):profile.worker_packed_models=int(profile.get("worker_packed_models",0))+1
+			job.result.erase("scene");job.result.erase("packed");profile.models+=1
 			var cache_key:="compiled_hits" if result.get("compiled",false) else "compiled_misses"
 			profile[cache_key]=int(profile.get(cache_key,0))+1
 		# Another map may have replaced/evicted this path while the CPU reuse
@@ -1779,6 +1884,7 @@ func _process(_delta:float)->void:
 		if result.get("reused_model",false) and not _accept_reused_faces(job,result):
 			_prepared_paths.erase(path);_discard_job(path);_account_work_unit(acceptance,unit_began);continue
 		_accept_prepared_records(result)
+		if not job.get("native",false):preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(_map,path)
 		_remember_geometry_definitions(path,result)
 		if not job.get("native",false):
 			job.publication_template_owner=Assets._scenes.get(path)
@@ -1872,11 +1978,27 @@ static func _retry_decision(job:Dictionary,result:Dictionary)->String:
 		return "retry"
 	return ""
 
+func _road_batch_superseded(path:String,job:Dictionary)->bool:
+	if not path.begins_with("reference:road_batch:"):return false
+	var first:Dictionary=_path_first.get(path,{})
+	if first.is_empty():return true
+	var ids:Array=job.get("publication_ids",[])
+	if ids.has(str(first.record.uuid)):return false
+	var priority:=_path_priority(path)
+	for id:String in ids:
+		if _demanded_by_id.has(id) and int(_demanded_priority.get(id,2147483647))<=priority:return false
+	return true
+
 func _poll_jobs(required:Dictionary)->void:
 	# Retire completed/cancelled jobs independently; never wait for a slow sibling.
 	for path:String in _jobs.keys():
 		var job:Dictionary=_jobs[path]
 		if not required.has(path):job.token.cancel()
+		elif _road_batch_superseded(path,job):
+			# A page is an IO identity, not an inseparable model. A newly critical
+			# road must not inherit the priority of an older background-only batch.
+			if not job.token.is_cancelled():profile.road_batch_preemptions=int(profile.get("road_batch_preemptions",0))+1
+			job.token.cancel()
 		if job.has("worker"):
 			if job.worker.is_alive():continue
 			var result:Dictionary=job.worker.wait_to_finish()
@@ -1936,7 +2058,7 @@ func _poll_jobs(required:Dictionary)->void:
 			if not source is String or source!=job.get("candidate",{}).get("source_sha") or (not str(job.get("digest","")).is_empty() and source!=job.digest):job.result.error="原生素材返回来源不符："+path
 		if not str(job.result.get("error","")).is_empty():
 			var reason:String=job.result.error
-			if job.result.get("reference_failure",false) and not job.get("native",false):
+			if job.result.get("reference_failure",false) and (not job.get("native",false) or path.begins_with("reference:road_batch:")):
 				var failed_uuid:String=job.result.get("failed_uuid","")
 				if not failed_uuid.is_empty():_instance_failed(failed_uuid,reason)
 				else:
@@ -2017,6 +2139,11 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		var candidate:Dictionary={}
 		var stage:String="native_reference" if native else ("legacy" if need_model else "reuse_reference")
 		var estimate:Dictionary=_estimate_job(next,requests,need_model)
+		if path.begins_with("reference:road_batch:") and requests.size()>1 and int(estimate.estimated_bytes)>_admission.byte_limit:
+			# Complete image/hash workspaces also count. A CPU-bounded page must
+			# not combine valid solo jobs into a permanently inadmissible request.
+			requests=[requests[0]];estimate=_estimate_job(next,requests,need_model)
+			profile.road_batch_budget_solos=int(profile.get("road_batch_budget_solos",0))+1
 		if not reuse_faces.is_empty():estimate.estimated_bytes+=int(reuse_faces.estimated_bytes);estimate.reuse_face_bytes=int(reuse_faces.estimated_bytes)
 		if need_model and not native:
 			var raw_item:Dictionary=next.duplicate()
@@ -2082,9 +2209,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			for item:Dictionary in pending:
 				if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
-		var publication_ids:Array=[]
-		for item:Dictionary in _demanded_by_path.get(path,[]):
-			if not instance_errors.has(item.record.uuid):publication_ids.append(str(item.record.uuid))
+		var publication_ids:Array=_job_publication_ids(path,requests)
 		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec()}
 		if CollisionGeometry.enabled and not native:
 			_jobs[path].geometry_consumers=geometry_consumers;_jobs[path].geometry_mode=geometry_mode
@@ -2160,8 +2285,11 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 	return _prepare_job.bind(path,digest,token,item.get("manifest",{}),needs_faces,content_root,_reference_index,_reference_map_path,requests,native,need_model,_reference_proof,route)
 
 func _discard_job(path:String)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.deferred_asset_loader._discard_job") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_invalidate_collision_queries()
 	var job:Dictionary=_jobs[path]
+	if job.has("instance_preparation"):
+		job.instance_preparation.cursor.dispose();job.erase("instance_preparation")
 	_publication_queues.erase(path);_scheduler_epoch+=1
 	for key:Array in _prefab_texture_attempts.keys():
 		if key[0]==path:_prefab_texture_attempts.erase(key)
@@ -2317,3 +2445,4 @@ func _exit_tree()->void:
 			else:Drainer.drain_shutdown(job.worker,job.token)
 		else:_discard_job(path)
 	_jobs.clear()
+	_runtime_record_ids.clear()

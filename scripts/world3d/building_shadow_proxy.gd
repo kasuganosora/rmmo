@@ -2,6 +2,7 @@ extends RefCounted
 ## Runtime-only opaque shadow surfaces; visual materials and authoring stay intact.
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 static var enabled:=true
+static var unshaded_materials_enabled:=true # Diagnostic control; shadow-only geometry has no lighting pass.
 static var builds:=0
 static var attached:=0
 static var saved_surfaces:=0
@@ -38,21 +39,47 @@ static func attach(node:MeshInstance3D)->bool:
 	var shadow:Mesh=source.get_meta(cache_key) if source.has_meta(cache_key) else null
 	if shadow==null:
 		var began:=Time.get_ticks_usec()
+		var prepared_faces:bool=not source._collision_faces.is_empty()
+		var parts:Dictionary={};var part_began:=Time.get_ticks_usec()
+		var faces:PackedVector3Array=source.collision_faces()
+		var offsets:Array[int]=[0]
+		for arrays:Array in source.surfaces:
+			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
+			offsets.append(offsets[-1]+(indices.size() if indices!=null and not indices.is_empty() else arrays[Mesh.ARRAY_VERTEX].size()))
 		shadow=ArrayMesh.new()
+		parts.faces_us=Time.get_ticks_usec()-part_began
 		# Merge only surfaces with identical face culling. Transparent or vertex-
 		# modified meshes were rejected above, so these positions fully define
 		# their shadows. Preserve every triangle, including holes and backfaces.
 		for cull:int in partitions:
-			var part:=Cpu.new()
-			for slot:int in partitions[cull]:part.surfaces.append(source.surfaces[slot])
-			var arrays:Array=[];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=part.collision_faces()
+			part_began=Time.get_ticks_usec()
+			# The reference worker already prepared this complete immutable soup.
+			# Re-expanding an identical single partition discarded that work and
+			# blocked the streaming frame on every cold template restoration.
+			var triangles:PackedVector3Array=faces
+			if partitions.size()>1:
+				triangles=PackedVector3Array()
+				# Packed slices copy in native code; never walk every triangle again
+				# in GDScript just to separate already prepared culling partitions.
+				for slot:int in partitions[cull]:triangles.append_array(faces.slice(offsets[slot],offsets[slot+1]))
+			var arrays:Array=[];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=triangles
 			if arrays[Mesh.ARRAY_VERTEX].is_empty():return false
+			parts["partition_"+str(cull)+"_us"]=Time.get_ticks_usec()-part_began;part_began=Time.get_ticks_usec()
 			shadow.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+			parts["upload_"+str(cull)+"_us"]=Time.get_ticks_usec()-part_began;part_began=Time.get_ticks_usec()
 			if not _materials.has(cull):
-				var material:=StandardMaterial3D.new();material.cull_mode=cull;_materials[cull]=material
+				var material:=StandardMaterial3D.new();material.cull_mode=cull
+				# This mesh is SHADOWS_ONLY. Generating an unused lighting shader on
+				# its first material bind stalls chunk attachment without contributing
+				# any visible lighting. Culling and opaque depth output stay identical.
+				if unshaded_materials_enabled:material.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
+				_materials[cull]=material
+			parts["material_"+str(cull)+"_us"]=Time.get_ticks_usec()-part_began;part_began=Time.get_ticks_usec()
 			shadow.surface_set_material(shadow.get_surface_count()-1,_materials[cull])
+			parts["bind_"+str(cull)+"_us"]=Time.get_ticks_usec()-part_began
 		source.set_meta(cache_key,shadow);builds+=1
 		max_build_ms=maxf(max_build_ms,(Time.get_ticks_usec()-began)/1000.)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("shadow.build",began,{"uuid":str(node.name),"prepared_faces":prepared_faces,"partitions":partitions.size(),"surfaces":culls.size(),"triangles":faces.size()/3,"parts":parts})
 	var proxy:=MeshInstance3D.new();proxy.name="OpaqueShadow";proxy.mesh=shadow
 	proxy.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	proxy.gi_mode=GeometryInstance3D.GI_MODE_DISABLED;proxy.layers=node.layers

@@ -1215,6 +1215,7 @@ func _mount_events() -> void:
 
 
 func _create_game_hud()->void:
+	if not preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled:return
 	var layer := CanvasLayer.new()
 	layer.layer = 20
 	add_child(layer)
@@ -1228,6 +1229,7 @@ func _create_game_hud()->void:
 
 
 func _add_game_hud() -> void:
+	if not preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled:return
 	if not is_instance_valid(_hud):_create_game_hud()
 	_hud.bind_character(Net.session().active_character())
 	_hud.bind_world_combat(self)

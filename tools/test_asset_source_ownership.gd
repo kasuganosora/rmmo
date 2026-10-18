@@ -16,10 +16,11 @@ func check(value:bool,label:String)->void:
 	print("PASS " if value else "FAIL ",label)
 func write(path:String,bytes:PackedByteArray)->void:
 	var file:=FileAccess.open(path,FileAccess.WRITE);file.store_buffer(bytes);file.close()
-func glb(path:String,label:String,material_extension:bool=false)->void:
+func glb(path:String,label:String,material_extension:bool=false,required:bool=false)->void:
 	var data:={"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":label}],"buffers":[{"byteLength":4}]}
 	if material_extension:
 		data.extensionsUsed=["KHR_materials_unlit"]
+		if required:data.extensionsRequired=["KHR_materials_unlit"]
 		data.materials=[{"extensions":{"KHR_materials_unlit":{}}}]
 	var bytes:=JSON.stringify(data).to_utf8_buffer()
 	while bytes.size()%4:bytes.append(32)
@@ -122,7 +123,11 @@ func run()->void:
 	var raw:=Preparation.parse_gltf(source,Paths.external_root())
 	check(raw.error==OK and not raw.compiled and raw.source_digest==FileAccess.get_sha256(source),"main legacy miss retires invalid native then returns source-bound raw fallback")
 	Drainer.dispose_result(raw)
-	glb(source,"NativeMaterialExtension",true)
+	glb(source,"OptionalMaterialExtension",true)
+	check(preload("res://scripts/world3d/embedded_glb.gd").can_copy(source),"supported optional material extension follows current raw-copy eligibility")
+	# Required extensions deliberately retain the conservative packing route.
+	# Use that real rejected contract to exercise native-proof authorization.
+	glb(source,"NativeMaterialExtension",true,true)
 	product=native_product(source,true)
 	var native:=Compiled.read(source)
 	check(native.hit and not preload("res://scripts/world3d/embedded_glb.gd").can_copy(source),"real verified native read accepts fixture whose material extension fails raw copy eligibility")
@@ -138,7 +143,7 @@ func run()->void:
 		dispose(preview)
 		packed.set_meta("compiled_asset_validated",true)
 		Library.cache_packed(source,packed,native.source_digest)
-		glb(source,"ChangedMaterialExtension",true)
+		glb(source,"ChangedMaterialExtension",true,true)
 		preview=Library.instantiate_preview(source)
 		check(preview!=null and not Library._scenes.has(source) and preview.find_child("ChangedMaterialExtension",true,false)!=null,"native closure proof cannot bypass matching complete source SHA")
 		dispose(preview);packed=null

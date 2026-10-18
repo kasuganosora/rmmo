@@ -51,7 +51,7 @@ func append_specs(root:Node,specs:Array)->void:
 	append_records(root,records)
 
 func append_records(root:Node,records:Array)->void:
-	if root!=map_root or not is_instance_valid(map_root):return
+	if root!=map_root or not is_instance_valid(map_root) or records.is_empty():return
 	var instances:=_instances(root)
 	var changed:Dictionary={};var touched:Dictionary={}
 	for record:Dictionary in records:

@@ -35,14 +35,17 @@ var _profile:Dictionary={}
 var _profile_details:Dictionary={}
 
 func _measure(stage:String,started:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._measure") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if profile_enabled:_profile[stage]=float(_profile.get(stage,0.))+(Time.get_ticks_usec()-started)/1000.
 
 func _release_face_lease()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._release_face_lease") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _face_lease.is_empty():return
 	_face_lease.owner.release(_face_lease.source,_face_lease.cpu,_face_lease.basis)
 	_face_lease.clear()
 
 func cancel(defer_free:bool=false)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var pending=_ready_spec.get("prepared_body")
 	if is_instance_valid(pending):
 		if defer_free:pending.queue_free()
@@ -59,6 +62,7 @@ func cancel(defer_free:bool=false)->void:
 	if _thread==null:_mesh=null
 
 func retire_workers(_tree:SceneTree=null)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer.retire_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# On tree exit the host may be removing its children, including these sibling
 	# bodies. Do not synchronously remove another child while that parent is busy.
 	# Bodies remain disabled; the host or the deletion queue releases them once.
@@ -68,12 +72,15 @@ func retire_workers(_tree:SceneTree=null)->void:
 	_thread=null;_mesh=null
 
 func finish()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer.finish") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	retire_workers()
 
 func resume_workers()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer.resume_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_retiring_workers=false
 
 func prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer.prepare") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _retiring_workers or WorkerRetirement.pending(_retired_leases)>0:return false
 	if not profile_enabled:return _prepare(spec,host,work_budget_usec)
 	_profile={};_profile_details={}
@@ -84,6 +91,7 @@ func prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 	return result
 
 func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._prepare") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var measured:=Time.get_ticks_usec() if profile_enabled else 0
 	var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
 	var pose:Transform3D=_source_pose(spec)
@@ -106,6 +114,8 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 		WorkerRetirement.complete(_retirement)
 		_measure("worker_handoff",measured)
 	if _spec.is_empty():
+		var pending_cpu:Mesh=mesh if mesh is Cpu else (mesh.get_meta("ground_cpu_cache") if mesh.has_meta("ground_cpu_cache") else null)
+		if face_prefetch!=null and pending_cpu!=null and face_prefetch.pending(mesh,pending_cpu,variant.basis):return false
 		measured=Time.get_ticks_usec() if profile_enabled else 0
 		_spec=spec;_mesh=mesh;_cursor=0;_request_pose=pose
 		_variant_key=variant.key;_bake_basis=variant.basis
@@ -195,9 +205,11 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 	return true
 
 static func _worker_extract(surfaces:Array,bake_basis:Basis,completed:PackedVector3Array=PackedVector3Array())->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._worker_extract") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return {"faces":_extract(surfaces,bake_basis,completed)}
 
 static func _extract(surfaces:Array,bake_basis:Basis=Basis.IDENTITY,completed:PackedVector3Array=PackedVector3Array())->PackedVector3Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._extract") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var faces:=completed
 	if faces.is_empty():
 		var snapshot:=Cpu.new();snapshot.surfaces=surfaces
@@ -210,13 +222,16 @@ static func _extract(surfaces:Array,bake_basis:Basis=Basis.IDENTITY,completed:Pa
 	return faces
 
 static func _source_pose(spec:Dictionary)->Transform3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._source_pose") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return spec.get("transform",Transform3D(Basis.from_euler(spec.get("rotation",Vector3.ZERO)),spec.get("position",Vector3.ZERO)))
 
 static func _basis_key(basis:Basis)->String:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._basis_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Keep all basis components: no angle/scale quantization and no translation.
 	return var_to_bytes(basis).hex_encode()
 
 static func _basis_variant(spec:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._basis_variant") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var fallback:Dictionary={"key":"","basis":Basis.IDENTITY}
 	# Fixtures directly animate body transforms; actors/native visuals also
 	# retain their own pose owners. Only immutable static collision specs bake.
@@ -239,6 +254,7 @@ static func _basis_variant(spec:Dictionary)->Dictionary:
 	return {"key":_basis_key(basis),"basis":basis}
 
 static func _cached_variant(mesh:Mesh,key:String)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._cached_variant") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# All cache mutation and PhysicsServer resources remain on the main thread.
 	var cache:Dictionary=mesh.get_meta(BASIS_CACHE_META,{})
 	var entries:Dictionary=cache.get("entries",{})
@@ -249,6 +265,7 @@ static func _cached_variant(mesh:Mesh,key:String)->Dictionary:
 	return entry
 
 static func _store_variant(mesh:Mesh,key:String,shapes:Array)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._store_variant") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var cache:Dictionary=mesh.get_meta(BASIS_CACHE_META,{"entries":{},"serial":0})
 	var entries:Dictionary=cache.entries
 	cache.serial=int(cache.serial)+1

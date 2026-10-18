@@ -17,6 +17,7 @@ static var prefetch_enabled:=true # Covered-entry lookahead only; probe A/B over
 static var terrain_slicing_enabled:=true # Diagnostic A/B override for large static collision slices.
 static var prepared_faces_enabled:=true # Diagnostic A/B; consume only completed immutable CPU faces.
 var prepared_face_hits:=0
+var face_worker_starts:=0
 var profile_enabled:=false
 var profile_serial:=0
 var last_profile:Dictionary={}
@@ -24,16 +25,20 @@ var _profile_stages:Dictionary={}
 var _profile_path:=""
 
 func _measure(stage:String,started:int)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._measure") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if profile_enabled:_profile_stages[stage]=(Time.get_ticks_usec()-started)/1000.
 
 func _enter_tree()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._enter_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_retiring_workers=false;_terrain.resume_workers()
 
 func _ready()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._ready") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	name="StreamCollisionPreparer"
 	set_meta("stream_instance",true)
 
 func prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.prepare") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _retiring_workers or WorkerRetirement.pending(_retired_leases)>0:return false
 	_terrain.profile_enabled=profile_enabled
 	_terrain.face_prefetch=_face_prefetch if prefetch_enabled else null
@@ -47,6 +52,7 @@ func prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 	return ready
 
 func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._prepare") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var measured:=Time.get_ticks_usec() if profile_enabled else 0
 	var source:Mesh=spec.get("collision_mesh",spec.get("mesh"))
 	# Private reference workers already completed the final source transaction.
@@ -110,6 +116,7 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 		_measure("shape_set_faces_ms",measured)
 		mesh.set_meta("runtime_concave_shape",shape);spec.shape=shape
 		return true
+	if prefetch_enabled and _face_prefetch.pending(mesh,cpu,Basis.IDENTITY):return false
 	var prefetched:PackedVector3Array=_face_prefetch.take(mesh,cpu,Basis.IDENTITY) if prefetch_enabled else PackedVector3Array()
 	if not prefetched.is_empty():
 		if profile_enabled:_profile_path="prefetched_faces"
@@ -126,6 +133,7 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 	var tree:SceneTree=get_tree() if is_inside_tree() else (host.get_tree() if host!=null and host.is_inside_tree() else null)
 	_retirement=WorkerRetirement.watch(_thread,tree,[mesh,cpu,surfaces])
 	var error:=_thread.start(_worker_faces.bind(surfaces)) if not _retirement.is_empty() else ERR_UNCONFIGURED
+	if error==OK:face_worker_starts+=1
 	_measure("worker_start_ms",measured)
 	if error!=OK:
 		WorkerRetirement.complete(_retirement)
@@ -133,6 +141,7 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 	return false
 
 static func _needs_slices(spec:Dictionary,source:Mesh)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._needs_slices") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var cpu:Mesh=source if source is Cpu else (source.get_meta("ground_cpu_cache") if source!=null and source.has_meta("ground_cpu_cache") else null)
 	if cpu==null or cpu.box_size!=Vector3.ZERO:return false
 	if spec.get("ground_batch_record",{}).has("terrain_mesh"):return true
@@ -147,13 +156,16 @@ static func _needs_slices(spec:Dictionary,source:Mesh)->bool:
 	return false
 
 static func build_faces(surfaces:Array)->PackedVector3Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.build_faces") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var snapshot:=Cpu.new();snapshot.surfaces=surfaces
 	return snapshot.collision_faces()
 
 static func _worker_faces(surfaces:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._worker_faces") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return {"faces":build_faces(surfaces)}
 
 func retire_workers(tree:SceneTree=null)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.retire_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_retiring_workers=true
 	_terrain.retire_workers(tree)
 	_face_prefetch.cancel()
@@ -161,13 +173,16 @@ func retire_workers(tree:SceneTree=null)->void:
 	_thread=null;_mesh=null
 
 func _exit_tree()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	retire_workers()
 
 func cancel_pending()->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.cancel_pending") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_terrain.cancel()
 	_face_prefetch.cancel()
 
 func prefetch_request(spec:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.prefetch_request") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var source:Mesh=spec.get("collision_mesh",spec.get("mesh"))
 	if source==null or source is BoxMesh:return {}
 	var cpu:Mesh=source if source is Cpu else (source.get_meta("ground_cpu_cache") if source.has_meta("ground_cpu_cache") else null)
@@ -187,6 +202,7 @@ func prefetch_request(spec:Dictionary)->Dictionary:
 	return {"source":source,"cpu":cpu,"basis":basis}
 
 func release_retired_sources(specs:Array)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.release_retired_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# A finished extraction may otherwise retain its source until another body
 	# is requested. Never join a live worker on a walking frame.
 	var meshes:Dictionary={};var ids:Dictionary={}

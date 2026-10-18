@@ -7,6 +7,7 @@ const Index=preload("res://scripts/world3d/stream_index.gd")
 const Errors=preload("res://tools/test_prefab_texture_preparation.gd").Errors
 class Document extends RefCounted:
 	var calls:Dictionary={}
+	var terrain_neighbors=preload("res://scripts/world3d/terrain_neighbors.gd").new()
 	func _mesh(record:Dictionary,_effects:bool=true,_timings:Variant=null)->Node3D:
 		calls[record.uuid]=int(calls.get(record.uuid,0))+1
 		return Node3D.new()
@@ -73,7 +74,8 @@ func backlog_test()->void:
 	check(queue._jobs.has("reference:n50") and queue._jobs.size()<=4,"new critical closure replaces a lower-priority ready output at a full backlog")
 	check(int(queue.profile.get("priority_retirements",0))>0,"priority replacement is observable")
 	queue.paused=false
-	for i in 220:
+	var deadline:=Time.get_ticks_msec()+10000
+	while Time.get_ticks_msec()<deadline:
 		await tick(queue)
 		if queue.is_complete():break
 	check(queue.is_complete() and queue._admission.reserved_bytes==0,"bounded queue sustainably refills slots until all requested closures publish")
@@ -107,7 +109,8 @@ func partial_retry_test()->void:
 	queue.set_demand("first",AABB(Vector3(-1,-1,-1),Vector3(3,3,3)),0);queue.set_process(false)
 	for i in 20:
 		await tick(queue)
-		if f.document.calls.has("a"):break
+		# Instance construction now spans private slices before publication.
+		if not queue.runtime_record("a").is_empty():break
 	check(f.document.calls.get("a",0)==1 and not f.document.calls.has("b"),"one closure may be partially published while retaining its second instance")
 	var retained:Dictionary=f.map.get_meta("extras").rmmo_records[0]
 	queue.paused=true;queue.set_demand("critical",AABB(Vector3(99,-1,-1),Vector3(3,3,3)),-2);queue.set_process(false)

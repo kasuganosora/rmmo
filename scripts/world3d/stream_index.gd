@@ -1,7 +1,11 @@
 extends RefCounted
 ## Worker-owned immutable spatial data. No SceneTree or renderer calls.
 const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
+const EMPTY_RECORD:Dictionary={}
+const SPEC_FIELDS:Array=["uuid","mesh","transform","chunk_min","chunk_max"]
+static var legacy_owned_rebuild_enabled:=false
 static func build(library:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={}
 	var index:Dictionary={};var by_id:Dictionary={};var known:Dictionary={};var lamp_roots:Dictionary={}
 	var structures:Dictionary={}
@@ -58,11 +62,15 @@ static func build(library:Array)->Dictionary:
 		if id.is_empty():continue
 		if not groups.has(id):groups[id]=[]
 		groups[id].append(spec)
+	var group_bounds:Dictionary={}
 	for id:String in groups:
 		var low:=Vector2i(2147483647,2147483647);var high:=-low
 		for spec:Dictionary in groups[id]:low=low.min(spec.chunk_min);high=high.max(spec.chunk_max)
-		for spec:Dictionary in groups[id]:
-			spec.render_building=id;spec.render_bounds={"chunk":low,"chunk_min":low,"chunk_max":high}
+		var bounds:={"chunk":low,"chunk_min":low,"chunk_max":high}
+		group_bounds[id]=bounds;groups[id][0].render_bounds=bounds
+		# Landscape.bind installs one final shared bound per group. Do not
+		# allocate a disposable bound dictionary for every imported component.
+		for spec:Dictionary in groups[id]:spec.render_building=id
 	result.stream_landscape=Landscape.bind(library,groups)
 	result.stream_building_groups=groups
 	result.stream_prop_index=props;result.stream_collision_index=collisions
@@ -71,7 +79,7 @@ static func build(library:Array)->Dictionary:
 	result.stream_collision_revision=1
 	result.stream_collision_candidate_cache={}
 	result.stream_building_count=library.size()
-	result.stream_append_state=_append_state(library,groups,result.stream_landscape)
+	result.stream_append_state=_append_state(library,groups,result.stream_landscape,group_bounds)
 	return result
 
 # Append bookkeeping is derived once alongside the full index. It contains only
@@ -89,7 +97,7 @@ static func _fixture_key(spec:Dictionary)->String:
 	var owner:String=preload("res://scripts/world3d/building_fixtures.gd").owner_id(extra)
 	return JSON.stringify([owner,str(extra.fixture.get("id",""))])
 
-static func _append_state(library:Array,groups:Dictionary,land:Array)->Dictionary:
+static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:Dictionary={})->Dictionary:
 	var state:={"namespaces":{},"prefixes":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
 	for spec:Dictionary in library:
 		state.prefixes[str(spec.uuid).get_slice("__",0)]=true
@@ -101,9 +109,11 @@ static func _append_state(library:Array,groups:Dictionary,land:Array)->Dictionar
 		state.ground_order[spec.uuid]=state.ground_order.size();state.dependents[spec.uuid]=[]
 		_cells_add(state.ground_cells,spec,spec.uuid)
 	for id:String in groups:
-		var low:=Vector2i(2147483647,2147483647);var high:=-low
-		for spec:Dictionary in groups[id]:low=low.min(spec.chunk_min);high=high.max(spec.chunk_max)
-		var bounds:={"chunk":low,"chunk_min":low,"chunk_max":high}
+		var bounds:Dictionary=raw_bounds.get(id,{})
+		if bounds.is_empty():
+			var low:=Vector2i(2147483647,2147483647);var high:=-low
+			for spec:Dictionary in groups[id]:low=low.min(spec.chunk_min);high=high.max(spec.chunk_max)
+			bounds={"chunk":low,"chunk_min":low,"chunk_max":high}
 		state.group_bounds[id]=bounds;state.group_order[id]=state.group_order.size()
 		_cells_add(state.group_cells,bounds,id)
 		for support:Dictionary in groups[id][0].get("render_supports",[]):state.dependents[support.uuid].append(id)
@@ -113,17 +123,24 @@ static func _append_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason}
 
 static func _valid_append_spec(value:Variant)->bool:
-	if not value is Dictionary or not value.get("uuid") is String or value.uuid.is_empty():return false
-	if not value.get("mesh") is Mesh or not value.get("transform") is Transform3D:return false
-	if not value.get("chunk_min") is Vector2i or not value.get("chunk_max") is Vector2i:return false
-	if value.chunk_min.x>value.chunk_max.x or value.chunk_min.y>value.chunk_max.y:return false
-	if not value.get("extras",{}) is Dictionary or not value.get("ground_batch_record",{}) is Dictionary:return false
-	var extra:Dictionary=value.get("extras",{});var record:Dictionary=value.get("ground_batch_record",{})
-	if not record.get("building",{}) is Dictionary or not record.get("building",{}).get("id","") is String:return false
+	if not value is Dictionary or not value.has_all(SPEC_FIELDS):return false
+	var spec:Dictionary=value
+	if not spec.uuid is String or spec.uuid.is_empty():return false
+	if not spec.mesh is Mesh or not spec.transform is Transform3D:return false
+	if not spec.chunk_min is Vector2i or not spec.chunk_max is Vector2i:return false
+	if spec.chunk_min.x>spec.chunk_max.x or spec.chunk_min.y>spec.chunk_max.y:return false
+	# A default expression is evaluated even on a hit. Reuse this read-only
+	# empty value rather than allocate several throwaway dictionaries per spec
+	# during each complete retirement validation.
+	var raw_extra:Variant=spec.get("extras",EMPTY_RECORD);var raw_record:Variant=spec.get("ground_batch_record",EMPTY_RECORD)
+	if not raw_extra is Dictionary or not raw_record is Dictionary:return false
+	var extra:Dictionary=raw_extra;var record:Dictionary=raw_record
+	var record_building:Variant=record.get("building",EMPTY_RECORD)
+	if not record_building is Dictionary or not record_building.get("id","") is String:return false
 	if not extra.get("rmmo_streetlamp_instance","") is String:return false
 	for field in ["fixture","building","fortification"]:
 		if extra.has(field) and not extra[field] is Dictionary:return false
-	if not extra.get("building",{}).get("id","") is String:return false
+	if not extra.get("building",EMPTY_RECORD).get("id","") is String:return false
 	if record.get("kind")=="box" and record.get("surface_id")=="ground":
 		var size:Variant=record.get("size",[1,3,1])
 		if not size is Array or size.size()<2 or not (size[1] is int or size[1] is float):return false
@@ -139,7 +156,11 @@ static func _query_ids(buckets:Dictionary,bounds:Dictionary)->Dictionary:
 static func _merge_buckets(target:Dictionary,addition:Dictionary,originals:Dictionary={})->void:
 	for key:Variant in addition:
 		if not target.has(key):target[key]=[]
-		for value:Variant in addition[key]:target[key].append(originals[value.uuid] if value is Dictionary else value)
+		var values:Array=addition[key]
+		if originals.is_empty() or values.is_empty() or not values[0] is Dictionary:
+			target[key].append_array(values)
+		else:
+			for value:Dictionary in values:target[key].append(originals[value.uuid])
 
 static func _retire_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason,"removed":0,"removed_ids":[],"removed_specs":[]}
@@ -163,6 +184,7 @@ static func _retire_dependency(spec:Dictionary)->String:
 	return ""
 
 static func _retire_plan(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index._retire_plan") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for key in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
 		if not existing.get(key) is Dictionary:return _retire_failure("invalid existing index: "+key)
 	var state:Dictionary=existing.stream_append_state
@@ -220,26 +242,59 @@ static func validate_retire(existing:Dictionary,library:Array,ids:Array)->Dictio
 ## Complete static ownership units. The caller additionally protects live draw,
 ## collision, navigation, source pins and transient work before committing.
 static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.validate_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var selected:Dictionary={};var prefixes:Dictionary={}
+	for key:String in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
+		if not existing.get(key) is Dictionary:return _retire_failure("invalid existing index: "+key)
+	var state:Dictionary=existing.stream_append_state
+	for key:String in ["namespaces","prefixes","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
+		if not state.get(key) is Dictionary:return _retire_failure("invalid append bookkeeping: "+key)
+	if not existing.get("stream_landscape") is Array:return _retire_failure("invalid landscape catalogue")
 	if library.size()!=existing.get("stream_by_id",{}).size() or library.size()!=int(existing.get("stream_building_count",-1)):return _retire_failure("library/index size mismatch")
-	var seen:Dictionary={}
+	var seen:Dictionary={};var namespace_sizes:Dictionary={};var by_id:Dictionary=existing.stream_by_id
 	for spec:Dictionary in library:
-		if seen.has(spec.get("uuid")) or not _valid_append_spec(spec) or not is_same(existing.get("stream_by_id",{}).get(spec.uuid),spec):return _retire_failure("library/index identity mismatch")
+		if seen.has(spec.get("uuid")) or not _valid_append_spec(spec) or not is_same(by_id.get(spec.uuid),spec):return _retire_failure("library/index identity mismatch")
 		seen[spec.uuid]=true
+		var prefix:String=str(spec.uuid).get_slice("__",0)
+		namespace_sizes[prefix]=int(namespace_sizes.get(prefix,0))+1
 	for id:Variant in ids:
-		if not id is String or selected.has(id) or not existing.get("stream_by_id",{}).has(id):return _retire_failure("invalid complete retirement identity")
-		var spec:Dictionary=existing.stream_by_id[id]
-		if not _valid_append_spec(spec) or spec.get("native_visual",false):return _retire_failure("active native owner")
+		if not id is String or selected.has(id) or not by_id.has(id):return _retire_failure("invalid complete retirement identity")
+		var spec:Dictionary=by_id[id]
+		# The complete identity/schema pass above covered every by_id object.
+		# Do not validate all fields of each selected member a second time.
+		if spec.get("native_visual",false):return _retire_failure("active native owner")
+		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
+				for field:String in ["stream_index","stream_prop_index","stream_collision_index"]:
+					if not existing[field].get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid spatial bucket: "+field)
+				if state.ground_order.has(id) and not state.ground_cells.get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid ground bucket")
+		if spec.has("render_building") and not existing.stream_building_groups.has(spec.render_building):return _retire_failure("missing derived building")
 		var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
 		for field in ["event","event_template","hostile","ally","seat"]:
 			if extra.has(field) or record.has(field):return _retire_failure("active gameplay owner")
 		if extra.get("kind","") in ["npc","gather","event","teleport","warp"]:return _retire_failure("active gameplay owner")
-		selected[id]=true;prefixes[id.get_slice("__",0)]=true
-	for spec:Dictionary in library:
-		if prefixes.has(str(spec.uuid).get_slice("__",0)) and not selected.has(spec.uuid):return _retire_failure("split namespace")
-	for members:Array in existing.get("stream_building_groups",{}).values():
-		var touched:=members.any(func(spec):return selected.has(spec.uuid))
-		if touched and not members.all(func(spec):return selected.has(spec.uuid)):return _retire_failure("split building group")
+		selected[id]=true
+		var prefix:String=id.get_slice("__",0);prefixes[prefix]=int(prefixes.get(prefix,0))+1
+	for prefix:String in prefixes:
+		if prefixes[prefix]!=namespace_sizes[prefix]:return _retire_failure("split namespace")
+	for group:String in existing.stream_building_groups:
+		var members:Variant=existing.stream_building_groups[group]
+		if not members is Array or members.is_empty():return _retire_failure("invalid building group")
+		var selected_members:=0
+		for member:Variant in members:
+			if not member is Dictionary or not member.get("uuid") is String:return _retire_failure("invalid building group")
+			if selected.has(member.uuid):selected_members+=1
+		var touched:bool=selected_members>0
+		if touched and selected_members!=members.size():return _retire_failure("split building group")
+		if touched:
+			var bounds:Variant=state.group_bounds.get(group)
+			if not bounds is Dictionary or not bounds.get("chunk_min") is Vector2i or not bounds.get("chunk_max") is Vector2i:return _retire_failure("invalid building bounds")
+			for z in range(bounds.chunk_min.y,bounds.chunk_max.y+1):
+				for x in range(bounds.chunk_min.x,bounds.chunk_max.x+1):
+					if not state.group_cells.get(Vector2i(x,z),[]) is Array:return _retire_failure("invalid group bucket")
+			if not members[0].get("render_supports",[]) is Array:return _retire_failure("invalid building support")
+			for support:Variant in members[0].get("render_supports",[]):
+				if not support is Dictionary or not support.get("uuid") is String or not support.get("render_dependents") is Array or not state.dependents.get(support.uuid) is Array:return _retire_failure("invalid support dependencies")
 		if not touched:
 			for support:Dictionary in members[0].get("render_supports",[]):
 				if selected.has(support.uuid):return _retire_failure("retained building needs landscape support")
@@ -248,7 +303,14 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 static func retire_owned(existing:Dictionary,library:Array,ids:Array)->Dictionary:
 	var checked:=validate_owned_retire(existing,library,ids)
 	if not checked.ok:return checked
+	return _commit_owned_retire(existing,library,ids)
+
+## Internal atomic commit: validation and owner consent must have completed in
+## the same synchronous transaction, without publishing a plan or awaiting.
+static func _commit_owned_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index._commit_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if ids.is_empty():return {"ok":true,"error":"","removed":0,"removed_ids":[],"data":existing}
+	if not legacy_owned_rebuild_enabled:return _commit_owned_delta(existing,library,ids)
 	var selected:Dictionary={}
 	for id:String in ids:selected[id]=true
 	var survivors:Array=[]
@@ -260,6 +322,80 @@ static func retire_owned(existing:Dictionary,library:Array,ids:Array)->Dictionar
 	var rebuilt:=build(survivors)
 	library.clear();library.append_array(survivors)
 	return {"ok":true,"error":"","removed":ids.size(),"removed_ids":ids.duplicate(),"data":rebuilt}
+
+static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	# validate_owned_retire already proved complete namespaces/groups and that
+	# no surviving building depends on selected ground. Preserve every surviving
+	# spec, bucket and dependency object instead of regenerating the entire map.
+	var state:Dictionary=existing.stream_append_state
+	var selected:Dictionary={};var prefixes:Dictionary={};var cells:Dictionary={};var removed:Array=[]
+	var ground_cells:Dictionary={};var groups:Dictionary={};var group_cells:Dictionary={}
+	var touched_supports:Dictionary={}
+	for id:String in ids:
+		var spec:Dictionary=existing.stream_by_id[id]
+		selected[id]=true;prefixes[id.get_slice("__",0)]=true;removed.append(spec)
+		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):cells[Vector2i(x,z)]=true
+		if spec.has("render_building"):groups[spec.render_building]=true
+		if state.ground_order.has(id):
+			for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+				for x in range(spec.chunk_min.x,spec.chunk_max.x+1):ground_cells[Vector2i(x,z)]=true
+			state.ground_order.erase(id);state.dependents.erase(id)
+		var fixture:=_fixture_key(spec)
+		if not fixture.is_empty():state.fixtures.erase(fixture)
+	for id:String in groups:
+		var members:Array=existing.stream_building_groups[id]
+		var raw:Dictionary=state.group_bounds[id]
+		for z in range(raw.chunk_min.y,raw.chunk_max.y+1):
+			for x in range(raw.chunk_min.x,raw.chunk_max.x+1):group_cells[Vector2i(x,z)]=true
+		for support:Dictionary in members[0].get("render_supports",[]):
+			if selected.has(support.uuid):continue
+			touched_supports[support.uuid]=support
+		existing.stream_building_groups.erase(id)
+		state.group_bounds.erase(id);state.group_order.erase(id)
+	for support:Dictionary in touched_supports.values():
+		var dependents:Array=state.dependents[support.uuid];var retained:=0
+		for at:int in dependents.size():
+			if groups.has(dependents[at]):continue
+			dependents[retained]=dependents[at];retained+=1
+		dependents.resize(retained)
+		# Equal bounds from different buildings are distinct mutable owners.
+		# Rebind exact surviving identities, not Array.erase(value equality).
+		support.render_dependents.clear()
+		for id:String in state.dependents[support.uuid]:support.render_dependents.append(existing.stream_building_groups[id][0].render_bounds)
+	for key:Vector2i in group_cells:_retire_bucket(state.group_cells,key,groups,false)
+	for key:Vector2i in ground_cells:_retire_bucket(state.ground_cells,key,selected,false)
+	# Append uses dense ordering offsets. Compact scalar ranks only; leave all
+	# surviving support arrays/bounds identities and their order unchanged.
+	for ranks:Dictionary in [state.group_order,state.ground_order]:
+		var rank:=0
+		for id:String in ranks:ranks[id]=rank;rank+=1
+	var landscape:Array=existing.stream_landscape;var write:=0
+	for read:int in landscape.size():
+		if selected.has(landscape[read].uuid):continue
+		landscape[write]=landscape[read];write+=1
+	landscape.resize(write)
+	var result:=_commit_retire(existing,library,{"selected":selected,"prefixes":prefixes,"cells":cells,"removed_ids":ids.duplicate(),"removed_specs":removed})
+	result.erase("removed_specs")
+	return result
+
+static func owned_dependency_pinned(existing:Dictionary,ids:Array)->bool:
+	# Rejection-only shortcut. Missing/malformed metadata falls through to the
+	# complete integrity validation; this never authorizes a retirement.
+	var state:Variant=existing.get("stream_append_state")
+	if not state is Dictionary or not state.get("dependents") is Dictionary:return false
+	var selected:Dictionary={}
+	for id:Variant in ids:
+		if not id is String:return false
+		selected[id]=true
+	for id:String in selected:
+		var dependents:Variant=state.dependents.get(id,[])
+		if not dependents is Array:return false
+		for group:Variant in dependents:
+			var members:Variant=existing.get("stream_building_groups",{}).get(group)
+			if not members is Array or members.is_empty():continue
+			if members.any(func(spec):return spec is Dictionary and not selected.has(spec.get("uuid"))):return true
+	return false
 
 static func _retire_bucket(buckets:Dictionary,key:Vector2i,selected:Dictionary,by_spec:bool)->void:
 	if not buckets.has(key):return
@@ -280,6 +416,9 @@ static func _retire_bucket(buckets:Dictionary,key:Vector2i,selected:Dictionary,b
 static func retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
 	var plan:=_retire_plan(existing,library,ids)
 	if not plan.ok:return plan
+	return _commit_retire(existing,library,plan)
+
+static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->Dictionary:
 	var selected:Dictionary=plan.selected;var state:Dictionary=existing.stream_append_state
 	for id:String in selected:
 		existing.stream_by_id.erase(id);existing.stream_known.erase(id)
@@ -306,6 +445,7 @@ static func _collision_membership_changed(existing:Dictionary)->void:
 ## residency dirty notification. Existing indexes must come from build/append.
 ## Every imported namespace, building and fixture must arrive as a whole batch.
 static func append(existing:Dictionary,additions:Array)->Dictionary:
+	var phase_began:=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_validate")
 	if not existing.get("stream_append_state") is Dictionary:return _append_failure("index lacks append bookkeeping")
 	var originals:Dictionary={};var state:Dictionary=existing.stream_append_state
 	for key in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
@@ -323,9 +463,18 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 		var fixture:=_fixture_key(value)
 		if not fixture.is_empty() and state.fixtures.has(fixture):return _append_failure("split fixture: "+fixture)
 		originals[id]=value
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_validate",phase_began,{"specs":additions.size()})
+	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_fragment")
 	# A private small fragment validates derived grouping before any caller-owned
 	# dictionary or new spec is touched. Mesh resources remain shared/read-only.
-	var fragment:=build(additions.duplicate(true));var fresh:Dictionary=fragment.stream_append_state
+	# build/bind replace top-level derived fields, never mutate authored extras,
+	# records or their nested arrays. A private shallow spec projection gives
+	# the same atomic failure isolation without copying entire author graphs.
+	var projection:Array=[]
+	for spec:Dictionary in additions:projection.append(spec.duplicate())
+	var fragment:=build(projection);var fresh:Dictionary=fragment.stream_append_state
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_fragment",phase_began,{"specs":additions.size(),"groups":fragment.stream_building_groups.size()})
+	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_plan")
 	for id:String in fragment.stream_building_groups:
 		if existing.stream_building_groups.has(id):return _append_failure("split building group: "+id)
 	var affected:Dictionary={}
@@ -333,7 +482,7 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 		for id:String in _query_ids(state.group_cells,originals[uuid]):affected[id]=true
 	for id:String in fragment.stream_building_groups:affected[id]=true
 	var ground_offset:int=state.ground_order.size();var group_offset:int=state.group_order.size()
-	var plans:Dictionary={};var touched:Dictionary={}
+	var plans:Dictionary={};var touched:Dictionary={};var planned_dependents:Dictionary={}
 	for id:String in affected:
 		var old:bool=existing.stream_building_groups.has(id)
 		var base:Dictionary=state.group_bounds[id] if old else fresh.group_bounds[id]
@@ -345,10 +494,14 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 		for uuid:String in ordered:
 			var support:Dictionary=existing.stream_by_id[uuid] if existing.stream_by_id.has(uuid) else originals[uuid]
 			supports.append(support);touched[uuid]=true
+			if not planned_dependents.has(uuid):planned_dependents[uuid]=[]
+			planned_dependents[uuid].append(id)
 			bounds.chunk_min=bounds.chunk_min.min(support.chunk_min);bounds.chunk_max=bounds.chunk_max.max(support.chunk_max)
 		if old:
 			for support:Dictionary in existing.stream_building_groups[id][0].render_supports:touched[support.uuid]=true
 		plans[id]={"bounds":bounds,"supports":supports}
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_plan",phase_began,{"groups":plans.size(),"supports":touched.size()})
+	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_index_commit")
 	# Commit has no await or fallible I/O. Preserve existing maps, buckets and
 	# spec objects; update only dependency groups intersected by new ground.
 	for uuid:String in originals:
@@ -357,7 +510,8 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 			spec.erase(field)
 			if prepared.has(field) and field not in ["render_supports","render_dependents"]:spec[field]=prepared[field]
 		if Landscape.landscape(spec):spec.render_dependents=[]
-		existing.stream_by_id[uuid]=spec;existing.stream_known[uuid]=true
+	existing.stream_by_id.merge(originals,true)
+	existing.stream_known.merge(fragment.stream_known,true)
 	for key in ["stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
 		_merge_buckets(existing[key],fragment[key],originals)
 	for spec:Dictionary in fragment.stream_landscape:existing.stream_landscape.append(originals[spec.uuid])
@@ -371,15 +525,23 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 		var bounds:Dictionary=members[0].render_bounds
 		bounds.clear();bounds.merge(plans[id].bounds,true)
 		for member:Dictionary in members:member.render_bounds=bounds;member.render_supports=plans[id].supports
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_index_commit",phase_began,{"specs":additions.size()})
+	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_dependents")
 	for uuid:String in touched:
 		var dependents:Array=state.dependents[uuid]
-		for id:String in affected:dependents.erase(id)
-		for id:String in plans:
-			if plans[id].supports.any(func(spec):return spec.uuid==uuid):dependents.append(id)
+		# Filter each old reverse edge once. Repeated erase + a scan of every
+		# plan/support list made a large imported building quadratic in groups.
+		var retained:=0
+		for at:int in dependents.size():
+			if affected.has(dependents[at]):continue
+			dependents[retained]=dependents[at];retained+=1
+		dependents.resize(retained)
+		dependents.append_array(planned_dependents.get(uuid,[]))
 		dependents.sort_custom(func(a,b):return state.group_order[a]<state.group_order[b])
 		var support:Dictionary=existing.stream_by_id[uuid]
 		support.render_dependents.clear()
 		for id:String in dependents:support.render_dependents.append(existing.stream_building_groups[id][0].render_bounds)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_dependents",phase_began,{"supports":touched.size()})
 	# These old entries can change residency without a camera/chunk change.
 	# Return their original references so the caller can replan just this delta.
 	var changed_existing:Dictionary={}

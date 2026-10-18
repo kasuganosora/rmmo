@@ -22,6 +22,8 @@ const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 ## Validated query reuse with an A/B fallback. Only candidates/bounds are cached;
 ## bodies, collision modes, exact footprints and physics stamps remain live.
 static var collision_candidate_cache_enabled:=true
+static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
+static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -39,6 +41,7 @@ class CollisionCandidate:
 
 
 static func chunk_key(position: Vector3) -> Vector2i:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.chunk_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return Vector2i(
 		Location.chunk_index(position.x, 0.0, CHUNK_M),
 		Location.chunk_index(position.z, 0.0, CHUNK_M)
@@ -46,6 +49,7 @@ static func chunk_key(position: Vector3) -> Vector2i:
 
 
 static func ring(origin: Vector3, radius: int) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.ring") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var center := chunk_key(origin)
 	var keys := {}
 	for dz in range(-radius, radius + 1):
@@ -55,6 +59,7 @@ static func ring(origin: Vector3, radius: int) -> Dictionary:
 
 
 static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.sync") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if budget<=0 or not FrameBudget.enabled:
 		_sync_work(map_root,host,origin,budget)
 		return
@@ -65,6 +70,7 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	FrameBudget.charge("collision",started)
 
 static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadline:int=0)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._sync_work") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var sync_started:=Time.get_ticks_usec()
 	var source_revision:=int(map_root.get_meta("stream_source_revision",0))
 	if int(map_root.get_meta("stream_applied_source_revision",0))!=source_revision:
@@ -76,7 +82,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if budget<=0:
 		var pending=map_root.get_node_or_null("StreamCollisionPreparer")
 		if pending!=null:pending.cancel_pending()
-	elif budget<LOAD_BUDGET or _entry_clip(map_root)==null or not preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled:
+	elif budget<LOAD_BUDGET or not preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled:
 		var pending=map_root.get_node_or_null("StreamCollisionPreparer")
 		if pending!=null:pending._face_prefetch.cancel()
 	var library: Array = _library(map_root)
@@ -180,7 +186,10 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	var left := 1000000 if budget <= 0 else budget
 	var wrapper_profile:Variant=_collision_wrapper_slots(map_root) if detailed else null
 	var apply_started := Time.get_ticks_usec()
-	if budget>=LOAD_BUDGET and _entry_clip(map_root)!=null:
+	# The actual loading plan already bounds demand. Legacy/unclipped loading
+	# needs the same batched CPU lookahead as entry-clipped loading; otherwise
+	# each tiny imported mesh incurs its own worker and render-frame wait.
+	if budget>=LOAD_BUDGET:
 		_prefetch_collisions(map_root,host,jobs,cursor,solid,bodies)
 	while left > 0 and cursor < jobs.size():
 		if deadline>0 and Time.get_ticks_usec()>=deadline and cursor>initial_cursor:break
@@ -225,30 +234,44 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	# Reconcile the render batches once per completed residency change, not
 	# after every twelve objects (which repeatedly sorts the growing scene).
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)
+	var sliced_loading:bool=budget>=LOAD_BUDGET and sliced_loading_batches_enabled
 	if cursor >= jobs.size() and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
-		if budget>0 and budget<LOAD_BUDGET:batcher.request_sync(meshes.values())
+		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_sync(meshes.values())
 		else:batcher.sync(meshes.values())
 		map_root.set_meta("stream_batch_revision",revision)
+		map_root.set_meta("stream_gpu_finalize_cursor",0)
 		# During the covered initial load, only upload the final combined draws.
 		# Transparent/ineligible/singleton sources still need their own GPU mesh.
-		for source in meshes.values():
-			if source.has_meta("deferred_gpu"):
-				if not batcher._member_groups.has(str(source.name)):GroundBatcher.restore(source)
-				source.remove_meta("deferred_gpu")
+		if not sliced_loading:
+			for source in meshes.values():
+				if source.has_meta("deferred_gpu"):
+					if not batcher._member_groups.has(str(source.name)):GroundBatcher.restore(source)
+					source.remove_meta("deferred_gpu")
+	var batches_prepared:=true
+	if sliced_loading and cursor>=jobs.size():
+		batches_prepared=_finish_loading_sources(map_root,batcher,meshes,deadline if deadline>0 else sync_started+24000)
 	if budget <= 0: batcher.flush()
 	var collision_batches=map_root.get_node_or_null("FortificationCollisionBatches")
 	if collision_batches==null:
 		collision_batches=FortCollision.new(); map_root.add_child(collision_batches)
-	var entries: Array=[]
-	for spec: Dictionary in _dict(map_root,&"fortification_collision_sources").values(): entries.append(FortCollision.entry(spec.mesh,spec.transform,spec.uuid,spec.extras))
-	collision_batches.sync(entries)
-	if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"apply","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(apply_started-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail"),"apply_ms":(batch_started-apply_started)/1000.,"batch_ms":(Time.get_ticks_usec()-batch_started)/1000.,"fort_ms":collision_batches.last_sync_ms})
-	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":collision_batches.last_sync_ms})
+		map_root.set_meta("stream_fortification_collision_dirty",true)
+	var fort_sync_ms:=0.0
+	# Ordinary scenery can consume many residency slices without changing any
+	# wall source. Reconcile exact collision only after an actual source update,
+	# still before this slice can mark residency settled or expose readiness.
+	if map_root.get_meta("stream_fortification_collision_dirty",false):
+		var entries: Array=[]
+		for spec: Dictionary in _dict(map_root,&"fortification_collision_sources").values(): entries.append(FortCollision.entry(spec.mesh,spec.transform,spec.uuid,spec.extras))
+		collision_batches.sync(entries)
+		fort_sync_ms=collision_batches.last_sync_ms
+		map_root.remove_meta("stream_fortification_collision_dirty")
+	if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"apply","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(apply_started-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail"),"apply_ms":(batch_started-apply_started)/1000.,"batch_ms":(Time.get_ticks_usec()-batch_started)/1000.,"fort_ms":fort_sync_ms})
+	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":fort_sync_ms})
 	map_root.set_meta(&"stream_library", library)
 	map_root.set_meta(&"stream_children", map_root.get_child_count())
 	if budget<=0:map_root.set_meta("stream_profile_ms",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0})
 	if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":apply_started-plan_started,"apply":batch_started-apply_started,"batch":Time.get_ticks_usec()-batch_started})
-	if cursor < jobs.size():
+	if cursor < jobs.size() or not batches_prepared:
 		return
 	var collision_preparer=map_root.get_node_or_null("StreamCollisionPreparer")
 	if collision_preparer!=null:collision_preparer._face_prefetch.cancel()
@@ -256,8 +279,23 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	map_root.set_meta(&"stream_cursor", 0)
 	map_root.set_meta(&"stream_chunk", target)
 
+static func _finish_loading_sources(map_root:Node,batcher:Node,meshes:Dictionary,deadline:int)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._finish_loading_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	# Membership must be complete before deciding which CPU sources need a
+	# standalone upload. A merely queued batch is not proof of membership.
+	if not batcher._preparation.is_empty():return false
+	var sources:Array=meshes.values();var cursor:int=int(map_root.get_meta("stream_gpu_finalize_cursor",0));var advanced:=false
+	while cursor<sources.size() and (not advanced or Time.get_ticks_usec()<deadline):
+		var candidate:Variant=sources[cursor];cursor+=1;advanced=true
+		if not is_instance_valid(candidate) or not candidate.has_meta("deferred_gpu"):continue
+		if not batcher._member_groups.has(str(candidate.name)):GroundBatcher.restore(candidate)
+		candidate.remove_meta("deferred_gpu")
+	map_root.set_meta("stream_gpu_finalize_cursor",cursor)
+	return cursor>=sources.size()
+
 
 static func append_specs(map_root:Node,additions:Array)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.append_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Collision-only instances do not enter the visual index. Validate their full
 	# namespace before Index.append mutates its shared dictionaries, then transfer
 	# the existing bodies in the same synchronous publication transaction.
@@ -285,12 +323,19 @@ static func append_specs(map_root:Node,additions:Array)->Dictionary:
 
 
 static func _resident_index_data(map_root:Node)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._resident_index_data") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var data:Dictionary={}
 	for key:StringName in map_root.get_meta_list():
 		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
 	return data
 
 static func can_retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->Dictionary:
+	var checked:=_retirement_preflight(map_root,ids,complete_unit)
+	# Public preflight never transfers an owning plan to a persistent caller.
+	return {"ok":checked.ok,"error":checked.get("error","")}
+
+static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.can_retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Entry temporarily masks distant demand; it never withdraws existing leases.
 	if _entry_clip(map_root)!=null:return {"ok":false,"error":"entry_scope"}
 	# Retire only between residency plans. No candidate cursor or batch worker
@@ -301,31 +346,57 @@ static func can_retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->
 	var proxy=map_root.get_node_or_null("DistantBuildingProxy")
 	if proxy!=null and not proxy._job.is_empty():return {"ok":false,"error":"proxy_leased"}
 	var index=preload("res://scripts/world3d/stream_index.gd")
-	var checked:Dictionary=index.validate_owned_retire(_resident_index_data(map_root),_library(map_root),ids) if complete_unit else index.validate_retire(_resident_index_data(map_root),_library(map_root),ids)
-	if not checked.ok:return checked
 	var target:Vector2i=map_root.get_meta("stream_chunk")
 	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
 	var specs:Array=[];var by_id:Dictionary=map_root.get_meta("stream_by_id",{})
-	for id:String in ids:
+	# A pinned request cannot commit anything. Reject it before the expensive
+	# whole-directory integrity scan, even when many distant native units are
+	# retained by the kilometre-scale render/support dependency ring.
+	for id:Variant in ids if not legacy_retirement_validation_enabled else []:
+		if not id is String or not by_id.get(id) is Dictionary:continue
 		var spec:Dictionary=by_id[id]
+		if not index._valid_append_spec(spec):continue # Full validation below reports malformed inputs.
 		if _draws(spec,draw) or _overlaps(spec,solid):return {"ok":false,"error":"source_pinned"}
 		specs.append(spec)
+	var data:=_resident_index_data(map_root);var library:=_library(map_root)
+	if complete_unit and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
+	var checked:Dictionary=index.validate_owned_retire(data,library,ids) if complete_unit else index._retire_plan(data,library,ids)
+	if not checked.ok:return checked
+	if legacy_retirement_validation_enabled:
+		for id:String in ids:
+			var spec:Dictionary=by_id[id]
+			if _draws(spec,draw) or _overlaps(spec,solid):return {"ok":false,"error":"source_pinned"}
+			specs.append(spec)
 	var collision=map_root.get_node_or_null("StreamCollisionPreparer")
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
-	return {"ok":true,"error":""}
+	return {"ok":true,"error":"","data":data,"library":library,"plan":checked}
 
-static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->Dictionary:
-	var checked:=can_retire_specs(map_root,ids,complete_unit)
+static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false,navigation:Node=null)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	# Keep the verified plan local to one synchronous transaction. Navigation's
+	# source-release handshake changes no map/index state and emits no callbacks;
+	# committing that same plan avoids three identical whole-library scans.
+	if legacy_retirement_validation_enabled:
+		var first:=can_retire_specs(map_root,ids,complete_unit)
+		if not first.ok:return first
+	var checked:=_retirement_preflight(map_root,ids,complete_unit)
 	if not checked.ok:return checked
+	if navigation!=null:
+		var released:Dictionary=navigation.try_retire_specs(ids)
+		if not released.ok:return {"ok":false,"error":released.reason}
 	var index=preload("res://scripts/world3d/stream_index.gd")
-	var result:Dictionary=index.retire_owned(_resident_index_data(map_root),_library(map_root),ids) if complete_unit else index.retire(_resident_index_data(map_root),_library(map_root),ids)
+	var result:Dictionary
+	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
+	else:result=index._commit_owned_retire(checked.data,checked.library,ids) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
+	var usage:Node=map_root.get_node_or_null("AssetResidency")
+	if usage!=null:usage.forget_specs(ids)
 	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
 	var nodes:Array=[]
 	for id:String in ids:
 		if is_instance_valid(meshes.get(id)):nodes.append(meshes[id])
 	var batcher=map_root.get_node_or_null("GroundRenderBatches")
-	if batcher!=null:batcher.release_sources(nodes)
+	if batcher!=null:batcher.retire_sources(nodes)
 	for id:String in ids:
 		_drop(meshes,id,meshes.get(id));_drop(bodies,id,bodies.get(id))
 	for key:String in result.data:map_root.set_meta(key,result.data[key])
@@ -336,6 +407,7 @@ static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->Dict
 
 
 static func pin_source(map_root:Node,id:String,origin:Vector3)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.pin_source") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if id.is_empty() or not origin.is_finite():return
 	var sources:Dictionary=map_root.get_meta("stream_sources",{})
 	var cell:=chunk_key(origin)
@@ -344,6 +416,7 @@ static func pin_source(map_root:Node,id:String,origin:Vector3)->void:
 	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
 
 static func release_source(map_root:Node,id:String)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.release_source") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var sources:Dictionary=map_root.get_meta("stream_sources",{})
 	if not sources.erase(id):return
 	map_root.set_meta("stream_sources",sources)
@@ -353,6 +426,7 @@ static func release_source(map_root:Node,id:String)->void:
 ## margin supplied by the caller; height is conservatively not culled here.
 ## Existing sources and live collision objects survive this temporary mask.
 static func set_entry_scope(map_root:Node,clip:AABB)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.set_entry_scope") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not _valid_entry_clip(clip):return false
 	if _entry_clip(map_root)==clip:return true
 	map_root.set_meta("entry_stream_clip",clip)
@@ -361,26 +435,31 @@ static func set_entry_scope(map_root:Node,clip:AABB)->bool:
 
 
 static func clear_entry_scope(map_root:Node)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.clear_entry_scope") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not map_root.has_meta("entry_stream_clip"):return
 	map_root.remove_meta("entry_stream_clip")
 	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
 
 
 static func _valid_entry_clip(clip:AABB)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._valid_entry_clip") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return clip.position.is_finite() and clip.size.is_finite() and clip.end.is_finite() and clip.size.x>0 and clip.size.z>0 and clip.size.y>=0
 
 
 static func _entry_clip(map_root:Node)->Variant:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._entry_clip") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not map_root.has_meta("entry_stream_clip"):return null
 	var clip:Variant=map_root.get_meta("entry_stream_clip")
 	return clip if clip is AABB and _valid_entry_clip(clip) else null
 
 
 static func _entry_area(clip:AABB)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._entry_area") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return {"low":chunk_key(clip.position),"high":chunk_key(clip.end),"entry_clip":clip}
 
 
 static func _in_entry_scope(spec:Dictionary,clip:AABB)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._in_entry_scope") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Use the actual visual and collision bounds, never the compact author proxy
 	# or whole-building render_bounds (which may include distant supports).
 	if spec.get("extras",{}).has("fixture"):
@@ -402,6 +481,7 @@ static func _in_entry_scope(spec:Dictionary,clip:AABB)->bool:
 
 
 static func _entry_candidates(map_root:Node,clip:AABB)->Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._entry_candidates") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var index:=_dict(map_root,&"stream_index");var by_id:=_dict(map_root,&"stream_by_id")
 	var area:=_entry_area(clip);var selected:Dictionary={}
 	for z in range(area.low.y,area.high.y+1):
@@ -416,6 +496,7 @@ static func _entry_candidates(map_root:Node,clip:AABB)->Array:
 ## Checks only entry-visible/collidable resident specs, not unrelated batch
 ## queues. The caller must separately gate unpublished dependency/terrain work.
 static func entry_scope_ready(map_root:Node)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.entry_scope_ready") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var clip:Variant=_entry_clip(map_root)
 	if clip==null:return false
 	if not map_root.has_meta("stream_by_id") or int(map_root.get_meta("stream_applied_source_revision",-1))!=int(map_root.get_meta("stream_source_revision",0)):return false
@@ -442,6 +523,7 @@ static func entry_scope_ready(map_root:Node)->bool:
 
 
 static func _source_ring(map_root:Node,target:Vector2i,radius:int)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._source_ring") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var clip:Variant=_entry_clip(map_root)
 	if clip!=null:return _entry_area(clip)
 	var area:=_ring_at(target,radius)
@@ -453,6 +535,7 @@ static func _source_ring(map_root:Node,target:Vector2i,radius:int)->Dictionary:
 
 
 static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.nearby_collision_ready") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Publication and physics attachment are separate stages. Inspect only the
 	# capsule's immediate neighborhood, not unfinished work across the town.
 	var area:=Rect2(origin.x-2,origin.z-2,4,4)
@@ -475,6 +558,7 @@ static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
 ## The caller separately proves unpublished reference dependencies are ready.
 ## Never accept the fortification source catalogue as an installed physics body.
 static func collision_readiness(map_root:Node,clip:AABB)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.collision_readiness") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile:Dictionary={"candidates":0,"intersections":0,"bounds_us":0,"body_us":0,"bounds_updates":0} if collision_readiness_profile_enabled else {}
 	var began:=Time.get_ticks_usec() if collision_readiness_profile_enabled else 0
 	var result:=_collision_readiness_impl(map_root,clip,profile)
@@ -491,6 +575,7 @@ static func collision_readiness(map_root:Node,clip:AABB)->Dictionary:
 	return result
 
 static func _collision_readiness_impl(map_root:Node,clip:AABB,profile:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._collision_readiness_impl") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:={"ok":false,"reason":"collision_pending","physics_published_frame":-1}
 	if not is_instance_valid(map_root) or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.y<0 or clip.size.z<0:return result
 	if not map_root.has_meta("stream_collision_index"):return result
@@ -533,6 +618,7 @@ static func _collision_readiness_impl(map_root:Node,clip:AABB,profile:Dictionary
 ## Runtime fixtures instead index their whole hinge sweep. Never exact-filter
 ## this list by the query footprint or current pose: either may move on a hit.
 static func _collision_candidates(map_root:Node,index:Dictionary,low:Vector2i,high:Vector2i)->Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._collision_candidates") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var revision:=int(map_root.get_meta("stream_collision_revision"))
 	var cache:Dictionary=map_root.get_meta("stream_collision_candidate_cache",{})
 	if int(cache.get("revision",-1))!=revision or not is_same(cache.get("index"),index):
@@ -562,12 +648,14 @@ static func _collision_candidates(map_root:Node,index:Dictionary,low:Vector2i,hi
 	return items
 
 static func collision_candidate_cache_stats(map_root:Node)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.collision_candidate_cache_stats") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var cache:Dictionary=map_root.get_meta("stream_collision_candidate_cache",{})
 	var count:=0
 	for row:Dictionary in cache.get("ranges",{}).values():count+=row.items.size()
 	return {"enabled":collision_candidate_cache_enabled,"revision":int(map_root.get_meta("stream_collision_revision",0)),"hits":cache.get("hits",0),"misses":cache.get("misses",0),"ranges":cache.get("ranges",{}).size(),"candidate_references":count,"profile":map_root.get_meta("stream_collision_readiness_profile",{}).duplicate(true)}
 
 static func _cached_collision_readiness(map_root:Node,clip:AABB,index:Dictionary,low:Vector2i,high:Vector2i,result:Dictionary,profile:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._cached_collision_readiness") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
 	var fort:Node=map_root.get_node_or_null("FortificationCollisionBatches")
 	var area:=Rect2(clip.position.x,clip.position.z,clip.size.x,clip.size.z)
@@ -604,12 +692,14 @@ static func _cached_collision_readiness(map_root:Node,clip:AABB,index:Dictionary
 
 
 static func _profile_load(map_root:Node,timings:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._profile_load") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile:Dictionary=map_root.get_meta("stream_load_profile_us",{})
 	for key:String in timings:profile[key]=int(profile.get(key,0))+timings[key]
 	map_root.set_meta("stream_load_profile_us",profile)
 
 
 static func _collision_wrapper_slots(map_root:Node)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._collision_wrapper_slots") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var state:Dictionary=map_root.get_meta("collision_wrapper_profile",{})
 	if state.is_empty():
 		state={"frame":-1,"count":0,"dropped":0,"slots":[]}
@@ -623,6 +713,7 @@ static func _collision_wrapper_slots(map_root:Node)->Dictionary:
 
 
 static func collision_wrapper_snapshot(map_root:Node)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.collision_wrapper_snapshot") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not map_root.get_meta("profile_collision_details",false):return {}
 	var state:Dictionary=map_root.get_meta("collision_wrapper_profile",{})
 	if state.is_empty():return {}
@@ -637,6 +728,7 @@ static func collision_wrapper_snapshot(map_root:Node)->Dictionary:
 
 
 static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,wrapper_stamps:Variant=null,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._prepare_collision") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if wrapper_stamps!=null:wrapper_stamps[1]=Time.get_ticks_usec()
 	if not map_root.get_meta("profile_collision_details",false):return _prepare_collision_impl(map_root,host,spec,solid,bodies,work_budget_usec)
 	var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
@@ -660,6 +752,7 @@ static func _prepare_collision(map_root:Node,host:Node,spec:Dictionary,solid:Dic
 
 
 static func _prefetch_collisions(map_root:Node,host:Node,jobs:Array,cursor:int,solid:Dictionary,bodies:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._prefetch_collisions") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var Preparer=preload("res://scripts/world3d/stream_collision_preparer.gd")
 	if not Preparer.prefetch_enabled or cursor>=jobs.size() or host==null or not host.is_inside_tree():return
 	var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
@@ -683,6 +776,7 @@ static func _prefetch_collisions(map_root:Node,host:Node,jobs:Array,cursor:int,s
 	preparer._face_prefetch.request(requests,host.get_tree())
 
 static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,work_budget_usec:int=1500)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._prepare_collision_impl") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if bodies.has(str(spec.uuid)) or not _overlaps(spec,solid):return true
 	var extras:Dictionary=spec.get("extras",{})
 	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
@@ -697,6 +791,7 @@ static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,soli
 
 
 static func _library(map_root: Node) -> Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._library") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var existing: Variant = map_root.get_meta(&"stream_library", [])
 	if existing is Array:
 		return existing
@@ -706,6 +801,7 @@ static func _library(map_root: Node) -> Array:
 
 
 static func _dict(node: Node, key: StringName) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._dict") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.has_meta(key):
 		var existing: Variant = node.get_meta(key)
 		if existing is Dictionary:
@@ -716,6 +812,7 @@ static func _dict(node: Node, key: StringName) -> Dictionary:
 
 
 static func _live(bag: Dictionary, uuid: String):
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._live") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var node: Variant = bag.get(uuid, null)
 	if node == null or not is_instance_valid(node):
 		bag.erase(uuid)
@@ -724,6 +821,7 @@ static func _live(bag: Dictionary, uuid: String):
 
 
 static func _jobs(node: Node) -> Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._jobs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.has_meta(&"stream_jobs"):
 		var existing: Variant = node.get_meta(&"stream_jobs")
 		if existing is Array:
@@ -734,6 +832,7 @@ static func _jobs(node: Node) -> Array:
 
 
 static func _chunk_is(node: Node, key: StringName, chunk: Vector2i) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._chunk_is") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not node.has_meta(key):
 		return false
 	var value: Variant = node.get_meta(key)
@@ -741,10 +840,12 @@ static func _chunk_is(node: Node, key: StringName, chunk: Vector2i) -> bool:
 
 
 static func _child_count_is(node: Node, count: int) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._child_count_is") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return node.has_meta(&"stream_children") and int(node.get_meta(&"stream_children")) == count
 
 
 static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._adopt") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started:=Time.get_ticks_usec();var spec_us:=0;var free_us:=0;var freed_count:=0
 	preload("res://scripts/world3d/scene_integrity.gd").prepare(map_root)
 	var incoming: Array = []
@@ -811,9 +912,11 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
 		if is_instance_valid(holder) and _empty_compiled_holder(holder):holder.remove_meta("_compiled_resource_owner")
 	free_us=Time.get_ticks_usec()-free_started
 	map_root.set_meta("stream_adopt_ms",{"total":(Time.get_ticks_usec()-started)/1000.0,"spec":spec_us/1000.0,"free":free_us/1000.0,"freed_count":freed_count,"reused_count":reused_count})
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.adopt",started,map_root.get_meta("stream_adopt_ms"))
 
 
 static func _empty_compiled_holder(node:Node)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._empty_compiled_holder") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.get_class()!="Node3D" or node.get_script()!=null or node.has_meta("native_visual") or node.has_meta("native_dynamic"):return false
 	for child:Node in node.get_children():
 		if not _empty_compiled_holder(child):return false
@@ -821,6 +924,7 @@ static func _empty_compiled_holder(node:Node)->bool:
 
 
 static func _collect_meshes(node: Node, result: Array) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._collect_meshes") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for child in node.get_children():
 		if child.has_meta("stream_instance"):
 			continue
@@ -830,6 +934,7 @@ static func _collect_meshes(node: Node, result: Array) -> void:
 
 
 static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bodies: Dictionary) -> Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._candidates") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var clip:Variant=_entry_clip(map_root)
 	if clip!=null:return _entry_candidates(map_root,clip)
 	var index := _dict(map_root, &"stream_index")
@@ -859,6 +964,7 @@ static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bo
 	return selected.values()
 
 static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,unfinished:Array=[])->Array:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._changed_candidates") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var clip:Variant=_entry_clip(map_root)
 	if clip!=null:return _entry_candidates(map_root,clip)
 	if not map_root.get_meta("stream_sources",{}).is_empty():
@@ -890,12 +996,16 @@ static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,
 
 
 static func _index_buildings(map_root:Node,library:Array)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._index_buildings") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if int(map_root.get_meta("stream_building_count",-1))==library.size():return
+	var started:=Time.get_ticks_usec()
 	var data:Dictionary=preload("res://scripts/world3d/stream_index.gd").build(library)
 	for key:String in data:map_root.set_meta(key,data[key])
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.index_build",started,{"records":library.size()})
 
 
 static func _draws(spec:Dictionary,draw:Dictionary)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._draws") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if draw.has("entry_clip"):return _in_entry_scope(spec,draw.entry_clip)
 	for area:Dictionary in draw.get("sources",[]):
 		if _draws(spec,area):return true
@@ -909,6 +1019,7 @@ static func _draws(spec:Dictionary,draw:Dictionary)->bool:
 
 
 static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: Dictionary, target: Vector2i, budget: int,deadline:int=0) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._plan_jobs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not map_root.has_meta(&"stream_candidates"):
 		return true
 	var detailed:=bool(map_root.get_meta("profile_collision_details",false))
@@ -947,6 +1058,7 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 
 
 static func append_ready_jobs(map_root:Node,jobs:Array,cursor:int,draw:Dictionary,solid:Dictionary,meshes:Dictionary,bodies:Dictionary)->bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.append_ready_jobs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Index.append already validated and published these immutable specs. Insert
 	# them into the current plan without cancelling its active collision worker.
 	# Holding every new near prop behind an entire district left streets empty.
@@ -966,6 +1078,7 @@ static func append_ready_jobs(map_root:Node,jobs:Array,cursor:int,draw:Dictionar
 
 
 static func prioritize_local_collisions(jobs:Array,cursor:int,origin:Vector3,bodies:Dictionary,draw:Dictionary={},meshes:Dictionary={})->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.prioritize_local_collisions") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Reorder only the pending residency plan. Keep its current item first:
 	# a sliced/worker collision preparation may already own that exact source.
 	# The 6 m lead gives nearby solids time to attach before the 2 m safety gate.
@@ -992,6 +1105,7 @@ static func prioritize_local_collisions(jobs:Array,cursor:int,origin:Vector3,bod
 
 
 static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary, batched: Dictionary={}) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._needs_work") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
@@ -1007,6 +1121,7 @@ static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, m
 
 
 static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
@@ -1015,7 +1130,9 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 	var changed:=false
 	var collides := str(spec.get("extras", {}).get("rmmo_collision", "")) != "none" and not (bool(spec.get("extras", {}).get("hostile", false)) or bool(spec.get("extras", {}).get("ally", false)))
 	collides=collides and _overlaps(spec,solid)
-	if not collides or not FortCollision.candidate(spec.get("ground_batch_record",{})): _dict(map_root,&"fortification_collision_sources").erase(uuid)
+	var fort_sources:=_dict(map_root,&"fortification_collision_sources")
+	if not collides or not FortCollision.candidate(spec.get("ground_batch_record",{})):
+		if fort_sources.erase(uuid):map_root.set_meta("stream_fortification_collision_dirty",true)
 	if bool(spec.get("native_visual", false)):
 		pass
 	elif _draws(spec, draw):
@@ -1026,11 +1143,14 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			meshes[uuid] = inst
 			changed=true
 	elif inst != null:
+		var batcher:Node=map_root.get_node_or_null("GroundRenderBatches")
+		if batcher!=null:batcher.retire_sources([inst])
 		_drop(meshes, uuid, inst)
 		changed=true
 	if collides:
 		if FortCollision.candidate(spec.get("ground_batch_record",{})):
-			_dict(map_root,&"fortification_collision_sources")[uuid]=spec
+			fort_sources[uuid]=spec
+			map_root.set_meta("stream_fortification_collision_dirty",true)
 		elif body == null:
 			body = _make_body(host, spec, map_root.has_meta("profile_frame"))
 			if body != null:
@@ -1042,16 +1162,19 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 
 
 static func _ring_at(chunk: Vector2i, radius: int) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._ring_at") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return {"low": chunk - Vector2i(radius, radius), "high": chunk + Vector2i(radius, radius)}
 
 
 static func _drop(bag: Dictionary, uuid: String, node: Node) -> void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node != null and is_instance_valid(node):
 		node.free()
 	bag.erase(uuid)
 
 
 static func _spec(visual: MeshInstance3D) -> Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._spec") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var Io = load("res://scripts/world3d/gltf_map_io.gd")
 	var bounds: AABB = visual.transform * visual.get_aabb()
 	var extras: Dictionary = Io.extras_of(visual).duplicate(true)
@@ -1104,19 +1227,43 @@ static func _spec(visual: MeshInstance3D) -> Dictionary:
 
 
 static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false) -> MeshInstance3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._spawn") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started:=Time.get_ticks_usec() if profile else 0
+	var traced:=preload("res://scripts/world3d/load_trace.gd").methods_enabled
+	var stage_started:=Time.get_ticks_usec() if traced else 0
 	var visual := MeshInstance3D.new()
 	visual.name = str(spec.get("uuid", "chunk"))
-	visual.mesh = spec.get("mesh")
+	var source:Mesh=spec.get("mesh")
+	var deferred_materials:=false
+	if source is CpuMesh and defer_upload and spec.has("ground_batch_record") and not spec.ground_batch_record.has("house_prefab"):
+		# Instance overrides belong in this instance's CPU descriptor until batch
+		# membership is known. Uploading just to install an override defeats the
+		# covered-load path; RS surface overrides also require a real mesh base.
+		var materials:Array[Material]=[]
+		var overrides:Array=spec.get("surface_overrides",[])
+		for slot:int in source.get_surface_count():
+			materials.append(spec.material_override if spec.get("material_override")!=null else (overrides[slot] if slot<overrides.size() and overrides[slot]!=null else source.surface_get_material(slot)))
+		if materials!=source.materials:
+			var local:=CpuMesh.new();local.surfaces=source.surfaces;local.lods=source.lods;local.bounds=source.bounds;local.box_size=source.box_size;local.source_reference=source.source_reference;local.materials=materials;local._collision_faces=source._collision_faces
+			if source.has_meta("static_batch_geometry_signature"):local.set_meta("static_batch_geometry_signature",source.geometry_key())
+			source=local
+		deferred_materials=true
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_cpu_projection",stage_started,{"uuid":spec.uuid})
+	stage_started=Time.get_ticks_usec() if traced else 0
+	visual.mesh = source
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_bind_source",stage_started,{"uuid":spec.uuid})
+	stage_started=Time.get_ticks_usec() if traced else 0
 	if visual.mesh is CpuMesh:
-		if defer_upload and spec.has("ground_batch_record") and not spec.ground_batch_record.has("house_prefab") and spec.get("material_override")==null and not spec.get("surface_overrides",[]).any(func(value):return value!=null):visual.set_meta("deferred_gpu",true)
+		if deferred_materials:visual.set_meta("deferred_gpu",true)
 		else:visual.mesh = visual.mesh.restore()
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_restore",stage_started,{"uuid":spec.uuid})
+	stage_started=Time.get_ticks_usec() if traced else 0
 	var restored:=Time.get_ticks_usec() if profile else 0
 	if spec.has("ground_batch_record"): visual.set_meta("ground_batch_record",spec.ground_batch_record)
-	visual.material_override = spec.get("material_override")
+	visual.material_override = null if deferred_materials else spec.get("material_override")
 	visual.cast_shadow=spec.get("cast_shadow",GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
 	for slot in spec.get("surface_overrides",[]).size():
-		if spec.surface_overrides[slot]!=null:visual.set_surface_override_material(slot,spec.surface_overrides[slot])
+		if not deferred_materials and spec.surface_overrides[slot]!=null:visual.set_surface_override_material(slot,spec.surface_overrides[slot])
 	visual.set_meta("stream_instance", true)
 	visual.position = spec.get("position", Vector3.ZERO)
 	visual.rotation = spec.get("rotation", Vector3.ZERO)
@@ -1124,9 +1271,13 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false
 	var extras: Dictionary = spec.get("extras", {})
 	if not extras.is_empty():
 		visual.set_meta("extras", extras)
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_metadata",stage_started,{"uuid":spec.uuid})
+	stage_started=Time.get_ticks_usec() if traced else 0
 	preload("res://scripts/world3d/asset_visibility_range.gd").register(visual)
 	preload("res://scripts/world3d/wind_response.gd").register(visual)
 	preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_registration",stage_started,{"uuid":spec.uuid})
+	stage_started=Time.get_ticks_usec() if traced else 0
 	if bool(extras.get("invisible", false)):
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):
@@ -1145,11 +1296,13 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false
 		label.pixel_size = 0.003
 		visual.add_child(label)
 	preload("res://scripts/world3d/building_shadow_proxy.gd").attach(visual)
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_shadow",stage_started,{"uuid":spec.uuid})
 	if profile and Time.get_ticks_usec()-started>5000:print("STREAM_VISUAL_SLOW ",spec.uuid," ",{"restore_ms":(restored-started)/1000.0,"setup_ms":(Time.get_ticks_usec()-restored)/1000.0})
 	return visual
 
 
 static func _body_shell(spec:Dictionary)->StaticBody3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._body_shell") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var extras: Dictionary = spec.get("extras", {})
 	var body := StaticBody3D.new()
 	body.name = "%s_body" % str(spec.get("uuid", "chunk"))
@@ -1171,6 +1324,7 @@ static func _body_shell(spec:Dictionary)->StaticBody3D:
 
 
 static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> StaticBody3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._make_body") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile_started:=Time.get_ticks_usec()
 	var extras:Dictionary=spec.get("extras",{})
 	if str(extras.get("rmmo_collision", "")) == "none" or (bool(extras.get("hostile", false)) or bool(extras.get("ally", false))):return null
@@ -1218,11 +1372,13 @@ static func _make_body(host: Node, spec: Dictionary, profile:bool=false) -> Stat
 
 
 static func _triangle_shape(mesh:Mesh)->ConcavePolygonShape3D:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._triangle_shape") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not mesh is CpuMesh:return mesh.create_trimesh_shape()
 	var shape:=ConcavePolygonShape3D.new();shape.set_faces(mesh.collision_faces());return shape
 
 
 static func _overlaps(spec: Dictionary, chunks: Dictionary) -> bool:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._overlaps") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if chunks.has("entry_clip"):return _in_entry_scope(spec,chunks.entry_clip)
 	for area:Dictionary in chunks.get("sources",[]):
 		if _overlaps(spec,area):return true
