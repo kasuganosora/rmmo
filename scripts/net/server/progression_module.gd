@@ -2,12 +2,19 @@ extends RefCounted
 ## Domain module: progression (level-up SP, attr allocate/respec, kill EXP).
 
 var ctrl
+
+
 func _init(c):
 	ctrl = c
 
+## SP granted per level-up (tune reasonably).
+## @server-constant
 const SP_PER_LEVEL := 1
+## Flat gold cost to respec primary attributes.
+## @server-constant
 const ATTR_RESPEC_GOLD_COST := 30
 
+## @server-api
 func _append_level_up_sp(actions: Array, levels_gained: Array) -> void:
 	if ctrl.combat_stats == null or levels_gained.is_empty():
 		return
@@ -44,6 +51,7 @@ func _append_level_up_sp(actions: Array, levels_gained: Array) -> void:
 
 
 
+## @server-api
 func try_allocate_attr(stat_key: String, amount: int = 1) -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats == null:
@@ -88,6 +96,7 @@ func try_allocate_attr(stat_key: String, amount: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_attr_respec() -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats == null:
@@ -165,6 +174,7 @@ func try_attr_respec() -> Dictionary:
 
 
 
+## @server-api
 func grant_kill_exp(npc_id: String) -> Array:
 	var actions: Array = []
 	npc_id = npc_id.strip_edges()
@@ -262,3 +272,7 @@ func grant_kill_exp(npc_id: String) -> Array:
 	return actions
 
 
+
+## Flat gold cost to respec skills (independent of refunded SP).
+## @server-constant
+const SKILL_RESPEC_GOLD_COST := 50

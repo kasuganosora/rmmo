@@ -2,11 +2,14 @@ extends RefCounted
 ## Domain module: chat (send).
 
 var ctrl
+
+
 func _init(c):
 	ctrl = c
 
 const NEARBY_CHAT_RANGE := 12  # Chebyshev cells
 
+## @server-api
 func try_chat(channel: String, text: String, whisper_to: String = "") -> Dictionary:
 	var actions: Array = []
 	channel = str(channel).strip_edges().to_lower()

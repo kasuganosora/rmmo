@@ -2,9 +2,18 @@ extends RefCounted
 ## Domain module: trade (open/put/take/gold/ready/confirm, escrow refund).
 
 var ctrl
+
+## @server-state
+var _trade: Dictionary = {}  # empty = no session
+
+## @server-state
+var _next_trade_seq: int = 1
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_trade() -> Dictionary:
 	if ctrl._trade.is_empty():
 		return {"active": false}
@@ -23,21 +32,25 @@ func snapshot_trade() -> Dictionary:
 
 
 
+## @server-api
 func in_trade() -> bool:
 	return not ctrl._trade.is_empty()
 
 
 
+## @server-api
 func _trade_update_action() -> Dictionary:
 	return {"type": "trade_update", "trade": snapshot_trade()}
 
 
 
+## @server-api
 func _trade_close_action() -> Dictionary:
 	return {"type": "trade_close"}
 
 
 
+## @server-api
 func _trade_force_cancel_silent() -> void:
 	# Return escrow without UI spam (map reload / logout shell).
 	if ctrl._trade.is_empty():
@@ -47,6 +60,7 @@ func _trade_force_cancel_silent() -> void:
 
 
 
+## @server-api
 func _trade_refund_my_escrow() -> void:
 	if ctrl.inventory == null:
 		return
@@ -68,6 +82,7 @@ func _trade_refund_my_escrow() -> void:
 
 
 
+## @server-api
 func _trade_inventory_actions() -> Array:
 	var actions: Array = []
 	if ctrl.inventory == null:
@@ -81,6 +96,7 @@ func _trade_inventory_actions() -> Array:
 
 
 
+## @server-api
 func _trade_find_my_item(item_id: String) -> int:
 	item_id = item_id.strip_edges()
 	var items: Array = ctrl._trade.get("my_items", [])
@@ -92,6 +108,7 @@ func _trade_find_my_item(item_id: String) -> int:
 
 
 
+## @server-api
 func try_trade_open(partner_name: String = "") -> Dictionary:
 	var actions: Array = []
 	if in_trade():
@@ -133,6 +150,7 @@ func try_trade_open(partner_name: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_trade_cancel() -> Dictionary:
 	var actions: Array = []
 	if not in_trade():
@@ -147,6 +165,7 @@ func try_trade_cancel() -> Dictionary:
 
 
 
+## @server-api
 func try_trade_put_item(item_id: String, qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -191,6 +210,7 @@ func try_trade_put_item(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_trade_take_item(item_id: String, qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -225,6 +245,7 @@ func try_trade_take_item(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_trade_set_gold(amount: int) -> Dictionary:
 	var actions: Array = []
 	amount = maxi(amount, 0)
@@ -254,6 +275,7 @@ func try_trade_set_gold(amount: int) -> Dictionary:
 
 
 
+## @server-api
 func _trade_fill_stub_offer() -> void:
 	## Canned counter-offer so the shell can complete a full swap.
 	if int(ctrl._trade.get("their_gold", 0)) > 0 or not (ctrl._trade.get("their_items", []) as Array).is_empty():
@@ -268,6 +290,7 @@ func _trade_fill_stub_offer() -> void:
 
 
 
+## @server-api
 func try_trade_ready(ready: bool = true) -> Dictionary:
 	var actions: Array = []
 	if not in_trade():
@@ -286,6 +309,7 @@ func try_trade_ready(ready: bool = true) -> Dictionary:
 
 
 
+## @server-api
 func try_trade_confirm() -> Dictionary:
 	var actions: Array = []
 	if not in_trade():

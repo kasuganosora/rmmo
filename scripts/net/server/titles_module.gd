@@ -2,9 +2,15 @@ extends RefCounted
 ## Domain module: titles (snapshot, equip, counters).
 
 var ctrl
+
+## @server-state
+var title_catalog = null
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_titles() -> Dictionary:
 	if ctrl.combat_stats == null:
 		return {
@@ -38,11 +44,13 @@ func snapshot_titles() -> Dictionary:
 
 
 
+## @server-api
 func _title_update_action() -> Dictionary:
 	return {"type": "title_update", "titles": snapshot_titles()}
 
 
 
+## @server-api
 func _note_title_counter(key: String, amount: int = 1) -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null or amount == 0:
@@ -64,6 +72,7 @@ func _note_title_counter(key: String, amount: int = 1) -> Array:
 
 
 
+## @server-api
 func try_title_equip(title_id: String) -> Dictionary:
 	var actions: Array = []
 	title_id = str(title_id).strip_edges()

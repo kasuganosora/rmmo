@@ -2,15 +2,29 @@ extends RefCounted
 ## Domain module: remote-player shells (spawn/despawn/patrol, lookup).
 
 var ctrl
+
+## @server-state
+var _remote_players: Dictionary = {}  # id -> {id, name, cell:{x,y}}
+
+## @server-state
+var _next_remote_seq: int = 1
+
+
 func _init(c):
 	ctrl = c
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const MobAI = preload("res://scripts/net/combat/mob_ai.gd")
+## Idle roam radius from spawn home (cells). 0 = stand still.
+## @server-constant
 const REMOTE_WANDER_RADIUS := 4
+## Shell demo: spawn wandering fake players on enter/transfer (no real netcode).
+## @server-constant
 const AUTO_SPAWN_SHELL_REMOTES := true
+## @server-constant
 const SHELL_REMOTE_NAMES := ["旅人甲", "旅人乙", "旅人丙"]
 
+## @server-api
 func _target_is_remote_player(target_id: String) -> bool:
 	target_id = str(target_id).strip_edges()
 	if target_id.is_empty():
@@ -28,6 +42,7 @@ func _target_is_remote_player(target_id: String) -> bool:
 
 
 
+## @server-api
 func snapshot_remote_players() -> Array:
 	var out: Array = []
 	for rid in ctrl._remote_players.keys():
@@ -38,6 +53,7 @@ func snapshot_remote_players() -> Array:
 
 
 
+## @server-api
 func get_remote_player(remote_id: String) -> Dictionary:
 	remote_id = remote_id.strip_edges()
 	if remote_id.is_empty() or not ctrl._remote_players.has(remote_id):
@@ -46,6 +62,7 @@ func get_remote_player(remote_id: String) -> Dictionary:
 
 
 
+## @server-api
 func find_remote_by_name(remote_name: String) -> String:
 	remote_name = remote_name.strip_edges()
 	if remote_name.is_empty():
@@ -64,12 +81,14 @@ func find_remote_by_name(remote_name: String) -> String:
 
 
 
+## @server-api
 func _remote_spawn_action(remote_id: String) -> Dictionary:
 	var d: Dictionary = get_remote_player(remote_id)
 	return {"type": "remote_spawn", "player": d}
 
 
 
+## @server-api
 func _ensure_shell_remotes(want: int = 1) -> void:
 	if not AUTO_SPAWN_SHELL_REMOTES:
 		return
@@ -87,6 +106,7 @@ func _ensure_shell_remotes(want: int = 1) -> void:
 
 
 
+## @server-api
 func _shell_remote_spawn_actions() -> Array:
 	var acts: Array = []
 	for rid in ctrl._remote_players.keys():
@@ -95,6 +115,7 @@ func _shell_remote_spawn_actions() -> Array:
 
 
 
+## @server-api
 func try_remote_debug_spawn(display_name: String = "") -> Dictionary:
 	var actions: Array = []
 	display_name = str(display_name).strip_edges()
@@ -155,6 +176,7 @@ func try_remote_debug_spawn(display_name: String = "") -> Dictionary:
 
 
 
+## @server-api
 func _tick_remote_patrol(dt: float) -> Array:
 	var actions: Array = []
 	if ctrl._remote_players.is_empty():
@@ -219,6 +241,7 @@ func _tick_remote_patrol(dt: float) -> Array:
 
 
 
+## @server-api
 func try_remote_despawn(remote_id: String = "") -> Dictionary:
 	var actions: Array = []
 	remote_id = str(remote_id).strip_edges()
@@ -235,3 +258,9 @@ func try_remote_despawn(remote_id: String = "") -> Dictionary:
 	return {"ok": true, "actions": actions}
 
 
+
+## @server-constant
+const NEARBY_CHAT_RANGE := 12  # Chebyshev cells
+
+## @server-constant
+const SHELL_REMOTE_COUNT := 1

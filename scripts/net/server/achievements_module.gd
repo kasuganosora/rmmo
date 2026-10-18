@@ -2,9 +2,15 @@ extends RefCounted
 ## Domain module: achievements (snapshot, unlock, counters, rewards).
 
 var ctrl
+
+## @server-state
+var achievement_catalog = null
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_achievements() -> Dictionary:
 	if ctrl.combat_stats == null:
 		return {
@@ -37,11 +43,13 @@ func snapshot_achievements() -> Dictionary:
 
 
 
+## @server-api
 func _achievement_update_action() -> Dictionary:
 	return {"type": "achievement_update", "achievements": snapshot_achievements()}
 
 
 
+## @server-api
 func _grant_achievement_reward(def: Dictionary) -> Array:
 	var actions: Array = []
 	var rew_v: Variant = def.get("reward", {})
@@ -93,6 +101,7 @@ func _grant_achievement_reward(def: Dictionary) -> Array:
 
 
 
+## @server-api
 func _flush_achievement_unlocks() -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null:
@@ -115,6 +124,7 @@ func _flush_achievement_unlocks() -> Array:
 
 
 
+## @server-api
 func _note_achievement_counter(key: String, amount: int = 1) -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null or amount == 0:
@@ -125,6 +135,7 @@ func _note_achievement_counter(key: String, amount: int = 1) -> Array:
 
 
 
+## @server-api
 func _sync_achievement_level(level: int) -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null:
@@ -141,6 +152,7 @@ func _sync_achievement_level(level: int) -> Array:
 
 
 
+## @server-api
 func force_achievement_progress(key: String, value: int) -> Dictionary:
 	var actions: Array = []
 	key = str(key).strip_edges()
@@ -152,6 +164,7 @@ func force_achievement_progress(key: String, value: int) -> Dictionary:
 
 
 
+## @server-api
 func force_achievement_unlock(ach_id: String) -> Dictionary:
 	var actions: Array = []
 	ach_id = str(ach_id).strip_edges()

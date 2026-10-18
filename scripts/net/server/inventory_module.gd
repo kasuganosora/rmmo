@@ -2,12 +2,22 @@ extends RefCounted
 ## Domain module: inventory/items (split/sort/lock, use, drop, bag display).
 
 var ctrl
+
+## @server-state
+var item_catalog = null
+
+## @server-state
+var inventory = null
+
+
 func _init(c):
 	ctrl = c
 
 const Equipment = preload("res://scripts/net/combat/equipment.gd")
 
+## @server-api
 func try_use_item(item_id: String) -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().use_item(item_id)
 	item_id = item_id.strip_edges()
 	if item_id==preload("res://scripts/world3d/day_night_review_item.gd").ID:
 		return preload("res://scripts/world3d/day_night_review_item.gd").failure("请进入三维地图后使用昼夜切换仪。")
@@ -43,6 +53,7 @@ func try_use_item(item_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_inventory_split(item_id: String, qty: int) -> Dictionary:
 	var actions: Array = []
 	if ctrl.inventory == null or not ctrl.inventory.has_method("try_split"):
@@ -67,6 +78,7 @@ func try_inventory_split(item_id: String, qty: int) -> Dictionary:
 
 
 
+## @server-api
 func try_inventory_sort() -> Dictionary:
 	var actions: Array = []
 	if ctrl.inventory == null or not ctrl.inventory.has_method("sort_stacks"):
@@ -81,6 +93,7 @@ func try_inventory_sort() -> Dictionary:
 
 
 
+## @server-api
 func try_inventory_lock(item_id: String, on: bool) -> Dictionary:
 	var actions: Array = []
 	if ctrl.inventory == null or not ctrl.inventory.has_method("set_locked"):
@@ -96,6 +109,7 @@ func try_inventory_lock(item_id: String, on: bool) -> Dictionary:
 
 
 
+## @server-api
 func _item_binds_on_pickup(item_id: String) -> bool:
 	if ctrl.item_catalog == null:
 		return false
@@ -104,6 +118,7 @@ func _item_binds_on_pickup(item_id: String) -> bool:
 
 
 
+## @server-api
 func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
 	item_id = item_id.strip_edges()
 	var actions: Array = []
@@ -138,6 +153,7 @@ func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_drop_equipped(slot: String) -> Dictionary:
 	slot = slot.strip_edges()
 	var actions: Array = []
@@ -175,6 +191,7 @@ func try_drop_equipped(slot: String) -> Dictionary:
 
 
 
+## @server-api
 func _open_bag_items() -> Array:
 	if ctrl._open_loot_bag_id.is_empty() or not ctrl._ground_bags.has(ctrl._open_loot_bag_id):
 		return []
@@ -184,6 +201,7 @@ func _open_bag_items() -> Array:
 
 
 
+## @server-api
 func _item_icon_fields(item_id: String) -> Dictionary:
 	var out = {"icon_index": -1}
 	if ctrl.item_catalog == null or item_id.strip_edges().is_empty():
@@ -204,6 +222,7 @@ func _item_icon_fields(item_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _open_bag_items_dup() -> Array:
 	var out: Array = []
 	for d_v in _open_bag_items():
@@ -221,6 +240,7 @@ func _open_bag_items_dup() -> Array:
 
 
 
+## @server-api
 func _merge_item_into_list(items: Array, item_id: String, qty: int) -> void:
 	for i in range(items.size()):
 		var pe: Dictionary = items[i]
@@ -232,6 +252,7 @@ func _merge_item_into_list(items: Array, item_id: String, qty: int) -> void:
 
 
 
+## @server-api
 func item_display_name(item_id: String) -> String:
 	if ctrl.item_catalog == null:
 		return item_id

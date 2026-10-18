@@ -2,16 +2,81 @@ extends RefCounted
 ## Domain module: world (weather, pack load, safe-zone, transfer, map pins).
 
 var ctrl
+
+## Authoritative map collision for the currently loaded pack
+## @server-state
+var map_collision: RefCounted = null
+
+## @server-state
+var _map_pack: RefCounted = null
+
+## @server-state
+var map_tile_size: int = 48
+
+## @server-state
+var map_pack_id: String = "demo_map"
+
+## @server-state
+var map_pack_path: String = ""
+
+## @server-state
+var map_content_id: String = ""
+
+## @server-state
+var map_content_version: String = ""
+
+## Warp list for the current pack (from pack.json).
+## @server-state
+var map_warps: Array = []
+
+## @server-state
+var safe_zone_catalog = null
+
+## Last emitted safe-zone inside flag (for enter/leave actions).
+## @server-state
+var _safe_zone_inside: bool = false
+
+## @server-state
+var _safe_zone_known: bool = false
+
+## @server-state
+var _map_pins: Array = [] ## [{id, slot, name, map_id, cell:{x,y}}]
+
+## @server-state
+var map_environment: String = MapExt.ENV_OUTDOOR
+
+## @server-state
+var weather_kind: String = "clear"
+
+## @server-state
+var weather_intensity: float = 0.0
+
+## @server-state
+var weather_auto: bool = true
+
+## @server-state
+var _weather_left: float = 40.0
+
+## @server-state
+var _weather_rng := RandomNumberGenerator.new()
+
+
 func _init(c):
 	ctrl = c
 
+## @server-constant
 const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const EventRuntime = preload("res://scripts/net/combat/event_runtime.gd")
+## @server-constant
 const MapExt = preload("res://scripts/map/map_ext.gd")
+## @server-constant
 const Weather = preload("res://scripts/map/weather.gd")
+## Personal map pins (max 3); survive map transfer within session; reset on enter_world.
+## @server-constant
 const MAP_PIN_MAX := 3
 const SHELL_REMOTE_COUNT := 1
 
+## @server-api
 func get_weather() -> Dictionary:
 	return {
 		"kind": ctrl.weather_kind,
@@ -22,6 +87,7 @@ func get_weather() -> Dictionary:
 
 
 
+## @server-api
 func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) -> Dictionary:
 	if _map_indoor():
 		kind = "clear"
@@ -35,16 +101,19 @@ func set_weather(kind: String, intensity: float = 0.75, duration: float = 60.0) 
 
 
 
+## @server-api
 func _map_indoor() -> bool:
 	return MapExt.normalize_environment(ctrl.map_environment) == MapExt.ENV_INDOOR
 
 
 
+## @server-api
 func _weather_action() -> Dictionary:
 	return {"type": "weather", "kind": ctrl.weather_kind, "intensity": ctrl.weather_intensity}
 
 
 
+## @server-api
 func _reset_weather_for_map() -> void:
 	ctrl._weather_rng.seed = 17041 + int(ctrl.map_pack_id.hash())
 	if _map_indoor():
@@ -59,6 +128,7 @@ func _reset_weather_for_map() -> void:
 
 
 
+## @server-api
 func _tick_weather(delta: float) -> void:
 	if not ctrl.weather_auto:
 		return
@@ -79,6 +149,7 @@ func _tick_weather(delta: float) -> void:
 
 
 
+## @server-api
 func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Vector2i(-1, -1)) -> bool:
 	if not _load_pack(pack_path, map_id):
 		return false
@@ -91,6 +162,7 @@ func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Ve
 
 
 
+## @server-api
 func _load_pack(pack_path: String, map_id: String = "") -> bool:
 	var pack = TilemapPack.load_pack(pack_path, map_id)
 	if pack == null or pack.collision == null:
@@ -148,11 +220,13 @@ func _load_pack(pack_path: String, map_id: String = "") -> bool:
 
 
 
+## @server-api
 func _load_demo_map() -> void:
 	_load_pack(ctrl.start_map_pack_path())
 
 
 
+## @server-api
 func is_in_safe_zone(map_id: String, x: int, y: int) -> bool:
 	if ctrl.safe_zone_catalog == null:
 		return false
@@ -160,6 +234,7 @@ func is_in_safe_zone(map_id: String, x: int, y: int) -> bool:
 
 
 
+## @server-api
 func player_in_safe_zone() -> bool:
 	if ctrl.player_cell.x <= -9990:
 		return false
@@ -167,16 +242,19 @@ func player_in_safe_zone() -> bool:
 
 
 
+## @server-api
 func snapshot_safe_zone() -> Dictionary:
 	return {"inside": player_in_safe_zone()}
 
 
 
+## @server-api
 func _safe_zone_action(inside: bool) -> Dictionary:
 	return {"type": "safe_zone", "inside": inside}
 
 
 
+## @server-api
 func _safe_zone_transition_actions(force: bool = false) -> Array:
 	## Emit safe_zone action when inside flag changes (or force on enter_world).
 	var inside = player_in_safe_zone()
@@ -188,6 +266,7 @@ func _safe_zone_transition_actions(force: bool = false) -> Array:
 
 
 
+## @server-api
 func _safe_zone_block_pvp_result() -> Dictionary:
 	return {
 		"ok": false,
@@ -197,6 +276,7 @@ func _safe_zone_block_pvp_result() -> Dictionary:
 
 
 
+## @server-api
 func _transfer_result_extras() -> Dictionary:
 	# Shop buyback is session/map-local — wipe on transfer.
 	ctrl._clear_shop_session_buyback()
@@ -211,6 +291,7 @@ func _transfer_result_extras() -> Dictionary:
 
 
 
+## @server-api
 func try_transfer(from_x: int, from_y: int) -> Dictionary:
 	var warp: Dictionary = {}
 	for item in ctrl.map_warps:
@@ -292,6 +373,7 @@ func try_transfer(from_x: int, from_y: int) -> Dictionary:
 
 
 
+## @server-api
 func _town_dest() -> Vector2i:
 	var dest: Vector2i = ctrl.respawn_cell
 	if dest.x <= -9990:
@@ -305,6 +387,7 @@ func _town_dest() -> Vector2i:
 
 
 
+## @server-api
 func snapshot_map_pins() -> Dictionary:
 	var pins: Array = []
 	for p in ctrl._map_pins:
@@ -315,6 +398,7 @@ func snapshot_map_pins() -> Dictionary:
 
 
 
+## @server-api
 func list_map_pins_for_map(map_id: String = "") -> Array:
 	map_id = str(map_id).strip_edges()
 	if map_id.is_empty():
@@ -331,11 +415,13 @@ func list_map_pins_for_map(map_id: String = "") -> Array:
 
 
 
+## @server-api
 func _map_pins_update_action() -> Dictionary:
 	return {"type": "map_pins_update", "map_pins": snapshot_map_pins()}
 
 
 
+## @server-api
 func _map_pin_slot_free() -> int:
 	var used: Dictionary = {}
 	for p in ctrl._map_pins:
@@ -349,6 +435,7 @@ func _map_pin_slot_free() -> int:
 
 
 
+## @server-api
 func _find_map_pin_index(x: int, y: int, map_id: String) -> int:
 	map_id = str(map_id).strip_edges()
 	for i in range(ctrl._map_pins.size()):
@@ -376,6 +463,7 @@ func _find_map_pin_index(x: int, y: int, map_id: String) -> int:
 
 
 
+## @server-api
 func try_map_pin_toggle(x: int, y: int, map_id: String = "", short_name: String = "") -> Dictionary:
 	var actions: Array = []
 	map_id = str(map_id).strip_edges()
@@ -412,6 +500,7 @@ func try_map_pin_toggle(x: int, y: int, map_id: String = "", short_name: String 
 
 
 
+## @server-api
 func try_map_pin_clear() -> Dictionary:
 	var actions: Array = []
 	if ctrl._map_pins.is_empty():
@@ -424,3 +513,67 @@ func try_map_pin_clear() -> Dictionary:
 	return {"ok": true, "cleared": n, "actions": actions, "map_pins": snapshot_map_pins()}
 
 
+
+## External first-party pack id (resolved via AssetManager; not in res://).
+## @server-constant
+const DEFAULT_PACK_ID := "default"
+
+## @server-api
+func start_map_pack_id() -> String:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_map_pack_id"):
+		return str(am.start_map_pack_id())
+	return ""
+
+## @server-api
+func start_map_pack_path() -> String:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_map_pack_ref"):
+		return str(am.start_map_pack_ref())
+	return ""
+
+## @server-api
+func street_map_pack_path() -> String:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_map_pack_ref"):
+		return str(am.street_map_pack_ref())
+	return ""
+
+## @server-api
+func street_map_id() -> String:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_map_id"):
+		return str(am.street_map_id())
+	return ""
+
+## @server-api
+func street_spawn_cell() -> Vector2i:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("street_spawn_cell"):
+		return am.street_spawn_cell()
+	return Vector2i.ZERO
+
+## @server-api
+func start_spawn_cell() -> Vector2i:
+	var am: Node = ctrl.get_node_or_null("/root/AssetManager")
+	if am != null and am.has_method("start_spawn_cell"):
+		return am.start_spawn_cell()
+	return Vector2i.ZERO
+
+## @server-api
+func _ingest_stream_around(cell: Vector2i) -> void:
+	if ctrl.map_collision == null or not bool(ctrl.map_collision.get("streaming")):
+		return
+	if ctrl._map_pack == null or not ctrl._map_pack.has_method("load_chunk_data"):
+		return
+	var cc := 16
+	if "chunk_cells" in ctrl.map_collision:
+		cc = maxi(int(ctrl.map_collision.chunk_cells), 1)
+	var oc := Vector2i(int(floor(float(cell.x) / float(cc))), int(floor(float(cell.y) / float(cc))))
+	for cy in range(oc.y - 2, oc.y + 3):
+		for cx in range(oc.x - 2, oc.x + 3):
+			if cx < 0 or cy < 0:
+				continue
+			if ctrl.map_collision.has_method("has_stream_chunk") and ctrl.map_collision.has_stream_chunk(cx, cy):
+				continue
+			ctrl.map_collision.ingest_stream_chunk(cx, cy, ctrl._map_pack.load_chunk_data(cx, cy))

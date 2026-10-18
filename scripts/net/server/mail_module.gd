@@ -2,11 +2,21 @@ extends RefCounted
 ## Domain module: mail (send/read/claim/delete, welcome inject).
 
 var ctrl
+
+## @server-state
+var mailbox = null
+
+## Welcome mail injected once per enter_world session.
+## @server-state
+var _mail_welcome_sent: bool = false
+
+
 func _init(c):
 	ctrl = c
 
 const Mailbox = preload("res://scripts/net/combat/mailbox.gd")
 
+## @server-api
 func snapshot_mail() -> Dictionary:
 	if ctrl.mailbox == null:
 		return {"mails": [], "count": 0, "max_mail": 30}
@@ -14,11 +24,13 @@ func snapshot_mail() -> Dictionary:
 
 
 
+## @server-api
 func _mail_update_action() -> Dictionary:
 	return {"type": "mail_update", "mail": snapshot_mail()}
 
 
 
+## @server-api
 func _mail_inventory_actions() -> Array:
 	var actions: Array = []
 	if ctrl.inventory != null:
@@ -32,6 +44,7 @@ func _mail_inventory_actions() -> Array:
 
 
 
+## @server-api
 func _mail_inject_welcome() -> void:
 	if ctrl._mail_welcome_sent:
 		return
@@ -53,6 +66,7 @@ func _mail_inject_welcome() -> void:
 
 
 
+## @server-api
 func _resolve_mail_recipient(to_name: String) -> Dictionary:
 	## Returns {ok, id, name, is_self, reason}.
 	to_name = str(to_name).strip_edges()
@@ -92,6 +106,7 @@ func _resolve_mail_recipient(to_name: String) -> Dictionary:
 
 
 
+## @server-api
 func try_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	to = str(to).strip_edges()
@@ -180,6 +195,7 @@ func try_mail_send(to: String, subject: String, body: String, gold: int = 0, ite
 
 
 
+## @server-api
 func try_mail_read(mail_id: String) -> Dictionary:
 	var actions: Array = []
 	mail_id = str(mail_id).strip_edges()
@@ -198,6 +214,7 @@ func try_mail_read(mail_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_mail_claim(mail_id: String) -> Dictionary:
 	var actions: Array = []
 	mail_id = str(mail_id).strip_edges()
@@ -271,6 +288,7 @@ func try_mail_claim(mail_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_mail_delete(mail_id: String) -> Dictionary:
 	var actions: Array = []
 	mail_id = str(mail_id).strip_edges()

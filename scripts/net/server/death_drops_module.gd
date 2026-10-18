@@ -2,11 +2,18 @@ extends RefCounted
 ## Domain module: death drops (roll, item pref, type filter, apply).
 
 var ctrl
+
+## Optional test override for softcore death drops: Callable() -> float in [0,1).
+## @server-state
+var death_drop_randf: Callable = Callable()
+
+
 func _init(c):
 	ctrl = c
 
 const Equipment = preload("res://scripts/net/combat/equipment.gd")
 
+## @server-api
 func _death_drop_roll() -> float:
 	if ctrl.death_drop_randf.is_valid():
 		return clampf(float(ctrl.death_drop_randf.call()), 0.0, 0.999999)
@@ -14,6 +21,7 @@ func _death_drop_roll() -> float:
 
 
 
+## @server-api
 func _death_drop_item_pref(item_id: String) -> int:
 	## Lower = preferred for drop. Equipment / quest excluded by caller.
 	var t = ""
@@ -32,6 +40,7 @@ func _death_drop_item_pref(item_id: String) -> int:
 
 
 
+## @server-api
 func _death_drop_type_blocked(item_id: String) -> bool:
 	var t = ""
 	if ctrl.item_catalog != null and ctrl.item_catalog.has_method("get_item"):
@@ -40,6 +49,10 @@ func _death_drop_type_blocked(item_id: String) -> bool:
 	return t in ["equipment", "weapon", "armor", "equip", "quest"]
 
 
+
+## @server-api _apply_death_drops
+func apply_death_drops(actions: Array) -> void:
+	_apply_death_drops(actions)
 
 func _apply_death_drops(actions: Array, place_drop: Callable = Callable()) -> void:
 	if ctrl.inventory == null:

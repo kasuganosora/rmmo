@@ -2,9 +2,12 @@ extends RefCounted
 ## Domain module: DPS meter (snapshot, tick).
 
 var ctrl
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_dps() -> Dictionary:
 	if ctrl.combat_engine != null and ctrl.combat_engine.has_method("snapshot_dps"):
 		return ctrl.combat_engine.snapshot_dps()
@@ -12,6 +15,7 @@ func snapshot_dps() -> Dictionary:
 
 
 
+## @server-api
 func _tick_dps_meter(delta: float) -> void:
 	if ctrl.combat_engine == null or not ctrl.combat_engine.has_method("tick_dps"):
 		return

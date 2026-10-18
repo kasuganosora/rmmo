@@ -2,9 +2,12 @@ extends RefCounted
 ## Domain module: item refine (repair, enhance).
 
 var ctrl
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
 	var actions: Array = []
 	slot = str(slot).strip_edges()
@@ -110,6 +113,7 @@ func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_enhance(slot: String = "") -> Dictionary:
 	var actions: Array = []
 	slot = str(slot).strip_edges()

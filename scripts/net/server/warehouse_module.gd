@@ -2,9 +2,15 @@ extends RefCounted
 ## Domain module: warehouse (open/deposit/withdraw items+gold).
 
 var ctrl
+
+## @server-state
+var warehouse = null
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_warehouse() -> Dictionary:
 	if ctrl.warehouse == null:
 		return {"items": [], "gold": 0, "max_slots": 60, "used_slots": 0}
@@ -12,11 +18,13 @@ func snapshot_warehouse() -> Dictionary:
 
 
 
+## @server-api
 func _warehouse_update_action() -> Dictionary:
 	return {"type": "warehouse_update", "warehouse": snapshot_warehouse()}
 
 
 
+## @server-api
 func _warehouse_inventory_actions() -> Array:
 	var actions: Array = []
 	if ctrl.inventory != null:
@@ -30,6 +38,7 @@ func _warehouse_inventory_actions() -> Array:
 
 
 
+## @server-api
 func try_warehouse_open() -> Dictionary:
 	var actions: Array = []
 	actions.append(_warehouse_update_action())
@@ -38,6 +47,7 @@ func try_warehouse_open() -> Dictionary:
 
 
 
+## @server-api
 func try_warehouse_deposit(item_id: String, qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -74,6 +84,7 @@ func try_warehouse_deposit(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_warehouse_withdraw(item_id: String, qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -110,6 +121,7 @@ func try_warehouse_withdraw(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_warehouse_deposit_gold(amount: int) -> Dictionary:
 	var actions: Array = []
 	amount = int(amount)
@@ -129,6 +141,7 @@ func try_warehouse_deposit_gold(amount: int) -> Dictionary:
 
 
 
+## @server-api
 func try_warehouse_withdraw_gold(amount: int) -> Dictionary:
 	var actions: Array = []
 	amount = int(amount)

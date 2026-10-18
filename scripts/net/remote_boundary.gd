@@ -3,56 +3,28 @@ extends "res://scripts/net/mock_server.gd"
 # Reuse presentation models, never inherited authoritative requests.
 
 @warning_ignore("unused_parameter")
-func snapshot_world3d_sky(map_id: String) -> Dictionary:
+func snapshot_achievements() -> Dictionary:
 	return {}
 
 @warning_ignore("unused_parameter")
-func try_set_world3d_environment(map_id: String, changes: Dictionary) -> Dictionary:
-	return _unsupported("try_set_world3d_environment")
+func snapshot_auction() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_auction_list(item_id: String, qty: int = 1, price_gold: int = 1) -> Dictionary:
+	return _unsupported("try_auction_list")
+
+@warning_ignore("unused_parameter")
+func try_auction_cancel(listing_id: String) -> Dictionary:
+	return _unsupported("try_auction_cancel")
+
+@warning_ignore("unused_parameter")
+func try_chat(channel: String, text: String, whisper_to: String = "") -> Dictionary:
+	return _unsupported("try_chat")
 
 @warning_ignore("unused_parameter")
 func snapshot_threat(npc_id: String) -> Dictionary:
 	return {}
-
-@warning_ignore("unused_parameter")
-func snapshot_safe_zone() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_mount() -> Dictionary:
-	return _unsupported("try_mount")
-
-@warning_ignore("unused_parameter")
-func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
-	return _unsupported("try_move")
-
-@warning_ignore("unused_parameter")
-func try_move_world(sequence: int, direction: Vector3, speed_mps: float, jump:bool=false) -> Dictionary:
-	return _unsupported("try_move_world")
-
-@warning_ignore("unused_parameter")
-func try_world3d_chunk(player_x: float, player_z: float, view_m: float = -1.0) -> Dictionary:
-	return _unsupported("try_world3d_chunk")
-
-@warning_ignore("unused_parameter")
-func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
-	return _unsupported("try_npc_move")
-
-@warning_ignore("unused_parameter")
-func try_transfer(from_x: int, from_y: int) -> Dictionary:
-	return _unsupported("try_transfer")
-
-@warning_ignore("unused_parameter")
-func try_interact(npc_id: String, player_x: int, player_y: int) -> Dictionary:
-	return _unsupported("try_interact")
-
-@warning_ignore("unused_parameter")
-func try_event_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
-	return _unsupported("try_event_choice")
-
-@warning_ignore("unused_parameter")
-func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
-	return _unsupported("try_dialogue_choice")
 
 @warning_ignore("unused_parameter")
 func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
@@ -71,28 +43,8 @@ func try_set_auto_potion(hp_on: bool, hp_pct: int, mp_on: bool, mp_pct: int) -> 
 	_remote_notice("try_set_auto_potion")
 
 @warning_ignore("unused_parameter")
-func try_set_pet_assist(on: bool) -> void:
-	_remote_notice("try_set_pet_assist")
-
-@warning_ignore("unused_parameter")
 func try_set_combat_target(npc_id: String = "") -> void:
 	_remote_notice("try_set_combat_target")
-
-@warning_ignore("unused_parameter")
-func try_use_item(item_id: String) -> Dictionary:
-	return _unsupported("try_use_item")
-
-@warning_ignore("unused_parameter")
-func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
-	return _unsupported("try_equip_item")
-
-@warning_ignore("unused_parameter")
-func try_unequip_item(slot: String) -> Dictionary:
-	return _unsupported("try_unequip_item")
-
-@warning_ignore("unused_parameter")
-func try_toggle_equip(item_id: String) -> Dictionary:
-	return _unsupported("try_toggle_equip")
 
 @warning_ignore("unused_parameter")
 func snapshot_skill_book() -> Dictionary:
@@ -107,60 +59,145 @@ func try_skill_respec() -> Dictionary:
 	return _unsupported("try_skill_respec")
 
 @warning_ignore("unused_parameter")
-func try_allocate_attr(stat_key: String, amount: int = 1) -> Dictionary:
-	return _unsupported("try_allocate_attr")
-
-@warning_ignore("unused_parameter")
-func try_attr_respec() -> Dictionary:
-	return _unsupported("try_attr_respec")
-
-@warning_ignore("unused_parameter")
 func snapshot_skill_catalog() -> Array:
 	return []
 
 @warning_ignore("unused_parameter")
-func snapshot_quest_journal() -> Array:
+func try_cancel_status(status_id: String) -> Dictionary:
+	return _unsupported("try_cancel_status")
+
+@warning_ignore("unused_parameter")
+func try_daily_board_list() -> Array:
+	_remote_notice("try_daily_board_list")
 	return []
 
 @warning_ignore("unused_parameter")
-func snapshot_shop(shop_id: String = "starter_goods") -> Dictionary:
+func snapshot_daily() -> Dictionary:
 	return {}
 
 @warning_ignore("unused_parameter")
-func try_accept_quest(quest_id: String) -> Dictionary:
-	return _unsupported("try_accept_quest")
+func snapshot_dps() -> Dictionary:
+	return {}
 
 @warning_ignore("unused_parameter")
-func try_abandon_quest(quest_id: String) -> Dictionary:
-	return _unsupported("try_abandon_quest")
+func snapshot_duel() -> Dictionary:
+	return {}
 
 @warning_ignore("unused_parameter")
-func try_turn_in_quest(quest_id: String) -> Dictionary:
-	return _unsupported("try_turn_in_quest")
+func try_duel_challenge(target_id_or_name: String) -> Dictionary:
+	return _unsupported("try_duel_challenge")
 
 @warning_ignore("unused_parameter")
-func try_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> Dictionary:
-	return _unsupported("try_shop_buy")
+func try_duel_accept() -> Dictionary:
+	return _unsupported("try_duel_accept")
 
 @warning_ignore("unused_parameter")
-func try_shop_sell(item_id: String, qty: int = 1) -> Dictionary:
-	return _unsupported("try_shop_sell")
+func try_duel_decline() -> Dictionary:
+	return _unsupported("try_duel_decline")
 
 @warning_ignore("unused_parameter")
-func try_shop_sell_junk() -> Dictionary:
-	return _unsupported("try_shop_sell_junk")
+func try_duel_forfeit() -> Dictionary:
+	return _unsupported("try_duel_forfeit")
 
 @warning_ignore("unused_parameter")
-func snapshot_shop_buyback() -> Array:
-	return []
+func try_duel_debug_pending(target_id_or_name: String) -> Dictionary:
+	return _unsupported("try_duel_debug_pending")
 
 @warning_ignore("unused_parameter")
-func try_shop_close() -> Dictionary:
-	return _unsupported("try_shop_close")
+func try_duel_debug_hit(amount: int = 25) -> Dictionary:
+	return _unsupported("try_duel_debug_hit")
 
 @warning_ignore("unused_parameter")
-func try_shop_buyback(index: int, qty: int = -1) -> Dictionary:
-	return _unsupported("try_shop_buyback")
+func snapshot_dungeon() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_dungeon_enter() -> Dictionary:
+	return _unsupported("try_dungeon_enter")
+
+@warning_ignore("unused_parameter")
+func try_dungeon_exit() -> Dictionary:
+	return _unsupported("try_dungeon_exit")
+
+@warning_ignore("unused_parameter")
+func try_emote(emote_id: String) -> Dictionary:
+	return _unsupported("try_emote")
+
+@warning_ignore("unused_parameter")
+func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
+	return _unsupported("try_equip_item")
+
+@warning_ignore("unused_parameter")
+func try_unequip_item(slot: String) -> Dictionary:
+	return _unsupported("try_unequip_item")
+
+@warning_ignore("unused_parameter")
+func try_toggle_equip(item_id: String) -> Dictionary:
+	return _unsupported("try_toggle_equip")
+
+@warning_ignore("unused_parameter")
+func try_event_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
+	return _unsupported("try_event_choice")
+
+@warning_ignore("unused_parameter")
+func try_facial_expression(weights:Dictionary) -> Dictionary:
+	return _unsupported("try_facial_expression")
+
+@warning_ignore("unused_parameter")
+func try_remote_facial_expression(actor_id:String,weights:Dictionary) -> Dictionary:
+	return _unsupported("try_remote_facial_expression")
+
+@warning_ignore("unused_parameter")
+func snapshot_friends() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_friend_add(name_or_id: String) -> Dictionary:
+	return _unsupported("try_friend_add")
+
+@warning_ignore("unused_parameter")
+func try_friend_remove(friend_id: String) -> Dictionary:
+	return _unsupported("try_friend_remove")
+
+@warning_ignore("unused_parameter")
+func snapshot_guild() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_guild_create(guild_name: String) -> Dictionary:
+	return _unsupported("try_guild_create")
+
+@warning_ignore("unused_parameter")
+func try_guild_invite(target: String) -> Dictionary:
+	return _unsupported("try_guild_invite")
+
+@warning_ignore("unused_parameter")
+func try_guild_incoming_invite(from_name: String = "旅人甲", guild_name: String = "测试公会") -> Dictionary:
+	return _unsupported("try_guild_incoming_invite")
+
+@warning_ignore("unused_parameter")
+func try_guild_invite_respond(invite_id: String, accept: bool) -> Dictionary:
+	return _unsupported("try_guild_invite_respond")
+
+@warning_ignore("unused_parameter")
+func try_guild_kick(member_id: String) -> Dictionary:
+	return _unsupported("try_guild_kick")
+
+@warning_ignore("unused_parameter")
+func try_guild_leave() -> Dictionary:
+	return _unsupported("try_guild_leave")
+
+@warning_ignore("unused_parameter")
+func try_guild_disband() -> Dictionary:
+	return _unsupported("try_guild_disband")
+
+@warning_ignore("unused_parameter")
+func try_interact(npc_id: String, player_x: int, player_y: int) -> Dictionary:
+	return _unsupported("try_interact")
+
+@warning_ignore("unused_parameter")
+func try_use_item(item_id: String) -> Dictionary:
+	return _unsupported("try_use_item")
 
 @warning_ignore("unused_parameter")
 func try_inventory_split(item_id: String, qty: int) -> Dictionary:
@@ -173,6 +210,14 @@ func try_inventory_sort() -> Dictionary:
 @warning_ignore("unused_parameter")
 func try_inventory_lock(item_id: String, on: bool) -> Dictionary:
 	return _unsupported("try_inventory_lock")
+
+@warning_ignore("unused_parameter")
+func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
+	return _unsupported("try_drop_item")
+
+@warning_ignore("unused_parameter")
+func try_drop_equipped(slot: String) -> Dictionary:
+	return _unsupported("try_drop_equipped")
 
 @warning_ignore("unused_parameter")
 func snapshot_ground_bags() -> Array:
@@ -195,59 +240,6 @@ func try_loot_close() -> Dictionary:
 	return _unsupported("try_loot_close")
 
 @warning_ignore("unused_parameter")
-func try_drop_item(item_id: String, qty: int = 1) -> Dictionary:
-	return _unsupported("try_drop_item")
-
-@warning_ignore("unused_parameter")
-func try_drop_equipped(slot: String) -> Dictionary:
-	return _unsupported("try_drop_equipped")
-
-@warning_ignore("unused_parameter")
-func try_daily_board_list() -> Array:
-	_remote_notice("try_daily_board_list")
-	return []
-
-@warning_ignore("unused_parameter")
-func snapshot_daily() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func snapshot_dps() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_respawn(where: String = "town") -> Dictionary:
-	return _unsupported("try_respawn")
-
-@warning_ignore("unused_parameter")
-func try_recall() -> Dictionary:
-	return _unsupported("try_recall")
-
-@warning_ignore("unused_parameter")
-func try_sit(on: bool = true) -> Dictionary:
-	return _unsupported("try_sit")
-
-@warning_ignore("unused_parameter")
-func try_inn_rest(cost: int = 25) -> Dictionary:
-	return _unsupported("try_inn_rest")
-
-@warning_ignore("unused_parameter")
-func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
-	return _unsupported("try_repair")
-
-@warning_ignore("unused_parameter")
-func try_enhance(slot: String = "") -> Dictionary:
-	return _unsupported("try_enhance")
-
-@warning_ignore("unused_parameter")
-func snapshot_party() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_party_set_loot_mode(mode: String) -> Dictionary:
-	return _unsupported("try_party_set_loot_mode")
-
-@warning_ignore("unused_parameter")
 func snapshot_loot_rolls() -> Array:
 	return []
 
@@ -260,8 +252,52 @@ func try_loot_roll_for(member_id: String, choice: String, roll_id: String = "") 
 	return _unsupported("try_loot_roll_for")
 
 @warning_ignore("unused_parameter")
-func try_cancel_status(status_id: String) -> Dictionary:
-	return _unsupported("try_cancel_status")
+func snapshot_mail() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> Dictionary:
+	return _unsupported("try_mail_send")
+
+@warning_ignore("unused_parameter")
+func try_mail_read(mail_id: String) -> Dictionary:
+	return _unsupported("try_mail_read")
+
+@warning_ignore("unused_parameter")
+func try_mail_claim(mail_id: String) -> Dictionary:
+	return _unsupported("try_mail_claim")
+
+@warning_ignore("unused_parameter")
+func try_mail_delete(mail_id: String) -> Dictionary:
+	return _unsupported("try_mail_delete")
+
+@warning_ignore("unused_parameter")
+func try_mount() -> Dictionary:
+	return _unsupported("try_mount")
+
+@warning_ignore("unused_parameter")
+func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
+	return _unsupported("try_move")
+
+@warning_ignore("unused_parameter")
+func try_respawn(where: String = "town") -> Dictionary:
+	return _unsupported("try_respawn")
+
+@warning_ignore("unused_parameter")
+func try_recall() -> Dictionary:
+	return _unsupported("try_recall")
+
+@warning_ignore("unused_parameter")
+func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
+	return _unsupported("try_npc_move")
+
+@warning_ignore("unused_parameter")
+func snapshot_party() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_party_set_loot_mode(mode: String) -> Dictionary:
+	return _unsupported("try_party_set_loot_mode")
 
 @warning_ignore("unused_parameter")
 func try_party_create() -> Dictionary:
@@ -316,6 +352,142 @@ func try_party_summon_accept_all() -> Dictionary:
 	return _unsupported("try_party_summon_accept_all")
 
 @warning_ignore("unused_parameter")
+func try_set_pet_assist(on: bool) -> void:
+	_remote_notice("try_set_pet_assist")
+
+@warning_ignore("unused_parameter")
+func snapshot_pet() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_pet_summon(pet_id: String = "default") -> Dictionary:
+	return _unsupported("try_pet_summon")
+
+@warning_ignore("unused_parameter")
+func try_pet_dismiss() -> Dictionary:
+	return _unsupported("try_pet_dismiss")
+
+@warning_ignore("unused_parameter")
+func snapshot_craft() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func snapshot_recipes() -> Array:
+	return []
+
+@warning_ignore("unused_parameter")
+func try_craft(recipe_id: String, qty: int = 1) -> Dictionary:
+	return _unsupported("try_craft")
+
+@warning_ignore("unused_parameter")
+func snapshot_gather() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_gather(node_id: String) -> Dictionary:
+	return _unsupported("try_gather")
+
+@warning_ignore("unused_parameter")
+func try_fish(spot_id: String) -> Dictionary:
+	return _unsupported("try_fish")
+
+@warning_ignore("unused_parameter")
+func try_allocate_attr(stat_key: String, amount: int = 1) -> Dictionary:
+	return _unsupported("try_allocate_attr")
+
+@warning_ignore("unused_parameter")
+func try_attr_respec() -> Dictionary:
+	return _unsupported("try_attr_respec")
+
+@warning_ignore("unused_parameter")
+func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
+	return _unsupported("try_dialogue_choice")
+
+@warning_ignore("unused_parameter")
+func snapshot_quest_journal() -> Array:
+	return []
+
+@warning_ignore("unused_parameter")
+func try_accept_quest(quest_id: String) -> Dictionary:
+	return _unsupported("try_accept_quest")
+
+@warning_ignore("unused_parameter")
+func try_abandon_quest(quest_id: String) -> Dictionary:
+	return _unsupported("try_abandon_quest")
+
+@warning_ignore("unused_parameter")
+func try_turn_in_quest(quest_id: String) -> Dictionary:
+	return _unsupported("try_turn_in_quest")
+
+@warning_ignore("unused_parameter")
+func try_repair(slot: String = "", cost_per_point: int = 1) -> Dictionary:
+	return _unsupported("try_repair")
+
+@warning_ignore("unused_parameter")
+func try_enhance(slot: String = "") -> Dictionary:
+	return _unsupported("try_enhance")
+
+@warning_ignore("unused_parameter")
+func snapshot_remote_players() -> Array:
+	return []
+
+@warning_ignore("unused_parameter")
+func try_remote_debug_spawn(display_name: String = "") -> Dictionary:
+	return _unsupported("try_remote_debug_spawn")
+
+@warning_ignore("unused_parameter")
+func try_remote_despawn(remote_id: String = "") -> Dictionary:
+	return _unsupported("try_remote_despawn")
+
+@warning_ignore("unused_parameter")
+func snapshot_shop(shop_id: String = "starter_goods") -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> Dictionary:
+	return _unsupported("try_shop_buy")
+
+@warning_ignore("unused_parameter")
+func try_shop_sell(item_id: String, qty: int = 1) -> Dictionary:
+	return _unsupported("try_shop_sell")
+
+@warning_ignore("unused_parameter")
+func try_shop_sell_junk() -> Dictionary:
+	return _unsupported("try_shop_sell_junk")
+
+@warning_ignore("unused_parameter")
+func snapshot_shop_buyback() -> Array:
+	return []
+
+@warning_ignore("unused_parameter")
+func try_shop_close() -> Dictionary:
+	return _unsupported("try_shop_close")
+
+@warning_ignore("unused_parameter")
+func try_shop_buyback(index: int, qty: int = -1) -> Dictionary:
+	return _unsupported("try_shop_buyback")
+
+@warning_ignore("unused_parameter")
+func try_auction_buy(listing_id: String) -> Dictionary:
+	return _unsupported("try_auction_buy")
+
+@warning_ignore("unused_parameter")
+func try_sit(on: bool = true) -> Dictionary:
+	return _unsupported("try_sit")
+
+@warning_ignore("unused_parameter")
+func try_inn_rest(cost: int = 25) -> Dictionary:
+	return _unsupported("try_inn_rest")
+
+@warning_ignore("unused_parameter")
+func snapshot_titles() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_title_equip(title_id: String) -> Dictionary:
+	return _unsupported("try_title_equip")
+
+@warning_ignore("unused_parameter")
 func snapshot_trade() -> Dictionary:
 	return {}
 
@@ -348,30 +520,6 @@ func try_trade_confirm() -> Dictionary:
 	return _unsupported("try_trade_confirm")
 
 @warning_ignore("unused_parameter")
-func snapshot_craft() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func snapshot_recipes() -> Array:
-	return []
-
-@warning_ignore("unused_parameter")
-func try_craft(recipe_id: String, qty: int = 1) -> Dictionary:
-	return _unsupported("try_craft")
-
-@warning_ignore("unused_parameter")
-func snapshot_gather() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_gather(node_id: String) -> Dictionary:
-	return _unsupported("try_gather")
-
-@warning_ignore("unused_parameter")
-func try_fish(spot_id: String) -> Dictionary:
-	return _unsupported("try_fish")
-
-@warning_ignore("unused_parameter")
 func snapshot_warehouse() -> Dictionary:
 	return {}
 
@@ -396,20 +544,28 @@ func try_warehouse_withdraw_gold(amount: int) -> Dictionary:
 	return _unsupported("try_warehouse_withdraw_gold")
 
 @warning_ignore("unused_parameter")
-func snapshot_remote_players() -> Array:
-	return []
+func snapshot_world3d_sky(map_id: String) -> Dictionary:
+	return {}
 
 @warning_ignore("unused_parameter")
-func try_remote_debug_spawn(display_name: String = "") -> Dictionary:
-	return _unsupported("try_remote_debug_spawn")
+func try_set_world3d_environment(map_id: String, changes: Dictionary) -> Dictionary:
+	return _unsupported("try_set_world3d_environment")
 
 @warning_ignore("unused_parameter")
-func try_remote_despawn(remote_id: String = "") -> Dictionary:
-	return _unsupported("try_remote_despawn")
+func try_move_world(sequence: int, direction: Vector3, speed_mps: float, jump:bool=false) -> Dictionary:
+	return _unsupported("try_move_world")
 
 @warning_ignore("unused_parameter")
-func try_chat(channel: String, text: String, whisper_to: String = "") -> Dictionary:
-	return _unsupported("try_chat")
+func try_world3d_chunk(player_x: float, player_z: float, view_m: float = -1.0) -> Dictionary:
+	return _unsupported("try_world3d_chunk")
+
+@warning_ignore("unused_parameter")
+func snapshot_safe_zone() -> Dictionary:
+	return {}
+
+@warning_ignore("unused_parameter")
+func try_transfer(from_x: int, from_y: int) -> Dictionary:
+	return _unsupported("try_transfer")
 
 @warning_ignore("unused_parameter")
 func snapshot_map_pins() -> Dictionary:
@@ -422,162 +578,6 @@ func try_map_pin_toggle(x: int, y: int, map_id: String = "", short_name: String 
 @warning_ignore("unused_parameter")
 func try_map_pin_clear() -> Dictionary:
 	return _unsupported("try_map_pin_clear")
-
-@warning_ignore("unused_parameter")
-func snapshot_friends() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_friend_add(name_or_id: String) -> Dictionary:
-	return _unsupported("try_friend_add")
-
-@warning_ignore("unused_parameter")
-func try_friend_remove(friend_id: String) -> Dictionary:
-	return _unsupported("try_friend_remove")
-
-@warning_ignore("unused_parameter")
-func snapshot_mail() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_mail_send(to: String, subject: String, body: String, gold: int = 0, item_id: String = "", qty: int = 1) -> Dictionary:
-	return _unsupported("try_mail_send")
-
-@warning_ignore("unused_parameter")
-func try_mail_read(mail_id: String) -> Dictionary:
-	return _unsupported("try_mail_read")
-
-@warning_ignore("unused_parameter")
-func try_mail_claim(mail_id: String) -> Dictionary:
-	return _unsupported("try_mail_claim")
-
-@warning_ignore("unused_parameter")
-func try_mail_delete(mail_id: String) -> Dictionary:
-	return _unsupported("try_mail_delete")
-
-@warning_ignore("unused_parameter")
-func try_emote(emote_id: String) -> Dictionary:
-	return _unsupported("try_emote")
-
-@warning_ignore("unused_parameter")
-func snapshot_duel() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_duel_challenge(target_id_or_name: String) -> Dictionary:
-	return _unsupported("try_duel_challenge")
-
-@warning_ignore("unused_parameter")
-func try_duel_accept() -> Dictionary:
-	return _unsupported("try_duel_accept")
-
-@warning_ignore("unused_parameter")
-func try_duel_decline() -> Dictionary:
-	return _unsupported("try_duel_decline")
-
-@warning_ignore("unused_parameter")
-func try_duel_forfeit() -> Dictionary:
-	return _unsupported("try_duel_forfeit")
-
-@warning_ignore("unused_parameter")
-func try_duel_debug_pending(target_id_or_name: String) -> Dictionary:
-	return _unsupported("try_duel_debug_pending")
-
-@warning_ignore("unused_parameter")
-func try_duel_debug_hit(amount: int = 25) -> Dictionary:
-	return _unsupported("try_duel_debug_hit")
-
-@warning_ignore("unused_parameter")
-func snapshot_titles() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_title_equip(title_id: String) -> Dictionary:
-	return _unsupported("try_title_equip")
-
-@warning_ignore("unused_parameter")
-func snapshot_achievements() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func snapshot_guild() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_guild_create(guild_name: String) -> Dictionary:
-	return _unsupported("try_guild_create")
-
-@warning_ignore("unused_parameter")
-func try_guild_invite(target: String) -> Dictionary:
-	return _unsupported("try_guild_invite")
-
-@warning_ignore("unused_parameter")
-func try_guild_incoming_invite(from_name: String = "旅人甲", guild_name: String = "测试公会") -> Dictionary:
-	return _unsupported("try_guild_incoming_invite")
-
-@warning_ignore("unused_parameter")
-func try_guild_invite_respond(invite_id: String, accept: bool) -> Dictionary:
-	return _unsupported("try_guild_invite_respond")
-
-@warning_ignore("unused_parameter")
-func try_guild_kick(member_id: String) -> Dictionary:
-	return _unsupported("try_guild_kick")
-
-@warning_ignore("unused_parameter")
-func try_guild_leave() -> Dictionary:
-	return _unsupported("try_guild_leave")
-
-@warning_ignore("unused_parameter")
-func try_guild_disband() -> Dictionary:
-	return _unsupported("try_guild_disband")
-
-@warning_ignore("unused_parameter")
-func snapshot_auction() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_auction_list(item_id: String, qty: int = 1, price_gold: int = 1) -> Dictionary:
-	return _unsupported("try_auction_list")
-
-@warning_ignore("unused_parameter")
-func try_auction_buy(listing_id: String) -> Dictionary:
-	return _unsupported("try_auction_buy")
-
-@warning_ignore("unused_parameter")
-func try_auction_cancel(listing_id: String) -> Dictionary:
-	return _unsupported("try_auction_cancel")
-
-@warning_ignore("unused_parameter")
-func snapshot_pet() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_pet_summon(pet_id: String = "default") -> Dictionary:
-	return _unsupported("try_pet_summon")
-
-@warning_ignore("unused_parameter")
-func try_pet_dismiss() -> Dictionary:
-	return _unsupported("try_pet_dismiss")
-
-@warning_ignore("unused_parameter")
-func snapshot_dungeon() -> Dictionary:
-	return {}
-
-@warning_ignore("unused_parameter")
-func try_dungeon_enter() -> Dictionary:
-	return _unsupported("try_dungeon_enter")
-
-@warning_ignore("unused_parameter")
-func try_dungeon_exit() -> Dictionary:
-	return _unsupported("try_dungeon_exit")
-
-@warning_ignore("unused_parameter")
-func try_facial_expression(weights:Dictionary) -> Dictionary:
-	return _unsupported("try_facial_expression")
-
-@warning_ignore("unused_parameter")
-func try_remote_facial_expression(actor_id:String,weights:Dictionary) -> Dictionary:
-	return _unsupported("try_remote_facial_expression")
 
 func _unsupported(operation:String)->Dictionary:
 	return {"ok":false,"error":"unsupported_remote_operation","operation":operation,"actions":[{"type":"system_message","text":"真实服务器尚未接入此操作："+operation}]}

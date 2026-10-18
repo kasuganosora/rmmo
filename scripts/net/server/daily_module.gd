@@ -2,11 +2,18 @@ extends RefCounted
 ## Domain module: daily board / attendance (list, claim, date tracking).
 
 var ctrl
+
+## Daily attendance last claim date (local YYYY-MM-DD); survives enter_world same day.
+## @server-state
+var _attendance_last_ymd: String = ""
+
+
 func _init(c):
 	ctrl = c
 
 const Mailbox = preload("res://scripts/net/combat/mailbox.gd")
 
+## @server-api
 func try_daily_board_list() -> Array:
 	if ctrl.quest_journal == null:
 		return []
@@ -16,6 +23,7 @@ func try_daily_board_list() -> Array:
 
 
 
+## @server-api
 func snapshot_daily() -> Dictionary:
 	if ctrl.quest_journal != null and ctrl.quest_journal.has_method("snapshot_daily"):
 		return ctrl.quest_journal.snapshot_daily()
@@ -23,17 +31,20 @@ func snapshot_daily() -> Dictionary:
 
 
 
+## @server-api
 func _attendance_today_ymd() -> String:
 	var d: Dictionary = Time.get_datetime_dict_from_system()
 	return "%04d-%02d-%02d" % [int(d.get("year", 0)), int(d.get("month", 0)), int(d.get("day", 0))]
 
 
 
+## @server-api
 func force_attendance_ymd(ymd: String) -> void:
 	ctrl._attendance_last_ymd = str(ymd).strip_edges()
 
 
 
+## @server-api
 func _attendance_try_grant() -> Array:
 	var actions: Array = []
 	var today = _attendance_today_ymd()

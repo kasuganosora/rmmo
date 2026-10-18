@@ -2,18 +2,75 @@ extends RefCounted
 ## Domain module: professions (craft recipes, gather nodes, fishing spots, skill XP).
 
 var ctrl
+
+## @server-state
+var recipe_catalog = null
+
+## Crafting profession level (separate from combat level).
+## @server-state
+var craft_level: int = 1
+
+## @server-state
+var craft_xp: int = 0
+
+## @server-state
+var craft_xp_to_next: int = 30  ## 20 + craft_level*10 at Lv.1
+
+## Gathering/fishing profession level (shared; separate from combat/craft).
+## @server-state
+var gather_level: int = 1
+
+## @server-state
+var gather_xp: int = 0
+
+## @server-state
+var gather_xp_to_next: int = 30  ## 20 + gather_level*10 at Lv.1
+
+## @server-state
+var gather_catalog = null
+
+## node_id -> { depleted: bool, ready_at: float }
+## @server-state
+var _gather_state: Dictionary = {}
+
+## Active gather defs for current map (id -> def).
+## @server-state
+var _gather_nodes: Dictionary = {}
+
+## @server-state
+var fish_catalog = null
+
+## spot_id -> { depleted: bool, ready_at: float }
+## @server-state
+var _fish_state: Dictionary = {}
+
+## Active fish spot defs for current map (id -> def).
+## @server-state
+var _fish_spots: Dictionary = {}
+
+## Player cast busy lock (now_sec basis).
+## @server-state
+var _fish_busy_until: float = 0.0
+
+## Test override for rain/snow herb +1 qty roll (0..1); empty = randf().
+## @server-state
+var weather_gather_randf: Callable = Callable()
+
+
 func _init(c):
 	ctrl = c
 
 const WeatherGatherUtil = preload("res://scripts/game/weather_gather_util.gd")
 const RngUtil = preload("res://scripts/util/rng_util.gd")
 
+## @server-api
 func _craft_xp_needed_for(level: int) -> int:
 	level = maxi(int(level), 1)
 	return 20 + level * 10
 
 
 
+## @server-api
 func _reset_craft_skill() -> void:
 	ctrl.craft_level = 1
 	ctrl.craft_xp = 0
@@ -21,6 +78,7 @@ func _reset_craft_skill() -> void:
 
 
 
+## @server-api
 func snapshot_craft() -> Dictionary:
 	return {
 		"craft_level": ctrl.craft_level,
@@ -30,6 +88,7 @@ func snapshot_craft() -> Dictionary:
 
 
 
+## @server-api
 func snapshot_recipes() -> Array:
 	if ctrl.recipe_catalog == null:
 		return []
@@ -37,6 +96,7 @@ func snapshot_recipes() -> Array:
 
 
 
+## @server-api
 func try_craft(recipe_id: String, qty: int = 1) -> Dictionary:
 	var actions: Array = []
 	recipe_id = str(recipe_id).strip_edges()
@@ -159,12 +219,14 @@ func try_craft(recipe_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func _gather_xp_needed_for(level: int) -> int:
 	level = maxi(int(level), 1)
 	return 20 + level * 10
 
 
 
+## @server-api
 func _reset_gather_skill() -> void:
 	ctrl.gather_level = 1
 	ctrl.gather_xp = 0
@@ -172,6 +234,7 @@ func _reset_gather_skill() -> void:
 
 
 
+## @server-api
 func snapshot_gather() -> Dictionary:
 	return {
 		"gather_level": ctrl.gather_level,
@@ -181,6 +244,7 @@ func snapshot_gather() -> Dictionary:
 
 
 
+## @server-api
 func _gather_skill_update_action() -> Dictionary:
 	return {
 		"type": "gather_update",
@@ -191,6 +255,7 @@ func _gather_skill_update_action() -> Dictionary:
 
 
 
+## @server-api
 func _apply_gather_skill_xp(actions: Array, gained_xp: int = 5) -> void:
 	gained_xp = maxi(int(gained_xp), 0)
 	if gained_xp <= 0:
@@ -205,17 +270,20 @@ func _apply_gather_skill_xp(actions: Array, gained_xp: int = 5) -> void:
 
 
 
+## @server-api
 func _gather_level_required(def: Dictionary) -> int:
 	return maxi(int(def.get("gather_level", 1)), 1)
 
 
 
+## @server-api
 func _fail_gather_level(actions: Array, need: int) -> Dictionary:
 	actions.append({"type": "system_message", "text": "采集等级不足（需要 %d）。" % need})
 	return {"ok": false, "reason": "gather_level", "actions": actions}
 
 
 
+## @server-api
 func _reload_gather_for_map() -> void:
 	ctrl._gather_nodes.clear()
 	ctrl._gather_state.clear()
@@ -236,6 +304,7 @@ func _reload_gather_for_map() -> void:
 
 
 
+## @server-api
 func _gather_now() -> float:
 	if ctrl.combat_stats != null and ctrl.combat_stats.has_method("now_sec"):
 		return float(ctrl.combat_stats.now_sec())
@@ -243,6 +312,7 @@ func _gather_now() -> float:
 
 
 
+## @server-api
 func _gather_update_action(node_id: String, depleted: bool, display_name: String = "") -> Dictionary:
 	return {
 		"type": "gather_update",
@@ -253,6 +323,7 @@ func _gather_update_action(node_id: String, depleted: bool, display_name: String
 
 
 
+## @server-api
 func _gather_set_cell_blocked(node_id: String, blocked: bool) -> void:
 	if ctrl.map_collision == null or not ctrl.map_collision.has_method("set_extra_blocked"):
 		return
@@ -266,6 +337,7 @@ func _gather_set_cell_blocked(node_id: String, blocked: bool) -> void:
 
 
 
+## @server-api
 func _gather_in_range(node_id: String, player_x: int, player_y: int) -> bool:
 	## Chebyshev ≤ 1 against gather cell (or registered NPC cell).
 	var def: Dictionary = ctrl._gather_nodes.get(node_id, {})
@@ -287,6 +359,7 @@ func _gather_in_range(node_id: String, player_x: int, player_y: int) -> bool:
 
 
 
+## @server-api
 func try_gather(node_id: String) -> Dictionary:
 	var actions: Array = []
 	node_id = str(node_id).strip_edges()
@@ -403,6 +476,7 @@ func try_gather(node_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _tick_gather_respawns() -> Array:
 	var actions: Array = []
 	if ctrl._gather_state.is_empty():
@@ -424,6 +498,7 @@ func _tick_gather_respawns() -> Array:
 
 
 
+## @server-api
 func force_gather_respawn(node_id: String = "") -> Array:
 	var actions: Array = []
 	node_id = str(node_id).strip_edges()
@@ -443,6 +518,7 @@ func force_gather_respawn(node_id: String = "") -> Array:
 
 
 
+## @server-api
 func is_gather_depleted(node_id: String) -> bool:
 	node_id = str(node_id).strip_edges()
 	if not ctrl._gather_state.has(node_id):
@@ -451,6 +527,7 @@ func is_gather_depleted(node_id: String) -> bool:
 
 
 
+## @server-api
 func _reload_fish_for_map() -> void:
 	ctrl._fish_spots.clear()
 	ctrl._fish_state.clear()
@@ -472,11 +549,13 @@ func _reload_fish_for_map() -> void:
 
 
 
+## @server-api
 func _fish_now() -> float:
 	return _gather_now()
 
 
 
+## @server-api
 func _fish_update_action(spot_id: String, depleted: bool, display_name: String = "") -> Dictionary:
 	return {
 		"type": "fish_update",
@@ -487,6 +566,7 @@ func _fish_update_action(spot_id: String, depleted: bool, display_name: String =
 
 
 
+## @server-api
 func _fish_in_range(spot_id: String, player_x: int, player_y: int) -> bool:
 	## Chebyshev ≤ 1 against fish spot cell (or registered NPC cell).
 	var def: Dictionary = ctrl._fish_spots.get(spot_id, {})
@@ -509,6 +589,7 @@ func _fish_in_range(spot_id: String, player_x: int, player_y: int) -> bool:
 
 
 
+## @server-api
 func _best_fish_bait() -> String:
 	if ctrl.inventory == null:
 		return ""
@@ -520,6 +601,7 @@ func _best_fish_bait() -> String:
 
 
 
+## @server-api
 func _pick_fish_yield(spot_def: Dictionary, bait_id: String = "") -> Dictionary:
 	if ctrl.fish_catalog == null:
 		return {}
@@ -556,6 +638,7 @@ func _pick_fish_yield(spot_def: Dictionary, bait_id: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_fish(spot_id: String) -> Dictionary:
 	var actions: Array = []
 	spot_id = str(spot_id).strip_edges()
@@ -663,6 +746,7 @@ func try_fish(spot_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _tick_fish_respawns() -> Array:
 	var actions: Array = []
 	if ctrl._fish_state.is_empty():
@@ -683,6 +767,7 @@ func _tick_fish_respawns() -> Array:
 
 
 
+## @server-api
 func force_fish_respawn(spot_id: String = "") -> Array:
 	var actions: Array = []
 	spot_id = str(spot_id).strip_edges()
@@ -702,6 +787,7 @@ func force_fish_respawn(spot_id: String = "") -> Array:
 
 
 
+## @server-api
 func is_fish_depleted(spot_id: String) -> bool:
 	spot_id = str(spot_id).strip_edges()
 	if not ctrl._fish_state.has(spot_id):

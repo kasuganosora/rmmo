@@ -2,14 +2,56 @@ extends RefCounted
 ## Domain module: sustain (sit/inn rest, rested EXP accumulate).
 
 var ctrl
+
+## Sitting rest (HP/MP regen + rested EXP). Cleared on move / death / recall.
+## @server-state
+var sitting: bool = false
+
+## Rested EXP cadence (~1s).
+## @server-state
+var _sit_acc: float = 0.0
+
+## Out-of-combat sit HP/MP regen cadence (~3s).
+## @server-state
+var _sit_regen_acc: float = 0.0
+
+## Once-per-fill system chat when rested pool hits cap (reset when pool drops below).
+## @server-state
+var _rested_cap_notified: bool = false
+
+## Auto-potion (client GameSettings pushed via try_set_auto_potion).
+## @server-state
+var auto_potion_hp: bool = false
+
+## @server-state
+var auto_potion_hp_pct: int = 40
+
+## @server-state
+var auto_potion_mp: bool = false
+
+## @server-state
+var auto_potion_mp_pct: int = 30
+
+## @server-state
+var _auto_potion_acc: float = 0.0
+
+## Throttle empty-bag system_message (seconds, Time.get_ticks_msec basis).
+## @server-state
+var _auto_potion_msg_at_ms: int = -999999
+
+
 func _init(c):
 	ctrl = c
 
 const CombatStats = preload("res://scripts/net/combat/combat_stats.gd")
+## @server-constant
 const SIT_REGEN_INTERVAL := 3.0
+## @server-constant
 const SIT_REGEN_HP := 3
+## @server-constant
 const SIT_REGEN_MP := 2
 
+## @server-api
 func _stand_if_sitting(actions: Array) -> bool:
 	if not ctrl.sitting:
 		return false
@@ -22,6 +64,7 @@ func _stand_if_sitting(actions: Array) -> bool:
 
 
 
+## @server-api
 func _tick_sit(delta: float) -> void:
 	if not ctrl.sitting or ctrl.combat_stats == null:
 		return
@@ -82,6 +125,7 @@ func _tick_sit(delta: float) -> void:
 
 
 
+## @server-api
 func _tick_rested_accumulate() -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null or not ctrl.sitting:
@@ -116,6 +160,7 @@ func _tick_rested_accumulate() -> Array:
 
 
 
+## @server-api
 func try_sit(on: bool = true) -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats != null and not ctrl.combat_stats.player_alive():
@@ -139,6 +184,7 @@ func try_sit(on: bool = true) -> Dictionary:
 
 
 
+## @server-api
 func try_inn_rest(cost: int = 25) -> Dictionary:
 	var actions: Array = []
 	cost = maxi(int(cost), 0)
@@ -199,3 +245,6 @@ func try_inn_rest(cost: int = 25) -> Dictionary:
 	return {"ok": true, "actions": actions}
 
 
+
+## @server-constant
+const AUTO_POTION_INTERVAL := 0.5

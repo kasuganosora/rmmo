@@ -2,9 +2,27 @@ extends RefCounted
 ## Domain module: loot (ground bags, loot session, party loot-roll resolution).
 
 var ctrl
+
+## @server-state
+var loot_catalog = null
+
+## World ground bags: bag_id -> {id, cell:{x,y}, items:[{item_id,qty}], source, owner_id, created_at, npc_id?}.
+## Same-cell drops merge into one bag. Free loot when owner_id empty.
+## @server-state
+var _ground_bags: Dictionary = {}
+
+## @server-state
+var _bag_seq: int = 0
+
+## Currently open loot UI session (bag_id). Empty = no open window. Close keeps the bag.
+## @server-state
+var _open_loot_bag_id: String = ""
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func snapshot_ground_bags() -> Array:
 	var out: Array = []
 	for bid in ctrl._ground_bags.keys():
@@ -13,11 +31,13 @@ func snapshot_ground_bags() -> Array:
 
 
 
+## @server-api
 func ground_bag_count() -> int:
 	return ctrl._ground_bags.size()
 
 
 
+## @server-api
 func get_ground_bag(bag_id: String) -> Dictionary:
 	bag_id = bag_id.strip_edges()
 	if bag_id.is_empty() or not ctrl._ground_bags.has(bag_id):
@@ -26,11 +46,13 @@ func get_ground_bag(bag_id: String) -> Dictionary:
 
 
 
+## @server-api
 func has_pending_loot() -> bool:
 	return not ctrl._open_loot_bag_id.is_empty() and not ctrl._open_bag_items().is_empty()
 
 
 
+## @server-api
 func pending_loot_snapshot() -> Dictionary:
 	if ctrl._open_loot_bag_id.is_empty() or not ctrl._ground_bags.has(ctrl._open_loot_bag_id):
 		return {}
@@ -45,6 +67,7 @@ func pending_loot_snapshot() -> Dictionary:
 
 
 
+## @server-api
 func _ground_bag_now() -> float:
 	if ctrl.combat_stats != null and ctrl.combat_stats.has_method("now_sec"):
 		return float(ctrl.combat_stats.now_sec())
@@ -52,6 +75,7 @@ func _ground_bag_now() -> float:
 
 
 
+## @server-api
 func _bag_loot_owner_blocks(bag: Dictionary) -> bool:
 	var oid = str(bag.get("owner_id", "")).strip_edges()
 	if oid.is_empty():
@@ -67,6 +91,7 @@ func _bag_loot_owner_blocks(bag: Dictionary) -> bool:
 
 
 
+## @server-api
 func _bag_loot_owner_fail_msg(bag: Dictionary) -> String:
 	var oid = str(bag.get("owner_id", "")).strip_edges()
 	var oname = ""
@@ -79,6 +104,7 @@ func _bag_loot_owner_fail_msg(bag: Dictionary) -> String:
 
 
 
+## @server-api
 func can_loot_ground_bag(bag_id: String) -> bool:
 	bag_id = bag_id.strip_edges()
 	if bag_id.is_empty() or not ctrl._ground_bags.has(bag_id):
@@ -87,6 +113,7 @@ func can_loot_ground_bag(bag_id: String) -> bool:
 
 
 
+## @server-api
 func try_open_ground_bag(bag_id: String) -> Dictionary:
 	bag_id = bag_id.strip_edges()
 	var actions: Array = []
@@ -121,6 +148,7 @@ func try_open_ground_bag(bag_id: String) -> Dictionary:
 
 
 
+## @server-api
 func find_ground_bag_at(x: int, y: int) -> String:
 	for bid in ctrl._ground_bags.keys():
 		var bag: Dictionary = ctrl._ground_bags[bid]
@@ -132,6 +160,7 @@ func find_ground_bag_at(x: int, y: int) -> String:
 
 
 
+## @server-api
 func _try_add_loot_item(item_id: String, qty: int) -> Dictionary:
 	if ctrl.inventory == null:
 		return {"ok": false, "added": 0, "reason": "no_inventory"}
@@ -140,6 +169,7 @@ func _try_add_loot_item(item_id: String, qty: int) -> Dictionary:
 
 
 
+## @server-api
 func try_loot_take(item_id: String, qty: int = -1) -> Dictionary:
 	item_id = item_id.strip_edges()
 	var actions: Array = []
@@ -210,6 +240,7 @@ func try_loot_take(item_id: String, qty: int = -1) -> Dictionary:
 
 
 
+## @server-api
 func try_loot_take_all() -> Dictionary:
 	var actions: Array = []
 	if ctrl.awaiting_respawn or (ctrl.combat_stats != null and not ctrl.combat_stats.player_alive()):
@@ -270,6 +301,7 @@ func try_loot_take_all() -> Dictionary:
 
 
 
+## @server-api
 func try_loot_close() -> Dictionary:
 	var actions: Array = []
 	var sid = ctrl._open_loot_bag_id
@@ -282,6 +314,7 @@ func try_loot_close() -> Dictionary:
 
 
 
+## @server-api
 func _bag_items_dup(bag_id: String) -> Array:
 	var out: Array = []
 	if not ctrl._ground_bags.has(bag_id):
@@ -303,6 +336,7 @@ func _bag_items_dup(bag_id: String) -> Array:
 
 
 
+## @server-api
 func _bag_snapshot(bag_id: String) -> Dictionary:
 	if not ctrl._ground_bags.has(bag_id):
 		return {}
@@ -319,6 +353,7 @@ func _bag_snapshot(bag_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _loot_update_action() -> Dictionary:
 	var npc = ""
 	if ctrl._ground_bags.has(ctrl._open_loot_bag_id):
@@ -333,6 +368,7 @@ func _loot_update_action() -> Dictionary:
 
 
 
+## @server-api
 func _loot_open_action() -> Dictionary:
 	var bag: Dictionary = ctrl._ground_bags.get(ctrl._open_loot_bag_id, {})
 	return {
@@ -346,11 +382,13 @@ func _loot_open_action() -> Dictionary:
 
 
 
+## @server-api
 func _ground_spawn_action(bag_id: String) -> Dictionary:
 	return {"type": "ground_spawn", "bag": _bag_snapshot(bag_id)}
 
 
 
+## @server-api
 func _remove_ground_bag(bag_id: String, actions: Array) -> void:
 	if bag_id.is_empty():
 		return
@@ -362,6 +400,7 @@ func _remove_ground_bag(bag_id: String, actions: Array) -> void:
 
 
 
+## @server-api
 func _clear_pending_loot_on_death(actions: Array) -> void:
 	if ctrl._open_loot_bag_id.is_empty():
 		return
@@ -371,6 +410,7 @@ func _clear_pending_loot_on_death(actions: Array) -> void:
 
 
 
+## @server-api
 func _roll_and_grant_loot(npc_id: String, death_cell: Variant = null) -> Array:
 	var actions: Array = []
 	npc_id = npc_id.strip_edges()
@@ -424,6 +464,7 @@ func _roll_and_grant_loot(npc_id: String, death_cell: Variant = null) -> Array:
 
 
 
+## @server-api
 func snapshot_loot_rolls() -> Array:
 	var out: Array = []
 	for rid in ctrl._loot_rolls.keys():
@@ -441,11 +482,13 @@ func snapshot_loot_rolls() -> Array:
 
 
 
+## @server-api
 func loot_roll_count() -> int:
 	return ctrl._loot_rolls.size()
 
 
 
+## @server-api
 func _loot_roll_now() -> float:
 	if ctrl.combat_stats != null and ctrl.combat_stats.has_method("now_sec"):
 		return float(ctrl.combat_stats.now_sec())
@@ -453,6 +496,7 @@ func _loot_roll_now() -> float:
 
 
 
+## @server-api
 func _next_loot_die() -> int:
 	if ctrl.loot_roll_rng_fn.is_valid():
 		return clampi(int(ctrl.loot_roll_rng_fn.call()), 1, 100)
@@ -460,6 +504,7 @@ func _next_loot_die() -> int:
 
 
 
+## @server-api
 func debug_start_loot_roll(item_id: String, qty: int = 1, eligible: Array = []) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -484,11 +529,13 @@ func debug_start_loot_roll(item_id: String, qty: int = 1, eligible: Array = []) 
 
 
 
+## @server-api
 func try_loot_roll(choice: String, roll_id: String = "") -> Dictionary:
 	return try_loot_roll_for(ctrl._party_self_id(), choice, roll_id)
 
 
 
+## @server-api
 func try_loot_roll_for(member_id: String, choice: String, roll_id: String = "") -> Dictionary:
 	var actions: Array = []
 	member_id = str(member_id).strip_edges()
@@ -548,6 +595,7 @@ func try_loot_roll_for(member_id: String, choice: String, roll_id: String = "") 
 
 
 
+## @server-api
 func _first_open_loot_roll_for(member_id: String) -> String:
 	var best = ""
 	var best_seq = 1 << 30
@@ -570,6 +618,7 @@ func _first_open_loot_roll_for(member_id: String) -> String:
 
 
 
+## @server-api
 func _loot_roll_all_voted(roll: Dictionary) -> bool:
 	var elig_v: Variant = roll.get("eligible", [])
 	if typeof(elig_v) != TYPE_ARRAY:
@@ -584,6 +633,7 @@ func _loot_roll_all_voted(roll: Dictionary) -> bool:
 
 
 
+## @server-api
 func _tick_loot_rolls() -> Array:
 	var actions: Array = []
 	if ctrl._loot_rolls.is_empty():
@@ -602,6 +652,7 @@ func _tick_loot_rolls() -> Array:
 
 
 
+## @server-api
 func debug_force_loot_roll_timeout(roll_id: String = "") -> Dictionary:
 	var actions: Array = []
 	roll_id = str(roll_id).strip_edges()
@@ -625,6 +676,7 @@ func debug_force_loot_roll_timeout(roll_id: String = "") -> Dictionary:
 
 
 
+## @server-api
 func _resolve_loot_roll(roll_id: String) -> Array:
 	var actions: Array = []
 	roll_id = str(roll_id).strip_edges()
@@ -680,6 +732,7 @@ func _resolve_loot_roll(roll_id: String) -> Array:
 
 
 
+## @server-api
 func _pick_loot_roll_winner(choices: Dictionary) -> String:
 	var need_pool: Array = []
 	var greed_pool: Array = []
@@ -699,3 +752,150 @@ func _pick_loot_roll_winner(choices: Dictionary) -> String:
 	return ctrl._pick_highest_roll_with_tiebreak(pool)
 
 
+
+## @server-api
+func _ground_update_action(bag_id: String) -> Dictionary:
+	return {"type": "ground_update", "bag": ctrl._bag_snapshot(bag_id)}
+
+## @server-api
+func _player_adjacent_or_on(x: int, y: int) -> bool:
+	if ctrl.player_cell.x <= -9990:
+		return true  # shell tests without placed player
+	var dist: int = absi(ctrl.player_cell.x - x) + absi(ctrl.player_cell.y - y)
+	return dist <= 1
+
+## @server-api
+func _add_items_to_ground(cell: Dictionary, add_items: Array, source: String, npc_id: String = "", owner_id: String = "") -> Array:
+	var actions: Array = []
+	var cx: int = int(cell.get("x", 0))
+	var cy: int = int(cell.get("y", 0))
+	var existing_id: String = ctrl.find_ground_bag_at(cx, cy)
+	var created_at: float = 0.0
+	if ctrl.combat_stats != null and ctrl.combat_stats.has_method("now_sec"):
+		created_at = float(ctrl.combat_stats.now_sec())
+	else:
+		created_at = float(Time.get_ticks_msec()) / 1000.0
+	owner_id = str(owner_id).strip_edges()
+	if existing_id != "":
+		var bag: Dictionary = ctrl._ground_bags[existing_id]
+		var items_v: Variant = bag.get("items", [])
+		var items: Array = items_v if typeof(items_v) == TYPE_ARRAY else []
+		for d_v in add_items:
+			if typeof(d_v) != TYPE_DICTIONARY:
+				continue
+			var d: Dictionary = d_v
+			var iid := str(d.get("item_id", "")).strip_edges()
+			var q: int = int(d.get("qty", 0))
+			if iid.is_empty() or q <= 0:
+				continue
+			ctrl._merge_item_into_list(items, iid, q)
+		bag["items"] = items
+		if npc_id != "" and str(bag.get("npc_id", "")) == "":
+			bag["npc_id"] = npc_id
+		ctrl._ground_bags[existing_id] = bag
+		actions.append(ctrl._ground_update_action(existing_id))
+		return actions
+	ctrl._bag_seq += 1
+	var bid := "bag_%d" % ctrl._bag_seq
+	var pending_items: Array = []
+	for d_v2 in add_items:
+		if typeof(d_v2) != TYPE_DICTIONARY:
+			continue
+		var d2: Dictionary = d_v2
+		var iid2 := str(d2.get("item_id", "")).strip_edges()
+		var q2: int = int(d2.get("qty", 0))
+		if iid2.is_empty() or q2 <= 0:
+			continue
+		ctrl._merge_item_into_list(pending_items, iid2, q2)
+	if pending_items.is_empty():
+		return actions
+	ctrl._ground_bags[bid] = {
+		"id": bid,
+		"cell": {"x": cx, "y": cy},
+		"items": pending_items,
+		"source": source,
+		"owner_id": owner_id,
+		"npc_id": npc_id,
+		"created_at": created_at,
+	}
+	actions.append(ctrl._ground_spawn_action(bid))
+	return actions
+
+## @server-api
+func _is_world_boss_npc(npc_id: String) -> bool:
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty():
+		return false
+	if ctrl.npc_spawn_templates.has(npc_id):
+		var tmpl: Dictionary = ctrl.npc_spawn_templates[npc_id]
+		if bool(tmpl.get("world_boss", false)) or bool(tmpl.get("is_boss", false)):
+			return true
+	if ctrl.npc_meta.has(npc_id):
+		var meta_v: Variant = ctrl.npc_meta[npc_id]
+		if typeof(meta_v) == TYPE_DICTIONARY:
+			var meta: Dictionary = meta_v
+			if bool(meta.get("world_boss", false)):
+				return true
+	return npc_id == "world_boss_king"
+
+## @server-api
+func _rewrite_kill_announce(actions: Array, npc_id: String) -> void:
+	var boss_name := "森林霸主"
+	if ctrl.npc_spawn_templates.has(npc_id):
+		var n := str(ctrl.npc_spawn_templates[npc_id].get("name", "")).strip_edges()
+		if n != "":
+			boss_name = n
+	elif ctrl.npc_meta.has(npc_id) and typeof(ctrl.npc_meta[npc_id]) == TYPE_DICTIONARY:
+		var n2 := str(ctrl.npc_meta[npc_id].get("name", "")).strip_edges()
+		if n2 != "":
+			boss_name = n2
+	var msg := "击败了%s！" % boss_name
+	var rewritten := false
+	for a in actions:
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		if str(a.get("type", "")) != "system_message":
+			continue
+		if str(a.get("text", "")) == "击败了敌人。":
+			a["text"] = msg
+			rewritten = true
+			break
+	if not rewritten:
+		actions.append({"type": "system_message", "text": msg})
+
+## @server-api
+func _world_boss_kill_bonus(npc_id: String) -> Array:
+	var actions: Array = []
+	npc_id = npc_id.strip_edges()
+	var bonus_gold: int = 100
+	var bonus_exp: int = 200
+	if ctrl.npc_spawn_templates.has(npc_id):
+		var tmpl: Dictionary = ctrl.npc_spawn_templates[npc_id]
+		bonus_gold = maxi(int(tmpl.get("boss_bonus_gold", bonus_gold)), 0)
+		bonus_exp = maxi(int(tmpl.get("boss_bonus_exp", bonus_exp)), 0)
+	if bonus_gold > 0 and ctrl.inventory != null:
+		ctrl.inventory.add_gold(bonus_gold)
+		actions.append({
+			"type": "inventory_update",
+			"items": ctrl.inventory.snapshot(),
+			"gold": ctrl.inventory.get_gold(),
+		})
+		actions.append({"type": "system_message", "text": "获得金币 %d" % bonus_gold})
+	if bonus_exp > 0 and ctrl.combat_stats != null:
+		var summary: Dictionary = ctrl.combat_stats.grant_exp(bonus_exp)
+		actions.append({
+			"type": "exp_gain",
+			"amount": int(summary.get("amount", bonus_exp)),
+			"exp": int(summary.get("exp", 0)),
+			"exp_to_next": int(summary.get("exp_to_next", 0)),
+			"level": int(summary.get("level", 1)),
+		})
+		actions.append({"type": "system_message", "text": "获得经验 %d" % int(summary.get("amount", bonus_exp))})
+		if bool(summary.get("leveled", false)):
+			var combat_snap: Dictionary = summary.get("combat", {}) if typeof(summary.get("combat", {})) == TYPE_DICTIONARY else ctrl.combat_stats.snapshot_player_stats()
+			for lv_v in summary.get("levels_gained", []):
+				var new_lv: int = int(lv_v)
+				actions.append({"type": "level_up", "level": new_lv, "combat": combat_snap})
+				actions.append({"type": "system_message", "text": "升级到 Lv.%d！" % new_lv})
+			ctrl._append_level_up_sp(actions, summary.get("levels_gained", []))
+	return actions

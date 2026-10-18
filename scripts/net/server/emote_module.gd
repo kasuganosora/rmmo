@@ -2,11 +2,21 @@ extends RefCounted
 ## Domain module: text emotes (catalog, trigger).
 
 var ctrl
+
+## @server-state
+var _emote_cd_until: float = 0.0
+
+
 func _init(c):
 	ctrl = c
 
+## Text emote / emotion bubble (Label-only; no sprites).
+## @server-constant
 const EMOTE_COOLDOWN_SEC := 1.5
+## @server-constant
 const EMOTE_DURATION_SEC := 2.0
+## id -> {label (Chinese UI), text (bubble)}
+## @server-constant
 const EMOTE_CATALOG := {
 	"wave": {"label": "挥手", "text": "（挥手）"},
 	"laugh": {"label": "大笑", "text": "哈哈哈"},
@@ -22,6 +32,7 @@ const EMOTE_CATALOG := {
 	"wow": {"label": "惊讶", "text": "（哇！）"},
 }
 
+## @server-api
 func emote_catalog() -> Array:
 	## Fixed catalog rows: [{id, label, text}, ...]
 	var out: Array = []
@@ -36,6 +47,7 @@ func emote_catalog() -> Array:
 
 
 
+## @server-api
 func try_emote(emote_id: String) -> Dictionary:
 	## Broadcast-ready text emote bubble above actor. Rate-limited server-side.
 	var actions: Array = []

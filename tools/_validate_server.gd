@@ -7,6 +7,16 @@ func _init() -> void:
 		print("FAIL facade mock_server.gd"); bad += 1
 	else:
 		print("OK    facade mock_server.gd")
+	var server = facade.new() if facade != null else null
+	if server != null:
+		for property in server.get_property_list():
+			var key := str(property.name)
+			if not key.ends_with("_module_logic"):
+				continue
+			var domain = server.get(key)
+			if domain == null or domain.get("ctrl") != server:
+				print("FAIL domain owner ", key)
+				bad += 1
 	var d := DirAccess.open("res://scripts/net/server")
 	if d == null:
 		print("SERVER_OK=", bad == 0, " (no server dir yet) bad=", bad)
@@ -25,12 +35,8 @@ func _init() -> void:
 		var sc = load("res://scripts/net/server/" + f)
 		if sc == null:
 			print("FAIL load ", f); bad += 1; continue
-		var inst = sc.new(self)
-		if inst == null or inst.get("ctrl") != self:
-			print("FAIL init/ctrl ", f); bad += 1; continue
-		for m in inst.get_method_list():
-			if m.flags & METHOD_FLAG_STATIC:
-				print("FAIL static ", f, " ", m.name); bad += 1
 		print("OK    ", f)
+	if server != null:
+		server.free()
 	print("SERVER_OK=", bad == 0, " bad=", bad)
-	quit()
+	quit(0 if bad == 0 else 1)

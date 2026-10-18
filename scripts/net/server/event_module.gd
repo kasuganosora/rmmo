@@ -2,12 +2,19 @@ extends RefCounted
 ## Domain module: map event runtime (switches/pages, npc step/face, touch, choice).
 
 var ctrl
+
+## MV-inspired map event runtime (switches / pages / commands).
+## @server-state
+var event_runtime = null
+
+
 func _init(c):
 	ctrl = c
 
 
 const SHELL_REMOTE_COUNT := 1
 
+## @server-api
 func _event_server_ctx(npc_name: String = "") -> Dictionary:
 	return {
 		"inventory": ctrl.inventory,
@@ -30,6 +37,7 @@ func _event_server_ctx(npc_name: String = "") -> Dictionary:
 
 
 
+## @server-api
 func _event_npc_step(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
 	npc_id = str(npc_id).strip_edges()
 	if npc_id.is_empty():
@@ -50,6 +58,7 @@ func _event_npc_step(npc_id: String, from_x: int, from_y: int, dir: int) -> Dict
 
 
 
+## @server-api
 func _event_npc_face(npc_id: String, facing: int) -> void:
 	npc_id = str(npc_id).strip_edges()
 	if npc_id.is_empty() or ctrl.combat_stats == null:
@@ -59,6 +68,7 @@ func _event_npc_face(npc_id: String, facing: int) -> void:
 
 
 
+## @server-api
 func _event_npc_cell(npc_id: String) -> Vector2i:
 	npc_id = str(npc_id).strip_edges()
 	if ctrl.combat_stats != null and ctrl.combat_stats.has_method("get_npc_cell"):
@@ -74,6 +84,7 @@ func _event_npc_cell(npc_id: String) -> Vector2i:
 
 
 
+## @server-api
 func _event_npc_facing(npc_id: String) -> int:
 	npc_id = str(npc_id).strip_edges()
 	if ctrl.combat_stats != null and ctrl.combat_stats.npc_ai.has(npc_id):
@@ -86,6 +97,7 @@ func _event_npc_facing(npc_id: String) -> int:
 
 
 
+## @server-api
 func _event_perform_transfer(
 	to_pack: String,
 	to_cell: Dictionary,
@@ -146,6 +158,7 @@ func _event_perform_transfer(
 
 
 
+## @server-api
 func _try_player_touch_events(x: int, y: int) -> Array:
 	if ctrl.event_runtime == null:
 		return []
@@ -163,6 +176,7 @@ func _try_player_touch_events(x: int, y: int) -> Array:
 
 
 
+## @server-api
 func _event_touch_event(npc_id: String, from_x: int, from_y: int) -> Dictionary:
 	if ctrl.event_runtime == null:
 		return {}
@@ -182,6 +196,7 @@ func _event_touch_event(npc_id: String, from_x: int, from_y: int) -> Dictionary:
 
 
 
+## @server-api
 func try_event_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
 	return ctrl.try_dialogue_choice(option_id, option_index)
 

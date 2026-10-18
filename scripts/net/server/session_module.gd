@@ -4,9 +4,49 @@ extends RefCounted
 var ctrl
 var _character_gear:Dictionary={}
 var _session_revision:=0
+
+## username -> { password, characters: [{ id, name, class_id, level, look_id, gender }] }
+## @server-state
+var _accounts: Dictionary = {
+	"demo": {
+		"password": "demo",
+		"characters": [
+			{"id": 1, "name": "Demo Hero", "class_id": "adventurer", "level": 3, "look_id": "1", "gender": "female", "customization": {}},
+		],
+	},
+}
+
+## @server-state
+var _next_char_id: int = 10
+
+## @server-state
+var _session_user: String = ""
+
+## @server-state
+var _session_server: String = ""
+
+## Active character id string for hate table (fallback "player").
+## @server-state
+var _session_character_id: String = ""
+
+## Reentrancy guards so rapid repeated UI calls don't race the simulated latency.
+## @server-state
+var _login_inflight: bool = false
+
+## @server-state
+var _fetch_inflight: bool = false
+
+## @server-state
+var _create_inflight: bool = false
+
+## @server-state
+var _enter_inflight: bool = false
+
+
 func _init(c):
 	ctrl = c
 
+## @server-constant
 const LATENCY_SEC := 0.35
 const FriendList = preload("res://scripts/net/combat/friend_list.gd")
 const Guild = preload("res://scripts/net/combat/guild.gd")
@@ -15,11 +55,12 @@ const Auction = preload("res://scripts/net/combat/auction.gd")
 
 const SHELL_REMOTE_COUNT := 1
 
+## @server-api
 func login(username: String, password: String, server: String) -> void:
 	if ctrl._login_inflight:
 		return
 	ctrl._login_inflight = true
-	await ctrl.get_tree().create_timer(LATENCY_SEC).timeout
+	await ctrl.get_tree().create_timer(preload("res://scripts/net/server/mock_config.gd").number("latency_sec")).timeout
 	ctrl._login_inflight = false
 	username = username.strip_edges()
 	server = server.strip_edges()
@@ -45,12 +86,13 @@ func login(username: String, password: String, server: String) -> void:
 
 
 
+## @server-api
 func fetch_characters() -> void:
 	if ctrl._fetch_inflight:
 		return
 	ctrl._fetch_inflight = true
 	var request_revision:=_session_revision
-	await ctrl.get_tree().create_timer(LATENCY_SEC * 0.6).timeout
+	await ctrl.get_tree().create_timer(preload("res://scripts/net/server/mock_config.gd").number("latency_sec") * 0.6).timeout
 	ctrl._fetch_inflight = false
 	if request_revision!=_session_revision:
 		ctrl.characters_ready.emit([])
@@ -68,6 +110,7 @@ func fetch_characters() -> void:
 
 
 
+## @server-api
 func create_character(char_name: String, class_id: String, look_id: String, gender: String = "female", customization: Dictionary = {}) -> void:
 	if ctrl._create_inflight:
 		return
@@ -75,7 +118,7 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 	var request_revision:=_session_revision
 	# Capture at request time, before simulated network latency.
 	customization = customization.duplicate(true)
-	await ctrl.get_tree().create_timer(LATENCY_SEC).timeout
+	await ctrl.get_tree().create_timer(preload("res://scripts/net/server/mock_config.gd").number("latency_sec")).timeout
 	ctrl._create_inflight = false
 	if request_revision!=_session_revision:
 		ctrl.character_created.emit(false, "会话已变更，请重试", {})
@@ -117,12 +160,20 @@ func create_character(char_name: String, class_id: String, look_id: String, gend
 
 
 
-func enter_world(character_id: int, world3d: bool = false) -> void:
+## @server-api
+func enter_world(character_id: int) -> void:
+	_enter_world(character_id, false)
+
+## @server-api
+func enter_world3d(character_id: int) -> void:
+	_enter_world(character_id, true)
+
+func _enter_world(character_id: int, world3d: bool) -> void:
 	if ctrl._enter_inflight:
 		return
 	ctrl._enter_inflight = true
 	var request_revision:=_session_revision
-	await ctrl.get_tree().create_timer(LATENCY_SEC * 1.2).timeout
+	await ctrl.get_tree().create_timer(preload("res://scripts/net/server/mock_config.gd").number("latency_sec") * 1.2).timeout
 	ctrl._enter_inflight = false
 	if request_revision!=_session_revision:
 		ctrl.enter_world_ready.emit(false, "会话已变更，请重试", {})
@@ -316,6 +367,7 @@ func enter_world(character_id: int, world3d: bool = false) -> void:
 
 
 
+## @server-api
 func logout() -> void:
 	ctrl.furniture.release_actor(ctrl._party_self_id())
 	_session_revision+=1
@@ -341,3 +393,11 @@ func _preview_gear(id:String)->Array:
 	for item:Dictionary in preload("res://scripts/char/starter_equipment.gd").ITEMS:
 		initial.append({"slot":item.equip_slot,"item_id":item.id})
 	return initial
+
+## @server-api
+func is_logged_in() -> bool:
+	return ctrl._session_user != ""
+
+## @server-api
+func current_server() -> String:
+	return ctrl._session_server

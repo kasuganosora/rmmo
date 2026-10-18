@@ -2,98 +2,39 @@ extends RefCounted
 ## Domain module: combat (layers/tick, skills, threat/hate, auto-potion, revive).
 
 var ctrl
+
+## Layered combat (authoritative).
+## @server-state
+var combat_stats = null
+
+## @server-state
+var combat_engine = null
+
+## @server-state
+var skill_catalog = null
+
+## Optional test override for combat hit/crit rolls: Callable() -> float in [0,1).
+## Synced onto combat_engine.combat_randf (hit roll then crit roll per swing).
+## @server-state
+var _combat_randf_override: Callable = Callable()
+
+## @server-state
+var combat_randf: Callable:
+	get:
+		return _combat_randf_override
+	set(value):
+		_combat_randf_override = value
+		if ctrl.combat_engine != null:
+			ctrl.combat_engine.combat_randf = value
+
+
 func _init(c):
 	ctrl = c
 
-const CombatStats = preload("res://scripts/net/combat/combat_stats.gd")
-const CombatEngine = preload("res://scripts/net/combat/combat_engine.gd")
-const SkillCatalog = preload("res://scripts/net/combat/skill_catalog.gd")
-const ItemCatalog = preload("res://scripts/net/combat/item_catalog.gd")
-const Inventory = preload("res://scripts/net/combat/inventory.gd")
-const Warehouse = preload("res://scripts/net/combat/warehouse.gd")
-const FriendList = preload("res://scripts/net/combat/friend_list.gd")
-const Guild = preload("res://scripts/net/combat/guild.gd")
-const Mailbox = preload("res://scripts/net/combat/mailbox.gd")
-const Auction = preload("res://scripts/net/combat/auction.gd")
-const Equipment = preload("res://scripts/net/combat/equipment.gd")
-const LootCatalog = preload("res://scripts/net/combat/loot_catalog.gd")
-const QuestJournal = preload("res://scripts/net/combat/quest_journal.gd")
-const ShopCatalog = preload("res://scripts/net/combat/shop_catalog.gd")
-const EventRuntime = preload("res://scripts/net/combat/event_runtime.gd")
-const RecipeCatalog = preload("res://scripts/net/combat/recipe_catalog.gd")
-const GatherCatalog = preload("res://scripts/net/combat/gather_catalog.gd")
-const FishCatalog = preload("res://scripts/net/combat/fish_catalog.gd")
-const TitleCatalog = preload("res://scripts/net/combat/title_catalog.gd")
-const AchievementCatalog = preload("res://scripts/net/combat/achievement_catalog.gd")
-const SafeZoneCatalog = preload("res://scripts/net/combat/safe_zone_catalog.gd")
 const AUTO_POTION_INTERVAL := 0.5
 const SKILL_RESPEC_GOLD_COST := 50
 
-func _init_combat_layers() -> void:
-	ctrl.combat_stats = CombatStats.new()
-	ctrl.skill_catalog = SkillCatalog.new()
-	ctrl.skill_catalog.load_catalog()
-	ctrl.item_catalog = ItemCatalog.new()
-	ctrl.item_catalog.load_catalog()
-	ctrl.recipe_catalog = RecipeCatalog.new()
-	ctrl.recipe_catalog.load_catalog()
-	ctrl.gather_catalog = GatherCatalog.new()
-	ctrl.gather_catalog.load_catalog()
-	ctrl._gather_state.clear()
-	ctrl._gather_nodes.clear()
-	ctrl.fish_catalog = FishCatalog.new()
-	ctrl.fish_catalog.load_catalog()
-	ctrl._fish_state.clear()
-	ctrl._fish_spots.clear()
-	ctrl._fish_busy_until = 0.0
-	ctrl.title_catalog = TitleCatalog.new()
-	ctrl.title_catalog.load_catalog()
-	ctrl.achievement_catalog = AchievementCatalog.new()
-	ctrl.achievement_catalog.load_catalog()
-	ctrl.safe_zone_catalog = SafeZoneCatalog.new()
-	ctrl.safe_zone_catalog.load_catalog()
-	ctrl._safe_zone_known = false
-	ctrl._safe_zone_inside = false
-	ctrl.loot_catalog = LootCatalog.new()
-	ctrl.loot_catalog.load_catalog()
-	ctrl.inventory = Inventory.new()
-	ctrl.inventory.set_catalog(ctrl.item_catalog)
-	ctrl.inventory.grant_starter()
-	ctrl.warehouse = Warehouse.new()
-	ctrl.warehouse.set_catalog(ctrl.item_catalog)
-	ctrl.warehouse.clear()
-	ctrl.friend_list = FriendList.new()
-	ctrl.friend_list.clear()
-	ctrl.guild = Guild.new()
-	ctrl.guild.clear()
-	ctrl._guild_invites.clear()
-	ctrl.mailbox = Mailbox.new()
-	ctrl.mailbox.clear()
-	ctrl.auction = Auction.new()
-	ctrl.auction.clear()
-	ctrl._auction_seed_npc_stubs()
-	ctrl._mail_welcome_sent = false
-	ctrl._attendance_last_ymd = ""
-	ctrl.equipment = Equipment.new()
-	ctrl.equipment.set_catalog(ctrl.item_catalog)
-	ctrl.equipment.clear()
-	ctrl.quest_journal = QuestJournal.new()
-	ctrl.quest_journal.load_catalog()
-	ctrl.quest_journal.grant_starter()
-	ctrl.shop_catalog = ShopCatalog.new()
-	ctrl.shop_catalog.set_catalog(ctrl.item_catalog)
-	ctrl.shop_catalog.load_catalog()
-	ctrl.event_runtime = EventRuntime.new()
-	ctrl.combat_engine = CombatEngine.new()
-	ctrl.combat_engine.setup(ctrl.combat_stats, ctrl.skill_catalog, ctrl.item_catalog, ctrl.inventory, ctrl.equipment)
-	ctrl.combat_engine.combat_randf = ctrl._combat_randf_override
-	ctrl.combat_stats.reset_player(1)
-	ctrl.combat_stats.reset_titles()
-	ctrl.combat_stats.reset_achievements()
-	_reset_skill_book()
-
-
-
+## @server-api
 func poll_combat_tick() -> Array:
 	var invite_acts: Array = ctrl._tick_party_invites()
 	if not invite_acts.is_empty():
@@ -120,6 +61,7 @@ func poll_combat_tick() -> Array:
 
 
 
+## @server-api
 func snapshot_threat(npc_id: String) -> Dictionary:
 	npc_id = str(npc_id).strip_edges()
 	if ctrl.combat_stats == null or not ctrl.combat_stats.has_method("snapshot_threat"):
@@ -134,6 +76,7 @@ func snapshot_threat(npc_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 	if ctrl.player_cell.x > -9990:
 		player_x = ctrl.player_cell.x
@@ -154,6 +97,7 @@ func try_attack(npc_id: String, player_x: int, player_y: int) -> Dictionary:
 
 
 
+## @server-api
 func try_use_skill(	skill_id: String,
 	target_npc_id: String = "",
 	player_x: int = -9999,
@@ -195,6 +139,7 @@ func try_use_skill(	skill_id: String,
 
 
 
+## @server-api
 func skill_def(skill_id: String) -> Dictionary:
 	if ctrl.skill_catalog == null:
 		return {}
@@ -202,6 +147,7 @@ func skill_def(skill_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _patch_npc_cast_skill_names(actions: Array) -> void:
 	## Replace 【npc_id】 with display name in NPC cast resolve system messages.
 	for a in actions:
@@ -233,6 +179,7 @@ func _patch_npc_cast_skill_names(actions: Array) -> void:
 
 
 
+## @server-api
 func try_npc_skill(npc_id: String, skill_id: String, ground_x: int = -9999, ground_y: int = -9999) -> Dictionary:
 	if ctrl.combat_engine == null or ctrl.combat_stats == null:
 		return {"ok": false, "actions": []}
@@ -265,6 +212,7 @@ func try_npc_skill(npc_id: String, skill_id: String, ground_x: int = -9999, grou
 
 
 
+## @server-api
 func try_set_auto_potion(hp_on: bool, hp_pct: int, mp_on: bool, mp_pct: int) -> void:
 	ctrl.auto_potion_hp = bool(hp_on)
 	ctrl.auto_potion_hp_pct = clampi(int(hp_pct), 1, 90)
@@ -273,11 +221,13 @@ func try_set_auto_potion(hp_on: bool, hp_pct: int, mp_on: bool, mp_pct: int) -> 
 
 
 
+## @server-api
 func try_set_combat_target(npc_id: String = "") -> void:
 	ctrl._player_combat_target_id = str(npc_id).strip_edges()
 
 
 
+## @server-api
 func _tick_auto_potion(delta: float) -> void:
 	ctrl._auto_potion_acc += delta
 	if ctrl._auto_potion_acc < AUTO_POTION_INTERVAL:
@@ -324,6 +274,7 @@ func _tick_auto_potion(delta: float) -> void:
 
 
 
+## @server-api
 func _best_auto_potion(effect: String) -> String:
 	effect = effect.strip_edges()
 	if ctrl.inventory == null or ctrl.item_catalog == null or effect.is_empty():
@@ -352,6 +303,7 @@ func _best_auto_potion(effect: String) -> String:
 
 
 
+## @server-api
 func _maybe_auto_potion_msg(text: String) -> void:
 	text = text.strip_edges()
 	if text.is_empty():
@@ -364,6 +316,7 @@ func _maybe_auto_potion_msg(text: String) -> void:
 
 
 
+## @server-api
 func _combat_stand_if_needed(result: Dictionary) -> void:
 	if not ctrl.sitting:
 		return
@@ -374,6 +327,7 @@ func _combat_stand_if_needed(result: Dictionary) -> void:
 
 
 
+## @server-api
 func snapshot_skill_book() -> Dictionary:
 	if ctrl.combat_stats == null:
 		return {"known": ["basic_attack"], "skill_points": 0}
@@ -385,6 +339,7 @@ func snapshot_skill_book() -> Dictionary:
 
 
 
+## @server-api
 func _reset_skill_book() -> void:
 	if ctrl.combat_stats == null:
 		return
@@ -393,6 +348,7 @@ func _reset_skill_book() -> void:
 
 
 
+## @server-api
 func try_learn_skill(skill_id: String) -> Dictionary:
 	skill_id = skill_id.strip_edges()
 	if skill_id.is_empty() or ctrl.combat_stats == null or ctrl.skill_catalog == null:
@@ -413,6 +369,7 @@ func try_learn_skill(skill_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_skill_respec() -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats == null or ctrl.skill_catalog == null:
@@ -490,6 +447,7 @@ func try_skill_respec() -> Dictionary:
 
 
 
+## @server-api
 func snapshot_skill_catalog() -> Array:
 	if ctrl.skill_catalog == null:
 		return []
@@ -497,6 +455,7 @@ func snapshot_skill_catalog() -> Array:
 
 
 
+## @server-api
 func _try_npc_skill_tick(npc_id: String, ai: Dictionary, cell: Vector2i, px: int, py: int) -> Array:
 	var skills_v: Variant = ai.get("skills", [])
 	if typeof(skills_v) != TYPE_ARRAY or (skills_v as Array).is_empty():
@@ -536,6 +495,7 @@ func _try_npc_skill_tick(npc_id: String, ai: Dictionary, cell: Vector2i, px: int
 
 
 
+## @server-api
 func _threat_update_action(npc_id: String) -> Dictionary:
 	npc_id = str(npc_id).strip_edges()
 	var thr: Dictionary = snapshot_threat(npc_id)
@@ -550,6 +510,7 @@ func _threat_update_action(npc_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _append_threat_updates(actions: Array) -> void:
 	var seen: Dictionary = {}
 	# Skip if already present for an id.
@@ -584,6 +545,7 @@ func _append_threat_updates(actions: Array) -> void:
 
 
 
+## @server-api
 func _finalize_combat_result(result: Dictionary) -> Dictionary:
 	var actions_v: Variant = result.get("actions", [])
 	var actions: Array = actions_v if typeof(actions_v) == TYPE_ARRAY else []
@@ -651,6 +613,7 @@ func _finalize_combat_result(result: Dictionary) -> Dictionary:
 
 
 
+## @server-api
 func _apply_npc_spawn_combat_overrides(npc_id: String, spawn_data: Dictionary) -> void:
 	if ctrl.combat_stats == null or spawn_data.is_empty() or not ctrl.combat_stats.npcs.has(npc_id):
 		return
@@ -674,6 +637,7 @@ func _apply_npc_spawn_combat_overrides(npc_id: String, spawn_data: Dictionary) -
 
 
 
+## @server-api
 func _try_revive_skill(skill_id: String, target_id: String, player_x: int, player_y: int) -> Dictionary:
 	skill_id = str(skill_id).strip_edges()
 	target_id = str(target_id).strip_edges()
@@ -793,6 +757,7 @@ func _try_revive_skill(skill_id: String, target_id: String, player_x: int, playe
 
 
 
+## @server-api
 func _revive_resolve_target(target_id: String) -> Dictionary:
 	target_id = target_id.strip_edges()
 	if target_id.is_empty():
@@ -869,6 +834,7 @@ func _revive_resolve_target(target_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _revive_apply_to_target(
 	kind: String, mid: String, new_hp: int, hp_max: int, dest: Vector2i, actions: Array
 ) -> void:
@@ -963,3 +929,46 @@ func _revive_apply_to_target(
 			})
 
 
+
+
+
+
+## @server-api
+func _actions_has_type(actions: Array, t: String) -> bool:
+	for a in actions:
+		if typeof(a) == TYPE_DICTIONARY and str(a.get("type", "")) == t:
+			return true
+	return false
+
+## @server-api
+func try_cancel_status(status_id: String) -> Dictionary:
+	## Player cancels own beneficial buff/hot only (not debuff/dot).
+	var actions: Array = []
+	status_id = str(status_id).strip_edges()
+	if status_id.is_empty():
+		actions.append({"type": "system_message", "text": "无效的状态。"})
+		return {"ok": false, "reason": "empty", "actions": actions}
+	if ctrl.combat_stats == null or ctrl.combat_stats.statuses == null:
+		actions.append({"type": "system_message", "text": "无法取消状态。"})
+		return {"ok": false, "reason": "no_combat", "actions": actions}
+	var statuses = ctrl.combat_stats.statuses
+	if not statuses.has_status("player", status_id):
+		actions.append({"type": "system_message", "text": "未找到该状态。"})
+		return {"ok": false, "reason": "not_found", "actions": actions}
+	var kind := ""
+	for s in statuses.snapshot_statuses("player"):
+		if typeof(s) != TYPE_DICTIONARY:
+			continue
+		if str((s as Dictionary).get("id", "")) != status_id:
+			continue
+		kind = str((s as Dictionary).get("kind", "")).strip_edges().to_lower()
+		break
+	if kind != "buff" and kind != "hot":
+		actions.append({"type": "system_message", "text": "该状态无法取消。"})
+		return {"ok": false, "reason": "not_cancelable", "actions": actions}
+	statuses.clear_status("player", status_id)
+	actions.append(statuses.status_update_action("player"))
+	if ctrl.in_party():
+		ctrl._party_refresh_self_member()
+		actions.append(ctrl._party_update_action())
+	return {"ok": true, "actions": actions}

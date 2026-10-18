@@ -2,13 +2,22 @@ extends RefCounted
 ## Domain module: NPC/mob AI (register, wander/chase/return-home steps).
 
 var ctrl
+
+## npc_id -> { shop_id, name, interact_text } soft meta from pack spawn.
+## @server-state
+var npc_meta: Dictionary = {}
+
+
 func _init(c):
 	ctrl = c
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const MobAI = preload("res://scripts/net/combat/mob_ai.gd")
+## Default roam radius when pack has wander:true but no wander_radius.
+## @server-constant
 const DEFAULT_FRIENDLY_WANDER_RADIUS := 2
 
+## @server-api
 func register_npc(
 	npc_id: String,
 	x: int,
@@ -125,6 +134,7 @@ func register_npc(
 
 
 
+## @server-api
 func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Dictionary:
 	if ctrl.map_collision == null:
 		return {"ok": false, "x": from_x, "y": from_y}
@@ -164,6 +174,7 @@ func try_npc_move(npc_id: String, from_x: int, from_y: int, dir: int) -> Diction
 
 
 
+## @server-api
 func _tick_mob_ai(dt: float) -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null:
@@ -333,6 +344,7 @@ func _tick_mob_ai(dt: float) -> Array:
 
 
 
+## @server-api
 func _mob_ai_idle_wander_step(npc_id: String, dt: float) -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null or not ctrl.combat_stats.npc_ai.has(npc_id):
@@ -369,6 +381,7 @@ func _mob_ai_idle_wander_step(npc_id: String, dt: float) -> Array:
 
 
 
+## @server-api
 func _mob_ai_chase_step(npc_id: String, ai: Dictionary, cell: Vector2i, facing: int, px: int, py: int) -> Array:
 	var actions: Array = []
 	var skill_acts: Array = ctrl._try_npc_skill_tick(npc_id, ai, cell, px, py)
@@ -441,6 +454,7 @@ func _mob_ai_chase_step(npc_id: String, ai: Dictionary, cell: Vector2i, facing: 
 
 
 
+## @server-api
 func _mob_ai_return_home_step(npc_id: String, ai: Dictionary, cell: Vector2i, home: Vector2i) -> Array:
 	var actions: Array = []
 	if home.x <= -9990:
@@ -493,6 +507,7 @@ func _mob_ai_return_home_step(npc_id: String, ai: Dictionary, cell: Vector2i, ho
 
 
 
+## @server-api
 func _mob_ai_return_home_stuck_or_face(
 	npc_id: String, ai: Dictionary, cell: Vector2i, home: Vector2i, actions: Array
 ) -> Array:
@@ -517,6 +532,7 @@ func _mob_ai_return_home_stuck_or_face(
 
 
 
+## @server-api
 func _mob_ai_teleport_home(
 	npc_id: String, ai: Dictionary, cell: Vector2i, home: Vector2i, actions: Array
 ) -> Array:
@@ -548,3 +564,38 @@ func _mob_ai_teleport_home(
 	})
 	return actions
 
+
+## @server-api
+func _npc_is_rooted(npc_id: String) -> bool:
+	if ctrl.combat_stats == null or ctrl.combat_stats.statuses == null:
+		return false
+	if ctrl.combat_stats.statuses.has_status(npc_id, "root"):
+		return true
+	if ctrl.combat_stats.statuses.has_status(npc_id, "stun"):
+		return true
+	return false
+
+## @server-api
+func _evade_npc(npc_id: String) -> Array:
+	var actions: Array = []
+	npc_id = npc_id.strip_edges()
+	if npc_id.is_empty() or ctrl.combat_stats == null:
+		return actions
+	if not ctrl.combat_stats.npc_ai.has(npc_id):
+		return actions
+	ctrl.combat_stats.clear_chase(npc_id)
+	if not ctrl.combat_stats.npcs.has(npc_id):
+		return actions
+	var st: Dictionary = ctrl.combat_stats.npcs[npc_id]
+	var hp: int = int(st.get("hp", 0))
+	var hp_max: int = int(st.get("hp_max", 0))
+	actions.append({
+		"type": "npc_reset",
+		"npc_id": npc_id,
+		"hp": hp,
+		"hp_max": hp_max,
+		"reason": "evade",
+	})
+	# Hate cleared — notify target HUD (threat_you false).
+	actions.append(ctrl._threat_update_action(npc_id))
+	return actions

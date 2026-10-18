@@ -2,26 +2,59 @@ extends RefCounted
 ## Domain module: companion pet (summon/dismiss/follow/combat assist).
 
 var ctrl
+
+## Pet combat assist (client GameSettings pushed via try_set_pet_assist; default ON).
+## @server-state
+var pet_assist: bool = true
+
+## Last hostile the player attacked / locked for pet assist.
+## @server-state
+var _player_combat_target_id: String = ""
+
+## Companion pet shell (one at a time; follows player).
+## @server-state
+var _pet: Dictionary = {
+	"active": false,
+	"id": "",
+	"name": "",
+	"cell": {"x": 0, "y": 0},
+	"look_id": "1",
+	"facing": 2,
+	"follow_acc": 0.0,
+	"combat_acc": 0.0,
+}
+
+
 func _init(c):
 	ctrl = c
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const MobAI = preload("res://scripts/net/combat/mob_ai.gd")
+## @server-constant
 const PET_FOLLOW_INTERVAL_SEC := 0.45
+## @server-constant
 const PET_COMBAT_INTERVAL_SEC := 1.5
+## @server-constant
 const PET_COMBAT_RANGE := 2
+## Stay 1–2 Chebyshev cells behind the player.
+## @server-constant
 const PET_LAG_MIN := 1
+## @server-constant
 const PET_LAG_MAX := 2
+## @server-constant
 const PET_DEFS := {
 	"default": {"name": "小跟班", "look_id": "1"},
 }
 
+## @server-api
 func try_set_pet_assist(on: bool) -> void:
 	ctrl.pet_assist = bool(on)
 
 
 
+## @server-api
 func snapshot_pet() -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.snapshot_pet()
 	var active = bool(ctrl._pet.get("active", false))
 	return {
 		"active": active,
@@ -38,6 +71,7 @@ func snapshot_pet() -> Dictionary:
 
 
 
+## @server-api
 func _pet_reset() -> void:
 	ctrl._pet = {
 		"active": false,
@@ -52,6 +86,7 @@ func _pet_reset() -> void:
 
 
 
+## @server-api
 func _pet_spawn_action() -> Dictionary:
 	var snap: Dictionary = snapshot_pet()
 	return {
@@ -67,6 +102,7 @@ func _pet_spawn_action() -> Dictionary:
 
 
 
+## @server-api
 func _pet_despawn_action() -> Dictionary:
 	return {
 		"type": "pet_despawn",
@@ -75,6 +111,7 @@ func _pet_despawn_action() -> Dictionary:
 
 
 
+## @server-api
 func _pet_pick_spawn_cell(pc: Vector2i) -> Vector2i:
 	var offsets: Array = [
 		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
@@ -96,6 +133,7 @@ func _pet_pick_spawn_cell(pc: Vector2i) -> Vector2i:
 
 
 
+## @server-api
 func _pet_snap_near_player() -> void:
 	if not bool(ctrl._pet.get("active", false)):
 		return
@@ -108,7 +146,9 @@ func _pet_snap_near_player() -> void:
 
 
 
+## @server-api
 func try_pet_summon(pet_id: String = "default") -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.pet_summon(pet_id)
 	var actions: Array = []
 	pet_id = str(pet_id).strip_edges()
 	if pet_id.is_empty():
@@ -142,7 +182,9 @@ func try_pet_summon(pet_id: String = "default") -> Dictionary:
 
 
 
+## @server-api
 func try_pet_dismiss() -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.pet_dismiss()
 	var actions: Array = []
 	if not bool(ctrl._pet.get("active", false)):
 		actions.append({"type": "system_message", "text": "当前没有宠物。"})
@@ -155,6 +197,7 @@ func try_pet_dismiss() -> Dictionary:
 
 
 
+## @server-api
 func _tick_pet_follow(dt: float) -> Array:
 	var actions: Array = []
 	if not bool(ctrl._pet.get("active", false)):
@@ -229,6 +272,7 @@ func _tick_pet_follow(dt: float) -> Array:
 
 
 
+## @server-api
 func _pet_atk() -> int:
 	var lv = 1
 	if ctrl.combat_stats != null and typeof(ctrl.combat_stats.player) == TYPE_DICTIONARY:
@@ -237,6 +281,7 @@ func _pet_atk() -> int:
 
 
 
+## @server-api
 func _npc_display_name_for_pet(npc_id: String) -> String:
 	npc_id = str(npc_id).strip_edges()
 	if npc_id.is_empty():
@@ -253,6 +298,7 @@ func _npc_display_name_for_pet(npc_id: String) -> String:
 
 
 
+## @server-api
 func _resolve_pet_combat_target() -> String:
 	if ctrl.combat_stats == null:
 		return ""
@@ -285,6 +331,7 @@ func _resolve_pet_combat_target() -> String:
 
 
 
+## @server-api
 func _pet_target_valid_in_range(npc_id: String, pet_cell: Vector2i) -> bool:
 	npc_id = str(npc_id).strip_edges()
 	if npc_id.is_empty() or ctrl.combat_stats == null or not ctrl.combat_stats.npcs.has(npc_id):
@@ -301,6 +348,7 @@ func _pet_target_valid_in_range(npc_id: String, pet_cell: Vector2i) -> bool:
 
 
 
+## @server-api
 func _tick_pet_combat(dt: float) -> Array:
 	var actions: Array = []
 	if not bool(ctrl._pet.get("active", false)):

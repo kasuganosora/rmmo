@@ -2,11 +2,17 @@ extends RefCounted
 ## Domain module: equipment (equip/unequip/toggle, update action).
 
 var ctrl
+
+## @server-state
+var equipment = null
+
+
 func _init(c):
 	ctrl = c
 
 const Equipment = preload("res://scripts/net/combat/equipment.gd")
 
+## @server-api
 func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
 	item_id = item_id.strip_edges()
 	slot = slot.strip_edges()
@@ -68,6 +74,7 @@ func try_equip_item(item_id: String, slot: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_unequip_item(slot: String) -> Dictionary:
 	slot = slot.strip_edges()
 	if ctrl.equipment == null or ctrl.inventory == null:
@@ -101,6 +108,7 @@ func try_unequip_item(slot: String) -> Dictionary:
 
 
 
+## @server-api
 func try_toggle_equip(item_id: String) -> Dictionary:
 	item_id = item_id.strip_edges()
 	if ctrl.equipment == null or ctrl.inventory == null:
@@ -122,6 +130,7 @@ func try_toggle_equip(item_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _equipment_update_action() -> Dictionary:
 	return {
 		"type": "equipment_update",

@@ -2,11 +2,27 @@ extends RefCounted
 ## Domain module: guild (create/invite/respond/kick/leave/disband).
 
 var ctrl
+
+## @server-state
+var guild = null
+
+## Pending incoming guild invites: [{id, guild_id, guild_name, from_id, from_name}]
+## @server-state
+var _guild_invites: Array = []
+
+## @server-state
+var _next_guild_seq: int = 1
+
+## @server-state
+var _next_guild_invite_seq: int = 1
+
+
 func _init(c):
 	ctrl = c
 
 const Guild = preload("res://scripts/net/combat/guild.gd")
 
+## @server-api
 func snapshot_guild() -> Dictionary:
 	if ctrl.guild == null:
 		return {"id": "", "name": "", "leader_id": "", "members": []}
@@ -14,26 +30,31 @@ func snapshot_guild() -> Dictionary:
 
 
 
+## @server-api
 func _guild_update_action() -> Dictionary:
 	return {"type": "guild_update", "guild": snapshot_guild()}
 
 
 
+## @server-api
 func in_guild() -> bool:
 	return ctrl.guild != null and ctrl.guild.in_guild()
 
 
 
+## @server-api
 func _guild_self_id() -> String:
 	return ctrl._party_self_id()
 
 
 
+## @server-api
 func _guild_self_name() -> String:
 	return ctrl._party_self_name()
 
 
 
+## @server-api
 func try_guild_create(guild_name: String) -> Dictionary:
 	var actions: Array = []
 	guild_name = str(guild_name).strip_edges()
@@ -63,6 +84,7 @@ func try_guild_create(guild_name: String) -> Dictionary:
 
 
 
+## @server-api
 func try_guild_invite(target: String) -> Dictionary:
 	var actions: Array = []
 	target = str(target).strip_edges()
@@ -110,6 +132,7 @@ func try_guild_invite(target: String) -> Dictionary:
 
 
 
+## @server-api
 func try_guild_incoming_invite(from_name: String = "旅人甲", guild_name: String = "测试公会") -> Dictionary:
 	var actions: Array = []
 	from_name = str(from_name).strip_edges()
@@ -143,6 +166,7 @@ func try_guild_incoming_invite(from_name: String = "旅人甲", guild_name: Stri
 
 
 
+## @server-api
 func try_guild_invite_respond(invite_id: String, accept: bool) -> Dictionary:
 	var actions: Array = []
 	invite_id = str(invite_id).strip_edges()
@@ -202,6 +226,7 @@ func try_guild_invite_respond(invite_id: String, accept: bool) -> Dictionary:
 
 
 
+## @server-api
 func try_guild_kick(member_id: String) -> Dictionary:
 	var actions: Array = []
 	member_id = str(member_id).strip_edges()
@@ -233,6 +258,7 @@ func try_guild_kick(member_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_guild_leave() -> Dictionary:
 	var actions: Array = []
 	if ctrl.guild == null or not ctrl.guild.in_guild():
@@ -254,6 +280,7 @@ func try_guild_leave() -> Dictionary:
 
 
 
+## @server-api
 func try_guild_disband() -> Dictionary:
 	var actions: Array = []
 	if ctrl.guild == null or not ctrl.guild.in_guild():

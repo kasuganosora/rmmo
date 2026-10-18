@@ -2,12 +2,43 @@ extends RefCounted
 ## Domain module: movement (player cell/move/mount/autorun, respawn/recall, npc respawn).
 
 var ctrl
+
+## Authoritative player grid cell (blocked for NPCs).
+## @server-state
+var player_cell: Vector2i = Vector2i(-9999, -9999)
+
+## Map spawn / transfer landing used for death respawn.
+## @server-state
+var respawn_cell: Vector2i = Vector2i(0, 0)
+
+## Last safe cell (updated on successful moves when not adjacent to hostiles).
+## @server-state
+var last_safe_cell: Vector2i = Vector2i(0, 0)
+
+## True after player_died until try_respawn().
+## @server-state
+var awaiting_respawn: bool = false
+
+## Cell where the player died (就地复活).
+## @server-state
+var death_cell: Vector2i = Vector2i(-9999, -9999)
+
+## npc_id -> spawn template (id/name/charset/stats/AI fields/home) for dead-mob respawn.
+## @server-state
+var npc_spawn_templates: Dictionary = {}
+
+## npc_id -> ready_at (combat_stats.now_sec basis) for pending hostile respawns.
+## @server-state
+var _npc_respawn_at: Dictionary = {}
+
+
 func _init(c):
 	ctrl = c
 
 const TileId = preload("res://scripts/map/tile_id.gd")
 const MobAI = preload("res://scripts/net/combat/mob_ai.gd")
 
+## @server-api
 func set_player_cell(x: int, y: int) -> void:
 	if ctrl.map_collision != null:
 		if ctrl.player_cell.x > -9990:
@@ -17,6 +48,7 @@ func set_player_cell(x: int, y: int) -> void:
 
 
 
+## @server-api
 func player_move_speed_mul() -> float:
 	if ctrl.combat_stats == null or ctrl.combat_stats.statuses == null:
 		return 1.0
@@ -32,6 +64,7 @@ func player_move_speed_mul() -> float:
 
 
 
+## @server-api
 func player_is_mounted() -> bool:
 	if ctrl.combat_engine != null and ctrl.combat_engine.has_method("player_is_mounted"):
 		return bool(ctrl.combat_engine.player_is_mounted())
@@ -41,11 +74,13 @@ func player_is_mounted() -> bool:
 
 
 
+## @server-api
 func try_mount() -> Dictionary:
 	return ctrl.try_use_skill("mount", "", ctrl.player_cell.x, ctrl.player_cell.y)
 
 
 
+## @server-api
 func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 	if ctrl.map_collision == null:
 		return {"ok": false, "x": from_x, "y": from_y}
@@ -99,11 +134,13 @@ func try_move(from_x: int, from_y: int, dir: int) -> Dictionary:
 
 
 
+## @server-api
 func collect_autorun() -> Array:
 	return _collect_autorun()
 
 
 
+## @server-api
 func _collect_autorun() -> Array:
 	if ctrl.event_runtime == null or not ctrl.event_runtime.has_method("collect_autorun"):
 		return []
@@ -114,6 +151,7 @@ func _collect_autorun() -> Array:
 
 
 
+## @server-api
 func _apply_player_move_actions(result: Dictionary) -> void:
 	if result.is_empty() or not bool(result.get("ok", false)):
 		return
@@ -137,6 +175,7 @@ func _apply_player_move_actions(result: Dictionary) -> void:
 
 
 
+## @server-api
 func _gate_recall_item_use() -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats != null and not ctrl.combat_stats.player_alive():
@@ -153,6 +192,7 @@ func _gate_recall_item_use() -> Dictionary:
 
 
 
+## @server-api
 func _bind_recall_actions(result: Dictionary) -> void:
 	var acts_v: Variant = result.get("actions", [])
 	if typeof(acts_v) != TYPE_ARRAY:
@@ -182,6 +222,7 @@ func _bind_recall_actions(result: Dictionary) -> void:
 
 
 
+## @server-api
 func _append_respawn_actions(actions: Array, where: String = "town") -> void:
 	if ctrl.combat_stats == null:
 		return
@@ -238,6 +279,7 @@ func _append_respawn_actions(actions: Array, where: String = "town") -> void:
 
 
 
+## @server-api
 func try_respawn(where: String = "town") -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats != null and ctrl.combat_stats.player_alive() and not ctrl.awaiting_respawn:
@@ -249,6 +291,7 @@ func try_respawn(where: String = "town") -> Dictionary:
 
 
 
+## @server-api
 func try_recall() -> Dictionary:
 	var actions: Array = []
 	if ctrl.combat_stats != null and not ctrl.combat_stats.player_alive():
@@ -273,6 +316,7 @@ func try_recall() -> Dictionary:
 
 
 
+## @server-api
 func _schedule_npc_respawn(npc_id: String) -> void:
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty() or ctrl.combat_stats == null:
@@ -287,6 +331,7 @@ func _schedule_npc_respawn(npc_id: String) -> void:
 
 
 
+## @server-api
 func _tick_npc_respawns() -> Array:
 	var actions: Array = []
 	if ctrl.combat_stats == null or ctrl._npc_respawn_at.is_empty():
@@ -306,6 +351,7 @@ func _tick_npc_respawns() -> Array:
 
 
 
+## @server-api
 func _respawn_npc_from_template(npc_id: String) -> Dictionary:
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty() or not ctrl.npc_spawn_templates.has(npc_id):
@@ -374,3 +420,77 @@ func _respawn_npc_from_template(npc_id: String) -> Dictionary:
 	return {"type": "spawn_npc", "npc": tmpl}
 
 
+
+## @server-api
+func _maybe_mark_safe_cell(x: int, y: int) -> void:
+	## Update last_safe when no registered hostile is adjacent.
+	if ctrl.combat_stats == null:
+		ctrl.last_safe_cell = Vector2i(x, y)
+		return
+	for npc_id in ctrl.combat_stats.npc_cells.keys():
+		if not ctrl.combat_stats.npcs.has(npc_id):
+			continue
+		var st: Dictionary = ctrl.combat_stats.npcs[npc_id]
+		if int(st.get("hp", 0)) <= 0 or not bool(st.get("hostile", false)):
+			continue
+		var c: Vector2i = ctrl.combat_stats.npc_cells[npc_id]
+		if absi(c.x - x) + absi(c.y - y) <= 1:
+			return
+	ctrl.last_safe_cell = Vector2i(x, y)
+
+## @server-api
+func _store_npc_spawn_template(
+	npc_id: String,
+	x: int,
+	y: int,
+	hostile: bool,
+	aggressive: bool,
+	facing: int,
+	wander_radius: int,
+	group_id: int,
+	leash_radius: int,
+	respawn_sec: float,
+	spawn_data: Dictionary,
+	home_cell: Vector2i
+) -> void:
+	if not hostile:
+		# Friendlies are not combat-killed / respawned via this path.
+		if ctrl.npc_spawn_templates.has(npc_id):
+			ctrl.npc_spawn_templates.erase(npc_id)
+		return
+	var tmpl: Dictionary = {}
+	if not spawn_data.is_empty():
+		tmpl = spawn_data.duplicate(true)
+	tmpl["id"] = npc_id
+	if not tmpl.has("name") or str(tmpl.get("name", "")).strip_edges() == "":
+		tmpl["name"] = npc_id
+	tmpl["hostile"] = true
+	tmpl["aggressive"] = aggressive
+	tmpl["direction"] = facing
+	tmpl["wander_radius"] = maxi(wander_radius, 0)
+	tmpl["group_id"] = group_id
+	tmpl["leash_radius"] = leash_radius
+	tmpl["respawn_sec"] = respawn_sec
+	tmpl["home_cell"] = {"x": home_cell.x, "y": home_cell.y}
+	# Keep original home as the respawn target; cell may be overwritten on near-spawn.
+	if not tmpl.has("cell") or typeof(tmpl.get("cell")) != TYPE_DICTIONARY:
+		tmpl["cell"] = {"x": home_cell.x, "y": home_cell.y}
+	# Snapshot combat stats once (stable HP/ATK across respawns). Do not overwrite
+	# an existing template stats blob when re-registering after respawn (new ensure_npc
+	# would otherwise roll a fresh random HP into the template).
+	if ctrl.combat_stats != null and ctrl.combat_stats.npcs.has(npc_id):
+		var st: Dictionary = ctrl.combat_stats.npcs[npc_id]
+		if not tmpl.has("level"):
+			tmpl["level"] = maxi(int(st.get("level", 1)), 1)
+		if not tmpl.has("stats"):
+			tmpl["stats"] = {
+				"hp_max": int(st.get("hp_max", 0)),
+				"mp_max": int(st.get("mp_max", 0)),
+				"atk": int(st.get("atk", 0)),
+				"def": int(st.get("def", 0)),
+			}
+	elif not tmpl.has("stats") and ctrl.npc_spawn_templates.has(npc_id):
+		var prev: Dictionary = ctrl.npc_spawn_templates[npc_id]
+		if prev.has("stats"):
+			tmpl["stats"] = prev["stats"]
+	ctrl.npc_spawn_templates[npc_id] = tmpl

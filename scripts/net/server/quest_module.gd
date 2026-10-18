@@ -2,9 +2,15 @@ extends RefCounted
 ## Domain module: quest journal (accept/abandon/turn-in, dialogue, progress notes).
 
 var ctrl
+
+## @server-state
+var quest_journal = null
+
+
 func _init(c):
 	ctrl = c
 
+## @server-api
 func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dictionary:
 	option_id = str(option_id).strip_edges()
 	if option_id.begins_with("quest_accept:"):
@@ -53,6 +59,7 @@ func try_dialogue_choice(option_id: String = "", option_index: int = -1) -> Dict
 
 
 
+## @server-api
 func get_quest_list() -> Array:
 	if ctrl.quest_journal == null:
 		return []
@@ -60,11 +67,13 @@ func get_quest_list() -> Array:
 
 
 
+## @server-api
 func snapshot_quest_journal() -> Array:
 	return get_quest_list()
 
 
 
+## @server-api
 func _grant_quest_reward(reward: Dictionary) -> Array:
 	var actions: Array = []
 	if typeof(reward) != TYPE_DICTIONARY:
@@ -135,6 +144,7 @@ func _grant_quest_reward(reward: Dictionary) -> Array:
 
 
 
+## @server-api
 func _build_quest_dialogue_options(npc_id: String) -> Array:
 	var out: Array = []
 	if ctrl.quest_journal == null:
@@ -165,6 +175,7 @@ func _build_quest_dialogue_options(npc_id: String) -> Array:
 
 
 
+## @server-api
 func _append_quest_offer_blurb(body: String, npc_id: String) -> String:
 	if ctrl.quest_journal == null or not ctrl.quest_journal.has_method("list_offers_for_npc"):
 		return body
@@ -191,6 +202,7 @@ func _append_quest_offer_blurb(body: String, npc_id: String) -> String:
 
 
 
+## @server-api
 func try_accept_quest(quest_id: String) -> Dictionary:
 	quest_id = quest_id.strip_edges()
 	var actions: Array = []
@@ -246,6 +258,7 @@ func try_accept_quest(quest_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_abandon_quest(quest_id: String) -> Dictionary:
 	quest_id = quest_id.strip_edges()
 	var actions: Array = []
@@ -275,6 +288,7 @@ func try_abandon_quest(quest_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_turn_in_quest(quest_id: String) -> Dictionary:
 	quest_id = quest_id.strip_edges()
 	if ctrl.quest_journal == null:
@@ -311,6 +325,7 @@ func try_turn_in_quest(quest_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _quest_update_action() -> Dictionary:
 	var a = {
 		"type": "quest_update",
@@ -324,6 +339,7 @@ func _quest_update_action() -> Dictionary:
 
 
 
+## @server-api
 func _quest_note_kill_actions(npc_id: String) -> Array:
 	var actions: Array = []
 	if ctrl.quest_journal == null:
@@ -334,6 +350,7 @@ func _quest_note_kill_actions(npc_id: String) -> Array:
 
 
 
+## @server-api
 func _quest_note_talk_actions(npc_id: String) -> Array:
 	var actions: Array = []
 	if ctrl.quest_journal == null:
@@ -344,6 +361,7 @@ func _quest_note_talk_actions(npc_id: String) -> Array:
 
 
 
+## @server-api
 func _quest_note_item_actions(item_id: String, qty: int) -> Array:
 	var actions: Array = []
 	if ctrl.quest_journal == null:
@@ -355,6 +373,7 @@ func _quest_note_item_actions(item_id: String, qty: int) -> Array:
 
 
 
+## @server-api
 func _quest_note_fish_actions(item_id: String = "", qty: int = 1) -> Array:
 	var actions: Array = []
 	if ctrl.quest_journal == null:
@@ -365,6 +384,7 @@ func _quest_note_fish_actions(item_id: String = "", qty: int = 1) -> Array:
 
 
 
+## @server-api
 func _quest_note_reach_actions(map_id: String, content_id: String = "", pack_path: String = "") -> Array:
 	var actions: Array = []
 	if ctrl.quest_journal == null:

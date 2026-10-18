@@ -2,11 +2,34 @@ extends RefCounted
 ## Domain module: shop/vendor (buy/sell/junk/buyback, reputation, auction buy).
 
 var ctrl
+
+## @server-state
+var shop_catalog = null
+
+## Vendor reputation 0–1000 per shop_id (demo: starter_goods).
+## @server-state
+var _rep_by_vendor: Dictionary = {}
+
+## Convenience alias for starter_goods (tests / thin shell).
+## @server-state
+var vendor_rep: int = 0
+
+## Last shop opened on this session (sell +1 rep when set).
+## @server-state
+var _active_shop_id: String = ""
+
+## @server-state
+var _shop_buyback: Array = []
+
+
 func _init(c):
 	ctrl = c
 
+## Shop buyback ring (last N sold stacks this shop/map session).
+## @server-constant
 const BUYBACK_MAX := 8
 
+## @server-api
 func _try_open_shop_action(shop_id: String) -> Dictionary:
 	shop_id = shop_id.strip_edges()
 	var actions: Array = []
@@ -18,6 +41,7 @@ func _try_open_shop_action(shop_id: String) -> Dictionary:
 
 
 
+## @server-api
 func get_vendor_rep(shop_id: String = "starter_goods") -> int:
 	shop_id = shop_id.strip_edges()
 	if shop_id.is_empty():
@@ -28,6 +52,7 @@ func get_vendor_rep(shop_id: String = "starter_goods") -> int:
 
 
 
+## @server-api
 func set_vendor_rep(shop_id: String, value: int) -> void:
 	shop_id = shop_id.strip_edges()
 	if shop_id.is_empty():
@@ -39,11 +64,13 @@ func set_vendor_rep(shop_id: String, value: int) -> void:
 
 
 
+## @server-api
 func force_vendor_rep(shop_id: String, value: int) -> void:
 	set_vendor_rep(shop_id, value)
 
 
 
+## @server-api
 func _vendor_discount_pct(rep: int) -> int:
 	if rep >= 600:
 		return 15
@@ -55,6 +82,7 @@ func _vendor_discount_pct(rep: int) -> int:
 
 
 
+## @server-api
 func _discounted_buy_price(base: int, discount_pct: int) -> int:
 	base = maxi(base, 0)
 	if discount_pct <= 0:
@@ -66,6 +94,7 @@ func _discounted_buy_price(base: int, discount_pct: int) -> int:
 
 
 
+## @server-api
 func snapshot_shop(shop_id: String = "starter_goods") -> Dictionary:
 	shop_id = shop_id.strip_edges()
 	if shop_id.is_empty():
@@ -94,6 +123,7 @@ func snapshot_shop(shop_id: String = "starter_goods") -> Dictionary:
 
 
 
+## @server-api
 func _build_open_shop_payload(shop_id: String) -> Dictionary:
 	ctrl._active_shop_id = shop_id.strip_edges()
 	var snap: Dictionary = snapshot_shop(shop_id)
@@ -110,6 +140,7 @@ func _build_open_shop_payload(shop_id: String) -> Dictionary:
 
 
 
+## @server-api
 func _add_vendor_rep(shop_id: String, delta: int) -> Array:
 	var actions: Array = []
 	if delta == 0:
@@ -127,6 +158,7 @@ func _add_vendor_rep(shop_id: String, delta: int) -> Array:
 
 
 
+## @server-api
 func try_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> Dictionary:
 	shop_id = shop_id.strip_edges()
 	item_id = item_id.strip_edges()
@@ -181,6 +213,7 @@ func try_shop_buy(shop_id: String, item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_shop_sell(item_id: String, qty: int = 1) -> Dictionary:
 	item_id = item_id.strip_edges()
 	qty = maxi(qty, 1)
@@ -230,6 +263,7 @@ func try_shop_sell(item_id: String, qty: int = 1) -> Dictionary:
 
 
 
+## @server-api
 func try_shop_sell_junk() -> Dictionary:
 	var actions: Array = []
 	if ctrl.inventory == null or ctrl.item_catalog == null:
@@ -286,6 +320,7 @@ func try_shop_sell_junk() -> Dictionary:
 
 
 
+## @server-api
 func _shop_junk_unit_price(item_id: String) -> int:
 	var def: Dictionary = ctrl.item_catalog.get_item(item_id) if ctrl.item_catalog != null else {}
 	if def.is_empty():
@@ -297,6 +332,7 @@ func _shop_junk_unit_price(item_id: String) -> int:
 
 
 
+## @server-api
 func _is_shop_junk_item(item_id: String) -> bool:
 	item_id = item_id.strip_edges()
 	if item_id.is_empty():
@@ -319,23 +355,27 @@ func _is_shop_junk_item(item_id: String) -> bool:
 
 
 
+## @server-api
 func snapshot_shop_buyback() -> Array:
 	return ctrl._shop_buyback.duplicate(true)
 
 
 
+## @server-api
 func _clear_shop_session_buyback() -> void:
 	ctrl._shop_buyback.clear()
 	ctrl._active_shop_id = ""
 
 
 
+## @server-api
 func try_shop_close() -> Dictionary:
 	# Keep buyback until map transfer / ring overwrite — accidental close must not wipe it.
 	return {"ok": true, "actions": [_shop_buyback_action()]}
 
 
 
+## @server-api
 func _push_shop_buyback(item_id: String, qty: int, unit_price: int, bound: bool = false) -> void:
 	ctrl._shop_buyback.insert(0, {
 		"item_id": item_id,
@@ -350,11 +390,13 @@ func _push_shop_buyback(item_id: String, qty: int, unit_price: int, bound: bool 
 
 
 
+## @server-api
 func _shop_buyback_action() -> Dictionary:
 	return {"type": "shop_buyback", "buyback": snapshot_shop_buyback(), "gold": ctrl.inventory.get_gold() if ctrl.inventory else 0}
 
 
 
+## @server-api
 func try_shop_buyback(index: int, qty: int = -1) -> Dictionary:
 	var actions: Array = []
 	if ctrl.inventory == null:
@@ -407,6 +449,7 @@ func try_shop_buyback(index: int, qty: int = -1) -> Dictionary:
 
 
 
+## @server-api
 func try_auction_buy(listing_id: String) -> Dictionary:
 	var actions: Array = []
 	listing_id = str(listing_id).strip_edges()

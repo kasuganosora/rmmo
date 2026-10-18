@@ -3,7 +3,7 @@ import re, glob, os, sys
 FACADE = sys.argv[1] if len(sys.argv) > 1 else "scripts/net/mock_server.gd"
 MODULES = sys.argv[2] if len(sys.argv) > 2 else "scripts/net/server/*.gd"
 
-hud = open(FACADE, encoding="utf-8").read()
+hud = open(FACADE, encoding="utf-8").read() + ("\n" + open("scripts/net/mock_server_api.gd", encoding="utf-8").read() if len(sys.argv) <= 1 else "")
 members = set(re.findall(r"(?m)^(?:@\w+(?:\([^\n]*\))?\s+)*var\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^signal\s+(\w+)", hud))
 members |= set(re.findall(r"(?m)^(?:static\s+)?func\s+(\w+)", hud))

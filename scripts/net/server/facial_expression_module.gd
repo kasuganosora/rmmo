@@ -4,15 +4,19 @@ var ctrl
 var states:Dictionary={}
 var serial:=0
 var pending:Dictionary={}
+
+
 func _init(owner):ctrl=owner
 func reset()->void:
  states.clear();pending.clear()
  # Revisions stay monotonic across character sessions.
 func snapshot(actor_id:String)->Dictionary:
  return states.get(actor_id,{"weights":{},"revision":0}).duplicate(true)
+## @server-api try_facial_expression
 func request(weights:Dictionary)->Dictionary:
  if ctrl.awaiting_respawn or not ctrl.combat_stats.player_alive():return {"ok":false,"actions":[]}
  return _accept(ctrl._party_self_id(),weights)
+## @server-api try_remote_facial_expression
 func debug_remote(actor_id:String,weights:Dictionary)->Dictionary:
  if not ctrl._remote_players.has(actor_id):return {"ok":false,"actions":[]}
  var result:=_accept(actor_id,weights)

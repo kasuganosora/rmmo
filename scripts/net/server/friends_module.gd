@@ -2,12 +2,18 @@ extends RefCounted
 ## Domain module: friends (add/remove/resolve target).
 
 var ctrl
+
+## @server-state
+var friend_list = null
+
+
 func _init(c):
 	ctrl = c
 
 const FriendList = preload("res://scripts/net/combat/friend_list.gd")
 const SHELL_REMOTE_NAMES := ["旅人甲", "旅人乙", "旅人丙"]
 
+## @server-api
 func snapshot_friends() -> Dictionary:
 	var online_ids: Dictionary = {}
 	var online_names: Dictionary = {}
@@ -24,11 +30,13 @@ func snapshot_friends() -> Dictionary:
 
 
 
+## @server-api
 func _friends_update_action() -> Dictionary:
 	return {"type": "friends_update", "friends": snapshot_friends()}
 
 
 
+## @server-api
 func _resolve_friend_target(name_or_id: String) -> Dictionary:
 	name_or_id = str(name_or_id).strip_edges()
 	if name_or_id.is_empty():
@@ -63,6 +71,7 @@ func _resolve_friend_target(name_or_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_friend_add(name_or_id: String) -> Dictionary:
 	var actions: Array = []
 	name_or_id = str(name_or_id).strip_edges()
@@ -99,6 +108,7 @@ func try_friend_add(name_or_id: String) -> Dictionary:
 
 
 
+## @server-api
 func try_friend_remove(friend_id: String) -> Dictionary:
 	var actions: Array = []
 	friend_id = str(friend_id).strip_edges()

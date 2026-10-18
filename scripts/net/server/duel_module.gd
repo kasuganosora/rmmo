@@ -2,13 +2,25 @@ extends RefCounted
 ## Domain module: duel (challenge/accept/decline/forfeit, tick, damage).
 
 var ctrl
+
+## @server-state
+var _duel: Dictionary = {}  # empty = idle; pending or active session
+
+## @server-state
+var _duel_pending: Dictionary = {}  # optional pending challenge before accept
+
+
 func _init(c):
 	ctrl = c
 
+## @server-constant
 const DUEL_DURATION_SEC := 60.0
+## @server-constant
 const DUEL_STUB_HP := 100
+## @server-constant
 const DUEL_RANGE_CELLS := 1
 
+## @server-api
 func snapshot_duel() -> Dictionary:
 	if not ctrl._duel.is_empty() and bool(ctrl._duel.get("active", false)):
 		return {
@@ -45,22 +57,26 @@ func snapshot_duel() -> Dictionary:
 
 
 
+## @server-api
 func in_duel() -> bool:
 	return not ctrl._duel.is_empty() and bool(ctrl._duel.get("active", false))
 
 
 
+## @server-api
 func _duel_update_action() -> Dictionary:
 	return {"type": "duel_update", "duel": snapshot_duel()}
 
 
 
+## @server-api
 func _duel_force_clear_silent() -> void:
 	ctrl._duel.clear()
 	ctrl._duel_pending.clear()
 
 
 
+## @server-api
 func _duel_resolve_target(target_id_or_name: String) -> Dictionary:
 	## Returns {ok, id, name} for a spawned remote, else {ok:false, reason}.
 	var key = str(target_id_or_name).strip_edges()
@@ -81,6 +97,7 @@ func _duel_resolve_target(target_id_or_name: String) -> Dictionary:
 
 
 
+## @server-api
 func _duel_is_opponent(target_id: String) -> bool:
 	if not in_duel():
 		return false
@@ -88,6 +105,7 @@ func _duel_is_opponent(target_id: String) -> bool:
 
 
 
+## @server-api
 func _duel_seed_remote_hp(remote_id: String, hp: int, hp_max: int) -> void:
 	if not ctrl._remote_players.has(remote_id):
 		return
@@ -101,6 +119,7 @@ func _duel_seed_remote_hp(remote_id: String, hp: int, hp_max: int) -> void:
 
 
 
+## @server-api
 func _duel_clear_remote_hp(remote_id: String) -> void:
 	if not ctrl._remote_players.has(remote_id):
 		return
@@ -114,6 +133,7 @@ func _duel_clear_remote_hp(remote_id: String) -> void:
 
 
 
+## @server-api
 func _duel_start(opponent_id: String, opponent_name: String) -> Array:
 	var now: float = ctrl._party_clock()
 	var hp_max: int = DUEL_STUB_HP
@@ -138,6 +158,7 @@ func _duel_start(opponent_id: String, opponent_name: String) -> Array:
 
 
 
+## @server-api
 func _duel_end(reason: String, winner: String = "") -> Array:
 	## reason: win | forfeit | timeout | cancel
 	var actions: Array = []
@@ -164,6 +185,7 @@ func _duel_end(reason: String, winner: String = "") -> Array:
 
 
 
+## @server-api
 func _tick_duel() -> Array:
 	if not in_duel():
 		return []
@@ -174,6 +196,7 @@ func _tick_duel() -> Array:
 
 
 
+## @server-api
 func try_duel_challenge(target_id_or_name: String) -> Dictionary:
 	var actions: Array = []
 	if ctrl.player_in_safe_zone():
@@ -202,6 +225,7 @@ func try_duel_challenge(target_id_or_name: String) -> Dictionary:
 
 
 
+## @server-api
 func try_duel_accept() -> Dictionary:
 	var actions: Array = []
 	if in_duel():
@@ -218,6 +242,7 @@ func try_duel_accept() -> Dictionary:
 
 
 
+## @server-api
 func try_duel_decline() -> Dictionary:
 	var actions: Array = []
 	if ctrl._duel_pending.is_empty():
@@ -231,6 +256,7 @@ func try_duel_decline() -> Dictionary:
 
 
 
+## @server-api
 func try_duel_forfeit() -> Dictionary:
 	var actions: Array = []
 	if not in_duel():
@@ -241,6 +267,7 @@ func try_duel_forfeit() -> Dictionary:
 
 
 
+## @server-api
 func try_duel_debug_pending(target_id_or_name: String) -> Dictionary:
 	var actions: Array = []
 	if in_duel() or not ctrl._duel_pending.is_empty():
@@ -257,6 +284,7 @@ func try_duel_debug_pending(target_id_or_name: String) -> Dictionary:
 
 
 
+## @server-api
 func try_duel_debug_hit(amount: int = 25) -> Dictionary:
 	var actions: Array = []
 	if not in_duel():
@@ -267,6 +295,7 @@ func try_duel_debug_hit(amount: int = 25) -> Dictionary:
 
 
 
+## @server-api
 func _duel_player_atk() -> int:
 	if ctrl.combat_engine != null and ctrl.combat_engine.has_method("_effective_atk_player"):
 		return maxi(1, int(ctrl.combat_engine._effective_atk_player()))
@@ -276,6 +305,7 @@ func _duel_player_atk() -> int:
 
 
 
+## @server-api
 func _duel_apply_damage(amount: int) -> Array:
 	var actions: Array = []
 	if not in_duel():
@@ -301,6 +331,7 @@ func _duel_apply_damage(amount: int) -> Array:
 
 
 
+## @server-api
 func _try_duel_attack_target(target_id: String, player_x: int, player_y: int) -> Dictionary:
 	## Empty dict = not a duel hit (fall through). Else full result.
 	target_id = str(target_id).strip_edges()
@@ -344,6 +375,7 @@ func _try_duel_attack_target(target_id: String, player_x: int, player_y: int) ->
 
 
 
+## @server-api
 func _try_duel_skill_target(skill_id: String, target_id: String, player_x: int, player_y: int) -> Dictionary:
 	skill_id = str(skill_id).strip_edges()
 	target_id = str(target_id).strip_edges()

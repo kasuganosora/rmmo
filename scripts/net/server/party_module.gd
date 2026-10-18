@@ -2,12 +2,97 @@ extends RefCounted
 ## Domain module: party (create/invite/leave/kick/loot-rolls/summon/quest&kill share).
 
 var ctrl
+
+## Empty party_id means not in a party.
+## @server-state
+var party_id: String = ""
+
+## @server-state
+var party_leader_id: String = ""
+
+## [{id, name, hp, hp_max, online, statuses}, ...]
+## @server-state
+var _party_members: Array = []
+
+## @server-state
+var _next_party_seq: int = 1
+
+## @server-state
+var _stub_ally_seq: int = 1
+
+## When true, next poll_combat_tick injects a party_update snapshot.
+## @server-state
+var _party_poll_pending: bool = false
+
+## Shared assist target (npc_id); empty = none. Shell: leader sets, members see.
+## @server-state
+var party_shared_target_id: String = ""
+
+## @server-state
+var party_shared_target_name: String = ""
+
+## Party kill loot: ffa | leader | round_robin | need_greed (default ffa).
+## @server-state
+var party_loot_mode: String = "ffa"
+
+## Round-robin cursor over online same-map member ids.
+## @server-state
+var _party_loot_rr_index: int = 0
+
+## Active need/greed rolls: roll_id -> Dictionary (see _start_party_loot_roll).
+## @server-state
+var _loot_rolls: Dictionary = {}
+
+## @server-state
+var _loot_tie_note: String = ""
+
+## @server-state
+var _next_loot_roll_seq: int = 1
+
+## Controllable die for need/greed (tests may set loot_roll_rng_fn -> int 1..100).
+## @server-state
+var _loot_roll_rng := RandomNumberGenerator.new()
+
+## @server-state
+var loot_roll_rng_fn: Callable = Callable()
+
+## Last emitted self hp fingerprint to avoid spammy party_update.
+## @server-state
+var _party_last_self_hp_fp: String = ""
+
+## Last emitted self status fingerprint (id:remaining).
+## @server-state
+var _party_last_self_status_fp: String = ""
+
+## Pending invites: {id, name, outgoing, ready_at, expires_at, member, from}
+## @server-state
+var _party_invites: Array = []
+
+## @server-state
+var _next_invite_seq: int = 1
+
+## Party summon stone pending (same-map thin v1).
+## {id, caster_id, caster_cell:{x,y}, map_id, invites:{member_id:{name,accepted,cell?}}, expires_at}
+## @server-state
+var _party_summon_pending: Dictionary = {}
+
+## @server-state
+var _next_party_summon_seq: int = 1
+
+## Headless/debug: when true, try_use_item party_summon auto-accepts stub invites.
+## @server-state
+var party_summon_auto_accept: bool = false
+
+
 func _init(c):
 	ctrl = c
 
+## @server-constant
 const LOOT_ROLL_WINDOW_SEC: float = 15.0
+## @server-constant
 const PARTY_SUMMON_WINDOW_SEC: float = 30.0
 
+## @server-api
 func _maybe_party_food_share(item_id: String, result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -50,6 +135,7 @@ func _maybe_party_food_share(item_id: String, result: Dictionary) -> void:
 
 
 
+## @server-api
 func _maybe_party_skill_share(skill_id: String, result: Dictionary) -> void:
 	if not bool(result.get("ok", false)):
 		return
@@ -94,11 +180,13 @@ func _maybe_party_skill_share(skill_id: String, result: Dictionary) -> void:
 
 
 
+## @server-api
 func _party_quest_share_eligible() -> bool:
 	return in_party() and _party_online_same_map_count() > 1
 
 
 
+## @server-api
 func _party_quest_share_result(changed: bool) -> Array:
 	var actions: Array = []
 	if not changed:
@@ -109,6 +197,7 @@ func _party_quest_share_result(changed: bool) -> Array:
 
 
 
+## @server-api
 func note_party_kill(npc_kind: String) -> Array:
 	npc_kind = npc_kind.strip_edges()
 	if npc_kind.is_empty() or ctrl.quest_journal == null or not _party_quest_share_eligible():
@@ -117,6 +206,7 @@ func note_party_kill(npc_kind: String) -> Array:
 
 
 
+## @server-api
 func note_party_gather(gather_id: String, qty: int = 1) -> Array:
 	gather_id = gather_id.strip_edges()
 	qty = maxi(qty, 0)
@@ -131,6 +221,7 @@ func note_party_gather(gather_id: String, qty: int = 1) -> Array:
 
 
 
+## @server-api
 func note_party_fish(item_id: String = "", qty: int = 1) -> Array:
 	item_id = item_id.strip_edges()
 	qty = maxi(qty, 0)
@@ -142,6 +233,7 @@ func note_party_fish(item_id: String = "", qty: int = 1) -> Array:
 
 
 
+## @server-api
 func snapshot_party() -> Dictionary:
 	var pending: Array = []
 	for inv in ctrl._party_invites:
@@ -165,11 +257,13 @@ func snapshot_party() -> Dictionary:
 
 
 
+## @server-api
 func in_party() -> bool:
 	return ctrl.party_id.strip_edges() != "" and not ctrl._party_members.is_empty()
 
 
 
+## @server-api
 func _party_online_same_map_count() -> int:
 	if not in_party():
 		return 0
@@ -187,6 +281,7 @@ func _party_online_same_map_count() -> int:
 
 
 
+## @server-api
 func _party_kill_exp_with_bonus(base: int, online_n: int = -1) -> int:
 	base = maxi(base, 0)
 	if base <= 0:
@@ -202,6 +297,7 @@ func _party_kill_exp_with_bonus(base: int, online_n: int = -1) -> int:
 
 
 
+## @server-api
 func _party_online_same_map_ids() -> Array:
 	var out: Array = []
 	if not in_party():
@@ -222,6 +318,7 @@ func _party_online_same_map_ids() -> Array:
 
 
 
+## @server-api
 func _party_assign_kill_loot_owner() -> String:
 	if not in_party():
 		return ""
@@ -243,6 +340,7 @@ func _party_assign_kill_loot_owner() -> String:
 
 
 
+## @server-api
 func try_party_set_loot_mode(mode: String) -> Dictionary:
 	var actions: Array = []
 	mode = str(mode).strip_edges().to_lower()
@@ -277,6 +375,7 @@ func try_party_set_loot_mode(mode: String) -> Dictionary:
 
 
 
+## @server-api
 func _party_member_display_name(member_id: String) -> String:
 	member_id = member_id.strip_edges()
 	if member_id.is_empty():
@@ -292,6 +391,7 @@ func _party_member_display_name(member_id: String) -> String:
 
 
 
+## @server-api
 func _start_party_loot_rolls(cell: Dictionary, pending_items: Array, npc_id: String, source: String, eligible: Array) -> Array:
 	var actions: Array = []
 	for it_v in pending_items:
@@ -307,6 +407,7 @@ func _start_party_loot_rolls(cell: Dictionary, pending_items: Array, npc_id: Str
 
 
 
+## @server-api
 func _start_party_loot_roll(cell: Dictionary, item_id: String, qty: int, npc_id: String, source: String, eligible: Array) -> Array:
 	var actions: Array = []
 	var rid = "lr_%d" % ctrl._next_loot_roll_seq
@@ -345,17 +446,20 @@ func _start_party_loot_roll(cell: Dictionary, item_id: String, qty: int, npc_id:
 
 
 
+## @server-api
 func _party_update_action() -> Dictionary:
 	ctrl._party_poll_pending = false
 	return {"type": "party_update", "party": snapshot_party()}
 
 
 
+## @server-api
 func _mark_party_poll() -> void:
 	ctrl._party_poll_pending = true
 
 
 
+## @server-api
 func _party_self_id() -> String:
 	var aid = ctrl._session_character_id.strip_edges()
 	if aid != "":
@@ -368,6 +472,7 @@ func _party_self_id() -> String:
 
 
 
+## @server-api
 func _party_self_name() -> String:
 	var sid = _party_self_id()
 	if ctrl._session_user != "" and ctrl._accounts.has(ctrl._session_user):
@@ -380,6 +485,7 @@ func _party_self_name() -> String:
 
 
 
+## @server-api
 func _party_self_hp() -> Dictionary:
 	var hp = 100
 	var hp_max = 100
@@ -390,6 +496,7 @@ func _party_self_hp() -> Dictionary:
 
 
 
+## @server-api
 func _party_member_statuses(member_id: String) -> Array:
 	## Self: live snapshot from combat_stats. Stubs: statuses stored on member dict.
 	var mid = member_id.strip_edges()
@@ -408,6 +515,7 @@ func _party_member_statuses(member_id: String) -> Array:
 
 
 
+## @server-api
 func _party_statuses_fingerprint(statuses: Array) -> String:
 	var parts: PackedStringArray = []
 	for s in statuses:
@@ -419,6 +527,7 @@ func _party_statuses_fingerprint(statuses: Array) -> String:
 
 
 
+## @server-api
 func _party_demo_stub_statuses(stub_key: String) -> Array:
 	## Light demo buffs so party expand UI is testable without a full remote client.
 	var h: int = abs(int(stub_key.hash()))
@@ -446,6 +555,7 @@ func _party_demo_stub_statuses(stub_key: String) -> Array:
 
 
 
+## @server-api
 func _party_make_self_member() -> Dictionary:
 	var hpinfo = _party_self_hp()
 	var sid = _party_self_id()
@@ -460,12 +570,14 @@ func _party_make_self_member() -> Dictionary:
 
 
 
+## @server-api
 func _party_self_hp_fingerprint() -> String:
 	var hpinfo = _party_self_hp()
 	return "%d/%d" % [int(hpinfo.get("hp", 0)), int(hpinfo.get("hp_max", 0))]
 
 
 
+## @server-api
 func _party_refresh_self_member() -> bool:
 	if not in_party():
 		return false
@@ -499,6 +611,7 @@ func _party_refresh_self_member() -> bool:
 
 
 
+## @server-api
 func _party_find_member_index(member_id: String) -> int:
 	member_id = member_id.strip_edges()
 	if member_id.is_empty():
@@ -511,6 +624,7 @@ func _party_find_member_index(member_id: String) -> int:
 
 
 
+## @server-api
 func _party_find_member_by_name(member_name: String) -> int:
 	member_name = member_name.strip_edges()
 	if member_name.is_empty():
@@ -523,6 +637,7 @@ func _party_find_member_by_name(member_name: String) -> int:
 
 
 
+## @server-api
 func _party_clear() -> void:
 	ctrl.party_id = ""
 	ctrl.party_leader_id = ""
@@ -541,6 +656,7 @@ func _party_clear() -> void:
 
 
 
+## @server-api
 func _party_make_stub(stub_key: String = "") -> Dictionary:
 	if stub_key.strip_edges() == "":
 		stub_key = "stub_ally_%d" % ctrl._stub_ally_seq
@@ -563,6 +679,7 @@ func _party_make_stub(stub_key: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_party_create() -> Dictionary:
 	var actions: Array = []
 	if in_party():
@@ -583,6 +700,7 @@ func try_party_create() -> Dictionary:
 
 
 
+## @server-api
 func try_party_invite(target: String = "") -> Dictionary:
 	var actions: Array = []
 	target = str(target).strip_edges()
@@ -675,11 +793,13 @@ func try_party_invite(target: String = "") -> Dictionary:
 
 
 
+## @server-api
 func _party_clock() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 
 
+## @server-api
 func _tick_party_invites() -> Array:
 	var actions: Array = []
 	if ctrl._party_invites.is_empty():
@@ -723,6 +843,7 @@ func _tick_party_invites() -> Array:
 
 
 
+## @server-api
 func try_party_invite_respond(invite_id: String, accept: bool) -> Dictionary:
 	var actions: Array = []
 	invite_id = invite_id.strip_edges()
@@ -778,6 +899,7 @@ func try_party_invite_respond(invite_id: String, accept: bool) -> Dictionary:
 
 
 
+## @server-api
 func try_party_incoming_invite(from_name: String = "旅人甲") -> Dictionary:
 	var actions: Array = []
 	from_name = str(from_name).strip_edges()
@@ -807,6 +929,7 @@ func try_party_incoming_invite(from_name: String = "旅人甲") -> Dictionary:
 
 
 
+## @server-api
 func try_party_leave() -> Dictionary:
 	var actions: Array = []
 	if not in_party():
@@ -830,6 +953,7 @@ func try_party_leave() -> Dictionary:
 
 
 
+## @server-api
 func try_party_kick(member_id: String = "") -> Dictionary:
 	var actions: Array = []
 	member_id = str(member_id).strip_edges()
@@ -861,6 +985,7 @@ func try_party_kick(member_id: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_party_debug_fill() -> Dictionary:
 	var actions: Array = []
 	if not in_party():
@@ -900,6 +1025,7 @@ func try_party_debug_fill() -> Dictionary:
 
 
 
+## @server-api
 func try_party_set_target(npc_id: String = "", display_name: String = "") -> Dictionary:
 	var actions: Array = []
 	npc_id = str(npc_id).strip_edges()
@@ -926,6 +1052,7 @@ func try_party_set_target(npc_id: String = "", display_name: String = "") -> Dic
 
 
 
+## @server-api
 func try_party_clear_target() -> Dictionary:
 	var actions: Array = []
 	if not in_party():
@@ -945,7 +1072,9 @@ func try_party_clear_target() -> Dictionary:
 
 
 
+## @server-api
 func snapshot_party_summon() -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.snapshot_party()
 	if ctrl._party_summon_pending.is_empty():
 		return {"active": false}
 	return {
@@ -960,6 +1089,7 @@ func snapshot_party_summon() -> Dictionary:
 
 
 
+## @server-api
 func _try_party_summon_item(item_id: String, def: Dictionary) -> Dictionary:
 	var actions: Array = []
 	item_id = item_id.strip_edges()
@@ -1052,6 +1182,7 @@ func _try_party_summon_item(item_id: String, def: Dictionary) -> Dictionary:
 
 
 
+## @server-api
 func _party_summon_list_free_cells(cx: int, cy: int, reserved: Dictionary) -> Array:
 	var out: Array = []
 	for oy in range(-1, 2):
@@ -1070,6 +1201,7 @@ func _party_summon_list_free_cells(cx: int, cy: int, reserved: Dictionary) -> Ar
 
 
 
+## @server-api
 func _party_summon_cell_free(x: int, y: int) -> bool:
 	if ctrl.player_cell.x > -9990 and x == ctrl.player_cell.x and y == ctrl.player_cell.y:
 		return false
@@ -1112,7 +1244,9 @@ func _party_summon_cell_free(x: int, y: int) -> bool:
 
 
 
+## @server-api
 func try_party_summon_accept(member_id: String = "") -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.party_accept(member_id)
 	var actions: Array = []
 	member_id = str(member_id).strip_edges()
 	if ctrl._party_summon_pending.is_empty():
@@ -1179,7 +1313,9 @@ func try_party_summon_accept(member_id: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_party_summon_decline(member_id: String = "") -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null: return ctrl.world3d_summons.get_ref().summons.party_decline(member_id)
 	var actions: Array = []
 	member_id = str(member_id).strip_edges()
 	if ctrl._party_summon_pending.is_empty():
@@ -1201,7 +1337,14 @@ func try_party_summon_decline(member_id: String = "") -> Dictionary:
 
 
 
+## @server-api
 func try_party_summon_accept_all() -> Dictionary:
+	if ctrl.world3d_summons != null and ctrl.world3d_summons.get_ref() != null:
+		var summons = ctrl.world3d_summons.get_ref().summons
+		var accepted := 0
+		for id in summons.pending.get("invites", {}).keys():
+			if summons.party_accept(str(id)).get("ok", false): accepted += 1
+		return {"ok": accepted > 0, "accepted": accepted, "actions": []}
 	var actions: Array = []
 	if ctrl._party_summon_pending.is_empty():
 		actions.append({"type": "system_message", "text": "没有进行中的集结。"})
@@ -1225,6 +1368,7 @@ func try_party_summon_accept_all() -> Dictionary:
 
 
 
+## @server-api
 func _party_summon_apply_member_cell(member_id: String, dest: Vector2i, actions: Array) -> void:
 	member_id = member_id.strip_edges()
 	var idx = _party_find_member_index(member_id)
@@ -1248,3 +1392,134 @@ func _party_summon_apply_member_cell(member_id: String, dest: Vector2i, actions:
 
 
 
+
+## @server-constant
+const GridUtil = preload("res://scripts/util/grid_util.gd")
+
+## @server-api
+func _pick_highest_roll_with_tiebreak(pool: Array) -> String:
+	ctrl._loot_tie_note = ""
+	if pool.is_empty():
+		return ""
+	var best_roll := -1
+	for p in pool:
+		best_roll = maxi(best_roll, int(p.get("roll", 0)))
+	var tied: Array = []
+	for p2 in pool:
+		if int(p2.get("roll", 0)) == best_roll:
+			tied.append(p2)
+	if tied.size() == 1:
+		return str(tied[0].get("id", ""))
+	# First roll (earliest at) wins.
+	tied.sort_custom(func(a, b): return float(a.get("at", 0.0)) < float(b.get("at", 0.0)))
+	var earliest_at := float(tied[0].get("at", 0.0))
+	var still: Array = []
+	for t in tied:
+		if is_equal_approx(float(t.get("at", 0.0)), earliest_at):
+			still.append(t)
+	if still.size() == 1:
+		return str(still[0].get("id", ""))
+	# Reroll once among remaining; if still tied, keep first (earliest).
+	var best2 := -1
+	var win_id := str(still[0].get("id", ""))
+	var winners2: Array = []
+	for s in still:
+		var die: int = ctrl._next_loot_die()
+		if die > best2:
+			best2 = die
+			win_id = str(s.get("id", ""))
+			winners2 = [win_id]
+		elif die == best2:
+			winners2.append(str(s.get("id", "")))
+	if winners2.size() > 1:
+		ctrl._loot_tie_note = "掷骰平局，重掷后仍平，保留先手。"
+		win_id = str(still[0].get("id", ""))
+	else:
+		ctrl._loot_tie_note = "掷骰平局，已重掷。"
+	return win_id
+
+## @server-api
+func _chebyshev(ax: int, ay: int, bx: int, by: int) -> int:
+	return ctrl.GridUtil.chebyshev_cells(ax, ay, bx, by)
+
+## @server-api
+func _player_xy() -> Vector2i:
+	if ctrl.player_cell.x > -9990:
+		return ctrl.player_cell
+	return Vector2i(0, 0)
+
+## @server-api
+func _revive_member_cell(m: Dictionary) -> Vector2i:
+	var cell_v: Variant = m.get("death_cell", m.get("cell", {}))
+	if typeof(cell_v) == TYPE_DICTIONARY:
+		var cx := int(cell_v.get("x", -9999))
+		var cy := int(cell_v.get("y", -9999))
+		if cx > -9990 and cy > -9990:
+			return Vector2i(cx, cy)
+	elif typeof(cell_v) == TYPE_VECTOR2I:
+		var cv: Vector2i = cell_v
+		if cv.x > -9990:
+			return cv
+	# Fallback: if member id is a remote, use remote cell.
+	var mid := str(m.get("id", "")).strip_edges()
+	if mid != "" and ctrl._remote_players.has(mid):
+		var rd: Dictionary = ctrl._remote_players[mid]
+		var rc: Variant = rd.get("death_cell", rd.get("cell", {}))
+		if typeof(rc) == TYPE_DICTIONARY:
+			return Vector2i(int(rc.get("x", -9999)), int(rc.get("y", -9999)))
+	return Vector2i(-9999, -9999)
+
+## @server-api
+func debug_ally_kill(member_id: String, cell_x: int = -9999, cell_y: int = -9999) -> Dictionary:
+	member_id = str(member_id).strip_edges()
+	var actions: Array = []
+	if member_id.is_empty():
+		return {"ok": false, "reason": "empty", "actions": actions}
+	var dest := Vector2i(cell_x, cell_y)
+	if dest.x <= -9990:
+		dest = Vector2i(ctrl.player_cell.x + 1, ctrl.player_cell.y) if ctrl.player_cell.x > -9990 else Vector2i(1, 0)
+	var idx: int = ctrl._party_find_member_index(member_id)
+	if idx < 0:
+		idx = ctrl._party_find_member_by_name(member_id)
+	if idx >= 0:
+		var m: Dictionary = ctrl._party_members[idx]
+		m["hp"] = 0
+		m["awaiting_respawn"] = true
+		m["death_cell"] = {"x": dest.x, "y": dest.y}
+		m["cell"] = {"x": dest.x, "y": dest.y}
+		ctrl._party_members[idx] = m
+		var mid := str(m.get("id", member_id))
+		if ctrl._remote_players.has(mid):
+			var rd: Dictionary = ctrl._remote_players[mid]
+			rd["hp"] = 0
+			rd["awaiting_respawn"] = true
+			rd["death_cell"] = {"x": dest.x, "y": dest.y}
+			rd["cell"] = {"x": dest.x, "y": dest.y}
+			if not rd.has("hp_max"):
+				rd["hp_max"] = int(m.get("hp_max", 100))
+			ctrl._remote_players[mid] = rd
+		actions.append(ctrl._party_update_action())
+		actions.append({"type": "system_message", "text": "%s倒下了。" % str(m.get("name", mid))})
+		return {"ok": true, "actions": actions}
+	if ctrl._remote_players.has(member_id) or ctrl.find_remote_by_name(member_id) != "":
+		var rid: String = member_id if ctrl._remote_players.has(member_id) else ctrl.find_remote_by_name(member_id)
+		var rd2: Dictionary = ctrl._remote_players[rid]
+		rd2["hp"] = 0
+		rd2["hp_max"] = int(rd2.get("hp_max", 100))
+		rd2["awaiting_respawn"] = true
+		rd2["ally"] = true
+		rd2["death_cell"] = {"x": dest.x, "y": dest.y}
+		rd2["cell"] = {"x": dest.x, "y": dest.y}
+		ctrl._remote_players[rid] = rd2
+		actions.append({"type": "system_message", "text": "%s倒下了。" % str(rd2.get("name", rid))})
+		return {"ok": true, "remote_id": rid, "actions": actions}
+	if ctrl.combat_stats != null and ctrl.combat_stats.npcs.has(member_id):
+		var st: Dictionary = ctrl.combat_stats.npcs[member_id]
+		st["hp"] = 0
+		st["awaiting_respawn"] = true
+		st["ally"] = true
+		ctrl.combat_stats.npcs[member_id] = st
+		ctrl.combat_stats.set_npc_cell(member_id, dest.x, dest.y)
+		actions.append({"type": "system_message", "text": "%s倒下了。" % str(st.get("name", member_id))})
+		return {"ok": true, "actions": actions}
+	return {"ok": false, "reason": "not_found", "actions": actions}

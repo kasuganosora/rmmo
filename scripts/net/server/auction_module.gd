@@ -2,11 +2,17 @@ extends RefCounted
 ## Domain module: auction (list/cancel, snapshot, inventory actions).
 
 var ctrl
+
+## @server-state
+var auction = null
+
+
 func _init(c):
 	ctrl = c
 
 const Auction = preload("res://scripts/net/combat/auction.gd")
 
+## @server-api
 func snapshot_auction() -> Dictionary:
 	if ctrl.auction == null:
 		return {"listings": [], "count": 0, "max_listings": 50}
@@ -14,11 +20,13 @@ func snapshot_auction() -> Dictionary:
 
 
 
+## @server-api
 func _auction_update_action() -> Dictionary:
 	return {"type": "auction_update", "auction": snapshot_auction()}
 
 
 
+## @server-api
 func _auction_inventory_actions() -> Array:
 	var actions: Array = []
 	if ctrl.inventory != null:
@@ -32,6 +40,7 @@ func _auction_inventory_actions() -> Array:
 
 
 
+## @server-api
 func _auction_seed_npc_stubs() -> void:
 	if ctrl.auction == null:
 		ctrl.auction = Auction.new()
@@ -59,6 +68,7 @@ func _auction_seed_npc_stubs() -> void:
 
 
 
+## @server-api
 func try_auction_list(item_id: String, qty: int = 1, price_gold: int = 1) -> Dictionary:
 	var actions: Array = []
 	item_id = str(item_id).strip_edges()
@@ -119,6 +129,7 @@ func try_auction_list(item_id: String, qty: int = 1, price_gold: int = 1) -> Dic
 
 
 
+## @server-api
 func try_auction_cancel(listing_id: String) -> Dictionary:
 	var actions: Array = []
 	listing_id = str(listing_id).strip_edges()

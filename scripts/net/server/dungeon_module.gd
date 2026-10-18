@@ -2,19 +2,34 @@ extends RefCounted
 ## Domain module: dungeon (enter/exit, guards, countable kills, rewards, complete).
 
 var ctrl
+
+## @server-state
+var _dungeon: Dictionary = {}  # empty = idle; active one-shot session
+
+## @server-state
+var _dungeon_xfer_lock: bool = false  # suppress abandon during enter/exit transfers
+
+
 func _init(c):
 	ctrl = c
 
+## --- Dungeon instance stub (one-shot → street pack from content.json) ---
+## @server-constant
 const DUNGEON_KILLS_NEEDED := 2
+## @server-constant
 const DUNGEON_REWARD_GOLD := 50
+## @server-constant
 const DUNGEON_REWARD_EXP := 80
+## @server-constant
 const DUNGEON_REWARD_STONE_QTY := 1
 
+## @server-api
 func in_dungeon() -> bool:
 	return not ctrl._dungeon.is_empty() and bool(ctrl._dungeon.get("active", false))
 
 
 
+## @server-api
 func snapshot_dungeon() -> Dictionary:
 	if ctrl._dungeon.is_empty():
 		return {
@@ -41,17 +56,20 @@ func snapshot_dungeon() -> Dictionary:
 
 
 
+## @server-api
 func _dungeon_update_action() -> Dictionary:
 	return {"type": "dungeon_update", "dungeon": snapshot_dungeon()}
 
 
 
+## @server-api
 func _dungeon_force_clear_silent() -> void:
 	ctrl._dungeon.clear()
 	ctrl._dungeon_xfer_lock = false
 
 
 
+## @server-api
 func _dungeon_abandon_on_leave() -> Array:
 	## Clear session without reward (early warp / leave).
 	var actions: Array = []
@@ -66,6 +84,7 @@ func _dungeon_abandon_on_leave() -> Array:
 
 
 
+## @server-api
 func _dungeon_return_cell_dict() -> Dictionary:
 	if ctrl.player_cell.x > -9990:
 		return {"x": ctrl.player_cell.x, "y": ctrl.player_cell.y}
@@ -73,6 +92,7 @@ func _dungeon_return_cell_dict() -> Dictionary:
 
 
 
+## @server-api
 func _dungeon_pick_guard_cells(count: int) -> Array:
 	## Free cells near street spawn for slim dungeon guards.
 	var out: Array = []
@@ -110,6 +130,7 @@ func _dungeon_pick_guard_cells(count: int) -> Array:
 
 
 
+## @server-api
 func _dungeon_spawn_guards() -> Array:
 	## Register 2 slim hostiles with meta dungeon=true; return spawn_npc actions.
 	var actions: Array = []
@@ -147,6 +168,7 @@ func _dungeon_spawn_guards() -> Array:
 
 
 
+## @server-api
 func _dungeon_is_countable_kill(npc_id: String) -> bool:
 	npc_id = npc_id.strip_edges()
 	if npc_id.is_empty() or not in_dungeon():
@@ -171,6 +193,7 @@ func _dungeon_is_countable_kill(npc_id: String) -> bool:
 
 
 
+## @server-api
 func _dungeon_grant_rewards() -> Array:
 	var actions: Array = []
 	if ctrl.inventory != null and DUNGEON_REWARD_GOLD > 0:
@@ -208,6 +231,7 @@ func _dungeon_grant_rewards() -> Array:
 
 
 
+## @server-api
 func _dungeon_complete() -> Array:
 	var actions: Array = []
 	if not in_dungeon() or bool(ctrl._dungeon.get("completed", false)):
@@ -221,6 +245,7 @@ func _dungeon_complete() -> Array:
 
 
 
+## @server-api
 func _dungeon_note_kill(npc_id: String) -> Array:
 	var actions: Array = []
 	if not in_dungeon():
@@ -237,6 +262,7 @@ func _dungeon_note_kill(npc_id: String) -> Array:
 
 
 
+## @server-api
 func try_dungeon_enter() -> Dictionary:
 	## One-shot: transfer demo → street_map, spawn 2 dungeon guards, start session.
 	var actions: Array = []
@@ -312,6 +338,7 @@ func try_dungeon_enter() -> Dictionary:
 
 
 
+## @server-api
 func try_dungeon_exit() -> Dictionary:
 	## Transfer back to saved demo return cell; clear session.
 	var actions: Array = []
