@@ -76,7 +76,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			if issue.is_empty() and not preload("res://scripts/world3d/river_material_data.gd").valid(record): issue = "Invalid river material record"
 		if not issue.is_empty(): return _fail(issue, false, record.uuid)
 		if record.has("road_mesh"):
-			var estimate := RoadPreparation.estimate(record)
+			var estimate := RoadPreparation.estimate(record,trusted_package)
 			if not estimate.ok: return _fail(str(estimate.reason), false, record.uuid)
 			if int(expected.get("memory_bytes", 0)) < int(estimate.estimated_bytes): return _fail("道路派生数组超出区块目录的内存预算", false, record.uuid)
 			roads.append(record)
@@ -143,7 +143,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			current=current.duplicate();current.signature=[];terrain_contexts[record.uuid]=current
 		dependencies.merge(terrain_dependencies,true)
 	for record: Dictionary in roads:
-		var road := RoadPreparation.prepare(record, token)
+		var road := RoadPreparation.prepare(record, token,trusted_package)
 		if not road.error.is_empty(): return _fail(str(road.error), bool(road.cancelled), str(record.uuid))
 		surface_arrays[record.uuid] = road.arrays
 		road_array_us += int(road.elapsed_us); road_array_bytes += int(road.output_bytes); road_estimated_bytes += int(road.estimated_bytes)

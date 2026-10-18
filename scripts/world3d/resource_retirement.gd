@@ -6,6 +6,8 @@ const NODE_NAME:="ResourceRetirement"
 const Budget=preload("res://scripts/world3d/frame_work_budget.gd")
 const IMPORT_FIELDS:Array[String]=["json","glb_data","nodes","buffers","buffer_views","accessors","meshes","materials","textures","texture_samplers","images","skins","cameras","lights","skeletons","animations","unique_names","unique_animation_names"]
 const MAX_IMPORT_VALUES:=262144
+static var background_byte_release_enabled:=true
+const BACKGROUND_BYTE_MIN:=8*1024*1024
 var pending:Array=[]
 var known:Dictionary={}
 var exiting:=false
@@ -84,7 +86,7 @@ func _enqueue_import(states:Array[GLTFState],on_done:Callable,owner:RefCounted)-
 	ticket.source_id=id
 	known[id]=true;pending.append(ticket);set_process(true)
 func _import_ticket(states:Array[GLTFState],on_done:Callable,owner:RefCounted)->Dictionary:
-	var ticket:Dictionary={"kind":"import","states":states,"state_index":0,"field":0,"metadata":[],"meta_index":0,"work":[],"resources":[],"seen":{},"phase":0,"release_index":0,"on_done":on_done,"owner":owner,"truncated":false}
+	var ticket:Dictionary={"kind":"import","states":states,"state_index":0,"field":0,"metadata":[],"meta_index":0,"work":[],"resources":[],"seen":{},"phase":0,"release_index":0,"on_done":on_done,"owner":owner,"truncated":false,"cpu_buffers":[],"cpu_worker":null}
 	for state:GLTFState in states:_retain(ticket,state)
 	profile.imports+=1;return ticket
 func _enqueue(scene:PackedScene)->void:
@@ -204,6 +206,10 @@ func _advance_import(ticket:Dictionary,budget_usec:int)->bool:
 			var traced:bool=preload("res://scripts/world3d/load_trace.gd").enabled
 			var release_began:=Time.get_ticks_usec() if traced else 0
 			var kind:String=(retained.get_class() if retained is Resource else type_string(typeof(retained))) if traced else ""
+			if background_byte_release_enabled and retained is PackedByteArray and retained.size()>=BACKGROUND_BYTE_MIN:
+				# Only plain bytes cross threads. No Resource, Node, or borrowed
+				# container is mutated. Drop this local alias before starting work.
+				ticket.cpu_buffers.append(retained)
 			profile.resources+=int(retained is Resource);profile.import_values+=1;retained=null
 			if traced and Time.get_ticks_usec()-release_began>=1000:preload("res://scripts/world3d/load_trace.gd").elapsed("retirement.import_value_release",release_began,{"class":kind})
 		elif not ticket.work.is_empty():
@@ -233,10 +239,43 @@ func _advance_import(ticket:Dictionary,budget_usec:int)->bool:
 			else:
 				ticket.state_index+=1;ticket.field=0;ticket.metadata.clear()
 			state=null
+	var complete:bool=ticket.phase==2 and _finish_cpu_buffers(ticket,budget_usec<=0)
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	profile.import_slices+=1;profile.import_max_slice_us=maxi(int(profile.import_max_slice_us),elapsed)
-	return ticket.phase==2
+	return complete
+
+static func _release_cpu_buffers(values:Array)->Dictionary:
+	# This private transfer container is shared only so the worker can empty it.
+	# The main thread never reads it until join; the admission owner stays main.
+	var began:=Time.get_ticks_usec();var count:=0;var bytes:=0
+	while not values.is_empty():
+		var value:PackedByteArray=values.pop_back();bytes+=value.size();count+=1
+		value=PackedByteArray()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("retirement.cpu_buffers_release",began,{"values":count,"logical_bytes":bytes})
+	return {"values":count,"bytes":bytes,"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
+
+func _finish_cpu_buffers(ticket:Dictionary,shutdown:bool)->bool:
+	var worker:Thread=ticket.cpu_worker
+	if worker==null and not ticket.cpu_buffers.is_empty():
+		worker=Thread.new()
+		# All source slots/local aliases have now been cleared. Starting earlier
+		# could race with the final main-thread reference and move the stall back.
+		if worker.start(_release_cpu_buffers.bind(ticket.cpu_buffers))!=OK:
+			profile.cpu_start_failures=int(profile.get("cpu_start_failures",0))+1
+			ticket.cpu_buffers.clear();return true
+		ticket.cpu_worker=worker
+		profile.cpu_batches=int(profile.get("cpu_batches",0))+1
+	if worker==null:return true
+	if worker.is_alive() and not shutdown:return false
+	var result:Dictionary=worker.wait_to_finish()
+	profile.cpu_values=int(profile.get("cpu_values",0))+result.values
+	profile.cpu_bytes=int(profile.get("cpu_bytes",0))+result.bytes
+	profile.cpu_worker_us=int(profile.get("cpu_worker_us",0))+result.elapsed_us
+	profile.cpu_max_worker_us=maxi(int(profile.get("cpu_max_worker_us",0)),result.elapsed_us)
+	profile.cpu_last_thread_id=result.thread_id
+	ticket.cpu_worker=null
+	return true
 func _finish_front()->void:
 	var ticket:Dictionary=pending.pop_front();known.erase(ticket.source_id)
 	if ticket.get("kind","") in ["import","model"]:

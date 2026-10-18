@@ -7,13 +7,13 @@ const WORK_VERTEX_BYTES := 1024 # SurfaceTool vertices plus tangent-generation w
 const FIXED_BYTES := 4 * 1024 * 1024
 const MAX_ESTIMATED_BYTES := 616497152
 
-static func estimate(record: Dictionary) -> Dictionary:
-	if not record.has("road_mesh") or not Road.valid(record):
+static func estimate(record: Dictionary,trusted_package:bool=false) -> Dictionary:
+	if not record.has("road_mesh") or (not trusted_package and not Road.valid(record)):
 		return {"ok": false, "estimated_bytes": 0, "vertex_limit": 0, "output_bytes": 0, "reason": "Invalid or unsupported native road"}
 	return _estimate_validated(record)
 
-## Internal math only. The caller must just have passed Road.valid on the same
-## immutable record. Worker admission always enters through estimate() above.
+## Internal admission math for validated or authoritative package records.
+## Trust removes repeated authoring checks, never the geometry/workspace charge.
 static func _estimate_validated(record:Dictionary)->Dictionary:
 	var top := 0; var sides := 0; var points := 0; var kerb_vertices := 0
 	for polygon: Array in record.road_mesh.polygons:
@@ -38,9 +38,9 @@ static func _cancelled(token: RefCounted) -> bool:
 static func _fail(reason: String, cancelled: bool = false) -> Dictionary:
 	return {"error": reason, "cancelled": cancelled, "arrays": [], "estimated_bytes": 0, "output_bytes": 0, "elapsed_us": 0}
 
-static func prepare(record: Dictionary, token: RefCounted = null) -> Dictionary:
+static func prepare(record: Dictionary, token: RefCounted = null,trusted_package:bool=false) -> Dictionary:
 	if _cancelled(token): return _fail("Native road preparation cancelled", true)
-	var budget := estimate(record)
+	var budget := estimate(record,trusted_package)
 	if not budget.ok: return _fail(budget.reason)
 	if _cancelled(token): return _fail("Native road preparation cancelled", true)
 	var started := Time.get_ticks_usec()

@@ -47,6 +47,9 @@ static var native_demand_order_enabled:=true
 static var native_demand_bounds_enabled:=true
 static var incremental_pending_index_enabled:=true
 static var demanded_template_scan_enabled:=true
+static var ordered_publication_removal_enabled:=true
+static var spatial_candidate_reuse_enabled:=true
+static var batched_pending_unindex_enabled:=true
 const EMPTY_DEMAND:Dictionary={}
 static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
@@ -734,6 +737,60 @@ static func _erase_pending_identity(values:Array,item:Dictionary)->void:
 	for i:int in values.size():
 		if is_same(values[i],item):values.remove_at(i);return
 
+func _unindex_pending_batch(items:Array)->bool:
+	# Publication keeps empty buckets so the full-scan/bucket selection and its
+	# stable order do not change. Sparse requeue removals keep their own path.
+	if _pending_by_record_id.size()!=pending.size():return false
+	var owners:Dictionary={};var cells:Dictionary={};var large:Dictionary={};var visits:=0
+	for item:Dictionary in items:
+		var uuid:String=item.record.uuid
+		if owners.has(uuid) or not is_same(_pending_by_record_id.get(uuid),item):return false
+		owners[uuid]=item
+		var box:AABB=item.bounds;var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
+		var count_:int=(high.x-low.x+1)*(high.y-low.y+1)
+		if count_>64:large[uuid]=item;visits+=1;continue
+		visits+=count_
+		for z in range(low.y,high.y+1):
+			for x in range(low.x,high.x+1):
+				var key:=Vector2i(x,z)
+				if not cells.has(key):cells[key]={}
+				cells[key][uuid]=item
+	# Avoid whole-bucket filtering for a batch of unrelated sparse removals.
+	if visits<4*(cells.size()+int(not large.is_empty())):return false
+	var rows:=0;var filters:=0;var tail_rows:=0
+	for key:Vector2i in cells:
+		if not _pending_index.has(key):continue
+		var work:=_filter_pending_owners(_pending_index[key],cells[key])
+		rows+=work.x;tail_rows+=work.y;filters+=1
+	if not large.is_empty():
+		var work:=_filter_pending_owners(_large_pending,large)
+		rows+=work.x;tail_rows+=work.y;filters+=1
+	for uuid:String in owners:_pending_by_record_id.erase(uuid)
+	profile.pending_bucket_filter_rows=int(profile.get("pending_bucket_filter_rows",0))+rows
+	profile.pending_bucket_filters=int(profile.get("pending_bucket_filters",0))+filters
+	profile.pending_bucket_tail_rows=int(profile.get("pending_bucket_tail_rows",0))+tail_rows
+	return true
+
+static func _filter_pending_owners(values:Array,owners:Dictionary)->Vector2i:
+	# Preserve the original bucket Array and stable survivors. Remove only the
+	# first exact occurrence of each owner, even with duplicate UUID aliases.
+	if owners.is_empty():return Vector2i.ZERO
+	var remaining:Dictionary=owners.duplicate();var count_:=values.size();var write:=0
+	for read:int in count_:
+		var item:Dictionary=values[read];var uuid:String=item.record.uuid
+		if is_same(remaining.get(uuid),item):
+			remaining.erase(uuid)
+			if remaining.is_empty():
+				# All requested owners for THIS bucket have been found. Copy the
+				# unchanged suffix in native code instead of scanning every row.
+				var tail:Array=values.slice(read+1)
+				values.resize(write);values.append_array(tail)
+				return Vector2i(read+1,tail.size())
+			continue
+		if write!=read:values[write]=item
+		write+=1
+	values.resize(write);return Vector2i(count_,0)
+
 func _unindex_pending_item(item:Dictionary,prune_empty:bool=true)->void:
 	# Remove this exact old tombstone before appending the new queue member.
 	# Keeping its old bucket position would change stable equal-priority order.
@@ -756,17 +813,31 @@ func _in_clip(clip:AABB)->Array:
 	_index_pending()
 	var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 	var candidates:Dictionary={}
+	var tests:=0
 	for item:Dictionary in _large_pending:
-		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
+		var uuid:String=item.record.uuid
+		if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
+		tests+=1
+		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
 	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
 		for item:Dictionary in pending:
-			if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
-		return candidates.values()
-	for z in range(low.y,high.y+1):
-		for x in range(low.x,high.x+1):
-			for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
-				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
+			var uuid:String=item.record.uuid
+			if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
+			tests+=1
+			if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
+	else:
+		for z in range(low.y,high.y+1):
+			for x in range(low.x,high.x+1):
+				for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
+					var uuid:String=item.record.uuid
+					# Repeated cells borrow the same immutable queue member. Only
+					# reuse a successful exact test for the CURRENT winning owner;
+					# another object with the same UUID must still test/replace it.
+					if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
+					tests+=1
+					if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
+	profile.spatial_candidate_tests=int(profile.get("spatial_candidate_tests",0))+tests
 	return candidates.values()
 
 func _has_pending_in_clip(clip:AABB)->bool:
@@ -1608,14 +1679,20 @@ func _remove_published_demand(items:Array)->void:
 	# Remove the completed batch once instead of rebuilding/sorting all tickets
 	# after every instance. Sparse ranks remain valid until a real demand change.
 	var removed:Dictionary={};var paths:Dictionary={}
+	# These private catalogs have the same insertion order and item identities
+	# as their arrays. Preserve fresh-array semantics for outstanding cursors.
+	var ordered_pending:=ordered_publication_removal_enabled and incremental_pending_index_enabled and _indexed and _pending_by_record_id.size()==pending.size()
+	var ordered_demand:=ordered_publication_removal_enabled and _demanded_by_id.size()==_demanded.size()
+	profile.publication_survivor_scan_rows=int(profile.get("publication_survivor_scan_rows",0))+(0 if ordered_pending else pending.size())+(0 if ordered_demand else _demanded.size())
+	var batch_unindexed:bool=batched_pending_unindex_enabled and incremental_pending_index_enabled and _indexed and items.size()>=16 and _unindex_pending_batch(items)
 	for item:Dictionary in items:
 		var uuid:String=item.record.uuid
 		removed[uuid]=true;paths[item.path]=true
-		if incremental_pending_index_enabled and _indexed:_unindex_pending_item(item,false)
+		if incremental_pending_index_enabled and _indexed and not batch_unindexed:_unindex_pending_item(item,false)
 		_demanded_by_id.erase(uuid);_demanded_rank.erase(uuid);_demanded_priority.erase(uuid)
-	pending=_without_published(pending,removed)
+	pending=_pending_by_record_id.values() if ordered_pending else _without_published(pending,removed)
 	_invalidate_collision_queries()
-	_demanded=_without_published(_demanded,removed)
+	_demanded=_demanded_by_id.values() if ordered_demand else _without_published(_demanded,removed)
 	for path:String in paths:
 		if not _demanded_by_path.has(path):continue
 		var remaining:Array=_without_published(_demanded_by_path[path],removed)
