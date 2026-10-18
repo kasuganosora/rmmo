@@ -17,6 +17,9 @@ func nav_state(nav:Node)->Dictionary:
 	return {"specs":nav._specs.duplicate(),"ids":nav._spec_ids.duplicate(),"doors":nav._doors.duplicate(),"bounds":nav._bounds,"has_bounds":nav._has_bounds,"geometry":nav._spec_geometry.duplicate(),"users":nav._geometry_users.duplicate()}
 func traverse()->void:
 	await super.traverse()
+	var repeats:=8
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--transaction-repeats="):repeats=clampi(arg.trim_prefix("--transaction-repeats=").to_int(),8,256)
 	var incoming:Array=[];var resident:Array=[]
 	for spec:Dictionary in mesh_map.get_meta("stream_library",[]):
 		if str(spec.uuid).begins_with("obj_1033__"):incoming.append(spec)
@@ -31,7 +34,7 @@ func traverse()->void:
 	var old_workers:=Index.retirement_schema_workers
 	var expected_retire:Dictionary={}
 	report.retirement_transaction={"specs":data.stream_library.size(),"selected":ids.size(),"trials":[]}
-	for turn:int in 8:
+	for turn:int in repeats:
 		var workers:=4 if turn%4 in [1,2] else 0
 		Index.retirement_schema_workers=workers
 		var start:=Time.get_ticks_usec();var result:Dictionary=Index.validate_owned_retire(data,data.stream_library,ids);var elapsed:=Time.get_ticks_usec()-start
@@ -40,11 +43,25 @@ func traverse()->void:
 		report.retirement_transaction.trials.append({"workers":workers,"us":elapsed})
 		print("RETIREMENT_TRANSACTION ",report.retirement_transaction.trials.back())
 	Index.retirement_schema_workers=old_workers
+	var schema:RefCounted=preload("res://scripts/world3d/retirement_schema_preparation.gd").new()
+	var schema_started:=Time.get_ticks_usec();schema.begin(data.stream_library)
+	while not schema.advance(1000):pass
+	report.retirement_prepared={"prepare_us":Time.get_ticks_usec()-schema_started,"profile":schema.profile.duplicate(),"trials":[]}
+	Index.retirement_schema_workers=4
+	for turn:int in 8:
+		var prepared_schema:=turn%4 in [1,2]
+		var start:=Time.get_ticks_usec()
+		var result:Dictionary=Index._owned_retire_plan(data,data.stream_library,ids,false,schema if prepared_schema else null)
+		var elapsed:=Time.get_ticks_usec()-start
+		check(result==expected_retire,"prepared/unprepared real retirement preserves complete validation %d"%turn)
+		report.retirement_prepared.trials.append({"prepared":prepared_schema,"us":elapsed})
+		print("RETIREMENT_PREPARED ",report.retirement_prepared.trials.back())
+	Index.retirement_schema_workers=old_workers;schema=null
 	var saved:bool=Preparation.native_snapshot_validation_enabled
 	var expected:Dictionary={};var expected_nav:Dictionary={}
 	report.publication_transaction={"incoming":incoming.size(),"resident":resident.size(),"trials":[],"note":"Fixed actual white-map Mesh/author inputs; isolated index/navigation copies. ABBA; cloning, preparation, base build and equality checks excluded. No gameplay frame timing claim."}
-	for turn:int in 8:
-		var fast:=turn%4 in [1,2]
+	for turn:int in repeats:
+		var fast:=turn%4 in [1,2] and "--ordinary-validation-only" not in OS.get_cmdline_user_args()
 		Preparation.native_snapshot_validation_enabled=fast
 		var base:=copy_specs(resident);var values:=copy_specs(incoming)
 		var index:Dictionary=Index.build(base)

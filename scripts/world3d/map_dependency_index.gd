@@ -349,16 +349,13 @@ static func _classify_model(record:Dictionary,root:String,models:Dictionary,resu
 # Bind exact source annotations and complete bytes, not a claimed record volume
 # or an unchanged accessor header hiding replaced mesh/material binary data.
 static func _imported_sources_valid(extras:Dictionary,rows:Array)->bool:
-	var hashes:Dictionary={};var descriptors:Dictionary={}
+	var descriptors:Dictionary={}
 	for row:Dictionary in rows:
 		var state:Dictionary=extras.rmmo_records[row.order].rmmo_state
 		if not state.has("model_building"):continue
 		var path:String=row.asset_path
 		if path.is_empty() or not FileAccess.file_exists(path):return false
-		if not hashes.has(path):
-			hashes[path]=FileAccess.get_sha256(path)
-			descriptors[path]=Imported.source_descriptor(path,hashes[path])
-		if hashes[path]!=state.model_building.source_sha:return false
+		if not descriptors.has(path):descriptors[path]=Imported.read_source_descriptor(path,state.model_building.source_sha)
 		if descriptors[path].is_empty() or not Imported.same(descriptors[path],state.model_building):return false
 	return true
 

@@ -201,6 +201,10 @@ func run()->void:
 		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
 		elif arg=="--late-white-gltf":preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled=false
 		elif arg=="--serial-index-definitions":preload("res://scripts/world3d/map_dependency_index.gd").parallel_definition_checks=false
+		elif arg=="--native-index-snapshot":preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled=true
+		elif arg=="--ordinary-index-validation":preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled=false
+		elif arg=="--serial-spec-snapshots":preload("res://scripts/world3d/spec_snapshot_validation.gd").workers=0
+		elif arg=="--without-sliced-retirement-schema":preload("res://scripts/world3d/world_stream.gd").sliced_retirement_schema_enabled=false
 		elif arg=="--uncapped-runtime":uncapped_runtime=true
 		elif arg=="--mesh-cancel-during-capture":cancel_during_capture=true
 		elif arg=="--without-collision-prefetch":preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled=false
@@ -244,6 +248,9 @@ func run()->void:
 	report.controls.reuse_owned_retirement_plan=preload("res://scripts/world3d/stream_index.gd").reuse_owned_retirement_plan_enabled
 	report.controls.importer_lod_hints=CpuMesh.importer_lod_hints_enabled
 	report.controls.retirement_schema_workers=preload("res://scripts/world3d/stream_index.gd").retirement_schema_workers
+	report.controls.sliced_retirement_schema=preload("res://scripts/world3d/world_stream.gd").sliced_retirement_schema_enabled
+	report.controls.native_index_snapshot=preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled
+	report.controls.spec_snapshot_workers=preload("res://scripts/world3d/spec_snapshot_validation.gd").workers
 	report.controls.typed_demand_scan=preload("res://scripts/world3d/deferred_asset_loader.gd").typed_demand_scan_enabled
 	report.controls.lazy_retirement_pending_scan=preload("res://scripts/world3d/native_residency.gd").lazy_pending_scan_enabled
 	report.controls.asset_retirement_batching=preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled
@@ -265,10 +272,15 @@ func run()->void:
 	report.controls.background_prefab_textures=preload("res://scripts/world3d/deferred_asset_loader.gd").prefab_texture_preparation_enabled
 	report.controls.shared_prefab_textures=preload("res://scripts/world3d/deferred_asset_loader.gd").shared_prefab_texture_preparation_enabled
 	report.controls.collision_prefetch=preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled
+	preload("res://scripts/world3d/imported_building.gd").single_read_sources_enabled=not "--legacy-imported-source-checks" in OS.get_cmdline_user_args()
+	report.controls.single_read_imported_sources=preload("res://scripts/world3d/imported_building.gd").single_read_sources_enabled
 	report.sources=source_snapshot()
 	report.sources["res://tools/profile_axel_game_pipeline.gd"]=FileAccess.get_sha256("res://tools/profile_axel_game_pipeline.gd")
 	report.limits="Fresh process, existing OS/derived caches, unchanged normal production demand and readiness. Frame monitor overhead measured separately; nested trace spans are not additive CPU time. Renderer memory is global, admission estimates are not RSS/VRAM."
 	Engine.max_fps=60;root.size=Vector2i(1440,900);root.content_scale_size=root.size
+	if "--uncapped-loading" in OS.get_cmdline_user_args():
+		Engine.max_fps=0
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED,root.get_window_id())
 	report.loading_frame_policy={"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id())}
 	check(DisplayServer.get_name()!="headless","private desktop GPU game mode")
 	var session=root.get_node("GameSession")

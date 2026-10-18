@@ -4,6 +4,7 @@ extends RefCounted
 const ROLES=["body","floor","roof","ceiling","stairs","furniture","door","mechanism"]
 static var _sources:Dictionary={}
 static var _source_mutex:=Mutex.new()
+static var single_read_sources_enabled:=true # Profiling control; set before loading workers.
 
 static func bounded(value:Variant,lo:float,hi:float)->bool:
 	return (value is float or value is int) and is_finite(float(value)) and value>=lo and value<=hi
@@ -98,6 +99,56 @@ static func source_descriptor(path:String,digest:String)->Dictionary:
 	var bin_size:=file.get_32()
 	if file.get_32()!=0x004e4942 or file.get_position()+bin_size!=file.get_length():return {}
 	file.close()
+	var descriptor:=_source_descriptor_json(data,bin_size)
+	if descriptor.is_empty() or FileAccess.get_sha256(path)!=digest:return {}
+	descriptor.source_sha=digest
+	_cache_source(descriptor,digest)
+	return descriptor
+
+## Read current source identity and annotations from one authenticated stream.
+## Keep only the bounded JSON chunk, never the whole geometry/image payload.
+## A digest-keyed descriptor cache does not authorize skipping the file read.
+static func read_source_descriptor(path:String,expected_digest:String="")->Dictionary:
+	if not single_read_sources_enabled:
+		var digest:=FileAccess.get_sha256(path)
+		if digest.is_empty() or (not expected_digest.is_empty() and digest!=expected_digest):return {}
+		return source_descriptor(path,digest)
+	var began:=Time.get_ticks_usec()
+	var file:=FileAccess.open(path,FileAccess.READ)
+	if file==null or file.get_length()<28:return {}
+	var size:=file.get_length()
+	var header:=file.get_buffer(20)
+	if header.size()!=20 or header.decode_u32(0)!=0x46546c67 or header.decode_u32(4)!=2 or header.decode_u32(8)!=size or header.decode_u32(16)!=0x4e4f534a:return {}
+	var length:=header.decode_u32(12)
+	if length<4 or length>4*1024*1024 or length+28>size:return {}
+	var json_bytes:=file.get_buffer(length)
+	var bin_header:=file.get_buffer(8)
+	if json_bytes.size()!=length or bin_header.size()!=8 or file.get_error()!=OK:return {}
+	var bin_size:=bin_header.decode_u32(0)
+	if bin_header.decode_u32(4)!=0x004e4942 or file.get_position()+bin_size!=size:return {}
+	var hash_:=HashingContext.new()
+	if hash_.start(HashingContext.HASH_SHA256)!=OK or hash_.update(header)!=OK or hash_.update(json_bytes)!=OK or hash_.update(bin_header)!=OK:return {}
+	var remaining:=bin_size;var chunks:=0
+	while remaining>0:
+		var count:=mini(4*1024*1024,remaining)
+		var bytes:=file.get_buffer(count)
+		if bytes.size()!=count or file.get_error()!=OK or hash_.update(bytes)!=OK:return {}
+		remaining-=count;chunks+=1
+		bytes=PackedByteArray()
+	if file.get_length()!=size or file.get_position()!=size or file.get_error()!=OK:return {}
+	file.close()
+	var digest:=hash_.finish().hex_encode()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("imported.source_read",began,{"path":path,"bytes":size,"binary_chunks":chunks})
+	if digest.length()!=64 or (not expected_digest.is_empty() and digest!=expected_digest):return {}
+	_source_mutex.lock();var cached:Dictionary=_sources.get(digest,{}).duplicate(true);_source_mutex.unlock()
+	if not cached.is_empty():return cached
+	var descriptor:=_source_descriptor_json(JSON.parse_string(json_bytes.get_string_from_utf8()),bin_size)
+	if descriptor.is_empty():return {}
+	descriptor.source_sha=digest
+	_cache_source(descriptor,digest)
+	return descriptor
+
+static func _source_descriptor_json(data:Variant,bin_size:int)->Dictionary:
 	if not data is Dictionary or not preload("res://scripts/world3d/asset_bounds_manifest.gd").from_json(data,bin_size).get("known",false):return {}
 	var pending:Array=data.scenes[int(data.get("scene",0))].get("nodes",[]).duplicate();var extras:Array=[];var meshes:Array=[];var cursor:=0
 	while cursor<pending.size():
@@ -105,20 +156,17 @@ static func source_descriptor(path:String,digest:String)->Dictionary:
 		extras.append(node.get("extras",{}))
 		if node.has("mesh"):meshes.append(node.get("extras",{}))
 		pending.append_array(node.get("children",[]))
-	var descriptor:=_descriptor(extras,meshes)
-	if descriptor.is_empty() or FileAccess.get_sha256(path)!=digest:return {}
-	descriptor.source_sha=digest
+	return _descriptor(extras,meshes)
+
+static func _cache_source(descriptor:Dictionary,digest:String)->void:
 	_source_mutex.lock()
 	if _sources.size()>=32:_sources.clear()
 	_sources[digest]=descriptor.duplicate(true);_source_mutex.unlock()
-	return descriptor
 
 static func verify_source(record:Dictionary)->bool:
 	if not record.has("model_building"):return true
 	if not valid_record(record):return false
-	var path:String=str(record.get("asset_path",""));var digest:=FileAccess.get_sha256(path)
-	if digest!=record.model_building.source_sha:return false
-	var descriptor:=source_descriptor(path,digest)
+	var descriptor:=read_source_descriptor(str(record.get("asset_path","")),record.model_building.source_sha)
 	return not descriptor.is_empty() and same(descriptor,record.model_building)
 
 static func valid_descriptor(d:Variant)->bool:

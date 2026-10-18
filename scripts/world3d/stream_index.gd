@@ -1,8 +1,8 @@
 extends RefCounted
 ## Worker-owned immutable spatial data. No SceneTree or renderer calls.
+const Schema=preload("res://scripts/world3d/stream_spec_schema.gd")
 const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
 const EMPTY_RECORD:Dictionary={}
-const SPEC_FIELDS:Array=["uuid","mesh","transform","chunk_min","chunk_max"]
 const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
 const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
 static var legacy_owned_rebuild_enabled:=false
@@ -126,28 +126,47 @@ static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:
 static func _append_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason}
 
-static func _valid_append_spec(value:Variant)->bool:
-	if not value is Dictionary or not value.has_all(SPEC_FIELDS):return false
+static func _schema_scope(values:Array,first:int,last:int)->Schema:
+	# Real hydrated parts can carry distinct record dictionaries. An identity
+	# cache would add lookups to every row while saving almost no validation.
+	# Sample eight adjacent pairs spread across the range; this only selects
+	# an optimization, never accepts a row or skips the authoritative scan.
+	if last-first<16:return null
+	var shared:=0
+	for sample:int in 8:
+		var at:=first+(last-first-2)*sample/7
+		var a:Variant=values[at];var b:Variant=values[at+1]
+		if not a is Dictionary or not b is Dictionary:continue
+		for field:String in ["extras","ground_batch_record"]:
+			var left:Variant=a.get(field)
+			if left is Dictionary and not left.is_empty() and is_same(left,b.get(field)):
+				shared+=1;break
+	return Schema.new() if shared>=6 else null
+
+static func _valid_append_spec(value:Variant,scope:Schema=null)->bool:
+	if not value is Dictionary:return false
 	var spec:Dictionary=value
-	if not spec.uuid is String or spec.uuid.is_empty():return false
-	if not spec.mesh is Mesh or not spec.transform is Transform3D:return false
-	if not spec.chunk_min is Vector2i or not spec.chunk_max is Vector2i:return false
-	if spec.chunk_min.x>spec.chunk_max.x or spec.chunk_min.y>spec.chunk_max.y:return false
-	# A default expression is evaluated even on a hit. Reuse this read-only
-	# empty value rather than allocate several throwaway dictionaries per spec
-	# during each complete retirement validation.
-	var raw_extra:Variant=spec.get("extras",EMPTY_RECORD);var raw_record:Variant=spec.get("ground_batch_record",EMPTY_RECORD)
-	if not raw_extra is Dictionary or not raw_record is Dictionary:return false
-	var extra:Dictionary=raw_extra;var record:Dictionary=raw_record
-	var record_building:Variant=record.get("building",EMPTY_RECORD)
-	if not record_building is Dictionary or not record_building.get("id","") is String:return false
-	if not extra.get("rmmo_streetlamp_instance","") is String:return false
-	for field in DICTIONARY_EXTRAS_FIELDS:
-		if extra.has(field) and not extra[field] is Dictionary:return false
-	if not extra.get("building",EMPTY_RECORD).get("id","") is String:return false
-	if record.get("kind")=="box" and record.get("surface_id")=="ground":
-		var size:Variant=record.get("size",[1,3,1])
-		if not size is Array or size.size()<2 or not (size[1] is int or size[1] is float):return false
+	var id:Variant=spec.get("uuid")
+	if not id is String or id.is_empty():return false
+	if not spec.get("mesh") is Mesh or not spec.get("transform") is Transform3D:return false
+	var low:Variant=spec.get("chunk_min");var high:Variant=spec.get("chunk_max")
+	if not low is Vector2i or not high is Vector2i:return false
+	if low.x>high.x or low.y>high.y:return false
+	var extra:Variant=spec.get("extras",EMPTY_RECORD);var record:Variant=spec.get("ground_batch_record",EMPTY_RECORD)
+	if not extra is Dictionary or not record is Dictionary:return false
+	if scope==null or not is_same(extra,scope.extra):
+		if not extra.get("rmmo_streetlamp_instance","") is String:return false
+		for field:String in DICTIONARY_EXTRAS_FIELDS:
+			if extra.has(field) and not extra[field] is Dictionary:return false
+		if not extra.get("building",EMPTY_RECORD).get("id","") is String:return false
+		if scope!=null:scope.extra=extra;scope.extra_checks+=1
+	if scope==null or not is_same(record,scope.record):
+		var building:Variant=record.get("building",EMPTY_RECORD)
+		if not building is Dictionary or not building.get("id","") is String:return false
+		if record.get("kind")=="box" and record.get("surface_id")=="ground":
+			var size:Variant=record.get("size",Schema.DEFAULT_SIZE)
+			if not size is Array or size.size()<2 or not (size[1] is int or size[1] is float):return false
+		if scope!=null:scope.record=record;scope.record_checks+=1
 	return true
 
 static func _query_ids(buckets:Dictionary,bounds:Dictionary)->Dictionary:
@@ -254,13 +273,14 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 
 static func _retirement_schema_slice(library:Array,by_id:Dictionary,wanted:Dictionary,first:int,last:int)->Dictionary:
 	var began:=Time.get_ticks_usec();var seen:Dictionary={};var counts:Dictionary={};var ok:=true
+	var schema:=_schema_scope(library,first,last)
 	for at:int in range(first,last):
 		var value:Variant=library[at]
-		if not _valid_append_spec(value) or not is_same(by_id.get(value.uuid),value):ok=false;break
+		if not _valid_append_spec(value,schema) or not is_same(by_id.get(value.uuid),value):ok=false;break
 		seen[value.uuid]=true
 		var prefix:String=value.uuid.get_slice("__",0)
 		if wanted.has(prefix):counts[prefix]=int(counts.get(prefix,0))+1
-	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.retirement_schema_slice",began,{"specs":last-first,"ok":ok})
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.retirement_schema_slice",began,{"specs":last-first,"ok":ok,"scoped":schema!=null,"extra_checks":schema.extra_checks if schema!=null else last-first,"record_checks":schema.record_checks if schema!=null else last-first})
 	return {"ok":ok,"seen":seen,"namespace_sizes":counts}
 
 static func _retirement_library_schema(library:Array,by_id:Dictionary,wanted:Dictionary)->Dictionary:
@@ -283,7 +303,7 @@ static func _retirement_library_schema(library:Array,by_id:Dictionary,wanted:Dic
 		for prefix:String in part.namespace_sizes:result.namespace_sizes[prefix]=int(result.namespace_sizes.get(prefix,0))+int(part.namespace_sizes[prefix])
 	return result
 
-static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true)->Dictionary:
+static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true,preparation:RefCounted=null)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.validate_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var selected:Dictionary={};var prefixes:Dictionary={}
 	for key:String in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
@@ -297,7 +317,11 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 	for id:Variant in ids:
 		if id is String:
 			var prefix:String=id.get_slice("__",0);wanted[prefix]=true;requested_prefixes[id]=prefix
-	var proof:=_retirement_library_schema(library,by_id,wanted)
+	var proof:Dictionary
+	if preparation!=null:
+		if preparation.get_script()!=load("res://scripts/world3d/retirement_schema_preparation.gd") or not preparation.valid_for(library,by_id):return _retire_failure("stale_retirement_schema")
+		proof={"ok":true,"seen":preparation.seen,"namespace_sizes":preparation.namespace_sizes}
+	else:proof=_retirement_library_schema(library,by_id,wanted)
 	if not proof.ok or proof.seen.size()!=library.size():return _retire_failure("library/index identity mismatch")
 	var namespace_sizes:Dictionary=proof.namespace_sizes
 	var checked_cells:Dictionary={};var checked_ground_cells:Dictionary={}
@@ -522,9 +546,10 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 		if not state.get(key) is Dictionary:return _append_failure("invalid append bookkeeping")
 	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _append_failure("invalid existing index")
 	if additions.is_empty():return {"ok":true,"data":existing,"added":0,"affected_groups":0,"affected_existing_specs":[]}
+	var schema:=_schema_scope(additions,0,additions.size())
 	var native_validated:bool=preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_owned_snapshot(additions)
 	for value:Variant in additions:
-		if not native_validated and not _valid_append_spec(value):return _append_failure("invalid spec")
+		if not native_validated and not _valid_append_spec(value,schema):return _append_failure("invalid spec")
 		var id:String=value.uuid
 		if originals.has(id) or existing.stream_by_id.has(id):return _append_failure("duplicate UUID: "+id)
 		var prefix:=id.get_slice("__",0)
@@ -532,7 +557,8 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 		var fixture:=_fixture_key(value)
 		if not fixture.is_empty() and state.fixtures.has(fixture):return _append_failure("split fixture: "+fixture)
 		originals[id]=value
-	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_validate",phase_began,{"specs":additions.size()})
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_validate",phase_began,{"specs":additions.size(),"native_snapshot":native_validated,"schema_checks":0 if native_validated else additions.size(),"scoped":schema!=null,"extra_checks":0 if native_validated else (schema.extra_checks if schema!=null else additions.size()),"record_checks":0 if native_validated else (schema.record_checks if schema!=null else additions.size())})
+	schema=null # The scope ends before preparation invokes any Mesh getter.
 	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_fragment")
 	# A private small fragment validates derived grouping before any caller-owned
 	# dictionary or new spec is touched. Mesh resources remain shared/read-only.

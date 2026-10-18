@@ -226,6 +226,7 @@ func traverse()->void:
 		report.retirement_frame_budget=mesh_map.get_meta("retirement_frame_budget").snapshot()
 		report.retirement_frame_budget.global_loading_ledger_enabled=report.retirement_frame_budget.enabled
 		report.retirement_frame_budget.enabled=true
+	if mesh_map.has_meta("retirement_schema_profile"):report.retirement_schema_profile=mesh_map.get_meta("retirement_schema_profile").duplicate(true)
 	report.traversal={"before":before_counts,"after":sample_residency(),"crossings":crossings,"sync_calls_over_5ms":sync_calls,"publications":publication_events,"residency_samples":residency_samples,"unique_specs_seen":seen.size(),"removed_specs":removed.keys(),"reloaded_specs":reloaded.keys()}
 	check(crossings.size()>=10,"actual focus crosses multiple 32 m cells and returns")
 	check(not publication_events.is_empty(),"crossing exercises actual deferred geometry publication")

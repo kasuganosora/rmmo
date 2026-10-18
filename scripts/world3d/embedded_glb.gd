@@ -61,8 +61,10 @@ static func _plain(value: Variant, path:Array=[]) -> bool:
 					if path.size()!=2 or path[0]!="materials" or not path[1] is int:return false
 					for extension:Variant in value[key]:
 						if extension not in BoundsManifest.MATERIAL_EXTENSIONS or not value[key][extension] is Dictionary:return false
-			if not _plain(value[key],path+[key]): return false
+			var child:Variant=value[key]
+			if (child is Dictionary or child is Array) and not _plain(child,path+[key]): return false
 	elif value is Array:
 		for index in value.size():
-			if not _plain(value[index],path+[index]): return false
+			var child:Variant=value[index]
+			if (child is Dictionary or child is Array) and not _plain(child,path+[index]): return false
 	return true

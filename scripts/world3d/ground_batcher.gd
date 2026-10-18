@@ -6,6 +6,8 @@ const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
 static var legacy_loading_worker_wait_enabled:=false # Diagnostic control; frame callbacks never wait on live workers.
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const SUSPENDED_DRAW:="stream_suspended_draw"
+var suspended_source_uploads:=0
 var groups: Dictionary = {}
 var pending: Array[String] = []
 var enabled := true
@@ -104,6 +106,7 @@ static func freeze(node: MeshInstance3D, captured: Mesh = null) -> void:
 static func restore(node: MeshInstance3D) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.restore") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.mesh is Cpu: node.mesh = node.mesh.restore()
+	if node.has_meta(SUSPENDED_DRAW):node.remove_meta(SUSPENDED_DRAW)
 
 func clear(restore_sources: bool = true) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.clear") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -132,7 +135,7 @@ func release_sources(nodes: Array) -> void:
 		_residency_descriptors.erase(node.get_instance_id())
 	_release_groups(ids)
 
-func retire_sources(nodes:Array)->void:
+func retire_sources(nodes:Array,suspended:Dictionary={})->void:
 	# A retiring source is about to be destroyed, so rebuilding its GPU buffers
 	# just before free is wasted work. Surviving members still need their exact
 	# standalone draw until a replacement batch is published.
@@ -142,9 +145,9 @@ func retire_sources(nodes:Array)->void:
 		if not is_instance_valid(node):continue
 		ids.append(str(node.name));retiring[node.get_instance_id()]=true
 		_residency_descriptors.erase(node.get_instance_id())
-	_release_groups(ids,retiring)
+	_release_groups(ids,retiring,suspended)
 
-func _release_groups(ids: Array,retiring:Dictionary={}) -> void:
+func _release_groups(ids: Array,retiring:Dictionary={},suspended:Dictionary={}) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._release_groups") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Editing is synchronous: remove the old combined draw before changing a source.
 	var affected: Dictionary={}
@@ -153,9 +156,9 @@ func _release_groups(ids: Array,retiring:Dictionary={}) -> void:
 	for key: String in affected:
 		if not groups.has(key): continue
 		release_groups_visited+=1
-		_drop(groups[key],true,retiring); groups.erase(key); pending.erase(key)
+		_drop(groups[key],true,retiring,suspended); groups.erase(key); pending.erase(key)
 
-func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={}) -> void:
+func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={},suspended:Dictionary={}) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var watcher=group.get("pose_watcher")
 	if is_instance_valid(watcher):
@@ -171,7 +174,13 @@ func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={
 	if is_instance_valid(group.get("visual")): group.visual.free()
 	if not restore_sources: return
 	for node in group.members:
-		if is_instance_valid(node) and not node.is_queued_for_deletion() and not retiring.has(node.get_instance_id()): restore(node)
+		if not is_instance_valid(node) or node.is_queued_for_deletion() or retiring.has(node.get_instance_id()):continue
+		if suspended.has(node.get_instance_id()) and node.mesh is Cpu:
+			# The streaming caller proved this source is outside current demand.
+			# Leave destruction on its budgeted cursor. A changed destination must
+			# explicitly restore this node, even though its identity still exists.
+			node.set_meta(SUSPENDED_DRAW,true);suspended_source_uploads+=1
+		else:restore(node)
 
 func _invalidate_group(key:String,generation:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._invalidate_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -622,6 +631,7 @@ func stats(category: String="") -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.stats") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
 	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
+	result.suspended_source_uploads=suspended_source_uploads
 	result.building_mesh_hits=building_mesh_hits
 	result.work_budget_usec=effective_work_budget_usec();result.base_work_budget_usec=work_budget_usec
 	result.loading_budget_scopes=_loading_budgets.size()

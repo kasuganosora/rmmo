@@ -290,19 +290,27 @@ func _complete_initial_geometry()->bool:
 func append_specs(additions:Array)->Dictionary:
 	if not streaming_geometry and (not geometry_pending or fully_ready):return {"ok":false,"reason":"geometry_not_pending","added":0}
 	if not map.is_valid():return {"ok":false,"reason":"navigation_not_built","added":0}
-	var ids:Dictionary={};var doors:Array=[]
+	var ids:Dictionary={};var doors:Array=[];var geometry_ids:Dictionary={};var geometry_counts:Dictionary={};var aliases:=false
 	var bounds_after:=_bounds;var has_bounds_after:=_has_bounds
 	for value:Variant in additions:
-		if not value is Dictionary or not value.get("uuid") is String or value.uuid.is_empty() or not value.get("mesh") is Mesh or not value.get("transform") is Transform3D or not value.transform.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
+		if not value is Dictionary:return {"ok":false,"reason":"invalid_spec","added":0}
+		var raw_id:Variant=value.get("uuid");var raw_mesh:Variant=value.get("mesh");var raw_pose:Variant=value.get("transform")
+		if not raw_id is String or raw_id.is_empty() or not raw_mesh is Mesh or not raw_pose is Transform3D:return {"ok":false,"reason":"invalid_spec","added":0}
+		var id:String=raw_id;var source_mesh:Mesh=raw_mesh;var pose:Transform3D=raw_pose
+		if not pose.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
 		var extra:Variant=value.get("extras",EMPTY_APPEND_RECORD)
 		if not extra is Dictionary or not extra.get("fixture",EMPTY_APPEND_RECORD) is Dictionary:return {"ok":false,"reason":"invalid_spec","added":0}
 		var shape:Variant=value.get("shape");var collision:Variant=value.get("collision_mesh")
 		if shape!=null and not shape is Shape3D:return {"ok":false,"reason":"invalid_spec","added":0}
 		if collision!=null and not collision is Mesh:return {"ok":false,"reason":"invalid_spec","added":0}
-		var bounds:AABB=value.transform*value.mesh.get_aabb()
+		var bounds:AABB=pose*source_mesh.get_aabb()
 		if not bounds.position.is_finite() or not bounds.size.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
-		if ids.has(value.uuid) or _spec_ids.has(value.uuid):return {"ok":false,"reason":"duplicate_uuid","added":0}
-		ids[value.uuid]=true
+		if ids.has(id) or _spec_ids.has(id):return {"ok":false,"reason":"duplicate_uuid","added":0}
+		ids[id]=true
+		var geometry:Resource=shape if shape is ConcavePolygonShape3D else value.get("collision_mesh",source_mesh)
+		var geometry_id:int=geometry.get_instance_id() if geometry!=null else 0
+		geometry_ids[id]=geometry_id;geometry_counts[geometry_id]=int(geometry_counts.get(geometry_id,0))+1
+		aliases=aliases or _spec_geometry.has(id)
 		var door:bool=extra.get("fixture",EMPTY_APPEND_RECORD).get("kind")=="door"
 		if door and extra.get("rmmo_collision","")!="none":doors.append(value)
 		# Reuse the checked extras and role instead of looking them up again for
@@ -312,14 +320,13 @@ func append_specs(additions:Array)->Dictionary:
 	# All source checks finished. Reuse those exact bounds and keep the source
 	# geometry-user lifecycle operation unchanged, including any old aliases.
 	_specs.append_array(additions);_spec_ids.merge(ids,true);_doors.append_array(doors)
-	for spec:Dictionary in additions:
-		var id:String=spec.uuid
-		if _spec_geometry.has(id):_remember_source_geometry(spec);continue
-		# Validated new UUIDs normally have no geometry lease to forget. Old
-		# conservative aliases still take the full rebind path above.
-		var geometry:Resource=_source_geometry(spec)
-		var key:int=geometry.get_instance_id() if geometry!=null else 0
-		_spec_geometry[id]=key;_geometry_users[key]=int(_geometry_users.get(key,0))+1
+	if aliases:
+		# Preserve per-source alias rebinding order, including transient face
+		# cache ownership. Ordinary new UUIDs use the validated bulk metadata.
+		for spec:Dictionary in additions:_remember_source_geometry(spec)
+	else:
+		_spec_geometry.merge(geometry_ids,true)
+		for key:int in geometry_counts:_geometry_users[key]=int(_geometry_users.get(key,0))+int(geometry_counts[key])
 	_bounds=bounds_after;_has_bounds=has_bounds_after
 	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
 	if is_instance_valid(_resize_replacement):

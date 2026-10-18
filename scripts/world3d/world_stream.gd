@@ -24,6 +24,7 @@ const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 static var collision_candidate_cache_enabled:=true
 static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
 static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
+static var sliced_retirement_schema_enabled:=true
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -334,7 +335,7 @@ static func can_retire_specs(map_root:Node,ids:Array,complete_unit:bool=false)->
 	# Public preflight never transfers an owning plan to a persistent caller.
 	return {"ok":checked.ok,"error":checked.get("error","")}
 
-static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->Dictionary:
+static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,allow_preparation:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.can_retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Entry temporarily masks distant demand; it never withdraws existing leases.
 	if _entry_clip(map_root)!=null:return {"ok":false,"error":"entry_scope"}
@@ -383,7 +384,20 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 		specs.append(spec)
 	var data:=_resident_index_data(map_root);var library:=_library(map_root)
 	if complete_unit and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
-	var checked:Dictionary=index._owned_retire_plan(data,library,ids,index.reuse_owned_retirement_plan_enabled) if complete_unit else index._retire_plan(data,library,ids)
+	var preparation:RefCounted=null
+	if allow_preparation and complete_unit and sliced_retirement_schema_enabled and not legacy_retirement_validation_enabled and library.size()>=1024:
+		preparation=map_root.get_meta("retirement_schema_preparation") if map_root.has_meta("retirement_schema_preparation") else null
+		if preparation==null:
+			_start_retirement_preparation(map_root,library)
+			return {"ok":false,"error":"retirement_schema_pending"}
+		if not preparation.error.is_empty():
+			map_root.remove_meta("retirement_schema_preparation")
+			return {"ok":false,"error":preparation.error}
+		if not preparation.complete:return {"ok":false,"error":"retirement_schema_pending"}
+	var checked:Dictionary=index._owned_retire_plan(data,library,ids,index.reuse_owned_retirement_plan_enabled,preparation) if complete_unit else index._retire_plan(data,library,ids)
+	if checked.get("error")=="stale_retirement_schema":
+		_start_retirement_preparation(map_root,library)
+		return {"ok":false,"error":"retirement_schema_pending"}
 	if not checked.ok:return checked
 	if legacy_retirement_validation_enabled:
 		for id:String in ids:
@@ -392,7 +406,29 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 			specs.append(spec)
 	var collision=map_root.get_node_or_null("StreamCollisionPreparer")
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
-	return {"ok":true,"error":"","data":data,"library":library,"plan":checked}
+	return {"ok":true,"error":"","data":data,"library":library,"plan":checked,"preparation":preparation}
+
+static func _start_retirement_preparation(map_root:Node,library:Array)->void:
+	var preparation:RefCounted=load("res://scripts/world3d/retirement_schema_preparation.gd").new()
+	preparation.begin(library);map_root.set_meta("retirement_schema_preparation",preparation)
+	var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
+	profile.started=int(profile.get("started",0))+1;profile.cursor_rows=0;map_root.set_meta("retirement_schema_profile",profile)
+
+static func advance_retirement_preparation(map_root:Node)->void:
+	if not is_instance_valid(map_root) or not map_root.has_meta("retirement_schema_preparation"):return
+	var preparation:RefCounted=map_root.get_meta("retirement_schema_preparation")
+	if preparation.complete or not preparation.error.is_empty():return
+	var budget:int=_retirement_budget(map_root).request(Engine.get_process_frames(),"native_retirement",1000)
+	if budget<=0:return
+	var started:=Time.get_ticks_usec();preparation.advance(mini(budget,1000))
+	charge_retirement_work(map_root,"native_retirement",started)
+	var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
+	profile.last=preparation.profile.duplicate()
+	profile.slices=int(profile.get("slices",0))+1
+	profile.rows=int(profile.get("rows",0))+int(preparation.profile.rows)-int(profile.get("cursor_rows",0))
+	profile.cursor_rows=preparation.profile.rows
+	profile.max_slice_us=maxi(int(profile.get("max_slice_us",0)),preparation.profile.max_slice_us)
+	map_root.set_meta("retirement_schema_profile",profile)
 
 const EMPTY_RETIRE_DEPENDENTS:Array=[]
 static func _retirement_bounds_valid(value:Variant)->bool:
@@ -418,18 +454,18 @@ static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false,naviga
 	if retirement_lane.is_empty():return _retire_specs(map_root,ids,complete_unit,navigation)
 	if _retirement_budget(map_root).request(Engine.get_process_frames(),retirement_lane,2000)<=0:return {"ok":false,"error":"retirement_budget"}
 	var started:=Time.get_ticks_usec()
-	var result:=_retire_specs(map_root,ids,complete_unit,navigation)
+	var result:=_retire_specs(map_root,ids,complete_unit,navigation,retirement_lane=="native_retirement")
 	charge_retirement_work(map_root,retirement_lane,started)
 	return result
 
-static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:Node)->Dictionary:
+static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:Node,allow_preparation:bool=false)->Dictionary:
 	# Keep the verified plan local to one synchronous transaction. Navigation's
 	# source-release handshake changes no map/index state and emits no callbacks;
 	# committing that same plan avoids three identical whole-library scans.
 	if legacy_retirement_validation_enabled:
 		var first:=can_retire_specs(map_root,ids,complete_unit)
 		if not first.ok:return first
-	var checked:=_retirement_preflight(map_root,ids,complete_unit)
+	var checked:=_retirement_preflight(map_root,ids,complete_unit,allow_preparation)
 	if not checked.ok:return checked
 	if navigation!=null:
 		var released:Dictionary=navigation.try_retire_specs(ids)
@@ -439,6 +475,14 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
 	else:result=index._commit_owned_retire(checked.data,checked.library,ids,checked.plan) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
+	if checked.preparation!=null:
+		checked.preparation.retired(ids)
+		var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
+		profile.commits=int(profile.get("commits",0))+1;profile.last=checked.preparation.profile.duplicate()
+		map_root.set_meta("retirement_schema_profile",profile)
+	elif map_root.has_meta("retirement_schema_preparation"):
+		var preparation:RefCounted=map_root.get_meta("retirement_schema_preparation")
+		if not preparation.retired(ids):map_root.remove_meta("retirement_schema_preparation")
 	var usage:Node=map_root.get_node_or_null("AssetResidency")
 	if usage!=null:usage.forget_specs(ids)
 	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
@@ -1159,12 +1203,14 @@ static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, m
 	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
-	var has_mesh := _live(meshes, uuid) != null
+	var visual:Node=_live(meshes,uuid)
+	var has_mesh := visual != null
 	var has_body := batched.has(uuid) or _live(bodies, uuid) != null
 	var collides := str(spec.get("extras", {}).get("rmmo_collision", "")) != "none" and not (bool(spec.get("extras", {}).get("hostile", false)) or bool(spec.get("extras", {}).get("ally", false)))
 	collides=collides and _overlaps(spec,solid)
-	if not bool(spec.get("native_visual", false)) and _draws(spec, draw) != has_mesh:
-		return true
+	if not bool(spec.get("native_visual", false)):
+		var draws:=_draws(spec,draw)
+		if draws!=has_mesh or (draws and visual!=null and visual.has_meta(GroundBatcher.SUSPENDED_DRAW)):return true
 	if collides != has_body:
 		return true
 	return false
@@ -1192,9 +1238,24 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
 			changed=true
+		elif inst.has_meta(GroundBatcher.SUSPENDED_DRAW):
+			GroundBatcher.restore(inst)
+			changed=true
 	elif inst != null:
 		var batcher:Node=map_root.get_node_or_null("GroundRenderBatches")
-		if batcher!=null:batcher.retire_sources([inst])
+		if batcher!=null:
+			# One budgeted node removal can invalidate a much larger batch. Do
+			# not upload the rest of that batch only to delete it on later slices.
+			# Classify live members against this exact draw envelope; unknown
+			# ownership stays conservative and keeps the ordinary restore path.
+			var suspended:Dictionary={}
+			var group:Dictionary=batcher.groups.get(batcher._member_groups.get(uuid,""),{})
+			var by_id:Dictionary=_dict(map_root,&"stream_by_id")
+			for member in group.get("members",[]):
+				if not is_instance_valid(member):continue
+				var owned:Variant=by_id.get(str(member.name))
+				if owned is Dictionary and not owned.get("native_visual",false) and meshes.get(str(member.name))==member and not _draws(owned,draw):suspended[member.get_instance_id()]=true
+			batcher.retire_sources([inst],suspended)
 		_drop(meshes, uuid, inst)
 		changed=true
 	if collides:

@@ -90,6 +90,7 @@ func observe(specs:Array)->void:
 	profile.resident_units=_resident.size();profile.known_units=_units.size()
 	profile.observed_bounds=int(profile.get("observed_bounds",0))+bound_observations
 func _process(delta:float)->void:
+	if is_instance_valid(_host) and _host._ready_for_play and not _host._transfer_pending:Stream.advance_retirement_preparation(_map)
 	_clock+=delta
 	if _clock<.25:return
 	_clock=0.
@@ -147,7 +148,7 @@ func poll(now:int)->void:
 			profile.last_wait=result.error;profile.last_wait_unit=",".join(units)
 			if not profile.has("wait_reasons"):profile.wait_reasons={}
 			profile.wait_reasons[result.error]=int(profile.wait_reasons.get(result.error,0))+1
-			if result.error=="retirement_budget":return
+			if result.error in ["retirement_budget","retirement_schema_pending"]:return
 			# A complete validation is an indivisible transaction. Do not stack
 			# several expensive refusals in the same interactive frame.
 			if Time.get_ticks_usec()-started>=2000:return

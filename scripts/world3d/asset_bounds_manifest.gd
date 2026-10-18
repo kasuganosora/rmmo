@@ -217,10 +217,12 @@ static func _extension_safe(value: Variant, path: Array = []) -> bool:
 					if path.size() != 2 or path[0] != "materials": return false
 					for extension in value[key]:
 						if extension not in MATERIAL_EXTENSIONS or not value[key][extension] is Dictionary: return false
-			if not _extension_safe(value[key],path + [key]): return false
+			var child:Variant=value[key]
+			if (child is Dictionary or child is Array) and not _extension_safe(child,path + [key]): return false
 	elif value is Array:
 		for index in value.size():
-			if not _extension_safe(value[index],path + [index]): return false
+			var child:Variant=value[index]
+			if (child is Dictionary or child is Array) and not _extension_safe(child,path + [index]): return false
 	return true
 
 ## Native map extras activate Io.generate_scene's map-specific effects and
@@ -229,10 +231,11 @@ static func has_native_identity(value: Variant) -> bool:
 	if value is Dictionary:
 		for key in value:
 			if key in ["rmmo_format", "rmmo_records", "rmmo_storage", "rmmo_resource_dependencies"]: return true
-			if has_native_identity(value[key]): return true
+			var child:Variant=value[key]
+			if (child is Dictionary or child is Array) and has_native_identity(child): return true
 	elif value is Array:
 		for child in value:
-			if has_native_identity(child): return true
+			if (child is Dictionary or child is Array) and has_native_identity(child): return true
 	return false
 
 static func _uint(value: Variant) -> bool:

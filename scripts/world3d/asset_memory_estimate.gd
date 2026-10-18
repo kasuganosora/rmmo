@@ -185,13 +185,17 @@ static func _index(value: Variant, size: int) -> bool: return _uint(value) and v
 static func _bounded_plain(value: Dictionary) -> bool:
 	# Unknown compressed/extension representations can expand beyond accessor
 	# counts. Only familiar material modifiers leave this estimate usable.
-	var pending: Array = [{"value":value,"depth":0}]
-	var visited := 0
+	# Scalar leaves cannot hold URI/extension declarations. Count their depth
+	# and quantity here, but enqueue only containers and retain no wrapper dict.
+	var pending:Array=[value]
+	var depths:Array[int]=[0]
+	var visited:=1
 	while not pending.is_empty():
-		var item: Dictionary = pending.pop_back()
-		visited += 1
-		if visited > 200000 or item.depth > 32: return false
-		var current: Variant = item.value
+		var current:Variant=pending.pop_back()
+		var depth:int=depths.pop_back()
+		var children:int=current.size()
+		visited+=children
+		if visited>200000 or depth>32 or (depth==32 and children>0):return false
 		if current is Dictionary:
 			if current.has("uri"): return false
 			for field in ["rmmo_format","rmmo_records","rmmo_storage","rmmo_resource_dependencies"]:
@@ -205,9 +209,11 @@ static func _bounded_plain(value: Dictionary) -> bool:
 				if not current.extensions is Dictionary: return false
 				for key: Variant in current.extensions:
 					if key not in MATERIAL_EXTENSIONS: return false
-			for child: Variant in current.values(): pending.append({"value":child,"depth":item.depth+1})
+			for key:Variant in current:
+				var child:Variant=current[key]
+				if child is Dictionary or child is Array:pending.append(child);depths.append(depth+1)
 		elif current is Array:
 			if current.size() > MAX_ITEMS: return false
-			for child: Variant in current: pending.append({"value":child,"depth":item.depth+1})
-		if pending.size() > 200000: return false
+			for child:Variant in current:
+				if child is Dictionary or child is Array:pending.append(child);depths.append(depth+1)
 	return true

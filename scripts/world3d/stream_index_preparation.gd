@@ -6,9 +6,10 @@ const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
 const DERIVED_FIELDS:Array=["render_building","render_bounds","render_supports","render_dependents"]
 const EMPTY_RECORD:Dictionary={}
 static var shared_signature_defaults_enabled:=true
-# Experimental native equality path: whole-route results have not justified
-# enabling its extra preparation/ownership cost. Benchmarks opt in explicitly.
-static var native_snapshot_validation_enabled:=false
+# Private schema/signature snapshots, prepared in slices and verified by pure
+# native readers before the main-thread geometry checks. Diagnostic fallback
+# keeps the ordinary complete schema/signature path available for comparison.
+static var native_snapshot_validation_enabled:=true
 var source:Array=[]
 var projection:Array=[]
 var signatures:Array=[]
@@ -69,13 +70,36 @@ static func signature(spec:Dictionary)->Array:
 	# its strict types and recursive/NaN semantics unchanged.
 	var empty:Dictionary=EMPTY_RECORD if shared_signature_defaults_enabled else {}
 	var extra:Dictionary=spec.get("extras",empty);var record:Dictionary=spec.get("ground_batch_record",empty)
-	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",empty).get("id",""),record.get("building",empty).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
+	var ground:=Landscape.ground_record(record)
+	var landscape:bool=ground or record.has("road_mesh") or record.has("channel_mesh") or record.has("bridge_mesh") or record.has("fortification") or extra.get("rmmo_landscape_kind","")=="channel"
+	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",empty).get("id",""),record.get("building",empty).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),landscape,ground,Index._fixture_key(spec)]
+static func _validation_copy(value:Dictionary)->Dictionary:
+	# Clone the mutable schema/signature fields, preserving borrowed identity
+	# for unrelated author arrays. These snapshots are private and unpublished.
+	var snapshot:Dictionary=value.duplicate()
+	if value.has("extras"):
+		var extra:Dictionary=value.extras.duplicate()
+		for key:String in ["building","fixture","fortification"]:
+			if not extra.has(key):continue
+			var fields:Dictionary=extra[key].duplicate()
+			# Building IDs are schema-checked strings. Fixture/fortification IDs
+			# are stringified by the index and may themselves be nested values.
+			var identity:Variant=fields.get("id")
+			if identity is Array or identity is Dictionary:fields.id=identity.duplicate(true)
+			extra[key]=fields
+		snapshot.extras=extra
+	if value.has("ground_batch_record"):
+		var record:Dictionary=value.ground_batch_record.duplicate()
+		if record.has("building"):record.building=record.building.duplicate()
+		if record.get("kind")=="box" and record.get("surface_id")=="ground" and record.has("size"):record.size=record.size.duplicate()
+		snapshot.ground_batch_record=record
+	return snapshot
 func valid_owned_snapshot(values:Array)->bool:
 	if not native_snapshot_validation_enabled or not owns_projection or phase!=7 or not error.is_empty() or source.size()!=values.size() or validation_snapshot.size()!=values.size():return false
-	# Native deep equality includes exact Variant types and every authored field.
+	# Native equality includes exact Variant types of every validated field.
 	# Snapshots were copied immediately after full schema/signature validation,
 	# before yielding. Any mismatch uses the ordinary validator, never a hash.
-	if values!=validation_snapshot:return false
+	if not preload("res://scripts/world3d/spec_snapshot_validation.gd").matches(values,validation_snapshot,source):return false
 	for i:int in values.size():
 		var spec:Dictionary=values[i]
 		if not is_same(spec,source[i]) or spec.mesh.get_aabb()!=signatures[i][5]:return false
@@ -128,7 +152,7 @@ func _step()->void:
 			if owns_projection and Landscape.landscape(value):error="owned_projection_ineligible";phase=7;return
 			signatures.append(signature(value))
 			if owns_projection and native_snapshot_validation_enabled:
-				var snapshot:Dictionary=value.duplicate(true)
+				var snapshot:Dictionary=_validation_copy(value)
 				validation_snapshot.append(snapshot);snapshot_by_id[value.uuid]=snapshot
 			var spec:Dictionary=value if owns_projection else value.duplicate();projection.append(spec)
 			by_id[spec.uuid]=spec;known[spec.uuid]=true

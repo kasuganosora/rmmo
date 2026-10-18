@@ -1,13 +1,17 @@
 extends RefCounted
+const EMPTY:Dictionary={}
+const DEFAULT_SIZE:Array=[1,3,1]
 ## Rendering dependencies only. Physics continues to use each source's bounds.
 static func ground(spec:Dictionary)->bool:
-	var r:Dictionary=spec.get("ground_batch_record",{})
+	return ground_record(spec.get("ground_batch_record",EMPTY))
+
+static func ground_record(r:Dictionary)->bool:
 	if r.has("building") or r.has("fortification") or r.has("bridge_mesh"):return false
-	return r.has("terrain_mesh") or r.has("terrain_volume") or (r.get("kind")=="box" and r.get("surface_id")=="ground" and not r.has("road_mesh") and float(r.get("size",[1,3,1])[1])<=2)
+	return r.has("terrain_mesh") or r.has("terrain_volume") or (r.get("kind")=="box" and r.get("surface_id")=="ground" and not r.has("road_mesh") and float(r.get("size",DEFAULT_SIZE)[1])<=2)
 
 static func landscape(spec:Dictionary)->bool:
-	var r:Dictionary=spec.get("ground_batch_record",{})
-	return ground(spec) or r.has("road_mesh") or r.has("channel_mesh") or r.has("bridge_mesh") or r.has("fortification") or spec.get("extras",{}).get("rmmo_landscape_kind","")=="channel"
+	var r:Dictionary=spec.get("ground_batch_record",EMPTY)
+	return ground_record(r) or r.has("road_mesh") or r.has("channel_mesh") or r.has("bridge_mesh") or r.has("fortification") or spec.get("extras",EMPTY).get("rmmo_landscape_kind","")=="channel"
 
 static func bind(library:Array,groups:Dictionary)->Array:
 	var land:Array=[];var supports:Array=[]
