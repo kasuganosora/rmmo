@@ -1329,7 +1329,7 @@ func _build_records() -> void:
 	Trace.elapsed("game.build",build_started)
 	root.set_meta("stream_library",library)
 	for key:String in index_data:root.set_meta(key,index_data[key])
-	root.set_meta("stream_children", -1 if root.get_child_count() > 0 else 0)
+	root.set_meta("stream_children", -1 if root.get_child_count(true) > 0 else 0)
 	root.set_meta("record_stream_load", true)
 	root.set_meta("load_box_cache_hits",doc.load_box_hits)
 	_profile.startup_render_context_draws=_startup_draw_count
@@ -1443,7 +1443,7 @@ func _build_static() -> void:
 	root.set_meta("stream_by_id", by_id)
 	root.set_meta("stream_known", known)
 	root.set_meta("stream_index", index)
-	root.set_meta("stream_children", -1 if root.get_child_count() > 0 else 0)
+	root.set_meta("stream_children", -1 if root.get_child_count(true) > 0 else 0)
 	root.set_meta("static_stream_load", true)
 	_prepared = null
 	finished.emit(root, _path, "")

@@ -16,7 +16,7 @@ func fixture(script:Script)->Node:
 func row(id:String,mesh:Mesh,extra:Dictionary={})->Dictionary:
 	return {"uuid":id,"mesh":mesh,"transform":Transform3D(Basis.IDENTITY,Vector3(id.length(),1,3)),"extras":extra}
 func snapshot(nav:Node)->Dictionary:
-	return {"specs":nav._specs.duplicate(),"ids":nav._spec_ids.duplicate(),"doors":nav._doors.duplicate(),"bounds":nav._bounds,"has_bounds":nav._has_bounds,"geometry":nav._spec_geometry.duplicate(),"users":nav._geometry_users.duplicate(),"faces":nav._faces.duplicate(),"profile":nav.loading_profile.duplicate(true)}
+	return {"specs":nav._specs.duplicate(),"ids":nav._spec_ids.keys(),"doors":nav._doors.duplicate(),"bounds":nav._bounds,"has_bounds":nav._has_bounds,"geometry":nav._spec_geometry.duplicate(),"users":nav._geometry_users.duplicate(),"faces":nav._faces.duplicate(),"profile":nav.loading_profile.duplicate(true)}
 func run()->void:
 	var candidate:Script=load(CANDIDATE)
 	var control:Script=load(CONTROL) if FileAccess.file_exists(CONTROL) else Nav

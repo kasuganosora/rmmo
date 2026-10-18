@@ -327,10 +327,10 @@ func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 		navigation.configure_streaming_geometry(provide_geometry,deferred.release_demand.bind(demand_id))
 		if map_root.get_node_or_null("AssetResidency")==null:
 			var residency:=preload("res://scripts/world3d/asset_residency.gd").new()
-			var adoption_complete:bool=int(map_root.get_meta("stream_children",-1))==map_root.get_child_count()
+			var adoption_complete:bool=int(map_root.get_meta("stream_children",-1))==map_root.get_child_count(true)
 			residency.configure(self,map_root,deferred);map_root.add_child(residency)
 			var native:=preload("res://scripts/world3d/native_residency.gd").new();native.configure(self,map_root,deferred);map_root.add_child(native)
-			if adoption_complete:map_root.set_meta("stream_children",map_root.get_child_count())
+			if adoption_complete:map_root.set_meta("stream_children",map_root.get_child_count(true))
 	else:
 		navigation.set_geometry_pending(true)
 		navigation.configure_geometry_provider(provide_geometry,deferred.release_demand.bind(demand_id))
@@ -2042,9 +2042,9 @@ func _update_approach_preparation()->void:
 	if not is_instance_valid(_map_root) or not is_instance_valid(_player) or _transfer_pending:
 		_approach_preparation.release();return
 	if _map_root.get_node_or_null("DistantBuildingProxy")==null:
-		var adopted:bool=int(_map_root.get_meta("stream_children",-1))==_map_root.get_child_count()
+		var adopted:bool=int(_map_root.get_meta("stream_children",-1))==_map_root.get_child_count(true)
 		var proxy:=preload("res://scripts/world3d/distant_building_proxy.gd").new();proxy.name="DistantBuildingProxy";_map_root.add_child(proxy)
-		if adopted:_map_root.set_meta("stream_children",_map_root.get_child_count())
+		if adopted:_map_root.set_meta("stream_children",_map_root.get_child_count(true))
 	var deferred:Node=_map_root.get_node_or_null("DeferredAssets")
 	var intent:Dictionary=_player.streaming_intent(_geometry_wait_locked)
 	_approach_preparation.update(deferred,_player.global_position,intent.velocity,intent.route)

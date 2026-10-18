@@ -15,6 +15,10 @@ var crossings:Array=[]
 var sync_calls:Array=[]
 var publication_events:Array=[]
 var membership:Dictionary={}
+var membership_ids:Array=[]
+var membership_revision:=-1
+var efficient_membership_probe:= "--efficient-membership-probe" in OS.get_cmdline_user_args()
+var membership_profile:Dictionary={"samples":0,"scans":0,"elapsed_us":0,"max_us":0}
 var removed:Dictionary={}
 var reloaded:Dictionary={}
 var seen:Dictionary={}
@@ -40,14 +44,27 @@ func sample_residency()->Dictionary:
 	return {"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"position":[position.x,position.y,position.z],"specs":mesh_map.get_meta("stream_library",[]).size(),"visuals":mesh_map.get_meta("stream_meshes",{}).size(),"bodies":mesh_map.get_meta("stream_bodies",{}).size(),"asset":assets.profile.duplicate(),"native":native.profile.duplicate(),"pending":queue.pending.size(),"unpublished":queue._demanded_by_id.size(),"jobs":queue._jobs.size(),"admission":queue._admission.snapshot()}
 
 func track_membership()->void:
+	membership_profile.samples+=1
+	var revision:=int(mesh_map.get_meta("stream_collision_revision",-1))
+	# This host changes source membership only through production append/retire,
+	# both of which advance this revision. Keep the original probe as a timing
+	# control; probe-only savings are never reported as production improvements.
+	if efficient_membership_probe and revision>=0 and revision==membership_revision:return
+	var began:=Time.get_ticks_usec()
 	var current:Dictionary=mesh_map.get_meta("stream_by_id",{})
-	for id:String in membership:
+	for id:String in membership_ids if efficient_membership_probe else membership:
 		if not current.has(id):removed[id]=true
 	for id:String in current:
 		if removed.has(id):reloaded[id]=true
 		seen[id]=true
-	membership={}
-	for id:String in current:membership[id]=true
+	if efficient_membership_probe:membership_ids=current.keys()
+	else:
+		membership={}
+		for id:String in current:membership[id]=true
+	membership_revision=revision
+	var elapsed:=Time.get_ticks_usec()-began
+	membership_profile.scans+=1;membership_profile.elapsed_us+=elapsed
+	membership_profile.max_us=maxi(int(membership_profile.max_us),elapsed)
 
 func tick_geometry()->void:
 	var queue:Node=mesh_map.get_node("DeferredAssets")
@@ -106,11 +123,15 @@ func on_publication(specs:Array)->void:
 	# Raw glTF material objects do not pass through the procedural material
 	# factory. Normalize every later arrival too, retaining surface cull modes.
 	var stage_began:=Trace.begin("probe.whiten_publication")
-	for spec:Dictionary in specs:whiten_spec(spec)
+	var packet:RefCounted=mesh_map.get_node("DeferredAssets").publication_metadata
+	for spec:Dictionary in specs:
+		var previous:Mesh=spec.mesh
+		whiten_spec(spec)
+		if not is_same(previous,spec.mesh):packet=null # Private packet assumes unchanged source identities.
 	Trace.elapsed("probe.whiten_publication",stage_began,{"specs":specs.size()})
 	publication_events.append({"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"count":specs.size()})
 	stage_began=Trace.begin("probe.navigation_append")
-	var result:Dictionary=current_scene._navigation.append_specs(specs,mesh_map.get_node("DeferredAssets").publication_metadata)
+	var result:Dictionary=current_scene._navigation.append_specs(specs,packet)
 	Trace.elapsed("probe.navigation_append",stage_began,{"specs":specs.size()})
 	if not result.ok:report.failures.append("navigation source catalogue append: "+str(result.reason))
 
@@ -135,7 +156,7 @@ func traverse()->void:
 	check(nav.append_specs(mesh_map.get_meta("stream_library",[])).ok,"real navigation source retirement checks retain initial geometry without baking")
 	var assets:=preload("res://scripts/world3d/asset_residency.gd").new();assets.configure(host,mesh_map,queue);mesh_map.add_child(assets)
 	var native:=preload("res://scripts/world3d/native_residency.gd").new();native.configure(host,mesh_map,queue);mesh_map.add_child(native)
-	mesh_map.set_meta("stream_children",mesh_map.get_child_count())
+	mesh_map.set_meta("stream_children",mesh_map.get_child_count(true))
 	queue.published.connect(on_publication);queue.activate(host)
 	# The production World3D ends its covered entry transaction here. This
 	# isolated host never begins that transaction, so explicitly withdraw the
@@ -228,6 +249,7 @@ func traverse()->void:
 		report.retirement_frame_budget.enabled=true
 	if mesh_map.has_meta("retirement_schema_profile"):report.retirement_schema_profile=mesh_map.get_meta("retirement_schema_profile").duplicate(true)
 	report.traversal={"before":before_counts,"after":sample_residency(),"crossings":crossings,"sync_calls_over_5ms":sync_calls,"publications":publication_events,"residency_samples":residency_samples,"unique_specs_seen":seen.size(),"removed_specs":removed.keys(),"reloaded_specs":reloaded.keys()}
+	report.traversal.membership_probe={"efficient":efficient_membership_probe,"profile":membership_profile.duplicate()}
 	check(crossings.size()>=10,"actual focus crosses multiple 32 m cells and returns")
 	check(not publication_events.is_empty(),"crossing exercises actual deferred geometry publication")
 	check(not removed.is_empty(),"normal residency grace expires and removes geometry ownership")

@@ -42,7 +42,7 @@ func run()->void:
 	check(int(Budget.report().current_lanes.batch)>999,"indivisible batch work is charged beyond the remaining allowance")
 	lane_remaining("batch",1);batch._process(0)
 	check(batch.pending.is_empty(),"repeated tiny batch slices finish their finite queue")
-	batch._preparation={"phase":"collect","cursor":0,"items":[null,null],"named":{},"desired":{},"excluded":{},"cpu_us":0}
+	batch.request_sync([null,null])
 	batch._process_work(1)
 	check(not batch._preparation.is_empty() and int(batch._preparation.cursor)>0,"tiny batch preparation advances its real cursor")
 	batch._preparation.clear()

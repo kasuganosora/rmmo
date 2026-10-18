@@ -2,6 +2,7 @@ extends Node
 const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const EMPTY_APPEND_RECORD:Dictionary={}
+static var ordered_retirement_catalog_enabled:=true
 var covered_loading:=false
 var publication_guard:Callable=Callable() # Optional map/transaction lifetime validator.
 var preparation_timeout_msec:=180000
@@ -207,12 +208,24 @@ func try_retire_specs(ids:Array)->Dictionary:
 	if _publish_wait>0 or _nearby_publish_wait>0 or _deferred_full_publish or _final_pending:
 		return {"ok":false,"reason":"publication_in_use","removed":0}
 	var survivors:Array=[];var doors:Array=[];var retained_geometry:Dictionary={}
-	for spec:Dictionary in _specs:
-		if requested.has(spec.get("uuid","")):continue
-		survivors.append(spec)
-		if legacy_retirement_geometry_scan_enabled:
-			var geometry:Resource=_source_geometry(spec)
-			if geometry!=null:retained_geometry[geometry.get_instance_id()]=true
+	var ordered:=ordered_retirement_catalog_enabled and not legacy_retirement_geometry_scan_enabled
+	var sparse:=false
+	if ordered:
+		# Streaming IDs own the same immutable specs in append order. Removing
+		# IDs then materializing values avoids a GDScript scan of every survivor.
+		for id:String in requested:_spec_ids.erase(id)
+		survivors=_spec_ids.values()
+	elif not legacy_retirement_geometry_scan_enabled and requested.size()<=16:
+		survivors=_specs.duplicate()
+		sparse=preload("res://scripts/world3d/source_list_retirement.gd").erase_small(survivors,_spec_ids,requested)
+	if not ordered and not sparse:
+		survivors.clear()
+		for spec:Dictionary in _specs:
+			if requested.has(spec.get("uuid","")):continue
+			survivors.append(spec)
+			if legacy_retirement_geometry_scan_enabled:
+				var geometry:Resource=_source_geometry(spec)
+				if geometry!=null:retained_geometry[geometry.get_instance_id()]=true
 	for door:Dictionary in _doors:
 		if not requested.has(door.get("uuid","")):doors.append(door)
 	_specs=survivors;_doors=doors;_cursor=0
@@ -307,7 +320,7 @@ func append_specs(additions:Array,prepared:RefCounted=null)->Dictionary:
 		var bounds:AABB=pose*source_mesh.get_aabb()
 		if not bounds.position.is_finite() or not bounds.size.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
 		if ids.has(id) or _spec_ids.has(id):return {"ok":false,"reason":"duplicate_uuid","added":0}
-		ids[id]=true
+		ids[id]=value if streaming_geometry else true
 		var geometry:Resource=shape if shape is ConcavePolygonShape3D else value.get("collision_mesh",source_mesh)
 		var geometry_id:int=geometry.get_instance_id() if geometry!=null else 0
 		geometry_ids[id]=geometry_id;geometry_counts[geometry_id]=int(geometry_counts.get(geometry_id,0))+1
@@ -343,7 +356,13 @@ func _append_prepared_specs(additions:Array,packet:RefCounted)->Dictionary:
 	for id:String in packet.ids:
 		if _spec_ids.has(id):return {"ok":false,"reason":"duplicate_uuid","added":0}
 		aliases=aliases or _spec_geometry.has(id)
-	_specs.append_array(additions);_spec_ids.merge(packet.ids,true);_doors.append_array(packet.doors)
+	_specs.append_array(additions)
+	if streaming_geometry:_spec_ids.merge(packet.ids,true)
+	else:
+		# Full-map navigation releases source specs after baking. Its identity
+		# set must not become a second persistent resource owner.
+		for id:String in packet.ids:_spec_ids[id]=true
+	_doors.append_array(packet.doors)
 	if aliases:
 		for spec:Dictionary in additions:_remember_source_geometry(spec)
 	else:
@@ -685,7 +704,7 @@ func build(specs: Array, origin: Variant = null) -> void:
 	_spec_geometry.clear();_geometry_users.clear()
 	for spec:Dictionary in _specs:
 		if spec.get("uuid") is String and not spec.uuid.is_empty():
-			_spec_ids[spec.uuid]=true;_remember_source_geometry(spec)
+			_spec_ids[spec.uuid]=spec if streaming_geometry else true;_remember_source_geometry(spec)
 	# Hinges and handles follow the door but are not navigation obstacles.
 	_doors=specs.filter(func(spec):return spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none")
 	_origin = origin

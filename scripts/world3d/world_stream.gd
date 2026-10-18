@@ -22,6 +22,7 @@ const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 ## Validated query reuse with an A/B fallback. Only candidates/bounds are cached;
 ## bodies, collision modes, exact footprints and physics stamps remain live.
 static var collision_candidate_cache_enabled:=true
+static var collision_priority_reuse_enabled:=true # Per reorder only; live geometry and collision checks are unchanged.
 static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
 static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
 static var sliced_retirement_schema_enabled:=true
@@ -94,7 +95,9 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	_index_buildings(map_root,library)
 	var jobs := _jobs(map_root)
 	var target := chunk_key(origin)
-	var child_count := map_root.get_child_count()
+	# Total membership only. The default external-child count rebuilds and sorts
+	# the entire child cache after removals (Godot Node::_update_children_cache).
+	var child_count := map_root.get_child_count(true)
 	var previous_chunk:Variant=map_root.get_meta(&"stream_chunk") if map_root.has_meta(&"stream_chunk") else null
 	var unfinished:Array=[]
 	var additions:Array=map_root.get_meta("stream_append_pending",[])
@@ -130,7 +133,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		map_root.remove_meta("stream_candidate_work")
 		_adopt(map_root, library, known)
 		_index_buildings(map_root,library)
-		child_count = map_root.get_child_count()
+		child_count = map_root.get_child_count(true)
 		map_root.remove_meta(&"stream_target")
 	if not _chunk_is(map_root, &"stream_target", target):
 		var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
@@ -147,7 +150,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		map_root.set_meta(&"stream_plan_cursor", 0)
 		map_root.set_meta(&"stream_plan_bins", [[], [], [], [], []])
 		map_root.set_meta(&"stream_cursor", 0)
-	map_root.set_meta(&"stream_children", map_root.get_child_count())
+	map_root.set_meta(&"stream_children", map_root.get_child_count(true))
 	map_root.set_meta(&"stream_library", library)
 	var plan_started:=Time.get_ticks_usec()
 	if map_root.has_meta("stream_candidate_work"):
@@ -270,7 +273,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"apply","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(apply_started-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail"),"apply_ms":(batch_started-apply_started)/1000.,"batch_ms":(Time.get_ticks_usec()-batch_started)/1000.,"fort_ms":fort_sync_ms})
 	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":fort_sync_ms})
 	map_root.set_meta(&"stream_library", library)
-	map_root.set_meta(&"stream_children", map_root.get_child_count())
+	map_root.set_meta(&"stream_children", map_root.get_child_count(true))
 	if budget<=0:map_root.set_meta("stream_profile_ms",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0})
 	if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":apply_started-plan_started,"apply":batch_started-apply_started,"batch":Time.get_ticks_usec()-batch_started})
 	if cursor < jobs.size() or not batches_prepared:
@@ -526,7 +529,7 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	for key:String in result.data:map_root.set_meta(key,result.data[key])
 	# Index retirement cannot leave transient planning or debug ownership.
 	map_root.remove_meta("stream_candidates");map_root.remove_meta("stream_plan_bins")
-	map_root.set_meta("stream_children",map_root.get_child_count())
+	map_root.set_meta("stream_children",map_root.get_child_count(true))
 	# The local plan is the final owner of many retired mesh/spec dictionaries.
 	# Do not let its stack destruction release the entire building in this frame.
 	# Donate only the private container; borrowed specs/resources are never edited.
@@ -1205,6 +1208,34 @@ static func append_ready_jobs(map_root:Node,jobs:Array,cursor:int,draw:Dictionar
 	return changed
 
 
+static func _draw_uses_exact_geometry(draw:Dictionary)->bool:
+	if draw.has("entry_clip"):return true
+	for source:Dictionary in draw.get("sources",EMPTY_RETIRE_DEPENDENTS):
+		if _draw_uses_exact_geometry(source):return true
+	return false
+
+static func _priority_draws(spec:Dictionary,draw:Dictionary,groups:Dictionary)->bool:
+	if not spec.has("render_bounds") or not spec.get("render_building") is String:return _draws(spec,draw)
+	var group:String=spec.render_building
+	var bounds:Dictionary=spec.render_bounds
+	var dependents:Array=spec.get("render_dependents",EMPTY_RETIRE_DEPENDENTS)
+	var previous:Variant=groups.get(group)
+	# A group name alone is insufficient: editor/test callers may carry different
+	# mutable support envelopes. Reuse only identical owners within this call.
+	if previous!=null and is_same(previous.bounds,bounds) and is_same(previous.dependents,dependents):return previous.draws
+	var draws:=_draws(spec,draw)
+	groups[group]={"bounds":bounds,"dependents":dependents,"draws":draws}
+	return draws
+
+static func _priority_overlaps(spec:Dictionary,draw:Dictionary,cells:Dictionary)->bool:
+	var low:Vector2i=spec.chunk_min if spec.has("chunk_min") else spec.chunk
+	var high:Vector2i=spec.chunk_max if spec.has("chunk_max") else spec.chunk
+	var key:=Vector4i(low.x,low.y,high.x,high.y)
+	var previous:Variant=cells.get(key)
+	if previous!=null:return previous
+	var overlaps:=_overlaps(spec,draw);cells[key]=overlaps
+	return overlaps
+
 static func prioritize_local_collisions(jobs:Array,cursor:int,origin:Vector3,bodies:Dictionary,draw:Dictionary={},meshes:Dictionary={})->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.prioritize_local_collisions") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Reorder only the pending residency plan. Keep its current item first:
@@ -1214,18 +1245,21 @@ static func prioritize_local_collisions(jobs:Array,cursor:int,origin:Vector3,bod
 	if cursor<0 or cursor+1>=jobs.size():return
 	var area:=Rect2(origin.x-6.,origin.z-6.,12.,12.)
 	var ground:Array=[];var local:Array=[];var visuals:Array=[];var rest:Array=[]
+	var draw_groups:Dictionary={};var draw_cells:Dictionary={}
+	var reuse_draws:=collision_priority_reuse_enabled and not _draw_uses_exact_geometry(draw)
 	for i in range(cursor+1,jobs.size()):
 		var spec:Dictionary=jobs[i];var extra:Dictionary=spec.get("extras",{})
-		if not draw.is_empty() and Landscape.ground(spec) and _draws(spec,draw):ground.append(spec);continue
+		var is_ground:=Landscape.ground(spec)
+		if not draw.is_empty() and is_ground and (_priority_draws(spec,draw,draw_groups) if reuse_draws else _draws(spec,draw)):ground.append(spec);continue
 		var near:bool=not bodies.has(str(spec.uuid)) and extra.get("rmmo_collision","")!="none" and not extra.get("hostile",false) and not extra.get("ally",false) and not spec.get("native_visual",false)
 		if near:
 			var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
 			var bounds:AABB=spec.transform*(AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb())
 			near=area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z),true)
 		if near:
-			if Landscape.ground(spec):ground.append(spec)
+			if is_ground:ground.append(spec)
 			else:local.append(spec)
-		elif not draw.is_empty() and not meshes.has(spec.uuid) and not spec.get("native_visual",false) and not extra.get("hostile",false) and not extra.get("ally",false) and _overlaps(spec,draw) and _draws(spec,draw):visuals.append(spec)
+		elif not draw.is_empty() and not meshes.has(spec.uuid) and not spec.get("native_visual",false) and not extra.get("hostile",false) and not extra.get("ally",false) and (_priority_overlaps(spec,draw,draw_cells) if reuse_draws else _overlaps(spec,draw)) and (_priority_draws(spec,draw,draw_groups) if reuse_draws else _draws(spec,draw)):visuals.append(spec)
 		else:rest.append(spec)
 	var at:=cursor+1
 	for group:Array in [ground,local,visuals,rest]:

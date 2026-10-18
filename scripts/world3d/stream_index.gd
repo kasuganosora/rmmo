@@ -7,6 +7,7 @@ const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
 const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
 static var legacy_owned_rebuild_enabled:=false
 static var reuse_owned_retirement_plan_enabled:=true
+static var ordered_retirement_catalog_enabled:=true
 static var retirement_schema_workers:=4 # Pure reads, joined within the atomic transaction; 0 selects serial control.
 static func build(library:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -191,7 +192,7 @@ static func _resident_owned_retire_plan(existing:Dictionary,library:Array,ids:Ar
 		var low:=Vector2i(shape.x,shape.y);var high:=Vector2i(shape.z,shape.w)
 		for z:int in range(low.y,high.y+1):
 			for x:int in range(low.x,high.x+1):cells[Vector2i(x,z)]=true
-	return {"ok":true,"error":"","removed":selected.size(),"selected":selected,"prefixes":prefixes,"cells":cells,"ground_cells":ground_cells,"ground_ids":ground,"fixtures":fixtures,"groups":groups,"removed_ids":ids.duplicate(),"removed_specs":removed}
+	return {"ok":true,"error":"","removed":selected.size(),"selected":selected,"prefixes":prefixes,"cells":cells,"ground_cells":ground_cells,"ground_ids":ground,"fixtures":fixtures,"groups":groups,"removed_ids":ids.duplicate(),"removed_specs":removed,"resident_ordered":true}
 
 static func _append_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason}
@@ -556,7 +557,7 @@ static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array,plan
 		if selected.has(landscape[read].uuid):continue
 		landscape[write]=landscape[read];write+=1
 	landscape.resize(write)
-	var result:=_commit_retire(existing,library,{"selected":selected,"prefixes":prefixes,"cells":cells,"removed_ids":ids.duplicate(),"removed_specs":removed})
+	var result:=_commit_retire(existing,library,{"selected":selected,"prefixes":prefixes,"cells":cells,"removed_ids":ids.duplicate(),"removed_specs":removed,"resident_ordered":plan.get("resident_ordered",false)})
 	result.erase("removed_specs")
 	return result
 
@@ -601,6 +602,7 @@ static func retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
 
 static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->Dictionary:
 	var selected:Dictionary=plan.selected;var state:Dictionary=existing.stream_append_state
+	var sparse:bool=preload("res://scripts/world3d/source_list_retirement.gd").erase_small(library,existing.stream_by_id,selected)
 	for id:String in selected:
 		existing.stream_by_id.erase(id);existing.stream_known.erase(id)
 	for key:Vector2i in plan.cells:
@@ -609,11 +611,17 @@ static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->D
 		_retire_bucket(existing.stream_collision_index,key,selected,true)
 	for prefix:String in plan.prefixes:state.namespaces.erase(prefix);state.prefixes.erase(prefix)
 	for prefix:String in plan.prefixes:state.namespace_sizes.erase(prefix);state.retirement_units.erase(prefix)
-	var write:=0
-	for read in library.size():
-		if selected.has(library[read].uuid):continue
-		library[write]=library[read];write+=1
-	library.resize(write)
+	if not sparse and ordered_retirement_catalog_enabled and plan.get("resident_ordered",false):
+		# The private resident catalog preserves build/append insertion order.
+		# Assign keeps the caller's Array identity while the native container
+		# copies survivors. Public mutable libraries retain the stable scan below.
+		library.assign(existing.stream_by_id.values())
+	elif not sparse:
+		var write:=0
+		for read in library.size():
+			if selected.has(library[read].uuid):continue
+			library[write]=library[read];write+=1
+		library.resize(write)
 	existing.stream_building_count=library.size()
 	if not selected.is_empty():_collision_membership_changed(existing)
 	return {"ok":true,"error":"","data":existing,"removed":plan.removed_ids.size(),"removed_ids":plan.removed_ids,"removed_specs":plan.removed_specs}

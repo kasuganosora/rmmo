@@ -48,11 +48,14 @@ func fixture(count:int,parts:int=2)->Dictionary:
 	return {"host":host,"map":map,"queue":queue,"service":residency,"nav":nav,"scope":scope,"library":library}
 func run()->void:
 	var saved:=Residency.retirement_batching_enabled;Residency.retirement_batching_enabled=true
-	var f:=fixture(10);f.service.poll(100)
+	var f:=fixture(10);var first_frame:=Engine.get_process_frames();f.service.poll(100)
 	check(f.service.profile.retired_instances==8 and f.service.profile.retirement_transactions==1 and f.queue.batches==1,"eight complete namespaces share one transaction and requeue")
 	check(f.library.size()==4 and f.nav._spec_ids.size()==4 and f.service._resident.size()==2,"index/navigation/residency remove exactly the selected sixteen parts")
 	check(f.scope.releases.is_empty(),"surviving namespace retains its shared model cache")
-	await process_frame;f.service.poll(120)
+	# A deferred initial run can resume on process_frame while the frame counter
+	# is still zero. The second transaction must receive a fresh budget frame.
+	while Engine.get_process_frames()==first_frame:await process_frame
+	f.service.poll(120)
 	check(f.library.is_empty() and f.nav._spec_ids.is_empty() and f.queue.calls.size()==10,"next bounded transaction drains the remaining complete namespaces")
 	check(f.scope.releases==["shared.glb"] and not f.queue._prepared_paths.has("shared.glb"),"shared model is evicted once after its final namespace retires")
 	f.host.free();await process_frame

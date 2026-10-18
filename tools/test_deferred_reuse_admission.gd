@@ -7,10 +7,11 @@ const Paths=preload("res://scripts/world3d/map_paths.gd")
 const StreamIndex=preload("res://scripts/world3d/stream_index.gd")
 const CachedFixture=preload("res://tools/test_deferred_cached_source.gd")
 const MIB:=1024*1024
-class Document extends RefCounted:
+class Document extends "res://scripts/world3d/world_document.gd":
 	var calls:=0
-	func _asset(_record:Dictionary)->Node3D:
-		calls+=1;return Node3D.new()
+	func _begin_asset_instance(_record:Dictionary,_prepared:Dictionary)->Dictionary:
+		calls+=1;return {"holder":Node3D.new(),"model":null}
+	func _finish_asset_instance(holder:Node3D,_record:Dictionary)->Node3D:return holder
 class HeldTask extends RefCounted:
 	var gate:=Semaphore.new()
 	func run()->Dictionary:
@@ -45,6 +46,10 @@ func prepare(path:String,digest:String,token:RefCounted=null)->Dictionary:
 	return Deferred._prepare_job(path,digest,token,{},false,Paths.external_root(),{},"",[],false,false)
 
 func run()->void:
+	# The source-mutation oracle exercises the optional diagnostic reader.
+	# Normal game/editor packages remain trusted; restore that mode before dispatch.
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var previous_policy:bool=policy.verify_packages;policy.verify_packages=true
 	folder=Paths.cache_directory("reuse_admission_test_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()]);DirAccess.make_dir_recursive_absolute(folder)
 	var path:=folder.path_join("shared.glb")
 	for size in [0,17,Deferred.REUSE_HASH_BLOCK_BYTES,2*Deferred.REUSE_HASH_BLOCK_BYTES+29]:
@@ -83,6 +88,7 @@ func run()->void:
 	write(path,source)
 	result=prepare(folder.path_join("missing.glb"),digest)
 	check(not result.error.is_empty() and not result.has("scene"),"missing source rejects rather than loading a different model")
+	policy.verify_packages=previous_policy
 	# Hold an independently admitted 70 MiB model worker. The real dispatch loop
 	# must start the 16 MiB reuse worker without waiting for that worker to exit.
 	var f:=fixture();service=f.service

@@ -21,9 +21,13 @@ class DecodeFlight extends RefCounted:
 	var length:int
 	var packet:Dictionary={}
 static func evict_geometry(digests:Dictionary)->void:
+	var trace=preload("res://scripts/world3d/load_trace.gd")
+	var phase:=Time.get_ticks_usec()
+	var retired:Array=[]
 	for key:String in _meshes.keys():
 		if not digests.has(key.get_slice(":",0)):continue
-		_meshes.erase(key)
+		retired.append(_meshes[key]);_meshes.erase(key)
+	trace.elapsed("prefab.retire_geometry",phase,{"digests":digests.size()});phase=Time.get_ticks_usec()
 	# The independent 512-entry caches can evict at different times (painted
 	# variants only occupy _meshes). Retire orphan render-cache owners as well.
 	var live:Dictionary={}
@@ -32,11 +36,18 @@ static func evict_geometry(digests:Dictionary)->void:
 		var id:int=_render_meshes[key].get_instance_id()
 		# Different definitions may share the same immutable render content.
 		# Keep that lookup while any remaining definition still owns it.
-		if not live.has(id):_render_meshes.erase(key)
+		if not live.has(id):retired.append(_render_meshes[key]);_render_meshes.erase(key)
+	trace.elapsed("prefab.retire_render",phase);phase=Time.get_ticks_usec()
 	_decode_mutex.lock()
+	trace.elapsed("prefab.retire_decode_lock",phase);phase=Time.get_ticks_usec()
 	for key:String in digests:
-		if _decoded.has(key):_decoded_bytes-=int(_decoded[key].length);_decoded.erase(key)
+		if _decoded.has(key):
+			retired.append(_decoded[key]);_decoded_bytes-=int(_decoded[key].length);_decoded.erase(key)
 	_decode_mutex.unlock()
+	trace.elapsed("prefab.retire_decoded",phase,{"digests":digests.size()})
+	# Logical eviction is synchronous; final immutable packet/mesh destruction
+	# is distributed even when a small cache array owns large nested geometry.
+	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(retired,true)
 const DECODE_MAX_DEPTH:=64
 const DECODE_MAX_VALUES:=2000000
 const DECODE_BUDGET=536870912

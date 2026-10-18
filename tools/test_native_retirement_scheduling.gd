@@ -54,16 +54,23 @@ func run()->void:
 	queue._doc.load_material_pool[[held_value]]=held;queue._doc.load_material_pool[[unused_value]]=unused
 	held=null;unused=null
 	queue._jobs={"preparing":{"result":{"prefab_cpu":{"prepared":{"data":{"materials":[held_value]}}}}}}
-	service.poll(100)
+	var first_frame:=Engine.get_process_frames();service.poll(100)
 	check(queue._doc.load_surface_arrays.has("preparing") and is_same(queue._doc.load_surface_arrays.preparing,arrays) and not queue._doc.load_surface_arrays.has("0"),"unloading one unit preserves another admitted job's exact prepared arrays")
 	check(queue._doc.terrain_neighbors.data.has("preparing") and is_same(queue._doc.terrain_neighbors.data.preparing,context) and not queue._doc.terrain_neighbors.data.has("0"),"unloading one unit preserves unrelated prepared terrain seams")
-	check(held_watch.get_ref()!=null and unused_watch.get_ref()==null,"retirement releases unused hot materials while retaining admitted material preparation")
+	check(queue._doc.load_material_pool.size()==1 and held_watch.get_ref()!=null,"retirement immediately removes unused cache membership and preserves admitted material preparation")
+	var recycler:Node=root.get_node(preload("res://scripts/world3d/resource_retirement.gd").NODE_NAME)
+	var slices:=0
+	while not recycler.pending.is_empty() and slices<1000:
+		if recycler._advance(recycler.pending[0],1000):recycler._finish_front()
+		slices+=1
+	check(recycler.pending.is_empty() and held_watch.get_ref()!=null and unused_watch.get_ref()==null,"bounded retirement releases the last unused material reference without clearing the admitted job's material")
 	check(not service._resident.has("0") and service._resident["15"].outside_since==100,"successful small retirement still observes the end of the same bounded slice")
 	# Real polls occur on separate frames. Multiple synthetic polls in one
 	# frame can hit the shared 2 ms retirement allowance depending on host load.
-	await process_frame
+	while Engine.get_process_frames()==first_frame:await process_frame
 	service.poll(120)
-	await process_frame
+	first_frame=Engine.get_process_frames()
+	while Engine.get_process_frames()==first_frame:await process_frame
 	service.poll(140)
 	check(not service._resident.has("15"),"large cold unit retires after its grace instead of waiting for all earlier small units")
 	check(service.profile.scanned_units==48,"successful retirement never truncates bounded observation accounting")

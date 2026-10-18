@@ -4,6 +4,7 @@ const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
+static var sliced_source_collection_enabled:=true
 static var legacy_loading_worker_wait_enabled:=false # Diagnostic control; frame callbacks never wait on live workers.
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const SUSPENDED_DRAW:="stream_suspended_draw"
@@ -252,6 +253,7 @@ static func _expanded_sources(nodes:Array)->Array:
 
 static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._expanded_exclusions") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if excluded.is_empty():return []
 	var result:=excluded.duplicate()
 	for node in nodes:
 		if not is_instance_valid(node) or str(node.name) not in excluded:continue
@@ -269,7 +271,10 @@ func request_sync(nodes:Array,excluded:Array=[])->void:
 	sync_count+=1
 	sync_profile={"material_us":0,"geometry_us":0,"capture_us":0}
 	_material_keys.clear()
-	_preparation={"phase":"collect","cursor":0,"items":_expanded_sources(nodes),"named":{},"desired":{},"excluded":_expanded_exclusions(nodes,excluded),"cpu_us":0}
+	# Expanding every source here previously ran outside the preparation budget.
+	# Runtime sources are immutable until a new request supersedes this one;
+	# editor sync/flush still drain the same cursor synchronously.
+	_preparation={"phase":"collect","cursor":0,"items":nodes.duplicate() if sliced_source_collection_enabled else _expanded_sources(nodes),"named":{},"desired":{},"excluded":excluded.duplicate() if sliced_source_collection_enabled else _expanded_exclusions(nodes,excluded),"cpu_us":0,"expand_components":sliced_source_collection_enabled,"root_excluded":excluded.duplicate(),"components":[],"component_cursor":0,"exclude_components":false}
 	for cached:String in _instance_meshes.keys():
 		if _instance_meshes[cached].get_ref()==null:_instance_meshes.erase(cached)
 	for cached:String in _building_meshes.keys():
@@ -345,11 +350,20 @@ func _prepare_step(budget_usec:int)->void:
 		var stage:String=_preparation.phase
 		var state:Dictionary=_preparation
 		var desired:Dictionary=state.desired
-		if state.cursor>=state.items.size():
+		if stage=="collect" and state.component_cursor<state.components.size():
+			# A single imported root can own thousands of parts. Admit its parts
+			# individually as well, rather than moving the same spike one level down.
+			var child:Variant=state.components[state.component_cursor];state.component_cursor+=1
+			if is_instance_valid(child):
+				var child_name:=str(child.name)
+				if enabled:state.named[child_name]=child
+				if state.exclude_components:state.excluded.append(child_name)
+		elif state.cursor>=state.items.size():
 			state.cursor=0
 			match state.phase:
 				"collect":
 					state.items=state.named.keys();state.items.sort();state.phase="prepare"
+					state.components=[];state.root_excluded=[]
 				"prepare":state.items=desired.keys();state.named.clear();state.phase="unique"
 				"unique":state.items=desired.keys();state.phase="filter"
 				"filter":state.items=groups.keys();state.phase="drop"
@@ -363,7 +377,11 @@ func _prepare_step(budget_usec:int)->void:
 			var item:Variant=state.items[state.cursor];state.cursor+=1
 			match state.phase:
 				"collect":
-					if enabled and is_instance_valid(item):state.named[str(item.name)]=item
+					if is_instance_valid(item):
+						if state.expand_components and item.has_meta("model_component_batch_sources"):
+							state.components=item.get_meta("model_component_batch_sources").duplicate();state.component_cursor=0
+							state.exclude_components=not state.root_excluded.is_empty() and str(item.name) in state.root_excluded
+						elif enabled:state.named[str(item.name)]=item
 				"prepare":
 					var node:Variant=state.named[item]
 					if is_instance_valid(node) and not node.is_queued_for_deletion():_prepare_node(node,desired,state.excluded)

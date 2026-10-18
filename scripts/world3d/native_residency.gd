@@ -200,7 +200,9 @@ func poll(now:int)->void:
 		_queue.runtime_fixture_states.merge(fixtures,true)
 		var requeue_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.requeue")
 		_queue.requeue_references(entries)
+		var preparation_release:=Time.get_ticks_usec()
 		_release_preparation_cache(entries)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("native.release_preparation_cache",preparation_release,{"records":entries.size()})
 		preload("res://scripts/world3d/load_trace.gd").elapsed("native.requeue",requeue_began,{"units":units.size(),"records":entries.size()})
 		var release_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.cache_release")
 		Prefab.evict_geometry(digests)
@@ -225,12 +227,16 @@ func poll(now:int)->void:
 
 func _release_preparation_cache(entries:Array)->void:
 	var document:RefCounted=_queue._doc
+	var retired:Array=document.load_box_meshes.values()
+	retired.append_array(document.load_box_meshes.keys())
 	document.load_box_meshes.clear()
 	# These tables borrow admitted worker outputs, not a disposable global LRU.
 	# Clearing them during another unit's retirement loses prepared road arrays
 	# and terrain halos before that job publishes, forcing main-thread rebuilds.
 	for entry:Dictionary in entries:
 		var uuid:String=entry.compact_record.uuid
+		if document.load_surface_arrays.has(uuid):retired.append(document.load_surface_arrays[uuid])
+		if document.terrain_neighbors.data.has(uuid):retired.append(document.terrain_neighbors.data[uuid])
 		document.load_surface_arrays.erase(uuid);document.terrain_neighbors.data.erase(uuid)
 	# Material publication advances across frames. Keep its complete entries
 	# until their owning jobs consume/discard them; release other hot owners.
@@ -239,7 +245,10 @@ func _release_preparation_cache(entries:Array)->void:
 		for prepared:Dictionary in job.get("result",{}).get("prefab_cpu",{}).values():
 			for material:Dictionary in prepared.get("data",{}).get("materials",[]):protected[[material]]=true
 	for key:Variant in document.load_material_pool.keys():
-		if key is Array and not protected.has(key):document.load_material_pool.erase(key)
+		if key is Array and not protected.has(key):
+			retired.append(key);retired.append(document.load_material_pool[key]);document.load_material_pool.erase(key)
+
+	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(retired,true)
 
 func _retirement_candidates(now:int)->Array:
 	var keys:Array=_resident.keys();var candidates:Array=[];var pending_ids:Dictionary={}

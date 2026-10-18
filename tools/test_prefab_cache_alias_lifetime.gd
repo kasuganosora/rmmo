@@ -7,6 +7,12 @@ func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
 	checks+=1;print("PASS " if ok else "FAIL ",label)
 	if not ok:failures+=1
+func drain()->void:
+	var service:Node=root.get_node_or_null("ResourceRetirement")
+	if service==null:return
+	service.set_process(false)
+	while not service.pending.is_empty():
+		if service._advance(service.pending[0],1000):service._finish_front()
 func run()->void:
 	check(Prefab._meshes.is_empty() and Prefab._render_meshes.is_empty(),"isolated CPU cache fixture starts without author resources")
 	var a:="a".repeat(64);var b:="b".repeat(64);var c:="c".repeat(64)
@@ -19,12 +25,14 @@ func run()->void:
 	Prefab._render_meshes={"same-content":shared,"other-content":other,"orphan":orphan}
 	shared=null;other=null;orphan=null
 	Prefab.evict_geometry({a:true})
+	check(orphan_watch.get_ref()!=null,"logical eviction transfers the orphan to bounded disposal")
+	drain()
 	check(not Prefab._meshes.has(a) and not Prefab._meshes.has(a+":paint:variant") and Prefab._meshes.has(b),"retirement removes only the selected prefab definition and its paint variants")
 	check(Prefab._render_meshes.has("same-content") and Prefab._render_meshes["same-content"]==shared_watch.get_ref(),"another live prefab keeps its shared render-cache identity for future reuse")
 	check(not Prefab._render_meshes.has("orphan") and orphan_watch.get_ref()==null,"independently orphaned render owners still release")
-	Prefab.evict_geometry({b:true})
+	Prefab.evict_geometry({b:true});drain()
 	check(shared_watch.get_ref()==null and Prefab._render_meshes.size()==1,"the final prefab alias releases shared geometry without retaining a render orphan")
 	check(Prefab._meshes.has(c) and other_watch.get_ref()!=null,"unrelated live geometry survives both retirements")
-	Prefab.evict_geometry({c:true})
+	Prefab.evict_geometry({c:true});drain()
 	check(Prefab._meshes.is_empty() and Prefab._render_meshes.is_empty() and other_watch.get_ref()==null,"all final CPU geometry owners release")
 	print("PREFAB_CACHE_ALIAS_LIFETIME checks=",checks," failures=",failures);quit(1 if failures else 0)

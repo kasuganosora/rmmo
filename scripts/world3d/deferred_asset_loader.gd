@@ -45,6 +45,8 @@ static var typed_demand_scan_enabled:=true # Diagnostic control retains the exac
 static var demand_membership_cache_enabled:=true
 static var native_demand_order_enabled:=true
 static var native_demand_bounds_enabled:=true
+static var incremental_pending_index_enabled:=true
+static var demanded_template_scan_enabled:=true
 const EMPTY_DEMAND:Dictionary={}
 static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
@@ -451,6 +453,7 @@ func requeue_references(entries:Array)->int:
 	# Called only after resident stream/navigation ownership has been released.
 	# Preserve the compact catalog and verified model version for a later revisit.
 	if _reference_index.is_empty():return 0
+	var incremental:bool=incremental_pending_index_enabled and _indexed
 	var known:Dictionary={};var selected:Dictionary={};var accepted:Array=[]
 	for item:Dictionary in pending:known[item.record.uuid]=true
 	for entry:Dictionary in entries:
@@ -458,6 +461,11 @@ func requeue_references(entries:Array)->int:
 		if known.has(uuid):continue
 		known[uuid]=true;selected[uuid]=true;accepted.append(entry)
 	if accepted.is_empty():return 0
+	if incremental:
+		# Keep empty cells until a requeue, matching the old query strategy
+		# between publications. Prune only keys, without reindexing every row.
+		for cell:Vector2i in _pending_index.keys():
+			if _pending_index[cell].is_empty():_pending_index.erase(cell)
 	var extra:Dictionary=_map.get_meta("extras",{})
 	var records:Array=extra.get("rmmo_records",[])
 	var write:=0
@@ -475,8 +483,19 @@ func requeue_references(entries:Array)->int:
 		_runtime_record_ids.erase(uuid)
 		var memory:Dictionary=_memory_estimates.get(path,{"estimated_bytes":_admission.byte_limit,"exclusive":true,"known":false})
 		var runtime_bounds:Variant=_runtime_building_records.get(uuid)
-		pending.append({"record":entry.compact_record,"path":path,"bounds":runtime_bounds if runtime_bounds is AABB else entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")})
-	_indexed=false;_pending_index.clear();_large_pending.clear();_demand_revision+=1
+		var item:Dictionary={"record":entry.compact_record,"path":path,"bounds":runtime_bounds if runtime_bounds is AABB else entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")}
+		pending.append(item)
+		if incremental:
+			var previous:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+			if not previous.is_empty():_unindex_pending_item(previous)
+			_index_pending_item(item)
+	if incremental:
+		profile.pending_index_updates=int(profile.get("pending_index_updates",0))+1
+		profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+accepted.size()
+	else:
+		_indexed=false;_pending_index.clear();_large_pending.clear()
+	_demand_membership.clear();_typed_pending.clear();_typed_pending_buildings=-1
+	_demand_revision+=1
 	_invalidate_collision_queries()
 	_completion_emitted=false;set_process(_active)
 	return accepted.size()
@@ -693,19 +712,42 @@ func _index_pending()->void:
 	if _indexed:return
 	_demand_membership.clear()
 	_typed_pending.clear();_typed_pending_buildings=-1
-	_pending_by_record_id.clear()
-	for item:Dictionary in pending:
-		_pending_by_record_id[item.record.uuid]=item
-		var box:AABB=item.bounds
-		item.demand_rect=Rect2(Vector2(box.position.x,box.position.z),Vector2(box.size.x,box.size.z))
-		var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
-		if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);continue
+	_pending_by_record_id.clear();_pending_index.clear();_large_pending.clear()
+	for item:Dictionary in pending:_index_pending_item(item)
+	profile.pending_index_builds=int(profile.get("pending_index_builds",0))+1
+	profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+pending.size()
+	_indexed=true
+
+func _index_pending_item(item:Dictionary)->void:
+	_pending_by_record_id[item.record.uuid]=item
+	var box:AABB=item.bounds
+	item.demand_rect=Rect2(Vector2(box.position.x,box.position.z),Vector2(box.size.x,box.size.z))
+	var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
+	if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);return
+	for z in range(low.y,high.y+1):
+		for x in range(low.x,high.x+1):
+			var key:=Vector2i(x,z)
+			if not _pending_index.has(key):_pending_index[key]=[]
+			_pending_index[key].append(item)
+
+static func _erase_pending_identity(values:Array,item:Dictionary)->void:
+	for i:int in values.size():
+		if is_same(values[i],item):values.remove_at(i);return
+
+func _unindex_pending_item(item:Dictionary,prune_empty:bool=true)->void:
+	# Remove this exact old tombstone before appending the new queue member.
+	# Keeping its old bucket position would change stable equal-priority order.
+	var box:AABB=item.bounds
+	var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
+	if (high.x-low.x+1)*(high.y-low.y+1)>64:_erase_pending_identity(_large_pending,item)
+	else:
 		for z in range(low.y,high.y+1):
 			for x in range(low.x,high.x+1):
-				var key:=Vector2i(x,z)
-				if not _pending_index.has(key):_pending_index[key]=[]
-				_pending_index[key].append(item)
-	_indexed=true
+				var cell:=Vector2i(x,z)
+				if not _pending_index.has(cell):continue
+				_erase_pending_identity(_pending_index[cell],item)
+				if prune_empty and _pending_index[cell].is_empty():_pending_index.erase(cell)
+	_pending_by_record_id.erase(item.record.uuid)
 
 static func _intersects(a:AABB,b:AABB)->bool:
 	return a.position.x<=b.end.x and a.end.x>=b.position.x and a.position.z<=b.end.z and a.end.z>=b.position.z
@@ -765,6 +807,9 @@ func _refresh_demanded()->void:
 				profile.demand_membership_hits=int(profile.get("demand_membership_hits",0))+1
 	var support_priorities:Dictionary={};var support_distances:Dictionary={};var support_visits:=0
 	var typed_scans:Dictionary=_typed_full_scan_inputs(memberships) if typed_demand_scan_enabled else {}
+	var trace=preload("res://scripts/world3d/load_trace.gd")
+	if trace.enabled:trace.elapsed("demand.membership_setup",began)
+	var rank_started:=Time.get_ticks_usec() if trace.enabled else 0
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
@@ -818,6 +863,8 @@ func _refresh_demanded()->void:
 	var ordered:Array=candidates.values()
 	if native_demand_order_enabled:ordered.sort()
 	else:ordered.sort_custom(func(a,b):return a[0]<b[0] if a[0]!=b[0] else a[1]<b[1])
+	if trace.enabled:trace.elapsed("demand.rank_candidates",rank_started,{"candidates":ordered.size()})
+	var commit_started:=Time.get_ticks_usec() if trace.enabled else 0
 	_demanded.clear()
 	_demanded_by_id.clear()
 	_demanded_by_path.clear();_demanded_rank.clear()
@@ -835,6 +882,7 @@ func _refresh_demanded()->void:
 	# the much smaller dispatch slice is needed after rebuilding demands.
 	_dispatch_revision=_demand_revision;_dispatch_capacity=[]
 	_candidates_revision=_demand_revision
+	if trace.enabled:trace.elapsed("demand.rebuild_dispatch_catalog",commit_started,{"candidates":ordered.size()})
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.demand_refresh_us=int(profile.get("demand_refresh_us",0))+elapsed
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)
@@ -1516,8 +1564,8 @@ func _publish_items(items:Array,specs:Array)->bool:
 	for item:Dictionary in items:
 		_note_runtime_record(item)
 		item.published=true;profile.instances+=1
-		# Spatial buckets keep tombstones until the next rebuild. They must not
-		# retain decoded definitions after a resident record is later retired.
+		# Strip hydrated definitions before either removing the spatial member or
+		# retaining a tombstone in the diagnostic full-rebuild path.
 		if item.has("reference_entry"):item.record=item.reference_entry.compact_record;item.reference_prepared=false
 	_remove_published_demand(items);profile.specs+=specs.size()
 	var details:Dictionary={"specs":specs.size(),"uuid":items[0].record.uuid if not items.is_empty() else "","index_prepared":preparation!=null}
@@ -1563,6 +1611,7 @@ func _remove_published_demand(items:Array)->void:
 	for item:Dictionary in items:
 		var uuid:String=item.record.uuid
 		removed[uuid]=true;paths[item.path]=true
+		if incremental_pending_index_enabled and _indexed:_unindex_pending_item(item,false)
 		_demanded_by_id.erase(uuid);_demanded_rank.erase(uuid);_demanded_priority.erase(uuid)
 	pending=_without_published(pending,removed)
 	_invalidate_collision_queries()
@@ -2019,6 +2068,23 @@ static func _capture_static_meshes(scene:Node,faces_required:bool,token:RefCount
 static func _packed_payload_bytes(value:Variant)->int:
 	return preload("res://scripts/world3d/static_mesh_cpu_preparation.gd").packed_payload_bytes(value)
 
+func _retire_stale_prepared(required:Dictionary)->void:
+	# Dormant prepared flags own no Resource. Check them when demanded again,
+	# before dispatch/publication, instead of revisiting all past models each frame.
+	# Undemanded accepted jobs are still cancelled/disposed by _poll_jobs below.
+	var checks:=0
+	for path:String in (required if demanded_template_scan_enabled else _prepared_paths).keys():
+		if not _prepared_paths.has(path) or path.begins_with("reference:"):continue
+		checks+=1
+		var job:Dictionary=_jobs.get(path,{})
+		var stale_owner:bool=job.get("accepted",false) and not job.get("native",false) and not _publication_template_current(path,job)
+		if not _cached_model_matches(path) or stale_owner:
+			_prepared_paths.erase(path)
+			if job.get("accepted",false):
+				_discard_job(path)
+				if stale_owner:profile.model_template_retries=int(profile.get("model_template_retries",0))+1
+	profile.template_checks=int(profile.get("template_checks",0))+checks
+
 func _process(_delta:float)->void:
 	if not _active or _cancelled:return
 	if not error.is_empty():
@@ -2032,19 +2098,9 @@ func _process(_delta:float)->void:
 	if budget<=0:return
 	var frame_began:=Time.get_ticks_usec()
 	_update_loading_worker_capacity(desired)
-	# Another map may release an unused shared template. Live specs remain valid,
-	# but future instances must return to the worker instead of synchronously
-	# importing through AssetLibrary.instantiate on the scene thread.
-	for path:String in _prepared_paths.keys():
-		var job:Dictionary=_jobs.get(path,{})
-		var stale_owner:bool=job.get("accepted",false) and not job.get("native",false) and not _publication_template_current(path,job)
-		if not path.begins_with("reference:") and (not _cached_model_matches(path) or stale_owner):
-			_prepared_paths.erase(path)
-			if _jobs.get(path,{}).get("accepted",false):
-				_discard_job(path)
-				if stale_owner:profile.model_template_retries=int(profile.get("model_template_retries",0))+1
 	_refresh_demanded()
 	var required:Dictionary=_demanded_by_path
+	_retire_stale_prepared(required)
 	profile.frame_bookkeeping_us=Time.get_ticks_usec()-frame_began
 	_poll_jobs(required)
 	_resume_pixel_jobs(get_tree())

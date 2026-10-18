@@ -22,7 +22,9 @@ func add(value:Dictionary,local_bounds:AABB)->void:
 	if not box.position.is_finite() or not box.size.is_finite():error="invalid_spec";return
 	var id:String=value.uuid
 	if ids.has(id):error="duplicate_uuid";return
-	ids[id]=true
+	# The private packet already owns source; share the same spec identities so
+	# streaming navigation can adopt an ordered catalog without a commit scan.
+	ids[id]=value
 	var prefix:=id.get_slice("__",0)
 	if not namespaces.has(prefix):namespaces[prefix]={"ids":{},"order":[],"groups":{},"native_owner":false,"ordinary_pin":""}
 	var owner:Dictionary=namespaces[prefix]
