@@ -1856,7 +1856,7 @@ static func _fallback_scene(path:String,token:RefCounted,content_root:String)->D
 	if token!=null and token.is_cancelled():
 		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材准备已取消","cancelled":true,"retained_resources":[document,state]}
 	began=Time.get_ticks_usec()
-	var scene:=Io.generate_scene(document,state)
+	var scene:=Io.generate_scene(document,state,true)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.scene_generate",began,{"path":path})
 	preparation.RAW_IMPORT_MUTEX.unlock()
 	return {"error":"" if scene!=null else "素材构建失败："+path,"scene":scene,"retained_resources":[document,state]}

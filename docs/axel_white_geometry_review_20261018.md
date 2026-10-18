@@ -333,3 +333,17 @@ white_owned_abba 固定使用实图出生点同一批 2,151 部件及 322 周边
 white_index_retire_abba 再次使用上述实际输入，16 次 ABBA：原子追加平均 83.644→70.876 ms，中位数 79.849→70.307；含完整校验的退休事务平均 65.563→56.761 ms，中位数 62.009→54.016。对照关闭计划准备，提交使用原收集逻辑，避免把额外准备再强制丢弃作为不公平基线；两种结果均与全量重建一致。
 
 white_full_route_owned_plan 累计完整路线：进入 20.510 秒，最大 2,151 部件无需额外退役停留即完整释放、返回缺失部件零，实际 GPU 3,824 个 surface 全白，源码/正式地图 SHA 稳定、失败/trace 丢弃零，退出所有资源、模板、工作线程、额度及加载视口归零。与前一完整 white_full_route_retirement_budget 相比，远处卸载/重载最长帧 194.971/186.963→156.264/173.122 ms；公会整组提交 152.778 ms，索引提交 4.730 ms，退休校验 71.738、退休提交 10.620 ms，完整退休范围仍达 140.921 ms。初始加载最长 390.921 ms。固定停留外需求收敛仍需 22.034/47.684 秒，前后覆盖 4,658/5,419 个 spec，不能据此认定总加载/FPS已解决或驻留集合完全相同。纯白模仍未放行，继续处理重复读回与其余主线程大事务。
+
+## 私有静态导入保留精确 CPU LOD，消除第二遍表面读回
+
+原 Cpu.capture 先 surface_get_arrays，再 capture_lods 调 RenderingServer.mesh_get_surface；引擎 ed1daf0bf 的两条入口都读取完整表面缓冲，后者即使最终没有 LOD 也要读回顶点/属性/索引。现在仅对已通过私有静态模型入口、无 skin/动画/morph 的 GLTF，在正式生成场景前建立同一 ImporterMesh.get_mesh 缓存并保留 CPU LOD 索引；没有生成/删减 LOD。小 Resource hint 仅弱指向该精确 Mesh，不持有 ImporterMesh/GLTFState；网格变化即失效，复制后的不同 Mesh 身份与保存重开的瞬态证明均走原 renderer 回退。基础顶点、法线、UV、颜色等仍读取原 GPU 解码数据，不换用未压缩的 importer 基础数组。派生缓存 generator key 同步包含新 helper 的 SHA。
+
+27 项 GPU 检查覆盖 16/32 位索引、有/无 LOD、混合压缩的多 surface、所有基础通道字节、原 CPU 碰撞数据、材质和包围盒、LOD 字典独立、复制与变化后的正确回退、资源保存重开及 weak 生命周期。旧 CPU 代身份 10、分帧捕获 29、实际 raw 发布 15 项回归通过，日志无引擎错误。测试最初手工删除 CPU cache 触发重复失效回调，已改为独立 ArrayMesh 对照；另一次用 Mesh.get_faces 直接作严格碰撞基准暴露 TriangleMesh 的约 1e-4 位置取整，与既有 CPU 保留解码浮点的路径不同，已改为原 CPU 路径对照，不改变正式碰撞数据。
+
+white_lod_renderer_control 首次遇到 generator 改动后的冷派生目录，white_lod_importer_candidate 为暖目录，20.936/18.422 秒不能直接归因于优化。随后加入 helper SHA 到完整 generator 身份并以 white_lod_renderer_prime 单独预热；white_lod_renderer_warm 和 white_full_route_importer_lods 均实际命中 mesh/terrain context，进入 19.828/19.273 秒。相同 2,007 个网格、16,228,944 字节碰撞数据，主线程捕获执行 2.422→1.630 秒、墙钟 2.886→1.903 秒、切片 145→98；实际 2,099 次第二遍 renderer 读回变为 2,099 次 CPU LOD 复制，新复制累计 21.995 ms。单组总进入改善约 0.555 秒，不将其当作多轮统计或 FPS 收益。
+
+累计完整 white_full_route_importer_lods：293 次切换、观察移除 4,578 个 spec/重载 3,991 个原 UUID；最大 2,151 部件无需额外退役延长即完整移除并返回，缺失零；3,824 个实际 GPU surface 全白，源码/地图 SHA 稳定、失败与 trace 丢弃零，退出全部所有权与额度归零。公会后台 CPU 捕获 8.486 秒（前一完整路线 12.441 秒）；初始/返回需求额外收敛 21.267/44.713 秒，覆盖 4,658/5,397 个 spec，调度/集合不完全相同，不能直接当作完全配对的返回加载 A/B。远处卸载/重载最长帧仍 177.464/226.624 ms，整组发布 197.177 ms，退休完整事务 161.348 ms；初始最长 395.455 ms。保留时间/工作量的收益，长帧仍未解决。退出导入状态最长切片 10.577 ms，总回收切片仍达到 21.542 ms，软额度不是硬实时上限。
+
+用户提醒后于 2026-10-18 13:36 更新远端引用至 c333a6466009d910957b2b05d8fc58ad2f81741f 并只读核对代码。b9f5a1e 新增 terrain_render_lod 的远距离地形索引 LOD 与运行时距离开关；更早 d1121df 已有桥梁/城防生成时的 ImporterMesh CPU 快照与 LOD 保留、建筑 HLOD 退休，本分支已基于该版本。上述专用生成器走 Cpu.remember，不覆盖普通 raw GLTF 的 capture 路径；最新 main 的 ground_cpu_mesh.capture_lods 仍完整 mesh_get_surface，新增两次提交未改 map_loader/deferred_asset_loader/gltf_map_io/ground_cpu_mesh。本轮优化与这些修复互补。尚未合并 main 的新地形、阶段加载或风场改动，白模门槛通过后再进行累计合并复测。
+
+引擎依据：[当前版本 ImporterMesh 缓存与 LOD 传入](https://github.com/godotengine/godot/blob/ed1daf0bf/scene/resources/3d/importer_mesh.cpp)、[内建 GLTF 转换复用该缓存](https://github.com/godotengine/godot/blob/ed1daf0bf/modules/gltf/extensions/gltf_document_extension_convert_importer_mesh.cpp)、[完整 renderer 表面读回](https://github.com/godotengine/godot/blob/ed1daf0bf/servers/rendering/renderer_rd/storage_rd/mesh_storage.cpp)。

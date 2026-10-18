@@ -8,6 +8,7 @@ var box_size := Vector3.ZERO
 var source_reference: WeakRef
 var _collision_faces:=PackedVector3Array()
 static var _unit_box_arrays: Array=[]
+static var importer_lod_hints_enabled:=true
 
 static func _bind_source(source:Mesh,owner:Mesh)->WeakRef:
 	# Projections share this WeakRef, including its generation proof. Comparing
@@ -115,14 +116,20 @@ static func invalidate(reference: WeakRef) -> void:
 static func capture_lods(source:ArrayMesh,slot:int)->Dictionary:
 	# Imported native ArrayMeshes lack the procedural CPU owner from remember().
 	# Preserve index LODs across source retirement and per-instance material forks.
+	var began:=Time.get_ticks_usec()
+	if importer_lod_hints_enabled and source.has_meta(preload("res://scripts/world3d/importer_lod_hint.gd").META):
+		var hint:Variant=source.get_meta(preload("res://scripts/world3d/importer_lod_hint.gd").META)
+		if hint is Resource and hint.get_script()==preload("res://scripts/world3d/importer_lod_hint.gd") and hint.matches(source,slot):
+			preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.lod_importer_copy",began)
+			return hint.tables[slot].duplicate()
 	var surface:Dictionary=RenderingServer.mesh_get_surface(source.get_rid(),slot)
 	var result:Dictionary={}
-	if surface.get("lods",[]).is_empty():return result
 	var stride:int=RenderingServer.mesh_surface_get_format_index_stride(surface.format,surface.vertex_count)
-	for row:Dictionary in surface.lods:
+	for row:Dictionary in surface.get("lods",[]):
 		var bytes:PackedByteArray=row.index_data;var indices:=PackedInt32Array();indices.resize(bytes.size()/stride)
 		for i in indices.size():indices[i]=bytes.decode_u16(i*2) if stride==2 else bytes.decode_u32(i*4)
 		result[float(row.edge_length)]=indices
+	preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.lod_renderer_read",began)
 	return result
 
 func restore() -> Mesh:

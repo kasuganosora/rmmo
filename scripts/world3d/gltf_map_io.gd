@@ -301,7 +301,7 @@ static func extras_of(node: Node) -> Dictionary:
 	return raw
 
 
-static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
+static func generate_scene(document: GLTFDocument, state: GLTFState, prepare_lod_hints:bool=false) -> Node:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.gltf_map_io.generate_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# An external model can be replaced with malformed but parseable JSON while
 	# the editor is open. Reject its invalid mesh references before scene creation.
@@ -311,6 +311,8 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 		if node.mesh>=(state.meshes.size() if legacy_state_array_getters_enabled else meshes.size()):return null
 	preload("res://scripts/world3d/load_trace.gd").elapsed("model.gltf_reference_scan",scan_began,{"nodes":nodes.size(),"array_reads":2+nodes.size() if legacy_state_array_getters_enabled else 2})
 	preload("res://scripts/world3d/runtime_probe_controls.gd").prepare_gltf_materials(state)
+	if prepare_lod_hints and preload("res://scripts/world3d/ground_cpu_mesh.gd").importer_lod_hints_enabled:
+		preload("res://scripts/world3d/importer_lod_hint.gd").prepare(state,nodes,meshes)
 	var scene := document.generate_scene(state)
 	if scene == null: return null
 	# GLTFState exposes typed arrays through getters. Reuse each observation

@@ -363,7 +363,7 @@ static func _append_gltf(path:String,prepare_scene:bool=false)->Dictionary:
 		# private graph off-tree and under the shared raw import mutex. Source
 		# identity is checked again by _source_transaction after this entire stage.
 		var began:=Time.get_ticks_usec()
-		var scene:Node=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(document,state)
+		var scene:Node=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(document,state,true)
 		preload("res://scripts/world3d/load_trace.gd").elapsed("model.private_generate",began,{"path":path})
 		if scene==null:result.error=ERR_CANT_CREATE
 		else:
