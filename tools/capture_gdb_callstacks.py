@@ -71,9 +71,12 @@ class MI:
         return self.console
 
 
-def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_tid=None):
+def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_tid=None,
+            phase_log=None, wait_marker=None, workers_every=20, depth=64):
     if not 0 < seconds <= 600 or not 10 <= interval_ms <= 5000 or (main_tid is not None and main_tid <= 0):
         raise ValueError("Sampling duration, interval or main thread is invalid")
+    if workers_every < 0 or not 8 <= depth <= 128 or (wait_marker and phase_log is None):
+        raise ValueError("Invalid stack depth, worker frequency or phase gate")
     # Resolve the exact executable before attaching. Never select a process
     # merely by name when another Godot/editor may belong to the user.
     target = psutil.Process(pid)
@@ -93,6 +96,15 @@ def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_t
                 mi.cli("source " + pretty.as_posix())
             exporter = Path(__file__).with_name("gdb_export_callstacks.py")
             mi.cli("source " + exporter.as_posix())
+            # Load symbols while the engine runs, then attach only when the
+            # requested real test phase is reached. Never pause it to wait.
+            deadline = time.monotonic() + 180
+            while wait_marker:
+                if phase_log.is_file() and wait_marker in phase_log.read_text(encoding="utf-8", errors="replace"):
+                    break
+                if not target.is_running() or time.monotonic() > deadline:
+                    raise RuntimeError("Owned test exited or phase gate timed out")
+                time.sleep(.1)
             fresh = psutil.Process(pid)
             if fresh.create_time() != created or Path(fresh.exe()).resolve() != executable.resolve():
                 raise ValueError("Test process identity changed before attach")
@@ -101,6 +113,7 @@ def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_t
             began = time.monotonic(); seq = 0
             result.write(json.dumps({"kind":"header", "pid":pid, "process_create_time":created, "executable":str(executable),
                 "seconds":seconds, "interval_ms":interval_ms, "main_os_tid":main_tid,
+                "wait_marker":wait_marker, "workers_every":workers_every, "depth":depth,
                 "start_unix_ns":time.time_ns(), "start_monotonic_ns":time.monotonic_ns(),
                 "note":"All-stop debugger samples; collection time and symbol loading are diagnostic overhead."}) + "\n")
             while time.monotonic() - began < seconds and not mi.exited:
@@ -114,13 +127,19 @@ def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_t
                 if mi.exited:
                     break
                 stopped = time.monotonic_ns()
-                dump = "rmmo-dump-stacks " + ("1" if seq % 20 == 0 else "0")
-                if main_tid is not None:dump += " " + str(main_tid)
+                stopped_unix_ns = time.time_ns()
+                dump = "rmmo-dump-stacks " + ("1" if workers_every and seq % workers_every == 0 else "0")
+                dump += " " + str(main_tid or 0) + " " + str(depth)
                 lines = mi.cli(dump)
+                phase = None
+                if phase_log is not None and phase_log.is_file():
+                    phase = next((line for line in reversed(phase_log.read_text(encoding="utf-8", errors="replace").splitlines())
+                                  if line.startswith("WHITE_TRAVERSAL ")), None)
                 for line in lines:
                     if line.startswith("RMMO_NATIVE_STACKS "):
                         result.write(json.dumps({"kind":"sample", "seq":seq,
                             "at_ms":(time.monotonic()-began)*1000, "unix_ns":time.time_ns(),
+                            "stopped_unix_ns":stopped_unix_ns, "phase":phase,
                             "collector_stop_us":(time.monotonic_ns()-stopped)/1000,
                             "threads":json.loads(line.removeprefix("RMMO_NATIVE_STACKS "))}) + "\n")
                         result.flush(); seq += 1
@@ -149,7 +168,12 @@ if __name__ == "__main__":
     parser.add_argument("--seconds", type=float, default=120.)
     parser.add_argument("--interval-ms", type=float, default=100.)
     parser.add_argument("--main-tid", type=int)
+    parser.add_argument("--phase-log", type=Path)
+    parser.add_argument("--wait-marker")
+    parser.add_argument("--workers-every", type=int, default=20, help="0 captures only the main thread")
+    parser.add_argument("--depth", type=int, default=64)
     args = parser.parse_args()
     if not 0 < args.seconds <= 600 or not 10 <= args.interval_ms <= 5000:
         parser.error("Sampling duration or interval outside diagnostic limits")
-    capture(args.pid, args.executable, args.gdb, args.output, args.seconds, args.interval_ms, args.main_tid)
+    capture(args.pid, args.executable, args.gdb, args.output, args.seconds, args.interval_ms, args.main_tid,
+            args.phase_log, args.wait_marker, args.workers_every, args.depth)

@@ -19,6 +19,7 @@ var _retired:Dictionary={}
 var _clock:=0.
 var _cursor:=0
 static var retirement_batching_enabled:=true
+static var lazy_pending_scan_enabled:=true
 func configure(host:Node,map_root:Node,queue:Node)->void:
 	name="NativeResidency";set_meta("stream_instance",true);_host=host;_map=map_root;_queue=queue
 	var index:Dictionary=queue._reference_index
@@ -198,16 +199,29 @@ func _release_preparation_cache(entries:Array)->void:
 
 func _retirement_candidates(now:int)->Array:
 	var keys:Array=_resident.keys();var candidates:Array=[];var pending_ids:Dictionary={}
-	for item:Dictionary in _queue.pending:pending_ids[item.record.uuid]=true
+	var pending_checked:=not lazy_pending_scan_enabled
+	if pending_checked:pending_ids=_retirement_pending_ids()
 	for scan:int in mini(16,keys.size()):
 		_cursor%=keys.size();var id:String=keys[_cursor];_cursor+=1
 		var state:Dictionary=_resident[id];var unit:Dictionary=_units[id]
 		if _needed(unit):state.outside_since=-1;continue
 		if int(state.outside_since)<0:state.outside_since=now;continue
 		if now-int(state.outside_since)<grace_msec:continue
+		# Most polls contain only needed units or units still in their grace
+		# period. Build this guard only for a real candidate, once per poll.
+		# It remains fresh within the same synchronous retirement observation.
+		if not pending_checked:
+			pending_ids=_retirement_pending_ids();pending_checked=true
 		var waiting:=false
 		for entry:Dictionary in unit.entries:
 			if pending_ids.has(entry.compact_record.uuid):waiting=true;break
 		if not waiting:candidates.append(id)
 	profile.scanned_units=int(profile.get("scanned_units",0))+mini(16,keys.size())
 	return candidates
+
+func _retirement_pending_ids()->Dictionary:
+	var result:Dictionary={}
+	for item:Dictionary in _queue.pending:result[item.record.uuid]=true
+	profile.pending_membership_builds=int(profile.get("pending_membership_builds",0))+1
+	profile.pending_membership_rows=int(profile.get("pending_membership_rows",0))+_queue.pending.size()
+	return result

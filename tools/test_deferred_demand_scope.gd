@@ -5,7 +5,7 @@ const Index=preload("res://scripts/world3d/stream_index.gd")
 const SHARED:="reference:shared"
 class Document extends RefCounted:
 	var calls:Array=[]
-	func _mesh(record:Dictionary)->Node3D:
+	func _mesh(record:Dictionary,_effects:bool=true,_timings:Variant=null)->Node3D:
 		calls.append(record.uuid);return Node3D.new()
 var passed:=0
 var failures:=0

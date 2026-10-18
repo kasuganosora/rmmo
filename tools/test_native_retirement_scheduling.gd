@@ -59,7 +59,11 @@ func run()->void:
 	check(queue._doc.terrain_neighbors.data.has("preparing") and is_same(queue._doc.terrain_neighbors.data.preparing,context) and not queue._doc.terrain_neighbors.data.has("0"),"unloading one unit preserves unrelated prepared terrain seams")
 	check(held_watch.get_ref()!=null and unused_watch.get_ref()==null,"retirement releases unused hot materials while retaining admitted material preparation")
 	check(not service._resident.has("0") and service._resident["15"].outside_since==100,"successful small retirement still observes the end of the same bounded slice")
+	# Real polls occur on separate frames. Multiple synthetic polls in one
+	# frame can hit the shared 2 ms retirement allowance depending on host load.
+	await process_frame
 	service.poll(120)
+	await process_frame
 	service.poll(140)
 	check(not service._resident.has("15"),"large cold unit retires after its grace instead of waiting for all earlier small units")
 	check(service.profile.scanned_units==48,"successful retirement never truncates bounded observation accounting")

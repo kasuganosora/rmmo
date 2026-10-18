@@ -32,6 +32,13 @@ func continuous_test()->void:
 		await tick(queue)
 	check(exact,"both moving callers keep exact current-footprint readiness during continuous motion")
 	check(queue._demand_revision==revision and int(queue.profile.demand_refreshes)==before,"centimetre XZ steps and large height changes do not re-sort the entire demand set")
+	check(not f.document.calls.is_empty() and queue.pending.size()<rows.size(),"continuous movement makes publication progress before the final drain")
+	# Publication itself now has multiple bounded preparation slices. A fixed
+	# 180 ticks cannot finish 80 objects when each needs at least four slices.
+	# Keep the already-tested movement/ticket invariant, then bound the drain.
+	for drain_frame:int in 600:
+		if queue.is_complete():break
+		await tick(queue)
 	check(queue.started.size()==80 and queue.is_complete() and f.document.calls.size()==80,"small-step safety tickets leave sustained CPU preparation and publication progress")
 	check(int(queue.profile.max_total_jobs)<=4 and queue._admission.reserved_bytes==0,"moving-demand reuse preserves backlog and byte limits")
 	check(int(queue.profile.get("moving_demand_reuses",0))>=360,"reused movement envelopes are directly observable")

@@ -186,6 +186,9 @@ func run()->void:
 		elif arg=="--renderer-lod-readback":CpuMesh.importer_lod_hints_enabled=false
 		elif arg=="--serial-retirement-schema":preload("res://scripts/world3d/stream_index.gd").retirement_schema_workers=0
 		elif arg=="--allocated-index-signatures":preload("res://scripts/world3d/stream_index_preparation.gd").shared_signature_defaults_enabled=false
+		elif arg=="--untyped-demand-scan":preload("res://scripts/world3d/deferred_asset_loader.gd").typed_demand_scan_enabled=false
+		elif arg=="--eager-retirement-pending-scan":preload("res://scripts/world3d/native_residency.gd").lazy_pending_scan_enabled=false
+		elif arg=="--single-asset-retirement":preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled=false
 		elif arg=="--sync-loading-batches":preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled=false
 		elif arg=="--join-loading-workers":preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled=true
 		elif arg=="--legacy-retirement-validation":preload("res://scripts/world3d/world_stream.gd").legacy_retirement_validation_enabled=true
@@ -241,6 +244,9 @@ func run()->void:
 	report.controls.reuse_owned_retirement_plan=preload("res://scripts/world3d/stream_index.gd").reuse_owned_retirement_plan_enabled
 	report.controls.importer_lod_hints=CpuMesh.importer_lod_hints_enabled
 	report.controls.retirement_schema_workers=preload("res://scripts/world3d/stream_index.gd").retirement_schema_workers
+	report.controls.typed_demand_scan=preload("res://scripts/world3d/deferred_asset_loader.gd").typed_demand_scan_enabled
+	report.controls.lazy_retirement_pending_scan=preload("res://scripts/world3d/native_residency.gd").lazy_pending_scan_enabled
+	report.controls.asset_retirement_batching=preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled
 	report.controls.shared_signature_defaults=preload("res://scripts/world3d/stream_index_preparation.gd").shared_signature_defaults_enabled
 	report.controls.batched_road_reference_jobs=preload("res://scripts/world3d/deferred_asset_loader.gd").native_reference_batching_enabled
 	report.controls.repeated_gltf_state_getters=preload("res://scripts/world3d/gltf_map_io.gd").legacy_state_array_getters_enabled

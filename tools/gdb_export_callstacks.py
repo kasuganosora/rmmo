@@ -1,4 +1,4 @@
-"""Source in GDB: rmmo-dump-stacks INCLUDE_WORKERS [MAIN_OS_TID].
+"""Source in GDB: rmmo-dump-stacks INCLUDE_WORKERS [MAIN_OS_TID] [DEPTH].
 
 Reads debugger memory only. Execution control belongs to the standard GDB/MI
 client; no timers or injected application-side timing hooks are installed.
@@ -47,10 +47,12 @@ class ExportCallstacks(gdb.Command):
         if not threads:
             raise gdb.GdbError("No stopped test process")
         args = argument.split()
-        main_tid = int(args[1]) if len(args) > 1 else None
+        main_tid = (int(args[1]) or None) if len(args) > 1 else None
+        depth = int(args[2]) if len(args) > 2 else 64
+        if not 8 <= depth <= 128:raise gdb.GdbError("Stack depth outside diagnostic limits")
         main = next((thread for thread in threads if main_tid in thread.ptid[1:]), None) if main_tid is not None else min(threads, key=lambda thread: thread.global_num)
         if main is None:raise gdb.GdbError("The supplied main OS thread is not present")
-        result = [stack(main)]
+        result = [stack(main, depth)]
         if args and args[0] == "1":
             result.extend(stack(thread, 16) for thread in threads
                           if thread != main and thread.is_stopped())

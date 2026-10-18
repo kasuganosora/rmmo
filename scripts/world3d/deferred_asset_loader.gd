@@ -41,6 +41,7 @@ static var collision_first_enabled:=false # Exact sidecar experiment; normal geo
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
 static var owned_index_projection_enabled:=true # Private raw-model specs transfer without copying/remapping.
+static var typed_demand_scan_enabled:=true # Diagnostic control retains the exact unfiltered scheduler.
 const COLLISION_QUERY_CACHE_LIMIT:=16
 var pending:Array=[]
 var profile:Dictionary={"models":0,"instances":0,"specs":0,"worker_us":0,"max_publish_us":0}
@@ -702,10 +703,18 @@ func _refresh_demanded()->void:
 	var began:=Time.get_ticks_usec()
 	var candidates:Dictionary={}
 	_index_pending()
+	var typed_scans:Dictionary=_typed_full_scan_inputs() if typed_demand_scan_enabled else {}
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
-		var candidates_for_demand:Array=pending if demand.has("group_id") else _in_clip(demand.clip)
+		var candidates_for_demand:Array
+		if demand.has("group_id"):candidates_for_demand=pending
+		elif typed_scans.has(id):
+			var matches:Dictionary={}
+			for item:Dictionary in typed_scans[id]:
+				if _intersects(demand.clip,item.bounds):matches[item.record.uuid]=item
+			candidates_for_demand=matches.values()
+		else:candidates_for_demand=_in_clip(demand.clip)
 		for item:Dictionary in candidates_for_demand:
 			if item.get("published",false) or (demand.has("group_id") and item.get("group_id","")!=demand.group_id):continue
 			if demand.get("kind","all")=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
@@ -747,6 +756,46 @@ func _refresh_demanded()->void:
 	profile.demand_refresh_us=int(profile.get("demand_refresh_us",0))+elapsed
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)
 	profile.demand_refreshes=int(profile.get("demand_refreshes",0))+1
+
+func _typed_full_scan_inputs()->Dictionary:
+	# Broad building/road/structure rings used to scan every pending reference
+	# and then discard other kinds. Partition once inside this refresh only.
+	# Local spatial queries, group tickets and readiness keep their old path.
+	var kinds:Dictionary={};var tickets:Dictionary={};var envelope:=AABB()
+	for id:String in _demands:
+		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
+		var demand:Dictionary=_demands[id];var kind:String=demand.get("kind","all")
+		if demand.has("group_id") or kind not in ["building","road","structure"]:continue
+		var clip:AABB=demand.clip
+		var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
+		if (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():continue
+		envelope=clip if tickets.is_empty() else envelope.merge(clip)
+		if not kinds.has(kind):kinds[kind]=[]
+		tickets[id]=kinds[kind]
+	# A single scan cannot share this work; preserve its direct query path.
+	if tickets.size()<2:return {}
+	# Keep large-first ordering and defer UUID deduplication until after exact
+	# intersection, including equal-distance ties and overlapping candidates.
+	var prefilter_tests:=0
+	for collection:Array in [_large_pending,pending]:
+		for item:Dictionary in collection:
+			if item.get("published",false):continue
+			prefilter_tests+=1
+			# Far empty rings reject once before any kind lookup. Each retained
+			# candidate still gets its exact individual ticket intersection.
+			if not _intersects(envelope,item.bounds):continue
+			if kinds.has("building") and (str(item.get("group_id","")).begins_with("building:") or _runtime_building_records.has(item.record.uuid)):
+				kinds.building.append(item)
+			var reason:Variant=item.get("reference_entry",{}).get("reason","")
+			if kinds.has("road") and reason=="native_road":kinds.road.append(item)
+			if kinds.has("structure") and reason in ["native_fortification","native_bridge"]:kinds.structure.append(item)
+	var count:=0
+	for values:Array in tickets.values():count+=values.size()
+	profile.typed_full_scan_tickets=int(profile.get("typed_full_scan_tickets",0))+tickets.size()
+	profile.typed_full_scan_candidates=int(profile.get("typed_full_scan_candidates",0))+count
+	profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+prefilter_tests
+	profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*prefilter_tests
+	return tickets
 
 func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->void:
 	if _runtime_building_records.get(uuid)==bounds and _runtime_building_supports.get(uuid,{})==supports:return

@@ -167,7 +167,19 @@ func traverse()->void:
 	await steady_geometry("white_origin_steady",origin)
 	if "--origin-only" in OS.get_cmdline_user_args():
 		report.origin_after=sample_residency();return
-	if not "--native-only" in OS.get_cmdline_user_args():
+	if "--walk-only" in OS.get_cmdline_user_args():
+		# Normal-speed focus control across several real cells. This remains a
+		# geometry host, not an avatar/gameplay walking or full-game FPS claim.
+		var walk_target:=origin+Vector3(160,0,96)
+		var walk_seconds:=origin.distance_to(walk_target)/6.
+		report.traversal_contract.controlled_focus_speed_mps=6.
+		await leg("white_walk_outbound",walk_target,walk_seconds)
+		await leg("white_walk_unload",walk_target,15.)
+		await leg("white_walk_return",origin,walk_seconds)
+		await leg("white_walk_reload",origin,25.)
+		if "--settle-demands" in OS.get_cmdline_user_args():await settle_demands("white_walk_demand_settle",origin,90.)
+		await steady_geometry("white_walk_steady",origin)
+	elif not "--native-only" in OS.get_cmdline_user_args():
 		await leg("white_stream_outbound",destination,maxf(16.,origin.distance_to(destination)/16.))
 		await leg("white_stream_unload",destination,25.)
 		await leg("white_stream_return",origin,maxf(16.,origin.distance_to(destination)/16.))

@@ -23,6 +23,8 @@ var _unknown_asset_specs:Dictionary={}
 var _procedural_assets:Dictionary={}
 var _native_namespaces:Dictionary={}
 static var legacy_retirement_source_scan_enabled:=false
+static var retirement_batching_enabled:=true
+var _retry_individually:=false
 var _clock:=0.0
 var _cursor:=0
 
@@ -139,46 +141,77 @@ func _needed(entry:Dictionary)->bool:
 	if is_instance_valid(navigation) and _deferred._intersects(entry.bounds,navigation._local_clip.grow(exit_margin)):return true
 	return false
 
+func _eligible(uuid:String,now_msec:int)->bool:
+	var entry:Dictionary=_catalog[uuid];var resident:Dictionary=_resident[uuid]
+	if not resident.pinned.is_empty():return false
+	if _needed(entry) or _deferred._jobs.has(entry.asset_path):resident.outside_since=-1;return false
+	if int(resident.outside_since)<0:resident.outside_since=now_msec;return false
+	return now_msec-int(resident.outside_since)>=grace_msec
+
 func poll(now_msec:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_residency.poll") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var keys:Array=_resident.keys()
 	if keys.is_empty():return
 	var navigation:Node=_host.get("_navigation")
 	if not is_instance_valid(navigation) or not navigation.streaming_geometry:return
-	# At most one namespace retires per tick; all preflights are nonblocking.
-	for scanned in mini(32,keys.size()):
+	# At most one bounded transaction per tick. Whole eligible namespaces share
+	# the complete index/navigation checks and survivor-array compaction.
+	var remaining:=mini(32,keys.size())
+	while remaining>0:
 		_cursor%=keys.size()
-		var uuid:String=keys[_cursor];_cursor+=1
-		var entry:Dictionary=_catalog[uuid];var resident:Dictionary=_resident[uuid]
-		if not resident.pinned.is_empty():continue
-		if _needed(entry) or _deferred._jobs.has(entry.asset_path):resident.outside_since=-1;continue
-		if int(resident.outside_since)<0:resident.outside_since=now_msec;continue
-		if now_msec-int(resident.outside_since)<grace_msec:continue
-		var ids:Array=resident.ids
+		var uuid:String=keys[_cursor];_cursor+=1;remaining-=1
+		if not _eligible(uuid,now_msec):continue
+		var uuids:Array=[uuid];var entries:Array=[_catalog[uuid]];var ids:Array=_resident[uuid].ids.duplicate()
+		if retirement_batching_enabled and not _retry_individually and ids.size()<=128:
+			# Lookahead does not advance the retry cursor. A rejected bundle must
+			# not cycle back to the same first owner and starve its valid neighbours.
+			for offset:int in remaining:
+				if uuids.size()>=8:break
+				remaining-=1
+				var next:String=keys[(_cursor+offset)%keys.size()]
+				if not _eligible(next,now_msec):continue
+				var extra_ids:Array=_resident[next].ids
+				if ids.size()+extra_ids.size()>128:continue
+				uuids.append(next);entries.append(_catalog[next]);ids.append_array(extra_ids)
 		var result:=Stream.retire_specs(_map,ids,false,navigation,"ordinary_retirement")
+		profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
 		if not result.ok:
 			profile.last_wait=result.error
-			if result.error=="retirement_budget":return
+			# These map/frame barriers cannot change inside this synchronous poll.
+			# Rechecking other owners only repeats the same refusal; it also must
+			# not demote the next ready transaction to an individual retry.
+			if result.error in ["retirement_budget","stream_busy"]:return
+			if uuids.size()>1:_retry_individually=true
 			continue
 		var cleanup_started:=Time.get_ticks_usec()
-		_deferred.requeue_reference(entry)
-		_resident.erase(uuid);_retired[uuid]=true
-		profile.retired_instances+=1;profile.retired_specs+=result.removed;profile.last_wait=""
+		if entries.size()==1:_deferred.requeue_reference(entries[0])
+		else:_deferred.requeue_references(entries)
+		var paths:Dictionary={}
+		for id:String in uuids:
+			paths[_catalog[id].asset_path]=true
+			_resident.erase(id);_retired[id]=true
+		_retry_individually=false
+		profile.retired_instances+=uuids.size();profile.retired_specs+=result.removed;profile.last_wait=""
+		profile.retirement_transactions=int(profile.get("retirement_transactions",0))+1
+		profile.max_instances_per_transaction=maxi(int(profile.get("max_instances_per_transaction",0)),uuids.size())
 		profile.resident_instances=_resident.size()
-		var used:=model_in_use(entry.asset_path)
-		if legacy_retirement_source_scan_enabled:
-			used=false
-			for spec:Dictionary in _map.get_meta("stream_library",[]):
-				var source_id:String=str(spec.uuid).get_slice("__",0)
-				if _record_paths.get(source_id,"")==entry.asset_path or spec.get("ground_batch_record",{}).get("asset_path","")==entry.asset_path or spec.get("extras",{}).get("asset_path","")==entry.asset_path:used=true;break
-			if not used:
-				for id:String in _resident:
-					if _catalog[id].asset_path==entry.asset_path:used=true;break
-		# Other maps/nodes retain their own resources. The queue checks template
-		# availability before publication, so a miss always returns to a worker.
-		if not used:
-			var scope:RefCounted=_map.get_meta("runtime_asset_cache_scope") if _map.has_meta("runtime_asset_cache_scope") else null
-			var evicted:bool=scope.release(entry.asset_path) if scope!=null else Assets.evict_cached_scene(entry.asset_path)
-			if evicted:_deferred._prepared_paths.erase(entry.asset_path);profile.evicted_models+=1
+		for path:String in paths:_evict_unused_model(path)
 		Stream.charge_retirement_work(_map,"ordinary_retirement",cleanup_started)
 		return
+
+func _evict_unused_model(path:String)->void:
+	var used:=model_in_use(path)
+	if legacy_retirement_source_scan_enabled:
+		used=false
+		for spec:Dictionary in _map.get_meta("stream_library",[]):
+			var source_id:String=str(spec.uuid).get_slice("__",0)
+			if _record_paths.get(source_id,"")==path or spec.get("ground_batch_record",{}).get("asset_path","")==path or spec.get("extras",{}).get("asset_path","")==path:used=true;break
+		if not used:
+			for id:String in _resident:
+				if _catalog[id].asset_path==path:used=true;break
+	# Other maps/nodes retain their resources. Evict shared paths only after
+	# every selected namespace has released ownership in the same transaction.
+	if not used:
+		var scope:RefCounted=_map.get_meta("runtime_asset_cache_scope") if _map.has_meta("runtime_asset_cache_scope") else null
+		var evicted:bool=scope.release(path) if scope!=null else Assets.evict_cached_scene(path)
+		if evicted:_deferred._prepared_paths.erase(path);profile.evicted_models+=1
