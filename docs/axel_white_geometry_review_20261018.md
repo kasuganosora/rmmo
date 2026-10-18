@@ -385,3 +385,17 @@ GDB 采样链路先用外部独立 C++ 程序验证，未给游戏加入新的�
 同一 -O3/-gdwarf-5/-g2/-Wa,-mbig-obj 工具链的独立程序，经 objcopy 分离调试信息、剥离原 exe 的调试信息并加入 gnu_debuglink 后，GDB 仍自动解析 work() 的源码第 3 行；记录在 D:/tools/godot-profile-build/sampler_fixture_separate_symbols.log。GDB 对中间 PE bigobj 直接读取提示 string table 问题，而最终链接的独立符号模式验证通过；Godot 最终 exe/debug 的验证仍等待完整构建结束，不能用小程序替代引擎验收。构建进程已降为 BelowNormal 优先级，减少与用户正在进行的工作的竞争。
 
 白模路线使用生产 prioritize 与玩家碰撞需求接口，但 2,048 米离开/返回段为压力路线，移动速度高于正常步行；需求重建触发次数不能直接外推成普通步行。后续收益要分别复测正常移动与压力路线，仍不恢复纹理或外围系统。
+
+## 带调试符号的同版本引擎交付
+
+2026-10-18 15:37 构建完成，SCons 实际用时 01:01:31.52，退出成功；版本为 4.7.2.stable.custom_build.ed1daf0bf。产物位于 D:/tools/godot-profile-build/source/godot-4.7.2-stable/bin/：godot.windows.editor.x86_64.exe 为 176,177,930 字节，配套 .exe.debugsymbols 为 2,195,730,929 字节，保持二者同目录。编译参数、源包证明及实际产物 SHA 已写入 D:/tools/godot-profile-build/build_manifest.json。
+
+GDB 加载最终 exe 后自动识别独立符号，能定位 GDScriptFunction::call 到 modules/gdscript/gdscript_vm.cpp:499，以及 ArrayMesh::surface_get_arrays 到 scene/resources/mesh.cpp:1842；证明保存在 gdb_engine_symbols_verified.log。增加大符号文件首次加载的 120 秒等待，普通 MI 命令仍为 30 秒。原生测试直接启动 exe，不使用 console 包装器，确保被附加的 PID 和主线程 TID 就是实际引擎。
+
+white_custom_symbols_smoke 在不激活的私有桌面运行该引擎：白模加载、真实 GPU 检查 1,270 个 surface 全白、地图 SHA 稳定、失败零，退出后 worker/模板/导入与资源退休/准入额度全部归零。编译配置差异和调试器开销仍不允许将该轮耗时当作正式性能收益。
+
+white_native_gdb_stacks.jsonl 实际取得 105 份主线程样本，保留可解析的脚本函数名和源码行。已确认 ground_cpu_mesh.primitive_arrays → ArrayMesh::surface_get_arrays → RendererRD::MeshStorage::mesh_get_surface → RenderingDevice::buffer_get_data → _flush_and_stall_for_all_frames，部分栈落在 Vulkan fence_wait/提交；这证明 CPU 几何捕获确实能触发渲染器全帧同步。另有 terrain_collision_preparer/stream_collision_preparer → ConcavePolygonShape3D::set_faces → GodotConcavePolygonShape3D::_setup → _volume_build_bvh，确认相关碰撞 BVH 在被采样的主线程同步构建。这些是后续归因的具体调用链，不能仅据采样频次认定其耗时占比或已经修复。
+
+首次符号与栈展开开销很大：已停止事件之后的收集段中位数 281 ms、最大 24,563 ms，亦不包含全部暂停成本。170 秒采样窗口在初始加载阶段即耗尽，后续远离/卸载/返回不在本次原生采样覆盖内；不宣称已得到区块切换的原生栈。原始 MI、JSONL 和白模路线报告均保存在外部 review_artifacts，正式地图及项目引擎配置未修改。
+
+随后 white_native_gdb 路线正常完成，256 次区块切换、观察移除 2,495 个 spec、重载 2,434 个原 UUID，最大建筑和 native 单元均实际卸载并返回补齐；失败零、地图/计时源码 SHA 稳定、实际 GPU 白模及退出所有权检查通过，调试器已分离、所属引擎进程退出。该轮被调试器扰动，仅确认符号和真实加载/生命周期兼容，不能与无调试器路线直接比较耗时、驻留集合或 FPS。

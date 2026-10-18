@@ -49,13 +49,13 @@ class MI:
             self.console.append(ast.literal_eval(line[1:]))
         return line
 
-    def command(self, command):
+    def command(self, command, timeout=30):
         self.token += 1
         prefix = str(self.token) + "^"
         self.process.stdin.write(str(self.token) + command + "\n")
         self.process.stdin.flush()
         while True:
-            line = self.receive()
+            line = self.receive(timeout)
             if line.startswith(prefix):
                 if line.startswith(prefix + "error"):
                     raise RuntimeError(line)
@@ -87,7 +87,7 @@ def capture(pid, executable, gdb, output, seconds=120., interval_ms=100., main_t
         try:
             mi.command("-gdb-set mi-async on")
             mi.command("-gdb-set print thread-events off")
-            mi.command("-file-exec-and-symbols " + json.dumps(executable.as_posix()))
+            mi.command("-file-exec-and-symbols " + json.dumps(executable.as_posix()), timeout=120)
             pretty = executable.parent.parent / "misc/utility/godot_gdb_pretty_print.py"
             if pretty.is_file():
                 mi.cli("source " + pretty.as_posix())
