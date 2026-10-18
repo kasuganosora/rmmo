@@ -6,6 +6,8 @@ const Net=preload("res://scripts/net/net.gd")
 var failures:=0
 class Body extends CharacterBody3D:
 	var surface_id:="ground"
+	func _init()->void:
+		var collider:=CollisionShape3D.new();collider.name="CollisionShape3D";collider.shape=CapsuleShape3D.new();add_child(collider)
 func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
 	print("PASS " if ok else "FAIL ",label)

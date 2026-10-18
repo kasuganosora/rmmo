@@ -1,4 +1,4 @@
-extends "res://scripts/net/remote_boundary.gd"
+extends "res://scripts/net/real_gameplay_api.gd"
 ## Real Go transport. Inherited objects are UI projections; scaffold requests,
 ## snapshot methods and simulation are fenced by remote_boundary.gd.
 const Wire=preload("res://scripts/net/protocol/protobuf.gd")
@@ -50,6 +50,9 @@ func _ready()->void:
 	# rewards, bots, combat ticks, weather simulation or local world are run.
 	_init_combat_layers()
 	inventory.clear();equipment.clear();quest_journal.clear();mailbox.clear();auction.clear()
+	inventory=preload("res://scripts/net/remote/inventory.gd").new();inventory.set_catalog(item_catalog)
+	item_catalog._by_id.clear();skill_catalog._by_id.clear()
+	skill_catalog.register_skill({"id":"basic_attack","name":"普通攻击","requires_target":true,"starter":true})
 	combat_stats.player.hp=0
 	_accounts.clear();_remote_players.clear()
 	world3d_authority=preload("res://scripts/net/remote_world_authority.gd").new(self)
@@ -84,10 +87,12 @@ func _process(_delta:float)->void:
 	if is_world_ready() and not _move_inflight and now>=_movement_at and not _movement.is_empty():
 		_movement_at=now+int(1000./_hz());_send_movement()
 	if is_world_ready() and not _snapshot_inflight and now>=_snapshot_at:
-		_snapshot_at=now+1000;_refresh_runtime_snapshots()
+		if not gameplay.busy():_snapshot_at=now+int(clampf(float(ProjectSettings.get_setting("rmmo/network/snapshot_interval_sec",.25)),.1,5.)*1000);_refresh_runtime_snapshots()
+		gameplay.poll_events()
 
 func disconnect_server(message:String="")->void:
 	_connection_revision+=1
+	gameplay.cancel()
 	if _peer!=null:_peer.close();_peer=null
 	var requests:=_http_requests;_http_requests={}
 	for request:HTTPRequest in requests:
@@ -295,12 +300,12 @@ func enter_world3d(character_id:int)->void:
 	character["customization"]=character.get("customization",{})
 	combat_stats.reset_player(int(character.get("level",1)))
 	_project_snapshots()
-	enter_world_ready.emit(true,"已连接真实服务器，正在加载权威地图",{"character":character,"combat":combat_stats.snapshot_player_stats(),"inventory":business_snapshots.get("inventory",{}).get("bag",[]),"gold":business_snapshots.get("progression",{}).get("gold",0),"equipment":_equipment_rows(),"quests":[],"world_session":world_session.duplicate(true),"map_ref":world_session.map_ref})
+	enter_world_ready.emit(true,"已连接真实服务器，正在加载权威地图",{"character":character,"combat":combat_stats.snapshot_player_stats(),"inventory":gameplay.projection.bag(),"gold":business_snapshots.get("progression",{}).get("gold",0),"equipment":_equipment_rows(),"quests":snapshot_quest_journal(),"world_session":world_session.duplicate(true),"map_ref":world_session.map_ref})
 
 func refresh_world_snapshots()->Dictionary:
 	var scope:=context();var snapshots:Dictionary={}
-	for name:String in ["inventory","attributes","progression","combat-state","entities","skills","statuses","areas","party","alliance","rewards"]:
-		var result:Dictionary=await request_api("/v1/gameplay/"+name)
+	for name:String in ["inventory","attributes","progression","combat-state","entities","skills","statuses","areas","party","alliance","rewards","resurrection"]:
+		var result:Dictionary=await _read_rewards() if name=="rewards" else await request_api("/v1/gameplay/"+name)
 		if not result.ok:return {"ok":false,"error":"无法恢复服务器快照："+name+" "+str(result.get("error",""))}
 		snapshots[name]=result.body.get("data",{})
 	var sky:Dictionary=await request_api("/v1/environment")
@@ -312,7 +317,22 @@ func refresh_world_snapshots()->Dictionary:
 	var final:Dictionary=await request_api("/v1/world/session")
 	if not final.ok or scope!=context() or _http_context(final.body.get("data",{}))!=scope:return {"ok":false,"error":"world_changed_during_snapshot"}
 	business_snapshots=snapshots;_snapshot_revision+=1
-	return {"ok":true}
+	return await gameplay.projection.hydrate()
+
+func _read_rewards()->Dictionary:
+	var rows:Array=[];var after:=""
+	for page in 64:
+		var result:Dictionary=await request_api("/v1/gameplay/rewards?limit=50"+("&after="+after if not after.is_empty() else ""))
+		if not result.ok:return result
+		var data:Dictionary=result.body.get("data",{})
+		for row:Dictionary in data.get("rewards",[]):
+			if not row.get("claimed",false):rows.append(row)
+		if rows.size()>512:return {"ok":false,"error":"reward_snapshot_budget"}
+		if not data.get("more",false):return {"ok":true,"body":{"data":{"rewards":rows}}}
+		var next:=str(data.get("next",""))
+		if next.is_empty() or next==after:return {"ok":false,"error":"reward_cursor_loop"}
+		after=next
+	return {"ok":false,"error":"reward_page_budget"}
 
 func _http_context(value:Dictionary)->Dictionary:
 	return {"boot_id":value.get("boot_id",""),"session_epoch":int(value.get("session_epoch",0)),"map_generation":int(value.get("map_generation",0)),"map_ref":value.get("map_ref","")}
@@ -342,34 +362,35 @@ func _project_snapshots()->void:
 	var progression:Variant=business_snapshots.get("progression",{})
 	if progression is Dictionary:
 		combat_stats.player["level"]=int(progression.get("level",1));combat_stats.player["exp"]=int(progression.get("experience",0))
-	var bag:Variant=business_snapshots.get("inventory",{}).get("bag",[])
-	if bag is Array:inventory.restore_session_state({"stacks":bag,"gold":int(progression.get("gold",0)),"max_slots":int(business_snapshots.get("inventory",{}).get("capacity",40))})
+	gameplay.projection.apply()
 	awaiting_respawn=not combat_stats.player_alive()
 	if alive and awaiting_respawn:_network_actions.append({"type":"player_died"})
+	if not alive and not awaiting_respawn:_network_actions.append({"type":"player_revived"})
 
 func _equipment_rows()->Array:
-	var rows:Array=[];var slots:Variant=business_snapshots.get("inventory",{}).get("equipment",{})
-	if slots is Dictionary:
-		for slot:String in slots:
-			var row:Dictionary=slots[slot].duplicate(true);row.slot=slot;row.item_id=row.get("id","");rows.append(row)
-	return rows
+	return gameplay.projection.equipment()
 
 func _refresh_runtime_snapshots()->void:
-	_snapshot_inflight=true;var scope:=context()
-	for name:String in ["combat-state","inventory","progression"]:
-		var response:Dictionary=await request_api("/v1/gameplay/"+name)
-		if scope!=context():_snapshot_inflight=false;return
+	_snapshot_inflight=true;var scope:=context();var revision:=_connection_revision
+	for name:String in ["combat-state","inventory","attributes","progression","entities","skills","statuses","areas","party","alliance","rewards","resurrection"]:
+		var response:Dictionary=await _read_rewards() if name=="rewards" else await request_api("/v1/gameplay/"+name)
+		if scope!=context():_finish_runtime_snapshot(revision);return
 		if response.ok:business_snapshots[name]=response.body.get("data",{})
 	var sky:Dictionary=await request_api("/v1/environment")
-	if scope!=context():_snapshot_inflight=false;return
+	if scope!=context():_finish_runtime_snapshot(revision);return
 	if sky.ok:business_snapshots.environment=sky.body
 	var interactions:Dictionary=await _read_interactions()
-	if scope!=context():_snapshot_inflight=false;return
+	if scope!=context():_finish_runtime_snapshot(revision);return
 	if interactions.ok:business_snapshots.interactions=interactions.data;_snapshot_revision+=1
+	var projected:Dictionary=await gameplay.projection.hydrate()
+	if scope!=context():_finish_runtime_snapshot(revision);return
+	if not projected.ok:_finish_runtime_snapshot(revision);return
 	_project_snapshots()
-	_network_actions.append({"type":"remote_combat_state","stats":combat_stats.snapshot_player_stats()})
-	_network_actions.append({"type":"inventory_update","items":business_snapshots.get("inventory",{}).get("bag",[]),"gold":inventory.get_gold()})
-	_snapshot_inflight=false
+	_network_actions.append_array(gameplay.projection.actions())
+	_finish_runtime_snapshot(revision)
+
+func _finish_runtime_snapshot(revision:int)->void:
+	if revision==_connection_revision:_snapshot_inflight=false
 
 func restore_map_interactions(map_root:Node)->void:
 	if int(map_root.get_meta("remote_interaction_revision",-1))==_snapshot_revision:return
@@ -380,15 +401,21 @@ func restore_map_interactions(map_root:Node)->void:
 
 func interact_nearest(feet:Vector3)->void:
 	var page:Dictionary=business_snapshots.get("interactions",{});var selected:Dictionary={};var distance:=INF
+	var creature:=""
+	for id:String in gameplay.projection.entities:
+		var row:Dictionary=gameplay.projection.entities[id]
+		if not row.get("interactable",false) or row.get("state",{}).get("dead",false):continue
+		var p:Dictionary=row.get("position_m",{})
+		var d:=feet.distance_to(Vector3(p.get("x",0.),p.get("y",0.),p.get("z",0.)))
+		if d<=3. and d<distance:creature=id;distance=d
 	for row:Dictionary in page.get("objects",[]):
 		var point:Variant=row.get("position",[])
 		if not point is Array or point.size()!=3 or row.get("actions",[]).is_empty():continue
 		var d:=feet.distance_to(Vector3(point[0],point[1],point[2]))
-		if d<=float(row.get("radius_m",0.)) and d<distance:selected=row;distance=d
+		if d<=float(row.get("radius_m",0.)) and d<distance:selected=row;distance=d;creature=""
+	if not creature.is_empty():gameplay.dispatch("interact",[creature]);return
 	if selected.is_empty():return
-	var result:Dictionary=await request_api("/v1/world/interactions",HTTPClient.METHOD_POST,{"map_id":page.map_id,"generation":page.generation,"definition_revision":page.definition_revision,"expected_revision":page.revision,"object_id":selected.id,"action":selected.actions[0]})
-	if not result.ok:_network_actions.append({"type":"system_message","text":"服务器拒绝交互，请刷新后重试"})
-	_snapshot_at=0
+	gameplay.dispatch("map_interaction",[selected.id,selected.actions[0]])
 
 func snapshot_world3d_sky(_map_id:String)->Dictionary:return business_snapshots.get("environment",{}).duplicate(true)
 
@@ -471,13 +498,13 @@ func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={}
 	var request:=HTTPRequest.new();request.timeout=_timeout();request.body_size_limit=8*1048576;request.max_redirects=0;add_child(request)
 	var ticket:=Ticket.new();_http_requests[request]=ticket
 	request.request_completed.connect(func(result:int,status:int,response_headers:PackedStringArray,bytes:PackedByteArray):ticket.resolve({"response":[result,status,response_headers,bytes]}),CONNECT_ONE_SHOT)
-	var err:=request.request(_endpoint.http+path,headers,method,"" if method==HTTPClient.METHOD_GET else JSON.stringify(body))
+	var err:=request.request(_endpoint.http+path,headers,method,"" if method==HTTPClient.METHOD_GET else JSON.stringify(body,"",true,true))
 	if err!=OK:_http_requests.erase(request);request.queue_free();return {"ok":false,"error":"http_request_failed"}
 	var completion:Dictionary=ticket.result if ticket.done else await ticket.finished
 	if not completion.has("response"):return completion
 	var response:Array=completion.response
 	_http_requests.erase(request);request.queue_free()
-	if revision!=_connection_revision or scope!=context():return {"ok":false,"error":"stale_world_response"}
+	if revision!=_connection_revision or scope!=context() and path!="/v1/world/session":return {"ok":false,"error":"stale_world_response"}
 	var parsed:Variant=JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
 	if not parsed is Dictionary:return {"ok":false,"status":int(response[1]),"error":"invalid_json_response"}
 	var ok:bool=response[0]==HTTPRequest.RESULT_SUCCESS and response[1]>=200 and response[1]<300 and parsed.get("ok",true)

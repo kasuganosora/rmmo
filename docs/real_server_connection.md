@@ -1,7 +1,8 @@
 # 真实服务器通信分支
 
 分支：`feat/real-server-transport`，基于客户端 `c333a6466009d910957b2b05d8fc58ad2f81741f`。
-Go 协议基准：`rmmo_server` 的 `01d1128c08bfcf47af964ecd2957eb16a011f29c`。
+Go 服务端配套分支：`rmmo_server/feat/real-server-transport`。
+协议源 SHA256：`954b9d240cf4a658b89e70f2d9ba8cc571fd2573cfa210405abd68391e8ea05a`。
 本分支只修改功能代码、配置和测试；不修改地图、角色、模型或纹理资源。
 
 ## 开关与连接
@@ -27,6 +28,8 @@ godot --path /path/to/rmmo -- --backend=mock
 | `rmmo/network/server_url` | `http://127.0.0.1:7777` | 服务端源地址 |
 | `rmmo/network/request_timeout_sec` | `10` | 连接、RPC 和 HTTP 超时，限制在 1–60 秒 |
 | `rmmo/network/movement_hz` | `20` | 方向意图发送频率，限制在 5–30 Hz |
+| `rmmo/network/snapshot_interval_sec` | `0.25` | 业务快照刷新间隔，限制在 0.1–5 秒 |
+| `rmmo/network/event_interval_sec` | `0.1` | 战斗事件轮询间隔，限制在 0.05–5 秒 |
 | `rmmo/network/map_paths` | `{}` | 服务端地图身份到本地资源路径的显式映射 |
 
 地址支持 `http` / `https` / `ws` / `wss`，不带路径；传输自动使用 `/ws` 和 `/v1/`。
@@ -68,8 +71,12 @@ gameserver -content /path/to/server-content -map default/editor_yard
 - 带 Bearer 的 JSON GET 和带完整 WorldContext 头的 POST 入口。
 - 入场时恢复背包、属性、成长、生命、实体、技能、状态、区域、队伍、联盟、奖励、
   环境及附近地图交互快照；分页交互完成后再次核对世界会话，再允许 Ready。
-- 周期刷新生命、背包、成长、环境和附近交互；门窗的服务器状态应用到运行时
-  碰撞/表现，E 键向服务器提交附近对象的首个可用交互。
+- NPC/怪物的实际位置、生命和生成代次映射到可选择的运行时角色；普通攻击、单体/自身/地面技能、药水和施法取消调用真实接口。技能目录、冷却、属性与状态图标来自服务器定义和快照。
+- NPC 对话、任务接受/交付/放弃、可信商店购买/出售/回购、背包整理/拆分/锁定/穿脱装备/分配属性；相同物品的不同堆叠使用独立实例 ID。
+- E 键领取附近的服务器击杀掉落，或与附近 NPC/地图对象交互；掉落按服务器账本整组领取，满包失败保留账本。
+- 死亡与复活状态来自服务器；复活后重新加载新代次的地图并确认 Ready。
+- 门窗的服务器状态应用到运行时碰撞/表现；`set_building_component_state()` 在真实模式提交版本化交互，只接受 0/1，服务端确认前不改变本地姿态。
+- 战斗事件按游标去重、确认；断线取消待处理请求，不重新发送旧业务。
 
 Ready 前、断线后和错误世界代次下不发送移动。地图变化会取消旧路径/Ready 回调，
 旧请求不会换上新上下文自动重放。Leave 错误时查询 `/v1/world/session` 恢复结果，
@@ -77,16 +84,24 @@ Ready 前、断线后和错误世界代次下不发送移动。地图变化会�
 
 ## 后续对接边界
 
-这是实际可用的通信基础与三维入场/移动接入，尚未完成全部 MMO 业务界面的适配。
+本分支完成上述核心玩法与空间逻辑的双向接入，尚未适配全部 MMO 业务界面。
 现有 Go 协议没有自定义捏脸字段，因此真实模式创建页使用基础外观；不会丢弃
 用户编辑的捏脸数据后谎报已保存。附近玩家协议目前只有空间状态，角色表现使用
 现有默认模型；完整外观、装备和表情广播仍需扩展协议。
 
-战斗施法、NPC 对话/任务、商店、交易、邮件、公会、背包写操作的 UI 适配、复活、
-坐椅子和本地主动传送等尚未接入时，会返回 `unsupported_remote_operation` 或保持
-不可用。可以通过 `RealServer.request_api()` 对接现有业务端点，但不能据此视为
-相关界面已经完成。读取到的原始业务快照保存在 `business_snapshots`；尚未转换的
-技能/任务/队伍界面不展示模拟数据。
+交易、邮件、公会、队伍管理、坐椅子、本地主动传送及其他尚未显式适配的业务继续返回 `unsupported_remote_operation`。队伍/联盟原始读模型不等于完整界面接入。真实模式不会使用 Mock 数据补齐这些业务。
+
+业务请求由 `remote/gameplay.gd` 串行执行，统一分配当前序号并携带世界上下文。异步回调只返回请求结果，界面动作通过 `poll_combat_tick()` 交付一次，以兼容现有直接调用和 RequestPipeline 两种入口。操作成功但刷新失败时提示等待同步，不自动重放写请求。HTTP JSON 保留浮点全精度，避免任务接受时间戳在往返时发生变化。
+
+角色胶囊参数由服务端 `body-profiles` 策略选择，经 `Actor3D.body_radius/body_height` 下发；旧服务端缺失参数会明确中止挂载。客户端离线导出命令：
+
+```sh
+godot --headless --path . --script res://tools/export_server_body_profiles.gd -- \
+  --backend=real --manifest=/tmp/avatars.json --content-root=/path/to/rmmo_runtime \
+  --output=/tmp/body-profiles.json
+```
+
+清单为 `[{"gender":"male","look_id":"1"},{"gender":"female","look_id":"tall","body_shapes":{"height":1}}]`。工具读取现有控制点和 morph JSON，复用客户端 `standing_height()` 规则，写出策略和来源 SHA；不加载渲染资源，也不改写资源。必须将实际发布的外观身份与对应配方一起管理。未配置身份沿用服务器默认尺寸。服务端配置示例见配套仓库 `docs/real_gameplay_connection.md`。
 
 `remote_boundary.gd` 自动覆盖 MockServer 的所有 `try_*` / `snapshot_*`；真实实现
 显式覆盖已支持的方法。复用的目录与 HUD 模型仅作为显示缓存，不构成服务器授权。
@@ -98,10 +113,13 @@ Ready 前、断线后和错误世界代次下不发送移动。地图变化会�
 python3 tools/generate_server_protocol.py --check
 python3 tools/generate_remote_boundary.py --check
 python3 tools/test_network_regressions.py
+python3 tools/test_mock_server_regressions.py
+python3 tools/test_body_profile_export.py
 godot --headless --path . --script res://tools/test_real_server.gd -- --backend=real
 python3 tools/test_real_server_integration.py \
   --server-bin /absolute/path/to/gameserver \
   --server-repo /absolute/path/to/rmmo_server
+# 同一命令加 --gameplay，执行临时玩法、门窗和策略的实际联调。
 ```
 
 协议描述由所附 `scripts/net/protocol/game.proto` 生成，保留原文件 SHA256。
@@ -114,6 +132,4 @@ Godot。覆盖注册、基础建角、状态恢复、Ready、权威移动、服�
 不会连接生产账号或修改用户资源；图形角色、完整真实地图和公网 TLS 部署仍需
 在拥有对应资源的运行环境完成验收。
 
-本轮结果：真实 Go 服务联调及连接边界测试共 56 项通过，现有 NetClient、
-RequestPipeline 和路径消费回归共 50 项通过；20 个新增/修改的 GDScript
-通过 Godot 解析检查，Python 语法、生成描述表与边界同步检查通过。
+本轮真实 Go 联调：连接边界 56 项、核心玩法 83 项通过，覆盖含门窗、任务、交易、背包、技能、事件 ACK、掉落、死亡复活及重连。现有 MockServer 177 项、网络/路径消费 50 项检查通过；协议与边界生成器同步检查、GDScript 解析和纯逻辑尺寸导出检查通过。所有玩法、地图与策略的测试修改均发生在临时目录，正式资源未改动。完整外部美术、图形界面实拍与公网 TLS 部署仍需在对应资源环境验收。

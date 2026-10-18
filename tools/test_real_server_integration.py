@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--server-bin', required=True, type=Path)
     parser.add_argument('--server-repo', required=True, type=Path)
     parser.add_argument('--godot', default='godot')
+    parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
         directory = Path(temporary)
@@ -28,6 +29,11 @@ def main():
         command = [str(args.server_bin.resolve()), '-env-file=', '-config=', '-content', str(content),
                    '-map', 'tutorial/yard', '-db', str(directory/'game.sqlite'),
                    '-ntp-required=false', '-ntp-servers=', '-addr', f'127.0.0.1:{port}']
+        if args.gameplay:
+            from real_gameplay_fixture import configure
+            command += configure(content,directory)
+        script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
+        marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
         with (directory/'server.log').open('w+') as log:
             server = subprocess.Popen(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT)
             try:
@@ -44,15 +50,15 @@ def main():
                         time.sleep(.05)
                 try:
                     run = subprocess.run([args.godot, '--headless', '--path', str(ROOT), '--script',
-                                          'res://tools/test_real_server.gd', '--', '--backend=real',
+                                          script, '--', '--backend=real',
                                           '--test-server='+address, '--test-content-root='+str(content)],
                                          cwd=ROOT, text=True, stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT, timeout=45)
+                                         stderr=subprocess.STDOUT, timeout=75)
                 except subprocess.TimeoutExpired as error:
                     print((error.stdout or b'').decode(errors='replace'))
                     raise
                 print(run.stdout, end='')
-                if run.returncode or 'SCRIPT ERROR:' in run.stdout or 'REAL_SERVER_TESTS failures=0' not in run.stdout:
+                if run.returncode or 'SCRIPT ERROR:' in run.stdout or marker not in run.stdout:
                     log.seek(0)
                     print(log.read())
                     raise SystemExit(run.returncode or 1)

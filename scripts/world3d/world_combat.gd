@@ -20,6 +20,29 @@ var _npc_forward := {}
 var _npc_ready := {}
 var _npc_markers := {}
 var summons
+var remote_entities:RefCounted
+
+func sync_remote()->void:
+	if remote_entities!=null:remote_entities.sync()
+	if world._hud!=null:
+		if actors.has(selected) and Net.server().combat_stats.npcs.has(selected):
+			var stats:Dictionary=Net.server().combat_stats.npcs[selected]
+			world._hud.show_target(str(stats.get("name",selected)),float(stats.hp)/maxi(1,int(stats.hp_max)))
+		else:world._hud.clear_target()
+
+func apply_remote_event(event:Dictionary)->void:
+	if not Net.is_real_server():return
+	var server=Net.server()
+	var actor_id:=str(event.get("actor",""))
+	var caster:="player" if actor_id==server._session_character_id else actor_id
+	var status:=str(event.get("status",""))
+	if status not in ["casting","completed","interrupted"]:return
+	var skill_id:=str(event.get("skill_uuid",""))
+	var definition:Dictionary=server.skill_catalog.get_skill(skill_id)
+	var action:Dictionary={"type":"cast_start" if status=="casting" else "cast_end","caster":caster,"skill_id":skill_id,"name":definition.get("name",skill_id),"duration":maxf(0.,float(event.get("due_game_us",0)-event.get("game_time_us",0))/1000000.),"elapsed":0.}
+	_npc_cast_feedback(action)
+	world.apply_actions([action])
+	if status=="completed" and caster=="player" and is_instance_valid(world._player):world._player.get_node("CharacterModel3D").play("attack","front",true)
 
 func navigation_status()->Dictionary:
 	if not is_instance_valid(world) or not is_instance_valid(world._navigation):return {"ok":false,"state":"pending","reason":"navigation_pending"}
@@ -39,6 +62,8 @@ func _navigation_rejected()->Dictionary:
 func setup(owner: Node3D) -> void:
 	world = owner
 	if Net.is_real_server():
+		remote_entities=preload("res://scripts/net/remote/entities.gd").new(self)
+		sync_remote()
 		set_physics_process(false);return
 	_map_key = world._map_path.simplify_path()
 	respawn_point = world._player.global_position
@@ -99,7 +124,9 @@ func in_range(id: String, range_units: int) -> bool:
 	return hit.is_empty() or preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit) == id
 
 func attack(id: String) -> Dictionary:
-	if Net.is_real_server():return _apply(Net.server()._unsupported("attack"))
+	if Net.is_real_server():
+		selected=id
+		return Net.server().try_attack(id,-9999,-9999)
 	if world.furniture.active():world.furniture.cancel()
 	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
@@ -111,7 +138,7 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
-	if Net.is_real_server():return _apply(Net.server()._unsupported("use_skill"))
+	if Net.is_real_server():return Net.server().request_cast(id,selected,ground)
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine
 	var definition: Dictionary = Net.server().skill_catalog.get_skill(id)
@@ -130,6 +157,9 @@ func use_skill(id: String, ground: Variant = null) -> Dictionary:
 	return _apply(engine.try_use_skill(id, selected, -9999, -9999))
 
 func _apply(result: Dictionary) -> Dictionary:
+	if Net.is_real_server():
+		world.apply_actions(result.get("actions",[]))
+		return result
 	var actions: Array = result.get("actions", [])
 	# 3D counters and status ticks call the engine directly, bypassing the
 	# legacy combat module's sitting interruption wrapper.
@@ -223,7 +253,7 @@ var _respawn_preparing:=false
 ## Unlike the legacy bool API, this completes only after loading, real physics,
 ## destination first draw and authoritative activation. Duplicate clicks reject.
 func request_respawn()->bool:
-	if Net.is_real_server():_apply(Net.server()._unsupported("respawn"));return false
+	if Net.is_real_server():return bool(Net.server().try_respawn().get("deferred",false))
 	if not world.building_entry_protocol_enabled():return respawn()
 	if _respawn_preparing or not _may_respawn():return false
 	_respawn_preparing=true
@@ -246,7 +276,7 @@ func _commit_prepared_respawn()->bool:
 	return true
 
 func respawn() -> bool:
-	if Net.is_real_server():return false
+	if Net.is_real_server():return bool(Net.server().try_respawn().get("deferred",false))
 	if world.building_entry_protocol_enabled():
 		world._status.text="复活需要异步准备，请使用复活按钮。";return false
 	var server = Net.server()
@@ -389,7 +419,7 @@ func counter_attack(id: String, actions: Array) -> void:
 
 
 func use_item(id: String) -> Dictionary:
-	if Net.is_real_server():return _apply(Net.server()._unsupported("use_item"))
+	if Net.is_real_server():return Net.server().try_use_item(id)
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var server = Net.server()
 	var definition: Dictionary = server.item_catalog.get_item(id)
@@ -482,7 +512,9 @@ func _create_loot(feet: Vector3, items: Array) -> void:
 	loot.append({"feet": feet, "items": items, "marker": marker})
 
 func pickup_nearby() -> bool:
-	if Net.is_real_server():return false
+	if Net.is_real_server():
+		if Net.server().nearest_reward().is_empty():return false
+		Net.server().try_loot_take_all();return true
 	var server = Net.server()
 	if not server.combat_stats.player_alive(): return false
 	var feet: Vector3 = world._player.global_position - Vector3(0, 0.9, 0)

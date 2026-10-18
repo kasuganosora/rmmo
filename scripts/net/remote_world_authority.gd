@@ -14,6 +14,9 @@ func apply_actor(actor:Dictionary)->void:
 	if body==null or actor.is_empty():return
 	var location:Dictionary=actor.get("location",{})
 	if location.get("map_ref","")!=_map_ref:return
+	if preload("res://scripts/world3d/player_clearance.gd").apply_server(body,float(actor.get("body_radius",0)),float(actor.get("body_height",0)))<0:
+		transport.disconnect_server("服务器角色碰撞尺寸无效，请更新双端协议")
+		return
 	var value:Dictionary=location.get("position_m",{})
 	var feet:=Vector3(value.get("x",0.),value.get("y",0.),value.get("z",0.))
 	var next:=feet+Vector3.UP*.9

@@ -41,7 +41,7 @@ func list_building_components(building_id: String) -> Array:
 	return preload("res://scripts/world3d/building_fixtures.gd").list_runtime(_map_root,building_id) if is_instance_valid(_map_root) else []
 
 func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
-	if Net.is_real_server():return Net.server()._unsupported("building_component")
+	if Net.is_real_server():return Net.server().gameplay.dispatch("fixture",[building_id,component_id,open])
 	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
 	if building_entry_protocol_enabled() and not building_id.begins_with("fortification:"):
 		return _building_authority().set_runtime_fixture(_map_root,_map_ref(),str(_map_root.get_meta("source_map_sha256","")),building_id,component_id,open,duration)
@@ -1340,6 +1340,16 @@ func _add_game_hud() -> void:
 func apply_actions(actions: Array) -> void:
 	for action in actions:
 		match str(action.get("type", "")):
+			"player_revived":
+				_revive.hide()
+				_player.input_locked=not is_world_ready()
+				_player.get_node("CharacterModel3D").play("idle","front")
+			"status_update":
+				if _hud!=null:_hud.apply_status_chips(action.get("statuses",[]))
+			"remote_entities":
+				if _combat!=null:_combat.sync_remote()
+			"remote_combat_event":
+				if _combat!=null:_combat.apply_remote_event(action.get("event",{}))
 			"remote_combat_state":
 				Net.session().spawn_data["combat"]=action.get("stats",{})
 				if _hud!=null:_hud.apply_combat_stats(action.get("stats",{}))

@@ -84,7 +84,7 @@ message TryMoveRequest {
 // All positions are feet in meters, Y up. No client time or speed is accepted.
 message Vector3 { double x = 1; double y = 2; double z = 3; }
 message Location3D { string map_ref = 1; Vector3 position_m = 2; string surface_id = 3; }
-message Actor3D { string id = 1; Location3D location = 2; uint64 sequence = 3; string mode = 4; double vertical_velocity = 5; uint64 generation = 6; }
+message Actor3D { string id = 1; Location3D location = 2; uint64 sequence = 3; string mode = 4; double vertical_velocity = 5; uint64 generation = 6; double body_radius = 7; double body_height = 8; }
 message FindPathRequest { Vector3 goal = 1; }
 
 // A fence against packets from an older process, admission or map transition.
