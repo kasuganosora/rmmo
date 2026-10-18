@@ -2299,6 +2299,11 @@ func _discard_job(path:String)->void:
 	for uuid:String in output.get("surface_arrays",{}):
 		_doc.load_surface_arrays.erase(uuid)
 	for uuid:String in output.get("terrain_contexts",{}):_doc.terrain_neighbors.data.erase(uuid)
+	# Large importer states retain thousands of GPU/CPU owners. Keep this same
+	# byte reservation until the tree-owned retirement cursor drops every alias.
+	var deferred_release:=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(output,Callable(_admission,"release").bind(path),_admission)
+	if deferred_release:
+		_admission.park(path);_admission.set_stage(path,"resource_retirement")
 	if not output.is_empty():Drainer.dispose_result(output)
 	if job.has("staged"):job.staged.clear()
 	if job.has("collision_staged"):job.collision_staged.clear()
@@ -2313,7 +2318,9 @@ func _discard_job(path:String)->void:
 		if item.has("reference_entry") and item.get("reference_prepared",false):
 			item.record=item.reference_entry.compact_record;item.reference_prepared=false
 	if job.token.has_meta("admission_release"):job.token.remove_meta("admission_release")
-	_jobs.erase(path);_admission.release(path);_raw_retries.erase(path);_pixel_retries.erase(path)
+	_jobs.erase(path)
+	if not deferred_release:_admission.release(path)
+	_raw_retries.erase(path);_pixel_retries.erase(path)
 	if job.token.has_meta("admission_owner"):job.token.remove_meta("admission_owner")
 
 func _retry_pixel_job(path:String,revisions:Dictionary,reason:String)->void:

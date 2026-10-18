@@ -60,6 +60,9 @@ static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_result") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not worker.is_started(): return
 	var result: Variant = worker.wait_to_finish()
+	var deferred_release:=false
+	if result is Dictionary and token!=null and token.has_meta("admission_release") and token.has_meta("admission_owner"):
+		deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
 	# A parser can hand off a private PackedScene/GLTFState without a Node.
 	# Finish its renderer commands before releasing the unconsumed resources.
 	if result is Dictionary:dispose_result(result)
@@ -70,7 +73,7 @@ static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
 	if token!=null and token.has_meta("admission_release"):
 		var release:Variant=token.get_meta("admission_release")
 		token.remove_meta("admission_release")
-		if release is Callable and release.is_valid():release.call()
+		if not deferred_release and release is Callable and release.is_valid():release.call()
 	if token!=null and token.has_meta("admission_owner"):token.remove_meta("admission_owner")
 
 static func release_shared(token:RefCounted)->void:
