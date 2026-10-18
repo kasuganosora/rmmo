@@ -6,6 +6,7 @@ const TextureCache=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
+static var preserve_complete_surfaces_enabled:=true
 static var _textures := {}
 static var prepared_images:Dictionary={}
 static var _materials := {}
@@ -565,7 +566,11 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 				arrays[Mesh.ARRAY_TANGENT] = null
 				var painted := make_material(group_entries[key].material, material.cull_mode if material is BaseMaterial3D else BaseMaterial3D.CULL_BACK)
 				material = painted
-			var compact := _compact(arrays)
+			# An untouched complete surface already has its exact vertex/index
+			# mapping. Repacking every kerb vertex performs no useful geometry work.
+			var source_indices:Variant=data.arrays[Mesh.ARRAY_INDEX]
+			var complete_vertices:bool=source_indices==null or source_indices.is_empty()
+			var compact:Array=arrays if preserve_complete_surfaces_enabled and key=="original" and groups.size()==1 and complete_vertices else _compact(arrays)
 			if key != "original" and material is BaseMaterial3D and material.normal_enabled:
 				# SurfaceTool reads Mesh arrays. Keep this temporary on the CPU:
 				# uploading then reading every painted face stalls the render queue.
@@ -581,11 +586,20 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 			for channel in Mesh.ARRAY_MAX:
 				if compact[channel]!=null and not compact[channel].is_empty():layout|=1<<channel
 			var merge_key:=str(material.get_instance_id() if material!=null else 0)+":"+str(layout)
-			if not merged.has(merge_key):merged[merge_key]={"builder":SurfaceTool.new(),"material":material}
+			if not merged.has(merge_key):
+				merged[merge_key]={"builder":null,"arrays":compact,"material":material}
+				if preserve_complete_surfaces_enabled:continue
+			var row:Dictionary=merged[merge_key]
+			if row.builder==null:
+				row.builder=SurfaceTool.new()
+				if preserve_complete_surfaces_enabled:
+					var first:=CpuMesh.new();first.surfaces=[row.arrays];first.materials=[material]
+					row.builder.append_from(first,0,Transform3D.IDENTITY)
+				row.arrays=[]
 			var cpu:=CpuMesh.new();cpu.surfaces=[compact];cpu.materials=[material]
-			merged[merge_key].builder.append_from(cpu,0,Transform3D.IDENTITY)
+			row.builder.append_from(cpu,0,Transform3D.IDENTITY)
 	for row in merged.values():
-		var arrays:Array=row.builder.commit_to_arrays()
+		var arrays:Array=row.arrays if row.builder==null else row.builder.commit_to_arrays()
 		cpu_arrays.append(arrays);output_materials.append(row.material)
 	if defer_upload:output=CpuMesh.from_surfaces(cpu_arrays,output_materials)
 	else:

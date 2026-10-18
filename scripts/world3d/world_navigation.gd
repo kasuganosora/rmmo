@@ -287,9 +287,10 @@ func _complete_initial_geometry()->bool:
 		mesh.filter_baking_aabb=_clip;_local_clip=_clip
 	return true
 
-func append_specs(additions:Array)->Dictionary:
+func append_specs(additions:Array,prepared:RefCounted=null)->Dictionary:
 	if not streaming_geometry and (not geometry_pending or fully_ready):return {"ok":false,"reason":"geometry_not_pending","added":0}
 	if not map.is_valid():return {"ok":false,"reason":"navigation_not_built","added":0}
+	if prepared!=null:return _append_prepared_specs(additions,prepared)
 	var ids:Dictionary={};var doors:Array=[];var geometry_ids:Dictionary={};var geometry_counts:Dictionary={};var aliases:=false
 	var bounds_after:=_bounds;var has_bounds_after:=_has_bounds
 	for value:Variant in additions:
@@ -331,6 +332,28 @@ func append_specs(additions:Array)->Dictionary:
 	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
 	if is_instance_valid(_resize_replacement):
 		var forwarded:Dictionary=_resize_replacement.append_specs(additions)
+		if not forwarded.ok:_resize_replacement.set_geometry_error(str(forwarded.reason))
+	return {"ok":true,"reason":"","added":additions.size()}
+
+func _append_prepared_specs(additions:Array,packet:RefCounted)->Dictionary:
+	if packet.get_script()!=preload("res://scripts/world3d/publication_metadata.gd") or not packet.ready(additions):return {"ok":false,"reason":"stale_publication_packet","added":0}
+	var aliases:=false
+	# A separate navigation can retire or receive other publications while the
+	# private packet prepares. Check its current membership at the actual commit.
+	for id:String in packet.ids:
+		if _spec_ids.has(id):return {"ok":false,"reason":"duplicate_uuid","added":0}
+		aliases=aliases or _spec_geometry.has(id)
+	_specs.append_array(additions);_spec_ids.merge(packet.ids,true);_doors.append_array(packet.doors)
+	if aliases:
+		for spec:Dictionary in additions:_remember_source_geometry(spec)
+	else:
+		_spec_geometry.merge(packet.geometry_ids,true)
+		for key:int in packet.geometry_counts:_geometry_users[key]=int(_geometry_users.get(key,0))+int(packet.geometry_counts[key])
+	for bounds:AABB in packet.bounds:
+		_bounds=_bounds.merge(bounds) if _has_bounds else bounds;_has_bounds=true
+	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
+	if is_instance_valid(_resize_replacement):
+		var forwarded:Dictionary=_resize_replacement.append_specs(additions,packet)
 		if not forwarded.ok:_resize_replacement.set_geometry_error(str(forwarded.reason))
 	return {"ok":true,"reason":"","added":additions.size()}
 

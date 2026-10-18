@@ -42,6 +42,11 @@ static var collision_query_cache_enabled:=true # Disable for the legacy guard co
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
 static var owned_index_projection_enabled:=true # Private raw-model specs transfer without copying/remapping.
 static var typed_demand_scan_enabled:=true # Diagnostic control retains the exact unfiltered scheduler.
+static var demand_membership_cache_enabled:=true
+static var native_demand_order_enabled:=true
+static var native_demand_bounds_enabled:=true
+const EMPTY_DEMAND:Dictionary={}
+static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
 var pending:Array=[]
 var profile:Dictionary={"models":0,"instances":0,"specs":0,"worker_us":0,"max_publish_us":0}
@@ -60,6 +65,9 @@ var _demands:Dictionary={}
 var _demand_scope:Dictionary={}
 var _demand_revision:=0
 var _candidates_revision:=-1
+var _demand_membership:Dictionary={} # Per live ticket; spatial candidates only, never readiness/leases.
+var _typed_pending:Dictionary={}
+var _typed_pending_buildings:=-1
 var _demanded:Array=[]
 var _demanded_by_id:Dictionary={}
 var _demanded_by_path:Dictionary={}
@@ -119,6 +127,7 @@ var _collision_definition_modes:Dictionary={} # Map/path/immutable rmres identit
 var _collision_definition_count:=0
 var _collision_definition_bytes:=0
 var _preparation_seconds:Array[float]=[] # Bounded feedback, one sample per source job.
+var publication_metadata:RefCounted # Borrowed only during the synchronous published signal.
 
 func _note_preparation_latency(items:Array)->void:
 	for item:Dictionary in items:
@@ -542,6 +551,8 @@ func quiesce()->void:
 
 func shutdown()->void:
 	_invalidate_collision_queries()
+	_demand_membership.clear()
+	_typed_pending.clear();_typed_pending_buildings=-1
 	# Final owner teardown has no future frame on which to poll. Ordinary load
 	# failure uses await quiesce() before resuming the old map, never this drain.
 	_active=false;_cancelled=true;set_process(false)
@@ -583,6 +594,7 @@ func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all",rank_from_p
 
 func release_demand(id:String)->void:
 	_release_collision_request(id)
+	_demand_membership.erase(id)
 	if _demands.erase(id):
 		_demand_revision+=1
 		set_process(_active)
@@ -679,10 +691,13 @@ func _instance_failed(uuid:String,reason:String)->void:
 
 func _index_pending()->void:
 	if _indexed:return
+	_demand_membership.clear()
+	_typed_pending.clear();_typed_pending_buildings=-1
 	_pending_by_record_id.clear()
 	for item:Dictionary in pending:
 		_pending_by_record_id[item.record.uuid]=item
 		var box:AABB=item.bounds
+		item.demand_rect=Rect2(Vector2(box.position.x,box.position.z),Vector2(box.size.x,box.size.z))
 		var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
 		if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);continue
 		for z in range(low.y,high.y+1):
@@ -697,35 +712,37 @@ static func _intersects(a:AABB,b:AABB)->bool:
 
 func _in_clip(clip:AABB)->Array:
 	_index_pending()
+	var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 	var candidates:Dictionary={}
 	for item:Dictionary in _large_pending:
-		if not item.get("published",false) and _intersects(clip,item.bounds):candidates[item.record.uuid]=item
+		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
 	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
 		for item:Dictionary in pending:
-			if not item.get("published",false) and _intersects(clip,item.bounds):candidates[item.record.uuid]=item
+			if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
 		return candidates.values()
 	for z in range(low.y,high.y+1):
 		for x in range(low.x,high.x+1):
 			for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
-				if not item.get("published",false) and _intersects(clip,item.bounds):candidates[item.record.uuid]=item
+				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
 	return candidates.values()
 
 func _has_pending_in_clip(clip:AABB)->bool:
 	# Readiness needs existence only. Do not allocate/deduplicate all matches or
 	# keep scanning after the first unpublished source proves it is not ready.
 	_index_pending()
+	var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 	for item:Dictionary in _large_pending:
-		if not item.get("published",false) and _intersects(clip,item.bounds):return true
+		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
 		for item:Dictionary in pending:
-			if not item.get("published",false) and _intersects(clip,item.bounds):return true
+			if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 		return false
 	for z in range(low.y,high.y+1):
 		for x in range(low.x,high.x+1):
 			for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
-				if not item.get("published",false) and _intersects(clip,item.bounds):return true
+				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 	return false
 
 func _refresh_demanded()->void:
@@ -733,46 +750,82 @@ func _refresh_demanded()->void:
 	var began:=Time.get_ticks_usec()
 	var candidates:Dictionary={}
 	_index_pending()
-	var typed_scans:Dictionary=_typed_full_scan_inputs() if typed_demand_scan_enabled else {}
+	var memberships:Dictionary={}
+	# Movement changes ranks every four metres, much more often than the stable
+	# ticket envelopes change. Reuse membership, but always read publication,
+	# errors, support closure, scope and priority from the live queue below.
+	for id:String in _demand_membership.keys():
+		if not _demands.has(id):_demand_membership.erase(id)
+	if demand_membership_cache_enabled:
+		for id:String in _demands:
+			var cached:Dictionary=_demand_membership.get(id,{})
+			var demand:Dictionary=_demands[id]
+			if cached.get("clip")==demand.clip and cached.get("kind")==demand.get("kind","all") and cached.get("group")==demand.get("group_id","") and cached.get("buildings")==_runtime_building_records.size():
+				memberships[id]=cached.items
+				profile.demand_membership_hits=int(profile.get("demand_membership_hits",0))+1
+	var support_priorities:Dictionary={};var support_distances:Dictionary={};var support_visits:=0
+	var typed_scans:Dictionary=_typed_full_scan_inputs(memberships) if typed_demand_scan_enabled else {}
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
+		var kind:String=demand.get("kind","all");var grouped:bool=demand.has("group_id")
+		var priority:int=int(demand.priority);var base_score:=float(priority)*1e15
+		var origin:Vector3=_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center()
 		var candidates_for_demand:Array
-		if demand.has("group_id"):candidates_for_demand=pending
+		if memberships.has(id):candidates_for_demand=memberships[id]
+		elif grouped:candidates_for_demand=pending
 		elif typed_scans.has(id):
 			var matches:Dictionary={}
+			var clip:AABB=demand.clip;var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 			for item:Dictionary in typed_scans[id]:
-				if _intersects(demand.clip,item.bounds):matches[item.record.uuid]=item
+				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(demand.clip,item.bounds)):matches[item.record.uuid]=item
 			candidates_for_demand=matches.values()
 		else:candidates_for_demand=_in_clip(demand.clip)
+		if demand_membership_cache_enabled and not memberships.has(id):
+			_demand_membership[id]={"clip":demand.clip,"kind":demand.get("kind","all"),"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":candidates_for_demand}
+			profile.demand_membership_misses=int(profile.get("demand_membership_misses",0))+1
 		for item:Dictionary in candidates_for_demand:
-			if item.get("published",false) or (demand.has("group_id") and item.get("group_id","")!=demand.group_id):continue
-			if demand.get("kind","all")=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
-			if demand.get("kind","all")=="road" and item.get("reference_entry",{}).get("reason","")!="native_road":continue
-			if demand.get("kind","all")=="structure" and item.get("reference_entry",{}).get("reason","") not in ["native_fortification","native_bridge"]:continue
+			if item.get("published",false) or (grouped and item.get("group_id","")!=demand.group_id):continue
+			if kind=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
+			if kind=="road" and item.get("reference_entry",EMPTY_DEMAND).get("reason","")!="native_road":continue
+			if kind=="structure" and item.get("reference_entry",EMPTY_DEMAND).get("reason","") not in ["native_fortification","native_bridge"]:continue
 			var uuid:String=item.record.uuid
-			var distance:float=_distance_from(item,_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center())
-			var score:float=float(demand.priority)*1e15+distance
-			if not candidates.has(uuid) or score<float(candidates[uuid].score):candidates[uuid]={"item":item,"score":score,"priority":int(demand.priority)}
+			var distance:float=_distance_from(item,origin)
+			var score:float=base_score+distance
+			# Numeric keys precede the borrowed item. Native lexicographic sorting
+			# compares doubles without one GDScript callback per comparison, and
+			# insertion rank makes equal-score order deterministic.
+			if not candidates.has(uuid):candidates[uuid]=[score,candidates.size(),item,priority]
+			elif score<float(candidates[uuid][0]):
+				var previous:Array=candidates[uuid];previous[0]=score;previous[2]=item;previous[3]=priority
 			# Learned imported buildings retain the same supporting landscape as
 			# their last verified live index. This closure stays inside the allowed
 			# parent ticket/scope; it never broadens demand to unrelated far props.
-			for support:String in _runtime_building_supports.get(uuid,{}):
-				var dependency:Dictionary=_pending_by_record_id.get(support,{})
+			if support_priorities.has(uuid) and int(support_priorities[uuid])<=priority:continue
+			if not _runtime_building_supports.has(uuid):continue
+			support_priorities[uuid]=priority
+			for support:String in _runtime_building_supports[uuid]:
+				support_visits+=1
+				var dependency:Dictionary=_pending_by_record_id.get(support,EMPTY_DEMAND)
 				if dependency.is_empty() or dependency.get("published",false):continue
-				var priority:int=int(demand.priority)-1
-				var support_score:float=float(priority)*1e15+_distance_from(dependency,_priority)
-				if not candidates.has(support) or support_score<float(candidates[support].score):candidates[support]={"item":dependency,"score":support_score,"priority":priority}
+				var support_priority:int=priority-1
+				if not support_distances.has(support):support_distances[support]=_distance_from(dependency,_priority)
+				var support_score:float=float(support_priority)*1e15+float(support_distances[support])
+				if not candidates.has(support):candidates[support]=[support_score,candidates.size(),dependency,support_priority]
+				elif support_score<float(candidates[support][0]):
+					var previous:Array=candidates[support];previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority
+	profile.support_candidate_visits=int(profile.get("support_candidate_visits",0))+support_visits
 	var ordered:Array=candidates.values()
-	ordered.sort_custom(func(a,b):return a.score<b.score)
+	if native_demand_order_enabled:ordered.sort()
+	else:ordered.sort_custom(func(a,b):return a[0]<b[0] if a[0]!=b[0] else a[1]<b[1])
 	_demanded.clear()
 	_demanded_by_id.clear()
 	_demanded_by_path.clear();_demanded_rank.clear()
 	_demanded_priority.clear();_path_first.clear();_publication_queues.clear();_dispatch_paths.clear()
-	for row:Dictionary in ordered:
-		var item:Dictionary=row.item
+	for row:Array in ordered:
+		var item:Dictionary=row[2]
 		_demanded_rank[item.record.uuid]=_demanded.size()
-		_demanded_priority[item.record.uuid]=row.priority
+		_demanded_priority[item.record.uuid]=row[3]
 		_demanded.append(item);_demanded_by_id[item.record.uuid]=item
 		if not _demanded_by_path.has(item.path):_demanded_by_path[item.path]=[]
 		if not _path_first.has(item.path) and not instance_errors.has(item.record.uuid):
@@ -787,44 +840,38 @@ func _refresh_demanded()->void:
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)
 	profile.demand_refreshes=int(profile.get("demand_refreshes",0))+1
 
-func _typed_full_scan_inputs()->Dictionary:
-	# Broad building/road/structure rings used to scan every pending reference
-	# and then discard other kinds. Partition once inside this refresh only.
-	# Local spatial queries, group tickets and readiness keep their old path.
-	var kinds:Dictionary={};var tickets:Dictionary={};var envelope:=AABB()
+func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
+	# Kind and source bounds do not change as the player moves. Partition at a
+	# catalog change, not every demand refresh. Publication remains a live flag.
+	var tickets:Dictionary={}
 	for id:String in _demands:
+		if cached.has(id):continue
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id];var kind:String=demand.get("kind","all")
 		if demand.has("group_id") or kind not in ["building","road","structure"]:continue
 		var clip:AABB=demand.clip
 		var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 		if (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():continue
-		envelope=clip if tickets.is_empty() else envelope.merge(clip)
-		if not kinds.has(kind):kinds[kind]=[]
-		tickets[id]=kinds[kind]
-	# A single scan cannot share this work; preserve its direct query path.
-	if tickets.size()<2:return {}
-	# Keep large-first ordering and defer UUID deduplication until after exact
-	# intersection, including equal-distance ties and overlapping candidates.
-	var prefilter_tests:=0
-	for collection:Array in [_large_pending,pending]:
-		for item:Dictionary in collection:
-			if item.get("published",false):continue
-			prefilter_tests+=1
-			# Far empty rings reject once before any kind lookup. Each retained
-			# candidate still gets its exact individual ticket intersection.
-			if not _intersects(envelope,item.bounds):continue
-			if kinds.has("building") and (str(item.get("group_id","")).begins_with("building:") or _runtime_building_records.has(item.record.uuid)):
-				kinds.building.append(item)
-			var reason:Variant=item.get("reference_entry",{}).get("reason","")
-			if kinds.has("road") and reason=="native_road":kinds.road.append(item)
-			if kinds.has("structure") and reason in ["native_fortification","native_bridge"]:kinds.structure.append(item)
+		tickets[id]=kind
+	if tickets.is_empty():return {}
+	if _typed_pending_buildings!=_runtime_building_records.size():
+		_typed_pending={"building":[],"road":[],"structure":[]}
+		# Preserve large-first ordering and exact intersection before UUID dedup.
+		for collection:Array in [_large_pending,pending]:
+			for item:Dictionary in collection:
+				if str(item.get("group_id","")).begins_with("building:") or _runtime_building_records.has(item.record.uuid):_typed_pending.building.append(item)
+				var reason:Variant=item.get("reference_entry",EMPTY_DEMAND).get("reason","")
+				if reason=="native_road":_typed_pending.road.append(item)
+				if reason in ["native_fortification","native_bridge"]:_typed_pending.structure.append(item)
+		_typed_pending_buildings=_runtime_building_records.size()
+		profile.typed_partition_builds=int(profile.get("typed_partition_builds",0))+1
+		profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+_large_pending.size()+pending.size()
 	var count:=0
-	for values:Array in tickets.values():count+=values.size()
+	for id:String in tickets:
+		tickets[id]=_typed_pending[tickets[id]];count+=tickets[id].size()
 	profile.typed_full_scan_tickets=int(profile.get("typed_full_scan_tickets",0))+tickets.size()
 	profile.typed_full_scan_candidates=int(profile.get("typed_full_scan_candidates",0))+count
-	profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+prefilter_tests
-	profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*prefilter_tests
+	profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*(_large_pending.size()+pending.size())
 	return tickets
 
 func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->void:
@@ -1093,7 +1140,7 @@ func _geometry_consumers(path:String)->Array:
 	for item:Dictionary in pending:
 		if item.get("path")!=path:continue
 		var record:Dictionary=item.record
-		rows[str(record.uuid)]=CollisionGeometry.consumer(record,item.get("reference_entry",{}).get("compact_record",{}))
+		rows[str(record.uuid)]=CollisionGeometry.consumer(record,item.get("reference_entry",EMPTY_DEMAND).get("compact_record",{}))
 		if rows.size()>CollisionGeometry.MAX_CONSUMERS:return [{"mode":CollisionGeometry.ALL}]
 	return rows.values()
 
@@ -1123,7 +1170,7 @@ func _targeted_bridge_textures(item:Dictionary)->bool:
 	# duplicate decode during early prefetch or borrow its prepared-image table.
 	if not bridge_texture_preparation_enabled or _cancelled or not _active or _scene_handoff or not _entry_prefetch.is_empty():return false
 	if not is_instance_valid(_map) or _map!=get_parent() or int(_map.get_meta("entry_plan",{}).get("core_resources_ready_us",0))<=0:return false
-	return item.get("native_reference",false) and item.get("reference_entry",{}).get("reason","")=="native_bridge" and _demanded_by_id.has(str(item.get("record",{}).get("uuid","")))
+	return item.get("native_reference",false) and item.get("reference_entry",EMPTY_DEMAND).get("reason","")=="native_bridge" and _demanded_by_id.has(str(item.get("record",{}).get("uuid","")))
 
 func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	if (not prefab_texture_preparation_enabled and not _targeted_bridge_textures(item)) or _reference_root.is_empty():return {}
@@ -1387,14 +1434,18 @@ func _stage_publication_packet(items:Array,specs:Array)->Dictionary:
 		job.collision_staged[item.record.uuid]=packet
 	return packet
 
-func _apply_publication_fixture_states(specs:Array)->void:
+func _apply_publication_fixture_states(specs:Array)->bool:
+	var changed:=false
 	for spec:Dictionary in specs:
 		var extra:Dictionary=spec.get("extras",{})
 		if not extra.has("fixture"):continue
 		var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
 		if runtime_fixture_states.has(uuid):
-			extra.fixture.open=runtime_fixture_states[uuid]
-			spec.transform=preload("res://scripts/world3d/building_fixtures.gd").pose(spec.closed_transform,extra.fixture,float(extra.fixture.open));spec.position=spec.transform.origin
+			var value:Variant=runtime_fixture_states[uuid]
+			var pose:Transform3D=preload("res://scripts/world3d/building_fixtures.gd").pose(spec.closed_transform,extra.fixture,float(value))
+			changed=changed or extra.fixture.get("open",0.)!=value or spec.transform!=pose
+			extra.fixture.open=value;spec.transform=pose;spec.position=pose.origin
+	return changed
 
 func _publish_items(items:Array,specs:Array)->bool:
 	# Stream indexes require a whole building/fixture namespace in one atomic
@@ -1408,7 +1459,8 @@ func _publish_items(items:Array,specs:Array)->bool:
 			var owned:bool=owned_index_projection_enabled and not packet.get("index_owned_skipped",false)
 			for item:Dictionary in items:
 				if item.get("native_reference",false) or item.record.has("house_prefab"):owned=false;break
-			if owned:packet.index_preparation.begin_owned(specs)
+			if owned and private_publication_packet_enabled:packet.index_preparation.begin_runtime_owned(specs)
+			elif owned:packet.index_preparation.begin_owned(specs)
 			else:packet.index_preparation.begin(specs)
 			profile.index_preparation_instances=int(profile.get("index_preparation_instances",0))+1
 		if packet.has("index_preparation"):
@@ -1435,7 +1487,13 @@ func _publish_items(items:Array,specs:Array)->bool:
 	var commit_began:=Time.get_ticks_usec()
 	# Reapply only at initial capture and final publication, not on every cursor
 	# slice. A changed pose invalidates the private signature and retries safely.
-	_apply_publication_fixture_states(specs)
+	var fixture_changed:=_apply_publication_fixture_states(preparation.fixtures if preparation!=null and preparation.runtime_owned else specs)
+	if fixture_changed and preparation!=null and preparation.runtime_owned:
+		var packet:=_stage_publication_packet(items,specs)
+		preparation.dispose();packet.erase("index_preparation")
+		profile.index_preparation_restarts=int(profile.get("index_preparation_restarts",0))+1
+		return false
+	var publication_packet:RefCounted=preparation.publication_packet if preparation!=null else null
 	var registered:Dictionary=Stream.append_specs(_map,specs,preparation)
 	if not registered.ok:
 		if registered.get("error","")=="stale_private_index":
@@ -1463,7 +1521,9 @@ func _publish_items(items:Array,specs:Array)->bool:
 		if item.has("reference_entry"):item.record=item.reference_entry.compact_record;item.reference_prepared=false
 	_remove_published_demand(items);profile.specs+=specs.size()
 	var details:Dictionary={"specs":specs.size(),"uuid":items[0].record.uuid if not items.is_empty() else "","index_prepared":preparation!=null}
+	publication_metadata=publication_packet
 	published.emit(specs)
+	publication_metadata=null
 	_note_preparation_latency(items)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publish_commit",commit_began,details)
 	return true
@@ -2051,11 +2111,13 @@ func _process(_delta:float)->void:
 	var publication:=_publish_ready(began,budget)
 	_record_main_thread_budget(desired,began,acceptance,publication)
 	profile.frame_publication_allowance_us=budget
-	_refresh_demanded()
+	# Publication observers can teach a new building/support closure. Refresh
+	# that revision in the next admitted frame, not for a second full scan in
+	# this already expensive commit frame. Stale membership cannot release jobs.
 	# A joined group still owns its bytes until its ready records have
 	# been published or discarded. Slow publication cannot create an unbounded
 	# CPU result backlog beside the GPU/resource pipeline.
-	for path:String in _jobs.keys():
+	for path:String in _jobs.keys() if _candidates_revision==_demand_revision else []:
 		var job:Dictionary=_jobs[path]
 		if job.get("accepted",false) and _job_consumed(job):_discard_job(path)
 	FrameBudget.charge("publication",frame_began)

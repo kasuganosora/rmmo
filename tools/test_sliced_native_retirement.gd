@@ -36,6 +36,8 @@ func drain()->void:
 		count+=1
 	check(service.pending.is_empty(),"all private snapshot retirement tickets drain")
 func run()->void:
+	# Retained diagnostic proof; production uses the incrementally maintained catalog.
+	Stream.resident_retirement_catalog_enabled=false
 	var f:=setup();await prepare(f)
 	var prep:RefCounted=f.map.get_meta("retirement_schema_preparation")
 	Trace.start();var result:=Stream.retire_specs(f.map,f.ids,true,f.nav,"native_retirement");var trace:=Trace.stop()

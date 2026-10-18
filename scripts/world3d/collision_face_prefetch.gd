@@ -147,6 +147,9 @@ func cancel()->void:
 	_charge=consumers;_leases=_charge.rows
 	_update_profile()
 
+func has_source_owners()->bool:
+	return not _charge.rows.is_empty() or (_draining!=null and not _draining.rows.is_empty())
+
 func release_sources(meshes:Dictionary)->bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.collision_face_prefetch.release_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	poll()

@@ -20,6 +20,7 @@ func compare(queue:Deferred,label:String)->Dictionary:
 	return expected
 
 func run()->void:
+	Deferred.demand_membership_cache_enabled=false # Exercise both scan implementations, not a warm membership hit.
 	var logger:=Errors.new();OS.add_logger(logger)
 	var saved:=Deferred.typed_demand_scan_enabled
 	contract_test();mixed_test()

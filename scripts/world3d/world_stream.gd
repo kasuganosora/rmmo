@@ -25,6 +25,7 @@ static var collision_candidate_cache_enabled:=true
 static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
 static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
 static var sliced_retirement_schema_enabled:=true
+static var resident_retirement_catalog_enabled:=true # Runtime index owns membership; false retains the diagnostic full-directory proof.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -350,11 +351,13 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,all
 	var target:Vector2i=map_root.get_meta("stream_chunk")
 	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
 	var specs:Array=[];var by_id:Dictionary=map_root.get_meta("stream_by_id",{})
+	var resident_catalog:bool=allow_preparation and resident_retirement_catalog_enabled and index.reuse_owned_retirement_plan_enabled and not legacy_retirement_validation_enabled
 	var draw_groups:Dictionary={};var solid_cells:Dictionary={}
+	if resident_catalog and _resident_sources_pinned(map_root,ids,draw,solid):return {"ok":false,"error":"source_pinned"}
 	# A pinned request cannot commit anything. Reject it before the expensive
 	# whole-directory integrity scan, even when many distant native units are
 	# retained by the kilometre-scale render/support dependency ring.
-	for id:Variant in ids if not legacy_retirement_validation_enabled else []:
+	for id:Variant in ids if not legacy_retirement_validation_enabled and not resident_catalog else []:
 		if not id is String or not by_id.get(id) is Dictionary:continue
 		var spec:Dictionary=by_id[id]
 		# This pass may only reject a pinned request. Complete source schema is
@@ -383,9 +386,9 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,all
 		if solid_cells[cells]:return {"ok":false,"error":"source_pinned"}
 		specs.append(spec)
 	var data:=_resident_index_data(map_root);var library:=_library(map_root)
-	if complete_unit and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
+	if complete_unit and not resident_catalog and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
 	var preparation:RefCounted=null
-	if allow_preparation and complete_unit and sliced_retirement_schema_enabled and not legacy_retirement_validation_enabled and library.size()>=1024:
+	if not resident_catalog and allow_preparation and complete_unit and sliced_retirement_schema_enabled and not legacy_retirement_validation_enabled and library.size()>=1024:
 		preparation=map_root.get_meta("retirement_schema_preparation") if map_root.has_meta("retirement_schema_preparation") else null
 		if preparation==null:
 			_start_retirement_preparation(map_root,library)
@@ -394,11 +397,12 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,all
 			map_root.remove_meta("retirement_schema_preparation")
 			return {"ok":false,"error":preparation.error}
 		if not preparation.complete:return {"ok":false,"error":"retirement_schema_pending"}
-	var checked:Dictionary=index._owned_retire_plan(data,library,ids,index.reuse_owned_retirement_plan_enabled,preparation) if complete_unit else index._retire_plan(data,library,ids)
+	var checked:Dictionary=index._owned_retire_plan(data,library,ids,index.reuse_owned_retirement_plan_enabled,preparation,resident_catalog) if complete_unit else index._retire_plan(data,library,ids,resident_catalog)
 	if checked.get("error")=="stale_retirement_schema":
 		_start_retirement_preparation(map_root,library)
 		return {"ok":false,"error":"retirement_schema_pending"}
 	if not checked.ok:return checked
+	if resident_catalog:specs=checked.removed_specs
 	if legacy_retirement_validation_enabled:
 		for id:String in ids:
 			var spec:Dictionary=by_id[id]
@@ -407,6 +411,32 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,all
 	var collision=map_root.get_node_or_null("StreamCollisionPreparer")
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
 	return {"ok":true,"error":"","data":data,"library":library,"plan":checked,"preparation":preparation}
+
+# Rejection only. The complete selected IDs and live gameplay/worker owners
+# are still checked below. Keep this before expensive planning so a returning
+# player does not repeatedly rebuild a transaction which cannot commit.
+static func _resident_sources_pinned(map_root:Node,ids:Array,draw:Dictionary,solid:Dictionary)->bool:
+	var state:Dictionary=map_root.get_meta("stream_append_state",{})
+	var catalog:Dictionary=state.get("retirement_units",{});var prefixes:Dictionary={}
+	for id:Variant in ids:
+		if id is String:prefixes[id.get_slice("__",0)]=true
+	var by_id:Dictionary=map_root.get_meta("stream_by_id",{});var groups:Dictionary=map_root.get_meta("stream_building_groups",{})
+	var seen_groups:Dictionary={};var seen_bounds:Dictionary={}
+	for prefix:String in prefixes:
+		if not catalog.has(prefix):continue
+		var unit:Dictionary=catalog[prefix]
+		for group:String in unit.groups:
+			if seen_groups.has(group) or not groups.has(group):continue
+			seen_groups[group]=true
+			var members:Array=groups[group]
+			if not members.is_empty() and _draws(members[0],draw):return true
+		for id:String in unit.probes:
+			if by_id.has(id) and _draws(by_id[id],draw):return true
+		for bounds:Vector4i in unit.bounds:
+			if seen_bounds.has(bounds):continue
+			seen_bounds[bounds]=true
+			if _overlaps({"chunk_min":Vector2i(bounds.x,bounds.y),"chunk_max":Vector2i(bounds.z,bounds.w)},solid):return true
+	return false
 
 static func _start_retirement_preparation(map_root:Node,library:Array)->void:
 	var preparation:RefCounted=load("res://scripts/world3d/retirement_schema_preparation.gd").new()
@@ -454,7 +484,7 @@ static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false,naviga
 	if retirement_lane.is_empty():return _retire_specs(map_root,ids,complete_unit,navigation)
 	if _retirement_budget(map_root).request(Engine.get_process_frames(),retirement_lane,2000)<=0:return {"ok":false,"error":"retirement_budget"}
 	var started:=Time.get_ticks_usec()
-	var result:=_retire_specs(map_root,ids,complete_unit,navigation,retirement_lane=="native_retirement")
+	var result:=_retire_specs(map_root,ids,complete_unit,navigation,retirement_lane in ["native_retirement","ordinary_retirement"])
 	charge_retirement_work(map_root,retirement_lane,started)
 	return result
 
@@ -497,6 +527,10 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	# Index retirement cannot leave transient planning or debug ownership.
 	map_root.remove_meta("stream_candidates");map_root.remove_meta("stream_plan_bins")
 	map_root.set_meta("stream_children",map_root.get_child_count())
+	# The local plan is the final owner of many retired mesh/spec dictionaries.
+	# Do not let its stack destruction release the entire building in this frame.
+	# Donate only the private container; borrowed specs/resources are never edited.
+	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(checked.plan.get("removed_specs",[]))
 	return {"ok":true,"error":"","removed":result.removed,"removed_ids":result.removed_ids}
 
 

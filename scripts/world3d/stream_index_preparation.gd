@@ -31,7 +31,7 @@ var spatial:Dictionary={}
 var props:Dictionary={}
 var collisions:Dictionary={}
 var raw_bounds:Dictionary={}
-var append_state:Dictionary={"namespaces":{},"prefixes":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
+var append_state:Dictionary={"namespaces":{},"prefixes":{},"namespace_sizes":{},"retirement_units":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
 var cell:Dictionary={}
 var low:=Vector2i(2147483647,2147483647)
 var high:=-low
@@ -39,6 +39,10 @@ var binding:Dictionary={}
 var attached:Array=[]
 var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0}
 var owns_projection:=false
+var runtime_source:Array=[]
+var runtime_owned:=false
+var publication_packet:RefCounted
+var fixtures:Array=[]
 var owned_groups:Dictionary={}
 var owned_bounds:Dictionary={}
 var owned_supports:Dictionary={}
@@ -51,6 +55,14 @@ func begin(values:Array)->void:source=values.duplicate()
 ## ordinary copied projection because it has mutable reverse dependency links.
 func begin_owned(values:Array)->void:
 	owns_projection=true;begin(values)
+## The deferred loader owns these unpublished specs and immutable geometry
+## exclusively until transfer. No external callback runs during preparation.
+## Fixture pose updates are the sole writer and restart preparation on change.
+func begin_runtime_owned(values:Array)->void:
+	begin_owned(values);runtime_source=values;runtime_owned=true
+	publication_packet=preload("res://scripts/world3d/publication_metadata.gd").new();publication_packet.begin(values)
+func valid_runtime_owned(values:Array)->bool:
+	return runtime_owned and owns_projection and phase==7 and error.is_empty() and is_same(runtime_source,values) and source.size()==values.size() and publication_packet.ready(values)
 func accept()->void:owns_projection=false
 func _notification(what:int)->void:
 	# RefCounted is already marked invalid in PREDELETE; member calls fail here.
@@ -111,6 +123,7 @@ func valid_owned_snapshot(values:Array)->bool:
 		if owned_bounds[id]!=raw_bounds[id] or not owned_supports[id].is_empty():return false
 	return true
 func valid_for(values:Array,schema_checked:bool=false)->bool:
+	if runtime_owned:return false # Consumed private packets cannot fall through to public snapshots.
 	if phase!=7 or not error.is_empty() or source.size()!=values.size():return false
 	for i:int in values.size():
 		if not is_same(values[i],source[i]) or (not schema_checked and not Index._valid_append_spec(values[i])) or signature(values[i])!=signatures[i]:return false
@@ -150,22 +163,29 @@ func _step()->void:
 			for field:String in DERIVED_FIELDS:
 				if value.has(field):error="existing_derived_fields";phase=7;return
 			if owns_projection and Landscape.landscape(value):error="owned_projection_ineligible";phase=7;return
-			signatures.append(signature(value))
-			if owns_projection and native_snapshot_validation_enabled:
+			var mesh_bounds:AABB=value.mesh.get_aabb() if runtime_owned else AABB()
+			if runtime_owned:
+				publication_packet.add(value,mesh_bounds)
+				if not publication_packet.error.is_empty():error=publication_packet.error;phase=7;return
+				if value.get("extras",EMPTY_RECORD).has("fixture"):fixtures.append(value)
+			else:signatures.append(signature(value))
+			if owns_projection and native_snapshot_validation_enabled and not runtime_owned:
 				var snapshot:Dictionary=_validation_copy(value)
 				validation_snapshot.append(snapshot);snapshot_by_id[value.uuid]=snapshot
 			var spec:Dictionary=value if owns_projection else value.duplicate();projection.append(spec)
 			by_id[spec.uuid]=spec;known[spec.uuid]=true
 			var prefix:String=spec.uuid.get_slice("__",0);append_state.prefixes[prefix]=true
+			append_state.namespace_sizes[prefix]=int(append_state.namespace_sizes.get(prefix,0))+1
 			if spec.uuid.contains("__"):
 				append_state.namespaces[prefix]=true
-				var bounds:AABB=spec.transform*spec.mesh.get_aabb();var extra:Dictionary=spec.get("extras",{})
+				var bounds:AABB=spec.transform*(mesh_bounds if runtime_owned else spec.mesh.get_aabb());var extra:Dictionary=spec.get("extras",{})
 				if not structures.has(prefix):structures[prefix]={"bounds":bounds,"wind":false,"solid":false}
 				var row:Dictionary=structures[prefix];row.bounds=row.bounds.merge(bounds)
 				row.wind=row.wind or extra.has("rmmo_wind");row.solid=row.solid or extra.get("rmmo_collision","")!="none"
 				if extra.get("rmmo_streetlamp_crystal",false):lamps[prefix]=true
 			var fixture:=Index._fixture_key(spec)
 			if not fixture.is_empty():append_state.fixtures[fixture]=true
+			Index._retirement_member(append_state,spec,fixture)
 			_start_cells(spec,[[spatial,spec.uuid]])
 		1:
 			if cursor>=projection.size():_next_phase();return
@@ -191,6 +211,7 @@ func _step()->void:
 			if part<members.size():
 				var spec:Dictionary=members[part];part+=1
 				low=low.min(spec.chunk_min);high=high.max(spec.chunk_max);spec.render_building=id
+				Index._retirement_group(append_state,spec,id)
 				if owns_projection:owned_groups[spec.uuid]=id
 			else:
 				var bounds:Dictionary={"chunk":low,"chunk_min":low,"chunk_max":high}
@@ -223,7 +244,9 @@ func _step()->void:
 				if not validation_snapshot.is_empty():
 					var snapshot:Dictionary=snapshot_by_id[members[part].uuid]
 					snapshot.render_building=group_ids[cursor];snapshot.render_bounds=snapshot_bounds[group_ids[cursor]];snapshot.render_supports=[]
-				members[part].render_bounds=binding;members[part].render_supports=attached;part+=1
+				members[part].render_bounds=binding;members[part].render_supports=attached
+				if runtime_owned:publication_packet.group_member(members[part],group_ids[cursor])
+				part+=1
 			else:
 				if part<attached.size():attached[part].render_dependents.append(binding);part+=1;return
 				cursor+=1;part=0;subphase=0;binding={};attached=[]
@@ -252,6 +275,7 @@ func advance(budget_usec:int)->bool:
 	return phase==7
 func dispose()->void:
 	_clear_owned_fields();owned_groups={};owned_bounds={};owned_supports={}
+	runtime_source=[];publication_packet=null;fixtures=[];runtime_owned=false
 	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(validation_snapshot)
 	validation_snapshot=[];snapshot_by_id={};snapshot_bounds={}
 	source=[];projection=[];signatures=[];result={};groups={};structures={};lamps={};by_id={};known={};spatial={};props={};collisions={};raw_bounds={};append_state={};cell={};binding={};attached=[];land=[];supports=[];group_ids=[];phase=7

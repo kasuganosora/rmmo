@@ -110,7 +110,7 @@ func on_publication(specs:Array)->void:
 	Trace.elapsed("probe.whiten_publication",stage_began,{"specs":specs.size()})
 	publication_events.append({"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"count":specs.size()})
 	stage_began=Trace.begin("probe.navigation_append")
-	var result:Dictionary=current_scene._navigation.append_specs(specs)
+	var result:Dictionary=current_scene._navigation.append_specs(specs,mesh_map.get_node("DeferredAssets").publication_metadata)
 	Trace.elapsed("probe.navigation_append",stage_began,{"specs":specs.size()})
 	if not result.ok:report.failures.append("navigation source catalogue append: "+str(result.reason))
 

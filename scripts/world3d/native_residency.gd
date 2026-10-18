@@ -39,6 +39,8 @@ func configure(host:Node,map_root:Node,queue:Node)->void:
 	observe(map_root.get_meta("stream_library",[]));queue.published.connect(observe)
 func observe(specs:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.native_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var packet:RefCounted=_queue.get("publication_metadata") if is_instance_valid(_queue) else null
+	if packet!=null and packet.ready(specs) and _observe_publication(packet):return
 	var unsafe_namespaces:Dictionary={};var candidates:Dictionary={}
 	for spec:Dictionary in specs:
 		var root_id:String=str(spec.uuid).get_slice("__",0)
@@ -89,6 +91,46 @@ func observe(specs:Array)->void:
 		for entry:Dictionary in _units[unit].entries:_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
 	profile.resident_units=_resident.size();profile.known_units=_units.size()
 	profile.observed_bounds=int(profile.get("observed_bounds",0))+bound_observations
+func _observe_publication(packet:RefCounted)->bool:
+	for uuid:String in packet.namespaces:
+		if not _owners.has(uuid) and not _model_entries.has(uuid):return false
+	var changed:Dictionary={};var support_groups:Dictionary={};var observations:=0
+	for uuid:String in packet.namespaces:
+		var members:Dictionary=packet.namespaces[uuid]
+		if not _owners.has(uuid) and not members.groups.is_empty() and not members.native_owner:
+			var unit_id:="asset:"+uuid;var entry:Dictionary=_model_entries[uuid]
+			_units[unit_id]={"entries":[entry],"bounds":entry.bounds,"kind":"building","source_uuid":uuid,"support_ids":{}};_owners[uuid]=unit_id
+			var ordinary:Node=_map.get_node_or_null("AssetResidency")
+			if ordinary!=null:ordinary.handoff_native(uuid)
+		if not _owners.has(uuid):continue
+		var unit:String=_owners[uuid];var definition:Dictionary=_units[unit]
+		if not _resident.has(unit):
+			_resident[unit]={"ids":members.order.duplicate(),"known_ids":members.ids.duplicate(),"outside_since":-1}
+			if _retired.erase(unit):profile.revisits+=1
+		else:
+			var state:Dictionary=_resident[unit]
+			for id:String in members.order:
+				if not state.known_ids.has(id):state.ids.append(id);state.known_ids[id]=true
+		if definition.kind!="building":continue
+		for group:String in members.groups:
+			# Index publication binds every member of this prepared group to one
+			# live envelope. Read that envelope after commit, including new ground.
+			var spec:Dictionary=members.groups[group];var render:Dictionary=spec.render_bounds
+			var low:Vector2i=render.chunk_min;var high:Vector2i=render.chunk_max
+			var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
+			definition.bounds=definition.bounds.merge(bounds);changed[unit]=true;observations+=1
+			if not definition.has("support_ids"):definition.support_ids={}
+			if not support_groups.has(group):
+				support_groups[group]=true
+				for support:Dictionary in spec.get("render_supports",[]):
+					var id:String=support.get("ground_batch_record",EMPTY).get("uuid",str(support.uuid).get_slice("__",0))
+					definition.support_ids[id]=true
+	for unit:String in changed:
+		for entry:Dictionary in _units[unit].entries:_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
+	profile.resident_units=_resident.size();profile.known_units=_units.size()
+	profile.observed_bounds=int(profile.get("observed_bounds",0))+observations
+	profile.prepared_observations=int(profile.get("prepared_observations",0))+1
+	return true
 func _process(delta:float)->void:
 	if is_instance_valid(_host) and _host._ready_for_play and not _host._transfer_pending:Stream.advance_retirement_preparation(_map)
 	_clock+=delta
@@ -137,8 +179,9 @@ func poll(now:int)->void:
 		var fixtures:Dictionary={};var digests:Dictionary={};var model_paths:Dictionary={}
 		for entry:Dictionary in entries:
 			if not entry.asset_path.is_empty():model_paths[entry.asset_path]=true
+		var by_id:Dictionary=_map.get_meta("stream_by_id")
 		for uuid:String in ids:
-			var spec:Dictionary=_map.get_meta("stream_by_id")[uuid];var record:Dictionary=spec.get("ground_batch_record",{})
+			var spec:Dictionary=by_id[uuid];var record:Dictionary=spec.get("ground_batch_record",EMPTY)
 			if spec.extras.has("fixture"):fixtures[record.get("uuid",uuid.get_slice("__",0))]=float(spec.extras.fixture.open)
 			if record.has("house_prefab"):digests[record.house_prefab.sha256]=true
 			if record.has("asset_path"):model_paths[record.asset_path]=true

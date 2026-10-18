@@ -205,6 +205,7 @@ func release_retired_sources(specs:Array)->bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.release_retired_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# A finished extraction may otherwise retain its source until another body
 	# is requested. Never join a live worker on a walking frame.
+	if _mesh==null and _terrain._mesh==null and _terrain._spec.is_empty() and _terrain._ready_spec.is_empty() and not _face_prefetch.has_source_owners():return true
 	var meshes:Dictionary={};var ids:Dictionary={}
 	for spec:Dictionary in specs:
 		ids[spec.uuid]=true

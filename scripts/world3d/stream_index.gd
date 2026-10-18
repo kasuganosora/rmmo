@@ -21,7 +21,7 @@ static func build(library:Array)->Dictionary:
 		if str(spec.uuid).contains("__") and spec.get("mesh") is Mesh:
 			var asset_id:=str(spec.uuid).get_slice("__",0)
 			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
-			var extra:Dictionary=spec.get("extras",{})
+			var extra:Dictionary=spec.get("extras",EMPTY_RECORD)
 			if not structures.has(asset_id):structures[asset_id]={"bounds":bounds,"wind":false,"solid":false}
 			var row:Dictionary=structures[asset_id]
 			row.bounds=row.bounds.merge(bounds)
@@ -29,7 +29,7 @@ static func build(library:Array)->Dictionary:
 			row.solid=row.solid or extra.get("rmmo_collision","")!="none"
 		# Previously saved flat glTF already tags the crystal but not its sibling parts.
 		# Recover that explicit fixture's asset namespace without rewriting user maps.
-		if spec.get("extras",{}).get("rmmo_streetlamp_crystal",false) and str(spec.uuid).contains("__"):
+		if spec.get("extras",EMPTY_RECORD).get("rmmo_streetlamp_crystal",false) and str(spec.uuid).contains("__"):
 			lamp_roots[str(spec.uuid).get_slice("__",0)]=true
 		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
 			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
@@ -42,17 +42,17 @@ static func build(library:Array)->Dictionary:
 	for spec:Dictionary in library:
 		# Authored membership survives render-merge exclusions (lights, LODs,
 		# glass and wind). Batch eligibility must not change building residency.
-		var id:String=spec.get("extras",{}).get("building",{}).get("id",spec.get("ground_batch_record",{}).get("building",{}).get("id",""))
+		var id:String=spec.get("extras",EMPTY_RECORD).get("building",{}).get("id",spec.get("ground_batch_record",EMPTY_RECORD).get("building",{}).get("id",""))
 		# Keep each whole streetlamp with its supporting landscape at town view distance.
 		# Physics still uses the original near-field bounds and collision index.
-		var lamp_id:String=spec.get("extras",{}).get("rmmo_streetlamp_instance","")
+		var lamp_id:String=spec.get("extras",EMPTY_RECORD).get("rmmo_streetlamp_instance","")
 		var asset_id:=str(spec.uuid).get_slice("__",0)
 		if lamp_id.is_empty() and lamp_roots.has(asset_id):lamp_id=asset_id
 		if id.is_empty() and not lamp_id.is_empty():id="streetlamp:"+lamp_id
 		if id.is_empty() and structures.has(asset_id):
 			var structure:Dictionary=structures[asset_id]
 			if structure.bounds.size.y>=12.0 and structure.solid and not structure.wind:id="structure:"+asset_id
-		var solid:bool=spec.get("extras",{}).get("rmmo_collision","")!="none"
+		var solid:bool=spec.get("extras",EMPTY_RECORD).get("rmmo_collision","")!="none"
 		if id.is_empty() or solid:
 			for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
 				for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
@@ -96,18 +96,20 @@ static func _cells_add(buckets:Dictionary,bounds:Dictionary,value:Variant)->void
 			buckets[key].append(value)
 
 static func _fixture_key(spec:Dictionary)->String:
-	var extra:Dictionary=spec.get("extras",{})
+	var extra:Dictionary=spec.get("extras",EMPTY_RECORD)
 	if not extra.has("fixture"):return ""
 	var owner:String=preload("res://scripts/world3d/building_fixtures.gd").owner_id(extra)
 	return JSON.stringify([owner,str(extra.fixture.get("id",""))])
 
 static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:Dictionary={})->Dictionary:
-	var state:={"namespaces":{},"prefixes":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
+	var state:={"namespaces":{},"prefixes":{},"namespace_sizes":{},"retirement_units":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
 	for spec:Dictionary in library:
-		state.prefixes[str(spec.uuid).get_slice("__",0)]=true
+		var prefix:=str(spec.uuid).get_slice("__",0)
+		state.prefixes[prefix]=true;state.namespace_sizes[prefix]=int(state.namespace_sizes.get(prefix,0))+1
 		if str(spec.uuid).contains("__"):state.namespaces[str(spec.uuid).get_slice("__",0)]=true
 		var fixture:=_fixture_key(spec)
 		if not fixture.is_empty():state.fixtures[fixture]=true
+		_retirement_member(state,spec,fixture)
 	for spec:Dictionary in land:
 		if not Landscape.ground(spec):continue
 		state.ground_order[spec.uuid]=state.ground_order.size();state.dependents[spec.uuid]=[]
@@ -122,6 +124,74 @@ static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:
 		_cells_add(state.group_cells,bounds,id)
 		for support:Dictionary in groups[id][0].get("render_supports",[]):state.dependents[support.uuid].append(id)
 	return state
+
+# Scalar membership is built once with the index. Runtime sources keep their
+# geometry/fixture identity until retire/rebuild; current gameplay pins and
+# current group/support envelopes are still read at every retirement.
+static func _retirement_member(state:Dictionary,spec:Dictionary,fixture:String)->void:
+	var prefix:String=spec.uuid.get_slice("__",0)
+	if not state.retirement_units.has(prefix):state.retirement_units[prefix]={"bounds":{},"fixtures":{},"groups":{},"probes":{}}
+	var unit:Dictionary=state.retirement_units[prefix]
+	var low:Vector2i=spec.chunk_min;var high:Vector2i=spec.chunk_max
+	unit.bounds[Vector4i(low.x,low.y,high.x,high.y)]=true
+	unit.probes[spec.uuid]=true
+	if spec.get("render_building") is String:_retirement_group(state,spec,spec.render_building)
+	if not fixture.is_empty():unit.fixtures[fixture]=true
+
+static func _retirement_group(state:Dictionary,spec:Dictionary,group:String)->void:
+	var unit:Dictionary=state.retirement_units[spec.uuid.get_slice("__",0)]
+	unit.groups[group]=true
+	# Landscape may have its own reverse dependents even when it also belongs
+	# to a building. All other members share the index-owned group envelope.
+	if not Landscape.landscape(spec):unit.probes.erase(spec.uuid)
+
+static func _resident_owned_retire_plan(existing:Dictionary,library:Array,ids:Array,complete_unit:bool=true)->Dictionary:
+	var by_id:Dictionary=existing.stream_by_id;var state:Dictionary=existing.stream_append_state
+	var selected:Dictionary={};var prefixes:Dictionary={};var groups:Dictionary={};var ground:Dictionary={}
+	var removed:Array=[];var shapes:Dictionary={};var fixtures:Dictionary={}
+	for id:Variant in ids:
+		if not id is String or selected.has(id) or not by_id.has(id):return _retire_failure("invalid complete retirement identity")
+		var spec:Dictionary=by_id[id]
+		if spec.get("uuid")!=id:return _retire_failure("invalid resident identity")
+		if not complete_unit:
+			var dependency:=_retire_dependency(spec,true)
+			if not dependency.is_empty():return _retire_failure("pinned dependency "+dependency+": "+id)
+		if spec.get("native_visual",false):return _retire_failure("active native owner")
+		var extra:Dictionary=spec.get("extras",EMPTY_RECORD);var record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
+		for field:String in ["event","event_template","hostile","ally","seat"]:
+			if extra.has(field) or record.has(field):return _retire_failure("active gameplay owner")
+		if extra.get("kind","") in ["npc","gather","event","teleport","warp"]:return _retire_failure("active gameplay owner")
+		selected[id]=true;removed.append(spec)
+		var prefix:String=id.get_slice("__",0);prefixes[prefix]=int(prefixes.get(prefix,0))+1
+		if spec.has("render_building"):
+			var group:String=spec.render_building
+			groups[group]=int(groups.get(group,0))+1
+		if state.ground_order.has(id):
+			ground[id]=true
+	for prefix:String in prefixes:
+		if prefixes[prefix]!=state.namespace_sizes.get(prefix,0):return _retire_failure("split namespace")
+		if not state.retirement_units.has(prefix):return _retire_failure("missing retirement membership")
+		if not complete_unit and not state.retirement_units[prefix].groups.is_empty():return _retire_failure("pinned building group")
+		shapes.merge(state.retirement_units[prefix].bounds,true);fixtures.merge(state.retirement_units[prefix].fixtures,true)
+	for group:String in groups:
+		if not existing.stream_building_groups.has(group):return _retire_failure("missing derived building")
+		var members:Array=existing.stream_building_groups[group]
+		if members.size()!=int(groups[group]):return _retire_failure("split building group")
+	# Only selected ground can invalidate a retained group's dependency. Use
+	# the reverse index instead of scanning every unrelated building member.
+	var ground_cells:Dictionary={}
+	for id:String in ground:
+		for group:String in state.dependents[id]:
+			if not groups.has(group):return _retire_failure("retained building needs landscape support")
+		var spec:Dictionary=by_id[id]
+		for z:int in range(spec.chunk_min.y,spec.chunk_max.y+1):
+			for x:int in range(spec.chunk_min.x,spec.chunk_max.x+1):ground_cells[Vector2i(x,z)]=true
+	var cells:Dictionary={}
+	for shape:Vector4i in shapes:
+		var low:=Vector2i(shape.x,shape.y);var high:=Vector2i(shape.z,shape.w)
+		for z:int in range(low.y,high.y+1):
+			for x:int in range(low.x,high.x+1):cells[Vector2i(x,z)]=true
+	return {"ok":true,"error":"","removed":selected.size(),"selected":selected,"prefixes":prefixes,"cells":cells,"ground_cells":ground_cells,"ground_ids":ground,"fixtures":fixtures,"groups":groups,"removed_ids":ids.duplicate(),"removed_specs":removed}
 
 static func _append_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason}
@@ -188,12 +258,12 @@ static func _merge_buckets(target:Dictionary,addition:Dictionary,originals:Dicti
 static func _retire_failure(reason:String)->Dictionary:
 	return {"ok":false,"error":reason,"removed":0,"removed_ids":[],"removed_specs":[]}
 
-static func _retire_dependency(spec:Dictionary)->String:
-	if not _valid_append_spec(spec):return "invalid spec"
+static func _retire_dependency(spec:Dictionary,schema_checked:bool=false)->String:
+	if not schema_checked and not _valid_append_spec(spec):return "invalid spec"
 	if bool(spec.get("native_visual",false)):return "native visual"
 	for field in ["render_building","render_bounds","render_supports","render_dependents"]:
 		if spec.has(field):return field
-	var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+	var extra:Dictionary=spec.get("extras",EMPTY_RECORD);var record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
 	for field in ["building","fixture","fortification","house_prefab"]:
 		if record.has(field) or extra.has(field):return field
 	if Landscape.landscape(spec):return "landscape"
@@ -206,15 +276,19 @@ static func _retire_dependency(spec:Dictionary)->String:
 	if extra.get("kind","") in ["npc","gather","event","teleport","warp"] or extra.has("event") or bool(extra.get("hostile",false)) or bool(extra.get("ally",false)):return "gameplay owner"
 	return ""
 
-static func _retire_plan(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+static func _retire_plan(existing:Dictionary,library:Array,ids:Array,resident_catalog:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index._retire_plan") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for key in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
 		if not existing.get(key) is Dictionary:return _retire_failure("invalid existing index: "+key)
 	var state:Dictionary=existing.stream_append_state
-	for key in ["namespaces","prefixes","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
+	for key in ["namespaces","prefixes","namespace_sizes","retirement_units","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
 		if not state.get(key) is Dictionary:return _retire_failure("invalid append bookkeeping: "+key)
 	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _retire_failure("invalid existing index")
 	if library.size()!=existing.stream_building_count or library.size()!=existing.stream_by_id.size():return _retire_failure("library/index size mismatch")
+	# Runtime sources are immutable between append and retirement. Validate the
+	# selected live owners against incrementally maintained namespace membership;
+	# public callers retain the full identity/derived-membership checks below.
+	if resident_catalog:return _resident_owned_retire_plan(existing,library,ids,false)
 	var selected:Dictionary={};var prefixes:Dictionary={};var cells:Dictionary={}
 	for value:Variant in ids:
 		if not value is String or value.is_empty():return _retire_failure("invalid retirement UUID")
@@ -303,22 +377,30 @@ static func _retirement_library_schema(library:Array,by_id:Dictionary,wanted:Dic
 		for prefix:String in part.namespace_sizes:result.namespace_sizes[prefix]=int(result.namespace_sizes.get(prefix,0))+int(part.namespace_sizes[prefix])
 	return result
 
-static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true,preparation:RefCounted=null)->Dictionary:
+static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true,preparation:RefCounted=null,resident_catalog:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.validate_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var selected:Dictionary={};var prefixes:Dictionary={}
 	for key:String in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
 		if not existing.get(key) is Dictionary:return _retire_failure("invalid existing index: "+key)
 	var state:Dictionary=existing.stream_append_state
-	for key:String in ["namespaces","prefixes","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
+	for key:String in ["namespaces","prefixes","namespace_sizes","retirement_units","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
 		if not state.get(key) is Dictionary:return _retire_failure("invalid append bookkeeping: "+key)
 	if not existing.get("stream_landscape") is Array:return _retire_failure("invalid landscape catalogue")
 	if library.size()!=existing.get("stream_by_id",{}).size() or library.size()!=int(existing.get("stream_building_count",-1)):return _retire_failure("library/index size mismatch")
+	if resident_catalog and prepare_commit:return _resident_owned_retire_plan(existing,library,ids)
 	var by_id:Dictionary=existing.stream_by_id;var wanted:Dictionary={};var requested_prefixes:Dictionary={}
 	for id:Variant in ids:
 		if id is String:
 			var prefix:String=id.get_slice("__",0);wanted[prefix]=true;requested_prefixes[id]=prefix
 	var proof:Dictionary
-	if preparation!=null:
+	if resident_catalog:
+		# Runtime membership comes exclusively from build/append/retire. Maintain
+		# its counts at those writes instead of snapshotting and authenticating
+		# every unrelated resident source at each unload. Dynamic owners and the
+		# selected complete namespace are still checked in this transaction.
+		if not state.get("namespace_sizes") is Dictionary:return _retire_failure("missing resident namespace counts")
+		proof={"ok":true,"seen":by_id,"namespace_sizes":state.namespace_sizes}
+	elif preparation!=null:
 		if preparation.get_script()!=load("res://scripts/world3d/retirement_schema_preparation.gd") or not preparation.valid_for(library,by_id):return _retire_failure("stale_retirement_schema")
 		proof={"ok":true,"seen":preparation.seen,"namespace_sizes":preparation.namespace_sizes}
 	else:proof=_retirement_library_schema(library,by_id,wanted)
@@ -328,11 +410,14 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 	var ground_ids:Dictionary={};var fixtures:Dictionary={};var groups:Dictionary={};var removed:Array=[]
 	for id:Variant in ids:
 		if not id is String or selected.has(id) or not by_id.has(id):return _retire_failure("invalid complete retirement identity")
+		if resident_catalog and (not by_id[id] is Dictionary or by_id[id].get("uuid")!=id):return _retire_failure("invalid resident identity")
 		var spec:Dictionary=by_id[id]
-		# The complete identity/schema pass above covered every by_id object.
-		# Do not validate all fields of each selected member a second time.
+		# Index-owned source schema was established at build/append. Unload checks
+		# current gameplay/ownership conditions, not the original resource again.
 		if spec.get("native_visual",false):return _retire_failure("active native owner")
-		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+		# A complete group's source cells are contained in its indexed raw
+		# envelope. Visit that envelope once below, not once for each mesh part.
+		for z in range(spec.chunk_min.y,spec.chunk_max.y+1) if not (resident_catalog and spec.has("render_building") and not state.ground_order.has(id)) else []:
 			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):
 				var key:=Vector2i(x,z)
 				# This complete validation is synchronous and read-only. Thousands
@@ -347,7 +432,7 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 		if spec.has("render_building"):
 			if not spec.render_building is String or not existing.stream_building_groups.has(spec.render_building):return _retire_failure("missing derived building")
 			if prepare_commit:groups[spec.render_building]=true
-		var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+		var extra:Dictionary=spec.get("extras",EMPTY_RECORD);var record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
 		for field in ["event","event_template","hostile","ally","seat"]:
 			if extra.has(field) or record.has(field):return _retire_failure("active gameplay owner")
 		if extra.get("kind","") in ["npc","gather","event","teleport","warp"]:return _retire_failure("active gameplay owner")
@@ -359,7 +444,7 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 			if not fixture.is_empty():fixtures[fixture]=true
 		var prefix:String=requested_prefixes[id];prefixes[prefix]=int(prefixes.get(prefix,0))+1
 	for prefix:String in prefixes:
-		if prefixes[prefix]!=namespace_sizes[prefix]:return _retire_failure("split namespace")
+		if prefixes[prefix]!=namespace_sizes.get(prefix,0):return _retire_failure("split namespace")
 	var checked_group_cells:Dictionary={}
 	for group:String in existing.stream_building_groups:
 		var members:Variant=existing.stream_building_groups[group]
@@ -379,6 +464,10 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 					if not checked_group_cells.has(key):
 						if not state.group_cells.get(key,[]) is Array:return _retire_failure("invalid group bucket")
 						checked_group_cells[key]=true
+					if resident_catalog and not checked_cells.has(key):
+						for field:String in SPATIAL_FIELDS:
+							if not existing[field].get(key,[]) is Array:return _retire_failure("invalid spatial bucket: "+field)
+						checked_cells[key]=true
 			if not members[0].get("render_supports",[]) is Array:return _retire_failure("invalid building support")
 			for support:Variant in members[0].get("render_supports",[]):
 				if not support is Dictionary or not support.get("uuid") is String or not support.get("render_dependents") is Array or not state.dependents.get(support.uuid) is Array:return _retire_failure("invalid support dependencies")
@@ -519,6 +608,7 @@ static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->D
 		_retire_bucket(existing.stream_prop_index,key,selected,true)
 		_retire_bucket(existing.stream_collision_index,key,selected,true)
 	for prefix:String in plan.prefixes:state.namespaces.erase(prefix);state.prefixes.erase(prefix)
+	for prefix:String in plan.prefixes:state.namespace_sizes.erase(prefix);state.retirement_units.erase(prefix)
 	var write:=0
 	for read in library.size():
 		if selected.has(library[read].uuid):continue
@@ -542,21 +632,34 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	var originals:Dictionary={};var state:Dictionary=existing.stream_append_state
 	for key in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
 		if not existing.get(key) is Dictionary:return _append_failure("invalid existing index")
-	for key in ["namespaces","prefixes","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
+	for key in ["namespaces","prefixes","namespace_sizes","retirement_units","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
 		if not state.get(key) is Dictionary:return _append_failure("invalid append bookkeeping")
 	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _append_failure("invalid existing index")
 	if additions.is_empty():return {"ok":true,"data":existing,"added":0,"affected_groups":0,"affected_existing_specs":[]}
 	var schema:=_schema_scope(additions,0,additions.size())
-	var native_validated:bool=preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_owned_snapshot(additions)
-	for value:Variant in additions:
-		if not native_validated and not _valid_append_spec(value,schema):return _append_failure("invalid spec")
-		var id:String=value.uuid
-		if originals.has(id) or existing.stream_by_id.has(id):return _append_failure("duplicate UUID: "+id)
-		var prefix:=id.get_slice("__",0)
-		if state.namespaces.has(prefix) or (id.contains("__") and state.prefixes.has(prefix)):return _append_failure("split imported namespace: "+id)
-		var fixture:=_fixture_key(value)
-		if not fixture.is_empty() and state.fixtures.has(fixture):return _append_failure("split fixture: "+fixture)
-		originals[id]=value
+	var runtime_prepared:bool=preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_runtime_owned(additions)
+	var native_validated:bool=runtime_prepared or (preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_owned_snapshot(additions))
+	if runtime_prepared:
+		# The private fragment already collected exact IDs and fixture keys in
+		# slices. Only conflicts with the current resident index remain to check.
+		originals=preparation.result.stream_by_id
+		for id:String in originals:
+			if existing.stream_by_id.has(id):return _append_failure("duplicate UUID: "+id)
+		var staged:Dictionary=preparation.result.stream_append_state
+		for prefix:String in staged.prefixes:
+			if state.namespaces.has(prefix) or (staged.namespaces.has(prefix) and state.prefixes.has(prefix)):return _append_failure("split imported namespace: "+prefix)
+		for fixture:String in staged.fixtures:
+			if state.fixtures.has(fixture):return _append_failure("split fixture: "+fixture)
+	else:
+		for value:Variant in additions:
+			if not native_validated and not _valid_append_spec(value,schema):return _append_failure("invalid spec")
+			var id:String=value.uuid
+			if originals.has(id) or existing.stream_by_id.has(id):return _append_failure("duplicate UUID: "+id)
+			var prefix:=id.get_slice("__",0)
+			if state.namespaces.has(prefix) or (id.contains("__") and state.prefixes.has(prefix)):return _append_failure("split imported namespace: "+id)
+			var fixture:=_fixture_key(value)
+			if not fixture.is_empty() and state.fixtures.has(fixture):return _append_failure("split fixture: "+fixture)
+			originals[id]=value
 	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_validate",phase_began,{"specs":additions.size(),"native_snapshot":native_validated,"schema_checks":0 if native_validated else additions.size(),"scoped":schema!=null,"extra_checks":0 if native_validated else (schema.extra_checks if schema!=null else additions.size()),"record_checks":0 if native_validated else (schema.record_checks if schema!=null else additions.size())})
 	schema=null # The scope ends before preparation invokes any Mesh getter.
 	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_fragment")
@@ -621,7 +724,7 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	for key in ["stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
 		_merge_buckets(existing[key],fragment[key],{} if owned_projection else originals)
 	for spec:Dictionary in fragment.stream_landscape:existing.stream_landscape.append(originals[spec.uuid])
-	for key in ["namespaces","prefixes","fixtures","group_bounds"]:state[key].merge(fresh[key],true)
+	for key in ["namespaces","prefixes","namespace_sizes","retirement_units","fixtures","group_bounds"]:state[key].merge(fresh[key],true)
 	for key in ["group_cells","ground_cells"]:_merge_buckets(state[key],fresh[key])
 	for id:String in fresh.group_order:state.group_order[id]=group_offset+int(fresh.group_order[id])
 	for uuid:String in fresh.ground_order:state.ground_order[uuid]=ground_offset+int(fresh.ground_order[uuid])

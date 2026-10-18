@@ -28,7 +28,8 @@ static func defer_scene(scene:PackedScene)->bool:
 	if service==null:return false
 	service._enqueue(scene);return true
 static func defer_private_array(values:Array)->bool:
-	# Only exclusively owned, unpublished snapshots may donate this container.
+	# Only exclusively owned snapshots or completed retirement plans may donate
+	# this container. Never donate an array still used by a live index/cursor.
 	# Items are unreferenced, never recursively cleared or otherwise mutated.
 	if values.size()<256 or not Thread.is_main_thread():return false
 	var service:Node=_service()

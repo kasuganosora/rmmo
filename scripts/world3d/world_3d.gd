@@ -336,7 +336,7 @@ func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 		navigation.configure_geometry_provider(provide_geometry,deferred.release_demand.bind(demand_id))
 	var on_published:=func(specs:Array):
 		if not is_instance_valid(navigation):return
-		var result:Dictionary=navigation.append_specs(specs)
+		var result:Dictionary=navigation.append_specs(specs,deferred.publication_metadata)
 		if not result.ok:navigation.set_geometry_error(str(result.reason))
 		# A staged transfer navigation sees the same arrivals but must not append
 		# the same objects twice to the live minimap.

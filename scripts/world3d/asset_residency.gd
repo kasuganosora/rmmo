@@ -43,10 +43,16 @@ func configure(host:Node,map_root:Node,deferred:Node)->void:
 
 func observe(specs:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var packet:RefCounted=_deferred.get("publication_metadata") if is_instance_valid(_deferred) else null
+	if packet!=null and packet.ready(specs) and _observe_publication(packet):return
 	for spec:Dictionary in specs:
 		var root_id:String=str(spec.uuid).get_slice("__",0)
 		var source_record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
 		var uuid:String=str(source_record.get("uuid",root_id))
+		# Imported component UUIDs are model-local. The declared map instance
+		# owns their model lease; different models may reuse every component ID.
+		# This also keeps one namespace table per instance, not per mesh part.
+		if _record_paths.has(root_id):uuid=root_id
 		# Dictionary.get evaluates its fallback even on a hit. Most model parts
 		# already have a directory path; avoid rebuilding their whole fallback
 		# chain and temporary record dictionaries on every component.
@@ -86,10 +92,36 @@ func observe(specs:Array)->void:
 			_resident[uuid].known_ids={}
 			for id:String in _resident[uuid].ids:_resident[uuid].known_ids[id]=true
 		if not _resident[uuid].known_ids.has(spec.uuid):_resident[uuid].ids.append(spec.uuid);_resident[uuid].known_ids[spec.uuid]=true
-		var dependency:String=preload("res://scripts/world3d/stream_index.gd")._retire_dependency(spec)
-		if not dependency.is_empty():_resident[uuid].pinned=dependency
+		if _resident[uuid].pinned.is_empty():
+			var dependency:String=preload("res://scripts/world3d/stream_index.gd")._retire_dependency(spec)
+			if not dependency.is_empty():_resident[uuid].pinned=dependency
 	profile.resident_instances=_resident.size()
 	_profile_usage()
+
+func _observe_publication(packet:RefCounted)->bool:
+	# The published packet is a complete, already indexed map instance. A
+	# partial/duplicate observation retains the ordinary incremental path.
+	for uuid:String in packet.namespaces:
+		if str(_record_paths.get(uuid,"")).is_empty() or _namespace_specs.has(uuid) or _resident.has(uuid):return false
+	for uuid:String in packet.namespaces:
+		var members:Dictionary=packet.namespaces[uuid];var path:String=_record_paths[uuid]
+		_namespace_specs[uuid]=members.ids.duplicate()
+		if not _model_namespaces.has(path):_model_namespaces[path]={}
+		_model_namespaces[path][uuid]=true
+		if _native_namespaces.has(uuid) or not _catalog.has(uuid):continue
+		if not _record_pins.has(uuid):
+			var record:Dictionary=_deferred.runtime_record(uuid)
+			if not record.is_empty():_remember_traits(record)
+		var pin:String=_record_pins.get(uuid,"missing_authored_record")
+		if pin.is_empty():pin=members.ordinary_pin
+		_resident[uuid]={"ids":members.order.duplicate(),"known_ids":members.ids.duplicate(),"outside_since":-1,"pinned":pin}
+		if _retired.erase(uuid):profile.revisits+=1
+	_spec_namespaces.merge(packet.spec_namespaces,true)
+	if not _unknown_asset_specs.is_empty():
+		for id:String in packet.ids:_unknown_asset_specs.erase(id)
+	profile.resident_instances=_resident.size();_profile_usage()
+	profile.prepared_observations=int(profile.get("prepared_observations",0))+1
+	return true
 
 func handoff_native(uuid:String)->void:
 	_native_namespaces[uuid]=true;_resident.erase(uuid)
