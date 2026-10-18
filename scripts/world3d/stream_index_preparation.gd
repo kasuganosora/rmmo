@@ -4,6 +4,8 @@ extends RefCounted
 const Index=preload("res://scripts/world3d/stream_index.gd")
 const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
 const DERIVED_FIELDS:Array=["render_building","render_bounds","render_supports","render_dependents"]
+const EMPTY_RECORD:Dictionary={}
+static var shared_signature_defaults_enabled:=true
 var source:Array=[]
 var projection:Array=[]
 var signatures:Array=[]
@@ -54,8 +56,12 @@ func _clear_owned_fields()->void:
 		for field:String in DERIVED_FIELDS:spec.erase(field)
 	owns_projection=false
 static func signature(spec:Dictionary)->Array:
-	var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
-	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",{}).get("id",""),record.get("building",{}).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
+	# Defaults are eagerly evaluated, including when both records already
+	# exist. Reuse one immutable empty Dictionary; native Array equality keeps
+	# its strict types and recursive/NaN semantics unchanged.
+	var empty:Dictionary=EMPTY_RECORD if shared_signature_defaults_enabled else {}
+	var extra:Dictionary=spec.get("extras",empty);var record:Dictionary=spec.get("ground_batch_record",empty)
+	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",empty).get("id",""),record.get("building",empty).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
 func valid_for(values:Array,schema_checked:bool=false)->bool:
 	if phase!=7 or not error.is_empty() or source.size()!=values.size():return false
 	for i:int in values.size():

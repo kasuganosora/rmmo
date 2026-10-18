@@ -361,3 +361,21 @@ white_parallel_schema_abba 使用实际 2,151 部件与 322 个周边 spec，16 
 并发只读容器和共享引用的引擎约束见 [Godot 线程安全 API](https://docs.godotengine.org/en/stable/tutorials/performance/thread_safe_apis.html)。
 
 white_full_route_parallel_schema 完整累计路线：暖目录进入 19.709 秒，294 次区块切换，观察移除 4,558 个 spec、重载 3,972 个原 UUID、6,008 个唯一 spec；最大 2,151 部件整组卸载、返回补齐、3,824 个实际 GPU surface 全白、正式地图/计时源码 SHA 稳定及退出所有权全部通过，失败/引擎错误/trace 丢弃零。远处卸载/重载最长帧 148.554/195.258 ms，完整退休校验最长 64.917 ms、提交 11.902 ms、整个退休范围 133.474 ms；公会发布仍 157.068 ms。初始加载最长 419.196 ms。额外需求收敛 22.283/46.368 秒，15 秒停留前后记录 2,430/1,944 帧，仅代表隔离白模环境。总量和调度有波动，前一完整路线的 177.464/226.624 ms 不能作为单变量、多轮配对统计；约 4.8 ms 的局部收益以固定实际输入 ABBA 为依据，100+ ms 长帧继续保留为未解决项。
+
+## 签名分配候选与切换官方全帧 Profiler
+
+white_direct_signature_abba 将十五项签名直接展开比较，16 次实际输入 ABBA 原子追加平均 65.473→67.728 ms、中位数 64.827→65.765 ms，未证明时间收益。引擎 Array.recursive_equal 使用严格 Variant 类型及递归值比较，直接 == 与容器 is_same 不能完全代替；该复杂候选未采用。最终保留原生数组比较，仅共享不修改的空字典，避免 signature 每部件的四份急切默认字典分配。诊断关闭共享时也仅创建一份临时默认字典，因此 white_shared_signature_defaults_abba 的控制已比最初四份默认分配更轻；同样 16 次 ABBA 平均 70.542→65.754 ms、中位数 65.498→64.538 ms，波动明显，只将减少分配作为确定收益。所有签名字段、旧字段的严格类型/容器/NaN 等价及实际准备/发布回归通过。
+
+用户于 2026-10-18 要求改用官方/社区工具甚至 GDB，暂停继续逐项微调。white_official_profiler_local 以 --debug --profiling --gpu-profile 运行真实白模远离/卸载/返回诊断路线，关闭 --stream-methods。这是 Godot 内建 LocalDebugger Profiler 输出，非额外手工计时；其每秒打印的单帧并不覆盖全部长帧。该轮退出时“确有未完成的 admitted 工作”这一测试覆盖断言未命中，不能称整组验收全绿；它的性能日志仅用于诊断，不作无插桩性能对照。
+
+随后通过内建 RemoteDebugger 的 profiler:servers / profiler:visual 协议启用 512 个函数和 native-call 明细，保存原始 PacketPeerStream 数据 white_official_frames.bin，不增加业务代码计时。20,288 个官方脚本帧、20,286 个 Visual Profiler 帧、1,772 个函数签名完整导出，实际白模路线、地图/源码 SHA、发布及退出所有权检查通过。原有 tools/capture_godot_profiler.gd 已恢复保留，新二进制流接收器单独放在 tools/record_axel_official_profiler.gd；在外部空项目运行以免接收器再加载游戏 autoload。tools/summarize_godot_profiler.gd 仅离线解码官方数据；self/total/internal 分列，不相加为独占 CPU 时间。
+
+white_official_frames_summary_final.json 的需求调度显示 _refresh_demanded 37,053 次函数进入、32.164 秒累计总范围、单帧累计峰值 151.386 ms。队列自身计数表明其中仅 1,334 次实际重建，累计 32.136 秒，约 24.09 ms/次、峰值 151.371 ms；其余为版本相同的快速返回，不能据每帧两次函数进入认定做了两次完整重建。_in_clip 25,118 次，累计总范围 19.590 秒、自身 10.883 秒；这些范围包含于需求重建等调用，不能相加。下一步重点检查 unchanged ticket 的反复空间筛选、先筛全体再丢弃无关需求类型及重复候选，而不是扩大资源减面/纹理排查。
+
+Visual Profiler 的 Frame End 等累计时间戳：CPU 渲染范围 P50/P95/P99/最大 0.250/1.733/4.150/27.385 ms，GPU 范围 0.202/0.608/0.682/2.270 ms。它只覆盖引擎渲染标记，不能代表全部脚本、物理、驱动 Present 或外部注入钩子的时间。捕获还包括初始化及结束后的校验/JSON 写盘；slowest_frames 中这些测试步骤必须排除，不能作为游戏卡顿。原始数据保留以便重新分析。
+
+GDB 16.3 成功附加且安全分离仅本轮拥有的 Godot 进程（white_official_gdb_attach.log）；该次样本在 AMD Vulkan Present 路径，包含已在进程中加载的 we-graphics-hook64.dll。单个样本和 DLL 存在均不能证明根因，未修改或关闭用户软件；当前发行引擎没有完整 C++ 符号。
+
+按用户授权核对 godotengine/godot 与 godotengine/godot-builds 的 4.7.2-stable 附件，两处均只有 Android 的 native debug symbols，没有 Windows 对应附件。官方 Godot 源码标签确认 ed1daf0bf001b61586d9930840f2f1394092c079，与正在使用的引擎一致。官方源包 47,744,300 字节，发布 digest 与实际 SHA-256 均为 a18ce0ccec3ecc40b0dd6c4f5132ca934e9fb7c2979717940ff32aee1eb35481。于 D:/tools/godot-profile-build/source/godot-4.7.2-stable 直接使用已校验官方源包，独立 Python 环境安装 SCons 4.11.1，以 target=editor、use_mingw=yes、debug_symbols=yes、separate_debug_symbols=yes、dev_build=no、optimize=speed、lto=none、六路并行编译。未改项目引擎路径；关闭本次 Vulkan 测试不用的 D3D12/ANGLE/AccessKit，WinRT 依赖未安装由构建自动关闭。编译器/LTO/可选平台驱动与官方分发包不完全相同，后续耗时仅用于原生归因，正式收益仍在原发行引擎上验证。此处记录时构建仍在进行，尚未宣称符号可用或原生热点已经确认。
+
+官方依据：[Profiler 使用说明](https://docs.godotengine.org/en/stable/tutorials/scripting/debug/the_profiler.html)、[Visual Profiler 的测量范围](https://docs.godotengine.org/en/stable/tutorials/scripting/debug/debugger_panel.html)、[当前版本的 profiler 消息及 native-call 字段](https://github.com/godotengine/godot/blob/ed1daf0bf/servers/debugger/servers_debugger.cpp)、[Windows 构建选项](https://docs.godotengine.org/en/4.7/engine_details/development/compiling/compiling_for_windows.html)。

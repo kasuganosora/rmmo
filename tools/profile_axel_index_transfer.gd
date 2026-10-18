@@ -26,18 +26,22 @@ func benchmark()->void:
 	check(source.size()==2151,"fixed input is the actual 2151-part axel building")
 	if source.size()!=2151:return
 	var schema_only:bool="--schema-only" in OS.get_cmdline_user_args()
-	report.index_transfer_benchmark={"specs":source.size(),"surroundings":surroundings.size(),"schema_only":schema_only,"note":"same loaded immutable mesh owners; ABBA order; preparation and fresh baseline build excluded from atomic append timing; schema-only keeps owned projection and retirement-plan reuse enabled for both arms","trials":[]}
+	var signature_only:bool="--signature-only" in OS.get_cmdline_user_args()
+	report.index_transfer_benchmark={"specs":source.size(),"surroundings":surroundings.size(),"schema_only":schema_only,"signature_only":signature_only,"note":"same loaded immutable mesh owners; ABBA order; preparation and fresh baseline build excluded from atomic append timing; schema/signature-only keep owned projection and retirement-plan reuse enabled for both arms","trials":[]}
 	for turn:int in 16:
 		var owned:bool=turn%4 in [1,2]
 		var schema_workers:int=4 if owned else 0
-		if schema_only:owned=true
+		var shared_defaults:bool=owned
+		if schema_only or signature_only:owned=true
+		if signature_only:Preparation.shared_signature_defaults_enabled=shared_defaults
 		var data:=Index.build(projection(surroundings));var incoming:=projection(source)
 		var cursor:=Preparation.new()
 		if owned:cursor.begin_owned(incoming)
 		else:cursor.begin(incoming)
 		while not cursor.advance(2000):await process_frame
 		var started:=Time.get_ticks_usec();var appended:=Index.append(data,incoming,cursor);var elapsed:=Time.get_ticks_usec()-started
-		var row:Dictionary={"owned":owned,"append_us":elapsed,"schema_workers":schema_workers if schema_only else Index.retirement_schema_workers}
+		var row:Dictionary={"owned":owned,"append_us":elapsed,"schema_workers":schema_workers if schema_only else Index.retirement_schema_workers,"shared_defaults":Preparation.shared_signature_defaults_enabled}
+		Preparation.shared_signature_defaults_enabled=true
 		report.index_transfer_benchmark.trials.append(row)
 		check(appended.ok,"fixed input transfer succeeds: %d"%turn)
 		cursor.dispose()
