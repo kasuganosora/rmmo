@@ -383,7 +383,7 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 		specs.append(spec)
 	var data:=_resident_index_data(map_root);var library:=_library(map_root)
 	if complete_unit and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
-	var checked:Dictionary=index.validate_owned_retire(data,library,ids) if complete_unit else index._retire_plan(data,library,ids)
+	var checked:Dictionary=index._owned_retire_plan(data,library,ids,index.reuse_owned_retirement_plan_enabled) if complete_unit else index._retire_plan(data,library,ids)
 	if not checked.ok:return checked
 	if legacy_retirement_validation_enabled:
 		for id:String in ids:
@@ -437,7 +437,7 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	var index=preload("res://scripts/world3d/stream_index.gd")
 	var result:Dictionary
 	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
-	else:result=index._commit_owned_retire(checked.data,checked.library,ids) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
+	else:result=index._commit_owned_retire(checked.data,checked.library,ids,checked.plan) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
 	var usage:Node=map_root.get_node_or_null("AssetResidency")
 	if usage!=null:usage.forget_specs(ids)

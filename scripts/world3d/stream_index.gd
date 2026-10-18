@@ -6,6 +6,7 @@ const SPEC_FIELDS:Array=["uuid","mesh","transform","chunk_min","chunk_max"]
 const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
 const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
 static var legacy_owned_rebuild_enabled:=false
+static var reuse_owned_retirement_plan_enabled:=true
 static func build(library:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={}
@@ -244,6 +245,13 @@ static func validate_retire(existing:Dictionary,library:Array,ids:Array)->Dictio
 ## Complete static ownership units. The caller additionally protects live draw,
 ## collision, navigation, source pins and transient work before committing.
 static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+	var plan:=_owned_retire_plan(existing,library,ids,false)
+	if not plan.ok:return plan
+	# Public preflight must not hand out owning resource arrays or a reusable
+	# authorization. The richer plan stays inside a synchronous transaction.
+	return {"ok":true,"error":"","removed":plan.removed}
+
+static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.validate_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var selected:Dictionary={};var prefixes:Dictionary={}
 	for key:String in ["stream_by_id","stream_known","stream_index","stream_prop_index","stream_collision_index","stream_building_groups","stream_append_state"]:
@@ -260,6 +268,7 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 		var prefix:String=str(spec.uuid).get_slice("__",0)
 		namespace_sizes[prefix]=int(namespace_sizes.get(prefix,0))+1
 	var checked_cells:Dictionary={};var checked_ground_cells:Dictionary={}
+	var ground_ids:Dictionary={};var fixtures:Dictionary={};var groups:Dictionary={};var removed:Array=[]
 	for id:Variant in ids:
 		if not id is String or selected.has(id) or not by_id.has(id):return _retire_failure("invalid complete retirement identity")
 		var spec:Dictionary=by_id[id]
@@ -278,12 +287,19 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 				if state.ground_order.has(id) and not checked_ground_cells.has(key):
 					if not state.ground_cells.get(key,[]) is Array:return _retire_failure("invalid ground bucket")
 					checked_ground_cells[key]=true
-		if spec.has("render_building") and not existing.stream_building_groups.has(spec.render_building):return _retire_failure("missing derived building")
+		if spec.has("render_building"):
+			if not spec.render_building is String or not existing.stream_building_groups.has(spec.render_building):return _retire_failure("missing derived building")
+			if prepare_commit:groups[spec.render_building]=true
 		var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
 		for field in ["event","event_template","hostile","ally","seat"]:
 			if extra.has(field) or record.has(field):return _retire_failure("active gameplay owner")
 		if extra.get("kind","") in ["npc","gather","event","teleport","warp"]:return _retire_failure("active gameplay owner")
 		selected[id]=true
+		if prepare_commit:
+			removed.append(spec)
+			if state.ground_order.has(id):ground_ids[id]=true
+			var fixture:=_fixture_key(spec)
+			if not fixture.is_empty():fixtures[fixture]=true
 		var prefix:String=id.get_slice("__",0);prefixes[prefix]=int(prefixes.get(prefix,0))+1
 	for prefix:String in prefixes:
 		if prefixes[prefix]!=namespace_sizes[prefix]:return _retire_failure("split namespace")
@@ -312,19 +328,20 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 		if not touched:
 			for support:Dictionary in members[0].get("render_supports",[]):
 				if selected.has(support.uuid):return _retire_failure("retained building needs landscape support")
-	return {"ok":true,"error":"","removed":selected.size()}
+	if not prepare_commit:return {"ok":true,"error":"","removed":selected.size()}
+	return {"ok":true,"error":"","removed":selected.size(),"selected":selected,"prefixes":prefixes,"cells":checked_cells,"ground_cells":checked_ground_cells,"ground_ids":ground_ids,"fixtures":fixtures,"groups":groups,"removed_ids":ids.duplicate(),"removed_specs":removed}
 
 static func retire_owned(existing:Dictionary,library:Array,ids:Array)->Dictionary:
-	var checked:=validate_owned_retire(existing,library,ids)
+	var checked:=_owned_retire_plan(existing,library,ids,reuse_owned_retirement_plan_enabled)
 	if not checked.ok:return checked
-	return _commit_owned_retire(existing,library,ids)
+	return _commit_owned_retire(existing,library,ids,checked)
 
 ## Internal atomic commit: validation and owner consent must have completed in
 ## the same synchronous transaction, without publishing a plan or awaiting.
-static func _commit_owned_retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+static func _commit_owned_retire(existing:Dictionary,library:Array,ids:Array,plan:Dictionary={})->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index._commit_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if ids.is_empty():return {"ok":true,"error":"","removed":0,"removed_ids":[],"data":existing}
-	if not legacy_owned_rebuild_enabled:return _commit_owned_delta(existing,library,ids)
+	if not legacy_owned_rebuild_enabled:return _commit_owned_delta(existing,library,ids,plan if reuse_owned_retirement_plan_enabled else {})
 	var selected:Dictionary={}
 	for id:String in ids:selected[id]=true
 	var survivors:Array=[]
@@ -337,26 +354,30 @@ static func _commit_owned_retire(existing:Dictionary,library:Array,ids:Array)->D
 	library.clear();library.append_array(survivors)
 	return {"ok":true,"error":"","removed":ids.size(),"removed_ids":ids.duplicate(),"data":rebuilt}
 
-static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array)->Dictionary:
+static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array,plan:Dictionary={})->Dictionary:
 	# validate_owned_retire already proved complete namespaces/groups and that
 	# no surviving building depends on selected ground. Preserve every surviving
 	# spec, bucket and dependency object instead of regenerating the entire map.
 	var state:Dictionary=existing.stream_append_state
-	var selected:Dictionary={};var prefixes:Dictionary={};var cells:Dictionary={};var removed:Array=[]
-	var ground_cells:Dictionary={};var groups:Dictionary={};var group_cells:Dictionary={}
+	var selected:Dictionary=plan.get("selected",{});var prefixes:Dictionary=plan.get("prefixes",{});var cells:Dictionary=plan.get("cells",{});var removed:Array=plan.get("removed_specs",[])
+	var ground_cells:Dictionary=plan.get("ground_cells",{});var groups:Dictionary=plan.get("groups",{});var group_cells:Dictionary={}
 	var touched_supports:Dictionary={}
-	for id:String in ids:
-		var spec:Dictionary=existing.stream_by_id[id]
-		selected[id]=true;prefixes[id.get_slice("__",0)]=true;removed.append(spec)
-		for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
-			for x in range(spec.chunk_min.x,spec.chunk_max.x+1):cells[Vector2i(x,z)]=true
-		if spec.has("render_building"):groups[spec.render_building]=true
-		if state.ground_order.has(id):
+	if plan.is_empty():
+		for id:String in ids:
+			var spec:Dictionary=existing.stream_by_id[id]
+			selected[id]=true;prefixes[id.get_slice("__",0)]=true;removed.append(spec)
 			for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
-				for x in range(spec.chunk_min.x,spec.chunk_max.x+1):ground_cells[Vector2i(x,z)]=true
-			state.ground_order.erase(id);state.dependents.erase(id)
-		var fixture:=_fixture_key(spec)
-		if not fixture.is_empty():state.fixtures.erase(fixture)
+				for x in range(spec.chunk_min.x,spec.chunk_max.x+1):cells[Vector2i(x,z)]=true
+			if spec.has("render_building"):groups[spec.render_building]=true
+			if state.ground_order.has(id):
+				for z in range(spec.chunk_min.y,spec.chunk_max.y+1):
+					for x in range(spec.chunk_min.x,spec.chunk_max.x+1):ground_cells[Vector2i(x,z)]=true
+				state.ground_order.erase(id);state.dependents.erase(id)
+			var fixture:=_fixture_key(spec)
+			if not fixture.is_empty():state.fixtures.erase(fixture)
+	else:
+		for id:String in plan.ground_ids:state.ground_order.erase(id);state.dependents.erase(id)
+		for fixture:String in plan.fixtures:state.fixtures.erase(fixture)
 	for id:String in groups:
 		var members:Array=existing.stream_building_groups[id]
 		var raw:Dictionary=state.group_bounds[id]
@@ -485,11 +506,13 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	# records or their nested arrays. A private shallow spec projection gives
 	# the same atomic failure isolation without copying entire author graphs.
 	var fragment:Dictionary
+	var owned_projection:=false
 	if preparation!=null:
 		# Only our private cursor can donate a fragment. Schema validation above
 		# and these same-transaction identity/geometry/group checks remain fresh.
 		if preparation.get_script()!=load("res://scripts/world3d/stream_index_preparation.gd") or not preparation.valid_for(additions,true):return _append_failure("stale_private_index")
 		fragment=preparation.result
+		owned_projection=preparation.owns_projection
 	else:
 		var projection:Array=[]
 		for spec:Dictionary in additions:projection.append(spec.duplicate())
@@ -526,16 +549,17 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_index_commit")
 	# Commit has no await or fallible I/O. Preserve existing maps, buckets and
 	# spec objects; update only dependency groups intersected by new ground.
-	for uuid:String in originals:
-		var spec:Dictionary=originals[uuid];var prepared:Dictionary=fragment.stream_by_id[uuid]
-		for field in ["render_building","render_bounds","render_supports","render_dependents"]:
-			spec.erase(field)
-			if prepared.has(field) and field not in ["render_supports","render_dependents"]:spec[field]=prepared[field]
-		if Landscape.landscape(spec):spec.render_dependents=[]
+	if not owned_projection:
+		for uuid:String in originals:
+			var spec:Dictionary=originals[uuid];var prepared:Dictionary=fragment.stream_by_id[uuid]
+			for field in ["render_building","render_bounds","render_supports","render_dependents"]:
+				spec.erase(field)
+				if prepared.has(field) and field not in ["render_supports","render_dependents"]:spec[field]=prepared[field]
+			if Landscape.landscape(spec):spec.render_dependents=[]
 	existing.stream_by_id.merge(originals,true)
 	existing.stream_known.merge(fragment.stream_known,true)
 	for key in ["stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
-		_merge_buckets(existing[key],fragment[key],originals)
+		_merge_buckets(existing[key],fragment[key],{} if owned_projection else originals)
 	for spec:Dictionary in fragment.stream_landscape:existing.stream_landscape.append(originals[spec.uuid])
 	for key in ["namespaces","prefixes","fixtures","group_bounds"]:state[key].merge(fresh[key],true)
 	for key in ["group_cells","ground_cells"]:_merge_buckets(state[key],fresh[key])
@@ -574,4 +598,5 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 		if not originals.has(uuid):changed_existing[uuid]=existing.stream_by_id[uuid]
 	existing.stream_building_count+=additions.size()
 	_collision_membership_changed(existing)
+	if owned_projection:preparation.accept()
 	return {"ok":true,"data":existing,"added":additions.size(),"affected_groups":affected.size(),"affected_existing_specs":changed_existing.values()}

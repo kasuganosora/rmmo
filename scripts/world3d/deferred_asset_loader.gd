@@ -40,6 +40,7 @@ static var material_publication_slices_enabled:=true # Probe-only synchronous co
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
+static var owned_index_projection_enabled:=true # Private raw-model specs transfer without copying/remapping.
 const COLLISION_QUERY_CACHE_LIMIT:=16
 var pending:Array=[]
 var profile:Dictionary={"models":0,"instances":0,"specs":0,"worker_us":0,"max_publish_us":0}
@@ -1322,7 +1323,11 @@ func _publish_items(items:Array,specs:Array)->bool:
 		if not packet.has("index_preparation") and not packet.get("index_preparation_skipped",false):
 			_apply_publication_fixture_states(specs)
 			packet.index_preparation=preload("res://scripts/world3d/stream_index_preparation.gd").new()
-			packet.index_preparation.begin(specs)
+			var owned:bool=owned_index_projection_enabled and not packet.get("index_owned_skipped",false)
+			for item:Dictionary in items:
+				if item.get("native_reference",false) or item.record.has("house_prefab"):owned=false;break
+			if owned:packet.index_preparation.begin_owned(specs)
+			else:packet.index_preparation.begin(specs)
 			profile.index_preparation_instances=int(profile.get("index_preparation_instances",0))+1
 		if packet.has("index_preparation"):
 			preparation=packet.index_preparation
@@ -1335,10 +1340,15 @@ func _publish_items(items:Array,specs:Array)->bool:
 			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.index_prepare",began,{"specs":specs.size(),"ready":ready})
 			if not ready:return false
 			if preparation.error=="existing_derived_fields":
+				preparation.dispose()
 				packet.erase("index_preparation");packet.index_preparation_skipped=true;preparation=null
+			elif preparation.error=="owned_projection_ineligible":
+				preparation.dispose();packet.erase("index_preparation");packet.index_owned_skipped=true
+				return false
 			elif not preparation.error.is_empty():
+				var failure:String=preparation.error
 				_clear_collision_staging(items)
-				for item:Dictionary in items:_instance_failed(str(item.record.uuid),"后台索引准备失败："+preparation.error)
+				for item:Dictionary in items:_instance_failed(str(item.record.uuid),"后台索引准备失败："+failure)
 				return false
 	var commit_began:=Time.get_ticks_usec()
 	# Reapply only at initial capture and final publication, not on every cursor
@@ -1348,6 +1358,7 @@ func _publish_items(items:Array,specs:Array)->bool:
 	if not registered.ok:
 		if registered.get("error","")=="stale_private_index":
 			var packet:=_stage_publication_packet(items,specs)
+			preparation.dispose()
 			packet.erase("index_preparation")
 			profile.index_preparation_restarts=int(profile.get("index_preparation_restarts",0))+1
 			return false
@@ -1377,7 +1388,10 @@ func _publish_items(items:Array,specs:Array)->bool:
 func _clear_collision_staging(items:Array)->void:
 	for item:Dictionary in items:
 		var job:Dictionary=_jobs.get(item.path,{})
-		if job.has("collision_staged"):job.collision_staged.erase(item.record.uuid)
+		if job.has("collision_staged"):
+			var packet:Dictionary=job.collision_staged.get(item.record.uuid,{})
+			if packet.has("index_preparation"):packet.index_preparation.dispose()
+			job.collision_staged.erase(item.record.uuid)
 
 func _collision_publication_status(uuid:String)->Dictionary:
 	if not is_instance_valid(_map):return {}
@@ -2349,7 +2363,10 @@ func _discard_job(path:String)->void:
 		_admission.park(path);_admission.set_stage(path,"resource_retirement")
 	if not output.is_empty():Drainer.dispose_result(output)
 	if job.has("staged"):job.staged.clear()
-	if job.has("collision_staged"):job.collision_staged.clear()
+	if job.has("collision_staged"):
+		for packet:Dictionary in job.collision_staged.values():
+			if packet.has("index_preparation"):packet.index_preparation.dispose()
+		job.collision_staged.clear()
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")
 	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures")
 	Drainer.release_shared(job.token)

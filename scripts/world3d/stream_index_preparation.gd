@@ -32,7 +32,27 @@ var high:=-low
 var binding:Dictionary={}
 var attached:Array=[]
 var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0}
+var owns_projection:=false
+var owned_groups:Dictionary={}
+var owned_bounds:Dictionary={}
+var owned_supports:Dictionary={}
 func begin(values:Array)->void:source=values.duplicate()
+## Only for unpublished runtime specs exclusively owned by the calling job.
+## Authored records/extras remain borrowed and untouched. Landscape uses the
+## ordinary copied projection because it has mutable reverse dependency links.
+func begin_owned(values:Array)->void:
+	owns_projection=true;begin(values)
+func accept()->void:owns_projection=false
+func _notification(what:int)->void:
+	# RefCounted is already marked invalid in PREDELETE; member calls fail here.
+	if what==NOTIFICATION_PREDELETE and owns_projection:
+		for spec:Dictionary in projection:
+			for field:String in DERIVED_FIELDS:spec.erase(field)
+func _clear_owned_fields()->void:
+	if not owns_projection:return
+	for spec:Dictionary in projection:
+		for field:String in DERIVED_FIELDS:spec.erase(field)
+	owns_projection=false
 static func signature(spec:Dictionary)->Array:
 	var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
 	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",{}).get("id",""),record.get("building",{}).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
@@ -40,8 +60,17 @@ func valid_for(values:Array,schema_checked:bool=false)->bool:
 	if phase!=7 or not error.is_empty() or source.size()!=values.size():return false
 	for i:int in values.size():
 		if not is_same(values[i],source[i]) or (not schema_checked and not Index._valid_append_spec(values[i])) or signature(values[i])!=signatures[i]:return false
-		for field:String in DERIVED_FIELDS:
-			if values[i].has(field):return false
+		var spec:Dictionary=values[i]
+		if owns_projection and owned_groups.has(spec.uuid):
+			var id:String=owned_groups[spec.uuid]
+			if spec.get("render_building")!=id or not is_same(spec.get("render_bounds"),owned_bounds[id]):return false
+			if not is_same(spec.get("render_supports"),owned_supports[id]) or spec.has("render_dependents"):return false
+		else:
+			for field:String in DERIVED_FIELDS:
+				if spec.has(field):return false
+	if owns_projection:
+		for id:String in owned_bounds:
+			if owned_bounds[id]!=raw_bounds[id] or not owned_supports[id].is_empty():return false
 	return true
 func _next_phase()->void:
 	phase+=1;cursor=0;part=0;subphase=0
@@ -66,8 +95,9 @@ func _step()->void:
 			if by_id.has(value.uuid):error="duplicate UUID";phase=7;return
 			for field:String in DERIVED_FIELDS:
 				if value.has(field):error="existing_derived_fields";phase=7;return
+			if owns_projection and Landscape.landscape(value):error="owned_projection_ineligible";phase=7;return
 			signatures.append(signature(value))
-			var spec:Dictionary=value.duplicate();projection.append(spec)
+			var spec:Dictionary=value if owns_projection else value.duplicate();projection.append(spec)
 			by_id[spec.uuid]=spec;known[spec.uuid]=true
 			var prefix:String=spec.uuid.get_slice("__",0);append_state.prefixes[prefix]=true
 			if spec.uuid.contains("__"):
@@ -104,6 +134,7 @@ func _step()->void:
 			if part<members.size():
 				var spec:Dictionary=members[part];part+=1
 				low=low.min(spec.chunk_min);high=high.max(spec.chunk_max);spec.render_building=id
+				if owns_projection:owned_groups[spec.uuid]=id
 			else:
 				var bounds:Dictionary={"chunk":low,"chunk_min":low,"chunk_max":high}
 				raw_bounds[id]=bounds;members[0].render_bounds=bounds
@@ -118,7 +149,9 @@ func _step()->void:
 		4:
 			if cursor>=group_ids.size():_next_phase();return
 			var members:Array=groups[group_ids[cursor]]
-			if binding.is_empty():binding=members[0].render_bounds.duplicate()
+			if binding.is_empty():
+				binding=members[0].render_bounds.duplicate()
+				if owns_projection:owned_bounds[group_ids[cursor]]=binding;owned_supports[group_ids[cursor]]=attached
 			if subphase==0:
 				if part>=supports.size():subphase=1;part=0;return
 				var tile:Dictionary=supports[part];part+=1
@@ -157,4 +190,5 @@ func advance(budget_usec:int)->bool:
 	profile.slices+=1;profile.elapsed_us+=elapsed;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	return phase==7
 func dispose()->void:
+	_clear_owned_fields();owned_groups={};owned_bounds={};owned_supports={}
 	source=[];projection=[];signatures=[];result={};groups={};structures={};lamps={};by_id={};known={};spatial={};props={};collisions={};raw_bounds={};append_state={};cell={};binding={};attached=[];land=[];supports=[];group_ids=[];phase=7
