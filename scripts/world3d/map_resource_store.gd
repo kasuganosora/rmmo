@@ -334,15 +334,16 @@ static func _materialize(encoded:Dictionary)->Dictionary:
 	var bytes:=_compressed(raw)
 	if bytes.size()!=encoded.length or _sha(bytes)!=encoded.sha256:return _fail("Rebuilt resource differs from verified content identity")
 	return {"ok":true,"bytes":bytes,"encoded_raw_bytes":raw.size(),"serialized_raw_bytes":raw.size()}
-static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true)->Dictionary:
+static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,trusted_package:bool=false)->Dictionary:
 	var trace_started:=Time.get_ticks_usec()
+	preload("res://scripts/world3d/load_trace.gd").instant("resource.read_begin",{"path":file_path,"sha256":digest,"decode":decode,"trusted_package":trusted_package})
 	var file:=FileAccess.open(file_path,FileAccess.READ)
 	if file==null:return _fail("Resource is missing or unreadable",ERR_FILE_CANT_READ)
 	var size:=file.get_length()
 	if size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
 	var bytes:=file.get_buffer(size)
-	if bytes.size()!=size or _sha(bytes)!=digest:return _fail("Resource content SHA mismatch")
-	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.read_sha",trace_started,{"bytes":size,"decode":decode})
+	if bytes.size()!=size or (not trusted_package and _sha(bytes)!=digest):return _fail("Resource content SHA mismatch")
+	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.read_package" if trusted_package else "resource.read_sha",trace_started,{"bytes":size,"decode":decode})
 	if bytes.slice(0,8).get_string_from_ascii()!=MAGIC:return _fail("Invalid resource envelope")
 	var raw_length:int=bytes.decode_u64(8)
 	if raw_length<=0 or raw_length>MAX_RAW_BYTES:return _fail("Invalid resource decompression length")
@@ -350,18 +351,24 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true)
 	# Every hit follows THIS read's complete byte SHA, length and envelope
 	# validation. Public callers still validate paths before/after the read and
 	# the preparation transaction still verifies its full sources before publish.
-	var cached:=_definition_lookup(digest,size,raw_length)
+	var cached:Dictionary={"status":"package"} if trusted_package else _definition_lookup(digest,size,raw_length)
 	if cached.status=="hit":
 		var copy_started:=Time.get_ticks_usec()
 		var snapshot:Dictionary=cached.entry.definition.duplicate(true)
 		_remember_identity(cached.entry.raw_sha256,raw_length,digest,size)
 		if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.definition_reuse",copy_started,{"bytes":raw_length})
-		return {"ok":true,"error":OK,"definition":snapshot,"length":size,"definition_cache":"hit"}
+		return {"ok":true,"error":OK,"definition":snapshot,"length":size,"raw_length":raw_length,"definition_cache":"hit"}
 	var decode_started:=Time.get_ticks_usec()
 	var raw:=bytes.slice(16).decompress(raw_length,FileAccess.COMPRESSION_ZSTD)
 	if raw.size()!=raw_length:return _fail("Resource decompression failed")
 	var definition:Variant=bytes_to_var(raw)
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.decompress_variant",decode_started,{"bytes":raw_length})
+	# Runtime trusts the published package. Still bound IO/decompression and use
+	# object-free decoding; failures remain ordinary load errors. Never seed the
+	# diagnostic authentication caches from this path.
+	if trusted_package:
+		if not definition is Dictionary:return _fail("Invalid decoded package definition")
+		return {"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":"package"}
 	var safe_started:=Time.get_ticks_usec()
 	if not definition is Dictionary or not _safe(definition,[],[2000000]):return _fail("Unsafe or invalid decoded resource")
 	for field in FIELDS+STATE_FIELDS+["rmmo_ref","rmmo_state"]:
@@ -374,7 +381,10 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true)
 	_remember_identity(raw_sha,raw.size(),digest,size)
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.identity_sha",identity_started)
 	_definition_remember(cached,definition,raw_sha)
-	return {"ok":true,"error":OK,"definition":definition,"length":size,"definition_cache":cached.status}
+	return {"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":cached.status}
+
+static func _read_package_job(job:Dictionary,decode:bool)->Dictionary:
+	return _read(job.location,job.sha256,job.length,decode,true)
 
 static func _publish(staged:Array,folder:String)->Dictionary:
 	if staged.is_empty():return {"error":OK,"written":{}}
@@ -395,7 +405,7 @@ static func _publish(staged:Array,folder:String)->Dictionary:
 	for destination in parsed:written[str(destination)]=true
 	return {"error":OK,"written":written}
 
-static func write_records(records:Array,path:String,content_root:String,progress:Callable=Callable())->Dictionary:
+static func write_records(records:Array,path:String,content_root:String,progress:Callable=Callable(),trusted_package:bool=false)->Dictionary:
 	if not _base(path,content_root) or records.size()>MAX_RECORDS:return _fail("Invalid map path or record count")
 	var ids:Dictionary={}
 	# Validate every basic shape before creating any files.
@@ -437,8 +447,9 @@ static func write_records(records:Array,path:String,content_root:String,progress
 		var encoded:Dictionary=resources[uri];var destination:=_batch_location(paths,uri,encoded.sha256)
 		if destination.is_empty():err=ERR_INVALID_DATA;break
 		if FileAccess.file_exists(destination):
-			if not _read(destination,encoded.sha256,encoded.length,false).ok:err=ERR_FILE_CORRUPT;break
-			verified_bytes+=encoded.length
+			if not trusted_package:
+				if not _read(destination,encoded.sha256,encoded.length,false).ok:err=ERR_FILE_CORRUPT;break
+				verified_bytes+=encoded.length
 			reused+=1;continue
 		var materialize_start:=Time.get_ticks_usec()
 		var materialized:=_materialize(encoded)
@@ -454,8 +465,9 @@ static func write_records(records:Array,path:String,content_root:String,progress
 		staged.append({"staged":temporary,"destination":destination,"sha256":encoded.sha256,"length":encoded.length})
 		file.store_buffer(materialized.bytes);file.flush();err=file.get_error();file.close()
 		if err!=OK:break
-		if FileAccess.get_sha256(temporary)!=encoded.sha256:err=ERR_FILE_CORRUPT;break
-		verified_bytes+=encoded.length
+		if not trusted_package:
+			if FileAccess.get_sha256(temporary)!=encoded.sha256:err=ERR_FILE_CORRUPT;break
+			verified_bytes+=encoded.length
 		bytes_written+=encoded.length
 	var publication:Dictionary={"written":{}}
 	if err==OK and not _finish_paths(paths):err=ERR_INVALID_DATA
@@ -463,8 +475,9 @@ static func write_records(records:Array,path:String,content_root:String,progress
 	if err==OK and not _finish_paths(paths):err=ERR_INVALID_DATA
 	if err==OK:
 		for entry:Dictionary in staged:
-			if not _read(entry.destination,entry.sha256,entry.length,false).ok:err=ERR_FILE_CORRUPT;break
-			verified_bytes+=entry.length
+			if not trusted_package:
+				if not _read(entry.destination,entry.sha256,entry.length,false).ok:err=ERR_FILE_CORRUPT;break
+				verified_bytes+=entry.length
 			if publication.written.has(entry.sha256):written+=1
 			else:reused+=1
 	var paths_still_safe:=_finish_paths(paths)
@@ -531,7 +544,7 @@ static func _read_many(jobs:Array,decode:bool=true,worker_limit:int=READ_WORKERS
 		var failure:=_fail("Resource workers did not complete the request set");failure.read_profile=profile;return failure
 	return {"ok":true,"error":OK,"entries":entries,"read_profile":profile}
 
-static func read_records(records:Array,path:String,content_root:String,expected_dependencies:Variant=null,worker_limit:int=READ_WORKERS)->Dictionary:
+static func read_records(records:Array,path:String,content_root:String,expected_dependencies:Variant=null,worker_limit:int=READ_WORKERS,trusted_package:bool=false)->Dictionary:
 	var paths:=_path_batch(path,content_root)
 	if paths.is_empty() or records.size()>MAX_RECORDS:return _fail("Invalid map path or record count")
 	var result:Array=[];var ids:Dictionary={};var requests:Array=[];var by_uri:Dictionary={};var dependencies:Dictionary={}
@@ -553,7 +566,7 @@ static func read_records(records:Array,path:String,content_root:String,expected_
 		if not expected_dependencies is Dictionary or expected_dependencies.size()!=dependencies.size():return _fail("Reference dependency manifest does not match the resource closure")
 		for uri:String in dependencies:
 			if expected_dependencies.get(uri)!=dependencies[uri]:return _fail("Reference resource is missing from the dependency manifest")
-	var decoded:=_read_many(requests,true,worker_limit)
+	var decoded:=_read_many(requests,true,worker_limit,_read_package_job if trusted_package else Callable())
 	if not decoded.ok:return decoded
 	# Results are merged by the original request index and copied per authored
 	# instance. No mutable definition is shared between editable records.
@@ -565,7 +578,10 @@ static func read_records(records:Array,path:String,content_root:String,expected_
 		result.append(hydrated)
 		if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.instance_copy",copy_started)
 	if not _finish_paths(paths):return _fail("Resource paths changed during read")
-	return {"ok":true,"error":OK,"reason":"","records":result,"dependencies":dependencies,"read_profile":decoded.read_profile}
+	var definition_sizes:Dictionary={}
+	for i:int in requests.size():definition_sizes[requests[i].sha256]=decoded.entries[i].raw_length
+	decoded.read_profile.trusted_package=trusted_package
+	return {"ok":true,"error":OK,"reason":"","records":result,"dependencies":dependencies,"definition_sizes":definition_sizes,"read_profile":decoded.read_profile}
 
 static func verify_dependencies(dependencies:Dictionary,path:String,content_root:String,worker_limit:int=READ_WORKERS)->bool:
 	var paths:=_path_batch(path,content_root)

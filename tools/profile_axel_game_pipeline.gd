@@ -213,6 +213,12 @@ func run()->void:
 		elif arg=="--legacy-road-schema":preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled=false
 		elif arg=="--unbatched-index-paths":preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching=false
 		elif arg=="--recursive-resource-scalars":preload("res://scripts/world3d/map_resource_store.gd").inline_numeric_safety_enabled=false
+		elif arg=="--serial-native-classification":preload("res://scripts/world3d/map_dependency_index.gd").parallel_native_classification=false
+		elif arg=="--duplicate-prefab-decodes":preload("res://scripts/world3d/house_prefab.gd").coalesce_decodes=false
+		elif arg=="--serial-imported-sources":preload("res://scripts/world3d/map_dependency_index.gd").parallel_imported_sources=false
+		elif arg=="--recursive-numeric-rows":preload("res://scripts/world3d/document_schema.gd").numeric_rows_enabled=false
+		elif arg=="--late-stale-rejection":preload("res://scripts/world3d/map_dependency_index.gd").early_stale_rejection=false
+		elif arg=="--verify-resource-packages":preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 		elif arg.begins_with("--mesh-cancel-after-stream-frames="):cancel_stream_frames=arg.trim_prefix("--mesh-cancel-after-stream-frames=").to_int()
 		elif arg=="--main-thread-model-scenes":preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled=false
 		elif arg=="--main-thread-initial-capture":preload("res://scripts/world3d/map_loader.gd").initial_cpu_capture_enabled=false
@@ -245,6 +251,12 @@ func run()->void:
 	report.controls.cold_index_handoff=preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled
 	report.controls.boolean_road_schema=preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled
 	report.controls.classification_path_batching=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
+	report.controls.parallel_native_classification=preload("res://scripts/world3d/map_dependency_index.gd").parallel_native_classification
+	report.controls.parallel_imported_sources=preload("res://scripts/world3d/map_dependency_index.gd").parallel_imported_sources
+	report.controls.numeric_rows=preload("res://scripts/world3d/document_schema.gd").numeric_rows_enabled
+	report.controls.early_stale_rejection=preload("res://scripts/world3d/map_dependency_index.gd").early_stale_rejection
+	report.controls.trusted_resource_packages=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	report.controls.coalesce_prefab_decodes=preload("res://scripts/world3d/house_prefab.gd").coalesce_decodes
 	report.controls.inline_numeric_safety=preload("res://scripts/world3d/map_resource_store.gd").inline_numeric_safety_enabled
 	report.controls.sliced_initial_capture=preload("res://scripts/world3d/map_loader.gd").initial_cpu_capture_enabled
 	report.controls.private_static_specs=preload("res://scripts/world3d/map_loader.gd").initial_static_specs_enabled

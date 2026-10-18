@@ -92,6 +92,9 @@ static func candidate(path:String,root:String,expected_source:String="")->Dictio
 static func _hash_source(path:String,root:String,token:RefCounted)->Dictionary:
 	if _cancelled(token):return _miss("cancelled",true)
 	if not Paths.allowed(path,root):return _miss("source_path")
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and path.get_extension().to_lower()=="glb" and Products._sha(path.get_file().get_basename()):
+		if not FileAccess.file_exists(path):return _miss("source_missing")
+		return {"ok":true,"sha":path.get_file().get_basename(),"hashed":false}
 	var file:=FileAccess.open(path,FileAccess.READ)
 	if file==null:return _miss("source_missing")
 	var length:=file.get_length();var left:=length;var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256)

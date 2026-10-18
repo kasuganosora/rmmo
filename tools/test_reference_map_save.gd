@@ -35,6 +35,7 @@ func _record(id:String)->Dictionary:
 		"fixture":{"kind":"door","open":false},"building":{"id":"b1","part":"door","floor":0,"role":"door","floor_y":0}}
 
 func _run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit publication-race diagnostic.
 	var root:=Paths.external_root()
 	directory=Paths.cache_directory("reference_writer_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)

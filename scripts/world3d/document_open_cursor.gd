@@ -8,12 +8,13 @@ const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const WorldLocation=preload("res://scripts/world3d/world_location.gd")
 const SourceSnapshot=preload("res://scripts/world3d/document_source_snapshot.gd")
 const PrefabWarm=preload("res://scripts/world3d/prefab_warm_preparation.gd")
+const PackagePolicy=preload("res://scripts/world3d/runtime_package_policy.gd")
 static var prefab_warm_workers:=2 # Bounded parallel warm-up; fixed-town ABBA verified. Set 1 for a serial control.
 static var prefab_warm_budget_bytes:=PrefabWarm.DEFAULT_TOTAL_BYTES
 var done:=false
 var error:=""
 var document:RefCounted
-var metrics:Dictionary={"units":{},"max_unit_ms":0.,"max_slice_ms":0.,"slices":0,"common_records":0,"document_records":0,"record_copy_ms":0.,"max_record_copy_ms":0.}
+var metrics:Dictionary={"units":{},"max_unit_ms":0.,"max_slice_ms":0.,"slices":0,"common_records":0,"document_records":0,"layout_validations":0,"record_copy_ms":0.,"max_record_copy_ms":0.}
 var _path:=""
 var _signature:=""
 var _source:SourceSnapshot
@@ -48,6 +49,7 @@ var _reference_thread:Thread
 var _reference_cancel:RefCounted
 var _yield_requested:=false
 var _slice_budget:=0
+var _trusted_package:=false
 
 static func native_root(data: Variant, allow_legacy_migration: bool=false) -> int:
 	if not data is Dictionary:return -1
@@ -73,11 +75,11 @@ static func claims_native(data: Variant) -> bool:
 		if node is Dictionary and node.get("extras") is Dictionary and node.extras.get("rmmo_format")==WorldLocation.FORMAT:return true
 	return false
 
-static func hydrate_references(extra: Dictionary, path: String, content_root: String, worker_limit:int=4) -> Dictionary:
+static func hydrate_references(extra: Dictionary, path: String, content_root: String, worker_limit:int=4, trusted_package:bool=false) -> Dictionary:
 	if extra.get("rmmo_version")!=WorldLocation.FORMAT_VERSION or extra.get("rmmo_storage")!=WorldLocation.STORAGE or not extra.get("rmmo_records") is Array or not extra.get("rmmo_resource_dependencies") is Dictionary:
 		return {"ok":false,"reason":"Invalid reference-map header"}
 	var store=load("res://scripts/world3d/map_resource_store.gd")
-	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root,extra.rmmo_resource_dependencies,worker_limit)
+	var restored:Dictionary=store.read_records(extra.rmmo_records,path,content_root,extra.rmmo_resource_dependencies,worker_limit,trusted_package)
 	if not restored.get("ok",false):return restored
 	var dependencies:Dictionary=extra.rmmo_resource_dependencies
 	var actual:Variant=restored.get("dependencies")
@@ -85,10 +87,10 @@ static func hydrate_references(extra: Dictionary, path: String, content_root: St
 	if dependencies.size()!=actual.size():return {"ok":false,"reason":"Reference dependency manifest does not match the resource closure"}
 	for uri in actual:
 		if dependencies.get(uri)!=actual[uri]:return {"ok":false,"reason":"Reference resource is missing from the dependency manifest"}
-	if not store.verify_dependencies(dependencies,path,content_root,worker_limit):return {"ok":false,"reason":"Reference resource integrity check failed"}
+	if not trusted_package and not store.verify_dependencies(dependencies,path,content_root,worker_limit):return {"ok":false,"reason":"Reference resource integrity check failed"}
 	var hydrated:=extra.duplicate()
 	hydrated.rmmo_records=restored.records
-	return {"ok":true,"extras":hydrated,"dependencies":dependencies.duplicate(),"read_profile":restored.get("read_profile",{})}
+	return {"ok":true,"extras":hydrated,"dependencies":dependencies.duplicate(),"definition_sizes":restored.definition_sizes,"read_profile":restored.get("read_profile",{})}
 
 static func dependency_issue(path: String, item: Variant, require_file: bool, buffer: bool) -> String:
 	if not item is Dictionary:return "Invalid glTF dependency"
@@ -124,7 +126,7 @@ static func asset_record_issue(record: Variant, material_validation: Dictionary,
 		if asset_paths==null or not asset_paths.has(path):
 			if not Paths.allowed(path,content_root):return "Model reference is outside the allowed content root"
 			if asset_paths!=null:asset_paths[path]=true
-		if not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return "Imported building does not match its source contract"
+		if not PackagePolicy.trusted() and not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return "Imported building does not match its source contract"
 	return ""
 
 static func document_record_issue(record: Dictionary, ids: Dictionary) -> String:
@@ -200,11 +202,13 @@ func _step() -> void:
 			if _progress.is_valid():_progress.call("validate",_completed,_total)
 			var record:Variant=_raw[_record]
 			var paint_id:Variant=_paint_id()
-			var issue:=common_record_issue(record,_material_validation,paint_id,_content_root if paint_id!=null else "");metrics.common_records+=1
+			var issue:=""
+			if not _trusted_package:
+				issue=common_record_issue(record,_material_validation,paint_id,_content_root if paint_id!=null else "");metrics.common_records+=1
 			if not issue.is_empty():_fail(issue);return
 			_append_record(record);_record+=1;_completed+=1
 		"ownership":
-			if not Blueprint.valid_ownership(_extras,_raw,true):_fail("Invalid building ownership");return
+			if not _trusted_package and not Blueprint.valid_ownership(_extras,_raw,true):_fail("Invalid building ownership");return
 			_phase="metadata_copy"
 		"metadata_copy":
 			var meta:=_extras.duplicate()
@@ -249,7 +253,7 @@ func _reference_step() -> void:
 		if _reference_thread.start(_hydrate_for_cursor.bind(_extras,_path,_content_root,warm_options,_reference_cancel),Thread.PRIORITY_LOW)!=OK:
 			# Thread failure preserves the old synchronous reader; never add a
 			# separate full prefab warm-up to the scene thread.
-			_reference_thread=null;_accept_references(hydrate_references(_extras,_path,_content_root));return
+			_reference_thread=null;_accept_references(hydrate_references(_extras,_path,_content_root,4,PackagePolicy.trusted()));return
 	if _slice_budget>0 and _reference_thread.is_alive():_yield_requested=true;return
 	var restored:Dictionary=_reference_thread.wait_to_finish();_reference_thread=null
 	_accept_references(restored)
@@ -257,7 +261,7 @@ func _reference_step() -> void:
 static func _hydrate_for_cursor(extra:Dictionary,path:String,content_root:String,warm_options:Dictionary={},cancel:RefCounted=null)->Dictionary:
 	if cancel!=null and cancel.is_cancelled():return {"ok":false,"reason":"Reference preparation cancelled","cancelled":true}
 	var hydrate_started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.hydrate")
-	var restored:=hydrate_references(extra,path,content_root)
+	var restored:=hydrate_references(extra,path,content_root,4,PackagePolicy.trusted())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.hydrate",hydrate_started)
 	if not restored.get("ok",false):return restored
 	# Hydration's resource readers have all joined before this bounded CPU phase.
@@ -273,6 +277,7 @@ static func _hydrate_for_cursor(extra:Dictionary,path:String,content_root:String
 
 func _accept_references(restored: Dictionary) -> void:
 	if not restored.get("ok",false):_fail(str(restored.get("reason","Cannot read map reference resources")));return
+	_trusted_package=PackagePolicy.trusted();metrics.trusted_resource_package=_trusted_package
 	var compact:Array=_extras.rmmo_records
 	var records:Array=restored.extras.rmmo_records
 	if compact.size()!=records.size():_fail("Invalid reference record order");return
@@ -296,6 +301,7 @@ func _asset_paths_unchanged()->bool:
 	return true
 
 func _references_unchanged() -> bool:
+	if _trusted_package:return true
 	if _extras.get("rmmo_version")!=WorldLocation.FORMAT_VERSION:return true
 	return load("res://scripts/world3d/map_resource_store.gd").verify_dependencies(_reference_dependencies,_path,_content_root)
 
@@ -320,13 +326,21 @@ func _node_step() -> void:
 	if _progress.is_valid():_progress.call("validate",_completed,_total)
 	var record:Variant=_node_records[_record]
 	var verified_root:bool=_node==_native and not _verified_paint_ids.is_empty()
-	var issue:=asset_record_issue(record,_material_validation,_paint_id() if verified_root else null,_asset_paths if verified_root else null,_content_root if verified_root else "");metrics.common_records+=1
+	var issue:=""
+	if not (_trusted_package and verified_root):
+		issue=asset_record_issue(record,_material_validation,_paint_id() if verified_root else null,_asset_paths if verified_root else null,_content_root if verified_root else "");metrics.common_records+=1
+	elif record.get("kind")=="asset":
+		var asset_path:String=record.get("asset_path","")
+		if not _asset_paths.has(asset_path):
+			if not Paths.allowed(asset_path,_content_root):issue="Model reference is outside the allowed content root"
+			_asset_paths[asset_path]=true
 	if not issue.is_empty():_fail(issue);return
 	if _document_mode and _node==_native:_append_record(record)
 	_record+=1;_completed+=1
 
 func _append_record(record: Dictionary) -> void:
-	var issue:=document_record_issue(record,_ids);metrics.document_records+=1
+	var issue:=""
+	if not _trusted_package:issue=document_record_issue(record,_ids);metrics.document_records+=1
 	if not issue.is_empty():_fail(issue);return
 	var uuid:=str(record.uuid)
 	if uuid.begins_with("obj_"):_next=maxi(_next,int(uuid.trim_prefix("obj_"))+1)
@@ -349,9 +363,14 @@ func _legacy_step() -> void:
 func _metadata() -> void:
 	var valid:=true
 	match _metadata_step:
-		0:valid=Blueprint.valid_meta(_extras)
+		0:valid=_trusted_package or Blueprint.valid_meta(_extras)
 		1:valid=preload("res://scripts/world3d/editor_view_settings.gd").valid(_extras)
-		2:valid=preload("res://scripts/world3d/city_layout.gd").valid(_extras)
+		2:
+			# Opening authored packages does not rerun road intersection analysis
+			# or authoring schema checks. Editing operations retain their checks.
+			if not _trusted_package:
+				metrics.layout_validations+=1
+				valid=preload("res://scripts/world3d/city_layout.gd").valid(_extras)
 		3:valid=preload("res://scripts/world3d/environment_settings.gd").valid(_extras)
 		_:
 			if not _raw is Array:_fail("Unsupported glTF object records");return

@@ -3,6 +3,7 @@ extends RefCounted
 ## Boolean consumers need neither diagnostic paths nor one VM call per numeric
 ## component. Schemas are trusted program data; values retain the same checks as
 ## validate(). Keep validate() as the detailed error API for editor/MCP callers.
+static var numeric_rows_enabled:=true # Diagnostic control; identical array/number contract.
 static func matches(value: Variant, schema: Dictionary) -> bool:
 	match schema.get("type", ""):
 		"object":
@@ -23,6 +24,22 @@ static func matches(value: Variant, schema: Dictionary) -> bool:
 					if not (entry is int or entry is float) or not is_finite(float(entry)): return false
 					if integer and entry != floorf(entry): return false
 					if entry < low or entry > high or (enumerated and not items.enum.has(entry)): return false
+			elif numeric_rows_enabled and kind == "array" and items.items.get("type", "") in ["number", "integer"]:
+				# Coordinates and kerb sections share the same numeric row schema.
+				# Hoist schema lookups once for the entire matrix, instead of one
+				# recursive dispatch and repeated lookups for every two/three-vector.
+				var numbers:Dictionary=items.items
+				var low:Variant=numbers.get("minimum",-INF);var high:Variant=numbers.get("maximum",INF)
+				var minimum:Variant=items.get("minItems",0);var maximum:Variant=items.get("maxItems",256)
+				var integer:bool=numbers.type=="integer";var enumerated:bool=numbers.has("enum")
+				var rows_enumerated:bool=items.has("enum")
+				for row in value:
+					if not row is Array or row.size()<minimum or row.size()>maximum:return false
+					for entry in row:
+						if not (entry is int or entry is float) or not is_finite(float(entry)):return false
+						if integer and entry!=floorf(entry):return false
+						if entry<low or entry>high or (enumerated and not numbers.enum.has(entry)):return false
+					if rows_enumerated and not items.enum.has(row):return false
 			else:
 				for entry in value:
 					if not matches(entry, items): return false

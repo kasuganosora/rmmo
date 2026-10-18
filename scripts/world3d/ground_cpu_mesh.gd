@@ -142,6 +142,7 @@ func restore() -> Mesh:
 		for slot in materials.size():
 			if not compatible or original.surface_get_material(slot)!=materials[slot]: compatible=false; break
 		if compatible: return original
+	preload("res://scripts/world3d/load_trace.gd").instant("mesh.gpu_restore",{"cpu_id":get_instance_id(),"surfaces":surfaces.size(),"geometry":get_meta("static_batch_geometry_signature","")})
 	if box_size != Vector3.ZERO:
 		var box := BoxMesh.new(); box.size = box_size; box.material = materials[0]
 		source_reference=_bind_source(box,self)

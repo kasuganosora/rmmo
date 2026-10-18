@@ -17,7 +17,7 @@ static func _fail(reason: String, cancelled: bool = false, failed_uuid: String =
 static func _cancelled(token: RefCounted) -> bool:
 	return token != null and token.is_cancelled()
 
-static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0) -> Dictionary:
+static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false) -> Dictionary:
 	var started := Time.get_ticks_usec()
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	if not Paths.allowed(path, content_root) or not index.get("ok", false) or not Store._digest(index.get("source_sha256")): return _fail("无效的区块引用来源")
@@ -50,7 +50,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var preflight_us := Time.get_ticks_usec() - started
 	# The outer demand scheduler owns concurrency and byte admission. A single
 	# task must not multiply that limit with another four-thread nested pool.
-	var restored: Dictionary = Store.read_records(compact, path, content_root, dependencies, 1)
+	var restored: Dictionary = Store.read_records(compact, path, content_root, dependencies, 1,trusted_package)
 	if not restored.get("ok", false):
 		# This task uses one resource reader, so its last claimed unique URI is
 		# the failed dependency. Attribute it without poisoning a shared GLB path.
@@ -69,9 +69,11 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	for i in restored.records.size():
 		if _cancelled(token): return _fail("区块引用准备已取消", true)
 		var record: Dictionary = restored.records[i]; var at: int = positions[i]; var expected: Dictionary = index.rows[at]
-		var issue: String = Cursor.asset_record_issue(record, material_checks, compact[i].rmmo_ref.sha256, asset_paths, content_root)
-		if issue.is_empty(): issue = Cursor.document_record_issue(record, ids)
-		if issue.is_empty() and not preload("res://scripts/world3d/river_material_data.gd").valid(record): issue = "Invalid river material record"
+		var issue: String = ""
+		if not trusted_package:
+			issue=Cursor.asset_record_issue(record, material_checks, compact[i].rmmo_ref.sha256, asset_paths, content_root)
+			if issue.is_empty(): issue = Cursor.document_record_issue(record, ids)
+			if issue.is_empty() and not preload("res://scripts/world3d/river_material_data.gd").valid(record): issue = "Invalid river material record"
 		if not issue.is_empty(): return _fail(issue, false, record.uuid)
 		if record.has("road_mesh"):
 			var estimate := RoadPreparation.estimate(record)
@@ -107,9 +109,9 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			var actual_textures:=PrefabTextures.sources(record)
 			if actual_textures!=expected.get("prefab_textures",{}):return _fail("预制件贴图依赖与目录不一致",false,record.uuid)
 			texture_sources.merge(actual_textures,true)
-		# Recompute actual geometry-derived bounds from the verified definition.
-		# The index/request hint cannot grant safety to a smaller invented box.
-		var actual: Dictionary = Index._classify(record, content_root, manifests)
+		# Runtime consumes the package-derived directory; editor/verification
+		# callers still independently recompute bounds and ownership.
+		var actual: Dictionary = expected.duplicate() if trusted_package else Index._classify(record, content_root, manifests)
 		if expected.bounds_known and (not actual.bounds_known or not actual.bounds.is_equal_approx(expected.bounds)): return _fail("实际物件边界与区块目录不一致", false, record.uuid)
 		if actual.owner_keys != expected.owner_keys: return _fail("实际物件归属与区块目录不一致", false, record.uuid)
 		if expected.reason in ["native_fortification", "native_bridge"] and actual.reason != expected.reason: return _fail("冻结结构不能证明为自包含组件", false, record.uuid)
@@ -120,7 +122,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	for group_id: String in actual_groups:
 		var actual: Dictionary = actual_groups[group_id]; var expected: Dictionary = index.groups[group_id]
 		if actual.members != expected.members or actual.bounds_known != expected.bounds_known or (expected.bounds_known and not actual.bounds.is_equal_approx(expected.bounds)): return _fail("实际完整组件组边界与区块目录不一致")
-	var ownership: Dictionary = Index.validate_selected(index, restored.records, content_root, ownership_proof)
+	var ownership: Dictionary = {"ok":true} if trusted_package else Index.validate_selected(index, restored.records, content_root, ownership_proof)
 	if not ownership.ok: return _fail(str(ownership.reason))
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var validation_us := Time.get_ticks_usec() - validation_started
@@ -130,7 +132,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 		var terrain_compact:Array=[];var terrain_dependencies:Dictionary={}
 		for row:Dictionary in terrain_rows:
 			var ref:Dictionary=index.extras.rmmo_records[row.order];terrain_compact.append(ref);terrain_dependencies[ref.rmmo_ref.uri]=ref.rmmo_ref.sha256
-		var terrain_data:=Store.read_records(terrain_compact,path,content_root,terrain_dependencies,1)
+		var terrain_data:=Store.read_records(terrain_compact,path,content_root,terrain_dependencies,1,trusted_package)
 		if not terrain_data.ok:return _fail("地形接缝依赖无法读取")
 		var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.update(terrain_data.records)
 		for record:Dictionary in restored.records:
@@ -153,7 +155,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			if texture_packet.get("retry_pixels",false):failure.retry_pixels=true;failure.source_revisions=texture_packet.get("source_revisions",{})
 			return failure
 	var verify_started := Time.get_ticks_usec()
-	if not Store.verify_dependencies(dependencies, path, content_root, 1) or not Paths.allowed(path, content_root) or FileAccess.get_sha256(path) != index.source_sha256: return _fail("地图或区块引用资源在准备期间发生改变")
+	if (not trusted_package and not Store.verify_dependencies(dependencies, path, content_root, 1)) or not Paths.allowed(path, content_root) or FileAccess.get_sha256(path) != index.source_sha256: return _fail("地图或区块引用资源在准备期间发生改变")
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	if not texture_packet.is_empty() and not PrefabTextures.verify(texture_packet,content_root,token):return _fail("预制件贴图在区块准备结束前发生改变",_cancelled(token))
 	# Only this successful existing final transaction grants the typed handoff.

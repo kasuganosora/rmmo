@@ -15,6 +15,7 @@ class Observe extends RefCounted:
 		return cancel_at>=0 and calls>=cancel_at
 
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit source replacement diagnostic.
 	var errors:=Errors.new();OS.add_logger(errors)
 	folder=Paths.cache_directory("collision_none_test_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	var model:=folder.path_join("fixture.glb");fixture(model)

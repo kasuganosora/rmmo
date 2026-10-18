@@ -99,10 +99,10 @@ class PrivatePreparation extends RefCounted:
 	func released() -> bool:
 		return not resources.is_empty() and resources.all(func(ref: WeakRef): return ref.get_ref() == null) and nodes.all(func(ref: WeakRef): return ref.get_ref() == null) and releases.size() == marker_count and releases.all(func(id: int): return id == OS.get_main_thread_id())
 
-func native_read(path: String, candidate: Dictionary, observer: PrivatePreparation = null) -> Dictionary:
+func native_read(path: String, candidate: Dictionary, observer: PrivatePreparation = null, trusted_package:bool=false) -> Dictionary:
 	var worker := Thread.new()
 	var callback := Callable() if observer == null else observer.prepare
-	var error := worker.start(NativeReader.read.bind(path, candidate, content_root, callback))
+	var error := worker.start(NativeReader.read.bind(path, candidate, content_root, callback, trusted_package))
 	check(error == OK, "native private reader starts on a worker")
 	if error != OK: return {"error":error}
 	while worker.is_alive(): await process_frame
@@ -182,6 +182,9 @@ func run() -> void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	var path := folder.path_join("source.glb"); temporary_files.append(path)
 	static_fixture(path, Color(.23, .51, .71, 1), false, float(Time.get_ticks_usec() % 10000000))
+	var published_path:=folder.path_join(FileAccess.get_sha256(path)+".glb")
+	check(DirAccess.rename_absolute(path,published_path)==OK,"fixture uses the published content-addressed package path")
+	path=published_path;temporary_files.append(path)
 	var original: Node = Io.load_scene(path)
 	check(original != null, "temporary fixture imports raw")
 	if original == null: cleanup(); quit(1); return
@@ -219,6 +222,18 @@ func run() -> void:
 	packet = await native_read(path, candidate)
 	check(packet.get("error", FAILED) == OK and not packet.has("private_preparation"), "omitting callback preserves native reader behavior and result shape")
 	await release_packet(packet)
+	# Trusted gameplay uses the package identity, with no repeated source scan.
+	# The private geometry and its ownership must still match the strict path.
+	write_bytes(path,changed)
+	Trace.minimum_event_us=0;Trace.start()
+	observer=PrivatePreparation.new()
+	packet=await native_read(path,candidate,observer,true)
+	var trusted_trace:=Trace.stop()
+	check(packet.get("error",FAILED)==OK and packet.source_digest==candidate.source_sha,"trusted native preparation uses authored identity without re-authenticating source bytes")
+	check(trusted_trace.events.filter(func(e):return e.label in ["compiled.source_sha","compiled.source_precheck"]).is_empty(),"trusted native worker performs no source authentication scans")
+	compare_scene(packet,expected)
+	await release_packet(packet,observer)
+	write_bytes(path,source_bytes)
 	for mode in ["replace", "fail_replace", "cancel", "fail", "malformed_error", "missing_error", "missing_scene", "malformed_return"]:
 		observer = PrivatePreparation.new(); observer.mode = mode; observer.path = path; observer.changed_bytes = changed
 		packet = await native_read(path, candidate, observer)

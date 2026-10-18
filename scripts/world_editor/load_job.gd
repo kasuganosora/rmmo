@@ -326,23 +326,23 @@ static func _parse_asset(value:String,content_root:String="")->Dictionary:
 	# Shared source transaction and raw importer mutex; neither private parse nor
 	# compiled reads may publish into the editor's scene cache from a worker.
 	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=ModelPreparation.parse_gltf(value,content_root)
+	var parsed:=ModelPreparation.parse_gltf(value,content_root,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value})
 	parsed.elapsed_us=Time.get_ticks_usec()-started
 	return parsed
 
 static func _parse_native_asset(value:String,content_root:String,candidate:Dictionary)->Dictionary:
 	# This reader binds the exact product behind the admitted footprint and has
-	# no raw fallback. Source SHA is still checked in full after resource loading.
+	# no raw fallback. Package identity replaces repeated source authentication.
 	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=NativePreparation.read(value,candidate,content_root)
+	var parsed:=NativePreparation.read(value,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value,"stage":"compiled_read"})
 	return parsed
 
 static func _parse_raw_asset(value:String,content_root:String)->Dictionary:
 	# A freshly admitted retry must not consult a changed native manifest again.
 	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=ModelPreparation._parse_fallback(value,content_root)
+	var parsed:=ModelPreparation._parse_fallback(value,content_root,"",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value,"stage":"raw_import"})
 	return parsed
 

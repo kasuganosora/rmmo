@@ -53,6 +53,7 @@ func dispose_runtime(loader:Node)->void:
 	loader._exit_tree();loader.free()
 
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit corrupt-package diagnostics.
 	create_timer(60).timeout.connect(func():print("REFERENCE_MAP_LOADING_TIMEOUT");quit(1))
 	root_path=Paths.external_root()
 	folder=Paths.cache_directory("reference_loading_%d"%Time.get_ticks_usec())

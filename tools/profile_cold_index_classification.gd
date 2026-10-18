@@ -9,12 +9,14 @@ const ROOT="D:/code/rmmo_runtime"
 var output:=""
 var repeats:=1
 var abba:=false
+var numeric_abba:=false
 func _initialize()->void:run.call_deferred()
 func run()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):output=arg.trim_prefix("--output=")
 		elif arg.begins_with("--repeats="):repeats=clampi(int(arg.trim_prefix("--repeats=")),1,16)
 		elif arg=="--abba":abba=true;repeats=4
+		elif arg=="--numeric-abba":numeric_abba=true;repeats=4
 	if DisplayServer.get_name()!="headless" or not Index.Paths.allowed(output,ROOT+"/review_artifacts"):quit(2);return
 	var source:=Index._source(MAP,ROOT,"")
 	if not source.ok:quit(1);return
@@ -30,6 +32,7 @@ func run()->void:
 	var expected:Array=[]
 	for pass_:int in repeats:
 		preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled=not abba or pass_ in [1,2]
+		preload("res://scripts/world3d/document_schema.gd").numeric_rows_enabled=not numeric_abba or pass_ in [1,2]
 		var started:=Time.get_ticks_usec();var models:Dictionary={};var groups:Dictionary={}
 		var paths:Dictionary={}
 		var rows:Array=[]
@@ -42,6 +45,7 @@ func run()->void:
 			rows.append(row)
 		var result:={"elapsed_us":Time.get_ticks_usec()-started,"groups":groups,"models":models.size()}
 		result.boolean_schema=preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled
+		result.numeric_rows=preload("res://scripts/world3d/document_schema.gd").numeric_rows_enabled
 		result.unique_path_checks=paths.size()
 		if pass_==0:expected=rows
 		result.identical=rows==expected

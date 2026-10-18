@@ -48,11 +48,11 @@ static func dispose_miss(packet:Dictionary)->bool:
 	packet.merge(diagnostics)
 	return true
 
-static func read(path:String,verified_digest:String="",content_root:String="",caller_verifies_source:bool=false)->Dictionary:
+static func read(path:String,verified_digest:String="",content_root:String="",caller_verifies_source:bool=false,trusted_package:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
 	if not enabled:return _miss("disabled",started)
-	# Only a transaction that checks the full source again before publication
-	# may defer this final check. A filename/content-address is not verification.
+	# Strict callers can delegate the final source check to their transaction.
+	# Gameplay may explicitly trust the published package identity instead.
 	if caller_verifies_source and not _sha(verified_digest):return _miss("missing_verified_digest",started)
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return _miss("missing_root_snapshot",started)
@@ -68,10 +68,10 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	if not _sha(data.get("source_sha")) or not _sha(data.get("payload_sha")):return _miss("invalid_manifest",started)
 	if not data.get("bytes") is float and not data.get("bytes") is int:return _miss("invalid_size",started)
 	if data.bytes<=0 or data.bytes>MAX_FILE_BYTES:return _miss("invalid_size",started)
-	# Without a caller snapshot this is only a candidate, never proof. We load
-	# exclusively from the verified native product, not from mutable GLB bytes;
-	# the complete source check below must pass before publishing any result.
+	# Strict reads bind this candidate to a final source scan. Gameplay binds it
+	# to the authored package identity. Both validate the derived native product.
 	var digest:=verified_digest if _sha(verified_digest) else str(data.source_sha)
+	if trusted_package:digest=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,verified_digest)
 	if digest!=data.source_sha:return _miss("source_changed",started)
 	var payload:=folder.path_join(data.payload_sha+".scn")
 	if not Paths.allowed(payload,folder):return _miss("payload_path",started)
@@ -90,7 +90,7 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	Trace.elapsed("compiled.native_read",load_started,{"path":path,"bytes":data.bytes})
 	if packed==null or not _valid_packed(packed):return _allocated_miss("invalid_product",started,loaded)
 	if not Paths.allowed(path,content_root):return _allocated_miss("source_changed_during_read",started,loaded)
-	if not caller_verifies_source:
+	if not caller_verifies_source and not trusted_package:
 		var source_started:=Time.get_ticks_usec()
 		var final_digest:=FileAccess.get_sha256(path)
 		Trace.elapsed("compiled.source_sha",source_started,{"path":path})
@@ -113,8 +113,10 @@ class PreparedSource extends RefCounted:
 	var parse_count:int=0
 	var scene_count:int=0
 	var disposed:bool=false
+	var trusted_package:bool=false
 
 	func current()->bool:
+		if trusted_package:return not disposed and error==OK and not source_digest.is_empty() and FileAccess.file_exists(path)
 		return not disposed and error==OK and not source_digest.is_empty() and FileAccess.get_sha256(path)==source_digest
 
 	func relocate(destination:String)->bool:
@@ -143,10 +145,10 @@ class PreparedSource extends RefCounted:
 		preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
 		state=null;document=null
 
-static func prepare_source(path:String)->PreparedSource:
+static func prepare_source(path:String,trusted_package:bool=false)->PreparedSource:
 	assert(OS.get_thread_caller_id()==OS.get_main_thread_id())
-	var prepared:=PreparedSource.new();prepared.path=path
-	prepared.source_digest=FileAccess.get_sha256(path)
+	var prepared:=PreparedSource.new();prepared.path=path;prepared.trusted_package=trusted_package
+	prepared.source_digest=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if trusted_package else FileAccess.get_sha256(path)
 	if not _sha(prepared.source_digest):prepared.error=ERR_FILE_CANT_READ;prepared.reason="source_path";return prepared
 	prepared.document=GLTFDocument.new();prepared.state=GLTFState.new()
 	prepared.parse_count+=1

@@ -30,6 +30,7 @@ static func read(path: String, record: Dictionary = {}) -> Dictionary:
 	result.file_length = length
 	result.json_bytes = json_size
 	result.elapsed_us = Time.get_ticks_usec() - started
+	preload("res://scripts/world3d/load_trace.gd").elapsed("model.bounds_manifest",started,{"path":path,"bytes":json_size})
 	if result.known and not record.is_empty(): return apply_record(result, record)
 	return result
 

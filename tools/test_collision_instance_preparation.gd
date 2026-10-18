@@ -35,6 +35,7 @@ func rewrite_nodes(path:String,operation:Callable)->void:
 	var tail:=PackedByteArray();tail.resize(8);tail.encode_u32(0,binary.size());tail.encode_u32(4,0x004e4942);out.append_array(tail);out.append_array(binary);put(path,out)
 
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit source replacement diagnostic.
 	var errors:=Errors.new();OS.add_logger(errors)
 	folder=Paths.cache_directory("collision_instance_test_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	var model:=folder.path_join("fixture.glb");fixture(model)

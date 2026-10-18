@@ -96,6 +96,7 @@ func remove_fixture(directory:String)->void:
 	for name:String in DirAccess.get_directories_at(directory):remove_fixture(directory.path_join(name))
 	DirAccess.remove_absolute(directory)
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit source replacement diagnostic.
 	var errors:=Errors.new();OS.add_logger(errors)
 	folder=Paths.cache_directory("collision_asset_test_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	var path:=folder.path_join("fixture.glb");fixture(path)

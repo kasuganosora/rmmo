@@ -8,6 +8,7 @@ const Index=preload("res://scripts/world3d/map_dependency_index.gd")
 const Store=preload("res://scripts/world3d/map_resource_store.gd")
 const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const Plan=preload("res://scripts/world3d/entry_plan.gd")
+const PackagePolicy=preload("res://scripts/world3d/runtime_package_policy.gd")
 const LEASE_BYTES=512*1024*1024
 const MAX_HEADER_BYTES=4*1024*1024
 const MAX_INDEX_BYTES=8*1024*1024
@@ -76,20 +77,19 @@ static func prepare(path:String,origin:Vector3,root:String,token:RefCounted,budg
 	if native<0:return {} # Raw maps retain the confirmed-transfer loader route.
 	var extra:Dictionary=source._data.nodes[native].extras
 	if extra.rmmo_records.size()>MAX_RECORDS:return {}
-	var directory:Dictionary=Index.read_for_loading(path,root,source._signature,MAX_HEADER_BYTES,MAX_INDEX_BYTES)
+	var directory:Dictionary=Index.read_for_loading(path,root,source._signature,MAX_HEADER_BYTES,MAX_INDEX_BYTES,1,PackagePolicy.trusted())
 	if token.is_cancelled():return {}
 	if not directory.ok:
 		if _envelope(extra,source._bytes.size(),path,root)>budget:return {}
-		var whole:Dictionary=Cursor.hydrate_references(extra,path,root,1)
+		var whole:Dictionary=Cursor.hydrate_references(extra,path,root,1,PackagePolicy.trusted())
 		if not whole.get("ok",false) or token.is_cancelled():return {}
-		var built:Dictionary=Index.build(path,root,whole.extras.rmmo_records,source._signature,1,MAX_HEADER_BYTES)
+		var built:Dictionary=Index.build_for_loading(path,root,whole.extras.rmmo_records,source._signature,1,MAX_HEADER_BYTES,PackagePolicy.trusted(),whole.get("definition_sizes",{}))
 		if not built.ok or token.is_cancelled():return {}
-		whole.clear();built.clear()
-		directory=Index.read_for_loading(path,root,source._signature,MAX_HEADER_BYTES,MAX_INDEX_BYTES)
+		whole.clear();directory=built
 	if not directory.ok or token.is_cancelled():return {}
 	var selection:Dictionary=Index.select(directory.index,[Plan.create(origin).core_clip])
 	if not selection.ok or _envelope(selection.extras,source._bytes.size(),path,root)>budget or token.is_cancelled():return {}
-	var restored:Dictionary=Cursor.hydrate_references(selection.extras,path,root,1)
+	var restored:Dictionary=Cursor.hydrate_references(selection.extras,path,root,1,PackagePolicy.trusted())
 	if not restored.get("ok",false) or token.is_cancelled() or not source.matches_disk():return {}
 	var packet:=Packet.new();packet.snapshot=source;packet.restored=restored;packet.selected=selection.record_indices.duplicate();packet.path=path;packet.cell=Plan.create(origin).cell
 	packet.scene_plan=preload("res://scripts/world3d/target_scene_prefetch.gd").plan(restored.extras.rmmo_records,root,path,source._signature,restored.dependencies)

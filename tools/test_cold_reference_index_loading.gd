@@ -1,4 +1,6 @@
 extends SceneTree
+## This suite explicitly exercises the optional verification path, including
+## concurrent package corruption. Normal gameplay trusts authored packages.
 ## CPU-only regression for rebuilding the derived directory before resource
 ## preparation on its first visit. Author maps/models/images are all temporary.
 const Loader=preload("res://scripts/world3d/map_loader.gd")
@@ -79,6 +81,7 @@ func empty_selection(probe:Probe)->bool:
 func full_fallback(probe:Probe)->bool:
 	return probe._error==OK and ids(probe).size()==9 and texture_paths(probe).size()==3 and probe.model_requests.size()==2 and probe._build_dependency_index and empty_selection(probe)
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	create_timer(90).timeout.connect(func():print("COLD_REFERENCE_INDEX_TIMEOUT");quit(2))
 	content_root=Paths.external_root();folder=Paths.cache_directory("cold_reference_index_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	helper=Helper.new();helper.folder=folder;helper.content_root=content_root

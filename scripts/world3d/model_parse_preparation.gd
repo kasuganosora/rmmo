@@ -271,7 +271,7 @@ func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictio
 
 func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._cache_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var compiled:Variant=cache_reader.call(path) if cache_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,str(verified_sources.get(path,"")),content_root)
+	var compiled:Variant=cache_reader.call(path) if cache_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,str(verified_sources.get(path,"")),content_root,false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if not compiled is Dictionary or not compiled.get("hit") is bool:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
 	if compiled.hit:
 		if not compiled.has("packed") or compiled.packed==null:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
@@ -299,7 +299,7 @@ static func is_legacy_source_retry(packet:Dictionary)->bool:
 
 func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root)
+	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	# Only a validated native product whose SOURCE changed can be retired and
 	# retried. Other resource-bearing errors remain fatal and main-owned.
@@ -314,13 +314,13 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 
 static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary,prepare_scene:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_verified_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")),prepare_scene)
+	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")),prepare_scene,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 
-static func _parse_fallback(path:String,content_root:String="",verified_digest:String="",prepare_scene:bool=false)->Dictionary:
+static func _parse_fallback(path:String,content_root:String="",verified_digest:String="",prepare_scene:bool=false,trusted_package:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return _source_transaction(path,content_root,verified_digest,_append_gltf.bind(prepare_scene))
+	return _source_transaction(path,content_root,verified_digest,_append_gltf.bind(prepare_scene),trusted_package)
 
-static func _source_transaction(path:String,content_root:String,verified_digest:String,parse:Callable)->Dictionary:
+static func _source_transaction(path:String,content_root:String,verified_digest:String,parse:Callable,trusted_package:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._source_transaction") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# The cache miss may wait behind other imports. Bind the geometry returned by
 	# the raw parser to the same source version the loader used for its Cook key.
@@ -329,11 +329,11 @@ static func _source_transaction(path:String,content_root:String,verified_digest:
 	if not verified_digest.is_empty() and (verified_digest.length()!=64 or not verified_digest.is_valid_hex_number(false)):return {"error":ERR_INVALID_PARAMETER}
 	var Paths=preload("res://scripts/world3d/map_paths.gd")
 	if not content_root.is_empty() and not Paths.allowed(path,content_root):return {"error":ERR_INVALID_PARAMETER}
-	var before:=FileAccess.get_sha256(path)
+	var before:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,verified_digest) if trusted_package else FileAccess.get_sha256(path)
 	if before.is_empty():return {"error":ERR_FILE_CANT_READ}
 	if not verified_digest.is_empty() and before!=verified_digest:return {"error":ERR_BUSY}
 	var raw:Variant=parse.call(path)
-	var after:=FileAccess.get_sha256(path)
+	var after:=before if trusted_package else FileAccess.get_sha256(path)
 	if after!=before or (not content_root.is_empty() and not Paths.allowed(path,content_root)):
 		# No consumable state/source identity escapes a failed transaction. The
 		# private GLTF resources can already own GPU textures, however: retain
@@ -401,16 +401,16 @@ static func _parse_verified_gltf(path:String,content_root:String,verified_source
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_verified_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return parse_gltf(path,content_root,str(verified_sources.get(path,"")))
 
-static func parse_gltf(path: String,content_root:String="",verified_digest:String="") -> Dictionary:
+static func parse_gltf(path: String,content_root:String="",verified_digest:String="",trusted_package:bool=false) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.parse_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
-	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,verified_digest,content_root)
+	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,verified_digest,content_root,false,trusted_package)
 	if compiled.hit:return {"error":OK,"packed":compiled.packed,"compiled":true,"source_digest":compiled.source_digest,"cache_us":compiled.elapsed_us}
 	if not compiled.get("retained_resources",[]).is_empty():
 		# Workers cannot discard a failed native allocation or begin another
 		# allocation under its lease. Coordinators quarantine or retire then retry.
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return _owned_cache_miss(compiled)
 		if not preload("res://scripts/world3d/compiled_asset_cache.gd").dispose_miss(compiled):return _owned_cache_miss(compiled)
-	var result:=_parse_fallback(path,content_root,verified_digest)
+	var result:=_parse_fallback(path,content_root,verified_digest,false,trusted_package)
 	result.cache_reason=compiled.reason
 	return result

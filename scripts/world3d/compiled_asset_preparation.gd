@@ -9,7 +9,7 @@ const Trace=preload("res://scripts/world3d/load_trace.gd")
 # checking the source once after all private preparation accepts that geometry.
 static var source_precheck_enabled:=false
 
-static func read(path:String,candidate:Dictionary,content_root:String,prepare_private:Callable=Callable())->Dictionary:
+static func read(path:String,candidate:Dictionary,content_root:String,prepare_private:Callable=Callable(),trusted_package:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
 	if not Compiled.enabled or candidate.is_empty():return {"error":OK,"fallback_required":true,"cache_reason":"candidate_disabled"}
 	for key in ["source_path","product","generator"]:
@@ -28,7 +28,8 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 	if FileAccess.get_sha256(product)!=candidate.payload_sha:return {"error":OK,"fallback_required":true,"cache_reason":"candidate_checksum"}
 	Trace.elapsed("compiled.payload_sha",phase,{"path":path,"bytes":candidate.bytes})
 	if not ResourceLoader.get_dependencies(product).is_empty():return {"error":OK,"fallback_required":true,"cache_reason":"candidate_dependencies"}
-	if source_precheck_enabled:
+	if trusted_package and not FileAccess.file_exists(path):return {"error":OK,"fallback_required":true,"cache_reason":"source_missing"}
+	if source_precheck_enabled and not trusted_package:
 		phase=Time.get_ticks_usec()
 		var before_sha:=FileAccess.get_sha256(path)
 		Trace.elapsed("compiled.source_precheck",phase,{"path":path})
@@ -61,8 +62,8 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 			return result
 		if not prepared.get("scene") is Node or not is_instance_valid(prepared.scene):return result
 	phase=Time.get_ticks_usec()
-	var source_sha:=FileAccess.get_sha256(path)
-	Trace.elapsed("compiled.source_sha",phase,{"path":path})
+	var source_sha:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if trusted_package else FileAccess.get_sha256(path)
+	Trace.elapsed("compiled.source_identity" if trusted_package else "compiled.source_sha",phase,{"path":path})
 	if not Paths.allowed(path,content_root):result.error=ERR_BUSY;return result
 	if source_sha!=candidate.source_sha:
 		# Never destroy the allocated native scene on this worker. Its coordinator

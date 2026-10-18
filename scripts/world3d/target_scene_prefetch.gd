@@ -41,7 +41,7 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 		var estimate:=preload("res://scripts/world3d/asset_memory_estimate.gd").estimate(path)
 		if not estimate.get("known",false):return {}
 		bytes+=int(estimate.estimated_bytes)*2
-		files[path]=FileAccess.get_sha256(path)
+		files[path]=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path)
 	for path:String in pixels:
 		var header:=preload("res://scripts/world3d/prefab_texture_preparation.gd")._header(path,root)
 		if header.is_empty():return {}
@@ -57,6 +57,9 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 	return {"files":files,"estimated_bytes":bytes}
 static func verify(files:Dictionary,root:String)->bool:
 	for path:String in files:
+		if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and path.get_extension().to_lower() in ["glb","rmres"]:
+			if not Paths.allowed(path,root) or not FileAccess.file_exists(path):return false
+			continue
 		if not Paths.allowed(path,root) or FileAccess.get_sha256(path)!=files[path] or not Paths.allowed(path,root):return false
 	return true
 func request(path:String,destination:Vector3,ledger:RefCounted,cpu:Node)->bool:

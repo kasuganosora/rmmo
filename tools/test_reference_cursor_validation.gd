@@ -46,6 +46,7 @@ func prefab_payload()->Dictionary:
 	var bytes:=var_to_bytes(data)
 	return {"version":1,"sha256":Prefab.Cook.Envelope.checksum(bytes).hex_encode(),"length":bytes.size(),"data":Marshalls.raw_to_base64(bytes.compress(FileAccess.COMPRESSION_ZSTD))}
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit corruption audit; normal editor trusts packages.
 	create_timer(60).timeout.connect(func():print("REFERENCE_CURSOR_TIMEOUT");quit(1))
 	folder=Paths.cache_directory("reference_cursor_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	var a:=record("a");var b:=record("b");a.editor_hidden=true;b.editor_locked=true;b.position=[2,3,4];b.rotation=[0,90,0]

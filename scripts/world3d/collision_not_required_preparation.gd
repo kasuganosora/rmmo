@@ -148,7 +148,8 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 	for at:int in current.positions:
 		var record:Dictionary=index.extras.rmmo_records[at]
 		compact.append(record);dependencies[record.rmmo_ref.uri]=record.rmmo_ref.sha256
-	var restored:=Store.read_records(compact,path,root,dependencies,1)
+	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var restored:=Store.read_records(compact,path,root,dependencies,1,trusted_package)
 	if not restored.get("ok",false):return _fail("reference:"+str(restored.get("reason","")))
 	if _cancelled(token):return _fail("cancelled",true)
 	var fallbacks:Dictionary={};var eligible:Array=[];var material_checks:Dictionary={};var assets:Dictionary={};var ids:Dictionary={}
@@ -163,7 +164,7 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 	if not selected.ok:return _fail("selected_closure:"+str(selected.reason))
 	var source:Dictionary={};var models:Dictionary={};var facts:Array=[]
 	if not eligible.is_empty():
-		source=_checked_hash(current.asset_path,root,token,"source_sha_before");profile.source_sha_calls+=1
+		source=_checked_hash(current.asset_path,root,token,"source_sha_before");profile.source_sha_calls+=int(source.get("hashed",true))
 		if not source.ok:return source
 		var loaded:=_manifest(current.asset_path,root,current.source_header)
 		if not loaded.ok:return loaded
@@ -178,10 +179,10 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 			if not pose.is_finite():return _fail("record_transform")
 			facts.append({"at":current.positions[i],"pose":pose,"bounds":row.bounds})
 		if _cancelled(token):return _fail("cancelled",true)
-		var final_source:=_checked_hash(current.asset_path,root,token,"source_sha_after");profile.source_sha_calls+=1
+		var final_source:=_checked_hash(current.asset_path,root,token,"source_sha_after");profile.source_sha_calls+=int(final_source.get("hashed",true))
 		if not final_source.ok:return final_source
 		if final_source.sha!=source.sha:return _fail("asset_changed")
-	if not Store.verify_dependencies(dependencies,path,root,1):return _fail("reference_changed")
+	if not trusted_package and not Store.verify_dependencies(dependencies,path,root,1):return _fail("reference_changed")
 	map_source=_checked_hash(path,root,token,"map_sha_after");profile.map_sha_calls+=1
 	if not map_source.ok:return map_source
 	if map_source.sha!=index.source_sha256 or not Index.validate_index_ownership(index,root,ownership,path):return _fail("map_changed")

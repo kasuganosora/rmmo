@@ -129,7 +129,8 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 	for at:int in current.positions:
 		var source:Dictionary=index.extras.rmmo_records[at]
 		compact.append(source);dependencies[source.rmmo_ref.uri]=source.rmmo_ref.sha256
-	var restored:=Store.read_records(compact,path,root,dependencies,1)
+	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var restored:=Store.read_records(compact,path,root,dependencies,1,trusted_package)
 	if not restored.get("ok",false):return _fail("reference:"+str(restored.get("reason","")))
 	if _cancelled(token):return _fail("cancelled",true)
 	var material_checks:Dictionary={};var asset_paths:Dictionary={};var ids:Dictionary={};var manifests:Dictionary={}
@@ -179,7 +180,7 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 		var source:=Descriptor._hash_source(asset_path,root,token)
 		if not source.ok:return source
 		if source.sha!=assets[asset_path].source_sha():return _fail("asset_changed")
-	if not Store.verify_dependencies(dependencies,path,root,1):return _fail("reference_changed")
+	if not trusted_package and not Store.verify_dependencies(dependencies,path,root,1):return _fail("reference_changed")
 	map_source=Descriptor._hash_source(path,root,token)
 	if not map_source.ok:return map_source
 	if map_source.sha!=index.source_sha256 or not Index.validate_index_ownership(index,root,proof,path):return _fail("map_changed")

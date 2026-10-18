@@ -271,7 +271,7 @@ func validate_save_record(record: Dictionary, material_validation:Variant=null, 
 		# of instances should not reopen the same path's ancestors per instance.
 		if asset_validation==null or not asset_validation.has(path):
 			if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return ERR_FILE_CORRUPT
+		if not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return ERR_FILE_CORRUPT
 		if asset_validation!=null:
 			var required:=preload("res://scripts/world3d/house_prefab.gd").requires_source_model(record)
 			asset_validation[path]=bool(asset_validation.get(path,false)) or required
@@ -341,7 +341,7 @@ static func authoritative_extras(path: String, parsed: Variant = null, metadata_
 		# they were complete authoring records to callers of this shared API.
 		extra=extra.duplicate();extra.erase("rmmo_records")
 	else:
-		var restored:Dictionary=validation.hydrate_references(extra,path,preload("res://scripts/world3d/map_paths.gd").external_root())
+		var restored:Dictionary=validation.hydrate_references(extra,path,preload("res://scripts/world3d/map_paths.gd").external_root(),4,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if not restored.get("ok",false):return {"error":str(restored.get("reason","invalid reference map"))}
 		extra=restored.extras
 	if FileAccess.get_sha256(path)!=signature:return {"error":"map changed while reading"}

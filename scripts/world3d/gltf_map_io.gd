@@ -128,7 +128,7 @@ static func restore_previous(path: String) -> Error:
 		var records:Array=extras.rmmo_records
 		if int(extras.get("rmmo_version",0))==2:
 			var store=load("res://scripts/world3d/map_resource_store.gd")
-			var resolved:Dictionary=store.read_records(records,path,paths.external_root())
+			var resolved:Dictionary=store.read_records(records,path,paths.external_root(),null,4,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 			if not resolved.ok or resolved.dependencies!=extras.get("rmmo_resource_dependencies"):return ERR_FILE_CORRUPT
 			records=resolved.records
 		var ids:Dictionary={};var material_validation:Dictionary={}

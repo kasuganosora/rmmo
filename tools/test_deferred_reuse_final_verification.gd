@@ -51,6 +51,7 @@ func fixture()->Dictionary:
 	service._admission.byte_limit=96*1024*1024;service._admission.worker_limit=2
 	return {"map":map,"service":service,"document":document}
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	var folder:=Paths.cache_directory("reuse_final_verification_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
 	DirAccess.make_dir_recursive_absolute(folder)
 	var path:=folder.path_join("resident.glb")

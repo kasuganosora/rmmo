@@ -23,6 +23,9 @@ static var _loading_proof_issuer := RefCounted.new()
 static var batch_path_validation:=true # Probe-only old-loop comparison switch.
 static var parallel_definition_checks:=true # Bounded CPU-only control, never skips validation.
 static var classification_path_batching:=true # Scope is one synchronous build only.
+static var parallel_native_classification:=true # CPU-only jobs; models keep one manifest observation per path.
+static var parallel_imported_sources:=true # Bounded streaming SHA/metadata checks, never cached across opens.
+static var early_stale_rejection:=true # Reject obsolete identities before traversing disposable rows.
 const VERSION := 4
 const MAGIC := "RMMODEPS1"
 const MAX_BYTES := 64 * 1024 * 1024
@@ -86,25 +89,25 @@ static func _compact_closure(extra: Dictionary, path: String, content_root: Stri
 	return {"ok": true, "dependencies": actual}
 
 ## The caller supplies its fully hydrated, semantically validated snapshot.
-## Re-encoding unique definitions proves it is the exact compact source snapshot;
-## a caller cannot accidentally publish bounds from a different edited document.
-static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT) -> Dictionary:
-	return _build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,false)
+## Strict callers re-encode definitions to reject a different edited snapshot.
+## Gameplay explicitly trusts package references and supplies decoded raw sizes.
+static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT, trusted_package:bool=false, definition_sizes:Dictionary={}, source_manifests:Dictionary={}) -> Dictionary:
+	return _build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,false,trusted_package,definition_sizes,source_manifests)
 
 ## The build owns a freshly read author snapshot and newly generated rows.
 ## Validate and seal those private containers before they escape, instead of
 ## writing, discarding, reading and authenticating the same data a second time.
 ## Public build() remains mutable; callers cannot certify an arbitrary result.
-static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT)->Dictionary:
-	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true)
+static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT,trusted_package:bool=false,definition_sizes:Dictionary={},source_manifests:Dictionary={})->Dictionary:
+	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true,trusted_package,definition_sizes,source_manifests)
 	return built if built.ok else {"ok":false,"reason":built.reason,"index":{},"proof":null}
 
-static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool)->Dictionary:
+static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool,trusted_package:bool,definition_sizes:Dictionary,source_manifests:Dictionary)->Dictionary:
 	var opened := _source(path, content_root, source_sha,source_limit)
 	if not opened.ok: return opened
 	var compact: Array = opened.extras.rmmo_records
 	if compact.size() != hydrated_records.size(): return _fail("hydrated_count_mismatch")
-	if not Blueprint.valid_meta(opened.extras) or not Blueprint.valid_ownership(opened.extras, hydrated_records): return _fail("invalid_full_building_ownership")
+	if not trusted_package and (not Blueprint.valid_meta(opened.extras) or not Blueprint.valid_ownership(opened.extras, hydrated_records)): return _fail("invalid_full_building_ownership")
 	var rows: Array = []; var models := {}; var definitions := {}; var definition_bytes := {}
 	var definition_jobs:Array=[]
 	# First prove every pose/state and unique definition before classification.
@@ -113,6 +116,17 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 		var observed:=Time.get_ticks_usec()
 		var record: Variant = hydrated_records[i]
 		if not Store._shape(record) or record.uuid != compact[i].uuid: return _fail("hydrated_identity_mismatch")
+		if trusted_package:
+			# The runtime adopts the package reference directly. Raw sizes come
+			# from the bounded decompression headers just read, not a second
+			# serialization/identity proof of all immutable definitions.
+			var reference_sha:String=compact[i].rmmo_ref.sha256
+			if not definition_bytes.has(reference_sha):
+				var raw_length:int=int(definition_sizes.get(reference_sha,0))
+				if raw_length<=0:raw_length=var_to_bytes(Store._definition(record)).size()
+				if raw_length<=0 or raw_length>Store.MAX_RAW_BYTES:return _fail("invalid_definition_size")
+				definition_bytes[reference_sha]=raw_length
+			continue
 		for field in Store.FIELDS:
 			if field == "uuid": continue
 			for axis in 3:
@@ -135,32 +149,9 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 		var job:Dictionary=definition_jobs[i];var encoded:Dictionary=encoded_batch.entries[i]
 		if encoded.sha256!=job.sha256 or encoded.length!=job.length:return _fail("hydrated_definition_mismatch")
 		definition_bytes[job.sha256]=encoded.serialized_raw_bytes
-	var classification_paths:Dictionary={}
-	for i in compact.size():
-		var record:Dictionary=hydrated_records[i]
-		var sha:String=compact[i].rmmo_ref.sha256
-		var observed:=Time.get_ticks_usec()
-		var row := _classify(record, content_root, models,classification_paths if classification_path_batching else {})
-		Trace.elapsed("index.build_classify",observed,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
-		row.uuid = record.uuid; row.order = i; row.reference = compact[i].rmmo_ref.duplicate(true)
-		row.prefab_locked = record.get("prefab_locked", false) == true
-		row.group_id = "building:" + str(record.building.id) if record.has("building") else ""
-		# Variant/string/container overhead and both immutable geometry handoffs.
-		# This is deliberately conservative; compressed rmres bytes are not RAM.
-		row.memory_bytes = mini(64 * 1024 * 1024 * 1024, definition_bytes[sha] * 8 + int(record.get("house_prefab", {}).get("length", 0)) * 4 + 65536)
-		if record.has("terrain_mesh"):row.memory_bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024+1048576
-		# Paths only: current bounded image headers are read at job admission, so
-		# changing image dimensions does not leave a stale persisted byte estimate.
-		row.prefab_textures = PrefabTextures.sources(record)
-		if row.reason == "native_road":
-			# _classify just validated this same immutable Road record. Repeating
-			# the full nested polygon/kerb schema for the estimate doubles cold work.
-			var preparation := RoadPreparation._estimate_validated(record)
-			if preparation.ok:
-				row.memory_bytes = mini(64 * 1024 * 1024 * 1024, row.memory_bytes + int(preparation.estimated_bytes))
-			else:
-				row.classification = "global"; row.reason = "road_preparation_unknown"
-		rows.append(row)
+	var classified:=_build_rows(hydrated_records,compact,definition_bytes,content_root,worker_limit,Callable(),source_manifests if trusted_package else {})
+	if not classified.ok:return _fail("classification_failed")
+	rows=classified.rows;models=classified.models
 	var fort_owners := _fortification_owners(opened.extras, rows)
 	for row: Dictionary in rows:
 		row.group_id = _expected_group(compact[row.order], row, fort_owners)
@@ -173,11 +164,12 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
 	# The in-memory handoff must satisfy the same serialized-directory contract.
 	if for_loading and not _valid_payload(payload,compact,content_root):return _fail("invalid_index_schema")
-	if not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
-	if not _imported_sources_valid(opened.extras, rows): return _fail("imported_building_source_mismatch")
-	if not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
+	if not trusted_package and not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
+	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit): return _fail("imported_building_source_mismatch")
+	if (not trusted_package and not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit)) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
 	for model_path: String in models:
 		if not Paths.allowed(model_path,content_root):return _fail("model_path_changed_during_build")
+		if trusted_package:continue
 		var current: Dictionary = Manifest.read(model_path)
 		if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
 	var target := cache_path(path, content_root)
@@ -209,7 +201,53 @@ static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
 	Trace.elapsed("index.build_definition",observed)
 	return {"ok":true,"error":OK,"length":encoded.length,"sha256":encoded.sha256,"serialized_raw_bytes":raw_bytes}
 
-static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
+## Each native row owns its output and temporary geometry arrays. Read-only
+## authored inputs stay on the caller until every worker is joined. Model rows
+## stay together so repeated instances share exactly one manifest/path check.
+static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={})->Dictionary:
+	var started:=Time.get_ticks_usec()
+	var rows:Array=[];rows.resize(records.size())
+	var models:Dictionary={};var paths:Dictionary={};var jobs:Array=[]
+	for i:int in records.size():
+		var record:Dictionary=records[i]
+		# This load's near-entry prefetch already observed these package bounds.
+		# Copy only paths actually used by this build, never a process-wide cache.
+		var path:String=record.get("asset_path","")
+		if not models.has(path) and source_manifests.has(path):
+			var source:Dictionary=source_manifests[path]
+			if source.get("known",true):models[path]={"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds}
+		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256]}
+		if not parallel_native_classification or record.has("model_building") or (record.get("kind")=="asset" and not record.has("house_prefab")):
+			rows[i]=_index_row(job,models,paths if classification_path_batching else {})
+		else:jobs.append(job)
+	var batch:=Store._read_many(jobs,false,worker_limit if jobs.size()>=16 else 1,_native_index_row,thread_starter)
+	if not batch.ok:return batch
+	for i:int in jobs.size():rows[jobs[i].order]=batch.entries[i].row
+	Trace.elapsed("index.classification_batch",started,batch.read_profile)
+	return {"ok":true,"rows":rows,"models":models,"profile":batch.read_profile}
+
+static func _native_index_row(job:Dictionary,_decode:bool)->Dictionary:
+	return {"ok":true,"error":OK,"length":0,"row":_index_row(job,{},{})}
+
+static func _index_row(job:Dictionary,models:Dictionary,paths:Dictionary)->Dictionary:
+	var record:Dictionary=job.record
+	var started:=Time.get_ticks_usec()
+	var row:=_classify(record,job.root,models,paths)
+	Trace.elapsed("index.build_classify",started,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
+	row.uuid=record.uuid;row.order=job.order;row.reference=job.reference.duplicate(true)
+	row.prefab_locked=record.get("prefab_locked",false)==true
+	row.group_id="building:"+str(record.building.id) if record.has("building") else ""
+	# Same conservative accounting and geometry contract as serial construction.
+	row.memory_bytes=mini(64*1024*1024*1024,job.raw_bytes*8+int(record.get("house_prefab",{}).get("length",0))*4+65536)
+	if record.has("terrain_mesh"):row.memory_bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024+1048576
+	row.prefab_textures=PrefabTextures.sources(record)
+	if row.reason=="native_road":
+		var preparation:=RoadPreparation._estimate_validated(record)
+		if preparation.ok:row.memory_bytes=mini(64*1024*1024*1024,row.memory_bytes+int(preparation.estimated_bytes))
+		else:row.classification="global";row.reason="road_preparation_unknown"
+	return row
+
+static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false) -> Dictionary:
 	var observed:=Time.get_ticks_usec()
 	var opened := _source(path, content_root, expected_source_sha,source_limit)
 	Trace.elapsed("index.source",observed)
@@ -224,6 +262,9 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	if bytes.size() != length or Store._sha(bytes).hex_decode() != checksum: return _fail("index_payload_sha_mismatch")
 	var data: Variant = bytes_to_var(bytes) # Never allow Objects or scripts.
 	Trace.elapsed("index.decode",observed,{"bytes":length})
+	if early_stale_rejection:
+		if not data is Dictionary or not Store._digest(data.get("source_sha256")) or not Store._digest(data.get("generator")):return _fail("invalid_index_schema")
+		if data.source_sha256!=opened.source._signature or data.generator!=generator_key():return _fail("stale_index")
 	observed=Time.get_ticks_usec()
 	var valid:bool=data is Dictionary and _valid_payload(data, opened.extras.rmmo_records, content_root)
 	Trace.elapsed("index.schema",observed)
@@ -232,9 +273,9 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	valid=_ownership_valid(opened.extras,data.rows,data.groups)
 	Trace.elapsed("index.ownership",observed)
 	if not valid:return _fail("invalid_index_schema")
-	if data.source_sha256 != opened.source._signature or data.generator != generator_key(): return _fail("stale_index")
+	if not early_stale_rejection and (data.source_sha256 != opened.source._signature or data.generator != generator_key()): return _fail("stale_index")
 	observed=Time.get_ticks_usec()
-	valid=_imported_sources_valid(opened.extras,data.rows)
+	valid=trusted_package or _imported_sources_valid(opened.extras,data.rows,worker_limit)
 	Trace.elapsed("index.imported",observed)
 	if not valid:return _fail("imported_building_source_mismatch")
 	# Bounds refer to the source accessor JSON. A changed or missing model cannot
@@ -242,6 +283,7 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	var changed_models := {}
 	observed=Time.get_ticks_usec()
 	for model_path: String in data.models:
+		if trusted_package:continue # Package changes update authored identities and invalidate the source key.
 		var current: Dictionary = Manifest.read(model_path) if Paths.allowed(model_path, content_root) else {}
 		var expected: Dictionary = data.models[model_path]
 		if not current.get("known", false) or current.get("json_sha256") != expected.json_sha256 or current.get("file_length") != expected.file_length or current.get("local_bounds") != expected.local_bounds:
@@ -258,8 +300,8 @@ static func _result(data: Dictionary, extras: Dictionary, path: String) -> Dicti
 
 ## Only the read/build factories issue a process-local proof from their own
 ## private snapshot. Ordinary read()/build() keep the original mutable API.
-static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
-	var index := read(path, content_root, expected_source_sha,source_limit,index_limit)
+static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false) -> Dictionary:
+	var index := read(path, content_root, expected_source_sha,source_limit,index_limit,worker_limit,trusted_package)
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
 	return _seal_for_loading(index,path,content_root)
 
@@ -371,16 +413,27 @@ static func _classify_model(record:Dictionary,root:String,models:Dictionary,resu
 
 # Bind exact source annotations and complete bytes, not a claimed record volume
 # or an unchanged accessor header hiding replaced mesh/material binary data.
-static func _imported_sources_valid(extras:Dictionary,rows:Array)->bool:
-	var descriptors:Dictionary={}
+static func _imported_sources_valid(extras:Dictionary,rows:Array,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable())->bool:
+	var started:=Time.get_ticks_usec()
+	var by_path:Dictionary={};var jobs:Array=[]
 	for row:Dictionary in rows:
 		var state:Dictionary=extras.rmmo_records[row.order].rmmo_state
 		if not state.has("model_building"):continue
 		var path:String=row.asset_path
 		if path.is_empty() or not FileAccess.file_exists(path):return false
-		if not descriptors.has(path):descriptors[path]=Imported.read_source_descriptor(path,state.model_building.source_sha)
-		if descriptors[path].is_empty() or not Imported.same(descriptors[path],state.model_building):return false
-	return true
+		if not by_path.has(path):
+			by_path[path]=jobs.size();jobs.append({"path":path,"expected":[]})
+		jobs[by_path[path]].expected.append(state.model_building)
+	var batch:=Store._read_many(jobs,false,worker_limit if parallel_imported_sources else 1,_imported_source_job,thread_starter)
+	Trace.elapsed("index.imported_batch",started,batch.get("read_profile",{}))
+	return batch.ok
+
+static func _imported_source_job(job:Dictionary,_decode:bool)->Dictionary:
+	var descriptor:Dictionary=Imported.read_source_descriptor(job.path,job.expected[0].source_sha)
+	if descriptor.is_empty():return {"ok":false,"error":ERR_INVALID_DATA}
+	for expected:Dictionary in job.expected:
+		if not Imported.same(descriptor,expected):return {"ok":false,"error":ERR_INVALID_DATA}
+	return {"ok":true,"error":OK,"length":0}
 
 ## Road.vertices includes both slab faces, the grade, and every persisted kerb
 ## section point. Kerb adjacency is resolved when authoring; runtime arrays only

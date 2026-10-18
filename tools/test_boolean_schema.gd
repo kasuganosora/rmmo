@@ -6,9 +6,11 @@ var failures:=0
 var cases:=0
 func _initialize()->void:run.call_deferred()
 func compare(value:Variant,schema:Dictionary)->void:
-	cases+=1
-	if S.matches(value,schema)!=S.validate(value,schema).is_empty():
-		failures+=1;print("MISMATCH ",value," ",schema)
+	var expected:bool=S.validate(value,schema).is_empty()
+	for rows:bool in [false,true]:
+		S.numeric_rows_enabled=rows;cases+=1
+		if S.matches(value,schema)!=expected:
+			failures+=1;print("MISMATCH ",value," ",schema)
 func run()->void:
 	var values:Array=[null,true,false,0,1,-1,1.5,INF,-INF,NAN,"", "a", "abcd",StringName("a"),[],{},[0,1],[0,1.5],[INF],["a"],PackedFloat64Array([1,2])]
 	var schemas:Array=[{},S.number(-1,1),S.number(-2,2,true),{"type":"string","maxLength":2},{"type":"boolean"},{"enum":[null,0,"a"]},{"type":"number","enum":[0,1]},S.vector(-1,1)]
@@ -16,6 +18,16 @@ func run()->void:
 		schemas.append({"type":"array","items":item,"minItems":0,"maxItems":3,"enum":[[],[0,1],["a"]]})
 	for schema:Dictionary in schemas:
 		for value:Variant in values:compare(value,schema)
+	for numbers:Dictionary in [S.number(-1,1),S.number(-2,2,true),{"type":"integer","minimum":9007199254740993,"maximum":9007199254740995},{"type":"number","enum":[0,.5]}]:
+		for enumerated:bool in [false,true]:
+			var row_schema:={"type":"array","items":numbers,"minItems":1,"maxItems":3}
+			if enumerated:row_schema.enum=[[0],[0,.5],[]]
+			var matrix:={"type":"array","items":row_schema,"minItems":0,"maxItems":3}
+			for value:Variant in [[],[[]],[[0]],[[0,.5]],[[0,1,2,3]],[[NAN]],[[INF]],[[true]],[["0"]],[PackedFloat64Array([0])],[[0],null],[[0],[1,2]],[[9007199254740993]],[[9007199254740992]]]:compare(value,matrix)
+			matrix.enum=[[],[[0]]]
+			for value:Variant in [[],[[0]],[[.5]],[[1]]]:compare(value,matrix)
+	compare([[0]],{"type":"array","items":{"type":"array","minItems":1.5,"maxItems":2.5,"items":S.number(-1,1)}})
+	compare([[0,0,0]],{"type":"array","items":{"type":"array","minItems":1.5,"maxItems":2.5,"items":S.number(-1,1)}})
 	var nested:={"type":"object","properties":{"points":{"type":"array","items":S.vector(-1000,1000)},"label":{"type":"string"}},"required":["points"]}
 	for value:Variant in [{},{"points":[]},{"points":[[1,2,3]],"label":"x"},{"points":[[1,2]]},{"points":[[1,INF,3]]},{"points":[],"extra":1}]:compare(value,nested)
 	var section:Array=[]

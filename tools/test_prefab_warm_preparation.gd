@@ -135,6 +135,7 @@ func load_job_exit(path:String,records:Array)->void:
 	check(editor.get_viewport().gui_disable_input==gui_before,"LoadJob exit restores input after cancelling the loading overlay")
 	Trace.stop();job.free();editor.free()
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit malformed-input and replacement-race diagnostics.
 	create_timer(90).timeout.connect(func():print("PREFAB_WARM_TIMEOUT");quit(2))
 	var original_workers:int=Cursor.prefab_warm_workers
 	folder=Paths.cache_directory("prefab_warm_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)

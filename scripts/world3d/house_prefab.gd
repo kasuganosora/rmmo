@@ -12,6 +12,14 @@ static var _decoded:Dictionary={}
 static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
 static var _decode_issuer:=RefCounted.new()
+static var coalesce_decodes:=true # Diagnostic control for concurrent cold requests.
+static var _decoding:Dictionary={}
+class DecodeFlight extends RefCounted:
+	var wake:=Semaphore.new()
+	var waiters:=0
+	var encoded:String
+	var length:int
+	var packet:Dictionary={}
 static func evict_geometry(digests:Dictionary)->void:
 	for key:String in _meshes.keys():
 		if not digests.has(key.get_slice(":",0)):continue
@@ -170,6 +178,7 @@ static func _local_bounds(data:Dictionary)->Dictionary:
 	return {"known":false} if first else {"known":true,"bounds":bounds}
 
 static func _packet_matches(packet:Dictionary,digest:String,encoded:String,length:int)->bool:
+	if not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not packet.get("verified",false):return false
 	return packet.get("issuer")==_decode_issuer and packet.is_read_only() and packet.get("sha256")==digest and packet.get("encoded")==encoded and packet.get("length")==length and packet.get("data") is Dictionary and packet.data.is_read_only() and packet.get("geometry_keys") is Array and packet.geometry_keys.is_read_only() and packet.get("local_bounds") is Dictionary and packet.local_bounds.is_read_only()
 
 static func _decode_packet(value:Dictionary)->Dictionary:
@@ -181,12 +190,44 @@ static func _decode_packet(value:Dictionary)->Dictionary:
 	var cached:Dictionary=_decoded.get(digest,{})
 	if _packet_matches(cached,digest,encoded,length):
 		_decode_mutex.unlock();return cached
+	if coalesce_decodes and _decoding.has(digest):
+		var active:DecodeFlight=_decoding[digest]
+		if active.encoded==encoded and active.length==length:
+			active.waiters+=1;_decode_mutex.unlock()
+			var waited:=Time.get_ticks_usec();active.wake.wait()
+			preload("res://scripts/world3d/load_trace.gd").elapsed("prefab.decode_join",waited,{"sha256":digest})
+			return active.packet
+	var flight:=DecodeFlight.new();flight.encoded=encoded;flight.length=length
+	var registered:bool=coalesce_decodes and not _decoding.has(digest)
+	if registered:_decoding[digest]=flight
 	_decode_mutex.unlock()
+	var started:=Time.get_ticks_usec()
+	preload("res://scripts/world3d/load_trace.gd").instant("prefab.decode_begin",{"sha256":digest,"bytes":length})
+	var packet:=_decode_uncached(encoded,digest,length)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("prefab.decode",started,{"sha256":digest,"bytes":length,"ok":not packet.is_empty()})
+	_decode_mutex.lock()
+	if not packet.is_empty():
+		cached=_decoded.get(digest,{})
+		if _packet_matches(cached,digest,encoded,length):packet=cached
+		else:
+			if _decoded.has(digest):_decoded_bytes-=int(_decoded[digest].length);_decoded.erase(digest)
+			while not _decoded.is_empty() and _decoded_bytes+length>DECODE_BUDGET:
+				var oldest:String=_decoded.keys()[0];_decoded_bytes-=_decoded[oldest].length;_decoded.erase(oldest)
+			_decoded[digest]=packet;_decoded_bytes+=length
+	if registered:
+		_decoding.erase(digest);flight.packet=packet
+		for i in flight.waiters:flight.wake.post()
+	_decode_mutex.unlock()
+	return packet
+
+static func _decode_uncached(encoded:String,digest:String,length:int)->Dictionary:
+	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	var compressed:=Marshalls.base64_to_raw(encoded)
 	var bytes:=compressed.decompress(length,FileAccess.COMPRESSION_ZSTD)
-	if bytes.size()!=length or Cook.Envelope.checksum(bytes).hex_encode()!=digest:return {}
+	if bytes.size()!=length or (not trusted_package and Cook.Envelope.checksum(bytes).hex_encode()!=digest):return {}
 	var data:Variant=bytes_to_var(bytes)
-	if not data is Dictionary or not Cook.valid_data(data) or data.entries.size()!=1:return {}
+	if not data is Dictionary or not data.get("meshes") is Array or not data.get("materials") is Array or not data.get("entries") is Array or data.entries.size()!=1:return {}
+	if not trusted_package and not Cook.valid_data(data):return {}
 	# Seal every nested container before issuing the proof. A matching SHA or
 	# container identity alone cannot validate a previously mutable cache entry.
 	# Packed channels themselves cannot be made read-only. Keep this canonical
@@ -196,19 +237,8 @@ static func _decode_packet(value:Dictionary)->Dictionary:
 	for mesh:Dictionary in data.meshes:geometry_keys.append(Cpu.geometry_signature(mesh.surfaces,mesh.get("lods",[])))
 	geometry_keys.make_read_only()
 	var bounds:=_local_bounds(data);bounds.make_read_only()
-	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys,"local_bounds":bounds}
+	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys,"local_bounds":bounds,"verified":not trusted_package}
 	packet.make_read_only()
-	_decode_mutex.lock()
-	# Concurrent readers may have decoded the same immutable payload. Publish
-	# only one owner; callers keep its data/keys together even after LRU eviction.
-	cached=_decoded.get(digest,{})
-	if _packet_matches(cached,digest,encoded,length):
-		_decode_mutex.unlock();return cached
-	if _decoded.has(digest):_decoded_bytes-=int(_decoded[digest].length);_decoded.erase(digest)
-	while not _decoded.is_empty() and _decoded_bytes+length>DECODE_BUDGET:
-		var oldest:String=_decoded.keys()[0];_decoded_bytes-=_decoded[oldest].length;_decoded.erase(oldest)
-	_decoded[digest]=packet;_decoded_bytes+=length
-	_decode_mutex.unlock()
 	return packet
 
 static func _seal_decoded(value:Variant,depth:int,ancestors:Array,budget:Array)->bool:
@@ -234,6 +264,7 @@ static func valid(record:Dictionary)->bool:
 	if record.has("surface_paint") and not record.has("building"):return false
 	var packet:=_decode_packet(record.house_prefab)
 	if packet.is_empty():return false
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return true
 	var data:Dictionary=packet.data
 	# Texture dependencies remain visible to native validation, packs and prefetch.
 	var paints:Array=[]

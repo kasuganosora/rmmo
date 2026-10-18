@@ -67,7 +67,8 @@ static func _save_locked(path: String, staged: String, expected: Variant, record
 	result.phases.initial_verify_ms=(Time.get_ticks_usec()-mark)/1000.0
 	mark=Time.get_ticks_usec()
 	if progress.is_valid():progress.call("resources",0,records.size())
-	var stored:=Store.write_records(records,path,content_root,progress)
+	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var stored:=Store.write_records(records,path,content_root,progress,trusted_package)
 	result.phases.resources_ms=(Time.get_ticks_usec()-mark)/1000.0
 	if not stored.ok:result.error=stored.error;result.reason=stored.get("reason","");return result
 	result.resources_written=stored.resources_written
@@ -93,9 +94,8 @@ static func _save_locked(path: String, staged: String, expected: Variant, record
 	if io.save_fault.is_valid() and io.save_fault.call("before_publish"):
 		result.error=ERR_FILE_CANT_WRITE;return result
 	mark=Time.get_ticks_usec()
-	# Resource filenames are not proof of immutable bytes. Recheck complete
-	# published definitions after the map staging write and fault hook.
-	if not Store.verify_dependencies(stored.dependencies,path,content_root):
+	# Existing packages are authoritative; explicit diagnostics may audit them.
+	if not trusted_package and not Store.verify_dependencies(stored.dependencies,path,content_root):
 		result.error=ERR_BUSY;return result
 	var signature:=FileAccess.get_sha256(staged)
 	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256);context.update(bytes)

@@ -226,7 +226,7 @@ func search(query: String) -> Array:
 static func instantiate(path: String) -> Node3D:
 	if not FileAccess.file_exists(path): return null
 	if not _scenes.has(path):
-		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path)
+		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if compiled.hit:
 			if not cache_packed(path,compiled.packed,compiled.source_digest):
 				preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled)
@@ -257,7 +257,7 @@ static func instantiate_preview(path: String) -> Node3D:
 	# path-only template cannot authorize a newly selected thumbnail/preview.
 	# External glTF dependencies are not covered by the root file SHA: reload.
 	if _scenes.has(path):
-		var digest:=FileAccess.get_sha256(path)
+		var digest:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path)
 		if has_cached_scene(path,digest):
 			# A validated native product already proves closed dependencies for
 			# this exact source. Its allowed material extensions need not pass
@@ -265,15 +265,16 @@ static func instantiate_preview(path: String) -> Node3D:
 			var validated:Variant=_scenes[path].get_meta("compiled_asset_validated",false)
 			if (validated is bool and validated) or preload("res://scripts/world3d/embedded_glb.gd").can_copy(path):return _instantiate(_scenes[path])
 		evict_cached_scene(path)
-	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path)
+	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if compiled.hit:return _instantiate(compiled.packed)
 	if not Compiled.dispose_miss(compiled):return null
 	return _load_raw_scene(path).get("scene") as Node3D
 
 static func _load_raw_scene(path:String)->Dictionary:
+	var began:=Time.get_ticks_usec()
 	# Parse and generation share one private owner. Check complete source bytes
 	# after generation too, then transfer only the scene to the caller on main.
-	var prepared:=Compiled.prepare_source(path)
+	var prepared:=Compiled.prepare_source(path,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	var scene:=prepared.get_scene() as Node3D
 	if scene==null or not prepared.current():
 		prepared.dispose()
@@ -281,6 +282,7 @@ static func _load_raw_scene(path:String)->Dictionary:
 	var digest:=prepared.source_digest
 	prepared.scene=null
 	prepared.dispose()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.raw_load",began,{"path":path})
 	return {"scene":scene,"source_digest":digest}
 
 static func _own(node: Node, root: Node) -> void:

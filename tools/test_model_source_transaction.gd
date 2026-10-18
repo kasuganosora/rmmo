@@ -30,6 +30,7 @@ func probe(source:String)->Dictionary:
 	return {"error":OK,"observed_x":data.nodes[0].translation[0],"document":RefCounted.new()}
 
 func run()->void:
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	folder=Paths.cache_directory("model_source_transaction_%d"%Time.get_ticks_usec())
 	if folder.is_empty() or DirAccess.make_dir_recursive_absolute(folder)!=OK:quit(2);return
 	path=folder.path_join("model.gltf")

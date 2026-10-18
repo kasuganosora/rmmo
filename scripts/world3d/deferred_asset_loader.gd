@@ -1179,7 +1179,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
-		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)))
+		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if not prepared.error.is_empty():prepared.reference_failure=true;return prepared
 	var geometry:Dictionary={"mode":CollisionGeometry.ALL,"definitions":{}}
 	if model_route.get("filter_collision_geometry",false) and not native:
@@ -1208,7 +1208,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		return prepared
 	var result:Dictionary
 	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode))
-	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true)
+	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if model_route.get("filter_collision_geometry",false) and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false):
 		result.collision_geometry_mode=int(geometry.mode);result.collision_definitions=geometry.definitions
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
@@ -1225,6 +1225,7 @@ static func _preflight_reused_source(path:String,digest:String,content_root:Stri
 	return {"error":""}
 
 static func _verify_reused_source(path:String,digest:String,content_root:String,token:RefCounted)->Dictionary:
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return _preflight_reused_source(path,digest,content_root,token)
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	if not Assets._valid_source_digest(digest) or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"复用素材缺少有效来源身份："+path}
 	var started:=Time.get_ticks_usec()
@@ -1780,7 +1781,7 @@ func _instance_error(holder:Node3D,item:Dictionary)->bool:
 	return true
 
 static func _manifest_matches(path:String,expected:Dictionary)->bool:
-	if expected.is_empty():return true
+	if expected.is_empty() or preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return true
 	var current:Dictionary=preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path)
 	return current.get("known",false) and current.get("json_sha256")==expected.get("json_sha256") and current.get("file_length")==expected.get("file_length")
 
@@ -1810,7 +1811,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	if root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,root):return {"error":"素材路径无效："+path}
 	if not digest.is_empty() and (not Assets._valid_source_digest(digest) or candidate.get("source_sha")!=digest):return {"error":"素材已验证来源与原生候选不符："+path}
 	if (digest.is_empty() and manifest.is_empty()) or not _manifest_matches(path,manifest):return {"error":"素材边界在后台准备前发生变化："+path}
-	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode))
+	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	var result:Dictionary={"error":"","native_packet":packet,"elapsed_us":Time.get_ticks_usec()-began}
 	if token!=null and token.is_cancelled():result.error="素材准备已取消";result.cancelled=true;return result
 	if packet.get("fallback_required",false):return result # Main validates + re-admits raw.
@@ -1824,7 +1825,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path,"fixed_native":true})
 	return result
 
-static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL,pack_for_cache:bool=false)->Dictionary:
+static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL,pack_for_cache:bool=false,trusted_package:bool=false)->Dictionary:
 	var began:=preload("res://scripts/world3d/load_trace.gd").begin("deferred.prepare")
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	if content_root.is_empty():
@@ -1832,18 +1833,18 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 		content_root=preload("res://scripts/world3d/map_paths.gd").external_root()
 	if content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"素材路径无效："+path}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
-	if digest.is_empty():
+	if digest.is_empty() and not trusted_package:
 		if expected_manifest.is_empty():return {"error":"缺少后台素材边界快照："+path}
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
 			return {"error":"素材边界在后台准备前发生变化："+path}
-	var source_digest:=FileAccess.get_sha256(path)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_sha",began,{"path":path})
+	var source_digest:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,digest) if trusted_package else FileAccess.get_sha256(path)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_identity" if trusted_package else "deferred.source_sha",began,{"path":path})
 	if source_digest.is_empty() or (not digest.is_empty() and source_digest!=digest):return {"error":"素材在后台准备前发生变化："+path}
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	# This transaction verifies the full source after scene/CPU preparation too.
+	# Strict transactions verify source bytes after private preparation as well.
 	var compiled:Dictionary={"hit":false,"elapsed_us":0}
-	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,true)
+	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,true,trusted_package)
 	if not compiled.hit and not compiled.get("retained_resources",[]).is_empty():
 		# Post-allocation schema/path failures are not resource-free misses.
 		# Keep the charged native result for main-thread failure disposal.
@@ -1860,7 +1861,7 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	# Bind deferred classification to the same header after the potentially slow
 	# full-file hash and parser read as well as before them.
-	if not expected_manifest.is_empty():
+	if not expected_manifest.is_empty() and not trusted_package:
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
 			return {"error":"素材边界在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
@@ -1890,8 +1891,8 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_pack",pack_began,{"path":path})
 		if code!=OK:return {"error":"后台素材打包失败："+path,"scene":scene,"resource_owners":owners}
 	var final_sha_started:=Time.get_ticks_usec()
-	var final_digest:=FileAccess.get_sha256(path)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.final_source_sha",final_sha_started,{"path":path})
+	var final_digest:=source_digest if trusted_package else FileAccess.get_sha256(path)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_binding" if trusted_package else "deferred.final_source_sha",final_sha_started,{"path":path})
 	if final_digest!=source_digest or (not content_root.is_empty() and not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	if packed!=null:
@@ -2529,7 +2530,7 @@ static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:Strin
 	var Paths=preload("res://scripts/world3d/map_paths.gd")
 	var Store=preload("res://scripts/world3d/map_resource_store.gd")
 	if token.is_cancelled():packet.error="Shared image continuation cancelled";packet.cancelled=true;return packet
-	if not Paths.allowed(map_path,root) or FileAccess.get_sha256(map_path)!=map_sha or not Paths.allowed(map_path,root) or not Store.verify_dependencies(dependencies,map_path,root,1):packet.error="Reference identity changed while awaiting shared images";return packet
+	if not Paths.allowed(map_path,root) or FileAccess.get_sha256(map_path)!=map_sha or not Paths.allowed(map_path,root) or (not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not Store.verify_dependencies(dependencies,map_path,root,1)):packet.error="Reference identity changed while awaiting shared images";return packet
 	if not model_path.is_empty() and not _verify_reused_source(model_path,model_sha,root,token).error.is_empty():packet.error="Model changed while awaiting shared images";return packet
 	if not PrefabTextures.verify(packet,root,token):packet.error="Shared image source changed before handoff";packet.cancelled=token.is_cancelled()
 	return packet

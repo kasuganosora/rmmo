@@ -105,10 +105,21 @@ func game_check(expected_records:Array,expected_meta:Dictionary,model_id:String)
 	check(Pose.same(extras.get("rmmo_records"),expected_records),"game loader restores every exact author record")
 	for key in expected_meta:check(Pose.same(extras.get(key),expected_meta[key]),"game metadata retains "+str(key))
 	var holder:Node3D=Io.find_named(scene,model_id)
-	evidence.model=material_evidence(holder)
-	check(evidence.model.valid,"game has actual stone-window geometry materials and readable textures")
 	var position:Vector3=holder.global_position if holder!=null else Vector3.ZERO
+	for record:Dictionary in expected_records:
+		if record.uuid==model_id:position=Vector3(record.position[0],record.position[1],record.position[2]);break
 	Stream.sync(scene,host,position)
+	# Static model preparation publishes flattened streaming specs. Their
+	# disposable imported holder is intentionally absent; inspect real live
+	# stream meshes with the same authored namespace after synchronization.
+	evidence.model=material_evidence(holder)
+	if evidence.model.meshes==0:
+		for uuid:String in scene.get_meta("stream_meshes",{}):
+			if uuid==model_id or uuid.begins_with(model_id+"__"):
+				var observed:=material_evidence(scene.get_meta("stream_meshes")[uuid])
+				for key:String in ["meshes","surfaces","materials","textures","vertices"]:evidence.model[key]+=observed[key]
+				evidence.model.valid=observed.valid if evidence.model.meshes==observed.meshes else (evidence.model.valid and observed.valid)
+	check(evidence.model.valid,"game has actual stone-window geometry materials and readable textures")
 	var library:Array=scene.get_meta("stream_library",[])
 	evidence.stream_specs=library.size();evidence.collision_bodies=scene.get_meta("stream_bodies",{}).size()
 	check(library.size()>=expected_records.size(),"runtime stream library contains true source geometry")
