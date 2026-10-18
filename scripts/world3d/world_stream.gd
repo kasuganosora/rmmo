@@ -294,7 +294,7 @@ static func _finish_loading_sources(map_root:Node,batcher:Node,meshes:Dictionary
 	return cursor>=sources.size()
 
 
-static func append_specs(map_root:Node,additions:Array)->Dictionary:
+static func append_specs(map_root:Node,additions:Array,preparation:RefCounted=null)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.append_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Collision-only instances do not enter the visual index. Validate their full
 	# namespace before Index.append mutates its shared dictionaries, then transfer
@@ -310,7 +310,7 @@ static func append_specs(map_root:Node,additions:Array)->Dictionary:
 	var data:Dictionary={}
 	for key:StringName in map_root.get_meta_list():
 		if str(key).begins_with("stream_"):data[str(key)]=map_root.get_meta(key)
-	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions)
+	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions,preparation)
 	if not result.ok:return result
 	if collision_residency!=null:collision_residency.commit_promotion(promotion.token)
 	_library(map_root).append_array(additions)

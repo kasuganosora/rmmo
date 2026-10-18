@@ -60,10 +60,10 @@ func fixture(rows:Array)->Dictionary:
 	queue._admission.worker_limit=0
 	queue.set_demand("player",AABB(Vector3(-1,-1,-1),Vector3(1000,4,4)),10);queue._refresh_demanded();queue.set_process(false)
 	return {"map":map,"queue":queue,"document":document,"store":store}
-func pump(queue:Node)->void:queue._publish_ready(Time.get_ticks_usec()-1000000,1)
+func pump(queue:Node)->void:queue._publish_ready(Time.get_ticks_usec(),Deferred.INTERACTIVE_BUDGET_US)
 func run()->void:
 	var logger:=Errors.new();OS.add_logger(logger)
-	blocked_and_cancelled();bounded_scan();late_installation();invalid_collision();coverage_and_scope()
+	blocked_and_cancelled();bounded_scan();late_installation();tiny_budget_installation();invalid_collision();coverage_and_scope()
 	OS.remove_logger(logger);check(logger.errors.is_empty(),"zero engine/script errors")
 	for issue:String in logger.errors:print("ENGINE_ERROR ",issue)
 	print("DEFERRED_COLLISION_PUBLICATION passed=",passed," failures=",failures)
@@ -117,6 +117,22 @@ func late_installation()->void:
 	queue._jobs["reference:shared"].collision_staged.discard.owner=retained;retained=null
 	queue._discard_job("reference:shared")
 	check(observed.get_ref()==null and queue._admission.reserved_bytes==0,"discard clears retained collision-publication resources before returning job admission")
+	f.map.free()
+func tiny_budget_installation()->void:
+	var f:=fixture([item("tiny")]);var queue:Node=f.queue;var store:Node=f.store
+	f.document.after_instance=func(uuid:String)->void:
+		store.states[uuid]={"owned":true,"pending":true,"error":""};store.append_pending=true
+	queue._publish_ready(Time.get_ticks_usec()-1000000,1)
+	var job:Dictionary=queue._jobs["reference:shared"]
+	var held:bool=job.has("instance_preparation") or job.get("collision_staged",{}).has("tiny")
+	check(f.document.calls.get("tiny",0)==1 and held and queue.instance_errors.is_empty() and queue._admission.reserved_bytes==8,"one microsecond budget retains whichever private stage actually completed before collision became pending")
+	for i:int in 4:pump(queue)
+	check(f.document.calls.tiny==1 and queue._admission.reserved_bytes==8,"pending collision preserves partial graph ownership without repeating instantiation")
+	var retained:=RefCounted.new();var observed:WeakRef=weakref(retained)
+	if job.has("instance_preparation"):job.instance_preparation.cursor.holder.set_meta("retirement_probe",retained)
+	else:job.collision_staged.tiny.owner=retained
+	retained=null;queue._discard_job("reference:shared")
+	check(observed.get_ref()==null and queue._admission.reserved_bytes==0,"discard releases the actual incomplete graph or staged packet before returning its lease")
 	f.map.free()
 func coverage_and_scope()->void:
 	var a:=item("a","model.glb");a.native_reference=false

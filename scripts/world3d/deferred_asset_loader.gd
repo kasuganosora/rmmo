@@ -1295,26 +1295,67 @@ func _job_consumed(job:Dictionary)->bool:
 		if not item.is_empty() and not item.get("published",false) and not instance_errors.has(uuid) and not path_errors.has(item.path):return false
 	return true
 
-func _publish_items(items:Array,specs:Array)->bool:
-	# Stream indexes require a whole building/fixture namespace in one atomic
-	# append. Staging can span frames; no component becomes visible beforehand.
+func _stage_publication_packet(items:Array,specs:Array)->Dictionary:
+	var first:Dictionary=_jobs.get(items[0].path,{})
+	var packet:Dictionary=first.get("collision_staged",{}).get(items[0].record.uuid,{})
+	if packet.is_empty() or not is_same(packet.specs,specs):packet={"items":items,"specs":specs}
+	for item:Dictionary in items:
+		var job:Dictionary=_jobs.get(item.path,{})
+		if job.is_empty():continue
+		if not job.has("collision_staged"):job.collision_staged={}
+		job.collision_staged[item.record.uuid]=packet
+	return packet
+
+func _apply_publication_fixture_states(specs:Array)->void:
 	for spec:Dictionary in specs:
 		var extra:Dictionary=spec.get("extras",{});var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
 		if extra.has("fixture") and runtime_fixture_states.has(uuid):
 			extra.fixture.open=runtime_fixture_states[uuid]
 			spec.transform=preload("res://scripts/world3d/building_fixtures.gd").pose(spec.closed_transform,extra.fixture,float(extra.fixture.open));spec.position=spec.transform.origin
-	var registered:Dictionary=Stream.append_specs(_map,specs)
+
+func _publish_items(items:Array,specs:Array)->bool:
+	# Stream indexes require a whole building/fixture namespace in one atomic
+	# append. Staging can span frames; no component becomes visible beforehand.
+	var preparation:RefCounted
+	if specs.size()>256 and not items.is_empty() and _jobs.has(items[0].path):
+		var packet:=_stage_publication_packet(items,specs)
+		if not packet.has("index_preparation") and not packet.get("index_preparation_skipped",false):
+			_apply_publication_fixture_states(specs)
+			packet.index_preparation=preload("res://scripts/world3d/stream_index_preparation.gd").new()
+			packet.index_preparation.begin(specs)
+			profile.index_preparation_instances=int(profile.get("index_preparation_instances",0))+1
+		if packet.has("index_preparation"):
+			preparation=packet.index_preparation
+			var began:=Time.get_ticks_usec()
+			var ready:bool=preparation.advance(2000)
+			var elapsed:=Time.get_ticks_usec()-began
+			profile.index_preparation_slices=int(profile.get("index_preparation_slices",0))+1
+			profile.index_preparation_us=int(profile.get("index_preparation_us",0))+elapsed
+			profile.max_index_preparation_slice_us=maxi(int(profile.get("max_index_preparation_slice_us",0)),elapsed)
+			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.index_prepare",began,{"specs":specs.size(),"ready":ready})
+			if not ready:return false
+			if preparation.error=="existing_derived_fields":
+				packet.erase("index_preparation");packet.index_preparation_skipped=true;preparation=null
+			elif not preparation.error.is_empty():
+				_clear_collision_staging(items)
+				for item:Dictionary in items:_instance_failed(str(item.record.uuid),"后台索引准备失败："+preparation.error)
+				return false
+	var commit_began:=Time.get_ticks_usec()
+	# Reapply only at initial capture and final publication, not on every cursor
+	# slice. A changed pose invalidates the private signature and retries safely.
+	_apply_publication_fixture_states(specs)
+	var registered:Dictionary=Stream.append_specs(_map,specs,preparation)
 	if not registered.ok:
+		if registered.get("error","")=="stale_private_index":
+			var packet:=_stage_publication_packet(items,specs)
+			packet.erase("index_preparation")
+			profile.index_preparation_restarts=int(profile.get("index_preparation_restarts",0))+1
+			return false
 		if registered.get("error","")=="promotion_collision_pending":
 			# A collision installer can win the race after this frame's ready
 			# selection. Keep the already-instantiated specs with their admitted
 			# job; neither fail the author instance nor instantiate it again.
-			var packet:Dictionary={"items":items,"specs":specs}
-			for item:Dictionary in items:
-				var job:Dictionary=_jobs.get(item.path,{})
-				if job.is_empty():continue
-				if not job.has("collision_staged"):job.collision_staged={}
-				job.collision_staged[item.record.uuid]=packet
+			_stage_publication_packet(items,specs)
 			profile.collision_publication_races=int(profile.get("collision_publication_races",0))+1
 			return false
 		_clear_collision_staging(items)
@@ -1328,7 +1369,9 @@ func _publish_items(items:Array,specs:Array)->bool:
 		# retain decoded definitions after a resident record is later retired.
 		if item.has("reference_entry"):item.record=item.reference_entry.compact_record;item.reference_prepared=false
 	_remove_published_demand(items);profile.specs+=specs.size()
+	var details:Dictionary={"specs":specs.size(),"uuid":items[0].record.uuid if not items.is_empty() else "","index_prepared":preparation!=null}
 	published.emit(specs)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publish_commit",commit_began,details)
 	return true
 
 func _clear_collision_staging(items:Array)->void:

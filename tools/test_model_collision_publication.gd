@@ -9,9 +9,9 @@ class HeldPublication extends "res://scripts/world3d/deferred_asset_loader.gd":
 		return super._publish_ready(began,budget_usec)
 class ActualDocument extends "res://scripts/world3d/world_document.gd":
 	var calls:=0
-	func _asset(value:Dictionary,prepared:Dictionary={})->Node3D:
+	func _begin_asset_instance(value:Dictionary,prepared:Dictionary)->Dictionary:
 		calls+=1
-		return super._asset(value,prepared)
+		return super._begin_asset_instance(value,prepared)
 
 func source_scene(captured:bool)->Dictionary:
 	var arrays:Array=[];arrays.resize(Mesh.ARRAY_MAX)

@@ -458,7 +458,7 @@ static func _collision_membership_changed(existing:Dictionary)->void:
 ## Atomic main-thread publication only: callers own the library append and
 ## residency dirty notification. Existing indexes must come from build/append.
 ## Every imported namespace, building and fixture must arrive as a whole batch.
-static func append(existing:Dictionary,additions:Array)->Dictionary:
+static func append(existing:Dictionary,additions:Array,preparation:RefCounted=null)->Dictionary:
 	var phase_began:=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_validate")
 	if not existing.get("stream_append_state") is Dictionary:return _append_failure("index lacks append bookkeeping")
 	var originals:Dictionary={};var state:Dictionary=existing.stream_append_state
@@ -484,9 +484,17 @@ static func append(existing:Dictionary,additions:Array)->Dictionary:
 	# build/bind replace top-level derived fields, never mutate authored extras,
 	# records or their nested arrays. A private shallow spec projection gives
 	# the same atomic failure isolation without copying entire author graphs.
-	var projection:Array=[]
-	for spec:Dictionary in additions:projection.append(spec.duplicate())
-	var fragment:=build(projection);var fresh:Dictionary=fragment.stream_append_state
+	var fragment:Dictionary
+	if preparation!=null:
+		# Only our private cursor can donate a fragment. Schema validation above
+		# and these same-transaction identity/geometry/group checks remain fresh.
+		if preparation.get_script()!=load("res://scripts/world3d/stream_index_preparation.gd") or not preparation.valid_for(additions,true):return _append_failure("stale_private_index")
+		fragment=preparation.result
+	else:
+		var projection:Array=[]
+		for spec:Dictionary in additions:projection.append(spec.duplicate())
+		fragment=build(projection)
+	var fresh:Dictionary=fragment.stream_append_state
 	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_fragment",phase_began,{"specs":additions.size(),"groups":fragment.stream_building_groups.size()})
 	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_plan")
 	for id:String in fragment.stream_building_groups:

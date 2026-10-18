@@ -1042,10 +1042,11 @@ func _prepare_asset_instance(doc:RefCounted,record:Dictionary,prepared:Dictionar
 	# Namespace and component semantics are shared with the synchronous editor
 	# operation. The loader owns this off-tree graph across every yield/exit.
 	_asset_cursor=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+	var budget_usec:=2000 if background_preload else 8000
 	var began:=Time.get_ticks_usec()
 	_asset_cursor.begin_from_source(doc,record,prepared)
 	Trace.elapsed("game.asset_instance_begin",began,{"uuid":record.uuid})
-	var need_yield:=Time.get_ticks_usec()-began>=2000
+	var need_yield:=Time.get_ticks_usec()-began>=budget_usec
 	while true:
 		if need_yield:
 			progress.emit("准备模型命名与组件",0,1)
@@ -1053,7 +1054,7 @@ func _prepare_asset_instance(doc:RefCounted,record:Dictionary,prepared:Dictionar
 			if _cancelled:
 				_asset_cursor.dispose();_asset_cursor=null;return null
 		var step_started:=Time.get_ticks_usec()
-		var done:bool=_asset_cursor.advance(2000)
+		var done:bool=_asset_cursor.advance(budget_usec)
 		Trace.elapsed("game.asset_instance_step",step_started,{"uuid":record.uuid,"done":done})
 		if done:break
 		need_yield=true

@@ -1,0 +1,160 @@
+extends RefCounted
+## Private derived-index construction with no resident index writes. The final
+## append still validates the current public index and all incoming schemas.
+const Index=preload("res://scripts/world3d/stream_index.gd")
+const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
+const DERIVED_FIELDS:Array=["render_building","render_bounds","render_supports","render_dependents"]
+var source:Array=[]
+var projection:Array=[]
+var signatures:Array=[]
+var result:Dictionary={}
+var error:=""
+var phase:=0
+var cursor:=0
+var subphase:=0
+var part:=0
+var group_ids:Array=[]
+var land:Array=[]
+var supports:Array=[]
+var groups:Dictionary={}
+var structures:Dictionary={}
+var lamps:Dictionary={}
+var by_id:Dictionary={}
+var known:Dictionary={}
+var spatial:Dictionary={}
+var props:Dictionary={}
+var collisions:Dictionary={}
+var raw_bounds:Dictionary={}
+var append_state:Dictionary={"namespaces":{},"prefixes":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
+var cell:Dictionary={}
+var low:=Vector2i(2147483647,2147483647)
+var high:=-low
+var binding:Dictionary={}
+var attached:Array=[]
+var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0}
+func begin(values:Array)->void:source=values.duplicate()
+static func signature(spec:Dictionary)->Array:
+	var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+	return [spec.uuid,spec.mesh,spec.transform,spec.chunk_min,spec.chunk_max,spec.mesh.get_aabb(),extra.get("building",{}).get("id",""),record.get("building",{}).get("id",""),extra.get("rmmo_streetlamp_instance",""),extra.get("rmmo_streetlamp_crystal",false),extra.get("rmmo_collision",""),extra.has("rmmo_wind"),Landscape.landscape(spec),Landscape.ground(spec),Index._fixture_key(spec)]
+func valid_for(values:Array,schema_checked:bool=false)->bool:
+	if phase!=7 or not error.is_empty() or source.size()!=values.size():return false
+	for i:int in values.size():
+		if not is_same(values[i],source[i]) or (not schema_checked and not Index._valid_append_spec(values[i])) or signature(values[i])!=signatures[i]:return false
+		for field:String in DERIVED_FIELDS:
+			if values[i].has(field):return false
+	return true
+func _next_phase()->void:
+	phase+=1;cursor=0;part=0;subphase=0
+func _start_cells(bounds:Dictionary,operations:Array)->void:
+	cell={"low":bounds.chunk_min,"high":bounds.chunk_max,"x":bounds.chunk_min.x,"z":bounds.chunk_min.y,"operations":operations}
+func _cell_step()->void:
+	var key:=Vector2i(cell.x,cell.z)
+	for operation:Array in cell.operations:
+		var buckets:Dictionary=operation[0]
+		if not buckets.has(key):buckets[key]=[]
+		buckets[key].append(operation[1])
+	cell.x+=1
+	if cell.x>cell.high.x:cell.x=cell.low.x;cell.z+=1
+	if cell.z>cell.high.y:cell={}
+func _step()->void:
+	if not cell.is_empty():_cell_step();return
+	match phase:
+		0:
+			if cursor>=source.size():_next_phase();return
+			var value:Variant=source[cursor];cursor+=1
+			if not Index._valid_append_spec(value):error="invalid spec";phase=7;return
+			if by_id.has(value.uuid):error="duplicate UUID";phase=7;return
+			for field:String in DERIVED_FIELDS:
+				if value.has(field):error="existing_derived_fields";phase=7;return
+			signatures.append(signature(value))
+			var spec:Dictionary=value.duplicate();projection.append(spec)
+			by_id[spec.uuid]=spec;known[spec.uuid]=true
+			var prefix:String=spec.uuid.get_slice("__",0);append_state.prefixes[prefix]=true
+			if spec.uuid.contains("__"):
+				append_state.namespaces[prefix]=true
+				var bounds:AABB=spec.transform*spec.mesh.get_aabb();var extra:Dictionary=spec.get("extras",{})
+				if not structures.has(prefix):structures[prefix]={"bounds":bounds,"wind":false,"solid":false}
+				var row:Dictionary=structures[prefix];row.bounds=row.bounds.merge(bounds)
+				row.wind=row.wind or extra.has("rmmo_wind");row.solid=row.solid or extra.get("rmmo_collision","")!="none"
+				if extra.get("rmmo_streetlamp_crystal",false):lamps[prefix]=true
+			var fixture:=Index._fixture_key(spec)
+			if not fixture.is_empty():append_state.fixtures[fixture]=true
+			_start_cells(spec,[[spatial,spec.uuid]])
+		1:
+			if cursor>=projection.size():_next_phase();return
+			var spec:Dictionary=projection[cursor];cursor+=1
+			var extra:Dictionary=spec.get("extras",{});var record:Dictionary=spec.get("ground_batch_record",{})
+			var id:String=extra.get("building",{}).get("id",record.get("building",{}).get("id",""))
+			var lamp:String=extra.get("rmmo_streetlamp_instance","");var prefix:String=spec.uuid.get_slice("__",0)
+			if lamp.is_empty() and lamps.has(prefix):lamp=prefix
+			if id.is_empty() and not lamp.is_empty():id="streetlamp:"+lamp
+			if id.is_empty() and structures.has(prefix):
+				var structure:Dictionary=structures[prefix]
+				if structure.bounds.size.y>=12. and structure.solid and not structure.wind:id="structure:"+prefix
+			var operations:Array=[]
+			if id.is_empty() and not Landscape.landscape(spec):operations.append([props,spec])
+			if extra.get("rmmo_collision","")!="none":operations.append([collisions,spec])
+			if not operations.is_empty():_start_cells(spec,operations)
+			if not id.is_empty():
+				if not groups.has(id):groups[id]=[];group_ids.append(id)
+				groups[id].append(spec)
+		2:
+			if cursor>=group_ids.size():_next_phase();return
+			var id:String=group_ids[cursor];var members:Array=groups[id]
+			if part<members.size():
+				var spec:Dictionary=members[part];part+=1
+				low=low.min(spec.chunk_min);high=high.max(spec.chunk_max);spec.render_building=id
+			else:
+				var bounds:Dictionary={"chunk":low,"chunk_min":low,"chunk_max":high}
+				raw_bounds[id]=bounds;members[0].render_bounds=bounds
+				cursor+=1;part=0;low=Vector2i(2147483647,2147483647);high=-low
+		3:
+			if cursor>=projection.size():_next_phase();return
+			var spec:Dictionary=projection[cursor];cursor+=1
+			if not Landscape.landscape(spec):return
+			spec.render_bounds={"chunk":spec.chunk_min,"chunk_min":spec.chunk_min,"chunk_max":spec.chunk_max}
+			spec.render_dependents=[];land.append(spec)
+			if Landscape.ground(spec):supports.append(spec)
+		4:
+			if cursor>=group_ids.size():_next_phase();return
+			var members:Array=groups[group_ids[cursor]]
+			if binding.is_empty():binding=members[0].render_bounds.duplicate()
+			if subphase==0:
+				if part>=supports.size():subphase=1;part=0;return
+				var tile:Dictionary=supports[part];part+=1
+				if tile.chunk_min.x<=binding.chunk_max.x and tile.chunk_max.x>=binding.chunk_min.x and tile.chunk_min.y<=binding.chunk_max.y and tile.chunk_max.y>=binding.chunk_min.y:attached.append(tile)
+			elif subphase==1:
+				if part>=attached.size():subphase=2;part=0;return
+				var tile:Dictionary=attached[part];part+=1
+				binding.chunk_min=binding.chunk_min.min(tile.chunk_min);binding.chunk_max=binding.chunk_max.max(tile.chunk_max)
+			elif subphase==2:
+				if part>=members.size():subphase=3;part=0;return
+				members[part].render_bounds=binding;members[part].render_supports=attached;part+=1
+			else:
+				if part<attached.size():attached[part].render_dependents.append(binding);part+=1;return
+				cursor+=1;part=0;subphase=0;binding={};attached=[]
+		5:
+			if cursor>=supports.size():_next_phase();return
+			var spec:Dictionary=supports[cursor];cursor+=1
+			append_state.ground_order[spec.uuid]=append_state.ground_order.size();append_state.dependents[spec.uuid]=[]
+			_start_cells(spec,[[append_state.ground_cells,spec.uuid]])
+		6:
+			if cursor>=group_ids.size():
+				result={"stream_index":spatial,"stream_by_id":by_id,"stream_known":known,"stream_landscape":land,"stream_building_groups":groups,"stream_prop_index":props,"stream_collision_index":collisions,"stream_collision_revision":1,"stream_collision_candidate_cache":{},"stream_building_count":projection.size(),"stream_append_state":append_state}
+				phase=7;return
+			var id:String=group_ids[cursor]
+			if subphase==0:
+				append_state.group_bounds[id]=raw_bounds[id];append_state.group_order[id]=append_state.group_order.size()
+				_start_cells(raw_bounds[id],[[append_state.group_cells,id]]);subphase=1;return
+			var rows:Array=groups[id][0].get("render_supports",[])
+			if part<rows.size():append_state.dependents[rows[part].uuid].append(id);part+=1
+			else:cursor+=1;part=0;subphase=0
+func advance(budget_usec:int)->bool:
+	var began:=Time.get_ticks_usec();var advanced:=false
+	while phase<7 and (not advanced or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
+		advanced=true;_step()
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.slices+=1;profile.elapsed_us+=elapsed;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
+	return phase==7
+func dispose()->void:
+	source=[];projection=[];signatures=[];result={};groups={};structures={};lamps={};by_id={};known={};spatial={};props={};collisions={};raw_bounds={};append_state={};cell={};binding={};attached=[];land=[];supports=[];group_ids=[];phase=7
