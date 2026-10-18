@@ -1,0 +1,32 @@
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -38,15 +38,14 @@
+ 
+ #ifdef DEBUG_ENABLED
+ 
+-static bool _profile_count_as_native(const Object *p_base_obj, const StringName &p_methodname) {
+-	if (!p_base_obj) {
++static bool _profile_count_as_native(const StringName &p_base_class, const StringName &p_methodname) {
++	if (p_base_class == StringName()) {
+ 		return false;
+ 	}
+-	StringName cname = p_base_obj->get_class_name();
+-	if ((p_methodname == "new" && cname == "GDScript") || p_methodname == "call") {
++	if ((p_methodname == "new" && p_base_class == "GDScript") || p_methodname == "call") {
+ 		return false;
+ 	}
+-	return ClassDB::class_exists(cname) && ClassDB::has_method(cname, p_methodname, false);
++	return ClassDB::class_exists(p_base_class) && ClassDB::has_method(p_base_class, p_methodname, false);
+ }
+ 
+ static String _get_element_type(Variant::Type builtin_type, const StringName &native_type, const Ref<Script> &script_type) {
+@@ -1973,7 +1972,8 @@
+ 
+ 				if (GDScriptLanguage::get_singleton()->profiling) {
+ 					uint64_t t_taken = OS::get_singleton()->get_ticks_usec() - call_time;
+-					if (GDScriptLanguage::get_singleton()->profile_native_calls && _profile_count_as_native(base_obj, *methodname)) {
++					// The native call may have freed base_obj. Use the class captured before dispatch.
++					if (GDScriptLanguage::get_singleton()->profile_native_calls && _profile_count_as_native(base_class, *methodname)) {
+ 						_profile_native_call(t_taken, *methodname, base_class);
+ 					}
+ 					function_call_time += t_taken;
