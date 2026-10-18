@@ -6,6 +6,10 @@ extends RefCounted
 static var enabled:=false # Enable only after full-entry and walking comparison.
 const INTERACTIVE:={"collision":2000,"publication":1500,"batch":1000,"navigation":500,"wind":500,"retire":500}
 const COVERED:={"collision":8000,"publication":7000,"batch":5000,"navigation":2000,"wind":1000,"retire":1000}
+var interactive_limits:Dictionary=INTERACTIVE
+var covered_limits:Dictionary=COVERED
+var interactive_budget_usec:=6000
+var covered_budget_usec:=24000
 var _frame:=-1
 var _covered:=false
 var _spent:Dictionary={}
@@ -46,11 +50,11 @@ func _advance(frame:int)->void:
 	_seen.clear();_granted.clear()
 	_frame=frame;_covered=false;_spent.clear();_total=0;counters.frames+=1
 
-func _limit()->int:return 24000 if _covered else 6000
+func _limit()->int:return covered_budget_usec if _covered else interactive_budget_usec
 
 func request(frame:int,lane:String,wanted:int,covered:bool=false)->int:
 	_advance(frame)
-	if not INTERACTIVE.has(lane) or wanted<=0:return 0
+	if not interactive_limits.has(lane) or wanted<=0:return 0
 	_seen[lane]=true
 	_covered=_covered or covered
 	# Only one previously denied lane owns this frame's first production turn.
@@ -59,7 +63,7 @@ func request(frame:int,lane:String,wanted:int,covered:bool=false)->int:
 	if not _protected_lane.is_empty() and lane!=_protected_lane:
 		counters.priority_denials+=1
 		return _deny(lane)
-	var limits:Dictionary=COVERED if _covered else INTERACTIVE
+	var limits:Dictionary=covered_limits if _covered else interactive_limits
 	var lane_left:int=maxi(0,int(limits[lane])-int(_spent.get(lane,0)))
 	var left:int=maxi(0,_limit()-_total)
 	# At most one bounded retire slice may still START after an indivisible
@@ -81,7 +85,7 @@ func _deny(lane:String)->int:
 
 func record(frame:int,lane:String,elapsed:int)->void:
 	_advance(frame)
-	if not INTERACTIVE.has(lane):return
+	if not interactive_limits.has(lane):return
 	var cost:=maxi(0,elapsed)
 	_spent[lane]=int(_spent.get(lane,0))+cost;_total+=cost
 	counters.elapsed_us+=cost

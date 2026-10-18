@@ -349,6 +349,7 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 	var target:Vector2i=map_root.get_meta("stream_chunk")
 	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
 	var specs:Array=[];var by_id:Dictionary=map_root.get_meta("stream_by_id",{})
+	var draw_groups:Dictionary={};var solid_cells:Dictionary={}
 	# A pinned request cannot commit anything. Reject it before the expensive
 	# whole-directory integrity scan, even when many distant native units are
 	# retained by the kilometre-scale render/support dependency ring.
@@ -356,7 +357,22 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 		if not id is String or not by_id.get(id) is Dictionary:continue
 		var spec:Dictionary=by_id[id]
 		if not index._valid_append_spec(spec):continue # Full validation below reports malformed inputs.
-		if _draws(spec,draw) or _overlaps(spec,solid):return {"ok":false,"error":"source_pinned"}
+		var draws:bool
+		if spec.has("render_building") and spec.has("render_bounds"):
+			var group:Variant=spec.render_building;var bounds:Variant=spec.render_bounds
+			var dependents:Variant=spec.get("render_dependents")
+			var previous:Variant=draw_groups.get(group)
+			# Names alone do not prove shared ownership. Cache only identical
+			# mutable envelopes/dependencies inside this synchronous transaction.
+			if previous!=null and is_same(previous.bounds,bounds) and is_same(previous.dependents,dependents):draws=previous.draws
+			else:
+				draws=_draws(spec,draw);draw_groups[group]={"bounds":bounds,"dependents":dependents,"draws":draws}
+		else:draws=_draws(spec,draw)
+		if draws:return {"ok":false,"error":"source_pinned"}
+		var low:Vector2i=spec.chunk_min;var high:Vector2i=spec.chunk_max
+		var cells:=Vector4i(low.x,low.y,high.x,high.y)
+		if not solid_cells.has(cells):solid_cells[cells]=_overlaps(spec,solid)
+		if solid_cells[cells]:return {"ok":false,"error":"source_pinned"}
 		specs.append(spec)
 	var data:=_resident_index_data(map_root);var library:=_library(map_root)
 	if complete_unit and not legacy_retirement_validation_enabled and index.owned_dependency_pinned(data,ids):return {"ok":false,"error":"retained building needs landscape support"}
@@ -371,8 +387,31 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool)->D
 	if collision!=null and not collision.release_retired_sources(specs):return {"ok":false,"error":"collision_leased"}
 	return {"ok":true,"error":"","data":data,"library":library,"plan":checked}
 
-static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false,navigation:Node=null)->Dictionary:
+static func _retirement_budget(map_root:Node)->RefCounted:
+	if map_root.has_meta("retirement_frame_budget"):return map_root.get_meta("retirement_frame_budget")
+	var ledger:=preload("res://scripts/world3d/frame_work_budget.gd").new()
+	ledger.interactive_limits={"ordinary_retirement":2000,"native_retirement":2000}
+	ledger.covered_limits=ledger.interactive_limits
+	ledger.interactive_budget_usec=2000;ledger.covered_budget_usec=2000
+	map_root.set_meta("retirement_frame_budget",ledger)
+	return ledger
+
+static func charge_retirement_work(map_root:Node,lane:String,started:int)->void:
+	_retirement_budget(map_root).record(Engine.get_process_frames(),lane,maxi(0,Time.get_ticks_usec()-started))
+
+static func retire_specs(map_root:Node,ids:Array,complete_unit:bool=false,navigation:Node=null,retirement_lane:String="")->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	# Both background residency owners share one map-local admission ledger.
+	# Charge complete refusals too; its protected FIFO turn prevents the later
+	# scene callback starving after the earlier owner repeatedly overruns.
+	if retirement_lane.is_empty():return _retire_specs(map_root,ids,complete_unit,navigation)
+	if _retirement_budget(map_root).request(Engine.get_process_frames(),retirement_lane,2000)<=0:return {"ok":false,"error":"retirement_budget"}
+	var started:=Time.get_ticks_usec()
+	var result:=_retire_specs(map_root,ids,complete_unit,navigation)
+	charge_retirement_work(map_root,retirement_lane,started)
+	return result
+
+static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:Node)->Dictionary:
 	# Keep the verified plan local to one synchronous transaction. Navigation's
 	# source-release handshake changes no map/index state and emits no callbacks;
 	# committing that same plan avoids three identical whole-library scans.

@@ -155,9 +155,12 @@ func poll(now_msec:int)->void:
 		if int(resident.outside_since)<0:resident.outside_since=now_msec;continue
 		if now_msec-int(resident.outside_since)<grace_msec:continue
 		var ids:Array=resident.ids
-		var result:=Stream.retire_specs(_map,ids,false,navigation)
+		var result:=Stream.retire_specs(_map,ids,false,navigation,"ordinary_retirement")
 		if not result.ok:
-			profile.last_wait=result.error;continue
+			profile.last_wait=result.error
+			if result.error=="retirement_budget":return
+			continue
+		var cleanup_started:=Time.get_ticks_usec()
 		_deferred.requeue_reference(entry)
 		_resident.erase(uuid);_retired[uuid]=true
 		profile.retired_instances+=1;profile.retired_specs+=result.removed;profile.last_wait=""
@@ -177,4 +180,5 @@ func poll(now_msec:int)->void:
 			var scope:RefCounted=_map.get_meta("runtime_asset_cache_scope") if _map.has_meta("runtime_asset_cache_scope") else null
 			var evicted:bool=scope.release(entry.asset_path) if scope!=null else Assets.evict_cached_scene(entry.asset_path)
 			if evicted:_deferred._prepared_paths.erase(entry.asset_path);profile.evicted_models+=1
+		Stream.charge_retirement_work(_map,"ordinary_retirement",cleanup_started)
 		return

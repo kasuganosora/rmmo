@@ -81,7 +81,7 @@ func run()->void:
 	DirAccess.remove_absolute(folder)
 	print("SELECTED_MESH_CACHE passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)
-func load_case(path:String,origin:Vector3)->Dictionary:
+func load_case(path:String,origin:Vector3,retain_scene:bool=false)->Dictionary:
 	var loader:=Loader.new();loader.near_first=true;root.add_child(loader);var result:={"done":false}
 	loader.finished.connect(func(scene:Node,_path:String,error:String):result.scene=scene;result.error=error;result.done=true)
 	loader.start(path,origin);var deadline:=Time.get_ticks_msec()+60000
@@ -95,6 +95,7 @@ func load_case(path:String,origin:Vector3)->Dictionary:
 		geometry[value.uuid]=[value.transform,value.extras,var_to_bytes(render.surfaces),var_to_bytes(solid.surfaces),materials]
 	var cache_path:String=profile.get("mesh_cache_path","")
 	if not cache_path.is_empty():created.append(cache_path)
+	if retain_scene:return {"profile":profile,"geometry":geometry,"scene":scene}
 	scene.free();return {"profile":profile,"geometry":geometry}
 func loader_cases()->void:
 	var helper:=Fixtures.new();helper.folder=folder;helper.content_root=Paths.external_root()

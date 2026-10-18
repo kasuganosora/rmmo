@@ -338,6 +338,15 @@ func _reference_integrity() -> bool:
 	Trace.elapsed("game.reference_integrity",began)
 	return valid
 
+func _final_index_integrity(prepared:Dictionary)->bool:
+	# Full immutable-resource SHA/path validation just finished in the index
+	# worker. Keep the source bytes as the last observation before publication;
+	# no progress callback/await may follow this check before the commit.
+	var began:=Time.get_ticks_usec()
+	var valid:bool=prepared.dependencies_valid and _source_snapshot!=null and _source_snapshot.matches_disk()
+	Trace.elapsed("game.reference_integrity",began)
+	return valid
+
 # Conservative hints only after full snapshot validation. The selected path
 # set and source identities must still match before any prepared scene is used.
 func _cold_model_hints(records:Array)->Array:
@@ -1264,23 +1273,27 @@ func _build_records() -> void:
 	# geometry joins only the runtime directory, after that cache snapshot.
 	library.append_array(asset_specs)
 	var index_started:=Time.get_ticks_usec()
-	var index_job:=preload("res://scripts/world3d/stream_index.gd").build.bind(library)
+	var final_dependencies:Dictionary=_full_reference_dependencies if not _full_reference_dependencies.is_empty() else _reference_dependencies
+	var index_job:=preload("res://scripts/world3d/final_index_preparation.gd").prepare.bind(library,final_dependencies,_path,_content_root,1 if background_preload else 4)
 	_index_thread=Thread.new()
-	var index_data:Dictionary
+	var final_preparation:Dictionary
 	if _index_thread.start(index_job)==OK:
 		progress.emit("构建空间索引（后台）",0,library.size())
 		while _index_thread.is_alive():await get_tree().process_frame
-		index_data=_index_thread.wait_to_finish();_index_thread=null
+		final_preparation=_index_thread.wait_to_finish();_index_thread=null
 	else:
-		_index_thread=null;index_data=index_job.call()
-	_profile.index_worker_us=Time.get_ticks_usec()-index_started
+		_index_thread=null;final_preparation=index_job.call()
+	_profile.final_index_wait_us=Time.get_ticks_usec()-index_started
+	_profile.index_worker_us=final_preparation.index_us
 	Trace.elapsed("game.index_wait",index_started)
 	if _cancelled:
 		root.free();_prepared=null;await _retire();return
 	var integrity_started:=Time.get_ticks_usec()
-	if not _reference_integrity():
+	if not _final_index_integrity(final_preparation):
 		root.free();_prepared=null;_finish_error("构建期间地图或引用资源已改变");return
 	_profile.final_integrity_us=Time.get_ticks_usec()-integrity_started
+	_profile.final_dependency_worker_us=final_preparation.dependency_us
+	var index_data:Dictionary=final_preparation.index
 	_profile.build_total_us=Time.get_ticks_usec()-build_started
 	if not _entry_plan.is_empty():
 		_entry_plan.core_resources_ready_us=Time.get_ticks_usec()

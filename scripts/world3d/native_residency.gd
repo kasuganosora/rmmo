@@ -140,16 +140,18 @@ func poll(now:int)->void:
 			if spec.extras.has("fixture"):fixtures[record.get("uuid",uuid.get_slice("__",0))]=float(spec.extras.fixture.open)
 			if record.has("house_prefab"):digests[record.house_prefab.sha256]=true
 			if record.has("asset_path"):model_paths[record.asset_path]=true
-		var result:=Stream.retire_specs(_map,ids,true,nav)
+		var result:=Stream.retire_specs(_map,ids,true,nav,"native_retirement")
 		profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
 		if not result.ok:
 			profile.last_wait=result.error;profile.last_wait_unit=",".join(units)
 			if not profile.has("wait_reasons"):profile.wait_reasons={}
 			profile.wait_reasons[result.error]=int(profile.wait_reasons.get(result.error,0))+1
+			if result.error=="retirement_budget":return
 			# A complete validation is an indivisible transaction. Do not stack
 			# several expensive refusals in the same interactive frame.
 			if Time.get_ticks_usec()-started>=2000:return
 			continue
+		var cleanup_started:=Time.get_ticks_usec()
 		_queue.runtime_fixture_states.merge(fixtures,true)
 		var requeue_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.requeue")
 		_queue.requeue_references(entries)
@@ -173,6 +175,7 @@ func poll(now:int)->void:
 		profile.retirement_transactions=int(profile.get("retirement_transactions",0))+1
 		profile.max_units_per_transaction=maxi(int(profile.get("max_units_per_transaction",0)),units.size())
 		profile.resident_units=_resident.size()
+		Stream.charge_retirement_work(_map,"native_retirement",cleanup_started)
 		return
 
 func _release_preparation_cache(entries:Array)->void:
