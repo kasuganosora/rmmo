@@ -60,8 +60,8 @@ func run()->void:
 	check(ledger.reserved_bytes==0,"owner exit drains late worker output and lease")
 	var queue:=preload("res://scripts/world3d/deferred_asset_loader.gd").new();queue._reference_index={"groups":{"building:a":{}}}
 	var approach:=preload("res://scripts/world3d/approach_preparation.gd").new();approach.update(queue,Vector3.ZERO,Vector3(5,0,0))
-	check(queue._demands.has(approach.DEMAND) and queue._demands[approach.DEMAND].kind=="building" and queue._demands[approach.DEMAND].priority==2,"forward demand promotes complete building groups below live player priority")
-	check(queue._demands[approach.DEMAND].clip.has_point(Vector3(160,0,0)),"lookahead reaches beyond the live player ring")
+	check(not queue._demands.is_empty() and queue._demands.values().all(func(d):return d.kind=="all" and d.priority==2),"forward corridor promotes every geometry kind below live player priority")
+	check(queue._demands.values().any(func(d):return d.clip.has_point(Vector3(160,0,0))),"lookahead reaches beyond the live player ring")
 	queue._reference_index={"groups":{"building:a":{"members":[0,1]}},"rows":[],"extras":{"rmmo_records":[]}}
 	for i in 2:
 		var compact:={"uuid":"member_%d"%i};queue._reference_index.extras.rmmo_records.append(compact)
@@ -73,7 +73,8 @@ func run()->void:
 	check(queue._demanded.size()==1 and queue._reference_requests("reference:building:a").size()==2,"touching one forward member prepares the whole indexed building, including the far side")
 	queue.set_demand("current",AABB(Vector3(159,-1,-1),Vector3(3,3,3)),0);queue._refresh_demanded()
 	check(queue._demanded_priority.member_0==0,"current player demand overrides forward-building preparation")
-	approach.update(queue,Vector3.ZERO,Vector3.ZERO);check(not queue._demands.has(approach.DEMAND),"stopping releases speculative building demand")
+	approach.update(queue,Vector3.ZERO,Vector3.ZERO,PackedVector3Array(),Time.get_ticks_msec()+approach.STOP_HOLD_MSEC)
+	check(queue._demands.keys()==["current"],"stopping expires only speculative demands, preserving live player demand")
 	queue.free()
 	var report:={"failures":failures,"checks":checks,"prefetch_profile":observed}
 	FileAccess.open("D:/code/rmmo_runtime/review_artifacts/editor_runtime_followup_20261017/prefetch.json",FileAccess.WRITE).store_string(JSON.stringify(report,"  "))

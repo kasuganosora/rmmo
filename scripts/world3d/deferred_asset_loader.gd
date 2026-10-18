@@ -118,6 +118,18 @@ var _collision_pending_count:=-1
 var _collision_definition_modes:Dictionary={} # Map/path/immutable rmres identity -> plain policy; never readiness.
 var _collision_definition_count:=0
 var _collision_definition_bytes:=0
+var _preparation_seconds:Array[float]=[] # Bounded feedback, one sample per source job.
+
+func _note_preparation_latency(items:Array)->void:
+	for item:Dictionary in items:
+		var job:Dictionary=_jobs.get(item.path,{})
+		if not job.has("dispatch_us") or job.get("latency_sampled",false):continue
+		job.latency_sampled=true
+		_preparation_seconds.append((Time.get_ticks_usec()-int(job.dispatch_us))/1000000.)
+		if _preparation_seconds.size()>32:_preparation_seconds.pop_front()
+		var ordered:=_preparation_seconds.duplicate();ordered.sort()
+		profile.preparation_p90_seconds=ordered[mini(ordered.size()-1,int(ceil(ordered.size()*.9))-1)]
+		profile.preparation_latency_samples=int(profile.get("preparation_latency_samples",0))+1
 
 func _job_limit()->int:
 	return ready_job_limit if ready_job_limit>0 else maxi(4,_admission.worker_limit*2)
@@ -561,10 +573,11 @@ func is_idle()->bool:
 	# process refresh, an outdated demand snapshot is conservatively not idle.
 	return _candidates_revision==_demand_revision and _demanded.is_empty() and _jobs.is_empty()
 
-func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all")->void:
+func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all",rank_from_player:bool=false)->void:
 	if id.is_empty() or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.z<0:return
 	if kind not in ["all","building","road","structure"]:return
 	var value:={"clip":clip,"priority":priority,"kind":kind}
+	if rank_from_player:value.rank_from_player=true
 	if _demands.get(id)==value:return
 	_demands[id]=value;_demand_revision+=1;set_process(_active)
 
@@ -738,7 +751,7 @@ func _refresh_demanded()->void:
 			if demand.get("kind","all")=="road" and item.get("reference_entry",{}).get("reason","")!="native_road":continue
 			if demand.get("kind","all")=="structure" and item.get("reference_entry",{}).get("reason","") not in ["native_fortification","native_bridge"]:continue
 			var uuid:String=item.record.uuid
-			var distance:float=_distance_from(item,_priority if id=="player" else demand.clip.get_center())
+			var distance:float=_distance_from(item,_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center())
 			var score:float=float(demand.priority)*1e15+distance
 			if not candidates.has(uuid) or score<float(candidates[uuid].score):candidates[uuid]={"item":item,"score":score,"priority":int(demand.priority)}
 			# Learned imported buildings retain the same supporting landscape as
@@ -1451,6 +1464,7 @@ func _publish_items(items:Array,specs:Array)->bool:
 	_remove_published_demand(items);profile.specs+=specs.size()
 	var details:Dictionary={"specs":specs.size(),"uuid":items[0].record.uuid if not items.is_empty() else "","index_prepared":preparation!=null}
 	published.emit(specs)
+	_note_preparation_latency(items)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publish_commit",commit_began,details)
 	return true
 

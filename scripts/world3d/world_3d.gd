@@ -394,6 +394,7 @@ func _guard_deferred_geometry()->void:
 
 
 func _exit_tree() -> void:
+	_approach_preparation.release()
 	if _transfer_viewport_restore!=null:get_viewport().disable_3d=bool(_transfer_viewport_restore)
 	_retire_building_traversal()
 	if _building_entry!=null:_building_entry.cancel("world_exited")
@@ -2038,13 +2039,15 @@ func request_pet_dismiss() -> void:
 	_combat.summons.pet_dismiss()
 
 func _update_approach_preparation()->void:
-	if not is_instance_valid(_map_root) or not is_instance_valid(_player):return
+	if not is_instance_valid(_map_root) or not is_instance_valid(_player) or _transfer_pending:
+		_approach_preparation.release();return
 	if _map_root.get_node_or_null("DistantBuildingProxy")==null:
 		var adopted:bool=int(_map_root.get_meta("stream_children",-1))==_map_root.get_child_count()
 		var proxy:=preload("res://scripts/world3d/distant_building_proxy.gd").new();proxy.name="DistantBuildingProxy";_map_root.add_child(proxy)
 		if adopted:_map_root.set_meta("stream_children",_map_root.get_child_count())
 	var deferred:Node=_map_root.get_node_or_null("DeferredAssets")
-	_approach_preparation.update(deferred,_player.global_position,_player.velocity)
+	var intent:Dictionary=_player.streaming_intent(_geometry_wait_locked)
+	_approach_preparation.update(deferred,_player.global_position,intent.velocity,intent.route)
 	preload("res://scripts/world3d/surface_materials.gd").trim_cached_resources()
 	if not CrossMapPrefetch.enabled:return
 	if not is_instance_valid(_cross_map_prefetch):

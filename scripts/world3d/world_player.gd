@@ -70,6 +70,29 @@ func _physics_process(delta: float) -> void:
 	_step(delta)
 
 
+func streaming_intent(allow_geometry_wait:bool=false)->Dictionary:
+	var result:={"velocity":Vector3.ZERO,"route":PackedVector3Array()}
+	# Keep desired movement when the geometry guard zeroed actual velocity.
+	if input_locked and not allow_geometry_wait:return result
+	if is_instance_valid(_model) and _model.action in REST_ACTIONS:return result
+	var multiplier:=clampf(float(Net.server().player_move_speed_mul()),0.,3.)
+	var stick:=_stick()
+	if stick.length_squared()>.01:
+		result.velocity=Motion.wish_direction(_camera_yaw(),stick)*(Motion.RUN_MPS if Input.is_key_pressed(KEY_SHIFT) else Motion.WALK_MPS)*multiplier
+	elif click_target is Vector3 and click_target.is_finite():
+		if _route_navigation_id!=0 and (not is_instance_valid(navigation) or navigation.get_instance_id()!=_route_navigation_id or navigation.version!=_route_version or not navigation.ready_for_queries):return result
+		result.route.append(click_target)
+		# Copy only the bounded prefix, without advancing movement or querying nav.
+		for i:int in mini(_route.size(),preload("res://scripts/world3d/approach_preparation.gd").MAX_ROUTE_POINTS-1):result.route.append(_route[i])
+		var direction:Vector3=click_target-global_position;direction.y=0
+		if direction.length_squared()<.000001:
+			for point:Vector3 in result.route:
+				direction=point-global_position;direction.y=0
+				if direction.length_squared()>=.000001:break
+		result.velocity=direction.normalized()*Motion.RUN_MPS*multiplier
+	return result
+
+
 func _step(dt: float) -> void:
 	var profiling:=has_meta("profile_frame")
 	var profile_started:=Time.get_ticks_usec() if profiling else 0
