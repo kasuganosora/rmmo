@@ -73,6 +73,8 @@ func collision_faces() -> PackedVector3Array:
 static func capture(source: Mesh) -> Mesh:
 	if source.get_script() == load("res://scripts/world3d/ground_cpu_mesh.gd"): return source
 	if source.has_meta("ground_cpu_cache"): return source.get_meta("ground_cpu_cache")
+	var traced:bool=source is ArrayMesh and preload("res://scripts/world3d/load_trace.gd").enabled
+	var began:=Time.get_ticks_usec() if traced else 0
 	var result = load("res://scripts/world3d/ground_cpu_mesh.gd").new()
 	result.source_reference = weakref(source)
 	result.bounds = source.get_aabb()
@@ -83,6 +85,7 @@ static func capture(source: Mesh) -> Mesh:
 		if source is ArrayMesh:result.lods.append(capture_lods(source,slot))
 	source.set_meta("ground_cpu_cache",result)
 	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
+	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.renderer_array_capture",began,{"surfaces":result.surfaces.size()})
 	return result
 
 static func from_surfaces(arrays:Array,slot_materials:Array)->Mesh:

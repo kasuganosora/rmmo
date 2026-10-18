@@ -4,6 +4,7 @@ extends RefCounted
 static var last_export_metrics: Dictionary = {}
 # Benchmark-only comparison path; ordinary UI/MCP always stream supported geometry.
 static var engine_geometry_for_tests := false
+static var legacy_state_array_getters_enabled:=false # Same-code diagnostic of repeated typed-array materialization.
 
 static func save_scene(root: Node, gltf_path: String, progress: Callable = Callable()) -> Error:
 	if root == null or gltf_path.is_empty():
@@ -304,16 +305,26 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.gltf_map_io.generate_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# An external model can be replaced with malformed but parseable JSON while
 	# the editor is open. Reject its invalid mesh references before scene creation.
-	for node:GLTFNode in state.nodes:
-		if node.mesh>=state.meshes.size():return null
+	var scan_began:=Time.get_ticks_usec()
+	var nodes:Array[GLTFNode]=state.nodes;var meshes:Array[GLTFMesh]=state.meshes
+	for node:GLTFNode in nodes:
+		if node.mesh>=(state.meshes.size() if legacy_state_array_getters_enabled else meshes.size()):return null
+	preload("res://scripts/world3d/load_trace.gd").elapsed("model.gltf_reference_scan",scan_began,{"nodes":nodes.size(),"array_reads":2+nodes.size() if legacy_state_array_getters_enabled else 2})
 	preload("res://scripts/world3d/runtime_probe_controls.gd").prepare_gltf_materials(state)
 	var scene := document.generate_scene(state)
 	if scene == null: return null
+	# GLTFState exposes typed arrays through getters. Reuse each observation
+	# during the scan rather than reconstructing the full arrays per node.
+	# Refresh after generation so extension-added nodes/meshes remain visible.
+	scan_began=Time.get_ticks_usec()
+	nodes=state.nodes;meshes=state.meshes
+	var mesh_nodes:=0
 	var raw_nodes: Array = state.json.get("nodes", [])
-	for i in state.nodes.size():
-		var gltf_node: GLTFNode = state.nodes[i]
+	for i in nodes.size():
+		var gltf_node: GLTFNode = state.nodes[i] if legacy_state_array_getters_enabled else nodes[i]
 		if gltf_node.mesh < 0: continue
-		var weights: Variant = state.meshes[gltf_node.mesh].blend_weights
+		mesh_nodes+=1
+		var weights: Variant = state.meshes[gltf_node.mesh].blend_weights if legacy_state_array_getters_enabled else meshes[gltf_node.mesh].blend_weights
 		if i < raw_nodes.size() and raw_nodes[i].has("weights"): weights = raw_nodes[i].weights
 		if weights.is_empty(): continue
 		var mapped: Node = state.get_scene_node(i)
@@ -324,6 +335,7 @@ static func generate_scene(document: GLTFDocument, state: GLTFState) -> Node:
 		if visual == null or not visual.mesh is ArrayMesh: continue
 		for blend in mini(visual.mesh.get_blend_shape_count(), weights.size()):
 			visual.set_blend_shape_value(blend, float(weights[blend]))
+	preload("res://scripts/world3d/load_trace.gd").elapsed("model.gltf_morph_scan",scan_began,{"nodes":nodes.size(),"mesh_nodes":mesh_nodes,"array_reads":2+nodes.size()+mesh_nodes if legacy_state_array_getters_enabled else 2})
 	# Synchronous native loads use the same effects as the streaming/editor path.
 	var extra:=extras_of(scene)
 	if extra.get("rmmo_format")=="rmmo_gltf_map":

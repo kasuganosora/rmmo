@@ -178,6 +178,7 @@ func run()->void:
 		elif arg=="--continuous-render-context":preload("res://scripts/world3d/map_loader.gd").startup_render_context_frames=0
 		elif arg=="--legacy-shadow-materials":preload("res://scripts/world3d/building_shadow_proxy.gd").unshaded_materials_enabled=false
 		elif arg=="--single-road-reference-jobs":preload("res://scripts/world3d/deferred_asset_loader.gd").native_reference_batching_enabled=false
+		elif arg=="--repeat-gltf-state-getters":preload("res://scripts/world3d/gltf_map_io.gd").legacy_state_array_getters_enabled=true
 		elif arg=="--sync-loading-batches":preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled=false
 		elif arg=="--join-loading-workers":preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled=true
 		elif arg=="--legacy-retirement-validation":preload("res://scripts/world3d/world_stream.gd").legacy_retirement_validation_enabled=true
@@ -228,6 +229,7 @@ func run()->void:
 	report.controls.white_material=white_material
 	report.controls.unshaded_shadow_materials=preload("res://scripts/world3d/building_shadow_proxy.gd").unshaded_materials_enabled
 	report.controls.batched_road_reference_jobs=preload("res://scripts/world3d/deferred_asset_loader.gd").native_reference_batching_enabled
+	report.controls.repeated_gltf_state_getters=preload("res://scripts/world3d/gltf_map_io.gd").legacy_state_array_getters_enabled
 	report.controls.early_white_gltf=preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled
 	report.controls.early_white_camera=early_white_camera
 	report.controls.white_debug_draw="--white-debug-draw" in OS.get_cmdline_user_args()
