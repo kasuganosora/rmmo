@@ -118,7 +118,11 @@ func _advance_import(ticket:Dictionary,budget_usec:int)->bool:
 				ticket.resources.clear();ticket.seen.clear();ticket.phase=2;break
 			var retained:Variant=ticket.resources[ticket.release_index]
 			ticket.resources[ticket.release_index]=null;ticket.release_index+=1
+			var traced:bool=preload("res://scripts/world3d/load_trace.gd").enabled
+			var release_began:=Time.get_ticks_usec() if traced else 0
+			var kind:String=(retained.get_class() if retained is Resource else type_string(typeof(retained))) if traced else ""
 			profile.resources+=int(retained is Resource);profile.import_values+=1;retained=null
+			if traced and Time.get_ticks_usec()-release_began>=1000:preload("res://scripts/world3d/load_trace.gd").elapsed("retirement.import_value_release",release_began,{"class":kind})
 		elif not ticket.work.is_empty():
 			var work:Dictionary=ticket.work.back()
 			var container:Variant=work.value

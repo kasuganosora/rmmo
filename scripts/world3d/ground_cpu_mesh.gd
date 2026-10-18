@@ -9,6 +9,15 @@ var source_reference: WeakRef
 var _collision_faces:=PackedVector3Array()
 static var _unit_box_arrays: Array=[]
 
+static func _bind_source(source:Mesh,owner:Mesh)->WeakRef:
+	# Projections share this WeakRef, including its generation proof. Comparing
+	# material slots alone cannot detect an editor changing the source geometry.
+	var reference:WeakRef=weakref(source)
+	reference.set_meta("cpu_owner",weakref(owner))
+	source.set_meta("ground_cpu_cache",owner)
+	source.changed.connect(invalidate.bind(reference),CONNECT_ONE_SHOT)
+	return reference
+
 static func plain_box(source:Mesh)->bool:
 	return source is BoxMesh and not source.flip_faces and not source.add_uv2 and source.subdivide_width==0 and source.subdivide_height==0 and source.subdivide_depth==0 and source.size.x>0 and source.size.y>0 and source.size.z>0
 
@@ -30,10 +39,9 @@ static func remember(source: Mesh, arrays: Array, surface_lods:Array=[]) -> Mesh
 	# Procedural meshers already own these CPU arrays. Retain them at upload time
 	# instead of synchronously downloading thousands of GPU buffers on first use.
 	var result=load("res://scripts/world3d/ground_cpu_mesh.gd").new()
-	result.source_reference=weakref(source); result.bounds=source.get_aabb(); result.surfaces=arrays;result.lods=surface_lods
+	result.bounds=source.get_aabb(); result.surfaces=arrays;result.lods=surface_lods
 	for slot in source.get_surface_count(): result.materials.append(source.surface_get_material(slot))
-	source.set_meta("ground_cpu_cache",result)
-	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
+	result.source_reference=_bind_source(source,result)
 	return result
 
 func geometry_key() -> String:
@@ -76,15 +84,13 @@ static func capture(source: Mesh) -> Mesh:
 	var traced:bool=source is ArrayMesh and preload("res://scripts/world3d/load_trace.gd").enabled
 	var began:=Time.get_ticks_usec() if traced else 0
 	var result = load("res://scripts/world3d/ground_cpu_mesh.gd").new()
-	result.source_reference = weakref(source)
 	result.bounds = source.get_aabb()
 	if plain_box(source): result.box_size = source.size
 	for slot in source.get_surface_count():
 		result.surfaces.append(primitive_arrays(source,slot))
 		result.materials.append(source.surface_get_material(slot))
 		if source is ArrayMesh:result.lods.append(capture_lods(source,slot))
-	source.set_meta("ground_cpu_cache",result)
-	source.changed.connect(invalidate.bind(weakref(source)),CONNECT_ONE_SHOT)
+	result.source_reference=_bind_source(source,result)
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.renderer_array_capture",began,{"surfaces":result.surfaces.size()})
 	return result
 
@@ -122,6 +128,8 @@ static func capture_lods(source:ArrayMesh,slot:int)->Dictionary:
 func restore() -> Mesh:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_cpu_mesh.restore") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var original: Mesh=source_reference.get_ref() if source_reference!=null else null
+	var owner:WeakRef=source_reference.get_meta("cpu_owner") if source_reference!=null and source_reference.has_meta("cpu_owner") else null
+	if original!=null and (owner==null or owner.get_ref()==null or not original.has_meta("ground_cpu_cache") or original.get_meta("ground_cpu_cache")!=owner.get_ref()):original=null
 	if original!=null:
 		var compatible:=original.get_surface_count()==materials.size()
 		for slot in materials.size():
@@ -129,7 +137,7 @@ func restore() -> Mesh:
 		if compatible: return original
 	if box_size != Vector3.ZERO:
 		var box := BoxMesh.new(); box.size = box_size; box.material = materials[0]
-		source_reference=weakref(box)
+		source_reference=_bind_source(box,self)
 		return box
 	var result := ArrayMesh.new()
 	for slot in surfaces.size():
@@ -138,7 +146,7 @@ func restore() -> Mesh:
 	var cached: Mesh=remember(result,surfaces,lods)
 	# Repeated instances share this CPU object after loading. Remember the first
 	# restored GPU mesh weakly so each instance does not upload the same buffers.
-	source_reference=weakref(result)
+	source_reference=cached.source_reference
 	cached._collision_faces=_collision_faces
 	if has_meta("static_batch_geometry_signature"): cached.set_meta("static_batch_geometry_signature",geometry_key())
 	return result

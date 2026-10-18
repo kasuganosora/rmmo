@@ -1631,7 +1631,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			var cursor:=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
 			cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
 			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec","prefab_us":prefab_finished-unit_began,"instance_us":Time.get_ticks_usec()-prefab_finished,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts}
-		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_begin",unit_began,{"uuid":publication_id,"path":item.path})
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_begin",unit_began,{"uuid":publication_id,"path":item.path,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts})
 		var revision:=_demand_revision
 		_advance_instance_specs(item,pixel_job,unit_began,maxi(1,budget_usec-(Time.get_ticks_usec()-began)))
 		_account_work_unit(timing,unit_began)

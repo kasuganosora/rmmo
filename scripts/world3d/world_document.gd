@@ -4,6 +4,7 @@ extends RefCounted
 const WorldLocation = preload("res://scripts/world3d/world_location.gd")
 const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
 const SurfaceMaterials = preload("res://scripts/world3d/surface_materials.gd")
+static var legacy_mesh_placeholder_enabled:=false # Same-code measurement of superseded GPU bindings.
 
 var records: Array = []
 var map_meta: Dictionary = {}
@@ -474,6 +475,9 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
+	if record.has("channel_mesh") and not record.has("fortification_art") and record.get("surface_id")=="water" and box!=null and box.material is StandardMaterial3D:
+		box.material.roughness=.22;box.material.metallic=.15
+	var geometry_started:int=Time.get_ticks_usec() if timings!=null else 0
 	if cached != null:
 		mesh_node.mesh = cached
 		if not box_key.is_empty():
@@ -486,11 +490,12 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	elif load_surface_arrays.has(str(record.uuid)):
 		var prepared:Mesh
 		if timings!=null:timings.setup_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
-		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") else box.material
+		var channel_geometry:bool=preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record)
+		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") and not channel_geometry else box.material
 		if timings!=null:timings.material_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var arrays:Array=load_surface_arrays[str(record.uuid)]
 		var slot_materials:Array=[]
-		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if record.has("road_mesh") and slot==3 else material)
+		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if (record.has("road_mesh") or channel_geometry) and slot==3 else material)
 		if cpu_index:prepared=preload("res://scripts/world3d/ground_cpu_mesh.gd").from_surfaces(arrays,slot_materials)
 		else:
 			prepared=ArrayMesh.new()
@@ -502,31 +507,43 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		mesh_node.mesh=prepared
 		if timings!=null:timings.arraymesh_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	else:
-		mesh_node.mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
-		if record.has("road_mesh"): mesh_node.mesh = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
-		if record.has("terrain_volume"):mesh_node.mesh=preload("res://scripts/world3d/terrain_volume.gd").mesh(record,box.material)
-		if record.has("terrain_mesh"): mesh_node.mesh = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material,terrain_neighbors.data.get(str(record.uuid),{}))
-		if record.has("rock_bank"): mesh_node.mesh = preload("res://scripts/world3d/rock_bank_mesh.gd").mesh(record)
+		var geometry:Mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
+		# Bind only the final geometry; assigning a disposable box uploads it and
+		# can wait for the renderer before the real procedural mesh is prepared.
+		if legacy_mesh_placeholder_enabled:mesh_node.mesh=geometry
+		if timings!=null:timings.placeholder_ms=(Time.get_ticks_usec()-geometry_started)/1000.;timings.record_shape=record.get("building_shape","")
+		if record.has("road_mesh"): geometry = preload("res://scripts/world3d/road_surface.gd").mesh(record,box.material)
+		if record.has("terrain_volume"):geometry=preload("res://scripts/world3d/terrain_volume.gd").mesh(record,box.material)
+		if record.has("terrain_mesh"): geometry = preload("res://scripts/world3d/terrain_surface.gd").mesh(record,box.material,terrain_neighbors.data.get(str(record.uuid),{}))
+		if record.has("rock_bank"): geometry = preload("res://scripts/world3d/rock_bank_mesh.gd").mesh(record)
 		if record.has("channel_mesh") and not record.has("fortification_art"):
-			if record.get("surface_id")=="water" and box.material is StandardMaterial3D:
-				box.material.roughness=.22; box.material.metallic=.15
-			mesh_node.mesh = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
-		if record.has("water_gate") and not record.has("fortification_art"):mesh_node.mesh=preload("res://scripts/world3d/water_gate_mesh.gd").mesh(record,box.material)
-		if record.has("fortification_art"): mesh_node.mesh=preload("res://scripts/world3d/fortification_art.gd").new().build(record)
-		if record.get("building_shape")=="wall_grid": mesh_node.mesh = preload("res://scripts/world3d/house_wall_mesh.gd").mesh(record,box.material)
-		if record.get("building_shape")=="draped_cloth":mesh_node.mesh=preload("res://scripts/world3d/curtain_mesh.gd").mesh(record,box.material)
-		if record.get("building_shape")=="joined_box":mesh_node.mesh=preload("res://scripts/world3d/joined_box_mesh.gd").mesh(record,box.material)
-		if record.get("building_shape")=="candle_sconce":mesh_node.mesh=preload("res://scripts/world3d/candle_sconce_mesh.gd").mesh(record,box.material)
-		if record.get("building_shape") in ["interior_door","interior_door_frame"]:mesh_node.mesh=preload("res://scripts/world3d/interior_door_mesh.gd").mesh(record)
-		if record.get("building_shape")=="timber_door":mesh_node.mesh=preload("res://scripts/world3d/timber_door_mesh.gd").mesh(record,box.material)
-		if record.get("building_shape")=="gable": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
-		if record.get("building_shape")=="cylinder": mesh_node.mesh = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
-		if record.get("building_shape")=="roof_prism": mesh_node.mesh = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
+			geometry = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
+		if record.has("water_gate") and not record.has("fortification_art"):geometry=preload("res://scripts/world3d/water_gate_mesh.gd").mesh(record,box.material)
+		if record.has("fortification_art"): geometry=preload("res://scripts/world3d/fortification_art.gd").new().build(record)
+		if record.get("building_shape")=="wall_grid": geometry = preload("res://scripts/world3d/house_wall_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="draped_cloth":geometry=preload("res://scripts/world3d/curtain_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="joined_box":geometry=preload("res://scripts/world3d/joined_box_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="candle_sconce":
+			var sconce=preload("res://scripts/world3d/candle_sconce_mesh.gd")
+			var candle_began:=Time.get_ticks_usec() if timings!=null else 0
+			var candle_mesh:Mesh=sconce.cpu_mesh(record) if effects and load_immutable_records and sconce.cpu_index_enabled else sconce.mesh(record,box.material)
+			if timings!=null:timings.candle_prepare_ms=(Time.get_ticks_usec()-candle_began)/1000.;candle_began=Time.get_ticks_usec()
+			geometry=candle_mesh
+			if timings!=null:timings.candle_bind_ms=(Time.get_ticks_usec()-candle_began)/1000.
+		if record.get("building_shape") in ["interior_door","interior_door_frame"]:geometry=preload("res://scripts/world3d/interior_door_mesh.gd").mesh(record)
+		if record.get("building_shape")=="timber_door":geometry=preload("res://scripts/world3d/timber_door_mesh.gd").mesh(record,box.material)
+		if record.get("building_shape")=="gable": geometry = preload("res://scripts/world3d/building_blueprint.gd").gable_mesh(box.size,box.material)
+		if record.get("building_shape")=="cylinder": geometry = preload("res://scripts/world3d/building_blueprint.gd").cylinder_mesh(box.size,box.material)
+		if record.get("building_shape")=="roof_prism": geometry = preload("res://scripts/world3d/roof_mesh.gd").mesh(record,box.material)
+		var bind_began:=Time.get_ticks_usec() if timings!=null else 0
+		mesh_node.mesh=geometry
+		if timings!=null:timings.geometry_bind_ms=(Time.get_ticks_usec()-bind_began)/1000.
 	if record.has("terrain_grade") and (not record.has("channel_mesh") or record.has("fortification_art")) and cached==null and mesh_node.mesh!=null:mesh_node.mesh=preload("res://scripts/world3d/fortification_terrain.gd").deform(mesh_node.mesh,record.terrain_grade)
 	if mesh_node.mesh == null:
 		if record.get("building_shape") in ["timber_door","interior_door","interior_door_frame"]:mesh_node.set_meta("paint_error","木门模型或木纹资源缺失，无法烘焙")
 		mesh_node.mesh = box
 		mesh_node.set_meta("tile_error", "自动拼接套件无法读取")
+	if timings!=null:timings.geometry_total_ms=(Time.get_ticks_usec()-geometry_started)/1000.;profile_mark=Time.get_ticks_usec()
 	if record.has("tile3d"): mesh_node.scale = Vector3(float(size[0]), float(size[1]), float(size[2]))
 	var position: Array = record.get("position", [0, 0, 0])
 	mesh_node.position = Vector3(float(position[0]), float(position[1]), float(position[2]))

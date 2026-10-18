@@ -5,6 +5,7 @@ extends Node
 const Stream=preload("res://scripts/world3d/world_stream.gd")
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
+const EMPTY:Dictionary={}
 var grace_msec:=10000
 var profile:Dictionary={"retired_units":0,"retired_specs":0,"revisits":0,"last_wait":""}
 var _map:Node
@@ -37,50 +38,56 @@ func configure(host:Node,map_root:Node,queue:Node)->void:
 	observe(map_root.get_meta("stream_library",[]));queue.published.connect(observe)
 func observe(specs:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.native_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var unsafe_namespaces:Dictionary={}
-	for spec:Dictionary in specs:
-		if spec.get("native_visual",false):unsafe_namespaces[str(spec.uuid).get_slice("__",0)]=true
+	var unsafe_namespaces:Dictionary={};var candidates:Dictionary={}
 	for spec:Dictionary in specs:
 		var root_id:String=str(spec.uuid).get_slice("__",0)
-		if not _owners.has(root_id) and _model_entries.has(root_id) and not unsafe_namespaces.has(root_id) and spec.has("render_building"):
-			var unit_id:="asset:"+root_id;var entry:Dictionary=_model_entries[root_id]
-			_units[unit_id]={"entries":[entry],"bounds":entry.bounds,"kind":"building","source_uuid":root_id,"support_ids":{}};_owners[root_id]=unit_id
-			var ordinary:Node=_map.get_node_or_null("AssetResidency")
-			if ordinary!=null:ordinary.handoff_native(root_id)
-	# Resolve ownership before collecting any part, including light anchors that
-	# precede the first building member in the original imported node order.
-	var changed:Dictionary={};var support_groups:Dictionary={}
+		if spec.get("native_visual",false):unsafe_namespaces[root_id]=true
+		if not _owners.has(root_id) and _model_entries.has(root_id) and spec.has("render_building"):candidates[root_id]=true
+	for root_id:String in candidates:
+		if unsafe_namespaces.has(root_id):continue
+		var unit_id:="asset:"+root_id;var entry:Dictionary=_model_entries[root_id]
+		_units[unit_id]={"entries":[entry],"bounds":entry.bounds,"kind":"building","source_uuid":root_id,"support_ids":{}};_owners[root_id]=unit_id
+		var ordinary:Node=_map.get_node_or_null("AssetResidency")
+		if ordinary!=null:ordinary.handoff_native(root_id)
+	var changed:Dictionary={};var support_groups:Dictionary={};var observed:Dictionary={}
+	var last_unit:="";var definition:Dictionary={};var state:Dictionary={};var seen:Dictionary={};var bound_observations:=0
 	for spec:Dictionary in specs:
-		var uuid:String=spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0))
-		if not _owners.has(uuid):uuid=str(spec.uuid).get_slice("__",0)
+		var root_id:String=str(spec.uuid).get_slice("__",0)
+		var uuid:String=spec.get("ground_batch_record",EMPTY).get("uuid",root_id)
+		if not _owners.has(uuid):uuid=root_id
 		if not _owners.has(uuid):continue
 		var unit:String=_owners[uuid]
-		if _units[unit].kind=="building":
-			# Runtime adapters index a hinge's full sweep. Preserve this wider
-			# scalar envelope for reload demand without changing the immutable
-			# reference/proof bounds handed back to the geometry worker.
-			var render:Dictionary=spec.get("render_bounds",spec)
-			var low:Vector2i=render.chunk_min;var high:Vector2i=render.chunk_max
-			var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
-			_units[unit].bounds=_units[unit].bounds.merge(bounds)
-			if not _units[unit].has("support_ids"):_units[unit].support_ids={}
-			changed[unit]=true
-			var group:String=spec.get("render_building","")
+		if unit!=last_unit:
+			last_unit=unit;definition=_units[unit]
+			if not observed.has(unit):observed[unit]={}
+			seen=observed[unit]
+			if not _resident.has(unit):
+				_resident[unit]={"ids":[],"known_ids":{},"outside_since":-1}
+				if _retired.erase(unit):profile.revisits+=1
+			state=_resident[unit]
+			if not state.has("known_ids"):
+				state.known_ids={}
+				for id:String in state.ids:state.known_ids[id]=true
+		if definition.kind=="building":
+			var render:Dictionary=spec.get("render_bounds",spec);var group:String=spec.get("render_building","")
+			# A group name alone is not proof: keep distinct mutable bounds owners
+			# conservative even if external data contains a repeated group label.
+			if group.is_empty() or not seen.has(group) or not is_same(seen[group],render):
+				var low:Vector2i=render.chunk_min;var high:Vector2i=render.chunk_max
+				var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
+				definition.bounds=definition.bounds.merge(bounds);changed[unit]=true;bound_observations+=1
+				if not group.is_empty():seen[group]=render
+			if not definition.has("support_ids"):definition.support_ids={}
 			if not group.is_empty() and not support_groups.has(group):
 				support_groups[group]=true
 				for support:Dictionary in spec.get("render_supports",[]):
-					var id:String=support.get("ground_batch_record",{}).get("uuid",str(support.uuid).get_slice("__",0))
-					_units[unit].support_ids[id]=true
-		if not _resident.has(unit):
-			_resident[unit]={"ids":[],"known_ids":{},"outside_since":-1}
-			if _retired.erase(unit):profile.revisits+=1
-		if not _resident[unit].has("known_ids"):
-			_resident[unit].known_ids={}
-			for id:String in _resident[unit].ids:_resident[unit].known_ids[id]=true
-		if not _resident[unit].known_ids.has(spec.uuid):_resident[unit].ids.append(spec.uuid);_resident[unit].known_ids[spec.uuid]=true
+					var id:String=support.get("ground_batch_record",EMPTY).get("uuid",str(support.uuid).get_slice("__",0))
+					definition.support_ids[id]=true
+		if not state.known_ids.has(spec.uuid):state.ids.append(spec.uuid);state.known_ids[spec.uuid]=true
 	for unit:String in changed:
 		for entry:Dictionary in _units[unit].entries:_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
 	profile.resident_units=_resident.size();profile.known_units=_units.size()
+	profile.observed_bounds=int(profile.get("observed_bounds",0))+bound_observations
 func _process(delta:float)->void:
 	_clock+=delta
 	if _clock<.25:return

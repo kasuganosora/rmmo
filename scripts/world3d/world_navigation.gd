@@ -1,6 +1,7 @@
 extends Node
 const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
+const EMPTY_APPEND_RECORD:Dictionary={}
 var covered_loading:=false
 var publication_guard:Callable=Callable() # Optional map/transaction lifetime validator.
 var preparation_timeout_msec:=180000
@@ -287,26 +288,28 @@ func _complete_initial_geometry()->bool:
 	return true
 
 func append_specs(additions:Array)->Dictionary:
-	# Main-thread, append-only loading contract. Do not mutate the caller's
-	# stream_library array or replace existing spec dictionaries/door references.
 	if not streaming_geometry and (not geometry_pending or fully_ready):return {"ok":false,"reason":"geometry_not_pending","added":0}
 	if not map.is_valid():return {"ok":false,"reason":"navigation_not_built","added":0}
-	var ids:Dictionary={}
-	for value in additions:
+	var ids:Dictionary={};var doors:Array=[]
+	var bounds_after:=_bounds;var has_bounds_after:=_has_bounds
+	for value:Variant in additions:
 		if not value is Dictionary or not value.get("uuid") is String or value.uuid.is_empty() or not value.get("mesh") is Mesh or not value.get("transform") is Transform3D or not value.transform.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
-		var extra:Variant=value.get("extras",{})
-		if not extra is Dictionary or not extra.get("fixture",{}) is Dictionary:return {"ok":false,"reason":"invalid_spec","added":0}
+		var extra:Variant=value.get("extras",EMPTY_APPEND_RECORD)
+		if not extra is Dictionary or not extra.get("fixture",EMPTY_APPEND_RECORD) is Dictionary:return {"ok":false,"reason":"invalid_spec","added":0}
+		var shape:Variant=value.get("shape");var collision:Variant=value.get("collision_mesh")
+		if shape!=null and not shape is Shape3D:return {"ok":false,"reason":"invalid_spec","added":0}
+		if collision!=null and not collision is Mesh:return {"ok":false,"reason":"invalid_spec","added":0}
 		var bounds:AABB=value.transform*value.mesh.get_aabb()
 		if not bounds.position.is_finite() or not bounds.size.is_finite():return {"ok":false,"reason":"invalid_spec","added":0}
 		if ids.has(value.uuid) or _spec_ids.has(value.uuid):return {"ok":false,"reason":"duplicate_uuid","added":0}
 		ids[value.uuid]=true
-	for spec:Dictionary in additions:
-		_specs.append(spec);_spec_ids[spec.uuid]=true
-		_remember_source_geometry(spec)
-		if spec.get("extras",{}).get("fixture",{}).get("kind")=="door" and spec.extras.get("rmmo_collision","")!="none":_doors.append(spec)
-		if _collides(spec):
-			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
-			_bounds=_bounds.merge(bounds) if _has_bounds else bounds;_has_bounds=true
+		if extra.get("fixture",EMPTY_APPEND_RECORD).get("kind")=="door" and extra.get("rmmo_collision","")!="none":doors.append(value)
+		if _collides(value):bounds_after=bounds_after.merge(bounds) if has_bounds_after else bounds;has_bounds_after=true
+	# All source checks finished. Reuse those exact bounds and keep the source
+	# geometry-user lifecycle operation unchanged, including any old aliases.
+	_specs.append_array(additions);_spec_ids.merge(ids,true);_doors.append_array(doors)
+	for spec:Dictionary in additions:_remember_source_geometry(spec)
+	_bounds=bounds_after;_has_bounds=has_bounds_after
 	loading_profile.appended_specs=int(loading_profile.get("appended_specs",0))+additions.size()
 	if is_instance_valid(_resize_replacement):
 		var forwarded:Dictionary=_resize_replacement.append_specs(additions)

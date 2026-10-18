@@ -531,11 +531,14 @@ func _prepare_record_assets_inner()->void:
 	Trace.elapsed("game.mesh_cache_wait",cache_started)
 	_profile.mesh_cache_candidate=not _mesh_cache_data.is_empty()
 	var terrain_snapshot:Variant=_mesh_cache_data.get("terrain_context")
+	var channel_keys:Dictionary=preload("res://scripts/world3d/channel_mesh_preparation.gd").cached_keys(_mesh_cache_data)
 	_terrain_thread=Thread.new()
 	var prepare_terrain:=func(build_geometry:bool,snapshot:Variant):
 		var began:=Trace.begin("game.terrain_prepare")
 		var cached=preload("res://scripts/world3d/terrain_context_cache.gd").restore(snapshot,_record_meta.rmmo_records)
-		if cached!=null:return {"context":cached,"surfaces":{},"elapsed":Time.get_ticks_usec()-began,"cache_hit":true}
+		if cached!=null:
+			var channels:Dictionary=preload("res://scripts/world3d/channel_mesh_preparation.gd").prepare(_record_meta.rmmo_records,cached,channel_keys)
+			return {"context":cached,"surfaces":channels,"elapsed":Time.get_ticks_usec()-began,"cache_hit":true}
 		var mask_buckets:Array=[[],[],[],[]];var mask_workers:Array[Thread]=[];var masks:Dictionary={};var mask_at:=0
 		for record:Dictionary in _record_meta.rmmo_records:
 			if record.has("terrain_regions"):mask_buckets[mask_at%4].append(record);mask_at+=1
@@ -554,7 +557,8 @@ func _prepare_record_assets_inner()->void:
 		# Coverage masks are CPU images; build them off the scene thread too.
 		var buckets:Array=[[],[],[],[]];var at:=0;var workers:Array[Thread]=[]
 		for record:Dictionary in _record_meta.rmmo_records:
-			if build_geometry and (record.has("terrain_volume") or record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank")):
+			var channel_pending:bool=preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record) and not preload("res://scripts/world3d/channel_mesh_preparation.gd").cached(record,context,channel_keys)
+			if channel_pending or (build_geometry and (record.has("terrain_volume") or record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"))):
 				buckets[at%4].append({"record":record,"image":null,"surfaces":[]});at+=1
 		for bucket:Array in buckets:
 			if bucket.is_empty():continue
@@ -563,7 +567,9 @@ func _prepare_record_assets_inner()->void:
 				var worker_started:=Time.get_ticks_usec()
 				for entry:Dictionary in bucket:
 					var record:Dictionary=entry.record
-					if build_geometry:
+					if preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record):
+						entry.surfaces=preload("res://scripts/world3d/channel_surface.gd").arrays(record)
+					elif build_geometry:
 						if record.has("terrain_volume"):entry.surfaces=preload("res://scripts/world3d/terrain_volume.gd").arrays(record)
 						elif record.has("terrain_mesh"):entry.surfaces=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,context.data.get(record.uuid,{}))
 						elif record.has("road_mesh"):entry.surfaces=preload("res://scripts/world3d/road_surface.gd").arrays(record)
@@ -656,6 +662,7 @@ func _prepare_record_assets_inner()->void:
 		# terrain task before discarding output and rebuilding; never race captured
 		# flags or fall back to main-thread geometry generation.
 		if _terrain_thread!=null:_terrain_thread.wait_to_finish()
+		channel_keys.clear()
 		_terrain_context=null;_surface_arrays.clear();_profile.terrain_identity_restarts=1
 		_terrain_thread=Thread.new()
 		var fresh_terrain:=prepare_terrain.bind(true,null)
@@ -1080,7 +1087,7 @@ func _build_records() -> void:
 	var records:Array=[];var landscape:Array=[]
 	for record:Dictionary in _record_meta.rmmo_records:
 		if _deferred_ids.has(record.uuid):continue
-		if record.has("terrain_volume") or record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank"):landscape.append(record)
+		if record.has("terrain_volume") or record.has("terrain_mesh") or record.has("road_mesh") or record.has("rock_bank") or record.has("channel_mesh"):landscape.append(record)
 		else:records.append(record)
 	var terrain_pending:bool=entry_pipeline_enabled and _terrain_thread!=null and _terrain_thread.is_alive()
 	_profile.terrain_ready_prefix_records=records.size() if terrain_pending else 0
@@ -1124,7 +1131,7 @@ func _build_records() -> void:
 	while cursor < records.size():
 		var start := Time.get_ticks_usec()
 		while cursor < records.size() and Time.get_ticks_usec() - start < (2000 if background_preload else 24000):
-			if _terrain_thread!=null and (records[cursor].has("terrain_volume") or records[cursor].has("terrain_mesh") or records[cursor].has("road_mesh") or records[cursor].has("rock_bank")):
+			if _terrain_thread!=null and (records[cursor].has("terrain_volume") or records[cursor].has("terrain_mesh") or records[cursor].has("road_mesh") or records[cursor].has("rock_bank") or records[cursor].has("channel_mesh")):
 				progress.emit("准备地形数据（后台）",cursor,records.size())
 				await _finish_terrain()
 				if _cancelled:root.free();_prepared=null;await _retire();return
@@ -1216,6 +1223,7 @@ func _build_records() -> void:
 				var visual: MeshInstance3D = doc._mesh(records[cursor],true,mesh_parts)
 				var mesh_elapsed:=Time.get_ticks_usec()-mesh_started
 				if Trace.enabled:Trace.elapsed("game.mesh",mesh_started,{"uuid":records[cursor].uuid,"prefab":records[cursor].has("house_prefab"),"terrain":records[cursor].has("terrain_mesh"),"parts_ms":mesh_parts})
+				if Trace.enabled and records[cursor].has("channel_mesh"):Trace.elapsed("game.channel_mesh:"+str(records[cursor].uuid),mesh_started)
 				var category:String="prefab" if records[cursor].has("house_prefab") else ("terrain" if records[cursor].has("terrain_mesh") else ("road" if records[cursor].has("road_mesh") else "other"))
 				_profile.mesh_categories[category]=int(_profile.mesh_categories.get(category,0))+mesh_elapsed
 				_profile.mesh_us+=mesh_elapsed

@@ -4,6 +4,7 @@ extends Node
 ## Buildings, terrain, interactions and painted resources stay pinned for now.
 const Stream=preload("res://scripts/world3d/world_stream.gd")
 const Assets=preload("res://scripts/world_editor/asset_library.gd")
+const EMPTY_RECORD:Dictionary={}
 var grace_msec:=10000
 var exit_margin:=64.0
 var profile:Dictionary={"retired_instances":0,"retired_specs":0,"evicted_models":0,"revisits":0}
@@ -41,9 +42,16 @@ func configure(host:Node,map_root:Node,deferred:Node)->void:
 func observe(specs:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for spec:Dictionary in specs:
-		var uuid:String=str(spec.get("ground_batch_record",{}).get("uuid",str(spec.uuid).get_slice("__",0)))
-		var path:String=_record_paths.get(uuid,_record_paths.get(str(spec.uuid).get_slice("__",0),spec.get("ground_batch_record",{}).get("asset_path",spec.get("extras",{}).get("asset_path",""))))
 		var root_id:String=str(spec.uuid).get_slice("__",0)
+		var source_record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
+		var uuid:String=str(source_record.get("uuid",root_id))
+		# Dictionary.get evaluates its fallback even on a hit. Most model parts
+		# already have a directory path; avoid rebuilding their whole fallback
+		# chain and temporary record dictionaries on every component.
+		var path:String
+		if _record_paths.has(uuid):path=_record_paths[uuid]
+		elif _record_paths.has(root_id):path=_record_paths[root_id]
+		else:path=source_record.get("asset_path",spec.get("extras",EMPTY_RECORD).get("asset_path",""))
 		# Some conservative directory rows have no model-path classification.
 		# Publication hands off the hydrated record before emitting this signal.
 		if path.is_empty() and is_instance_valid(_deferred):
@@ -60,7 +68,7 @@ func observe(specs:Array)->void:
 			_namespace_specs[uuid][spec.uuid]=true
 			if not _model_namespaces.has(path):_model_namespaces[path]={}
 			_model_namespaces[path][uuid]=true
-		elif path.is_empty() and not _procedural_assets.has(uuid) and not _procedural_assets.has(root_id) and spec.get("ground_batch_record",{}).get("kind","")=="asset":_unknown_asset_specs[spec.uuid]=true
+		elif path.is_empty() and not _procedural_assets.has(uuid) and not _procedural_assets.has(root_id) and source_record.get("kind","")=="asset":_unknown_asset_specs[spec.uuid]=true
 		if not _catalog.has(uuid):uuid=root_id
 		if _native_namespaces.has(uuid) or not _catalog.has(uuid):continue
 		if not _resident.has(uuid):
