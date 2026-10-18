@@ -7,6 +7,7 @@ const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
 const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
 static var legacy_owned_rebuild_enabled:=false
 static var reuse_owned_retirement_plan_enabled:=true
+static var retirement_schema_workers:=4 # Pure reads, joined within the atomic transaction; 0 selects serial control.
 static func build(library:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={}
@@ -251,6 +252,37 @@ static func validate_owned_retire(existing:Dictionary,library:Array,ids:Array)->
 	# authorization. The richer plan stays inside a synchronous transaction.
 	return {"ok":true,"error":"","removed":plan.removed}
 
+static func _retirement_schema_slice(library:Array,by_id:Dictionary,wanted:Dictionary,first:int,last:int)->Dictionary:
+	var began:=Time.get_ticks_usec();var seen:Dictionary={};var counts:Dictionary={};var ok:=true
+	for at:int in range(first,last):
+		var value:Variant=library[at]
+		if not _valid_append_spec(value) or not is_same(by_id.get(value.uuid),value):ok=false;break
+		seen[value.uuid]=true
+		var prefix:String=value.uuid.get_slice("__",0)
+		if wanted.has(prefix):counts[prefix]=int(counts.get(prefix,0))+1
+	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.retirement_schema_slice",began,{"specs":last-first,"ok":ok})
+	return {"ok":ok,"seen":seen,"namespace_sizes":counts}
+
+static func _retirement_library_schema(library:Array,by_id:Dictionary,wanted:Dictionary)->Dictionary:
+	# Main holds the same synchronous transaction throughout. Other main-thread
+	# writers/fixtures cannot run, and workers read only dictionaries/type tags:
+	# no scene, Mesh getters, renderer queries, callbacks or resource mutations.
+	var limit:=mini(4,mini(retirement_schema_workers,OS.get_processor_count())) if library.size()>=1024 else 0
+	if limit<=1:return _retirement_schema_slice(library,by_id,wanted,0,library.size())
+	var jobs:Array=[];var width:=ceili(float(library.size())/limit)
+	for first:int in range(0,library.size(),width):
+		var task:=_retirement_schema_slice.bind(library,by_id,wanted,first,mini(first+width,library.size()))
+		var worker:=Thread.new()
+		if worker.start(task)==OK:jobs.append({"thread":worker})
+		else:jobs.append({"result":task.call()})
+	var result:Dictionary={"ok":true,"seen":{},"namespace_sizes":{}}
+	# Always join every started reader, including when another slice failed.
+	for job:Dictionary in jobs:
+		var part:Dictionary=job.thread.wait_to_finish() if job.has("thread") else job.result
+		result.ok=result.ok and part.ok;result.seen.merge(part.seen,true)
+		for prefix:String in part.namespace_sizes:result.namespace_sizes[prefix]=int(result.namespace_sizes.get(prefix,0))+int(part.namespace_sizes[prefix])
+	return result
+
 static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepare_commit:bool=true)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.validate_owned_retire") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var selected:Dictionary={};var prefixes:Dictionary={}
@@ -261,12 +293,13 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 		if not state.get(key) is Dictionary:return _retire_failure("invalid append bookkeeping: "+key)
 	if not existing.get("stream_landscape") is Array:return _retire_failure("invalid landscape catalogue")
 	if library.size()!=existing.get("stream_by_id",{}).size() or library.size()!=int(existing.get("stream_building_count",-1)):return _retire_failure("library/index size mismatch")
-	var seen:Dictionary={};var namespace_sizes:Dictionary={};var by_id:Dictionary=existing.stream_by_id
-	for spec:Dictionary in library:
-		if seen.has(spec.get("uuid")) or not _valid_append_spec(spec) or not is_same(by_id.get(spec.uuid),spec):return _retire_failure("library/index identity mismatch")
-		seen[spec.uuid]=true
-		var prefix:String=str(spec.uuid).get_slice("__",0)
-		namespace_sizes[prefix]=int(namespace_sizes.get(prefix,0))+1
+	var by_id:Dictionary=existing.stream_by_id;var wanted:Dictionary={};var requested_prefixes:Dictionary={}
+	for id:Variant in ids:
+		if id is String:
+			var prefix:String=id.get_slice("__",0);wanted[prefix]=true;requested_prefixes[id]=prefix
+	var proof:=_retirement_library_schema(library,by_id,wanted)
+	if not proof.ok or proof.seen.size()!=library.size():return _retire_failure("library/index identity mismatch")
+	var namespace_sizes:Dictionary=proof.namespace_sizes
 	var checked_cells:Dictionary={};var checked_ground_cells:Dictionary={}
 	var ground_ids:Dictionary={};var fixtures:Dictionary={};var groups:Dictionary={};var removed:Array=[]
 	for id:Variant in ids:
@@ -300,7 +333,7 @@ static func _owned_retire_plan(existing:Dictionary,library:Array,ids:Array,prepa
 			if state.ground_order.has(id):ground_ids[id]=true
 			var fixture:=_fixture_key(spec)
 			if not fixture.is_empty():fixtures[fixture]=true
-		var prefix:String=id.get_slice("__",0);prefixes[prefix]=int(prefixes.get(prefix,0))+1
+		var prefix:String=requested_prefixes[id];prefixes[prefix]=int(prefixes.get(prefix,0))+1
 	for prefix:String in prefixes:
 		if prefixes[prefix]!=namespace_sizes[prefix]:return _retire_failure("split namespace")
 	var checked_group_cells:Dictionary={}

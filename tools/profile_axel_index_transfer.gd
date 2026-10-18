@@ -25,16 +25,19 @@ func benchmark()->void:
 		else:surroundings.append(spec)
 	check(source.size()==2151,"fixed input is the actual 2151-part axel building")
 	if source.size()!=2151:return
-	report.index_transfer_benchmark={"specs":source.size(),"surroundings":surroundings.size(),"note":"same loaded immutable mesh owners; ABBA order; preparation and fresh baseline build excluded from atomic append timing","trials":[]}
+	var schema_only:bool="--schema-only" in OS.get_cmdline_user_args()
+	report.index_transfer_benchmark={"specs":source.size(),"surroundings":surroundings.size(),"schema_only":schema_only,"note":"same loaded immutable mesh owners; ABBA order; preparation and fresh baseline build excluded from atomic append timing; schema-only keeps owned projection and retirement-plan reuse enabled for both arms","trials":[]}
 	for turn:int in 16:
 		var owned:bool=turn%4 in [1,2]
+		var schema_workers:int=4 if owned else 0
+		if schema_only:owned=true
 		var data:=Index.build(projection(surroundings));var incoming:=projection(source)
 		var cursor:=Preparation.new()
 		if owned:cursor.begin_owned(incoming)
 		else:cursor.begin(incoming)
 		while not cursor.advance(2000):await process_frame
 		var started:=Time.get_ticks_usec();var appended:=Index.append(data,incoming,cursor);var elapsed:=Time.get_ticks_usec()-started
-		var row:Dictionary={"owned":owned,"append_us":elapsed}
+		var row:Dictionary={"owned":owned,"append_us":elapsed,"schema_workers":schema_workers if schema_only else Index.retirement_schema_workers}
 		report.index_transfer_benchmark.trials.append(row)
 		check(appended.ok,"fixed input transfer succeeds: %d"%turn)
 		cursor.dispose()
@@ -45,8 +48,10 @@ func benchmark()->void:
 		var library:Array=data.stream_by_id.values();var ids:Array=[]
 		for spec:Dictionary in incoming:ids.append(spec.uuid)
 		Index.reuse_owned_retirement_plan_enabled=owned
+		if schema_only:Index.retirement_schema_workers=schema_workers
 		started=Time.get_ticks_usec();var retired:=Index.retire_owned(data,library,ids);row.retire_us=Time.get_ticks_usec()-started
 		Index.reuse_owned_retirement_plan_enabled=true
+		Index.retirement_schema_workers=4
 		check(retired.ok and retired.removed==2151 and library.size()==surroundings.size(),"fixed input complete retirement succeeds: %d"%turn)
 		if turn<2:
 			var rebuilt:=Index.build(projection(library))

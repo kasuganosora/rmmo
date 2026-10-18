@@ -347,3 +347,17 @@ white_lod_renderer_control 首次遇到 generator 改动后的冷派生目录，
 用户提醒后于 2026-10-18 13:36 更新远端引用至 c333a6466009d910957b2b05d8fc58ad2f81741f 并只读核对代码。b9f5a1e 新增 terrain_render_lod 的远距离地形索引 LOD 与运行时距离开关；更早 d1121df 已有桥梁/城防生成时的 ImporterMesh CPU 快照与 LOD 保留、建筑 HLOD 退休，本分支已基于该版本。上述专用生成器走 Cpu.remember，不覆盖普通 raw GLTF 的 capture 路径；最新 main 的 ground_cpu_mesh.capture_lods 仍完整 mesh_get_surface，新增两次提交未改 map_loader/deferred_asset_loader/gltf_map_io/ground_cpu_mesh。本轮优化与这些修复互补。尚未合并 main 的新地形、阶段加载或风场改动，白模门槛通过后再进行累计合并复测。
 
 引擎依据：[当前版本 ImporterMesh 缓存与 LOD 传入](https://github.com/godotengine/godot/blob/ed1daf0bf/scene/resources/3d/importer_mesh.cpp)、[内建 GLTF 转换复用该缓存](https://github.com/godotengine/godot/blob/ed1daf0bf/modules/gltf/extensions/gltf_document_extension_convert_importer_mesh.cpp)、[完整 renderer 表面读回](https://github.com/godotengine/godot/blob/ed1daf0bf/servers/rendering/renderer_rd/storage_rd/mesh_storage.cpp)。
+
+## 同步事务内并行读取完整退休 schema
+
+white_render_separate_diagnostic 在相同 488a88c 源码、实际暖目录、相同短出生点路线下仅使用进程参数 --render-thread separate，进入耗时 33.266 秒；主线程网格捕获执行 12.634 秒、墙钟 14.360 秒、668 个切片，初始最长帧 442.437 ms。相较默认模式，频繁查询跨渲染线程同步明显更慢；未修改项目设置或采用此模式。该负面结果不能说明所有等待都不存在，之前主线程发布长帧的 CPU 采样结论仍然成立。
+
+完整退休仍需检查全部驻留 library，不能仅检查将移除的成员。现在 library 至少 1,024 项时，最多四个临时线程读取相同 library/by_id、类型标签和元数据；主线程始终持有同一同步事务、等待所有读者结束后才执行后续碰撞/导航交接和提交。工作线程不访问场景树、Mesh getter、渲染/物理服务器，也不修改任何共享容器或 Resource。失败也必须全部 join；线程启动失败在当前线程补做该分区。分区 UUID 集合合并后仍校验完整总数，跨分区重复和不同字典身份不能通过。仅存储本次请求的 namespace 计数，所有未选中的来源仍逐项验证。
+
+新增 22 项检查通过，覆盖完整/不完整 namespace、重复/不存在/空请求、真实独立线程、存活来源五种字段损坏、跨分区重复、同 UUID 的不同字典、非字典成员和退出后弱资源释放。既有 owned 退休计划 36、增量退休 48、保护检查 42、共享帧额度 9 项通过。新测试首轮变量推断报解析错误，修正显式类型后完整运行；不能把 Godot 的退出码 0 单独视为测试通过。
+
+white_parallel_schema_abba 使用实际 2,151 部件与 322 个周边 spec，16 次 ABBA；两侧都启用相同 owned projection 和退休计划复用，仅切换 0/4 个 schema 工作线程。完整退休事务平均 67.474→62.681 ms，中位数 67.658→62.892 ms，范围 56.132–75.391 / 50.574–73.610 ms。索引与全量重建一致、源码/地图 SHA 稳定、退出所有权归零，失败和引擎错误零。约 4.8 ms 是本次实际输入的局部墙钟收益，未据此声称解决整个卸载长帧或降低总 CPU 工作量。
+
+并发只读容器和共享引用的引擎约束见 [Godot 线程安全 API](https://docs.godotengine.org/en/stable/tutorials/performance/thread_safe_apis.html)。
+
+white_full_route_parallel_schema 完整累计路线：暖目录进入 19.709 秒，294 次区块切换，观察移除 4,558 个 spec、重载 3,972 个原 UUID、6,008 个唯一 spec；最大 2,151 部件整组卸载、返回补齐、3,824 个实际 GPU surface 全白、正式地图/计时源码 SHA 稳定及退出所有权全部通过，失败/引擎错误/trace 丢弃零。远处卸载/重载最长帧 148.554/195.258 ms，完整退休校验最长 64.917 ms、提交 11.902 ms、整个退休范围 133.474 ms；公会发布仍 157.068 ms。初始加载最长 419.196 ms。额外需求收敛 22.283/46.368 秒，15 秒停留前后记录 2,430/1,944 帧，仅代表隔离白模环境。总量和调度有波动，前一完整路线的 177.464/226.624 ms 不能作为单变量、多轮配对统计；约 4.8 ms 的局部收益以固定实际输入 ABBA 为依据，100+ ms 长帧继续保留为未解决项。
