@@ -1,6 +1,6 @@
 extends RefCounted
-## Internal, process-local proof issued only after Index.read validates a fresh
-## directory. This is a boundary against untrusted serialized data, not against
+## Internal, process-local proof issued only after Index read/build validates a
+## privately owned directory. This bounds untrusted serialized data, not
 ## hostile GDScript: project code is trusted and '_' is a naming convention.
 ## Never serialize this object or put it inside the index it owns (a ref cycle).
 const MAX_DEPTH := 64

@@ -8,6 +8,7 @@ signal progress(stage: String, done: int, total: int)
 static var initial_model_workers_override:=0 # Benchmark only; zero uses production policy.
 static var entry_pipeline_enabled:=true # Benchmark control; production overlaps private preparation.
 static var cold_index_rebuild_enabled:=true # Probe control; recover near-first on the same cold visit.
+static var cold_index_handoff_enabled:=true # Probe compares the former disk roundtrip.
 static var initial_cpu_capture_enabled:=true # Probe retains monolithic stream adoption.
 static var initial_static_specs_enabled:=true # Probe keeps the legacy on-tree adoption.
 static var startup_render_context_enabled:=true # Probe isolates late renderer initialization.
@@ -259,7 +260,10 @@ func _parse_inner() -> void:
 		_profile.reference_index_rebuilt_before_models=false
 		if near_first and _dependency_index.is_empty() and cold_index_rebuild_enabled:
 			if entry_pipeline_enabled and not background_preload:
+				var hint_started:=Time.get_ticks_usec()
 				var cold_hints:Array=_cold_model_hints(extra.rmmo_records)
+				_profile.cold_model_hints_us=Time.get_ticks_usec()-hint_started
+				Trace.elapsed("game.cold_model_hints",hint_started)
 				if not cold_hints.is_empty():
 					_profile.initial_models_prefetched=_early_models.start(cold_hints,_model_preparation,_initial_model_workers(),_content_root)
 					if _profile.initial_models_prefetched:
@@ -355,14 +359,19 @@ func _cold_model_hints(records:Array)->Array:
 	if plan.is_empty():return []
 	var manifests:Dictionary={};var paths:Dictionary={}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
+	var batch_paths:bool=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
 	for record:Dictionary in records:
 		if record.get("kind")!="asset" or record.has("house_prefab"):continue
 		var path:String=record.get("asset_path","")
-		if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):return []
+		if not batch_paths or not manifests.has(path):
+			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):return []
 		if not manifests.has(path):manifests[path]=Manifest.read(path)
 		var placed:Dictionary=Manifest.apply_record(manifests[path],record)
 		if not placed.get("known",false):return []
 		if plan.core_clip.intersects(placed.world_bounds):paths[path]=true
+	if batch_paths:
+		for path:String in manifests:
+			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):return []
 	return paths.keys()
 
 ## Build/read are CPU-only and issue the same immutable ownership proof as the
@@ -374,14 +383,15 @@ func _rebuild_initial_reference_selection(full:Dictionary,paint_ids:Array)->Dict
 	if plan.is_empty():return {"ok":false,"reason":"invalid_entry_plan"}
 	if _cancelled:return {"ok":false,"reason":"cancelled"}
 	var build_started:=Time.get_ticks_usec()
-	var built:Dictionary=Index.build(_path,_content_root,full.rmmo_records,_source_digest)
+	var built:Dictionary=Index.build_for_loading(_path,_content_root,full.rmmo_records,_source_digest) if cold_index_handoff_enabled else Index.build(_path,_content_root,full.rmmo_records,_source_digest)
 	_profile.reference_index_rebuild_build_us=Time.get_ticks_usec()-build_started
 	if not built.ok:return {"ok":false,"reason":"build:"+str(built.get("reason","unknown"))}
-	built.clear() # The disk reader below owns the only directory eligible for proof.
+	if not cold_index_handoff_enabled:built.clear()
 	if _cancelled:return {"ok":false,"reason":"cancelled"}
 	var read_started:=Time.get_ticks_usec()
-	var directory:Dictionary=Index.read_for_loading(_path,_content_root,_source_digest)
+	var directory:Dictionary=built if cold_index_handoff_enabled else Index.read_for_loading(_path,_content_root,_source_digest)
 	_profile.reference_index_rebuild_read_us=Time.get_ticks_usec()-read_started
+	_profile.reference_index_rebuild_direct_handoff=cold_index_handoff_enabled
 	if not directory.ok:return {"ok":false,"reason":"read:"+str(directory.get("reason","unknown"))}
 	var candidate:Dictionary=directory.index
 	var selection:Dictionary=Index.select(candidate,[plan.core_clip])

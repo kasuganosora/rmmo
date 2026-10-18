@@ -209,6 +209,10 @@ func run()->void:
 		elif arg=="--mesh-cancel-during-capture":cancel_during_capture=true
 		elif arg=="--without-collision-prefetch":preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled=false
 		elif arg=="--cold-index":cold_index=true
+		elif arg=="--cold-index-disk-roundtrip":preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled=false
+		elif arg=="--legacy-road-schema":preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled=false
+		elif arg=="--unbatched-index-paths":preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching=false
+		elif arg=="--recursive-resource-scalars":preload("res://scripts/world3d/map_resource_store.gd").inline_numeric_safety_enabled=false
 		elif arg.begins_with("--mesh-cancel-after-stream-frames="):cancel_stream_frames=arg.trim_prefix("--mesh-cancel-after-stream-frames=").to_int()
 		elif arg=="--main-thread-model-scenes":preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled=false
 		elif arg=="--main-thread-initial-capture":preload("res://scripts/world3d/map_loader.gd").initial_cpu_capture_enabled=false
@@ -238,6 +242,10 @@ func run()->void:
 	report.map=MAP;report.map_sha=FileAccess.get_sha256(MAP);report.engine=Engine.get_version_info();report.pid=OS.get_process_id()
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
 	report.controls.worker_model_scenes=preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled
+	report.controls.cold_index_handoff=preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled
+	report.controls.boolean_road_schema=preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled
+	report.controls.classification_path_batching=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
+	report.controls.inline_numeric_safety=preload("res://scripts/world3d/map_resource_store.gd").inline_numeric_safety_enabled
 	report.controls.sliced_initial_capture=preload("res://scripts/world3d/map_loader.gd").initial_cpu_capture_enabled
 	report.controls.private_static_specs=preload("res://scripts/world3d/map_loader.gd").initial_static_specs_enabled
 	report.controls.white_material=white_material

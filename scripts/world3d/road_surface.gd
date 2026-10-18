@@ -2,6 +2,9 @@ extends RefCounted
 ## Disjoint convex patches in a fixed 32 m cell; holes are absence of patches.
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
 const S=preload("res://scripts/world3d/document_schema.gd")
+static var boolean_schema_enabled:=true # Diagnostic legacy comparison; same schema contract.
+static func _schema_valid(value:Variant,schema:Dictionary)->bool:
+	return S.matches(value,schema) if boolean_schema_enabled else S.validate(value,schema).is_empty()
 
 static func valid(record: Dictionary) -> bool:
 	if not record.has("road_mesh"): return not record.has("road_source") and not record.has("road_clearance")
@@ -9,7 +12,7 @@ static func valid(record: Dictionary) -> bool:
 	schema.properties.elevations={"type":"array","minItems":1,"maxItems":512,"items":{"type":"array","minItems":3,"maxItems":40,"items":S.number(-10000,10000)}}
 	schema.properties.kerbs=preload("res://scripts/world3d/road_kerb.gd").schema()
 	schema.properties.grade={"type":"array","minItems":2,"maxItems":2,"items":S.number(-.15,.15)}
-	if not S.validate(record.road_mesh,schema).is_empty() or record.get("kind")!="box": return false
+	if not _schema_valid(record.road_mesh,schema) or record.get("kind")!="box": return false
 	if record.road_mesh.has("grade") and Vector2(record.road_mesh.grade[0],record.road_mesh.grade[1]).length()>.150001: return false
 	if record.road_mesh.has("elevations"):
 		if record.road_mesh.elevations.size()!=record.road_mesh.polygons.size() or record.road_mesh.has("grade"):return false
@@ -18,10 +21,10 @@ static func valid(record: Dictionary) -> bool:
 	if record.has("terrain_follow"):
 		var W=preload("res://scripts/world3d/waterway_data.gd")
 		var binding:=W.obj({"version":S.number(1,1,true),"terrain_ids":W.arr(W.text(128),256,1),"polygons":schema.properties.polygons,"offset":S.number(-20,20),"max_grade":S.number(.001,2),"kerbs":schema.properties.kerbs},["version","terrain_ids","polygons","offset","max_grade"])
-		if not S.validate(record.terrain_follow,binding).is_empty():return false
+		if not _schema_valid(record.terrain_follow,binding):return false
 	if record.has("building") or record.has("tile3d") or record.has("building_shape"): return false
-	if not S.validate(record.get("size"),S.vector(.001,100000)).is_empty(): return false
-	if not S.validate(record.get("road_clearance",3.0),S.number(2.5,10)).is_empty(): return false
+	if not _schema_valid(record.get("size"),S.vector(.001,100000)): return false
+	if not _schema_valid(record.get("road_clearance",3.0),S.number(2.5,10)): return false
 	if record.has("road_source") and (not record.road_source is String or not record.road_source.is_valid_identifier()): return false
 	for raw in record.road_mesh.polygons:
 		var p: Array=[]

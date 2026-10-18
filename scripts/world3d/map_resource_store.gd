@@ -11,6 +11,7 @@ const CACHE_BYTES=32*1024*1024
 const IDENTITY_CACHE_ENTRIES=16384
 const READ_WORKERS=4
 const DEFINITION_CACHE_MAX_BYTES=32*1024*1024
+static var inline_numeric_safety_enabled:=true # Diagnostic legacy traversal control.
 
 class ReadQueue extends RefCounted:
 	# Requests are immutable after construction. Only queue bookkeeping is shared;
@@ -252,7 +253,13 @@ static func _safe(value:Variant,ancestors:Array,budget:Array)->bool:
 					if not (key is String or key is StringName) or not _safe(key,ancestors,budget) or not _safe(value[key],ancestors,budget):ancestors.pop_back();return false
 			else:
 				for item in value:
-					if not _safe(item,ancestors,budget):ancestors.pop_back();return false
+					# Large numeric geometry arrays need no recursive VM call per
+					# component. Count every value and retain the original depth,
+					# finite-number and aggregate traversal limits exactly.
+					if inline_numeric_safety_enabled and typeof(item) in [TYPE_NIL,TYPE_BOOL,TYPE_INT,TYPE_FLOAT]:
+						budget[0]-=1
+						if budget[0]<0 or ancestors.size()>64 or (item is float and not is_finite(item)):ancestors.pop_back();return false
+					elif not _safe(item,ancestors,budget):ancestors.pop_back();return false
 			ancestors.pop_back();return true
 		TYPE_PACKED_STRING_ARRAY:
 			for item in value:

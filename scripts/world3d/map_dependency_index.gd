@@ -22,6 +22,7 @@ const Trace = preload("res://scripts/world3d/load_trace.gd")
 static var _loading_proof_issuer := RefCounted.new()
 static var batch_path_validation:=true # Probe-only old-loop comparison switch.
 static var parallel_definition_checks:=true # Bounded CPU-only control, never skips validation.
+static var classification_path_batching:=true # Scope is one synchronous build only.
 const VERSION := 4
 const MAGIC := "RMMODEPS1"
 const MAX_BYTES := 64 * 1024 * 1024
@@ -88,6 +89,17 @@ static func _compact_closure(extra: Dictionary, path: String, content_root: Stri
 ## Re-encoding unique definitions proves it is the exact compact source snapshot;
 ## a caller cannot accidentally publish bounds from a different edited document.
 static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT) -> Dictionary:
+	return _build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,false)
+
+## The build owns a freshly read author snapshot and newly generated rows.
+## Validate and seal those private containers before they escape, instead of
+## writing, discarding, reading and authenticating the same data a second time.
+## Public build() remains mutable; callers cannot certify an arbitrary result.
+static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT)->Dictionary:
+	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true)
+	return built if built.ok else {"ok":false,"reason":built.reason,"index":{},"proof":null}
+
+static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool)->Dictionary:
 	var opened := _source(path, content_root, source_sha,source_limit)
 	if not opened.ok: return opened
 	var compact: Array = opened.extras.rmmo_records
@@ -123,11 +135,12 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		var job:Dictionary=definition_jobs[i];var encoded:Dictionary=encoded_batch.entries[i]
 		if encoded.sha256!=job.sha256 or encoded.length!=job.length:return _fail("hydrated_definition_mismatch")
 		definition_bytes[job.sha256]=encoded.serialized_raw_bytes
+	var classification_paths:Dictionary={}
 	for i in compact.size():
 		var record:Dictionary=hydrated_records[i]
 		var sha:String=compact[i].rmmo_ref.sha256
 		var observed:=Time.get_ticks_usec()
-		var row := _classify(record, content_root, models)
+		var row := _classify(record, content_root, models,classification_paths if classification_path_batching else {})
 		Trace.elapsed("index.build_classify",observed,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
 		row.uuid = record.uuid; row.order = i; row.reference = compact[i].rmmo_ref.duplicate(true)
 		row.prefab_locked = record.get("prefab_locked", false) == true
@@ -158,10 +171,13 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 			row.classification = "group"
 			if row.group_id.begins_with("building:"): row.reason = "building_group"
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
+	# The in-memory handoff must satisfy the same serialized-directory contract.
+	if for_loading and not _valid_payload(payload,compact,content_root):return _fail("invalid_index_schema")
 	if not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
 	if not _imported_sources_valid(opened.extras, rows): return _fail("imported_building_source_mismatch")
 	if not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
 	for model_path: String in models:
+		if not Paths.allowed(model_path,content_root):return _fail("model_path_changed_during_build")
 		var current: Dictionary = Manifest.read(model_path)
 		if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
 	var target := cache_path(path, content_root)
@@ -179,7 +195,8 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 		DirAccess.remove_absolute(temporary); return _fail("source_changed_before_index_publish")
 	if DirAccess.rename_absolute(temporary, target) != OK:
 		DirAccess.remove_absolute(temporary); return _fail("index_publish_failed")
-	return _result(payload, opened.extras, target)
+	var result:=_result(payload,opened.extras,target)
+	return _seal_for_loading(result,path,content_root) if for_loading else result
 
 ## Reuse the bounded CPU queue, but retain only identity metadata per reply.
 ## Compressed payloads are not retained in a second full directory build array.
@@ -239,11 +256,14 @@ static func read(path: String, content_root: String, expected_source_sha: String
 static func _result(data: Dictionary, extras: Dictionary, path: String) -> Dictionary:
 	return {"ok": true, "reason": "", "source_sha256": data.source_sha256, "generator": data.generator, "rows": data.rows, "models": data.models, "groups": data.groups, "extras": extras, "index_path": path, "closure_complete": false}
 
-## Only this disk-reading factory issues a process-local proof. Ordinary read()
-## stays mutable and retains its complete validation path for callers/tests.
+## Only the read/build factories issue a process-local proof from their own
+## private snapshot. Ordinary read()/build() keep the original mutable API.
 static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES) -> Dictionary:
 	var index := read(path, content_root, expected_source_sha,source_limit,index_limit)
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
+	return _seal_for_loading(index,path,content_root)
+
+static func _seal_for_loading(index:Dictionary,path:String,content_root:String)->Dictionary:
 	# read() has already downgraded changed model footprints and made its final
 	# source observation. No reference to this fresh result has escaped yet.
 	var observed:=Time.get_ticks_usec()
@@ -278,7 +298,7 @@ static func _json_equal(a: Variant, b: Variant, depth: int, budget: Array) -> bo
 static func _finite_bounds(bounds: AABB) -> bool:
 	return Manifest._finite_box(bounds)
 
-static func _classify(record: Dictionary, root: String, models: Dictionary) -> Dictionary:
+static func _classify(record: Dictionary, root: String, models: Dictionary, checked_paths:Dictionary={}) -> Dictionary:
 	var result := {"classification": "global", "reason": "unknown_geometry", "bounds_known": false, "bounds": AABB(), "chunk_min": Vector2i.ZERO, "chunk_max": Vector2i.ZERO, "terrain_halo": 0.0, "asset_path": "", "owner_keys": []}
 	for owner in ["building", "fortification"]:
 		if record.get(owner) is Dictionary: result.owner_keys.append(owner + ":" + str(record[owner].get("id", "")))
@@ -311,7 +331,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 	elif record.has("model_building"):
 		result.asset_path=str(record.get("asset_path",""))
 		if Imported.valid_record(record) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
-			_classify_model(record,root,models,result)
+			_classify_model(record,root,models,result,checked_paths)
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
 	elif record.has("road_mesh") and _fields_allowed(record, COMMON_FIELDS + ROAD_FIELDS) and Road.valid(record):
@@ -325,7 +345,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 		result.bounds_known = _finite_bounds(result.bounds); result.reason = "native_box"
 		if result.bounds_known: result.classification = "spatial"
 	elif record.get("kind") == "asset" and _fields_allowed(record, COMMON_FIELDS + ASSET_FIELDS):
-		_classify_model(record,root,models,result)
+		_classify_model(record,root,models,result,checked_paths)
 	if record.has("building") and not _fields_allowed(record, COMMON_FIELDS + ["building", "fixture", "house_prefab", "prefab_locked", "prefab_materials", "window_design", "building_shape"]):
 		result.bounds_known = false; result.reason = "unsupported_building_behavior"
 	if result.bounds_known:
@@ -336,10 +356,13 @@ static func _classify(record: Dictionary, root: String, models: Dictionary) -> D
 			if record.has("fortification") or record.has("bridge_mesh"): result.bounds_known = false
 	return result
 
-static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary)->void:
+static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary,checked_paths:Dictionary)->void:
 	if record.has("vegetation_batch") and not record.vegetation_batch is bool:result.reason="invalid_vegetation_batch";return
 	var path:=str(record.get("asset_path",""));result.asset_path=path
-	if not Paths.allowed(path,root):result.reason="invalid_model_path";return
+	# Build-private cache: final publication checks every model path again. The
+	# ordinary three-argument classifier gets a fresh scope on every invocation.
+	if not checked_paths.has(path):checked_paths[path]=Paths.allowed(path,root)
+	if not checked_paths[path]:result.reason="invalid_model_path";return
 	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else Manifest.read(path)
 	var placed:Dictionary=Manifest.apply_record(source,record)
 	if placed.get("known",false):
