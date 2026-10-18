@@ -60,6 +60,7 @@ func world_scene() -> String:
 
 
 func use_world3d() -> bool:
+	if load("res://scripts/net/net.gd").is_real_server():return true
 	return world3d_requested or str(ProjectSettings.get_setting("rmmo/startup_profile", "world2d")) == "world3d"
 
 
@@ -127,6 +128,8 @@ func world3d_travel():
 	return travel
 
 func go_login() -> void:
+	var network=load("res://scripts/net/net.gd")
+	if network.server()!=null and network.server().has_method("logout"):network.server().logout()
 	if is_instance_valid(editor_playtest): editor_playtest.stop(); return
 	world3d_requested = false
 	pending_world3d_playtest = false
@@ -144,6 +147,13 @@ func go_login() -> void:
 
 func go_character_select() -> void:
 	if is_instance_valid(editor_playtest): editor_playtest.stop(); return
+	var network=load("res://scripts/net/net.gd")
+	if network.is_real_server() and not network.server().world_session.is_empty():
+		var departure:Dictionary=await network.server().leave_world()
+		if not departure.get("ok",false):
+			var current:=get_tree().current_scene
+			if current!=null and current.has_method("apply_actions"):current.apply_actions([{"type":"system_message","text":"退出世界失败："+str(departure.get("error","请稍后重试"))}])
+			return
 	clear_prepared_world_actor()
 	get_tree().change_scene_to_file(SCENE_CHAR)
 

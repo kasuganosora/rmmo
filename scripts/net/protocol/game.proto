@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package rmmo.v1;
+
+option go_package = "rmmo_server/internal/pb";
+
+// ClientMessage is one request. POST it to /v1/rpc, or send it as a binary
+// WebSocket frame on /ws. The response is a ServerMessage with the same
+// request_id. Server pushes use ServerMessage.push and no request_id.
+message ClientMessage {
+  reserved 16, 18;
+  uint32 request_id = 1;
+  // Required on world_ready, leave_world, try_move, find_path and snapshot_actors.
+  // Copy the exact server-issued tuple; authentication remains Bearer based.
+  WorldContext world_context = 2;
+  oneof body {
+    RegisterRequest register = 10;
+    LoginRequest login = 11;
+    FetchCharactersRequest fetch_characters = 12;
+    CreateCharacterRequest create_character = 13;
+    EnterWorldRequest enter_world = 14;
+    TryMoveRequest try_move = 15;
+    SnapshotActorsRequest snapshot_actors = 17;
+    FindPathRequest find_path = 19;
+    WorldReadyRequest world_ready = 20;
+    LeaveWorldRequest leave_world = 21;
+  }
+}
+
+message ServerMessage {
+  uint32 request_id = 1;
+  bool push = 2;
+  bool ok = 3;
+  string message = 4;
+  string error = 5;
+  bool resync = 6;
+  reserved 7, 8, 9, 13, 14, 15, 16;
+  // Present after register or login. Send it as "Authorization: Bearer".
+  string token = 10;
+  repeated Character characters = 11;
+  Character character = 12;
+
+  Actor3D actor_3d = 20;
+  repeated Actor3D actors_3d = 21;
+  repeated Vector3 path = 22;
+  string actor_left = 23;
+  // Receiver's world session, including on world-scoped pushes and resyncs.
+  WorldSession world_session = 24;
+  uint64 actor_left_generation = 25;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message FetchCharactersRequest {}
+
+message CreateCharacterRequest {
+  string name = 1;
+  string class_id = 2;
+  string look_id = 3;
+  string gender = 4;
+}
+
+message EnterWorldRequest {
+  uint32 character_id = 1;
+}
+
+message TryMoveRequest {
+  reserved 1, 2, 3;
+  uint64 sequence = 4;
+  Vector3 direction = 5;
+  bool run = 6;
+  bool jump = 7;
+  bool fly = 8;
+}
+
+// All positions are feet in meters, Y up. No client time or speed is accepted.
+message Vector3 { double x = 1; double y = 2; double z = 3; }
+message Location3D { string map_ref = 1; Vector3 position_m = 2; string surface_id = 3; }
+message Actor3D { string id = 1; Location3D location = 2; uint64 sequence = 3; string mode = 4; double vertical_velocity = 5; uint64 generation = 6; }
+message FindPathRequest { Vector3 goal = 1; }
+
+// A fence against packets from an older process, admission or map transition.
+// map_generation is the receiving player's Actor3D.generation, including when
+// a transfer stays on the same map_ref. It is not another actor's generation.
+message WorldContext {
+  string boot_id = 1;
+  uint64 session_epoch = 2;
+  uint64 map_generation = 3;
+  string map_ref = 4;
+}
+
+// Entry/transfer snapshots begin ready=false. Only the matching WorldReady
+// handshake enables commands; the token does not replace authentication.
+message WorldSession {
+  string boot_id = 1;
+  uint64 session_epoch = 2;
+  uint64 map_generation = 3;
+  string map_ref = 4;
+  string ready_token = 5;
+  bool ready = 6;
+  uint64 movement_sequence = 7;
+  uint32 protocol_version = 8;
+}
+
+message WorldReadyRequest { string ready_token = 1; }
+message LeaveWorldRequest {}
+
+message SnapshotActorsRequest {}
+
+message Character {
+  uint32 id = 1;
+  string name = 2;
+  string class_id = 3;
+  int32 level = 4;
+  string look_id = 5;
+  string gender = 6;
+  reserved 7, 8, 9, 10;
+  int32 hp = 11;
+  int32 hp_max = 12;
+}
+
+message Health {
+  bool ok = 1;
+}

@@ -53,9 +53,11 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if geometry_blocked:
+		if Net.is_real_server():Net.server().queue_movement(Vector3.ZERO,false)
 		velocity=Vector3.ZERO
 		return
 	if input_locked:
+		if Net.is_real_server():Net.server().queue_movement(Vector3.ZERO,false);velocity=Vector3.ZERO;return
 		if passive_traversal_guard.is_valid():
 			var bounds:=preload("res://scripts/world3d/physical_traversal.gd").motion_bounds(self,Vector3.ZERO,delta,false)
 			var ready:=preload("res://scripts/world3d/physical_traversal.gd").readiness(passive_traversal_guard.call(bounds),Engine.get_physics_frames())
@@ -105,7 +107,9 @@ func _step(dt: float) -> void:
 			var target: Vector3 = click_target
 			var flat := Vector3(target.x - global_position.x, 0, target.z - global_position.z)
 			var length := flat.length()
-			if length > WAYPOINT_REACHED_M:
+			var reached:=WAYPOINT_REACHED_M
+			if Net.is_real_server():reached=maxf(.02,Motion.WALK_MPS/clampf(float(ProjectSettings.get_setting("rmmo/network/movement_hz",20.)),5.,30.)+.015)
+			if length > reached:
 				# One intent follows one straight path segment. Carrying unused
 				# distance around the next corner would cut across that corner.
 				var distance:=minf(length,Motion.RUN_MPS*multiplier*dt)
@@ -127,6 +131,7 @@ func _step(dt: float) -> void:
 	if not moved.get("ok",false):_sense_surface()
 	var sense_ended:=Time.get_ticks_usec() if profiling else 0
 	var actual_speed := Vector2(global_position.x - before.x, global_position.z - before.z).length() / maxf(dt, 0.0001)
+	if Net.is_real_server():actual_speed=Vector2(velocity.x,velocity.z).length()
 	if Vector2(velocity.x, velocity.z).length() > 0.2:
 		var facing := atan2(velocity.x, velocity.z)
 		rotation.y = lerp_angle(rotation.y, facing, 1.0 - exp(-10.0 * dt))
@@ -144,6 +149,7 @@ func _step(dt: float) -> void:
 		set_meta("physics_profile",totals)
 
 func request_rest(action:String)->bool:
+	if Net.is_real_server():return false
 	if input_locked or not Net.server().combat_stats.player_alive():return false
 	if action not in REST_ACTIONS or _model.axis_rig==null or not _model.axis_rig.supports(action):return false
 	click_target=null;_pending_click=null;_route.clear();velocity.x=0;velocity.z=0
@@ -163,6 +169,7 @@ func location() -> RefCounted:
 	return WorldLocation.make(map_ref, global_position + Vector3(0, -0.9, 0), surface_id)
 
 func _refresh_navigation_request()->void:
+	if Net.is_real_server():return
 	if _pending_click is Vector3:
 		if not is_instance_valid(navigation) or navigation.get_instance_id()!=_pending_navigation_id:
 			click_target=null;path_status={"ok":false,"reason":"navigation_replaced"}
@@ -182,6 +189,7 @@ func set_click_target(point: Vector3, target_surface: String,user_request:bool=t
 	return result
 
 func _cancel_navigation_request()->void:
+	if Net.is_real_server():_remote_path_request+=1;return
 	var expected:Variant=_pending_click if _pending_click is Vector3 else _route_goal
 	if expected is Vector3 and is_instance_valid(navigation) and navigation.has_method("cancel_foreground_request"):
 		navigation.cancel_foreground_request(expected)
@@ -190,6 +198,10 @@ func _set_click_target(point: Vector3, target_surface: String,user_request:bool=
 	_pending_click=null
 	click_surface=target_surface
 	_route.clear()
+	if Net.is_real_server():
+		click_target=null;_remote_path_request+=1
+		_receive_remote_path(point,_remote_path_request)
+		path_status={"ok":false,"reason":"pending"};return path_status
 	# A solid building component can still have a walkable top (stairs,
 	# landings and imported floors). Navigation decides reachability.
 	if not is_instance_valid(navigation):
@@ -215,6 +227,19 @@ func _set_click_target(point: Vector3, target_surface: String,user_request:bool=
 	click_surface = target_surface
 	if click_target==null and navigation.has_method("cancel_foreground_request"):navigation.cancel_foreground_request(point)
 	return path_status
+
+var _remote_path_request:=0
+func _receive_remote_path(point:Vector3,request:int)->void:
+	var server:=Net.server();var scope:Dictionary=server.context()
+	var result:Dictionary=await server.find_path(point)
+	if request!=_remote_path_request or not is_inside_tree() or not Net.is_real_server() or scope!=server.context():return
+	path_status=result
+	if not result.get("ok",false):return
+	_route.clear()
+	for p:Dictionary in result.get("path",[]):_route.append(Vector3(p.get("x",0.),p.get("y",0.),p.get("z",0.)))
+	if not _route.is_empty():_route.remove_at(0)
+	click_target=_route[0] if not _route.is_empty() else null
+	if not _route.is_empty():_route.remove_at(0)
 
 
 func _sense_surface() -> void:

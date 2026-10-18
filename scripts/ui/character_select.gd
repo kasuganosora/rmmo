@@ -62,6 +62,10 @@ func _ready() -> void:
 	create_btn.pressed.connect(func(): Net.session().go_character_create())
 	back_btn.pressed.connect(func(): Net.session().go_login())
 	Net.server().characters_ready.connect(_on_chars)
+	if Net.server().has_signal("characters_failed"):
+		Net.server().characters_failed.connect(func(message:String):
+			status_label.text="角色读取失败："+message;enter_btn.disabled=true;create_btn.disabled=true
+		)
 	resized.connect(_layout); _layout()
 	_refresh()
 

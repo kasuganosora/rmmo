@@ -71,3 +71,7 @@ static func clear_server_override() -> void:
 ## True when a transport override is currently active.
 static func has_server_override() -> bool:
 	return _server_override != null and is_instance_valid(_server_override)
+
+static func is_real_server() -> bool:
+	var active:=server()
+	return active!=null and active.has_method("is_remote_transport") and active.is_remote_transport()

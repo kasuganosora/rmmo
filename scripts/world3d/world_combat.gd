@@ -38,6 +38,8 @@ func _navigation_rejected()->Dictionary:
 
 func setup(owner: Node3D) -> void:
 	world = owner
+	if Net.is_real_server():
+		set_physics_process(false);return
 	_map_key = world._map_path.simplify_path()
 	respawn_point = world._player.global_position
 	_previous = respawn_point
@@ -97,6 +99,7 @@ func in_range(id: String, range_units: int) -> bool:
 	return hit.is_empty() or preload("res://scripts/world3d/fortification_collision_batcher.gd").hit_uuid(hit) == id
 
 func attack(id: String) -> Dictionary:
+	if Net.is_real_server():return _apply(Net.server()._unsupported("attack"))
 	if world.furniture.active():world.furniture.cancel()
 	world.cancel_sit_preparation()
 	if world._transfer_pending: return {"ok": false, "actions": []}
@@ -108,6 +111,7 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
+	if Net.is_real_server():return _apply(Net.server()._unsupported("use_skill"))
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine
 	var definition: Dictionary = Net.server().skill_catalog.get_skill(id)
@@ -219,6 +223,7 @@ var _respawn_preparing:=false
 ## Unlike the legacy bool API, this completes only after loading, real physics,
 ## destination first draw and authoritative activation. Duplicate clicks reject.
 func request_respawn()->bool:
+	if Net.is_real_server():_apply(Net.server()._unsupported("respawn"));return false
 	if not world.building_entry_protocol_enabled():return respawn()
 	if _respawn_preparing or not _may_respawn():return false
 	_respawn_preparing=true
@@ -241,6 +246,7 @@ func _commit_prepared_respawn()->bool:
 	return true
 
 func respawn() -> bool:
+	if Net.is_real_server():return false
 	if world.building_entry_protocol_enabled():
 		world._status.text="复活需要异步准备，请使用复活按钮。";return false
 	var server = Net.server()
@@ -383,6 +389,7 @@ func counter_attack(id: String, actions: Array) -> void:
 
 
 func use_item(id: String) -> Dictionary:
+	if Net.is_real_server():return _apply(Net.server()._unsupported("use_item"))
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var server = Net.server()
 	var definition: Dictionary = server.item_catalog.get_item(id)
@@ -475,6 +482,7 @@ func _create_loot(feet: Vector3, items: Array) -> void:
 	loot.append({"feet": feet, "items": items, "marker": marker})
 
 func pickup_nearby() -> bool:
+	if Net.is_real_server():return false
 	var server = Net.server()
 	if not server.combat_stats.player_alive(): return false
 	var feet: Vector3 = world._player.global_position - Vector3(0, 0.9, 0)
@@ -555,6 +563,7 @@ func _signature(spec: Dictionary) -> String:
 	return var_to_str([spec.transform, spec.mesh.get_aabb(), spec.extras]).sha256_text()
 
 func _save_map_state() -> void:
+	if Net.is_real_server():return
 	if _map_key == "": return
 	if summons != null: summons.save()
 	var records := {}

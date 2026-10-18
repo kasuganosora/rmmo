@@ -87,6 +87,9 @@ func _ready() -> void:
 	status_label.text = "选体型 / 职业，逐个部件捏脸，可切换方向和动作"
 	name_edit.grab_focus()
 	_set_gender(LookCatalog.GENDER_FEMALE)
+	if Net.is_real_server():
+		status_label.text="真实服务器当前保存基础外观；自定义捏脸尚未接入"
+		for control in [random_btn,skin_on,hair_on,skin_color_btn,hair_color_btn]:control.disabled=true
 	call_deferred("_center_preview")
 
 
@@ -127,6 +130,8 @@ func _rebuild_slot_ui() -> void:
 	_thumb_token += 1
 	for c in slot_list.get_children():
 		c.queue_free()
+	if Net.is_real_server():
+		var note:=Label.new();note.text="基础外观由性别与外观编号决定";slot_list.add_child(note);return
 	if CharacterView3D.enabled():
 		var row:=HBoxContainer.new()
 		var label:=Label.new();label.text="发型";row.add_child(label)
@@ -447,6 +452,9 @@ func _on_create() -> void:
 		create_btn.disabled = true
 		return
 	create_btn.disabled = true
+	if Net.is_real_server():
+		Net.server().create_character(name_edit.text,class_id,"1",_gender,{})
+		return
 	_custom.part_ids = _part_ids.duplicate()
 	if CharacterView3D.enabled():
 		_custom.mv_sheet=""

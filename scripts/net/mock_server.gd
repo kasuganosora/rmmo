@@ -362,6 +362,8 @@ var _weather_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	if preload("res://scripts/net/connection_config.gd").startup().mode!="mock":
+		set_process(false);return
 	_init_combat_layers()
 	_load_pack(start_map_pack_path())
 

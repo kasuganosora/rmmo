@@ -11,6 +11,7 @@ var exiting:=false
 func _init(owner):world=owner
 func active()->bool:return not seat_id.is_empty()
 func interact(target:StaticBody3D)->bool:
+ if world.Net.is_real_server():return false
  if active():stand();return true
  var player=world._player;var model=player._model
  if player.input_locked or world._transfer_pending or not world.Net.server().combat_stats.player_alive():return false

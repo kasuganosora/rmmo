@@ -41,6 +41,7 @@ func list_building_components(building_id: String) -> Array:
 	return preload("res://scripts/world3d/building_fixtures.gd").list_runtime(_map_root,building_id) if is_instance_valid(_map_root) else []
 
 func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
+	if Net.is_real_server():return Net.server()._unsupported("building_component")
 	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
 	if building_entry_protocol_enabled() and not building_id.begins_with("fortification:"):
 		return _building_authority().set_runtime_fixture(_map_root,_map_ref(),str(_map_root.get_meta("source_map_sha256","")),building_id,component_id,open,duration)
@@ -62,6 +63,7 @@ var _transfer_loader: Node
 var _transfer_request_serial := 0
 var _local_transfer: Dictionary = {}
 var _ready_for_play := false
+var _remote_entry_context:Dictionary={}
 var _entry_readiness_shadow:RefCounted
 var _entry_shadow_waiting_physics:=false
 var loading_profile: Dictionary={}
@@ -85,9 +87,10 @@ func note_entry_first_frame(rendered:bool)->bool:
 	return true
 
 func _building_authority()->RefCounted:return Net.server().world3d_state.entry_authority
-func building_entry_protocol_enabled()->bool:return building_readiness_enabled or _entry_policy.get("mode","")=="staged"
+func building_entry_protocol_enabled()->bool:return not Net.is_real_server() and (building_readiness_enabled or _entry_policy.get("mode","")=="staged")
 
 func _choose_entry_policy(map_root:Node,path:String,_centre:Vector3)->Dictionary:
+	if Net.is_real_server():return {"mode":"full","reason":"remote_world_ready"}
 	if not automatic_staged_entry_enabled:return {"mode":"full","reason":"automatic_disabled"}
 	var authored:String=str(GltfMapIo.extras_of(map_root).get("map_ref",""))
 	var ref:String=authored if preload("res://scripts/world3d/world_location.gd").map_ref_ok(authored) else "prototype/map_"+path.sha256_text().substr(0,16)
@@ -274,6 +277,7 @@ func _on_movement_intent()->void:
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 
 func request_sit(on:Variant=null)->void:
+	if Net.is_real_server():apply_actions(Net.server()._unsupported("sit").actions);return
 	if furniture.active():
 		furniture.stand();return
 	var want:bool=bool(on) if on is bool else not (Net.server().sitting or _sit_preparing)
@@ -461,6 +465,10 @@ func _exit_tree() -> void:
 
 
 func _ready() -> void:
+	if Net.is_real_server():
+		_remote_entry_context=Net.server().context()
+		Net.server().world_changed.connect(_remote_world_changed)
+		Net.server().connection_lost.connect(_remote_connection_lost)
 	loading_profile.ready_started=Time.get_ticks_msec()
 	child_order_changed.connect(func():_warp_cache_dirty=true)
 	_travel = Net.session().world3d_travel()
@@ -564,6 +572,13 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if not is_inside_tree() or is_queued_for_deletion():return
 	loading_profile.radar=Time.get_ticks_msec()
+	if Net.is_real_server():
+		Net.server().restore_map_interactions(_map_root)
+		if _remote_entry_context!=Net.server().context():
+			set_meta("entry_loading_error","服务器地图在场景准备期间发生变化，请重新进入");return
+		var acknowledgement:Dictionary=await Net.server().confirm_world_ready(_map_ref())
+		if not acknowledgement.get("ok",false):
+			set_meta("entry_loading_error","真实服务器入场确认失败");_loading_stage("真实服务器入场确认失败");return
 	_entry_readiness_shadow.render_prepared()
 	if building_entry_protocol_enabled():
 		_building_entry.gameplay_ready()
@@ -628,6 +643,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if Net.is_real_server():
+		if not is_instance_valid(_player) or _player.input_locked or not _player.is_physics_processing():Net.server().queue_movement(Vector3.ZERO,false)
+		apply_actions(Net.server().poll_combat_tick())
+		if is_instance_valid(_map_root):Net.server().restore_map_interactions(_map_root)
 	_update_preparation_hint()
 	var profiling:bool=has_meta("profile_frame")
 	var marks:Variant=null
@@ -974,6 +993,7 @@ func _note_map(map_root: Node) -> void:
 
 
 func _use_map_spawn(map_root: Node) -> void:
+	if Net.is_real_server():return
 	var spawn: Variant = GltfMapIo.extras_of(map_root).get("spawn", [])
 	if typeof(spawn) != TYPE_ARRAY or (spawn as Array).size() < 3:
 		return
@@ -1234,13 +1254,31 @@ func _poll_warp() -> void:
 
 
 func _map_ref() -> String:
+	if Net.is_real_server():return str(Net.server().world_session.get("map_ref",""))
 	var authored := str(GltfMapIo.extras_of(_map_root).get("map_ref", ""))
 	if preload("res://scripts/world3d/world_location.gd").map_ref_ok(authored):
 		return authored
 	return "prototype/map_" + _map_path.sha256_text().substr(0, 16)
 
+func _remote_connection_lost(message:String)->void:
+	if is_instance_valid(_player):_player.input_locked=true;_player.velocity=Vector3.ZERO;_player.click_target=null
+	_ready_for_play=false
+	if is_instance_valid(_status):_status.text=message
+
+func _remote_world_changed(_session:Dictionary)->void:
+	_remote_connection_lost("正在同步服务器地图")
+	if Net.session()._world_transition_active:
+		set_meta("entry_loading_error","服务器地图在场景准备期间发生变化，请重新进入");return
+	var prepared:Dictionary=Net.server().prepare_authoritative_map()
+	if not prepared.get("ok",false):_status.text=str(prepared.get("error","地图不可用"));return
+	prepared=await Net.server().refresh_world_snapshots()
+	if not prepared.get("ok",false):_status.text="服务器地图快照恢复失败，请重新进入";return
+	Net.session().loading_mode="world3d_remote"
+	Net.session().go_loading()
+
 
 func _talk() -> void:
+	if Net.is_real_server():Net.server().interact_nearest(_player.global_position-Vector3.UP*.9);return
 	if furniture.active():
 		furniture.stand();return
 	if _player == null or _travel == null:
@@ -1302,6 +1340,9 @@ func _add_game_hud() -> void:
 func apply_actions(actions: Array) -> void:
 	for action in actions:
 		match str(action.get("type", "")):
+			"remote_combat_state":
+				Net.session().spawn_data["combat"]=action.get("stats",{})
+				if _hud!=null:_hud.apply_combat_stats(action.get("stats",{}))
 			"open_shop":
 				if _hud != null:
 					_hud.show_shop(str(action.get("shop_id", "")), str(action.get("title", "")), action.get("listings", []), int(action.get("gold", 0)), int(action.get("vendor_rep", -1)))
@@ -1427,6 +1468,7 @@ func request_use_item(item_id: String) -> void:
 
 
 func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:
+	if Net.is_real_server():apply_actions(Net.server()._unsupported("transfer_map").actions);return false
 	if is_instance_valid(Net.session().editor_playtest): target = Net.session().editor_playtest.resolve_map(target)
 	if not destination.is_finite() or target.is_empty(): return false
 	if not Net.server().combat_stats.player_alive(): return false
@@ -2090,9 +2132,11 @@ func _transfer_failed(original:Dictionary,cover:CanvasLayer,reason:String,naviga
 
 
 func request_pet_summon(id: String = "default") -> void:
+	if Net.is_real_server():apply_actions(Net.server()._unsupported("pet_summon").actions);return
 	_combat.summons.pet_summon(id)
 
 func request_pet_dismiss() -> void:
+	if Net.is_real_server():apply_actions(Net.server()._unsupported("pet_dismiss").actions);return
 	_combat.summons.pet_dismiss()
 
 func _update_approach_preparation()->void:

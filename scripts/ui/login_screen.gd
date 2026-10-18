@@ -16,6 +16,10 @@ var _connection: VBoxContainer
 var _scroll: ScrollContainer
 var _form: VBoxContainer
 var _brand: VBoxContainer
+var _real_server:CheckBox
+var _register_btn:Button
+var _mode_hint:Label
+var _bound_server:Node
 
 func _ready() -> void:
 	Style.apply(self)
@@ -40,17 +44,23 @@ func _ready() -> void:
 	_connection_toggle = Style.button("连接设置  ▸"); _connection_toggle.flat = true; _connection_toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_form.add_child(_connection_toggle)
 	_connection = Style.column(_form, 8); _connection.visible = false
+	_real_server=CheckBox.new();_real_server.text="连接真实服务器";_connection.add_child(_real_server)
+	_real_server.button_pressed=get_node("/root/ServerConnection").mode=="real"
 	server_edit = Style.field(_connection, "服务器地址", "127.0.0.1:7777")
 	_connection_toggle.pressed.connect(func():
 		_connection.visible = not _connection.visible
 		_connection_toggle.text = "连接设置  ▾" if _connection.visible else "连接设置  ▸"
 	)
-	var hint := Style.label("首次使用的新账号将自动注册", 13, Style.MUTED); _form.add_child(hint)
+	_register_btn=Style.button("注册真实服务器账号");_form.add_child(_register_btn)
+	_register_btn.pressed.connect(func():_on_login_pressed(true))
+	_mode_hint=Style.label("",13,Style.MUTED);_form.add_child(_mode_hint)
+	_real_server.toggled.connect(_on_backend_changed)
+	_update_mode_hint()
 	server_edit.text = Net.session().server_address
 	user_edit.text = Net.session().username
-	login_btn.pressed.connect(_on_login_pressed)
+	login_btn.pressed.connect(func():_on_login_pressed())
 	for field in [user_edit, pass_edit, server_edit]: field.text_submitted.connect(func(_text: String): _on_login_pressed())
-	Net.server().login_finished.connect(_on_login_finished)
+	_bind_server()
 	resized.connect(_layout); _layout()
 	if user_edit.text.is_empty(): user_edit.grab_focus()
 	else: pass_edit.grab_focus()
@@ -78,15 +88,31 @@ func _set_busy(busy: bool) -> void:
 	for field in [user_edit, pass_edit, server_edit]: field.editable = not busy
 	_show_password.disabled = busy
 	_connection_toggle.disabled = busy
+	_real_server.disabled=busy;_register_btn.disabled=busy
 	login_btn.text = "正在登录…" if busy else "登  录"
 
-func _on_login_pressed() -> void:
+func _on_login_pressed(register:bool=false) -> void:
 	if login_btn.disabled: return
 	_requested_user = user_edit.text.strip_edges(); _requested_server = server_edit.text.strip_edges()
 	_set_busy(true)
 	status_label.add_theme_color_override("font_color", Style.MUTED)
 	status_label.text = "正在连接服务器…"
-	Net.server().login(_requested_user, pass_edit.text, _requested_server)
+	if register and Net.is_real_server():Net.server().register_account(_requested_user,pass_edit.text,_requested_server)
+	else:Net.server().login(_requested_user, pass_edit.text, _requested_server)
+
+func _bind_server()->void:
+	if is_instance_valid(_bound_server) and _bound_server.login_finished.is_connected(_on_login_finished):_bound_server.login_finished.disconnect(_on_login_finished)
+	_bound_server=Net.server();_bound_server.login_finished.connect(_on_login_finished)
+
+func _on_backend_changed(use_real:bool)->void:
+	var result:Dictionary=get_node("/root/ServerConnection").configure(use_real,server_edit.text)
+	if not result.ok:
+		_real_server.set_pressed_no_signal(not use_real);status_label.text=result.error;return
+	_bind_server();_update_mode_hint()
+
+func _update_mode_hint()->void:
+	_register_btn.visible=_real_server.button_pressed
+	_mode_hint.text="真实服务器：账号与世界状态由服务器保存" if _real_server.button_pressed else "Mock 模式：首次使用的新账号将自动注册"
 
 func _on_login_finished(ok: bool, message: String) -> void:
 	if not login_btn.disabled: return

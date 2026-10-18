@@ -23,3 +23,13 @@ The MV image library is a local copy at `{content_root}/packs/mv_img`. Keep it o
 ## Run
 
 Godot 4.7+. Open this folder, play `scenes/login.tscn`. Without a local content root, chrome/tiles soft-miss (placeholders).
+
+The login screen's connection settings can switch between MockServer and the Go
+server. To start directly in real mode:
+
+```sh
+godot --path . -- --backend=real --server-url=http://127.0.0.1:7777
+```
+
+See [real server connection](docs/real_server_connection.md) for map mappings,
+protocol generation, supported flows, remaining business UI adapters and live tests.

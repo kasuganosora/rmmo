@@ -10,6 +10,7 @@ var _gate_error: String = ""
 var progress_history: Array = []
 var _map_loader: Node
 var _cancelled := false
+var _remote_load_context:Dictionary={}
 
 func _stage(label: String, done: int = -1, total: int = 0) -> void:
 	status_label.text = label + (" %d / %d" % [done,total] if total>0 else "…")
@@ -36,6 +37,7 @@ func _ready() -> void:
 	var resource_started:=Time.get_ticks_usec()
 	Net.session().prepare_world_resources()
 	preload("res://scripts/world3d/load_trace.gd").elapsed("game.resource_requests",resource_started)
+	if mode=="world3d_remote":_prepare_world3d();return
 	if mode == "world3d_preview":
 		if not Net.session().has_active_character():
 			status_label.text = "请先选择角色，试玩不会生成替代人物"
@@ -193,6 +195,7 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 
 
 func _prepare_world3d() -> void:
+	if Net.is_real_server():_remote_load_context=Net.server().context()
 	if not Net.session().has_active_character():
 		status_label.text = "缺少角色外观，请重新选择角色"
 		_show_transfer_fail_actions()
@@ -229,7 +232,7 @@ func _prepare_world3d() -> void:
 	Net.session().add_child(_map_loader)
 	_map_loader.finished.connect(_on_world3d_loaded)
 	_map_loader.progress.connect(func(stage: String, done: int, total: int): _stage(stage, done, total))
-	_map_loader.start(path)
+	_map_loader.start(path,Net.session().world3d_spawn if Net.is_real_server() else null)
 	var actor_started:=Time.get_ticks_usec()
 	Net.session().prepare_world_actor()
 	preload("res://scripts/world3d/load_trace.gd").elapsed("game.actor_prepare",actor_started)
@@ -244,6 +247,12 @@ func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
 		status_label.text = error
 		_show_transfer_fail_actions()
 		return
+	if Net.is_real_server():
+		if _remote_load_context!=Net.server().context():
+			scene.free();status_label.text="服务器地图在加载期间发生变化，请返回后重新进入";_show_transfer_fail_actions();return
+		var authored:=str(preload("res://scripts/world3d/gltf_map_io.gd").extras_of(scene).get("map_ref",""))
+		if not authored.is_empty() and authored!=Net.server().world_session.get("map_ref",""):
+			scene.free();status_label.text="本地地图身份与服务器不一致";_show_transfer_fail_actions();return
 	Net.session().clear_prepared_world3d(true)
 	Net.session().prepared_world3d = scene
 	Net.session().world3d_map_path = path
