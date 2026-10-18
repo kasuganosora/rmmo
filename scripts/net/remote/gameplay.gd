@@ -3,6 +3,7 @@ extends RefCounted
 ## poll_combat_tick, including callers which still use synchronous adapters.
 var transport:Node
 var projection:RefCounted
+var environment:RefCounted
 var _serial:=0
 var _jobs:Array=[]
 var _running:=false
@@ -14,13 +15,14 @@ var _events_at:=0
 func busy()->bool:return _running or not _jobs.is_empty()
 
 func _init(owner:Node)->void:
+	environment=preload("res://scripts/net/remote/environment.gd").new(owner)
 	transport=owner;projection=preload("res://scripts/net/remote/projection.gd").new(owner)
 
 func cancel()->void:
 	_epoch+=1;_event_cursor=0;_event_busy=false;_events_at=0
 	var jobs:=_jobs;_jobs=[]
 	for job:Dictionary in jobs:transport.response_ready.emit(int(job.id),{"ok":false,"error":"connection_closed","actions":[]})
-	projection.reset()
+	projection.reset();environment.reset()
 
 func dispatch(operation:String,args:Array=[])->Dictionary:
 	if not transport.is_world_ready():return failure("世界尚未就绪，请等待加载完成")
@@ -84,6 +86,8 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 			if mode=="area":
 				if args.size()<3 or not args[2] is Vector3 or not args[2].is_finite():return failure("请选择有效的地面位置")
 				var ground:Vector3=args[2];body.target={"id":"","map":transport.world_session.map_ref,"generation":0};body.aim={"position_m":[ground.x,ground.y,ground.z],"yaw_radians":0.}
+		"house_view","house_change":
+			var request:Dictionary=environment.request(operation,args);path=request.path;method=request.method;body=request.body
 		"claim_reward":
 			path="/v1/gameplay/rewards/"+str(args[0]).uri_encode()+"/claim"
 		"cancel_cast":
@@ -101,11 +105,13 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 		"respawn":
 			path="/v1/gameplay/respawn";body={"sequence":int(snapshots.get("resurrection",{}).get("respawn_sequence",0))+1}
 		"abandon_quest":
-			var accepted:Variant=null
+			var accepted:Dictionary={}
 			for quest:Dictionary in snapshots.get("progression",{}).get("quests",[]):
-				if quest.get("definition",{}).get("uuid","")==str(args[0]):accepted=quest.get("accepted_at_game")
-			if accepted==null:return failure("任务接受记录已变化，请刷新任务列表")
-			path="/v1/gameplay/quests";body={"action":"abandon","quest":str(args[0]),"accepted_at_game":accepted}
+				if quest.get("definition",{}).get("uuid","")==str(args[0]):accepted=quest
+			if accepted.is_empty():return failure("任务接受记录已变化，请刷新任务列表")
+			path="/v1/gameplay/quests";body={"action":"abandon","quest":str(args[0])}
+			if accepted.has("accepted_at_key"):body.accepted_at_key=str(accepted.accepted_at_key)
+			else:body.accepted_at_game=accepted.get("accepted_at_game")
 		"fixture":
 			var value:float=args[2]
 			if not is_finite(value) or value not in [0.,1.]:return failure("服务器门窗只接受完全打开或关闭")
@@ -148,6 +154,7 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 	if not response.ok:return failure("服务器拒绝操作："+str(response.get("error",response.get("status","unknown"))))
 	var data:Variant=response.body.get("data",{})
 	var actions:Array=[]
+	if operation in ["house_view","house_change"] and data is Dictionary:actions.append_array(environment.result(data))
 	if operation in ["interact","quest"] and data is Dictionary:actions.append_array(projection.dialogue(data))
 	if operation in ["shop_open","shop"] and data is Dictionary and shop_revision==projection.shop_revision:
 		projection.shop=data.duplicate(true)

@@ -46,6 +46,7 @@ func set_building_component_state(building_id: String, component_id: String, ope
 	if building_entry_protocol_enabled() and not building_id.begins_with("fortification:"):
 		return _building_authority().set_runtime_fixture(_map_root,_map_ref(),str(_map_root.get_meta("source_map_sha256","")),building_id,component_id,open,duration)
 	return preload("res://scripts/world3d/building_fixtures.gd").set_runtime(_map_root,building_id,component_id,open,duration)
+var _house_permissions:CanvasLayer
 var _sun: DirectionalLight3D
 var _env: Environment
 var _weather: Node3D
@@ -1340,6 +1341,10 @@ func _add_game_hud() -> void:
 func apply_actions(actions: Array) -> void:
 	for action in actions:
 		match str(action.get("type", "")):
+			"house_permissions":
+				if not is_instance_valid(_house_permissions):
+					_house_permissions=preload("res://scripts/ui/house_permissions.gd").new();add_child(_house_permissions)
+				_house_permissions.show_house(action.get("house",{}),Net.server())
 			"player_revived":
 				_revive.hide()
 				_player.input_locked=not is_world_ready()

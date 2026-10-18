@@ -27,6 +27,7 @@ func try_inventory_lock(item_id:String,on:bool)->Dictionary:return gameplay.disp
 func try_allocate_attr(stat_key:String,amount:int=1)->Dictionary:return gameplay.dispatch("inventory",[{"action":"allocate","attribute":stat_key,"quantity":amount}])
 func try_interact(npc_id:String,_player_x:int,_player_y:int)->Dictionary:return gameplay.dispatch("interact",[npc_id])
 func try_dialogue_choice(option_id:String="",_option_index:int=-1)->Dictionary:
+	if option_id.begins_with("environment:"):return gameplay.environment.choose(option_id)
 	for prefix:String in ["quest_accept:","quest_turn_in:","shop_open:"]:
 		if not option_id.begins_with(prefix):continue
 		var id:=option_id.substr(prefix.length())
@@ -66,3 +67,6 @@ func nearest_reward()->String:
 func try_loot_take_all()->Dictionary:
 	var id:=nearest_reward()
 	return gameplay.dispatch("claim_reward",[id]) if not id.is_empty() else gameplay.failure("附近没有可领取的服务器掉落")
+
+func try_house_permissions(house:String)->Dictionary:return gameplay.dispatch("house_view",[house])
+func try_house_update(change:Dictionary)->Dictionary:return gameplay.dispatch("house_change",[change])

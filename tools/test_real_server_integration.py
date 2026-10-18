@@ -53,7 +53,7 @@ def main():
                                           script, '--', '--backend=real',
                                           '--test-server='+address, '--test-content-root='+str(content)],
                                          cwd=ROOT, text=True, stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT, timeout=75)
+                                         stderr=subprocess.STDOUT, timeout=105)
                 except subprocess.TimeoutExpired as error:
                     print((error.stdout or b'').decode(errors='replace'))
                     raise

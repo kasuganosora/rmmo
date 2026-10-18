@@ -15,11 +15,12 @@ func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
 	print("PASS " if ok else "FAIL ",label)
 	if not ok:failures+=1
-func finish(request:Dictionary,label:String,expected:bool=true)->Dictionary:
+func finish(request:Dictionary,label:String,expected:bool=true,peer:Node=null)->Dictionary:
+	var signal_owner:Node=server if peer==null else peer
 	var result:=request
 	if request.get("deferred",false):
 		while true:
-			var reply:Array=await server.response_ready
+			var reply:Array=await signal_owner.response_ready
 			if int(reply[0])==int(request.request_id):result=reply[1];break
 	check(bool(result.get("ok",false))==expected,label)
 	if bool(result.get("ok",false))!=expected:print(result)
@@ -31,7 +32,7 @@ func item_instance(definition:String)->String:
 		if row.definition_id==definition:return str(row.id)
 	return ""
 func run()->void:
-	create_timer(65).timeout.connect(func():print("FAIL gameplay watchdog timeout");quit(2))
+	create_timer(90).timeout.connect(func():print("FAIL gameplay watchdog timeout");quit(2))
 	var address:=""
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--test-server="):address=arg.trim_prefix("--test-server=")
@@ -55,14 +56,18 @@ func run()->void:
 	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",1.]),"open authoritative map fixture")
 	var opened:=false
 	for fixture:Dictionary in server.business_snapshots.interactions.objects:
-		if fixture.get("owner_id")=="integration-building":opened=fixture.get("state")=="open"
+		if fixture.get("owner_id")=="integration-building" and fixture.get("fixture_id")=="gate":opened=fixture.get("state")=="open"
 	check(opened,"map fixture snapshot changes only after server commit")
 	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",.5]),"partial fixture state rejected",false)
 	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",0.]),"close authoritative map fixture")
+	await housing_checks(address)
 	var initial_gold:int=server.inventory.get_gold()
 	await finish(server.try_interact(NPC,0,0),"NPC dialogue")
 	await finish(server.try_accept_quest(QUEST),"accept quest")
 	check(server.snapshot_quest_journal()[0].title=="Integration dialogue quest","quest title uses existing HUD contract")
+	var accepted:Dictionary=server.business_snapshots.progression.quests[0]
+	check(accepted.get("accepted_at_key") is String,"quest snapshot carries exact acceptance key")
+	accepted.accepted_at_game=float(accepted.accepted_at_game)+1e-10
 	await finish(server.try_abandon_quest(QUEST),"abandon exact accepted quest")
 	check(server.snapshot_quest_journal().is_empty(),"abandon projects journal")
 	await finish(server.try_accept_quest(QUEST),"reaccept quest")
@@ -125,3 +130,52 @@ func run()->void:
 		check((await server.confirm_world_ready(server.world_session.map_ref)).ok and server.is_world_ready(),"respawn leaves a usable world session after Ready")
 	server.disconnect_server();server.queue_free()
 	print("REAL_GAMEPLAY_TESTS failures=",failures);quit(0 if failures==0 else 1)
+
+func housing_checks(address:String)->void:
+	var view:Dictionary=await finish(server.try_house_permissions("integration-home"),"owner opens house permissions")
+	check(view.get("data",{}).get("can_manage",false),"personal owner manages house")
+	var panel:=preload("res://scripts/ui/house_permissions.gd").new();root.add_child(panel);panel.show_house(view.data,server)
+	check(panel.get_child_count()>0,"house permission UI builds without art dependencies")
+	var visitor:=Real.new();root.add_child(visitor)
+	visitor.register_account("resident_"+str(Time.get_ticks_usec()),"integration-password",address)
+	var auth:Array=await visitor.login_finished
+	check(auth[0],"second real player authenticates for housing")
+	if not auth[0]:visitor.queue_free();return
+	visitor.create_character("共享住户","adventurer","1","male")
+	var created:Array=await visitor.character_created
+	if not created[0]:check(false,"second house character");visitor.queue_free();return
+	visitor.enter_world3d(int(created[2].id))
+	var admission:Array=await visitor.enter_world_ready
+	check(admission[0],"visitor enters public map")
+	if not admission[0]:print(admission);visitor.queue_free();return
+	check((await visitor.confirm_world_ready(visitor.world_session.map_ref)).ok,"visitor confirms Ready")
+	var private_view:Dictionary=await finish(visitor.try_house_permissions("integration-home"),"visitor reads house rights",true,visitor)
+	check(not private_view.get("data",{}).get("can_enter",true),"closed private house denies visitor")
+	await finish(visitor.gameplay.dispatch("fixture",["integration-building","gate",1.]),"visitor cannot open private entrance",false,visitor)
+	await finish(server.gameplay.dispatch("fixture",["integration-building","casement",1.]),"owner opens real window")
+	private_view=await finish(visitor.try_house_permissions("integration-home"),"read rights after opening window",true,visitor)
+	check(not private_view.data.can_enter,"window does not grant entry")
+	var denied:Dictionary=await visitor.find_path(Vector3(1,0,1))
+	check(not denied.get("ok",false),"unauthorized real navigation rejects house destination")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",1.]),"owner opens entrance to guests")
+	private_view=await finish(visitor.try_house_permissions("integration-home"),"read open entrance rights",true,visitor)
+	check(private_view.data.can_enter and private_view.data.open_to_visitors,"open entrance lets unshared visitor enter")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",0.]),"owner closes private entrance")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","casement",0.]),"owner closes real window")
+	panel._submit({"action":"grant","member_name":"共享住户","enter":true,"operate":true,"manage":true})
+	check(panel._pending_request>0,"permission UI submits real sharing request")
+	var shared:Dictionary=await finish({"deferred":true,"request_id":panel._pending_request},"grant shared house management by character name")
+	check(panel._pending_request==0,"permission UI releases pending state after response")
+	check(shared.get("data",{}).get("members",[]).size()==1,"shared member visible to manager")
+	private_view=await finish(visitor.try_house_permissions("integration-home"),"shared player refreshes rights",true,visitor)
+	check(private_view.data.can_enter and private_view.data.can_manage,"personal house supports multiple managers")
+	await finish(visitor.gameplay.dispatch("fixture",["integration-building","casement",1.]),"shared player operates window",true,visitor)
+	var action_rows:Array=visitor.gameplay.environment.menu(visitor.business_snapshots.interactions.objects[0],Vector3(0,0,4))
+	check(action_rows[0].options.size()>=2,"environment menu lists door/window and permissions")
+	var window_choice:=""
+	for key:String in visitor.gameplay.environment.options:
+		var choice:Dictionary=visitor.gameplay.environment.options[key]
+		if choice.operation=="map_interaction" and choice.args[1]=="close":window_choice=key
+	check(not window_choice.is_empty(),"environment menu exposes shared window close action")
+	if not window_choice.is_empty():await finish(visitor.try_dialogue_choice(window_choice),"environment menu choice changes real fixture",true,visitor)
+	panel.queue_free();visitor.disconnect_server();visitor.queue_free()

@@ -41,11 +41,21 @@ def configure(content,directory):
         'size':[.8,2,.12],'rotation':[0,0,0],
         'building':{'id':'integration-building','part':'door'},
         'fixture':{'id':'gate','kind':'door','pivot':[-.4,0,0],'angle':90,'open':0}})
-    document['nodes'][0]['extras']['building_instances']={'integration-building':{'parts':{'door':'integration-door'}}}
+    document['nodes'][0]['extras']['rmmo_records'].append({
+        'uuid':'integration-window','kind':'box','position':[1.8,1.5,2.5],
+        'size':[.5,.7,.1],'rotation':[0,0,0],
+        'building':{'id':'integration-building','part':'window'},
+        'fixture':{'id':'casement','kind':'window','pivot':[-.25,0,0],'angle':90,'open':0}})
+    document['nodes'][0]['extras']['building_instances']={'integration-building':{'parts':{'door':'integration-door','window':'integration-window'}}}
     map_path.write_text(json.dumps(document))
     # Prices, grants and dimensions are trusted startup policy, not client claims.
     vendors=directory/'vendors.json'
     vendors.write_text(json.dumps({'$schema':'rmmo.vendors/v1','vendors':{NPC:{'name':'Integration shop','buyback_limit':8,'offers':[{'item':HERB,'price':5}]}}}))
     bodies=directory/'body-profiles.json'
     bodies.write_text(json.dumps({'$schema':'rmmo.body-profiles/v1','profiles':{'male/1':{'radius':.3,'height':2.05}}}))
-    return ['-vendors',str(vendors),'-body-profiles',str(bodies),'-starter-skills',','.join([HEAL,STRIKE])]
+    housing=directory/'housing.json'
+    housing.write_text(json.dumps({'$schema':'rmmo.housing/v1','houses':[{
+        'id':'integration-home','name':'共享测试住宅','map':'tutorial/yard','building':'integration-building',
+        'kind':'personal','owner':'1','entrances':['gate'],
+        'bounds':[{'min':[-.2,0,-.1],'max':[2.2,3,2.8]}]}]}))
+    return ['-housing',str(housing),'-vendors',str(vendors),'-body-profiles',str(bodies),'-starter-skills',','.join([HEAL,STRIKE])]

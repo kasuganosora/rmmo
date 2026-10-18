@@ -344,7 +344,7 @@ func _read_interactions()->Dictionary:
 		if not result.ok:return result
 		var data:Dictionary=result.body
 		if first.is_empty():first=data.duplicate(true)
-		if data.get("revision")!=first.get("revision") or data.get("definition_revision")!=first.get("definition_revision"):return {"ok":false,"error":"interaction_revision_changed"}
+		if data.get("revision")!=first.get("revision") or data.get("definition_revision")!=first.get("definition_revision") or data.get("access_revision",0)!=first.get("access_revision",0):return {"ok":false,"error":"interaction_revision_changed"}
 		if data.get("objects") is Array:objects.append_array(data.objects)
 		if objects.size()>16384:return {"ok":false,"error":"interaction_object_budget"}
 		var next:=str(data.get("next_cursor",""))
@@ -410,12 +410,12 @@ func interact_nearest(feet:Vector3)->void:
 		if d<=3. and d<distance:creature=id;distance=d
 	for row:Dictionary in page.get("objects",[]):
 		var point:Variant=row.get("position",[])
-		if not point is Array or point.size()!=3 or row.get("actions",[]).is_empty():continue
+		if not point is Array or point.size()!=3 or row.get("actions",[]).is_empty() and not row.get("access") is Dictionary:continue
 		var d:=feet.distance_to(Vector3(point[0],point[1],point[2]))
 		if d<=float(row.get("radius_m",0.)) and d<distance:selected=row;distance=d;creature=""
 	if not creature.is_empty():gameplay.dispatch("interact",[creature]);return
 	if selected.is_empty():return
-	gameplay.dispatch("map_interaction",[selected.id,selected.actions[0]])
+	_network_actions.append_array(gameplay.environment.menu(selected,feet))
 
 func snapshot_world3d_sky(_map_id:String)->Dictionary:return business_snapshots.get("environment",{}).duplicate(true)
 
