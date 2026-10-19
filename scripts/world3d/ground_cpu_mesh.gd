@@ -10,6 +10,10 @@ var _collision_faces:=PackedVector3Array()
 static var _unit_box_arrays: Array=[]
 static var importer_lod_hints_enabled:=true
 
+func _notification(what:int)->void:
+	if what==NOTIFICATION_PREDELETE:
+		preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_geometry(surfaces,lods,_collision_faces)
+
 static func _bind_source(source:Mesh,owner:Mesh)->WeakRef:
 	# Projections share this WeakRef, including its generation proof. Comparing
 	# material slots alone cannot detect an editor changing the source geometry.

@@ -37,7 +37,7 @@ func run()->void:
 	check(result.error.is_empty() and result.read_profile.road_instances==1 and var_to_bytes(result.surface_arrays[stress.uuid])==expected,"actual trusted chunk route keeps exact published road arrays")
 	var mutator:=MutationToken.new();mutator.path=source.path;mutator.bytes=before+" ".to_utf8_buffer()
 	result=Chunk.prepare(index,entry(index),source.path,helper.content_root,mutator,null,{},{},0,true)
-	check(not result.error.is_empty() and result.surface_arrays.is_empty(),"mutable map replacement still rejects the obsolete transaction")
+	check(result.error.is_empty() and var_to_bytes(result.surface_arrays[stress.uuid])==expected,"mounted trusted snapshot keeps its exact arrays across an unrelated disk revision")
 	helper.write_bytes(source.path,before)
 	var smaller:=index.duplicate(true);smaller.rows[0].memory_bytes=1
 	result=Chunk.prepare(smaller,entry(smaller),source.path,helper.content_root,null,null,{},{},0,true)

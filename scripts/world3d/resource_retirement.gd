@@ -7,11 +7,13 @@ const Budget=preload("res://scripts/world3d/frame_work_budget.gd")
 const IMPORT_FIELDS:Array[String]=["json","glb_data","nodes","buffers","buffer_views","accessors","meshes","materials","textures","texture_samplers","images","skins","cameras","lights","skeletons","animations","unique_names","unique_animation_names"]
 const MAX_IMPORT_VALUES:=262144
 static var background_byte_release_enabled:=true
+static var background_geometry_release_enabled:=true
 const BACKGROUND_BYTE_MIN:=8*1024*1024
 var pending:Array=[]
 var known:Dictionary={}
 var exiting:=false
 var serial:=0
+var _advancing_ticket:Dictionary={}
 var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0}
 static func _service()->Node:
 	if not Thread.is_main_thread():return null
@@ -39,6 +41,40 @@ static func defer_private_array(values:Array,force_small:bool=false)->bool:
 	service.serial+=1;var id:="private:%d"%service.serial
 	service.pending.append({"kind":"private_array","source_id":id,"values":values})
 	service.known[id]=true;service.profile.private_arrays+=1;service.set_process(true)
+	return true
+static func defer_cpu_geometry(surfaces:Array,lods:Array,faces:PackedVector3Array)->bool:
+	# Called from a CPU mesh's PREDELETE, after its final Resource owner is gone.
+	# These schema fields contain only geometry arrays; materials/metadata and
+	# GPU resources remain in the original main-thread destructor. Never clear
+	# the nested arrays: other immutable CPU meshes may still borrow them.
+	if not background_geometry_release_enabled or not Thread.is_main_thread():return false
+	var bytes:int=faces.size()*(24 if OS.has_feature("double") else 12)
+	for surface:Array in surfaces:
+		for channel:Variant in surface:
+			match typeof(channel):
+				TYPE_PACKED_BYTE_ARRAY:bytes+=channel.size()
+				TYPE_PACKED_INT32_ARRAY,TYPE_PACKED_FLOAT32_ARRAY:bytes+=channel.size()*4
+				TYPE_PACKED_INT64_ARRAY,TYPE_PACKED_FLOAT64_ARRAY:bytes+=channel.size()*8
+				TYPE_PACKED_VECTOR2_ARRAY:bytes+=channel.size()*(16 if OS.has_feature("double") else 8)
+				TYPE_PACKED_VECTOR3_ARRAY:bytes+=channel.size()*(24 if OS.has_feature("double") else 12)
+				TYPE_PACKED_COLOR_ARRAY:bytes+=channel.size()*16
+				TYPE_PACKED_VECTOR4_ARRAY:bytes+=channel.size()*(32 if OS.has_feature("double") else 16)
+	for levels:Dictionary in lods:
+		for indices:PackedInt32Array in levels.values():bytes+=indices.size()*4
+	if bytes<BACKGROUND_BYTE_MIN:return false
+	var service:Node=_service()
+	if service==null:return false
+	service.serial+=1;var id:="geometry:%d"%service.serial
+	# Do not start a worker inside PREDELETE: the mesh's members still retain
+	# these buffers until that destructor returns. The next service slice starts
+	# the transfer; a shutdown drains it synchronously after all prior owners.
+	var ticket:Dictionary={"kind":"cpu_geometry","source_id":id,"values":[surfaces,lods,faces],"logical_bytes":bytes,"worker":null}
+	service.pending.append(ticket)
+	if service._advancing_ticket.get("kind","") in ["model","import"]:
+		# FIFO disposal makes the last geometry child the completion fence for
+		# all children. Its parent transfers admission/callback ownership there.
+		service._advancing_ticket.geometry_tail=ticket
+	service.known[id]=true;service.set_process(true)
 	return true
 static func defer_import_packet(packet:Dictionary,on_done:Callable,owner:RefCounted)->bool:
 	var _scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.resource_retirement.defer_import_packet") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -101,6 +137,13 @@ func _retain(ticket:Dictionary,value:Variant)->void:
 	if not value is Resource or ticket.seen.has(value.get_instance_id()):return
 	ticket.seen[value.get_instance_id()]=true;ticket.resources.append(value)
 func _advance(ticket:Dictionary,budget_usec:int)->bool:
+	var previous:Dictionary=_advancing_ticket
+	if ticket.get("kind","") in ["model","import"]:_advancing_ticket=ticket
+	var complete:=_advance_ticket(ticket,budget_usec)
+	_advancing_ticket=previous
+	return complete
+func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
+	if ticket.get("kind","")=="cpu_geometry":return _advance_cpu_geometry(ticket,budget_usec<=0)
 	if ticket.get("kind","")=="model":return _advance_model(ticket,budget_usec)
 	if ticket.get("kind","")=="private_array":return _advance_private_array(ticket,budget_usec)
 	if ticket.get("kind","")=="import":return _advance_import(ticket,budget_usec)
@@ -134,14 +177,57 @@ func _advance(ticket:Dictionary,budget_usec:int)->bool:
 	return ticket.phase==2
 func _advance_private_array(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec();var progressed:=false
+	var trace=preload("res://scripts/world3d/load_trace.gd")
 	while not ticket.values.is_empty() and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
 		progressed=true
-		var value:Variant=ticket.values.pop_back()
-		value=null;profile.private_values+=1
+		var release_began:=Time.get_ticks_usec() if trace.enabled else 0
+		# A call result can remain in a VM temporary even after value=null. Its
+		# complete stack must unwind before measuring or starting the next unit.
+		var details:=_drop_private_value(ticket.values,trace.enabled)
+		profile.private_values+=1
+		if trace.enabled:
+			var elapsed_value:=Time.get_ticks_usec()-release_began
+			if elapsed_value>int(profile.get("private_max_value_us",0)):
+				profile.private_max_value_us=elapsed_value;profile.private_max_value=details
+			trace.elapsed("retirement.private_value_release",release_began,details)
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	profile.private_slices+=1;profile.private_max_slice_us=maxi(int(profile.private_max_slice_us),elapsed)
 	return ticket.values.is_empty()
+static func _drop_private_value(values:Array,diagnostics:bool)->Dictionary:
+	var value:Variant=values.pop_back();var details:Dictionary={}
+	if diagnostics:
+		details={"class":value.get_class() if value is Object else type_string(typeof(value)),"size":value.size() if value is Array or value is Dictionary else 0}
+		if value is Resource and value.get_script()!=null:details.script=value.get_script().resource_path
+		if value is Dictionary:
+			var keys:Array[String]=[]
+			for key:Variant in value:keys.append(str(key) if key is String or key is StringName else type_string(typeof(key)))
+			details.keys=keys;details.uuid=str(value.get("uuid",""))
+	return details
+static func _release_cpu_geometry(values:Array)->Dictionary:
+	var began:=Time.get_ticks_usec()
+	# Only the new transfer container is mutated. Its nested geometry may be
+	# shared, and releasing this reference must not alter any surviving borrower.
+	while not values.is_empty():_drop_private_value(values,false)
+	return {"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
+func _advance_cpu_geometry(ticket:Dictionary,shutdown:bool)->bool:
+	var began:=Time.get_ticks_usec();var worker:Thread=ticket.worker
+	if worker==null:
+		worker=Thread.new()
+		if worker.start(_release_cpu_geometry.bind(ticket.values))!=OK:
+			profile.geometry_start_failures=int(profile.get("geometry_start_failures",0))+1
+			ticket.values.clear();return true
+		ticket.worker=worker
+		profile.geometry_batches=int(profile.get("geometry_batches",0))+1
+		profile.geometry_logical_bytes=int(profile.get("geometry_logical_bytes",0))+int(ticket.logical_bytes)
+	var done:=not worker.is_alive() or shutdown
+	if done:
+		var result:Dictionary=worker.wait_to_finish();ticket.worker=null
+		profile.geometry_worker_us=int(profile.get("geometry_worker_us",0))+int(result.elapsed_us)
+		profile.geometry_max_worker_us=maxi(int(profile.get("geometry_max_worker_us",0)),int(result.elapsed_us))
+		profile.geometry_last_thread_id=result.thread_id
+	profile.geometry_max_main_us=maxi(int(profile.get("geometry_max_main_us",0)),Time.get_ticks_usec()-began)
+	return done
 func _advance_model(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec();var progressed:=false
 	var resources:ModelOwners=ticket.resources
@@ -278,7 +364,11 @@ func _finish_cpu_buffers(ticket:Dictionary,shutdown:bool)->bool:
 	return true
 func _finish_front()->void:
 	var ticket:Dictionary=pending.pop_front();known.erase(ticket.source_id)
-	if ticket.get("kind","") in ["import","model"]:
+	if ticket.has("geometry_tail"):
+		var tail:Dictionary=ticket.geometry_tail;ticket.erase("geometry_tail")
+		tail.on_done=ticket.get("on_done",Callable());tail.owner=ticket.get("owner")
+		ticket.on_done=Callable();ticket.owner=null
+	elif ticket.has("on_done"):
 		var callback:Callable=ticket.on_done;ticket.on_done=Callable()
 		if callback.is_valid():callback.call()
 		ticket.owner=null

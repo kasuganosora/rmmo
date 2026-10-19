@@ -50,6 +50,8 @@ static var demanded_template_scan_enabled:=true
 static var ordered_publication_removal_enabled:=true
 static var spatial_candidate_reuse_enabled:=true
 static var batched_pending_unindex_enabled:=true
+static var support_promotion_dedup_enabled:=true
+static var native_spatial_union_enabled:=true
 const EMPTY_DEMAND:Dictionary={}
 static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
@@ -85,6 +87,8 @@ var _priority:=Vector3.ZERO
 var _priority_rank_anchor:Variant=null
 var _pending_index:Dictionary={}
 var _large_pending:Array=[]
+var _pending_native_index:Dictionary={}
+var _large_native_pending:Dictionary={}
 var _indexed:=false
 var _doc=preload("res://scripts/world3d/world_document.gd").new()
 var _reference_index:Dictionary={}
@@ -468,7 +472,7 @@ func requeue_references(entries:Array)->int:
 		# Keep empty cells until a requeue, matching the old query strategy
 		# between publications. Prune only keys, without reindexing every row.
 		for cell:Vector2i in _pending_index.keys():
-			if _pending_index[cell].is_empty():_pending_index.erase(cell)
+			if _pending_index[cell].is_empty():_pending_index.erase(cell);_pending_native_index.erase(cell)
 	var extra:Dictionary=_map.get_meta("extras",{})
 	var records:Array=extra.get("rmmo_records",[])
 	var write:=0
@@ -496,7 +500,7 @@ func requeue_references(entries:Array)->int:
 		profile.pending_index_updates=int(profile.get("pending_index_updates",0))+1
 		profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+accepted.size()
 	else:
-		_indexed=false;_pending_index.clear();_large_pending.clear()
+		_indexed=false;_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 	_demand_membership.clear();_typed_pending.clear();_typed_pending_buildings=-1
 	_demand_revision+=1
 	_invalidate_collision_queries()
@@ -715,7 +719,7 @@ func _index_pending()->void:
 	if _indexed:return
 	_demand_membership.clear()
 	_typed_pending.clear();_typed_pending_buildings=-1
-	_pending_by_record_id.clear();_pending_index.clear();_large_pending.clear()
+	_pending_by_record_id.clear();_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 	for item:Dictionary in pending:_index_pending_item(item)
 	profile.pending_index_builds=int(profile.get("pending_index_builds",0))+1
 	profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+pending.size()
@@ -726,12 +730,14 @@ func _index_pending_item(item:Dictionary)->void:
 	var box:AABB=item.bounds
 	item.demand_rect=Rect2(Vector2(box.position.x,box.position.z),Vector2(box.size.x,box.size.z))
 	var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
-	if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);return
+	if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);_large_native_pending[item.record.uuid]=item;return
 	for z in range(low.y,high.y+1):
 		for x in range(low.x,high.x+1):
 			var key:=Vector2i(x,z)
 			if not _pending_index.has(key):_pending_index[key]=[]
 			_pending_index[key].append(item)
+			if not _pending_native_index.has(key):_pending_native_index[key]={}
+			_pending_native_index[key][item.record.uuid]=item
 
 static func _erase_pending_identity(values:Array,item:Dictionary)->void:
 	for i:int in values.size():
@@ -761,9 +767,13 @@ func _unindex_pending_batch(items:Array)->bool:
 	for key:Vector2i in cells:
 		if not _pending_index.has(key):continue
 		var work:=_filter_pending_owners(_pending_index[key],cells[key])
+		for uuid:String in cells[key]:
+			if is_same(_pending_native_index.get(key,EMPTY_DEMAND).get(uuid),cells[key][uuid]):_pending_native_index[key].erase(uuid)
 		rows+=work.x;tail_rows+=work.y;filters+=1
 	if not large.is_empty():
 		var work:=_filter_pending_owners(_large_pending,large)
+		for uuid:String in large:
+			if is_same(_large_native_pending.get(uuid),large[uuid]):_large_native_pending.erase(uuid)
 		rows+=work.x;tail_rows+=work.y;filters+=1
 	for uuid:String in owners:_pending_by_record_id.erase(uuid)
 	profile.pending_bucket_filter_rows=int(profile.get("pending_bucket_filter_rows",0))+rows
@@ -796,14 +806,17 @@ func _unindex_pending_item(item:Dictionary,prune_empty:bool=true)->void:
 	# Keeping its old bucket position would change stable equal-priority order.
 	var box:AABB=item.bounds
 	var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
-	if (high.x-low.x+1)*(high.y-low.y+1)>64:_erase_pending_identity(_large_pending,item)
+	if (high.x-low.x+1)*(high.y-low.y+1)>64:
+		_erase_pending_identity(_large_pending,item)
+		if is_same(_large_native_pending.get(item.record.uuid),item):_large_native_pending.erase(item.record.uuid)
 	else:
 		for z in range(low.y,high.y+1):
 			for x in range(low.x,high.x+1):
 				var cell:=Vector2i(x,z)
 				if not _pending_index.has(cell):continue
 				_erase_pending_identity(_pending_index[cell],item)
-				if prune_empty and _pending_index[cell].is_empty():_pending_index.erase(cell)
+				if is_same(_pending_native_index.get(cell,EMPTY_DEMAND).get(item.record.uuid),item):_pending_native_index[cell].erase(item.record.uuid)
+				if prune_empty and _pending_index[cell].is_empty():_pending_index.erase(cell);_pending_native_index.erase(cell)
 	_pending_by_record_id.erase(item.record.uuid)
 
 static func _intersects(a:AABB,b:AABB)->bool:
@@ -813,15 +826,40 @@ func _in_clip(clip:AABB)->Array:
 	_index_pending()
 	var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 	var candidates:Dictionary={}
-	var tests:=0
+	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
+	# UUID-unique queue catalogs let native Dictionary.merge union repeated
+	# cell references in their original insertion order. The final live bounds
+	# test still runs once per owner. Non-canonical/aliased buckets retain the
+	# original filtering-before-UUID-deduplication path below.
+	if native_spatial_union_enabled and _pending_by_record_id.size()==pending.size() and _large_native_pending.size()==_large_pending.size() and (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():
+		var buckets:Array[Dictionary]=[_large_native_pending];var canonical:=true
+		for z in range(low.y,high.y+1):
+			for x in range(low.x,high.x+1):
+				var key:=Vector2i(x,z)
+				if not _pending_index.has(key):continue
+				var bucket:Dictionary=_pending_native_index.get(key,EMPTY_DEMAND)
+				if bucket.size()!=_pending_index[key].size():canonical=false;break
+				buckets.append(bucket)
+			if not canonical:break
+		if canonical:
+			var unique:Dictionary={}
+			for bucket:Dictionary in buckets:unique.merge(bucket,true)
+			for item:Dictionary in unique.values():
+				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[item.record.uuid]=item
+			profile.spatial_union_merges=int(profile.get("spatial_union_merges",0))+buckets.size()
+			profile.spatial_script_rows=int(profile.get("spatial_script_rows",0))+unique.size()
+			profile.spatial_candidate_tests=int(profile.get("spatial_candidate_tests",0))+unique.size()
+			return candidates.values()
+	var tests:=0;var script_rows:=0
 	for item:Dictionary in _large_pending:
+		script_rows+=1
 		var uuid:String=item.record.uuid
 		if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
 		tests+=1
 		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
-	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
 		for item:Dictionary in pending:
+			script_rows+=1
 			var uuid:String=item.record.uuid
 			if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
 			tests+=1
@@ -830,6 +868,7 @@ func _in_clip(clip:AABB)->Array:
 		for z in range(low.y,high.y+1):
 			for x in range(low.x,high.x+1):
 				for item:Dictionary in _pending_index.get(Vector2i(x,z),[]):
+					script_rows+=1
 					var uuid:String=item.record.uuid
 					# Repeated cells borrow the same immutable queue member. Only
 					# reuse a successful exact test for the CURRENT winning owner;
@@ -838,6 +877,7 @@ func _in_clip(clip:AABB)->Array:
 					tests+=1
 					if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
 	profile.spatial_candidate_tests=int(profile.get("spatial_candidate_tests",0))+tests
+	profile.spatial_script_rows=int(profile.get("spatial_script_rows",0))+script_rows
 	return candidates.values()
 
 func _has_pending_in_clip(clip:AABB)->bool:
@@ -877,10 +917,12 @@ func _refresh_demanded()->void:
 				memberships[id]=cached.items
 				profile.demand_membership_hits=int(profile.get("demand_membership_hits",0))+1
 	var support_priorities:Dictionary={};var support_distances:Dictionary={};var support_visits:=0
+	var applied_support_priorities:Dictionary={};var support_promotions:=0
 	var typed_scans:Dictionary=_typed_full_scan_inputs(memberships) if typed_demand_scan_enabled else {}
 	var trace=preload("res://scripts/world3d/load_trace.gd")
 	if trace.enabled:trace.elapsed("demand.membership_setup",began)
 	var rank_started:=Time.get_ticks_usec() if trace.enabled else 0
+	var input_rows:=0
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
@@ -900,6 +942,7 @@ func _refresh_demanded()->void:
 		if demand_membership_cache_enabled and not memberships.has(id):
 			_demand_membership[id]={"clip":demand.clip,"kind":demand.get("kind","all"),"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":candidates_for_demand}
 			profile.demand_membership_misses=int(profile.get("demand_membership_misses",0))+1
+		input_rows+=candidates_for_demand.size()
 		for item:Dictionary in candidates_for_demand:
 			if item.get("published",false) or (grouped and item.get("group_id","")!=demand.group_id):continue
 			if kind=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
@@ -922,18 +965,30 @@ func _refresh_demanded()->void:
 			support_priorities[uuid]=priority
 			for support:String in _runtime_building_supports[uuid]:
 				support_visits+=1
+				var support_priority:int=priority-1
+				# Several buildings share the same landscape. Within this synchronous
+				# refresh, its owner/publication/origin stay fixed and winning scores
+				# only improve. Repeat a promotion only for a stronger parent ticket.
+				if support_promotion_dedup_enabled:
+					var applied:Variant=applied_support_priorities.get(support)
+					if applied!=null and int(applied)<=support_priority:continue
+					applied_support_priorities[support]=support_priority
+				support_promotions+=1
 				var dependency:Dictionary=_pending_by_record_id.get(support,EMPTY_DEMAND)
 				if dependency.is_empty() or dependency.get("published",false):continue
-				var support_priority:int=priority-1
 				if not support_distances.has(support):support_distances[support]=_distance_from(dependency,_priority)
 				var support_score:float=float(support_priority)*1e15+float(support_distances[support])
 				if not candidates.has(support):candidates[support]=[support_score,candidates.size(),dependency,support_priority]
 				elif support_score<float(candidates[support][0]):
 					var previous:Array=candidates[support];previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority
 	profile.support_candidate_visits=int(profile.get("support_candidate_visits",0))+support_visits
+	profile.support_promotions=int(profile.get("support_promotions",0))+support_promotions
 	var ordered:Array=candidates.values()
+	if trace.enabled:trace.elapsed("demand.collect_candidates",rank_started,{"input_rows":input_rows,"candidates":ordered.size(),"support_visits":support_visits,"support_promotions":support_promotions})
+	var sort_started:=Time.get_ticks_usec() if trace.enabled else 0
 	if native_demand_order_enabled:ordered.sort()
 	else:ordered.sort_custom(func(a,b):return a[0]<b[0] if a[0]!=b[0] else a[1]<b[1])
+	if trace.enabled:trace.elapsed("demand.sort_candidates",sort_started,{"candidates":ordered.size()})
 	if trace.enabled:trace.elapsed("demand.rank_candidates",rank_started,{"candidates":ordered.size()})
 	var commit_started:=Time.get_ticks_usec() if trace.enabled else 0
 	_demanded.clear()
@@ -1081,7 +1136,7 @@ func _collision_query_slot(id:String)->Dictionary:
 	# filtered live). An external pending replacement/append instead rebuilds
 	# those buckets, so a newly added record cannot hide behind a cached query.
 	if not is_same(_collision_pending_snapshot,pending) or _collision_pending_count!=pending.size():
-		_indexed=false;_pending_index.clear();_large_pending.clear()
+		_indexed=false;_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 		_invalidate_collision_queries()
 	if not _collision_queries.has(id):
 		if _collision_queries.size()>=COLLISION_QUERY_CACHE_LIMIT:_collision_queries.erase(_collision_queries.keys()[0])
@@ -1516,7 +1571,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 	for field:String in result.get("read_profile",{}).get("collision_products",{}):
 		profile["collision_product_"+field]=int(profile.get("collision_product_"+field,0))+int(result.read_profile.collision_products[field])
 	var reference_profile:Dictionary=result.get("read_profile",{})
-	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us"]:
+	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
 	if not records.is_empty():
 		var key:String="reference_proof_jobs" if reference_profile.get("ownership_proof_used",false) else "reference_full_scan_jobs"

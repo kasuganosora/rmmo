@@ -10,6 +10,7 @@ const PrefabTextures = preload("res://scripts/world3d/prefab_texture_preparation
 const RoadPreparation = preload("res://scripts/world3d/native_road_preparation.gd")
 const OwnershipProof = preload("res://scripts/world3d/dependency_index_proof.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
+static var trusted_directory_snapshot_enabled:=true # Diagnostic control for the previous per-job authentication.
 
 static func _fail(reason: String, cancelled: bool = false, failed_uuid: String = "") -> Dictionary:
 	return {"error": reason, "cancelled": cancelled, "failed_uuid": failed_uuid, "records": [], "dependencies": {}, "surface_arrays": {}, "read_profile": {}}
@@ -19,10 +20,14 @@ static func _cancelled(token: RefCounted) -> bool:
 
 static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false) -> Dictionary:
 	var started := Time.get_ticks_usec()
+	var mounted_snapshot:=trusted_package and trusted_directory_snapshot_enabled
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	if not Paths.allowed(path, content_root) or not index.get("ok", false) or not Store._digest(index.get("source_sha256")): return _fail("无效的区块引用来源")
 	if requested_entries.is_empty() or requested_entries.size() > Store.MAX_RECORDS: return _fail("无效的区块引用请求数量")
-	if FileAccess.get_sha256(path) != index.source_sha256: return _fail("地图来源在区块准备前已改变")
+	# The mounted immutable directory is this load's map revision. Saving another
+	# revision does not change its content-addressed references. Reload/exit cancel
+	# the owning queue token; only explicit diagnostic reads reauthenticate disk.
+	if not mounted_snapshot and FileAccess.get_sha256(path) != index.source_sha256: return _fail("地图来源在区块准备前已改变")
 	var ownership_started := Time.get_ticks_usec()
 	if not Index.validate_index_ownership(index, content_root, ownership_proof, path): return _fail("无效的完整建筑归属目录")
 	var preflight_ownership_us := Time.get_ticks_usec() - ownership_started
@@ -37,9 +42,11 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 		if not entry.get("bounds") is AABB or entry.bounds != expected: return _fail("区块请求边界与目录不一致")
 		requested[at] = true; positions.append(at)
 	# Demand never splits a building or a fortification fixture namespace. Reject before touching any rmres file.
+	var checked_groups:Dictionary={}
 	for at in positions:
 		var group_id: String = index.rows[at].group_id
-		if not group_id.is_empty():
+		if not group_id.is_empty() and not checked_groups.has(group_id):
+			checked_groups[group_id]=true
 			for member in index.groups[group_id].members:
 				if not requested.has(member): return _fail("区块请求缺少同一原子组的组件")
 	positions.sort()
@@ -64,11 +71,12 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var material_checks := {}; var asset_paths := {}; var ids := {}; var manifests := {}; var recomputed: Array = []
 	var validation_started := Time.get_ticks_usec(); var prefabs := 0; var prefab_cpu := {}; var texture_sources := {}
-	var roads: Array = []
+	var roads: Array = [];var terrain_positions:Array=[]
 	var collision_candidates:Dictionary={};var collision_metrics:Dictionary={"hits":0,"misses":0,"writes":0,"write_skips":0,"bytes":0,"workspace_bytes":collision_workspace}
 	for i in restored.records.size():
 		if _cancelled(token): return _fail("区块引用准备已取消", true)
 		var record: Dictionary = restored.records[i]; var at: int = positions[i]; var expected: Dictionary = index.rows[at]
+		if record.has("terrain_mesh"):terrain_positions.append(at)
 		var issue: String = ""
 		if not trusted_package:
 			issue=Cursor.asset_record_issue(record, material_checks, compact[i].rmmo_ref.sha256, asset_paths, content_root)
@@ -109,15 +117,16 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			var actual_textures:=PrefabTextures.sources(record)
 			if actual_textures!=expected.get("prefab_textures",{}):return _fail("预制件贴图依赖与目录不一致",false,record.uuid)
 			texture_sources.merge(actual_textures,true)
-		# Runtime consumes the package-derived directory; editor/verification
-		# callers still independently recompute bounds and ownership.
-		var actual: Dictionary = expected.duplicate() if trusted_package else Index._classify(record, content_root, manifests)
-		if expected.bounds_known and (not actual.bounds_known or not actual.bounds.is_equal_approx(expected.bounds)): return _fail("实际物件边界与区块目录不一致", false, record.uuid)
-		if actual.owner_keys != expected.owner_keys: return _fail("实际物件归属与区块目录不一致", false, record.uuid)
-		if expected.reason in ["native_fortification", "native_bridge"] and actual.reason != expected.reason: return _fail("冻结结构不能证明为自包含组件", false, record.uuid)
+		# Game/editor mounted loads consume the package-derived directory;
+		# explicit diagnostic callers independently recompute its bounds/owners.
 		if not expected.group_id.is_empty() and not expected.bounds_known: return _fail("未知边界建筑必须沿完整加载路径准备")
-		actual.order = at; actual.group_id = expected.group_id
-		recomputed.append(actual)
+		if not mounted_snapshot:
+			var actual: Dictionary = expected.duplicate() if trusted_package else Index._classify(record, content_root, manifests)
+			if expected.bounds_known and (not actual.bounds_known or not actual.bounds.is_equal_approx(expected.bounds)): return _fail("实际物件边界与区块目录不一致", false, record.uuid)
+			if actual.owner_keys != expected.owner_keys: return _fail("实际物件归属与区块目录不一致", false, record.uuid)
+			if expected.reason in ["native_fortification", "native_bridge"] and actual.reason != expected.reason: return _fail("冻结结构不能证明为自包含组件", false, record.uuid)
+			actual.order = at; actual.group_id = expected.group_id
+			recomputed.append(actual)
 	var actual_groups: Dictionary = Index._groups(recomputed)
 	for group_id: String in actual_groups:
 		var actual: Dictionary = actual_groups[group_id]; var expected: Dictionary = index.groups[group_id]
@@ -127,7 +136,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var validation_us := Time.get_ticks_usec() - validation_started
 	var surface_arrays := {}; var road_array_us := 0; var road_array_bytes := 0; var road_estimated_bytes := 0
-	var terrain_contexts:Dictionary={};var terrain_rows:=Index.terrain_context_rows(index,positions)
+	var terrain_contexts:Dictionary={};var terrain_rows:=Index.terrain_context_rows(index,terrain_positions)
 	if not terrain_rows.is_empty():
 		var terrain_compact:Array=[];var terrain_dependencies:Dictionary={}
 		for row:Dictionary in terrain_rows:
@@ -155,7 +164,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			if texture_packet.get("retry_pixels",false):failure.retry_pixels=true;failure.source_revisions=texture_packet.get("source_revisions",{})
 			return failure
 	var verify_started := Time.get_ticks_usec()
-	if (not trusted_package and not Store.verify_dependencies(dependencies, path, content_root, 1)) or not Paths.allowed(path, content_root) or FileAccess.get_sha256(path) != index.source_sha256: return _fail("地图或区块引用资源在准备期间发生改变")
+	if (not trusted_package and not Store.verify_dependencies(dependencies, path, content_root, 1)) or not Paths.allowed(path, content_root) or (not mounted_snapshot and FileAccess.get_sha256(path) != index.source_sha256): return _fail("地图或区块引用资源在准备期间发生改变")
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	if not texture_packet.is_empty() and not PrefabTextures.verify(texture_packet,content_root,token):return _fail("预制件贴图在区块准备结束前发生改变",_cancelled(token))
 	# Only this successful existing final transaction grants the typed handoff.
@@ -176,6 +185,9 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.selected_ownership_us = int(ownership.get("ownership_validation_us", 0)); profile.selected_uuid_lookup_us = int(ownership.get("uuid_lookup_us", 0))
 	profile.ownership_proof_used = ownership.get("ownership_proof_used", false)
 	profile.validation_us = validation_us; profile.final_verification_us = Time.get_ticks_usec() - verify_started
+	profile.map_authentications=0 if mounted_snapshot else 2
+	profile.directory_rows_recomputed=recomputed.size();profile.groups_checked=checked_groups.size()
+	profile.terrain_context_source_rows=0 if terrain_positions.is_empty() else index.rows.size()
 	profile.elapsed_us = Time.get_ticks_usec() - started; profile.prefab_instances = prefabs; profile.record_count = restored.records.size()
 	profile.road_instances = roads.size(); profile.road_array_prepare_us = road_array_us; profile.road_array_upper_bytes = road_array_bytes; profile.road_estimated_bytes = road_estimated_bytes
 	profile.prefab_textures=texture_packet.get("profile",{})
