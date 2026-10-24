@@ -44,6 +44,7 @@ static func server() -> Node:
 	_server_node = root.get_node_or_null("MockServer")
 	if _server_node == null:
 		push_error("Net: autoload 'MockServer' not found")
+	preload("res://scripts/net/mock_server_host.gd").require(_server_node)
 	return _server_node
 
 

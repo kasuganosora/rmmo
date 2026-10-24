@@ -79,7 +79,9 @@ func rebuild(field: Node2D, doc: RefCounted) -> void:
 		var sc := float(MAX_SIDE) / float(longest)
 		img.resize(maxi(1, int(img.get_width() * sc)), maxi(1, int(img.get_height() * sc)), Image.INTERPOLATE_NEAREST)
 	if _tex is ImageTexture and _tex.get_width() == img.get_width() and _tex.get_height() == img.get_height():
-		(_tex as ImageTexture).update(img)
+		# The field patches its low-res image in place; queued uploads need a stable copy.
+		var shared: bool = field.has_method("get_lofi_image") and img == field.get_lofi_image()
+		(_tex as ImageTexture).update(img.duplicate() if shared else img)
 	else:
 		_tex = ImageTexture.create_from_image(img)
 	if _host:

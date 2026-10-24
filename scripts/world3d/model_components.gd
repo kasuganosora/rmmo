@@ -101,28 +101,38 @@ static func _encloses_emitting_socket(mesh_node:MeshInstance3D,point:Vector3)->b
 		if crossings%2==0:return false
 	return true
 
-static func apply(model:Node3D,record:Dictionary)->void:
+static func apply(model:Node3D,record:Dictionary,trusted_package:bool=false)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_components.apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var cursor:=begin(model,record)
+	var cursor:=begin(model,record,trusted_package)
 	advance(cursor,0)
 
-static func begin(model:Node3D,record:Dictionary)->Dictionary:
-	if not valid(record):return {}
-	var nodes:Array[Node]=[model];nodes.append_array(model.find_children("*","",true,false))
-	var authored:=Imported.describe(model)
-	if Imported.opted(model) and authored.is_empty():
-		model.set_meta("model_components_error","invalid_authored_building");return {}
-	var generic:=not authored.is_empty()
+static func begin(model:Node3D,record:Dictionary,trusted_package:bool=false,nodes:Array[Node]=[])->Dictionary:
+	if not trusted_package and not valid(record):return {}
+	if nodes.is_empty():nodes=[model];nodes.append_array(model.find_children("*","",true,false))
+	# The mounted package already owns its authored annotations. Adapt those
+	# parts directly; rebuilding/copying and comparing thousands of descriptor
+	# members per instance adds no runtime state. Explicit diagnostics still
+	# inspect the same node list, without two additional graph traversals.
+	var generic:=false;var legacy:=false
+	for node:Node in nodes:
+		var extra:Variant=node.get_meta("extras",{})
+		if not extra is Dictionary:continue
+		generic=generic or extra.has("rmmo_model_components")
+		legacy=legacy or extra.get("delivery_stage","")=="textured_repair_v2"
+	var authored:Dictionary={}
+	if generic and not trusted_package:
+		authored=Imported.describe_nodes(nodes)
+		if authored.is_empty():
+			model.set_meta("model_components_error","invalid_authored_building");return {}
 	if record.has("model_building") and not generic:
 		model.set_meta("model_components_error","missing_authored_building_contract");return {}
-	if generic and record.has("model_building"):
+	if generic and not trusted_package and record.has("model_building"):
 		var expected:Dictionary=record.model_building.duplicate(true);expected.erase("source_sha")
 		if not Imported.same(expected,authored):
 			model.set_meta("model_components_error","authored_building_mismatch");return {}
-	var opted:=generic or nodes.any(func(n):return n.get_meta("extras",{}).get("delivery_stage","")=="textured_repair_v2")
-	if not opted:return {}
+	if not generic and not legacy:return {}
 	var states:Dictionary=record.get("model_building_states",{}) if generic else record.get("model_component_states",{})
-	return {"model":model,"record":record,"nodes":nodes,"generic":generic,"states":states,"phase":0,"at":0,"batch_sources":[]}
+	return {"model":model,"record":record,"nodes":nodes,"generic":generic,"frame":Imported.frame(record) if generic else Transform3D.IDENTITY,"states":states,"phase":0,"at":0,"batch_sources":[]}
 
 static func advance(cursor:Dictionary,budget_usec:int)->bool:
 	if cursor.is_empty() or int(cursor.phase)>=3:return true
@@ -131,7 +141,7 @@ static func advance(cursor:Dictionary,budget_usec:int)->bool:
 		advanced=true
 		if int(cursor.at)>=cursor.nodes.size():cursor.phase+=1;cursor.at=0;continue
 		var node:Node=cursor.nodes[cursor.at];cursor.at+=1
-		if cursor.phase==0:_adapt_mesh(node,cursor.model,cursor.record,cursor.generic,cursor.states)
+		if cursor.phase==0:_adapt_mesh(node,cursor.model,cursor.record,cursor.generic,cursor.states,cursor.frame)
 		elif cursor.phase==1:_adapt_socket(node,cursor.model)
 		elif node is MeshInstance3D:
 			# Renaming is a separate pass, after every owner path/socket resolved.
@@ -142,47 +152,51 @@ static func advance(cursor:Dictionary,budget_usec:int)->bool:
 	cursor.model.set_meta("model_component_batch_sources",cursor.batch_sources)
 	return true
 
-static func _adapt_mesh(node:Node,model:Node3D,record:Dictionary,generic:bool,states:Dictionary)->void:
+static func _adapt_mesh(node:Node,model:Node3D,record:Dictionary,generic:bool,states:Dictionary,frame:Transform3D)->void:
 	if not node is MeshInstance3D or node.mesh==null:return
 	var extra:Dictionary=node.get_meta("extras",{}).duplicate(true)
-	if generic:
-		extra.rmmo_source_uuid=extra.get("rmmo_source_uuid",extra.get("uuid"))
-		extra.uuid=str(record.uuid)+"__"+str(extra.rmmo_source_uuid)
-	var group:String=extra.get("semantic_group","")
-	var parent:Node=node.get_parent()
-	while parent!=null and parent!=model and not parent.get_meta("extras",{}).has("asset_id"):parent=parent.get_parent()
-	var owner_path:=str(model.get_path_to(parent)) if parent!=null else "."
-	var row:Dictionary={"kind":"box","uuid":str(extra.get("uuid",node.name)),"size":[1,1,1],"building":{"id":str(record.uuid)+":"+group+":"+owner_path,"floor":1 if group.begins_with("3") or group in ["11_Exterior_Upper","20_Floor_L1"] else 0,"part":str(node.name)+("/ceiling" if group=="33_Ceilings_L1" else ""),"role":"roof" if group.begins_with("50_") else "body"}}
-	if group in ["00_Foundation","20_Floor_L1"]:row.building.role="floor"
-	elif group=="33_Ceilings_L1":row.building.role="ceiling"
-	if generic:
-		var part:Dictionary=extra.rmmo_part
-		row.building={"id":str(record.uuid),"floor":int(part.floor),"floor_y":float(part.floor_y),"part":str(part.part)+("/ceiling" if part.role=="ceiling" else ""),"role":str(part.role)}
-		var world_bounds:AABB=Imported.frame(record)*relative_pose(node,model)*node.get_aabb()
-		row.position=Fixtures.arr(world_bounds.get_center());row.size=Fixtures.arr(world_bounds.size)
-		extra.building=row.building.duplicate(true)
+	var owner_path:="."
+	if not generic:
+		var parent:Node=node.get_parent()
+		while parent!=null and parent!=model and not parent.get_meta("extras",{}).has("asset_id"):parent=parent.get_parent()
+		owner_path=str(model.get_path_to(parent)) if parent!=null else "."
 	var hinge:Variant=extra.get("rmmo_hinge")
 	if hinge==null:
 		var legacy_hinge:=architectural_hinge(node,model)
 		if not legacy_hinge.is_empty():hinge=legacy_hinge;extra.rmmo_hinge=legacy_hinge
+	var adapted:=part_data(extra,str(node.name),record,generic,states,frame,relative_pose(node,model) if generic else Transform3D.IDENTITY,node.get_aabb(),owner_path,hinge)
+	if adapted.has("fixture_delta"):node.transform=node.transform*adapted.fixture_delta
+	if adapted.batch:node.set_meta("ground_batch_record",adapted.row)
+	node.set_meta("extras",extra)
+
+# The caller owns extras. Both the editor's graph adapter and the immutable
+# streaming projection use this operation; no Node or shared Resource is mutated.
+static func part_data(extra:Dictionary,node_name:String,record:Dictionary,generic:bool,states:Dictionary,frame:Transform3D,relative:Transform3D,bounds:AABB,owner_path:String,hinge:Variant)->Dictionary:
+	if generic:
+		extra.rmmo_source_uuid=extra.get("rmmo_source_uuid",extra.get("uuid"))
+		extra.uuid=str(record.uuid)+"__"+str(extra.rmmo_source_uuid)
+	var row:Dictionary={"kind":"box","uuid":str(extra.get("uuid",node_name)),"size":[1,1,1]}
+	if generic:
+		var part:Dictionary=extra.rmmo_part
+		row.building={"id":str(record.uuid),"floor":int(part.floor),"floor_y":float(part.floor_y),"part":str(part.part)+("/ceiling" if part.role=="ceiling" else ""),"role":str(part.role)}
+		var world_bounds:AABB=frame*relative*bounds
+		row.position=Fixtures.arr(world_bounds.get_center());row.size=Fixtures.arr(world_bounds.size)
+	else:
+		var group:String=extra.get("semantic_group","")
+		row.building={"id":str(record.uuid)+":"+group+":"+owner_path,"floor":1 if group.begins_with("3") or group in ["11_Exterior_Upper","20_Floor_L1"] else 0,"part":node_name+("/ceiling" if group=="33_Ceilings_L1" else ""),"role":"roof" if group.begins_with("50_") else "body"}
+		if group in ["00_Foundation","20_Floor_L1"]:row.building.role="floor"
+		elif group=="33_Ceilings_L1":row.building.role="ceiling"
+	var result:Dictionary={"row":row,"batch":false}
 	if hinge is Dictionary and hinge.get("id") is String and Fixtures._bounded(hinge.get("angle"),-180,180):
 		var id:=str(hinge.id) if generic else owner_path+":"+str(hinge.id)
 		var fixture:={"id":id,"kind":"door","pivot":hinge.get("pivot",[0,0,0]),"angle":hinge.angle,"open":float(states.get(id,hinge.get("open",0.0)))}
-		# Mesh origins are authored at the hinge. Scaling stays on the parent.
-		node.transform=Fixtures.pose(node.transform,fixture,fixture.open-float(hinge.get("open",0.0)))
-		extra.fixture=fixture
-		if not generic:extra.building={"id":str(record.uuid)}
-		extra.rmmo_collision="block";row.fixture=fixture
+		result.fixture_delta=Fixtures.pose(Transform3D.IDENTITY,fixture,fixture.open-float(hinge.get("open",0.0)))
+		extra.fixture=fixture;extra.rmmo_collision="block";row.fixture=fixture
 		row.building.id=str(record.uuid)
-	# Streaming, cutaway and cartography consume the same adapted part.
-	# Legacy models previously tagged only the batch record, so the radar
-	# projected every roof tile, hinge and furniture mesh as occupied ground.
 	extra.building=row.building.duplicate(true)
-	# Keep light anchors and wind/transparent materials out of render merging.
 	if not extra.has("rmmo_model_light") and not extra.has("rmmo_visibility_range") and not extra.get("rmmo_auto_lod",false):
-		if not extra.has("rmmo_wind") and not extra.has("wind_response") and not str(extra.get("finish_component","")).contains("banner_cloth"):
-			node.set_meta("ground_batch_record",row)
-	node.set_meta("extras",extra)
+		result.batch=not extra.has("rmmo_wind") and not extra.has("wind_response") and not str(extra.get("finish_component","")).contains("banner_cloth")
+	return result
 
 static func _adapt_socket(node:Node,model:Node3D)->void:
 	# A socket is carried by one mesh so it survives streaming's flattened view.

@@ -5,6 +5,7 @@ extends Node
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
+const Bvh=preload("res://scripts/world3d/collision_bvh_preparation.gd")
 var collision_product_hits:=0
 var _thread:Thread
 var _retirement:Dictionary={}
@@ -13,9 +14,14 @@ var _retired_leases:Array=[]
 var _mesh:Mesh
 var _terrain=preload("res://scripts/world3d/terrain_collision_preparer.gd").new()
 var _face_prefetch=preload("res://scripts/world3d/collision_face_prefetch.gd").new()
-static var prefetch_enabled:=true # Covered-entry lookahead only; probe A/B override.
+static var prefetch_enabled:=true # Covered entry and measured white runtime; probe A/B override.
 static var terrain_slicing_enabled:=true # Diagnostic A/B override for large static collision slices.
 static var prepared_faces_enabled:=true # Diagnostic A/B; consume only completed immutable CPU faces.
+static var small_worker_bvh_enabled:=true
+var bvh_worker_shapes:=0
+var bvh_main_shapes:=0
+var bvh_worker_face_vertices:=0
+var bvh_main_face_vertices:=0
 var prepared_face_hits:=0
 var face_worker_starts:=0
 var profile_enabled:=false
@@ -89,7 +95,7 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 		# Physics runs on the main thread in this project. Workers must not call
 		# PhysicsServer (even indirectly through a Shape resource constructor).
 		measured=Time.get_ticks_usec() if profile_enabled else 0
-		var shape:=ConcavePolygonShape3D.new();shape.set_faces(faces)
+		var shape:=_install_shape(faces,packet.get("prepared",{}))
 		_measure("shape_set_faces_ms",measured)
 		measured=Time.get_ticks_usec() if profile_enabled else 0
 		_mesh.set_meta("runtime_concave_shape",shape)
@@ -108,23 +114,28 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 	# before publication. Keep shape construction on the main thread, but avoid
 	# expanding the same indices on another worker and waiting an extra frame.
 	# An empty cache is unknown: never call collision_faces() here to fill it.
-	if prepared_faces_enabled and not cpu._collision_faces.is_empty():
-		prepared_face_hits+=1
-		if profile_enabled:_profile_path="prepared_faces"
-		measured=Time.get_ticks_usec() if profile_enabled else 0
-		var shape:=ConcavePolygonShape3D.new();shape.set_faces(cpu._collision_faces)
-		_measure("shape_set_faces_ms",measured)
-		mesh.set_meta("runtime_concave_shape",shape);spec.shape=shape
-		return true
+	var worker_bvh:bool=small_worker_bvh_enabled and Bvh.active()
 	if prefetch_enabled and _face_prefetch.pending(mesh,cpu,Basis.IDENTITY):return false
 	var prefetched:PackedVector3Array=_face_prefetch.take(mesh,cpu,Basis.IDENTITY) if prefetch_enabled else PackedVector3Array()
 	if not prefetched.is_empty():
 		if profile_enabled:_profile_path="prefetched_faces"
 		measured=Time.get_ticks_usec() if profile_enabled else 0
-		var shape:=ConcavePolygonShape3D.new();shape.set_faces(prefetched)
+		var products:Array=_face_prefetch.take_prepared(mesh,cpu,Basis.IDENTITY)
+		var shape:=_install_shape(prefetched,products[0] if products.size()==1 else {})
 		_measure("shape_set_faces_ms",measured)
 		mesh.set_meta("runtime_concave_shape",shape);spec.shape=shape
 		prefetched=PackedVector3Array();_face_prefetch.release(mesh,cpu,Basis.IDENTITY)
+		return true
+	if prepared_faces_enabled and not cpu._collision_faces.is_empty():
+		# A small cached shape without lookahead costs less than adding a serial
+		# task/frame barrier. Consume batched BVHs above; otherwise keep entry's
+		# immediate bounded fallback. Empty faces still use their existing worker.
+		prepared_face_hits+=1
+		if profile_enabled:_profile_path="prepared_faces"
+		measured=Time.get_ticks_usec() if profile_enabled else 0
+		var shape:=_install_shape(cpu._collision_faces)
+		_measure("shape_set_faces_ms",measured)
+		mesh.set_meta("runtime_concave_shape",shape);spec.shape=shape
 		return true
 	var surfaces:Array=WorkerRetirement.snapshot_surfaces(cpu.surfaces)
 	if profile_enabled:_profile_path="worker_start"
@@ -132,7 +143,9 @@ func _prepare(spec:Dictionary,host:Node=null,work_budget_usec:int=1500)->bool:
 	_thread=Thread.new();_mesh=mesh
 	var tree:SceneTree=get_tree() if is_inside_tree() else (host.get_tree() if host!=null and host.is_inside_tree() else null)
 	_retirement=WorkerRetirement.watch(_thread,tree,[mesh,cpu,surfaces])
-	var error:=_thread.start(_worker_faces.bind(surfaces)) if not _retirement.is_empty() else ERR_UNCONFIGURED
+	var completed:PackedVector3Array=cpu._collision_faces if prepared_faces_enabled else PackedVector3Array()
+	if not completed.is_empty():prepared_face_hits+=1
+	var error:=_thread.start(_worker_faces.bind(surfaces,completed,worker_bvh)) if not _retirement.is_empty() else ERR_UNCONFIGURED
 	if error==OK:face_worker_starts+=1
 	_measure("worker_start_ms",measured)
 	if error!=OK:
@@ -160,9 +173,19 @@ static func build_faces(surfaces:Array)->PackedVector3Array:
 	var snapshot:=Cpu.new();snapshot.surfaces=surfaces
 	return snapshot.collision_faces()
 
-static func _worker_faces(surfaces:Array)->Dictionary:
+func _install_shape(faces:PackedVector3Array,prepared:Dictionary={})->ConcavePolygonShape3D:
+	var shape:=ConcavePolygonShape3D.new()
+	if not prepared.is_empty() and shape.has_method(&"set_prepared_faces"):
+		shape.call(&"set_prepared_faces",prepared);bvh_worker_shapes+=1;bvh_worker_face_vertices+=faces.size()
+	else:shape.set_faces(faces);bvh_main_shapes+=1;bvh_main_face_vertices+=faces.size()
+	return shape
+
+static func _worker_faces(surfaces:Array,completed:PackedVector3Array=PackedVector3Array(),prepare_bvh:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer._worker_faces") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return {"faces":build_faces(surfaces)}
+	var faces:PackedVector3Array=completed if not completed.is_empty() else build_faces(surfaces)
+	# Whole ordinary shapes are not split. The lookahead uses the same pure CPU
+	# native preparation in its existing batch worker for shapes <= one slice.
+	return {"faces":faces,"prepared":PhysicsServer3D.call(&"prepare_concave_shape_data",faces,false) if prepare_bvh else {}}
 
 func retire_workers(tree:SceneTree=null)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.retire_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -189,17 +212,24 @@ func prefetch_request(spec:Dictionary)->Dictionary:
 	if cpu==null or cpu.box_size!=Vector3.ZERO:return {}
 	if is_instance_valid(spec.get("prepared_body")):return {}
 	var basis:=Basis.IDENTITY
+	var prepare_bvh:=false
 	if terrain_slicing_enabled and _needs_slices(spec,source):
+		prepare_bvh=preload("res://scripts/world3d/collision_bvh_preparation.gd").active()
 		var variant:Dictionary=preload("res://scripts/world3d/terrain_collision_preparer.gd")._basis_variant(spec)
 		basis=variant.basis
+		# An extraction already owned by the serial fallback must finish once;
+		# lookahead must not launch a duplicate while that cursor is in flight.
+		if _terrain._mesh==source and not _terrain._spec.is_empty() and _terrain._bake_basis==basis:return {}
 		if variant.key.is_empty():
 			if source.has_meta("runtime_terrain_shapes"):return {}
-			if _terrain.prepared_faces_enabled and not cpu._collision_faces.is_empty():return {}
+			if not prepare_bvh and _terrain.prepared_faces_enabled and not cpu._collision_faces.is_empty():return {}
 		elif source.get_meta(_terrain.BASIS_CACHE_META,{}).get("entries",{}).has(variant.key):return {}
 	else:
+		prepare_bvh=small_worker_bvh_enabled and Bvh.active()
+		if _mesh==source and _thread!=null:return {}
 		if spec.has("shape") or source.has_meta("runtime_concave_shape"):return {}
-		if prepared_faces_enabled and not cpu._collision_faces.is_empty():return {}
-	return {"source":source,"cpu":cpu,"basis":basis}
+		if not prepare_bvh and prepared_faces_enabled and not cpu._collision_faces.is_empty():return {}
+	return {"source":source,"cpu":cpu,"basis":basis,"prepare_bvh":prepare_bvh}
 
 func release_retired_sources(specs:Array)->bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_collision_preparer.release_retired_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null

@@ -11,6 +11,8 @@ func _init() -> void:
 
 
 func _run() -> void:
+	if "--legacy-progressive-batches" in OS.get_cmdline_user_args():Stream.progressive_white_batches_enabled=false
+	print("STREAM_TEST_CONTROLS progressive_white_batches=",Stream.progressive_white_batches_enabled," white=",preload("res://scripts/world3d/white_native_asset_cache.gd").active())
 	preload("res://tools/world3d_test_character.gd").ensure(self)
 	var paths = load("res://scripts/world3d/map_paths.gd")
 	var town_dir: String = paths.cache_directory("axel_town")

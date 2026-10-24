@@ -25,6 +25,9 @@ static func generator() -> String:
 	return (str(VERSION) + ":" + FileAccess.get_sha256("res://scripts/world3d/compiled_asset_footprint.gd")).sha256_text()
 
 static func candidate(path: String, content_root: String, expected_source: String = "") -> Dictionary:
+	# White native packets also own exact CPU arrays; keep the full existing raw
+	# envelope until a separate footprint is measured. Never borrow textured data.
+	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():return {}
 	if content_root.is_empty() or not Compiled.enabled: return {}
 	if not expected_source.is_empty() and not Compiled._sha(expected_source): return {}
 	var identity := _identity(path, content_root)

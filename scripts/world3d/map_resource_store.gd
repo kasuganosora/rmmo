@@ -11,7 +11,20 @@ const CACHE_BYTES=32*1024*1024
 const IDENTITY_CACHE_ENTRIES=16384
 const READ_WORKERS=4
 const DEFINITION_CACHE_MAX_BYTES=32*1024*1024
+const BUNDLE_MAGIC="RMMORB01"
+const BUNDLE_MIN_RESOURCES=64
+const BUNDLE_MAX_BYTES=1024*1024*1024
 static var inline_numeric_safety_enabled:=true # Diagnostic legacy traversal control.
+# Derived read layout for trusted package reads: every resource of one large
+# request, concatenated in request order, so a cold disk reads one sequential
+# file instead of seeking to each scattered rmres. The rmres files stay the
+# published source; a bundle only exists for an exact request identity.
+static var resource_bundles_enabled:=true
+# Package rmres location -> [bundle path, payload offset, length] for later
+# smaller requests of the same map version.
+static var _bundled:Dictionary={}
+static var _bundle_tasks:Array[int]=[]
+static var bundle_profile:Dictionary={}
 
 class ReadQueue extends RefCounted:
 	# Requests are immutable after construction. Only queue bookkeeping is shared;
@@ -147,7 +160,7 @@ static func _digest(value:Variant)->bool:
 static func _integer(value:Variant)->bool:
 	return (value is int or value is float) and is_finite(float(value)) and float(value)==floor(float(value))
 static func _base(path:String,content_root:String)->bool:
-	return path.get_extension().to_lower()=="gltf" and not path.get_file().contains("%") and Paths.allowed(path,content_root) and Paths.allowed(path+".resources",content_root)
+	return path.get_extension().to_lower()=="gltf" and not path.get_file().contains("%") and Paths.allowed_many([path,path+".resources"],content_root)
 static func _location(uri:Variant,digest:Variant,path:String,content_root:String)->String:
 	if not _base(path,content_root) or not _digest(digest) or not uri is String:return ""
 	if uri!=path.get_file()+".resources/"+digest+".rmres":return ""
@@ -158,11 +171,24 @@ static func _path_batch(path:String,content_root:String)->Dictionary:
 	# the entire ancestor chain once, then each unique leaf without reopening
 	# all ancestors. This context never survives a single public API call.
 	if not _base(path,content_root):return {}
-	return {"path":path,"root":content_root,"folder":path+".resources","directory":DirAccess.open(path+".resources"),"leaves":{}}
+	var folder:=path+".resources";var directory:DirAccess
+	var access:=Paths._take_path_access();var available:=false
+	if access!=null:
+		available=access.dir_exists(folder);Paths._return_path_access(access)
+	else:directory=DirAccess.open(folder);available=directory!=null
+	# A context retains decisions only until this public transaction ends, not
+	# a directory object whose construction changes the Windows process CWD.
+	return {"path":path,"root":content_root,"folder":folder,"directory":directory,"available":available,"leaves":{}}
 static func _batch_leaf(context:Dictionary,leaf:String)->bool:
-	if context.is_empty() or context.directory==null or leaf.is_empty() or leaf.get_file()!=leaf or leaf.contains("\\") or leaf.contains(":"):return false
+	if context.is_empty() or not context.available or leaf.is_empty() or leaf.get_file()!=leaf or leaf.contains("\\") or leaf.contains(":"):return false
 	if not context.leaves.has(leaf):
-		if context.directory.is_link(leaf):return false
+		var access:=Paths._take_path_access();var linked:=false
+		if access!=null:
+			linked=access.is_link(context.folder.path_join(leaf));Paths._return_path_access(access)
+		else:
+			var directory:DirAccess=context.directory if context.directory!=null else DirAccess.open(context.folder)
+			linked=directory==null or directory.is_link(leaf)
+		if linked:return false
 		context.leaves[leaf]=true
 	return true
 static func _batch_location(context:Dictionary,uri:Variant,digest:Variant)->String:
@@ -171,15 +197,23 @@ static func _batch_location(context:Dictionary,uri:Variant,digest:Variant)->Stri
 	if uri!=context.path.get_file()+".resources/"+leaf or not _batch_leaf(context,leaf):return ""
 	return context.folder.path_join(leaf)
 static func _finish_paths(context:Dictionary)->bool:
-	# Reopen and repeat authority checks after IO, including leaves, so a
-	# cached path decision cannot bless a directory or file replaced by a link.
+	# Repeat authority, directory existence and every leaf check after IO. The
+	# pool reuses only exclusive query objects, never path validation results.
 	if context.is_empty() or not _base(context.path,context.root):return false
+	var access:=Paths._take_path_access()
+	if access!=null:
+		var valid:bool=context.leaves.is_empty()
+		if access.dir_exists(context.folder):
+			valid=true
+			for leaf:String in context.leaves:
+				if access.is_link(context.folder.path_join(leaf)):valid=false;break
+		Paths._return_path_access(access);return valid
 	var directory:=DirAccess.open(context.folder)
 	if directory==null:return context.leaves.is_empty()
 	for leaf in context.leaves:
 		if directory.is_link(leaf):return false
 	return true
-static func _shape(record:Variant,compact:bool=false)->bool:
+static func _shape(record:Variant,compact:bool=false,trusted_state:bool=false)->bool:
 	if not record is Dictionary or not record.get("uuid") is String or record.uuid.is_empty() or record.uuid.length()>1024:return false
 	for index in record.uuid.length():
 		if record.uuid.unicode_at(index)==0:return false
@@ -190,14 +224,16 @@ static func _shape(record:Variant,compact:bool=false)->bool:
 			if not (number is int or number is float) or not is_finite(float(number)):return false
 			if field=="size" and float(number)<=0:return false
 	if compact:
-		if record.size()!=6 or not record.get("rmmo_ref") is Dictionary or not _state_shape(record.get("rmmo_state")):return false
+		if record.size()!=6 or not record.get("rmmo_ref") is Dictionary or not _state_shape(record.get("rmmo_state"),trusted_state):return false
 	elif record.has("rmmo_ref") or record.has("rmmo_state"):return false
 	return true
-static func _state_shape(value:Variant)->bool:
+static func _state_shape(value:Variant,trusted:bool=false)->bool:
 	if not value is Dictionary:return false
 	for field in value:
 		if not field in STATE_FIELDS:return false
-	return _json_safe(value,[],[2000000])
+	# Mounted package state came from object-free JSON/Variant decoding. Keep
+	# the instance-field boundary, but do not re-certify its entire value tree.
+	return trusted or _json_safe(value,[],[2000000])
 static func _json_safe(value:Variant,ancestors:Array,budget:Array)->bool:
 	budget[0]-=1
 	if budget[0]<0 or ancestors.size()>64:return false
@@ -334,14 +370,18 @@ static func _materialize(encoded:Dictionary)->Dictionary:
 	var bytes:=_compressed(raw)
 	if bytes.size()!=encoded.length or _sha(bytes)!=encoded.sha256:return _fail("Rebuilt resource differs from verified content identity")
 	return {"ok":true,"bytes":bytes,"encoded_raw_bytes":raw.size(),"serialized_raw_bytes":raw.size()}
-static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,trusted_package:bool=false)->Dictionary:
+static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,trusted_package:bool=false,keep_bytes:bool=false,supplied:PackedByteArray=PackedByteArray())->Dictionary:
 	var trace_started:=Time.get_ticks_usec()
 	preload("res://scripts/world3d/load_trace.gd").instant("resource.read_begin",{"path":file_path,"sha256":digest,"decode":decode,"trusted_package":trusted_package})
-	var file:=FileAccess.open(file_path,FileAccess.READ)
-	if file==null:return _fail("Resource is missing or unreadable",ERR_FILE_CANT_READ)
-	var size:=file.get_length()
-	if size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
-	var bytes:=file.get_buffer(size)
+	var bytes:=supplied if trusted_package and not supplied.is_empty() else (_bundled_bytes(file_path) if trusted_package else PackedByteArray())
+	var size:=bytes.size()
+	if bytes.is_empty():
+		var file:=FileAccess.open(file_path,FileAccess.READ)
+		if file==null:return _fail("Resource is missing or unreadable",ERR_FILE_CANT_READ)
+		size=file.get_length()
+		if size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
+		bytes=file.get_buffer(size)
+	elif size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
 	if bytes.size()!=size or (not trusted_package and _sha(bytes)!=digest):return _fail("Resource content SHA mismatch")
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.read_package" if trusted_package else "resource.read_sha",trace_started,{"bytes":size,"decode":decode})
 	if bytes.slice(0,8).get_string_from_ascii()!=MAGIC:return _fail("Invalid resource envelope")
@@ -368,7 +408,9 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,
 	# diagnostic authentication caches from this path.
 	if trusted_package:
 		if not definition is Dictionary:return _fail("Invalid decoded package definition")
-		return {"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":"package"}
+		var package:={"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":"package"}
+		if keep_bytes:package.bytes=bytes
+		return package
 	var safe_started:=Time.get_ticks_usec()
 	if not definition is Dictionary or not _safe(definition,[],[2000000]):return _fail("Unsafe or invalid decoded resource")
 	for field in FIELDS+STATE_FIELDS+["rmmo_ref","rmmo_state"]:
@@ -384,7 +426,92 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,
 	return {"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":cached.status}
 
 static func _read_package_job(job:Dictionary,decode:bool)->Dictionary:
-	return _read(job.location,job.sha256,job.length,decode,true)
+	return _read(job.location,job.sha256,job.length,decode,true,job.get("keep_bytes",false),job.get("bytes",PackedByteArray()))
+
+static func _bundled_bytes(location:String)->PackedByteArray:
+	_mutex.lock();var where:Variant=_bundled.get(location);_mutex.unlock()
+	if where==null:return PackedByteArray()
+	var file:=FileAccess.open(where[0],FileAccess.READ)
+	if file==null:return PackedByteArray()
+	file.seek(where[1])
+	var bytes:=file.get_buffer(where[2])
+	return bytes if bytes.size()==where[2] else PackedByteArray()
+
+static func bundle_path(path:String,content_root:String)->String:
+	if not _base(path,content_root):return ""
+	var target:=content_root.path_join("cache/world3d/resource_bundles").path_join(path.replace("\\","/").simplify_path().sha256_text()+".bin")
+	return target if Paths.allowed(target,content_root) else ""
+
+static func _bundle_key(path:String,requests:Array)->String:
+	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256)
+	context.update((BUNDLE_MAGIC+"\n"+path.replace("\\","/").simplify_path()).to_utf8_buffer())
+	for request:Dictionary in requests:context.update(("\n%s:%d"%[request.sha256,request.length]).to_ascii_buffer())
+	return context.finish().hex_encode()
+
+## Supplies every request from the bundle in one sequential read, or marks the
+## requests to keep their bytes so a missing or stale bundle is written after
+## this read. Layout: magic, 64-byte key, u64 table size, PackedInt64Array of
+## lengths, payloads in request order.
+static func _mount_bundle(requests:Array,path:String,content_root:String)->Dictionary:
+	var started:=Time.get_ticks_usec()
+	var target:=bundle_path(path,content_root)
+	if target.is_empty():return {}
+	var key:=_bundle_key(path,requests)
+	var result:={"path":target,"key":key,"mounted":false,"write":true,"read_us":0,"bytes":0}
+	var file:=FileAccess.open(target,FileAccess.READ)
+	if file!=null:
+		var size:=file.get_length()
+		var bytes:=file.get_buffer(size) if size>80 and size<=BUNDLE_MAX_BYTES else PackedByteArray()
+		file.close()
+		result.read_us=Time.get_ticks_usec()-started;result.bytes=bytes.size()
+		if bytes.size()>80 and bytes.slice(0,8).get_string_from_ascii()==BUNDLE_MAGIC and bytes.slice(8,72).get_string_from_ascii()==key:
+			var table_size:=bytes.decode_u64(72)
+			var table:Variant=bytes_to_var(bytes.slice(80,80+table_size)) if table_size>0 and 80+table_size<=bytes.size() else null
+			if table is PackedInt64Array and table.size()==requests.size():
+				var offset:=80+table_size;var valid:=true
+				for i:int in requests.size():
+					if table[i]!=requests[i].length:valid=false;break
+					offset+=table[i]
+				if valid and offset==bytes.size():
+					offset=80+table_size
+					_mutex.lock()
+					for i:int in requests.size():
+						requests[i].bytes=bytes.slice(offset,offset+table[i])
+						_bundled[requests[i].location]=[target,offset,table[i]]
+						offset+=table[i]
+					_mutex.unlock()
+					result.mounted=true;result.write=false
+	if result.write:
+		for request:Dictionary in requests:request.keep_bytes=true
+	result.mount_us=Time.get_ticks_usec()-started
+	return result
+
+static func _write_bundle(target:String,key:String,payloads:Array)->void:
+	var lengths:=PackedInt64Array();var total:=0
+	for payload:PackedByteArray in payloads:
+		if payload.is_empty():return
+		lengths.append(payload.size());total+=payload.size()
+	var table:=var_to_bytes(lengths)
+	var header:=BUNDLE_MAGIC.to_ascii_buffer();header.append_array(key.to_ascii_buffer())
+	var table_size:=PackedByteArray();table_size.resize(8);table_size.encode_u64(0,table.size())
+	header.append_array(table_size);header.append_array(table)
+	if header.size()+total>BUNDLE_MAX_BYTES or DirAccess.make_dir_recursive_absolute(target.get_base_dir())!=OK:return
+	var staged:=_temporary(target)
+	if staged.is_empty():return
+	var file:=FileAccess.open(staged,FileAccess.WRITE)
+	if file==null:return
+	# Reserve the final size first so the file system can allocate one run.
+	var ok:=file.resize(header.size()+total)==OK and file.store_buffer(header)
+	for payload:PackedByteArray in payloads:
+		if ok:ok=file.store_buffer(payload)
+	file.close()
+	if ok and FileAccess.file_exists(target):ok=DirAccess.remove_absolute(target)==OK
+	if not ok or DirAccess.rename_absolute(staged,target)!=OK:DirAccess.remove_absolute(staged)
+
+## Tools wait for bundle publication before reporting or exiting.
+static func wait_bundle_writes()->void:
+	_mutex.lock();var tasks:=_bundle_tasks.duplicate();_bundle_tasks.clear();_mutex.unlock()
+	for task:int in tasks:WorkerThreadPool.wait_for_task_completion(task)
 
 static func _publish(staged:Array,folder:String)->Dictionary:
 	if staged.is_empty():return {"error":OK,"written":{}}
@@ -547,11 +674,11 @@ static func _read_many(jobs:Array,decode:bool=true,worker_limit:int=READ_WORKERS
 static func read_records(records:Array,path:String,content_root:String,expected_dependencies:Variant=null,worker_limit:int=READ_WORKERS,trusted_package:bool=false)->Dictionary:
 	var paths:=_path_batch(path,content_root)
 	if paths.is_empty() or records.size()>MAX_RECORDS:return _fail("Invalid map path or record count")
-	var result:Array=[];var ids:Dictionary={};var requests:Array=[];var by_uri:Dictionary={};var dependencies:Dictionary={}
+	var result:Array=[];var ids:Dictionary={};var requests:Array=[];var by_uri:Dictionary={};var dependencies:Dictionary={};var consumers:Dictionary={}
 	# Complete compact/header validation before any resource bytes are read or
 	# identity cache entries are published, including malformed trailing records.
 	for record in records:
-		if not _shape(record,true) or ids.has(record.uuid):return _fail("Invalid compact record or duplicate UUID")
+		if not _shape(record,true,trusted_package) or ids.has(record.uuid):return _fail("Invalid compact record or duplicate UUID")
 		ids[record.uuid]=true
 		var ref:Dictionary=record.rmmo_ref
 		if ref.size()!=4 or not _integer(ref.get("version")) or int(ref.version)!=1 or not _integer(ref.get("length")) or ref.length<=16 or ref.length>MAX_FILE_BYTES:return _fail("Invalid resource reference")
@@ -562,25 +689,58 @@ static func read_records(records:Array,path:String,content_root:String,expected_
 			requests.append({"uri":ref.uri,"location":location,"sha256":ref.sha256,"length":int(ref.length)})
 		elif requests[by_uri[ref.uri]].length!=int(ref.length):return _fail("Conflicting resource lengths")
 		dependencies[ref.uri]=ref.sha256
+		consumers[ref.uri]=int(consumers.get(ref.uri,0))+1
 	if expected_dependencies!=null:
 		if not expected_dependencies is Dictionary or expected_dependencies.size()!=dependencies.size():return _fail("Reference dependency manifest does not match the resource closure")
 		for uri:String in dependencies:
 			if expected_dependencies.get(uri)!=dependencies[uri]:return _fail("Reference resource is missing from the dependency manifest")
+	var bundle:Dictionary=_mount_bundle(requests,path,content_root) if trusted_package and resource_bundles_enabled and requests.size()>=BUNDLE_MIN_RESOURCES else {}
 	var decoded:=_read_many(requests,true,worker_limit,_read_package_job if trusted_package else Callable())
+	for request:Dictionary in requests:request.erase("bytes");request.erase("keep_bytes")
+	if not decoded.ok and bundle.get("mounted",false):
+		# A damaged derived layout never fails the load: forget it, read the
+		# published files and rewrite it.
+		_mutex.lock()
+		for request:Dictionary in requests:_bundled.erase(request.location)
+		_mutex.unlock()
+		bundle.mounted=false;bundle.write=true;bundle.fallback=decoded.get("reason","")
+		for request:Dictionary in requests:request.keep_bytes=true
+		decoded=_read_many(requests,true,worker_limit,_read_package_job)
+		for request:Dictionary in requests:request.erase("keep_bytes")
 	if not decoded.ok:return decoded
-	# Results are merged by the original request index and copied per authored
-	# instance. No mutable definition is shared between editable records.
+	if bundle.get("write",false):
+		var payloads:Array=[]
+		for entry:Dictionary in decoded.entries:payloads.append(entry.get("bytes",PackedByteArray()));entry.erase("bytes")
+		_mutex.lock();_bundle_tasks.append(WorkerThreadPool.add_task(_write_bundle.bind(bundle.path,bundle.key,payloads)));_mutex.unlock()
+	if not bundle.is_empty():
+		_mutex.lock();bundle_profile=bundle.duplicate();_mutex.unlock()
+		decoded.read_profile.bundle={"mounted":bundle.mounted,"written":bundle.write,"read_us":bundle.read_us,"mount_us":bundle.mount_us,"bytes":bundle.bytes}
+	# Each decoder result is private to this read, including diagnostic cache
+	# hits (which already return a deep copy). N consumers need only N-1 copies;
+	# the last takes that allocation. No editable instances share containers.
+	decoded.read_profile.definition_copies=0;decoded.read_profile.definition_transfers=0
 	for record:Dictionary in records:
 		var copy_started:=Time.get_ticks_usec()
-		var hydrated:Dictionary=decoded.entries[by_uri[record.rmmo_ref.uri]].definition.duplicate(true)
+		var uri:String=record.rmmo_ref.uri;consumers[uri]-=1
+		var entry:Dictionary=decoded.entries[by_uri[uri]]
+		var hydrated:Dictionary
+		if consumers[uri]==0:
+			hydrated=entry.definition;entry.erase("definition");decoded.read_profile.definition_transfers+=1
+		else:
+			hydrated=entry.definition.duplicate(true);decoded.read_profile.definition_copies+=1
 		for field in FIELDS:hydrated[field]=record[field].duplicate(true) if record[field] is Array else record[field]
-		for field in record.rmmo_state:hydrated[str(field)]=_json_copy(record.rmmo_state[field])
+		for field in record.rmmo_state:
+			var value:Variant=record.rmmo_state[field]
+			# Package keys are already normalized on write. Native duplication
+			# preserves per-instance ownership without another scripted tree walk.
+			hydrated[str(field)]=(value.duplicate(true) if value is Array or value is Dictionary else value) if trusted_package else _json_copy(value)
 		result.append(hydrated)
 		if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.instance_copy",copy_started)
 	if not _finish_paths(paths):return _fail("Resource paths changed during read")
 	var definition_sizes:Dictionary={}
 	for i:int in requests.size():definition_sizes[requests[i].sha256]=decoded.entries[i].raw_length
 	decoded.read_profile.trusted_package=trusted_package
+	decoded.read_profile.compact_state_validation_skips=records.size() if trusted_package else 0
 	return {"ok":true,"error":OK,"reason":"","records":result,"dependencies":dependencies,"definition_sizes":definition_sizes,"read_profile":decoded.read_profile}
 
 static func verify_dependencies(dependencies:Dictionary,path:String,content_root:String,worker_limit:int=READ_WORKERS)->bool:

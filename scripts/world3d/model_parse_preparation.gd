@@ -4,21 +4,32 @@ extends RefCounted
 ## every started worker before returning, including failure and cancellation.
 ## Injected parsers must own their resources and must not touch nodes or caches.
 ## Cancellation is sticky: create a new preparation for a new load transaction.
-## Native products are read independently. Raw GLTF fallback uses one global
-## import mutex shared with live streaming, including across loading queues.
+## Native products are read independently. Raw GLTF fallback shares a global
+## admission gate with live streaming, including across loading queues.
 const Admission=preload("res://scripts/world3d/resource_admission.gd")
 const MemoryEstimate=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Embedded=preload("res://scripts/world3d/embedded_glb.gd")
-# Compiled products own independent resources and never take this lock. Every
-# default raw append uses it; Deferred holds it through raw append + generate.
-# Injected parsers remain independent CPU probes and do not take this lock.
-static var RAW_IMPORT_MUTEX:=Mutex.new()
+# Keep unknown imports exclusive. The tested static, self-contained white route
+# owns its document/state/graph; built-in extensions share no mutable state.
+# Registry changes must happen before workers start, as with Godot imports.
+static var _raw_import_gate:=preload("res://scripts/world3d/raw_import_gate.gd").new()
+static var RAW_IMPORT_MUTEX:Mutex=_raw_import_gate.mutex
+static var parallel_white_imports_enabled:=true
+static func enter_raw_import(static_private:bool)->void:
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	_raw_import_gate.acquire(parallel_white_imports_enabled and static_private and controls.white_materials and controls.discard_map_textures)
+static func try_enter_raw_import(static_private:bool)->bool:
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	return _raw_import_gate.try_acquire(parallel_white_imports_enabled and static_private and controls.white_materials and controls.discard_map_textures)
+static func leave_raw_import()->void:_raw_import_gate.release()
 var inflight_byte_limit:=4*1024*1024*1024
 # Optional operation-local CPU probes. Configure before run(), never mid-load.
 var memory_estimator:Callable
 var cache_reader:Callable
 var eligibility_checker:Callable
 var prepare_static_scenes:=false # Game MapLoader owns the render pump and scene disposal.
+var require_native_products:=false # Game entry sets this; editor import keeps its explicit raw route.
+var static_scene_paths:Dictionary={} # This load's package directory, set before run().
 static var native_footprints_enabled:=true # Probe-only old-budget control.
 static var initial_scene_preparation_enabled:=true # Probe may retain main-thread generation.
 var candidate_provider:Callable
@@ -61,14 +72,14 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 			seen[path] = true
 			unique.append(path)
 	var native_route:=not parser.is_valid() or cache_reader.is_valid()
-	var parse:=parser if parser.is_valid() else _parse_verified_fallback.bind(content_root,verified_sources,prepare_static_scenes)
+	var parse:=parser if parser.is_valid() else _parse_verified_fallback.bind(content_root,verified_sources,prepare_static_scenes,static_scene_paths)
 	var limit := clampi(worker_limit, 1, 4)
 	var eligibility_started := Time.get_ticks_usec()
 	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
 	for path: String in unique:
 		if is_cancelled(): break
-		if not native_route or (eligibility_checker.call(path) if eligibility_checker.is_valid() else Embedded.can_copy(path)):eligible[path]=true
-		var estimate:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else (MemoryEstimate.estimate(path) if native_route else {"estimated_bytes":1,"exclusive":false,"known":true})
+		if not require_native_products and (not native_route or _raw_eligible(path)):eligible[path]=true
+		var estimate:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else (MemoryEstimate.from_manifest(path,static_scene_paths.get(path,{})) if native_route else {"estimated_bytes":1,"exclusive":false,"known":true})
 		if not estimate is Dictionary or not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool:
 			estimate=MemoryEstimate._unknown("invalid_estimator")
 		estimates[path]=estimate.duplicate()
@@ -158,7 +169,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 				# envelope before reserving its separate stage; never reuse the
 				# discounted product reservation for a newly imported GLB.
 				if native_route and not draining:
-					var refreshed:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else MemoryEstimate.estimate(path)
+					var refreshed:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else MemoryEstimate.from_manifest(path,static_scene_paths.get(path,{}))
 					if not refreshed is Dictionary or not refreshed.get("estimated_bytes") is int or refreshed.estimated_bytes<=0 or not refreshed.get("exclusive") is bool:refreshed=MemoryEstimate._unknown("invalid_fallback_estimate")
 					estimates[path]=refreshed.duplicate()
 					admission_profile.tasks[path].memory.raw_import_reservation_bytes=refreshed.estimated_bytes
@@ -258,13 +269,24 @@ static func _close_admission_wait(waiting:Dictionary,profile:Dictionary)->void:
 	reasons[reason]=int(reasons.get(reason,0))+elapsed
 	waiting.clear()
 
+func _raw_eligible(path:String)->bool:
+	if eligibility_checker.is_valid():return eligibility_checker.call(path)
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	# The mounted package directory already identified this static, self-contained
+	# model. White imports discard images, so the copier's additional image MIME
+	# checks do not describe any work on this route. Unknown/diagnostic routes keep
+	# their scan; the actual GLTF importer and source transaction still run.
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and controls.white_materials and controls.discard_map_textures and static_scene_paths.has(path) and static_scene_paths[path].get("known",true):return true
+	return Embedded.can_copy(path)
+
 func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictionary:
+	if require_native_products:return native_failure(path,"raw_import_not_allowed")
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._guarded_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if fallback_gate.is_valid() and not fallback_gate.call():return {"error":ERR_SKIP}
 	# A source can change while a native candidate is being read. Recheck the
 	# conservative GLTF gate on the worker immediately before import; a changed
 	# route returns to the coordinator instead of importing unsafely in parallel.
-	if require_eligible and not (eligibility_checker.call(path) if eligibility_checker.is_valid() else Embedded.can_copy(path)):
+	if require_eligible and not _raw_eligible(path):
 		return {"error":OK,"serial_required":true}
 	var result:Variant=parse.call(path)
 	return result if result is Dictionary else {"error":ERR_INVALID_DATA}
@@ -276,8 +298,16 @@ func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->
 	if compiled.hit:
 		if not compiled.has("packed") or compiled.packed==null:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
 		return {"error":OK,"packed":compiled.packed,"compiled":true,"source_digest":compiled.get("source_digest",""),"cache_us":compiled.get("elapsed_us",0),"compiled_payload_bytes":int(compiled.get("bytes",0))}
+	if require_native_products:
+		var failure:=native_failure(path,str(compiled.get("reason","invalid_product")))
+		if not compiled.get("retained_resources",[]).is_empty():failure.retained_resources=[compiled]
+		return failure
 	if not compiled.get("retained_resources",[]).is_empty():return _owned_cache_miss(compiled)
 	return {"error":OK,"fallback_required":true,"cache_reason":compiled.get("reason","")}
+
+static func native_failure(path:String,reason:String)->Dictionary:
+	return {"error":ERR_FILE_CORRUPT,"cache_reason":reason,"native_product_required":true,
+		"error_message":"游戏模型缺少可用原生产物，请在内容编辑器重新导出："+path+" ("+reason+")"}
 
 static func _owned_cache_miss(compiled:Dictionary)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._owned_cache_miss") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -301,6 +331,11 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
+	if require_native_products and (result.get("fallback_required",false) or result.get("native_source_retry",false)):
+		# Keep any allocated native owners attached to the fatal result; the
+		# caller joins/disposes them on main, without scheduling a GLTF retry.
+		result.erase("fallback_required");result.erase("native_source_retry")
+		result.merge(native_failure(path,str(result.get("cache_reason","invalid_product"))),true)
 	# Only a validated native product whose SOURCE changed can be retired and
 	# retried. Other resource-bearing errors remain fatal and main-owned.
 	if result.has("native_source_retry"):
@@ -312,13 +347,15 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 		result.erase("fallback_required");result.error=ERR_INVALID_DATA
 	return result
 
-static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary,prepare_scene:bool=false)->Dictionary:
+static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary,prepare_scene:bool=false,static_paths:Dictionary={})->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_verified_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")),prepare_scene,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var trusted:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var known_static:bool=trusted and static_paths.has(path) and static_paths[path].get("known",true)
+	return _parse_fallback(path,content_root,str(verified_sources.get(path,"")),prepare_scene,trusted,known_static)
 
-static func _parse_fallback(path:String,content_root:String="",verified_digest:String="",prepare_scene:bool=false,trusted_package:bool=false)->Dictionary:
+static func _parse_fallback(path:String,content_root:String="",verified_digest:String="",prepare_scene:bool=false,trusted_package:bool=false,known_static:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._parse_fallback") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return _source_transaction(path,content_root,verified_digest,_append_gltf.bind(prepare_scene),trusted_package)
+	return _source_transaction(path,content_root,verified_digest,_append_gltf.bind(prepare_scene,known_static and trusted_package),trusted_package)
 
 static func _source_transaction(path:String,content_root:String,verified_digest:String,parse:Callable,trusted_package:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._source_transaction") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -345,22 +382,22 @@ static func _source_transaction(path:String,content_root:String,verified_digest:
 	if result.error==OK:result.source_digest=before
 	return result
 
-static func _append_gltf(path:String,prepare_scene:bool=false)->Dictionary:
+static func _append_gltf(path:String,prepare_scene:bool=false,known_static:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._append_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var prepare_static:bool=prepare_scene and initial_scene_preparation_enabled and (known_static or preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path).get("known",false))
 	var wait_started:=Time.get_ticks_usec()
-	RAW_IMPORT_MUTEX.lock()
+	enter_raw_import(prepare_static)
 	var raw_import_wait_us:=Time.get_ticks_usec()-wait_started
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
 	preload("res://scripts/world3d/runtime_probe_controls.gd").configure_gltf(state)
-	var prepare_static:bool=prepare_scene and initial_scene_preparation_enabled and preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path).get("known",false)
 	var append_started:=Time.get_ticks_usec()
 	var error:=document.append_from_file(path,state,0,path.get_base_dir())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("model.raw_append",append_started,{"path":path})
-	var result:Dictionary={"error":error,"document":document,"state":state,"compiled":false,"raw_import_wait_us":raw_import_wait_us}
+	var result:Dictionary={"error":error,"document":document,"state":state,"compiled":false,"raw_import_wait_us":raw_import_wait_us,"static_manifest_reused":prepare_static and known_static}
 	if error==OK and prepare_static:
 		var scope:=preload("res://scripts/world3d/scene_preparation_pump.gd").new()
 		# The same static/self-contained gate used by deferred imports. Keep the
-		# private graph off-tree and under the shared raw import mutex. Source
+		# private graph off-tree and inside the raw import admission gate. Source
 		# identity is checked again by _source_transaction after this entire stage.
 		var began:=Time.get_ticks_usec()
 		var scene:Node=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(document,state,true)
@@ -374,7 +411,7 @@ static func _append_gltf(path:String,prepare_scene:bool=false)->Dictionary:
 		result.private_scene_prepare_us=Time.get_ticks_usec()-began
 		preload("res://scripts/world3d/load_trace.gd").elapsed("model.private_scene_prepare",began,{"path":path})
 		scope=null
-	RAW_IMPORT_MUTEX.unlock()
+	leave_raw_import()
 	return result
 
 func _finish(result: Dictionary, started: int) -> Dictionary:

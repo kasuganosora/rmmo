@@ -5,11 +5,11 @@ extends RefCounted
 ## indivisible overruns starving later callbacks across render frames.
 static var enabled:=false # Enable only after full-entry and walking comparison.
 const INTERACTIVE:={"collision":2000,"publication":1500,"batch":1000,"navigation":500,"wind":500,"retire":500}
-const COVERED:={"collision":8000,"publication":7000,"batch":5000,"navigation":2000,"wind":1000,"retire":1000}
+const COVERED:={"collision":8000,"publication":32000,"batch":5000,"navigation":2000,"wind":1000,"retire":1000}
 var interactive_limits:Dictionary=INTERACTIVE
 var covered_limits:Dictionary=COVERED
 var interactive_budget_usec:=6000
-var covered_budget_usec:=24000
+var covered_budget_usec:=32000
 var _frame:=-1
 var _covered:=false
 var _spent:Dictionary={}

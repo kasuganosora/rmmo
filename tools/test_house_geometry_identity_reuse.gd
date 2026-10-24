@@ -37,7 +37,7 @@ func all_sealed(value:Variant)->bool:
 	return true
 func evict(digest:String)->void:
 	House._decode_mutex.lock()
-	if House._decoded.has(digest):House._decoded_bytes-=int(House._decoded[digest].length);House._decoded.erase(digest)
+	if House._decoded.has(digest):House._decoded_bytes-=House.retained_decode_bytes(House._decoded[digest]);House._decoded.erase(digest)
 	House._decode_mutex.unlock()
 func prepared_keys_valid(prepared:Dictionary)->bool:
 	if prepared.is_empty():return false
@@ -46,6 +46,9 @@ func prepared_keys_valid(prepared:Dictionary)->bool:
 	return true
 
 func run()->void:
+	# This fixture deliberately corrupts encoded bytes/digests. Ordinary package
+	# loads trust authored identities; authenticate only this diagnostic test.
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	create_timer(90).timeout.connect(func():quit(2))
 	var data:=fixture();var value:=encode(data);var r:=record(value)
 	var packet:=House._decode_packet(value)

@@ -93,7 +93,15 @@ func run()->void:
 	# must start the 16 MiB reuse worker without waiting for that worker to exit.
 	var f:=fixture();service=f.service
 	var other_path:=folder.path_join("other.glb");var other:=item(other_path,digest,"other",5)
-	service.pending=[value,other];service.source_signatures[path]=digest;service._prepared_paths[path]=true
+	service.pending=[value,other];service.source_signatures[path]=digest
+	service._prepared_template_owners[path]=weakref(original)
+	check(not service._prepared_paths.has(path) and service._resident_prepared_template(path)==original,"reference cancellation keeps exact resident model reuse without a prepared flag")
+	service._raw_retries[path]={}
+	check(service._resident_prepared_template(path)==null,"explicit raw retry does not bypass full preparation")
+	service._raw_retries.erase(path)
+	var replacement:=PackedScene.new();Assets.cache_packed(path,replacement,digest)
+	check(service._resident_prepared_template(path)==null,"same source SHA on an unrelated template does not authorize reuse")
+	Assets.cache_packed(path,original,digest)
 	service.set_demand("test",AABB(Vector3(-1,-1,-1),Vector3(10,3,3)));service.set_process(false)
 	var held:=HeldTask.new();var worker:=Thread.new();check(worker.start(held.run)==OK,"independent CPU model task starts")
 	service._admission.reserve(other_path,{"estimated_bytes":70*MIB,"exclusive":false})

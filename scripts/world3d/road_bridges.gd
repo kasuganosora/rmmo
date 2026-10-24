@@ -17,7 +17,7 @@ static func deck_line(edge:Dictionary,nodes:Dictionary,edges:Array=[])->Array:
 static func stone_source(edge: Dictionary,nodes: Dictionary) -> String:
 	var copy:=edge.duplicate(true)
 	for key in ["stone_bridge","locked","hidden","name"]: copy.erase(key)
-	return preload("res://scripts/world3d/city_layout.gd").token([copy,nodes[edge.from].position,nodes[edge.to].position])
+	return preload("res://scripts/world3d/layout_identity.gd").token([copy,nodes[edge.from].position,nodes[edge.to].position])
 static func stone_polygon(binding: Dictionary) -> Array:
 	var a:=Vector2(binding.start[0],binding.start[2]); var b:=Vector2(binding.end[0],binding.end[2]); var n:=Vector2(-(b-a).y,(b-a).x).normalized()*float(binding.width)*.5
 	return [a-n,b-n,b+n,a+n]

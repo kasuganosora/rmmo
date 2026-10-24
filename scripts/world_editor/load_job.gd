@@ -608,7 +608,7 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	if needs_raw_generation:
 		# A main-thread wait on a raw-import mutex can deadlock GPU callbacks.
 		# Yield until the shared importer is free, then hold it through generate.
-		while not ModelPreparation.RAW_IMPORT_MUTEX.try_lock():
+		while not ModelPreparation.try_enter_raw_import(false):
 			yielded=true;await get_tree().process_frame
 			if not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
 			if not await _publication_slot() or not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
@@ -633,7 +633,7 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 				if imported!=null and AssetLibrary.cache_scene(asset_path,imported,str(parsed.get("source_digest",""))):scene=AssetLibrary.instantiate(asset_path)
 		if scene==null:_asset_failures[asset_path]=true
 		else:_verified_asset_versions[asset_path]={"source_digest":source_digest,"owner":weakref(AssetLibrary._scenes[asset_path])}
-	if raw_locked:ModelPreparation.RAW_IMPORT_MUTEX.unlock()
+	if raw_locked:ModelPreparation.leave_raw_import()
 	_build_timing("asset_prepare_main",mark,uuid)
 	FrameBudget.charge("publication",mark)
 	mark=Time.get_ticks_usec();queue.release(key)

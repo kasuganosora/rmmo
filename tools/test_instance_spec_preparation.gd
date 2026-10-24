@@ -48,7 +48,9 @@ func run()->void:
 	var holder:=fixture();var reference:WeakRef=weakref(holder);var cursor:=Cursor.new();cursor.begin(holder,false,0);cursor.advance(1)
 	var token:=preload("res://scripts/world3d/asset_worker_drainer.gd").CancelToken.new()
 	check(queue._admission.reserve("fixture",{"estimated_bytes":65536,"exclusive":false}),"actual queue holds admission through private multi-frame preparation")
-	queue._jobs.fixture={"token":token,"instance_preparation":{"uuid":"withdrawn","cursor":cursor},"result":{}}
+	# A production cursor can exist only after its result was accepted. Preserve
+	# that lease contract when injecting a withdrawn in-progress publication.
+	queue._jobs.fixture={"token":token,"accepted":true,"instance_preparation":{"uuid":"withdrawn","cursor":cursor},"result":{}}
 	queue._prepared_paths.fixture=true
 	check(queue._publication_ready().is_empty() and reference.get_ref()==null and not queue._jobs.fixture.has("instance_preparation"),"withdrawn demand releases its private preparation without publishing a partial namespace")
 	queue._discard_job("fixture")

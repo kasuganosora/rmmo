@@ -4,6 +4,11 @@ const Deferred=preload("res://scripts/world3d/deferred_asset_loader.gd")
 const Index=preload("res://scripts/world3d/stream_index.gd")
 class Probe extends Deferred:
 	var request_calls:=0
+	func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,_budget_usec:int)->void:
+		# This scheduler fixture constructs only an empty Node3D. Finish its
+		# traversal/disposal deterministically inside the chosen service unit;
+		# the production cursor's slicing has separate geometry regressions.
+		super._advance_instance_specs(item,job,unit_began,0)
 	func _reference_requests(path:String)->Array:
 		request_calls+=1
 		return super._reference_requests(path)

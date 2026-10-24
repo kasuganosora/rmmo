@@ -53,6 +53,10 @@ func run()->void:
 			check(signatures(full.queue._demanded)==signatures(incremental.queue._demanded),"scheduler rank and path order match reference")
 	print("INCREMENTAL_PENDING_INDEX ",JSON.stringify({"control_us":control_us,"incremental_us":incremental_us,"control":full.queue.profile,"incremental":incremental.queue.profile}))
 	check(full.queue.profile.pending_index_builds==13 and incremental.queue.profile.pending_index_builds==1 and incremental.queue.profile.pending_indexed_items==4696,"requeue indexes only 96 changed rows, never the whole 4600-row directory")
+	check(int(incremental.queue.profile.get("requeue_membership_scan_rows",0))==0 and int(full.queue.profile.get("requeue_membership_scan_rows",0))>50000,"requeue membership borrows the maintained catalog instead of scanning every pending record")
+	var current:Array=signatures(incremental.queue.pending)
+	var entry:Dictionary=incremental.entries[current[0][0]]
+	check(incremental.queue.requeue_references([entry,entry])==0 and signatures(incremental.queue.pending)==current,"duplicate already-pending requeue is a no-op")
 	Deferred.incremental_pending_index_enabled=true
 	full.queue.free();full.map.free();incremental.queue.free();incremental.map.free()
 	print("INCREMENTAL_PENDING_INDEX failures=",failures);quit(1 if failures else 0)

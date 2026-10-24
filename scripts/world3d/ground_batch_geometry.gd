@@ -5,6 +5,8 @@ const TERRAIN_SHADER = preload("res://scripts/world3d/river_terrain.gdshader")
 const MAX_MEMBERS := 16
 const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
+static var prepared_surfaces_enabled:=true
+const PREPARE_SURFACE_METHOD:=&"mesh_prepare_surface_from_arrays"
 
 static func category(record: Dictionary) -> String:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.category") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -115,12 +117,11 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 			var row: Dictionary = slots[key]
 			before += 1; before_vertices += arrays[Mesh.ARRAY_VERTEX].size()
 			if slot == 1 and record.has("terrain_mesh") and not record.terrain_mesh.holes.has(true) and not record.has("surface_paint"):
-				var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
-				append_surface(st, arrays, Transform3D.IDENTITY, 0, false, record, slot)
-				st.index(); arrays = st.commit_to_arrays()
+				arrays = compact_terrain_sides(arrays)
 			append_arrays(row, arrays, local, layer)
 	for row: Dictionary in slots.values(): render_vertices+=row.arrays[Mesh.ARRAY_VERTEX].size()
 	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices,"compressed":members[0].record.has("fortification")}
+	prepare_upload(data)
 	return data if defer_upload else upload(data)
 
 static func build_fortification(members: Array, origin: Vector3, defer_upload: bool) -> Dictionary:
@@ -146,15 +147,38 @@ static func build_fortification(members: Array, origin: Vector3, defer_upload: b
 	for row: Dictionary in slots.values():
 		row.arrays=row.builder.commit_to_arrays(); row.erase("builder"); after+=row.arrays[Mesh.ARRAY_VERTEX].size()
 	var data:={"slots":slots.values(),"images":[],"masks":[],"origins":PackedVector4Array(),"spans":PackedVector4Array(),"source_surfaces":before,"source_vertices":vertices,"render_vertices":after,"compressed":true}
+	prepare_upload(data)
 	return data if defer_upload else upload(data)
+
+static func surface_flags(row:Dictionary,compressed:bool)->int:
+	var flags:=Mesh.ARRAY_CUSTOM_R_FLOAT<<Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT if row.layered else 0
+	if compressed and row.arrays[Mesh.ARRAY_NORMAL]!=null and row.arrays[Mesh.ARRAY_TANGENT]!=null:flags|=Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES
+	return flags
+
+static func prepare_upload(data:Dictionary)->void:
+	# CPU-only engine packing stays in the existing geometry worker. No GPU RID,
+	# resource mutation or renderer round-trip is allowed before the handoff.
+	# Standard engines retain the existing add_surface_from_arrays path.
+	if not prepared_surfaces_enabled or not RenderingServer.has_method(PREPARE_SURFACE_METHOD):return
+	var began:=Time.get_ticks_usec();var count:=0
+	for row:Dictionary in data.slots:
+		var packed:Dictionary=RenderingServer.call(PREPARE_SURFACE_METHOD,Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],row.get("lods",{}),surface_flags(row,data.get("compressed",false)))
+		if packed.is_empty():return
+		row.prepared_surface=packed;count+=1
+	data.prepared_surface_count=count
+	data.surface_prepare_us=Time.get_ticks_usec()-began
+	data.surface_prepare_thread=OS.get_thread_caller_id()
 
 static func upload(data: Dictionary) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.upload") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	# GPU resources must be created on the main thread. Joining a worker during
-	# undo/save/scene exit must never wait for a RenderingServer main-thread call.
+	# Only final resource installation happens here. Geometry workers have
+	# already packed the buffers on engines with the CPU preparation interface.
+	# Keeping RID creation here also avoids renderer waits during worker joins.
 	assert(Thread.is_main_thread())
 	var result:=ArrayMesh.new()
 	var cpu_arrays:Array=[];var cpu_lods:Array=[]
+	var packed_surfaces:Array=[]
+	var prepared:bool=int(data.get("prepared_surface_count",0))==data.slots.size()
 	var height_array: Texture2DArray
 	if not data.images.is_empty():
 		height_array=Texture2DArray.new()
@@ -174,83 +198,95 @@ static func upload(data: Dictionary) -> Dictionary:
 			material.set_shader_parameter("batch_ground_masks",mask_array)
 			material.set_shader_parameter("batch_origins",origins)
 			material.set_shader_parameter("batch_spans",spans)
-		var flags:=Mesh.ARRAY_CUSTOM_R_FLOAT<<Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT if row.layered else 0
-		if data.get("compressed",false) and row.arrays[Mesh.ARRAY_NORMAL]!=null and row.arrays[Mesh.ARRAY_TANGENT]!=null: flags|=Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES
 		var levels:Dictionary=row.get("lods",{})
-		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],levels,flags)
-		result.surface_set_material(result.get_surface_count()-1,material)
+		if prepared:
+			var surface:Dictionary=row.prepared_surface.duplicate()
+			surface.material=material;packed_surfaces.append(surface)
+		else:
+			result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],levels,surface_flags(row,data.get("compressed",false)))
+			result.surface_set_material(result.get_surface_count()-1,material)
 		cpu_arrays.append(row.arrays);cpu_lods.append(levels)
+	if prepared:result.set("_surfaces",packed_surfaces)
 	Cpu.remember(result,cpu_arrays,cpu_lods)
 	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 
 static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.append_arrays") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var arrays := source.duplicate()
-	# Packed arrays are reference values in GDScript. Joining or rebasing an index
-	# buffer must never modify the CPU authoring mesh that the snapshot also owns.
-	for channel in Mesh.ARRAY_MAX:
-		if source[channel] != null: arrays[channel] = source[channel].duplicate()
-	var count: int = arrays[Mesh.ARRAY_VERTEX].size()
-	arrays[Mesh.ARRAY_VERTEX] = transform * arrays[Mesh.ARRAY_VERTEX]
-	if not transform.basis.is_equal_approx(Basis.IDENTITY):
-		arrays[Mesh.ARRAY_NORMAL] = Transform3D(transform.basis,Vector3.ZERO) * arrays[Mesh.ARRAY_NORMAL]
-		if arrays[Mesh.ARRAY_TANGENT] != null:
-			var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]
-			for i in count:
-				var t := transform.basis * Vector3(tangents[i*4],tangents[i*4+1],tangents[i*4+2])
-				tangents[i*4]=t.x; tangents[i*4+1]=t.y; tangents[i*4+2]=t.z
-			arrays[Mesh.ARRAY_TANGENT] = tangents
-	if arrays[Mesh.ARRAY_INDEX] == null or arrays[Mesh.ARRAY_INDEX].is_empty():
-		var indices := PackedInt32Array(); indices.resize(count)
-		for i in count: indices[i]=i
-		arrays[Mesh.ARRAY_INDEX]=indices
-	if row.layered:
-		var layers := PackedFloat32Array(); layers.resize(count); layers.fill(float(layer))
-		arrays[Mesh.ARRAY_CUSTOM0] = layers
-	if row.arrays.is_empty(): row.arrays = arrays; return
-	var output: Array = row.arrays
-	var offset: int = output[Mesh.ARRAY_VERTEX].size()
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	for i in indices.size(): indices[i] += offset
-	arrays[Mesh.ARRAY_INDEX] = indices
-	for channel in Mesh.ARRAY_MAX:
-		if arrays[channel] != null:
-			if output[channel] == null: output[channel]=arrays[channel]
-			else:
-				var joined: Variant = output[channel]; joined.append_array(arrays[channel]); output[channel]=joined
+	# Transform operators allocate their result. Read-only UV/colour channels
+	# can append directly from the source; duplicating every input channel first
+	# only adds a second temporary copy. The first retained output still owns a
+	# private buffer, and every in-place tangent/index edit first takes ownership.
+	var count:int=source[Mesh.ARRAY_VERTEX].size()
+	if row.arrays.is_empty():row.arrays.resize(Mesh.ARRAY_MAX)
+	var output:Array=row.arrays
+	var offset:int=0 if output[Mesh.ARRAY_VERTEX]==null else output[Mesh.ARRAY_VERTEX].size()
+	var rotated:=not transform.basis.is_equal_approx(Basis.IDENTITY)
+	for channel:int in Mesh.ARRAY_MAX:
+		var values:Variant=source[channel];var owned:=false
+		if channel==Mesh.ARRAY_VERTEX:
+			values=transform*values;owned=true
+		elif channel==Mesh.ARRAY_NORMAL and rotated and values!=null:
+			values=Transform3D(transform.basis,Vector3.ZERO)*values;owned=true
+		elif channel==Mesh.ARRAY_TANGENT and rotated and values!=null:
+			var tangents:PackedFloat32Array=values.duplicate()
+			for i:int in count:
+				var at:=i*4;var t:=transform.basis*Vector3(tangents[at],tangents[at+1],tangents[at+2])
+				tangents[at]=t.x;tangents[at+1]=t.y;tangents[at+2]=t.z
+			values=tangents;owned=true
+		elif channel==Mesh.ARRAY_INDEX:
+			if values==null or values.is_empty():
+				var indices:=PackedInt32Array();indices.resize(count)
+				for i:int in count:indices[i]=offset+i
+				values=indices;owned=true
+			elif offset!=0:
+				var indices:PackedInt32Array=values.duplicate()
+				for i:int in indices.size():indices[i]+=offset
+				values=indices;owned=true
+		elif channel==Mesh.ARRAY_CUSTOM0 and row.layered:
+			var layers:=PackedFloat32Array();layers.resize(count);layers.fill(float(layer))
+			values=layers;owned=true
+		if values==null:continue
+		if output[channel]==null:output[channel]=values if owned else values.duplicate()
+		else:
+			var joined:Variant=output[channel];joined.append_array(values);output[channel]=joined
 
-static func append_surface(st: SurfaceTool, arrays: Array, transform: Transform3D, layer: int, layered: bool, record: Dictionary, slot: int) -> void:
-	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.append_surface") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+# Sealed unpainted heightfield underside only. Preserve the previous triangle
+# selection and normalization, but submit packed channels once instead of one
+# GDScript/native setter call per emitted vertex. Authoring/collision stays intact.
+static func compact_terrain_sides(arrays:Array)->Array:
+	var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+	var normals:PackedVector3Array=arrays[Mesh.ARRAY_NORMAL]
+	var indices:PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
 	if indices.is_empty():
 		indices.resize(vertices.size())
-		for i in vertices.size(): indices[i] = i
-	# Only the sealed, flat underside can be reduced without changing silhouettes,
-	# painted faces, holes or the top heightfield. Source arrays stay untouched.
-	var compact: bool = slot == 1 and record.has("terrain_mesh") and not record.terrain_mesh.holes.has(true) and not record.has("surface_paint")
-	var bottom_corners := {}
-	var low := Vector3(INF, INF, INF); var high := Vector3(-INF, -INF, -INF)
-	for face in range(0, indices.size(), 3):
-		var a := indices[face]; var b := indices[face+1]; var c := indices[face+2]
-		if compact and normals[a].y < -.999 and normals[b].y < -.999 and normals[c].y < -.999:
-			for at in [a,b,c]:
-				low = low.min(vertices[at]); high = high.max(vertices[at]); bottom_corners[Vector2(vertices[at].x,vertices[at].z)] = at
-			continue
-		for at in [a,b,c]: emit_vertex(st, arrays, at, transform, layer, layered)
-	if not bottom_corners.is_empty():
-		for p in [Vector2(low.x,low.z),Vector2(high.x,high.z),Vector2(high.x,low.z),Vector2(low.x,low.z),Vector2(low.x,high.z),Vector2(high.x,high.z)]:
-			emit_vertex(st, arrays, bottom_corners[p], transform, layer, layered)
-
-static func emit_vertex(st: SurfaceTool, arrays: Array, at: int, transform: Transform3D, layer: int, layered: bool) -> void:
-	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.emit_vertex") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	st.set_normal((transform.basis * arrays[Mesh.ARRAY_NORMAL][at]).normalized())
-	if arrays[Mesh.ARRAY_TEX_UV] != null: st.set_uv(arrays[Mesh.ARRAY_TEX_UV][at])
-	if arrays[Mesh.ARRAY_TEX_UV2] != null: st.set_uv2(arrays[Mesh.ARRAY_TEX_UV2][at])
-	if arrays[Mesh.ARRAY_COLOR] != null: st.set_color(arrays[Mesh.ARRAY_COLOR][at])
-	if arrays[Mesh.ARRAY_TANGENT] != null:
-		var t: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]; var v := transform.basis * Vector3(t[at*4], t[at*4+1], t[at*4+2])
-		st.set_tangent(Plane(v.normalized(), t[at*4+3]))
-	if layered: st.set_custom(0, Color(float(layer),0,0,0))
-	st.add_vertex(transform * arrays[Mesh.ARRAY_VERTEX][at])
+		for i:int in vertices.size():indices[i]=i
+	var selected:=PackedInt32Array();var corners:Dictionary={}
+	var low:=Vector3(INF,INF,INF);var high:=Vector3(-INF,-INF,-INF)
+	for face:int in range(0,indices.size(),3):
+		var a:=indices[face];var b:=indices[face+1];var c:=indices[face+2]
+		if normals[a].y<-.999 and normals[b].y<-.999 and normals[c].y<-.999:
+			for at:int in [a,b,c]:
+				low=low.min(vertices[at]);high=high.max(vertices[at]);corners[Vector2(vertices[at].x,vertices[at].z)]=at
+		else:selected.append(a);selected.append(b);selected.append(c)
+	if not corners.is_empty():
+		for p:Vector2 in [Vector2(low.x,low.z),Vector2(high.x,high.z),Vector2(high.x,low.z),Vector2(low.x,low.z),Vector2(low.x,high.z),Vector2(high.x,high.z)]:selected.append(corners[p])
+	var owned:Array=[];owned.resize(Mesh.ARRAY_MAX)
+	for channel:int in [Mesh.ARRAY_VERTEX,Mesh.ARRAY_NORMAL,Mesh.ARRAY_TANGENT,Mesh.ARRAY_TEX_UV,Mesh.ARRAY_TEX_UV2,Mesh.ARRAY_COLOR]:owned[channel]=arrays[channel]
+	# Identity multiplication also canonicalizes signed zeros, as emit_vertex
+	# did. Omitting it changes native vertex hashing and therefore index order.
+	owned[Mesh.ARRAY_VERTEX]=Transform3D.IDENTITY*vertices
+	owned[Mesh.ARRAY_INDEX]=selected
+	# Match the old per-emitted-vertex normalization, once per used source index.
+	var used:Dictionary={}
+	for at:int in selected:used[at]=true
+	var normalized:PackedVector3Array=normals.duplicate()
+	var tangents:PackedFloat32Array=arrays[Mesh.ARRAY_TANGENT].duplicate() if arrays[Mesh.ARRAY_TANGENT]!=null else PackedFloat32Array()
+	for at:int in used:
+		normalized[at]=(Basis.IDENTITY*normals[at]).normalized()
+		if not tangents.is_empty():
+			var i:=at*4;var t:Vector3=(Basis.IDENTITY*Vector3(tangents[i],tangents[i+1],tangents[i+2])).normalized()
+			tangents[i]=t.x;tangents[i+1]=t.y;tangents[i+2]=t.z
+	owned[Mesh.ARRAY_NORMAL]=normalized
+	if arrays[Mesh.ARRAY_TANGENT]!=null:owned[Mesh.ARRAY_TANGENT]=tangents
+	var st:=SurfaceTool.new();st.create_from_arrays(owned);st.deindex();st.index()
+	return st.commit_to_arrays()

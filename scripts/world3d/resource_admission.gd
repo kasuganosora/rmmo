@@ -93,6 +93,32 @@ func park(key:String)->bool:
 	_entries[key].occupies_worker=false
 	return true
 
+func publication_workspace_capacity(key:String,count_:int=1,minimum_bytes:int=0)->int:
+	if count_<=0 or not _entries.has(key) or _entries[key].get("occupies_worker",true):return 0
+	var entry:Dictionary=_entries[key]
+	var size:int=maxi(int(entry.bytes)-int(entry.get("publication_workspace_bytes",0)),minimum_bytes)
+	return size if size>0 and reserved_bytes+size*count_<=byte_limit else 0
+
+func retain_publication_workspace(key:String,minimum_bytes:int=0)->int:
+	# A completed instance can keep the original construction workspace alive
+	# while a sibling starts. Reserve a replacement BEFORE that allocation.
+	# A reuse lease covers metadata/hash rather than the full shared model.
+	# Retain at least the caller's model/instance bound as well as the existing
+	# envelope. This is conservative scheduling, not RSS or another worker slot.
+	var size:=publication_workspace_capacity(key,1,minimum_bytes)
+	if size==0:return 0
+	var entry:Dictionary=_entries[key]
+	var extra:int=entry.get("publication_workspace_bytes",0)
+	entry.bytes+=size;entry.publication_workspace_bytes=extra+size
+	reserved_bytes+=size;peak_bytes=maxi(peak_bytes,reserved_bytes)
+	return size
+
+func release_publication_workspace(key:String,size:int)->void:
+	if not _entries.has(key):return
+	var entry:Dictionary=_entries[key]
+	assert(size>0 and size<=int(entry.get("publication_workspace_bytes",0)))
+	entry.bytes-=size;entry.publication_workspace_bytes-=size;reserved_bytes-=size
+
 func release(key:String)->void:
 	if not _entries.has(key):return
 	reserved_bytes-=int(_entries[key].bytes);_entries.erase(key)

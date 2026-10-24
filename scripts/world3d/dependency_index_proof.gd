@@ -19,9 +19,10 @@ var _models: Dictionary = {}
 
 ## Trusted internal factory. A caller-created issuer cannot match Index's key.
 ## The read result must still be privately owned by the issuing load operation.
-static func issue(index: Dictionary, path: String, root: String, issuer: RefCounted) -> RefCounted:
+static func issue(index: Dictionary, path: String, root: String, issuer: RefCounted, trusted_snapshot:bool=false) -> RefCounted:
 	if issuer == null or path.is_empty() or root.is_empty(): return null
-	if not _seal(index, 0, [], [MAX_VALUES]): return null
+	if trusted_snapshot:_freeze_snapshot(index)
+	elif not _seal(index, 0, [], [MAX_VALUES]): return null
 	var result := new()
 	result._index = index; result._path = path; result._root = root
 	result._source_sha = index.source_sha256; result._generator = index.generator
@@ -38,6 +39,19 @@ func matches(index: Dictionary, root: String, issuer: RefCounted, path: String =
 
 func rows_by_uuid() -> Dictionary:
 	return _rows_by_uuid
+
+## The package factory owns fresh JSON/bytes_to_var containers with no cycles
+## or Objects. Freeze containers once; do not revalidate each scalar/ancestor.
+static func _freeze_snapshot(value:Variant)->void:
+	if value.is_read_only():return
+	if value is Dictionary:
+		for key in value:
+			var child:Variant=value[key]
+			if child is Dictionary or child is Array:_freeze_snapshot(child)
+	else:
+		for child in value:
+			if child is Dictionary or child is Array:_freeze_snapshot(child)
+	value.make_read_only()
 
 ## Index rows use only math values and plain JSON containers. Packed arrays,
 ## Objects, Callables, Signals and RIDs are deliberately outside this contract.

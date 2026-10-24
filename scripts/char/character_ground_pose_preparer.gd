@@ -38,7 +38,7 @@ func prepare(owner:Node3D,shapes:Dictionary)->Animation:
  work.rig.position=motion.visual_offset
  var fit=preload("res://scripts/char/character_ground_support_fit.gd").new()
  if not fit.prepare(work):error=fit.error;work.free();busy=false;return null
- await RenderingServer.frame_post_draw
+ await preload("res://scripts/util/frame_presentation.gd").drawn()
  if owner_ref.get_ref()==null:
   error="Ground pose owner released";work.free();busy=false;return null
  if fit.bridge.completed_revision!=fit.bridge.revision or not fit.bridge.error.is_empty():

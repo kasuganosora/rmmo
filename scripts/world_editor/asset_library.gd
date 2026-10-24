@@ -223,9 +223,9 @@ func search(query: String) -> Array:
 	if needle.is_empty(): return entries
 	return entries.filter(func(entry: Dictionary): return (str(entry.get("label", "")) + " " + str(entry.get("category", ""))).to_lower().contains(needle))
 
-static func instantiate(path: String) -> Node3D:
+static func instantiate(path: String,native_only:bool=false) -> Node3D:
 	if not FileAccess.file_exists(path): return null
-	if not _scenes.has(path):
+	if not _scenes.has(path) or (native_only and not _scenes[path].get_meta("compiled_asset_validated",false)):
 		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if compiled.hit:
 			if not cache_packed(path,compiled.packed,compiled.source_digest):
@@ -233,6 +233,7 @@ static func instantiate(path: String) -> Node3D:
 				return null
 		else:
 			if not Compiled.dispose_miss(compiled):return null
+			if native_only:return null
 			var raw:=_load_raw_scene(path)
 			if raw.is_empty():return null
 			if not cache_scene(path,raw.scene,raw.source_digest):return null
@@ -251,7 +252,7 @@ static func _instantiate(packed:PackedScene)->Node3D:
 	return scene
 
 ## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
-static func instantiate_preview(path: String) -> Node3D:
+static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
 	if not FileAccess.file_exists(path): return null
 	# Preview is an independent source transaction. A previous world load's
 	# path-only template cannot authorize a newly selected thumbnail/preview.
@@ -263,11 +264,12 @@ static func instantiate_preview(path: String) -> Node3D:
 			# this exact source. Its allowed material extensions need not pass
 			# the raw byte-copy gate, which conservatively rejects all extensions.
 			var validated:Variant=_scenes[path].get_meta("compiled_asset_validated",false)
-			if (validated is bool and validated) or preload("res://scripts/world3d/embedded_glb.gd").can_copy(path):return _instantiate(_scenes[path])
+			if (validated is bool and validated) or (not native_only and preload("res://scripts/world3d/embedded_glb.gd").can_copy(path)):return _instantiate(_scenes[path])
 		evict_cached_scene(path)
 	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if compiled.hit:return _instantiate(compiled.packed)
 	if not Compiled.dispose_miss(compiled):return null
+	if native_only:return null
 	return _load_raw_scene(path).get("scene") as Node3D
 
 static func _load_raw_scene(path:String)->Dictionary:
@@ -303,14 +305,20 @@ static func bounds_of(node: Node3D, transform_: Transform3D = Transform3D.IDENTI
 
 static func cache_scene(path: String, scene: Node, verified_digest:String="") -> bool:
 	if scene == null: return false
+	var started:=Time.get_ticks_usec()
 	var keepalive:Variant=scene.get_meta("_compiled_resource_owner") if scene.has_meta("_compiled_resource_owner") else null
 	if keepalive is PackedScene and keepalive.get_meta("compiled_asset_validated",false):
 		preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",started,{"path":path})
 	if scene.has_meta("_compiled_resource_owner"):scene.remove_meta("_compiled_resource_owner")
+	started=Time.get_ticks_usec()
 	_own(scene, scene)
 	var packed := PackedScene.new()
 	var err := packed.pack(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_pack",started,{"path":path})
+	started=Time.get_ticks_usec()
 	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",started,{"path":path})
 	if err != OK: return false
 	var cached:=cache_packed(path,packed,verified_digest)
 	keepalive=null
@@ -323,7 +331,12 @@ static func cache_packed(path:String,packed:PackedScene,verified_digest:String="
 		var previous:String=packed.get_meta("_rmmo_source_digest","")
 		if not previous.is_empty() and previous!=verified_digest:return false
 		packed.set_meta("_rmmo_source_digest",verified_digest)
+	var began:=Time.get_ticks_usec();var replacement:bool=_scenes.has(path) and _scenes[path]!=packed
+	# Replacement can drop the final owner of thousands of meshes just like
+	# eviction. Transfer that disposal to the bounded retirement service first.
+	if replacement:preload("res://scripts/world3d/resource_retirement.gd").defer_scene(_scenes[path])
 	_scenes[path]=packed
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.accept_packed",began,{"path":path,"replacement":replacement})
 	return true
 
 static func _valid_source_digest(value:String)->bool:
@@ -336,4 +349,7 @@ static func has_cached_scene(path:String,verified_digest:String="")->bool:
 static func evict_cached_scene(path:String)->bool:
 	# Remove only the template's ownership. Live nodes/specs in other consumers
 	# continue owning their resources; never clear or mutate a shared Mesh.
+	var scene:PackedScene=_scenes.get(path)
+	if scene==null:return false
+	preload("res://scripts/world3d/resource_retirement.gd").defer_scene(scene)
 	return _scenes.erase(path)

@@ -48,6 +48,10 @@ func fixture()->Dictionary:
 	service._admission.byte_limit=96*1024*1024;service._admission.worker_limit=2
 	return {"map":map,"service":service}
 func run()->void:
+	# Mutation rejection is the diagnostic reader contract; mounted packages
+	# deliberately trust their content identity and do not rehash every reuse.
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var previous_policy:bool=policy.verify_packages;policy.verify_packages=true
 	var logger:=Errors.new();OS.add_logger(logger)
 	var folder:=Paths.cache_directory("reuse_faces_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
 	var path:=folder.path_join("resident.glb");var file:=FileAccess.open(path,FileAccess.WRITE);file.store_buffer(PackedByteArray([1,2,3,4]));file.close()
@@ -73,6 +77,7 @@ func run()->void:
 	token.cancel();rejected=await worker(Deferred._prepare_job.bind(path,digest,token,{},true,folder,{},"",[],false,false,null,{"reuse_face_snapshots":offer.snapshots}))
 	check(rejected.get("cancelled",false) and not rejected.get("reused_model",false),"cancellation cannot return a publishable face reuse result")
 	queue.free();job.clear();offer.clear();prepared.clear();t.clear();slots=[]
+	policy.verify_packages=previous_policy
 	var helper:=Fixture.new();var old:=Deferred.collision_first_enabled;Deferred.collision_first_enabled=true
 	t=template();Assets.cache_packed(path,t.packed,digest)
 	var f:=fixture();queue=f.service;var item:Dictionary=helper.item(path,digest,"collision",0);item.record.collision="block"

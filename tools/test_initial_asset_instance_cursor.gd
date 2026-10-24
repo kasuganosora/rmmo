@@ -32,6 +32,10 @@ func projection(holder:Node)->Array:
 	return result
 func run_case(mode:String,packed:PackedScene,record:Dictionary,expected:Array,component_rows:Array)->void:
 	var loader:=PreparedLoader.new();loader.background_preload=true;loader._mesh_cache_allowed=false
+	# Entering after parsing still requires the actual immutable source snapshot
+	# used by the final publication gate; the former method override is earlier.
+	loader._path=record.asset_path
+	loader._source_snapshot=preload("res://scripts/world3d/document_source_snapshot.gd").read_file(loader._path)
 	loader._record_meta={"rmmo_records":[record]};loader._record_order={record.uuid:0}
 	loader._asset_states={record.asset_path:{"packed":packed}}
 	var observed:Dictionary={"yields":0,"completed":false,"scene":null,"error":"","private":true,"holder":null,"profile":{}}
@@ -50,6 +54,7 @@ func run_case(mode:String,packed:PackedScene,record:Dictionary,expected:Array,co
 	while is_instance_valid(loader) and Time.get_ticks_msec()<deadline:await process_frame
 	check(not is_instance_valid(loader) and observed.yields>0 and observed.private,mode+": initial loader actually yields while the component graph remains private")
 	if mode=="complete":
+		if not observed.error.is_empty():print("INITIAL_ASSET_CURSOR_ERROR ",observed.error)
 		check(observed.completed and observed.error.is_empty() and is_instance_valid(observed.scene),"complete: initial loader transfers the finished map once")
 		if is_instance_valid(observed.scene):
 			var holder:Node=observed.scene.get_child(0)

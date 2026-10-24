@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "scope": "axel_town native white mesh-only route; no full-game or texture acceptance",
+  "primary_metric": "pipeline_to_full_ready_ms",
+  "additional_metric": "process_to_full_ready_ms",
+  "target_ms": 10000,
+  "target_boundary": "Human confirmed: map loading timing begins to the current demanded region fully ready, preserving the historical pipeline-to-full-ready boundary. Process startup remains a separate secondary metric.",
+  "target_boundary_confirmation": {
+    "status": "human_confirmed",
+    "confirmed_on": "2026-10-24",
+    "user_wording": "地图加载计时开始→当前需求区域完整就绪（沿用历史口径）",
+    "primary_metric": "pipeline_to_full_ready_ms",
+    "process_startup_role": "secondary, reported separately",
+    "texture_gate": "unchanged; white-stage stability is still required before texture work"
+  },
+  "anchors": {
+    "process_spawn": "Owned Godot OS process creation timestamp with matching PID; not wrapper launch or script initialize.",
+    "pipeline_begin": "report.begin_ticks_us, bridged to Unix only with report.cpu_time_anchor.",
+    "entry": "begin + entry_ms. Mesh-only stream_chunk and entry batches ready, followed by frame_post_draw; not ordinary GameSession player-input handoff.",
+    "full_ready": "begin + origin_first_ready.at_ms. Existing origin-focus demand/job/render-batch queues empty for three consecutive frames; not every distant map chunk resident."
+  },
+  "missing_data": "Unavailable anchors, durations, cache observations and work counters remain null. Never substitute zero, wrapper start or a different readiness condition.",
+  "process_clock_limit": "Existing process-to-pipeline values use one OS Unix/game-ticks bridge. They are estimates with unmeasured clock error, not exact high-resolution startup spans.",
+  "cache_contract": {
+    "os": "retained/uncontrolled; no strict cold-OS claim",
+    "strict_os_cold": false,
+    "native_products": "required, retained; existing reports do not provide a complete native-product byte-SHA manifest",
+    "application_derived": "dependency index rebuilt; cooked geometry, road arrays, prefab binary, collision products, prefab bounds and model metadata reuse disabled by recorded controls",
+    "in_process": "fresh process, normal same-path sharing and deduplication remain enabled",
+    "driver_shader_cache": "not reset or measured by these reports"
+  },
+  "white_contract": {
+    "mesh_only": true,
+    "map_textures": false,
+    "white_material": true,
+    "hud": false,
+    "geometry_collision_navigation": "Preserve production geometry, transforms, collision, navigation registration and batch identity; use the existing route validators.",
+    "job_limit": 6,
+    "worker_limit": 6,
+    "admission_bytes": 7705667456,
+    "route": "origin 8s, two steady windows 60s, native departure/unload/return, fixed reload 35s; source snapshot owns hard-coded route details",
+    "unload_return": "63 terrain objects and 2151 largest-guild meshes retired and fully returned; same focus; six final cleanup counters zero"
+  },
+  "group_identity": [
+    "engine byte SHA256", "map SHA256", "actual dirty working-tree source path/SHA manifest",
+    "auxiliary observer source path/SHA manifest", "probe and normalized game arguments",
+    "all recorded controls and candidate switches", "cache flags and observed cache checks",
+    "observer modes/native schema/threshold", "PresentMon sidecar presence, executable SHA256, wrapper SHA256 and normalized capture arguments",
+    "actual WEOBS module state and graphics filters",
+    "viewport/frame policy/spawn", "worker/job/byte limits"
+  ],
+  "grouping_limits": "Missing essential identity isolates a run in its own group. Native-product byte inventory and hardware identity are unavailable in legacy inputs and remain explicit limitations, not inferred matches.",
+  "statistics": {
+    "minimum_valid_runs_per_configuration": 10,
+    "p50": "median (mean of the two central values for even N)",
+    "p95": "nearest-rank: sorted[ceil(0.95*N)-1]; at N=10 p95 equals max",
+    "max": "maximum of all retained valid observations; no outlier deletion",
+    "insufficient": "Every metric with fewer than 10 values is insufficient; diagnostic runs never establish a normal-performance target.",
+    "attempts": "Keep failed and incomplete runs with reasons; do not silently replace failures until N passes.",
+    "frames": "Separate phases and runs. Export per-run p50/p95/max and >33/50/100/200ms counts; do not pool phase FPS or remove observer-overlap frames."
+  },
+  "normal_observers": "No GDB, official profiler, heartbeat, method timing or native tracing. Existing quiet owned CPU sampler and one module observation remain explicitly identified.",
+  "diagnostic_observers": "Different observer schemas, engines or caches form different groups; descriptive statistics only, no normal speedup claim. A present .presentmon_validation.json always declares a PresentMon diagnostic observer, even if the underlying map runner calls itself normal. Missing executable/wrapper identity remains null and isolates that run; missing or mismatched target PID and unsuccessful capture invalidate it. Session names, target PIDs and output paths are run-specific and do not split otherwise identical groups. PresentMon CPU/GPU timing categories are not OS thread CPU execution or a proved wait cause.",
+  "work_guardrails": "Retain all 38 initial selected counters. Current accepted direct-prefab equations are avoided=417+direct, projection visited/freed=2204-direct (direct=742). Keep legacy mismatches visible. Future intentional work reductions need explicit tested equations, not removed counters.",
+  "cache_checks": [
+    "cache_reference_index_hit_false", "cache_metadata_cache_hit_false", "cache_terrain_context_cache_hit_false",
+    "cache_mesh_cache_candidate_false", "definition_cache_empty", "resource_bundles_disabled"
+  ],
+  "final_work_fields": {
+    "deferred": ["models", "reference_reads_started", "instances", "specs", "publication_units", "ready_paths_checked", "ready_eligible_calls", "demand_refreshes", "demand_refresh_us", "demand_distance_evaluations", "demand_input_rows", "demand_candidate_rows_created", "demand_candidate_rows_reused", "instance_work_cancelled_stages", "instance_cancel_subtree_free_calls", "discard_pending_visits", "native_prefab_direct_instances"],
+    "batches": ["prepared_source_visits", "packed_source_visits", "groups", "source_objects", "render_surfaces", "render_vertices", "bin_ledger_invalidated_rows", "bin_ledger_reused_rows"],
+    "stream": ["meshes", "bodies", "specs", "ready_bypass_scanned", "priority_classified_rows", "priority_reused_rows"]
+  }
+}

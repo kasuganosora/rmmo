@@ -101,7 +101,8 @@ static func prepare_spec(spec: Dictionary) -> void:
 	# Every possible hinge angle is indexed, including when a leaf crosses a chunk.
 	var pivot: Vector3=spec.closed_transform*vec(f.pivot)
 	var radius:=0.0
-	for i in 8: radius=maxf(radius,(spec.closed_transform*spec.mesh.get_aabb().get_endpoint(i)).distance_to(pivot))
+	var bounds:AABB=spec.mesh.get_aabb()
+	for i in 8: radius=maxf(radius,(spec.closed_transform*bounds.get_endpoint(i)).distance_to(pivot))
 	var Stream=load("res://scripts/world3d/world_stream.gd")
 	spec.chunk_min=Stream.chunk_key(pivot-Vector3.ONE*radius)
 	spec.chunk_max=Stream.chunk_key(pivot+Vector3.ONE*radius)

@@ -40,6 +40,14 @@ var streaming: bool = false
 var chunk_map_dir: String = ""
 var chunk_dir: String = ""
 var overview_path: String = ""
+## Loaded on a worker by load_pack(..., true): AssetManager is not touched until
+## attach_detached() runs on the main thread. Decoded pack-local sheets wait in
+## detached_images (cache key -> [image, sheet index]); detached_missing lists sheet
+## indices the main thread retries with the ordinary AssetManager-backed lookup.
+var detached: bool = false
+var detached_images: Dictionary = {}
+var detached_missing: PackedInt32Array = PackedInt32Array()
+var detached_tiles_rel: String = ""
 
 ## Runtime renderer shares immutable map data and sheets with the already
 ## loaded server pack, but owns collision streaming/occupancy independently.
@@ -56,13 +64,32 @@ func render_snapshot() -> RefCounted:
 	return copy
 
 
-static func load_pack(p_pack_dir: String, p_map_id: String = "") -> RefCounted:
+## p_detached: p_pack_dir is already resolved (see choose_pack_dir) and the caller is
+## a loading thread; call attach_detached() on the main thread before use.
+static func load_pack(p_pack_dir: String, p_map_id: String = "", p_detached: bool = false) -> RefCounted:
 	var pack := new()
-	pack.pack_dir = _resolve_pack_dir(p_pack_dir)
+	pack.detached = p_detached
+	pack.pack_dir = p_pack_dir.strip_edges().rstrip("/") if p_detached else _resolve_pack_dir(p_pack_dir)
 	pack.load_map_id = p_map_id
 	if not pack._load():
 		push_error("tilemap_pack: failed to load %s" % p_pack_dir)
 	return pack
+
+
+## Main-thread completion of a detached load: share decoded sheets through the
+## AssetManager image cache and resolve sheets only AssetManager can provide.
+func attach_detached(am: Node) -> void:
+	if not detached:
+		return
+	detached = false
+	if am != null and am.has_method("adopt_image"):
+		for key: String in detached_images:
+			var row: Array = detached_images[key]
+			sheets[row[1]] = am.adopt_image(key, row[0])
+	detached_images.clear()
+	for index in detached_missing:
+		sheets[index] = _load_sheet_image(tileset_names[index], detached_tiles_rel, index)
+	detached_missing.clear()
 
 
 static func _folder_pack_id(dir: String) -> String:
@@ -81,9 +108,16 @@ static func _resolve_pack_dir(p: String) -> String:
 	if loop is SceneTree:
 		var am: Node = (loop as SceneTree).root.get_node_or_null("AssetManager")
 		if am != null and am.has_method("resolve_map_pack_path"):
-			var resolved := str(am.resolve_map_pack_path(p)).strip_edges().rstrip("/")
-			if resolved != "" and FileAccess.file_exists("%s/pack.json" % resolved):
-				return resolved
+			return choose_pack_dir(p, str(am.resolve_map_pack_path(p)))
+	return p
+
+
+## AssetManager's resolution of p wins when it names an existing pack folder.
+static func choose_pack_dir(p: String, resolved: String) -> String:
+	p = p.strip_edges().rstrip("/")
+	resolved = resolved.strip_edges().rstrip("/")
+	if resolved != "" and FileAccess.file_exists("%s/pack.json" % resolved):
+		return resolved
 	return p
 
 
@@ -164,7 +198,7 @@ func _load() -> bool:
 		if name.is_empty():
 			sheets[i] = null
 			continue
-		sheets[i] = _load_sheet_image(name, tiles_rel)
+		sheets[i] = _load_sheet_image(name, tiles_rel, i)
 
 	var ext_rel := MapExt.ext_path_for(map_rel)
 	ext = MapExt.load_file("%s/%s" % [pack_dir, ext_rel], width, height)
@@ -433,7 +467,7 @@ static func _to_int32_array(v: Variant) -> PackedInt32Array:
 
 
 ## Pack-local tiles/ first (offline packs), then AssetManager content://tilesheet/{name} (MV hot-load).
-func _load_sheet_image(sheet_name: String, tiles_rel: String) -> Image:
+func _load_sheet_image(sheet_name: String, tiles_rel: String, index: int = -1) -> Image:
 	var candidates: Array[String] = [
 		"%s/%s/%s.png" % [pack_dir, tiles_rel, sheet_name],
 		"%s/tiles/%s.png" % [pack_dir, sheet_name],
@@ -441,9 +475,13 @@ func _load_sheet_image(sheet_name: String, tiles_rel: String) -> Image:
 	]
 	for img_path in candidates:
 		if _pack_tile_exists(img_path):
-			var local_img := _load_image(img_path, false)
+			var local_img := _load_detached_image(img_path, index) if detached else _load_image(img_path, false)
 			if local_img != null:
 				return local_img
+	if detached:
+		detached_missing.append(index)
+		detached_tiles_rel = tiles_rel
+		return null
 	var via_am := _load_tilesheet_via_asset_manager(sheet_name)
 	if via_am != null:
 		return via_am
@@ -504,6 +542,18 @@ func _asset_manager() -> Node:
 		var tree := loop as SceneTree
 		return tree.root.get_node_or_null("AssetManager")
 	return null
+
+
+## _load_image() without AssetManager: plain files are decoded exactly as its cache
+## would and recorded for attach_detached().
+func _load_detached_image(path: String, index: int) -> Image:
+	if path.begins_with("res://"):
+		return _load_image(path, false)
+	var decoded: Array = preload("res://scripts/asset/asset_manager.gd").decode_image_file(path)
+	if decoded.is_empty():
+		return null
+	detached_images[decoded[0]] = [decoded[1], index]
+	return decoded[1]
 
 
 static func _load_image(path: String, warn_missing: bool = true) -> Image:

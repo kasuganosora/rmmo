@@ -11,7 +11,13 @@ const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const TransferLoading=preload("res://scripts/world3d/transfer_loading.gd")
 const OwnershipProof=preload("res://scripts/world3d/dependency_index_proof.gd")
 const INTERACTIVE_BUDGET_US:=2000
+const WHITE_INTERACTIVE_BUDGET_US:=6000 # Measured white throughput; ordinary interactive loading stays at 2 ms.
+static var interactive_budget_override_usec:=0 # Controlled throughput probe; zero retains policy.
+static var force_covered_loading_budget:=false # Diagnostic: test the drawn-cover 16ms ceiling.
+static var white_worker_capacity_enabled:=true
 const COVERED_LOADING_BUDGET_US:=16000
+const TRANSFER_COVERED_BUDGET_US:=16000
+static var covered_loading_budget_usec:=32000
 const REUSE_HASH_BLOCK_BYTES:=4*1024*1024
 const REUSE_HASH_RESERVATION_BYTES:=4*REUSE_HASH_BLOCK_BYTES
 const REUSE_FACE_MAX_MESHES:=64
@@ -24,9 +30,11 @@ const Compiled=preload("res://scripts/world3d/compiled_asset_cache.gd")
 const MemoryEstimate=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const PrefabTextures=preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
+const PrefabSpecs=preload("res://scripts/world3d/prefab_spec_preparation.gd")
 const SharedImages=preload("res://scripts/world3d/shared_prefab_images.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
+const CompletedTrace=preload("res://scripts/world3d/completed_job_trace.gd")
 const CollisionGeometry=preload("res://scripts/world3d/model_collision_requirements.gd")
 static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
 static var prefab_texture_preparation_enabled:=true
@@ -36,12 +44,15 @@ static var native_preparation_enabled:=true # Probe-only old native/readmission 
 static var native_budget_enabled:=true # Validated native reservations; invalid candidates use full raw admission.
 static var ready_worker_yield_enabled:=true # Bytes remain charged after join.
 static var fair_publication_enabled:=true # Probe may select the old distance-only order.
+static var independent_instance_preparation_enabled:=true # Diagnostic control for dependency-blocked private cursors.
+static var native_prefab_direct_specs_enabled:=true
 static var material_publication_slices_enabled:=true # Probe-only synchronous control.
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
 static var owned_index_projection_enabled:=true # Private raw-model specs transfer without copying/remapping.
 static var typed_demand_scan_enabled:=true # Diagnostic control retains the exact unfiltered scheduler.
+static var reuse_typed_demand_filter_enabled:=true
 static var demand_membership_cache_enabled:=true
 static var native_demand_order_enabled:=true
 static var native_demand_bounds_enabled:=true
@@ -52,10 +63,18 @@ static var spatial_candidate_reuse_enabled:=true
 static var batched_pending_unindex_enabled:=true
 static var support_promotion_dedup_enabled:=true
 static var native_spatial_union_enabled:=true
+static var reuse_spatial_membership_catalogue_enabled:=true
+static var reuse_demand_metadata_enabled:=true
+static var lazy_demand_snapshot_enabled:=true # Diagnostic eager control; lookup/path catalogs remain live.
 const EMPTY_DEMAND:Dictionary={}
 static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
-var pending:Array=[]
+var _pending_snapshot:Array=[]
+var _pending_snapshot_dirty:=false
+var pending:Array:
+	get:return _materialize_pending_snapshot()
+	set(value):
+		_pending_snapshot=value;_pending_snapshot_dirty=false
 var profile:Dictionary={"models":0,"instances":0,"specs":0,"worker_us":0,"max_publish_us":0}
 var error:=""
 var path_errors:Dictionary={}
@@ -75,12 +94,25 @@ var _candidates_revision:=-1
 var _demand_membership:Dictionary={} # Per live ticket; spatial candidates only, never readiness/leases.
 var _typed_pending:Dictionary={}
 var _typed_pending_buildings:=-1
-var _demanded:Array=[]
+var _pending_kinds:RefCounted
+var _demanded_snapshot:Array=[]
+var _demanded_snapshot_dirty:=false
+var _demanded:Array:
+	get:
+		if _demanded_snapshot_dirty:
+			_demanded_snapshot=_demanded_by_id.values();_demanded_snapshot_dirty=false
+			profile.demand_snapshot_materializations=int(profile.get("demand_snapshot_materializations",0))+1
+			profile.demand_snapshot_materialized_rows=int(profile.get("demand_snapshot_materialized_rows",0))+_demanded_snapshot.size()
+		return _demanded_snapshot
+	set(value):
+		_demanded_snapshot=value;_demanded_snapshot_dirty=false
 var _demanded_by_id:Dictionary={}
 var _demanded_by_path:Dictionary={}
 var _demanded_rank:Dictionary={}
+var _demand_candidate_rows:Dictionary={}
 var _completion_emitted:=false
 var _prepared_paths:Dictionary={}
+var _prepared_template_owners:Dictionary={} # Weak, exact fully prepared allocations; no residency pin.
 var _cancelled:=false
 var _active:=false
 var _priority:=Vector3.ZERO
@@ -94,14 +126,21 @@ var _doc=preload("res://scripts/world3d/world_document.gd").new()
 var _reference_index:Dictionary={}
 var _reference_map_path:=""
 var _reference_root:=""
+var _reference_handoff:RefCounted
 var _reference_proof:OwnershipProof
 var _runtime_record_ids:Dictionary={}
 var runtime_fixture_states:Dictionary={} # Scalar state survives render retirement.
 var _runtime_building_records:Dictionary={} # Verified live component adaptation; preserves long-view reload demand.
 var _runtime_building_supports:Dictionary={} # Authored IDs only; no mesh/record ownership.
+var _runtime_support_order:Dictionary={} # Immutable ordered ID sets, rebuilt only on registration.
+var _runtime_support_set_ids:Dictionary={} # Building UUID -> exact ordered support identity.
+var _support_set_interns:Dictionary={} # Live IDs only: order, hash bucket and registration users.
+var _support_set_buckets:Dictionary={} # Hash collisions retain exact ordered Array comparison.
+var _next_support_set_id:=1
 var _pending_by_record_id:Dictionary={}
 var _memory_estimates:Dictionary={}
 var _entry_loading:Dictionary={}
+var _loading_cover:Dictionary={}
 var _scene_handoff:=false
 var _entry_prefetch:Dictionary={}
 var _lifetime_tree:SceneTree
@@ -118,9 +157,12 @@ var _dispatch_cursor:=0
 var _dispatch_revision:=-1
 var _dispatch_capacity:Array=[]
 var _dispatch_fence:=""
+var _job_cap_waiter:=""
 var _dispatch_deadline:=0
 var _scheduler_epoch:=0
 var _publication_queues:Dictionary={}
+var _deferred_removal_items:Array=[]
+var _defer_demand_removal:=false
 var _publication_order=preload("res://scripts/world3d/publication_order.gd").new()
 var _demanded_priority:Dictionary={}
 var _path_first:Dictionary={}
@@ -150,7 +192,11 @@ func _note_preparation_latency(items:Array)->void:
 		profile.preparation_latency_samples=int(profile.get("preparation_latency_samples",0))+1
 
 func _job_limit()->int:
-	return ready_job_limit if ready_job_limit>0 else maxi(4,_admission.worker_limit*2)
+	if ready_job_limit>0:return ready_job_limit
+	# White geometry benefits from bounded preparing workers, not twice as many
+	# parked results. Covered loading retains its separate throughput policy.
+	var factor:=1 if white_worker_capacity_enabled and _saved_interactive_worker_limit<0 and preload("res://scripts/world3d/white_native_asset_cache.gd").active() else 2
+	return maxi(4,_admission.worker_limit*factor)
 
 func _path_priority(path:String)->int:
 	var item:Dictionary=_path_first.get(path,{})
@@ -213,7 +259,7 @@ func begin_entry_prefetch(tree:SceneTree,clip:AABB,core_model_paths:Dictionary)-
 	_prefetch_budget_owned=true
 	set_demand("entry_safety",clip,-3)
 	set_demand_scope(["entry_safety"])
-	_update_loading_worker_capacity(COVERED_LOADING_BUDGET_US)
+	_update_loading_worker_capacity(covered_loading_budget_usec)
 	profile.entry_prefetch_started_us=Time.get_ticks_usec()
 	profile.entry_prefetch_mode="preparing"
 	profile.entry_prefetch_budget_bytes=_admission.byte_limit
@@ -281,7 +327,9 @@ func begin_entry_loading(host:Node,clip:AABB,cover:Node=null)->bool:
 	if plan.is_empty() or int(plan.get("core_resources_ready_us",0))<=0 or not clip.position.is_finite() or not clip.size.is_finite():return false
 	if clip!=plan.safety_clip:return false
 	if cover!=null:
-		if not cover is TransferLoading or not cover.is_opaque_drawn():return false
+		# Initial white loading uses InitialLoadingCover; same-map transfer uses
+		# TransferLoading. The contract is an opaque drawn cover, not a class name.
+		if not cover.has_method("is_opaque_drawn") or not cover.is_opaque_drawn():return false
 	else:
 		var session:=host.get_node_or_null("/root/GameSession")
 		if not "_ready_for_play" in host or host._ready_for_play or session==null or not session.world3d_loading:return false
@@ -303,6 +351,24 @@ func _entry_loading_allowed()->bool:
 	var session:=_host.get_node_or_null("/root/GameSession")
 	return "_ready_for_play" in _host and not _host._ready_for_play and session!=null and session.world3d_loading
 
+func begin_loading_cover(host:Node,cover:Node)->bool:
+	# Initial-world loading can stay behind a drawn, opaque cover until the
+	# current geometry demand is complete. This is separate from the short
+	# entry-safety ticket: the entry ticket may end while the cover remains.
+	if host==null or cover==null or not is_instance_valid(host) or not is_instance_valid(cover):return false
+	if not cover.has_method("is_opaque_drawn") or not cover.is_opaque_drawn():return false
+	_loading_cover={"host":host,"cover":cover}
+	return true
+
+func end_loading_cover()->void:
+	_loading_cover.clear()
+
+func _covered_loading_ready()->bool:
+	if _loading_cover.is_empty() or _cancelled:return false
+	if not is_instance_valid(_map) or not _map.is_inside_tree():return false
+	var cover:Variant=_loading_cover.get("cover")
+	return is_instance_valid(cover) and cover.is_opaque_drawn() and _map.get_viewport().disable_3d
+
 func end_entry_loading(player_clip:Variant=null)->void:
 	if _entry_loading.is_empty():return
 	var scope:Array=_entry_loading.get("previous_scope",[])
@@ -319,12 +385,15 @@ func end_entry_loading(player_clip:Variant=null)->void:
 
 func _init()->void:
 	name="DeferredAssets";set_meta("stream_instance",true);set_process(false)
+	if white_worker_capacity_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active():_admission.worker_limit=automatic_white_worker_limit(OS.get_processor_count())
 	_doc.load_immutable_records=true;_doc.load_paint_validation={};_doc.load_texture_checks={};_doc.load_material_pool={};_doc.load_box_meshes={}
 
 func configure_references(index:Dictionary,path:String,content_root:String,ownership_proof:OwnershipProof=null)->void:
+	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_runtime_building_records.clear()
-	_runtime_building_supports.clear();_pending_by_record_id.clear()
+	_materialize_pending_snapshot()
+	_runtime_building_supports.clear();_clear_runtime_support_sets();_pending_by_record_id.clear()
 	_reference_index=index;_reference_map_path=path;_reference_root=content_root;_reference_proof=ownership_proof
 	_collision_definition_modes.clear();_collision_definition_count=0;_collision_definition_bytes=0
 	_prefab_texture_attempts.clear();_prefab_texture_attempt_revision=-1
@@ -456,17 +525,28 @@ static func reference_path(entry:Dictionary)->String:
 		return "reference:road_batch:"+str(floori(float(entry.record_index)/ROAD_REFERENCE_BATCH_SIZE))
 	return "reference:"+str(entry.record_index)
 
+static var background_requeue_records_enabled:=true
+var require_native_products:=false: # Copied from the owning game MapLoader.
+	set(value):
+		require_native_products=value
+		_doc.load_require_native_products=value
 func requeue_references(entries:Array)->int:
 	# Called only after resident stream/navigation ownership has been released.
 	# Preserve the compact catalog and verified model version for a later revisit.
 	if _reference_index.is_empty():return 0
 	var incremental:bool=incremental_pending_index_enabled and _indexed
 	var known:Dictionary={};var selected:Dictionary={};var accepted:Array=[]
-	for item:Dictionary in pending:known[item.record.uuid]=true
+	# The ordered pending catalog already owns these UUIDs. Borrow it only for
+	# membership queries; accepted entries enter through _index_pending_item,
+	# so neither duplicates nor a refused requeue can mutate the live index.
+	if incremental and _pending_by_record_id.size()==pending_count():known=_pending_by_record_id
+	else:
+		for item:Dictionary in pending:known[item.record.uuid]=true
+		profile.requeue_membership_scan_rows=int(profile.get("requeue_membership_scan_rows",0))+pending_count()
 	for entry:Dictionary in entries:
 		var uuid:String=entry.compact_record.uuid
-		if known.has(uuid):continue
-		known[uuid]=true;selected[uuid]=true;accepted.append(entry)
+		if known.has(uuid) or selected.has(uuid):continue
+		selected[uuid]=true;accepted.append(entry)
 	if accepted.is_empty():return 0
 	if incremental:
 		# Keep empty cells until a requeue, matching the old query strategy
@@ -475,11 +555,22 @@ func requeue_references(entries:Array)->int:
 			if _pending_index[cell].is_empty():_pending_index.erase(cell);_pending_native_index.erase(cell)
 	var extra:Dictionary=_map.get_meta("extras",{})
 	var records:Array=extra.get("rmmo_records",[])
-	var write:=0
+	var retired_records:Array=[]
+	var defer_records:bool=background_requeue_records_enabled and preload("res://scripts/world3d/resource_retirement.gd").background_decoded_release_enabled
+	var write:=0;var moved:=0
 	for read:int in records.size():
-		if selected.has(records[read].uuid):continue
-		records[write]=records[read];write+=1
-	records.resize(write)
+		if selected.has(records[read].uuid):
+			# These are decoded authoring records, never scene specs or Resources.
+			# Keep their last roots until both map catalogs relinquish ownership;
+			# otherwise nested height/definition arrays destruct in this callback.
+			if defer_records:retired_records.append(records[read])
+			continue
+		# Preserve the untouched prefix without redundant Variant ref/unref work.
+		if write!=read:records[write]=records[read];moved+=1
+		write+=1
+	profile.requeue_record_scan_rows=int(profile.get("requeue_record_scan_rows",0))+records.size()
+	profile.requeue_record_write_rows=int(profile.get("requeue_record_write_rows",0))+moved
+	if write!=records.size():records.resize(write)
 	# Retirement is a scene-thread operation, not a new filesystem read. A path
 	# admitted before carries its original decoded-size estimate. An initially
 	# resident-only path without that estimate safely retries in exclusive mode.
@@ -504,6 +595,10 @@ func requeue_references(entries:Array)->int:
 	_demand_membership.clear();_typed_pending.clear();_typed_pending_buildings=-1
 	_demand_revision+=1
 	_invalidate_collision_queries()
+	if not retired_records.is_empty() and preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values(retired_records,0):
+		# No recursive byte scan solely for disposal statistics. Zero here is
+		# unmeasured, not an estimate of the records' actual resident memory.
+		profile.requeue_retired_records=int(profile.get("requeue_retired_records",0))+retired_records.size()
 	_completion_emitted=false;set_process(_active)
 	return accepted.size()
 
@@ -529,12 +624,18 @@ func _configure_admission_budget()->void:
 	var total:=clampi(physical/4,512*1024*1024,8*1024*1024*1024)
 	_admission.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(total)
 	profile.definition_cache_reserved_bytes=preload("res://scripts/world3d/definition_cache_policy.gd").reserved_bytes()
+	# Lazy canonical collision arrays share the existing bounded decode cache.
+	# Reserve its entire ceiling separately; private task outputs stay charged.
+	profile.prefab_decode_reserved_bytes=Prefab.DECODE_BUDGET if Prefab.raw_face_reuse_active() else 0
+	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.prefab_decode_reserved_bytes))
 	# Plain definition-policy hints survive individual jobs. Reserve their fixed
 	# ceiling outside task leases so an exclusive model can still drain/run.
 	profile.geometry_definition_reserved_bytes=CollisionGeometry.MAX_DEFINITION_BYTES if CollisionGeometry.enabled else 0
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.geometry_definition_reserved_bytes))
+	profile.reference_handoff_reserved_bytes=_reference_handoff.reserved_bytes if _reference_handoff!=null else 0
+	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.reference_handoff_reserved_bytes))
 
-func is_complete()->bool:return pending.is_empty() and _jobs.is_empty()
+func is_complete()->bool:return pending_count()==0 and _jobs.is_empty()
 
 func active_workers()->int:
 	var count:=0
@@ -558,6 +659,7 @@ func quiesce()->void:
 			if job.has("worker"):
 				if job.worker.is_alive():continue
 				job.result=job.worker.wait_to_finish()
+				if CompletedTrace.enabled:CompletedTrace.joined(path,job.token.get_instance_id(),job.result)
 				if is_instance_valid(_drainer):_drainer.forget(job.worker)
 				job.erase("worker")
 			# Even a scene-less result can own worker-created render resources.
@@ -576,8 +678,10 @@ func quiesce()->void:
 	if _prefetch_budget_owned:profile.entry_prefetch_mode="quiesced"
 
 func shutdown()->void:
+	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_demand_membership.clear()
+	_pending_kinds=null
 	_typed_pending.clear();_typed_pending_buildings=-1
 	# Final owner teardown has no future frame on which to poll. Ordinary load
 	# failure uses await quiesce() before resuming the old map, never this drain.
@@ -598,21 +702,22 @@ func shutdown()->void:
 	_raw_retries.clear()
 	if _prefetch_budget_owned:profile.entry_prefetch_mode="shutdown"
 	_runtime_record_ids.clear()
-	_pending_by_record_id.clear();_runtime_building_records.clear();_runtime_building_supports.clear()
+	_materialize_pending_snapshot()
+	_pending_by_record_id.clear();_runtime_building_records.clear();_runtime_building_supports.clear();_clear_runtime_support_sets()
 
 func _notification(what:int)->void:
 	# An off-tree queue has never received _exit_tree. A forced loader teardown
 	# must still keep live worker-owned resources alive until their safe drain.
-	if what==NOTIFICATION_PREDELETE and (not _jobs.is_empty() or is_instance_valid(_collision_prefetch_service)):shutdown()
+	if what==NOTIFICATION_PREDELETE and (not _jobs.is_empty() or is_instance_valid(_collision_prefetch_service) or _reference_handoff!=null):shutdown()
 
 func is_idle()->bool:
 	# Observers must not do unbudgeted scheduling work. Until the next admitted
 	# process refresh, an outdated demand snapshot is conservatively not idle.
-	return _candidates_revision==_demand_revision and _demanded.is_empty() and _jobs.is_empty()
+	return _candidates_revision==_demand_revision and _demanded_count()==0 and _jobs.is_empty()
 
 func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all",rank_from_player:bool=false)->void:
 	if id.is_empty() or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.z<0:return
-	if kind not in ["all","building","road","structure"]:return
+	if kind not in ["all","building","road","structure","terrain"]:return
 	var value:={"clip":clip,"priority":priority,"kind":kind}
 	if rank_from_player:value.rank_from_player=true
 	if _demands.get(id)==value:return
@@ -706,23 +811,77 @@ func _path_failed(path:String,reason:String)->void:
 func _instance_failed(uuid:String,reason:String)->void:
 	_invalidate_collision_queries()
 	instance_errors[uuid]=reason
-	var failed:Dictionary=_demanded_by_id.get(uuid,{})
-	if not failed.is_empty():
-		var path:String=failed.path
+	var failed:Dictionary=_demanded_by_id.get(uuid,_pending_by_record_id.get(uuid,{}))
+	var group:String=failed.get("group_id","")
+	var ids:Array=[uuid]
+	if not group.is_empty() and _reference_index.get("groups",{}).has(group):
+		ids=[]
+		for at:int in _reference_index.groups[group].members:ids.append(_reference_index.extras.rmmo_records[at].uuid)
+	# Failure may be the final member's ONLY event. Waiting for another arrival
+	# in _stage_building would pin its already-staged healthy peers indefinitely.
+	# Abort this atomic group, never unrelated groups sharing the model path.
+	var paths:Dictionary={}
+	for id:String in ids:
+		instance_errors[id]=reason if id==uuid else "Atomic building member failed: "+uuid
+		var member:Dictionary=_demanded_by_id.get(id,_pending_by_record_id.get(id,{}))
+		if member.is_empty():continue
+		paths[member.path]=true
+		var job:Dictionary=_jobs.get(member.path,{})
+		if CompletedTrace.enabled and job.has("token"):CompletedTrace.record(member.path,job.token.get_instance_id(),"failed",{"uuid":id,"reason":instance_errors[id]})
+		job.get("staged",{}).erase(id);job.get("staged_groups",{}).erase(group)
+	for path:String in paths:
 		_path_first.erase(path)
 		for item:Dictionary in _demanded_by_path.get(path,[]):
 			if not instance_errors.has(item.record.uuid):_path_first[path]=item;break
 		_reorder_dispatch_path(path)
 	profile.failed_instances=instance_errors.size()
 
+func pending_count()->int:
+	return _pending_by_record_id.size() if _pending_snapshot_dirty else _pending_snapshot.size()
+
+func _materialize_pending_snapshot()->Array:
+	if _pending_snapshot_dirty:
+		# Internal publication already invalidated collision queries. Replacing
+		# this private representation is not an external membership mutation.
+		var observed:=is_same(_collision_pending_snapshot,_pending_snapshot) and _collision_pending_count==pending_count()
+		_pending_snapshot=_pending_by_record_id.values();_pending_snapshot_dirty=false
+		if observed:_collision_pending_snapshot=_pending_snapshot
+		profile.pending_snapshot_materializations=int(profile.get("pending_snapshot_materializations",0))+1
+		profile.pending_snapshot_materialized_rows=int(profile.get("pending_snapshot_materialized_rows",0))+_pending_snapshot.size()
+	return _pending_snapshot
+
+func pending_record_catalogue()->Variant:
+	# Borrow only during one synchronous observation. Publication and requeue
+	# already maintain this authoritative UUID map; callers must not mutate or
+	# retain it across a yield. Diagnostic/non-indexed producers keep their scan.
+	if not incremental_pending_index_enabled or not _indexed or _pending_by_record_id.size()!=pending_count():return null
+	return _pending_by_record_id
+
+func adopt_prepared_pending(prepared:RefCounted)->bool:
+	# Only a fresh queue accepts the parser's private catalogue. Dynamic callers
+	# and diagnostic UUID aliases retain the general rebuild/incremental path.
+	if prepared==null or _indexed or not _runtime_building_records.is_empty() or not prepared.matches(pending):return false
+	var began:=Time.get_ticks_usec()
+	_pending_by_record_id=prepared.owners;_pending_index=prepared.cells
+	_pending_native_index=prepared.native_cells;_large_pending=prepared.large;_large_native_pending=prepared.native_large
+	_pending_kinds=prepared.kinds;_indexed=true
+	profile.pending_worker_indexed_rows=prepared.count
+	profile.pending_worker_prepare_us=prepared.elapsed_us
+	profile.typed_worker_partition_rows=prepared.count
+	prepared.relinquish()
+	profile.pending_worker_adopt_us=Time.get_ticks_usec()-began
+	return true
+
 func _index_pending()->void:
 	if _indexed:return
 	_demand_membership.clear()
+	_pending_kinds=null
 	_typed_pending.clear();_typed_pending_buildings=-1
+	var records:Array=pending # Materialize before clearing its authoritative owners.
 	_pending_by_record_id.clear();_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
-	for item:Dictionary in pending:_index_pending_item(item)
+	for item:Dictionary in records:_index_pending_item(item)
 	profile.pending_index_builds=int(profile.get("pending_index_builds",0))+1
-	profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+pending.size()
+	profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+pending_count()
 	_indexed=true
 
 func _index_pending_item(item:Dictionary)->void:
@@ -730,6 +889,9 @@ func _index_pending_item(item:Dictionary)->void:
 	var box:AABB=item.bounds
 	item.demand_rect=Rect2(Vector2(box.position.x,box.position.z),Vector2(box.size.x,box.size.z))
 	var low:=Stream.chunk_key(box.position);var high:=Stream.chunk_key(box.end)
+	if _pending_kinds!=null:
+		_pending_kinds.add(item,(high.x-low.x+1)*(high.y-low.y+1)>64,_runtime_building_records)
+		profile.typed_incremental_classifications=int(profile.get("typed_incremental_classifications",0))+1
 	if (high.x-low.x+1)*(high.y-low.y+1)>64:_large_pending.append(item);_large_native_pending[item.record.uuid]=item;return
 	for z in range(low.y,high.y+1):
 		for x in range(low.x,high.x+1):
@@ -746,7 +908,7 @@ static func _erase_pending_identity(values:Array,item:Dictionary)->void:
 func _unindex_pending_batch(items:Array)->bool:
 	# Publication keeps empty buckets so the full-scan/bucket selection and its
 	# stable order do not change. Sparse requeue removals keep their own path.
-	if _pending_by_record_id.size()!=pending.size():return false
+	if _pending_by_record_id.size()!=pending_count():return false
 	var owners:Dictionary={};var cells:Dictionary={};var large:Dictionary={};var visits:=0
 	for item:Dictionary in items:
 		var uuid:String=item.record.uuid
@@ -775,7 +937,9 @@ func _unindex_pending_batch(items:Array)->bool:
 		for uuid:String in large:
 			if is_same(_large_native_pending.get(uuid),large[uuid]):_large_native_pending.erase(uuid)
 		rows+=work.x;tail_rows+=work.y;filters+=1
-	for uuid:String in owners:_pending_by_record_id.erase(uuid)
+	for uuid:String in owners:
+		if _pending_kinds!=null:_pending_kinds.remove(owners[uuid])
+		_pending_by_record_id.erase(uuid)
 	profile.pending_bucket_filter_rows=int(profile.get("pending_bucket_filter_rows",0))+rows
 	profile.pending_bucket_filters=int(profile.get("pending_bucket_filters",0))+filters
 	profile.pending_bucket_tail_rows=int(profile.get("pending_bucket_tail_rows",0))+tail_rows
@@ -802,6 +966,7 @@ static func _filter_pending_owners(values:Array,owners:Dictionary)->Vector2i:
 	values.resize(write);return Vector2i(count_,0)
 
 func _unindex_pending_item(item:Dictionary,prune_empty:bool=true)->void:
+	if _pending_kinds!=null:_pending_kinds.remove(item)
 	# Remove this exact old tombstone before appending the new queue member.
 	# Keeping its old bucket position would change stable equal-priority order.
 	var box:AABB=item.bounds
@@ -823,6 +988,9 @@ static func _intersects(a:AABB,b:AABB)->bool:
 	return a.position.x<=b.end.x and a.end.x>=b.position.x and a.position.z<=b.end.z and a.end.z>=b.position.z
 
 func _in_clip(clip:AABB)->Array:
+	return _in_clip_catalogue(clip).values()
+
+func _in_clip_catalogue(clip:AABB)->Dictionary:
 	_index_pending()
 	var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 	var candidates:Dictionary={}
@@ -831,7 +999,7 @@ func _in_clip(clip:AABB)->Array:
 	# cell references in their original insertion order. The final live bounds
 	# test still runs once per owner. Non-canonical/aliased buckets retain the
 	# original filtering-before-UUID-deduplication path below.
-	if native_spatial_union_enabled and _pending_by_record_id.size()==pending.size() and _large_native_pending.size()==_large_pending.size() and (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():
+	if native_spatial_union_enabled and _pending_by_record_id.size()==pending_count() and _large_native_pending.size()==_large_pending.size() and (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():
 		var buckets:Array[Dictionary]=[_large_native_pending];var canonical:=true
 		for z in range(low.y,high.y+1):
 			for x in range(low.x,high.x+1):
@@ -849,7 +1017,7 @@ func _in_clip(clip:AABB)->Array:
 			profile.spatial_union_merges=int(profile.get("spatial_union_merges",0))+buckets.size()
 			profile.spatial_script_rows=int(profile.get("spatial_script_rows",0))+unique.size()
 			profile.spatial_candidate_tests=int(profile.get("spatial_candidate_tests",0))+unique.size()
-			return candidates.values()
+			return candidates
 	var tests:=0;var script_rows:=0
 	for item:Dictionary in _large_pending:
 		script_rows+=1
@@ -878,7 +1046,7 @@ func _in_clip(clip:AABB)->Array:
 					if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
 	profile.spatial_candidate_tests=int(profile.get("spatial_candidate_tests",0))+tests
 	profile.spatial_script_rows=int(profile.get("spatial_script_rows",0))+script_rows
-	return candidates.values()
+	return candidates
 
 func _has_pending_in_clip(clip:AABB)->bool:
 	# Readiness needs existence only. Do not allocate/deduplicate all matches or
@@ -898,10 +1066,45 @@ func _has_pending_in_clip(clip:AABB)->bool:
 				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 	return false
 
+static var demand_score_pruning_enabled:=true
+static var shared_support_closure_enabled:=true
+static var support_set_ids_enabled:=true # Diagnostic old/new key control; same exact ordered closure.
+static var filtered_demand_membership_enabled:=true
+static var reuse_demand_candidate_rows_enabled:=true
+static var reuse_demand_membership_rows_enabled:=true
+static var borrow_publication_rows_enabled:=true
+const EMPTY_CANDIDATE:Array=[]
+func _demand_membership_rows(cached:Dictionary)->Array:
+	var members:Variant=cached.items
+	if not members is Dictionary:return members
+	if reuse_demand_membership_rows_enabled and cached.has("rows"):
+		profile.demand_membership_rows_reused=int(profile.get("demand_membership_rows_reused",0))+members.size()
+		return cached.rows
+	var rows:Array=members.values()
+	profile.demand_membership_rows_created=int(profile.get("demand_membership_rows_created",0))+rows.size()
+	if reuse_demand_membership_rows_enabled:cached.rows=rows
+	return rows
+
+func _cache_demand_items(items:Array)->Variant:
+	# Real queue members have one authoritative UUID owner. An ordered lookup
+	# keeps their spatial order while publication removes only completed owners.
+	# Diagnostic aliases retain the original array and live publication checks.
+	var live:Dictionary={}
+	for item:Dictionary in items:
+		var uuid:String=item.record.uuid
+		if live.has(uuid) or not is_same(_pending_by_record_id.get(uuid),item):return items
+		live[uuid]=item
+	return live
+
+func _demanded_count()->int:
+	return _demanded_by_id.size() if _demanded_snapshot_dirty else _demanded_snapshot.size()
+
 func _refresh_demanded()->void:
 	if _candidates_revision==_demand_revision:return
 	var began:=Time.get_ticks_usec()
 	var candidates:Dictionary={}
+	if not reuse_demand_candidate_rows_enabled:_demand_candidate_rows.clear()
+	var candidate_rows_created:=0;var candidate_rows_reused:=0
 	_index_pending()
 	var memberships:Dictionary={}
 	# Movement changes ranks every four metres, much more often than the stable
@@ -913,16 +1116,21 @@ func _refresh_demanded()->void:
 		for id:String in _demands:
 			var cached:Dictionary=_demand_membership.get(id,{})
 			var demand:Dictionary=_demands[id]
-			if cached.get("clip")==demand.clip and cached.get("kind")==demand.get("kind","all") and cached.get("group")==demand.get("group_id","") and cached.get("buildings")==_runtime_building_records.size():
+			var kind:String=demand.get("kind","all")
+			# Learning a building changes only building-kind membership. Support
+			# closure is read live below for every kind, including cached tickets.
+			if cached.get("clip")==demand.clip and cached.get("kind")==kind and cached.get("group")==demand.get("group_id","") and (kind!="building" or cached.get("buildings")==_runtime_building_records.size()):
 				memberships[id]=cached.items
 				profile.demand_membership_hits=int(profile.get("demand_membership_hits",0))+1
 	var support_priorities:Dictionary={};var support_distances:Dictionary={};var support_visits:=0
+	var support_set_priorities:Dictionary={};var support_sets_reused:=0;var kind_tests:=0
+	var support_id_queries:=0;var support_array_queries:=0;var support_array_rows:=0
 	var applied_support_priorities:Dictionary={};var support_promotions:=0
 	var typed_scans:Dictionary=_typed_full_scan_inputs(memberships) if typed_demand_scan_enabled else {}
 	var trace=preload("res://scripts/world3d/load_trace.gd")
 	if trace.enabled:trace.elapsed("demand.membership_setup",began)
 	var rank_started:=Time.get_ticks_usec() if trace.enabled else 0
-	var input_rows:=0
+	var input_rows:=0;var distance_evaluations:=0;var scores_reused:=0
 	for id:String in _demands:
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id]
@@ -930,7 +1138,12 @@ func _refresh_demanded()->void:
 		var priority:int=int(demand.priority);var base_score:=float(priority)*1e15
 		var origin:Vector3=_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center()
 		var candidates_for_demand:Array
-		if memberships.has(id):candidates_for_demand=memberships[id]
+		# Spatial and typed queries already own an ordered, UUID-deduplicated
+		# catalogue. Transfer it to the ticket instead of rebuilding it from its
+		# values. Publication prunes by exact identity, including diagnostic aliases.
+		var fresh_members:Variant=null
+		if memberships.has(id):
+			candidates_for_demand=_demand_membership_rows(_demand_membership[id])
 		elif grouped:candidates_for_demand=pending
 		elif typed_scans.has(id):
 			var matches:Dictionary={}
@@ -938,31 +1151,66 @@ func _refresh_demanded()->void:
 			for item:Dictionary in typed_scans[id]:
 				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(demand.clip,item.bounds)):matches[item.record.uuid]=item
 			candidates_for_demand=matches.values()
+			if reuse_spatial_membership_catalogue_enabled:fresh_members=matches
+		elif reuse_spatial_membership_catalogue_enabled:
+			fresh_members=_in_clip_catalogue(demand.clip);candidates_for_demand=fresh_members.values()
 		else:candidates_for_demand=_in_clip(demand.clip)
-		if demand_membership_cache_enabled and not memberships.has(id):
-			_demand_membership[id]={"clip":demand.clip,"kind":demand.get("kind","all"),"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":candidates_for_demand}
-			profile.demand_membership_misses=int(profile.get("demand_membership_misses",0))+1
+		var filtered:bool=filtered_demand_membership_enabled and memberships.has(id) and _demand_membership[id].get("filtered",false)
+		var kind_qualified:bool=filtered or (reuse_typed_demand_filter_enabled and typed_scans.has(id))
+		var eligible:Array=[]
 		input_rows+=candidates_for_demand.size()
 		for item:Dictionary in candidates_for_demand:
-			if item.get("published",false) or (grouped and item.get("group_id","")!=demand.group_id):continue
-			if kind=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid):continue
-			if kind=="road" and item.get("reference_entry",EMPTY_DEMAND).get("reason","")!="native_road":continue
-			if kind=="structure" and item.get("reference_entry",EMPTY_DEMAND).get("reason","") not in ["native_fortification","native_bridge"]:continue
+			if not kind_qualified:
+				kind_tests+=1
+				var excluded:bool=(grouped and item.get("group_id","")!=demand.group_id) or (kind=="building" and not str(item.get("group_id","")).begins_with("building:") and not _runtime_building_records.has(item.record.uuid)) or (kind=="road" and item.get("reference_entry",EMPTY_DEMAND).get("reason","")!="native_road") or (kind=="structure" and item.get("reference_entry",EMPTY_DEMAND).get("reason","") not in ["native_fortification","native_bridge"]) or (kind=="terrain" and item.get("reference_entry",EMPTY_DEMAND).get("reason","")!="terrain_context_global")
+				if excluded:
+					if fresh_members!=null and filtered_demand_membership_enabled:fresh_members.erase(item.record.uuid)
+					continue
+			# Typed inputs already passed the same kind predicate. Still retain
+			# their eligible membership for the next refresh, before live checks.
+			if filtered_demand_membership_enabled and not memberships.has(id) and fresh_members==null:eligible.append(item)
+			# Publication stays live; a cached membership grants no readiness.
+			if item.get("published",false):continue
 			var uuid:String=item.record.uuid
-			var distance:float=_distance_from(item,origin)
-			var score:float=base_score+distance
+			var winner:Array=candidates.get(uuid,EMPTY_CANDIDATE)
+			# Distance is nonnegative. A score already below this ticket's base
+			# cannot lose; the same immutable owner/origin also cannot improve at
+			# an equal or weaker priority. Support closure still runs below.
+			var dominated:bool=demand_score_pruning_enabled and not winner.is_empty() and (float(winner[0])<=base_score or (is_same(winner[2],item) and winner[4]==origin and int(winner[3])<=priority))
+			var score:float=0.
+			if dominated:scores_reused+=1
+			else:score=base_score+_distance_from(item,origin);distance_evaluations+=1
 			# Numeric keys precede the borrowed item. Native lexicographic sorting
 			# compares doubles without one GDScript callback per comparison, and
 			# insertion rank makes equal-score order deterministic.
-			if not candidates.has(uuid):candidates[uuid]=[score,candidates.size(),item,priority]
-			elif score<float(candidates[uuid][0]):
-				var previous:Array=candidates[uuid];previous[0]=score;previous[2]=item;previous[3]=priority
+			if winner.is_empty():
+				var row:Array=_demand_candidate_rows.get(uuid,EMPTY_CANDIDATE)
+				if row.is_empty():row=[score,candidates.size(),item,priority,origin];candidate_rows_created+=1
+				else:
+					row[0]=score;row[1]=candidates.size();row[2]=item;row[3]=priority;row[4]=origin;candidate_rows_reused+=1
+				candidates[uuid]=row
+			elif not dominated and score<float(winner[0]):
+				winner[0]=score;winner[2]=item;winner[3]=priority;winner[4]=origin
 			# Learned imported buildings retain the same supporting landscape as
 			# their last verified live index. This closure stays inside the allowed
 			# parent ticket/scope; it never broadens demand to unrelated far props.
 			if support_priorities.has(uuid) and int(support_priorities[uuid])<=priority:continue
 			if not _runtime_building_supports.has(uuid):continue
 			support_priorities[uuid]=priority
+			# Shared support identity was resolved exactly at registration. Hashing
+			# the whole immutable Array on each refresh would repeat its string walk.
+			# Unregistered diagnostic owners retain the original ordered Array key.
+			var support_order:Array=_runtime_support_order.get(uuid,EMPTY_CANDIDATE)
+			if shared_support_closure_enabled and not support_order.is_empty():
+				var support_id:int=int(_runtime_support_set_ids.get(uuid,0)) if support_set_ids_enabled else 0
+				var support_key:Variant=support_id if support_id>0 else support_order
+				if support_id>0:support_id_queries+=1
+				else:support_array_queries+=1;support_array_rows+=support_order.size()
+				var applied_set:Variant=support_set_priorities.get(support_key)
+				if applied_set!=null and int(applied_set)<=priority:support_sets_reused+=1;continue
+				if support_id>0:support_id_queries+=1
+				else:support_array_queries+=1;support_array_rows+=support_order.size()
+				support_set_priorities[support_key]=priority
 			for support:String in _runtime_building_supports[uuid]:
 				support_visits+=1
 				var support_priority:int=priority-1
@@ -978,12 +1226,36 @@ func _refresh_demanded()->void:
 				if dependency.is_empty() or dependency.get("published",false):continue
 				if not support_distances.has(support):support_distances[support]=_distance_from(dependency,_priority)
 				var support_score:float=float(support_priority)*1e15+float(support_distances[support])
-				if not candidates.has(support):candidates[support]=[support_score,candidates.size(),dependency,support_priority]
+				if not candidates.has(support):
+					var row:Array=_demand_candidate_rows.get(support,EMPTY_CANDIDATE)
+					if row.is_empty():row=[support_score,candidates.size(),dependency,support_priority,_priority];candidate_rows_created+=1
+					else:
+						row[0]=support_score;row[1]=candidates.size();row[2]=dependency;row[3]=support_priority;row[4]=_priority;candidate_rows_reused+=1
+					candidates[support]=row
 				elif support_score<float(candidates[support][0]):
-					var previous:Array=candidates[support];previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority
+					var previous:Array=candidates[support];previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority;previous[4]=_priority
+		if demand_membership_cache_enabled and not memberships.has(id):
+			_demand_membership[id]={"clip":demand.clip,"kind":kind,"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":fresh_members if fresh_members!=null else _cache_demand_items(eligible if filtered_demand_membership_enabled else candidates_for_demand),"filtered":filtered_demand_membership_enabled}
+			if fresh_members!=null:profile.demand_catalogue_rows_reused=int(profile.get("demand_catalogue_rows_reused",0))+fresh_members.size()
+			profile.demand_membership_misses=int(profile.get("demand_membership_misses",0))+1
+	profile.demand_input_rows=int(profile.get("demand_input_rows",0))+input_rows
+	profile.demand_kind_tests=int(profile.get("demand_kind_tests",0))+kind_tests
+	profile.support_sets_reused=int(profile.get("support_sets_reused",0))+support_sets_reused
+	profile.support_set_id_queries=int(profile.get("support_set_id_queries",0))+support_id_queries
+	profile.support_array_key_queries=int(profile.get("support_array_key_queries",0))+support_array_queries
+	# Key payload rows are deterministic work counters, not native hash timing.
+	profile.support_array_key_rows=int(profile.get("support_array_key_rows",0))+support_array_rows
+	profile.demand_distance_evaluations=int(profile.get("demand_distance_evaluations",0))+distance_evaluations
+	profile.demand_scores_reused=int(profile.get("demand_scores_reused",0))+scores_reused
 	profile.support_candidate_visits=int(profile.get("support_candidate_visits",0))+support_visits
 	profile.support_promotions=int(profile.get("support_promotions",0))+support_promotions
 	var ordered:Array=candidates.values()
+	# Only the live rows survive. Reuse their fixed-size arrays, while rebuilding
+	# insertion order and all live winner fields on every refresh. No item owns
+	# its row, and publication erases it before releasing the source catalog.
+	_demand_candidate_rows=candidates if reuse_demand_candidate_rows_enabled else {}
+	profile.demand_candidate_rows_created=int(profile.get("demand_candidate_rows_created",0))+candidate_rows_created
+	profile.demand_candidate_rows_reused=int(profile.get("demand_candidate_rows_reused",0))+candidate_rows_reused
 	if trace.enabled:trace.elapsed("demand.collect_candidates",rank_started,{"input_rows":input_rows,"candidates":ordered.size(),"support_visits":support_visits,"support_promotions":support_promotions})
 	var sort_started:=Time.get_ticks_usec() if trace.enabled else 0
 	if native_demand_order_enabled:ordered.sort()
@@ -991,19 +1263,42 @@ func _refresh_demanded()->void:
 	if trace.enabled:trace.elapsed("demand.sort_candidates",sort_started,{"candidates":ordered.size()})
 	if trace.enabled:trace.elapsed("demand.rank_candidates",rank_started,{"candidates":ordered.size()})
 	var commit_started:=Time.get_ticks_usec() if trace.enabled else 0
-	_demanded.clear()
+	_demanded=[]
 	_demanded_by_id.clear()
-	_demanded_by_path.clear();_demanded_rank.clear()
-	_demanded_priority.clear();_path_first.clear();_publication_queues.clear();_dispatch_paths.clear()
+	_demanded_by_path.clear()
+	var metadata_erased:=0
+	if reuse_demand_metadata_enabled:
+		# These two maps are lookup-only. Preserve allocations for live UUIDs;
+		# the ordered item/path catalogs above still follow the new sorted order.
+		for uuid:String in _demanded_rank.keys():
+			if not candidates.has(uuid):_demanded_rank.erase(uuid);_demanded_priority.erase(uuid);metadata_erased+=2
+	else:
+		metadata_erased=_demanded_rank.size()+_demanded_priority.size()
+		_demanded_rank.clear();_demanded_priority.clear()
+	profile.demand_metadata_erased=int(profile.get("demand_metadata_erased",0))+metadata_erased
+	profile.demand_metadata_created=int(profile.get("demand_metadata_created",0))+2*(ordered.size()-_demanded_rank.size())
+	_path_first.clear();_publication_queues.clear();_dispatch_paths.clear()
+	var demand_rank:=0
 	for row:Array in ordered:
 		var item:Dictionary=row[2]
-		_demanded_rank[item.record.uuid]=_demanded.size()
-		_demanded_priority[item.record.uuid]=row[3]
-		_demanded.append(item);_demanded_by_id[item.record.uuid]=item
-		if not _demanded_by_path.has(item.path):_demanded_by_path[item.path]=[]
-		if not _path_first.has(item.path) and not instance_errors.has(item.record.uuid):
-			_path_first[item.path]=item;_dispatch_paths.append(item.path)
-		_demanded_by_path[item.path].append(item)
+		var uuid:String=item.record.uuid;var path:String=item.path
+		_demanded_rank[uuid]=demand_rank;demand_rank+=1
+		_demanded_priority[uuid]=row[3]
+		if not lazy_demand_snapshot_enabled:_demanded_snapshot.append(item)
+		_demanded_by_id[uuid]=item
+		var siblings:Array=_demanded_by_path.get(path,EMPTY_CANDIDATE)
+		if siblings.is_empty():siblings=[];_demanded_by_path[path]=siblings
+		if not _path_first.has(path) and not instance_errors.has(uuid):
+			_path_first[path]=item;_dispatch_paths.append(path)
+		siblings.append(item)
+	# The ordered UUID catalogue already owns every demanded item. Normal
+	# scheduling/counts use it or the path catalogue; only an explicit aggregate
+	# traversal needs another ordered Array. Never mutate a borrowed old Array.
+	_demanded_snapshot_dirty=lazy_demand_snapshot_enabled and not ordered.is_empty()
+	# These count eager full snapshots, separately from the getter's existing
+	# materialization counters. Empty reset arrays are not full snapshots.
+	profile.demand_snapshot_refresh_materializations=int(profile.get("demand_snapshot_refresh_materializations",0))+int(not lazy_demand_snapshot_enabled and not ordered.is_empty())
+	profile.demand_snapshot_refresh_materialized_rows=int(profile.get("demand_snapshot_refresh_materialized_rows",0))+(0 if lazy_demand_snapshot_enabled else ordered.size())
 	# ordered already has the exact live ranks; no second whole-path sort in
 	# the much smaller dispatch slice is needed after rebuilding demands.
 	_dispatch_revision=_demand_revision;_dispatch_capacity=[]
@@ -1022,14 +1317,33 @@ func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
 		if cached.has(id):continue
 		if not _demand_scope.is_empty() and not _demand_scope.has(id):continue
 		var demand:Dictionary=_demands[id];var kind:String=demand.get("kind","all")
-		if demand.has("group_id") or kind not in ["building","road","structure"]:continue
+		if demand.has("group_id") or kind not in ["building","road","structure","terrain"]:continue
 		var clip:AABB=demand.clip
 		var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 		if (high.x-low.x+1)*(high.y-low.y+1)<=_pending_index.size():continue
 		tickets[id]=kind
 	if tickets.is_empty():return {}
+	# The real queue already maintains exact UUID and large-owner membership.
+	# Requeue changes only its appended owners; it must not reclassify the town.
+	# Aliased/diagnostic arrays retain the original filter-before-dedup path.
+	if incremental_pending_index_enabled and _pending_by_record_id.size()==pending_count() and _large_native_pending.size()==_large_pending.size():
+		if _pending_kinds==null or _pending_kinds.owners.size()!=pending_count() or _pending_kinds.building_count!=_runtime_building_records.size():
+			_pending_kinds=preload("res://scripts/world3d/pending_kind_catalogue.gd").new()
+			for item:Dictionary in pending:_pending_kinds.add(item,_large_native_pending.has(item.record.uuid),_runtime_building_records)
+			_pending_kinds.building_count=_runtime_building_records.size()
+			profile.typed_partition_builds=int(profile.get("typed_partition_builds",0))+1
+			profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+pending_count()
+		var count:=0;var by_kind:Dictionary={}
+		for id:String in tickets:
+			var kind:String=tickets[id]
+			if not by_kind.has(kind):by_kind[kind]=_pending_kinds.items(kind)
+			tickets[id]=by_kind[kind];count+=tickets[id].size()
+		profile.typed_full_scan_tickets=int(profile.get("typed_full_scan_tickets",0))+tickets.size()
+		profile.typed_full_scan_candidates=int(profile.get("typed_full_scan_candidates",0))+count
+		profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*(_large_pending.size()+pending_count())
+		return tickets
 	if _typed_pending_buildings!=_runtime_building_records.size():
-		_typed_pending={"building":[],"road":[],"structure":[]}
+		_typed_pending={"building":[],"road":[],"structure":[],"terrain":[]}
 		# Preserve large-first ordering and exact intersection before UUID dedup.
 		for collection:Array in [_large_pending,pending]:
 			for item:Dictionary in collection:
@@ -1037,26 +1351,106 @@ func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
 				var reason:Variant=item.get("reference_entry",EMPTY_DEMAND).get("reason","")
 				if reason=="native_road":_typed_pending.road.append(item)
 				if reason in ["native_fortification","native_bridge"]:_typed_pending.structure.append(item)
+				if reason=="terrain_context_global":_typed_pending.terrain.append(item)
 		_typed_pending_buildings=_runtime_building_records.size()
 		profile.typed_partition_builds=int(profile.get("typed_partition_builds",0))+1
-		profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+_large_pending.size()+pending.size()
+		profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+_large_pending.size()+pending_count()
 	var count:=0
 	for id:String in tickets:
 		tickets[id]=_typed_pending[tickets[id]];count+=tickets[id].size()
 	profile.typed_full_scan_tickets=int(profile.get("typed_full_scan_tickets",0))+tickets.size()
 	profile.typed_full_scan_candidates=int(profile.get("typed_full_scan_candidates",0))+count
-	profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*(_large_pending.size()+pending.size())
+	profile.typed_full_scan_unfiltered=int(profile.get("typed_full_scan_unfiltered",0))+tickets.size()*(_large_pending.size()+pending_count())
 	return tickets
 
+func _support_order_hash(order:Array)->int:
+	return order.hash()
+
+func _release_support_set(id:int)->void:
+	if id==0:return
+	var entry:Dictionary=_support_set_interns[id]
+	entry.users-=1
+	if int(entry.users)>0:return
+	var bucket:Array=_support_set_buckets[entry.hash]
+	bucket.erase(id)
+	if bucket.is_empty():_support_set_buckets.erase(entry.hash)
+	_support_set_interns.erase(id)
+
+func _intern_runtime_support_order(uuid:String,order:Array)->void:
+	var previous:int=int(_runtime_support_set_ids.get(uuid,0))
+	if order.is_empty():
+		_runtime_support_set_ids.erase(uuid);_runtime_support_order[uuid]=order
+		_release_support_set(previous);return
+	var hash_:int=_support_order_hash(order)
+	var bucket:Array=_support_set_buckets.get(hash_,EMPTY_CANDIDATE)
+	var selected:=0
+	for id:int in bucket:
+		if _support_set_interns[id].order==order:selected=id;break
+	if selected==0:
+		selected=_next_support_set_id;_next_support_set_id+=1
+		_support_set_interns[selected]={"order":order,"hash":hash_,"users":0}
+		if bucket.is_empty():bucket=[];_support_set_buckets[hash_]=bucket
+		bucket.append(selected)
+	# Preserve each registration's immutable order for the diagnostic Array-key
+	# control; only the shared integer identity enters the normal refresh path.
+	_runtime_support_order[uuid]=order
+	if selected==previous:return
+	_support_set_interns[selected].users+=1
+	_runtime_support_set_ids[uuid]=selected
+	_release_support_set(previous)
+
+func _clear_runtime_support_sets()->void:
+	_runtime_support_order.clear();_runtime_support_set_ids.clear()
+	_support_set_interns.clear();_support_set_buckets.clear();_next_support_set_id=1
+
+func support_set_snapshot()->Dictionary:
+	# Explicit diagnostic snapshot only: no resource/spec references, no per-frame
+	# histogram upkeep. Registration count is distinct from refresh query traffic.
+	var unique_lengths:Dictionary={};var registration_lengths:Dictionary={}
+	var unique_rows:=0;var registration_rows:=0;var maximum:=0
+	var empty_count:=_runtime_support_order.size()-_runtime_support_set_ids.size()
+	if empty_count>0:registration_lengths["0"]=empty_count
+	for entry:Dictionary in _support_set_interns.values():
+		var count_:int=entry.order.size();var key:=str(count_);var users:int=entry.users
+		unique_lengths[key]=int(unique_lengths.get(key,0))+1
+		registration_lengths[key]=int(registration_lengths.get(key,0))+users
+		unique_rows+=count_;registration_rows+=count_*users;maximum=maxi(maximum,count_)
+	return {"ids_enabled":support_set_ids_enabled,"registered_buildings":_runtime_support_order.size(),"unique_nonempty_sets":_support_set_interns.size(),"unique_set_length_histogram":unique_lengths,"registration_set_length_histogram":registration_lengths,"unique_support_rows":unique_rows,"registered_support_rows":registration_rows,"max_set_length":maximum}
+
 func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->void:
-	if _runtime_building_records.get(uuid)==bounds and _runtime_building_supports.get(uuid,{})==supports:return
+	var order:Array=supports.keys()
+	# Dictionary equality ignores insertion order; closure score ties do not.
+	if _runtime_building_records.get(uuid)==bounds and _runtime_building_supports.get(uuid,{})==supports and _runtime_support_order.get(uuid,EMPTY_CANDIDATE)==order:return
+	var previous_buildings:=_runtime_building_records.size()
 	_runtime_building_records[uuid]=bounds;_runtime_building_supports[uuid]=supports.duplicate()
+	order.make_read_only();_intern_runtime_support_order(uuid,order)
+	# Publication callbacks run after removing these owners from pending. The
+	# learned bounds/supports are for future requeue (which invalidates demand),
+	# not a change to today's remaining ranks. Preserve invalidation for live
+	# pending learning and for the initial, not-yet-indexed configuration.
+	if _indexed:
+		var pending_item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+		if pending_item.is_empty() or pending_item.get("published",false):
+			# Learning an absent/completed UUID cannot change any live pending
+			# kind. Advance only caches that were current before this observation;
+			# otherwise the next movement would redo the skipped whole-catalogue
+			# scan, or accidentally bless an older, genuinely invalidated cache.
+			var learned_buildings:=_runtime_building_records.size()
+			if learned_buildings!=previous_buildings:
+				if _typed_pending_buildings==previous_buildings:_typed_pending_buildings=learned_buildings
+				if _pending_kinds!=null and _pending_kinds.building_count==previous_buildings:_pending_kinds.building_count=learned_buildings
+				for cached:Dictionary in _demand_membership.values():
+					if cached.get("kind")=="building" and cached.get("buildings")==previous_buildings:cached.buildings=learned_buildings
+			profile.runtime_registration_refresh_skips=int(profile.get("runtime_registration_refresh_skips",0))+1
+			return
 	_demand_revision+=1;set_process(_active)
 
 func _runtime_supports_ready(uuid:String)->bool:
+	var supports:Dictionary=_runtime_building_supports.get(uuid,EMPTY_DEMAND)
+	if supports.is_empty():return true
 	_index_pending()
-	for id:String in _runtime_building_supports.get(uuid,{}):
-		var item:Dictionary=_pending_by_record_id.get(id,{})
+	for id:String in supports:
+		var item:Dictionary=_pending_by_record_id.get(id,EMPTY_DEMAND)
 		if item.is_empty() or item.get("published",false):continue
 		if instance_errors.has(id) or path_errors.has(item.path):_instance_failed(uuid,"建筑支撑地形准备失败："+id)
 		return false
@@ -1129,13 +1523,13 @@ func _ensure_collision(clip:AABB,id:String)->bool:
 
 func _invalidate_collision_queries()->void:
 	_collision_queries.clear()
-	_collision_pending_snapshot=pending;_collision_pending_count=pending.size()
+	_collision_pending_snapshot=_pending_snapshot;_collision_pending_count=pending_count()
 
 func _collision_query_slot(id:String)->Dictionary:
 	# Publication keeps its cheap old spatial buckets (published aliases are
 	# filtered live). An external pending replacement/append instead rebuilds
 	# those buckets, so a newly added record cannot hide behind a cached query.
-	if not is_same(_collision_pending_snapshot,pending) or _collision_pending_count!=pending.size():
+	if not is_same(_collision_pending_snapshot,_pending_snapshot) or _collision_pending_count!=pending_count():
 		_indexed=false;_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 		_invalidate_collision_queries()
 	if not _collision_queries.has(id):
@@ -1249,6 +1643,9 @@ func prioritize(position:Vector3)->void:
 		var width:float=(2*radius+1)*Stream.CHUNK_M
 		set_demand("road_render",AABB(corner,Vector3(width,200000,width)),10,"road")
 		set_demand("structure_render",AABB(corner,Vector3(width,200000,width)),10,"structure")
+		# Cold entry initially includes global terrain. After retirement its
+		# compact rows need the same far draw coverage as their live specs.
+		set_demand("terrain_render",AABB(corner,Vector3(width,200000,width)),10,"terrain")
 
 func _reference_requests(path:String)->Array:
 	var requests:Array=[];var ids:Dictionary={};var groups:Dictionary={}
@@ -1400,7 +1797,17 @@ func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Diction
 static func _prepare_job(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,index:Dictionary,map_path:String,requests:Array,native:bool,need_model:bool,ownership_proof:OwnershipProof=null,model_route:Dictionary={})->Dictionary:
 	var started:=Time.get_ticks_usec()
 	var result:=_prepare_job_inner(path,digest,token,manifest,faces,root,index,map_path,requests,native,need_model,ownership_proof,model_route)
+	if not native and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false) and model_route.has("spec_orders"):
+		var template:PackedScene=result.get("packed",model_route.get("spec_template"))
+		if template!=null:
+			var projected_started:=Time.get_ticks_usec()
+			var records:Array=result.get("records",[])
+			if records.is_empty():records=model_route.get("spec_records",[])
+			result.instance_specs=preload("res://scripts/world3d/asset_spec_template.gd").prepare_records(template,records,model_route.spec_orders,token)
+			result.instance_worker_us=Time.get_ticks_usec()-projected_started
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.job",started,{"path":path,"native":native,"need_model":need_model,"reference_count":requests.size(),"failed":not str(result.get("error","")).is_empty()})
+	if model_route.get("completed_job_trace",false):
+		result.audit_worker_start_us=started;result.audit_worker_end_us=Time.get_ticks_usec()
 	return result
 
 static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,index:Dictionary,map_path:String,requests:Array,native:bool,need_model:bool,ownership_proof:OwnershipProof=null,model_route:Dictionary={})->Dictionary:
@@ -1413,7 +1820,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
-		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}))
 		if not prepared.error.is_empty():prepared.reference_failure=true;return prepared
 	var geometry:Dictionary={"mode":CollisionGeometry.ALL,"definitions":{}}
 	if model_route.get("filter_collision_geometry",false) and not native:
@@ -1442,11 +1849,17 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		return prepared
 	var result:Dictionary
 	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode))
-	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("require_native_products",false))
+	if model_route.get("require_native_products",false) and result.has("native_packet"):
+		var packet:Dictionary=result.native_packet
+		if packet.get("fallback_required",false) or packet.get("native_source_retry",false):
+			packet.erase("fallback_required");packet.erase("native_source_retry")
+			packet.merge(preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(packet.get("cache_reason","invalid_product"))),true)
+			result.error=packet.error_message
 	if model_route.get("filter_collision_geometry",false) and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false):
 		result.collision_geometry_mode=int(geometry.mode);result.collision_definitions=geometry.definitions
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
-	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","waiting_pixels","terrain_contexts"]:
+	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","surface_bounds","surface_uploads","waiting_pixels","terrain_contexts"]:
 		if prepared.has(field):result[field]=prepared[field]
 	return result
 
@@ -1486,6 +1899,17 @@ static func _bounded_source_sha(path:String)->String:
 func _cached_model_matches(path:String)->bool:
 	var digest:String=source_signatures.get(path,"")
 	return Assets._valid_source_digest(digest) and Assets.has_cached_scene(path,digest)
+
+func _resident_prepared_template(path:String)->PackedScene:
+	if _raw_retries.has(path) or not _cached_model_matches(path):return null
+	var current:PackedScene=Assets._scenes.get(path)
+	if _prepared_paths.has(path):return current
+	# Cancelling a reference job invalidates its publication state, not an
+	# already accepted immutable model. Reuse only this queue's exact full
+	# capture; another same-SHA allocation may have weaker geometry coverage.
+	var previous:WeakRef=_prepared_template_owners.get(path)
+	if previous!=null and previous.get_ref()==current:return current
+	return null
 
 func _reuse_template_current(path:String,job:Dictionary,digest:String)->bool:
 	var owner:Variant=job.get("reuse_template_owner")
@@ -1559,19 +1983,39 @@ func _accept_prepared_records(result:Dictionary)->void:
 	for record:Dictionary in result.get("records",[]):records[record.uuid]=record
 	if not records.is_empty():_invalidate_collision_queries()
 	var surfaces:Dictionary=result.get("surface_arrays",{})
-	_doc.terrain_neighbors.data.merge(result.get("terrain_contexts",{}),true)
+	var terrain_contexts:Dictionary=result.get("terrain_contexts",{})
+	if not terrain_contexts.is_empty():_doc.terrain_neighbors.data.merge(terrain_contexts,true)
 	if not surfaces.is_empty():
-		_doc.load_surface_arrays.merge(surfaces)
+		# Optional products belong to this exact array generation. A fresh result
+		# without a product revokes an older one for the same UUID as well.
+		for uuid:String in surfaces:
+			_doc.load_surface_arrays[uuid]=surfaces[uuid]
+			_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid)
+		_doc.load_surface_bounds.merge(result.get("surface_bounds",{}),true)
+		_doc.load_surface_uploads.merge(result.get("surface_uploads",{}),true)
+		for field:String in ["surface_upload_bytes","surface_upload_us","surface_upload_records"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
+		profile.worker_surface_bounds=int(profile.get("worker_surface_bounds",0))+result.get("surface_bounds",{}).size()
 		profile.native_surface_records=int(profile.get("native_surface_records",0))+surfaces.size()
 		profile.native_surface_worker_us=int(profile.get("native_surface_worker_us",0))+int(result.get("read_profile",{}).get("road_array_prepare_us",0))
-	for item:Dictionary in pending:
-		if records.has(item.record.uuid):item.record=records[item.record.uuid];item.reference_prepared=true
+	if _indexed and incremental_pending_index_enabled:
+		# The live UUID catalog already owns these exact pending items. A result
+		# should touch its records only, even after an earlier sibling retired.
+		for uuid:String in records:
+			var item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+			if not item.is_empty():item.record=records[uuid];item.reference_prepared=true
+		profile.acceptance_record_visits=int(profile.get("acceptance_record_visits",0))+records.size()
+	else:
+		for item:Dictionary in pending:
+			if records.has(item.record.uuid):item.record=records[item.record.uuid];item.reference_prepared=true
+		profile.acceptance_record_visits=int(profile.get("acceptance_record_visits",0))+pending_count()
 	profile.reference_records=int(profile.get("reference_records",0))+records.size()
 	profile.reference_worker_us=int(profile.get("reference_worker_us",0))+int(result.get("read_profile",{}).get("elapsed_us",0))
 	for field:String in result.get("read_profile",{}).get("collision_products",{}):
 		profile["collision_product_"+field]=int(profile.get("collision_product_"+field,0))+int(result.read_profile.collision_products[field])
 	var reference_profile:Dictionary=result.get("read_profile",{})
-	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows"]:
+	for field:String in ["prefab_faces_prepared_slots","prefab_faces_skipped_slots","prefab_faces_prepared_vertices"]:
+		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
+	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows","terrain_boundary_normals","road_cache_hits","road_array_generations","cached_surface_bounds","scanned_surface_bounds","surface_bounds_us","definition_copies","definition_transfers","reads_started","handoff_records"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
 	if not records.is_empty():
 		var key:String="reference_proof_jobs" if reference_profile.get("ownership_proof_used",false) else "reference_full_scan_jobs"
@@ -1601,6 +2045,8 @@ func _stage_publication_packet(items:Array,specs:Array)->Dictionary:
 	var first:Dictionary=_jobs.get(items[0].path,{})
 	var packet:Dictionary=first.get("collision_staged",{}).get(items[0].record.uuid,{})
 	if packet.is_empty() or not is_same(packet.specs,specs):packet={"items":items,"specs":specs}
+	if not first.has("publication_packets"):first.publication_packets={}
+	first.publication_packets[items[0].record.uuid]=packet
 	for item:Dictionary in items:
 		var job:Dictionary=_jobs.get(item.path,{})
 		if job.is_empty():continue
@@ -1624,8 +2070,13 @@ func _apply_publication_fixture_states(specs:Array)->bool:
 func _publish_items(items:Array,specs:Array)->bool:
 	# Stream indexes require a whole building/fixture namespace in one atomic
 	# append. Staging can span frames; no component becomes visible beforehand.
+	if not _publication_packet_ready(items):
+		# A ready selection is not a commit permit: dependency installation can
+		# begin during construction, and a group's representative is not its peers.
+		if _publication_packet_valid(items):_stage_publication_packet(items,specs)
+		return false
 	var preparation:RefCounted
-	if specs.size()>256 and not items.is_empty() and _jobs.has(items[0].path):
+	if specs.size()>=32 and not items.is_empty():
 		var packet:=_stage_publication_packet(items,specs)
 		if not packet.has("index_preparation") and not packet.get("index_preparation_skipped",false):
 			_apply_publication_fixture_states(specs)
@@ -1661,14 +2112,20 @@ func _publish_items(items:Array,specs:Array)->bool:
 	var commit_began:=Time.get_ticks_usec()
 	# Reapply only at initial capture and final publication, not on every cursor
 	# slice. A changed pose invalidates the private signature and retries safely.
+	var fixture_started:=Time.get_ticks_usec()
 	var fixture_changed:=_apply_publication_fixture_states(preparation.fixtures if preparation!=null and preparation.runtime_owned else specs)
+	var fixture_us:=Time.get_ticks_usec()-fixture_started
+	profile.publication_fixture_us=int(profile.get("publication_fixture_us",0))+fixture_us
 	if fixture_changed and preparation!=null and preparation.runtime_owned:
 		var packet:=_stage_publication_packet(items,specs)
 		preparation.dispose();packet.erase("index_preparation")
 		profile.index_preparation_restarts=int(profile.get("index_preparation_restarts",0))+1
 		return false
 	var publication_packet:RefCounted=preparation.publication_packet if preparation!=null else null
+	var append_started:=Time.get_ticks_usec()
 	var registered:Dictionary=Stream.append_specs(_map,specs,preparation)
+	var append_us:=Time.get_ticks_usec()-append_started
+	profile.publication_append_us=int(profile.get("publication_append_us",0))+append_us
 	if not registered.ok:
 		if registered.get("error","")=="stale_private_index":
 			var packet:=_stage_publication_packet(items,specs)
@@ -1690,30 +2147,120 @@ func _publish_items(items:Array,specs:Array)->bool:
 	for item:Dictionary in items:
 		_note_runtime_record(item)
 		item.published=true;profile.instances+=1
+		if CompletedTrace.enabled and _jobs.has(item.path):
+			CompletedTrace.record(item.path,_jobs[item.path].token.get_instance_id(),"committed",{"uuid":str(item.record.uuid)})
 		# Strip hydrated definitions before either removing the spatial member or
 		# retaining a tombstone in the diagnostic full-rebuild path.
 		if item.has("reference_entry"):item.record=item.reference_entry.compact_record;item.reference_prepared=false
-	_remove_published_demand(items);profile.specs+=specs.size()
+	var remove_started:=Time.get_ticks_usec()
+	if _defer_demand_removal:
+		_deferred_removal_items.append_array(items)
+	else:
+		_remove_published_demand(items)
+	var remove_us:=Time.get_ticks_usec()-remove_started
+	profile.specs+=specs.size()
+	profile.publication_remove_us=int(profile.get("publication_remove_us",0))+remove_us
 	var details:Dictionary={"specs":specs.size(),"uuid":items[0].record.uuid if not items.is_empty() else "","index_prepared":preparation!=null}
 	publication_metadata=publication_packet
+	var emit_started:=Time.get_ticks_usec()
 	published.emit(specs)
+	var emit_us:=Time.get_ticks_usec()-emit_started
+	profile.publication_emit_us=int(profile.get("publication_emit_us",0))+emit_us
 	publication_metadata=null
+	var unit_us:=Time.get_ticks_usec()-commit_began
+	if unit_us>10000:
+		if not profile.has("publish_slow"):profile.publish_slow=[]
+		profile.publish_slow.append({"at_us":commit_began,"us":unit_us,"specs":specs.size(),"items":items.size(),"append_us":append_us,"remove_us":remove_us,"emit_us":emit_us,"fixture_us":fixture_us,"path":str(items[0].path) if not items.is_empty() else "","kind":str(items[0].record.get("kind","")) if not items.is_empty() else "","group":str(items[0].get("group_id","")) if not items.is_empty() else ""})
+		profile.publish_slow.sort_custom(func(a,b):return int(a.us)>int(b.us))
+		if profile.publish_slow.size()>16:profile.publish_slow.resize(16)
 	_note_preparation_latency(items)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.publish_commit",commit_began,details)
 	return true
 
 func _clear_collision_staging(items:Array)->void:
+	var disposed:Dictionary={}
 	for item:Dictionary in items:
 		var job:Dictionary=_jobs.get(item.path,{})
 		if job.has("collision_staged"):
 			var packet:Dictionary=job.collision_staged.get(item.record.uuid,{})
-			if packet.has("index_preparation"):packet.index_preparation.dispose()
+			if not packet.is_empty() and not disposed.has(packet.items[0].record.uuid):
+				disposed[packet.items[0].record.uuid]=true
+				var owner:Dictionary=_jobs.get(packet.items[0].path,{})
+				owner.get("publication_packets",{}).erase(packet.items[0].record.uuid)
+				if packet.has("index_preparation"):packet.index_preparation.dispose();packet.erase("index_preparation")
+				var bytes:int=packet.get("workspace_charge",0)
+				if bytes>0:_admission.release_publication_workspace(item.path,bytes);packet.erase("workspace_charge")
 			job.collision_staged.erase(item.record.uuid)
 
+func _publication_packet_valid(items:Array)->bool:
+	for item:Dictionary in items:
+		if item.get("published",false) or not _demanded_by_id.has(item.record.uuid) or instance_errors.has(item.record.uuid) or path_errors.has(item.path):return false
+	return true
+
+func _publication_packet_ready(items:Array)->bool:
+	if not _publication_packet_valid(items):return false
+	profile.publication_packet_checks=int(profile.get("publication_packet_checks",0))+1
+	profile.publication_packet_member_checks=int(profile.get("publication_packet_member_checks",0))+items.size()
+	var ready:=true;var failed:=""
+	for item:Dictionary in items:
+		if not _publication_dependencies_ready(item):ready=false
+		if instance_errors.has(item.record.uuid):failed=item.record.uuid
+	if not failed.is_empty():
+		for item:Dictionary in items:
+			if not instance_errors.has(item.record.uuid):_instance_failed(item.record.uuid,"Atomic publication member failed: "+failed)
+		_clear_collision_staging(items)
+	return ready
+
+func _prune_publication_packets(job:Dictionary)->void:
+	# Exceptional staged outputs only. Visit each atomic packet once, promptly
+	# dropping invalid/lost-demand owners even while healthy siblings keep a job.
+	for packet:Dictionary in job.get("publication_packets",{}).values():
+		var failed:=""
+		for item:Dictionary in packet.items:
+			if instance_errors.has(item.record.uuid) or path_errors.has(item.path):failed=item.record.uuid;break
+		if not failed.is_empty():
+			for item:Dictionary in packet.items:
+				if not instance_errors.has(item.record.uuid):_instance_failed(item.record.uuid,"Atomic publication member failed: "+failed)
+		if not _publication_packet_valid(packet.items):_clear_collision_staging(packet.items)
+
+func _publication_workspace_available(job:Dictionary,path:String,reserve:bool=false)->bool:
+	# Whole native groups already budget their complete staged output. Worker
+	# spec packets also retain their existing batch reservation when moved here.
+	var uncharged:Array=[]
+	for packet:Dictionary in job.get("publication_packets",{}).values():
+		if packet.items.size()!=1 or packet.get("worker_prepared",false) or int(packet.get("workspace_charge",0))>0:continue
+		uncharged.append(packet)
+	if uncharged.is_empty():return true
+	var minimum_bytes:=0
+	for packet:Dictionary in uncharged:
+		if not packet.has("publication_workspace_bound"):
+			# Reuse admission deliberately omits the resident model. Its smaller
+			# lease is not a bound on another full unpublished instance.
+			var model_bound:int=int(job.get("estimate",{}).get("shared_model_estimate_bytes",0))
+			var template_owner:PackedScene=job.get("publication_template_owner")
+			var instance_bound:=0
+			if template_owner!=null:
+				instance_bound=int(template_owner.get_meta(preload("res://scripts/world3d/asset_spec_template.gd").META,{}).get("instance_bytes",0))
+			instance_bound+=var_to_bytes(packet.items[0].record).size()*8
+			packet.publication_workspace_bound=maxi(model_bound,instance_bound)
+		minimum_bytes=maxi(minimum_bytes,int(packet.publication_workspace_bound))
+	# One conservative unit for this batch makes the capacity preview and the
+	# selected-path reservation identical; no bytes are charged during selection.
+	if _admission.publication_workspace_capacity(path,uncharged.size(),minimum_bytes)==0:
+		profile.publication_workspace_waits=int(profile.get("publication_workspace_waits",0))+1
+		return false
+	if not reserve:return true # Readiness must not reserve for an unselected path.
+	for packet:Dictionary in uncharged:
+		var bytes:=_admission.retain_publication_workspace(path,minimum_bytes)
+		assert(bytes>0)
+		packet.workspace_charge=bytes
+		profile.publication_workspace_reservations=int(profile.get("publication_workspace_reservations",0))+1
+	return true
+
 func _collision_publication_status(uuid:String)->Dictionary:
-	if not is_instance_valid(_map):return {}
+	if not is_instance_valid(_map):return EMPTY_DEMAND
 	var store:Node=_map.get_node_or_null("CollisionInstanceResidency")
-	if store==null:return {}
+	if store==null:return EMPTY_DEMAND
 	return store.publication_status(uuid)
 
 func _publication_discarded(item:Dictionary,staged:Dictionary)->bool:
@@ -1736,18 +2283,44 @@ func _remove_published_demand(items:Array)->void:
 	var removed:Dictionary={};var paths:Dictionary={}
 	# These private catalogs have the same insertion order and item identities
 	# as their arrays. Preserve fresh-array semantics for outstanding cursors.
-	var ordered_pending:=ordered_publication_removal_enabled and incremental_pending_index_enabled and _indexed and _pending_by_record_id.size()==pending.size()
-	var ordered_demand:=ordered_publication_removal_enabled and _demanded_by_id.size()==_demanded.size()
-	profile.publication_survivor_scan_rows=int(profile.get("publication_survivor_scan_rows",0))+(0 if ordered_pending else pending.size())+(0 if ordered_demand else _demanded.size())
+	var ordered_pending:=ordered_publication_removal_enabled and incremental_pending_index_enabled and _indexed and _pending_by_record_id.size()==pending_count()
+	var ordered_demand:=ordered_publication_removal_enabled and _demanded_by_id.size()==_demanded_count()
+	profile.publication_survivor_scan_rows=int(profile.get("publication_survivor_scan_rows",0))+(0 if ordered_pending else pending_count())+(0 if ordered_demand else _demanded_count())
 	var batch_unindexed:bool=batched_pending_unindex_enabled and incremental_pending_index_enabled and _indexed and items.size()>=16 and _unindex_pending_batch(items)
 	for item:Dictionary in items:
 		var uuid:String=item.record.uuid
 		removed[uuid]=true;paths[item.path]=true
+		_demand_candidate_rows.erase(uuid)
 		if incremental_pending_index_enabled and _indexed and not batch_unindexed:_unindex_pending_item(item,false)
 		_demanded_by_id.erase(uuid);_demanded_rank.erase(uuid);_demanded_priority.erase(uuid)
-	pending=_pending_by_record_id.values() if ordered_pending else _without_published(pending,removed)
+	var pruned:=0
+	for cached:Dictionary in _demand_membership.values():
+		if not cached.items is Dictionary or cached.items.is_empty():continue
+		for item:Dictionary in items:
+			var uuid:String=item.record.uuid
+			if is_same(cached.items.get(uuid),item):
+				# Drop our old snapshot immediately, without clearing arrays held
+				# by outstanding consumers. The next traversal materializes once.
+				cached.erase("rows")
+				cached.items.erase(uuid);pruned+=1
+				if cached.items.is_empty():break
+	profile.demand_membership_pruned=int(profile.get("demand_membership_pruned",0))+pruned
+	if ordered_pending:
+		# The ordered catalogue is already the complete survivor list. Keep
+		# borrowed arrays intact; only an actual traversal needs a fresh Array.
+		if not _pending_snapshot_dirty:_pending_snapshot=[]
+		_pending_snapshot_dirty=true
+		profile.pending_snapshot_rows_deferred=int(profile.get("pending_snapshot_rows_deferred",0))+_pending_by_record_id.size()
+	else:pending=_without_published(pending,removed)
 	_invalidate_collision_queries()
-	_demanded=_demanded_by_id.values() if ordered_demand else _without_published(_demanded,removed)
+	if ordered_demand:
+		# The ordered UUID catalogue already contains the exact survivors. Most
+		# publication consumers only query it or ask for a count. Materialize a
+		# new Array only for an actual traversal, preserving old borrowed arrays.
+		if not _demanded_snapshot_dirty:_demanded_snapshot=[]
+		_demanded_snapshot_dirty=true
+		profile.demand_snapshot_rows_deferred=int(profile.get("demand_snapshot_rows_deferred",0))+_demanded_by_id.size()
+	else:_demanded=_without_published(_demanded,removed)
 	for path:String in paths:
 		if not _demanded_by_path.has(path):continue
 		var remaining:Array=_without_published(_demanded_by_path[path],removed)
@@ -1763,99 +2336,188 @@ func _stage_building(item:Dictionary,specs:Array)->void:
 	var job:Dictionary=_jobs.get(item.path,{})
 	if job.is_empty():return
 	if not job.has("staged"):job.staged={}
+	if not job.has("staged_groups"):job.staged_groups={}
+	var group:String=item.group_id
+	# Count each prepared component once. Rebuilding an ordered prefix on every
+	# arrival turns a large building into quadratic copying of the same specs.
+	if not job.staged.has(item.record.uuid):job.staged_groups[group]=int(job.staged_groups.get(group,0))+1
 	job.staged[item.record.uuid]={"item":item,"specs":specs}
-	var members:Array=_reference_index.groups[item.group_id].members
+	var members:Array=_reference_index.groups[group].members
+	if not instance_errors.is_empty():
+		# Failure may precede staging (for example collision preparation). Only
+		# the exceptional path scans for it; an incomplete prefix must not hide it.
+		for at in members:
+			var uuid:String=_reference_index.extras.rmmo_records[at].uuid
+			if not instance_errors.has(uuid):continue
+			for member_at in members:
+				var member_id:String=_reference_index.extras.rmmo_records[member_at].uuid
+				_instance_failed(member_id,"建筑组件准备失败："+uuid);job.staged.erase(member_id)
+			job.staged_groups.erase(group);return
+	if int(job.staged_groups[group])<members.size():return
 	var ordered:Array=[];var combined:Array=[]
 	for at in members:
 		var uuid:String=_reference_index.extras.rmmo_records[at].uuid
-		if instance_errors.has(uuid):
-			# A malformed component must not leave an apparently complete owner.
-			for member_at in members:_instance_failed(_reference_index.extras.rmmo_records[member_at].uuid,"建筑组件准备失败："+uuid)
-			job.staged.clear();return
-		if not job.staged.has(uuid):return
-		ordered.append(job.staged[uuid].item);combined.append_array(job.staged[uuid].specs)
-	_publish_items(ordered,combined);job.staged.clear()
+		var ready:Dictionary=job.staged[uuid]
+		ordered.append(ready.item);combined.append_array(ready.specs)
+		job.staged.erase(uuid)
+	profile.staging_member_visits=int(profile.get("staging_member_visits",0))+members.size()
+	job.staged_groups.erase(group)
+	_publish_items(ordered,combined)
 
 func _publication_ready()->Array:
 	var began:=Time.get_ticks_usec();var ready:Array=[]
+	var building_ranks:Dictionary={};var pruned:=0
+	var material_order:=_publication_order.preserve_building_material_order()
+	var paths_checked:=0;var prefix_checks:=0;var eligible_calls:=0
 	# At most one ready item per admitted closure. A collision-owned waiting
 	# head retains its consumption cursor. A separate bounded scan lets ready
 	# siblings sharing the same model progress without rebuilding/sorting demand.
 	for path:String in _jobs:
-		if not _prepared_paths.has(path) or path_errors.has(path):continue
-		var instance:Dictionary=_jobs[path].get("instance_preparation",{})
+		paths_checked+=1
+		# A reusable cached model is not this task's accepted publication result.
+		# Restored model_verified flags must not bypass the new lease/CPU handoff.
+		var job:Dictionary=_jobs[path]
+		if not job.get("accepted",false) or not _prepared_paths.has(path) or path_errors.has(path):continue
+		if job.has("collision_staged"):_prune_publication_packets(job)
+		# Fair publication can select only the earliest READY house at a visual
+		# priority. A native house path contains that one atomic closure. Its
+		# first demanded rank is a lower bound, including staged/private members:
+		# once an earlier house is ready, checking this one cannot change choice.
+		# Never apply this to shared model paths, safety priorities, stale ranks,
+		# or when the earlier house was blocked. Re-evaluate on every selection.
+		if material_order and fair_publication_enabled and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
+			var first:Dictionary=_path_first.get(path,EMPTY_DEMAND)
+			if not first.is_empty():
+				var priority:int=_demanded_priority.get(first.record.uuid,2147483647)
+				if priority>=0 and building_ranks.has(priority) and int(_demanded_rank.get(first.record.uuid,-1))>=int(building_ranks[priority]):
+					pruned+=1;continue
+		var instance:Dictionary=job.get("instance_preparation",EMPTY_DEMAND)
 		if not instance.is_empty() and (not _demanded_by_id.has(instance.uuid) or instance_errors.has(instance.uuid)):
-			instance.cursor.dispose();_jobs[path].erase("instance_preparation");instance={}
-		var staged:Dictionary=_jobs.get(path,{}).get("staged",{})
-		if not _publication_queues.has(path):_publication_queues[path]={"items":_demanded_by_path.get(path,[]).duplicate(),"cursor":0,"scan":0}
+			instance.cursor.dispose();_record_instance_work(instance.cursor,true,instance.get("worker_prepared",false));job.erase("instance_preparation");instance=EMPTY_DEMAND
+		var staged:Dictionary=job.get("staged",EMPTY_DEMAND)
+		if not _publication_queues.has(path):
+			# Refresh builds new path arrays; publication replaces rather than
+			# mutates them. Cursors can borrow that immutable ordered generation.
+			var rows:Array=_demanded_by_path.get(path,EMPTY_CANDIDATE)
+			_publication_queues[path]={"items":rows if borrow_publication_rows_enabled else rows.duplicate(),"cursor":0,"scan":0}
+			profile.publication_snapshot_rows_copied=int(profile.get("publication_snapshot_rows_copied",0))+(0 if borrow_publication_rows_enabled else rows.size())
 		var queue:Dictionary=_publication_queues[path]
+		if not instance.is_empty():
+			# The existing private workspace can finish without scene dependencies.
+			# A dependency wait belongs to its completed packet, never to this cursor
+			# or the model's healthy siblings. Retain one active graph per job.
+			var active:Dictionary=_demanded_by_id[instance.uuid]
+			if active.get("published",false):continue
+			eligible_calls+=1
+			var runnable:=not _publication_discarded(active,staged) if independent_instance_preparation_enabled else _publication_eligible(active,staged)
+			if runnable:
+				ready.append(active)
+				if str(active.get("group_id","")).begins_with("building:"):
+					var priority:int=_demanded_priority.get(active.record.uuid,2147483647)
+					building_ranks[priority]=mini(int(building_ranks.get(priority,2147483647)),int(_demanded_rank[active.record.uuid]))
+			continue
 		var checked:=0
 		while queue.cursor<queue.items.size() and checked<64:
-			var item:Dictionary=queue.items[queue.cursor];checked+=1
+			var item:Dictionary=queue.items[queue.cursor];checked+=1;prefix_checks+=1
 			if not _publication_discarded(item,staged):break
 			queue.cursor+=1
 		if queue.cursor>=queue.items.size():continue
 		var at:int=maxi(int(queue.get("scan",queue.cursor)),int(queue.cursor))
 		if at>=queue.items.size():at=queue.cursor
 		var visited:=0
+		var packet_readiness:Dictionary={}
 		while checked<64 and visited<queue.items.size()-queue.cursor:
 			var selected_at:=at
 			var item:Dictionary=queue.items[at];checked+=1;visited+=1
 			at+=1
 			if at>=queue.items.size():at=queue.cursor
 			queue.scan=at
-			if _publication_discarded(item,staged):continue
-			if not instance.is_empty() and instance.uuid!=item.record.uuid:continue
-			if not _runtime_supports_ready(str(item.record.uuid)):continue
-			var collision:Dictionary=_collision_publication_status(str(item.record.uuid))
-			if collision.get("owned",false):
-				if not str(collision.get("error","")).is_empty():
-					_instance_failed(str(item.record.uuid),"提前碰撞发布失败："+str(collision.error));continue
-				if collision.get("pending",false):
-					profile.collision_publication_waits=int(profile.get("collision_publication_waits",0))+1
-					continue
+			eligible_calls+=1
+			var packet:Dictionary=job.get("collision_staged",{}).get(item.record.uuid,{})
+			if not packet.is_empty():
+				var first:String=packet.items[0].record.uuid
+				if not packet_readiness.has(first):packet_readiness[first]=_publication_packet_ready(packet.items)
+				if not packet_readiness[first]:continue
+			if not _publication_eligible(item,staged):continue
+			if packet.is_empty() and not _publication_workspace_available(job,path):continue
 			queue.chosen=selected_at
-			ready.append(item);break
+			ready.append(item)
+			if str(item.get("group_id","")).begins_with("building:"):
+				var priority:int=_demanded_priority.get(item.record.uuid,2147483647)
+				building_ranks[priority]=mini(int(building_ranks.get(priority,2147483647)),int(_demanded_rank[item.record.uuid]))
+			break
 	ready.sort_custom(func(a,b):return _demanded_rank[a.record.uuid]<_demanded_rank[b.record.uuid])
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.ready_scan_us=int(profile.get("ready_scan_us",0))+elapsed
 	profile.max_ready_scan_us=maxi(int(profile.get("max_ready_scan_us",0)),elapsed)
 	profile.ready_heads=ready.size();profile.ready_scan_items=int(profile.get("ready_scan_items",0))+ready.size()
+	profile.ready_building_skips=int(profile.get("ready_building_skips",0))+pruned
+	# Count actual selection work, separately from the legacy returned-head count.
+	# Prefix discard and eligible checks can visit the same candidate twice.
+	profile.ready_selection_calls=int(profile.get("ready_selection_calls",0))+1
+	profile.ready_paths_checked=int(profile.get("ready_paths_checked",0))+paths_checked
+	profile.ready_prefix_discard_checks=int(profile.get("ready_prefix_discard_checks",0))+prefix_checks
+	profile.ready_eligible_calls=int(profile.get("ready_eligible_calls",0))+eligible_calls
 	return ready
 
+func _publication_eligible(item:Dictionary,staged:Dictionary)->bool:
+	return not _publication_discarded(item,staged) and _publication_dependencies_ready(item)
+
+func _publication_dependencies_ready(item:Dictionary)->bool:
+	var collision:Dictionary=_collision_publication_status(str(item.record.uuid))
+	if collision.get("owned",false):
+		if not str(collision.get("error","")).is_empty():
+			_instance_failed(str(item.record.uuid),"提前碰撞发布失败："+str(collision.error));return false
+		if collision.get("pending",false):
+			profile.collision_publication_waits=int(profile.get("collision_publication_waits",0))+1
+			return false
+	return _runtime_supports_ready(str(item.record.uuid))
+
 func _main_thread_budget_usec()->int:
-	if _entry_loading_allowed() and _map.get_viewport().disable_3d:return COVERED_LOADING_BUDGET_US
+	# White geometry has been measured through entry, walking and far returns.
+	# Keep ordinary textured play's existing allowance until its own evaluation.
+	var white:=preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var base:=WHITE_INTERACTIVE_BUDGET_US if white else INTERACTIVE_BUDGET_US
+	var interactive:=clampi(interactive_budget_override_usec,1000,8000) if interactive_budget_override_usec>0 else base
+	if force_covered_loading_budget and _map.get_viewport().disable_3d:return covered_loading_budget_usec
+	if _covered_loading_ready():return covered_loading_budget_usec
+	if _entry_loading_allowed() and _map.get_viewport().disable_3d:return covered_loading_budget_usec
 	# A pending transfer alone is not proof that its opaque cover has been drawn.
 	# Bind the larger budget to this queue's live same-map transaction. Cross-map
 	# loaders own their own budgets and activate Deferred only after committing.
-	if not is_instance_valid(_host) or not _host.is_inside_tree():return INTERACTIVE_BUDGET_US
-	if not "_transfer_pending" in _host or not _host._transfer_pending:return INTERACTIVE_BUDGET_US
-	if not "_local_transfer" in _host or not "_transfer_request_serial" in _host:return INTERACTIVE_BUDGET_US
+	if not is_instance_valid(_host) or not _host.is_inside_tree():return interactive
+	if not "_transfer_pending" in _host or not _host._transfer_pending:return interactive
+	if not "_local_transfer" in _host or not "_transfer_request_serial" in _host:return interactive
 	var context:Dictionary=_host._local_transfer
-	if context.is_empty() or context.get("cancelled",false):return INTERACTIVE_BUDGET_US
-	if not context.get("scope_applied",false) or not _demand_scope.has(context.get("demand_id","")):return INTERACTIVE_BUDGET_US
-	if context.get("map")!=_map or context.get("deferred")!=self:return INTERACTIVE_BUDGET_US
-	if context.get("request")!=_host._transfer_request_serial:return INTERACTIVE_BUDGET_US
+	if context.is_empty() or context.get("cancelled",false):return interactive
+	if not context.get("scope_applied",false) or not _demand_scope.has(context.get("demand_id","")):return interactive
+	if context.get("map")!=_map or context.get("deferred")!=self:return interactive
+	if context.get("request")!=_host._transfer_request_serial:return interactive
 	var cover:Variant=context.get("cover")
-	if not is_instance_valid(cover) or not cover is TransferLoading:return INTERACTIVE_BUDGET_US
-	if not cover.is_opaque_drawn():return INTERACTIVE_BUDGET_US
+	if not is_instance_valid(cover) or not cover is TransferLoading:return interactive
+	if not cover.is_opaque_drawn():return interactive
 	var viewport:=_host.get_viewport()
-	if cover.get_viewport()!=viewport or not viewport.disable_3d:return INTERACTIVE_BUDGET_US
-	return COVERED_LOADING_BUDGET_US
+	if cover.get_viewport()!=viewport or not viewport.disable_3d:return interactive
+	# Same-map transfer retains its established 16 ms allowance. Only the
+	# initial white full-ready cover may use the 24 ms initial budget.
+	return TRANSFER_COVERED_BUDGET_US
 
 static func automatic_loading_worker_limit(logical_threads:int)->int:
+	return clampi(floori(float(logical_threads)*.5),2,6)
+
+static func automatic_white_worker_limit(logical_threads:int)->int:
 	return clampi(floori(float(logical_threads)*.5),2,6)
 
 func _restore_uncovered_worker_capacity()->void:
 	# Transaction cleanup can run after this queue stopped processing. Restore
 	# synchronously, but never raise capacity from a scope setter before dispatch.
-	if _saved_interactive_worker_limit>=0 and _main_thread_budget_usec()!=COVERED_LOADING_BUDGET_US:
+	if _saved_interactive_worker_limit>=0 and _main_thread_budget_usec()<COVERED_LOADING_BUDGET_US:
 		_update_loading_worker_capacity(INTERACTIVE_BUDGET_US)
 
 func _update_loading_worker_capacity(budget_usec:int)->void:
 	var processors:=OS.get_processor_count()
 	var configured:=clampi(loading_worker_limit,2,6) if loading_worker_limit>0 else automatic_loading_worker_limit(processors)
-	var covered:=budget_usec==COVERED_LOADING_BUDGET_US
+	var covered:=budget_usec>=COVERED_LOADING_BUDGET_US
 	if _admission.worker_limit==0:
 		# Tests and owners may explicitly disable dispatch, including mid-load.
 		# Never revive that queue by applying or restoring an automatic capacity.
@@ -1874,10 +2536,10 @@ static func _account_work_unit(timing:Dictionary,began:int)->void:
 	timing.units+=1;timing.unit_us+=elapsed;timing.max_unit_us=maxi(timing.max_unit_us,elapsed)
 
 func _record_main_thread_budget(budget:int,began:int,acceptance:Dictionary,publication:Dictionary)->void:
-	# These counters cover the shared acceptance/publication slice, including its
-	# ready scan. Worker handoff/synchronization, demand refresh and dispatch are
-	# outside this slice; elapsed_us is not a whole-frame or GPU-time measurement.
-	var mode:="covered_loading" if budget==COVERED_LOADING_BUDGET_US else "interactive"
+	# The clock starts at this service's frame entry: elapsed_us includes demand,
+	# join, dispatch, acceptance, publication, release and bounded refill. The
+	# unit counters separate acceptance/publication; this is not GPU/frame time.
+	var mode:="covered_loading" if budget>=COVERED_LOADING_BUDGET_US else "interactive"
 	if not profile.has("main_thread_budgets"):profile.main_thread_budgets={}
 	if not profile.main_thread_budgets.has(mode):
 		profile.main_thread_budgets[mode]={"budget_us":budget,"frames":0,"elapsed_us":0,"max_elapsed_us":0,"over_budget_frames":0,"acceptance_units":0,"acceptance_us":0,"max_acceptance_unit_us":0,"publication_units":0,"publication_us":0,"max_publication_unit_us":0}
@@ -1894,13 +2556,25 @@ func _record_main_thread_budget(budget:int,began:int,acceptance:Dictionary,publi
 
 func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary:
 	var timing:Dictionary={"units":0,"unit_us":0,"max_unit_us":0}
-	# At least one real publication unit must advance even if result acceptance
-	# or a previous scan spent this frame's soft budget. Individual resource
-	# publication and the final whole-group append are not preemptible.
+	_defer_demand_removal=true
+	_deferred_removal_items.clear()
+	# Once admitted, advance at least one indivisible publication unit. _process
+	# admits this stage only with time remaining after bookkeeping/acceptance;
+	# explicit direct callers retain their forced-progress soft-slice contract.
 	while timing.units==0 or Time.get_ticks_usec()-began<budget_usec:
 		var heads:=_publication_ready()
 		if heads.is_empty():break
-		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs) if fair_publication_enabled else heads[0]
+		var pressure:=_completed_owner_pressure()
+		var remaining:Dictionary={}
+		if pressure and int(_demanded_priority.get(heads[0].record.uuid,0))>=0 and _publication_order.needs_drain_target(heads,_jobs):
+			for head:Dictionary in heads:
+				var owner:Dictionary=_jobs[head.path]
+				# Cost belongs to this transaction, not every later demand sharing its
+				# source path (road pages and shared model demand can grow separately).
+				# Compute only when selecting a target, never per sticky work unit.
+				remaining[head.path]=_remaining_owner_members(owner)
+		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs,pressure,remaining) if fair_publication_enabled else heads[0]
+		if fair_publication_enabled and _publication_order.drain_selected:profile.completed_owner_drain_units=int(profile.get("completed_owner_drain_units",0))+1
 		if item.path!=heads[0].path:profile.fair_publication_units=int(profile.get("fair_publication_units",0))+1
 		if item.get("published",false) or instance_errors.has(item.record.uuid) or path_errors.has(item.path):continue
 		var unit_began:=Time.get_ticks_usec()
@@ -1933,6 +2607,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			_account_work_unit(timing,unit_began)
 			if _demand_revision!=revision:break
 			continue
+		if not _publication_workspace_available(pixel_job,item.path,true):break
 		var prefab_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
 		if item.record.has("house_prefab"):
 			var prepared:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_cpu",{}).get(item.record.house_prefab.sha256,{})
@@ -1968,22 +2643,92 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		var prefab_finished:=Time.get_ticks_usec()
 		var instance_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
 		if not item.get("native_reference",false):
-			var cursor:=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
-			cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
-			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts}
+			var packet:Dictionary=pixel_job.get("result",{}).get("instance_specs",{}).get(publication_id,{})
+			var direct:bool=preload("res://scripts/world3d/asset_spec_template.gd").supports(pixel_job.publication_template_owner,item.record,_local_collision_order(item))
+			var cursor:RefCounted
+			var prepared_on_worker:=false
+			if direct:
+				cursor=preload("res://scripts/world3d/asset_spec_template.gd").new()
+				if not packet.is_empty() and (is_same(packet.record,item.record) or packet.record==item.record):
+					prepared_on_worker=true
+					cursor.specs=packet.specs;cursor.profile=packet.profile;cursor.phase=3
+					profile.worker_instance_specs=int(profile.get("worker_instance_specs",0))+cursor.specs.size()
+					profile.worker_instance_us=int(profile.get("worker_instance_us",0))+int(cursor.profile.elapsed_us)
+				else:cursor.begin(pixel_job.publication_template_owner,item.record,int(item.get("draw_order",0)))
+				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+pixel_job.publication_template_owner.get_state().get_node_count()+1
+				profile.direct_instances=int(profile.get("direct_instances",0))+1
+			else:
+				cursor=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+				cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
+			pixel_job.get("result",{}).get("instance_specs",{}).erase(publication_id)
+			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec" if direct else "asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":prepared_on_worker}
 		else:
-			var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
-			if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue
-			var cursor:=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
-			cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
+			var cursor:RefCounted
+			var entry:Dictionary=Prefab._meshes.get(item.record.house_prefab.sha256,{}) if item.record.has("house_prefab") else {}
+			if native_prefab_direct_specs_enabled and item.record.has("house_prefab") and PrefabSpecs.supports(item.record,entry,_local_collision_order(item)) and _doc.load_immutable_records:
+				# Geometry publication above already chose the canonical shared owner.
+				# Project this instance directly instead of constructing, inspecting
+				# and freeing a temporary MeshInstance3D for the same fields.
+				cursor=PrefabSpecs.new();cursor.begin(item.record,entry,int(item.get("draw_order",0)))
+				profile.native_prefab_direct_instances=int(profile.get("native_prefab_direct_instances",0))+1
+				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+1
+			else:
+				var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
+				if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue
+				cursor=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
+				cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
 			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec","prefab_us":prefab_finished-unit_began,"instance_us":Time.get_ticks_usec()-prefab_finished,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts}
+		if CompletedTrace.enabled:CompletedTrace.record(item.path,pixel_job.token.get_instance_id(),"private_started",{"uuid":publication_id,"phase":pixel_job.instance_preparation.phase})
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_begin",unit_began,{"uuid":publication_id,"path":item.path,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts})
 		var revision:=_demand_revision
 		_advance_instance_specs(item,pixel_job,unit_began,maxi(1,budget_usec-(Time.get_ticks_usec()-began)))
 		_account_work_unit(timing,unit_began)
 		if _demand_revision!=revision:break
+	_defer_demand_removal=false
+	if not _deferred_removal_items.is_empty():
+		var remove_started:=Time.get_ticks_usec()
+		var removed_count:=_deferred_removal_items.size()
+		_remove_published_demand(_deferred_removal_items)
+		_deferred_removal_items.clear()
+		profile.deferred_demand_removal_units=int(profile.get("deferred_demand_removal_units",0))+removed_count
+		profile.publication_remove_batch_us=int(profile.get("publication_remove_batch_us",0))+Time.get_ticks_usec()-remove_started
 	profile.publication_units=int(profile.get("publication_units",0))+int(timing.units)
 	return timing
+
+func _completed_owner_pressure()->bool:
+	# Reuse an actual dispatcher stop, not a new full-demand scan or an admission
+	# query with preemption side effects. This proves job-cap pressure only;
+	# byte/exclusive admission is still evaluated normally after a slot retires.
+	if not _publication_order.completed_owner_drain_enabled or _job_cap_waiter.is_empty() or _candidates_revision!=_demand_revision:return false
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	if not controls.white_materials or not controls.discard_map_textures:return false
+	if _jobs.size()<_job_limit() or _admission.active_workers()>=_admission.worker_limit:return false
+	if _jobs.has(_job_cap_waiter) or path_errors.has(_job_cap_waiter):return false
+	var first:Dictionary=_path_first.get(_job_cap_waiter,EMPTY_DEMAND)
+	return not first.is_empty() and not instance_errors.has(first.record.uuid)
+
+func _remaining_owner_members(owner:Dictionary)->int:
+	var remaining:=0
+	var staged:Dictionary=owner.get("staged",EMPTY_DEMAND)
+	var packets:Dictionary=owner.get("collision_staged",EMPTY_DEMAND)
+	for uuid:String in owner.get("publication_ids",[]):
+		if not _demanded_by_id.has(uuid) or instance_errors.has(uuid) or staged.has(uuid) or packets.has(uuid):continue
+		remaining+=1
+	return maxi(1,remaining)
+
+const INSTANCE_WORK_FIELDS:={"namespace_nodes_visited":"instance_namespace_nodes_visited","component_node_steps":"instance_component_node_steps","finish_nodes_visited":"instance_finish_nodes_visited","finish_visuals_registered":"instance_finish_visuals_registered","nodes_visited":"instance_projection_nodes_visited","nodes_freed":"instance_projection_nodes_freed","subtree_free_calls":"instance_cancel_subtree_free_calls","meshes_projected":"instance_meshes_projected","rows_adapted":"template_rows_adapted","rows_projected":"template_rows_projected","sockets_applied":"template_sockets_applied"}
+func _record_instance_work(cursor:RefCounted,cancelled:bool=false,worker_prepared:bool=false)->void:
+	# One handoff per completed/cancelled cursor, never a per-node profile update.
+	# Worker template packets use the same profile; these are accepted cursor
+	# totals, not a claim to include discarded worker packets never adopted here.
+	var work:Dictionary=cursor.profile
+	for source:String in work:
+		if not INSTANCE_WORK_FIELDS.has(source):continue
+		var target_key:String=INSTANCE_WORK_FIELDS[source]
+		profile[target_key]=int(profile.get(target_key,0))+int(work[source])
+		if worker_prepared:profile["worker_"+target_key]=int(profile.get("worker_"+target_key,0))+int(work[source])
+	var stage_key:="instance_work_cancelled_stages" if cancelled else "instance_work_completed_stages"
+	profile[stage_key]=int(profile.get(stage_key,0))+1
 
 func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,budget_usec:int)->void:
 	var preparation:Dictionary=job.instance_preparation
@@ -1995,7 +2740,8 @@ func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,budge
 		profile.max_asset_instance_unit_us=maxi(int(profile.get("max_asset_instance_unit_us",0)),elapsed)
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.asset_instance_step",began,{"uuid":item.record.uuid,"ready":ready})
 		if not ready:
-			var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen;return
+			return # The active UUID is selected directly on its next turn.
+		_record_instance_work(asset)
 		var holder:Node3D=asset.take_holder()
 		if _instance_error(holder,item):job.erase("instance_preparation");return
 		preparation.instance_us=asset.profile.elapsed_us;preparation.instance_slices=asset.profile.slices
@@ -2011,14 +2757,17 @@ func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,budge
 	profile.max_instance_spec_unit_us=maxi(int(profile.get("max_instance_spec_unit_us",0)),elapsed)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.instance_specs",began,{"uuid":item.record.uuid,"ready":ready})
 	if not ready:
-		var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen
-		return
+		return # The active UUID is selected directly on its next turn.
+	_record_instance_work(cursor,false,preparation.get("worker_prepared",false))
 	var specs:Array=cursor.specs
+	if CompletedTrace.enabled:CompletedTrace.record(item.path,job.token.get_instance_id(),"private_finished",{"uuid":str(item.record.uuid),"specs":specs.size(),"worker_prepared":preparation.get("worker_prepared",false)})
 	job.erase("instance_preparation")
 	var append_began:=Time.get_ticks_usec()
 	if not str(item.get("group_id","")).is_empty():_stage_building(item,specs)
 	else:_publish_items([item],specs)
-	var publication:={"uuid":item.record.uuid,"path":item.path,"group_id":str(item.get("group_id","")),"prefab_us":preparation.prefab_us,"instance_us":preparation.instance_us,"collect_us":cursor.profile.elapsed_us,"collect_slices":cursor.profile.slices,"preparation_spans_frames":cursor.profile.slices>1,"append_us":Time.get_ticks_usec()-append_began,"elapsed_us":Time.get_ticks_usec()-unit_began,"covered":_main_thread_budget_usec()==COVERED_LOADING_BUDGET_US}
+	var packet:Dictionary=job.get("collision_staged",{}).get(item.record.uuid,{})
+	if not packet.is_empty() and preparation.get("worker_prepared",false):packet.worker_prepared=true
+	var publication:={"uuid":item.record.uuid,"path":item.path,"group_id":str(item.get("group_id","")),"prefab_us":preparation.prefab_us,"instance_us":preparation.instance_us,"collect_us":cursor.profile.elapsed_us,"collect_slices":cursor.profile.slices,"preparation_spans_frames":cursor.profile.slices>1,"append_us":Time.get_ticks_usec()-append_began,"elapsed_us":Time.get_ticks_usec()-unit_began,"covered":_main_thread_budget_usec()>=COVERED_LOADING_BUDGET_US}
 	publication.instance_slices=int(preparation.get("instance_slices",1))
 	publication.preparation_spans_frames=publication.preparation_spans_frames or publication.instance_slices>1
 	for field:String in ["prefab_parts_ms","instance_parts_ms"]:
@@ -2031,6 +2780,7 @@ func _local_collision_order(item:Dictionary)->bool:
 
 func _instance_error(holder:Node3D,item:Dictionary)->bool:
 	if not holder.has_meta("missing_asset") and not holder.has_meta("paint_error") and not holder.has_meta("tile_error"):return false
+	profile.instance_failed_holder_free_calls=int(profile.get("instance_failed_holder_free_calls",0))+1
 	holder.free();_instance_failed(str(item.record.uuid),"后台物件构建失败："+str(item.record.uuid))
 	if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
 	return true
@@ -2080,9 +2830,10 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path,"fixed_native":true})
 	return result
 
-static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL,pack_for_cache:bool=false,trusted_package:bool=false)->Dictionary:
+static func prepare_scene(path:String,digest:String,token:RefCounted=null,expected_manifest:Dictionary={},collision_faces_required:bool=false,content_root:String="",raw_only:bool=false,geometry_mode:int=CollisionGeometry.ALL,pack_for_cache:bool=false,trusted_package:bool=false,native_only:bool=false)->Dictionary:
 	var began:=preload("res://scripts/world3d/load_trace.gd").begin("deferred.prepare")
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
+	if native_only and raw_only:return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"raw_import_not_allowed").error_message}
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"error":"后台素材准备缺少资源根快照："+path}
 		content_root=preload("res://scripts/world3d/map_paths.gd").external_root()
@@ -2100,6 +2851,8 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	# Strict transactions verify source bytes after private preparation as well.
 	var compiled:Dictionary={"hit":false,"elapsed_us":0}
 	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,true,trusted_package)
+	if native_only and not compiled.hit:
+		return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(compiled.get("reason","invalid_product"))).error_message,"native_packet":compiled}
 	if not compiled.hit and not compiled.get("retained_resources",[]).is_empty():
 		# Post-allocation schema/path failures are not resource-free misses.
 		# Keep the charged native result for main-thread failure disposal.
@@ -2108,7 +2861,9 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	owners.packed=compiled.get("packed")
 	var scene:Node
 	if not compiled.hit:
-		var fallback:=_fallback_scene(path,token,content_root)
+		# The index stores accepted model facts without the transient `known`
+		# field. A nonempty model manifest is the existing static-route proof.
+		var fallback:=_fallback_scene(path,token,content_root,trusted_package and not expected_manifest.is_empty() and expected_manifest.get("known",true))
 		if not fallback.error.is_empty():return fallback
 		owners=fallback.resource_owners
 		fallback.erase("resource_owners")
@@ -2123,19 +2878,27 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	# The queue admits static self-contained files only. Every node/resource here
 	# belongs to this worker and has never entered a SceneTree or shared scene cache.
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
-	var generate_started:=Time.get_ticks_usec()
-	if compiled.hit:
-		scene=preload("res://scripts/world3d/compiled_asset_cache.gd").instantiate(compiled.packed)
-		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.compiled_instantiate",generate_started,{"path":path})
-	if scene==null:return {"error":"素材构建失败："+path,"resource_owners":owners}
-	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
-	var capture_started:=Time.get_ticks_usec()
-	var captured:=_capture_static_meshes(scene,collision_faces_required,token,geometry_mode)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.cpu_capture",capture_started,{"path":path,"collision_faces":collision_faces_required})
-	if not captured.error.is_empty():
-		captured.scene=scene;captured.resource_owners=owners
-		return captured
+	# Native.read has already bound the serialized arrays, LODs and collision
+	# faces to every mesh. A template consumer needs no temporary Node graph:
+	# instantiating, capturing and freeing it only repeats that completed work.
+	var direct_template:bool=pack_for_cache and compiled.hit and compiled.packed.get_meta("white_native_geometry",false)
+	var captured:Dictionary={"error":""}
 	var packed:PackedScene
+	if direct_template:
+		packed=compiled.packed
+	else:
+		var generate_started:=Time.get_ticks_usec()
+		if compiled.hit:
+			scene=Compiled.instantiate(compiled.packed)
+			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.compiled_instantiate",generate_started,{"path":path})
+		if scene==null:return {"error":"素材构建失败："+path,"resource_owners":owners}
+		if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
+		var capture_started:=Time.get_ticks_usec()
+		captured=_capture_static_meshes(scene,collision_faces_required,token,geometry_mode)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.cpu_capture",capture_started,{"path":path,"collision_faces":collision_faces_required})
+		if not captured.error.is_empty():
+			captured.scene=scene;captured.resource_owners=owners
+			return captured
 	if pack_for_cache and not compiled.hit:
 		# This static graph is still exclusively worker-owned. Pack it here so
 		# acceptance never performs a whole imported hierarchy traversal/pack.
@@ -2153,28 +2916,29 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if packed!=null:
 		# The private Node instances can retire on their own worker, but every
 		# renderer Resource must survive until main has joined and synchronized.
-		Drainer._retain_visual_resources(scene,owners.visuals)
-		var dispose_began:=Time.get_ticks_usec();scene.free();scene=null
-		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_private_disposal",dispose_began,{"path":path})
+		if scene!=null:
+			Drainer._retain_visual_resources(scene,owners.visuals)
+			var dispose_began:=Time.get_ticks_usec();scene.free();scene=null
+			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_private_disposal",dispose_began,{"path":path})
 		captured.packed=packed
 	else:captured.scene=scene
 	captured.merge({"resource_owners":owners,"elapsed_us":Time.get_ticks_usec()-began,"source_digest":source_digest,"compiled":compiled.hit,"compiled_read_us":compiled.elapsed_us})
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path})
 	return captured
 
-static func _fallback_scene(path:String,token:RefCounted,content_root:String)->Dictionary:
-	# Godot's default GLTF extension registry is process-wide. Native products
-	# read concurrently; raw fallback generation is serialized across loaders.
+static func _fallback_scene(path:String,token:RefCounted,content_root:String,static_private:bool=false)->Dictionary:
+	# Independent static white documents can share admission; unknown imports
+	# exclude every sibling. Registration of extensions is a startup operation.
 	var preparation=preload("res://scripts/world3d/model_parse_preparation.gd")
 	var waiting:=Time.get_ticks_usec()
-	preparation.RAW_IMPORT_MUTEX.lock()
+	preparation.enter_raw_import(static_private)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.raw_import_wait",waiting,{"path":path})
 	if token!=null and token.is_cancelled():
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材准备已取消","cancelled":true}
+		preparation.leave_raw_import();return {"error":"素材准备已取消","cancelled":true}
 	# A candidate miss can retry raw after waiting for another importer. Recheck
 	# containment before allocating parser resources or reading the source.
 	if content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材路径无效："+path}
+		preparation.leave_raw_import();return {"error":"素材路径无效："+path}
 	var document:=GLTFDocument.new();var state:=GLTFState.new()
 	var owners:=preload("res://scripts/world3d/model_resource_owners.gd").new()
 	owners.document=document;owners.state=state
@@ -2183,15 +2947,15 @@ static func _fallback_scene(path:String,token:RefCounted,content_root:String)->D
 	var code:=document.append_from_file(path,state,0,path.get_base_dir())
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_parse",began,{"path":path})
 	if code!=OK:
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材读取失败："+path+" "+error_string(code),"resource_owners":owners}
+		preparation.leave_raw_import();return {"error":"素材读取失败："+path+" "+error_string(code),"resource_owners":owners}
 	if preload("res://scripts/world3d/asset_bounds_manifest.gd").has_native_identity(state.json):
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"原生地图不能作为独立后台素材："+path,"resource_owners":owners}
+		preparation.leave_raw_import();return {"error":"原生地图不能作为独立后台素材："+path,"resource_owners":owners}
 	if token!=null and token.is_cancelled():
-		preparation.RAW_IMPORT_MUTEX.unlock();return {"error":"素材准备已取消","cancelled":true,"resource_owners":owners}
+		preparation.leave_raw_import();return {"error":"素材准备已取消","cancelled":true,"resource_owners":owners}
 	began=Time.get_ticks_usec()
 	var scene:=Io.generate_scene(document,state,true)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.scene_generate",began,{"path":path})
-	preparation.RAW_IMPORT_MUTEX.unlock()
+	preparation.leave_raw_import()
 	return {"error":"" if scene!=null else "素材构建失败："+path,"scene":scene,"resource_owners":owners}
 
 static func _capture_static_meshes(scene:Node,faces_required:bool,token:RefCounted=null,geometry_mode:int=CollisionGeometry.ALL)->Dictionary:
@@ -2217,41 +2981,54 @@ func _retire_stale_prepared(required:Dictionary)->void:
 				if stale_owner:profile.model_template_retries=int(profile.get("model_template_retries",0))+1
 	profile.template_checks=int(profile.get("template_checks",0))+checks
 
+static var phase_budget_guard_enabled:=true
 func _process(_delta:float)->void:
 	if not _active or _cancelled:return
 	if not error.is_empty():
 		_retire_failed_jobs()
 		return
 	var desired:=_main_thread_budget_usec()
-	var budget:=FrameBudget.allowance("publication",desired,desired==COVERED_LOADING_BUDGET_US)
+	var budget:=FrameBudget.allowance("publication",desired,desired>=COVERED_LOADING_BUDGET_US)
 	# Demand scans, stale-template disposal and scheduling are main-thread work
 	# too. A denied lane must not perform them outside the frame ledger, nor
 	# publish using the previous frame's demand set.
 	if budget<=0:return
 	var frame_began:=Time.get_ticks_usec()
+	var stage:Dictionary={"at_us":frame_began}
 	_update_loading_worker_capacity(desired)
 	_refresh_demanded()
 	var required:Dictionary=_demanded_by_path
 	_retire_stale_prepared(required)
-	profile.frame_bookkeeping_us=Time.get_ticks_usec()-frame_began
+	stage.bookkeeping_us=Time.get_ticks_usec()-frame_began
+	profile.frame_bookkeeping_us=stage.bookkeeping_us
+	var poll_started:=Time.get_ticks_usec()
 	_poll_jobs(required)
+	stage.poll_us=Time.get_ticks_usec()-poll_started
+	profile.last_poll_us=stage.poll_us
+	var resume_started:=Time.get_ticks_usec()
 	_resume_pixel_jobs(get_tree())
+	stage.resume_us=Time.get_ticks_usec()-resume_started
 	# Preserve the existing publication/dispatch ownership gate during handoff.
-	if is_instance_valid(_host) and "_ready_for_play" in _host and not _host._ready_for_play and not _entry_loading_allowed():FrameBudget.charge("publication",frame_began);return
+	if is_instance_valid(_host) and "_ready_for_play" in _host and not _host._ready_for_play and not _entry_loading_allowed() and not _covered_loading_ready():FrameBudget.charge("publication",frame_began);return
 	# Refill before publication, while there is a bounded scheduling slice. A
 	# slow indivisible upload must not push dispatch into unaccounted frame tail.
 	_dispatch_deadline=mini(frame_began+budget,Time.get_ticks_usec()+maxi(100,budget/4))
+	var dispatch_started:=Time.get_ticks_usec()
 	_dispatch_jobs(get_tree());_dispatch_deadline=0
+	stage.dispatch_us=Time.get_ticks_usec()-dispatch_started
+	profile.last_dispatch_us=stage.dispatch_us
 	# Covered initial entry owns publication until it is ready; ready results
 	# keep their full byte reservation, preventing an unbounded result queue.
 	var began:=frame_began
 	var acceptance:Dictionary={"units":0,"unit_us":0,"max_unit_us":0}
+	var accept_started:=Time.get_ticks_usec()
 	for path:String in _jobs.keys():
 		var job:Dictionary=_jobs[path]
 		if job.has("worker") or not job.has("result") or job.get("accepted",false) or job.result.get("waiting_pixels",false):continue
-		if acceptance.units>0 and Time.get_ticks_usec()-began>=budget:break
+		if (phase_budget_guard_enabled or acceptance.units>0) and Time.get_ticks_usec()-began>=budget:break
 		var unit_began:=Time.get_ticks_usec()
 		var result:Dictionary=job.result
+		var acceptance_phase:=Time.get_ticks_usec()
 		if not _geometry_coverage_current(path,result):
 			# A new stronger consumer appeared while the private worker ran. Keep
 			# its budget until the old resources are disposed, then re-admit the
@@ -2259,6 +3036,7 @@ func _process(_delta:float)->void:
 			_discard_job(path);_prepared_paths.erase(path)
 			profile.geometry_requirement_retries=int(profile.get("geometry_requirement_retries",0))+1
 			_account_work_unit(acceptance,unit_began);continue
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.accept_coverage",acceptance_phase,{"path":path});acceptance_phase=Time.get_ticks_usec()
 		if job.has("pixel_consumer"):
 			var texture_packet:Dictionary=result.get("prefab_texture_packet",{})
 			if not Prefab.tickets_valid(job.pixel_tickets,texture_packet.get("sources",{})):
@@ -2275,6 +3053,7 @@ func _process(_delta:float)->void:
 			job.result.erase("scene");job.result.erase("packed");profile.models+=1
 			var cache_key:="compiled_hits" if result.get("compiled",false) else "compiled_misses"
 			profile[cache_key]=int(profile.get(cache_key,0))+1
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.accept_template",acceptance_phase,{"path":path});acceptance_phase=Time.get_ticks_usec()
 		# Another map may have replaced/evicted this path while the CPU reuse
 		# transaction ran. Retry preparation instead of consuming a different
 		# template under the verified old geometry identity.
@@ -2283,21 +3062,37 @@ func _process(_delta:float)->void:
 		if result.get("reused_model",false) and not _accept_reused_faces(job,result):
 			_prepared_paths.erase(path);_discard_job(path);_account_work_unit(acceptance,unit_began);continue
 		_accept_prepared_records(result)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.accept_records",acceptance_phase,{"path":path});acceptance_phase=Time.get_ticks_usec()
 		if not job.get("native",false):preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(_map,path)
 		_remember_geometry_definitions(path,result)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.accept_definitions",acceptance_phase,{"path":path});acceptance_phase=Time.get_ticks_usec()
 		if not job.get("native",false):
 			job.publication_template_owner=Assets._scenes.get(path)
+			if int(result.get("collision_geometry_mode",CollisionGeometry.ALL))==CollisionGeometry.ALL:
+				_prepared_template_owners[path]=weakref(job.publication_template_owner)
 			for uuid:String in job.get("publication_ids",[]):
 				if _demanded_by_id.has(uuid):_demanded_by_id[uuid].model_verified=true
 		job.accepted=true;_prepared_paths[path]=true;_publication_queues.erase(path);_scheduler_epoch+=1
+		if CompletedTrace.enabled:CompletedTrace.record(path,job.token.get_instance_id(),"accepted")
 		profile.worker_us+=int(result.get("elapsed_us",0))
-		for key in ["capture_us","face_us","capture_bytes","face_bytes","captured_meshes","skipped_geometry_nodes"]:profile[key]=int(profile.get(key,0))+int(result.get(key,0))
+		for key in ["capture_us","face_us","capture_bytes","face_bytes","captured_meshes","importer_surfaces","renderer_surfaces","skipped_geometry_nodes","index_validation_us","indices_checked","readback_wait_us","readback_main_us","readback_meshes"]:profile[key]=int(profile.get(key,0))+int(result.get(key,0))
 		if result.has("source_digest"):source_signatures[path]=result.source_digest
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.accept_complete",acceptance_phase,{"path":path})
 		_account_work_unit(acceptance,unit_began)
+	stage.accept_us=Time.get_ticks_usec()-accept_started
+	profile.last_accept_us=stage.accept_us
 	# One clock covers both acceptance and publication. This is a soft slice,
 	# not a deadline for indivisible packing, group append or signal callbacks.
-	var publication:=_publish_ready(began,budget)
-	_record_main_thread_budget(desired,began,acceptance,publication)
+	var publication:Dictionary={"units":0,"unit_us":0,"max_unit_us":0}
+	var publication_started:=Time.get_ticks_usec()
+	if not phase_budget_guard_enabled or Time.get_ticks_usec()-began<budget:
+		publication=_publish_ready(began,budget)
+	else:
+		# An indivisible demand refresh/acceptance already consumed this slice.
+		# Keep the accepted job and its lease for the next frame; do not stack a
+		# second forced unit here. Direct _publish_ready callers retain their API.
+		profile.phase_budget_deferrals=int(profile.get("phase_budget_deferrals",0))+1
+	stage.publish_us=Time.get_ticks_usec()-publication_started
 	profile.frame_publication_allowance_us=budget
 	# Publication observers can teach a new building/support closure. Refresh
 	# that revision in the next admitted frame, not for a second full scan in
@@ -2305,9 +3100,34 @@ func _process(_delta:float)->void:
 	# A joined group still owns its bytes until its ready records have
 	# been published or discarded. Slow publication cannot create an unbounded
 	# CPU result backlog beside the GPU/resource pipeline.
+	var jobs_before_release:=_jobs.size()
 	for path:String in _jobs.keys() if _candidates_revision==_demand_revision else []:
 		var job:Dictionary=_jobs[path]
 		if job.get("accepted",false) and _job_consumed(job):_discard_job(path)
+	# A consumed result may have held the last ready slot at the first dispatch.
+	# Let its successor overlap the rest of this frame, but only inside the
+	# ORIGINAL slice. Never rescan unchanged capacity or stale demand after a
+	# publication observer, and never extend an indivisible upload's overrun.
+	if _jobs.size()<jobs_before_release and _candidates_revision==_demand_revision and not _cancelled and error.is_empty():
+		var refill_began:=Time.get_ticks_usec()
+		if refill_began<frame_began+budget:
+			var attempts_before:int=int(profile.get("dispatch_attempts",0))
+			_dispatch_deadline=mini(frame_began+budget,refill_began+maxi(100,budget/4))
+			_dispatch_jobs(get_tree());_dispatch_deadline=0
+			stage.refill_us=Time.get_ticks_usec()-refill_began
+			profile.same_frame_refill_calls=int(profile.get("same_frame_refill_calls",0))+1
+			profile.same_frame_refill_attempts=int(profile.get("same_frame_refill_attempts",0))+int(profile.get("dispatch_attempts",0))-attempts_before
+			profile.same_frame_refill_us=int(profile.get("same_frame_refill_us",0))+Time.get_ticks_usec()-refill_began
+	stage.total_us=Time.get_ticks_usec()-frame_began
+	if not profile.has("stage_ring"):profile.stage_ring=[]
+	profile.stage_ring.append(stage)
+	if profile.stage_ring.size()>1024:profile.stage_ring.pop_front()
+	if stage.total_us>5000:
+		if not profile.has("stage_slow"):profile.stage_slow=[]
+		profile.stage_slow.append(stage)
+		profile.stage_slow.sort_custom(func(a,b):return int(a.total_us)>int(b.total_us))
+		if profile.stage_slow.size()>24:profile.stage_slow.resize(24)
+	_record_main_thread_budget(desired,began,acceptance,publication)
 	FrameBudget.charge("publication",frame_began)
 	if is_complete():
 		_update_loading_worker_capacity(INTERACTIVE_BUDGET_US)
@@ -2328,6 +3148,7 @@ func _retire_failed_jobs()->void:
 		if job.has("worker"):
 			if job.worker.is_alive():continue
 			job.result=job.worker.wait_to_finish()
+			if CompletedTrace.enabled:CompletedTrace.joined(path,job.token.get_instance_id(),job.result)
 			if is_instance_valid(_drainer):_drainer.forget(job.worker)
 			job.erase("worker")
 			Drainer.synchronize_transfer()
@@ -2392,6 +3213,7 @@ func _road_batch_superseded(path:String,job:Dictionary)->bool:
 
 func _poll_jobs(required:Dictionary)->void:
 	# Retire completed/cancelled jobs independently; never wait for a slow sibling.
+	profile.last_poll_join_us=0;profile.last_poll_sync_us=0
 	for path:String in _jobs.keys():
 		var job:Dictionary=_jobs[path]
 		if not required.has(path):job.token.cancel()
@@ -2402,10 +3224,13 @@ func _poll_jobs(required:Dictionary)->void:
 			job.token.cancel()
 		if job.has("worker"):
 			if job.worker.is_alive():continue
+			var join_started:=Time.get_ticks_usec()
 			var result:Dictionary=job.worker.wait_to_finish()
+			profile.last_poll_join_us=int(profile.get("last_poll_join_us",0))+Time.get_ticks_usec()-join_started
 			if is_instance_valid(_drainer):_drainer.forget(job.worker)
 			job.erase("worker")
 			_record_pixel_packet(path,job,result)
+			if CompletedTrace.enabled:CompletedTrace.joined(path,job.token.get_instance_id(),result)
 			if job.get("pixel_continuation",false):
 				job.erase("pixel_continuation")
 				job.result.get("prefab_texture_packet",{}).clear()
@@ -2421,7 +3246,10 @@ func _poll_jobs(required:Dictionary)->void:
 			var sync_started:=Time.get_ticks_usec()
 			# The native-reference branch returns only private CPU arrays/Images,
 			# never a renderer resource. Do not stall core rendering to join it.
-			if not job.get("native",false):Drainer.synchronize_transfer()
+			if not job.get("native",false):
+				var transfer_started:=Time.get_ticks_usec()
+				Drainer.synchronize_transfer()
+				profile.last_poll_sync_us=int(profile.get("last_poll_sync_us",0))+Time.get_ticks_usec()-transfer_started
 			if not _entry_prefetch.is_empty():
 				profile.entry_prefetch_joined_jobs=int(profile.get("entry_prefetch_joined_jobs",0))+1
 				profile.entry_prefetch_sync_us=int(profile.get("entry_prefetch_sync_us",0))+Time.get_ticks_usec()-sync_started
@@ -2468,6 +3296,7 @@ func _poll_jobs(required:Dictionary)->void:
 			_discard_job(path);continue
 
 func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
+	_job_cap_waiter=""
 	if tree==null or _cancelled or not error.is_empty():return
 	var dispatch_started:=Time.get_ticks_usec()
 	var deadline:=_dispatch_deadline if _dispatch_deadline>0 else dispatch_started+1000
@@ -2501,6 +3330,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		if _jobs.size()>=_job_limit():
 			# A critical closure can replace a lower-priority private ready result.
 			# A running victim is only cancelled; poll/join still owns its bytes.
+			if not prefetch_only:_job_cap_waiter=path
 			_yield_lower_job(_path_priority(path));_dispatch_cursor-=1;break
 		if not _admission.has_capacity():
 			if _path_priority(path)<0:_yield_lower_job(_path_priority(path))
@@ -2516,10 +3346,10 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		var geometry_consumers:Array=_geometry_consumers(path) if CollisionGeometry.enabled and not native else []
 		var geometry_mode:int=int(CollisionGeometry.resolve(geometry_consumers,[],[],path,_collision_definition_modes.get(path,{})).mode) if CollisionGeometry.enabled and not native else CollisionGeometry.ALL
 		var template_owner:PackedScene
-		if not native and not need_model:
-			if _cached_model_matches(path):template_owner=Assets._scenes.get(path)
-			if template_owner==null:
-				_prepared_paths.erase(path);need_model=true
+		if not native:
+			template_owner=_resident_prepared_template(path)
+			need_model=template_owner==null
+			if need_model:_prepared_paths.erase(path)
 		var reuse_faces:Dictionary={}
 		if (collision_first_enabled or CollisionGeometry.enabled) and not native and not need_model:
 			faces_known=true
@@ -2567,6 +3397,9 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 					estimate.raw_model_bytes=raw_bytes
 					estimate.native_model_bound_bytes=offered.estimated_bytes
 		estimate.stage=stage
+		if not native and preload("res://scripts/world3d/asset_spec_template.gd").enabled and preload("res://scripts/world3d/asset_spec_template.gd").worker_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
+			estimate.spec_workspace_bytes=preload("res://scripts/world3d/asset_spec_template.gd").WORKSPACE_BYTES
+			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.spec_workspace_bytes)
 		if CollisionGeometry.enabled and not native:
 			# Snapshot/learned-policy containers are private task inputs/outputs.
 			# They remain charged through publication just like other job results.
@@ -2606,12 +3439,16 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		var worker:=Thread.new();var token:=Drainer.CancelToken.new()
 		# A model is immutable and shared by all its instances; include future
 		# collision consumers so reusing a decorative instance is still safe.
-		if not faces_known:
+		# Native references prepare their own exact CPU geometry. This flag is
+		# consumed only by the shared model route; scanning all pending native
+		# records also forced a fresh ordered snapshot after each publication.
+		if not native and not faces_known:
 			for item:Dictionary in pending:
 				if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
 		var publication_ids:Array=_job_publication_ids(path,requests)
 		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec()}
+		if CompletedTrace.enabled:CompletedTrace.record(path,token.get_instance_id(),"dispatch",{"publication_ids":publication_ids.duplicate(),"estimated_bytes":int(estimate.estimated_bytes),"exclusive":bool(estimate.get("exclusive",true)),"native":native})
 		if CollisionGeometry.enabled and not native:
 			_jobs[path].geometry_consumers=geometry_consumers;_jobs[path].geometry_mode=geometry_mode
 		if not reuse_faces.get("snapshots",[]).is_empty():
@@ -2634,7 +3471,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				profile.bridge_texture_missing_keys=int(profile.get("bridge_texture_missing_keys",0))+pixel_offer.bindings.size()
 				if pixel_offer.bindings.is_empty():profile.bridge_texture_all_resident_jobs=int(profile.get("bridge_texture_all_resident_jobs",0))+1
 				preload("res://scripts/world3d/load_trace.gd").instant("deferred.bridge_textures",{"path":path,"declared":pixel_offer.rows.size(),"resident":pixel_tickets.size(),"missing":pixel_offer.bindings.size(),"leaders":pixel_offer.leaders.size(),"scratch_bytes":pixel_offer.scratch_bytes,"reserved_bytes":reserve_estimate.estimated_bytes})
-		token.set_meta("admission_release",_admission.release.bind(path))
+		token.set_meta("admission_release",CompletedTrace.release.bind(_admission,path,token.get_instance_id()) if CompletedTrace.enabled else _admission.release.bind(path))
 		# A method Callable stores an ObjectID, not a strong RefCounted owner.
 		token.set_meta("admission_owner",_admission)
 		# A lease keeps resources alive through worker completion and delayed
@@ -2647,6 +3484,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			token.set_meta("reuse_template_owner",template_owner)
 		if not native and not need_model:
 			profile.reuse_reference_jobs=int(profile.get("reuse_reference_jobs",0))+1
+			if not _prepared_paths.has(path):profile.recovered_template_jobs=int(profile.get("recovered_template_jobs",0))+1
 			profile.reuse_reference_reservation_bytes=int(profile.get("reuse_reference_reservation_bytes",0))+int(estimate.estimated_bytes)
 		preload("res://scripts/world3d/load_trace.gd").instant("deferred.dispatch",{"path":path,"stage":stage,"need_model":need_model,"native":native,"reserved_bytes":estimate.estimated_bytes,"references":requests.size()})
 		var prepare:=_make_prepare_task(path,digest,token,next,needs_faces,content_root,requests,native,need_model)
@@ -2671,26 +3509,40 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 	profile.peak_reserved_bytes=_admission.peak_bytes;profile.peak_jobs=_admission.peak_jobs
 	profile.admission=_admission.snapshot()
 	profile.shared_pixels=_shared_images.snapshot()
-	profile.demanded_instances=_demanded.size();profile.deferred_instances=pending.size()
+	profile.demanded_instances=_demanded_count();profile.deferred_instances=pending_count()
 
 func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictionary,needs_faces:bool,content_root:String,requests:Array,native:bool,need_model:bool)->Callable:
 	var job:Dictionary=_jobs.get(path,{})
-	var route:Dictionary={"stage":job.get("stage","legacy"),"candidate":job.get("candidate",{}).duplicate(true)}
+	var route:Dictionary={"stage":job.get("stage","legacy"),"candidate":job.get("candidate",{}).duplicate(true),"require_native_products":require_native_products}
+	if CompletedTrace.enabled:route.completed_job_trace=true
 	if job.has("geometry_consumers"):
 		route.filter_collision_geometry=true;route.geometry_consumers=job.geometry_consumers.duplicate(true)
 		route.geometry_known=_collision_definition_modes.get(path,{}).duplicate();route.geometry_mode=int(job.geometry_mode)
 	route.prefab_texture_plan=job.get("estimate",{}).get("prefab_texture_plan",{}).duplicate(true)
 	route.collision_workspace_bytes=int(job.get("estimate",{}).get("collision_workspace_bytes",0))
 	route.reuse_face_snapshots=job.get("reuse_face_snapshots",[])
+	if int(job.get("estimate",{}).get("spec_workspace_bytes",0))>0:
+		route.spec_template=job.get("reuse_template_owner")
+		route.spec_orders={};route.spec_records=[]
+		for id:String in job.get("publication_ids",[]):
+			var pending_item:Dictionary=_pending_by_record_id.get(id,{})
+			if pending_item.is_empty():continue
+			route.spec_orders[id]=int(pending_item.get("draw_order",0))
+			if pending_item.get("reference_prepared",false):route.spec_records.append(pending_item.record.duplicate(true))
 	if job.has("shared_pixels"):route.shared_pixels=job.shared_pixels
+	if _reference_handoff!=null:
+		route.hydrated_records=_reference_handoff.take(_reference_index,requests)
+		profile.reference_handoff_transferred=_reference_handoff.transferred
+		profile.reference_handoff_remaining=_reference_handoff.records.size()
 	return _prepare_job.bind(path,digest,token,item.get("manifest",{}),needs_faces,content_root,_reference_index,_reference_map_path,requests,native,need_model,_reference_proof,route)
 
 func _discard_job(path:String)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.deferred_asset_loader._discard_job") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_invalidate_collision_queries()
 	var job:Dictionary=_jobs[path]
+	_discard_pending_preparation(path,job)
 	if job.has("instance_preparation"):
-		job.instance_preparation.cursor.dispose();job.erase("instance_preparation")
+		job.instance_preparation.cursor.dispose();_record_instance_work(job.instance_preparation.cursor,true,job.instance_preparation.get("worker_prepared",false));job.erase("instance_preparation")
 	_publication_queues.erase(path);_scheduler_epoch+=1
 	for key:Array in _prefab_texture_attempts.keys():
 		if key[0]==path:_prefab_texture_attempts.erase(key)
@@ -2698,35 +3550,59 @@ func _discard_job(path:String)->void:
 	# Published Mesh/CPU-mesh resources retain their own array references.
 	var output:Dictionary=job.get("result",{}) if job.get("result",{}) is Dictionary else {}
 	for uuid:String in output.get("surface_arrays",{}):
-		_doc.load_surface_arrays.erase(uuid)
+		_doc.load_surface_arrays.erase(uuid);_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid)
 	for uuid:String in output.get("terrain_contexts",{}):_doc.terrain_neighbors.data.erase(uuid)
 	# Large importer states retain thousands of GPU/CPU owners. Keep this same
 	# byte reservation until the tree-owned retirement cursor drops every alias.
-	var deferred_release:=preload("res://scripts/world3d/resource_retirement.gd").defer_model_packet(output,Callable(_admission,"release").bind(path),_admission)
-	if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(output,Callable(_admission,"release").bind(path),_admission)
+	var release:Callable=CompletedTrace.release.bind(_admission,path,job.token.get_instance_id()) if CompletedTrace.enabled else _admission.release.bind(path)
+	var deferred_release:=preload("res://scripts/world3d/resource_retirement.gd").defer_model_packet(output,release,_admission)
+	if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(output,release,_admission)
 	if deferred_release:
 		_admission.park(path);_admission.set_stage(path,"resource_retirement")
 	if not output.is_empty():Drainer.dispose_result(output)
 	if job.has("staged"):job.staged.clear()
+	job.erase("staged_groups")
 	if job.has("collision_staged"):
-		for packet:Dictionary in job.collision_staged.values():
+		for packet:Dictionary in job.get("publication_packets",{}).values():
 			if packet.has("index_preparation"):packet.index_preparation.dispose()
 		job.collision_staged.clear()
+	job.erase("publication_packets")
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")
 	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures")
 	Drainer.release_shared(job.token)
-	# Unpublished ready definitions must not outlive their released reservation.
-	# Published specs/runtime records retain their independently resident data.
-	for item:Dictionary in pending:
+	if job.token.has_meta("admission_release"):job.token.remove_meta("admission_release")
+	if CompletedTrace.enabled:
+		var outcomes:Dictionary={}
+		for uuid:String in job.get("publication_ids",[]):
+			outcomes[uuid]="failed" if instance_errors.has(uuid) or path_errors.has(path) else ("cancelled" if job.token.is_cancelled() or _cancelled else ("demanded" if _demanded_by_id.has(uuid) else "undemanded"))
+		CompletedTrace.record(path,job.token.get_instance_id(),"slot_released",{"outcomes":outcomes,"deferred_lease":deferred_release})
+	_jobs.erase(path)
+	if not deferred_release:release.call()
+	_raw_retries.erase(path);_pixel_retries.erase(path)
+	if job.token.has_meta("admission_owner"):job.token.remove_meta("admission_owner")
+
+func _discard_pending_preparation(path:String,job:Dictionary)->void:
+	# Only this job's publication IDs can receive model_verified, and only its
+	# returned records can receive hydrated definitions. Resolve both through
+	# the live catalogue, including accepted group members no longer demanded.
+	# Do this before disposing the result; published/retired IDs are already gone.
+	var items:Array=[]
+	if _indexed and incremental_pending_index_enabled and _pending_by_record_id.size()==pending_count() and job.has("publication_ids"):
+		var ids:Dictionary={}
+		for uuid:String in job.publication_ids:ids[uuid]=true
+		var output:Variant=job.get("result",{})
+		if output is Dictionary:
+			for record:Dictionary in output.get("records",[]):ids[record.uuid]=true
+		for uuid:String in ids:
+			var item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+			if not item.is_empty():items.append(item)
+	else:items=pending # Standalone/diagnostic producers may not have a catalogue.
+	profile.discard_pending_visits=int(profile.get("discard_pending_visits",0))+items.size()
+	for item:Dictionary in items:
 		if item.path!=path:continue
 		item.erase("model_verified")
 		if item.has("reference_entry") and item.get("reference_prepared",false):
 			item.record=item.reference_entry.compact_record;item.reference_prepared=false
-	if job.token.has_meta("admission_release"):job.token.remove_meta("admission_release")
-	_jobs.erase(path)
-	if not deferred_release:_admission.release(path)
-	_raw_retries.erase(path);_pixel_retries.erase(path)
-	if job.token.has_meta("admission_owner"):job.token.remove_meta("admission_owner")
 
 func _retry_pixel_job(path:String,revisions:Dictionary,reason:String)->void:
 	var count_:int=int(_pixel_retries.get(path,{}).get("count",0))+1
@@ -2801,7 +3677,7 @@ static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:Strin
 
 func _nearest_index()->int:
 	var at:=-1;var nearest:=INF
-	for i in pending.size():
+	for i in pending_count():
 		var distance:float=_distance(pending[i])
 		if distance<nearest:nearest=distance;at=i
 	return at
@@ -2817,11 +3693,8 @@ static func _distance_from(item:Dictionary,origin:Vector3)->float:
 static func _collect(node:Node,pose:Transform3D,result:Array)->void:
 	if node is Node3D:pose=pose*node.transform
 	if node is MeshInstance3D:
-		var spec:Dictionary=Stream._spec(node)
-		spec.transform=pose;spec.position=pose.origin;spec.rotation=pose.basis.get_euler()
-		var box:AABB=pose*node.get_aabb()
-		spec.chunk=Stream.chunk_key(pose.origin);spec.chunk_min=Stream.chunk_key(box.position);spec.chunk_max=Stream.chunk_key(box.end)
-		preload("res://scripts/world3d/building_fixtures.gd").prepare_spec(spec)
+		var spec:Dictionary=Stream._spec(node,pose)
+		spec.rotation=pose.basis.get_euler()
 		spec.uuid=str(spec.extras.get("uuid",node.name));result.append(spec)
 	for child:Node in node.get_children():_collect(child,pose,result)
 

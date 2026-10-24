@@ -1,0 +1,193 @@
+--- a/drivers/windows/file_access_windows.h
++++ b/drivers/windows/file_access_windows.h
+@@ -46,6 +46,16 @@
+ 	String path;
+ 	String path_src;
+ 	String save_path;
++
++	// Opt-in IO trace (RMMO_FILE_TRACE=<file>): one row per opened file and per
++	// metadata query, timed with OS ticks so rows align with script timings.
++	uint64_t trace_open_us = 0;
++	uint64_t trace_open_cost_us = 0;
++	mutable uint64_t trace_read_bytes = 0;
++	mutable uint64_t trace_reads = 0;
++	mutable uint64_t trace_read_us = 0;
++	static FILE *trace_file;
++	static void trace_row(const char *p_kind, uint64_t p_begin_us, uint64_t p_end_us, uint64_t p_a, uint64_t p_b, uint64_t p_c, uint64_t p_d, uint64_t p_e, const String &p_path);
+ 
+ 	void _close();
+ 
+--- a/drivers/windows/file_access_windows.cpp
++++ b/drivers/windows/file_access_windows.cpp
+@@ -33,8 +33,11 @@
+ #include "file_access_windows.h"
+ 
+ #include "core/config/project_settings.h"
++#include "core/os/mutex.h"
+ #include "core/os/os.h"
++#include "core/os/thread.h"
+ #include "core/string/print_string.h"
++#include "core/templates/hash_map.h"
+ 
+ #include <io.h>
+ #include <share.h> // _SH_DENYNO
+@@ -50,6 +53,26 @@
+ #define S_ISREG(m) ((m) & _S_IFREG)
+ #endif
+ 
++#ifdef TOOLS_ENABLED
++static HashMap<String, String> stored_names;
++static Mutex stored_name_mutex;
++#endif
++
++FILE *FileAccessWindows::trace_file = nullptr;
++static Mutex *trace_mutex = nullptr;
++
++// Columns: kind begin_us end_us thread a b c d e path.
++// O/W (file opened for reading/writing, row written at close): a=read_us b=reads c=bytes_read d=length e=open_cost_us.
++// F (failed open): a=mode e=open_cost_us.  X (exists query): a=exists.
++void FileAccessWindows::trace_row(const char *p_kind, uint64_t p_begin_us, uint64_t p_end_us, uint64_t p_a, uint64_t p_b, uint64_t p_c, uint64_t p_d, uint64_t p_e, const String &p_path) {
++	if (!trace_file) {
++		return;
++	}
++	const CharString utf8 = p_path.utf8();
++	MutexLock lock(*trace_mutex);
++	fprintf(trace_file, "%s\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%s\n", p_kind, (unsigned long long)p_begin_us, (unsigned long long)p_end_us, (unsigned long long)Thread::get_caller_id(), (unsigned long long)p_a, (unsigned long long)p_b, (unsigned long long)p_c, (unsigned long long)p_d, (unsigned long long)p_e, utf8.get_data());
++}
++
+ void FileAccessWindows::check_errors(bool p_write) const {
+ 	ERR_FAIL_NULL(f);
+ 
+@@ -99,6 +122,7 @@
+ }
+ 
+ Error FileAccessWindows::open_internal(const String &p_path, int p_mode_flags) {
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	if (is_path_invalid(p_path)) {
+ #ifdef DEBUG_ENABLED
+ 		if (p_mode_flags != READ) {
+@@ -171,15 +195,29 @@
+ 		for (const String &part : parts) {
+ 			working_path = working_path + "\\" + part;
+ 
+-			HANDLE fnd = FindFirstFileW((LPCWSTR)(working_path.utf16().get_data()), &d);
+-			if (fnd == INVALID_HANDLE_VALUE) {
+-				mismatch = false;
+-				break;
+-			}
+-
+-			const String fname = String::utf16((const char16_t *)(d.cFileName));
+-
+-			FindClose(fnd);
++			// Stored names of components already found on disk; the lookup only
++			// feeds the case warning, so a stale entry cannot change what opens.
++			String fname;
++			{
++				MutexLock lock(stored_name_mutex);
++				const String *stored = stored_names.getptr(working_path);
++				if (stored) {
++					fname = *stored;
++				}
++			}
++			if (fname.is_empty()) {
++				HANDLE fnd = FindFirstFileW((LPCWSTR)(working_path.utf16().get_data()), &d);
++				if (fnd == INVALID_HANDLE_VALUE) {
++					mismatch = false;
++					break;
++				}
++
++				fname = String::utf16((const char16_t *)(d.cFileName));
++
++				FindClose(fnd);
++				MutexLock lock(stored_name_mutex);
++				stored_names.insert(working_path, fname);
++			}
+ 
+ 			if (!mismatch) {
+ 				mismatch = (part != fname && part.findn(fname) == 0);
+@@ -216,6 +254,18 @@
+ 	}
+ 
+ 	f = _wfsopen((LPCWSTR)(path.utf16().get_data()), mode_string, is_backup_save_enabled() ? ((p_mode_flags == READ) ? _SH_DENYWR : _SH_DENYRW) : _SH_DENYNO);
++	if (trace_file) {
++		const uint64_t opened = OS::get_singleton()->get_ticks_usec();
++		trace_open_us = trace_begin;
++		trace_open_cost_us = opened - trace_begin;
++		trace_read_bytes = 0;
++		trace_reads = 0;
++		trace_read_us = 0;
++		if (f == nullptr) {
++			trace_row("F", trace_begin, opened, p_mode_flags, 0, 0, 0, trace_open_cost_us, path_src);
++			trace_open_us = 0;
++		}
++	}
+ 
+ 	if (f == nullptr) {
+ 		switch (errno) {
+@@ -239,6 +289,11 @@
+ 		return;
+ 	}
+ 
++	if (trace_file && trace_open_us) {
++		const uint64_t length = get_length();
++		trace_row(flags == READ ? "O" : "W", trace_open_us, OS::get_singleton()->get_ticks_usec(), trace_read_us, trace_reads, trace_read_bytes, length, trace_open_cost_us, path_src);
++		trace_open_us = 0;
++	}
+ 	fclose(f);
+ 	f = nullptr;
+ 
+@@ -344,8 +399,14 @@
+ 		prev_op = READ;
+ 	}
+ 
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	uint64_t read = fread(p_dst, 1, p_length, f);
+ 	check_errors();
++	if (trace_file) {
++		trace_read_bytes += read;
++		trace_reads++;
++		trace_read_us += OS::get_singleton()->get_ticks_usec() - trace_begin;
++	}
+ 
+ 	return read;
+ }
+@@ -405,8 +466,13 @@
+ 	}
+ 
+ 	String filename = fix_path(p_name);
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	DWORD file_attr = GetFileAttributesW((LPCWSTR)(filename.utf16().get_data()));
+-	return (file_attr != INVALID_FILE_ATTRIBUTES) && !(file_attr & FILE_ATTRIBUTE_DIRECTORY);
++	const bool exists = (file_attr != INVALID_FILE_ATTRIBUTES) && !(file_attr & FILE_ATTRIBUTE_DIRECTORY);
++	if (trace_file) {
++		trace_row("X", trace_begin, OS::get_singleton()->get_ticks_usec(), exists, 0, 0, 0, 0, p_name);
++	}
++	return exists;
+ }
+ 
+ uint64_t FileAccessWindows::_get_modified_time(const String &p_file) {
+@@ -704,10 +770,24 @@
+ 
+ 	_setmaxstdio(8192);
+ 	print_verbose(vformat("Maximum number of file handles: %d", _getmaxstdio()));
++
++	const wchar_t *trace_path = _wgetenv(L"RMMO_FILE_TRACE");
++	if (trace_path && trace_path[0] && !trace_file) {
++		trace_file = _wfopen(trace_path, L"wb");
++		if (trace_file) {
++			setvbuf(trace_file, nullptr, _IOFBF, 1 << 20);
++			trace_mutex = memnew(Mutex);
++		}
++	}
+ }
+ 
+ void FileAccessWindows::finalize() {
+ 	invalid_files.clear();
++	if (trace_file) {
++		MutexLock lock(*trace_mutex);
++		fclose(trace_file);
++		trace_file = nullptr;
++	}
+ }
+ 
+ #endif // WINDOWS_ENABLED

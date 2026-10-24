@@ -3,6 +3,7 @@ extends RefCounted
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
 const S=preload("res://scripts/world3d/document_schema.gd")
 static var boolean_schema_enabled:=true # Diagnostic legacy comparison; same schema contract.
+static var bulk_arrays_enabled:=true
 static func _schema_valid(value:Variant,schema:Dictionary)->bool:
 	return S.matches(value,schema) if boolean_schema_enabled else S.validate(value,schema).is_empty()
 
@@ -74,6 +75,12 @@ static func mesh(record: Dictionary, material: Material) -> ArrayMesh:
 	return result
 
 static func arrays(record:Dictionary)->Array:
+	if not bulk_arrays_enabled:return arrays_legacy(record)
+	var result:=preload("res://scripts/world3d/road_surface_arrays.gd").build(local_polygons(record),Vector3.DOWN*float(record.size[1]),Poly.vec(record.road_mesh.uv_origin))
+	if record.road_mesh.has("kerbs"):result.append(preload("res://scripts/world3d/road_kerb.gd").arrays(record))
+	return result
+
+static func arrays_legacy(record:Dictionary)->Array:
 	var result:Array=[];var polys:=local_polygons(record);var drop:=Vector3.DOWN*float(record.size[1])
 	var uv:=Poly.vec(record.road_mesh.uv_origin)
 	for surface in 3:
@@ -103,4 +110,4 @@ static func signature(record: Dictionary) -> String:
 	var value:={}
 	for field in ["position","rotation","size","road_mesh","terrain_follow","road_kerb_material","road_clearance","collision","kind","color","invisible","wind_response"]:
 		if record.has(field): value[field]=record[field]
-	return preload("res://scripts/world3d/city_layout.gd").token(value)
+	return preload("res://scripts/world3d/layout_identity.gd").token(value)

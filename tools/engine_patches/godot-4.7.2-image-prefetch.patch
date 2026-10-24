@@ -1,0 +1,43 @@
+--- a/platform/windows/godot_windows.cpp
++++ b/platform/windows/godot_windows.cpp
+@@ -65,7 +65,40 @@
+ 	return ubuf;
+ }
+ 
++// Code pages of a large executable are otherwise faulted in one by one as
++// startup touches them; on a cold hard disk each fault is a seek. Ask the
++// memory manager to read the whole mapped image in large requests on a side
++// thread instead. Already resident pages cost nothing. GODOT_IMAGE_PREFETCH=0
++// disables it.
++static DWORD WINAPI _prefetch_own_image(LPVOID) {
++	typedef BOOL(WINAPI * PrefetchVirtualMemoryFn)(HANDLE, ULONG_PTR, PWIN32_MEMORY_RANGE_ENTRY, ULONG);
++	PrefetchVirtualMemoryFn prefetch = (PrefetchVirtualMemoryFn)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "PrefetchVirtualMemory");
++	if (!prefetch) {
++		return 0;
++	}
++	HMODULE image = GetModuleHandleW(nullptr);
++	const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)image;
++	const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)((const BYTE *)image + dos->e_lfanew);
++	WIN32_MEMORY_RANGE_ENTRY range;
++	range.VirtualAddress = image;
++	range.NumberOfBytes = nt->OptionalHeader.SizeOfImage;
++	prefetch(GetCurrentProcess(), 1, &range, 0);
++	return 0;
++}
++
++static void _start_image_prefetch() {
++	wchar_t setting[8] = {};
++	if (GetEnvironmentVariableW(L"GODOT_IMAGE_PREFETCH", setting, 8) > 0 && setting[0] == L'0') {
++		return;
++	}
++	HANDLE thread = CreateThread(nullptr, 0, _prefetch_own_image, nullptr, 0, nullptr);
++	if (thread) {
++		CloseHandle(thread);
++	}
++}
++
+ int widechar_main(int argc, wchar_t **argv) {
++	_start_image_prefetch();
+ 	godot_init_profiler();
+ 
+ 	// Prevent Windows from replacing the window with a "ghost" when the main

@@ -16,6 +16,10 @@ var bin_cursor:=0
 func _init(root:Node,from:Vector2i,to:Vector2i,pending:Array,stream:Script)->void:
 	previous=from;unfinished=pending;draws=stream._draws
 	bins.append(pending)
+	# Publication can add records without changing the focus cell. The old
+	# and new residency rings are then identical: only unfinished/new records
+	# can change. Do not compare every building and landscape item to itself.
+	if from==to:return
 	for radius in [stream.RENDER_RADIUS,stream.COLLISION_RADIUS]:
 		var index:Dictionary=root.get_meta("stream_prop_index" if radius==stream.RENDER_RADIUS else "stream_collision_index",{})
 		var old:Dictionary=stream._ring_at(from,radius);var next:Dictionary=stream._ring_at(to,radius)

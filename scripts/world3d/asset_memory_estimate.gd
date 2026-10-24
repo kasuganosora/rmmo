@@ -34,6 +34,15 @@ static func stage_profile(value:Dictionary)->Dictionary:
 		"retained_result_charge_bytes":total,"policy":"full_fallback_envelope_no_compiled_discount",
 		"components_overlap":true,"source_identity_verified":false,"loading_eligible":false}
 
+static func from_manifest(path:String,manifest:Dictionary)->Dictionary:
+	# Scheduling metadata is generated with the dependency directory and shares
+	# its source/generator invalidation. Keep the SAME full raw/native envelope,
+	# including textures; this reuse changes no admission limit or residency charge.
+	var memory:Variant=manifest.get("memory")
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and memory is Dictionary and memory.get("estimated_bytes") is int and memory.estimated_bytes>0 and memory.estimated_bytes<=MAX_ESTIMATE and memory.get("exclusive") is bool and memory.get("source_bytes")==manifest.get("file_length"):
+		return memory.duplicate()
+	return estimate(path)
+
 static func estimate(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null: return _unknown("missing")

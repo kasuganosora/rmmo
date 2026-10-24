@@ -66,7 +66,10 @@ func run()->void:
 	file=FileAccess.open(path,FileAccess.WRITE);file.store_buffer(original);file.close()
 	check(cpu.request(path,at,ledger) and await cpu_ready(cpu) and gpu.request(path,at,ledger,cpu) and await gpu_ready(gpu),"prepare independently verified model dependency")
 	file=FileAccess.open(asset,FileAccess.READ_WRITE);file.seek_end();file.store_8(0);file.close()
+	var policy:=preload("res://scripts/world3d/runtime_package_policy.gd")
+	policy.verify_packages=true # Explicit source replacement diagnostic; trusted packages keep their published identity.
 	check(gpu.take(path,at)==null,"changed external model bytes reject stale target GPU resources")
+	policy.verify_packages=false
 	await gpu.drain();file=FileAccess.open(asset,FileAccess.WRITE);file.store_buffer(asset_bytes);file.close()
 	check(cpu.request(path,at,ledger) and await cpu_ready(cpu) and gpu.request(path,at,ledger,cpu),"start cancellation with an actual private loader")
 	check(not ledger.reserve("required",{"estimated_bytes":1,"exclusive":true}),"source critical task preempts speculative target")

@@ -8,13 +8,20 @@ const IMPORT_FIELDS:Array[String]=["json","glb_data","nodes","buffers","buffer_v
 const MAX_IMPORT_VALUES:=262144
 static var background_byte_release_enabled:=true
 static var background_geometry_release_enabled:=true
+static var background_decoded_release_enabled:=true
+static var geometry_size_reuse_enabled:=true
+static var batched_geometry_release_enabled:=true # Diagnostic threshold-scan baseline.
+static var ordered_retirement_tail_enabled:=true # Diagnostic old-batch fence control.
+static var _geometry_sizes:=preload("res://scripts/world3d/cpu_geometry_size.gd").new()
 const BACKGROUND_BYTE_MIN:=8*1024*1024
+const CPU_GEOMETRIES_PER_BATCH:=1024
 var pending:Array=[]
 var known:Dictionary={}
 var exiting:=false
 var serial:=0
 var _advancing_ticket:Dictionary={}
-var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0}
+var _open_geometry_batch:Dictionary={}
+var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0,"terrain_shape_arrays":0,"terrain_shape_refs":0}
 static func _service()->Node:
 	if not Thread.is_main_thread():return null
 	var tree:SceneTree=Engine.get_main_loop() as SceneTree
@@ -26,8 +33,8 @@ static func _service()->Node:
 	return service
 static func defer_scene(scene:PackedScene)->bool:
 	if scene==null or not Thread.is_main_thread():return false
-	var state:SceneState=scene.get_state()
-	if state.get_node_count()<=64:return false
+	# Node count does not bound native ownership: one node may own a large mesh.
+	# Admit even small templates; scan/release work remains budgeted by the queue.
 	var service:Node=_service()
 	if service==null:return false
 	service._enqueue(scene);return true
@@ -38,29 +45,50 @@ static func defer_private_array(values:Array,force_small:bool=false)->bool:
 	if values.is_empty() or (values.size()<256 and not force_small) or not Thread.is_main_thread():return false
 	var service:Node=_service()
 	if service==null:return false
-	service.serial+=1;var id:="private:%d"%service.serial
-	service.pending.append({"kind":"private_array","source_id":id,"values":values})
-	service.known[id]=true;service.profile.private_arrays+=1;service.set_process(true)
+	service._enqueue_private_array(values)
 	return true
-static func defer_cpu_geometry(surfaces:Array,lods:Array,faces:PackedVector3Array)->bool:
+func _enqueue_private_array(values:Array)->Dictionary:
+	serial+=1;var id:="private:%d"%serial
+	var ticket:Dictionary={"kind":"private_array","source_id":id,"values":values}
+	pending.append(ticket);known[id]=true;profile.private_arrays+=1;set_process(true)
+	return ticket
+static func defer_terrain_shape_owners(shapes:Variant,basis_entries:Variant)->bool:
+	# Exact producer schema only: flat Shape refs from identity and <=8 basis
+	# sets. Snapshot outer refs; never mutate borrowed arrays or send RIDs to CPU.
+	if (shapes==null and basis_entries==null) or not Thread.is_main_thread():return false
+	var service:Node=_service()
+	if service==null:return false
+	var values:Array=shapes.duplicate() if shapes!=null else []
+	if basis_entries!=null:
+		for key:String in basis_entries:values.append_array(basis_entries[key].shapes)
+	if values.is_empty():return false
+	var ticket:Dictionary=service._enqueue_private_array(values)
+	service.profile.terrain_shape_arrays+=1;service.profile.terrain_shape_refs+=values.size()
+	# Only native terrain Shape leaves inherit this fence. The producer adds
+	# no CPU mesh metadata/debug-cache graph to these Shapes. This is not a
+	# general Resource-graph retirement API. An inherited private tail does
+	# not activate model/import context for arbitrary grandchildren.
+	# Only these leaf Shape units inherit a model/import completion fence.
+	# Generic private snapshots may contain other graphs and do not opt in.
+	if service._advancing_ticket.get("kind","") in ["model","import"]:
+		service._advancing_ticket.geometry_tail=ticket
+	return true
+static func defer_cpu_geometry(surfaces:Array,lods:Array,faces:PackedVector3Array,geometry_identity:String="")->bool:
 	# Called from a CPU mesh's PREDELETE, after its final Resource owner is gone.
 	# These schema fields contain only geometry arrays; materials/metadata and
 	# GPU resources remain in the original main-thread destructor. Never clear
 	# the nested arrays: other immutable CPU meshes may still borrow them.
 	if not background_geometry_release_enabled or not Thread.is_main_thread():return false
-	var bytes:int=faces.size()*(24 if OS.has_feature("double") else 12)
-	for surface:Array in surfaces:
-		for channel:Variant in surface:
-			match typeof(channel):
-				TYPE_PACKED_BYTE_ARRAY:bytes+=channel.size()
-				TYPE_PACKED_INT32_ARRAY,TYPE_PACKED_FLOAT32_ARRAY:bytes+=channel.size()*4
-				TYPE_PACKED_INT64_ARRAY,TYPE_PACKED_FLOAT64_ARRAY:bytes+=channel.size()*8
-				TYPE_PACKED_VECTOR2_ARRAY:bytes+=channel.size()*(16 if OS.has_feature("double") else 8)
-				TYPE_PACKED_VECTOR3_ARRAY:bytes+=channel.size()*(24 if OS.has_feature("double") else 12)
-				TYPE_PACKED_COLOR_ARRAY:bytes+=channel.size()*16
-				TYPE_PACKED_VECTOR4_ARRAY:bytes+=channel.size()*(32 if OS.has_feature("double") else 16)
-	for levels:Dictionary in lods:
-		for indices:PackedInt32Array in levels.values():bytes+=indices.size()*4
+	if batched_geometry_release_enabled:
+		if surfaces.is_empty() and lods.is_empty() and faces.is_empty():return false
+		var service:Node=_service()
+		if service==null:return false
+		service._enqueue_cpu_geometry(surfaces,lods,faces)
+		return true
+	# Material projections and restored GPU owners borrow the same immutable
+	# channel/LOD identity. Retain only its scalar size, not a geometry owner.
+	# Faces are lazy per mesh, so never reuse their charge through this key.
+	var bytes:int=faces.size()*(24 if OS.has_feature("double") else 12)+_geometry_sizes.measure(surfaces,lods,geometry_identity if geometry_size_reuse_enabled else "")
 	if bytes<BACKGROUND_BYTE_MIN:return false
 	var service:Node=_service()
 	if service==null:return false
@@ -71,9 +99,37 @@ static func defer_cpu_geometry(surfaces:Array,lods:Array,faces:PackedVector3Arra
 	var ticket:Dictionary={"kind":"cpu_geometry","source_id":id,"values":[surfaces,lods,faces],"logical_bytes":bytes,"worker":null}
 	service.pending.append(ticket)
 	if service._advancing_ticket.get("kind","") in ["model","import"]:
-		# FIFO disposal makes the last geometry child the completion fence for
+		# FIFO disposal makes the newest queued child the completion fence for
 		# all children. Its parent transfers admission/callback ownership there.
 		service._advancing_ticket.geometry_tail=ticket
+	service.known[id]=true;service.set_process(true)
+	return true
+func _enqueue_cpu_geometry(surfaces:Array,lods:Array,faces:PackedVector3Array)->void:
+	# The schema is already pure CPU data. Transfer roots without walking them
+	# to decide a size threshold. This changes no memory-admission accounting:
+	# the original model reservation still follows its final completion fence.
+	var owner_id:String=str(_advancing_ticket.get("source_id",""))
+	if _open_geometry_batch.is_empty() or _open_geometry_batch.owner_id!=owner_id or int(_open_geometry_batch.geometry_owners)>=CPU_GEOMETRIES_PER_BATCH:
+		serial+=1;var id:="geometry:%d"%serial
+		_open_geometry_batch={"kind":"cpu_geometry","source_id":id,"owner_id":owner_id,"values":[],"geometry_owners":0,"logical_bytes":0,"worker":null}
+		pending.append(_open_geometry_batch);known[id]=true
+		# Tail advances only when a child enters FIFO. Reusing an older batch
+		# must not move the fence back ahead of newer main-thread Shape children.
+		if _advancing_ticket.get("kind","") in ["model","import"]:_advancing_ticket.geometry_tail=_open_geometry_batch
+	var values:Array=_open_geometry_batch.values
+	values.append(surfaces);values.append(lods);values.append(faces)
+	_open_geometry_batch.geometry_owners+=1
+	if not ordered_retirement_tail_enabled and _advancing_ticket.get("kind","") in ["model","import"]:_advancing_ticket.geometry_tail=_open_geometry_batch
+	set_process(true)
+
+static func defer_cpu_values(values:Array,logical_bytes:int)->bool:
+	# Producer contract: newly owned outer container with only decoded values,
+	# never Objects/RIDs/Callables. Do not recursively clear borrowed children.
+	if not background_decoded_release_enabled or values.is_empty() or not Thread.is_main_thread():return false
+	var service:Node=_service()
+	if service==null:return false
+	service.serial+=1;var id:="cpu_values:%d"%service.serial
+	service.pending.append({"kind":"cpu_geometry","source_id":id,"values":values,"logical_bytes":logical_bytes,"worker":null})
 	service.known[id]=true;service.set_process(true)
 	return true
 static func defer_import_packet(packet:Dictionary,on_done:Callable,owner:RefCounted)->bool:
@@ -210,16 +266,27 @@ static func _release_cpu_geometry(values:Array)->Dictionary:
 	# shared, and releasing this reference must not alter any surviving borrower.
 	while not values.is_empty():_drop_private_value(values,false)
 	return {"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
+static func _release_cpu_geometry_batch(values:Array)->Dictionary:
+	var began:=Time.get_ticks_usec()
+	# The worker is the sole mutator of this private outer container. Native
+	# clear releases borrowed children without clearing their shared contents.
+	values.clear()
+	return {"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
 func _advance_cpu_geometry(ticket:Dictionary,shutdown:bool)->bool:
 	var began:=Time.get_ticks_usec();var worker:Thread=ticket.worker
 	if worker==null:
+		if is_same(_open_geometry_batch,ticket):_open_geometry_batch={}
 		worker=Thread.new()
-		if worker.start(_release_cpu_geometry.bind(ticket.values))!=OK:
+		var release:Callable=_release_cpu_geometry_batch if ticket.has("geometry_owners") else _release_cpu_geometry
+		if worker.start(release.bind(ticket.values))!=OK:
 			profile.geometry_start_failures=int(profile.get("geometry_start_failures",0))+1
 			ticket.values.clear();return true
 		ticket.worker=worker
 		profile.geometry_batches=int(profile.get("geometry_batches",0))+1
 		profile.geometry_logical_bytes=int(profile.get("geometry_logical_bytes",0))+int(ticket.logical_bytes)
+		# Unknown bytes are explicit, never reported as measured zero/RSS. No
+		# channel traversal is added solely to collect a retirement statistic.
+		profile.geometry_unmeasured_owners=int(profile.get("geometry_unmeasured_owners",0))+int(ticket.get("geometry_owners",0))
 	var done:=not worker.is_alive() or shutdown
 	if done:
 		var result:Dictionary=worker.wait_to_finish();ticket.worker=null

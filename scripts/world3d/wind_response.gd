@@ -70,17 +70,17 @@ static func validate_target(root: Node3D, config: Dictionary) -> String:
 static func annotate(root: Node3D, record: Dictionary) -> void:
 	if not valid(record): return
 	var config := resolve(record)
-	if config.profile == "off":
-		if record.has("wind_response"):
-			for node in Paint.meshes(root):
-				if config.mesh != "*" and str(root.get_path_to(node)) != config.mesh:continue
-				var extras:Dictionary=node.get_meta("extras",{}).duplicate(true)
-				extras.erase("rmmo_wind");node.set_meta("extras",extras)
-				if node.is_in_group(GROUP):node.remove_from_group(GROUP)
-		return
+	if config.profile == "off" and not record.has("wind_response"):return
 	for node in Paint.meshes(root):
 		if config.mesh != "*" and str(root.get_path_to(node)) != config.mesh: continue
-		var extras: Dictionary = node.get_meta("extras",{}).duplicate(true)
+		annotate_mesh(node,config)
+
+static func annotate_mesh(node:MeshInstance3D,config:Dictionary)->void:
+	var extras:Dictionary=node.get_meta("extras",{}).duplicate(true)
+	if config.profile=="off":
+		extras.erase("rmmo_wind");node.set_meta("extras",extras)
+		if node.is_in_group(GROUP):node.remove_from_group(GROUP)
+	else:
 		extras.rmmo_wind = config.duplicate(true)
 		node.set_meta("extras",extras)
 		register(node)

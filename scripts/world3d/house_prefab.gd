@@ -1,6 +1,7 @@
 extends RefCounted
 ## Frozen render/collision groups, stored as plain data in the native document.
 ## No source pieces or generator calls are required when an instance is loaded.
+const ShadowFaces=preload("res://scripts/world3d/prefab_shadow_face_demand.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Cook=preload("res://scripts/world3d/runtime_mesh_cache.gd")
 const Merge=preload("res://scripts/world3d/ground_batch_geometry.gd")
@@ -8,17 +9,30 @@ const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 static var _meshes:Dictionary={}
 static var _render_meshes:Dictionary={}
+static var _render_owner_aliases:Dictionary={} # Bounded weak aliases, never an additional geometry owner.
+static var material_owner_reuse_enabled:=true
+static var split_retirement_owner_units_enabled:=true # Diagnostic old compound retirement unit.
+static var material_identity_reuses:=0
+static var material_identity_scans:=0
 static var _decoded:Dictionary={}
 static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
 static var _decode_issuer:=RefCounted.new()
 static var coalesce_decodes:=true # Diagnostic control for concurrent cold requests.
+static var trusted_metadata_reuse_enabled:=true
+static var native_unindexed_faces_enabled:=true
+static var raw_face_reuse_enabled:=true
+static var source_collision_faces_enabled:=true # Diagnostic control: expand only the actual frozen collider.
+static var shadow_face_preparation_enabled:=true # Same-code diagnostic old synchronous shadow expansion.
+static var prepared_face_handoff_enabled:=true # Diagnostic old cache-hit/alias publication order.
+static var bounds_only_decode_enabled:=true
 static var _decoding:Dictionary={}
 class DecodeFlight extends RefCounted:
 	var wake:=Semaphore.new()
 	var waiters:=0
 	var encoded:String
 	var length:int
+	var trusted_package:=false
 	var packet:Dictionary={}
 static func evict_geometry(digests:Dictionary)->void:
 	var trace=preload("res://scripts/world3d/load_trace.gd")
@@ -26,7 +40,15 @@ static func evict_geometry(digests:Dictionary)->void:
 	var retired:Array=[]
 	for key:String in _meshes.keys():
 		if not digests.has(key.get_slice(":",0)):continue
-		retired.append(_meshes[key]);_meshes.erase(key)
+		var retiring:Dictionary=_meshes[key]
+		if split_retirement_owner_units_enabled:
+			# geometry() can lend this dictionary to surviving callers. Keep both
+			# known Resource edges before dropping our cache reference; separate
+			# units need not destroy both direct owners in one minimum-budget step.
+			# Never clear the entry or traverse its shared geometry/material graph.
+			retired.append(retiring.mesh);retired.append(retiring.source)
+		else:retired.append(retiring)
+		_meshes.erase(key)
 	trace.elapsed("prefab.retire_geometry",phase,{"digests":digests.size()});phase=Time.get_ticks_usec()
 	# The independent 512-entry caches can evict at different times (painted
 	# variants only occupy _meshes). Retire orphan render-cache owners as well.
@@ -38,13 +60,23 @@ static func evict_geometry(digests:Dictionary)->void:
 		# Keep that lookup while any remaining definition still owns it.
 		if not live.has(id):retired.append(_render_meshes[key]);_render_meshes.erase(key)
 	trace.elapsed("prefab.retire_render",phase);phase=Time.get_ticks_usec()
+	var decoded_values:Array=[];var decoded_bytes:=0
 	_decode_mutex.lock()
 	trace.elapsed("prefab.retire_decode_lock",phase);phase=Time.get_ticks_usec()
 	for key:String in digests:
 		if _decoded.has(key):
-			retired.append(_decoded[key]);_decoded_bytes-=int(_decoded[key].length);_decoded.erase(key)
+			var packet:Dictionary=_decoded[key];var bytes:=retained_decode_bytes(packet)
+			if preload("res://scripts/world3d/resource_retirement.gd").background_decoded_release_enabled and packet.get("issuer")==_decode_issuer:
+				# Only fields issued by our no-Object decoder cross the thread boundary.
+				# The issuer remains on main; no GPU resources enter this donation.
+				for field:String in ["data","collision_faces","encoded","geometry_keys","local_bounds"]:
+					if packet.has(field):decoded_values.append(packet[field])
+				decoded_bytes+=bytes
+			else:retired.append(packet)
+			_decoded_bytes-=bytes;_decoded.erase(key)
 	_decode_mutex.unlock()
 	trace.elapsed("prefab.retire_decoded",phase,{"digests":digests.size()})
+	if not decoded_values.is_empty():preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values(decoded_values,decoded_bytes)
 	# Logical eviction is synchronous; final immutable packet/mesh destruction
 	# is distributed even when a small cache array owns large nested geometry.
 	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(retired,true)
@@ -170,9 +202,9 @@ static func source_slot(value:Dictionary)->int:
 	return -1 if packet.is_empty() else int(packet.data.entries[0][1][1])
 
 static func local_bounds(value:Dictionary)->Dictionary:
-	# Return math values only. Inspect actual vertices rather than trusting the
-	# serialized bounds, preserving dependency-directory safety validation.
-	var packet:=_decode_packet(value)
+	# Authored packages already contain mesh bounds. Diagnostic verification
+	# retains the vertex scan; callers receive only independent math values.
+	var packet:=_decode_packet(value,false,true)
 	if packet.is_empty():return {"known":false}
 	return packet.local_bounds.duplicate()
 
@@ -188,67 +220,177 @@ static func _local_bounds(data:Dictionary)->Dictionary:
 				bounds=AABB(point,Vector3.ZERO) if first else bounds.expand(point);first=false
 	return {"known":false} if first else {"known":true,"bounds":bounds}
 
-static func _packet_matches(packet:Dictionary,digest:String,encoded:String,length:int)->bool:
-	if not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not packet.get("verified",false):return false
-	return packet.get("issuer")==_decode_issuer and packet.is_read_only() and packet.get("sha256")==digest and packet.get("encoded")==encoded and packet.get("length")==length and packet.get("data") is Dictionary and packet.data.is_read_only() and packet.get("geometry_keys") is Array and packet.geometry_keys.is_read_only() and packet.get("local_bounds") is Dictionary and packet.local_bounds.is_read_only()
+static func _stored_local_bounds(data:Dictionary)->Dictionary:
+	# Frozen groups store conservative source AABBs; their rounded output
+	# vertices may differ by a few micrometres. Keep that authoring envelope
+	# with a 0.1 mm numerical margin, not another per-vertex reduction.
+	var bounds:=AABB();var first:=true
+	for mesh:Dictionary in data.meshes:
+		if mesh.box_size!=Vector3.ZERO:
+			var box:=AABB(-mesh.box_size/2.0,mesh.box_size)
+			bounds=box if first else bounds.merge(box);first=false
+		if not mesh.surfaces.is_empty():
+			bounds=mesh.bounds if first else bounds.merge(mesh.bounds);first=false
+	return {"known":false} if first else {"known":true,"bounds":bounds.grow(.0001)}
 
-static func _decode_packet(value:Dictionary)->Dictionary:
+static func _seal_owned_containers(data:Variant)->void:
+	# Only freshly decoded/duplicated private data enters here. Freezing keeps
+	# the ownership contract; scalar revalidation and ancestor walks add no
+	# information for a trusted package. Read-only containers are visited once.
+	var pending:Array=[data]
+	while not pending.is_empty():
+		var container:Variant=pending.pop_back()
+		if container.is_read_only():continue
+		container.make_read_only()
+		if container is Dictionary:
+			for key in container:
+				if key is Array or key is Dictionary:pending.append(key)
+				var value:Variant=container[key]
+				if value is Array or value is Dictionary:pending.append(value)
+		else:
+			for value in container:
+				if value is Array or value is Dictionary:pending.append(value)
+
+static func _packet_matches(packet:Dictionary,digest:String,encoded:String,length:int,trusted_package:bool,with_faces:bool=false,with_keys:bool=true,source_faces_only:bool=false,shadow_render_faces:bool=false)->bool:
+	if with_faces and not _faces_ready(packet,source_faces_only,shadow_render_faces):return false
+	if with_keys and not packet.get("geometry_ready",true):return false
+	if not trusted_package and (not packet.get("verified",false) or packet.get("encoded")!=encoded):return false
+	# Authored SHA/length identify a trusted immutable package. Comparing megabytes
+	# of base64 again while holding the shared mutex serializes unrelated workers.
+	# The issuer/sealed-owner checks still reject mutable or foreign cache entries.
+	return packet.get("issuer")==_decode_issuer and packet.is_read_only() and packet.get("sha256")==digest and packet.get("length")==length and packet.get("data") is Dictionary and packet.data.is_read_only() and packet.get("geometry_keys") is Array and packet.geometry_keys.is_read_only() and packet.get("local_bounds") is Dictionary and packet.local_bounds.is_read_only()
+
+static func retained_decode_bytes(packet:Dictionary)->int:
+	return int(packet.get("retained_bytes",packet.get("length",0)))
+
+static func raw_face_reuse_active()->bool:
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	return raw_face_reuse_enabled and controls.white_materials and controls.discard_map_textures and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+
+static func _decode_packet(value:Dictionary,with_faces:bool=false,bounds_only:bool=false,source_faces_only:bool=false,shadow_render_faces:bool=false)->Dictionary:
 	if value.get("version")!=1 or not value.get("data") is String or not value.get("sha256") is String:return {}
 	var length:int=int(value.get("length",0))
 	var encoded:String=value.data;var digest:String=value.sha256
 	if length<=0 or length>16777216 or encoded.length()>24000000:return {}
+	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	with_faces=with_faces and raw_face_reuse_active()
+	var with_keys:=not (bounds_only and bounds_only_decode_enabled and trusted_package and trusted_metadata_reuse_enabled and not with_faces)
 	_decode_mutex.lock()
 	var cached:Dictionary=_decoded.get(digest,{})
-	if _packet_matches(cached,digest,encoded,length):
+	var upgrade:=_packet_matches(cached,digest,encoded,length,trusted_package,false,false)
+	if upgrade and _packet_matches(cached,digest,encoded,length,trusted_package,with_faces,with_keys,source_faces_only,shadow_render_faces):
 		_decode_mutex.unlock();return cached
 	if coalesce_decodes and _decoding.has(digest):
 		var active:DecodeFlight=_decoding[digest]
-		if active.encoded==encoded and active.length==length:
+		if active.length==length and (trusted_package or (not active.trusted_package and active.encoded==encoded)):
 			active.waiters+=1;_decode_mutex.unlock()
 			var waited:=Time.get_ticks_usec();active.wake.wait()
 			preload("res://scripts/world3d/load_trace.gd").elapsed("prefab.decode_join",waited,{"sha256":digest})
-			return active.packet
-	var flight:=DecodeFlight.new();flight.encoded=encoded;flight.length=length
+			# A metadata-only flight may finish first. Upgrade that exact decoded
+			# owner through another coalesced flight, never decode its bytes again.
+			return _decode_packet(value,with_faces,bounds_only,source_faces_only,shadow_render_faces) if not active.packet.is_empty() and not _packet_matches(active.packet,digest,encoded,length,trusted_package,with_faces,with_keys,source_faces_only,shadow_render_faces) else active.packet
+	var flight:=DecodeFlight.new();flight.encoded=encoded;flight.length=length;flight.trusted_package=trusted_package
 	var registered:bool=coalesce_decodes and not _decoding.has(digest)
 	if registered:_decoding[digest]=flight
 	_decode_mutex.unlock()
 	var started:=Time.get_ticks_usec()
-	preload("res://scripts/world3d/load_trace.gd").instant("prefab.decode_begin",{"sha256":digest,"bytes":length})
-	var packet:=_decode_uncached(encoded,digest,length)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("prefab.decode",started,{"sha256":digest,"bytes":length,"ok":not packet.is_empty()})
+	var phase:String=("prefab.keys" if not cached.get("geometry_ready",true) else "prefab.faces") if upgrade else "prefab.decode"
+	preload("res://scripts/world3d/load_trace.gd").instant(phase+"_begin",{"sha256":digest,"bytes":length})
+	var packet:Dictionary=cached if upgrade else _decode_uncached(encoded,digest,length,trusted_package,with_keys)
+	if with_keys and not packet.is_empty() and not packet.get("geometry_ready",true):packet=_with_geometry_keys(packet)
+	if with_faces and not packet.is_empty() and not _faces_ready(packet,source_faces_only,shadow_render_faces):packet=_with_collision_faces(packet,source_faces_only,shadow_render_faces)
+	preload("res://scripts/world3d/load_trace.gd").elapsed(phase,started,{"sha256":digest,"bytes":length,"ok":not packet.is_empty()})
+	# Release the previous snapshot outside the mutex. Keep removed packets alive
+	# through the cache transaction, including a duplicate result that lost a race.
+	cached={}
+	var retired:Array=[]
 	_decode_mutex.lock()
 	if not packet.is_empty():
 		cached=_decoded.get(digest,{})
-		if _packet_matches(cached,digest,encoded,length):packet=cached
+		if _packet_matches(cached,digest,encoded,length,trusted_package,with_faces,with_keys,source_faces_only,shadow_render_faces):retired.append(packet);packet=cached
 		else:
-			if _decoded.has(digest):_decoded_bytes-=int(_decoded[digest].length);_decoded.erase(digest)
-			while not _decoded.is_empty() and _decoded_bytes+length>DECODE_BUDGET:
-				var oldest:String=_decoded.keys()[0];_decoded_bytes-=_decoded[oldest].length;_decoded.erase(oldest)
-			_decoded[digest]=packet;_decoded_bytes+=length
+			if _decoded.has(digest):retired.append(_decoded[digest]);_decoded_bytes-=retained_decode_bytes(_decoded[digest]);_decoded.erase(digest)
+			var retained:=retained_decode_bytes(packet)
+			while not _decoded.is_empty() and _decoded_bytes+retained>DECODE_BUDGET:
+				var oldest:String=_decoded.keys()[0];retired.append(_decoded[oldest]);_decoded_bytes-=retained_decode_bytes(_decoded[oldest]);_decoded.erase(oldest)
+			if retained<=DECODE_BUDGET:_decoded[digest]=packet;_decoded_bytes+=retained
 	if registered:
 		_decoding.erase(digest);flight.packet=packet
-		for i in flight.waiters:flight.wake.post()
 	_decode_mutex.unlock()
+	if registered:
+		for i in flight.waiters:flight.wake.post()
+	retired.clear()
 	return packet
 
-static func _decode_uncached(encoded:String,digest:String,length:int)->Dictionary:
-	var trusted_package:=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
-	var compressed:=Marshalls.base64_to_raw(encoded)
-	var bytes:=compressed.decompress(length,FileAccess.COMPRESSION_ZSTD)
-	if bytes.size()!=length or (not trusted_package and Cook.Envelope.checksum(bytes).hex_encode()!=digest):return {}
-	var data:Variant=bytes_to_var(bytes)
+static func _with_geometry_keys(packet:Dictionary)->Dictionary:
+	# Spatial classification needs authored bounds only. Derive render identities
+	# once when a real geometry consumer arrives, retaining the decoded owner.
+	var result:=packet.duplicate();var keys:Array=[]
+	for mesh:Dictionary in packet.data.meshes:keys.append(Cpu.geometry_signature(mesh.surfaces,mesh.get("lods",[])))
+	keys.make_read_only();result.geometry_keys=keys;result.geometry_ready=true;result.make_read_only()
+	return result
+
+static func _faces_ready(packet:Dictionary,source_only:bool,shadow_render:bool=false)->bool:
+	if not packet.has("collision_faces"):return false
+	# Existing full binary products already contain every required slot.
+	if not packet.has("collision_face_slots"):return true
+	var slots:Dictionary=packet.collision_face_slots
+	if not source_only:return slots.size()==packet.data.meshes.size()
+	if not slots.has(int(packet.data.entries[0][1][1])):return false
+	if not shadow_render:return true
+	var render_id:=ShadowFaces.white_render_slot(packet.data)
+	return render_id<0 or slots.has(render_id)
+
+static func _with_collision_faces(packet:Dictionary,source_only:bool=false,shadow_render:bool=false)->Dictionary:
+	# Lazy first-consumer upgrade: index bounds/warm queries do not expand the
+	# whole town's collision geometry. Share only sealed decoded inputs; job
+	# outputs still get independent packed arrays through prepare_cpu.
+	# Physics/navigation require source; an eligible opaque shadow also requires
+	# render triangles. Unrequested render/auxiliary slots remain lazy.
+	var result:=packet.duplicate();var faces:Array=packet.get("collision_faces",[]).duplicate()
+	var slots:Dictionary=packet.get("collision_face_slots",{}).duplicate()
+	var required:=ShadowFaces.selected_slots(packet.data,source_only,shadow_render);var retained:int=packet.length
+	faces.resize(packet.data.meshes.size())
+	for mesh_id:int in faces.size():
+		if not slots.has(mesh_id):
+			faces[mesh_id]=PackedVector3Array()
+			if required.has(mesh_id):
+				faces[mesh_id]=preload("res://scripts/world3d/prefab_face_arrays.gd").build(packet.data.meshes[mesh_id],native_unindexed_faces_enabled)
+				slots[mesh_id]=true
+		retained+=faces[mesh_id].size()*12+16
+	faces.make_read_only();slots.make_read_only()
+	result.collision_faces=faces;result.collision_face_slots=slots;result.retained_bytes=retained;result.make_read_only()
+	return result
+
+static func _decode_uncached(encoded:String,digest:String,length:int,trusted_package:bool,with_keys:bool=true)->Dictionary:
+	var native:=preload("res://scripts/world3d/prefab_binary_cache.gd").read(digest,length)
+	var data:Variant=native.get("data")
+	if native.is_empty():
+		var compressed:=Marshalls.base64_to_raw(encoded)
+		var bytes:=compressed.decompress(length,FileAccess.COMPRESSION_ZSTD)
+		if bytes.size()!=length or (not trusted_package and Cook.Envelope.checksum(bytes).hex_encode()!=digest):return {}
+		data=bytes_to_var(bytes)
 	if not data is Dictionary or not data.get("meshes") is Array or not data.get("materials") is Array or not data.get("entries") is Array or data.entries.size()!=1:return {}
 	if not trusted_package and not Cook.valid_data(data):return {}
 	# Seal every nested container before issuing the proof. A matching SHA or
 	# container identity alone cannot validate a previously mutable cache entry.
 	# Packed channels themselves cannot be made read-only. Keep this canonical
 	# storage private, with deep ownership copies at every public/resource exit.
-	if not _seal_decoded(data,0,[],[DECODE_MAX_VALUES]):return {}
-	var geometry_keys:Array=[]
-	for mesh:Dictionary in data.meshes:geometry_keys.append(Cpu.geometry_signature(mesh.surfaces,mesh.get("lods",[])))
+	if trusted_package and trusted_metadata_reuse_enabled:_seal_owned_containers(data)
+	elif not _seal_decoded(data,0,[],[DECODE_MAX_VALUES]):return {}
+	var geometry_keys:Array=native.get("geometry_keys",[])
+	if native.is_empty() and with_keys:
+		for mesh:Dictionary in data.meshes:geometry_keys.append(Cpu.geometry_signature(mesh.surfaces,mesh.get("lods",[])))
 	geometry_keys.make_read_only()
-	var bounds:=_local_bounds(data);bounds.make_read_only()
-	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys,"local_bounds":bounds,"verified":not trusted_package}
+	var bounds:=_stored_local_bounds(data) if trusted_package and trusted_metadata_reuse_enabled else _local_bounds(data);bounds.make_read_only()
+	var packet:={"issuer":_decode_issuer,"sha256":digest,"encoded":encoded,"length":length,"data":data,"geometry_keys":geometry_keys,"geometry_ready":with_keys or not native.is_empty(),"local_bounds":bounds,"verified":not trusted_package}
+	if native.has("collision_faces"):
+		# Canonical faces remain private just like canonical vertex channels.
+		# Their full retained capacity shares the existing decode-cache ceiling.
+		var faces:Array=native.collision_faces;faces.make_read_only();packet.collision_faces=faces
+		var retained:=length
+		for triangles:PackedVector3Array in faces:retained+=triangles.size()*12+16
+		packet.retained_bytes=retained
 	packet.make_read_only()
 	return packet
 
@@ -288,37 +430,36 @@ static func requires_source_model(record:Dictionary)->bool:
 	# kit path remains authoring provenance and still obeys resource-root rules.
 	return record.get("kind")=="asset" and not (record.has("house_prefab") and valid(record))
 
-static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={})->Dictionary:
+static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={},source_faces_only:bool=false,shadow_candidate:bool=false)->Dictionary:
 	# Worker-owned plain data. Keep the arrays alive in the admitted task even
 	# when the shared decoded cache is evicted before main-thread publication.
-	var packet:=_decode_packet(record.house_prefab)
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	source_faces_only=source_faces_only and source_collision_faces_enabled and controls.white_materials and controls.discard_map_textures and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var shadow_render:bool=source_faces_only and shadow_candidate and shadow_face_preparation_enabled
+	var packet:=_decode_packet(record.house_prefab,true,false,source_faces_only,shadow_render)
 	if packet.is_empty():return {}
 	var data:Dictionary=packet.data
 	var faces:Array=[];var keys:Array=packet.geometry_keys
+	var required:=ShadowFaces.selected_slots(data,source_faces_only,shadow_render);var skipped_slots:=0
 	for mesh_id:int in data.meshes.size():
-		var mesh:Dictionary=data.meshes[mesh_id]
+		if not required.has(mesh_id):
+			faces.append(PackedVector3Array());skipped_slots+=1;continue
 		if collision_candidates.has(mesh_id):
 			# A candidate is private CPU data only. The enclosing reference worker
 			# must still pass its final source/closure gate before this packet can
 			# reach publish_prepared and receive a typed sealed collision product.
 			faces.append(collision_candidates[mesh_id].faces);continue
-		var triangles:=PackedVector3Array();var count:=0
-		for arrays:Array in mesh.surfaces:
-			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
-			count+=indices.size() if indices!=null and not indices.is_empty() else arrays[Mesh.ARRAY_VERTEX].size()
-		triangles.resize(count);var at:=0
-		for arrays:Array in mesh.surfaces:
-			var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX];var indices:Variant=arrays[Mesh.ARRAY_INDEX]
-			if indices!=null and not indices.is_empty():
-				for index:int in indices:triangles[at]=vertices[index];at+=1
-			else:
-				for vertex:Vector3 in vertices:triangles[at]=vertex;at+=1
-		faces.append(triangles)
+		if packet.has("collision_faces"):
+			faces.append(packet.collision_faces[mesh_id].duplicate());continue
+		faces.append(preload("res://scripts/world3d/prefab_face_arrays.gd").build(data.meshes[mesh_id],native_unindexed_faces_enabled))
 	# A worker result is owned by its admitted job. Its packed arrays must not
 	# alias the canonical cache even though no production consumer edits them.
 	var owned_data:Dictionary=data.duplicate(true)
-	if not _seal_decoded(owned_data,0,[],[DECODE_MAX_VALUES]):return {}
-	return {"sha256":packet.sha256,"data":owned_data,"geometry_keys":keys,"collision_faces":faces}
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and trusted_metadata_reuse_enabled:_seal_owned_containers(owned_data)
+	elif not _seal_decoded(owned_data,0,[],[DECODE_MAX_VALUES]):return {}
+	var vertices:=0
+	for triangles:PackedVector3Array in faces:vertices+=triangles.size()
+	return {"sha256":packet.sha256,"data":owned_data,"geometry_keys":keys,"collision_faces":faces,"face_work":{"prepared_slots":faces.size()-skipped_slots,"skipped_slots":skipped_slots,"prepared_vertices":vertices,"shadow_render_slots":int(shadow_render and ShadowFaces.white_render_slot(data)>=0)}}
 
 static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null,texture_packet:Dictionary={})->bool:
 	# Installation and resource caches are main-thread-only. Scope the supplied
@@ -362,6 +503,10 @@ static func _publish_prepared(record:Dictionary,prepared:Dictionary,paint_valida
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	var key:String=record.house_prefab.sha256
 	if _meshes.has(key):
+		# geometry() or an earlier source-only publication may have installed
+		# this owner without all prepared faces. A cache hit must still accept
+		# later worker output instead of leaving CPU expansion to its next user.
+		if prepared_face_handoff_enabled and prepared.get("sha256")==key:_install_prepared_faces(_meshes[key],prepared)
 		if timings!=null:timings.geometry_cache_hit=true
 		return true
 	if prepared.get("sha256")!=key or not prepared.get("data") is Dictionary:return false
@@ -371,28 +516,69 @@ static func _publish_prepared(record:Dictionary,prepared:Dictionary,paint_valida
 	if timings!=null:timings.cook_restore_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	if restored.is_empty():return false
 	var entry:Dictionary=restored.values()[0]
-	var render_id:int=data.entries[0][1][0];var source_id:int=data.entries[0][1][1]
-	entry.mesh._collision_faces=prepared.collision_faces[render_id]
-	entry.source._collision_faces=prepared.collision_faces[source_id]
-	for row:Array in [[entry.mesh,render_id],[entry.source,source_id]]:
-		var product:Variant=prepared.get("collision_products",{}).get(row[1])
-		if product is CollisionProducts.Product and not product.kind().is_empty():row[0].set_meta("runtime_collision_product",product)
-	if timings!=null:timings.collision_handoff_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
+	if not prepared_face_handoff_enabled:
+		var render_id:int=data.entries[0][1][0];var source_id:int=data.entries[0][1][1]
+		entry.mesh._collision_faces=prepared.collision_faces[render_id]
+		entry.source._collision_faces=prepared.collision_faces[source_id]
+		for row:Array in [[entry.mesh,render_id],[entry.source,source_id]]:
+			var product:Variant=prepared.get("collision_products",{}).get(row[1])
+			if product is CollisionProducts.Product and not product.kind().is_empty():row[0].set_meta("runtime_collision_product",product)
 	_cache_geometry(key,entry,prepared.geometry_keys,data)
-	if timings!=null:timings.render_identity_ms=(Time.get_ticks_usec()-profile_mark)/1000.
+	if timings!=null:timings.render_identity_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
+	# Canonicalization can replace the render owner with a shared alias. Install
+	# on the surviving object, never on the temporary mesh it replaced.
+	if prepared_face_handoff_enabled:_install_prepared_faces(entry,prepared)
+	if timings!=null:timings.collision_handoff_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return true
+
+static func _install_prepared_faces(entry:Dictionary,prepared:Dictionary)->void:
+	var data:Dictionary=prepared.get("data",{})
+	var faces:Array=prepared.get("collision_faces",[]);var keys:Array=prepared.get("geometry_keys",[])
+	if data.is_empty() or faces.size()!=data.meshes.size() or keys.size()!=data.meshes.size():return
+	for row:Array in [[entry.mesh,int(data.entries[0][1][0])],[entry.source,int(data.entries[0][1][1])]]:
+		var mesh:Mesh=row[0];var slot:int=row[1]
+		# Reuse the already assigned immutable identity; never hash on main.
+		if mesh.get_meta("static_batch_geometry_signature","")!=keys[slot]:continue
+		if mesh._collision_faces.is_empty() and not faces[slot].is_empty():mesh._collision_faces=faces[slot]
+		var product:Variant=prepared.get("collision_products",{}).get(slot)
+		if product is CollisionProducts.Product and not product.kind().is_empty():mesh.set_meta("runtime_collision_product",product)
 
 static func _cache_geometry(key:String,entry:Dictionary,geometry_keys:Array,data:Dictionary)->void:
 	if geometry_keys.size()==data.meshes.size():
-		entry.mesh.set_meta("static_batch_geometry_signature",geometry_keys[data.entries[0][1][0]])
-		entry.source.set_meta("static_batch_geometry_signature",geometry_keys[data.entries[0][1][1]])
-	var identity:Array=[]
-	for material:Material in entry.mesh.materials:identity.append(Cook.material_data(material))
-	var render_key:String=entry.mesh.geometry_key()+var_to_str(identity).sha256_text()
-	if _render_meshes.has(render_key):entry.mesh=_render_meshes[render_key]
+		entry.mesh.set_geometry_key(geometry_keys[data.entries[0][1][0]])
+		entry.source.set_geometry_key(geometry_keys[data.entries[0][1][1]])
+	var owner_key:Array=[entry.mesh.geometry_key()]
+	for material:Material in entry.mesh.materials:owner_key.append(material.get_instance_id() if material!=null else 0)
+	var alias:Dictionary=_render_owner_aliases.get(owner_key,{}) if material_owner_reuse_enabled else {}
+	var existing:Variant=alias.reference.get_ref() if not alias.is_empty() else null
+	# Identical material objects have identical live state, even if a caller has
+	# edited them. No cached property values or changed-signal assumptions are
+	# involved. The canonical cache must still own this exact mesh generation.
+	if existing!=null and _render_meshes.get(alias.render_key)==existing and existing.materials==entry.mesh.materials:
+		entry.mesh=existing;material_identity_reuses+=1
 	else:
-		if _render_meshes.size()>=512:_render_meshes.erase(_render_meshes.keys()[0])
-		_render_meshes[render_key]=entry.mesh
+		# Canonical white materials are the exact shared live owners, not a
+		# property snapshot. Re-enumerating and stringifying their hundreds of
+		# properties for every different geometry proves nothing additional.
+		var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+		var canonical:bool=controls.white_materials
+		if canonical:
+			for material:Material in entry.mesh.materials:
+				if material!=null and (not material is StandardMaterial3D or controls._white.get(material.cull_mode)!=material):canonical=false;break
+		var render_key:String
+		if canonical:render_key="white_owners:"+var_to_str(owner_key)
+		else:
+			material_identity_scans+=1
+			var identity:Array=[]
+			for material:Material in entry.mesh.materials:identity.append(Cook.material_data(material))
+			render_key=entry.mesh.geometry_key()+var_to_str(identity).sha256_text()
+		if _render_meshes.has(render_key):entry.mesh=_render_meshes[render_key]
+		else:
+			if _render_meshes.size()>=512:_render_meshes.erase(_render_meshes.keys()[0])
+			_render_meshes[render_key]=entry.mesh
+		if material_owner_reuse_enabled:
+			if _render_owner_aliases.size()>=512:_render_owner_aliases.erase(_render_owner_aliases.keys()[0])
+			_render_owner_aliases[owner_key]={"render_key":render_key,"reference":weakref(entry.mesh)}
 	if _meshes.size()>=512:_meshes.erase(_meshes.keys()[0])
 	_meshes[key]=entry
 

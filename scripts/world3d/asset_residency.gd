@@ -24,6 +24,8 @@ var _procedural_assets:Dictionary={}
 var _native_namespaces:Dictionary={}
 static var legacy_retirement_source_scan_enabled:=false
 static var retirement_batching_enabled:=true
+static var frame_retry_enabled:=true # Diagnostic control retains quarter-second dispatch.
+var _retry_candidates:Array=[] # Bounded mature UUIDs; never retain source resources.
 var _retry_individually:=false
 var _clock:=0.0
 var _cursor:=0
@@ -130,16 +132,27 @@ func handoff_native(uuid:String)->void:
 func forget_specs(ids:Array)->void:
 	# Called by the shared Stream transaction, including native-unit retirement.
 	# Store IDs only so this catalogue can never keep meshes/materials alive.
+	var touched:Dictionary={}
+	var previous_owner:Variant=null;var members:Dictionary={}
 	for id:String in ids:
 		_unknown_asset_specs.erase(id)
-		if not _spec_namespaces.has(id):continue
-		var uuid:String=_spec_namespaces[id];_spec_namespaces.erase(id)
-		_namespace_specs[uuid].erase(id)
-		if not _namespace_specs[uuid].is_empty():continue
+		var owner:Variant=_spec_namespaces.get(id)
+		if owner==null:continue
+		var uuid:String=owner;_spec_namespaces.erase(id)
+		if owner!=previous_owner:
+			if not touched.has(uuid):touched[uuid]=_namespace_specs[uuid]
+			members=touched[uuid];previous_owner=owner
+		members.erase(id)
+	# Thousands of model parts share one namespace. Check and retire that
+	# namespace once after all selected identities are removed, without changing
+	# the per-part ownership or releasing a model that still has another user.
+	for uuid:String in touched:
+		if not touched[uuid].is_empty():continue
 		_namespace_specs.erase(uuid)
 		var path:String=_record_paths[uuid]
 		_model_namespaces[path].erase(uuid)
 		if _model_namespaces[path].is_empty():_model_namespaces.erase(path)
+	profile.retirement_namespace_checks=int(profile.get("retirement_namespace_checks",0))+touched.size()
 	_profile_usage()
 
 func _profile_usage()->void:
@@ -159,15 +172,15 @@ func _remember_traits(record:Dictionary)->void:
 
 func _process(delta:float)->void:
 	_clock+=delta
-	if _clock<0.25:return
-	_clock=0
 	if not is_instance_valid(_host) or not _host.get("_ready_for_play") or _host.get("_transfer_pending"):return
 	if not is_instance_valid(_deferred) or not _deferred._active:return
-	poll(Time.get_ticks_msec())
+	if _clock>=.25:
+		_clock=0.;poll(Time.get_ticks_msec())
+	elif frame_retry_enabled and not _retry_candidates.is_empty():_drain_candidates(Time.get_ticks_msec(),true)
 
 func _needed(entry:Dictionary)->bool:
 	for demand:Dictionary in _deferred._demands.values():
-		if demand.get("kind","all") in ["building","road","structure"]:continue
+		if demand.get("kind","all") in ["building","road","structure","terrain"]:continue
 		if _deferred._intersects(entry.bounds,demand.clip.grow(exit_margin)):return true
 	var navigation:Node=_host.get("_navigation")
 	if is_instance_valid(navigation) and _deferred._intersects(entry.bounds,navigation._local_clip.grow(exit_margin)):return true
@@ -186,25 +199,42 @@ func poll(now_msec:int)->void:
 	if keys.is_empty():return
 	var navigation:Node=_host.get("_navigation")
 	if not is_instance_valid(navigation) or not navigation.streaming_geometry:return
-	# At most one bounded transaction per tick. Whole eligible namespaces share
-	# the complete index/navigation checks and survivor-array compaction.
-	var remaining:=mini(32,keys.size())
-	while remaining>0:
-		_cursor%=keys.size()
-		var uuid:String=keys[_cursor];_cursor+=1;remaining-=1
-		if not _eligible(uuid,now_msec):continue
-		var uuids:Array=[uuid];var entries:Array=[_catalog[uuid]];var ids:Array=_resident[uuid].ids.duplicate()
-		if retirement_batching_enabled and not _retry_individually and ids.size()<=128:
-			# Lookahead does not advance the retry cursor. A rejected bundle must
-			# not cycle back to the same first owner and starve its valid neighbours.
-			for offset:int in remaining:
+	# Observe the bounded directory slice once, even if its first namespace
+	# retires. Mature IDs can consume later frame budgets without rescanning.
+	_retry_candidates=[]
+	for scan:int in mini(32,keys.size()):
+		_cursor%=keys.size();var uuid:String=keys[_cursor];_cursor+=1
+		if _eligible(uuid,now_msec):_retry_candidates.append(uuid)
+	_drain_candidates(now_msec,false)
+
+func _drain_candidates(now_msec:int,recheck:bool)->void:
+	var navigation:Node=_host.get("_navigation")
+	if not is_instance_valid(navigation) or not navigation.streaming_geometry:return
+	if recheck:
+		var ready:Array=[]
+		for uuid:String in _retry_candidates:
+			if _resident.has(uuid) and _catalog.has(uuid) and _eligible(uuid,now_msec):ready.append(uuid)
+		_retry_candidates=ready
+	if _retry_candidates.is_empty():return
+	if Stream._retirement_budget(_map).request(Engine.get_process_frames(),"ordinary_retirement",2000)<=0:
+		profile.last_wait="retirement_budget";return
+	var barrier:=Stream.retirement_barrier(_map,false,true)
+	if not barrier.is_empty():
+		profile.last_wait=barrier;profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
+		return
+	# One atomic success per callback, still admitted by the shared 2 ms frame
+	# ledger. Non-global refusals fall back to singles without starving peers.
+	while not _retry_candidates.is_empty():
+		var uuid:String=_retry_candidates[0]
+		var uuids:Array=[uuid];var count:int=_resident[uuid].ids.size()
+		if retirement_batching_enabled and not _retry_individually and count<=128:
+			for next:String in _retry_candidates.slice(1):
 				if uuids.size()>=8:break
-				remaining-=1
-				var next:String=keys[(_cursor+offset)%keys.size()]
-				if not _eligible(next,now_msec):continue
-				var extra_ids:Array=_resident[next].ids
-				if ids.size()+extra_ids.size()>128:continue
-				uuids.append(next);entries.append(_catalog[next]);ids.append_array(extra_ids)
+				var size_:int=_resident[next].ids.size()
+				if count+size_>128:continue
+				uuids.append(next);count+=size_
+		var selection:=_retirement_selection(uuids)
+		var ids:Array=selection.ids;var entries:Array=selection.entries
 		var result:=Stream.retire_specs(_map,ids,false,navigation,"ordinary_retirement")
 		profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
 		if not result.ok:
@@ -212,8 +242,10 @@ func poll(now_msec:int)->void:
 			# These map/frame barriers cannot change inside this synchronous poll.
 			# Rechecking other owners only repeats the same refusal; it also must
 			# not demote the next ready transaction to an individual retry.
-			if result.error in ["retirement_budget","stream_busy"]:return
-			if uuids.size()>1:_retry_individually=true
+			if result.error in ["retirement_budget","stream_busy","batch_leased","proxy_leased"]:return
+			if uuids.size()>1:
+				_retry_individually=true;return
+			_retry_candidates.erase(uuid)
 			continue
 		var cleanup_started:=Time.get_ticks_usec()
 		if entries.size()==1:_deferred.requeue_reference(entries[0])
@@ -221,7 +253,7 @@ func poll(now_msec:int)->void:
 		var paths:Dictionary={}
 		for id:String in uuids:
 			paths[_catalog[id].asset_path]=true
-			_resident.erase(id);_retired[id]=true
+			_resident.erase(id);_retired[id]=true;_retry_candidates.erase(id)
 		_retry_individually=false
 		profile.retired_instances+=uuids.size();profile.retired_specs+=result.removed;profile.last_wait=""
 		profile.retirement_transactions=int(profile.get("retirement_transactions",0))+1
@@ -230,6 +262,11 @@ func poll(now_msec:int)->void:
 		for path:String in paths:_evict_unused_model(path)
 		Stream.charge_retirement_work(_map,"ordinary_retirement",cleanup_started)
 		return
+
+func _retirement_selection(uuids:Array)->Dictionary:
+	var ids:Array=[];var entries:Array=[]
+	for uuid:String in uuids:ids.append_array(_resident[uuid].ids);entries.append(_catalog[uuid])
+	return {"ids":ids,"entries":entries}
 
 func _evict_unused_model(path:String)->void:
 	var used:=model_in_use(path)

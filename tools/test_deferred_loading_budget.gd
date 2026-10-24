@@ -67,6 +67,12 @@ func run()->void:
 	var original_disable_3d:=root.disable_3d
 	var f:=fixture();var service:Probe=f.service
 	check(service._main_thread_budget_usec()==2000,"ordinary play uses the two millisecond slice")
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	controls.white_materials=true;controls.discard_map_textures=true
+	check(service._main_thread_budget_usec()==6000,"measured white geometry route receives six milliseconds")
+	controls.discard_map_textures=false
+	check(service._main_thread_budget_usec()==2000,"white override alone cannot change ordinary texture publication budget")
+	controls.white_materials=false
 	f.host._transfer_pending=true;root.disable_3d=true
 	check(service._main_thread_budget_usec()==2000,"pending transfer and disabled 3D cannot boost an undrawn cover")
 	f.cover.drawn_frame=0;f.cover.opacity=1;f.cover.phase="waiting";root.disable_3d=false
@@ -110,15 +116,15 @@ func run()->void:
 	var byte_limit:int=service._admission.byte_limit
 	service.acceptance_delay_usec=3000
 	service._process(0)
-	check(service.publication_budget==2000 and service.publication_began<=service.acceptance_started,"acceptance and publication receive the same original frame clock and interactive budget")
-	check(f.document.calls.size()==1 and service.pending.size()==5,"acceptance exhausting the slice still permits exactly one real publication unit")
+	check(service.publication_budget==0 and service.profile.main_thread_budget_us==2000,"exhausted acceptance defers publication under the original interactive clock")
+	check(f.document.calls.is_empty() and service.pending.size()==6,"acceptance exhausting the slice cannot stack another instance in the same frame")
 	var interactive:Dictionary=service.profile.main_thread_budgets.interactive
-	check(interactive.frames==1 and interactive.acceptance_units==1 and interactive.publication_units==1,"interactive metrics count acceptance and publication separately")
+	check(interactive.frames==1 and interactive.acceptance_units==1 and interactive.publication_units==0,"interactive metrics count acceptance and publication separately")
 	check(interactive.acceptance_us>=3000 and interactive.max_acceptance_unit_us>=3000 and interactive.over_budget_frames==1,"uninterruptible acceptance overrun is exposed rather than reported as a hard two millisecond limit")
 	check(service._admission.count()==1 and service._admission.reserved_bytes==32,"completed result remains charged while its publication is incomplete")
 	service.acceptance_delay_usec=0;f.document.delay_usec=3000
 	service._process(0)
-	check(f.document.calls.size()==2 and interactive.frames==2 and interactive.publication_units==2,"an indivisible slow publication advances once and keeps cumulative counts")
+	check(f.document.calls.size()==1 and interactive.frames==2 and interactive.publication_units==1,"subsequent fresh slice starts exactly one slow instance without starvation")
 	check(interactive.max_publication_unit_us>=3000 and interactive.over_budget_frames==2,"single publication duration and soft-budget overrun are measured")
 	f.document.delay_usec=0;enable_cover(f)
 	var covered_frames:=0
@@ -126,7 +132,8 @@ func run()->void:
 		service._process(0);covered_frames+=1
 	var covered:Dictionary=service.profile.main_thread_budgets.covered_loading
 	check(service.publication_budget==16000 and service.profile.main_thread_budget_mode=="covered_loading","real publication uses the larger budget only after the cover state qualifies")
-	check(service.is_complete() and f.document.calls.size()==6 and covered.publication_units==4 and covered.acceptance_units==0,"covered publication drains remaining ready units without duplicating acceptance or publication")
+	var completed_calls:Array=f.document.calls.duplicate();completed_calls.sort()
+	check(service.is_complete() and completed_calls==["item_0","item_1","item_2","item_3","item_4","item_5"] and service.profile.instances==6 and covered.acceptance_units==0,"covered publication drains all private cursors with exactly one instance per UUID")
 	check(interactive.frames==2 and covered.frames==covered_frames and covered.budget_us==16000,"interactive and covered metrics stay in separate buckets")
 	check(service._admission.count()==0 and service._admission.reserved_bytes==0 and service._admission.byte_limit==byte_limit and service._admission.worker_limit==0,"larger time slice releases consumed work without changing concurrency or byte limits")
 	f.host._transfer_pending=false;service._process(0)
@@ -134,12 +141,20 @@ func run()->void:
 	f.host.free()
 
 	f=fixture(2);service=f.service;service._prepared_paths["reference:test"]=true;service._refresh_demanded()
+	check(service._publication_ready().is_empty(),"a cached path cannot publish this unaccepted test job")
+	# This section calls publication directly, outside _process's acceptance.
+	service._jobs["reference:test"].accepted=true
 	var failed_uuid:String=service._demanded[0].record.uuid
 	f.document.failure=failed_uuid
 	var work:Dictionary=service._publish_ready(Time.get_ticks_usec()-1000000)
 	check(work.units==1 and service.instance_errors.has(failed_uuid) and service.profile.publication_units==1,"default expired-budget call still counts one failed real unit and preserves UUID isolation")
 	work=service._publish_ready(Time.get_ticks_usec()-1000000)
-	check(work.units==1 and service.profile.instances==1 and f.document.calls.size()==2,"failure cannot prevent a healthy sibling progressing under the same default budget")
+	check(work.units==1 and f.document.calls.size()==2,"failure cannot prevent a healthy sibling starting under the same default budget")
+	for i:int in 8:
+		if service.profile.instances==1:break
+		work=service._publish_ready(Time.get_ticks_usec()-1000000)
+		check(work.units==1,"expired soft budget still advances one private spec unit")
+	check(service.profile.instances==1 and f.document.calls.size()==2,"healthy sibling finishes exactly once across private spec slices")
 	f.host.free();root.disable_3d=original_disable_3d
 	print("DEFERRED_LOADING_BUDGET passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

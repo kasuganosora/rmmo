@@ -1,6 +1,7 @@
 extends SceneTree
 const Loader=preload("res://scripts/world3d/map_loader.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const Frames=preload("res://scripts/util/frame_presentation.gd")
 var checks:=0
 var failures:=0
 func _initialize()->void:run.call_deferred()
@@ -31,7 +32,7 @@ func run()->void:
 	check(viewport!=null and viewport.own_world_3d and viewport.size==Vector2i(16,16),"2D loading uses a private minimal 3D render context")
 	check(viewport.use_taa==original_taa and viewport.msaa_3d==original_msaa,"startup context matches real antialiasing features")
 	check(viewport.find_children("*","MeshInstance3D",true,false).is_empty() and viewport.get_world_3d()!=root.get_world_3d(),"no map mesh, physics, actor or authored script enters the private world")
-	await RenderingServer.frame_post_draw;await RenderingServer.frame_post_draw
+	await Frames.drawn();await Frames.drawn()
 	check(viewport.render_target_update_mode==SubViewport.UPDATE_DISABLED and loader._startup_draw_count==2,"startup context parks after two warmup frames and adds no continuing draw work")
 	check(viewport.get_render_info(Viewport.RENDER_INFO_TYPE_VISIBLE,Viewport.RENDER_INFO_DRAW_CALLS_IN_FRAME)==0,"empty context draws no map or warmup ghost meshes")
 	var weak_viewport:WeakRef=weakref(viewport);loader.free();viewport=null

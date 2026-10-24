@@ -78,16 +78,9 @@ static func valid(meta: Dictionary) -> bool:
 	return analyze(data.roads).ok and preload("res://scripts/world3d/road_bridges.gd").resolve(data).ok
 
 static func canonical(value: Variant) -> Variant:
-	# Integer microunits make JSON roundtrips stable without trusting float spelling.
-	if value is float or value is int: return "number:"+str(roundi(float(value)*1000000))
-	if value is Array: return value.map(func(item):return canonical(item))
-	if value is Dictionary:
-		var result:={}
-		for key in value: result[key]=canonical(value[key])
-		return result
-	return value
+	return preload("res://scripts/world3d/layout_identity.gd").canonical(value)
 static func token(graph: Variant) -> String:
-	return JSON.stringify(canonical(graph)).sha256_text()
+	return preload("res://scripts/world3d/layout_identity.gd").token(graph)
 
 static func samples(edge: Dictionary, nodes: Dictionary) -> Array[Vector3]:
 	var a := vec(nodes[edge.from].position); var b := vec(nodes[edge.to].position)

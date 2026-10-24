@@ -20,6 +20,8 @@ var _clock:=0.
 var _cursor:=0
 static var retirement_batching_enabled:=true
 static var lazy_pending_scan_enabled:=true
+static var frame_retry_enabled:=true # Diagnostic control retains quarter-second dispatch.
+var _retry_candidates:Array=[] # At most one observation slice; UUIDs only, no resource owners.
 func configure(host:Node,map_root:Node,queue:Node)->void:
 	name="NativeResidency";set_meta("stream_instance",true);_host=host;_map=map_root;_queue=queue
 	var index:Dictionary=queue._reference_index
@@ -134,17 +136,19 @@ func _observe_publication(packet:RefCounted)->bool:
 func _process(delta:float)->void:
 	if is_instance_valid(_host) and _host._ready_for_play and not _host._transfer_pending:Stream.advance_retirement_preparation(_map)
 	_clock+=delta
-	if _clock<.25:return
-	_clock=0.
-	if is_instance_valid(_host) and _host._ready_for_play and not _host._transfer_pending:poll(Time.get_ticks_msec())
+	if not is_instance_valid(_host) or not _host._ready_for_play or _host._transfer_pending:return
+	if _clock>=.25:
+		_clock=0.;poll(Time.get_ticks_msec())
+	elif frame_retry_enabled and not _retry_candidates.is_empty():_drain_candidates(Time.get_ticks_msec(),true)
 func _needed(unit:Dictionary)->bool:
 	for demand:Dictionary in _queue._demands.values():
 		var kind:String=demand.get("kind","all")
 		if kind=="building" and unit.kind!="building":continue
-		if kind in ["road","structure"]:
+		if kind in ["road","structure","terrain"]:
 			var reason:String=unit.entries[0].reason
 			if kind=="road" and reason!="native_road":continue
 			if kind=="structure" and reason not in ["native_fortification","native_bridge"]:continue
+			if kind=="terrain" and reason!="terrain_context_global":continue
 		if _queue._intersects(unit.bounds,demand.clip.grow(64.)):return true
 	var navigation:Node=_host._navigation
 	return is_instance_valid(navigation) and _queue._intersects(unit.bounds,navigation._local_clip.grow(64.))
@@ -156,8 +160,45 @@ func poll(now:int)->void:
 	# Finish the bounded observation slice even when its first unit can retire.
 	# Otherwise each successful small retirement delays the next units' first
 	# outside timestamp, keeping a large cold building alive for minutes.
-	var candidates:=_retirement_candidates(now)
-	candidates.sort_custom(func(a:String,b:String):return _resident[a].ids.size()>_resident[b].ids.size())
+	_retry_candidates=_retirement_candidates(now)
+	_retry_candidates.sort_custom(func(a:String,b:String):return _resident[a].ids.size()>_resident[b].ids.size())
+	_drain_candidates(now,false)
+
+func _drain_candidates(now:int,recheck:bool)->void:
+	if not is_instance_valid(_queue) or not _queue._active:return
+	var nav:Node=_host._navigation
+	if not is_instance_valid(nav) or not nav.streaming_geometry:return
+	if recheck:
+		# Cached maturity is not a lease. Moving demand, a rebuilt namespace and
+		# pending reconstruction must be checked again before the real commit.
+		var ready:Array=[];var pending_ids:Dictionary={};var pending_checked:=false
+		for id:String in _retry_candidates:
+			if not _resident.has(id) or not _units.has(id):continue
+			var state:Dictionary=_resident[id];var unit:Dictionary=_units[id]
+			if _needed(unit):state.outside_since=-1;continue
+			if int(state.outside_since)<0 or now-int(state.outside_since)<grace_msec:continue
+			if not pending_checked:pending_ids=_retirement_pending_ids();pending_checked=true
+			var waiting:=false
+			for entry:Dictionary in unit.entries:
+				if pending_ids.has(entry.compact_record.uuid):waiting=true;break
+			if not waiting:ready.append(id)
+		_retry_candidates=ready
+	if _retry_candidates.is_empty():return
+	# Admission and map-wide leases precede materialising any selected part IDs.
+	# The real transaction requests/checks them again; this is only early refusal.
+	if Stream._retirement_budget(_map).request(Engine.get_process_frames(),"native_retirement",2000)<=0:
+		profile.last_wait="retirement_budget";return
+	var barrier:=Stream.retirement_barrier(_map,true,true)
+	if not barrier.is_empty():
+		profile.last_wait=barrier
+		profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
+		if not profile.has("wait_reasons"):profile.wait_reasons={}
+		profile.wait_reasons[barrier]=int(profile.wait_reasons.get(barrier,0))+1
+		return
+	# A map-wide moving fixture also rejects before any large owner ID copy.
+	var tweens:Dictionary=_map.get_meta("fixture_tweens",{})
+	if tweens.values().any(func(tween):return is_instance_valid(tween) and tween.is_running()):profile.last_wait="fixture_animation";return
+	var candidates:Array=_retry_candidates
 	var attempts:Array=[]
 	for id:String in candidates:attempts.append([id])
 	# Validate small cold units together. A large namespace still commits alone;
@@ -171,16 +212,14 @@ func poll(now:int)->void:
 		if bundle.size()>1:attempts.push_front(bundle)
 	var started:=Time.get_ticks_usec()
 	for units:Array in attempts:
-		var ids:Array=[];var entries:Array=[]
-		for id:String in units:ids.append_array(_resident[id].ids);entries.append_array(_units[id].entries)
-		# Moving hinge state is captured only after an animation has finished.
-		var tweens:Dictionary=_map.get_meta("fixture_tweens",{})
-		if tweens.values().any(func(tween):return is_instance_valid(tween) and tween.is_running()):profile.last_wait="fixture_animation";continue
+		var selection:=_retirement_selection(units)
+		var ids:Array=selection.ids;var entries:Array=selection.entries
 		var fixtures:Dictionary={};var digests:Dictionary={};var model_paths:Dictionary={}
 		for entry:Dictionary in entries:
 			if not entry.asset_path.is_empty():model_paths[entry.asset_path]=true
 		var by_id:Dictionary=_map.get_meta("stream_by_id")
-		for uuid:String in ids:
+		for uuid:String in ids if not preload("res://scripts/world3d/stream_index.gd").retirement_metadata_enabled else []:
+			profile.cleanup_prescan_rows=int(profile.get("cleanup_prescan_rows",0))+1
 			var spec:Dictionary=by_id[uuid];var record:Dictionary=spec.get("ground_batch_record",EMPTY)
 			if spec.extras.has("fixture"):fixtures[record.get("uuid",uuid.get_slice("__",0))]=float(spec.extras.fixture.open)
 			if record.has("house_prefab"):digests[record.house_prefab.sha256]=true
@@ -191,12 +230,18 @@ func poll(now:int)->void:
 			profile.last_wait=result.error;profile.last_wait_unit=",".join(units)
 			if not profile.has("wait_reasons"):profile.wait_reasons={}
 			profile.wait_reasons[result.error]=int(profile.wait_reasons.get(result.error,0))+1
-			if result.error in ["retirement_budget","retirement_schema_pending"]:return
+			# These map/frame barriers cannot change inside this callback. Keep
+			# the mature IDs for a fresh frame instead of repeating the refusal.
+			if result.error in ["retirement_budget","retirement_schema_pending","stream_busy","batch_leased","proxy_leased"]:return
+			if units.size()==1:_retry_candidates.erase(units[0])
 			# A complete validation is an indivisible transaction. Do not stack
 			# several expensive refusals in the same interactive frame.
 			if Time.get_ticks_usec()-started>=2000:return
 			continue
 		var cleanup_started:=Time.get_ticks_usec()
+		if result.has("cleanup"):
+			fixtures=result.cleanup.fixtures;digests=result.cleanup.digests;model_paths.merge(result.cleanup.model_paths,true)
+			profile.cleanup_plan_rows=int(profile.get("cleanup_plan_rows",0))+int(result.removed)
 		_queue.runtime_fixture_states.merge(fixtures,true)
 		var requeue_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.requeue")
 		_queue.requeue_references(entries)
@@ -217,13 +262,18 @@ func poll(now:int)->void:
 		# continue reusing them. This never changes a live material or texture.
 		Paint._materials.clear();Paint._textures.clear()
 		preload("res://scripts/world3d/load_trace.gd").elapsed("native.cache_release",release_began,{"units":units.size(),"models":model_paths.size()})
-		for id:String in units:_resident.erase(id);_retired[id]=true
+		for id:String in units:_resident.erase(id);_retired[id]=true;_retry_candidates.erase(id)
 		profile.retired_units+=units.size();profile.retired_specs+=result.removed;profile.last_wait=""
 		profile.retirement_transactions=int(profile.get("retirement_transactions",0))+1
 		profile.max_units_per_transaction=maxi(int(profile.get("max_units_per_transaction",0)),units.size())
 		profile.resident_units=_resident.size()
 		Stream.charge_retirement_work(_map,"native_retirement",cleanup_started)
 		return
+
+func _retirement_selection(units:Array)->Dictionary:
+	var ids:Array=[];var entries:Array=[]
+	for id:String in units:ids.append_array(_resident[id].ids);entries.append_array(_units[id].entries)
+	return {"ids":ids,"entries":entries}
 
 func _release_preparation_cache(entries:Array)->void:
 	var document:RefCounted=_queue._doc
@@ -237,7 +287,7 @@ func _release_preparation_cache(entries:Array)->void:
 		var uuid:String=entry.compact_record.uuid
 		if document.load_surface_arrays.has(uuid):retired.append(document.load_surface_arrays[uuid])
 		if document.terrain_neighbors.data.has(uuid):retired.append(document.terrain_neighbors.data[uuid])
-		document.load_surface_arrays.erase(uuid);document.terrain_neighbors.data.erase(uuid)
+		document.load_surface_arrays.erase(uuid);document.load_surface_bounds.erase(uuid);document.load_surface_uploads.erase(uuid);document.terrain_neighbors.data.erase(uuid)
 	# Material publication advances across frames. Keep its complete entries
 	# until their owning jobs consume/discard them; release other hot owners.
 	var protected:Dictionary={}
@@ -273,6 +323,11 @@ func _retirement_candidates(now:int)->Array:
 	return candidates
 
 func _retirement_pending_ids()->Dictionary:
+	if _queue.has_method("pending_record_catalogue"):
+		var catalogue:Variant=_queue.pending_record_catalogue()
+		if catalogue is Dictionary:
+			profile.pending_membership_reuses=int(profile.get("pending_membership_reuses",0))+1
+			return catalogue
 	var result:Dictionary={}
 	for item:Dictionary in _queue.pending:result[item.record.uuid]=true
 	profile.pending_membership_builds=int(profile.get("pending_membership_builds",0))+1

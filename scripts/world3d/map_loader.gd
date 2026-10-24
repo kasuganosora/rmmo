@@ -3,6 +3,7 @@ const Trace=preload("res://scripts/world3d/load_trace.gd")
 const CrossMapPrefetch=preload("res://scripts/world3d/cross_map_prefetch.gd")
 const OwnershipProof=preload("res://scripts/world3d/dependency_index_proof.gd")
 const PackagePolicy=preload("res://scripts/world3d/runtime_package_policy.gd")
+const Frames=preload("res://scripts/util/frame_presentation.gd")
 ## Parse and prepare eligible private static graphs off-tree. Publish on main.
 signal finished(scene: Node, path: String, error: String)
 signal progress(stage: String, done: int, total: int)
@@ -16,6 +17,7 @@ static var startup_render_context_enabled:=true # Probe isolates late renderer i
 static var startup_render_context_frames:=2 # Zero is the continuous-draw diagnostic control.
 var _startup_viewport:SubViewport
 var _startup_draw_count:=0
+var _startup_first_serial:=0
 var _record_meta := {}
 var _asset_states := {}
 var _model_preparation := preload("res://scripts/world3d/model_parse_preparation.gd").new()
@@ -38,6 +40,7 @@ var _texture_thread:Thread
 var _terrain_thread:Thread
 var _terrain_context:RefCounted
 var _surface_arrays:Dictionary={}
+var _surface_bounds:Dictionary={}
 var _index_thread:Thread
 var _document: GLTFDocument
 var _state: GLTFState
@@ -55,10 +58,15 @@ var near_first:=false
 var background_preload:=false # Private GPU preload; no authority/global scene publication.
 var _private_assets:Dictionary={}
 var _asset_cursor:RefCounted
+var _asset_spec_worker:Thread
+var _asset_spec_token:RefCounted
+var _asset_spec_drainer:Node
 var source_prefetch:CrossMapPrefetch.Packet
 var _entry_origin:=Vector3(0,.9,4)
 var _entry_origin_explicit:=false
 var _deferred_assets:Array=[]
+var _prepared_pending:RefCounted
+var _reference_handoff:RefCounted
 var _deferred_ids:Dictionary={}
 var _record_order:Dictionary={}
 var _prepared_asset_paths:Dictionary={}
@@ -97,6 +105,7 @@ static func resolve_path(requested: String) -> String:
 func start(path: String,origin:Variant=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader.start") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_model_preparation.prepare_static_scenes=true
+	_model_preparation.require_native_products=true
 	if background_preload:_prefab_worker_count=1
 	preload("res://scripts/world3d/definition_cache_policy.gd").configure()
 	_path = path
@@ -108,6 +117,7 @@ func start(path: String,origin:Variant=null) -> void:
 	elif session!=null:_entry_origin=session.world3d_spawn
 	# Snapshot the configured root on the main thread; parsing must not read autoload nodes.
 	_content_root = preload("res://scripts/world3d/map_paths.gd").external_root()
+	if preload("res://scripts/world3d/prefab_binary_cache.gd").active():preload("res://scripts/world3d/prefab_binary_cache.gd").configure(_content_root)
 	_prepare_startup_render_context()
 	_thread = Thread.new()
 	_error = _thread.start(_parse)
@@ -131,15 +141,16 @@ func _prepare_startup_render_context()->void:
 	_startup_viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS
 	add_child(_startup_viewport)
 	var camera:=Camera3D.new();_startup_viewport.add_child(camera);camera.current=true
-	RenderingServer.frame_post_draw.connect(_startup_context_drawn)
+	_startup_first_serial=Frames.next_serial()
+	Frames.clock().presented.connect(_startup_context_drawn)
 	_profile.startup_render_context=true
 
-func _startup_context_drawn()->void:
-	if not is_instance_valid(_startup_viewport):return
+func _startup_context_drawn(serial:int)->void:
+	if not is_instance_valid(_startup_viewport) or serial<_startup_first_serial:return
 	_startup_draw_count+=1
 	if startup_render_context_frames>0 and _startup_draw_count>=startup_render_context_frames:
 		_startup_viewport.render_target_update_mode=SubViewport.UPDATE_DISABLED
-		RenderingServer.frame_post_draw.disconnect(_startup_context_drawn)
+		Frames.clock().presented.disconnect(_startup_context_drawn)
 
 
 func cancel() -> void:
@@ -194,7 +205,7 @@ func _parse_inner() -> void:
 		if near_first:
 			var directory_started:=Time.get_ticks_usec()
 			var Index=preload("res://scripts/world3d/map_dependency_index.gd")
-			var directory:Dictionary=Index.read_for_loading(_path,_content_root,_source_digest,Index.Snapshot.RETAIN_LIMIT,Index.MAX_BYTES,1 if background_preload else 4,PackagePolicy.trusted())
+			var directory:Dictionary=Index.read_for_loading(_path,_content_root,_source_digest,Index.Snapshot.RETAIN_LIMIT,Index.MAX_BYTES,1 if background_preload else 4,PackagePolicy.trusted(),_source_snapshot if PackagePolicy.trusted() else null)
 			_profile.reference_index_read_us=Time.get_ticks_usec()-directory_started
 			_profile.reference_index_hit=directory.ok
 			_profile.reference_index_reason=directory.get("reason","")
@@ -211,6 +222,7 @@ func _parse_inner() -> void:
 						for index:int in selection.record_indices:
 							var model_path:String=candidate.rows[index].asset_path
 							if not model_path.is_empty():hints[model_path]=true
+						_model_preparation.static_scene_paths=candidate.models.duplicate()
 						_profile.initial_models_prefetched=_early_models.start(hints.keys(),_model_preparation,_initial_model_workers(),_content_root)
 						_profile.initial_models_prefetch_started_us=_early_models.started_us
 					_register_reference_pending(selection.deferred_entries)
@@ -254,7 +266,8 @@ func _parse_inner() -> void:
 		_profile.paint_identity_count=verified_paint_ids.size()
 		_profile.parse_us=Time.get_ticks_usec()-started
 		var validate_started:=Time.get_ticks_usec()
-		if not _valid_records(extra,verified_paint_ids):
+		var index_prepares_geometry:bool=near_first and _dependency_index.is_empty() and cold_index_rebuild_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and PackagePolicy.trusted()
+		if not _valid_records(extra,verified_paint_ids,not index_prepares_geometry):
 			_error=ERR_INVALID_DATA;_failure_reason="引用地图的物件或元数据无效";return
 		_profile.validate_us=Time.get_ticks_usec()-validate_started
 		Trace.elapsed("game.validate",validate_started)
@@ -266,10 +279,17 @@ func _parse_inner() -> void:
 		if near_first and _dependency_index.is_empty() and cold_index_rebuild_enabled:
 			if entry_pipeline_enabled and not background_preload:
 				var hint_started:=Time.get_ticks_usec()
-				var cold_hints:Array=_cold_model_hints(extra.rmmo_records)
+				var hints:Dictionary=_cold_model_hints(extra.rmmo_records)
 				_profile.cold_model_hints_us=Time.get_ticks_usec()-hint_started
 				Trace.elapsed("game.cold_model_hints",hint_started)
+				if not str(hints.get("error","")).is_empty():
+					_error=ERR_FILE_CORRUPT if str(hints.error)=="native_metadata_missing_or_stale" else ERR_INVALID_DATA
+					_failure_reason=str(hints.get("reason",hints.get("error","")))
+					return
+				var cold_hints:Array=hints.get("paths",[])
+				_cold_model_manifests=hints.get("manifests",{})
 				if not cold_hints.is_empty():
+					_model_preparation.static_scene_paths=_cold_model_manifests.duplicate()
 					_profile.initial_models_prefetched=_early_models.start(cold_hints,_model_preparation,_initial_model_workers(),_content_root)
 					if _profile.initial_models_prefetched:
 						_early_models.allow_validated_raw()
@@ -285,6 +305,7 @@ func _parse_inner() -> void:
 			if rebuilt.ok:
 				extra=rebuilt.extras;requested_extra=rebuilt.requested_extras
 				_profile.reference_index_rebuilt_before_models=true
+			elif index_prepares_geometry:_decode_prefabs(extra.rmmo_records,_prefab_worker_count)
 			# Directory I/O and the second, selected validation may race a writer.
 			# Recheck even on ordinary directory failure before starting any image
 			# or model preparation. Retain the full cold closure through publication.
@@ -298,6 +319,7 @@ func _parse_inner() -> void:
 				for index:int in _selected_record_indices:
 					var model_path:String=_dependency_index.rows[index].asset_path
 					if not model_path.is_empty():hints[model_path]=true
+				_model_preparation.static_scene_paths=_dependency_index.models.duplicate()
 				_profile.initial_models_prefetched=_early_models.start(hints.keys(),_model_preparation,_initial_model_workers(),_content_root)
 				_profile.initial_models_prefetch_started_us=_early_models.started_us
 		elif near_first and _dependency_index.is_empty():_profile.reference_index_rebuild_reason="disabled"
@@ -358,26 +380,36 @@ func _final_index_integrity(prepared:Dictionary)->bool:
 
 # Conservative hints only after full snapshot validation. The selected path
 # set and source identities must still match before any prepared scene is used.
-func _cold_model_hints(records:Array)->Array:
+func _cold_model_hints(records:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._cold_model_hints") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var result:Dictionary={"paths":[],"manifests":{},"error":"","reason":""}
 	var plan:Dictionary=preload("res://scripts/world3d/entry_plan.gd").create(_entry_origin)
-	if plan.is_empty():return []
-	var manifests:Dictionary=_cold_model_manifests;var paths:Dictionary={}
+	if plan.is_empty():
+		result.error="entry_plan";return result
+	var manifests:Dictionary=_cold_model_manifests.duplicate();var paths:Dictionary={}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 	var batch_paths:bool=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
 	for record:Dictionary in records:
 		if record.get("kind")!="asset" or record.has("house_prefab"):continue
 		var path:String=record.get("asset_path","")
 		if not batch_paths or not manifests.has(path):
-			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):return []
-		if not manifests.has(path):manifests[path]=Manifest.read(path)
+			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):
+				result.error="source_path";return result
+		if not manifests.has(path):
+			var native_only:bool=_model_preparation.require_native_products and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+			manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",native_only)
+			if native_only and not manifests[path].get("known",false):
+				result.error="native_metadata_missing_or_stale";result.reason=preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_metadata_missing_or_stale").error_message;return result
 		var placed:Dictionary=Manifest.apply_record(manifests[path],record)
-		if not placed.get("known",false):return []
+		if not placed.get("known",false):
+			result.error="record_bounds";return result
 		if plan.core_clip.intersects(placed.world_bounds):paths[path]=true
 	if batch_paths:
 		for path:String in manifests:
-			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):return []
-	return paths.keys()
+			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):
+				result.error="batch_source_path";return result
+	result.paths=paths.keys();result.manifests=manifests
+	return result
 
 ## Build/read are CPU-only and issue the same immutable ownership proof as the
 ## warm path. Adopt only after selected validation; otherwise retain full input.
@@ -388,9 +420,10 @@ func _rebuild_initial_reference_selection(full:Dictionary,paint_ids:Array,defini
 	if plan.is_empty():return {"ok":false,"reason":"invalid_entry_plan"}
 	if _cancelled:return {"ok":false,"reason":"cancelled"}
 	var build_started:=Time.get_ticks_usec()
-	var built:Dictionary=Index.build_for_loading(_path,_content_root,full.rmmo_records,_source_digest,1 if background_preload else 4,Index.Snapshot.RETAIN_LIMIT,PackagePolicy.trusted(),definition_sizes,_cold_model_manifests) if cold_index_handoff_enabled else Index.build(_path,_content_root,full.rmmo_records,_source_digest,1 if background_preload else 4,Index.Snapshot.RETAIN_LIMIT,PackagePolicy.trusted(),definition_sizes,_cold_model_manifests)
+	var built:Dictionary=Index.build_for_loading(_path,_content_root,full.rmmo_records,_source_digest,1 if background_preload else 4,Index.Snapshot.RETAIN_LIMIT,PackagePolicy.trusted(),definition_sizes,_cold_model_manifests,_source_snapshot) if cold_index_handoff_enabled else Index.build(_path,_content_root,full.rmmo_records,_source_digest,1 if background_preload else 4,Index.Snapshot.RETAIN_LIMIT,PackagePolicy.trusted(),definition_sizes,_cold_model_manifests)
 	_cold_model_manifests.clear()
 	_profile.reference_index_rebuild_build_us=Time.get_ticks_usec()-build_started
+	_profile.reference_index_rebuild_work=built.get("build_profile",{})
 	if not built.ok:return {"ok":false,"reason":"build:"+str(built.get("reason","unknown"))}
 	if not cold_index_handoff_enabled:built.clear()
 	if _cancelled:return {"ok":false,"reason":"cancelled"}
@@ -433,6 +466,10 @@ func _rebuild_initial_reference_selection(full:Dictionary,paint_ids:Array,defini
 	_profile.reference_publication_integrity_scope="trusted_package_with_map_snapshot" if PackagePolicy.trusted() else "complete_cold_reference_closure"
 	_entry_plan=plan;_selected_record_indices=selection.record_indices
 	_register_reference_pending(selection.deferred_entries)
+	if PackagePolicy.trusted():
+		_reference_handoff=preload("res://scripts/world3d/reference_record_handoff.gd").create(candidate,full.rmmo_records,selection.deferred_entries,definition_sizes)
+		_profile.reference_handoff_records=_reference_handoff.records.size()
+		_profile.reference_handoff_reserved_bytes=_reference_handoff.reserved_bytes
 	_profile.reference_selected_count=selection.selected_count;_profile.reference_deferred_count=selection.deferred_count
 	_profile.reference_selected_groups=selection.selected_groups.size()
 	_profile.entry_core_cell=[plan.cell.x,plan.cell.y]
@@ -485,9 +522,9 @@ func _register_reference_pending(entries:Array)->void:
 		var memory:Dictionary={"estimated_bytes":int(entry.get("memory_bytes",65536)),"exclusive":false,"known":true}
 		var manifest:Dictionary={}
 		if not entry.asset_path.is_empty():
-			if not estimates.has(entry.asset_path):estimates[entry.asset_path]=preload("res://scripts/world3d/asset_memory_estimate.gd").estimate(entry.asset_path)
-			memory=estimates[entry.asset_path]
 			manifest=_dependency_index.models.get(entry.asset_path,{})
+			if not estimates.has(entry.asset_path):estimates[entry.asset_path]=preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(entry.asset_path,manifest)
+			memory=estimates[entry.asset_path]
 		_deferred_assets.append({"record":entry.compact_record,"path":key,"bounds":entry.bounds,"digest":"","memory":memory,"manifest":manifest,"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":entry.asset_path.is_empty(),"group_id":entry.group_id})
 		_deferred_ids[entry.compact_record.uuid]=true
 
@@ -496,6 +533,8 @@ func _prepare_record_assets()->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._prepare_record_assets") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var trace_started:=Time.get_ticks_usec()
 	_prepare_record_assets_inner()
+	if _error==OK and not _cancelled and not _deferred_assets.is_empty() and preload("res://scripts/world3d/pending_catalogue_preparation.gd").enabled:
+		_prepared_pending=preload("res://scripts/world3d/pending_catalogue_preparation.gd").prepare(_deferred_assets)
 	Trace.elapsed("game.asset_preparation",trace_started)
 
 func _initial_model_workers()->int:
@@ -533,7 +572,7 @@ func _prepare_record_assets_inner()->void:
 			else:_profile.source_manifest_reuse+=1
 			var footprint:Dictionary=Manifest.apply_record(manifests[path],record)
 			if footprint.get("known",false) and not near_clip.intersects(footprint.world_bounds):
-				if not memory_estimates.has(path):memory_estimates[path]=preload("res://scripts/world3d/asset_memory_estimate.gd").estimate(path)
+				if not memory_estimates.has(path):memory_estimates[path]=preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(path,manifests[path])
 				# Large distant files are hashed on their preparation worker. The
 				# source JSON bounds snapshot is checked again before import; full
 				# navigation caches stay disabled until every source hash is known.
@@ -564,16 +603,25 @@ func _prepare_record_assets_inner()->void:
 	_profile.mesh_cache_candidate=not _mesh_cache_data.is_empty()
 	var terrain_snapshot:Variant=_mesh_cache_data.get("terrain_context")
 	var channel_keys:Dictionary=preload("res://scripts/world3d/channel_mesh_preparation.gd").cached_keys(_mesh_cache_data)
+	var road_identities:Dictionary={}
+	if PackagePolicy.trusted():
+		for record:Dictionary in _record_meta.rmmo_records:
+			if not record.has("road_mesh"):continue
+			var at:int=_record_order.get(record.uuid,-1)
+			if at>=0 and at<_author_reference_meta.get("rmmo_records",[]).size():road_identities[record.uuid]=_author_reference_meta.rmmo_records[at].get("rmmo_ref",{}).get("sha256","")
 	_terrain_thread=Thread.new()
 	var prepare_terrain:=func(build_geometry:bool,snapshot:Variant):
 		var began:=Trace.begin("game.terrain_prepare")
 		var cached=preload("res://scripts/world3d/terrain_context_cache.gd").restore(snapshot,_record_meta.rmmo_records)
 		if cached!=null:
 			var channels:Dictionary=preload("res://scripts/world3d/channel_mesh_preparation.gd").prepare(_record_meta.rmmo_records,cached,channel_keys)
-			return {"context":cached,"surfaces":channels,"elapsed":Time.get_ticks_usec()-began,"cache_hit":true}
+			var bounds:Dictionary={}
+			if preload("res://scripts/world3d/entry_surface_preparation.gd").enabled and preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled:
+				for id:String in channels:bounds[id]=preload("res://scripts/world3d/procedural_surface_bounds.gd").bounds(channels[id])
+			return {"context":cached,"surfaces":channels,"bounds":bounds,"road_cache_hits":0,"elapsed":Time.get_ticks_usec()-began,"cache_hit":true}
 		var mask_buckets:Array=[[],[],[],[]];var mask_workers:Array[Thread]=[];var masks:Dictionary={};var mask_at:=0
-		for record:Dictionary in _record_meta.rmmo_records:
-			if record.has("terrain_regions"):mask_buckets[mask_at%4].append(record);mask_at+=1
+		for record:Dictionary in _terrain_region_records(_record_meta.rmmo_records):
+			mask_buckets[mask_at%4].append(record);mask_at+=1
 		for bucket:Array in mask_buckets:
 			var worker:=Thread.new()
 			var task:=func():
@@ -584,7 +632,7 @@ func _prepare_record_assets_inner()->void:
 			else:masks.merge(task.call())
 		var context=preload("res://scripts/world3d/terrain_neighbors.gd").new()
 		var neighbor_started:=Time.get_ticks_usec()
-		context.update(_record_meta.rmmo_records,not background_preload)
+		context.update(_record_meta.rmmo_records,not background_preload,preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials)
 		Trace.elapsed("game.terrain_neighbors",neighbor_started)
 		# Coverage masks are CPU images; build them off the scene thread too.
 		var buckets:Array=[[],[],[],[]];var at:=0;var workers:Array[Thread]=[]
@@ -599,33 +647,29 @@ func _prepare_record_assets_inner()->void:
 				var worker_started:=Time.get_ticks_usec()
 				for entry:Dictionary in bucket:
 					var record:Dictionary=entry.record
-					if preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record):
-						entry.surfaces=preload("res://scripts/world3d/channel_surface.gd").arrays(record)
-					elif build_geometry:
-						if record.has("terrain_volume"):entry.surfaces=preload("res://scripts/world3d/terrain_volume.gd").arrays(record)
-						elif record.has("terrain_mesh"):entry.surfaces=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,context.data.get(record.uuid,{}))
-						elif record.has("road_mesh"):entry.surfaces=preload("res://scripts/world3d/road_surface.gd").arrays(record)
-						elif record.has("rock_bank"):entry.surfaces=preload("res://scripts/world3d/rock_bank_mesh.gd").arrays(record)
+					entry.prepared=preload("res://scripts/world3d/entry_surface_preparation.gd").prepare(record,context.data.get(record.uuid,{}),build_geometry,_content_root,road_identities.get(record.uuid,""),PackagePolicy.trusted())
+					entry.surfaces=entry.prepared.arrays
 				Trace.elapsed("game.terrain_geometry_worker",worker_started,{"records":bucket.size()})
 			if not background_preload and worker.start(task)==OK:workers.append(worker)
 			else:task.call()
 		for worker:Thread in workers:worker.wait_to_finish()
 		for worker:Thread in mask_workers:masks.merge(worker.wait_to_finish())
-		var surfaces:Dictionary={}
+		var surfaces:Dictionary={};var bounds:Dictionary={};var road_cache_hits:=0
 		for bucket:Array in buckets:
 			for entry:Dictionary in bucket:
 				if not entry.surfaces.is_empty():surfaces[entry.record.uuid]=entry.surfaces
+				if entry.prepared.has("bounds"):bounds[entry.record.uuid]=entry.prepared.bounds
+				road_cache_hits+=int(entry.prepared.road_cache_hit)
 		for id:String in masks:
 			if not context.data.has(id):context.data[id]={}
 			context.data[id].region_mask=masks[id]
 		Trace.elapsed("game.terrain_prepare",began)
-		return {"context":context,"surfaces":surfaces,"elapsed":Time.get_ticks_usec()-began,"cache_hit":false}
+		return {"context":context,"surfaces":surfaces,"bounds":bounds,"road_cache_hits":road_cache_hits,"elapsed":Time.get_ticks_usec()-began,"cache_hit":false}
 	var initial_terrain:=prepare_terrain.bind(_mesh_cache_data.is_empty(),terrain_snapshot)
 	if background_preload or _terrain_thread.start(initial_terrain)!=OK:
 		_terrain_thread=null
 		var terrain:Dictionary=initial_terrain.call()
-		_terrain_context=terrain.context;_surface_arrays=terrain.surfaces;_profile.terrain_context_worker_us=terrain.elapsed
-		_profile.terrain_context_cache_hit=terrain.cache_hit
+		_accept_terrain(terrain)
 	_profile.asset_parses=[];_profile.asset_parse_us=0
 	# A verified compiled candidate checks source SHA after native read; a raw
 	# fallback checks before/after parsing. Both return that geometry's identity.
@@ -643,7 +687,9 @@ func _prepare_record_assets_inner()->void:
 		_model_preparation.cache_reader=previous.cache_reader
 		_model_preparation.eligibility_checker=previous.eligibility_checker
 		_model_preparation.prepare_static_scenes=previous.prepare_static_scenes
+		_model_preparation.require_native_products=previous.require_native_products
 	if _cancelled:_model_preparation.cancel()
+	if not hint.accepted:_model_preparation.static_scene_paths=manifests.duplicate()
 	var prepared:Dictionary=hint.result if hint.accepted else _model_preparation.run(paths,Callable(),_initial_model_workers(),Callable(),_content_root)
 	_profile.asset_parse_wall_us=prepared.elapsed_us
 	_profile.asset_admission_details=prepared.get("admission_profile",{})
@@ -653,13 +699,17 @@ func _prepare_record_assets_inner()->void:
 	for key:String in ["parallel_eligible_count","parallel_batches","eligibility_us","fallback_count"]:
 		_profile["asset_"+key]=prepared.get(key,0)
 	for entry:Dictionary in prepared.entries:
+		_profile.asset_static_manifest_reuses=int(_profile.get("asset_static_manifest_reuses",0))+int(entry.get("static_manifest_reused",false))
 		_profile.asset_parse_us+=entry.elapsed_us
 		_profile.asset_parses.append({"path":entry.path,"uuid":first_ids[entry.path],"elapsed_us":entry.elapsed_us,"error":entry.error,"compiled":entry.get("compiled",false)})
 		# Even a failed transaction can contain successful sibling resources.
 		# Retain them until the loader's main-thread cleanup, never drop on parser.
 		_asset_states[entry.path]=entry
 	_error=prepared.error
-	if _error!=OK:return # The coordinator has joined every worker before returning.
+	if _error!=OK:
+		for entry:Dictionary in prepared.entries:
+			if entry.has("error_message"):_failure_reason=entry.error_message;break
+		return # The coordinator has joined every worker before returning.
 	if _profile.get("cold_models_overlap_index",false) and not PackagePolicy.trusted():
 		# Early preparation may have finished while the cold directory was still
 		# rebuilding. Re-observe on this parser worker before accepting its output;
@@ -695,14 +745,13 @@ func _prepare_record_assets_inner()->void:
 		# flags or fall back to main-thread geometry generation.
 		if _terrain_thread!=null:_terrain_thread.wait_to_finish()
 		channel_keys.clear()
-		_terrain_context=null;_surface_arrays.clear();_profile.terrain_identity_restarts=1
+		_terrain_context=null;_surface_arrays.clear();_surface_bounds.clear();_profile.terrain_identity_restarts=1
 		_terrain_thread=Thread.new()
 		var fresh_terrain:=prepare_terrain.bind(true,null)
 		if background_preload or _terrain_thread.start(fresh_terrain)!=OK:
 			_terrain_thread=null
 			var terrain:Dictionary=fresh_terrain.call()
-			_terrain_context=terrain.context;_surface_arrays=terrain.surfaces;_profile.terrain_context_worker_us=terrain.elapsed
-			_profile.terrain_context_cache_hit=terrain.cache_hit
+			_accept_terrain(terrain)
 	for entry:Dictionary in prepared.entries:_asset_states[entry.path]=entry
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return
 	var texture_wait_started:=Time.get_ticks_usec()
@@ -720,6 +769,15 @@ func _prepare_record_assets_inner()->void:
 			_decoded_images[key]=image
 
 
+static func _terrain_region_records(records:Array)->Array:
+	# These pixel masks feed only the terrain material. White geometry needs
+	# neither masks nor height images; seam normals are still prepared below.
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return []
+	var result:Array=[]
+	for record:Dictionary in records:
+		if record.has("terrain_regions"):result.append(record)
+	return result
+
 func _finish_terrain()->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._finish_terrain") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _terrain_thread==null:return
@@ -728,8 +786,12 @@ func _finish_terrain()->void:
 	var terrain:Dictionary=_terrain_thread.wait_to_finish();_terrain_thread=null
 	_profile.terrain_join_wait_us=int(_profile.get("terrain_join_wait_us",0))+Time.get_ticks_usec()-wait_started
 	Trace.elapsed("game.terrain_join_wait",wait_started)
-	_terrain_context=terrain.context;_surface_arrays=terrain.surfaces;_profile.terrain_context_worker_us=terrain.elapsed
-	_profile.terrain_context_cache_hit=terrain.cache_hit
+	_accept_terrain(terrain)
+
+func _accept_terrain(terrain:Dictionary)->void:
+	_terrain_context=terrain.context;_surface_arrays=terrain.surfaces;_surface_bounds=terrain.get("bounds",{})
+	_profile.terrain_context_worker_us=terrain.elapsed;_profile.terrain_context_cache_hit=terrain.cache_hit
+	_profile.entry_road_cache_hits=terrain.get("road_cache_hits",0);_profile.entry_surface_bounds=_surface_bounds.size()
 
 
 
@@ -843,7 +905,7 @@ func _finish_error(message: String) -> void:
 
 func _exit_tree() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	if RenderingServer.frame_post_draw.is_connected(_startup_context_drawn):RenderingServer.frame_post_draw.disconnect(_startup_context_drawn)
+	if _startup_first_serial>0 and Frames.clock().presented.is_connected(_startup_context_drawn):Frames.clock().presented.disconnect(_startup_context_drawn)
 	_cancelled=true
 	_early_models.cancel()
 	_model_preparation.cancel()
@@ -853,6 +915,11 @@ func _exit_tree() -> void:
 		_draining_deferred.shutdown();_draining_deferred.free();_draining_deferred=null
 	if is_instance_valid(_prepared): _prepared.free()
 	if _asset_cursor!=null:_asset_cursor.dispose();_asset_cursor=null
+	if _asset_spec_worker!=null:
+		# Independent pure-data worker retains its template through the tree-owned
+		# drainer. Freeing a loading map never joins a live projection on main.
+		_asset_spec_drainer.abandon(_asset_spec_worker)
+		_asset_spec_worker=null;_asset_spec_token=null
 	if _thread != null:
 		preload("res://scripts/world3d/asset_worker_drainer.gd").drain_shutdown(_thread)
 	_early_models.drain_discarded()
@@ -863,6 +930,7 @@ func _exit_tree() -> void:
 	if _texture_thread!=null:_texture_thread.wait_to_finish()
 	if _terrain_thread!=null:_terrain_thread.wait_to_finish()
 	if _index_thread!=null:_index_thread.wait_to_finish()
+	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
 	for entry:Dictionary in _asset_states.values():preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(entry)
 	_asset_states.clear()
@@ -876,10 +944,13 @@ func _exit_tree() -> void:
 func _new_deferred()->Node:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._new_deferred") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var deferred:=preload("res://scripts/world3d/deferred_asset_loader.gd").new()
+	deferred.require_native_products=_model_preparation.require_native_products
 	deferred._prepared_paths=_prepared_asset_paths.duplicate()
 	deferred.source_signatures=_model_signatures.duplicate()
 	if not _dependency_index.is_empty():deferred.configure_references(_dependency_index,_path,_content_root,_dependency_proof)
+	deferred._reference_handoff=_reference_handoff;_reference_handoff=null
 	deferred.pending=_deferred_assets
+	deferred.adopt_prepared_pending(_prepared_pending);_prepared_pending=null
 	return deferred
 
 func _start_entry_prefetch()->void:
@@ -912,7 +983,7 @@ func _drain_entry_prefetch()->void:
 	_draining_deferred=null
 
 
-func _valid_records(extra: Dictionary, immutable_paint_ids:Array=[]) -> bool:
+func _valid_records(extra: Dictionary, immutable_paint_ids:Array=[],warm_prefabs:bool=true) -> bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._valid_records") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_needed_textures.clear()
 	if not PackagePolicy.trusted() and not preload("res://scripts/world3d/building_blueprint.gd").valid_meta(extra): return false
@@ -931,12 +1002,15 @@ func _valid_records(extra: Dictionary, immutable_paint_ids:Array=[]) -> bool:
 		buckets[i%4].append({"record":record,"paint_id":null if immutable_paint_ids.is_empty() else immutable_paint_ids[i]})
 	# Each validator owns its caches and dependency map. It reads the same
 	# immutable snapshot as prefab decoding, without waiting for decompression.
+	var white_package:bool=PackagePolicy.trusted() and preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures
 	for bucket:Array in buckets:
 		var worker:=Thread.new()
-		if not background_preload and worker.start(_validate_record_batch.bind(bucket))==OK:workers.append(worker)
+		if not white_package and not background_preload and worker.start(_validate_record_batch.bind(bucket))==OK:workers.append(worker)
 		else:results.append(_validate_record_batch(bucket))
 	var prefab_started:=Time.get_ticks_usec()
-	_decode_prefabs(records,_prefab_worker_count)
+	# Cold classification already prepares exact prefab bounds on its CPU pool.
+	# Do not put a second complete geometry warm-up barrier in front of it.
+	if warm_prefabs:_decode_prefabs(records,_prefab_worker_count)
 	_profile.prefab_decode_us=Time.get_ticks_usec()-prefab_started
 	var ownership_started:=Time.get_ticks_usec()
 	var ownership_ok:bool
@@ -959,6 +1033,10 @@ func _validate_record_batch(entries:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._validate_record_batch") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var validation_parts:Dictionary={"terrain":0,"paint":0,"dependencies":0,"other":0}
 	var textures:Dictionary={}
+	# The white route never consumes these images. Traversing material records
+	# and probing every referenced file only delays unrelated geometry work.
+	if PackagePolicy.trusted() and preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:
+		return {"ok":true,"textures":textures,"timings":validation_parts}
 	var material_validation: Dictionary={}; var checked_paths: Dictionary={};var checked_definitions:Dictionary={}
 	var checked_paints:Dictionary={}
 	var trusted_package:=PackagePolicy.trusted()
@@ -1046,11 +1124,7 @@ func _prepare_static_asset_specs(root:Node3D,instance:Node,parts:Array,library:A
 			if parent is Node3D:chain.append(parent)
 			parent=parent.get_parent()
 		for at:int in range(chain.size()-1,-1,-1):pose=pose*chain[at].transform
-		var spec:Dictionary=Stream._spec(node)
-		spec.transform=pose;spec.position=pose.origin
-		var bounds:AABB=pose*node.get_aabb()
-		spec.chunk=Stream.chunk_key(pose.origin);spec.chunk_min=Stream.chunk_key(bounds.position);spec.chunk_max=Stream.chunk_key(bounds.end)
-		preload("res://scripts/world3d/building_fixtures.gd").prepare_spec(spec)
+		var spec:Dictionary=Stream._spec(node,pose)
 		spec.uuid=str(spec.extras.get("uuid",str(root.get_path_to(node)).replace("/","__")))
 		library.append(spec)
 		if Time.get_ticks_usec()-slice_started>=budget:
@@ -1106,6 +1180,38 @@ func _prepare_asset_instance(doc:RefCounted,record:Dictionary,prepared:Dictionar
 	_profile.asset_instance_max_slice_us=maxi(int(_profile.get("asset_instance_max_slice_us",0)),int(_asset_cursor.profile.max_slice_us))
 	var result:Node3D=_asset_cursor.take_holder();_asset_cursor=null;return result
 
+func _prepare_asset_specs(packed:PackedScene,record:Dictionary,order:int)->Array:
+	var Template=preload("res://scripts/world3d/asset_spec_template.gd")
+	var Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
+	_asset_spec_token=Drainer.CancelToken.new()
+	_asset_spec_token.set_meta("reuse_template_owner",packed)
+	_asset_spec_worker=Thread.new();_asset_spec_drainer=Drainer.for_tree(get_tree())
+	_asset_spec_drainer.watch(_asset_spec_worker,_asset_spec_token)
+	var job:Callable=Template.prepare_one.bind(packed,record.duplicate(true),order,_asset_spec_token)
+	var started:=Time.get_ticks_usec();var packet:Dictionary
+	if _asset_spec_worker.start(job)==OK:
+		progress.emit("准备模型实例数据（后台）",0,1)
+		while _asset_spec_worker.is_alive():
+			await get_tree().process_frame
+			if _cancelled:
+				_asset_spec_drainer.abandon(_asset_spec_worker)
+				_asset_spec_worker=null;_asset_spec_token=null;return []
+		packet=_asset_spec_worker.wait_to_finish()
+	else:packet=job.call()
+	_asset_spec_drainer.forget(_asset_spec_worker)
+	_asset_spec_worker=null;Drainer.release_shared(_asset_spec_token);_asset_spec_token=null
+	_profile.asset_instance_worker_us=int(_profile.get("asset_instance_worker_us",0))+int(packet.profile.elapsed_us)
+	_profile.asset_instance_worker_wall_us=int(_profile.get("asset_instance_worker_wall_us",0))+Time.get_ticks_usec()-started
+	# Accepted initial-template subset, distinct from DeferredAssets cursor work.
+	# The worker already counted these steps; do not inspect its specs or graph.
+	_profile.accepted_initial_template_rows_adapted=int(_profile.get("accepted_initial_template_rows_adapted",0))+int(packet.profile.get("rows_adapted",0))
+	_profile.accepted_initial_template_rows_projected=int(_profile.get("accepted_initial_template_rows_projected",0))+int(packet.profile.get("rows_projected",0))
+	_profile.accepted_initial_template_sockets_applied=int(_profile.get("accepted_initial_template_sockets_applied",0))+int(packet.profile.get("sockets_applied",0))
+	_profile.accepted_initial_template_meshes_projected=int(_profile.get("accepted_initial_template_meshes_projected",0))+int(packet.profile.get("meshes_projected",0))
+	# The whole-asset handle remains in both paths; only model nodes disappear.
+	_profile.asset_instance_nodes_avoided=int(_profile.get("asset_instance_nodes_avoided",0))+packed.get_state().get_node_count()
+	return packet.specs
+
 func _build_records() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._build_records") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var build_started:=Time.get_ticks_usec()
@@ -1143,11 +1249,13 @@ func _build_records() -> void:
 	var doc = preload("res://scripts/world3d/world_document.gd").new()
 	doc.records=records
 	doc.load_immutable_records=true
+	doc.load_require_native_products=_model_preparation.require_native_products
 	doc.load_paint_validation={}
 	doc.load_material_pool={}
 	doc.load_texture_checks={}
 	doc.load_model_signatures=_model_signatures
 	doc.load_surface_arrays=_surface_arrays
+	doc.load_surface_bounds=_surface_bounds
 	if _terrain_context!=null:doc.terrain_neighbors=_terrain_context
 	var Cook=preload("res://scripts/world3d/runtime_mesh_cache.gd")
 	preload("res://scripts/world3d/surface_materials.gd").prepare_images(_decoded_images)
@@ -1174,6 +1282,7 @@ func _build_records() -> void:
 				if _terrain_context!=null:doc.terrain_neighbors=_terrain_context
 				else:doc.terrain_neighbors.update(records)
 				doc.load_surface_arrays=_surface_arrays
+				doc.load_surface_bounds=_surface_bounds
 				start=Time.get_ticks_usec()
 			if records[cursor].get("kind") == "asset" and not records[cursor].has("house_prefab"):
 				if not FileAccess.file_exists(str(records[cursor].get("asset_path", ""))):
@@ -1187,24 +1296,12 @@ func _build_records() -> void:
 					var prepared_asset:Dictionary=_asset_states[asset_path]
 					var asset_library=preload("res://scripts/world_editor/asset_library.gd")
 					var cached:=false
-					if background_preload:
-						if prepared_asset.has("packed"):_private_assets[asset_path]=prepared_asset.packed
-						else:
-							var imported:Node=prepared_asset.get("scene")
-							if imported==null:imported=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(prepared_asset.document,prepared_asset.state)
-							if imported!=null:
-								var packed:=PackedScene.new()
-								if packed.pack(imported)==OK:_private_assets[asset_path]=packed
-								preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(imported)
-								prepared_asset.erase("scene")
-						cached=_private_assets.has(asset_path)
-					elif prepared_asset.has("packed"):
-						cached=asset_library.cache_packed(asset_path,prepared_asset.packed,str(_model_signatures.get(asset_path,"")))
-					else:
-						var imported:Node=prepared_asset.get("scene")
-						if imported==null:imported=preload("res://scripts/world3d/gltf_map_io.gd").generate_scene(prepared_asset.document,prepared_asset.state)
-						cached=imported!=null and asset_library.cache_scene(asset_path,imported,str(_model_signatures.get(asset_path,"")))
-						if not is_instance_valid(imported):prepared_asset.erase("scene")
+					# Game preparation returns a native template. Raw generation and
+					# repacking belong to the content editor, including preload misses.
+					if prepared_asset.get("packed") is PackedScene:
+						if background_preload:
+							_private_assets[asset_path]=prepared_asset.packed;cached=true
+						else:cached=asset_library.cache_packed(asset_path,prepared_asset.packed,str(_model_signatures.get(asset_path,"")))
 					if not cached:
 						root.free()
 						_prepared = null
@@ -1216,6 +1313,21 @@ func _build_records() -> void:
 					_profile.asset_generate_us+=Time.get_ticks_usec()-asset_started
 					Trace.elapsed("game.asset_generate",asset_started,{"path":asset_path})
 				var instance_started:=Time.get_ticks_usec()
+				var static_template:PackedScene=_private_assets.get(asset_path) if background_preload else preload("res://scripts/world_editor/asset_library.gd")._scenes.get(asset_path)
+				if initial_static_specs_enabled and static_template!=null and preload("res://scripts/world3d/asset_spec_template.gd").supports(static_template,records[cursor]):
+					var direct_specs:Array=await _prepare_asset_specs(static_template,records[cursor],int(_record_order[records[cursor].uuid])*65536)
+					if _cancelled:root.free();_prepared=null;await _retire();return
+					asset_specs.append_array(direct_specs)
+					# Preserve the authored whole-asset handle, without its disposable
+					# model graph. Streaming owns the individual geometry/fixture rows.
+					var holder:=Node3D.new();holder.name=str(records[cursor].uuid)
+					holder.set_meta("asset_uuid",str(records[cursor].uuid))
+					holder.transform=preload("res://scripts/world3d/collision_instance_preparation.gd").record_pose(records[cursor])
+					root.add_child(holder)
+					_profile.asset_static_specs=int(_profile.get("asset_static_specs",0))+direct_specs.size()
+					_profile.asset_instantiate_us+=Time.get_ticks_usec()-instance_started
+					if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)
+					cursor+=1;continue
 				# Do not stack a completed large template pack and instance creation
 				# in the same covered loading frame.
 				if Time.get_ticks_usec()-start>=(2000 if background_preload else 24000):
@@ -1224,6 +1336,10 @@ func _build_records() -> void:
 					start=Time.get_ticks_usec()
 				var instance:Node=await _prepare_asset_instance(doc,records[cursor],{"template":_private_assets[asset_path]} if background_preload else {})
 				if _cancelled:root.free();_prepared=null;await _retire();return
+				if instance==null or instance.has_meta("missing_asset") or instance.has_meta("paint_error") or instance.has_meta("tile_error"):
+					var reason:String=str(instance.get_meta("paint_error","地图素材无法实例化："+asset_path)) if instance!=null else "地图素材无法实例化："+asset_path
+					if instance!=null:preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(instance)
+					root.free();_prepared=null;_finish_error(reason);return
 				_profile.asset_instantiate_us+=Time.get_ticks_usec()-instance_started
 				Trace.elapsed("game.asset_instantiate",instance_started,{"uuid":records[cursor].uuid,"path":asset_path})
 				if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)
@@ -1242,7 +1358,7 @@ func _build_records() -> void:
 					if not capture.profile.error.is_empty():
 						root.free();_prepared=null;_finish_error(str(capture.profile.error));return
 					_profile.asset_capture_wall_us=int(_profile.get("asset_capture_wall_us",0))+Time.get_ticks_usec()-capture_started
-					for field:String in ["elapsed_us","slices","captured_meshes","face_bytes"]:_profile["asset_capture_"+field]=int(_profile.get("asset_capture_"+field,0))+int(capture.profile[field])
+					for field:String in ["elapsed_us","slices","captured_meshes","importer_surfaces","renderer_surfaces","face_bytes"]:_profile["asset_capture_"+field]=int(_profile.get("asset_capture_"+field,0))+int(capture.profile[field])
 					_profile.asset_capture_max_slice_us=maxi(int(_profile.get("asset_capture_max_slice_us",0)),int(capture.profile.max_slice_us))
 				var parts:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(instance)
 				for i in parts.size():parts[i].set_meta("map_draw_order",int(_record_order[records[cursor].uuid])*65536+i)
@@ -1359,8 +1475,8 @@ func _build_records() -> void:
 		root.set_meta("deferred_geometry",true)
 		root.set_meta("stream_children",-1) # First adoption skips the marked service.
 	var server=get_node_or_null("/root/MockServer")
-	if not background_preload and server!=null and server.has_method("register_loaded_world3d_environment"):
-		server.register_loaded_world3d_environment(_path,_record_meta)
+	if not background_preload and server!=null:
+		preload("res://scripts/net/mock_server_host.gd").call_when_ready(server,&"register_loaded_world3d_environment",[_path,_record_meta])
 	_prepared = null
 	finished.emit(root, _path, "")
 	await _retire()

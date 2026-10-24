@@ -4,7 +4,9 @@ extends RefCounted
 const WorldLocation = preload("res://scripts/world3d/world_location.gd")
 const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
 const SurfaceMaterials = preload("res://scripts/world3d/surface_materials.gd")
+const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 static var legacy_mesh_placeholder_enabled:=false # Same-code measurement of superseded GPU bindings.
+static var white_entry_material_reuse_enabled:=true # Diagnostic old white-entry fallback material control.
 
 var records: Array = []
 var map_meta: Dictionary = {}
@@ -23,7 +25,10 @@ var load_box_meshes: Variant=null
 var load_box_hits:=0
 var load_model_signatures:Dictionary={}
 var load_immutable_records:=false
+var load_require_native_products:=false # Game-owned documents prohibit raw imports; editor documents can import.
 var load_surface_arrays:Dictionary={}
+var load_surface_bounds:Dictionary={}
+var load_surface_uploads:Dictionary={}
 var last_save_metrics: Dictionary = {}
 
 
@@ -416,6 +421,10 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	var cpu_index:bool=effects and load_immutable_records and (preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record) or (record.has("water_depth_effect") and preload("res://scripts/world3d/river_materials.gd").water_cpu_index_enabled))
+	# This immutable white entry is never used for authored material restoration.
+	# Its effective material was already the global white override; retain that
+	# exact shared material in the CPU slots instead of constructing hidden colors.
+	var white_prepared:bool=white_entry_material_reuse_enabled and cpu_index and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials and load_surface_arrays.has(str(record.get("uuid","")))
 	if record.has("house_prefab"):
 		var prefab=preload("res://scripts/world3d/house_prefab.gd")
 		# Runtime indexing consumes immutable CPU geometry. Upload only when the
@@ -467,7 +476,9 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		box=BoxMesh.new()
 		box.size=Vector3(float(size[0]),float(size[1]),float(size[2]))
 	var color: Array = record.get("color", [])
-	if color.size() >= 3 and cached==null:
+	if white_prepared and cached==null:
+		box.material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material()
+	elif color.size() >= 3 and cached==null:
 		var mat := StandardMaterial3D.new()
 		mat.roughness = 0.92
 		mat.albedo_color = Color(float(color[0]), float(color[1]), float(color[2]))
@@ -475,7 +486,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
-	if record.has("channel_mesh") and not record.has("fortification_art") and record.get("surface_id")=="water" and box!=null and box.material is StandardMaterial3D:
+	if not white_prepared and record.has("channel_mesh") and not record.has("fortification_art") and record.get("surface_id")=="water" and box!=null and box.material is StandardMaterial3D:
 		box.material.roughness=.22;box.material.metallic=.15
 	var geometry_started:int=Time.get_ticks_usec() if timings!=null else 0
 	if cached != null:
@@ -491,12 +502,14 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		var prepared:Mesh
 		if timings!=null:timings.setup_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var channel_geometry:bool=preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record)
-		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") and not channel_geometry else box.material
+		var material:Material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material() if white_prepared else (SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") and not channel_geometry else box.material)
 		if timings!=null:timings.material_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var arrays:Array=load_surface_arrays[str(record.uuid)]
 		var slot_materials:Array=[]
-		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if (record.has("road_mesh") or channel_geometry) and slot==3 else material)
-		if cpu_index:prepared=preload("res://scripts/world3d/ground_cpu_mesh.gd").from_surfaces(arrays,slot_materials)
+		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if not white_prepared and (record.has("road_mesh") or channel_geometry) and slot==3 else material)
+		if cpu_index and load_surface_bounds.has(str(record.uuid)):
+			prepared=preload("res://scripts/world3d/procedural_surface_bounds.gd").make_cpu(arrays,slot_materials,load_surface_bounds[str(record.uuid)])
+		elif cpu_index:prepared=preload("res://scripts/world3d/ground_cpu_mesh.gd").from_surfaces(arrays,slot_materials)
 		else:
 			prepared=ArrayMesh.new()
 			for slot in arrays.size():
@@ -504,6 +517,8 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 				prepared.surface_set_material(slot,slot_materials[slot])
 				prepared.surface_set_name(slot,(["volume_terrain"] if record.has("terrain_volume") else (["terrain","bedrock_and_cut_edges","cultivation"] if record.has("terrain_mesh") else ["pavement","underside","edge","automatic_kerb"]))[slot])
 			if record.has("road_mesh") or record.has("terrain_mesh"):preload("res://scripts/world3d/ground_cpu_mesh.gd").remember(prepared,arrays)
+		if cpu_index and load_surface_uploads.has(str(record.uuid)):
+			preload("res://scripts/world3d/prepared_cpu_upload.gd").attach(prepared,load_surface_uploads[str(record.uuid)])
 		mesh_node.mesh=prepared
 		if timings!=null:timings.arraymesh_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	else:
@@ -519,7 +534,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		if record.has("channel_mesh") and not record.has("fortification_art"):
 			geometry = preload("res://scripts/world3d/channel_surface.gd").mesh(record,box.material)
 		if record.has("water_gate") and not record.has("fortification_art"):geometry=preload("res://scripts/world3d/water_gate_mesh.gd").mesh(record,box.material)
-		if record.has("fortification_art"): geometry=preload("res://scripts/world3d/fortification_art.gd").new().build(record)
+		if record.has("fortification_art"): geometry=preload("res://scripts/world3d/fortification_art.gd").new().build(record,load_require_native_products)
 		if record.get("building_shape")=="wall_grid": geometry = preload("res://scripts/world3d/house_wall_mesh.gd").mesh(record,box.material)
 		if record.get("building_shape")=="draped_cloth":geometry=preload("res://scripts/world3d/curtain_mesh.gd").mesh(record,box.material)
 		if record.get("building_shape")=="joined_box":geometry=preload("res://scripts/world3d/joined_box_mesh.gd").mesh(record,box.material)
@@ -600,6 +615,14 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		# Water keeps separate rendering/transparency, but its directory entry
 		# can retain CPU geometry and slot materials until the actual stream spawn.
 		preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record,river_context,load_paint_validation,load_immutable_records,cpu_index)
+		if white_prepared and mesh_node.mesh is CpuMesh:
+			var white:Material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material()
+			var redundant:bool=mesh_node.material_override==white and not mesh_node.mesh.materials.is_empty()
+			for slot in mesh_node.mesh.materials.size():
+				redundant=redundant and mesh_node.mesh.materials[slot]==white and mesh_node.get_surface_override_material(slot)==null
+			# A redundant override would make every cooked spec fall back to _mesh
+			# on the next load. Only erase it when all effective slots are identical.
+			if redundant:mesh_node.material_override=null
 		if timings!=null:timings.river_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
 	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", (record if load_immutable_records else record.duplicate(true)))
@@ -637,7 +660,7 @@ func _asset(record: Dictionary, prepared: Dictionary = {}) -> Node3D:
 	var holder:Node3D=context.holder;var model:Node3D=context.model
 	if model!=null:
 		_namespace_asset(model,str(record.uuid),model,str(record.get("collision","")))
-		preload("res://scripts/world3d/model_components.gd").apply(model,record)
+		preload("res://scripts/world3d/model_components.gd").apply(model,record,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		_asset_components_ready(holder,model)
 	return _finish_asset_instance(holder,record)
 
@@ -651,7 +674,7 @@ func _begin_asset_instance(record:Dictionary,prepared:Dictionary)->Dictionary:
 	var model: Node3D
 	if record.has("bridge_mesh"):
 		var bridge:=MeshInstance3D.new(); bridge.name="StoneBridge"
-		bridge.mesh=preload("res://scripts/world3d/bridge_mesh.gd").new().build(record)
+		bridge.mesh=preload("res://scripts/world3d/bridge_mesh.gd").new().build(record,load_require_native_products)
 		if bridge.mesh!=null: model=bridge
 		else: bridge.free()
 	# Async loads pass an independently instantiated scene, including null for a
@@ -662,7 +685,7 @@ func _begin_asset_instance(record:Dictionary,prepared:Dictionary)->Dictionary:
 	elif prepared.has("template"):
 		var template:Variant=prepared.template
 		if template is PackedScene:model=preload("res://scripts/world_editor/asset_library.gd")._instantiate(template)
-	else: model = preload("res://scripts/world_editor/asset_library.gd").instantiate(str(record.get("asset_path", "")))
+	else: model = preload("res://scripts/world_editor/asset_library.gd").instantiate(str(record.get("asset_path", "")),load_require_native_products)
 	if model == null:
 		var fallback := MeshInstance3D.new()
 		fallback.mesh = BoxMesh.new()
@@ -671,6 +694,7 @@ func _begin_asset_instance(record:Dictionary,prepared:Dictionary)->Dictionary:
 		fallback.material_override = material
 		holder.add_child(fallback)
 		holder.set_meta("missing_asset", true)
+		if load_require_native_products:holder.set_meta("paint_error","游戏模型缺少可用原生产物，请在内容编辑器重新导出："+str(record.get("asset_path","")))
 	else:
 		holder.add_child(model)
 		var tree_error:=preload("res://scripts/world3d/parametric_tree.gd").apply(model,record)
@@ -683,13 +707,14 @@ static func _asset_components_ready(holder:Node3D,model:Node3D)->void:
 		holder.set_meta("model_component_batch_sources",model.get_meta("model_component_batch_sources"))
 
 func _finish_asset_instance(holder:Node3D,record:Dictionary)->Node3D:
-	preload("res://scripts/world3d/streetlamp_banner.gd").apply(holder,record)
-	SurfaceMaterials.apply(holder, record, load_paint_validation, load_texture_checks)
-	preload("res://scripts/world3d/wind_response.gd").annotate(holder,record)
-	for visual in SurfaceMaterials.meshes(holder):
-		preload("res://scripts/world3d/wind_response.gd").register(visual)
-		preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
-	return preload("res://scripts/world3d/vegetation_render.gd").flatten(holder,record)
+	var cursor:=begin_asset_finish(holder,record)
+	cursor.advance(0)
+	return cursor.take_holder()
+
+func begin_asset_finish(holder:Node3D,record:Dictionary,model_nodes:Array[Node]=[])->RefCounted:
+	var cursor:=preload("res://scripts/world3d/asset_finish_preparation.gd").new()
+	cursor.begin(self,holder,record,model_nodes)
+	return cursor
 
 func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: String="") -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._namespace_asset") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -699,7 +724,7 @@ func _namespace_asset(node: Node, prefix: String, asset_root: Node, collision: S
 static func _namespace_asset_node(node:Node,prefix:String,asset_root:Node,collision:String)->void:
 	if node is MeshInstance3D:
 		var extras: Dictionary = node.get_meta("extras", {}).duplicate(true)
-		if preload("res://scripts/world3d/imported_building.gd").valid_part(extras.get("rmmo_part")) and extras.has("uuid"):extras.rmmo_source_uuid=extras.uuid
+		if extras.has("uuid") and (extras.get("rmmo_part") is Dictionary if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else preload("res://scripts/world3d/imported_building.gd").valid_part(extras.get("rmmo_part"))):extras.rmmo_source_uuid=extras.uuid
 		extras["uuid"] = prefix + "__" + str(asset_root.get_path_to(node)).replace("/", "__")
 		if collision in ["none","walk","block"]: extras["rmmo_collision"]=collision
 		node.set_meta("extras", extras)

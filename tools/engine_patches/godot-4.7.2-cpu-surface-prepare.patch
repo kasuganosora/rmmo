@@ -1,0 +1,61 @@
+--- a/servers/rendering/rendering_server.cpp
++++ b/servers/rendering/rendering_server.cpp
+@@ -2248,7 +2248,58 @@
+ }
+ #endif
+ 
++// Prepare the same serialized surface accepted by ArrayMesh::_set_surfaces.
++// This only packs caller-owned CPU arrays: no RID, resource, renderer command
++// or GPU readback is created. Independent loading workers may call it in
++// parallel; the receiving thread installs the completed surfaces afterwards.
++static Dictionary _mesh_prepare_surface_from_arrays(RSE::PrimitiveType p_primitive, const Array &p_arrays, const Array &p_blend_shapes, const Dictionary &p_lods, BitField<RSE::ArrayFormat> p_flags) {
++	RenderingServerTypes::SurfaceData surface;
++	Error err = RenderingServer::get_singleton()->mesh_create_surface_data_from_arrays(&surface, p_primitive, p_arrays, p_blend_shapes, p_lods, p_flags);
++	ERR_FAIL_COND_V(err != OK, Dictionary());
++
++	Dictionary data;
++	data["format"] = surface.format;
++	data["primitive"] = surface.primitive;
++	data["vertex_data"] = surface.vertex_data;
++	data["vertex_count"] = surface.vertex_count;
++	data["aabb"] = surface.aabb;
++	data["uv_scale"] = surface.uv_scale;
++	if (!surface.skin_data.is_empty()) {
++		data["skin_data"] = surface.skin_data;
++	}
++	if (!surface.attribute_data.is_empty()) {
++		data["attribute_data"] = surface.attribute_data;
++	}
++	if (surface.index_count) {
++		data["index_data"] = surface.index_data;
++		data["index_count"] = surface.index_count;
++	}
++	Array lods;
++	for (int i = 0; i < surface.lods.size(); i++) {
++		lods.push_back(surface.lods[i].edge_length);
++		lods.push_back(surface.lods[i].index_data);
++	}
++	if (!lods.is_empty()) {
++		data["lods"] = lods;
++	}
++	Array bone_aabbs;
++	for (int i = 0; i < surface.bone_aabbs.size(); i++) {
++		bone_aabbs.push_back(surface.bone_aabbs[i]);
++	}
++	if (!bone_aabbs.is_empty()) {
++		data["bone_aabbs"] = bone_aabbs;
++	}
++	if (!surface.blend_shape_data.is_empty()) {
++		data["blend_shapes"] = surface.blend_shape_data;
++	}
++	if (surface.format & RSE::ARRAY_FLAG_USE_2D_VERTICES) {
++		data["2d"] = true;
++	}
++	return data;
++}
++
+ void RenderingServer::_bind_methods() {
++	ClassDB::bind_static_method("RenderingServer", D_METHOD("mesh_prepare_surface_from_arrays", "primitive", "arrays", "blend_shapes", "lods", "flags"), &_mesh_prepare_surface_from_arrays, DEFVAL(Array()), DEFVAL(Dictionary()), DEFVAL(0));
+ 	BIND_CONSTANT(RSE::NO_INDEX_ARRAY);
+ 	BIND_CONSTANT(RSE::ARRAY_WEIGHTS_SIZE);
+ 	BIND_CONSTANT(RSE::CANVAS_ITEM_Z_MIN);

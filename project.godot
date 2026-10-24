@@ -16,7 +16,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
 
-MockServer="*res://scripts/net/mock_server.gd"
+MockServer="*res://scripts/net/mock_server_host.gd"
 GameSession="*res://scripts/net/game_session.gd"
 AssetManager="*res://scripts/asset/asset_manager.gd"
 GameSettings="*res://scripts/game/game_settings.gd"

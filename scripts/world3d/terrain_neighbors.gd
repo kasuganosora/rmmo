@@ -8,6 +8,7 @@ var edge_cache:Dictionary={}
 var point_index:Dictionary={}
 var dependents:Dictionary={}
 var last_work:Dictionary={}
+var geometry_only_context:=false
 
 static func compatible(a: Dictionary,b: Dictionary) -> bool:
 	var ta:=Terrain.transform(a); var tb:=Terrain.transform(b)
@@ -18,12 +19,25 @@ static func compatible(a: Dictionary,b: Dictionary) -> bool:
 	var offset:=ta.affine_inverse()*tb.origin
 	var span:=Vector2(a.size[0]+b.size[0],a.size[2]+b.size[2])*.5
 	return (absf(absf(offset.x)-span.x)<.001 and absf(offset.z)<=span.y+.001) or (absf(absf(offset.z)-span.y)<.001 and absf(offset.x)<=span.x+.001)
-func update(records: Array, parallel:bool=false) -> Array[String]:
+func update(records: Array, parallel:bool=false,geometry_only:bool=false) -> Array[String]:
+	return _update(records,parallel,{},geometry_only)
+
+## A private chunk job reads neighboring edges but publishes only its requested
+## tiles. Editing still uses update(), retaining the full incremental context.
+func prepare_selected(records:Array,requested:Dictionary)->void:
+	assert(data.is_empty() and sources.is_empty())
+	if requested.is_empty():
+		last_work={"boundary_vertices":0,"contexts":0,"records":0};return
+	_update(records,false,requested,preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials)
+
+func _update(records:Array,parallel:bool,requested:Dictionary={},geometry_only:bool=false)->Array[String]:
 	var next: Array=[]; var selected: Dictionary={}
 	for r in records:
 		if not r.has("terrain_mesh") or absf(r.rotation[0])>.00001 or absf(r.rotation[2])>.00001: continue
 		selected[str(r.uuid)]=r; next.append([r.uuid,r.position,r.rotation,r.size,r.terrain_mesh])
-	if signature==next: return []
+	if signature==next and geometry_only_context==geometry_only: return []
+	if geometry_only_context!=geometry_only:data.clear()
+	geometry_only_context=geometry_only
 	last_work={"boundary_vertices":0,"contexts":0,"records":selected.size()}
 	var dirty:Dictionary={};var affected:Dictionary={}
 	for id:String in edge_cache:
@@ -60,6 +74,7 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 	# descriptors and halo dependencies survive height-only edits elsewhere.
 	for id:String in sources:
 		joins[id]={};normals[id]={}
+		if not requested.is_empty() and not requested.has(id):continue
 		if not affected.has(id) and data.has(id):
 			for other:String in data[id].neighbors:joins[id][other]=true
 			normals[id]=data[id].normals;continue
@@ -76,6 +91,7 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 			if count>1:normals[id][edge.at]=Terrain.transform(sources[id]).basis.inverse()*sum.normalized()
 	var changed: Array[String]=[]; var fresh:={}; var pending:Array=[]
 	for id: String in sources:
+		if not requested.is_empty() and not requested.has(id):continue
 		var r: Dictionary=sources[id]; var neighbors: Array=joins[id].keys(); neighbors.sort()
 		var local_signature: Array=[r.position,r.rotation,r.size,r.terrain_mesh]
 		for other: String in neighbors:
@@ -89,7 +105,7 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 	for i in pending.size():buckets[i%4].append(pending[i])
 	for bucket:Array in buckets:
 		var task:=func():
-			for entry:Dictionary in bucket:entry.result=_patch_context(entry.record,sources,entry.normals,entry.neighbors,entry.signature)
+			for entry:Dictionary in bucket:entry.result=_patch_context(entry.record,sources,entry.normals,entry.neighbors,entry.signature,geometry_only)
 		var worker:=Thread.new()
 		if parallel and bucket.size()>0 and worker.start(task)==OK:workers.append(worker)
 		else:task.call()
@@ -105,10 +121,11 @@ func update(records: Array, parallel:bool=false) -> Array[String]:
 	data=fresh
 	return changed
 
-static func _patch_context(r:Dictionary,sources:Dictionary,normals:Dictionary,neighbors:Array,local_signature:Array)->Dictionary:
+static func _patch_context(r:Dictionary,sources:Dictionary,normals:Dictionary,neighbors:Array,local_signature:Array,geometry_only:bool=false)->Dictionary:
 	var t: Dictionary=r.terrain_mesh; var step:=Vector2(r.size[0]/t.columns,r.size[2]/t.rows)
 	# Maximum material-transition query is 8m, plus an interpolation sample.
 	var pad:=Vector2i(clampi(ceili(8./step.x)+1,1,33),clampi(ceili(8./step.y)+1,1,33))
+	if geometry_only:return {"signature":local_signature.duplicate(true),"normals":normals,"padding":Vector2(pad),"neighbors":neighbors}
 	var width:=int(t.columns)+1+pad.x*2; var height:=int(t.rows)+1+pad.y*2
 	var pixels:=PackedFloat32Array(); pixels.resize(width*height)
 	var world:=Terrain.transform(r); var adjacent: Array=[]

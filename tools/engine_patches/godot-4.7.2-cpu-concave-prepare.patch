@@ -1,0 +1,152 @@
+--- a/modules/godot_physics_3d/godot_shape_3d.cpp
++++ b/modules/godot_physics_3d/godot_shape_3d.cpp
+@@ -29,6 +29,7 @@
+ /**************************************************************************/
+ 
+ #include "godot_shape_3d.h"
++#include "godot_concave_prepared_data_3d.h"
+ 
+ #include "core/io/image.h"
+ #include "core/math/convex_hull.h"
+@@ -1658,7 +1659,19 @@
+ 	Dictionary d = p_data;
+ 	ERR_FAIL_COND(!d.has("faces"));
+ 
+-	_setup(d["faces"], d["backface_collision"]);
++    // Accept only an engine-built immutable product for this exact COW input.
++    // Altered/custom dictionaries keep the normal validation and setup path.
++    Ref<GodotConcavePreparedData3D> prepared = d.get("_prepared", Variant());
++    Vector<Vector3> input = d["faces"];
++    if (prepared.is_valid() && input.size() == prepared->source_faces.size() && input.ptr() == prepared->source_faces.ptr()) {
++        faces = prepared->shape.faces;
++        vertices = prepared->shape.vertices;
++        bvh = prepared->shape.bvh;
++        backface_collision = d["backface_collision"];
++        configure(prepared->shape.get_aabb());
++        return;
++    }
++    _setup(input, d["backface_collision"]);
+ }
+ 
+ Variant GodotConcavePolygonShape3D::get_data() const {
+--- a/modules/godot_physics_3d/register_types.cpp
++++ b/modules/godot_physics_3d/register_types.cpp
+@@ -31,9 +31,11 @@
+ #include "register_types.h"
+ 
+ #include "godot_physics_server_3d.h"
++#include "godot_concave_prepared_data_3d.h"
+ 
+ #include "core/config/project_settings.h"
+ #include "core/object/callable_mp.h"
++#include "core/object/class_db.h"
+ #include "servers/physics_3d/physics_server_3d.h"
+ #include "servers/physics_3d/physics_server_3d_wrap_mt.h"
+ 
+@@ -53,6 +55,8 @@
+ 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
+ 		return;
+ 	}
++	GDREGISTER_INTERNAL_CLASS(GodotConcavePreparedData3D);
++	ClassDB::bind_static_method("PhysicsServer3D", D_METHOD("prepare_concave_shape_data", "faces", "backface_collision"), &GodotConcavePreparedData3D::prepare, DEFVAL(false));
+ 	PhysicsServer3DManager::get_singleton()->register_server("GodotPhysics3D", callable_mp_static(_createGodotPhysics3DCallback));
+ 	PhysicsServer3DManager::get_singleton()->set_default_server("GodotPhysics3D");
+ }
+--- a/scene/resources/3d/concave_polygon_shape_3d.cpp
++++ b/scene/resources/3d/concave_polygon_shape_3d.cpp
+@@ -97,6 +97,17 @@
+ 	Shape3D::_update_shape();
+ }
+ 
++void ConcavePolygonShape3D::set_prepared_faces(const Dictionary &p_data) {
++    ERR_FAIL_COND(!p_data.has("faces") || p_data["faces"].get_type() != Variant::PACKED_VECTOR3_ARRAY);
++    faces = p_data["faces"];
++    backface_collision = p_data.get("backface_collision", false);
++    Dictionary data = p_data.duplicate();
++    data["backface_collision"] = backface_collision;
++    PhysicsServer3D::get_singleton()->shape_set_data(get_shape(), data);
++    Shape3D::_update_shape();
++    emit_changed();
++}
++
+ void ConcavePolygonShape3D::set_faces(const Vector<Vector3> &p_faces) {
+ 	faces = p_faces;
+ 	_update_shape();
+@@ -121,6 +132,7 @@
+ }
+ 
+ void ConcavePolygonShape3D::_bind_methods() {
++	ClassDB::bind_method(D_METHOD("set_prepared_faces", "data"), &ConcavePolygonShape3D::set_prepared_faces);
+ 	ClassDB::bind_method(D_METHOD("set_faces", "faces"), &ConcavePolygonShape3D::set_faces);
+ 	ClassDB::bind_method(D_METHOD("get_faces"), &ConcavePolygonShape3D::get_faces);
+ 
+--- a/scene/resources/3d/concave_polygon_shape_3d.h
++++ b/scene/resources/3d/concave_polygon_shape_3d.h
+@@ -67,6 +67,7 @@
+ 
+ public:
+ 	void set_faces(const Vector<Vector3> &p_faces);
++	void set_prepared_faces(const Dictionary &p_data);
+ 	Vector<Vector3> get_faces() const;
+ 
+ 	void set_backface_collision_enabled(bool p_enabled);
+--- /dev/null
++++ b/modules/godot_physics_3d/godot_concave_prepared_data_3d.h
+@@ -0,0 +1,57 @@
++/**************************************************************************/
++/*  godot_shape_3d.h                                                      */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the following conditions:                                              */
++/*                                                                        */
++/* The above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#pragma once
++
++#include "godot_shape_3d.h"
++#include "core/object/ref_counted.h"
++
++// Immutable, CPU-only result. The private shape has no RID, world, or owners.
++// It runs the exact ordinary BVH builder, then shares the completed COW vectors.
++class GodotConcavePreparedData3D : public RefCounted {
++    GDCLASS(GodotConcavePreparedData3D, RefCounted);
++protected:
++    static void _bind_methods() {}
++public:
++    GodotConcavePolygonShape3D shape;
++    Vector<Vector3> source_faces;
++    static Dictionary prepare(const Vector<Vector3> &p_faces, bool p_backface_collision) {
++        ERR_FAIL_COND_V(p_faces.size() % 3, Dictionary());
++        Ref<GodotConcavePreparedData3D> prepared;
++        prepared.instantiate();
++        prepared->source_faces = p_faces;
++        prepared->shape._setup(p_faces, p_backface_collision);
++        Dictionary data;
++        data["faces"] = p_faces;
++        data["backface_collision"] = p_backface_collision;
++        data["_prepared"] = prepared;
++        return data;
++    }
++};

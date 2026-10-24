@@ -76,7 +76,11 @@ func run()->void:
 			# navigation callbacks must be disconnected, not merely inert.
 			listeners_valid=listeners_valid and callback.is_valid() and callback.get_object()==world and not original_listeners[signal_name].has(callback)
 	check(no_transfer_demands and listeners_valid,"consecutive transfers retain only current navigation callbacks and the exact residency observer")
-	print("TRANSFER_LISTENERS ",{"published":final_listeners.published.size(),"completed":final_listeners.completed.size(),"failed":final_listeners.failed.size(),"demands":deferred._demands.keys()})
+	var describe:=func(callback:Callable)->String:
+		var owner:Object=callback.get_object()
+		var script:Variant=owner.get_script() if owner!=null else null
+		return "%s.%s"%[script.resource_path.get_file() if script is Script else str(owner),callback.get_method()]
+	print("TRANSFER_LISTENERS ",{"published_by":final_listeners.published.map(describe),"published":final_listeners.published.size(),"completed":final_listeners.completed.size(),"failed":final_listeners.failed.size(),"demands":deferred._demands.keys()})
 	check(FileAccess.get_sha256(path)==source_sha,"all transfers preserve the authored source map")
 	await cleanup_world()
 	print("SAME_MAP_TRANSFER_GPU_FINISHED failures=",failures," fixture=",directory)

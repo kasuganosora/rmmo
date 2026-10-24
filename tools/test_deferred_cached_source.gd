@@ -31,6 +31,10 @@ func worker_reuse(path:String,digest:String,root_:String,index:Dictionary={},map
 	while worker.is_alive():await process_frame
 	return worker.wait_to_finish()
 func run()->void:
+	# Explicit diagnostic SHA/mutation cases; normal mounted packages trust
+	# their declared content identity while still checking template ownership.
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var previous_policy:bool=policy.verify_packages;policy.verify_packages=true
 	var helper:=Fixtures.new();helper.content_root=Paths.external_root();helper.folder=Paths.cache_directory("cached_source_test_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(helper.folder)
 	var path:=helper.folder.path_join("model.glb");helper.created.append(path)
@@ -62,6 +66,7 @@ func run()->void:
 	# A completed CPU result must not publish through a template replaced by
 	# another loader after its final SHA. Keep dispatch closed to prove no
 	# synchronous fallback import is attempted by acceptance or publication.
+	policy.verify_packages=previous_policy
 	var map:=Node3D.new();root.add_child(map)
 	var stream_index:=preload("res://scripts/world3d/stream_index.gd").build([])
 	for key:String in stream_index:map.set_meta(key,stream_index[key])

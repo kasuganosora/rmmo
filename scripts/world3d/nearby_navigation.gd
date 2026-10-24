@@ -21,12 +21,13 @@ func step(owner:Node,budget_usec:int=2000)->void:
 	if budget_usec<=0:return
 	var started:=Time.get_ticks_usec()
 	var initial_cursor:=cursor
-	while cursor<owner._specs.size() and (cursor==initial_cursor or Time.get_ticks_usec()-started<budget_usec):
-		var spec:Dictionary=owner._specs[cursor];cursor+=1
+	var source_specs:Array=owner._specs
+	while cursor<source_specs.size() and (cursor==initial_cursor or Time.get_ticks_usec()-started<budget_usec):
+		var spec:Dictionary=source_specs[cursor];cursor+=1
 		if not owner._collides(spec):continue
 		var box:AABB=spec.transform*spec.mesh.get_aabb()
 		if clip.intersects(box) and not owner._add_source(source,spec):cursor-=1;return
-	if cursor<owner._specs.size():return
+	if cursor<source_specs.size():return
 	var prepared:NavigationMeshSourceGeometryData3D=owner._prepare_source(source)
 	if prepared==null:return
 	source=prepared

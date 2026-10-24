@@ -1,0 +1,312 @@
+--- a/core/variant/variant.cpp
++++ b/core/variant/variant.cpp
+@@ -28,14 +28,132 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "variant.h"
+ 
+ #include "core/debugger/engine_debugger.h"
+ #include "core/io/json.h"
+ #include "core/io/resource.h"
++#include "core/object/script_language.h"
++#include "core/os/os.h"
++#include "core/os/thread.h"
++#include "core/string/print_string.h"
++#include <cstdlib>
++#include <cstring>
+ #include "core/math/math_funcs.h"
+ #include "core/variant/variant_parser.h"
+ #include "core/variant/variant_pools.h"
++
++
++// RMMO169 diagnostic only. The state contains scalar values and StringNames,
++// never references to the object being destroyed or any of its child Resources.
++namespace RMMORelease169 {
++struct Sample {
++	const void *object = nullptr;
++	const void *instance = nullptr;
++	uint64_t object_id = 0, start = 0;
++	uint64_t us[PHASE_COUNT] = {}, count[PHASE_COUNT] = {};
++	uint64_t first[PHASE_COUNT] = {}, last[PHASE_COUNT] = {};
++	uint64_t shape_updates = 0;
++	StringName meta_keys[16];
++	int meta_types[16] = {}, meta_count = 0;
++};
++static thread_local Sample *active = nullptr;
++static thread_local bool reporting = false;
++static bool enabled() {
++	static const bool value = []() { const char *v = std::getenv("RMMO_RELEASE169"); return v && std::strcmp(v, "1") == 0; }();
++	return value;
++}
++static uint64_t now() { return OS::get_singleton()->get_ticks_usec(); }
++static void add(Phase p_phase, uint64_t p_start, uint64_t p_end) {
++	if (!active || !p_start) { return; }
++	active->us[p_phase] += p_end - p_start;
++	active->count[p_phase]++;
++	if (!active->first[p_phase]) { active->first[p_phase] = p_start; }
++	active->last[p_phase] = p_end;
++}
++bool root_is(const void *p_object) { return active && active->object == p_object; }
++Root::Root(RefCounted *p_object) {
++	if (!enabled() || active || reporting || !OS::get_singleton() || !Thread::is_main_thread()) { return; }
++	ScriptInstance *instance = p_object->get_script_instance();
++	if (!instance) { return; }
++	{
++		Ref<Script> script = instance->get_script();
++		if (script.is_null() || script->get_path() != "res://scripts/world3d/ground_cpu_mesh.gd") { return; }
++	} // The temporary script Ref is gone before measured destruction starts.
++	static thread_local Sample storage;
++	storage = Sample();
++	storage.object = p_object;
++	storage.instance = instance;
++	storage.object_id = uint64_t(p_object->get_instance_id());
++	active = &storage;
++	owns = true;
++	storage.start = now();
++}
++Root::~Root() {
++	if (!owns) { return; }
++	const uint64_t ended = now();
++	Sample &sample = *active;
++	active = nullptr; // All logging and temporary diagnostic containers are outside the measured scope.
++	static const uint64_t minimum = []() { const char *v = std::getenv("RMMO_RELEASE169_MIN_US"); return v ? uint64_t(std::strtoull(v, nullptr, 10)) : uint64_t(5000); }();
++	reporting = true;
++	if (ended - sample.start < minimum) {
++		for (int i = 0; i < sample.meta_count; i++) { sample.meta_keys[i] = StringName(); }
++		sample.meta_count = 0;
++		reporting = false;
++		return;
++	}
++	Dictionary row;
++	row["object_id"] = String::num_uint64(sample.object_id);
++	row["start_us"] = int64_t(sample.start);
++	row["end_us"] = int64_t(ended);
++	row["total_memdelete_us"] = int64_t(ended - sample.start);
++	row["shape_updates_processed"] = int64_t(sample.shape_updates);
++	row["inclusive_nested_do_not_sum"] = true;
++	row["includes_refcount_unreference"] = false;
++	row["metadata_snapshot_in_predelete"] = true;
++	const char *names[PHASE_COUNT] = { "predelete", "notification", "cleanup_notification", "script_instance_delete", "script_instance_body", "script_instance_mutex_wait", "object_body", "shape_body", "physics_free_rid", "physics_update_shapes", "arraymesh_body" };
++	Dictionary phases;
++	for (int i = 0; i < PHASE_COUNT; i++) {
++		Dictionary phase;
++		phase["us"] = int64_t(sample.us[i]); phase["count"] = int64_t(sample.count[i]);
++		phase["first_offset_us"] = sample.first[i] ? int64_t(sample.first[i] - sample.start) : int64_t(-1);
++		phase["last_offset_us"] = sample.last[i] ? int64_t(sample.last[i] - sample.start) : int64_t(-1);
++		phases[names[i]] = phase;
++	}
++	row["phases"] = phases;
++	row["script_post_body_remainder_us"] = int64_t(sample.us[SCRIPT_DELETE]) - int64_t(sample.us[SCRIPT_BODY]);
++	row["after_object_body_remainder_us"] = sample.last[OBJECT_BODY] ? int64_t(ended - sample.last[OBJECT_BODY]) : int64_t(-1);
++	Array metadata;
++	for (int i = 0; i < sample.meta_count; i++) {
++		Dictionary entry;
++		entry["key"] = String(sample.meta_keys[i]); entry["variant_type"] = sample.meta_types[i];
++		metadata.push_back(entry);
++	}
++	row["metadata_keys_first16"] = metadata;
++	print_line("RMMO_RELEASE169 " + JSON::stringify(row));
++	for (int i = 0; i < sample.meta_count; i++) { sample.meta_keys[i] = StringName(); }
++	sample.meta_count = 0;
++	reporting = false;
++}
++Scope::Scope(Phase p_phase, const void *p_owner) : phase(p_phase) {
++	if (!active) { return; }
++	if ((p_phase == PREDELETE || p_phase == NOTIFY || p_phase == CLEANUP_NOTIFY || p_phase == SCRIPT_DELETE || p_phase == OBJECT_BODY) && p_owner != active->object) { return; }
++	if (p_phase == SCRIPT_BODY && p_owner != active->instance) { return; }
++	started = now();
++}
++Scope::~Scope() { if (started) { add(phase, started, now()); } }
++void metadata_key(const StringName &p_key, int p_type) {
++	if (!active || active->meta_count >= 16) { return; }
++	const int at = active->meta_count++;
++	active->meta_keys[at] = p_key; active->meta_types[at] = p_type;
++}
++uint64_t script_wait_begin(const void *p_instance) { return active && active->instance == p_instance ? now() : 0; }
++void script_wait_end(const void *p_instance, uint64_t p_started) {
++	if (active && active->instance == p_instance && p_started) { add(SCRIPT_LOCK_WAIT, p_started, now()); }
++}
++void shape_update() { if (active) { active->shape_updates++; } }
++}
+ 
+ String Variant::get_type_name(Variant::Type p_type) {
+ 	switch (p_type) {
+@@ -1120,6 +1238,7 @@
+ 		RefCounted *reference = static_cast<RefCounted *>(obj);
+ 		// Assuming reference is not null because id.is_ref_counted() was true.
+ 		if (reference->unreference()) {
++			RMMORelease169::Root release_probe(reference);
+ 			memdelete(reference);
+ 		}
+ 	}
+--- a/core/object/object.cpp
++++ b/core/object/object.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "object.h"
+ #include "object.compat.inc"
+ 
+@@ -169,18 +170,33 @@
+ }
+ 
+ bool Object::_predelete() {
++	RMMORelease169::Scope release_probe(RMMORelease169::PREDELETE, this);
++	if (RMMORelease169::root_is(this)) {
++		int captured = 0;
++		for (const KeyValue<StringName, Variant> &entry : metadata) {
++			if (captured++ >= 16) { break; }
++			RMMORelease169::metadata_key(entry.key, int(entry.value.get_type()));
++		}
++	}
+ 	_predelete_ok = true;
+-	notification(NOTIFICATION_PREDELETE, true);
++	{
++		RMMORelease169::Scope notification_probe(RMMORelease169::NOTIFY, this);
++		notification(NOTIFICATION_PREDELETE, true);
++	}
+ 	if (!_predelete_ok) {
+ 		return false;
+ 	}
+ 
+ 	_gdtype_ptr = nullptr; // Must restore, so constructors/destructors have proper class name access at each stage.
+-	notification(NOTIFICATION_PREDELETE_CLEANUP, true);
++	{
++		RMMORelease169::Scope notification_probe(RMMORelease169::CLEANUP_NOTIFY, this);
++		notification(NOTIFICATION_PREDELETE_CLEANUP, true);
++	}
+ 
+ 	// Destruction order starts with the most derived class, and progresses towards the base Object class:
+ 	// Script subclasses -> GDExtension subclasses -> C++ subclasses -> Object
+ 	if (script_instance) {
++		RMMORelease169::Scope script_probe(RMMORelease169::SCRIPT_DELETE, this);
+ 		memdelete(script_instance);
+ 	}
+ 	script_instance = nullptr;
+@@ -2319,6 +2335,7 @@
+ }
+ 
+ Object::~Object() {
++	RMMORelease169::Scope release_probe(RMMORelease169::OBJECT_BODY, this);
+ 	if (_emitting) {
+ 		//@todo this may need to actually reach the debugger prioritarily somehow because it may crash before
+ 		ERR_PRINT(vformat("Object '%s' was freed or unreferenced while a signal is being emitted from it. Try connecting to the signal using 'CONNECT_DEFERRED' flag, or use queue_free() to free the object (if this object is a Node) to avoid this error and potential crashes.", to_string()));
+--- a/modules/gdscript/gdscript.cpp
++++ b/modules/gdscript/gdscript.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "gdscript.h"
+ 
+ #include "gdscript_analyzer.h"
+@@ -2065,7 +2066,10 @@
+ }
+ 
+ GDScriptInstance::~GDScriptInstance() {
++	RMMORelease169::Scope body_probe(RMMORelease169::SCRIPT_BODY, this);
++	const uint64_t wait_started = RMMORelease169::script_wait_begin(this);
+ 	MutexLock lock(GDScriptLanguage::get_singleton()->mutex);
++	RMMORelease169::script_wait_end(this, wait_started);
+ 
+ 	while (SelfList<GDScriptFunctionState> *E = pending_func_states.first()) {
+ 		// Order matters since clearing the stack may already cause
+--- a/scene/resources/3d/shape_3d.cpp
++++ b/scene/resources/3d/shape_3d.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "shape_3d.h"
+ 
+ #include "core/object/class_db.h"
+@@ -165,6 +166,7 @@
+ 		shape(p_shape) {}
+ 
+ Shape3D::~Shape3D() {
++	RMMORelease169::Scope release_probe(RMMORelease169::SHAPE_BODY);
+ 	ERR_FAIL_NULL(PhysicsServer3D::get_singleton());
+ 	PhysicsServer3D::get_singleton()->free_rid(shape);
+ }
+--- a/scene/resources/mesh.cpp
++++ b/scene/resources/mesh.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "mesh.h"
+ 
+ #include "core/math/convex_hull.h"
+@@ -2361,6 +2362,7 @@
+ }
+ 
+ ArrayMesh::~ArrayMesh() {
++	RMMORelease169::Scope release_probe(RMMORelease169::ARRAYMESH_BODY);
+ 	if (mesh.is_valid()) {
+ 		ERR_FAIL_NULL(RenderingServer::get_singleton());
+ 		RenderingServer::get_singleton()->free_rid(mesh);
+--- a/modules/godot_physics_3d/godot_physics_server_3d.cpp
++++ b/modules/godot_physics_3d/godot_physics_server_3d.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/object/rmmo_release169.h"
+ #include "godot_physics_server_3d.h"
+ 
+ #include "godot_body_direct_state_3d.h"
+@@ -1597,6 +1598,7 @@
+ }
+ 
+ void GodotPhysicsServer3D::free_rid(RID p_rid) {
++	RMMORelease169::Scope release_probe(RMMORelease169::PHYSICS_FREE);
+ 	_update_shapes(); //just in case
+ 
+ 	if (shape_owner.owns(p_rid)) {
+@@ -1768,7 +1770,9 @@
+ }
+ 
+ void GodotPhysicsServer3D::_update_shapes() {
++	RMMORelease169::Scope update_probe(RMMORelease169::SHAPE_UPDATES);
+ 	while (pending_shape_update_list.first()) {
++		RMMORelease169::shape_update();
+ 		pending_shape_update_list.first()->self()->_shape_changed();
+ 		pending_shape_update_list.remove(pending_shape_update_list.first());
+ 	}
+--- /dev/null
++++ b/core/object/rmmo_release169.h
+@@ -0,0 +1,27 @@
++// Temporary, opt-in destruction attribution. No resource ownership or ordering changes.
++#pragma once
++#include <cstdint>
++class Object;
++class RefCounted;
++class StringName;
++namespace RMMORelease169 {
++enum Phase { PREDELETE, NOTIFY, CLEANUP_NOTIFY, SCRIPT_DELETE, SCRIPT_BODY, SCRIPT_LOCK_WAIT, OBJECT_BODY, SHAPE_BODY, PHYSICS_FREE, SHAPE_UPDATES, ARRAYMESH_BODY, PHASE_COUNT };
++class Root {
++	bool owns = false;
++public:
++	explicit Root(RefCounted *p_object);
++	~Root();
++};
++class Scope {
++	Phase phase;
++	uint64_t started = 0;
++public:
++	explicit Scope(Phase p_phase, const void *p_owner = nullptr);
++	~Scope();
++};
++bool root_is(const void *p_object);
++void metadata_key(const StringName &p_key, int p_type);
++uint64_t script_wait_begin(const void *p_instance);
++void script_wait_end(const void *p_instance, uint64_t p_started);
++void shape_update();
++}

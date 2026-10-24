@@ -47,5 +47,50 @@ func _initialize()->void:
 	for i in 8:
 		if order.choose([b,c],priorities,ranks,jobs).path=="tree":reached_far=true
 	check(reached_far,"next ready building advances after its nearer predecessor retires")
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	controls.white_materials=true;controls.discard_map_textures=true
+	order=Order.new();jobs={"house":{},"grass":{},"tree":{}};selected=[]
+	for i in 12:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected==["house","house","house","house","grass","grass","grass","grass","tree","tree","tree","tree"],"white buildings share bounded turns with props while predecessor remains ready")
+	priorities.tree_instance=-1
+	check(order.choose([c,a,b],priorities,ranks,jobs).path=="tree","white fairness still yields immediately to safety priority")
+	priorities.tree_instance=10;priorities.grass_instance=10
+	order=Order.new();selected=[]
+	for i in 15:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected==["house","house","house","house","grass","house","house","house","house","tree","house","house","house","house","grass"],"white distant owners receive one oldest-served turn after every four nearby units")
+	check(selected.count("house")==12 and selected.has("tree"),"continuously ready nearby work retains four fifths of service without starving either distant path")
+	check(order.choose(heads,priorities,ranks,jobs).path=="house","a distant turn returns immediately to nearby work")
+	order=Order.new()
+	for i in Order.MAX_BURST:order.choose(heads,priorities,ranks,jobs)
+	priorities.tree_instance=-1
+	check(order.choose([c,a,b],priorities,ranks,jobs).path=="tree","safety interrupts even when a distant visual turn is due")
+	priorities.tree_instance=10;selected=[]
+	for i in Order.MAX_BURST:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected==["house","house","house","house"],"after safety service nearby work receives a fresh visual burst")
+	check(order.choose(heads,priorities,ranks,jobs).path=="grass","distant service resumes after the fresh nearby burst")
+	jobs.erase("grass");selected=[]
+	for i in Order.MAX_BURST+1:selected.append(order.choose([a,c],priorities,ranks,jobs).path)
+	check(selected==["house","house","house","house","tree"] and not order._served.has("grass"),"a retired distant path releases its scheduler state and cannot consume future turns")
+	for i in Order.MAX_BURST:order.choose([a,c],priorities,ranks,jobs)
+	check(order.choose([],priorities,ranks,jobs).is_empty() and order._near_service_count==0,"empty readiness resets a due distant turn")
+	selected=[]
+	for i in Order.MAX_BURST+1:selected.append(order.choose([a,c],priorities,ranks,jobs).path)
+	check(selected==["house","house","house","house","tree"],"readiness recovery starts with nearby work and restores bounded distant progress")
+	for i in Order.MAX_BURST:order.choose([a,c],priorities,ranks,jobs)
+	priorities.house_part=1
+	check(order.choose([a,c],priorities,ranks,jobs).path=="house" and order._near_service_count==1,"a changed nearest priority resets the service interval")
+	priorities.house_part=0;jobs.grass={}
+	Order.white_priority_turns_enabled=false;selected=[]
+	for i in 9:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected.count("house")==9 and order._near_service_count==0,"the comparison switch restores strict visual priority and clears accumulated credit")
+	Order.white_priority_turns_enabled=true;selected=[]
+	for i in Order.MAX_BURST+1:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected.slice(0,Order.MAX_BURST)==["house","house","house","house"] and selected[-1]!="house","re-enabling white priority turns starts a fresh bounded interval")
+	controls.discard_map_textures=false
+	check(Order.preserve_building_material_order(),"white-colour override alone retains material ordering when authored textures are still loaded")
+	selected=[]
+	for i in 9:selected.append(order.choose(heads,priorities,ranks,jobs).path)
+	check(selected.count("house")==9,"loading authored textures retains strict visual priority")
+	controls.white_materials=false
 	print("PUBLICATION_ORDER checks=",checks," failures=",failures)
 	quit(1 if failures else 0)

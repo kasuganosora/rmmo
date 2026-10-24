@@ -92,7 +92,11 @@ func load_world_pack(pack_path: String, map_id: String = "", cell: Vector2i = Ve
 
 
 func _load_pack(pack_path: String, map_id: String = "") -> bool:
-	var pack = TilemapPack.load_pack(pack_path, map_id)
+	return _apply_pack(TilemapPack.load_pack(pack_path, map_id), pack_path)
+
+
+## Make an already loaded pack the current server map (pack_path names it in errors).
+func _apply_pack(pack: RefCounted, pack_path: String) -> bool:
 	if pack == null or pack.collision == null:
 		push_error("MockServer: failed to load pack collision at %s" % pack_path)
 		return false

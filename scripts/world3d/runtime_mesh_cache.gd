@@ -8,6 +8,8 @@ const Envelope=preload("res://scripts/world3d/map_metadata_cache.gd")
 const DIR:="user://world3d_meshes"
 const MAGIC:="RMMOMESH2"
 const HEADER_SIZE:=113 # magic, length, source identity, generator identity, checksum
+static var read_enabled:=true # Test forced cache miss; ordinary writes still measure rebuild cost.
+static var pack_iteration_enabled:=true # Diagnostic old deep-key lookup control.
 
 static func _identity(value:String)->PackedByteArray:
 	return Envelope.checksum(value.to_utf8_buffer())
@@ -42,6 +44,9 @@ static func _checksum(source:PackedByteArray,generator:PackedByteArray,bytes:Pac
 
 static func generator_key()->String:
 	var hashes:Array=[Engine.get_version_info().hash]
+	hashes.append(FileAccess.get_sha256("res://scripts/world3d/entry_surface_preparation.gd"))
+	for file in ["terrain_surface_arrays.gd","road_surface_arrays.gd","road_kerb_arrays.gd"]:
+		hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+file))
 	hashes.append(FileAccess.get_sha256("res://scripts/world3d/importer_lod_hint.gd"))
 	hashes.append(FileAccess.get_sha256("res://scripts/world3d/imported_building.gd"))
 	hashes.append(FileAccess.get_sha256("res://scripts/world3d/mesh_tangent_repair.gd"))
@@ -58,6 +63,7 @@ static func cache_path(path:String,selection:String="")->String:
 	return DIR.path_join("selected").path_join(map_key).path_join(selection+".bin")
 
 static func read(path:String,digest:String,generator:String,diagnostics:Variant=null,selection:String="")->Dictionary:
+	if not read_enabled:return {}
 	if diagnostics!=null:diagnostics.payload_bytes_read=0;diagnostics.reason="missing_or_header"
 	var target:=cache_path(path,selection)
 	if target.is_empty():return {}
@@ -198,10 +204,16 @@ static func material_data(material:Material)->Dictionary:
 static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[])->Dictionary:
 	var materials:Array=[];var meshes:Array=[];var entries:Array=[]
 	var material_ids:Dictionary={};var mesh_ids:Dictionary={}
-	for key:Array in cache:
+	# Dictionary iteration has already located each pair. Re-looking up a large
+	# terrain/road key recursively hashes its authoring arrays twice per record.
+	# This synchronous snapshot does not mutate the cache; native key/value
+	# copies preserve insertion order and borrow exactly the same owners.
+	var cache_keys:Array=cache.keys();var cache_values:Array=cache.values() if pack_iteration_enabled else []
+	for cache_at:int in cache_keys.size():
+		var key:Array=cache_keys[cache_at]
 		var ids:Array=[];var supported:=true
 		for field in ["mesh","source"]:
-			var mesh:Mesh=cache[key][field]
+			var mesh:Mesh=cache_values[cache_at][field] if pack_iteration_enabled else cache[key][field]
 			var mid:=mesh.get_instance_id()
 			if not mesh_ids.has(mid):
 				var cpu:Mesh=Cpu.capture(mesh);var slots:Array=[]
@@ -238,6 +250,13 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 static func restore_material(value:Dictionary,paint_validation:Variant,material_pool:Dictionary)->bool:
 	var identity:Array=[value]
 	if material_pool.has(identity):return true
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	if controls.white_materials:
+		# White geometry must not first rebuild discarded shader/property state.
+		# Keep the same culling as the later diagnostic surface projection.
+		var cull:int=int(value.get("cull",BaseMaterial3D.CULL_BACK)) if value.has("paint") else int(value.get("values",{}).get("cull_mode",BaseMaterial3D.CULL_BACK))
+		material_pool[identity]=controls.white_material(cull)
+		return true
 	var material:StandardMaterial3D
 	if value.has("paint"):
 		if not Paint.material_valid(value.paint,false,"",paint_validation):return false

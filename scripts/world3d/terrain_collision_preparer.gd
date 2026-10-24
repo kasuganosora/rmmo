@@ -24,6 +24,15 @@ var _bake_basis:=Basis.IDENTITY
 var _body:StaticBody3D
 var _faces:=PackedVector3Array()
 var _shapes:Array=[]
+var _prepared_shapes:Array=[]
+var bvh_worker_slices:=0
+var bvh_main_slices:=0
+# Existing worker_slices counts accepted prepared products. These count actual
+# uncached installs, so cancelled preparation and cached shape reuse differ.
+var bvh_worker_installed_slices:=0
+var bvh_main_installed_slices:=0
+var bvh_worker_face_vertices:=0
+var bvh_main_face_vertices:=0
 var _cursor:=0
 var _cached:=false
 var _ready_spec:Dictionary={}
@@ -54,7 +63,7 @@ func cancel(defer_free:bool=false)->void:
 	if is_instance_valid(_body):
 		if defer_free:_body.queue_free()
 		else:_body.free()
-	_body=null;_spec={};_faces=PackedVector3Array();_shapes=[];_cursor=0
+	_body=null;_spec={};_faces=PackedVector3Array();_shapes=[];_prepared_shapes=[];_cursor=0
 	_release_face_lease()
 	_request_pose=Transform3D.IDENTITY;_variant_key="";_bake_basis=Basis.IDENTITY
 	# A CPU-only worker can finish without blocking this frame. Its result is
@@ -109,7 +118,8 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 		measured=Time.get_ticks_usec() if profile_enabled else 0
 		var packet:Dictionary=_thread.wait_to_finish();_thread=null
 		var result:PackedVector3Array=packet.get("faces",PackedVector3Array())
-		if not _spec.is_empty() and _mesh==mesh and _request_pose==pose and _variant_key==variant.key:_faces=result
+		if not _spec.is_empty() and _mesh==mesh and _request_pose==pose and _variant_key==variant.key:
+			_faces=result;_prepared_shapes=packet.get("prepared_shapes",[]);bvh_worker_slices+=_prepared_shapes.size()
 		else:_mesh=null
 		WorkerRetirement.complete(_retirement)
 		_measure("worker_handoff",measured)
@@ -132,6 +142,7 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 			var prefetched:PackedVector3Array=face_prefetch.take(mesh,cpu,_bake_basis) if face_prefetch!=null else PackedVector3Array()
 			if not prefetched.is_empty():
 				_faces=prefetched
+				_prepared_shapes=face_prefetch.take_prepared(mesh,cpu,_bake_basis);bvh_worker_slices+=_prepared_shapes.size()
 				_face_lease={"owner":face_prefetch,"source":mesh,"cpu":cpu,"basis":_bake_basis}
 			elif prepared_faces_enabled and _bake_basis==Basis.IDENTITY and not cpu._collision_faces.is_empty():
 				prepared_face_hits+=1
@@ -153,6 +164,11 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 				if not _retirement.is_empty() and _thread.start(_worker_extract.bind(surfaces,bake_basis,completed))==OK:return false
 				WorkerRetirement.complete(_retirement)
 				_thread=null;_faces=_extract(surfaces,bake_basis,completed)
+	if not _cached and _prepared_shapes.is_empty() and not _faces.is_empty() and preload("res://scripts/world3d/collision_bvh_preparation.gd").active():
+		_thread=Thread.new()
+		_retirement=WorkerRetirement.watch(_thread,host.get_tree() if host.is_inside_tree() else null,[mesh,_faces])
+		if not _retirement.is_empty() and _thread.start(preload("res://scripts/world3d/collision_bvh_preparation.gd").packet.bind(_faces))==OK:return false
+		WorkerRetirement.complete(_retirement);_thread=null
 	if _body==null:
 		measured=Time.get_ticks_usec() if profile_enabled else 0
 		_body=load("res://scripts/world3d/world_stream.gd")._body_shell(spec)
@@ -174,10 +190,13 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 			measured=Time.get_ticks_usec() if profile_enabled else 0
 			shape=ConcavePolygonShape3D.new()
 			var offset:=_cursor*SLICE_VERTICES
-			var faces:=_faces.slice(offset,mini(offset+SLICE_VERTICES,_faces.size()))
+			var faces:PackedVector3Array=_prepared_shapes[_cursor].faces if not _prepared_shapes.is_empty() else _faces.slice(offset,mini(offset+SLICE_VERTICES,_faces.size()))
 			_measure("slice_copy",measured)
 			measured=Time.get_ticks_usec() if profile_enabled else 0
-			shape.set_faces(faces)
+			if not _prepared_shapes.is_empty():
+				shape.call(&"set_prepared_faces",_prepared_shapes[_cursor]);bvh_worker_installed_slices+=1;bvh_worker_face_vertices+=faces.size()
+			else:
+				shape.set_faces(faces);bvh_main_slices+=1;bvh_main_installed_slices+=1;bvh_main_face_vertices+=faces.size()
 			_measure("shape_set_faces",measured)
 			if profile_enabled:_profile_details.set_faces_intervals.append({"slice":_cursor,"vertices":faces.size(),"begin_usec":measured,"end_usec":Time.get_ticks_usec()})
 			_shapes.append(shape)
@@ -190,7 +209,7 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 	if _cursor<count:return false
 	measured=Time.get_ticks_usec() if profile_enabled else 0
 	if not _cached:
-		if _variant_key.is_empty():mesh.set_meta("runtime_terrain_shapes",_shapes)
+		if _variant_key.is_empty():_store_shapes(mesh,_shapes)
 		else:_store_variant(mesh,_variant_key,_shapes)
 	# A returning tile may still retain its old initial-load monolithic shape.
 	# No active body uses this spec here; keep only the replacement shape set.
@@ -198,7 +217,7 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 	spec.prepared_body=_body
 	_ready_spec=spec
 	# Ownership transfers to the stream spec; _make_body activates and consumes it.
-	_body=null;_spec={};_mesh=null;_faces=PackedVector3Array();_shapes=[];_cursor=0
+	_body=null;_spec={};_mesh=null;_faces=PackedVector3Array();_shapes=[];_prepared_shapes=[];_cursor=0
 	_release_face_lease()
 	_request_pose=Transform3D.IDENTITY;_variant_key="";_bake_basis=Basis.IDENTITY
 	_measure("finalize_release",measured)
@@ -206,7 +225,7 @@ func _prepare(spec:Dictionary,host:Node,work_budget_usec:int=1500)->bool:
 
 static func _worker_extract(surfaces:Array,bake_basis:Basis,completed:PackedVector3Array=PackedVector3Array())->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._worker_extract") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	return {"faces":_extract(surfaces,bake_basis,completed)}
+	return preload("res://scripts/world3d/collision_bvh_preparation.gd").packet(_extract(surfaces,bake_basis,completed))
 
 static func _extract(surfaces:Array,bake_basis:Basis=Basis.IDENTITY,completed:PackedVector3Array=PackedVector3Array())->PackedVector3Array:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._extract") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -214,7 +233,10 @@ static func _extract(surfaces:Array,bake_basis:Basis=Basis.IDENTITY,completed:Pa
 	if faces.is_empty():
 		var snapshot:=Cpu.new();snapshot.surfaces=surfaces
 		faces=snapshot.collision_faces()
-	elif bake_basis!=Basis.IDENTITY:faces=faces.duplicate()
+	elif bake_basis!=Basis.IDENTITY:
+		# Transform3D's native packed operation allocates the one private output
+		# which the old duplicate + scripted loop needed. Do not first duplicate.
+		return Transform3D(bake_basis,Vector3.ZERO)*faces
 	# Expansion or duplicate supplies a private transformed output. Never bake
 	# into shared local faces or include translation twice in the physics body.
 	if bake_basis!=Basis.IDENTITY:
@@ -264,6 +286,10 @@ static func _cached_variant(mesh:Mesh,key:String)->Dictionary:
 	mesh.set_meta(BASIS_CACHE_META,cache)
 	return entry
 
+static func _store_shapes(mesh:Mesh,shapes:Array)->void:
+	if mesh is Cpu:mesh.set_terrain_shapes(shapes)
+	else:mesh.set_meta("runtime_terrain_shapes",shapes)
+
 static func _store_variant(mesh:Mesh,key:String,shapes:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.terrain_collision_preparer._store_variant") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var cache:Dictionary=mesh.get_meta(BASIS_CACHE_META,{"entries":{},"serial":0})
@@ -276,4 +302,5 @@ static func _store_variant(mesh:Mesh,key:String,shapes:Array)->void:
 			if int(entries[candidate].stamp)<oldest_stamp:oldest=candidate;oldest_stamp=int(entries[candidate].stamp)
 		# Remove only cache ownership. Published bodies keep their shape refs.
 		entries.erase(oldest)
-	mesh.set_meta(BASIS_CACHE_META,cache)
+	if mesh is Cpu:mesh.set_terrain_basis_cache(cache)
+	else:mesh.set_meta(BASIS_CACHE_META,cache)

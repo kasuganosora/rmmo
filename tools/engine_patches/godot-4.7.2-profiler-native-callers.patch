@@ -1,0 +1,44 @@
+--- a/modules/gdscript/gdscript.cpp
++++ b/modules/gdscript/gdscript.cpp
+@@ -41,6 +41,7 @@
+ #include "core/io/resource_loader.h"
+ #include "core/object/callable_mp.h"
+ #include "core/object/class_db.h"
++#include "core/os/os.h"
+ 
+ #ifdef TOOLS_ENABLED
+ #include "editor/gdscript_docgen.h"
+@@ -2388,6 +2389,10 @@
+ 
+ void GDScriptLanguage::profiling_collate_native_call_data(bool p_accumulated) {
+ #ifdef DEBUG_ENABLED
++	static const bool by_caller = OS::get_singleton()->get_environment("RMMO_PROFILE_NATIVE_CALLERS") == "1";
++	if (by_caller) {
++		return; // Each GDScriptFunction already owns its distinct native counters.
++	}
+ 	// The same native call can be called from multiple functions, so join them together here.
+ 	// Only use the name of the function (ie signature.split[2]).
+ 	HashMap<String, GDScriptFunction::Profile::NativeProfile *> seen_nat_calls;
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -107,12 +107,17 @@
+ 	// A function can run on several script workers while frame() copies and
+ 	// clears this table. Share the language lock used by the profiler readers.
+ 	MutexLock lock(GDScriptLanguage::get_singleton()->mutex);
+-	HashMap<String, Profile::NativeProfile>::Iterator inner_prof = profile.native_calls.find(p_func_name);
++	// Opt-in diagnostic mode: retain the script caller rather than globally
++	// attributing a native method to the first function visited by the reader.
++	static const bool by_caller = OS::get_singleton()->get_environment("RMMO_PROFILE_NATIVE_CALLERS") == "1";
++	const String native_name = p_instance_class_name + (p_instance_class_name.is_empty() ? "" : ".") + p_func_name;
++	const String key = by_caller ? native_name : p_func_name;
++	HashMap<String, Profile::NativeProfile>::Iterator inner_prof = profile.native_calls.find(key);
+ 	if (inner_prof) {
+ 		inner_prof->value.call_count += 1;
+ 	} else {
+-		String sig = vformat("%s::0::%s%s%s", get_script()->get_script_path(), p_instance_class_name, p_instance_class_name.is_empty() ? "" : ".", p_func_name);
+-		inner_prof = profile.native_calls.insert(p_func_name, Profile::NativeProfile{ 1, 0, sig });
++		String sig = by_caller ? String(profile.signature) + " [native " + native_name + "]" : vformat("%s::0::%s", get_script()->get_script_path(), native_name);
++		inner_prof = profile.native_calls.insert(key, Profile::NativeProfile{ 1, 0, sig });
+ 	}
+ 	inner_prof->value.total_time += p_t_taken;
+ }

@@ -1,0 +1,47 @@
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -2534,20 +2534,44 @@
+ 					}
+ 				}
+ 
+ 				Callable::CallError err;
+ 
+ 				if (E) {
++#ifdef DEBUG_ENABLED
++					uint64_t call_time = 0;
++					if (GDScriptLanguage::get_singleton()->profiling) {
++						call_time = OS::get_singleton()->get_ticks_usec();
++					}
++#endif
+ 					*dst = E->value->call(p_instance, (const Variant **)argptrs, argc, err);
++#ifdef DEBUG_ENABLED
++					if (GDScriptLanguage::get_singleton()->profiling) {
++						function_call_time += OS::get_singleton()->get_ticks_usec() - call_time;
++					}
++#endif
+ 				} else if (gds->native.ptr()) {
+ 					if (*methodname != GDScriptLanguage::get_singleton()->strings._init) {
+ 						MethodBind *mb = ClassDB::get_method(gds->native->get_name(), *methodname);
+ 						if (!mb) {
+ 							err.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
+ 						} else {
++#ifdef DEBUG_ENABLED
++							uint64_t call_time = 0;
++							if (GDScriptLanguage::get_singleton()->profiling && GDScriptLanguage::get_singleton()->profile_native_calls) {
++								call_time = OS::get_singleton()->get_ticks_usec();
++							}
++#endif
+ 							*dst = mb->call(p_instance->owner, (const Variant **)argptrs, argc, err);
++#ifdef DEBUG_ENABLED
++							if (GDScriptLanguage::get_singleton()->profiling && GDScriptLanguage::get_singleton()->profile_native_calls) {
++								uint64_t t_taken = OS::get_singleton()->get_ticks_usec() - call_time;
++								_profile_native_call(t_taken, mb->get_name(), mb->get_instance_class());
++								function_call_time += t_taken;
++							}
++#endif
+ 						}
+ 					} else {
+ 						err.error = Callable::CallError::CALL_OK;
+ 					}
+ 				} else {
+ 					if (*methodname != GDScriptLanguage::get_singleton()->strings._init) {

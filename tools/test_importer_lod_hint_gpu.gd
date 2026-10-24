@@ -2,6 +2,7 @@ extends SceneTree
 const Hint=preload("res://scripts/world3d/importer_lod_hint.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const Prep=preload("res://scripts/world3d/static_mesh_cpu_preparation.gd")
 var checks:=0
 var failures:=0
 func _initialize()->void:run.call_deferred()
@@ -9,17 +10,18 @@ func check(ok:bool,label:String)->void:
 	checks+=1
 	if not ok:failures+=1
 	print("PASS " if ok else "FAIL ",label)
-func arrays(count:int)->Array:
+func arrays(count:int,with_tangents:bool=true)->Array:
 	var rows:Array=[];rows.resize(Mesh.ARRAY_MAX)
 	var vertices:=PackedVector3Array();var normals:=PackedVector3Array();var uv:=PackedVector2Array();var colors:=PackedColorArray();var tangents:=PackedFloat32Array()
 	for i:int in count:
 		vertices.append(Vector3(i%11,float(i%7)*.3,float(i%13)*.7));normals.append(Vector3(.1,.2,1).normalized());uv.append(Vector2(float(i%5)*.123,float(i%3)*.314));colors.append(Color(.123,.456,.789,1.));tangents.append_array(PackedFloat32Array([1.,0.,0.,1.]))
 	vertices[0]=Vector3.ZERO;vertices[1]=Vector3.RIGHT;vertices[2]=Vector3.UP;vertices[count-1]=Vector3.ONE
-	rows[Mesh.ARRAY_VERTEX]=vertices;rows[Mesh.ARRAY_NORMAL]=normals;rows[Mesh.ARRAY_TEX_UV]=uv;rows[Mesh.ARRAY_COLOR]=colors;rows[Mesh.ARRAY_TANGENT]=tangents;rows[Mesh.ARRAY_INDEX]=PackedInt32Array([0,1,2,2,1,count-1])
+	rows[Mesh.ARRAY_VERTEX]=vertices;rows[Mesh.ARRAY_NORMAL]=normals;rows[Mesh.ARRAY_TEX_UV]=uv;rows[Mesh.ARRAY_COLOR]=colors;rows[Mesh.ARRAY_INDEX]=PackedInt32Array([0,1,2,2,1,count-1])
+	if with_tangents:rows[Mesh.ARRAY_TANGENT]=tangents
 	return rows
-func importer(count:int,with_lods:bool,compressed:bool=false)->ImporterMesh:
+func importer(count:int,with_lods:bool,compressed:bool=false,with_tangents:bool=true)->ImporterMesh:
 	var result:=ImporterMesh.new();var lods:Dictionary={2.5:PackedInt32Array([0,1,2]),8.125:PackedInt32Array([2,1,count-1])} if with_lods else {}
-	result.add_surface(Mesh.PRIMITIVE_TRIANGLES,arrays(count),[],lods,StandardMaterial3D.new(),"fixture",Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES if compressed else 0)
+	result.add_surface(Mesh.PRIMITIVE_TRIANGLES,arrays(count,with_tangents),[],lods,StandardMaterial3D.new(),"fixture",Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES if compressed else 0)
 	return result
 func compare(source:ArrayMesh,label:String)->void:
 	Cpu.importer_lod_hints_enabled=false
@@ -28,18 +30,25 @@ func compare(source:ArrayMesh,label:String)->void:
 	var baseline:ArrayMesh=source.duplicate()
 	Trace.start();var old:Mesh=Cpu.capture(baseline)
 	var before:=Trace.stop();Cpu.importer_lod_hints_enabled=true
-	Trace.start();var current:Mesh=Cpu.capture(source);var after:=Trace.stop()
+	var profile:Dictionary={"importer_surfaces":0,"renderer_surfaces":0}
+	Trace.start();var current:Mesh=Prep._capture(source,profile);var after:=Trace.stop()
 	check(var_to_bytes(old.surfaces)==var_to_bytes(current.surfaces) and old.lods==current.lods and old.materials==current.materials and old.bounds==current.bounds,label+" preserves all GPU-decoded channels, LODs, materials and bounds")
 	# Mesh.get_faces creates a TriangleMesh that snaps/welds positions. Compare
 	# the previous CPU collision path, which deliberately retains decoded floats.
 	check(old.collision_faces()==current.collision_faces(),label+" preserves exact previous CPU collision data")
-	check(before.stats.any(func(row):return row.label=="mesh.lod_renderer_read") and not after.stats.any(func(row):return row.label=="mesh.lod_renderer_read") and after.stats.any(func(row):return row.label=="mesh.lod_importer_copy"),label+" removes the complete second renderer readback")
+	check(before.stats.any(func(row):return row.label=="mesh.renderer_array_capture") and before.stats.any(func(row):return row.label=="mesh.lod_renderer_read") and not after.stats.any(func(row):return row.label in ["mesh.renderer_array_capture","mesh.lod_renderer_read"]) and profile.importer_surfaces==source.get_surface_count() and profile.renderer_surfaces==0,label+" takes arrays and LODs from the importer instead of GPU downloads")
+	var hint:Resource=source.get_meta(Hint.META)
+	check(hint.surfaces.is_empty() and source.get_meta("ground_cpu_cache")==current and Cpu.capture(source)==current,label+" hands importer arrays over once and publishes the shared CPU cache")
 func run()->void:
 	check(DisplayServer.get_name()!="headless","private desktop real renderer")
+	check(RenderingServer.has_method(Hint.DECODE_METHOD),"engine exposes CPU surface decode")
 	for count:int in [4,70001]:
 		for with_lods:bool in [false,true]:
-			var owner:=importer(count,with_lods,true);var source:=Hint.create_mesh(owner)
-			compare(source,"%d vertices, lods=%s"%[count,with_lods])
+			for compressed:bool in [true,false]:
+				var owner:=importer(count,with_lods,compressed);var source:=Hint.create_mesh(owner)
+				compare(source,"%d vertices, lods=%s, compressed=%s"%[count,with_lods,compressed])
+	compare(Hint.create_mesh(importer(70001,false,false,false)),"uncompressed normals without tangents (padded vertex buffer)")
+	compare(Hint.create_mesh(importer(4,false,true,false)),"compressed normals without tangents")
 	var multiple:=importer(4,true,true);multiple.add_surface(Mesh.PRIMITIVE_TRIANGLES,arrays(4),[],{},StandardMaterial3D.new())
 	compare(Hint.create_mesh(multiple),"multiple surfaces with mixed compression/LOD presence")
 	var owner:=importer(4,true);var source:=Hint.create_mesh(owner)

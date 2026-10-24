@@ -1,0 +1,127 @@
+--- a/modules/text_server_adv/text_server_adv.cpp
++++ b/modules/text_server_adv/text_server_adv.cpp
+@@ -39,6 +39,7 @@
+ #include "core/os/os.h"
+ #include "core/string/translation_server.h"
+ #include "scene/resources/image_texture.h"
++#include "servers/rendering/rendering_server.h"
+ 
+ #include "modules/modules_enabled.gen.h" // For freetype, msdfgen, svg.
+ 
+@@ -69,6 +70,16 @@
+ #include "thorvg_svg_in_ot.h"
+ #endif
+ #endif
++
++// Glyphs are rasterized into the atlas image in place. With a separate render
++// thread a queued texture update reads its image later, so it gets a snapshot.
++static Ref<Image> _glyph_atlas_upload(const Ref<Image> &p_atlas, const Ref<Image> &p_image) {
++	Ref<Image> image = p_image;
++	if (image == p_atlas && !RenderingServer::get_singleton()->is_on_render_thread()) {
++		image = p_atlas->duplicate();
++	}
++	return image;
++}
+ 
+ /*************************************************************************/
+ /*  bmp_font_t HarfBuzz Bitmap font interface                            */
+@@ -3807,7 +3818,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -3857,7 +3868,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -4333,7 +4344,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+@@ -4472,7 +4483,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+--- a/modules/text_server_fb/text_server_fb.cpp
++++ b/modules/text_server_fb/text_server_fb.cpp
+@@ -39,6 +39,8 @@
+ #include "core/os/os.h"
+ #include "core/string/print_string.h"
+ #include "core/string/translation_server.h"
++#include "scene/resources/image_texture.h"
++#include "servers/rendering/rendering_server.h"
+ 
+ #include "modules/modules_enabled.gen.h" // For freetype, msdfgen, svg.
+ 
+@@ -65,6 +67,16 @@
+ #include "thorvg_svg_in_ot.h"
+ #endif
+ #endif
++
++// Glyphs are rasterized into the atlas image in place. With a separate render
++// thread a queued texture update reads its image later, so it gets a snapshot.
++static Ref<Image> _glyph_atlas_upload(const Ref<Image> &p_atlas, const Ref<Image> &p_image) {
++	Ref<Image> image = p_image;
++	if (image == p_atlas && !RenderingServer::get_singleton()->is_on_render_thread()) {
++		image = p_atlas->duplicate();
++	}
++	return image;
++}
+ 
+ /*************************************************************************/
+ 
+@@ -2496,7 +2508,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -2546,7 +2558,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -2975,7 +2987,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+@@ -3114,7 +3126,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}

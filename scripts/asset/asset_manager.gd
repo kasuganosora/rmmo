@@ -766,8 +766,20 @@ func load_image(ref_or_path: String) -> Image:
 	if alt != p and _image_fresh(alt):
 		_touch_lru(alt)
 		return _image_cache[alt]
-	if not FileAccess.file_exists(p) and not FileAccess.file_exists(alt):
+	var decoded := decode_image_file(p)
+	if decoded.is_empty():
 		return null
+	_put_image_cache(decoded[0], decoded[1])
+	return decoded[1]
+
+
+## [cache key, RGBA8 image] for a plain file path, or [] when missing/undecodable.
+## Touches no cache state, so loading threads may call it and hand the result to
+## adopt_image() on the main thread.
+static func decode_image_file(p: String) -> Array:
+	var alt := p.replace("\\", "/")
+	if not FileAccess.file_exists(p) and not FileAccess.file_exists(alt):
+		return []
 	var load_path := p if FileAccess.file_exists(p) else alt
 	var img := Image.new()
 	var e: Error = img.load(load_path)
@@ -775,11 +787,20 @@ func load_image(ref_or_path: String) -> Image:
 		e = img.load(load_path.replace("\\", "/"))
 	if e != OK:
 		push_error("AssetManager: Image.load failed %s (%s)" % [load_path, error_string(e)])
-		return null
+		return []
 	if img.is_compressed():
 		img.decompress()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img.convert(Image.FORMAT_RGBA8)
+	return [load_path, img]
+
+
+## Cache an image decoded off the main thread under the key load_image() uses; a
+## fresh copy already cached wins so callers share one image.
+func adopt_image(load_path: String, img: Image) -> Image:
+	if _image_fresh(load_path):
+		_touch_lru(load_path)
+		return _image_cache[load_path]
 	_put_image_cache(load_path, img)
 	return img
 

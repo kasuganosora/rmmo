@@ -1,0 +1,17 @@
+extends RefCounted
+## Private entry worker output. Same generators as streaming, no Mesh/Node/RID.
+const Bounds=preload("res://scripts/world3d/procedural_surface_bounds.gd")
+static var enabled:=true
+static func prepare(record:Dictionary,context:Dictionary,build_geometry:bool,root:String="",definition_sha:String="",trusted:bool=false)->Dictionary:
+	var arrays:Array=[];var road:Dictionary={}
+	if preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record):arrays=preload("res://scripts/world3d/channel_surface.gd").arrays(record)
+	elif build_geometry:
+		if record.has("terrain_volume"):arrays=preload("res://scripts/world3d/terrain_volume.gd").arrays(record)
+		elif record.has("terrain_mesh"):arrays=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,context)
+		elif record.has("road_mesh"):
+			if enabled and trusted and preload("res://scripts/world3d/road_array_cache.gd").active():road=preload("res://scripts/world3d/native_road_preparation.gd").prepare(record,null,true,root,{},definition_sha);arrays=road.arrays
+			else:arrays=preload("res://scripts/world3d/road_surface.gd").arrays(record)
+		elif record.has("rock_bank"):arrays=preload("res://scripts/world3d/rock_bank_mesh.gd").arrays(record)
+	var result:={"arrays":arrays,"road_cache_hit":road.get("cache_hit",false)}
+	if enabled and Bounds.enabled and not arrays.is_empty():result.bounds=road.bounds if road.has("bounds") else Bounds.bounds(arrays)
+	return result

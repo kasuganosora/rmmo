@@ -15,6 +15,7 @@ var profiling:=false
 var phase_log:=""
 var wait_marker:=""
 var next_gate_msec:=0
+var maximum_functions:=512
 func _initialize()->void:
 	Engine.max_fps=120
 	var output:=""
@@ -24,6 +25,7 @@ func _initialize()->void:
 		elif arg.begins_with("--port="):port=int(arg.trim_prefix("--port="))
 		elif arg.begins_with("--phase-log="):phase_log=arg.trim_prefix("--phase-log=")
 		elif arg.begins_with("--wait-marker="):wait_marker=arg.trim_prefix("--wait-marker=")
+		elif arg.begins_with("--max-functions="):maximum_functions=clampi(arg.trim_prefix("--max-functions=").to_int(),128,16384)
 		elif arg.begins_with("--timeout-seconds="):timeout_seconds=clampi(int(arg.trim_prefix("--timeout-seconds=")),30,900)
 	if output.is_empty():push_error("--output is required");quit(2);return
 	if not wait_marker.is_empty() and phase_log.is_empty():push_error("--wait-marker requires --phase-log");quit(2);return
@@ -45,8 +47,8 @@ func _process(_delta:float)->bool:
 		next_gate_msec=Time.get_ticks_msec()+250
 		if wait_marker.is_empty() or (FileAccess.file_exists(phase_log) and FileAccess.get_file_as_string(phase_log).contains(wait_marker)):
 			# Same commands as the editor; gating happens in this external receiver.
-			# Include native script API calls and 512 functions for attribution.
-			packets.put_var(["profiler:servers",1,[true,[512,true]]])
+			# Caller attribution needs more distinct rows than global native totals.
+			packets.put_var(["profiler:servers",1,[true,[maximum_functions,true]]])
 			packets.put_var(["profiler:visual",1,[true]])
 			profiling=true;print("OFFICIAL_PROFILER_ENABLED marker=",wait_marker)
 	while packets.get_available_packet_count()>0:

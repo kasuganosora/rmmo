@@ -57,6 +57,10 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return _miss("missing_root_snapshot",started)
 		content_root=Paths.external_root()
+	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():
+		var white:=preload("res://scripts/world3d/white_native_asset_cache.gd").read(path,verified_digest,content_root,trusted_package)
+		white.elapsed_us=Time.get_ticks_usec()-started
+		return white
 	var folder:=directory(content_root)
 	if not Paths.allowed(path,content_root) or not FileAccess.file_exists(path):return _miss("source_missing_or_outside_root",started)
 	var index:=index_path(path,content_root)
@@ -263,8 +267,9 @@ static func instantiate(packed:PackedScene)->Node3D:
 	if scene!=null and packed.get_meta("compiled_asset_validated",false):
 		# The verified product retains the pixel identity computed at build time.
 		# Restore cross-GLB sharing without GPU image readback on the warm path.
-		preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene,true)
-		preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+		if not packed.get_meta("white_native_geometry",false):
+			preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene,true)
+			preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
 		# A preview has no shared-library owner. Retain resources on the root
 		# until every child instance has queued its renderer destruction first.
 		scene.set_meta("_compiled_resource_owner",packed)

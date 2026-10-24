@@ -9,16 +9,19 @@ var visuals:Array=[]
 var visual_frames:Array=[]
 var gpu_peaks:Array=[]
 var messages:Dictionary={}
+var engine_errors:Array=[]
 var phase_labels:Dictionary={}
 var phase_totals:Dictionary={}
 var slowest_by_phase:Dictionary={}
 func _initialize()->void:run.call_deferred()
 func run()->void:
 	var input:="";var output:="";var phase_report:=""
+	var native_callers:=false
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--input="):input=arg.trim_prefix("--input=")
 		elif arg.begins_with("--output="):output=arg.trim_prefix("--output=")
 		elif arg.begins_with("--phase-report="):phase_report=arg.trim_prefix("--phase-report=")
+		elif arg=="--native-callers":native_callers=true
 	if not phase_report.is_empty():
 		var route:Variant=JSON.parse_string(FileAccess.get_file_as_string(phase_report))
 		if not route is Dictionary:push_error("Invalid route phase report");quit(2);return
@@ -36,7 +39,9 @@ func run()->void:
 		elif label=="servers:profile_frame":frame(data)
 		elif label=="servers:profile_total":pass
 		elif label=="visual:profile_frame":visual(data)
-		elif label=="error" and not bool(data[9]):print("OFFICIAL_PROFILER_ERROR ",data.slice(4,10))
+		elif label=="error" and not bool(data[9]):
+			engine_errors.append(data.slice(4,10))
+			print("OFFICIAL_PROFILER_ERROR ",engine_errors.back())
 	file.close()
 	var ranked:Array=totals.values();ranked.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return a.self_ms>b.self_ms)
 	for phase:String in phase_totals:
@@ -44,15 +49,22 @@ func run()->void:
 		phase_totals[phase]=rows
 	var out:=FileAccess.open(output,FileAccess.WRITE)
 	if out==null:push_error("Cannot write summary");quit(2);return
-	out.store_string(JSON.stringify({"source":input,"engine_commit":"ed1daf0bf","note":"Official profiler observations, not uninstrumented timings. self/total/internal are preserved separately; inclusive scopes and native internal rows can overlap. Phase labels use the process-frame counter sampled at process_frame; phase boundaries can straddle a frame.","messages":messages,"signatures":names,"frames":frames,"slowest_frames":slowest,"function_totals":ranked,"phase_report":phase_report,"phase_totals":phase_totals,"slowest_by_phase":slowest_by_phase,"visual_peaks":visuals,"visual_frames":visual_frames,"gpu_peaks":gpu_peaks},"\t"));out.close()
-	print("OFFICIAL_PROFILER_SUMMARY frames=",frames.size()," signatures=",names.size()," output=",output);quit(0)
+	var attribution:="Caller-attributed native rows: caller declares the recording engine used RMMO_PROFILE_NATIVE_CALLERS=1. This decoder does not infer that mode from the signatures." if native_callers else "Default native rows are globally collated by Class.method across scripts; their displayed script path is not caller attribution. Declare --native-callers only for a recording made with the validated caller-attribution engine mode."
+	out.store_string(JSON.stringify({"source":input,"engine_commit":"ed1daf0bf","native_callers_declared":native_callers,"note":"Official profiler observations, not uninstrumented timings. self/total/internal are preserved separately; inclusive scopes and native internal rows can overlap. "+attribution+" Phase labels use the process-frame counter sampled at process_frame; phase boundaries can straddle a frame.","messages":messages,"engine_errors":engine_errors,"signatures":names,"frames":frames,"slowest_frames":slowest,"function_totals":ranked,"phase_report":phase_report,"phase_totals":phase_totals,"slowest_by_phase":slowest_by_phase,"visual_peaks":visuals,"visual_frames":visual_frames,"gpu_peaks":gpu_peaks},"\t"));out.close()
+	print("OFFICIAL_PROFILER_SUMMARY frames=",frames.size()," signatures=",names.size()," errors=",engine_errors.size()," output=",output);quit(0 if engine_errors.is_empty() else 1)
 func frame(data:Array)->void:
 	var row:Dictionary={"frame":data[0],"frame_ms":float(data[1])*1000.,"process_ms":float(data[2])*1000.,"physics_ms":float(data[3])*1000.,"script_ms":float(data[5])*1000.}
 	var phase:String=phase_labels.get(int(data[0]),"outside_route")
 	row.phase=phase
-	frames.append(row.duplicate())
 	var at:=7
-	for server_index:int in int(data[6]):at+=2+int(data[at+1])
+	var servers:Dictionary={}
+	for server_index:int in int(data[6]):
+		var server:String=data[at];var length:int=data[at+1];at+=2
+		var functions:Dictionary={}
+		for offset:int in range(at,at+length,2):functions[str(data[offset])]=float(data[offset+1])*1000.
+		servers[server]=functions;at+=length
+	row.servers_ms=servers
+	frames.append(row.duplicate())
 	var count:int=data[at];at+=1
 	var functions:Array=[]
 	for offset:int in range(at,at+count,5):

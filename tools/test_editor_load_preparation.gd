@@ -29,7 +29,7 @@ static func gated_packet(value:String,gate:Semaphore)->Dictionary:
 static func owned_native_packet(ledger:RefCounted,observations:Array)->Dictionary:
 	return {"error":OK,"value":"native","retained_resources":[LeaseProbe.new(ledger,observations)]}
 static func hold_raw_lock(entered:Semaphore,release_:Semaphore)->Dictionary:
-	Job.ModelPreparation.RAW_IMPORT_MUTEX.lock();entered.post();release_.wait();Job.ModelPreparation.RAW_IMPORT_MUTEX.unlock()
+	Job.ModelPreparation.enter_raw_import(false);entered.post();release_.wait();Job.ModelPreparation.leave_raw_import()
 	return {}
 func collect_asset(job:Node,record:Dictionary,bucket:Dictionary)->void:
 	bucket.result=await job._prepare_asset(record)
@@ -278,9 +278,9 @@ func run()->void:
 	lock_worker.wait_to_finish()
 	for frame in 3:await process_frame
 	check(bucket.get("result",{}).get("cancelled",false),"removed loader terminates suspended publication before touching a cleared packet")
-	var unlocked:bool=Job.ModelPreparation.RAW_IMPORT_MUTEX.try_lock()
-	check(unlocked,"cancellation does not leak the shared raw import mutex")
-	if unlocked:Job.ModelPreparation.RAW_IMPORT_MUTEX.unlock()
+	var unlocked:bool=Job.ModelPreparation.try_enter_raw_import(false)
+	check(unlocked,"cancellation does not leak the raw import admission")
+	if unlocked:Job.ModelPreparation.leave_raw_import()
 	job.free()
 	print("EDITOR_LOAD_PREPARATION passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

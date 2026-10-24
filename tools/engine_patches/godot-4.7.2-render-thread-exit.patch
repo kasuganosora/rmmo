@@ -1,0 +1,16 @@
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -297,6 +297,13 @@ void RenderingServerDefault::finish() {
+ 			server_task_id = WorkerThreadPool::INVALID_TASK_ID;
+ 		}
+ 		server_thread = Thread::MAIN_ID;
++
++		// The pump task has exited. Return the main RD to the thread that created
++		// it, so the display server can free its screens and finalize it.
++		RenderingDevice *rd = RenderingDevice::get_singleton();
++		if (rd) {
++			rd->make_current();
++		}
+ 	} else {
+ 		_finish();
+ 	}

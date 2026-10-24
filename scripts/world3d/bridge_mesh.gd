@@ -49,10 +49,10 @@ static func repair_zero_tangents(arrays:Array)->Dictionary:
 			tangents[i*4+3]=1.0 if orientation<0 else -1.0;best[i]=area
 	arrays[Mesh.ARRAY_TANGENT]=tangents
 	return {"ok":best.size()==missing.size(),"repaired":best.size(),"unresolved":missing.size()-best.size()}
-static func kit(path: String) -> Dictionary:
+static func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(path) or not FileAccess.file_exists(path): return {}
-	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
+	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path,native_only)
 	if root==null: return {}
 	var pieces:={}
 	for node in Paint.meshes(root): pieces[str(node.name)]={"mesh":node.mesh,"transform":node.transform}
@@ -98,13 +98,13 @@ func append_piece(piece: Dictionary,position: Vector3,scale_: Vector3,foundation
 			triangle.append({"p":p,"n":normal,"uv":uv,"color":color})
 			if triangle.size()==3:
 				preload("res://scripts/world3d/bridge_deck_rim.gd").emit(streams,triangle,role,data.width,tiles[1]);triangle=[]
-func build(record: Dictionary) -> ArrayMesh:
+func build(record: Dictionary,native_only:bool=false) -> ArrayMesh:
 	var started:=Time.get_ticks_usec()
 	streams.clear(); materials.clear(); tiles.clear()
 	data=record.bridge_mesh
 	var key: String=preload("res://scripts/world3d/city_layout.gd").token([data,record.asset_path,record.bridge_materials])
 	if meshes.has(key): return meshes[key]
-	var pieces:=kit(record.asset_path)
+	var pieces:=kit(record.asset_path,native_only)
 	if pieces.is_empty(): return null
 	var l: float=data.length; var w: float=data.width; var count:=int(data.arches); var pier: float=data.recipe.pier_width
 	for role in ["deck","masonry","trim"]:

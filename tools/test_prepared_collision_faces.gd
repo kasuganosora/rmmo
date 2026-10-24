@@ -29,8 +29,8 @@ func ordinary_cached()->void:
 	# A paint/visual source may differ. Only the actual collision_mesh is valid.
 	var visual:=BoxMesh.new();visual.size=Vector3(100,100,100);record.mesh=visual
 	fixture.preparer.profile_enabled=true
-	check(fixture.preparer.prepare(record,fixture.host,24000),"ordinary completed faces are ready in the first call")
-	check(fixture.preparer._thread==null and fixture.preparer.last_profile.path=="prepared_faces","ordinary cached route creates no extraction worker")
+	check(fixture.preparer.prepare(record,fixture.host,24000),"small completed faces without lookahead retain immediate entry fallback")
+	check(fixture.preparer._thread==null and fixture.preparer.last_profile.path=="prepared_faces","no extra serial task/frame barrier for already prepared small faces")
 	if check(record.get("shape") is ConcavePolygonShape3D,"actual collision source creates an exact concave shape"):
 		check(record.shape.get_faces()==expected,"ordinary cache preserves collision_solid faces instead of visual box")
 		var first:=Stream._make_body(fixture.host,record)
@@ -65,7 +65,10 @@ func sliced_cached()->void:
 	var expected:PackedVector3Array=mesh.collision_faces().duplicate()
 	var record:=spec(mesh,"sliced_cached",Transform3D(Basis.IDENTITY,Vector3(12,0,0)))
 	check(not fixture.preparer.prepare(record,fixture.host,1),"prepared faces still respect the exact-shape slice budget")
-	check(fixture.preparer._terrain._thread==null and fixture.preparer._terrain._faces==expected,"identity slices consume completed faces without extraction worker")
+	check(fixture.preparer._terrain._faces==expected and fixture.preparer._terrain.face_expansions==0,"identity slices borrow completed faces without repeating extraction")
+	if preload("res://scripts/world3d/collision_bvh_preparation.gd").active():
+		check(fixture.preparer._terrain._thread!=null and fixture.preparer._terrain._body==null,"native BVH preparation runs before allocating a partial physics body")
+		await wait_partial(fixture,record)
 	var unpublished:Variant=fixture.preparer._terrain._body
 	check(is_instance_valid(unpublished) and unpublished.collision_layer==0 and unpublished.collision_mask==0,"cached-face partial body stays collision-disabled")
 	var first:=await prepared(fixture,record)
@@ -98,6 +101,7 @@ func cancellation_and_basis()->void:
 	var expected:PackedVector3Array=mesh.collision_faces().duplicate()
 	var record:=spec(mesh,"cancel_cached",Transform3D.IDENTITY)
 	check(not fixture.preparer.prepare(record,fixture.host,1),"cached sliced request enters bounded partial preparation")
+	await wait_partial(fixture,record)
 	var partial:Variant=fixture.preparer._terrain._body
 	var partial_id:int=partial.get_instance_id() if is_instance_valid(partial) else 0
 	fixture.preparer.cancel_pending()
@@ -128,7 +132,7 @@ func source_replacement()->void:
 	var fixture:=world();var source_mesh:=small_source();var gpu_mesh:ArrayMesh=source_mesh.restore()
 	var original:Mesh=Cpu.capture(gpu_mesh);original.collision_faces()
 	var old_record:=spec(original,"old_source",Transform3D.IDENTITY)
-	check(fixture.preparer.prepare(old_record,fixture.host),"original immutable source uses completed cache")
+	check(await finish_ordinary(fixture,old_record),"original immutable source completes its exact cached collider")
 	var old_shape:ConcavePolygonShape3D=old_record.shape
 	var arrays:Array=source_mesh.surfaces[0].duplicate()
 	var changed:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX].duplicate()
@@ -168,3 +172,10 @@ func run()->void:
 	await process_frame
 	print("PREPARED_COLLISION_FACES checks=",checks," failures=",failures)
 	quit(1 if failures else 0)
+
+func wait_partial(fixture:Dictionary,record:Dictionary)->void:
+	var deadline:=Time.get_ticks_msec()+10000
+	while not is_instance_valid(fixture.preparer._terrain._body) and Time.get_ticks_msec()<deadline:
+		fixture.preparer.prepare(record,fixture.host,1)
+		await process_frame
+	check(is_instance_valid(fixture.preparer._terrain._body),"CPU preparation yields a budgeted partial body")

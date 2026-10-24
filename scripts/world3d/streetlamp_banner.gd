@@ -42,6 +42,9 @@ static func slot(root:Node)->MeshInstance3D:
 
 static func apply(root:Node3D,record:Dictionary)->void:
 	var node:=slot(root)
+	apply_slot(root,record,node)
+
+static func apply_slot(root:Node3D,record:Dictionary,node:MeshInstance3D)->void:
 	if node==null:return
 	preload("res://scripts/world3d/streetlamp_lights.gd").annotate(root,str(record.uuid))
 	var value:=settings(record)

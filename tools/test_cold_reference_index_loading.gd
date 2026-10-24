@@ -24,9 +24,9 @@ class Probe extends "res://scripts/world3d/map_loader.gd":
 		assets_started=true
 		for record:Dictionary in _record_meta.rmmo_records:
 			if record.kind=="asset":model_requests.append(record.asset_path)
-	func _valid_records(extra:Dictionary,paint_ids:Array=[])->bool:
+	func _valid_records(extra:Dictionary,paint_ids:Array=[],warm_prefabs:bool=true)->bool:
 		validation_passes+=1
-		var valid:bool=super._valid_records(extra,paint_ids)
+		var valid:bool=super._valid_records(extra,paint_ids,warm_prefabs)
 		if validation_passes==2:
 			if change_after_selected:
 				var file:=FileAccess.open(_path,FileAccess.READ_WRITE);file.seek_end();file.store_string(" ");file.close()

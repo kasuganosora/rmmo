@@ -81,10 +81,14 @@ static func opted(root:Node)->bool:
 
 static func describe(root:Node)->Dictionary:
 	var nodes:Array[Node]=[root];nodes.append_array(root.find_children("*","",true,false))
+	return describe_nodes(nodes)
+
+static func describe_nodes(nodes:Array[Node])->Dictionary:
 	var extras:Array=[];var meshes:Array=[]
 	for node:Node in nodes:
-		extras.append(node.get_meta("extras",{}))
-		if node is MeshInstance3D and node.mesh!=null:meshes.append(node.get_meta("extras",{}))
+		var extra:Variant=node.get_meta("extras",{})
+		extras.append(extra)
+		if node is MeshInstance3D and node.mesh!=null:meshes.append(extra)
 	return _descriptor(extras,meshes)
 
 static func source_descriptor(path:String,digest:String)->Dictionary:

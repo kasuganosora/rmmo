@@ -4,6 +4,7 @@ extends RefCounted
 static var discard_map_textures:=false
 static var hud_enabled:=true
 static var white_materials:=false
+static var white_generation:=0
 static var early_white_gltf_enabled:=true
 static var _white:Dictionary={}
 static func enable_white_materials()->void:
@@ -12,7 +13,7 @@ static func enable_white_materials()->void:
 		var material:=StandardMaterial3D.new();material.albedo_color=Color.WHITE
 		material.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED;material.cull_mode=cull
 		_white[cull]=material
-	white_materials=true
+	white_materials=true;white_generation+=1
 static func white_material(cull:int=BaseMaterial3D.CULL_BACK)->StandardMaterial3D:
 	return _white[cull]
 static func prepare_cpu_materials(source:Mesh,replacements:Array)->Mesh:
@@ -26,7 +27,7 @@ static func prepare_cpu_materials(source:Mesh,replacements:Array)->Mesh:
 	var local:=Cpu.new();local.surfaces=source.surfaces;local.lods=source.lods
 	local.bounds=source.bounds;local.box_size=source.box_size;local.source_reference=source.source_reference
 	local.materials.assign(replacements);local._collision_faces=source._collision_faces
-	if source.has_meta("static_batch_geometry_signature"):local.set_meta("static_batch_geometry_signature",source.get_meta("static_batch_geometry_signature"))
+	if source.has_meta("static_batch_geometry_signature"):local.set_geometry_key(source.get_meta("static_batch_geometry_signature"))
 	# Retain one tiny CPU projection with its immutable CPU source, preserving
 	# cross-instance GPU reuse. Its GPU reference is weak; no GPU owner is added.
 	source.set_meta("probe_white_cpu_projection",local)
@@ -49,3 +50,25 @@ static func prepare_gltf_materials(state:GLTFState)->void:
 			if material!=null:originals.append(material)
 			mesh.set_surface_material(slot,white_material(material.cull_mode if material is BaseMaterial3D else BaseMaterial3D.CULL_BACK))
 	state.set_meta("probe_white_materials",originals)
+
+static func whiten_spec(spec:Dictionary)->void:
+	const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+	var replacements:Array=[];var overrides:Array=[];var mesh:Mesh=spec.mesh
+	var cpu:=mesh is Cpu;var count:int=mesh.surfaces.size() if cpu else mesh.get_surface_count()
+	var global:Material=spec.get("material_override");var original:Array=spec.get("surface_overrides",[])
+	var needs_override:=false
+	for slot:int in count:
+		var base:Material=mesh.materials[slot] if cpu else mesh.surface_get_material(slot)
+		var material:Material=global
+		if material==null:
+			material=original[slot] if slot<original.size() and original[slot]!=null else base
+		var white:Material=white_material(material.cull_mode if material is BaseMaterial3D else BaseMaterial3D.CULL_BACK)
+		replacements.append(white)
+		if not cpu:
+			overrides.append(white if base!=white else null)
+			needs_override=needs_override or base!=white
+	spec.mesh=prepare_cpu_materials(mesh,replacements)
+	# CPU projections already bind these materials on restore. Redundant instance
+	# overrides made the white probe reconfigure the renderer for every surface.
+	if not needs_override:overrides.clear()
+	spec.material_override=null;spec.surface_overrides=overrides

@@ -142,7 +142,11 @@ static func section(p:Vector3,n:Vector2,options:Dictionary,grade:Array)->Array:
 		var xz:Vector2=n*v.x;out.append(xyz(p+Vector3(xz.x,v.y+grade[0]*xz.x+grade[1]*xz.y,xz.y)))
 	return out
 
+static var bulk_arrays_enabled:=true
 static func arrays(record:Dictionary)->Array:
+	return preload("res://scripts/world3d/road_kerb_arrays.gd").build(record) if bulk_arrays_enabled else arrays_legacy(record)
+
+static func arrays_legacy(record:Dictionary)->Array:
 	var st:=SurfaceTool.new();st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for part in record.road_mesh.get("kerbs",[]):
 		var a:Array=part.a.map(vec);var b:Array=part.b.map(vec);var v:=0.0

@@ -2,6 +2,7 @@ extends RefCounted
 ## Private unpublished geometry and ownership metadata. The job advances this
 ## in preparation slices; it grants no navigation, scene or residency authority.
 const EMPTY:Dictionary={}
+const Controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 var source:Array=[]
 var ids:Dictionary={}
 var doors:Array=[]
@@ -12,7 +13,9 @@ var namespaces:Dictionary={}
 var spec_namespaces:Dictionary={}
 var cursor:=0
 var error:=""
-func begin(values:Array)->void:source=values
+var _white_generation:=0
+func begin(values:Array)->void:
+	source=values;_white_generation=Controls.white_generation if Controls.white_materials else 0
 func add(value:Dictionary,local_bounds:AABB)->void:
 	if not error.is_empty():return
 	var pose:Transform3D=value.transform;var extra:Dictionary=value.get("extras",EMPTY)
@@ -22,6 +25,10 @@ func add(value:Dictionary,local_bounds:AABB)->void:
 	if not box.position.is_finite() or not box.size.is_finite():error="invalid_spec";return
 	var id:String=value.uuid
 	if ids.has(id):error="duplicate_uuid";return
+	# Diagnostic normalization belongs to the existing bounded private stage,
+	# before capturing geometry ownership, not the final all-specs callback.
+	if Controls.white_materials:Controls.whiten_spec(value)
+	if not Controls.white_materials or _white_generation!=Controls.white_generation:_white_generation=0
 	# The private packet already owns source; share the same spec identities so
 	# streaming navigation can adopt an ordered catalog without a commit scan.
 	ids[id]=value
@@ -46,3 +53,5 @@ func group_member(value:Dictionary,group:String)->void:
 	owner.ordinary_pin="render_building"
 func ready(values:Array)->bool:
 	return error.is_empty() and is_same(source,values) and cursor==values.size()
+func white_ready(values:Array)->bool:
+	return Controls.white_materials and _white_generation>0 and _white_generation==Controls.white_generation and ready(values)

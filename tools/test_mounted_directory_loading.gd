@@ -1,0 +1,31 @@
+extends "res://tools/test_dependency_index_proof.gd"
+const Snapshot=preload("res://scripts/world3d/document_source_snapshot.gd")
+func run()->void:
+	files=Files.new();files.content_root=Paths.external_root();files.folder=Paths.cache_directory("mounted_directory_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(files.folder)
+	var records:=Fixture.records(files.content_root)
+	for i:int in 2369:records.append(files.box("load_%d"%i,1000.+i*8.))
+	var source:Dictionary=files.fixture("map",records,Fixture.metadata(records))
+	check(Index.build(source.path,files.content_root,records).ok,"representative directory builds in a temporary resource package")
+	var snapshot:=Snapshot.read_file(source.path);var expected:=Index.read_for_loading(source.path,files.content_root)
+	var trials:Array=[];var reader:=Index.new()
+	for mounted:bool in [false,true,true,false]:
+		var began:=Time.get_ticks_usec();var result:Dictionary
+		if mounted and reader.has_method("read_mounted_for_loading"):result=reader.call("read_mounted_for_loading",source.path,files.content_root,snapshot)
+		else:result=Index.read_for_loading(source.path,files.content_root,snapshot._signature,Snapshot.RETAIN_LIMIT,Index.MAX_BYTES,4,mounted)
+		trials.append({"mounted":mounted,"us":Time.get_ticks_usec()-began})
+		check(result.ok and result.index==expected.index,"same complete index and authored metadata")
+		check(sealed(result.index),"all nested worker inputs remain immutable")
+		check(Index.validate_index_ownership(result.index,files.content_root,result.proof,source.path),"the current directory retains its own process-local owner")
+		var clip:=AABB(Vector3(519,-10,-1),Vector3(4,20,2))
+		check(Index.select(result.index,[clip])==Index.select(expected.index,[clip]),"selected full groups and deferred order remain exact")
+		check(not Index.validate_index_ownership(result.index.duplicate(),files.content_root,result.proof,source.path),"copied outer owner cannot reuse a proof")
+	var target:=Index.cache_path(source.path,files.content_root);var original:=FileAccess.get_file_as_bytes(target)
+	var corrupt:=original.duplicate();corrupt[-1]^=1;files.write_bytes(target,corrupt)
+	check(not Index.read_for_loading(source.path,files.content_root,snapshot._signature,Snapshot.RETAIN_LIMIT,Index.MAX_BYTES,4,true).ok,"incomplete derived-cache writes remain detectable")
+	files.write_bytes(target,original)
+	var payload:Dictionary=bytes_to_var(original.slice(49));payload.generator="0".repeat(64);files.replace_payload(target,payload)
+	check(not Index.read_for_loading(source.path,files.content_root,snapshot._signature,Snapshot.RETAIN_LIMIT,Index.MAX_BYTES,4,true).ok,"changed generator invalidates derived data")
+	for path:String in files.created:
+		if Paths.allowed(path,files.content_root) and FileAccess.file_exists(path):DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(source.path+".resources");DirAccess.remove_absolute(files.folder);files.free()
+	print("MOUNTED_DIRECTORY_LOADING ",JSON.stringify({"trials":trials,"failures":failed}));quit(1 if failed else 0)

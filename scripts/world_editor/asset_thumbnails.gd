@@ -14,6 +14,7 @@ var _viewport: SubViewport
 var _camera: Camera3D
 var _model: Node3D
 var _key := ""
+var _render_serial := 0
 var _output := ""
 var placeholder: Texture2D
 var model_load_count := 0
@@ -186,10 +187,11 @@ func _next() -> void:
 func _render() -> void:
 	if not is_inside_tree() or not is_instance_valid(_model):return
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
-	RenderingServer.frame_post_draw.connect(_finish, CONNECT_ONE_SHOT)
+	_render_serial += 1
+	preload("res://scripts/util/frame_presentation.gd").after_drawn(_finish.bind(_render_serial))
 
-func _finish() -> void:
-	if not is_inside_tree() or not is_instance_valid(_model):return
+func _finish(serial: int) -> void:
+	if serial != _render_serial or not is_inside_tree() or not is_instance_valid(_model):return
 	var image := _viewport.get_texture().get_image()
 	var texture := ImageTexture.create_from_image(image)
 	if not _output.is_empty():
@@ -213,6 +215,6 @@ func _dispose_model()->void:
 func _exit_tree()->void:
 	# Stop delayed draws before the retirement sync can deliver renderer events.
 	if get_tree().process_frame.is_connected(_render):get_tree().process_frame.disconnect(_render)
-	if RenderingServer.frame_post_draw.is_connected(_finish):RenderingServer.frame_post_draw.disconnect(_finish)
+	_render_serial += 1
 	_dispose_model()
 	_busy=false

@@ -107,7 +107,9 @@ func test_cpu_capture_cache(path:String)->void:
 	var corrupt:Mesh=preload("res://scripts/world3d/ground_cpu_mesh.gd").new()
 	var invalid:Array=arrays.duplicate();invalid[Mesh.ARRAY_INDEX]=PackedInt32Array([0,1,999])
 	corrupt.surfaces=[invalid];mesh.set_meta("ground_cpu_cache",corrupt)
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	var rejected:Dictionary=Deferred._capture_static_meshes(holder,true)
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=false
 	check(not rejected.error.is_empty() and is_instance_valid(holder),"invalid captured indices fail without worker-side scene destruction")
 	Drainer.dispose_scene(holder)
 	var interrupted:Dictionary=await worker_result(path,FileAccess.get_sha256(path),CaptureCancel.new(),{},true)
@@ -142,7 +144,7 @@ func run() -> void:
 		var left:StandardMaterial3D=retained[0].find_child("Grass",true,false).get_active_material(0)
 		var right:StandardMaterial3D=retained[1].find_child("Grass",true,false).get_active_material(0)
 		check(left.albedo_texture!=right.albedo_texture and left.albedo_texture.get_image().get_pixel(0,0).b>.8 and right.albedo_texture.get_image().get_pixel(0,0).r>.8,"distinct embedded PNGs remain independent with shared grass cache")
-	for node in retained:node.free()
+	for node in retained:Drainer.dispose_scene(node)
 	# Exercise shared grass canonicalization while main and worker own distinct
 	# imports of the same pixels. Nodes/materials themselves must stay distinct.
 	var overlap_worker:=Thread.new()
@@ -156,11 +158,11 @@ func run() -> void:
 	if overlap_main!=null and overlap.get("scene") is Node:
 		check(var_to_bytes(capture(overlap_main))==var_to_bytes(capture(overlap.scene)),"overlapping grass texture cache preserves complete scene parity")
 	if overlap_main!=null:overlap_main.free()
-	if overlap.get("scene") is Node:overlap.scene.free()
+	if overlap.get("scene") is Node:Drainer.dispose_scene(overlap.scene)
 	var expected_manifest:Dictionary=Manifest.read(blue)
 	var deferred_hash:Dictionary=await worker_result(blue,"",null,expected_manifest)
 	check(deferred_hash.error.is_empty() and deferred_hash.get("source_digest")==FileAccess.get_sha256(blue),"deferred full SHA returns verified source digest from manifest admission")
-	if deferred_hash.get("scene") is Node:deferred_hash.scene.free()
+	if deferred_hash.get("scene") is Node:Drainer.dispose_scene(deferred_hash.scene)
 	var no_snapshot:Dictionary=await worker_result(blue,"")
 	check(not no_snapshot.error.is_empty() and not no_snapshot.has("scene"),"empty digest without boundary snapshot fails closed")
 	static_fixture(blue,Color(.2,.4,.9,1),false,100)
@@ -180,7 +182,7 @@ func run() -> void:
 	var native:=directory.path_join("native.glb");static_fixture(native,Color.WHITE,true)
 	var native_result:Dictionary=await worker_result(native,FileAccess.get_sha256(native))
 	check(not native_result.error.is_empty() and not native_result.has("scene"),"native map extras cannot enter worker shared material branch")
-	if native_result.get("scene") is Node:native_result.scene.free()
+	if native_result.get("scene") is Node:Drainer.dispose_scene(native_result.scene)
 	# No capture/get_image call before publication: those calls would hide a
 	# missing render-command fence at the worker-to-main ownership boundary.
 	var publish_ready:Dictionary=await worker_result(red,FileAccess.get_sha256(red))
@@ -229,6 +231,19 @@ func run() -> void:
 		service=Deferred.new();root.add_child(service);service._jobs[red]={"result":{"scene":node},"token":Drainer.CancelToken.new()};service.free()
 		check(not is_instance_id_valid(id),"service exit frees already joined unpublished scene")
 	else:check(false,"staged cleanup fixture prepared")
+	# The same leaf/grass metadata must not rebuild optical material overrides
+	# after the white importer bound shared materials. Keep visibility semantics.
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	controls.discard_map_textures=true;controls.enable_white_materials()
+	var white:Dictionary=await worker_result(red,FileAccess.get_sha256(red))
+	check(white.error.is_empty() and white.get("scene") is Node,"white optical fixture imports")
+	if white.get("scene") is Node:
+		var grass:MeshInstance3D=white.scene.find_child("Grass",true,false)
+		var plain:MeshInstance3D=white.scene.find_child("Plain",true,false)
+		var canonical:Material=controls.white_material(BaseMaterial3D.CULL_DISABLED)
+		check(grass.get_surface_override_material(0)==null and plain.get_surface_override_material(0)==null and grass.get_active_material(0)==canonical and plain.get_active_material(0)==canonical,"white leaf/grass nodes retain canonical material without unused optical overrides")
+		check(grass.visibility_range_end==150 and grass.custom_aabb==AABB(Vector3(-2,-1,-2),Vector3(5,5,5)),"white import still applies authored visibility range")
+	Drainer.dispose_result(white)
 	for path in [blue,red,broken,native]:DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)
 	print("DEFERRED_ASSET_SCENE failures=",failures);quit(0 if failures==0 else 1)

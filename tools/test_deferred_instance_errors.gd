@@ -8,6 +8,9 @@ const DIGEST="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 class Document extends RefCounted:
 	var failures:Dictionary={"B":true}
 	var calls:Dictionary={}
+	func _begin_asset_instance(record:Dictionary,_prepared:Dictionary)->Dictionary:
+		return {"holder":_asset(record),"model":null}
+	func _finish_asset_instance(holder:Node3D,_record:Dictionary)->Node3D:return holder
 	func _asset(record:Dictionary)->Node3D:
 		calls[record.uuid]=int(calls.get(record.uuid,0))+1
 		var holder:=Node3D.new()
@@ -55,7 +58,7 @@ func fixture()->Dictionary:
 	assert(service._admission.reserve(MODEL,estimate));service._admission.park(MODEL)
 	var token:=Deferred.Drainer.CancelToken.new();var owner:PackedScene=Deferred.Assets._scenes[MODEL]
 	token.set_meta("admission_owner",service._admission);token.set_meta("admission_release",service._admission.release.bind(MODEL));token.set_meta("reuse_template_owner",owner)
-	service._jobs[MODEL]={"accepted":true,"token":token,"result":{"error":"","reused_model":true,"source_digest":DIGEST},"publication_ids":["A","B","C"],"native":false,"estimate":estimate,"reuse_template_owner":owner}
+	service._jobs[MODEL]={"accepted":true,"token":token,"result":{"error":"","reused_model":true,"source_digest":DIGEST},"publication_ids":["A","B","C"],"native":false,"estimate":estimate,"reuse_template_owner":owner,"publication_template_owner":owner}
 	service.set_process(false)
 	return {"map":map,"service":service,"document":document}
 func advance(service:Node)->void:
@@ -87,6 +90,10 @@ func run()->void:
 	check(service.is_complete() and service.path_errors.is_empty() and service.profile.failed_paths==0,"retrying shared model clears its path error and unblocks dependent instances")
 	world.map.free()
 	world=fixture();service=world.service;document=world.document;document.failures.clear()
+	service._refresh_demanded()
+	service._jobs[MODEL].accepted=false
+	check(service._publication_ready().is_empty(),"cached model and verified instance cannot bypass this task's acceptance")
+	service._jobs[MODEL].accepted=true
 	service._discard_job(MODEL)
 	for row:Dictionary in service.pending:row.model_verified=true # Deliberately stale restoration marker.
 	service._refresh_demanded()

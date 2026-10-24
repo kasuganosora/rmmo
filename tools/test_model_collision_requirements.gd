@@ -161,8 +161,10 @@ func queue_paths(path:String,digest:String)->void:
 	check(q._jobs.is_empty() and q._admission.reserved_bytes==0,"real dispatch cancellation joins and returns every task lease")
 	f.map.free()
 	var corrupted:=FileAccess.open(path,FileAccess.WRITE);corrupted.store_buffer(PackedByteArray([4,3,2,1]));corrupted.close()
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true # Explicit source replacement diagnostic.
 	var invalid:=Deferred._prepare_job(path,digest,null,{},false,Paths.external_root(),{},"",[],false,false,null,{"filter_collision_geometry":true,"geometry_consumers":[{"mode":Requirements.NONE}],"geometry_mode":Requirements.NONE})
 	check(not invalid.error.is_empty() and not invalid.get("reused_model",false),"none geometry policy never bypasses final source SHA")
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=false
 	Assets.evict_cached_scene(path)
 
 func run()->void:

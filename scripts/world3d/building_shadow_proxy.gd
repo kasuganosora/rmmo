@@ -4,6 +4,9 @@ const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 static var enabled:=true
 static var unshaded_materials_enabled:=true # Diagnostic control; shadow-only geometry has no lighting pass.
 static var builds:=0
+static var builds_prepared:=0
+static var builds_unprepared:=0
+static var face_vertices_built_on_main:=0
 static var attached:=0
 static var saved_surfaces:=0
 static var max_build_ms:=0.0
@@ -78,6 +81,8 @@ static func attach(node:MeshInstance3D)->bool:
 			shadow.surface_set_material(shadow.get_surface_count()-1,_materials[cull])
 			parts["bind_"+str(cull)+"_us"]=Time.get_ticks_usec()-part_began
 		source.set_meta(cache_key,shadow);builds+=1
+		if prepared_faces:builds_prepared+=1
+		else:builds_unprepared+=1;face_vertices_built_on_main+=faces.size()
 		max_build_ms=maxf(max_build_ms,(Time.get_ticks_usec()-began)/1000.)
 		preload("res://scripts/world3d/load_trace.gd").elapsed("shadow.build",began,{"uuid":str(node.name),"prepared_faces":prepared_faces,"partitions":partitions.size(),"surfaces":culls.size(),"triangles":faces.size()/3,"parts":parts})
 	var proxy:=MeshInstance3D.new();proxy.name="OpaqueShadow";proxy.mesh=shadow
@@ -95,4 +100,4 @@ static func attach(node:MeshInstance3D)->bool:
 	return true
 
 static func stats()->Dictionary:
-	return {"enabled":enabled,"builds":builds,"attached":attached,"saved_surfaces":saved_surfaces,"max_build_ms":max_build_ms}
+	return {"enabled":enabled,"builds":builds,"builds_prepared":builds_prepared,"builds_unprepared":builds_unprepared,"face_vertices_built_on_main":face_vertices_built_on_main,"attached":attached,"saved_surfaces":saved_surfaces,"max_build_ms":max_build_ms}

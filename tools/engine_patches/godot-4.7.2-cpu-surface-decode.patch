@@ -1,0 +1,23 @@
+--- a/servers/rendering/rendering_server.cpp
++++ b/servers/rendering/rendering_server.cpp
+@@ -2298,8 +2298,20 @@
+ 	return data;
+ }
+ 
++// Return the arrays mesh_surface_get_arrays would read back after uploading
++// these arrays with the same flags. Renderers store the packed buffers
++// unchanged, so this decodes the same bytes on the CPU instead of stalling for
++// a GPU download. Like the function above it is safe on loading workers.
++static Array _mesh_surface_arrays_from_arrays(RSE::PrimitiveType p_primitive, const Array &p_arrays, BitField<RSE::ArrayFormat> p_flags) {
++	RenderingServerTypes::SurfaceData surface;
++	Error err = RenderingServer::get_singleton()->mesh_create_surface_data_from_arrays(&surface, p_primitive, p_arrays, Array(), Dictionary(), p_flags);
++	ERR_FAIL_COND_V(err != OK, Array());
++	return RenderingServer::get_singleton()->mesh_create_arrays_from_surface_data(surface);
++}
++
+ void RenderingServer::_bind_methods() {
+ 	ClassDB::bind_static_method("RenderingServer", D_METHOD("mesh_prepare_surface_from_arrays", "primitive", "arrays", "blend_shapes", "lods", "flags"), &_mesh_prepare_surface_from_arrays, DEFVAL(Array()), DEFVAL(Dictionary()), DEFVAL(0));
++	ClassDB::bind_static_method("RenderingServer", D_METHOD("mesh_surface_arrays_from_arrays", "primitive", "arrays", "flags"), &_mesh_surface_arrays_from_arrays, DEFVAL(0));
+ 	BIND_CONSTANT(RSE::NO_INDEX_ARRAY);
+ 	BIND_CONSTANT(RSE::ARRAY_WEIGHTS_SIZE);
+ 	BIND_CONSTANT(RSE::CANVAS_ITEM_Z_MIN);

@@ -34,7 +34,7 @@ func prepare(owner:Node3D,shapes:Dictionary,seated:Animation,sources:AnimationLi
  for frame in count+1:
   var time:float=rising.length*frame/count
   work.pose_at(time);contact.prepare(work,time)
-  await RenderingServer.frame_post_draw
+  await preload("res://scripts/util/frame_presentation.gd").drawn()
   if owner_ref.get_ref()==null:return _fail(work,"Ground action owner released")
   for bridge in [contact.legs,contact.arms]:
    if bridge.completed_revision!=bridge.revision or not bridge.error.is_empty():return _fail(work,"Ground action IK result unavailable")

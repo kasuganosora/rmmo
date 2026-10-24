@@ -5,7 +5,7 @@ const T=preload("res://scripts/world3d/terrain_surface.gd")
 const Profile=preload("res://scripts/world3d/terrain_river_profile.gd")
 const Channel=preload("res://scripts/world3d/channel_surface.gd")
 const Poly=preload("res://scripts/world3d/roof_plan.gd")
-const City=preload("res://scripts/world3d/city_layout.gd")
+const City=preload("res://scripts/world3d/layout_identity.gd")
 
 static func valid_links(meta:Dictionary)->bool:
 	var by_id:Dictionary={}

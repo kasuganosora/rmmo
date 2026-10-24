@@ -3,23 +3,18 @@ extends RefCounted
 ## Never changes the player's pose, input lock, entry scope, or loading budget.
 const Transaction=preload("res://scripts/world3d/building_entry_transaction.gd")
 const Gate=preload("res://scripts/world3d/entry_readiness.gd")
+const Frames=preload("res://scripts/util/frame_presentation.gd")
 var owner:WeakRef
 var root:WeakRef
 var authority:RefCounted
 var anchor:Dictionary={}
 var attempts:Dictionary={}
 var last_reason:=""
-var draw_serial:=0
 var _cursor:=0
-var _draw_callback:Callable
 var _last_guard_tick:=-1
 
 func setup(world:Node,map_root:Node,adapter:RefCounted,parent_ticket:Dictionary)->void:
 	owner=weakref(world);root=weakref(map_root);authority=adapter;anchor=parent_ticket.duplicate(true)
-	_draw_callback=_drawn
-	RenderingServer.frame_post_draw.connect(_draw_callback)
-
-func _drawn()->void:draw_serial+=1
 
 func guard(clip:AABB,feet:Vector3)->Dictionary:
 	_last_guard_tick=Engine.get_physics_frames()
@@ -104,8 +99,10 @@ func tick()->void:
 		var complete:Dictionary=tx.gate.complete_building(receipt,tx.gate.token())
 		if not complete.ok:row.error=str(complete.reason);return
 		for stage:String in ["geometry","physics","render","base_gameplay"]:tx.gate.mark(stage,tx.gate.token())
-		row.phase="awaiting_draw";row.draw=draw_serial;return
-	if DisplayServer.get_name()=="headless" or draw_serial<=int(row.draw):return
+		row.phase="awaiting_draw"
+		if DisplayServer.get_name()!="headless":row.draw=Frames.clock().submitted
+		return
+	if DisplayServer.get_name()=="headless" or Frames.clock().completed<=int(row.draw):return
 	tx.gate.mark("first_frame",tx.gate.token())
 	var feet:Vector3=world._player.global_position-Vector3.UP*.9
 	var approved:Dictionary=authority.authorize_traversal(tx.issued.ticket,tx.gate.report(),feet,_placement_valid)
@@ -129,8 +126,6 @@ func _cancel_attempts(reason:String)->void:
 
 func dispose()->void:
 	_cancel_attempts("traversal_retired")
-	if _draw_callback.is_valid() and RenderingServer.frame_post_draw.is_connected(_draw_callback):RenderingServer.frame_post_draw.disconnect(_draw_callback)
-	_draw_callback=Callable()
 
 func report()->Dictionary:
 	var rows:Dictionary={}

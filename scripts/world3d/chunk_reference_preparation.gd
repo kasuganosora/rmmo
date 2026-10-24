@@ -18,7 +18,7 @@ static func _fail(reason: String, cancelled: bool = false, failed_uuid: String =
 static func _cancelled(token: RefCounted) -> bool:
 	return token != null and token.is_cancelled()
 
-static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false) -> Dictionary:
+static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false,hydrated_records:Dictionary={}) -> Dictionary:
 	var started := Time.get_ticks_usec()
 	var mounted_snapshot:=trusted_package and trusted_directory_snapshot_enabled
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
@@ -57,20 +57,27 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var preflight_us := Time.get_ticks_usec() - started
 	# The outer demand scheduler owns concurrency and byte admission. A single
 	# task must not multiply that limit with another four-thread nested pool.
-	var restored: Dictionary = Store.read_records(compact, path, content_root, dependencies, 1,trusted_package)
+	var restored: Dictionary = _restore_records(compact,path,content_root,dependencies,trusted_package,hydrated_records)
 	if not restored.get("ok", false):
 		# This task uses one resource reader, so its last claimed unique URI is
 		# the failed dependency. Attribute it without poisoning a shared GLB path.
-		var failed_uuid := ""
+		var failed_uuid := str(restored.get("failed_uuid",""))
 		var at := int(restored.get("read_profile",{}).get("reads_started",0)) - 1
 		var uris: Array = dependencies.keys()
-		if at >= 0 and at < uris.size():
+		if failed_uuid.is_empty() and at >= 0 and at < uris.size():
 			for record: Dictionary in compact:
 				if record.rmmo_ref.uri == uris[at]: failed_uuid = record.uuid; break
 		return _fail(str(restored.get("reason", "区块引用资源无法读取")), false, failed_uuid)
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var material_checks := {}; var asset_paths := {}; var ids := {}; var manifests := {}; var recomputed: Array = []
 	var validation_started := Time.get_ticks_usec(); var prefabs := 0; var prefab_cpu := {}; var texture_sources := {}
+	# A packet is shared by SHA; collect all requested consumers before the
+	# first definition is prepared (a nonbuilding record may come first).
+	var shadow_consumers:Dictionary={}
+	if trusted_package and Prefab.source_collision_faces_enabled and Prefab.shadow_face_preparation_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials and preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and preload("res://scripts/world3d/building_shadow_proxy.gd").enabled:
+		for consumer:Dictionary in restored.records:
+			if consumer.has("house_prefab") and consumer.has("building") and not bool(consumer.get("invisible",false)):
+				shadow_consumers[consumer.house_prefab.sha256]=true
 	var roads: Array = [];var terrain_positions:Array=[]
 	var collision_candidates:Dictionary={};var collision_metrics:Dictionary={"hits":0,"misses":0,"writes":0,"write_skips":0,"bytes":0,"workspace_bytes":collision_workspace}
 	for i in restored.records.size():
@@ -87,7 +94,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			var estimate := RoadPreparation.estimate(record,trusted_package)
 			if not estimate.ok: return _fail(str(estimate.reason), false, record.uuid)
 			if int(expected.get("memory_bytes", 0)) < int(estimate.estimated_bytes): return _fail("道路派生数组超出区块目录的内存预算", false, record.uuid)
-			roads.append(record)
+			roads.append({"record":record,"budget":estimate,"definition_sha":compact[i].rmmo_ref.sha256})
 		if record.has("house_prefab"):
 			var key:String=record.house_prefab.sha256
 			if not prefab_cpu.has(key):
@@ -102,7 +109,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 							var candidate:=CollisionProducts.read_candidate(collision_identity,content_root,token)
 							if candidate.get("ok",false) and candidate.kind=="faces":cached_faces[source_id]=candidate;collision_metrics.hits+=1
 							else:collision_metrics.misses+=1
-				prefab_cpu[key]=Prefab.prepare_cpu(record,cached_faces)
+				prefab_cpu[key]=Prefab.prepare_cpu(record,cached_faces,true,shadow_consumers.has(key))
 				if not collision_identity.is_empty() and not prefab_cpu[key].is_empty():
 					var candidate:Dictionary=cached_faces.get(source_id,{})
 					if candidate.is_empty():
@@ -135,27 +142,52 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	if not ownership.ok: return _fail(str(ownership.reason))
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var validation_us := Time.get_ticks_usec() - validation_started
+	var road_cache_hits:=0
 	var surface_arrays := {}; var road_array_us := 0; var road_array_bytes := 0; var road_estimated_bytes := 0
 	var terrain_contexts:Dictionary={};var terrain_rows:=Index.terrain_context_rows(index,terrain_positions)
+	var terrain_boundary_normals:=0
 	if not terrain_rows.is_empty():
 		var terrain_compact:Array=[];var terrain_dependencies:Dictionary={}
 		for row:Dictionary in terrain_rows:
 			var ref:Dictionary=index.extras.rmmo_records[row.order];terrain_compact.append(ref);terrain_dependencies[ref.rmmo_ref.uri]=ref.rmmo_ref.sha256
 		var terrain_data:=Store.read_records(terrain_compact,path,content_root,terrain_dependencies,1,trusted_package)
 		if not terrain_data.ok:return _fail("地形接缝依赖无法读取")
-		var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.update(terrain_data.records)
+		var requested_terrain:Dictionary={}
+		for record:Dictionary in restored.records:
+			if record.has("terrain_mesh"):requested_terrain[record.uuid]=true
+		var context_data:Dictionary
+		if preload("res://scripts/world3d/selected_terrain_context.gd").enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
+			var prepared_context:=preload("res://scripts/world3d/selected_terrain_context.gd").prepare(terrain_data.records,requested_terrain)
+			context_data=prepared_context.data;terrain_boundary_normals=prepared_context.work.boundary_normals
+		else:
+			var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.prepare_selected(terrain_data.records,requested_terrain)
+			context_data=context.data;terrain_boundary_normals=context.last_work.boundary_vertices
 		for record:Dictionary in restored.records:
 			if not record.has("terrain_mesh"):continue
-			var current:Dictionary=context.data.get(record.uuid,{})
+			var current:Dictionary=context_data.get(record.uuid,{})
 			surface_arrays[record.uuid]=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,current)
 			# Keep only the requested tile's rendered halo, never decoded neighbors.
 			current=current.duplicate();current.signature=[];terrain_contexts[record.uuid]=current
 		dependencies.merge(terrain_dependencies,true)
-	for record: Dictionary in roads:
-		var road := RoadPreparation.prepare(record, token,trusted_package)
+	var surface_bounds:Dictionary={};var cached_bounds:=0
+	var surface_uploads:Dictionary={};var upload_bytes:=0;var upload_us:=0
+	for item: Dictionary in roads:
+		var record:Dictionary=item.record
+		var road := RoadPreparation.prepare(record, token,trusted_package,content_root,item.budget,item.definition_sha,preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials)
 		if not road.error.is_empty(): return _fail(str(road.error), bool(road.cancelled), str(record.uuid))
+		if road.get("cache_hit",false):road_cache_hits+=1
 		surface_arrays[record.uuid] = road.arrays
+		if road.get("upload")!=null:
+			surface_uploads[record.uuid]=road.upload;upload_bytes+=road.upload.bytes
+		upload_us+=int(road.get("upload_us",0))
+		if preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled and road.has("bounds"):
+			surface_bounds[record.uuid]=road.bounds;cached_bounds+=1
 		road_array_us += int(road.elapsed_us); road_array_bytes += int(road.output_bytes); road_estimated_bytes += int(road.estimated_bytes)
+	var bounds_started:=Time.get_ticks_usec()
+	if preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled:
+		for uuid:String in surface_arrays:
+			if not surface_bounds.has(uuid):surface_bounds[uuid]=preload("res://scripts/world3d/procedural_surface_bounds.gd").bounds(surface_arrays[uuid])
+	var surface_bounds_us:=Time.get_ticks_usec()-bounds_started
 	var texture_packet:Dictionary={}
 	if not texture_plan.is_empty():
 		texture_packet=PrefabTextures.prepare(texture_sources,texture_plan,content_root,token,false,shared_pixels)
@@ -188,8 +220,35 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.map_authentications=0 if mounted_snapshot else 2
 	profile.directory_rows_recomputed=recomputed.size();profile.groups_checked=checked_groups.size()
 	profile.terrain_context_source_rows=0 if terrain_positions.is_empty() else index.rows.size()
+	profile.terrain_boundary_normals=terrain_boundary_normals
 	profile.elapsed_us = Time.get_ticks_usec() - started; profile.prefab_instances = prefabs; profile.record_count = restored.records.size()
+	profile.road_cache_hits=road_cache_hits;profile.road_array_generations=roads.size()-road_cache_hits
 	profile.road_instances = roads.size(); profile.road_array_prepare_us = road_array_us; profile.road_array_upper_bytes = road_array_bytes; profile.road_estimated_bytes = road_estimated_bytes
+	profile.surface_bounds_us=surface_bounds_us;profile.surface_bounds_count=surface_bounds.size()
+	profile.surface_upload_bytes=upload_bytes;profile.surface_upload_us=upload_us;profile.surface_upload_records=surface_uploads.size()
+	profile.cached_surface_bounds=cached_bounds;profile.scanned_surface_bounds=surface_bounds.size()-cached_bounds
 	profile.prefab_textures=texture_packet.get("profile",{})
+	for prepared:Dictionary in prefab_cpu.values():
+		for field:String in prepared.get("face_work",{}):profile["prefab_faces_"+field]=int(profile.get("prefab_faces_"+field,0))+int(prepared.face_work[field])
 	profile.collision_products=collision_metrics
-	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays,"terrain_contexts":terrain_contexts, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}
+	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays,"surface_bounds":surface_bounds,"surface_uploads":surface_uploads,"terrain_contexts":terrain_contexts, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}
+
+static func _restore_records(compact:Array,path:String,root:String,dependencies:Dictionary,trusted:bool,hydrated:Dictionary)->Dictionary:
+	if not trusted or hydrated.is_empty():return Store.read_records(compact,path,root,dependencies,1,trusted)
+	var missing:Array=[];var required:Dictionary={}
+	for source:Dictionary in compact:
+		if not hydrated.has(source.uuid):missing.append(source);required[source.rmmo_ref.uri]=source.rmmo_ref.sha256
+	var restored:Dictionary=Store.read_records(missing,path,root,required,1,true) if not missing.is_empty() else {"ok":true,"records":[],"read_profile":{"reads_started":0,"unique_resources":0,"completed":0,"definition_copies":0,"definition_transfers":0,"elapsed_us":0}}
+	if not restored.ok:
+		var at:=int(restored.get("read_profile",{}).get("reads_started",0))-1
+		var uris:Array=required.keys()
+		if at>=0 and at<uris.size():
+			for source:Dictionary in missing:
+				if source.rmmo_ref.uri==uris[at]:restored.failed_uuid=source.uuid;break
+		return restored
+	var result:Array=[];var cursor:=0;var reused:=0
+	for source:Dictionary in compact:
+		if hydrated.has(source.uuid):result.append(hydrated[source.uuid]);hydrated.erase(source.uuid);reused+=1
+		else:result.append(restored.records[cursor]);cursor+=1
+	restored.records=result;restored.read_profile.handoff_records=reused
+	return restored

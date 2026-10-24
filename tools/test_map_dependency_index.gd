@@ -40,6 +40,9 @@ func replace_payload(path: String, value: Dictionary) -> void:
 	output.append_array(bytes); write_bytes(path, output)
 
 func run() -> void:
+	# This suite deliberately supplies false stored prefab bounds and altered
+	# references. Those assertions exercise the explicit diagnostic contract.
+	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=true
 	content_root = Paths.external_root()
 	folder = Paths.cache_directory("dependency_index_test_%d" % Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(folder)

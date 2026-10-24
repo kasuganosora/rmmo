@@ -1,0 +1,21 @@
+--- a/core/os/os.cpp
++++ b/core/os/os.cpp
+@@ -478,6 +478,18 @@
+ 		return _writing_movie;
+ 	}
+ 
++	// RMMO: this build shuts down the separate render thread model correctly.
++	// Projects opt game runs into that model with a feature override; script
++	// runs (tests and tools) keep the safe model.
++	if (p_feature == "rmmo_game_render_thread") {
++		for (const String &arg : _cmdline) {
++			if (arg == "-s" || arg == "--script") {
++				return false;
++			}
++		}
++		return true;
++	}
++
+ #ifdef DEBUG_ENABLED
+ 	if (p_feature == "debug") {
+ 		return true;

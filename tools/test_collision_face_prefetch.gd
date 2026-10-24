@@ -221,7 +221,7 @@ func retire_partial_terrain() -> void:
 	if not check(not ready and is_instance_valid(terrain._body) and terrain._thread == null and not terrain._face_lease.is_empty() and not terrain._faces.is_empty(), "one-microsecond slice budget creates a real partial body with a live consumer lease and no worker"):
 		fixture.viewport.free(); return
 	var body_ref:WeakRef = weakref(terrain._body)
-	check(queue.profile.reserved_bytes == terrain._faces.size() * 12 and terrain._body.collision_layer == 0, "unpublished partial body remains noncolliding and its entire faces buffer stays charged")
+	check(queue.profile.reserved_bytes == terrain._faces.size() * 12 * (12 if preload("res://scripts/world3d/collision_bvh_preparation.gd").active() else 1) and terrain._body.collision_layer == 0, "unpublished partial body remains noncolliding and its faces and BVH workspace stay charged")
 	check(fixture.preparer.release_retired_sources([record]), "retiring a matching partial terrain releases its own consumer before checking source leases")
 	check(body_ref.get_ref() == null and terrain._faces.is_empty() and terrain._face_lease.is_empty() and queue.profile.reserved_bytes == 0 and not record.has("prepared_body"), "retirement frees the incomplete body and faces without a permanently pinned source")
 	check(fixture.preparer.release_retired_sources([record]), "repeated retirement is idempotent and cannot remain falsely busy")
@@ -475,7 +475,7 @@ func stream_budget_mode_switch() -> void:
 	if not check(not ready and is_instance_valid(terrain._body) and not terrain._face_lease.is_empty(), "same-target mode switch begins with a legitimate partial terrain body"):
 		viewport.free(); return
 	var body_id: int = terrain._body.get_instance_id()
-	var bytes: int = terrain._faces.size() * 12
+	var bytes: int = terrain._faces.size() * 12 * (12 if preload("res://scripts/world3d/collision_bvh_preparation.gd").active() else 1)
 	Stream.sync(map, host, Vector3.ZERO, Stream.FRAME_BUDGET)
 	var body: StaticBody3D = map.get_meta("stream_bodies", {}).get(record.uuid)
 	var surviving: Node = body if body != null else record.get("prepared_body", terrain._body)

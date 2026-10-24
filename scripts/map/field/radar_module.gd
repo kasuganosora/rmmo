@@ -55,7 +55,8 @@ func _publish_lofi_atlas() -> void:
 	ctrl._radar_origin_cell = Vector2i.ZERO
 	ctrl._radar_atlas_scale = 1.0 / float(maxi(ctrl.tile_size, 1))
 	if ctrl._radar_atlas_tex != null and ctrl._radar_atlas_tex.get_width() == ctrl._lofi_image.get_width() and ctrl._radar_atlas_tex.get_height() == ctrl._lofi_image.get_height():
-		ctrl._radar_atlas_tex.update(ctrl._lofi_image)
+		# Cells are patched in place later; a separate render thread uploads queued images late.
+		ctrl._radar_atlas_tex.update(ctrl._lofi_image.duplicate())
 	else:
 		ctrl._radar_atlas_tex = ImageTexture.create_from_image(ctrl._lofi_image)
 	ctrl._world_map_tex = ctrl._radar_atlas_tex

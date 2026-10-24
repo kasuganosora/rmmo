@@ -28,6 +28,7 @@ func drain(target:Node)->int:
 	var maximum:=0
 	while not target.pending.is_empty():
 		var start:=Time.get_ticks_usec();var done:bool=target._advance(target.pending[0],1000)
+		target.set_process(false)
 		maximum=maxi(maximum,Time.get_ticks_usec()-start)
 		if done:target._finish_front()
 		else:await process_frame
@@ -45,7 +46,9 @@ func trial(background:bool)->Dictionary:
 	check(watches.all(func(w):return w.get_ref()==null),"mesh and material owners are released")
 	check(receipt.thread==OS.get_main_thread_id(),"GPU material final destructor remains on main")
 	if background:
-		check(target.profile.geometry_batches==2 and target.profile.geometry_logical_bytes==288*1024*1024,"two typed CPU owners transfer the exact logical geometry bytes")
+		if Retirement.batched_geometry_release_enabled:
+			check(target.profile.geometry_batches==1 and target.profile.geometry_unmeasured_owners==2,"two CPU owners share one batch without remeasuring every channel")
+		else:check(target.profile.geometry_batches==2 and target.profile.geometry_logical_bytes==288*1024*1024,"two typed CPU owners transfer the exact logical geometry bytes")
 		check(target.profile.geometry_last_thread_id!=OS.get_main_thread_id(),"CPU geometry final release runs on a different thread")
 	check(target.pending.is_empty() and target.known.is_empty(),"all transfer tickets complete")
 	target.free();return result
@@ -73,7 +76,7 @@ func admitted_model()->void:
 	var parent:Dictionary=target.pending[0]
 	while not target._advance(parent,1000):await process_frame
 	target._finish_front()
-	check(not receipt.done and watch.get_ref()!=null and target.pending.size()==2,"model completion transfers admission to its final geometry child")
+	check(not receipt.done and watch.get_ref()!=null and target.pending.size()==(1 if Retirement.batched_geometry_release_enabled else 2),"model completion transfers admission to its final geometry child")
 	await drain(target)
 	check(receipt.done and watch.get_ref()==null,"callback and admission owner release only after all geometry workers join")
 	target.free()

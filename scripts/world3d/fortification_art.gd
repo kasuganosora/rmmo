@@ -14,10 +14,10 @@ var record: Dictionary
 var size_: Vector3
 var spans: Array=[]
 var total:=0.0
-func kit(path: String) -> Dictionary:
+func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not Paths.allowed(path) or not FileAccess.file_exists(path): return {}
-	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
+	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path,native_only)
 	if root==null: return {}
 	var result:={}
 	for node in Paint.meshes(root): result[str(node.name)]={"mesh":node.mesh,"transform":node.transform}
@@ -38,13 +38,13 @@ func point(p: Vector3) -> Vector3:
 	var inside: Vector2=span.poly[3].lerp(span.poly[2],t)
 	var q:=outside.lerp(inside,p.z+.5)
 	return Vector3(q.x,p.y*size_.y,q.y)
-func build(r: Dictionary) -> ArrayMesh:
+func build(r: Dictionary,native_only:bool=false) -> ArrayMesh:
 	record=r; size_=Data.vec(r.size); spans=[]; total=0
 	var key:=Data.token([r.get("channel_mesh",{}),r.get("water_gate",{}),r.size,r.fortification_art,r.fortification_materials])
 	if cache.has(key): return cache[key]
 	if r.has("water_gate"):return remember(key,preload("res://scripts/world3d/water_gate_mesh.gd").mesh(r))
 	if r.fortification_art.module=="tower_stair": return remember(key,preload("res://scripts/world3d/fortification_stair_mesh.gd").build(r))
-	var source:=kit(r.fortification_art.asset_path)
+	var source:=kit(r.fortification_art.asset_path,native_only)
 	if source.is_empty(): return null
 	var name_: String=r.fortification_art.module
 	if r.has("channel_mesh") and name_!="round_tower":

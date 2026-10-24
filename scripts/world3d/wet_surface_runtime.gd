@@ -40,7 +40,8 @@ func _physics_process(delta:float) -> void:
 			var hit:=get_world_3d().direct_space_state.intersect_ray(query)
 			height_image.set_pixel(x,z,Color(float(hit.position.y) if not hit.is_empty() else -100000.,0,0))
 			cursor+=1
-		height_texture.update(height_image)
+		# A separate render thread uploads queued images later; keep mutating ours.
+		height_texture.update(height_image.duplicate())
 	elif refresh_left<=0: cursor=0; refresh_left=2.
 	scan_left-=delta
 	if scan_left<=0: refresh(); scan_left=.5
@@ -57,7 +58,7 @@ func move_grid(anchor:Vector2) -> void:
 			for x in SIZE:
 				var old:=Vector2i(x,y)+shift
 				if old.x>=0 and old.x<SIZE and old.y>=0 and old.y<SIZE: next.set_pixel(x,y,height_image.get_pixel(old.x,old.y))
-	height_image=next; height_texture.update(height_image)
+	height_image=next; height_texture.update(height_image.duplicate())
 	origin=anchor; cursor=0; refresh_left=0.
 
 func refresh() -> void:

@@ -7,12 +7,33 @@ var bounds := AABB()
 var box_size := Vector3.ZERO
 var source_reference: WeakRef
 var _collision_faces:=PackedVector3Array()
+var _retirement_geometry_identity:=""
+# These are aliases of the two live terrain-cache containers, not a history of
+# Shape owners. Replacements and basis eviction therefore release old entries.
+var _retirement_terrain_shapes:Variant
+var _retirement_terrain_basis_entries:Variant
+static var terrain_shape_retirement_enabled:=true # Diagnostic legacy control.
 static var _unit_box_arrays: Array=[]
 static var importer_lod_hints_enabled:=true
 
 func _notification(what:int)->void:
-	if what==NOTIFICATION_PREDELETE:
-		preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_geometry(surfaces,lods,_collision_faces)
+	# Language shutdown clears static cache owners after deleting the main loop.
+	# Other script classes may already have lost their methods at that point;
+	# no frame remains to amortize destruction, so let native fields release.
+	if what==NOTIFICATION_PREDELETE and Engine.get_main_loop()!=null:
+		# RefCounted is already at zero here: native Object calls on self may
+		# reject the dying instance. Use live-time mirrors only; never call native Object methods on self.
+		if terrain_shape_retirement_enabled and (_retirement_terrain_shapes!=null or _retirement_terrain_basis_entries!=null):
+			preload("res://scripts/world3d/resource_retirement.gd").defer_terrain_shape_owners(_retirement_terrain_shapes,_retirement_terrain_basis_entries)
+		preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_geometry(surfaces,lods,_collision_faces,_retirement_geometry_identity)
+
+func set_terrain_shapes(shapes:Array)->void:
+	_retirement_terrain_shapes=shapes
+	set_meta("runtime_terrain_shapes",shapes)
+
+func set_terrain_basis_cache(cache:Dictionary)->void:
+	_retirement_terrain_basis_entries=cache.entries
+	set_meta("runtime_terrain_basis_shapes",cache)
 
 static func _bind_source(source:Mesh,owner:Mesh)->WeakRef:
 	# Projections share this WeakRef, including its generation proof. Comparing
@@ -51,8 +72,13 @@ static func remember(source: Mesh, arrays: Array, surface_lods:Array=[]) -> Mesh
 
 func geometry_key() -> String:
 	if not has_meta("static_batch_geometry_signature"):
-		set_meta("static_batch_geometry_signature",geometry_signature(surfaces,lods))
-	return get_meta("static_batch_geometry_signature")
+		set_geometry_key(geometry_signature(surfaces,lods))
+	_retirement_geometry_identity=get_meta("static_batch_geometry_signature")
+	return _retirement_geometry_identity
+
+func set_geometry_key(value:String)->void:
+	_retirement_geometry_identity=value
+	set_meta("static_batch_geometry_signature",value)
 
 static func geometry_signature(arrays:Array,surface_lods:Array=[])->String:
 	# Preserve old cache identities for geometry without any LOD. A different
@@ -66,21 +92,10 @@ func collision_faces() -> PackedVector3Array:
 	if _collision_faces.is_empty():
 		# Mesh.get_faces() builds a TriangleMesh (including a BVH) first. Physics
 		# and Recast only need the existing triangle soup, not that extra tree.
-		var count:=0
-		for arrays:Array in surfaces:
-			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
-			count+=indices.size() if indices!=null and not indices.is_empty() else arrays[Mesh.ARRAY_VERTEX].size()
-		_collision_faces.resize(count)
-		var offset:=0
-		for arrays:Array in surfaces:
-			var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
-			var indices:Variant=arrays[Mesh.ARRAY_INDEX]
-			if indices!=null and not indices.is_empty():
-				for index in indices:
-					_collision_faces[offset]=vertices[index];offset+=1
-			else:
-				for vertex in vertices:
-					_collision_faces[offset]=vertex;offset+=1
+		# Unindexed channels already are ordered triangle soup. Share the exact
+		# native append path used by frozen prefabs; indexed inputs retain their
+		# original expansion. The helper returns privately owned packed storage.
+		_collision_faces=preload("res://scripts/world3d/prefab_face_arrays.gd").build({"surfaces":surfaces})
 	return _collision_faces
 
 static func capture(source: Mesh) -> Mesh:
@@ -147,9 +162,11 @@ func restore() -> Mesh:
 			if not compatible or original.surface_get_material(slot)!=materials[slot]: compatible=false; break
 		if compatible: return original
 	preload("res://scripts/world3d/load_trace.gd").instant("mesh.gpu_restore",{"cpu_id":get_instance_id(),"surfaces":surfaces.size(),"geometry":get_meta("static_batch_geometry_signature","")})
+	var restore_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/load_trace.gd").enabled else 0
 	if box_size != Vector3.ZERO:
 		var box := BoxMesh.new(); box.size = box_size; box.material = materials[0]
 		source_reference=_bind_source(box,self)
+		if restore_started:preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.gpu_restore_total",restore_started,{"cpu_id":get_instance_id(),"surfaces":surfaces.size()})
 		return box
 	var result := ArrayMesh.new()
 	for slot in surfaces.size():
@@ -160,7 +177,8 @@ func restore() -> Mesh:
 	# restored GPU mesh weakly so each instance does not upload the same buffers.
 	source_reference=cached.source_reference
 	cached._collision_faces=_collision_faces
-	if has_meta("static_batch_geometry_signature"): cached.set_meta("static_batch_geometry_signature",geometry_key())
+	if has_meta("static_batch_geometry_signature"): cached.set_geometry_key(geometry_key())
+	if restore_started:preload("res://scripts/world3d/load_trace.gd").elapsed("mesh.gpu_restore_total",restore_started,{"cpu_id":get_instance_id(),"surfaces":surfaces.size()})
 	return result
 
 func _get_aabb() -> AABB: return bounds

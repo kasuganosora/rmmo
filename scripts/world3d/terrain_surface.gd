@@ -4,6 +4,7 @@ const S=preload("res://scripts/world3d/document_schema.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const MODES=["raise","lower","flatten","smooth","hole","fill","erode"]
 const MAX_CELLS=64
+static var bulk_arrays_enabled:=true # Diagnostic differential against canonical legacy output.
 
 static func fail(message: String) -> Dictionary: return {"ok":false,"error":message}
 static func integer(low: int, high: int) -> Dictionary: return {"type":"integer","minimum":low,"maximum":high}
@@ -85,10 +86,14 @@ static func mesh(record: Dictionary, fallback: Material, context: Dictionary={})
 	return result
 
 static func arrays(record:Dictionary,context:Dictionary={})->Array:
+	if not bulk_arrays_enabled:return arrays_legacy(record,context)
+	var grid:=_grid(record,context)
+	var result:=preload("res://scripts/world3d/terrain_surface_arrays.gd").build(record,grid[0],grid[1])
+	var furrows:=preload("res://scripts/world3d/terrain_furrows.gd").arrays(record)
+	if not furrows.is_empty():result.append(furrows)
+	return result
+static func _grid(record:Dictionary,context:Dictionary)->Array:
 	var t:Dictionary=record.terrain_mesh
-	var tile: Array=record.get("terrain_material",{}).get("tile_size",[2,2]); var uv_scale:=Vector2(tile[0],tile[1])
-	var top:=SurfaceTool.new(); top.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var sides:=SurfaceTool.new(); sides.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# Each shared grid vertex used to recompute its position/normal for every
 	# adjacent cell. Cache once without changing triangle order or paint signatures.
 	var grid:=PackedVector3Array(); var grid_normals:=PackedVector3Array()
@@ -100,6 +105,14 @@ static func arrays(record:Dictionary,context:Dictionary={})->Array:
 			var dx:=grid[z*stride+mini(x+1,t.columns)]-grid[z*stride+maxi(x-1,0)]
 			var dz:=grid[mini(z+1,t.rows)*stride+x]-grid[maxi(z-1,0)*stride+x]
 			grid_normals.append(context.get("normals",{}).get(z*stride+x,dz.cross(dx).normalized()))
+	return [grid,grid_normals]
+static func arrays_legacy(record:Dictionary,context:Dictionary={})->Array:
+	var t:Dictionary=record.terrain_mesh
+	var tile: Array=record.get("terrain_material",{}).get("tile_size",[2,2]); var uv_scale:=Vector2(tile[0],tile[1])
+	var top:=SurfaceTool.new(); top.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var sides:=SurfaceTool.new(); sides.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var prepared:=_grid(record,context);var grid:PackedVector3Array=prepared[0];var grid_normals:PackedVector3Array=prepared[1]
+	var stride:=int(t.columns)+1
 	for z in int(t.rows):
 		for x in int(t.columns):
 			if not solid(t,x,z): continue

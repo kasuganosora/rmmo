@@ -26,7 +26,7 @@ static var classification_path_batching:=true # Scope is one synchronous build o
 static var parallel_native_classification:=true # CPU-only jobs; models keep one manifest observation per path.
 static var parallel_imported_sources:=true # Bounded streaming SHA/metadata checks, never cached across opens.
 static var early_stale_rejection:=true # Reject obsolete identities before traversing disposable rows.
-const VERSION := 4
+const VERSION := 5
 const MAGIC := "RMMODEPS1"
 const MAX_BYTES := 64 * 1024 * 1024
 const CHUNK_M := 32.0
@@ -44,6 +44,7 @@ static func _fail(reason: String) -> Dictionary:
 static func generator_key() -> String:
 	var hashes: Array = [VERSION, Engine.get_version_info().hash]
 	hashes.append(FileAccess.get_sha256("res://scripts/world3d/imported_building.gd"))
+	hashes.append(FileAccess.get_sha256("res://scripts/world3d/asset_memory_estimate.gd"))
 	for name in ["map_dependency_index", "dependency_index_proof", "asset_bounds_manifest", "world_document", "building_blueprint", "building_fixtures", "house_prefab", "prefab_texture_preparation", "fortification_data", "bridge_data", "structure_prefab", "river_material_data", "candle_sconce_mesh", "candle_sconce_data", "terrain_surface", "terrain_furrows", "road_surface", "road_kerb", "native_road_preparation", "surface_materials", "document_schema"]:
 		hashes.append(FileAccess.get_sha256("res://scripts/world3d/" + name + ".gd"))
 	return str(hashes).sha256_text()
@@ -53,17 +54,20 @@ static func cache_path(path: String, content_root: String) -> String:
 	var target := content_root.path_join("cache/world3d/dependency_indexes").path_join(path.replace("\\", "/").simplify_path().sha256_text() + ".bin")
 	return target if Paths.allowed(target, content_root) else ""
 
-static func _source(path: String, content_root: String, expected_sha: String, source_limit:int=Snapshot.RETAIN_LIMIT) -> Dictionary:
+static func _source(path: String, content_root: String, expected_sha: String, source_limit:int=Snapshot.RETAIN_LIMIT, trusted_package:bool=false, mounted_source:Snapshot=null) -> Dictionary:
 	if cache_path(path, content_root).is_empty(): return _fail("invalid_map_path")
 	var source_file := FileAccess.open(path, FileAccess.READ)
 	if source_file == null or source_file.get_length() > source_limit: return _fail("source_missing_or_too_large")
 	source_file.close()
-	var source = Snapshot.read_file(path,Snapshot.RETAIN_LIMIT,source_limit)
+	var source = mounted_source if trusted_package and mounted_source!=null else Snapshot.read_file(path,Snapshot.RETAIN_LIMIT,source_limit)
+	if source._path!=path:return _fail("source_path_mismatch")
 	if not source.error.is_empty() or (not expected_sha.is_empty() and source._signature != expected_sha): return _fail("source_sha_mismatch")
 	var native: int = Cursor.native_root(source._data)
 	if native < 0: return _fail("not_native_v2")
 	var extra: Dictionary = source._data.nodes[native].extras
-	var closure := _compact_closure(extra, path, content_root)
+	# The mounted package already declares its complete reference relation.
+	# Keep the map snapshot instead of rereading it and reconstructing that relation.
+	var closure:Dictionary={"ok":true,"dependencies":extra.rmmo_resource_dependencies} if trusted_package and extra.get("rmmo_records") is Array and extra.get("rmmo_resource_dependencies") is Dictionary else _compact_closure(extra, path, content_root)
 	if not closure.ok: return closure
 	return {"ok": true, "source": source, "extras": extra, "dependencies": closure.dependencies}
 
@@ -98,12 +102,12 @@ static func build(path: String, content_root: String, hydrated_records: Array, s
 ## Validate and seal those private containers before they escape, instead of
 ## writing, discarding, reading and authenticating the same data a second time.
 ## Public build() remains mutable; callers cannot certify an arbitrary result.
-static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT,trusted_package:bool=false,definition_sizes:Dictionary={},source_manifests:Dictionary={})->Dictionary:
-	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true,trusted_package,definition_sizes,source_manifests)
+static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT,trusted_package:bool=false,definition_sizes:Dictionary={},source_manifests:Dictionary={},mounted_source:Snapshot=null)->Dictionary:
+	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true,trusted_package,definition_sizes,source_manifests,mounted_source)
 	return built if built.ok else {"ok":false,"reason":built.reason,"index":{},"proof":null}
 
-static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool,trusted_package:bool,definition_sizes:Dictionary,source_manifests:Dictionary)->Dictionary:
-	var opened := _source(path, content_root, source_sha,source_limit)
+static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool,trusted_package:bool,definition_sizes:Dictionary,source_manifests:Dictionary,mounted_source:Snapshot=null)->Dictionary:
+	var opened := _source(path, content_root, source_sha,source_limit,trusted_package,mounted_source)
 	if not opened.ok: return opened
 	var compact: Array = opened.extras.rmmo_records
 	if compact.size() != hydrated_records.size(): return _fail("hydrated_count_mismatch")
@@ -149,10 +153,10 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 		var job:Dictionary=definition_jobs[i];var encoded:Dictionary=encoded_batch.entries[i]
 		if encoded.sha256!=job.sha256 or encoded.length!=job.length:return _fail("hydrated_definition_mismatch")
 		definition_bytes[job.sha256]=encoded.serialized_raw_bytes
-	var classified:=_build_rows(hydrated_records,compact,definition_bytes,content_root,worker_limit,Callable(),source_manifests if trusted_package else {})
+	var classified:=_build_rows(hydrated_records,compact,definition_bytes,content_root,worker_limit,Callable(),source_manifests if trusted_package else {},trusted_package)
 	if not classified.ok:return _fail("classification_failed")
 	rows=classified.rows;models=classified.models
-	var fort_owners := _fortification_owners(opened.extras, rows)
+	var fort_owners := _fortification_owners(opened.extras, rows,trusted_package)
 	for row: Dictionary in rows:
 		row.group_id = _expected_group(compact[row.order], row, fort_owners)
 		if row.reason == "native_fortification" and row.group_id.is_empty(): row.reason = "fortification_manifest_global"
@@ -163,7 +167,7 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 			if row.group_id.begins_with("building:"): row.reason = "building_group"
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
 	# The in-memory handoff must satisfy the same serialized-directory contract.
-	if for_loading and not _valid_payload(payload,compact,content_root):return _fail("invalid_index_schema")
+	if for_loading and not trusted_package and not _valid_payload(payload,compact,content_root):return _fail("invalid_index_schema")
 	if not trusted_package and not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
 	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit): return _fail("imported_building_source_mismatch")
 	if (not trusted_package and not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit)) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
@@ -188,7 +192,9 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 	if DirAccess.rename_absolute(temporary, target) != OK:
 		DirAccess.remove_absolute(temporary); return _fail("index_publish_failed")
 	var result:=_result(payload,opened.extras,target)
-	return _seal_for_loading(result,path,content_root) if for_loading else result
+	var published:=_seal_for_loading(result,path,content_root,trusted_package) if for_loading else result
+	published.build_profile=classified.profile
+	return published
 
 ## Reuse the bounded CPU queue, but retain only identity metadata per reply.
 ## Compressed payloads are not retained in a second full directory build array.
@@ -204,8 +210,9 @@ static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
 ## Each native row owns its output and temporary geometry arrays. Read-only
 ## authored inputs stay on the caller until every worker is joined. Model rows
 ## stay together so repeated instances share exactly one manifest/path check.
-static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={})->Dictionary:
+static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={},trusted_package:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
+	var prefab_metadata:RefCounted=preload("res://scripts/world3d/prefab_bounds_metadata.gd").new(root) if trusted_package and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and Prefab.trusted_metadata_reuse_enabled else null
 	var rows:Array=[];rows.resize(records.size())
 	var models:Dictionary={};var paths:Dictionary={};var jobs:Array=[]
 	for i:int in records.size():
@@ -215,14 +222,18 @@ static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,
 		var path:String=record.get("asset_path","")
 		if not models.has(path) and source_manifests.has(path):
 			var source:Dictionary=source_manifests[path]
-			if source.get("known",true):models[path]={"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds}
-		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256]}
+			if source.get("known",true):models[path]=_model_entry(path,source)
+		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256],"trusted_package":trusted_package}
+		if prefab_metadata!=null:job.prefab_metadata=prefab_metadata
 		if not parallel_native_classification or record.has("model_building") or (record.get("kind")=="asset" and not record.has("house_prefab")):
 			rows[i]=_index_row(job,models,paths if classification_path_batching else {})
 		else:jobs.append(job)
 	var batch:=Store._read_many(jobs,false,worker_limit if jobs.size()>=16 else 1,_native_index_row,thread_starter)
 	if not batch.ok:return batch
 	for i:int in jobs.size():rows[jobs[i].order]=batch.entries[i].row
+	if prefab_metadata!=null:
+		prefab_metadata.save()
+		batch.read_profile.prefab_bounds_hits=prefab_metadata.hits;batch.read_profile.prefab_bounds_misses=prefab_metadata.misses
 	Trace.elapsed("index.classification_batch",started,batch.read_profile)
 	return {"ok":true,"rows":rows,"models":models,"profile":batch.read_profile}
 
@@ -232,7 +243,7 @@ static func _native_index_row(job:Dictionary,_decode:bool)->Dictionary:
 static func _index_row(job:Dictionary,models:Dictionary,paths:Dictionary)->Dictionary:
 	var record:Dictionary=job.record
 	var started:=Time.get_ticks_usec()
-	var row:=_classify(record,job.root,models,paths)
+	var row:=_classify(record,job.root,models,paths,bool(job.get("trusted_package",false)),job.get("prefab_metadata"))
 	Trace.elapsed("index.build_classify",started,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
 	row.uuid=record.uuid;row.order=job.order;row.reference=job.reference.duplicate(true)
 	row.prefab_locked=record.get("prefab_locked",false)==true
@@ -247,9 +258,9 @@ static func _index_row(job:Dictionary,models:Dictionary,paths:Dictionary)->Dicti
 		else:row.classification="global";row.reason="road_preparation_unknown"
 	return row
 
-static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false) -> Dictionary:
+static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null) -> Dictionary:
 	var observed:=Time.get_ticks_usec()
-	var opened := _source(path, content_root, expected_source_sha,source_limit)
+	var opened := _source(path, content_root, expected_source_sha,source_limit,trusted_package,mounted_source)
 	Trace.elapsed("index.source",observed)
 	if not opened.ok: return opened
 	observed=Time.get_ticks_usec()
@@ -266,11 +277,11 @@ static func read(path: String, content_root: String, expected_source_sha: String
 		if not data is Dictionary or not Store._digest(data.get("source_sha256")) or not Store._digest(data.get("generator")):return _fail("invalid_index_schema")
 		if data.source_sha256!=opened.source._signature or data.generator!=generator_key():return _fail("stale_index")
 	observed=Time.get_ticks_usec()
-	var valid:bool=data is Dictionary and _valid_payload(data, opened.extras.rmmo_records, content_root)
+	var valid:bool=data is Dictionary and (_valid_payload_header(data,opened.extras.rmmo_records) if trusted_package else _valid_payload(data, opened.extras.rmmo_records, content_root))
 	Trace.elapsed("index.schema",observed)
 	if not valid:return _fail("invalid_index_schema")
 	observed=Time.get_ticks_usec()
-	valid=_ownership_valid(opened.extras,data.rows,data.groups)
+	valid=trusted_package or _ownership_valid(opened.extras,data.rows,data.groups)
 	Trace.elapsed("index.ownership",observed)
 	if not valid:return _fail("invalid_index_schema")
 	if not early_stale_rejection and (data.source_sha256 != opened.source._signature or data.generator != generator_key()): return _fail("stale_index")
@@ -300,16 +311,19 @@ static func _result(data: Dictionary, extras: Dictionary, path: String) -> Dicti
 
 ## Only the read/build factories issue a process-local proof from their own
 ## private snapshot. Ordinary read()/build() keep the original mutable API.
-static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false) -> Dictionary:
-	var index := read(path, content_root, expected_source_sha,source_limit,index_limit,worker_limit,trusted_package)
+static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null) -> Dictionary:
+	var index := read(path, content_root, expected_source_sha,source_limit,index_limit,worker_limit,trusted_package,mounted_source)
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
-	return _seal_for_loading(index,path,content_root)
+	return _seal_for_loading(index,path,content_root,trusted_package)
 
-static func _seal_for_loading(index:Dictionary,path:String,content_root:String)->Dictionary:
+static func read_mounted_for_loading(path:String,content_root:String,source:Snapshot)->Dictionary:
+	return read_for_loading(path,content_root,source._signature,Snapshot.RETAIN_LIMIT,MAX_BYTES,Store.READ_WORKERS,true,source)
+
+static func _seal_for_loading(index:Dictionary,path:String,content_root:String,trusted_package:bool=false)->Dictionary:
 	# read() has already downgraded changed model footprints and made its final
 	# source observation. No reference to this fresh result has escaped yet.
 	var observed:=Time.get_ticks_usec()
-	var proof: OwnershipProof = OwnershipProof.issue(index, path, content_root, _loading_proof_issuer)
+	var proof: OwnershipProof = OwnershipProof.issue(index, path, content_root, _loading_proof_issuer,trusted_package)
 	Trace.elapsed("index.seal",observed)
 	if proof == null: return {"ok": false, "reason": "unsealable_dependency_directory", "index": {}, "proof": null}
 	return {"ok": true, "reason": "", "index": index, "proof": proof}
@@ -340,29 +354,29 @@ static func _json_equal(a: Variant, b: Variant, depth: int, budget: Array) -> bo
 static func _finite_bounds(bounds: AABB) -> bool:
 	return Manifest._finite_box(bounds)
 
-static func _classify(record: Dictionary, root: String, models: Dictionary, checked_paths:Dictionary={}) -> Dictionary:
+static func _classify(record: Dictionary, root: String, models: Dictionary, checked_paths:Dictionary={},trusted_package:bool=false,prefab_metadata:RefCounted=null) -> Dictionary:
 	var result := {"classification": "global", "reason": "unknown_geometry", "bounds_known": false, "bounds": AABB(), "chunk_min": Vector2i.ZERO, "chunk_max": Vector2i.ZERO, "terrain_halo": 0.0, "asset_path": "", "owner_keys": []}
 	for owner in ["building", "fortification"]:
 		if record.get(owner) is Dictionary: result.owner_keys.append(owner + ":" + str(record[owner].get("id", "")))
 	if record.has("model_building"):result.owner_keys.append("building:"+str(record.uuid))
 	if record.has("terrain_mesh"):
 		var terrain = preload("res://scripts/world3d/terrain_surface.gd")
-		if terrain.valid(record):
+		if trusted_package or terrain.valid(record):
 			result.bounds = terrain.transform(record) * terrain.bounds(record); result.bounds_known = _finite_bounds(result.bounds)
 			# The normal/height context also needs one interpolation sample.
 			result.terrain_halo = 8.0 + maxf(float(record.size[0]) / record.terrain_mesh.columns, float(record.size[2]) / record.terrain_mesh.rows)
 		result.reason = "terrain_context_global"
 	elif record.has("house_prefab"):
-		var prefab := _prefab_bounds(record)
+		var prefab := _prefab_bounds(record,prefab_metadata,trusted_package)
 		if prefab.known: result.bounds = prefab.bounds; result.bounds_known = true
 		result.reason = "prefab_ownership_global"
 		if record.has("fortification"):
-			if _frozen_structure(record, "fortification", root):
+			if _frozen_structure(record, "fortification", root,trusted_package):
 				result.reason = "native_fortification"
 			else:
 				result.bounds_known = false; result.reason = "unsupported_fortification_behavior"
 		elif record.has("bridge_mesh"):
-			if _frozen_structure(record, "bridge", root):
+			if _frozen_structure(record, "bridge", root,trusted_package):
 				result.reason = "native_bridge"
 			else:
 				result.bounds_known = false; result.reason = "unsupported_bridge_behavior"
@@ -372,11 +386,14 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 		result.reason = "candle_ownership_global"
 	elif record.has("model_building"):
 		result.asset_path=str(record.get("asset_path",""))
-		if Imported.valid_record(record) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
+		if (trusted_package or Imported.valid_record(record)) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
 			_classify_model(record,root,models,result,checked_paths)
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
-	elif record.has("road_mesh") and _fields_allowed(record, COMMON_FIELDS + ROAD_FIELDS) and Road.valid(record):
+	# The package already supplies its authored road topology. Classification
+	# needs exact bounds and supported behavior, not another recursive schema
+	# and polygon-convexity audit. Explicit diagnostic callers keep that audit.
+	elif record.has("road_mesh") and _fields_allowed(record, COMMON_FIELDS + ROAD_FIELDS) and (trusted_package or Road.valid(record)):
 		var road := _road_bounds(record)
 		if road.known:
 			result.bounds = road.bounds; result.bounds_known = true
@@ -398,6 +415,9 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 			if record.has("fortification") or record.has("bridge_mesh"): result.bounds_known = false
 	return result
 
+static func _model_entry(path:String,source:Dictionary)->Dictionary:
+	return {"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds,"memory":preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(path,source)}
+
 static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary,checked_paths:Dictionary)->void:
 	if record.has("vegetation_batch") and not record.vegetation_batch is bool:result.reason="invalid_vegetation_batch";return
 	var path:=str(record.get("asset_path",""));result.asset_path=path
@@ -408,7 +428,7 @@ static func _classify_model(record:Dictionary,root:String,models:Dictionary,resu
 	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else Manifest.read(path)
 	var placed:Dictionary=Manifest.apply_record(source,record)
 	if placed.get("known",false):
-		models[path]={"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds}
+		if not models.has(path):models[path]=_model_entry(path,source)
 		result.bounds=placed.world_bounds;result.bounds_known=true;result.classification="spatial";result.reason="model_accessor_bounds"
 
 # Bind exact source annotations and complete bytes, not a claimed record volume
@@ -440,6 +460,7 @@ static func _imported_source_job(job:Dictionary,_decode:bool)->Dictionary:
 ## connect those stored points. Paint changes UVs/materials, not positions.
 ## Never regenerate kerbs from this selected subset or substitute record.size.
 static func _road_bounds(record: Dictionary) -> Dictionary:
+	if preload("res://scripts/world3d/road_record_bounds.gd").enabled:return preload("res://scripts/world3d/road_record_bounds.gd").measure(record)
 	var pose := Transform3D(Basis.from_euler(_vec(record.rotation) * PI / 180.0), _vec(record.position))
 	var bounds := AABB(); var first := true; var magnitude := 1.0
 	for local: Vector3 in Road.vertices(record):
@@ -467,10 +488,13 @@ static func _candle_bounds(record: Dictionary) -> Dictionary:
 ## Frozen geometry is authoritative: no recipe regeneration, terrain sampling,
 ## neighbour adjacency, or external model import is needed. Unknown behavior is
 ## never granted this proof even if its old prefab happens to have valid bounds.
-static func _frozen_structure(record: Dictionary, kind: String, root: String) -> bool:
-	if not Prefab.valid(record) or record.has("surface_paint") or not preload("res://scripts/world3d/surface_materials.gd").valid(record, false, root): return false
+static func _frozen_structure(record: Dictionary, kind: String, root: String,trusted_package:bool=false) -> bool:
+	# Supported runtime behavior is still required. Revalidating the authored
+	# package here used to decode the full prefab merely to answer `valid()`.
+	if record.has("surface_paint") or record.get("prefab_locked")!=true or record.get("kind") not in ["box","asset"] or record.has("building_shape"):return false
+	if not trusted_package and (not Prefab.valid(record) or not preload("res://scripts/world3d/surface_materials.gd").valid(record, false, root)): return false
 	if kind == "fortification":
-		if not _fields_allowed(record, COMMON_FIELDS + FROZEN_FIELDS + FORT_FIELDS) or not Fort.valid_record(record) or not Fixtures.valid(record): return false
+		if not _fields_allowed(record, COMMON_FIELDS + FROZEN_FIELDS + FORT_FIELDS) or (not trusted_package and (not Fort.valid_record(record) or not Fixtures.valid(record))): return false
 		if record.fortification.get("role") != "prefab" or str(record.fortification.get("id", "")).is_empty(): return false
 		if record.has("prefab_tower_center"):
 			var center: Variant = record.prefab_tower_center
@@ -478,17 +502,17 @@ static func _frozen_structure(record: Dictionary, kind: String, root: String) ->
 			for coordinate in center:
 				if not (coordinate is int or coordinate is float) or not is_finite(float(coordinate)): return false
 		return true
-	return _fields_allowed(record, COMMON_FIELDS + FROZEN_FIELDS + BRIDGE_FIELDS) and Bridge.valid(record) and preload("res://scripts/world3d/river_material_data.gd").valid(record)
+	return _fields_allowed(record, COMMON_FIELDS + FROZEN_FIELDS + BRIDGE_FIELDS) and (trusted_package or (Bridge.valid(record) and preload("res://scripts/world3d/river_material_data.gd").valid(record)))
 
 ## Only complete baked manifests prove a fortification's compact membership.
 ## Signatures are editor regeneration provenance, not runtime identities: an
 ## authorized moved module may have an old signature. The map SHA and rmres SHA
 ## bind its current pose and geometry instead. Invalid/legacy manifests stay global.
-static func _fortification_owners(extras: Dictionary, rows: Array) -> Dictionary:
+static func _fortification_owners(extras: Dictionary, rows: Array,trusted_package:bool=false) -> Dictionary:
 	var layout: Variant = extras.get("editor_layout", {})
 	if not layout is Dictionary: return {}
 	var regions: Variant = layout.get("fortifications", [])
-	if not regions is Array or not Fort.valid(regions): return {}
+	if not regions is Array or (not trusted_package and not Fort.valid(regions)): return {}
 	var members := {}; var invalid := {}; var parts := {}
 	for i in rows.size():
 		var state: Dictionary = extras.rmmo_records[i].rmmo_state
@@ -500,7 +524,7 @@ static func _fortification_owners(extras: Dictionary, rows: Array) -> Dictionary
 		members[id][str(extras.rmmo_records[i].uuid)] = true
 		var proof := {"kind": "box", "fortification": owner}
 		if state.has("fixture"): proof.fixture = state.fixture
-		if not rows[i].prefab_locked or owner.get("role") != "prefab" or str(owner.get("part", "")).is_empty() or not Fort.valid_record(proof) or not Fixtures.valid(proof) or state.has("building") or parts[id].has(str(owner.get("part", ""))): invalid[id] = true
+		if not rows[i].prefab_locked or owner.get("role") != "prefab" or str(owner.get("part", "")).is_empty() or (not trusted_package and (not Fort.valid_record(proof) or not Fixtures.valid(proof))) or state.has("building") or parts[id].has(str(owner.get("part", ""))): invalid[id] = true
 		parts[id][str(owner.get("part", ""))] = true
 	var result := {}
 	for region: Dictionary in regions:
@@ -586,14 +610,14 @@ static func _fields_allowed(record: Dictionary, allowed: Array) -> bool:
 
 ## Inspect actual immutable vertices, not the authored size proxy or stored AABB.
 ## Both visible and solid groups contribute. Fixtures cover every hinge angle.
-static func _prefab_bounds(record: Dictionary) -> Dictionary:
-	var local:Dictionary=preload("res://scripts/world3d/house_prefab.gd").local_bounds(record.house_prefab)
+static func _prefab_bounds(record: Dictionary,metadata:RefCounted=null,trusted_package:bool=false) -> Dictionary:
+	var local:Dictionary=metadata.bounds(record.house_prefab) if metadata!=null else preload("res://scripts/world3d/house_prefab.gd").local_bounds(record.house_prefab)
 	if not local.known:return {"known":false}
 	var bounds:AABB=local.bounds
 	var pose := Transform3D(Basis.from_euler(_vec(record.rotation) * PI / 180.0), _vec(record.position))
 	if record.get("kind") == "asset": pose.basis = pose.basis.scaled_local(_vec(record.size))
 	if record.has("fixture"):
-		if not preload("res://scripts/world3d/building_fixtures.gd").valid(record): return {"known": false}
+		if not trusted_package and not preload("res://scripts/world3d/building_fixtures.gd").valid(record): return {"known": false}
 		var pivot: Vector3 = pose * _vec(record.fixture.pivot); var radius := 0.0
 		for i in 8: radius = maxf(radius, (pose * bounds.get_endpoint(i)).distance_to(pivot))
 		bounds = AABB(pivot - Vector3.ONE * radius, Vector3.ONE * radius * 2.0)
@@ -606,16 +630,22 @@ static func _prefab_bounds(record: Dictionary) -> Dictionary:
 		bounds = bounds.grow(maxf(.001, magnitude * .000001))
 	return {"known": _finite_bounds(bounds), "bounds": bounds}
 
-static func _valid_payload(data: Dictionary, compact: Array, root: String) -> bool:
+static func _valid_payload_header(data:Dictionary,compact:Array)->bool:
 	if data.size() != 6 or data.get("version") != VERSION or not Store._digest(data.get("source_sha256")) or not Store._digest(data.get("generator")): return false
 	if not data.get("rows") is Array or data.rows.size() != compact.size() or not data.get("models") is Dictionary or data.models.size() > Store.MAX_RECORDS or not data.get("groups") is Dictionary or data.groups.size() > 4096: return false
+	return true
+
+static func _valid_payload(data: Dictionary, compact: Array, root: String) -> bool:
+	if not _valid_payload_header(data,compact):return false
 	# A directory contains many instances of a small set of models. Resolve
 	# each exact path once in this validation call, then recheck the whole set
 	# before returning. Never persist this filesystem observation across loads.
 	var checked_paths:Dictionary={}
 	for path in data.models:
 		var model: Variant = data.models[path]
-		if not path is String or not Paths.allowed(path, root) or not model is Dictionary or model.size() != 3: return false
+		if not path is String or not Paths.allowed(path, root) or not model is Dictionary or model.size() != 4: return false
+		var memory:Variant=model.get("memory")
+		if not memory is Dictionary or not memory.get("estimated_bytes") is int or memory.estimated_bytes<=0 or memory.estimated_bytes>preload("res://scripts/world3d/asset_memory_estimate.gd").MAX_ESTIMATE or not memory.get("exclusive") is bool or memory.get("source_bytes")!=model.get("file_length"):return false
 		checked_paths[path]=true
 		if not Store._digest(model.get("json_sha256")) or not model.get("file_length") is int or model.file_length < 28 or not model.get("local_bounds") is AABB or not _finite_bounds(model.local_bounds): return false
 	for i in data.rows.size():
@@ -659,6 +689,9 @@ static func terrain_context_rows(index:Dictionary,positions:Array)->Array:
 	for at:int in positions:
 		var row:Dictionary=index.rows[at]
 		if row.reason=="terrain_context_global":clips.append(row.bounds.grow(float(row.terrain_halo)))
+	# Model/road jobs need no terrain seam context. Do not scan the town for an
+	# empty set of terrain clips on every small reference transaction.
+	if clips.is_empty():return []
 	for row:Dictionary in index.rows:
 		if row.reason!="terrain_context_global" or not row.bounds_known:continue
 		for clip:AABB in clips:

@@ -80,7 +80,7 @@ func _draw()->bool:
 	# Start a fresh viewport frame after the caller's scene/camera mutations.
 	await get_tree().process_frame
 	if not _alive():return false
-	if DisplayServer.get_name()!="headless":await RenderingServer.frame_post_draw
+	if DisplayServer.get_name()!="headless":await preload("res://scripts/util/frame_presentation.gd").drawn()
 	return _alive() and get_viewport()==viewport and phase==expected_phase
 
 func wait_until_drawn()->bool:

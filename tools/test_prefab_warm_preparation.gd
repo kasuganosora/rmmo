@@ -61,7 +61,7 @@ func clear_entries(records:Array)->void:
 	House._decode_mutex.lock()
 	for row:Dictionary in records:
 		var digest:String=row.house_prefab.sha256
-		if House._decoded.has(digest):House._decoded_bytes-=int(House._decoded[digest].length);House._decoded.erase(digest)
+		if House._decoded.has(digest):House._decoded_bytes-=House.retained_decode_bytes(House._decoded[digest]);House._decoded.erase(digest)
 	House._decode_mutex.unlock()
 func drained(stats:Dictionary)->bool:
 	return stats.ledger.jobs==0 and stats.ledger.reserved_bytes==0 and stats.ledger.active_workers==0 and stats.threads_started==stats.threads_joined

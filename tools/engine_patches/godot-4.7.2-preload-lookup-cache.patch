@@ -1,0 +1,77 @@
+--- a/modules/gdscript/gdscript_analyzer.h
++++ b/modules/gdscript/gdscript_analyzer.h
+@@ -37,6 +37,16 @@
+ 
+ class GDScriptAnalyzer {
+ 	GDScriptParser *parser = nullptr;
++
++	// Existence and resource type per preloaded path, resolved at most once per
++	// analyzed script. A script can preload the same path hundreds of times
++	// inline; each lookup otherwise probes .remap/.import files and opens the
++	// resource on disk.
++	struct PreloadTarget {
++		bool exists = false;
++		String type;
++	};
++	HashMap<String, PreloadTarget> preload_targets;
+ 
+ 	template <typename Fn>
+ 	class Finally {
+--- a/modules/gdscript/gdscript_analyzer.cpp
++++ b/modules/gdscript/gdscript_analyzer.cpp
+@@ -41,6 +41,7 @@
+ #include "core/io/resource_loader.h"
+ #include "core/object/class_db.h"
+ #include "core/object/script_language.h"
++#include "core/os/mutex.h"
+ #include "core/templates/hash_map.h"
+ #include "scene/main/node.h"
+ 
+@@ -4741,7 +4742,37 @@
+ 			p_preload->resolved_path = parser->script_path.get_base_dir().path_join(p_preload->resolved_path);
+ 		}
+ 		p_preload->resolved_path = p_preload->resolved_path.simplify_path();
+-		if (!ResourceLoader::exists(p_preload->resolved_path)) {
++		PreloadTarget *target = preload_targets.getptr(p_preload->resolved_path);
++		if (!target) {
++			// Outside the editor, resources keep their identity for the whole run
++			// (as with ResourceLoader::get_resource_uid), so found targets are shared
++			// across scripts. Missing targets are always probed again.
++			static HashMap<String, PreloadTarget> runtime_targets;
++			static Mutex runtime_targets_mutex;
++			const bool shared = !Engine::get_singleton()->is_editor_hint();
++			PreloadTarget resolved;
++			bool known = false;
++			if (shared) {
++				MutexLock lock(runtime_targets_mutex);
++				const PreloadTarget *found = runtime_targets.getptr(p_preload->resolved_path);
++				if (found) {
++					resolved = *found;
++					known = true;
++				}
++			}
++			if (!known) {
++				resolved.exists = ResourceLoader::exists(p_preload->resolved_path);
++				if (resolved.exists) {
++					resolved.type = ResourceLoader::get_resource_type(p_preload->resolved_path);
++					if (shared) {
++						MutexLock lock(runtime_targets_mutex);
++						runtime_targets.insert(p_preload->resolved_path, resolved);
++					}
++				}
++			}
++			target = &preload_targets.insert(p_preload->resolved_path, resolved)->value;
++		}
++		if (!target->exists) {
+ 			Ref<FileAccess> file_check = FileAccess::create(FileAccess::ACCESS_RESOURCES);
+ 
+ 			if (file_check->file_exists(p_preload->resolved_path)) {
+@@ -4754,7 +4785,7 @@
+ 
+ 			// Must load GDScript separately to permit cyclic references
+ 			// as ResourceLoader::load() detects and rejects those.
+-			const String &res_type = ResourceLoader::get_resource_type(p_preload->resolved_path);
++			const String res_type = target->type;
+ 			if (res_type == "GDScript") {
+ 				Error err = OK;
+ 				Ref<GDScript> res = get_depended_shallow_script(p_preload->resolved_path, err);

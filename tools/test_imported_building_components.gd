@@ -139,7 +139,9 @@ func view_collision_policy()->void:
 	check(editor._body_node_enabled(model) and editor._body_layers(mesh)==1<<20,"asset wholly outside isolated floor keeps physical descendants only")
 	mesh.get_meta("extras").rmmo_collision="none"
 	check(editor._body_layers(mesh)==0,"hidden nonphysical pane creates no invisible pick surface")
-	editor.free()
+	# This isolated policy fixture never enters _ready(), which normally adopts
+	# these two Node helpers. Free its unattached construction-time owners too.
+	editor._terrain_analysis.free();editor._diagnostics.free();editor.free()
 
 func initial_stream_cutaway()->void:
 	var scene:=Node3D.new();root.add_child(scene)

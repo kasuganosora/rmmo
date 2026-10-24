@@ -65,4 +65,11 @@ func run()->void:
 			if cursor.advance(1):break
 		cursor.dispose()
 		check(reference.get_ref()==null and cursor.holder==null and cursor.nodes.is_empty() and cursor.components.is_empty(),"cancellation releases private namespace/component work after "+str(steps)+" steps")
+	cursor=Cursor.new();cursor.begin(doc,record,packed)
+	var finish_owner:WeakRef=weakref(cursor.holder)
+	var attempts:=0
+	while cursor.finishing==null and cursor.phase<3 and attempts<20000:cursor.advance(1);attempts+=1
+	check(cursor.finishing!=null and cursor.phase==2,"large instance reaches a private interruptible finish phase")
+	cursor.dispose()
+	check(finish_owner.get_ref()==null and cursor.finishing==null and cursor.visited_nodes.is_empty(),"cancellation during final registration releases the graph and traversal owner")
 	print("ASSET_INSTANCE_PREPARATION checks=",checks," failures=",failures);quit(1 if failures else 0)

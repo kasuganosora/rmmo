@@ -38,7 +38,7 @@ func run()->void:
 	check(queue.get_demand_scope()==["entry_safety"],"far tickets are not admitted during safety preparation")
 	check(map.get_meta("entry_plan").neighbours_started_us>=plan.core_resources_ready_us,"phase order is timestamped")
 	root.disable_3d=true
-	check(queue._entry_loading_allowed() and queue._main_thread_budget_usec()==16000,"drawn cover plus disabled viewport permits bounded publication")
+	check(queue._entry_loading_allowed() and queue._main_thread_budget_usec()==queue.covered_loading_budget_usec,"drawn cover plus disabled viewport permits bounded publication")
 	root.disable_3d=false
 	check(queue._main_thread_budget_usec()==2000,"rendering first frame restores interactive submission budget")
 	cover.visible=false

@@ -261,7 +261,7 @@ func go_world() -> void:
 	# Keep the loading visual through the first rendered world frame, including
 	# shader compilation and HUD setup, instead of exposing a blank scene frame.
 	if DisplayServer.get_name()=="headless":await get_tree().process_frame
-	else:await RenderingServer.frame_post_draw
+	else:await preload("res://scripts/util/frame_presentation.gd").drawn()
 	last_loading_profile["first_frame_ms"]=Time.get_ticks_msec()
 	if is_instance_valid(world) and world.has_method("note_entry_first_frame"):
 		if not world.note_entry_first_frame(DisplayServer.get_name()!="headless"):

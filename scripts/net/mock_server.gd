@@ -53,6 +53,8 @@ func issue_world3d_lightning(map_id: String, event: Dictionary) -> bool:
 	return sky_authority.lightning(map_id,event)
 
 const LATENCY_SEC := 0.35
+## Start pack read by mock_server_host.gd's preparation thread (attached on main).
+const PREPARED_START_PACK := &"mock_server_prepared_start_pack"
 const TilemapPack = preload("res://scripts/map/tilemap_pack.gd")
 const TileId = preload("res://scripts/map/tile_id.gd")
 const CombatStats = preload("res://scripts/net/combat/combat_stats.gd")
@@ -363,7 +365,12 @@ var _weather_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_init_combat_layers()
-	_load_pack(start_map_pack_path())
+	if has_meta(PREPARED_START_PACK):
+		var prepared: RefCounted = get_meta(PREPARED_START_PACK)
+		remove_meta(PREPARED_START_PACK)
+		_world_module_logic._apply_pack(prepared, start_map_pack_path())
+	else:
+		_load_pack(start_map_pack_path())
 
 
 func start_map_pack_id() -> String:

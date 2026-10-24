@@ -1,0 +1,90 @@
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -104,6 +104,9 @@
+ }
+ 
+ void GDScriptFunction::_profile_native_call(uint64_t p_t_taken, const String &p_func_name, const String &p_instance_class_name) {
++	// A function can run on several script workers while frame() copies and
++	// clears this table. Share the language lock used by the profiler readers.
++	MutexLock lock(GDScriptLanguage::get_singleton()->mutex);
+ 	HashMap<String, Profile::NativeProfile>::Iterator inner_prof = profile.native_calls.find(p_func_name);
+ 	if (inner_prof) {
+ 		inner_prof->value.call_count += 1;
+@@ -3997,7 +4000,7 @@
+ 
+ 	OPCODES_OUT
+ #ifdef DEBUG_ENABLED
+-	if (GDScriptLanguage::get_singleton()->profiling) {
++	if (GDScriptLanguage::get_singleton()->profiling && function_start_time != 0) {
+ 		uint64_t time_taken = OS::get_singleton()->get_ticks_usec() - function_start_time;
+ 		profile.total_time.add(time_taken);
+ 		profile.self_time.add(time_taken - function_call_time);
+--- a/modules/gdscript/gdscript.cpp
++++ b/modules/gdscript/gdscript.cpp
+@@ -2328,7 +2328,7 @@
+ 
+ 		int nat_time = 0;
+ 		HashMap<String, GDScriptFunction::Profile::NativeProfile>::ConstIterator nat_calls = elem->self()->profile.native_calls.begin();
+-		while (nat_calls) {
++		while (nat_calls && current < p_info_max) {
+ 			p_info_arr[current].call_count = nat_calls->value.call_count;
+ 			p_info_arr[current].total_time = nat_calls->value.total_time;
+ 			p_info_arr[current].self_time = nat_calls->value.total_time;
+@@ -2357,7 +2357,7 @@
+ 		if (current >= p_info_max) {
+ 			break;
+ 		}
+-		if (elem->self()->profile.last_frame_call_count > 0) {
++		if (elem->self()->profile.last_frame_call_count > 0 || elem->self()->profile.last_frame_total_time > 0 || !elem->self()->profile.last_native_calls.is_empty()) {
+ 			int last_non_internal = current;
+ 			p_info_arr[current].call_count = elem->self()->profile.last_frame_call_count;
+ 			p_info_arr[current].self_time = elem->self()->profile.last_frame_self_time;
+@@ -2367,7 +2367,7 @@
+ 
+ 			int nat_time = 0;
+ 			HashMap<String, GDScriptFunction::Profile::NativeProfile>::ConstIterator nat_calls = elem->self()->profile.last_native_calls.begin();
+-			while (nat_calls) {
++			while (nat_calls && current < p_info_max) {
+ 				p_info_arr[current].call_count = nat_calls->value.call_count;
+ 				p_info_arr[current].total_time = nat_calls->value.total_time;
+ 				p_info_arr[current].self_time = nat_calls->value.total_time;
+@@ -2397,16 +2397,18 @@
+ 		HashMap<String, GDScriptFunction::Profile::NativeProfile>::Iterator it = nat_calls->begin();
+ 
+ 		while (it != nat_calls->end()) {
+-			Vector<String> sig = it->value.signature.split("::");
++			// Advance before removing; the erased element owns the next link.
++			const auto current = it;
++			++it;
++			Vector<String> sig = current->value.signature.split("::");
+ 			HashMap<String, GDScriptFunction::Profile::NativeProfile *>::ConstIterator already_found = seen_nat_calls.find(sig[2]);
+ 			if (already_found) {
+-				already_found->value->total_time += it->value.total_time;
+-				already_found->value->call_count += it->value.call_count;
+-				elem->self()->profile.last_native_calls.remove(it);
++				already_found->value->total_time += current->value.total_time;
++				already_found->value->call_count += current->value.call_count;
++				nat_calls->remove(current);
+ 			} else {
+-				seen_nat_calls.insert(sig[2], &it->value);
+-			}
+-			++it;
++				seen_nat_calls.insert(sig[2], &current->value);
++			}
+ 		}
+ 		elem = elem->next();
+ 	}
+@@ -2619,9 +2621,10 @@
+ 			elem->self()->profile.last_frame_self_time = elem->self()->profile.frame_self_time.get();
+ 			elem->self()->profile.last_frame_total_time = elem->self()->profile.frame_total_time.get();
+ 			elem->self()->profile.last_native_calls = elem->self()->profile.native_calls;
+-			elem->self()->profile.frame_call_count.set(0);
+-			elem->self()->profile.frame_self_time.set(0);
+-			elem->self()->profile.frame_total_time.set(0);
++			// Keep worker increments that arrived after the snapshot above.
++			elem->self()->profile.frame_call_count.sub(elem->self()->profile.last_frame_call_count);
++			elem->self()->profile.frame_self_time.sub(elem->self()->profile.last_frame_self_time);
++			elem->self()->profile.frame_total_time.sub(elem->self()->profile.last_frame_total_time);
+ 			elem->self()->profile.native_calls.clear();
+ 			elem = elem->next();
+ 		}

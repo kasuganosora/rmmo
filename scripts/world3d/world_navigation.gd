@@ -3,6 +3,7 @@ const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const EMPTY_APPEND_RECORD:Dictionary={}
 static var ordered_retirement_catalog_enabled:=true
+static var lazy_retirement_snapshot_enabled:=true
 var covered_loading:=false
 var publication_guard:Callable=Callable() # Optional map/transaction lifetime validator.
 var preparation_timeout_msec:=180000
@@ -44,7 +45,16 @@ var fully_ready := false
 var _staged := false
 var _full_mesh: NavigationMesh
 var _disposed := false
-var _specs: Array = []
+var _spec_snapshot:Array=[]
+var _spec_snapshot_dirty:=false
+var _specs:Array:
+	get:
+		if _spec_snapshot_dirty:
+			_spec_snapshot=_spec_ids.values();_spec_snapshot_dirty=false
+			loading_profile.retirement_snapshot_rows=int(loading_profile.get("retirement_snapshot_rows",0))+_spec_snapshot.size()
+		return _spec_snapshot
+	set(value):
+		_spec_snapshot=value;_spec_snapshot_dirty=false
 var _faces := {}
 var _box_faces := PackedVector3Array()
 var nearby_source_count := 0
@@ -108,6 +118,7 @@ var _spec_ids:Dictionary={}
 var _spec_geometry:Dictionary={} # Scalar ownership, no second mesh/resource owner.
 var _geometry_users:Dictionary={}
 static var legacy_retirement_geometry_scan_enabled:=false
+static var coalesced_retirement_owners_enabled:=true
 var _nearby_request:Variant=null
 var _full_started:=false
 var streaming_geometry:=false
@@ -196,6 +207,19 @@ func try_retire_specs(ids:Array)->Dictionary:
 		if not id is String or id.is_empty():return {"ok":false,"reason":"invalid_uuid","removed":0}
 		if not _spec_ids.has(id):return {"ok":false,"reason":"unknown_uuid","removed":0}
 		requested[id]=true
+	loading_profile.retirement_selection_entries=int(loading_profile.get("retirement_selection_entries",0))+requested.size()
+	return _retire_selected(requested)
+
+## The stream index has already validated and deduplicated this selection in
+## the same synchronous transaction. Borrow it; navigation still checks its
+## own membership and every active consumer before releasing any source.
+func _try_retire_index_selection(requested:Dictionary)->Dictionary:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_navigation.try_retire_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if not streaming_geometry:return {"ok":false,"reason":"not_streaming","removed":0}
+	if not _spec_ids.has_all(requested.keys()):return {"ok":false,"reason":"unknown_uuid","removed":0}
+	return _retire_selected(requested)
+
+func _retire_selected(requested:Dictionary)->Dictionary:
 	if requested.is_empty():return {"ok":true,"reason":"","removed":0}
 	# nearby_navigation scans owner._specs by cursor. Even removal of an
 	# unrelated item would change the meaning of its next index mid-build.
@@ -213,8 +237,26 @@ func try_retire_specs(ids:Array)->Dictionary:
 	if ordered:
 		# Streaming IDs own the same immutable specs in append order. Removing
 		# IDs then materializing values avoids a GDScript scan of every survivor.
-		for id:String in requested:_spec_ids.erase(id)
-		survivors=_spec_ids.values()
+		if coalesced_retirement_owners_enabled:
+			# Identity, source and geometry are the same ownership transaction.
+			# Visit each removed UUID once; shared geometry counts are updated once
+			# per distinct owner instead of once per repeated house instance.
+			var counts:Dictionary={}
+			for id:String in requested:
+				_spec_ids.erase(id)
+				var key:Variant=_spec_geometry.get(id)
+				if key==null:continue
+				_spec_geometry.erase(id);counts[key]=int(counts.get(key,0))+1
+			for key:int in counts:
+				var users:=int(_geometry_users.get(key,0))-int(counts[key])
+				if users<=0:_geometry_users.erase(key);_faces.erase(key)
+				else:_geometry_users[key]=users
+			loading_profile.retirement_geometry_updates=int(loading_profile.get("retirement_geometry_updates",0))+counts.size()
+		else:
+			for id:String in requested:_spec_ids.erase(id)
+		if not lazy_retirement_snapshot_enabled:
+			survivors=_spec_ids.values()
+			loading_profile.retirement_snapshot_rows=int(loading_profile.get("retirement_snapshot_rows",0))+survivors.size()
 	elif not legacy_retirement_geometry_scan_enabled and requested.size()<=16:
 		survivors=_specs.duplicate()
 		sparse=preload("res://scripts/world3d/source_list_retirement.gd").erase_small(survivors,_spec_ids,requested)
@@ -228,9 +270,16 @@ func try_retire_specs(ids:Array)->Dictionary:
 				if geometry!=null:retained_geometry[geometry.get_instance_id()]=true
 	for door:Dictionary in _doors:
 		if not requested.has(door.get("uuid","")):doors.append(door)
-	_specs=survivors;_doors=doors;_cursor=0
-	for id:String in requested:
-		_spec_ids.erase(id);_forget_source_geometry(id)
+	if ordered and lazy_retirement_snapshot_enabled:
+		# No source cursor/worker is live past the guards above. Release this
+		# snapshot immediately; only a later traversal needs ordered survivors.
+		_spec_snapshot=[];_spec_snapshot_dirty=true
+	else:_specs=survivors
+	_doors=doors;_cursor=0
+	if not ordered or not coalesced_retirement_owners_enabled:
+		for id:String in requested:
+			_spec_ids.erase(id);_forget_source_geometry(id)
+		loading_profile.retirement_geometry_updates=int(loading_profile.get("retirement_geometry_updates",0))+requested.size()
 	if legacy_retirement_geometry_scan_enabled:
 		for key:Variant in _faces.keys():
 			if not retained_geometry.has(key):_faces.erase(key)
@@ -333,7 +382,8 @@ func append_specs(additions:Array,prepared:RefCounted=null)->Dictionary:
 			bounds_after=bounds_after.merge(bounds) if has_bounds_after else bounds;has_bounds_after=true
 	# All source checks finished. Reuse those exact bounds and keep the source
 	# geometry-user lifecycle operation unchanged, including any old aliases.
-	_specs.append_array(additions);_spec_ids.merge(ids,true);_doors.append_array(doors)
+	if not _spec_snapshot_dirty:_spec_snapshot.append_array(additions)
+	_spec_ids.merge(ids,true);_doors.append_array(doors)
 	if aliases:
 		# Preserve per-source alias rebinding order, including transient face
 		# cache ownership. Ordinary new UUIDs use the validated bulk metadata.
@@ -356,7 +406,7 @@ func _append_prepared_specs(additions:Array,packet:RefCounted)->Dictionary:
 	for id:String in packet.ids:
 		if _spec_ids.has(id):return {"ok":false,"reason":"duplicate_uuid","added":0}
 		aliases=aliases or _spec_geometry.has(id)
-	_specs.append_array(additions)
+	if not _spec_snapshot_dirty:_spec_snapshot.append_array(additions)
 	if streaming_geometry:_spec_ids.merge(packet.ids,true)
 	else:
 		# Full-map navigation releases source specs after baking. Its identity
@@ -784,8 +834,9 @@ func _step_background()->void:
 		_step_merge();return
 	var started := Time.get_ticks_usec()
 	var initial_cursor:=_cursor
-	while _cursor < _specs.size() and (_cursor==initial_cursor or (Time.get_ticks_usec() - started < (12000 if not ready_for_queries else 3000) and Time.get_ticks_usec()<_work_deadline_usec)):
-		var spec: Dictionary = _specs[_cursor]
+	var source_specs:Array=_specs
+	while _cursor < source_specs.size() and (_cursor==initial_cursor or (Time.get_ticks_usec() - started < (12000 if not ready_for_queries else 3000) and Time.get_ticks_usec()<_work_deadline_usec)):
+		var spec: Dictionary = source_specs[_cursor]
 		_cursor += 1
 		if not _collides(spec): continue
 		var box: AABB = spec["transform"] * spec["mesh"].get_aabb()
@@ -796,7 +847,7 @@ func _step_background()->void:
 			if _clip.has_volume() and not _clip.intersects(box): continue
 			if not _add_source(source,spec):_cursor-=1;return
 			full_source_count += 1
-	if _cursor < _specs.size(): return
+	if _cursor < source_specs.size(): return
 	_cursor = 0
 	if _phase == "bounds":
 		if _initial_geometry_clip_active:

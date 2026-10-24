@@ -1,0 +1,63 @@
+--- a/core/io/compression.cpp
++++ b/core/io/compression.cpp
+@@ -40,11 +40,19 @@
+ #include <brotli/decode.h>
+ #endif
+ 
+-// Caches for zstd.
+-static BinaryMutex mutex;
+-static ZSTD_DCtx *current_zstd_d_ctx = nullptr;
+-static bool current_zstd_long_distance_matching;
+-static int current_zstd_window_log_size;
++// Each loading thread owns its decoder. A global context serializes unrelated
++// compressed resource reads, and small file blocks repeatedly contend on it.
++// Release the context when a short-lived preparation thread exits.
++struct ZstdDecompressionContext {
++	ZSTD_DCtx *context = nullptr;
++	bool long_distance_matching = false;
++	int window_log_size = 0;
++
++	~ZstdDecompressionContext() {
++		ZSTD_freeDCtx(context);
++	}
++};
++static thread_local ZstdDecompressionContext zstd_decompression_context;
+ 
+ int64_t Compression::compress(uint8_t *p_dst, const uint8_t *p_src, int64_t p_src_size, Mode p_mode) {
+ 	switch (p_mode) {
+@@ -197,22 +205,23 @@
+ 			return total;
+ 		} break;
+ 		case MODE_ZSTD: {
+-			MutexLock lock(mutex);
+-
+-			if (!current_zstd_d_ctx || current_zstd_long_distance_matching != zstd_long_distance_matching || current_zstd_window_log_size != zstd_window_log_size) {
+-				if (current_zstd_d_ctx) {
+-					ZSTD_freeDCtx(current_zstd_d_ctx);
++			ZstdDecompressionContext &decoder = zstd_decompression_context;
++
++			if (!decoder.context || decoder.long_distance_matching != zstd_long_distance_matching || decoder.window_log_size != zstd_window_log_size) {
++				if (decoder.context) {
++					ZSTD_freeDCtx(decoder.context);
+ 				}
+ 
+-				current_zstd_d_ctx = ZSTD_createDCtx();
++				decoder.context = ZSTD_createDCtx();
++				ERR_FAIL_NULL_V(decoder.context, -1);
+ 				if (zstd_long_distance_matching) {
+-					ZSTD_DCtx_setParameter(current_zstd_d_ctx, ZSTD_d_windowLogMax, zstd_window_log_size);
++					ZSTD_DCtx_setParameter(decoder.context, ZSTD_d_windowLogMax, zstd_window_log_size);
+ 				}
+-				current_zstd_long_distance_matching = zstd_long_distance_matching;
+-				current_zstd_window_log_size = zstd_window_log_size;
+-			}
+-
+-			size_t ret = ZSTD_decompressDCtx(current_zstd_d_ctx, p_dst, p_dst_max_size, p_src, p_src_size);
++				decoder.long_distance_matching = zstd_long_distance_matching;
++				decoder.window_log_size = zstd_window_log_size;
++			}
++
++			size_t ret = ZSTD_decompressDCtx(decoder.context, p_dst, p_dst_max_size, p_src, p_src_size);
+ 			return (int64_t)ret;
+ 		} break;
+ 	}

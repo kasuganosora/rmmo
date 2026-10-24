@@ -18,6 +18,7 @@ class CancelToken extends RefCounted:
 
 static func for_tree(tree: SceneTree) -> Node:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.for_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	preload("res://scripts/world3d/mesh_readback_batch.gd").for_tree(tree)
 	var existing := tree.root.get_node_or_null(NODE_NAME)
 	if existing != null: return existing
 	var owner := new()
@@ -137,7 +138,9 @@ static func synchronize_transfer() -> void:
 	# Joining a worker only joins CPU code. Its queued material/instance setup
 	# must be executed before main-thread pack/free can destroy those same RIDs.
 	# Do this on main, after the worker has returned; never on the GPU worker.
+	var began:=Time.get_ticks_usec()
 	RenderingServer.force_sync()
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset.transfer_sync",began)
 
 static func dispose_scene(scene: Node) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.dispose_scene") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -173,6 +176,7 @@ static func drain_shutdown(worker: Thread, token: RefCounted = null) -> void:
 	# RenderingServerDefault::sync: it flushes commands queued by other threads
 	# on the main-render-thread backend. Never wait_to_finish while still alive.
 	while worker.is_alive():
+		preload("res://scripts/world3d/mesh_readback_batch.gd").pump(1500)
 		RenderingServer.force_sync()
 		OS.delay_msec(1)
 	_dispose_result(worker,token)

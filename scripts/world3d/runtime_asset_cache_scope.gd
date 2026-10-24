@@ -30,7 +30,6 @@ static func _release_template(templates:Dictionary,identity:int,path:String)->bo
 		if other==null:_scopes.erase(id);continue
 		var retained:WeakRef=other._templates.get(path)
 		if retained!=null and retained.get_ref()==expected:return false
-	preload("res://scripts/world3d/resource_retirement.gd").defer_scene(expected)
 	if Assets._scenes.get(path)!=expected:return false
 	return Assets.evict_cached_scene(path)
 func _notification(what:int)->void:

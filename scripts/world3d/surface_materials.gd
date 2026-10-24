@@ -7,6 +7,7 @@ const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var preserve_complete_surfaces_enabled:=true
+static var white_face_mapping_elision_enabled:=true
 static var _textures := {}
 static var prepared_images:Dictionary={}
 static var _materials := {}
@@ -613,6 +614,10 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null, defer_upload:bool=false) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not record.has("surface_paint"): return
+	# White isolation has no visible face color/UV/tangent differences. Keep
+	# the original oriented geometry instead of repartitioning it only to bind
+	# the same white material again. Ordinary painting retains its full path.
+	if white_face_mapping_elision_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return
 	if not valid(record,false,"",validation_cache): root.set_meta("paint_error", "表面材质记录损坏"); return
 	var unresolved: Array = record.surface_paint.duplicate()
 	for node in meshes(root):
