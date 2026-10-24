@@ -48,14 +48,23 @@ func run()->void:
 	var model:Dictionary={"uuid":"near","kind":"asset","asset_path":model_path,"position":[0,0,0],"rotation":[0,0,0],"size":[1,1,1]}
 	var far:=model.duplicate(true);far.uuid="far";far.position[0]=500
 	var loader:=preload("res://scripts/world3d/map_loader.gd").new();loader._content_root=files.content_root;loader._entry_origin=Vector3.ZERO
-	Index.classification_path_batching=false;var old_hints:Array=loader._cold_model_hints([model,far])
+	Index.classification_path_batching=false;var old_hints:Dictionary=loader._cold_model_hints([model,far])
 	Index.classification_path_batching=true
-	check(old_hints==[model_path] and loader._cold_model_hints([model,far])==old_hints,"batched prefetch hints retain exact near model set across repeated instances")
+	var batched_hints:Dictionary=loader._cold_model_hints([model,far])
+	var same_observations:bool=old_hints.manifests.keys()==batched_hints.manifests.keys()
+	for source_path:String in old_hints.manifests:
+		# Cache-hit telemetry can change between calls; the observed source,
+		# bounds and memory envelope must remain exactly the same.
+		for field:String in ["known","json_sha256","file_length","local_bounds","world_bounds","memory"]:
+			same_observations=same_observations and old_hints.manifests[source_path].get(field)==batched_hints.manifests.get(source_path,{}).get(field)
+	check(old_hints.error.is_empty() and batched_hints.error.is_empty() and old_hints.paths==[model_path] and batched_hints.paths==old_hints.paths and same_observations,"batched prefetch hints retain exact near model set and source observations across repeated instances")
 	check(Index._classify(model,files.content_root,{}).classification=="spatial" and Index._classify(model,"C:/untrusted",{}).reason=="invalid_model_path","separate ordinary classifications cannot share default path observations across roots")
 	far.asset_path=files.folder.path_join("missing.glb")
-	check(loader._cold_model_hints([model,far]).is_empty(),"missing far manifest remains conservative")
+	var missing_hints:Dictionary=loader._cold_model_hints([model,far])
+	check(missing_hints.error=="record_bounds" and missing_hints.paths.is_empty() and missing_hints.manifests.is_empty(),"missing far manifest remains conservative without publishing partial hints")
 	far.asset_path="C:/untrusted/model.glb"
-	check(loader._cold_model_hints([model,far]).is_empty(),"out-of-root path cannot borrow another model's cached observation")
+	var denied_hints:Dictionary=loader._cold_model_hints([model,far])
+	check(denied_hints.error=="source_path" and denied_hints.paths.is_empty() and denied_hints.manifests.is_empty(),"out-of-root path cannot borrow another model's cached observation")
 	loader.free()
 	for created:String in files.created:
 		if Paths.allowed(created,files.content_root) and FileAccess.file_exists(created):DirAccess.remove_absolute(created)

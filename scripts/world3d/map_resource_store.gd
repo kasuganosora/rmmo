@@ -14,6 +14,13 @@ const DEFINITION_CACHE_MAX_BYTES=32*1024*1024
 const BUNDLE_MAGIC="RMMORB01"
 const BUNDLE_MIN_RESOURCES=64
 const BUNDLE_MAX_BYTES=1024*1024*1024
+## Opt-in wall-clock diagnostics, sampled once per _read_many transaction. Workers
+## own their counters/rows until joined: no trace mutex, logging or diagnostic IO.
+## Rows retain the first N request indices plus each worker's slowest request.
+static var read_timing_enabled:=false
+static var read_timing_row_limit:=256
+const READ_TIMING_MAX_ROWS=1024
+const READ_TIMING_STAGES=["bundle_lookup_us","bundle_read_us","file_open_length_us","get_buffer_us","zstd_us","bytes_to_var_us"]
 static var inline_numeric_safety_enabled:=true # Diagnostic legacy traversal control.
 # Derived read layout for trusted package reads: every resource of one large
 # request, concatenated in request order, so a cold disk reads one sequential
@@ -36,12 +43,18 @@ class ReadQueue extends RefCounted:
 	var active:=0
 	var peak_active:=0
 	var completed:=0
-	func take()->int:
+	func take(timing:Dictionary={})->int:
+		var started:=Time.get_ticks_usec() if not timing.is_empty() else 0
 		mutex.lock()
+		var acquired:=Time.get_ticks_usec() if not timing.is_empty() else 0
 		var index:=-1
 		if not stopped and cursor<jobs.size():
 			index=cursor;cursor+=1;active+=1;peak_active=maxi(peak_active,active)
 		mutex.unlock()
+		if not timing.is_empty():
+			timing.claim_start_us=started;timing.claim_end_us=Time.get_ticks_usec()
+			timing.claim_lock_wait_us=acquired-started
+			timing.claim_us=timing.claim_end_us-started
 		return index
 	func finish(ok:bool)->void:
 		mutex.lock();active-=1;completed+=1
@@ -370,23 +383,33 @@ static func _materialize(encoded:Dictionary)->Dictionary:
 	var bytes:=_compressed(raw)
 	if bytes.size()!=encoded.length or _sha(bytes)!=encoded.sha256:return _fail("Rebuilt resource differs from verified content identity")
 	return {"ok":true,"bytes":bytes,"encoded_raw_bytes":raw.size(),"serialized_raw_bytes":raw.size()}
-static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,trusted_package:bool=false,keep_bytes:bool=false,supplied:PackedByteArray=PackedByteArray())->Dictionary:
+static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,trusted_package:bool=false,keep_bytes:bool=false,supplied:PackedByteArray=PackedByteArray(),timing:Dictionary={})->Dictionary:
 	var trace_started:=Time.get_ticks_usec()
 	preload("res://scripts/world3d/load_trace.gd").instant("resource.read_begin",{"path":file_path,"sha256":digest,"decode":decode,"trusted_package":trusted_package})
-	var bytes:=supplied if trusted_package and not supplied.is_empty() else (_bundled_bytes(file_path) if trusted_package else PackedByteArray())
+	var measured:=not timing.is_empty()
+	if measured:timing.trusted_package=trusted_package;timing.source="supplied" if trusted_package and not supplied.is_empty() else "file"
+	var bytes:=supplied if trusted_package and not supplied.is_empty() else (_bundled_bytes(file_path,timing) if trusted_package else PackedByteArray())
 	var size:=bytes.size()
+	if measured and timing.source=="supplied":timing.supplied_bytes=size
 	if bytes.is_empty():
+		var opened:=Time.get_ticks_usec() if measured else 0
 		var file:=FileAccess.open(file_path,FileAccess.READ)
+		if measured:timing.file_open_length_us=Time.get_ticks_usec()-opened
 		if file==null:return _fail("Resource is missing or unreadable",ERR_FILE_CANT_READ)
 		size=file.get_length()
+		if measured:timing.file_open_length_us=Time.get_ticks_usec()-opened
 		if size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
+		var buffered:=Time.get_ticks_usec() if measured else 0
 		bytes=file.get_buffer(size)
+		if measured:timing.get_buffer_us=Time.get_ticks_usec()-buffered;timing.file_bytes=bytes.size()
 	elif size<=16 or size>MAX_FILE_BYTES or (length>=0 and size!=length):return _fail("Resource length mismatch")
+	if measured:timing.payload_bytes=bytes.size()
 	if bytes.size()!=size or (not trusted_package and _sha(bytes)!=digest):return _fail("Resource content SHA mismatch")
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.read_package" if trusted_package else "resource.read_sha",trace_started,{"bytes":size,"decode":decode})
 	if bytes.slice(0,8).get_string_from_ascii()!=MAGIC:return _fail("Invalid resource envelope")
 	var raw_length:int=bytes.decode_u64(8)
 	if raw_length<=0 or raw_length>MAX_RAW_BYTES:return _fail("Invalid resource decompression length")
+	if measured:timing.declared_raw_bytes=raw_length
 	if not decode:return {"ok":true,"error":OK,"length":size}
 	# Every hit follows THIS read's complete byte SHA, length and envelope
 	# validation. Public callers still validate paths before/after the read and
@@ -400,8 +423,11 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,
 		return {"ok":true,"error":OK,"definition":snapshot,"length":size,"raw_length":raw_length,"definition_cache":"hit"}
 	var decode_started:=Time.get_ticks_usec()
 	var raw:=bytes.slice(16).decompress(raw_length,FileAccess.COMPRESSION_ZSTD)
+	if measured:timing.zstd_us=Time.get_ticks_usec()-decode_started;timing.raw_bytes=raw.size()
 	if raw.size()!=raw_length:return _fail("Resource decompression failed")
+	var variant_started:=Time.get_ticks_usec() if measured else 0
 	var definition:Variant=bytes_to_var(raw)
+	if measured:timing.bytes_to_var_us=Time.get_ticks_usec()-variant_started
 	if preload("res://scripts/world3d/load_trace.gd").enabled:preload("res://scripts/world3d/load_trace.gd").elapsed("resource.decompress_variant",decode_started,{"bytes":raw_length})
 	# Runtime trusts the published package. Still bound IO/decompression and use
 	# object-free decoding; failures remain ordinary load errors. Never seed the
@@ -426,15 +452,23 @@ static func _read(file_path:String,digest:String,length:int=-1,decode:bool=true,
 	return {"ok":true,"error":OK,"definition":definition,"length":size,"raw_length":raw_length,"definition_cache":cached.status}
 
 static func _read_package_job(job:Dictionary,decode:bool)->Dictionary:
-	return _read(job.location,job.sha256,job.length,decode,true,job.get("keep_bytes",false),job.get("bytes",PackedByteArray()))
+	return _read(job.location,job.sha256,job.length,decode,true,job.get("keep_bytes",false),job.get("bytes",PackedByteArray()),job.get("_read_timing",{}))
 
-static func _bundled_bytes(location:String)->PackedByteArray:
+static func _bundled_bytes(location:String,timing:Dictionary={})->PackedByteArray:
+	var measured:=not timing.is_empty()
+	var started:=Time.get_ticks_usec() if measured else 0
 	_mutex.lock();var where:Variant=_bundled.get(location);_mutex.unlock()
+	if measured:timing.bundle_lookup_us=Time.get_ticks_usec()-started
 	if where==null:return PackedByteArray()
+	started=Time.get_ticks_usec() if measured else 0
 	var file:=FileAccess.open(where[0],FileAccess.READ)
+	if measured:timing.bundle_read_us=Time.get_ticks_usec()-started
 	if file==null:return PackedByteArray()
 	file.seek(where[1])
 	var bytes:=file.get_buffer(where[2])
+	if measured:
+		timing.bundle_read_us=Time.get_ticks_usec()-started;timing.bundle_bytes=bytes.size()
+		if bytes.size()==where[2]:timing.source="bundle"
 	return bytes if bytes.size()==where[2] else PackedByteArray()
 
 static func bundle_path(path:String,content_root:String)->String:
@@ -617,44 +651,109 @@ static func write_records(records:Array,path:String,content_root:String,progress
 	_mutex.lock();var identity_count:=_identities.size();_mutex.unlock()
 	return {"ok":true,"error":OK,"records":compact,"dependencies":dependencies,"resources_written":written,"resources_reused":reused,"bytes_written":bytes_written,"encoding_cache_hits":cache_hits,"encoding_cache_misses":cache_misses,"encoded_raw_bytes":encoded_raw_bytes,"encoding_ms":encoding_ms,"verified_bytes":verified_bytes,"identity_cache_hits":identity_hits,"serialized_raw_bytes":serialized_raw_bytes,"compression_count":compression_count,"identity_cache_entries":identity_count}
 
-static func _read_worker(queue:ReadQueue,decode:bool,reader:Callable)->Array:
+const READ_TIMING_COUNTERS=["claim_us","claim_lock_wait_us","reader_us","reader_other_us","finish_us","file_bytes","bundle_bytes","supplied_bytes","payload_bytes","declared_raw_bytes","raw_bytes"]
+
+static func _read_timing_worker(slot:int,kind:String,row_limit:int)->Dictionary:
+	return {"slot":slot,"kind":kind,"row_limit":row_limit,"rows":[],"totals":{},"slowest_row":{},"requests":0}
+
+static func _read_timing_add(worker:Dictionary,row:Dictionary)->void:
+	for key:String in READ_TIMING_STAGES+READ_TIMING_COUNTERS:
+		worker.totals[key]=int(worker.totals.get(key,0))+int(row.get(key,0))
+	worker.requests+=1
+	if row.index<worker.row_limit:worker.rows.append(row)
+	if worker.slowest_row.is_empty() or row.reader_us>worker.slowest_row.reader_us:worker.slowest_row=row
+
+static func _read_timing_summary(workers:Array,launches:Array,joins:Array,started:int,row_limit:int,completed:int)->Dictionary:
+	var result:={"start_us":started,"end_us":Time.get_ticks_usec(),"row_limit":row_limit,"rows":[],"workers":[],"launches":launches,"joins":joins,"totals":{}}
+	result.wall_us=result.end_us-started
+	# Worker timings and stage sums overlap across threads. They are not additive
+	# with wall_us or with join wait. zstd_us includes the compressed payload slice.
+	for worker:Dictionary in workers:
+		result.rows.append_array(worker.rows)
+		for key:String in worker.totals:result.totals[key]=int(result.totals.get(key,0))+int(worker.totals[key])
+		var summary:=worker.duplicate();summary.erase("rows");result.workers.append(summary)
+	result.rows.sort_custom(func(a:Dictionary,b:Dictionary)->bool:return a.index<b.index)
+	result.rows_omitted=completed-result.rows.size()
+	return result
+
+static func _read_worker(queue:ReadQueue,decode:bool,reader:Callable,timing:Dictionary={})->Array:
 	var result:Array=[]
+	var measured:=not timing.is_empty()
+	if measured:timing.start_us=Time.get_ticks_usec();timing.thread_id=OS.get_thread_caller_id()
 	while true:
-		var index:=queue.take()
-		if index<0:break
+		var row:Dictionary={"index":-1} if measured else {}
+		var index:=queue.take(row)
+		if index<0:
+			if measured:timing.final_claim=row
+			break
 		var job:Dictionary=queue.jobs[index]
-		var value:Variant=reader.call(job,decode) if reader.is_valid() else _read(job.location,job.sha256,job.length,decode)
+		if measured:
+			row.index=index;row.path=str(job.get("location",""));row.thread_id=timing.thread_id;row.worker_slot=timing.slot;row.decode=decode
+			row.start_us=row.claim_start_us;row.read_start_us=Time.get_ticks_usec()
+			for key:String in READ_TIMING_STAGES:row[key]=0
+			# Only the private request wrapper gets diagnostic state. Neither the
+			# caller's request nor the decoded/source-identity dictionaries change.
+			if reader.is_valid():job=job.duplicate();job._read_timing=row
+		var value:Variant=reader.call(job,decode) if reader.is_valid() else _read(job.location,job.sha256,job.length,decode,false,false,PackedByteArray(),row)
+		if measured:row.read_end_us=Time.get_ticks_usec();row.reader_us=row.read_end_us-row.read_start_us
 		var data:Dictionary=value if value is Dictionary else _fail("Resource worker returned invalid data")
 		if not data.get("ok") is bool or not data.get("error") is int:
 			data=_fail("Resource worker returned invalid data")
 		elif data.ok and (data.error!=OK or not data.get("length") is int or (decode and not data.get("definition") is Dictionary)):
 			data=_fail("Resource worker returned invalid data")
 		result.append({"index":index,"data":data})
+		var finishing:=Time.get_ticks_usec() if measured else 0
 		queue.finish(data.ok)
+		if measured:
+			row.end_us=Time.get_ticks_usec();row.finish_us=row.end_us-finishing
+			row.ok=data.ok;row.error=data.error;row.reason=str(data.get("reason",""))
+			var accounted:=0
+			for key:String in READ_TIMING_STAGES:accounted+=int(row[key])
+			row.reader_other_us=maxi(0,row.reader_us-accounted)
+			_read_timing_add(timing,row)
+	if measured:timing.end_us=Time.get_ticks_usec();timing.elapsed_us=timing.end_us-timing.start_us
 	return result
 
 static func _read_many(jobs:Array,decode:bool=true,worker_limit:int=READ_WORKERS,reader:Callable=Callable(),thread_starter:Callable=Callable())->Dictionary:
 	var started:=Time.get_ticks_usec()
+	var measured:=read_timing_enabled
+	var row_limit:=clampi(read_timing_row_limit,0,READ_TIMING_MAX_ROWS) if measured else 0
+	var timings:Array=[];var launches:Array=[];var joins:Array=[];var slots:Array[int]=[]
 	var queue:=ReadQueue.new();queue.jobs=jobs
 	var limit:=mini(jobs.size(),clampi(worker_limit,1,READ_WORKERS))
 	var workers:Array[Thread]=[];var replies:Array=[];var fallback_count:=0
-	if limit==1:replies.append(_read_worker(queue,decode,reader))
+	if limit==1:
+		var timing:=_read_timing_worker(0,"caller",row_limit) if measured else {}
+		replies.append(_read_worker(queue,decode,reader,timing))
+		if measured:timings.append(timing)
 	elif limit>1:
 		for i in limit:
 			if queue.should_stop():break
-			var worker:=Thread.new();var task:=_read_worker.bind(queue,decode,reader)
+			var timing:=_read_timing_worker(i,"thread",row_limit) if measured else {}
+			var worker:=Thread.new();var task:=_read_worker.bind(queue,decode,reader,timing)
+			var launching:=Time.get_ticks_usec() if measured else 0
 			var status:int=thread_starter.call(worker,task) if thread_starter.is_valid() else worker.start(task)
-			if worker.is_started():workers.append(worker)
+			if measured:launches.append({"slot":i,"start_us":launching,"end_us":Time.get_ticks_usec(),"status":status,"started":worker.is_started()})
+			if worker.is_started():
+				workers.append(worker)
+				if measured:timings.append(timing);slots.append(i)
 			elif status!=OK or not worker.is_started():fallback_count+=1
 		# One caller worker replaces failed launches after dispatch, without
 		# exceeding the requested concurrency alongside successfully started jobs.
-		if fallback_count>0:replies.append(_read_worker(queue,decode,reader))
+		if fallback_count>0:
+			var timing:=_read_timing_worker(limit,"fallback",row_limit) if measured else {}
+			replies.append(_read_worker(queue,decode,reader,timing))
+			if measured:timings.append(timing)
 		# Always join every worker, even when an earlier one reported corruption.
-		for worker:Thread in workers:replies.append(worker.wait_to_finish())
+		for i:int in workers.size():
+			var joining:=Time.get_ticks_usec() if measured else 0
+			replies.append(workers[i].wait_to_finish())
+			if measured:joins.append({"slot":slots[i],"start_us":joining,"end_us":Time.get_ticks_usec()})
 	var entries:Array=[];entries.resize(jobs.size())
 	for reply:Array in replies:
 		for item:Dictionary in reply:entries[item.index]=item.data
 	var profile:={"unique_resources":jobs.size(),"worker_limit":limit,"threads_started":workers.size(),"workers_joined":workers.size(),"fallback_count":fallback_count,"peak_active":queue.peak_active,"reads_started":queue.cursor,"completed":queue.completed,"elapsed_us":Time.get_ticks_usec()-started}
+	if measured:profile.diagnostics=_read_timing_summary(timings,launches,joins,started,row_limit,queue.completed)
 	profile.definition_cache_hits=0;profile.definition_cache_misses=0;profile.definition_cache_bypasses=0
 	for entry:Variant in entries:
 		if not entry is Dictionary:continue

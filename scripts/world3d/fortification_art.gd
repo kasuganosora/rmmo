@@ -16,7 +16,10 @@ var spans: Array=[]
 var total:=0.0
 func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
-	if not Paths.allowed(path) or not FileAccess.file_exists(path): return {}
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	if native_package:
+		if not Paths.asset_key_allowed(path):return {}
+	elif not Paths.allowed(path) or not FileAccess.file_exists(path):return {}
 	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path,native_only)
 	if root==null: return {}
 	var result:={}

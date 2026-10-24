@@ -76,10 +76,23 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 	var limit := clampi(worker_limit, 1, 4)
 	var eligibility_started := Time.get_ticks_usec()
 	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
+	var native_package:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
 	for path: String in unique:
 		if is_cancelled(): break
 		if not require_native_products and (not native_route or _raw_eligible(path)):eligible[path]=true
-		var estimate:Variant=memory_estimator.call(path) if memory_estimator.is_valid() else (MemoryEstimate.from_manifest(path,static_scene_paths.get(path,{})) if native_route else {"estimated_bytes":1,"exclusive":false,"known":true})
+		var estimate:Variant
+		if native_package and native_route and not memory_estimator.is_valid():
+			estimate=native_memory(static_scene_paths.get(path,{}))
+			if estimate.is_empty():
+				var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,content_root,"",-1)
+				estimate=native_memory(metadata)
+				if not estimate.is_empty():static_scene_paths[path]=metadata
+			if estimate.is_empty():
+				var failure:=native_failure(path,"native_metadata_missing_or_stale")
+				failure.path=path;failure.elapsed_us=0
+				return _finish({"error":failure.error,"cancelled":false,"entries":[failure]},started)
+		else:
+			estimate=memory_estimator.call(path) if memory_estimator.is_valid() else (MemoryEstimate.from_manifest(path,static_scene_paths.get(path,{})) if native_route else {"estimated_bytes":1,"exclusive":false,"known":true})
 		if not estimate is Dictionary or not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool:
 			estimate=MemoryEstimate._unknown("invalid_estimator")
 		estimates[path]=estimate.duplicate()
@@ -309,6 +322,14 @@ static func native_failure(path:String,reason:String)->Dictionary:
 	return {"error":ERR_FILE_CORRUPT,"cache_reason":reason,"native_product_required":true,
 		"error_message":"游戏模型缺少可用原生产物，请在内容编辑器重新导出："+path+" ("+reason+")"}
 
+## Same conservative envelope accepted by MemoryEstimate.from_manifest, without
+## its raw-source fallback. file_length/source_bytes are offline accounting facts.
+static func native_memory(manifest:Dictionary)->Dictionary:
+	var memory:Variant=manifest.get("memory")
+	if memory is Dictionary and memory.get("estimated_bytes") is int and memory.estimated_bytes>0 and memory.estimated_bytes<=MemoryEstimate.MAX_ESTIMATE and memory.get("exclusive") is bool and memory.get("source_bytes")==manifest.get("file_length"):
+		return memory.duplicate()
+	return {}
+
 static func _owned_cache_miss(compiled:Dictionary)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._owned_cache_miss") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var retry:bool=compiled.get("reason")=="source_changed_during_read"
@@ -440,9 +461,14 @@ static func _parse_verified_gltf(path:String,content_root:String,verified_source
 
 static func parse_gltf(path: String,content_root:String="",verified_digest:String="",trusted_package:bool=false) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.parse_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	if not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
+	var native_package:bool=trusted_package and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	if not native_package and not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
 	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,verified_digest,content_root,false,trusted_package)
 	if compiled.hit:return {"error":OK,"packed":compiled.packed,"compiled":true,"source_digest":compiled.source_digest,"cache_us":compiled.elapsed_us}
+	if native_package:
+		var failure:=native_failure(path,str(compiled.get("reason","invalid_product")))
+		if not compiled.get("retained_resources",[]).is_empty():failure.retained_resources=[compiled]
+		return failure
 	if not compiled.get("retained_resources",[]).is_empty():
 		# Workers cannot discard a failed native allocation or begin another
 		# allocation under its lease. Coordinators quarantine or retire then retry.

@@ -11,6 +11,8 @@ static var initial_model_workers_override:=0 # Benchmark only; zero uses product
 static var entry_pipeline_enabled:=true # Benchmark control; production overlaps private preparation.
 static var cold_index_rebuild_enabled:=true # Probe control; recover near-first on the same cold visit.
 static var cold_index_handoff_enabled:=true # Probe compares the former disk roundtrip.
+static var cold_read_diagnostics_enabled:=false # Worker-private cold metadata wall spans.
+const COLD_READ_DIAGNOSTIC_PATH_LIMIT:=128
 static var initial_cpu_capture_enabled:=true # Probe retains monolithic stream adoption.
 static var initial_static_specs_enabled:=true # Probe keeps the legacy on-tree adoption.
 static var startup_render_context_enabled:=true # Probe isolates late renderer initialization.
@@ -226,6 +228,7 @@ func _parse_inner() -> void:
 						_profile.initial_models_prefetched=_early_models.start(hints.keys(),_model_preparation,_initial_model_workers(),_content_root)
 						_profile.initial_models_prefetch_started_us=_early_models.started_us
 					_register_reference_pending(selection.deferred_entries)
+					if _error!=OK:return
 					_profile.reference_selected_count=selection.selected_count;_profile.reference_deferred_count=selection.deferred_count
 					_profile.reference_selected_groups=selection.selected_groups.size()
 					_profile.entry_core_cell=[_entry_plan.cell.x,_entry_plan.cell.y]
@@ -383,33 +386,79 @@ func _final_index_integrity(prepared:Dictionary)->bool:
 func _cold_model_hints(records:Array)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._cold_model_hints") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={"paths":[],"manifests":{},"error":"","reason":""}
+	var detail:Variant=null
+	if cold_read_diagnostics_enabled:
+		detail={"semantics":"nested wall spans; not exclusive CPU or pure IO","records":records.size(),"asset_records":0,"path_limit":COLD_READ_DIAGNOSTIC_PATH_LIMIT,"paths_truncated":false,"paths":{},"outer_path_check_count":0,"outer_path_check_us":0,"metadata_read_count":0,"metadata_read_us":0,"apply_record_count":0,"apply_record_us":0,"closing_path_check_count":0,"closing_path_check_us":0}
+		detail.start_us=Time.get_ticks_usec();detail.end_us=detail.start_us
+		detail.path_span_semantics="absolute first-to-last observation; may include interleaved paths and instances"
+		_profile.cold_model_hints_detail=detail
 	var plan:Dictionary=preload("res://scripts/world3d/entry_plan.gd").create(_entry_origin)
 	if plan.is_empty():
-		result.error="entry_plan";return result
+		result.error="entry_plan";return _cold_hint_detail_result(result,detail)
 	var manifests:Dictionary=_cold_model_manifests.duplicate();var paths:Dictionary={}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 	var batch_paths:bool=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
+	var began:=0
 	for record:Dictionary in records:
 		if record.get("kind")!="asset" or record.has("house_prefab"):continue
 		var path:String=record.get("asset_path","")
+		var row:Variant=null
+		if detail!=null:
+			detail.asset_records+=1;row=_cold_hint_detail_row(detail,path)
+			if row!=null:row.records+=1
 		if not batch_paths or not manifests.has(path):
-			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):
-				result.error="source_path";return result
+			if detail!=null:began=Time.get_ticks_usec()
+			var allowed:=_model_key_allowed(path)
+			if detail!=null:_cold_hint_detail_span(detail,row,"outer_path_check",began)
+			if not allowed:
+				result.error="source_path";return _cold_hint_detail_result(result,detail)
 		if not manifests.has(path):
 			var native_only:bool=_model_preparation.require_native_products and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
-			manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",native_only)
+			var metadata_timing:Variant={} if detail!=null else null
+			if detail!=null:began=Time.get_ticks_usec()
+			manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",native_only,metadata_timing)
+			if detail!=null:
+				_cold_hint_detail_span(detail,row,"metadata_read",began)
+				if row!=null:row.metadata=metadata_timing
 			if native_only and not manifests[path].get("known",false):
-				result.error="native_metadata_missing_or_stale";result.reason=preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_metadata_missing_or_stale").error_message;return result
+				result.error="native_metadata_missing_or_stale";result.reason=preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_metadata_missing_or_stale").error_message;return _cold_hint_detail_result(result,detail)
+		if detail!=null:began=Time.get_ticks_usec()
 		var placed:Dictionary=Manifest.apply_record(manifests[path],record)
+		if detail!=null:_cold_hint_detail_span(detail,row,"apply_record",began)
 		if not placed.get("known",false):
-			result.error="record_bounds";return result
+			result.error="record_bounds";return _cold_hint_detail_result(result,detail)
 		if plan.core_clip.intersects(placed.world_bounds):paths[path]=true
 	if batch_paths:
 		for path:String in manifests:
-			if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):
-				result.error="batch_source_path";return result
+			if detail!=null:began=Time.get_ticks_usec()
+			var allowed:=_model_key_allowed(path)
+			if detail!=null:_cold_hint_detail_span(detail,_cold_hint_detail_row(detail,path),"closing_path_check",began)
+			if not allowed:
+				result.error="batch_source_path";return _cold_hint_detail_result(result,detail)
 	result.paths=paths.keys();result.manifests=manifests
+	return _cold_hint_detail_result(result,detail)
+
+static func _cold_hint_detail_result(result:Dictionary,detail:Variant)->Dictionary:
+	if detail!=null:detail.end_us=Time.get_ticks_usec()
 	return result
+
+static func _cold_hint_detail_row(detail:Dictionary,path:String)->Variant:
+	if detail.paths.has(path):return detail.paths[path]
+	if detail.paths.size()>=COLD_READ_DIAGNOSTIC_PATH_LIMIT:
+		detail.paths_truncated=true;return null
+	var row:={"records":0,"outer_path_check_count":0,"outer_path_check_us":0,"metadata_read_count":0,"metadata_read_us":0,"apply_record_count":0,"apply_record_us":0,"closing_path_check_count":0,"closing_path_check_us":0}
+	row.start_us=Time.get_ticks_usec();row.end_us=row.start_us
+	detail.paths[path]=row
+	return row
+
+static func _cold_hint_detail_span(detail:Dictionary,row:Variant,label:String,began:int)->void:
+	var ended:=Time.get_ticks_usec();var elapsed:=ended-began
+	detail[label+"_count"]+=1;detail[label+"_us"]+=elapsed
+	detail.end_us=ended
+	if row!=null:
+		row[label+"_count"]+=1;row[label+"_us"]+=elapsed;row.end_us=ended
+		if not row.has(label+"_start_us"):row[label+"_start_us"]=began
+		row[label+"_end_us"]=ended
 
 ## Build/read are CPU-only and issue the same immutable ownership proof as the
 ## warm path. Adopt only after selected validation; otherwise retain full input.
@@ -466,6 +515,7 @@ func _rebuild_initial_reference_selection(full:Dictionary,paint_ids:Array,defini
 	_profile.reference_publication_integrity_scope="trusted_package_with_map_snapshot" if PackagePolicy.trusted() else "complete_cold_reference_closure"
 	_entry_plan=plan;_selected_record_indices=selection.record_indices
 	_register_reference_pending(selection.deferred_entries)
+	if _error!=OK:return {"ok":false,"reason":_failure_reason}
 	if PackagePolicy.trusted():
 		_reference_handoff=preload("res://scripts/world3d/reference_record_handoff.gd").create(candidate,full.rmmo_records,selection.deferred_entries,definition_sizes)
 		_profile.reference_handoff_records=_reference_handoff.records.size()
@@ -514,6 +564,22 @@ func _collision_first_selection(index:Dictionary,selection:Dictionary)->Dictiona
 	_profile.collision_first_core_deferred_ids=_collision_core_deferred_ids.slice(0,32)
 	return selection
 
+func _native_package_models()->bool:
+	return _model_preparation.require_native_products and PackagePolicy.trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+
+func _model_key_allowed(path:String)->bool:
+	var Paths=preload("res://scripts/world3d/map_paths.gd")
+	return Paths.asset_key_allowed(path,_content_root) if _native_package_models() else Paths.allowed(path,_content_root)
+
+func _prepare_source_signatures(paths:Array)->Dictionary:
+	if not _native_package_models():return _source_hash_preparation.run(paths,_content_root,1 if background_preload else 4)
+	var began:=Time.get_ticks_usec();var signatures:Dictionary={}
+	for path:String in paths:
+		var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,_content_root,"",-1)
+		if metadata.is_empty():return {"error":ERR_FILE_CORRUPT,"reason":"native_metadata_missing_or_stale","error_path":path,"signatures":{},"elapsed_us":Time.get_ticks_usec()-began}
+		signatures[path]=metadata.native_source_sha
+	return {"error":OK,"signatures":signatures,"elapsed_us":Time.get_ticks_usec()-began,"mode":"native_product_index","source_reads":0}
+
 func _register_reference_pending(entries:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._register_reference_pending") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var estimates:Dictionary={}
@@ -523,7 +589,16 @@ func _register_reference_pending(entries:Array)->void:
 		var manifest:Dictionary={}
 		if not entry.asset_path.is_empty():
 			manifest=_dependency_index.models.get(entry.asset_path,{})
-			if not estimates.has(entry.asset_path):estimates[entry.asset_path]=preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(entry.asset_path,manifest)
+			if not estimates.has(entry.asset_path):
+				if _native_package_models():
+					var Model=preload("res://scripts/world3d/model_parse_preparation.gd")
+					estimates[entry.asset_path]=Model.native_memory(manifest)
+					if estimates[entry.asset_path].is_empty():
+						manifest=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(entry.asset_path,_content_root,"",-1)
+						estimates[entry.asset_path]=Model.native_memory(manifest)
+					if estimates[entry.asset_path].is_empty():
+						_error=ERR_FILE_CORRUPT;_failure_reason=Model.native_failure(entry.asset_path,"native_metadata_missing_or_stale").error_message;return
+				else:estimates[entry.asset_path]=preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(entry.asset_path,manifest)
 			memory=estimates[entry.asset_path]
 		_deferred_assets.append({"record":entry.compact_record,"path":key,"bounds":entry.bounds,"digest":"","memory":memory,"manifest":manifest,"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":entry.asset_path.is_empty(),"group_id":entry.group_id})
 		_deferred_ids[entry.compact_record.uuid]=true
@@ -568,11 +643,16 @@ func _prepare_record_assets_inner()->void:
 		var path:String=str(record.get("asset_path",""))
 		if near_first:
 			var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
-			if not manifests.has(path):manifests[path]=Manifest.read(path)
+			if not manifests.has(path):manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",true) if _native_package_models() else Manifest.read(path)
 			else:_profile.source_manifest_reuse+=1
+			if _native_package_models() and not manifests[path].get("known",false):
+				_error=ERR_FILE_CORRUPT;_failure_reason=preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_metadata_missing_or_stale").error_message;return
 			var footprint:Dictionary=Manifest.apply_record(manifests[path],record)
 			if footprint.get("known",false) and not near_clip.intersects(footprint.world_bounds):
-				if not memory_estimates.has(path):memory_estimates[path]=preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(path,manifests[path])
+				if not memory_estimates.has(path):
+					memory_estimates[path]=preload("res://scripts/world3d/model_parse_preparation.gd").native_memory(manifests[path]) if _native_package_models() else preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(path,manifests[path])
+					if memory_estimates[path].is_empty():
+						_error=ERR_FILE_CORRUPT;_failure_reason=preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_memory_missing").error_message;return
 				# Large distant files are hashed on their preparation worker. The
 				# source JSON bounds snapshot is checked again before import; full
 				# navigation caches stay disabled until every source hash is known.
@@ -585,12 +665,12 @@ func _prepare_record_assets_inner()->void:
 	_profile.source_scan_us=Time.get_ticks_usec()-source_scan_started
 	Trace.elapsed("game.source_scan",source_scan_started,{"required_models":signature_paths.size()})
 	if _cancelled:_error=ERR_SKIP;return
-	# Cheap complete-input preflight still rejects missing/out-of-root sources
-	# before starting speculative work; it grants no content identity.
+	# Native packages use an authored logical key; actual product paths are
+	# checked by their reader. Editor/raw sources still require a real file.
 	for path:String in signature_paths:
-		if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root):
+		if not _model_key_allowed(path):
 			_error=ERR_INVALID_PARAMETER;_failure_reason="模型来源超出资源根目录："+path;return
-		if not FileAccess.file_exists(path):
+		if not _native_package_models() and not FileAccess.file_exists(path):
 			_error=ERR_FILE_NOT_FOUND;_failure_reason="模型来源不存在："+path;return
 	# Joining the cache reader here blocks only this parser worker, never UI.
 	# The candidate is speculative until every prepared model's identity matches.
@@ -729,9 +809,9 @@ func _prepare_record_assets_inner()->void:
 	# Non-model dependencies (e.g. fortification art) have no model transaction.
 	# They retain their complete source verification before cache acceptance.
 	var source_hash_started:=Time.get_ticks_usec()
-	var hashes:Dictionary=_source_hash_preparation.run(signature_paths.keys(),_content_root,1 if background_preload else 4)
+	var hashes:Dictionary=_prepare_source_signatures(signature_paths.keys())
 	_profile.source_hash_us=hashes.elapsed_us;_profile.source_hash_profile=hashes
-	_profile.model_source_identity_mode="authored_package_identity" if PackagePolicy.trusted() else "verified_prepared_result"
+	_profile.model_source_identity_mode="native_product_index" if _native_package_models() else ("authored_package_identity" if PackagePolicy.trusted() else "verified_prepared_result")
 	_profile.model_source_hash_barrier_avoided=paths.size()
 	Trace.elapsed("game.source_hash",source_hash_started,{"models":signature_paths.size(),"peak_active":hashes.get("peak_active",0)})
 	if hashes.error!=OK:
@@ -1285,7 +1365,7 @@ func _build_records() -> void:
 				doc.load_surface_bounds=_surface_bounds
 				start=Time.get_ticks_usec()
 			if records[cursor].get("kind") == "asset" and not records[cursor].has("house_prefab"):
-				if not FileAccess.file_exists(str(records[cursor].get("asset_path", ""))):
+				if not _native_package_models() and not FileAccess.file_exists(str(records[cursor].get("asset_path", ""))):
 					root.free()
 					_prepared = null
 					_finish_error("地图素材缺失：" + str(records[cursor].get("asset_path", "")))

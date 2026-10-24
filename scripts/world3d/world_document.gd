@@ -467,7 +467,14 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		if load_box_meshes.has(box_key): cached=load_box_meshes[box_key].mesh; load_box_hits+=1
 	if effects and load_box_meshes!=null and record.has("fortification_art") and str(record.fortification_art.asset_path).get_extension().to_lower()=="glb":
 		var model_path:String=record.fortification_art.asset_path
-		if not load_model_signatures.has(model_path):load_model_signatures[model_path]=FileAccess.get_sha256(model_path)
+		if not load_model_signatures.has(model_path):
+			if load_require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active():
+				var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(model_path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
+				if metadata.is_empty():
+					mesh_node.set_meta("paint_error","游戏模型缺少可用原生描述，请在内容编辑器重新导出："+model_path)
+					return mesh_node
+				load_model_signatures[model_path]=metadata.native_source_sha
+			else:load_model_signatures[model_path]=FileAccess.get_sha256(model_path)
 		box_key=["fortification",record.size,record.get("channel_mesh",{}),record.get("terrain_grade",[]),record.get("water_gate",{}),record.fortification_art,record.fortification_materials,record.get("surface_paint",[]),load_model_signatures[model_path]]
 		if load_box_meshes.has(box_key):cached=load_box_meshes[box_key].mesh;load_box_hits+=1
 	var box:BoxMesh

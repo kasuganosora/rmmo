@@ -15,7 +15,8 @@ static func index_path(path:String,root:String)->String:return Writer.index_path
 static func read(path:String,digest:String,root:String,trusted:bool)->Dictionary:
 	var started:=Time.get_ticks_usec()
 	if not enabled:return {"hit":false,"reason":"white_native_disabled"}
-	if root.is_empty() or not Paths.allowed(path,root) or not FileAccess.file_exists(path):return {"hit":false,"reason":"white_native_source"}
+	if root.is_empty() or not Paths.asset_key_allowed(path,root):return {"hit":false,"reason":"white_native_source"}
+	if not trusted and (not Paths.allowed(path,root) or not FileAccess.file_exists(path)):return {"hit":false,"reason":"white_native_source"}
 	var index:=index_path(path,root)
 	if not Paths.allowed(index,directory(root)):return {"hit":false,"reason":"white_native_path"}
 	var file:=FileAccess.open(index,FileAccess.READ)
@@ -23,7 +24,13 @@ static func read(path:String,digest:String,root:String,trusted:bool)->Dictionary
 	var info:Variant=JSON.parse_string(file.get_as_text());file.close()
 	if not info is Dictionary or info.get("generator")!=generator():return {"hit":false,"reason":"white_native_version"}
 	if not info.get("payload_sha") is String or info.payload_sha.length()!=64 or not info.payload_sha.is_valid_hex_number(false):return {"hit":false,"reason":"white_native_identity"}
-	var identity:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,digest) if trusted else FileAccess.get_sha256(path)
+	if not info.get("source_sha") is String or info.source_sha.length()!=64 or not info.source_sha.is_valid_hex_number(false):return {"hit":false,"reason":"white_native_identity"}
+	# The trusted native index owns identity. Never open/hash an optional GLB
+	# merely because its logical key has a human-readable filename.
+	var identity:String=info.source_sha if trusted else FileAccess.get_sha256(path)
+	if not digest.is_empty() and digest!=identity:return {"hit":false,"reason":"white_native_source_changed"}
+	var key:=path.get_file().get_basename()
+	if trusted and key.length()==64 and key.is_valid_hex_number(false) and key!=identity:return {"hit":false,"reason":"white_native_source_changed"}
 	if identity!=info.get("source_sha"):return {"hit":false,"reason":"white_native_source_changed"}
 	var product:=directory(root).path_join(info.payload_sha+".scn")
 	if not Paths.allowed(product,directory(root)):return {"hit":false,"reason":"white_native_product_path"}

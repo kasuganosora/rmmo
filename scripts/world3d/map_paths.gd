@@ -48,6 +48,14 @@ static func allowed(value: String, content_root: String = "") -> bool:
 	return result
 
 
+## An imported model path is also the logical key of its native package.
+## Resolve its namespace without touching the optional authoring source. The
+## actual native index/descriptor/product still pass allowed() before I/O.
+static func asset_key_allowed(value:String,content_root:String="")->bool:
+	var base:=(external_root() if content_root.is_empty() else content_root).replace("\\", "/").simplify_path().trim_suffix("/")
+	return not _authority_path(value,base).is_empty()
+
+
 static func _authority_path(value:String,base:String)->String:
 	if value.is_empty() or not value.is_absolute_path() or value.contains("://"): return ""
 	for index in value.length():

@@ -224,7 +224,10 @@ func search(query: String) -> Array:
 	return entries.filter(func(entry: Dictionary): return (str(entry.get("label", "")) + " " + str(entry.get("category", ""))).to_lower().contains(needle))
 
 static func instantiate(path: String,native_only:bool=false) -> Node3D:
-	if not FileAccess.file_exists(path): return null
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	if native_package:
+		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
+	elif not FileAccess.file_exists(path):return null
 	if not _scenes.has(path) or (native_only and not _scenes[path].get_meta("compiled_asset_validated",false)):
 		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if compiled.hit:
@@ -253,12 +256,22 @@ static func _instantiate(packed:PackedScene)->Node3D:
 
 ## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
 static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
-	if not FileAccess.file_exists(path): return null
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_identity:=""
+	if native_package:
+		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
+	elif not FileAccess.file_exists(path):return null
 	# Preview is an independent source transaction. A previous world load's
 	# path-only template cannot authorize a newly selected thumbnail/preview.
 	# External glTF dependencies are not covered by the root file SHA: reload.
 	if _scenes.has(path):
-		var digest:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path)
+		if native_package:
+			# Only a resident preview needs a fresh identity observation here.
+			# On a cold miss Compiled.read already resolves its native index.
+			var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
+			if metadata.is_empty():return null
+			native_identity=str(metadata.native_source_sha)
+		var digest:=native_identity if native_package else (preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path))
 		if has_cached_scene(path,digest):
 			# A validated native product already proves closed dependencies for
 			# this exact source. Its allowed material extensions need not pass

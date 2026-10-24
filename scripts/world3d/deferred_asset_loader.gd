@@ -1816,7 +1816,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 	# geometry. Cheap preflight is sufficient before reference hydration; one
 	# complete final source observation still gates every returned result.
 	if not native and not need_model:
-		var before:=_preflight_reused_source(path,digest,root,token)
+		var before:=_preflight_reused_source(path,digest,root,token,model_route.get("require_native_products",false))
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
@@ -1834,7 +1834,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 			if face_result.get("faces",{}).size()!=face_snapshots.size():return {"error":"复用素材碰撞面准备失败："+path}
 			prepared.reuse_faces=face_result.faces;prepared.reuse_face_us=Time.get_ticks_usec()-face_started
 			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.reused_faces",face_started,{"path":path,"meshes":face_snapshots.size()})
-		var after:=_verify_reused_source(path,digest,root,token)
+		var after:=_verify_reused_source(path,digest,root,token,model_route.get("require_native_products",false))
 		if not after.error.is_empty():return after
 		prepared.source_digest=digest;prepared.reused_model=true
 		if model_route.get("filter_collision_geometry",false):
@@ -1863,16 +1863,20 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if prepared.has(field):result[field]=prepared[field]
 	return result
 
-static func _preflight_reused_source(path:String,digest:String,content_root:String,token:RefCounted)->Dictionary:
+static func _preflight_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	if not Assets._valid_source_digest(digest) or content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"复用素材缺少有效来源身份："+path}
-	if not FileAccess.file_exists(path):return {"error":"复用素材来源已丢失："+path}
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
+	if not Assets._valid_source_digest(digest) or content_root.is_empty() or not confined:return {"error":"复用素材缺少有效来源身份："+path}
+	# A reused native template already owns its accepted product and digest. Its
+	# logical authoring key need not have a raw source file beside the package.
+	if not native_package and not FileAccess.file_exists(path):return {"error":"复用素材来源已丢失："+path}
 	# Filesystem/root checks may block; cancellation must stop before rmres IO.
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	return {"error":""}
 
-static func _verify_reused_source(path:String,digest:String,content_root:String,token:RefCounted)->Dictionary:
-	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return _preflight_reused_source(path,digest,content_root,token)
+static func _verify_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
+	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return _preflight_reused_source(path,digest,content_root,token,native_only)
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	if not Assets._valid_source_digest(digest) or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"复用素材缺少有效来源身份："+path}
 	var started:=Time.get_ticks_usec()
@@ -2837,22 +2841,36 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"error":"后台素材准备缺少资源根快照："+path}
 		content_root=preload("res://scripts/world3d/map_paths.gd").external_root()
-	if content_root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"素材路径无效："+path}
+	var native_package:bool=native_only and trusted_package and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
+	if content_root.is_empty() or not confined:return {"error":"素材路径无效："+path}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 	if digest.is_empty() and not trusted_package:
 		if expected_manifest.is_empty():return {"error":"缺少后台素材边界快照："+path}
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
 			return {"error":"素材边界在后台准备前发生变化："+path}
-	var source_digest:=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,digest) if trusted_package else FileAccess.get_sha256(path)
+	var source_digest:=""
+	if native_package:
+		# Admission already required the published metadata. Reuse its identity
+		# when available; otherwise the native reader's one index read supplies it.
+		# No second index/descriptor read solely to rediscover the same identity.
+		source_digest=digest if not digest.is_empty() else str(expected_manifest.get("native_source_sha",""))
+		if not source_digest.is_empty() and not Assets._valid_source_digest(source_digest):return {"error":"素材缺少有效原生来源身份："+path}
+		if source_digest.is_empty() and Assets._valid_source_digest(path.get_file().get_basename()):source_digest=path.get_file().get_basename()
+	else:source_digest=preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path,digest) if trusted_package else FileAccess.get_sha256(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_identity" if trusted_package else "deferred.source_sha",began,{"path":path})
-	if source_digest.is_empty() or (not digest.is_empty() and source_digest!=digest):return {"error":"素材在后台准备前发生变化："+path}
+	if not native_package and (source_digest.is_empty() or (not digest.is_empty() and source_digest!=digest)):return {"error":"素材在后台准备前发生变化："+path}
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	# Strict transactions verify source bytes after private preparation as well.
 	var compiled:Dictionary={"hit":false,"elapsed_us":0}
-	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,true,trusted_package)
+	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,not source_digest.is_empty(),trusted_package)
 	if native_only and not compiled.hit:
 		return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(compiled.get("reason","invalid_product"))).error_message,"native_packet":compiled}
+	if native_package:
+		if not compiled.hit or not Assets._valid_source_digest(compiled.get("source_digest","")):
+			return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_identity_missing").error_message,"native_packet":compiled}
+		source_digest=compiled.source_digest
 	if not compiled.hit and not compiled.get("retained_resources",[]).is_empty():
 		# Post-allocation schema/path failures are not resource-free misses.
 		# Keep the charged native result for main-thread failure disposal.
@@ -2911,7 +2929,8 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	var final_sha_started:=Time.get_ticks_usec()
 	var final_digest:=source_digest if trusted_package else FileAccess.get_sha256(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_binding" if trusted_package else "deferred.final_source_sha",final_sha_started,{"path":path})
-	if final_digest!=source_digest or (not content_root.is_empty() and not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
+	var final_confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
+	if final_digest!=source_digest or (not content_root.is_empty() and not final_confined):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	if packed!=null:
 		# The private Node instances can retire on their own worker, but every

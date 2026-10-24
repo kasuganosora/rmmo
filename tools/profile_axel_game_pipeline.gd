@@ -235,6 +235,9 @@ func run()->void:
 		if arg.begins_with("--output="):output=arg.trim_prefix("--output=")
 		elif arg=="--monitor":monitored=true
 		elif arg=="--method-profile":Trace.methods_enabled=true
+		elif arg=="--cold-read-diagnostics":
+			preload("res://scripts/world3d/map_resource_store.gd").read_timing_enabled=true
+			preload("res://scripts/world3d/map_loader.gd").cold_read_diagnostics_enabled=true
 		elif arg.begins_with("--trace-minimum-us="):Trace.minimum_event_us=arg.trim_prefix("--trace-minimum-us=").to_int()
 		elif arg=="--without-hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled=false
 		elif arg=="--without-map-textures":preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures=true
@@ -322,6 +325,7 @@ func run()->void:
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
 	report.controls.worker_model_scenes=preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled
 	report.controls.cold_index_handoff=preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled
+	report.controls.cold_read_diagnostics=preload("res://scripts/world3d/map_loader.gd").cold_read_diagnostics_enabled
 	report.controls.boolean_road_schema=preload("res://scripts/world3d/road_surface.gd").boolean_schema_enabled
 	report.controls.classification_path_batching=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
 	report.controls.parallel_native_classification=preload("res://scripts/world3d/map_dependency_index.gd").parallel_native_classification

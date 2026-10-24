@@ -8,6 +8,9 @@ const Store = preload("res://scripts/world3d/map_resource_store.gd")
 const Cursor = preload("res://scripts/world3d/document_open_cursor.gd")
 const Snapshot = preload("res://scripts/world3d/document_source_snapshot.gd")
 const Manifest = preload("res://scripts/world3d/asset_bounds_manifest.gd")
+const Native = preload("res://scripts/world3d/white_native_asset_cache.gd")
+const NativeMetadata = preload("res://scripts/world3d/white_native_asset_metadata.gd")
+const Memory = preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
 const Imported = preload("res://scripts/world3d/imported_building.gd")
 const Road = preload("res://scripts/world3d/road_surface.gd")
@@ -171,8 +174,9 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 	if not trusted_package and not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
 	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit): return _fail("imported_building_source_mismatch")
 	if (not trusted_package and not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit)) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
+	var native_package:bool=trusted_package and Native.active()
 	for model_path: String in models:
-		if not Paths.allowed(model_path,content_root):return _fail("model_path_changed_during_build")
+		if not (Paths.asset_key_allowed(model_path,content_root) if native_package else Paths.allowed(model_path,content_root)):return _fail("model_path_changed_during_build")
 		if trusted_package:continue
 		var current: Dictionary = Manifest.read(model_path)
 		if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
@@ -212,6 +216,7 @@ static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
 ## stay together so repeated instances share exactly one manifest/path check.
 static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={},trusted_package:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
+	var native_package:bool=trusted_package and Native.active()
 	var prefab_metadata:RefCounted=preload("res://scripts/world3d/prefab_bounds_metadata.gd").new(root) if trusted_package and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and Prefab.trusted_metadata_reuse_enabled else null
 	var rows:Array=[];rows.resize(records.size())
 	var models:Dictionary={};var paths:Dictionary={};var jobs:Array=[]
@@ -222,7 +227,20 @@ static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,
 		var path:String=record.get("asset_path","")
 		if not models.has(path) and source_manifests.has(path):
 			var source:Dictionary=source_manifests[path]
-			if source.get("known",true):models[path]=_model_entry(path,source)
+			if source.get("known",true):
+				var entry:=_model_entry(path,source,native_package)
+				if entry.is_empty():return _fail("native_model_memory_missing")
+				models[path]=entry
+		# Optional/cross-map directory builds may not have the entry loader's
+		# hints. Resolve each missing logical model key once from its native
+		# descriptor; a missing product cannot become an unknown global row.
+		if native_package and not record.has("house_prefab") and (record.has("model_building") or record.get("kind")=="asset"):
+			if not models.has(path):
+				var source:=NativeMetadata.read(path,root,"",-1)
+				if not source.get("known",false):return _fail("native_model_metadata_missing")
+				var entry:=_model_entry(path,source,true)
+				if entry.is_empty():return _fail("native_model_memory_missing")
+				models[path]=entry
 		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256],"trusted_package":trusted_package}
 		if prefab_metadata!=null:job.prefab_metadata=prefab_metadata
 		if not parallel_native_classification or record.has("model_building") or (record.get("kind")=="asset" and not record.has("house_prefab")):
@@ -387,7 +405,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 	elif record.has("model_building"):
 		result.asset_path=str(record.get("asset_path",""))
 		if (trusted_package or Imported.valid_record(record)) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
-			_classify_model(record,root,models,result,checked_paths)
+			_classify_model(record,root,models,result,checked_paths,trusted_package and Native.active())
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
 	# The package already supplies its authored road topology. Classification
@@ -404,7 +422,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 		result.bounds_known = _finite_bounds(result.bounds); result.reason = "native_box"
 		if result.bounds_known: result.classification = "spatial"
 	elif record.get("kind") == "asset" and _fields_allowed(record, COMMON_FIELDS + ASSET_FIELDS):
-		_classify_model(record,root,models,result,checked_paths)
+		_classify_model(record,root,models,result,checked_paths,trusted_package and Native.active())
 	if record.has("building") and not _fields_allowed(record, COMMON_FIELDS + ["building", "fixture", "house_prefab", "prefab_locked", "prefab_materials", "window_design", "building_shape"]):
 		result.bounds_known = false; result.reason = "unsupported_building_behavior"
 	if result.bounds_known:
@@ -415,20 +433,30 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 			if record.has("fortification") or record.has("bridge_mesh"): result.bounds_known = false
 	return result
 
-static func _model_entry(path:String,source:Dictionary)->Dictionary:
-	return {"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds,"memory":preload("res://scripts/world3d/asset_memory_estimate.gd").from_manifest(path,source)}
+static func _model_entry(path:String,source:Dictionary,native_package:bool=false)->Dictionary:
+	var memory:Dictionary
+	if native_package:
+		var envelope:Variant=source.get("memory")
+		if not envelope is Dictionary or not envelope.get("estimated_bytes") is int or envelope.estimated_bytes<=0 or envelope.estimated_bytes>Memory.MAX_ESTIMATE or not envelope.get("exclusive") is bool or envelope.get("source_bytes")!=source.get("file_length"):return {}
+		memory=envelope.duplicate()
+	else:memory=Memory.from_manifest(path,source)
+	return {"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds,"memory":memory}
 
-static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary,checked_paths:Dictionary)->void:
+static func _classify_model(record:Dictionary,root:String,models:Dictionary,result:Dictionary,checked_paths:Dictionary,native_package:bool=false)->void:
 	if record.has("vegetation_batch") and not record.vegetation_batch is bool:result.reason="invalid_vegetation_batch";return
 	var path:=str(record.get("asset_path",""));result.asset_path=path
 	# Build-private cache: final publication checks every model path again. The
 	# ordinary three-argument classifier gets a fresh scope on every invocation.
-	if not checked_paths.has(path):checked_paths[path]=Paths.allowed(path,root)
+	if not checked_paths.has(path):checked_paths[path]=Paths.asset_key_allowed(path,root) if native_package else Paths.allowed(path,root)
 	if not checked_paths[path]:result.reason="invalid_model_path";return
-	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else Manifest.read(path)
+	var source:Dictionary=models[path].merged({"known":true}) if models.has(path) else (NativeMetadata.read(path,root,"",-1) if native_package else Manifest.read(path))
+	if native_package and not source.get("known",false):result.reason="native_model_metadata_missing";return
 	var placed:Dictionary=Manifest.apply_record(source,record)
 	if placed.get("known",false):
-		if not models.has(path):models[path]=_model_entry(path,source)
+		if not models.has(path):
+			var entry:=_model_entry(path,source,native_package)
+			if entry.is_empty():result.reason="native_model_memory_missing";return
+			models[path]=entry
 		result.bounds=placed.world_bounds;result.bounds_known=true;result.classification="spatial";result.reason="model_accessor_bounds"
 
 # Bind exact source annotations and complete bytes, not a claimed record volume

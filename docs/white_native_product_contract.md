@@ -25,3 +25,9 @@
 `tools/test_native_required_loading_gpu.gd` 验证缺失/失效拒绝、禁止 raw_only 绕过、无 raw 重试、native 正常读取、已分配资源所有权、线程/额度排空和编辑器显式导入。真实白模路线另外检查策略已开启、初始/延迟原生命中、区块卸载返回及最终清理。尚未复测纹理阶段，不把白模通过扩大为所有运行模式验收。
 
 同日补齐同步发布入口：游戏WorldDocument携带独立的`load_require_native_products`，经普通实例化、桥梁kit及城防kit传入AssetLibrary；不能让这些共享helper在native miss时同步导入GLB。编辑器文档保留默认显式导入行为。MapLoader删除模型发布阶段的GLTF生成/重新pack分支，仅接收PackedScene，并在实例缺失或paint/tile错误时结束加载。`test_native_required_publication_gpu.gd`先在旧路径复现普通/桥梁发布的3个失败，再验证拒绝、编辑器raw缓存隔离、native成功及Deferred文档策略传递，最终20/0。
+
+2026-10-25进一步完成白模可信运行路径的源文件独立：上文历史版本保留的原GLB存在性、长度观察和非SHA名称哈希已移除。源路径只作为包内逻辑键，身份、边界和完整保守内存估算取自native index/descriptor；实际native文件仍有路径、版本与读取失败处理。初始/Deferred、桥梁/城防、远区块及跨地图冷目录构建均不得因原GLB缺失降级、导入或重新估算。缺native描述时直接失败；同模型多实例只解析一次缺失的描述，已有hints不重复读取。编辑器导入、离线导出和显式源审计继续使用GLB，纹理运行模式仍未扩大验收。
+
+companion采用`DESCRIPTOR_REVISION=2`，generation绑定描述版本、geometry generator及bounds/memory生产者，不再绑定读取脚本全文SHA。当前49份描述经正式离线工具重建，逐件核对observation完全相同、保存重开以及GLB/native/index字节未改，保留旧描述与SHA。仅改读取计时不应再要求重建描述；改变持久化字段或语义时须升级描述版本并重导出。不能用旧包兼容回退恢复运行时GLB依赖。
+
+`test_native_without_source.gd`真实导出后删除临时GLB，覆盖初载/Deferred/近远目录/跨图预加载/桥梁城防及缺失损坏失败，headless43项、GPU86项通过。真实axel两次FileAccess trace均为原GLB O/F/X/W零次；该证据不等于所有cold耗时已稳定。具体迁移、慢样本及证据边界见`docs/axel_cold_read_attribution_20261025.md`。
