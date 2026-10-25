@@ -22,6 +22,12 @@ static var _cache_serial:=0
 static var source_generation:=0
 static var _cache_use:Dictionary={}
 static var cache_residency_profile:Dictionary={}
+static var incremental_cache_budget_enabled:=true # Diagnostic full-scan control.
+# IDs/costs only: this conservative union never keeps a texture alive. Removing
+# hot entries may overestimate until the next exact trim; it cannot undercount.
+static var _cache_accounted:Dictionary={}
+static var _cache_upper_bytes:=0
+static var _cache_estimate_valid:=false
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
 static func texture_key(path:String,flip:bool=false,normal:bool=false)->String:
 	if path.is_empty():return ""
@@ -38,6 +44,7 @@ static func refresh_sources()->void:
 	_materials.clear();_textures.clear();prepared_images.clear()
 	_material_refs.clear();_texture_refs.clear();_cache_use.clear()
 	_sidecar_cache.clear()
+	_cache_accounted.clear();_cache_upper_bytes=0;_cache_estimate_valid=false
 	source_generation+=1
 
 static func _touch_cache(kind:String,key:String)->void:
@@ -49,7 +56,55 @@ static func _remember_weak(catalog:Dictionary,key:String,value:RefCounted)->void
 			if catalog[id].get_ref()==null:catalog.erase(id)
 	while catalog.size()>4096:catalog.erase(catalog.keys()[0])
 static func _texture_cost(texture:Texture2D)->int:
-	return int(texture.get_meta("runtime_upload_bytes",ceili(float(texture.get_width())*texture.get_height()*4.*4./3.)))
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.cost_reads")
+	if texture.has_meta("runtime_upload_bytes"):return int(texture.get_meta("runtime_upload_bytes"))
+	return ceili(float(texture.get_width())*texture.get_height()*4.*4./3.)
+
+static func _invalidate_cache_estimate()->void:
+	_cache_estimate_valid=false
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.resource_changes")
+static func _watch_cache_resource(value:Resource)->void:
+	if not value.changed.is_connected(_invalidate_cache_estimate):value.changed.connect(_invalidate_cache_estimate)
+	# BaseMaterial3D.set_texture emits property_list_changed, not changed.
+	if value is BaseMaterial3D and not value.property_list_changed.is_connected(_invalidate_cache_estimate):value.property_list_changed.connect(_invalidate_cache_estimate)
+static func _account_texture(texture:Texture2D)->void:
+	var id:=texture.get_instance_id()
+	if _cache_accounted.has(id):return
+	var bytes:=_texture_cost(texture)
+	_cache_accounted[id]=bytes;_cache_upper_bytes+=bytes
+	_watch_cache_resource(texture)
+static func _trim_after_insert(value:Resource)->void:
+	if not residency_budget_enabled:_cache_estimate_valid=false;return
+	if not incremental_cache_budget_enabled or not _cache_estimate_valid or cache_byte_budget<=0 or (value is BaseMaterial3D and _materials.size()==1 and _textures.is_empty()):
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.full_insert_"+("legacy" if not incremental_cache_budget_enabled else ("dirty" if not _cache_estimate_valid else "small")))
+		trim_cached_resources();return
+	if value is Texture2D:_account_texture(value)
+	else:
+		_watch_cache_resource(value)
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.material_property_reads",TEXTURE_PROPERTIES.size())
+		for property:String in TEXTURE_PROPERTIES:
+			var texture:Texture2D=value.get(property)
+			if texture!=null:_account_texture(texture)
+	if _cache_upper_bytes>maxi(0,cache_byte_budget) or _cache_accounted.size()>1024 or _cache_use.size()>256:
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.full_insert_"+("budget" if _cache_upper_bytes>maxi(0,cache_byte_budget) else "metadata"))
+		trim_cached_resources()
+	elif texture_profile_enabled:TextureCache._profile_count("paint.cache.fast_checks")
+static func _trim_changed_cache()->void:
+	if incremental_cache_budget_enabled and (not _cache_estimate_valid or _cache_upper_bytes>maxi(0,cache_byte_budget)):
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.full_hit_"+("dirty" if not _cache_estimate_valid else "budget"))
+		trim_cached_resources()
+static func remember_texture_owner(key:String,texture:Texture2D)->void:
+	# The admitted job already owns this GPU object. Reinstalling every ticket
+	# into the strong cache causes immediate budget evictions before any bind.
+	# Actual texture() consumers promote only the identities they use.
+	if incremental_cache_budget_enabled and residency_budget_enabled:
+		if not _texture_refs.has(key) or _texture_refs[key].get_ref()!=texture:_remember_weak(_texture_refs,key,texture)
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.weak_tickets")
+		return
+	# Preserve the diagnostic and disabled-budget handoff without new trimming.
+	if not _textures.has(key) and _textures.size()>=64:_textures.erase(_textures.keys()[0])
+	_textures[key]=texture
+	_cache_estimate_valid=false
 static func retained_texture(key:String)->Texture2D:
 	var texture:Texture2D=_textures.get(key)
 	if texture==null and residency_budget_enabled and _texture_refs.has(key):texture=_texture_refs[key].get_ref()
@@ -57,10 +112,14 @@ static func retained_texture(key:String)->Texture2D:
 	return texture
 static func trim_cached_resources()->Dictionary:
 	if not residency_budget_enabled:return {}
+	if texture_profile_enabled:
+		TextureCache._profile_count("paint.cache.full_scans")
+		TextureCache._profile_count("paint.cache.material_property_reads",_materials.size()*TEXTURE_PROPERTIES.size())
 	# Legacy publication owners may clear either hot dictionary directly.
 	for id:String in _cache_use.keys():
 		if not (_materials if id.begins_with("m:") else _textures).has(id.substr(2)):_cache_use.erase(id)
 	var counts:Dictionary={};var costs:Dictionary={};var dependencies:Dictionary={};var candidates:Array=[];var total:=0
+	var watched_textures:Dictionary={}
 	for kind:String in ["m:","t:"]:
 		var cache:Dictionary=_materials if kind=="m:" else _textures
 		for key:String in cache:
@@ -74,10 +133,14 @@ static func trim_cached_resources()->Dictionary:
 				var id:=texture.get_instance_id()
 				if id in ids:continue
 				ids.append(id);counts[id]=int(counts.get(id,0))+1
-				if not costs.has(id):costs[id]=_texture_cost(texture);total+=costs[id]
+				if not costs.has(id):
+					costs[id]=_texture_cost(texture);total+=costs[id]
+					if incremental_cache_budget_enabled:watched_textures[id]=texture
 			dependencies[kind+key]=ids;candidates.append({"kind":kind,"key":key,"use":int(_cache_use.get(kind+key,0))})
 	var before:=total;var materials:=0;var textures:=0
-	candidates.sort_custom(func(a,b):return a.use<b.use)
+	if not incremental_cache_budget_enabled or total>maxi(0,cache_byte_budget):
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.sort_candidates",candidates.size())
+		candidates.sort_custom(func(a,b):return a.use<b.use)
 	for candidate:Dictionary in candidates:
 		if total<=maxi(0,cache_byte_budget):break
 		var kind:String=candidate.kind;var key:String=candidate.key
@@ -87,6 +150,15 @@ static func trim_cached_resources()->Dictionary:
 			counts[id]-=1
 			if counts[id]==0:total-=costs[id]
 		_cache_use.erase(kind+key)
+	if incremental_cache_budget_enabled:
+		for id:int in counts:
+			if counts[id]==0:costs.erase(id)
+		_cache_accounted=costs;_cache_upper_bytes=total;_cache_estimate_valid=true
+		# Subscribe only surviving owners. A zero-budget admission can discard
+		# its entire material; watching those outgoing objects repeats useless work.
+		for material:Material in _materials.values():_watch_cache_resource(material)
+		for id:int in costs:_watch_cache_resource(watched_textures[id])
+	else:_cache_estimate_valid=false
 	cache_residency_profile={"before_bytes":before,"after_bytes":total,"budget_bytes":cache_byte_budget,"evicted_materials":materials,"evicted_textures":textures,"scope":"unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"}
 	return cache_residency_profile.duplicate()
 static func _material_current(material:StandardMaterial3D)->bool:
@@ -369,7 +441,8 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_hit")
 		prepared_images.erase(cache_key)
 		var cached:Texture2D=_textures[cache_key]
-		if restored_weak:trim_cached_resources()
+		if restored_weak:_trim_after_insert(cached)
+		else:_trim_changed_cache()
 		return cached
 	if key!="checker" and not prepared_images.has(cache_key):
 		var side:=_load_compressed_sidecar(path,flip_normal,field=="normal_path")
@@ -383,7 +456,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 			if _textures.size()>=64:
 				var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 			_textures[cache_key]=side_texture
-			_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,side_texture);trim_cached_resources()
+			_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,side_texture);_trim_after_insert(side_texture)
 			if texture_profile_enabled:
 				TextureCache._profile_elapsed("paint.texture.sidecar_upload",side_started,{"path":path,"bytes":side.image.get_data_size(),"sidecar":side.path})
 				TextureCache._profile_count("paint.texture.sidecar_uploads")
@@ -431,7 +504,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	if _textures.size() >= 64:
 		var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 	_textures[cache_key] = result
-	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);trim_cached_resources()
+	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);_trim_after_insert(result)
 	return result
 
 static func texture_error(record: Dictionary, checks: Variant = null) -> String:
@@ -475,7 +548,8 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 		_touch_cache("m:",key)
 		if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_hit")
 		var cached:StandardMaterial3D=_materials[key]
-		if restored_weak:trim_cached_resources()
+		if restored_weak:_trim_after_insert(cached)
+		else:_trim_changed_cache()
 		return cached
 	if texture_profile_enabled:TextureCache._profile_count("paint.material.cache_miss")
 	var result := StandardMaterial3D.new()
@@ -502,7 +576,7 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 		var oldest:String=_materials.keys()[0];_materials.erase(oldest);_cache_use.erase("m:"+oldest)
 	result.set_meta("runtime_paint_definition",value.duplicate(true))
 	_materials[key] = result
-	_touch_cache("m:",key);_remember_weak(_material_refs,key,result);trim_cached_resources()
+	_touch_cache("m:",key);_remember_weak(_material_refs,key,result);_trim_after_insert(result)
 	return result
 
 static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:

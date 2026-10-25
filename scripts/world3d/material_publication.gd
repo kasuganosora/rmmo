@@ -21,8 +21,7 @@ static func begin_record_scope(record:Dictionary,packet:Dictionary,owners:Dictio
 		if Paint.residency_budget_enabled:
 			if not Paint._texture_refs.has(key) or Paint._texture_refs[key].get_ref()!=texture:Paint._remember_weak(Paint._texture_refs,key,texture)
 		else:
-			if not Paint._textures.has(key) and Paint._textures.size()>=64:Paint._textures.erase(Paint._textures.keys()[0])
-			Paint._textures[key]=texture
+			Paint.remember_texture_owner(key,texture)
 	return scope
 
 static func end_record_scope(scope:Dictionary)->void:

@@ -513,8 +513,7 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 	# on the worker. Restore evicted LRU entries without reading/uploading pixels.
 	for key:String in resident:
 		if not Cook.Paint._textures.has(key):
-			if Cook.Paint._textures.size()>=64:Cook.Paint._textures.erase(Cook.Paint._textures.keys()[0])
-			Cook.Paint._textures[key]=resident[key].texture
+			Cook.Paint.remember_texture_owner(key,resident[key].texture)
 	if not texture_packet.get("images",{}).is_empty():
 		# Cook's caller-owned pool can outlive a texture's small global LRU too.
 		# Its old materials must not bypass the image-generation invalidation.

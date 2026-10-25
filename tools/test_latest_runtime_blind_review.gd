@@ -24,6 +24,10 @@ func pixels(texture:Texture2D)->String:
 	var image:=texture.get_image()
 	return image.get_data().hex_encode() if image!=null else ""
 func source_refresh()->void:
+	# This test deliberately edits bytes behind the package/importer contract.
+	# SHA assertions belong to the diagnostic reader; production stays trusted.
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var previous_verification:bool=policy.verify_packages;policy.verify_packages=true
 	var path:=folder.path_join("paint.png")
 	var normal_path:=folder.path_join("normal.png")
 	write_image(path,Color.RED);write_image(normal_path,Color(.5,.25,1))
@@ -47,6 +51,7 @@ func source_refresh()->void:
 	var old_texture:WeakRef=weakref(live.albedo_texture);live=null
 	Paint.trim_cached_resources()
 	check(old_texture.get_ref()==null,"retired source is released after its independent live consumer ends")
+	policy.verify_packages=previous_verification
 func admission_policy()->void:
 	var too_small:=Admission.new();too_small.byte_limit=64
 	var cancel:=func():pass

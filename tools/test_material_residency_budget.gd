@@ -49,5 +49,8 @@ func run()->void:
 	tickets["previous_turn"]=pool[[slot]].albedo_texture
 	check(Slices.step([slot],{},pool,tickets)==Slices.READY and tickets.is_empty(),"already-completed shared material also clears an obsolete handoff")
 	var report:={"failures":failures,"checks":8,"renderer_texture_before":before,"renderer_texture_after":after,"alive_textures":alive,"trim":trimmed,"zero_budget_material_turns":turns}
-	FileAccess.open("D:/code/rmmo_runtime/review_artifacts/editor_runtime_followup_20261017/material_residency.json",FileAccess.WRITE).store_string(JSON.stringify(report,"  "))
+	var output:="D:/code/rmmo_runtime/review_artifacts/editor_runtime_followup_20261017/material_residency.json"
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--output="):output=arg.trim_prefix("--output=")
+	FileAccess.open(output,FileAccess.WRITE).store_string(JSON.stringify(report,"  "))
 	print("MATERIAL_RESIDENCY ",JSON.stringify(report));quit(1 if failures else 0)
