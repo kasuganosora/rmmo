@@ -180,6 +180,8 @@ func finish(code:int)->void:
 	if is_instance_valid(mesh_map):
 		report.stream_append_timing=mesh_map.get_meta("stream_append_timing",{})
 		report.stream_append_slow=mesh_map.get_meta("stream_append_slow",[])
+		var native_node:Node=mesh_map.get_node_or_null("NativeResidency")
+		if native_node!=null and native_node.get("profile") is Dictionary:report.native_profile=native_node.profile
 	var final_queue:Node=mesh_map.get_node_or_null("DeferredAssets") if is_instance_valid(mesh_map) else null
 	if final_queue!=null and final_queue.get("profile") is Dictionary:
 		report.stage_ring=final_queue.profile.get("stage_ring",[])

@@ -22,6 +22,7 @@ static var retirement_batching_enabled:=true
 static var lazy_pending_scan_enabled:=true
 static var frame_retry_enabled:=true # Diagnostic control retains quarter-second dispatch.
 var _retry_candidates:Array=[] # At most one observation slice; UUIDs only, no resource owners.
+var _cleanup_pending:Array=[] # Mature unit cleanup; drained one unit per frame.
 func configure(host:Node,map_root:Node,queue:Node)->void:
 	name="NativeResidency";set_meta("stream_instance",true);_host=host;_map=map_root;_queue=queue
 	var index:Dictionary=queue._reference_index
@@ -133,7 +134,31 @@ func _observe_publication(packet:RefCounted)->bool:
 	profile.observed_bounds=int(profile.get("observed_bounds",0))+observations
 	profile.prepared_observations=int(profile.get("prepared_observations",0))+1
 	return true
+func _drain_cleanup()->void:
+	if _cleanup_pending.is_empty() or not is_instance_valid(_map):return
+	var item:Dictionary=_cleanup_pending.pop_front()
+	var entries:Array=item.get("entries",[]);var digests:Dictionary=item.get("digests",{});var model_paths:Dictionary=item.get("model_paths",{})
+	var began:=Time.get_ticks_usec()
+	var requeue_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.requeue")
+	_queue.requeue_references(entries)
+	_release_preparation_cache(entries)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("native.requeue",requeue_began,{"records":entries.size()})
+	Prefab.evict_geometry(digests)
+	for path:String in model_paths:
+		var usage:Node=_map.get_node_or_null("AssetResidency")
+		var used:bool=usage.model_in_use(path) if usage!=null else _map.get_meta("stream_library",[]).any(func(spec):return spec.get("ground_batch_record",{}).get("asset_path","")==path)
+		if not used:
+			var scope:RefCounted=_map.get_meta("runtime_asset_cache_scope") if _map.has_meta("runtime_asset_cache_scope") else null
+			var evicted:bool=scope.release(path) if scope!=null else preload("res://scripts/world_editor/asset_library.gd").evict_cached_scene(path)
+			if evicted:_queue._prepared_paths.erase(path)
+	Paint._materials.clear();Paint._textures.clear()
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.cleanup_deferred_us=int(profile.get("cleanup_deferred_us",0))+elapsed
+	profile.max_cleanup_deferred_us=maxi(int(profile.get("max_cleanup_deferred_us",0)),elapsed)
+	profile.cleanup_deferred_drains=int(profile.get("cleanup_deferred_drains",0))+1
+
 func _process(delta:float)->void:
+	_drain_cleanup()
 	if is_instance_valid(_host) and _host._ready_for_play and not _host._transfer_pending:Stream.advance_retirement_preparation(_map)
 	_clock+=delta
 	if not is_instance_valid(_host) or not _host._ready_for_play or _host._transfer_pending:return
@@ -224,7 +249,11 @@ func _drain_candidates(now:int,recheck:bool)->void:
 			if spec.extras.has("fixture"):fixtures[record.get("uuid",uuid.get_slice("__",0))]=float(spec.extras.fixture.open)
 			if record.has("house_prefab"):digests[record.house_prefab.sha256]=true
 			if record.has("asset_path"):model_paths[record.asset_path]=true
+		var retire_started:=Time.get_ticks_usec()
 		var result:=Stream.retire_specs(_map,ids,true,nav,"native_retirement")
+		var retire_commit_us:=Time.get_ticks_usec()-retire_started
+		profile.retire_commit_us=int(profile.get("retire_commit_us",0))+retire_commit_us
+		profile.max_retire_commit_us=maxi(int(profile.get("max_retire_commit_us",0)),retire_commit_us)
 		profile.retirement_attempts=int(profile.get("retirement_attempts",0))+1
 		if not result.ok:
 			profile.last_wait=result.error;profile.last_wait_unit=",".join(units)
@@ -239,34 +268,24 @@ func _drain_candidates(now:int,recheck:bool)->void:
 			if Time.get_ticks_usec()-started>=2000:return
 			continue
 		var cleanup_started:=Time.get_ticks_usec()
+		var cleanup_total_started:=cleanup_started
 		if result.has("cleanup"):
 			fixtures=result.cleanup.fixtures;digests=result.cleanup.digests;model_paths.merge(result.cleanup.model_paths,true)
 			profile.cleanup_plan_rows=int(profile.get("cleanup_plan_rows",0))+int(result.removed)
 		_queue.runtime_fixture_states.merge(fixtures,true)
-		var requeue_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.requeue")
-		_queue.requeue_references(entries)
-		var preparation_release:=Time.get_ticks_usec()
-		_release_preparation_cache(entries)
-		preload("res://scripts/world3d/load_trace.gd").elapsed("native.release_preparation_cache",preparation_release,{"records":entries.size()})
-		preload("res://scripts/world3d/load_trace.gd").elapsed("native.requeue",requeue_began,{"units":units.size(),"records":entries.size()})
-		var release_began:=preload("res://scripts/world3d/load_trace.gd").begin("native.cache_release")
-		Prefab.evict_geometry(digests)
-		for path:String in model_paths:
-			var usage:Node=_map.get_node_or_null("AssetResidency")
-			var used:bool=usage.model_in_use(path) if usage!=null else _map.get_meta("stream_library",[]).any(func(spec):return spec.get("ground_batch_record",{}).get("asset_path","")==path)
-			if not used:
-				var scope:RefCounted=_map.get_meta("runtime_asset_cache_scope") if _map.has_meta("runtime_asset_cache_scope") else null
-				var evicted:bool=scope.release(path) if scope!=null else preload("res://scripts/world_editor/asset_library.gd").evict_cached_scene(path)
-				if evicted:_queue._prepared_paths.erase(path)
-		# Drop hot-cache ownership; active maps retain resources and weak catalogues
-		# continue reusing them. This never changes a live material or texture.
-		Paint._materials.clear();Paint._textures.clear()
-		preload("res://scripts/world3d/load_trace.gd").elapsed("native.cache_release",release_began,{"units":units.size(),"models":model_paths.size()})
+		# Requeue and resource eviction are safe after the atomic index commit.
+		# Keep them out of the same frame as a large unit's retirement commit so
+		# the commit and cleanup each get a bounded frame slice.
+		_cleanup_pending.append({"entries":entries,"digests":digests,"model_paths":model_paths,"units":units.duplicate()})
+		profile.cleanup_deferred_units=int(profile.get("cleanup_deferred_units",0))+units.size()
 		for id:String in units:_resident.erase(id);_retired[id]=true;_retry_candidates.erase(id)
 		profile.retired_units+=units.size();profile.retired_specs+=result.removed;profile.last_wait=""
 		profile.retirement_transactions=int(profile.get("retirement_transactions",0))+1
 		profile.max_units_per_transaction=maxi(int(profile.get("max_units_per_transaction",0)),units.size())
 		profile.resident_units=_resident.size()
+		var cleanup_us:=Time.get_ticks_usec()-cleanup_total_started
+		profile.cleanup_total_us=int(profile.get("cleanup_total_us",0))+cleanup_us
+		profile.max_cleanup_us=maxi(int(profile.get("max_cleanup_us",0)),cleanup_us)
 		Stream.charge_retirement_work(_map,"native_retirement",cleanup_started)
 		return
 

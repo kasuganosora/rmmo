@@ -215,3 +215,23 @@ exe和调试符号匹配，但MI日志出现当前源码比二进制新的警告
 本轮已经解决的是运行时原 GLB 依赖及其跨地图目录降级；尚未关闭的是旧引用读取秒级停顿的底层
 原因，以及新样本整条CPU链普遍变慢的原因。不得借零GLB访问、一次低于10秒或产物工作量相等，
 宣布cold尾部稳定性和全部长帧已解决。
+
+## 2026-10-25 追加：covered 预算与 3D 返回刷新
+
+后续针对最新普通回归的两处稳定尖峰做了受控修改，没有恢复 GLB、纹理或 HUD：
+
+- **cold**：covered 初始加载 publication 预算从 32ms 调到 48ms（只在 cover/3D-off
+  期间；交互和同地图 transfer 不变）。普通 cold-index N10：median **8.381s**、
+  p95/max **9.784s**（9.784 为单次最大，仍低于 10s；原始 summary 在
+  `budget48_cold_10_20261025/summary.json`）。
+- **3D 返回**：`_refresh_demanded` 的返回长帧根因是 runtime building 注册触发的
+  全量需求重建；现在只对已 indexed 且 cover 已撤的注册做增量 membership 追加，
+  initial covered 阶段保留原 invalidation。priority rank 的移动锚从 4m 放宽到
+  32m（chunk 级别），避免 2km 返回每 4m 重建整城。
+- 返回/重载 10 次 native 路线结果为 **全部 0 帧 >50ms**（max 返回 43.1ms、
+  重载 39.6ms）；卸载 9/10 干净，唯一 `a32_06` 50.7ms 的 `process_ms` 14.4ms、
+  Deferred stage 全空，是 OS/GPU 空闲样本，按用户要求单独立项、不作为白模代码尖峰。
+- `test_initial_loading_cover` 13/0、`test_entry_loading_contract` 24/0 通过；
+  `test_deferred_index_preparation` 的 2 个失败在阈值 >256 时同样存在，是独立遗留。
+- 代码仍在工作区，未提交；证据在 `anchor32_3d_10_20261025/`、
+  `incremental_cold_10_20261025/`、`budget48_cold_10_20261025/`。

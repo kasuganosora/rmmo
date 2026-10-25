@@ -17,7 +17,7 @@ static var force_covered_loading_budget:=false # Diagnostic: test the drawn-cove
 static var white_worker_capacity_enabled:=true
 const COVERED_LOADING_BUDGET_US:=16000
 const TRANSFER_COVERED_BUDGET_US:=16000
-static var covered_loading_budget_usec:=32000
+static var covered_loading_budget_usec:=48000
 const REUSE_HASH_BLOCK_BYTES:=4*1024*1024
 const REUSE_HASH_RESERVATION_BYTES:=4*REUSE_HASH_BLOCK_BYTES
 const REUSE_FACE_MAX_MESHES:=64
@@ -1424,25 +1424,41 @@ func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->voi
 	var previous_buildings:=_runtime_building_records.size()
 	_runtime_building_records[uuid]=bounds;_runtime_building_supports[uuid]=supports.duplicate()
 	order.make_read_only();_intern_runtime_support_order(uuid,order)
-	# Publication callbacks run after removing these owners from pending. The
-	# learned bounds/supports are for future requeue (which invalidates demand),
-	# not a change to today's remaining ranks. Preserve invalidation for live
-	# pending learning and for the initial, not-yet-indexed configuration.
-	if _indexed:
-		var pending_item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
-		if pending_item.is_empty() or pending_item.get("published",false):
-			# Learning an absent/completed UUID cannot change any live pending
-			# kind. Advance only caches that were current before this observation;
-			# otherwise the next movement would redo the skipped whole-catalogue
-			# scan, or accidentally bless an older, genuinely invalidated cache.
-			var learned_buildings:=_runtime_building_records.size()
-			if learned_buildings!=previous_buildings:
-				if _typed_pending_buildings==previous_buildings:_typed_pending_buildings=learned_buildings
-				if _pending_kinds!=null and _pending_kinds.building_count==previous_buildings:_pending_kinds.building_count=learned_buildings
-				for cached:Dictionary in _demand_membership.values():
-					if cached.get("kind")=="building" and cached.get("buildings")==previous_buildings:cached.buildings=learned_buildings
-			profile.runtime_registration_refresh_skips=int(profile.get("runtime_registration_refresh_skips",0))+1
-			return
+	# Registration is a live membership delta, not a reason to rebuild every
+	# ticket. Advance current membership catalogues by appending this building
+	# when it intersects their clip; a later publication/movement refresh still
+	# revalidates live flags and support closure.
+	var pending_item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+	if _indexed and not _covered_loading_ready():
+		var learned_buildings:=_runtime_building_records.size()
+		if learned_buildings!=previous_buildings:
+			if _typed_pending_buildings==previous_buildings:_typed_pending_buildings=learned_buildings
+			if _pending_kinds!=null and _pending_kinds.building_count==previous_buildings:_pending_kinds.building_count=learned_buildings
+			for cached:Dictionary in _demand_membership.values():
+				if cached.get("buildings")!=previous_buildings:continue
+				var cached_kind:String=str(cached.get("kind",""))
+				if cached_kind!="building" and cached_kind!="all":continue
+				cached.buildings=learned_buildings
+				if pending_item.is_empty() or pending_item.get("published",false):continue
+				if not cached.get("clip") is AABB or not cached.clip.intersects(pending_item.bounds):continue
+				var group:String=str(cached.get("group",""))
+				if not group.is_empty() and group!=str(pending_item.get("group_id","")):continue
+				var items:Variant=cached.get("items")
+				if not items is Array:continue
+				if not items.has(pending_item):items.append(pending_item)
+		profile.runtime_registration_refresh_skips=int(profile.get("runtime_registration_refresh_skips",0))+1
+		return
+	# Initial covered load keeps the original live-pending invalidation. Only
+	# post-reveal registration uses the bounded incremental catalogue delta.
+	if _indexed and (pending_item.is_empty() or pending_item.get("published",false)):
+		var learned_buildings:=_runtime_building_records.size()
+		if learned_buildings!=previous_buildings:
+			if _typed_pending_buildings==previous_buildings:_typed_pending_buildings=learned_buildings
+			if _pending_kinds!=null and _pending_kinds.building_count==previous_buildings:_pending_kinds.building_count=learned_buildings
+			for cached:Dictionary in _demand_membership.values():
+				if cached.get("kind")=="building" and cached.get("buildings")==previous_buildings:cached.buildings=learned_buildings
+		profile.runtime_registration_refresh_skips=int(profile.get("runtime_registration_refresh_skips",0))+1
+		return
 	_demand_revision+=1;set_process(_active)
 
 func _runtime_supports_ready(uuid:String)->bool:
@@ -1622,7 +1638,11 @@ func prioritize(position:Vector3)->void:
 	# order, and used to invalidate preparation plans on every player frame.
 	# Safety/explicit geometry demands retain their exact independent revisions.
 	var flat_position:=Vector3(position.x,0,position.z)
-	if not _priority_rank_anchor is Vector3 or _priority_rank_anchor.distance_squared_to(flat_position)>=16.:
+	# Four metres made every return frame re-rank the whole town while the
+	# chunk-aligned demand clips stayed unchanged. A 32m anchor matches the
+	# demand cell cadence and caps whole-town refreshes without changing
+	# demand membership; nearest local work remains chunk-driven.
+	if not _priority_rank_anchor is Vector3 or _priority_rank_anchor.distance_squared_to(flat_position)>=1024.:
 		_priority_rank_anchor=flat_position
 		_demand_revision+=1
 		set_process(_active)
