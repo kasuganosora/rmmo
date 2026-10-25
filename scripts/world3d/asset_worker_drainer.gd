@@ -63,13 +63,17 @@ static func _dispose_result(worker: RefCounted, token: RefCounted = null) -> voi
 	if not worker.is_started(): return
 	var result: Variant = worker.wait_to_finish()
 	var deferred_release:=false
+	# Header tasks return bounded scalar metadata only, never Images/Resources or
+	# render commands. Detachment must not add a renderer fence for CPU-only I/O.
+	var cpu_metadata_only:bool=token!=null and token.get_meta("cpu_metadata_only",false)
+	if cpu_metadata_only:result=null
 	if result is Dictionary and token!=null and token.has_meta("admission_release") and token.has_meta("admission_owner"):
 		deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_model_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
 		if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
 	# A parser can hand off a private PackedScene/GLTFState without a Node.
 	# Finish its renderer commands before releasing the unconsumed resources.
 	if result is Dictionary:dispose_result(result)
-	else:synchronize_transfer()
+	elif not cpu_metadata_only:synchronize_transfer()
 	release_shared(token)
 	# A detached map can no longer own the ledger. Its token retains only this
 	# RefCounted ledger and its callback, never the map/queue being destroyed.
@@ -176,8 +180,9 @@ static func drain_shutdown(worker: RefCounted, token: RefCounted = null) -> void
 	# RenderingServerDefault::sync: it flushes commands queued by other threads
 	# on the main-render-thread backend. Never wait_to_finish while still alive.
 	while worker.is_alive():
-		preload("res://scripts/world3d/mesh_readback_batch.gd").pump(1500)
-		RenderingServer.force_sync()
+		if token==null or not token.get_meta("cpu_metadata_only",false):
+			preload("res://scripts/world3d/mesh_readback_batch.gd").pump(1500)
+			RenderingServer.force_sync()
 		OS.delay_msec(1)
 	_dispose_result(worker,token)
 

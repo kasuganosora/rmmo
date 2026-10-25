@@ -41,6 +41,7 @@ const CollisionGeometry=preload("res://scripts/world3d/model_collision_requireme
 static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
 static var parallel_texture_preparation_enabled:=true # Same byte lease and total worker cap; diagnostic serial control.
 static var texture_plan_reuse_enabled:=true
+static var async_texture_headers_enabled:=true
 static var prefab_texture_preparation_enabled:=true
 static var native_entry_prefetch_enabled:=false
 static var bridge_texture_preparation_enabled:=true # Demanded native bridges, after core publication only; full entry ABBA verified.
@@ -648,7 +649,7 @@ func _configure_admission_budget()->void:
 	profile.texture_plan_reserved_bytes=TexturePlanCatalog.RESERVED_BYTES if texture_plan_reuse_enabled and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures else 0
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.texture_plan_reserved_bytes))
 
-func is_complete()->bool:return pending_count()==0 and _jobs.is_empty()
+func is_complete()->bool:return pending_count()==0 and _jobs.is_empty() and _texture_plan_catalog.pending_count()==0
 
 func active_workers()->int:
 	var count:=0
@@ -656,7 +657,7 @@ func active_workers()->int:
 		if _jobs[path].has("worker"):
 			var lease:Dictionary=_admission._entries.get(path,{})
 			if lease.get("occupies_worker",true):count+=int(lease.get("worker_slots",1))
-	return count
+	return count+_texture_plan_catalog.pending_count()
 
 func quiesce()->void:
 	_invalidate_collision_queries()
@@ -668,7 +669,8 @@ func quiesce()->void:
 	finish_entry_prefetch()
 	var tree:SceneTree=get_tree() if is_inside_tree() else _lifetime_tree
 	for job:Dictionary in _jobs.values():job.token.cancel()
-	while not _jobs.is_empty():
+	while not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0:
+		_texture_plan_catalog.poll()
 		for path:String in _jobs.keys():
 			var job:Dictionary=_jobs[path]
 			if job.has("worker"):
@@ -682,7 +684,7 @@ func quiesce()->void:
 			# or take RAW_IMPORT_MUTEX on the main thread.
 			Drainer.synchronize_transfer()
 			_discard_job(path)
-		if not _jobs.is_empty():
+		if not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0:
 			if is_instance_valid(tree):await tree.process_frame
 			else:shutdown();return
 	profile.active_jobs=0;profile.reserved_bytes=_admission.reserved_bytes
@@ -693,6 +695,7 @@ func quiesce()->void:
 	if _prefetch_budget_owned:profile.entry_prefetch_mode="quiesced"
 
 func shutdown()->void:
+	_texture_plan_catalog.shutdown()
 	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_demand_membership.clear()
@@ -723,12 +726,12 @@ func shutdown()->void:
 func _notification(what:int)->void:
 	# An off-tree queue has never received _exit_tree. A forced loader teardown
 	# must still keep live worker-owned resources alive until their safe drain.
-	if what==NOTIFICATION_PREDELETE and (not _jobs.is_empty() or is_instance_valid(_collision_prefetch_service) or _reference_handoff!=null):shutdown()
+	if what==NOTIFICATION_PREDELETE and (not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0 or is_instance_valid(_collision_prefetch_service) or _reference_handoff!=null):shutdown()
 
 func is_idle()->bool:
 	# Observers must not do unbudgeted scheduling work. Until the next admitted
 	# process refresh, an outdated demand snapshot is conservatively not idle.
-	return _candidates_revision==_demand_revision and _demanded_count()==0 and _jobs.is_empty()
+	return _candidates_revision==_demand_revision and _demanded_count()==0 and _jobs.is_empty() and _texture_plan_catalog.pending_count()==0
 
 func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all",rank_from_player:bool=false)->void:
 	if id.is_empty() or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.z<0:return
@@ -1778,6 +1781,21 @@ func _targeted_bridge_textures(item:Dictionary)->bool:
 	if not is_instance_valid(_map) or _map!=get_parent() or int(_map.get_meta("entry_plan",{}).get("core_resources_ready_us",0))<=0:return false
 	return item.get("native_reference",false) and item.get("reference_entry",EMPTY_DEMAND).get("reason","")=="native_bridge" and _demanded_by_id.has(str(item.get("record",{}).get("uuid","")))
 
+func _texture_sources(requests:Array)->Dictionary:
+	var sources:Dictionary={}
+	for request:Dictionary in requests:
+		var at:int=int(request.get("record_index",-1))
+		if at>=0 and at<_reference_index.get("rows",[]).size():sources.merge(_reference_index.rows[at].get("prefab_textures",{}),true)
+	return sources
+
+func _texture_headers_ready(item:Dictionary,requests:Array,tree:SceneTree)->bool:
+	if not async_texture_headers_enabled or not texture_plan_reuse_enabled or _reference_root.is_empty() or (not prefab_texture_preparation_enabled and not _targeted_bridge_textures(item)):return true
+	var began:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
+	var ready:bool=_texture_plan_catalog.prepare_async(_texture_sources(requests),_reference_root,_admission,tree)
+	_record_texture_dispatch("header_ready",began,str(item.get("path","")),requests.size())
+	if not _texture_plan_catalog.error.is_empty():_fail(_texture_plan_catalog.error)
+	return ready
+
 func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	if (not prefab_texture_preparation_enabled and not _targeted_bridge_textures(item)) or _reference_root.is_empty():return {}
 	var generation:int=preload("res://scripts/world3d/surface_materials.gd").source_generation
@@ -1795,9 +1813,7 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	if _prefab_texture_attempts.has(key):
 		profile.prefab_texture_plan_hits=int(profile.get("prefab_texture_plan_hits",0))+1
 		return _prefab_texture_attempts[key]
-	var sources:Dictionary={}
-	for at:int in positions:
-		if at>=0 and at<_reference_index.get("rows",[]).size():sources.merge(_reference_index.rows[at].get("prefab_textures",{}),true)
+	var sources:Dictionary=_texture_sources(requests)
 	# Compressed sources still need admitted CPU reads and sliced GPU uploads.
 	# Omitting DDS here made real record construction synchronously load every
 	# material layer, bypassing both the worker and the publication budget.
@@ -3330,6 +3346,8 @@ func _road_batch_superseded(path:String,job:Dictionary)->bool:
 	return true
 
 func _poll_jobs(required:Dictionary)->void:
+	_texture_plan_catalog.poll()
+	profile.texture_plan_catalog=_texture_plan_catalog.snapshot()
 	# Retire completed/cancelled jobs independently; never wait for a slow sibling.
 	profile.last_poll_join_us=0;profile.last_poll_sync_us=0
 	for path:String in _jobs.keys():
@@ -3422,7 +3440,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 	if tree==null or _cancelled or not error.is_empty():return
 	var dispatch_started:=Time.get_ticks_usec()
 	var deadline:=_dispatch_deadline if _dispatch_deadline>0 else dispatch_started+1000
-	var capacity:Array=[_demand_revision,_admission.reserved_bytes,_admission.active_workers(),_jobs.size(),_scheduler_epoch,prefetch_only,native_entry_prefetch_enabled,prefab_texture_preparation_enabled,shared_prefab_texture_preparation_enabled,bridge_texture_preparation_enabled]
+	var capacity:Array=[_demand_revision,_admission.reserved_bytes,_admission.active_workers(),_jobs.size(),_scheduler_epoch,_texture_plan_catalog.revision,prefetch_only,native_entry_prefetch_enabled,prefab_texture_preparation_enabled,shared_prefab_texture_preparation_enabled,bridge_texture_preparation_enabled]
 	if _dispatch_revision!=_demand_revision:
 		_dispatch_paths=_demanded_by_path.keys();_dispatch_revision=_demand_revision
 		_dispatch_paths.sort_custom(func(a,b):return _path_rank(a)<_path_rank(b))
@@ -3459,6 +3477,11 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			_dispatch_cursor-=1;break
 		attempts+=1
 		var requests:Array=_reference_requests(path)
+		# A slow first header must not occupy the main dispatch loop or stop other
+		# ready geometry. Header jobs share admission and complete out of order.
+		if not _texture_headers_ready(next,requests,tree):
+			if not error.is_empty():return
+			continue
 		# One immutable dispatch decision governs both reservation and worker.
 		# A missing/replaced template is retried by acceptance with a new full
 		# reservation, never imported by this reduced-budget reuse job.
@@ -3855,12 +3878,14 @@ static func _collect_collision_asset(holder:Node3D,result:Array)->void:
 		result.append(spec)
 
 func _fail(reason:String)->void:
+	_texture_plan_catalog.abandon()
 	error=reason
 	for job:Dictionary in _jobs.values():job.token.cancel()
 	set_process(not _jobs.is_empty());failed.emit(reason)
 
 func _exit_tree()->void:
 	if _scene_handoff:return
+	_texture_plan_catalog.abandon()
 	_cancelled=true
 	_cancel_collision_prefetch("prefetch_owner_exited")
 	for id:String in _collision_request_ids.keys():_release_collision_request(id)

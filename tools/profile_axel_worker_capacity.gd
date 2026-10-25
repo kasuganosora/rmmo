@@ -130,6 +130,7 @@ func _initialize()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg=="--serial-chunk-textures":preload("res://scripts/world3d/deferred_asset_loader.gd").parallel_texture_preparation_enabled=false
 		if arg=="--without-texture-plan-reuse":preload("res://scripts/world3d/deferred_asset_loader.gd").texture_plan_reuse_enabled=false
+		if arg=="--sync-texture-headers":preload("res://scripts/world3d/deferred_asset_loader.gd").async_texture_headers_enabled=false
 		if arg=="--without-completed-owner-drain":preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled=false
 		if arg=="--without-native-prefab-direct-specs":preload("res://scripts/world3d/deferred_asset_loader.gd").native_prefab_direct_specs_enabled=false
 		if arg=="--completed-job-audit":

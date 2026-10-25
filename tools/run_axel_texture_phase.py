@@ -49,6 +49,7 @@ def main():
     parser.add_argument("--without-uv-projection-elision", action="store_true")
     parser.add_argument("--serial-chunk-textures", action="store_true")
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
+    parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     args = parser.parse_args()
@@ -87,6 +88,8 @@ def main():
         cmd.append("--serial-chunk-textures")
     if args.without_texture_plan_reuse:
         cmd.append("--without-texture-plan-reuse")
+    if args.sync_texture_headers:
+        cmd.append("--sync-texture-headers")
     if args.screenshot:
         cmd.append("--stage-screenshot")
     before = sources()
@@ -101,6 +104,7 @@ def main():
               "uv_projection_elision": not args.without_uv_projection_elision,
               "parallel_chunk_textures": not args.serial_chunk_textures,
               "texture_plan_reuse": not args.without_texture_plan_reuse,
+              "async_texture_headers": not args.sync_texture_headers,
               "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",
               "cache_scope": {"derived_index": "invalidated" if args.cold_index else "retained",
                               "geometry_cache": "disabled", "texture_disk_cache": "retained",
