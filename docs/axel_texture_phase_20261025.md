@@ -398,7 +398,7 @@ Deferred 队列无法 idle。预算本身能把上传量降约 73%，但不能�
 texture source budget/lazy 实验路径全部撤回；保留的只有 trusted SHA 删除和
 profile/文档。2.33GB 上传与 450–513ms 长帧仍未解决。
 
-## 离线 DDS sidecar：上传量降 75%
+## 离线 DDS sidecar：历史采样（上传总量口径已更正）
 
 按授权对现有 pack 纹理做**附加式**离线 GPU 压缩，不修改源文件：
 
@@ -411,7 +411,8 @@ profile/文档。2.33GB 上传与 450–513ms 长帧仍未解决。
 
 `map_traverse_26`（带 texture profile + screenshot）：
 
-- upload_bytes 约 **2.29GB → 564,742,192**（约 **-75%**）
+- 当时的 upload_bytes 记录为 **2.29GB → 564,742,192**；原“约 -75%”结论
+  因 DDS 分支漏计而撤销，不能把该数值当作压缩后的全部上传量，见下方复核。
 - sidecar uploads 124，sidecar upload 累计 226ms，max 15.4ms
 - material 累计 378ms（旧约 9s）
 - full-ready 18.611s；截图地面/石路纹理正常，failures 空
@@ -421,11 +422,90 @@ reload max 45–55ms（旧 192ms），但 return 仍 353–672ms。也就是说 
 降低了纹理上传/重载，未消除 Stream.sync 的 return 几何尖峰。源地图/纹理未改；
 sidecar 是可选离线资产，需要随 pack 一起分发。
 
-## 证据
+## 2026-10-25 编辑器适配复核与计量纠正
+
+复核 `4c2ba020` 发现，DDS 分支只计 `paint.texture.sidecar_uploads`，没有把
+`side.image.get_data_size()` 加到 `paint.texture.upload_bytes`。因此历史
+`564,742,192` **仅覆盖未走 DDS 的上传**，遗漏的 DDS 总字节未保存在该累计计数中。
+原始日志、样本和耗时保留；不能靠补代码倒推成“已重新测得总量”，也不能继续宣称
+总体下降 75%。新代码将 DDS 上传同时计入总量，并单列 `paint.texture.sidecar_upload_bytes`。
+
+生成器还存在三个明确的正确性缺口：`.flip` 法线做了图像上下翻转而不是 G 通道反转；
+DDS 只写顶层，丢失原路径已有的 mipmap；透明源改为不透明后，旧 DXT5 可能继续优先于
+新 DXT1。候选修复先在临时目录完成，以下引擎测试时地图 sidecar **尚未重新生成**，避免混入引擎
+shader 复用 ABBA。补齐 mip 链会增加压缩文件和上传字节，通常接近额外三分之一；应以
+重新生成后的实际文件统计，不能沿用旧资源成本。
+
+编辑器 UI 和当前 3D MCP 的 `import_surface_material` 均复用
+`SurfaceMaterialLibrary.import_texture()`，它把解码后 PNG 发布到内容 SHA 路径。
+重复导入发生像素变化时换新路径，旧 PNG/DDS 不覆盖，旧 sidecar 缓存不会跨路径命中。
+显式 `Paint.refresh_sources()` 现补清正、负 sidecar 缓存；未增加运行时 stat/hash、
+全包校验或未存在的 UI 刷新功能。
+
+DDS/BC1/BC3 属于**有损压缩**。早先截图不能代替完整法线、透明边缘、近中远过滤和 mip
+验收。后续固定 Vulkan 近中远/斜光对照发现 BC3 法线黑斑/噪点不合格；同块预算的
+BC5(RG) 在 natural_dirt、sandstone_floor、outdoor_flagstone、solid_timber 四个代表
+候选通过，并验证候选材质保存重开。该代表试验时正式包未转换，其他法线留到后续逐项视觉复验。
+运行时已补齐 normal 角色键贯穿入口、准备、发布、弱缓存、失效及真实等待后的续作；
+不能让 BC5 误用于同源颜色图。旧 DDS 固定测试期间的一次真实地图 prime 暴露续作仍
+重建双元素请求，独立两 worker 队列红测复现后修为三元恢复，32 项通过；该失败
+prime 不作为性能样本。生成器也改为保留同源另一角色的 sidecar。
+详见 `docs/axel_editor_dds_adaptation_20261025.md`。
+
+后续按明确的 74 源清单完成正式派生文件迁移：88 个 DDS 均有旧字节/SHA 备份，实际
+安装 88 文件共 **328,566,704 B**，退役 34 个 normal-only 旧 DXT；源图片/地图 SHA
+未变。54 个颜色 DDS 顶级块 payload 保持原字节，仅新增 mip；20 个实际选用法线均做
+StandardMaterial3D 固定近中远/细节及保存重开对照，BC5 未见非预期损失。实际目标 SHA
+与画质候选一致，凭据为 `editor_dds_20261025/map_stage01/published.json`/`reviewed.json`。
+
+最终自审另补 BC5 自定义 shader 合同：地形 6 层和水此前直接使用 B 通道，会把 BC5 的
+缺省 B 当作真实 Z。实际 `River.bind`/地形 shader 红测 144 项中 78 失败，修复后 144 项
+全过，像素平均误差从 0.098–0.170 降至 0.00034–0.00048；PNG 原路径 11 张前后画面
+逐字节相同。每次纹理创建记一次格式 metadata、材质绑定记 uniform，仅 BC5 重建 Z。
+这属于正确性和完整接入，不把增加 mip 所带成本误报为纯性能收益；最后实际地图累计
+状态由主性能记录另行报告。
+
+## 2026-10-25 累计复测与下一处卡点
+
+本轮保留两项已独立证明的性能修改：原生 StandardMaterial 的有限闲置 shader 复用，地图返回变体创建从 17 次降到 10 次；地形遮罩只计算羽化带，17 个真实区域的精确线段查询从 48,237,376 降至 237,634，输出逐字节一致。固定旧 DDS 的 ABBA full-ready 均值 20.764s→13.392s，减少 7.371s。该因果证据不能代替下面新 DDS 的累计结果。
+
+已完成编辑器/运行时纹理角色、刷新、后台只读查询、续作及 6 层地形/水 shader 适配。74 个源的 88 个 DDS 正式发布、旧文件 SHA 备份完整；20 个实际法线与 4 个实际自定义地形 shader 代表对照通过。尺寸、格式、完整 mip 合同及 PNG 分支字节不变等详情以专项记录为准。地图、源图片未修改。
+
+最终先单独 prime 派生目录（19.656s，不进入下表），全组冻结生产脚本、shader 及已安装的 DDS；逐轮及前后来源检查均通过。普通优先级、未改 QoS、未清 OS cache，几何/边界/模型元数据缓存按既定夹具关闭。F1/F2 使用 eaec，F3 使用只叠加 DDS 读取修复的 52f532；没有据两个不同 exe 的时间相减归因。
+
+| 样本 | 入口 | full-ready | 卸载 max / >50ms 帧 | 返回 max / >50ms 帧 | 重载 max / >50ms 帧 |
+| --- | ---: | ---: | --- | --- | --- |
+| F1 | 8.397s | 25.472s | 81.507ms / 9 | 85.605ms / 6 | 39.847ms / 0 |
+| F2 | 5.542s | 13.893s | 35.796ms / 0 | 73.794ms / 1 | 45.496ms / 0 |
+| F3 | 8.606s | 19.147s | 29.783ms / 0 | 73.664ms / 1 | 45.838ms / 0 |
+
+所有功能断言通过，源脚本/地图未变；88 个已安装 DDS 前后 SHA 全部匹配。三轮均 shader 创建 10 / 复用 7；实际上传 **995,359,496 B**，其中 DDS **430,617,304 B / 124 次**，其余 **564,742,192 B / 46 次**。补齐 mip 及法线格式后，实际上传比旧 DDS 对照的 862,537,776 B 增加约 15.4%；这是恢复过滤/法线正确性的成本，不能宣称这轮上传进一步下降。此数是多阶段累计提交字节，不是峰值 VRAM。
+
+F2/F3 均退休 504 单元 / 3677 specs；F1 为 503 / 3672，完整功能断言仍通过，但动态预测/时序工作量并非逐项完全相同。三轮不足以宣称 p95 稳定；F1 同一 eaec 比 F2 慢 11.579s，保留慢样本，原因未确认。F1 初始 shader 首次提交约 267–338ms，F2 约 156–187ms，说明不能把全部波动简单归为 DDS 字节增加。
+
+返回 73ms 已定位到 Deferred **publication**：F2 71.527ms，F3 71.019ms；join 分别 24/18µs、sync 为零。本轮尚未取得这个发布子段的完整原生栈，不把它归为 OS 空闲或“仍在等上传锁”。F1 卸载提交最大 75.659ms；F2/F3 为 32.719/26.664ms，最大需求刷新为 39.992/22.583/31.615ms。下一处重点是发布的这约 71ms 及完整加载波动，已有工作量收益保留。
+
+新引擎白模单次回归入口 3.002s、full-ready **7.176s**，纹理上传计数为零，功能通过；这是一次正常缓存条件下的入口测试，不重新宣称 cold p95 或白模卸载全量验收。F1 地图截图按原尺寸 lossy WebP quality90 保存、绑定 SHA 并查看：道路/地表可见，导入建筑仍白色占据较大画面。该图不等于完整模型贴图、全部地形或天气画质验收。
+
+新增发现并修复了 MockServer 同步/提前访问时的资源回调互等；独立红绿及两次退出泄漏警告边界见专项。它不计入关闭 MockServer 的地图性能收益。
+
+专项入口：
+
+- `axel_editor_dds_adaptation_20261025.md`：编辑器、法线、mip、资源发布与画质。
+- `axel_material_shader_residency_20261025.md`：GDB、原生 shader 生命周期、ABBA。
+- `axel_terrain_mask_band_20261025.md`：重复计算、逐字节 oracle、地图 ABBA。
+- `axel_dds_partial_blocks_20261025.md`：非 4 倍数尺寸读取红绿、Vulkan、安装的 exe/symbols。
+- `axel_mock_server_shader_wait_20261025.md`：启动互等、同步与提前访问回归。
+
+当前未处理完：纹理完整加载波动；返回 publication 约 71ms；卸载慢样本；提前访问用例的偶发 4 ObjectDB 退出警告；10 张 1254×1254 源的 sidecar 转换接入（引擎已修，生成器尺寸过滤仍在）；导入模型完整材质和外围系统仍未恢复。不能宣布纹理阶段完成。
+
+最终证据：`material_submit_review_20261025/editor_dds_final_{prime,F1,F2,F3,white}.*`、`editor_dds_final_summary.json`、`editor_dds_final_assets_verified.json`、`editor_dds_final_slow_frames.json`、F1 WebP SHA/quality 收据。
+
+## 证据目录
 
 外部目录：
 `D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/texture_phase_20261025/`。
 
-本轮不修改正式地图、源纹理、模型几何或native产物，不做降分辨率/有损压缩。材质
-分片的受影响项验证使用相同图片的实际GPU回读，检查完整mip、normal方向、alpha及
+前述材质发布分片代码阶段不修改正式地图、源纹理、模型几何或native产物；后续 DDS
+派生资产阶段另有有损压缩与上述待验边界。材质分片的受影响项验证使用相同图片的实际GPU回读，检查完整mip、normal方向、alpha及
 共享身份；这不代替之后完整模型材质阶段的画面验收。

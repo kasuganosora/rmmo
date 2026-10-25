@@ -49,7 +49,30 @@ static func work(record: Dictionary) -> int:
 		var cells:=rect.size/span*float(RESOLUTION-1)+Vector2(2,2)
 		total+=ceili(cells.x)*ceili(cells.y)*region.polygon.size()
 	return total
-static func mask(record: Dictionary) -> Image:
+static func _edge_distances(polygon:PackedVector2Array,feather:float,span:Vector2,step:Vector2,lo:Vector2i,hi:Vector2i,diagnostics:Dictionary)->PackedFloat64Array:
+	# smoothstep saturates outside half the feather width. Only pixels in a
+	# segment's expanded bounds can need its exact distance. Keep the original
+	# native closest-point calculation and double precision inside this band.
+	# Scratch belongs to this invocation; concurrent preparation shares no data.
+	var distances:=PackedFloat64Array();distances.resize(RESOLUTION*RESOLUTION);distances.fill(INF)
+	var queries:=0
+	for i in polygon.size():
+		var a:=polygon[i];var b:=polygon[(i+1)%polygon.size()]
+		var rect:=Rect2(a,Vector2.ZERO).expand(b).grow(feather*.5)
+		# One extra pixel is conservative for world-to-grid floating rounding.
+		var start:=(Vector2i(((rect.position+span*.5)/step).floor())-Vector2i.ONE).max(lo)
+		var end:=(Vector2i(((rect.end+span*.5)/step).ceil())+Vector2i.ONE).min(hi)
+		if start.x>end.x or start.y>end.y:continue
+		queries+=(end.x-start.x+1)*(end.y-start.y+1)
+		for z in range(start.y,end.y+1):
+			var offset:=z*RESOLUTION
+			for x in range(start.x,end.x+1):
+				var p:=Vector2(x,z)*step-span*.5
+				distances[offset+x]=minf(distances[offset+x],p.distance_squared_to(Geometry2D.get_closest_point_to_segment(p,a,b)))
+	if not diagnostics.is_empty():diagnostics.edge_queries=int(diagnostics.get("edge_queries",0))+queries
+	return distances
+
+static func mask(record: Dictionary,diagnostics:Dictionary={}) -> Image:
 	var image:=Image.create(RESOLUTION,RESOLUTION,false,Image.FORMAT_RG8)
 	var span:=Vector2(record.size[0],record.size[2]); var step:=span/float(RESOLUTION-1)
 	for region in record.get("terrain_regions",{}).get("regions",[]):
@@ -57,11 +80,12 @@ static func mask(record: Dictionary) -> Image:
 		var rect:=bounds(polygon).grow(feather)
 		var lo:=Vector2i(((rect.position+span*.5)/step).floor()).clamp(Vector2i.ZERO,Vector2i(RESOLUTION-1,RESOLUTION-1))
 		var hi:=Vector2i(((rect.end+span*.5)/step).ceil()).clamp(Vector2i.ZERO,Vector2i(RESOLUTION-1,RESOLUTION-1))
+		var distances:=_edge_distances(polygon,feather,span,step,lo,hi,diagnostics)
+		if not diagnostics.is_empty():diagnostics.legacy_edge_queries=int(diagnostics.get("legacy_edge_queries",0))+(hi.x-lo.x+1)*(hi.y-lo.y+1)*polygon.size()
 		for z in range(lo.y,hi.y+1):
 			for x in range(lo.x,hi.x+1):
-				var p:=Vector2(x,z)*step-span*.5; var distance:=INF
-				for i in polygon.size(): distance=minf(distance,p.distance_squared_to(Geometry2D.get_closest_point_to_segment(p,polygon[i],polygon[(i+1)%polygon.size()])))
-				distance=sqrt(distance)*(1. if Geometry2D.is_point_in_polygon(p,polygon) else -1.)
+				var p:=Vector2(x,z)*step-span*.5
+				var distance:=sqrt(distances[z*RESOLUTION+x])*(1. if Geometry2D.is_point_in_polygon(p,polygon) else -1.)
 				var weight:=smoothstep(-feather*.5,feather*.5,distance)*float(region.opacity)
 				if weight<=0.: continue
 				var c:=image.get_pixel(x,z)*(1.-weight); c[int(region.layer)]+=weight; image.set_pixel(x,z,c)

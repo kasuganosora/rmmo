@@ -19,6 +19,9 @@ def digest(path):
 
 def sources():
     files = list((ROOT / "scripts").rglob("*.gd"))
+    # Custom material behavior is part of the measured source, too.
+    files += list((ROOT / "scripts").rglob("*.gdshader"))
+    files += list((ROOT / "scripts").rglob("*.gdshaderinc"))
     files += [ROOT / "tools" / name for name in (
         "profile_axel_game_pipeline.gd", "profile_axel_white_streaming.gd",
         "profile_axel_worker_capacity.gd", "run_godot_background.py",
