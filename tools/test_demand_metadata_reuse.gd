@@ -10,6 +10,9 @@ func compare(queue:Deferred,label:String)->Dictionary:
 func run()->void:
 	var logger:=Errors.new();OS.add_logger(logger)
 	contract_test();mixed_test()
+	# Isolate numeric-map allocation work from the newer whole-dispatch no-op.
+	var dispatch_reuse:bool=Deferred.reuse_demand_dispatch_catalogue_enabled
+	Deferred.reuse_demand_dispatch_catalogue_enabled=false
 	var reports:Array=[]
 	for reuse:bool in [false,true,true,false]:
 		var q:=make_queue();Deferred.reuse_demand_metadata_enabled=reuse
@@ -27,6 +30,7 @@ func run()->void:
 		check(q._demanded_rank.is_empty() and q._demanded_priority.is_empty(),"removed demand leaves no stale numeric entries")
 		q.free()
 	check(reports[0].created==115200 and reports[1].created==0 and reports[1].erased==0,"24 stable refreshes eliminate 115200 dictionary entry creations and removals")
+	Deferred.reuse_demand_dispatch_catalogue_enabled=dispatch_reuse
 	Deferred.reuse_demand_metadata_enabled=true;OS.remove_logger(logger)
 	check(logger.errors.is_empty(),"zero engine/script errors")
 	print("DEMAND_METADATA_REUSE ",JSON.stringify({"trials":reports,"failures":failed}));quit(1 if failed else 0)

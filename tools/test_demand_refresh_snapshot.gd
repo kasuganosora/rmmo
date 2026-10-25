@@ -41,9 +41,10 @@ func compare(q:Deferred,label:String)->Dictionary:
 	var expected:Dictionary=snapshot(q);var owners:Array=q._demanded.duplicate()
 	Deferred.lazy_demand_snapshot_enabled=true;q._demand_revision+=1;q._refresh_demanded()
 	var before:int=q.profile.get("demand_snapshot_materializations",0)
+	var needs_snapshot:bool=q._demanded_snapshot_dirty
 	var state:Dictionary=snapshot(q);var actual:Array=q._demanded
 	check(state==expected and exact_owners(owners,actual) and dense_live_ranks(q),"exact eager/lazy owners, order, path heads, dispatch, ranks and priority: "+label)
-	check(int(q.profile.get("demand_snapshot_materializations",0))-before==int(not actual.is_empty()),"explicit snapshot materializes once: "+label)
+	check(int(q.profile.get("demand_snapshot_materializations",0))-before==int(needs_snapshot),"explicit snapshot materializes once only when its current view is dirty: "+label)
 	Deferred.lazy_demand_snapshot_enabled=not legacy_control
 	return state
 

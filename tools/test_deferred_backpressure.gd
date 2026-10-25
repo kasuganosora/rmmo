@@ -86,6 +86,10 @@ func cursor_test()->void:
 	var rows:Array=[item("held",0)]
 	for i in 600:rows.append(item("blocked%d"%i,float(i+1),50))
 	var f:=fixture(rows);var queue:Queue=f.queue;queue.paused=true;queue.estimate_delay=100
+	# Hold the metadata generation constant before testing unchanged byte
+	# pressure. The first empty header request initializes this context and
+	# legitimately restarts admission once; it performs no source I/O.
+	check(queue._texture_headers_ready(rows[0],[],self),"empty texture header context is ready before the byte-pressure trial")
 	queue._admission.byte_limit=100;queue._admission.reserve("reference:held",{"estimated_bytes":90,"exclusive":false});queue._admission.park("reference:held")
 	queue._jobs["reference:held"]={"accepted":true,"result":{},"token":Deferred.Drainer.CancelToken.new(),"publication_ids":["held"]}
 	queue._dispatch_jobs(self)

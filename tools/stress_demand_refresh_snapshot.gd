@@ -2,6 +2,10 @@ extends "res://tools/test_demand_refresh_snapshot.gd"
 ## Synthetic scheduler ABBA; no models/workers/GPU. Each trial has its own call
 ## frame, so locals from a previous trial cannot be released in a timed getter.
 func measure_trial(lazy:bool)->Dictionary:
+	# Compare eager/lazy aggregate construction after real refresh commits;
+	# unchanged-dispatch reuse has its own independent benchmark.
+	var dispatch_reuse:bool=Deferred.reuse_demand_dispatch_catalogue_enabled
+	Deferred.reuse_demand_dispatch_catalogue_enabled=false
 	var q:=make_queue()
 	# Same eager warm catalogue for every trial; cold membership allocation is
 	# outside the hot refresh comparison. No borrowed aggregate is retained.
@@ -33,6 +37,7 @@ func measure_trial(lazy:bool)->Dictionary:
 	var state:Dictionary=snapshot(q)
 	aggregate=[] # Drop borrowed owners before freeing q, outside every measured span.
 	q.free()
+	Deferred.reuse_demand_dispatch_catalogue_enabled=dispatch_reuse
 	return {"report":row,"state":state}
 
 func run()->void:

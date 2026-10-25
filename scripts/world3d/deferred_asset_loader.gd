@@ -118,6 +118,9 @@ var _demanded_by_id:Dictionary={}
 var _demanded_by_path:Dictionary={}
 var _demanded_rank:Dictionary={}
 var _demand_candidate_rows:Dictionary={}
+var _demand_candidate_epoch:=0
+var _demand_dispatch_catalogue_valid:=false
+var _demand_dispatch_catalogue_had_errors:=false
 var _completion_emitted:=false
 var _prepared_paths:Dictionary={}
 var _prepared_template_owners:Dictionary={} # Weak, exact fully prepared allocations; no residency pin.
@@ -813,6 +816,7 @@ func error_for_clip(clip:AABB)->String:
 	return error
 
 func retry_failed(clip:AABB)->void:
+	_demand_dispatch_catalogue_valid=false
 	_invalidate_collision_queries()
 	_prefab_texture_attempts.clear()
 	for item:Dictionary in _in_clip(clip):
@@ -822,11 +826,13 @@ func retry_failed(clip:AABB)->void:
 	set_process(_active)
 
 func _path_failed(path:String,reason:String)->void:
+	_demand_dispatch_catalogue_valid=false
 	_invalidate_collision_queries()
 	path_errors[path]=reason
 	profile.failed_paths=path_errors.size()
 
 func _instance_failed(uuid:String,reason:String)->void:
+	_demand_dispatch_catalogue_valid=false
 	_invalidate_collision_queries()
 	instance_errors[uuid]=reason
 	var failed:Dictionary=_demanded_by_id.get(uuid,_pending_by_record_id.get(uuid,{}))
@@ -1089,6 +1095,8 @@ static var shared_support_closure_enabled:=true
 static var support_set_ids_enabled:=true # Diagnostic old/new key control; same exact ordered closure.
 static var filtered_demand_membership_enabled:=true
 static var reuse_demand_candidate_rows_enabled:=true
+static var reuse_demand_candidate_catalogue_enabled:=true
+static var reuse_demand_dispatch_catalogue_enabled:=true
 static var reuse_demand_membership_rows_enabled:=true
 static var borrow_publication_rows_enabled:=true
 const EMPTY_CANDIDATE:Array=[]
@@ -1120,7 +1128,13 @@ func _demanded_count()->int:
 func _refresh_demanded()->void:
 	if _candidates_revision==_demand_revision:return
 	var began:=Time.get_ticks_usec()
-	var candidates:Dictionary={}
+	# Scores/owners are still recomputed from live inputs. The epoch only marks
+	# first membership in this refresh so stable UUIDs retain their hash slots.
+	var reuse_catalogue:=reuse_demand_candidate_catalogue_enabled and reuse_demand_candidate_rows_enabled
+	var candidates:Dictionary=_demand_candidate_rows if reuse_catalogue else {}
+	var ordered:Array=[];var candidate_count:=0;var catalogue_inserts:=0;var catalogue_erased:=0;var catalogue_scan_rows:=0
+	_demand_candidate_epoch+=1
+	var epoch:=_demand_candidate_epoch
 	if not reuse_demand_candidate_rows_enabled:_demand_candidate_rows.clear()
 	var candidate_rows_created:=0;var candidate_rows_reused:=0
 	_index_pending()
@@ -1191,22 +1205,25 @@ func _refresh_demanded()->void:
 			if item.get("published",false):continue
 			var uuid:String=item.record.uuid
 			var winner:Array=candidates.get(uuid,EMPTY_CANDIDATE)
+			var present:bool=not winner.is_empty() and (not reuse_catalogue or int(winner[5])==epoch)
 			# Distance is nonnegative. A score already below this ticket's base
 			# cannot lose; the same immutable owner/origin also cannot improve at
 			# an equal or weaker priority. Support closure still runs below.
-			var dominated:bool=demand_score_pruning_enabled and not winner.is_empty() and (float(winner[0])<=base_score or (is_same(winner[2],item) and winner[4]==origin and int(winner[3])<=priority))
+			var dominated:bool=demand_score_pruning_enabled and present and (float(winner[0])<=base_score or (is_same(winner[2],item) and winner[4]==origin and int(winner[3])<=priority))
 			var score:float=0.
 			if dominated:scores_reused+=1
 			else:score=base_score+_distance_from(item,origin);distance_evaluations+=1
 			# Numeric keys precede the borrowed item. Native lexicographic sorting
 			# compares doubles without one GDScript callback per comparison, and
 			# insertion rank makes equal-score order deterministic.
-			if winner.is_empty():
-				var row:Array=_demand_candidate_rows.get(uuid,EMPTY_CANDIDATE)
-				if row.is_empty():row=[score,candidates.size(),item,priority,origin];candidate_rows_created+=1
+			if not present:
+				var row:Array=winner if reuse_catalogue else _demand_candidate_rows.get(uuid,EMPTY_CANDIDATE)
+				if row.is_empty():row=[score,candidate_count,item,priority,origin,epoch,""];candidate_rows_created+=1
 				else:
-					row[0]=score;row[1]=candidates.size();row[2]=item;row[3]=priority;row[4]=origin;candidate_rows_reused+=1
-				candidates[uuid]=row
+					row[0]=score;row[1]=candidate_count;row[2]=item;row[3]=priority;row[4]=origin;row[5]=epoch;candidate_rows_reused+=1
+				candidate_count+=1
+				if not reuse_catalogue or winner.is_empty():candidates[uuid]=row;catalogue_inserts+=1
+				if reuse_catalogue:ordered.append(row)
 			elif not dominated and score<float(winner[0]):
 				winner[0]=score;winner[2]=item;winner[3]=priority;winner[4]=origin
 			# Learned imported buildings retain the same supporting landscape as
@@ -1244,14 +1261,18 @@ func _refresh_demanded()->void:
 				if dependency.is_empty() or dependency.get("published",false):continue
 				if not support_distances.has(support):support_distances[support]=_distance_from(dependency,_priority)
 				var support_score:float=float(support_priority)*1e15+float(support_distances[support])
-				if not candidates.has(support):
-					var row:Array=_demand_candidate_rows.get(support,EMPTY_CANDIDATE)
-					if row.is_empty():row=[support_score,candidates.size(),dependency,support_priority,_priority];candidate_rows_created+=1
+				var previous:Array=candidates.get(support,EMPTY_CANDIDATE)
+				var support_present:bool=not previous.is_empty() and (not reuse_catalogue or int(previous[5])==epoch)
+				if not support_present:
+					var row:Array=previous if reuse_catalogue else _demand_candidate_rows.get(support,EMPTY_CANDIDATE)
+					if row.is_empty():row=[support_score,candidate_count,dependency,support_priority,_priority,epoch,""];candidate_rows_created+=1
 					else:
-						row[0]=support_score;row[1]=candidates.size();row[2]=dependency;row[3]=support_priority;row[4]=_priority;candidate_rows_reused+=1
-					candidates[support]=row
-				elif support_score<float(candidates[support][0]):
-					var previous:Array=candidates[support];previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority;previous[4]=_priority
+						row[0]=support_score;row[1]=candidate_count;row[2]=dependency;row[3]=support_priority;row[4]=_priority;row[5]=epoch;candidate_rows_reused+=1
+					candidate_count+=1
+					if not reuse_catalogue or previous.is_empty():candidates[support]=row;catalogue_inserts+=1
+					if reuse_catalogue:ordered.append(row)
+				elif support_score<float(previous[0]):
+					previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority;previous[4]=_priority
 		if demand_membership_cache_enabled and not memberships.has(id):
 			_demand_membership[id]={"clip":demand.clip,"kind":kind,"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":fresh_members if fresh_members!=null else _cache_demand_items(eligible if filtered_demand_membership_enabled else candidates_for_demand),"filtered":filtered_demand_membership_enabled}
 			if fresh_members!=null:profile.demand_catalogue_rows_reused=int(profile.get("demand_catalogue_rows_reused",0))+fresh_members.size()
@@ -1267,10 +1288,25 @@ func _refresh_demanded()->void:
 	profile.demand_scores_reused=int(profile.get("demand_scores_reused",0))+scores_reused
 	profile.support_candidate_visits=int(profile.get("support_candidate_visits",0))+support_visits
 	profile.support_promotions=int(profile.get("support_promotions",0))+support_promotions
-	var ordered:Array=candidates.values()
-	# Only the live rows survive. Reuse their fixed-size arrays, while rebuilding
-	# insertion order and all live winner fields on every refresh. No item owns
-	# its row, and publication erases it before releasing the source catalog.
+	if reuse_catalogue:
+		# Growth/rank-only refreshes need no retirement scan. Equal counts are
+		# sufficient here because every newly encountered UUID was inserted and
+		# counted once; any old unseen UUID makes the catalogue strictly larger.
+		if candidates.size()!=candidate_count:
+			if candidate_count==0:
+				# Complete withdrawal needs no per-row epoch checks in GDScript.
+				catalogue_erased=candidates.size();candidates.clear()
+			else:
+				catalogue_scan_rows=candidates.size()
+				for uuid:String in candidates.keys():
+					if int(candidates[uuid][5])!=epoch:candidates.erase(uuid);catalogue_erased+=1
+	else:ordered=candidates.values()
+	profile.demand_candidate_catalogue_inserts=int(profile.get("demand_candidate_catalogue_inserts",0))+catalogue_inserts
+	profile.demand_candidate_catalogue_erased=int(profile.get("demand_candidate_catalogue_erased",0))+catalogue_erased
+	profile.demand_candidate_catalogue_scan_rows=int(profile.get("demand_candidate_catalogue_scan_rows",0))+catalogue_scan_rows
+	# Only live rows survive. The cache table is lookup-only; ordered/row[1]
+	# carry this refresh's first-seen order. Recompute all live winner fields.
+	# No item owns its row; publication erases it before releasing the source.
 	_demand_candidate_rows=candidates if reuse_demand_candidate_rows_enabled else {}
 	profile.demand_candidate_rows_created=int(profile.get("demand_candidate_rows_created",0))+candidate_rows_created
 	profile.demand_candidate_rows_reused=int(profile.get("demand_candidate_rows_reused",0))+candidate_rows_reused
@@ -1281,6 +1317,16 @@ func _refresh_demanded()->void:
 	if trace.enabled:trace.elapsed("demand.sort_candidates",sort_started,{"candidates":ordered.size()})
 	if trace.enabled:trace.elapsed("demand.rank_candidates",rank_started,{"candidates":ordered.size()})
 	var commit_started:=Time.get_ticks_usec() if trace.enabled else 0
+	if _can_reuse_demand_dispatch(ordered):
+		# The existing maps/path arrays already have these exact owners, ranks,
+		# paths and priorities. Keep their allocations and any valid lazy view.
+		# Retry/publication cursors retain the same refresh boundary as before.
+		_publication_queues.clear();_dispatch_capacity=[]
+		_dispatch_revision=_demand_revision;_candidates_revision=_demand_revision
+		profile.demand_dispatch_catalogue_rows_reused=int(profile.get("demand_dispatch_catalogue_rows_reused",0))+ordered.size()
+		if trace.enabled:trace.elapsed("demand.rebuild_dispatch_catalog",commit_started,{"candidates":ordered.size(),"reused":true})
+		_record_demand_refresh(began)
+		return
 	_demanded=[]
 	_demanded_by_id.clear()
 	_demanded_by_path.clear()
@@ -1300,6 +1346,7 @@ func _refresh_demanded()->void:
 	for row:Array in ordered:
 		var item:Dictionary=row[2]
 		var uuid:String=item.record.uuid;var path:String=item.path
+		row[6]=path # Last committed path; detects an in-place owner path change.
 		_demanded_rank[uuid]=demand_rank;demand_rank+=1
 		_demanded_priority[uuid]=row[3]
 		if not lazy_demand_snapshot_enabled:_demanded_snapshot.append(item)
@@ -1321,7 +1368,25 @@ func _refresh_demanded()->void:
 	# the much smaller dispatch slice is needed after rebuilding demands.
 	_dispatch_revision=_demand_revision;_dispatch_capacity=[]
 	_candidates_revision=_demand_revision
+	_demand_dispatch_catalogue_valid=true
+	_demand_dispatch_catalogue_had_errors=not instance_errors.is_empty() or not path_errors.is_empty()
+	profile.demand_dispatch_catalogue_rows_written=int(profile.get("demand_dispatch_catalogue_rows_written",0))+ordered.size()
 	if trace.enabled:trace.elapsed("demand.rebuild_dispatch_catalog",commit_started,{"candidates":ordered.size()})
+	_record_demand_refresh(began)
+
+func _can_reuse_demand_dispatch(ordered:Array)->bool:
+	if not reuse_demand_dispatch_catalogue_enabled or not _demand_dispatch_catalogue_valid or _demand_dispatch_catalogue_had_errors or not instance_errors.is_empty() or not path_errors.is_empty():return false
+	if ordered.size()!=_demanded_by_id.size() or ordered.size()!=_demanded_rank.size() or ordered.size()!=_demanded_priority.size():return false
+	var same:=true;var checked:=0
+	for i:int in ordered.size():
+		var row:Array=ordered[i];var item:Dictionary=row[2];var uuid:String=item.record.uuid
+		checked+=1
+		if _demanded_rank.get(uuid,-1)!=i or _demanded_priority.get(uuid)!=row[3] or not is_same(_demanded_by_id.get(uuid),item) or row[6]!=item.path:
+			same=false;break
+	profile.demand_dispatch_catalogue_guard_rows=int(profile.get("demand_dispatch_catalogue_guard_rows",0))+checked
+	return same
+
+func _record_demand_refresh(began:int)->void:
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.demand_refresh_us=int(profile.get("demand_refresh_us",0))+elapsed
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)

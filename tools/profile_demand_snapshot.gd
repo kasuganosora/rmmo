@@ -1,12 +1,13 @@
 extends "res://tools/test_deferred_typed_demand_scan.gd"
 const Trace=preload("res://scripts/world3d/load_trace.gd")
-func make_snapshot_queue(data:Dictionary)->Deferred:
+static func make_snapshot_queue(data:Dictionary)->Deferred:
 	var q:=Deferred.new()
 	q.pending=data.pending.duplicate(true);q._demands=data.demands.duplicate(true);q._demand_scope=data.scope.duplicate()
 	q._priority=data.priority;q.instance_errors=data.instance_errors.duplicate();q.path_errors=data.path_errors.duplicate()
-	q._runtime_building_records=data.buildings.duplicate();q._runtime_building_supports=data.supports.duplicate(true)
-	for uuid:String in q._runtime_building_supports:
-		var order:Array=q._runtime_building_supports[uuid].keys();order.make_read_only();q._runtime_support_order[uuid]=order
+	# Rebuild through production registration, including shared support IDs.
+	# Assigning these dictionaries directly forced the old Array-key fallback
+	# and measured hashing work that the live scheduler no longer performs.
+	for uuid:String in data.buildings:q.register_runtime_building(uuid,data.buildings[uuid],data.supports.get(uuid,{}))
 	if data.reference_index_present:q._reference_index={"snapshot":true}
 	q._index_pending();q._refresh_demanded()
 	return q

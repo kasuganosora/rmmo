@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--full-cache-trims", action="store_true")
     parser.add_argument("--full-stream-adoption", action="store_true")
     parser.add_argument("--unaccounted-stream-removals", action="store_true")
+    parser.add_argument("--rebuild-demand-catalogues", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     args = parser.parse_args()
@@ -99,6 +100,8 @@ def main():
         cmd.append("--full-stream-adoption")
     if args.unaccounted_stream_removals:
         cmd.append("--unaccounted-stream-removals")
+    if args.rebuild_demand_catalogues:
+        cmd.append("--rebuild-demand-catalogues")
     if args.screenshot:
         cmd.append("--stage-screenshot")
     before = sources()
@@ -117,6 +120,7 @@ def main():
               "incremental_cache_budget": not args.full_cache_trims,
               "incremental_stream_adoption": not args.full_stream_adoption,
               "owned_removal_accounting": not args.unaccounted_stream_removals,
+              "reuse_demand_catalogues": not args.rebuild_demand_catalogues,
               "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",
               "cache_scope": {"derived_index": "invalidated" if args.cold_index else "retained",
                               "geometry_cache": "disabled", "texture_disk_cache": "retained",
