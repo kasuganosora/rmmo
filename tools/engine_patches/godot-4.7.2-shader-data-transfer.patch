@@ -1,0 +1,103 @@
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -4224,4 +4224,34 @@
+ /****************/
+ 
++// The former deep copies also discarded the parser's spare vector capacity.
++// Keep that compact live footprint while transferring already-tight buffers.
++template <typename T>
++static void rmmo_compact_shader_vector(std::vector<T> &p_vector) {
++	if (p_vector.capacity() != p_vector.size()) {
++		// libstdc++ shrink_to_fit is a no-op when exceptions are disabled.
++		std::vector<T>(p_vector.begin(), p_vector.end()).swap(p_vector);
++	}
++}
++
++static void rmmo_compact_shader_data(respv::Shader &p_shader) {
++	rmmo_compact_shader_vector(p_shader.inlinedSpirvWords);
++	rmmo_compact_shader_vector(p_shader.instructions);
++	rmmo_compact_shader_vector(p_shader.instructionAdjacentListIndices);
++	rmmo_compact_shader_vector(p_shader.instructionInDegrees);
++	rmmo_compact_shader_vector(p_shader.instructionOutDegrees);
++	rmmo_compact_shader_vector(p_shader.instructionOrder);
++	rmmo_compact_shader_vector(p_shader.blocks);
++	rmmo_compact_shader_vector(p_shader.blockPreOrderIndices);
++	rmmo_compact_shader_vector(p_shader.blockPostOrderIndices);
++	rmmo_compact_shader_vector(p_shader.functions);
++	rmmo_compact_shader_vector(p_shader.variableOrder);
++	rmmo_compact_shader_vector(p_shader.results);
++	rmmo_compact_shader_vector(p_shader.specializations);
++	rmmo_compact_shader_vector(p_shader.decorations);
++	rmmo_compact_shader_vector(p_shader.phis);
++	rmmo_compact_shader_vector(p_shader.loopHeaders);
++	rmmo_compact_shader_vector(p_shader.listNodes);
++}
++
+ static VkShaderStageFlagBits RD_STAGE_TO_VK_SHADER_STAGE_BITS[RDD::SHADER_STAGE_MAX] = {
+ 	VK_SHADER_STAGE_VERTEX_BIT,
+@@ -4238,4 +4268,8 @@
+ 
+ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) {
++	static const bool profile_respv = OS::get_singleton()->get_environment("RMMO_RESPV_PROFILE") == "1";
++	static const bool move_shader_data = OS::get_singleton()->get_environment("RMMO_SHADER_TRANSFER_MOVE") != "0";
++	const uint64_t profile_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++	uint64_t decode_us = 0, parse_us = 0, transfer_us = 0, module_us = 0;
+ 	ShaderReflection shader_refl = p_shader_container->get_shader_reflection();
+ 	ShaderInfo shader_info;
+@@ -4348,4 +4382,5 @@
+ 
+ 	for (int i = 0; i < stage_count; i++) {
++		const uint64_t decode_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 		const RenderingShaderContainer::Shader &shader = p_shader_container->shaders[i];
+ 		bool requires_decompression = (shader.code_decompressed_size > 0);
+@@ -4377,9 +4412,12 @@
+ 		}
+ 
++		if (profile_respv) { decode_us += OS::get_singleton()->get_ticks_usec() - decode_begin; }
+ 		shader_info.original_stage_size.push_back(decoded_spirv.size());
+ 
+ 		if (use_respv) {
+ 			const bool inline_data = store_respv || (RESPV_ONLY_INLINE_SHADERS_WITH_SPEC_CONSTANTS == 0);
++			const uint64_t parse_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 			respv::Shader respv_shader(decoded_spirv.ptr(), decoded_spirv.size(), inline_data);
++			if (profile_respv) { parse_us += OS::get_singleton()->get_ticks_usec() - parse_begin; }
+ 			if (respv_shader.empty()) {
+ #if RESPV_VERBOSE
+@@ -4390,5 +4428,12 @@
+ 				}
+ 			} else if (store_respv) {
+-				shader_info.respv_stage_shaders.push_back(respv_shader);
++				const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++				if (move_shader_data) {
++					rmmo_compact_shader_data(respv_shader);
++					shader_info.respv_stage_shaders.push_back(std::move(respv_shader));
++				} else {
++					shader_info.respv_stage_shaders.push_back(respv_shader);
++				}
++				if (profile_respv) { transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin; }
+ 			} else {
+ 				std::vector<uint8_t> respv_optimized_data;
+@@ -4416,5 +4461,7 @@
+ 		shader_module_create_info.pCode = (const uint32_t *)(decoded_spirv.ptr());
+ 
++		const uint64_t module_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 		res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &vk_module);
++		if (profile_respv) { module_us += OS::get_singleton()->get_ticks_usec() - module_begin; }
+ 		if (res != VK_SUCCESS) {
+ 			error_text = vformat("Error (%d) creating module for shader stage %s.", res, String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
+@@ -4499,5 +4546,14 @@
+ 	// Bookkeep.
+ 	ShaderInfo *shader_info_ptr = VersatileResource::allocate<ShaderInfo>(resources_allocator);
+-	*shader_info_ptr = shader_info;
++	const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++	if (move_shader_data) {
++		*shader_info_ptr = std::move(shader_info);
++	} else {
++		*shader_info_ptr = shader_info;
++	}
++	if (profile_respv) {
++		transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin;
++		print_line(vformat("RMMO_SHADER_BUILD name=%s total_us=%d stages=%d decode_us=%d parse_us=%d transfer_us=%d module_us=%d move=%d", shader_info_ptr->name, OS::get_singleton()->get_ticks_usec() - profile_begin, stage_count, decode_us, parse_us, transfer_us, module_us, int(move_shader_data)));
++	}
+ 	return ShaderID(shader_info_ptr);
+ }

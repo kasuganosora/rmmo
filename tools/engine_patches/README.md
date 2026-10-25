@@ -287,3 +287,37 @@ non-multiple-of-four source sizes; this patch alone is not a map upload saving.
 See `docs/axel_dds_partial_blocks_20261025.md` for hashes, evidence and backend
 limits. Apply on top of the standard shader residency patch; preserve matching
 debug symbols and the original engine before installation.
+
+## Compact shader ownership transfer candidate (2026-10-26)
+
+`godot-4.7.2-shader-data-transfer.patch` removes two deep copies of parsed
+re-spirv data in Vulkan shader creation. It first compacts vectors with spare
+capacity, then moves the parsed stage and final ShaderInfo. GPU creation,
+specialization, resource ownership and cache lifetime remain unchanged.
+Preserve the existing re-spirv TLS alias and other local engine patches.
+
+`RMMO_SHADER_TRANSFER_MOVE=0` selects the old copies in the same binary;
+`RMMO_RESPV_PROFILE=1` enables diagnostic decode/parse/transfer/module timings.
+Both copies and transfers still run under the original RenderingDevice lock.
+The patch does **not** yet move CPU preparation outside that lock.
+
+`bench_shader_transfer.cpp` takes a directory of captured `.spv` inputs,
+`copy`, `move` or `compact`, a round count, and a new external output directory.
+Build it with the matching re-spirv implementation and SPIR-V headers, using
+`-O3 -DNDEBUG -fno-exceptions -fno-rtti`. Compare output file hashes and vector capacity bytes as well
+as timings. The independent two-stage packet is not the Vulkan driver;
+microbenchmark savings are not whole-map savings.
+
+The isolated engine15 candidate passed GPU publication/batching and 36 shader
+residency checks, but its `shrink_to_fit` was a no-op under the engine's disabled
+exceptions. Do not use it as evidence that capacity was preserved. The patch
+now explicitly constructs and swaps only vectors with spare capacity; this
+passed the same no-exception build regression. Engine22 has also passed the
+GPU publication/batching and 36 residency checks. Four full-map comparisons
+also passed functionally: mean full-ready 10.955 to 10.839s, reload 1% low
+27.032 to 26.950 FPS. This supports retaining the work reduction, not claiming
+a stable overall loading/FPS improvement. A 52.335ms return frame still needs work.
+It is **not installed** in `D:/tools/godot`. Real-map timings
+and unresolved long frames, including concurrent host-load evidence, are
+recorded in `docs/axel_shader_transfer_20261026.md`. Do not install this candidate
+based only on the independent transfer benchmark.
