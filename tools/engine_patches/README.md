@@ -236,3 +236,54 @@ three root ObjectIDs and nested Shape/ArrayMesh destruction counts. Run GPU
 checks via the never-activated private desktop runner. See documentation
 section 135 and external `round169_release_native_summary` for real-map evidence
 and the unmeasured child-resource cleanup remainder.
+
+## Bounded StandardMaterial shader residency (texture stage, 2026-10-25)
+
+`godot-4.7.2-standard-shader-residency.patch` retains up to 32 unused shader
+variants in the existing exact MaterialKey map. It retains shader RIDs only,
+not material/texture/mesh owners. The existing mutex protects map and idle-list
+changes; compilation remains outside it and preserves the existing concurrent
+creation arbitration. Active shaders never enter the eviction list. Shutdown
+drains unused entries and disables retention before remaining owners disappear.
+
+Project setting `rendering/shader_compiler/max_unused_standard_material_shaders`
+is clamped to 0–256. The test-only `RMMO_STANDARD_SHADER_CACHE_LIMIT` override can
+set zero for the old immediate-release behavior. Opt-in
+`RMMO_STANDARD_SHADER_CACHE_PROFILE=1` prints actual creation/reuse/eviction and
+idle-count statistics. The bound is a count, not a measured GPU byte budget.
+
+Run `python tools/check_standard_shader_residency.py --engine <exe> --output
+<new external directory>` for four private-desktop Vulkan processes with limits
+0/2/32/0. It checks released resources by weak reference, active owners under
+eviction, concurrent variant changes, and identical red/green/red rendered
+pixels across independent material instances. The default limit reduced the
+fixture's actual creations from 177–178 to 46; release/rebind changed from
+21.9–35.7ms to 27–38µs, with all nine semantic checks passing in every process.
+
+Candidate SHA is
+`eaec8870dd5940aefff21510bbd559e316e4aa3abe2985738206a9ac0348d73c`;
+matching symbols SHA is
+`0b8b0e610320f06e2a0b020416cac20d4097306f6b20a4cf76a3e0dc87187ac0`.
+It includes b058's opt-in release diagnostics, disabled for normal measurements.
+Real-map 0/32/32/0 ABBA reduced creations from 17 to 10 and reused seven returning
+variants, but did not establish an initial-load improvement or resolve every
+return/reload long frame. All slow samples and diagnostic failures are retained
+in `docs/axel_material_shader_residency_20261025.md`. A candidate build alone does
+not establish that an installed executable was replaced.
+
+## DDS partial BC blocks (2026-10-25)
+
+`godot-4.7.2-dds-partial-blocks.patch` keeps each DDS mip's logical width and
+height instead of padding the base extent before downsampling. Byte sizes still
+round each mip to complete BC blocks. This fixes valid 7x7, 7x11 and 1254x1254
+images rejected by the previous parser, without resizing authored textures.
+
+`tools/check_dds_partial_blocks.py --engine <exe> --output <external-dir>` runs
+24 BC1/BC3/BC5 fixtures. Add `--gpu` for private-desktop Vulkan upload and exact
+readback of every mip. Old eaec build: 9 failures; patched 52f532 build: all 24
+CPU and all 24 Vulkan cases pass. The map's offline generator still filters
+non-multiple-of-four source sizes; this patch alone is not a map upload saving.
+
+See `docs/axel_dds_partial_blocks_20261025.md` for hashes, evidence and backend
+limits. Apply on top of the standard shader residency patch; preserve matching
+debug symbols and the original engine before installation.

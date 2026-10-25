@@ -1,0 +1,23 @@
+--- a/modules/dds/texture_loader_dds.cpp
++++ b/modules/dds/texture_loader_dds.cpp
+@@ -150,17 +150,11 @@
+ 	uint32_t w = p_width;
+ 	uint32_t h = p_height;
+ 
+ 	if (info.compressed) {
+-		// BC compressed.
+-		w += w % info.divisor;
+-		h += h % info.divisor;
+-		if (w != p_width) {
+-			WARN_PRINT(vformat("%s: DDS width '%d' is not divisible by %d. This is not allowed as per the DDS specification, attempting to load anyway.", p_file->get_path(), p_width, info.divisor));
+-		}
+-		if (h != p_height) {
+-			WARN_PRINT(vformat("%s: DDS height '%d' is not divisible by %d. This is not allowed as per the DDS specification, attempting to load anyway.", p_file->get_path(), p_height, info.divisor));
+-		}
++		// Keep logical dimensions when descending the mip chain. Each level is
++		// rounded to complete BC blocks independently, including partial edges.
++		// Padding the base dimensions first changes the subsequent mip extents.
+ 
+ 		uint32_t size = MAX(1u, (w + 3) / 4) * MAX(1u, (h + 3) / 4) * info.block_size;
+ 
+ 		if (p_flags & DDSD_LINEARSIZE) {

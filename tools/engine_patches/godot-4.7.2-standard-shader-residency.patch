@@ -1,0 +1,165 @@
+--- a/scene/resources/material.h
++++ b/scene/resources/material.h
+@@ -410,10 +410,18 @@
+ 	struct ShaderData {
+ 		RID shader;
+ 		int users = 0;
++		List<MaterialKey>::Element *unused = nullptr;
+ 	};
+ 
+ 	static HashMap<MaterialKey, ShaderData, MaterialKey> shader_map;
+ 	static Mutex shader_map_mutex;
++	static List<MaterialKey> unused_shaders;
++	static int unused_shader_limit;
++	static bool shader_cache_active;
++	// Called with shader_map_mutex held. Keep only shader RIDs, never materials,
++	// textures, meshes or their dependencies.
++	static void _release_shader(const MaterialKey &p_key);
++	static void _reference_shader(ShaderData *p_shader);
+ 
+ 	MaterialKey current_key;
+ 
+--- a/scene/resources/material.cpp
++++ b/scene/resources/material.cpp
+@@ -553,11 +553,22 @@
+ 
+ HashMap<BaseMaterial3D::MaterialKey, BaseMaterial3D::ShaderData, BaseMaterial3D::MaterialKey> BaseMaterial3D::shader_map;
+ Mutex BaseMaterial3D::shader_map_mutex;
++List<BaseMaterial3D::MaterialKey> BaseMaterial3D::unused_shaders;
++int BaseMaterial3D::unused_shader_limit = 0;
++bool BaseMaterial3D::shader_cache_active = false;
++static uint64_t rmmo_shader_created = 0, rmmo_shader_reused = 0, rmmo_shader_evicted = 0;
++static bool rmmo_shader_cache_profile = false;
+ BaseMaterial3D::ShaderNames *BaseMaterial3D::shader_names = nullptr;
+ Mutex BaseMaterial3D::material_mutex;
+ SelfList<BaseMaterial3D>::List BaseMaterial3D::dirty_materials;
+ 
+ void BaseMaterial3D::init_shaders() {
++	unused_shader_limit = CLAMP(int(GLOBAL_DEF("rendering/shader_compiler/max_unused_standard_material_shaders", 32)), 0, 256);
++	if (OS::get_singleton()->has_environment("RMMO_STANDARD_SHADER_CACHE_LIMIT")) {
++		unused_shader_limit = CLAMP(OS::get_singleton()->get_environment("RMMO_STANDARD_SHADER_CACHE_LIMIT").to_int(), 0, 256);
++	}
++	rmmo_shader_cache_profile = OS::get_singleton()->get_environment("RMMO_STANDARD_SHADER_CACHE_PROFILE") == "1";
++	shader_cache_active = true;
+ 	shader_names = memnew(ShaderNames);
+ 
+ 	shader_names->albedo = "albedo";
+@@ -646,11 +657,57 @@
+ 
+ void BaseMaterial3D::finish_shaders() {
+ 	materials_for_2d.clear();
++	{
++		MutexLock lock(shader_map_mutex);
++		shader_cache_active = false;
++		if (rmmo_shader_cache_profile) {
++			print_line(vformat("RMMO_STANDARD_SHADER_CACHE limit=%d created=%d reused=%d evicted=%d unused=%d", unused_shader_limit, rmmo_shader_created, rmmo_shader_reused, rmmo_shader_evicted, unused_shaders.size()));
++		}
++		while (unused_shaders.front()) {
++			MaterialKey key = unused_shaders.front()->get();
++			RS::get_singleton()->free_rid(shader_map[key].shader);
++			shader_map.erase(key);
++			unused_shaders.pop_front();
++		}
++	}
+ 
+ 	dirty_materials.clear();
+ 
+ 	memdelete(shader_names);
+ 	shader_names = nullptr;
++}
++
++void BaseMaterial3D::_reference_shader(ShaderData *p_shader) {
++	if (p_shader->unused) {
++		unused_shaders.erase(p_shader->unused);
++		p_shader->unused = nullptr;
++		rmmo_shader_reused++;
++	}
++	p_shader->users++;
++}
++
++void BaseMaterial3D::_release_shader(const MaterialKey &p_key) {
++	ShaderData *v = shader_map.getptr(p_key);
++	if (!v) {
++		return;
++	}
++	ERR_FAIL_COND(v->users <= 0);
++	if (--v->users > 0) {
++		return;
++	}
++	if (!shader_cache_active || unused_shader_limit == 0) {
++		RS::get_singleton()->free_rid(v->shader);
++		shader_map.erase(p_key);
++		return;
++	}
++	v->unused = unused_shaders.push_back(p_key);
++	while (unused_shaders.size() > unused_shader_limit) {
++		MaterialKey key = unused_shaders.front()->get();
++		RS::get_singleton()->free_rid(shader_map[key].shader);
++		shader_map.erase(key);
++		unused_shaders.pop_front();
++		rmmo_shader_evicted++;
++	}
+ }
+ 
+ void BaseMaterial3D::_update_shader() {
+@@ -665,23 +722,15 @@
+ 
+ 	{
+ 		MutexLock lock(shader_map_mutex);
+-		ShaderData *v = shader_map.getptr(current_key);
+-		if (v) {
+-			v->users--;
+-			if (v->users == 0) {
+-				// Deallocate shader which is no longer in use.
+-				shader_rid = RID();
+-				RS::get_singleton()->free_rid(v->shader);
+-				shader_map.erase(current_key);
+-			}
+-		}
++		_release_shader(current_key);
++		shader_rid = RID();
+ 
+ 		current_key = mk;
+ 
+-		v = shader_map.getptr(mk);
++		ShaderData *v = shader_map.getptr(mk);
+ 		if (v) {
+ 			shader_rid = v->shader;
+-			v->users++;
++			_reference_shader(v);
+ 
+ 			if (_get_material().is_valid()) {
+ 				RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
+@@ -2045,6 +2094,7 @@
+ 	MutexLock lock(shader_map_mutex);
+ 
+ 	ShaderData *v = shader_map.getptr(mk);
++	rmmo_shader_created++;
+ 	if (unlikely(v)) {
+ 		// We raced and managed to create the same key concurrently, so we'll free the shader we just created,
+ 		// given we know it isn't used, and use the winner.
+@@ -2058,7 +2108,7 @@
+ 	}
+ 
+ 	shader_rid = v->shader;
+-	v->users++;
++	_reference_shader(v);
+ 
+ 	if (_get_material().is_valid()) {
+ 		RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
+@@ -3984,14 +4034,7 @@
+ 
+ 	{
+ 		MutexLock lock(shader_map_mutex);
+-		if (shader_map.has(current_key)) {
+-			shader_map[current_key].users--;
+-			if (shader_map[current_key].users == 0) {
+-				// Deallocate shader which is no longer in use.
+-				RS::get_singleton()->free_rid(shader_map[current_key].shader);
+-				shader_map.erase(current_key);
+-			}
+-		}
++		_release_shader(current_key);
+ 	}
+ 
+ 	if (_get_material().is_valid()) {
