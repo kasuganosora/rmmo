@@ -398,6 +398,29 @@ Deferred 队列无法 idle。预算本身能把上传量降约 73%，但不能�
 texture source budget/lazy 实验路径全部撤回；保留的只有 trusted SHA 删除和
 profile/文档。2.33GB 上传与 450–513ms 长帧仍未解决。
 
+## 离线 DDS sidecar：上传量降 75%
+
+按授权对现有 pack 纹理做**附加式**离线 GPU 压缩，不修改源文件：
+
+- `tools/generate_texture_dds_sidecars.py` 生成 `.dxt1.dds`/`.dxt5.dds` 与 normal
+  的 `.flip.dxt5.dds`；源 PNG/JPEG/WebP 不变，删除 sidecar 即回退。
+- 现有 pack 扫描 631 张：写 655 个 sidecar，66 张因尺寸不是 4 的倍数跳过。
+- 修正 Pillow 的 DDS `pitchOrLinearSize`（Godot 期望 DXT block linear size）。
+- 运行时 `SurfaceMaterials._texture` 优先加载 sidecar；`_prefab_texture_plan`
+  不再为已有 sidecar 的路径派发 shared-pixel GPU 纹理任务。
+
+`map_traverse_26`（带 texture profile + screenshot）：
+
+- upload_bytes 约 **2.29GB → 564,742,192**（约 **-75%**）
+- sidecar uploads 124，sidecar upload 累计 226ms，max 15.4ms
+- material 累计 378ms（旧约 9s）
+- full-ready 18.611s；截图地面/石路纹理正常，failures 空
+
+5 个普通 sidecar 样本 full-ready：17.264、17.613、18.742、19.294、18.611s；
+reload max 45–55ms（旧 192ms），但 return 仍 353–672ms。也就是说 sidecar 主要
+降低了纹理上传/重载，未消除 Stream.sync 的 return 几何尖峰。源地图/纹理未改；
+sidecar 是可选离线资产，需要随 pack 一起分发。
+
 ## 证据
 
 外部目录：

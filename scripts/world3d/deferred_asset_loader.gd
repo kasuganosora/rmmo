@@ -1784,6 +1784,11 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	var sources:Dictionary={}
 	for at:int in positions:
 		if at>=0 and at<_reference_index.get("rows",[]).size():sources.merge(_reference_index.rows[at].get("prefab_textures",{}),true)
+	var paint=preload("res://scripts/world3d/surface_materials.gd")
+	for source_key:String in sources.keys():
+		var source:Variant=sources[source_key]
+		if source is Array and source.size()==2 and paint.has_compressed_sidecar(str(source[0]),bool(source[1])):
+			sources.erase(source_key)
 	var texture_plan_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 	var result:Dictionary=PrefabTextures.estimate(sources,_reference_root) if not sources.is_empty() else {}
 	_record_texture_dispatch("header_plan",texture_plan_started,str(item.get("path","")),sources.size())
