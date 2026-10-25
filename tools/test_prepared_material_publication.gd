@@ -61,7 +61,7 @@ func run()->void:
 	if material!=null:
 		RenderingServer.force_sync()
 		for field:String in ["albedo_texture","normal_texture","roughness_texture"]:
-			var key:String=paths[["albedo_texture","normal_texture","roughness_texture"].find(field)]+("|flip_y" if field=="normal_texture" else "")
+			var key:String=paths[["albedo_texture","normal_texture","roughness_texture"].find(field)]+("|normal|flip_y" if field=="normal_texture" else "")
 			check(canonical(material.get(field).get_image())==canonical(packet.images[key]),field+" matches exact prepared pixels and mips")
 		check(material.transparency==BaseMaterial3D.TRANSPARENCY_ALPHA and material.ao_texture==material.albedo_texture,"alpha semantics and repeated slot texture identity survive slicing")
 		var tickets:=Prefab.texture_tickets(plan.rows,doc.load_material_pool)
@@ -173,7 +173,7 @@ func resident_generation_case(record:Dictionary,requested:Dictionary,plan:Dictio
 	check(Slices.step_prepared(record,materials,{},pool,tickets,resident_packet,state)==Slices.PROGRESS and pool.has([materials[0]]) and not pool.has([materials[1]]),"resident-only first slice completes one material and leaves the next slot pending")
 	var original:=FileAccess.get_file_as_bytes(second_path)
 	var image:=Image.create(19,13,false,Image.FORMAT_RGBA8);image.fill(Color.BLUE);image.save_png(second_path)
-	var fresh_requested:Dictionary={second_path:[second_path,false]}
+	var fresh_requested:Dictionary={second_path:[second_path,false,false]}
 	var fresh:=await prepare_worker(fresh_requested,Prep.estimate(fresh_requested,files.content_root))
 	Paint.prepare_images(fresh.images);var newer:Texture2D=Paint.texture(second)
 	Paint._textures.erase(second_path)

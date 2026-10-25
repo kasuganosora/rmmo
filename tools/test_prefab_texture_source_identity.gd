@@ -24,6 +24,7 @@ func resident_round(pool:RefCounted,requested:Dictionary,plan:Dictionary,cached:
 	for i:int in rounds:
 		var shared:=context(pool,plan,prefix+str(i),cached)
 		var packet:=Prep.prepare(requested,plan,folder,null,true,shared,true)
+		if i==0 and not packet.error.is_empty():print("RESIDENT_PREPARATION_ERROR ",packet.error," plan_rows=",plan.get("rows",{}).size())
 		valid=valid and packet.error.is_empty() and packet.images.is_empty() and int(packet.profile.get("resident_hits",0))==requested.size()
 		for field:String in totals:totals[field]+=int(packet.profile.get(field,0))
 		pool.release(shared.consumer)
@@ -36,7 +37,7 @@ func save_source(path:String,color:Color)->void:
 func threaded_prepare(requested:Dictionary,plan:Dictionary,shared:Dictionary)->Dictionary:
 	return Prep.prepare(requested,plan,folder,null,true,shared,true)
 func retired_leader_round(path:String)->Dictionary:
-	var requested:={path:[path,false],path+"|flip_y":[path,true]}
+	var requested:={path:[path,false,false],path+"|normal|flip_y":[path,true,true]}
 	var plan:=Prep.estimate(requested,folder);var pool:=new_pool()
 	var seed_context:=context(pool,plan,"retired_seed",{})
 	var seed:=Prep.prepare(requested,plan,folder,null,true,seed_context,true)
@@ -82,7 +83,7 @@ func retired_leader_round(path:String)->Dictionary:
 	check(strict.error.is_empty() and strict.profile.source_sha_reads==2 and strict.profile.final_sha_reads==1,"strict caller still reads actual source for both variants and verifies the final identity")
 	strict.clear();pool.release(strict_context.consumer)
 	var original:=FileAccess.get_file_as_bytes(path);save_source(path,Color(.8,.6,.1,1.))
-	var next_requested:={path:[path,false]};var next_plan:=Prep.estimate(next_requested,folder)
+	var next_requested:={path:[path,false,false]};var next_plan:=Prep.estimate(next_requested,folder)
 	var next_pool:=new_pool();var next_context:=context(next_pool,next_plan,"retired_new_operation",{})
 	var fresh:=Prep.prepare(next_requested,next_plan,folder,null,true,next_context,true)
 	check(fresh.error.is_empty() and fresh.profile.source_sha_reads==1 and fresh.profile.decoded==1 and fresh.sources[path]==FileAccess.get_sha256(path) and fresh.images[path].get_data()!=expected[path],"new operation reads changed same-path source and invalidates the old derived cache")
@@ -90,14 +91,15 @@ func retired_leader_round(path:String)->Dictionary:
 	var restored:=FileAccess.open(path,FileAccess.WRITE);restored.store_buffer(original);restored.close()
 	return {"rounds":20,"cache_hits":hits,"source_sha_reads":reads,"pixels_equal":valid}
 func run()->void:
+	Prep.Pixels.Policy.verify_packages=true # Explicit strict SHA-vs-mounted-identity diagnostic.
 	folder=Prep.Paths.cache_directory("texture_source_identity_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
 	DirAccess.make_dir_recursive_absolute(folder)
 	var requested:Dictionary={};var cached:Dictionary={};var source_bytes:=0
 	for i:int in 3:
 		var path:=folder.path_join("source_%d.png"%i);paths.append(path);save_source(path,Color(.2+i*.1,.3,.7,1.))
 		var digest:=FileAccess.get_sha256(path);source_bytes+=FileAccess.get_file_as_bytes(path).size()
-		requested[path]=[path,false];requested[path+"|flip_y"]=[path,true]
-		cached[path]=digest;cached[path+"|flip_y"]=digest
+		requested[path]=[path,false,false];requested[path+"|normal|flip_y"]=[path,true,true]
+		cached[path]=digest;cached[path+"|normal|flip_y"]=digest
 	var plan:=Prep.estimate(requested,folder)
 	var original_switch:bool=Prep.mounted_source_reuse_enabled;Prep.mounted_source_reuse_enabled=false
 	var legacy_pool:=new_pool();var legacy:=resident_round(legacy_pool,requested,plan,cached,100,"legacy_")
@@ -124,7 +126,7 @@ func run()->void:
 	var original:=FileAccess.get_file_as_bytes(paths[0])
 	save_source(paths[0],Color(.9,.1,.2,1.))
 	var changed_digest:=FileAccess.get_sha256(paths[0])
-	var single:={paths[0]:[paths[0],false]};var changed_plan:=Prep.estimate(single,folder)
+	var single:={paths[0]:[paths[0],false,false]};var changed_plan:=Prep.estimate(single,folder)
 	var conflict:=context(pool,changed_plan,"changed_leader",{})
 	check(not Prep.prepare(single,changed_plan,folder,null,true,conflict,true).error.is_empty(),"new leader hashes actual bytes and rejects a conflicting first identity")
 	check(pool.source_identity(conflict.consumer,paths[0])==cached[paths[0]],"a conflicting reader cannot overwrite the operation first identity")

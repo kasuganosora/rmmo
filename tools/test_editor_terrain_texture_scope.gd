@@ -14,6 +14,7 @@ func setup_record(doc:RefCounted,id:String,definition:Dictionary)->Dictionary:
 	return record
 
 func run()->void:
+	Prepare.TextureCache.Policy.verify_packages=true # Mutable same-path fixture; managed imports use new SHA paths.
 	create_timer(90).timeout.connect(func():quit(2));Engine.max_fps=60
 	var directory:=Paths.cache_directory("terrain_texture_scope_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)
 	var texture_path:=directory.path_join("color.png");var normal_path:=directory.path_join("normal.png")
@@ -26,7 +27,7 @@ func run()->void:
 	var worker:=Thread.new();worker.start(Prepare.decode.bind(requested,Paths.external_root()))
 	while worker.is_alive():await process_frame
 	var payload:Dictionary=worker.wait_to_finish()
-	var flipped:Image=payload.images[normal_path+"|flip_y"]
+	var flipped:Image=payload.images[normal_path+"|normal|flip_y"]
 	check(absf(flipped.get_pixel(0,0).g-.75)<.01 and flipped.has_mipmaps(),"private texture worker retains DirectX normal flip and mipmaps")
 	var denied:Dictionary=Prepare.decode({"outside":["C:/Windows/win.ini",false]},Paths.external_root())
 	check(denied.images.is_empty() and denied.failed==["outside"],"worker confines paths to captured content root")

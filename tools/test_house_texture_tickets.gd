@@ -49,7 +49,7 @@ func run()->void:
 func gpu_cases()->void:
 	var before:Dictionary={"textures":Paint._textures,"materials":Paint._materials,"prepared":Paint.prepared_images,"meshes":House._meshes,"renders":House._render_meshes}
 	Paint._textures={};Paint._materials={};Paint.prepared_images={};House._meshes={};House._render_meshes={}
-	var sources:Dictionary={PATH:[PATH,false]}
+	var sources:Dictionary={PATH:[PATH,false,false]}
 	var a:=texture(SHA_A,Color.RED);var b:=texture(SHA_B,Color.BLUE)
 	var owner_a:=material(a);var owner_b:=material(b)
 	var pool:Dictionary={"schema":{"albedo_texture":TYPE_OBJECT},"a":owner_a,"again":owner_a}
@@ -69,9 +69,9 @@ func gpu_cases()->void:
 	check(House.texture_tickets(sources)[PATH].texture==b,"prefab material owner precedes duplicate render cache key")
 	House._meshes.clear();House._render_meshes.clear()
 	var flipped:=material(a,NORMAL,true,true);var regular:=material(b,NORMAL,true,false)
-	var oriented:Dictionary={NORMAL:[NORMAL,false],NORMAL+"|flip_y":[NORMAL,true]}
+	var oriented:Dictionary={NORMAL+"|normal":[NORMAL,false,true],NORMAL+"|normal|flip_y":[NORMAL,true,true]}
 	var variants:=House.texture_tickets(oriented,{"flip":flipped,"plain":regular,"unrelated":owner_a})
-	check(variants.size()==2 and variants[NORMAL].texture==b and variants[NORMAL+"|flip_y"].texture==a and not variants.has(PATH),"path and normal orientation remain distinct and unrelated material keys are excluded")
+	check(variants.size()==2 and variants[NORMAL+"|normal"].texture==b and variants[NORMAL+"|normal|flip_y"].texture==a and not variants.has(PATH),"path and normal orientation remain distinct and unrelated material keys are excluded")
 	var invalid:=texture("z".repeat(64),Color.WHITE);Paint._textures[PATH]=invalid
 	check(House.texture_tickets(sources).is_empty(),"64 non-hex metadata characters cannot become a ticket")
 	check(House.texture_tickets(sources,pool)[PATH].texture==a,"invalid texture metadata does not hide a valid material owner")

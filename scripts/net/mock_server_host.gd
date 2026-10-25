@@ -38,10 +38,14 @@ func _init() -> void:
 	var job := Preparation.new()
 	job.profile = {"started_us": Time.get_ticks_usec(), "background": _background()}
 	set_meta(PREPARATION, job)
-	job.thread.start(Callable(get_script(), "_prepare").bind(job))
-	if not job.profile.background:
+	if job.profile.background:
+		job.thread.start(Callable(get_script(), "_prepare").bind(job))
+	else:
 		# Emitted after this _ready returns and before the next autoload's, i.e. where
 		# the old server autoload became ready. No frame of this instance is active.
+		# This compatibility path is synchronous: loading on a worker and then
+		# busy-waiting here deadlocks shader includes whose changed connections
+		# must be attached by the main MessageQueue before the worker can return.
 		connect(&"ready", Callable(get_script(), "_install").bind(self), CONNECT_ONE_SHOT)
 
 
@@ -105,7 +109,7 @@ static func _prepare(job: Preparation) -> void:
 	job.profile.scan_us = Time.get_ticks_usec() - began
 	for path: String in order:
 		load(path)
-		OS.delay_usec(YIELD_USEC)
+		if job.profile.background:OS.delay_usec(YIELD_USEC)
 	job.server_script = load(SERVER_PATH)
 	job.profile.scripts = order.size()
 	job.profile.compile_us = Time.get_ticks_usec() - began
@@ -149,11 +153,21 @@ static func _install(node: Node) -> void:
 		return
 	var waited := Time.get_ticks_usec()
 	_provide_start_pack(node)
-	while job.thread.is_alive():
-		# Loading-thread renderer calls may wait on main-thread command flushes.
-		RenderingServer.force_sync()
-		OS.delay_usec(200)
-	job.thread.wait_to_finish()
+	if not job.thread.is_started():
+		_prepare(job)
+	else:
+		# An early synchronous Net.server() can arrive before the event loop.
+		# ResourceLoader's native wait services deferred resource connections;
+		# a plain Thread join/renderer sync cannot do that. Join the same cached
+		# script graph through that API, then wait for the detached CPU pack work.
+		var _progress_owner: Resource
+		if job.thread.is_alive() and ResourceLoader.load_threaded_request(SERVER_PATH,"Script")==OK:
+			_progress_owner=ResourceLoader.load_threaded_get(SERVER_PATH)
+		while job.thread.is_alive():
+			# Loading-thread renderer calls may wait on main-thread command flushes.
+			RenderingServer.force_sync()
+			OS.delay_usec(200)
+		job.thread.wait_to_finish()
 	job.profile.install_wait_us = Time.get_ticks_usec() - waited
 	node.remove_meta(PREPARATION)
 	var am: Node = Engine.get_main_loop().root.get_node_or_null("AssetManager")

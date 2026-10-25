@@ -71,6 +71,7 @@ func bridge(name_:String,x:float,material:Dictionary)->Dictionary:
 	record.bridge_materials={"deck":material.duplicate(true),"masonry":material.duplicate(true),"trim":material.duplicate(true)}
 	return record
 func run()->void:
+	Pixels.Policy.verify_packages=true # This fixture deliberately replaces source bytes.
 	# Exercise the opt-in pipeline explicitly; whole-entry performance currently
 	# keeps it disabled by default until shared image preparation is available.
 	Deferred.prefab_texture_preparation_enabled=true
@@ -95,9 +96,9 @@ func run()->void:
 		var large_path:String=files.folder.path_join("header_%d.png"%i);files.created.append(large_path)
 		var header:=author_bytes.slice(0,33)
 		for at:int in [16,20]:header[at]=0;header[at+1]=0;header[at+2]=16;header[at+3]=0
-		files.write_bytes(large_path,header);ordered[large_path]=[large_path,false]
+		files.write_bytes(large_path,header);ordered[large_path]=[large_path,false,false]
 	for i:int in range(6,-1,-1):
-		var large_path:String=files.folder.path_join("header_%d.png"%i);reversed[large_path]=[large_path,false]
+		var large_path:String=files.folder.path_join("header_%d.png"%i);reversed[large_path]=[large_path,false,false]
 	var bounded:=Prep.estimate(ordered,files.content_root)
 	check(bounded.rows.size()==6 and bounded==Prep.estimate(reversed,files.content_root),"bounded image subset is deterministic across request and author ordering")
 	var old_textures:=Paint._textures.duplicate();var old_materials:=Paint._materials.duplicate();var old_prepared:=Paint.prepared_images.duplicate()
@@ -115,7 +116,7 @@ func run()->void:
 	check(Array(DirAccess.get_files_at(Pixels.DIR)).filter(func(name_):return name_.begins_with(Pixels.cache_path(path,false).get_file()) and name_.ends_with(".tmp")).is_empty(),"vetoed atomic cache publication removes its temporary file")
 	check(Paint._textures==old_textures and Paint._materials==old_materials and Paint.prepared_images==old_prepared,"worker does not mutate render or shared pixel caches")
 	for flip:bool in [false,true]:
-		var key:String=path+("|flip_y" if flip else "")
+		var key:String=path+("|normal|flip_y" if flip else "")
 		var reference:=Pixels.image(path,flip);files.created.append(Pixels.cache_path(path,flip))
 		check(canonical(packet.images[key])==canonical(reference),"raw prepared pixels and every mip match existing decode with flip="+str(flip))
 		check(packet.images[key].get_meta("runtime_source_sha256")==FileAccess.get_sha256(path),"image identity covers actual immutable source bytes")
@@ -146,11 +147,11 @@ func run()->void:
 	# Keep this race specifically between variants rather than in cold-cache
 	# publication's additional cancellation/source check.
 	for flip:bool in [false,true]:Pixels.image(variant_path,flip);files.created.append(Pixels.cache_path(variant_path,flip))
-	var variants:Dictionary={variant_path:[variant_path,false],variant_path+"|flip_y":[variant_path,true]}
+	var variants:Dictionary={variant_path:[variant_path,false,false],variant_path+"|normal|flip_y":[variant_path,true,true]}
 	var mutator:=ReplaceToken.new();mutator.path=variant_path;mutator.bytes=last_bytes
 	var mixed:=await prepare_worker(variants,Prep.estimate(variants,files.content_root),mutator)
 	check(mixed.error=="Prefab texture changed between prepared variants" and mixed.images.is_empty(),"same-size source replacement between orientations cannot overwrite first digest")
-	var outside:Dictionary={"D:/not_authorized.png":["D:/not_authorized.png",false]}
+	var outside:Dictionary={"D:/not_authorized.png":["D:/not_authorized.png",false,false]}
 	check(Prep.estimate(outside,files.folder).rows.is_empty(),"out-of-root inputs never enter CPU image preparation")
 	files.write_bytes(Pixels.cache_path(path,false),"corrupt".to_utf8_buffer())
 	var repaired:=await prepare_worker(requests,plan)
@@ -177,7 +178,7 @@ func run()->void:
 		queue._demand_revision+=1;queue._estimate_job({"native_reference":true},entries)
 		check(queue.profile.prefab_texture_plan_builds==attempts+1,"new demand performs a fresh bounded header attempt")
 		var oversized:Dictionary={}
-		for i:int in 257:oversized[path+str(i)]=[path+str(i),false]
+		for i:int in 257:oversized[path+str(i)]=[path+str(i),false,false]
 		var oversized_index:=read.duplicate(true);oversized_index.rows[0].prefab_textures=oversized
 		queue.configure_references(oversized_index,source.path,files.content_root)
 		check(queue._estimate_job({"native_reference":true},entries).prefab_texture_plan.is_empty(),"overlarge optional image union retains ordinary loading without a new failure")
@@ -235,6 +236,7 @@ func gpu_publication(record:Dictionary,cpu:Dictionary,packet:Dictionary)->void:
 	new_material=null;old_texture=null;replaced.clear()
 	await process_frame;RenderingServer.force_sync()
 func check_gpu()->bool:
+	Pixels.Policy.verify_packages=true # Publication regressions mutate source files in isolated roots.
 	var ok:bool=DisplayServer.get_name()!="headless";check(ok,"--gpu requires private real renderer");return ok
 
 func native_queue(index:Dictionary,entries:Array,map_path:String)->NativeProbe:

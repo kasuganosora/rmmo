@@ -29,7 +29,7 @@ func declared(record:Dictionary)->Dictionary:
 			var path:String=definition.get(field,"")
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			result[path+("|flip_y" if flip else "")]=[path,flip]
+			result[Paint.texture_key(path,flip,field=="normal_path")]=[path,flip,field=="normal_path"]
 	return result
 
 func document()->Document:
@@ -89,9 +89,9 @@ func partial_packet_case(record:Dictionary)->void:
 	var expected:Dictionary=declared(record)
 	var packet:Dictionary=await prepare_worker(expected,Prep.estimate(expected,files.content_root))
 	var path:String=record.terrain_material.normal_path
-	var omitted:String=path+"|flip_y"
+	var omitted:String=path+"|normal|flip_y"
 	# The source SHA alone is not admission for every variant of that path.
-	var raw:Dictionary=await prepare_worker({path:[path,false]},Prep.estimate({path:[path,false]},files.content_root))
+	var raw:Dictionary=await prepare_worker({path:[path,false,false]},Prep.estimate({path:[path,false,false]},files.content_root))
 	packet.images[path]=raw.images[path]
 	packet.images.erase(omitted)
 	clear_caches();Paint.texture_profile_enabled=true;Pixels.reset_profile()

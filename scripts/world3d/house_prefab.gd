@@ -133,7 +133,7 @@ static func _material_texture_tickets(materials:Array,sources:Dictionary,result:
 			var path:Variant=definition.get(field,"")
 			if not path is String or path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			var key:String=path+("|flip_y" if flip else "")
+			var key:String=Cook.Paint.texture_key(path,flip,field=="normal_path")
 			if not sources.has(key) or result.has(key):continue
 			var ticket:=_texture_ticket(material.get(TEXTURE_PROPERTIES[field]))
 			if not ticket.is_empty():result[key]=ticket
@@ -142,7 +142,7 @@ static func _material_texture_tickets(materials:Array,sources:Dictionary,result:
 static func tickets_valid(tickets:Dictionary,sources:Dictionary)->bool:
 	for key:String in tickets:
 		var ticket:Dictionary=tickets[key];var texture:Texture2D=ticket.get("texture")
-		var path:String=key.trim_suffix("|flip_y")
+		var path:String=Cook.Paint.texture_source_path(key)
 		if texture==null or texture.get_meta("runtime_source_sha256","")!=ticket.get("source_sha") or sources.get(path)!=ticket.get("source_sha"):return false
 		var current:Texture2D=Cook.Paint._textures.get(key)
 		if current!=null and current.get_meta("runtime_source_sha256","")!=ticket.source_sha:return false
@@ -159,7 +159,7 @@ static func _stale_material_keys(materials:Array,sources:Dictionary)->Dictionary
 			var texture:Texture2D=value.get(TEXTURE_PROPERTIES[field])
 			if texture!=null and texture.get_meta("runtime_source_sha256","")==sources[path]:continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			changed[path+("|flip_y" if flip else "")]=true
+			changed[Cook.Paint.texture_key(path,flip,field=="normal_path")]=true
 	return changed
 
 static func invalidate_texture_materials(keys:Dictionary)->void:
@@ -180,7 +180,7 @@ static func _uses_textures(mesh:Mesh,keys:Dictionary)->bool:
 			var path:=str(definition.get(field,""))
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			if keys.has(path+("|flip_y" if flip else "")):return true
+			if keys.has(Cook.Paint.texture_key(path,flip,field=="normal_path")):return true
 	return false
 
 static func vec(a:Array)->Vector3:return Vector3(a[0],a[1],a[2])

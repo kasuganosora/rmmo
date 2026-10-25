@@ -56,7 +56,7 @@ func run()->void:
 		print("PREFLIGHT_CASE ",JSON.stringify({"mode":mode.label,"reads":reads,"counters":counters}))
 		check(not node.has_meta("paint_error") and node.mesh!=null,mode.label+" preserves successful real geometry construction")
 		check(reads==mode.reads,mode.label+" performs "+str(mode.reads)+" extra declared-texture runtime reads")
-		var checked:bool=doc.load_texture_checks.has(["decoded_texture",path,false])
+		var checked:bool=doc.load_texture_checks.has(["decoded_texture",path])
 		check(checked==(mode.reads==1),mode.label+" preserves intended preflight boundary")
 		node.free();doc=null
 	check(FileAccess.get_sha256(path)==source_sha,"all modes preserve original resource bytes")

@@ -47,7 +47,7 @@ func run()->void:
 	path=folder.path_join("source.png");target=Pixels.cache_path(path,false)
 	var image:=Image.create(19,13,false,Image.FORMAT_RGBA8);image.fill(Color(.2,.4,.7,1.))
 	check(image.save_png(path)==OK,"write isolated source PNG")
-	original=FileAccess.get_file_as_bytes(path);requested={path:[path,false]};plan=Prep.estimate(requested,folder)
+	original=FileAccess.get_file_as_bytes(path);requested={path:[path,false,false]};plan=Prep.estimate(requested,folder)
 	pool=Pool.new();pool.admission=Admission.new()
 	var seed_scope:=shared();var seed:=Prep.prepare(requested,plan,folder,null,true,seed_scope,true)
 	check(seed.error.is_empty() and seed.images.size()==1,"seed a real bounded cache and operation source identity")

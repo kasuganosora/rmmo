@@ -1787,7 +1787,7 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	var paint=preload("res://scripts/world3d/surface_materials.gd")
 	for source_key:String in sources.keys():
 		var source:Variant=sources[source_key]
-		if source is Array and source.size()==2 and paint.has_compressed_sidecar(str(source[0]),bool(source[1])):
+		if source is Array and source.size()==3 and paint.has_compressed_sidecar(str(source[0]),bool(source[1]),bool(source[2])):
 			sources.erase(source_key)
 	var texture_plan_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 	var result:Dictionary=PrefabTextures.estimate(sources,_reference_root) if not sources.is_empty() else {}
@@ -3754,7 +3754,7 @@ func _resume_pixel_jobs(tree:SceneTree)->void:
 		var shared:Dictionary=job.shared_pixels.duplicate();shared.leaders={}
 		var plan:Dictionary=job.estimate.prefab_texture_plan
 		var requested:Dictionary={}
-		for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip]
+		for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip,plan.rows[key].normal]
 		var worker:=Thread.new();job.worker=worker;job.pixel_continuation=true
 		# The previous result can contain raw/compiled GPU owners. Keep it on main
 		# (or the drainer after exit), never pass it to the CPU continuation.

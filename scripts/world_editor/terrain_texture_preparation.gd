@@ -8,14 +8,16 @@ const Prefab=preload("res://scripts/world3d/house_prefab.gd")
 
 static func requests(record:Dictionary,checked:Dictionary)->Dictionary:
 	var result:Dictionary={}
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return result
 	for definition in Paint.definitions(record):
 		for field in Paint.MAP_FIELDS:
 			var path:=str(definition.get(field,""))
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			var key:=path+("|flip_y" if flip else "")
+			var key:=Paint.texture_key(path,flip,field=="normal_path")
+			if Paint.has_compressed_sidecar(path,flip,field=="normal_path"):continue
 			if checked.has(key) and Paint._textures.has(key):continue
-			result[key]=[path,flip]
+			result[key]=[path,flip,field=="normal_path"]
 	return result
 
 static func decode(requested:Dictionary,content_root:String)->Dictionary:

@@ -40,7 +40,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(fixture.files.folder)
 	var path:String=fixture.files.folder.path_join("shared.png");fixture.files.created.append(path)
 	var image:=Image.create(19,13,false,Image.FORMAT_RGB8);image.fill(Color(.1,.3,.7));image.save_png(path)
-	var material:Dictionary={"name":"shared","color":[1,1,1,1],"roughness":.7,"texture_path":path,"normal_path":path,"normal_format":"directx"}
+	var material:Dictionary={"name":"shared","color":[1,1,1,1],"roughness":.7,"texture_path":path,"normal_path":path,"normal_format":"opengl"}
 	var first:Dictionary=fixture.bridge("shared_a",100,material);var second:Dictionary=fixture.bridge("shared_b",200,material)
 	var requested:=Prep.sources(first);var plan:=Prep.estimate(requested,fixture.files.content_root)
 	await pool_test(requested,plan,path)
@@ -119,7 +119,12 @@ func queue_test(index:Dictionary,entries:Array,map_path:String,path:String,cance
 		queue.pump_entry_prefetch()
 		if queue._jobs.has(consumer_path) and queue._jobs[consumer_path].has("result") and not queue._jobs[consumer_path].result.get("waiting_pixels",false) and not queue._jobs[consumer_path].has("worker"):break
 		await process_frame
-	check(queue.path_errors.is_empty() and queue._jobs.has(consumer_path) and queue._jobs[consumer_path].result.error.is_empty() and not queue._jobs[consumer_path].result.waiting_pixels,"dependent reference resumes or safely retries after producer cancellation")
+	var completed:bool=queue.path_errors.is_empty() and queue._jobs.has(consumer_path) and queue._jobs[consumer_path].result.error.is_empty() and not queue._jobs[consumer_path].result.waiting_pixels
+	check(completed,"dependent reference resumes or safely retries after producer cancellation")
+	if not completed:
+		print("CONTINUATION_ERRORS ",queue.path_errors)
+		await queue.quiesce();queue.free();return
+	check(queue._jobs[consumer_path].result.prefab_texture_packet.images.has(path+"|normal"),"real continuation preserves an OpenGL normal role that cannot be inferred from flip=false")
 	check(queue.accepted==0 and Paint._textures.is_empty(),"shared ready packets remain unpublished before core handoff")
 	var alias:Dictionary=queue._jobs[consumer_path].result.prefab_texture_packet;var weak:WeakRef=weakref(alias.images[path])
 	await queue.quiesce()

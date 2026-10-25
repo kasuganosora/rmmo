@@ -1,7 +1,9 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_back;
+#include "res://scripts/world3d/normal_texture_decode.gdshaderinc"
 uniform sampler2D scene_depth : hint_depth_texture, filter_nearest;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool normal_xy = false;
 uniform float normal_strength = .7;
 uniform float roughness = .22;
 uniform float absorption = .45;
@@ -27,7 +29,7 @@ void fragment() {
 	float thickness=max(0.,VERTEX.z-bottom_view.z);
 	ALBEDO=mix(shallow_color,deep_color,1.-exp(-vertical_depth*.65));
 	ROUGHNESS=roughness;
-	vec3 ripple=texture(normal_tex,world_position.xz/4.).rgb*2.-1.;
+	vec3 ripple=decode_surface_normal(texture(normal_tex,world_position.xz/4.).rgb,normal_xy);
 	// Keep the horizontal X/Z ripple unchanged, but anchor it to the actual
 	// longitudinal water surface instead of forcing every river to world-up.
 	vec3 base_normal=normalize(water_normal);

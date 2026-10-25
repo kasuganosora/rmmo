@@ -16,7 +16,7 @@ static func begin_record_scope(record:Dictionary,packet:Dictionary,owners:Dictio
 	# shader-only height maps. A zero hot-cache budget must not lose this work.
 	for key:String in owners:
 		var texture:Texture2D=owners[key]
-		var expected:String=packet.get("sources",{}).get(key.trim_suffix("|flip_y"),"")
+		var expected:String=packet.get("sources",{}).get(Paint.texture_source_path(key),"")
 		if not expected.is_empty() and texture.get_meta("runtime_source_sha256","")!=expected:continue
 		if Paint.residency_budget_enabled:
 			if not Paint._texture_refs.has(key) or Paint._texture_refs[key].get_ref()!=texture:Paint._remember_weak(Paint._texture_refs,key,texture)
@@ -36,8 +36,7 @@ static func step_record_prepared(record:Dictionary,validation:Variant,owners:Dic
 		if not Paint.material_valid(definition,false,"",validation):result=FAILED;break
 		for field:String in Paint.MAP_FIELDS:
 			var path:String=definition.get(field,"")
-			var key:String=path if not path.is_empty() else (str(definition.get("pattern","")) if field=="texture_path" else "")
-			if field=="normal_path" and definition.get("normal_format","opengl")=="directx" and not key.is_empty():key+="|flip_y"
+			var key:String=Paint.definition_texture_key(definition,field)
 			if key.is_empty():continue
 			# A source identity does not admit every variant or format. Keep the
 			# existing final binding fallback for work outside this worker packet.
@@ -82,8 +81,7 @@ static func step(materials:Array,validation:Variant,pool:Dictionary,texture_tick
 			if not Paint.material_valid(value.paint,false,"",validation):tickets.clear();return FAILED
 			for field:String in Paint.MAP_FIELDS:
 				var path:String=value.paint.get(field,"")
-				var key:String=path if not path.is_empty() else (str(value.paint.get("pattern","")) if field=="texture_path" else "")
-				if field=="normal_path" and value.paint.get("normal_format","opengl")=="directx":key+="|flip_y" if not key.is_empty() else ""
+				var key:String=Paint.definition_texture_key(value.paint,field)
 				if key.is_empty():continue
 				var cached:Texture2D=Paint.retained_texture(key)
 				if cached!=null:tickets[key]=cached;continue

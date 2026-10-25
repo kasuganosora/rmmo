@@ -27,6 +27,6 @@ func setup_record(doc:RefCounted,id:String,definition:Dictionary)->Dictionary:
 	var unrelated:=Prefab.geometry(plain);var target:=Prefab.geometry(record)
 	Prefab.invalidate_texture_materials({definition.normal_path:true})
 	check(is_same(Prefab.geometry(record),target),"normal format distinguishes flipped cache key")
-	Prefab.invalidate_texture_materials({definition.normal_path+"|flip_y":true})
+	Prefab.invalidate_texture_materials({definition.normal_path+"|normal|flip_y":true})
 	check(not Prefab._meshes.has(record.house_prefab.sha256) and is_same(Prefab.geometry(plain),unrelated),"flipped normal invalidates only dependent prefab caches")
 	return record

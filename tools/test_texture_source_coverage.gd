@@ -11,7 +11,7 @@ func _initialize()->void:
 	var base:Dictionary={"texture_path":"base.png","normal_path":"normal.png","normal_format":"directx","height_path":"height.png"}
 	var extra:Dictionary={"texture_path":"extra.png","ao_path":"base.png"}
 	var terrain:Dictionary={"terrain_material":base,"terrain_regions":{"materials":[extra]},"terrain_depth_blend":{"sand_material":base,"rock_material":extra,"transition_material":extra}}
-	var expected:Dictionary={"base.png":["base.png",false],"normal.png|flip_y":["normal.png",true],"height.png":["height.png",false],"extra.png":["extra.png",false]}
+	var expected:Dictionary={"base.png":["base.png",false,false],"normal.png|normal|flip_y":["normal.png",true,true],"height.png":["height.png",false,false],"extra.png":["extra.png",false,false]}
 	check(Prep.sources(terrain)==expected,"terrain layers, transitions and height enter one deduplicated dependency plan")
 	var road:Dictionary={"road_kerb_material":base,"surface_paint":[{"material":extra}]}
 	check(Prep.sources(road)==expected,"road kerb and painted surfaces prepare all declared images")

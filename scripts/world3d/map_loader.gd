@@ -887,9 +887,11 @@ func _start_texture_prefetch(dependencies:Variant)->void:
 	if not dependencies is Array or dependencies.is_empty():return
 	var requested:Dictionary={}
 	for item in dependencies:
-		if not item is Array or item.size()!=2 or not item[0] is String or not item[1] is bool:return
+		if not item is Array or item.size()!=3 or not item[0] is String or not item[1] is bool or not item[2] is bool:return
 		if item[0].get_extension().to_lower() not in ["png","jpg","jpeg","webp"] or not preload("res://scripts/world3d/map_paths.gd").allowed(item[0],_content_root) or not FileAccess.file_exists(item[0]):return
-		requested[item[0]+("|flip_y" if item[1] else "")]=item
+		if not preload("res://scripts/world3d/surface_materials.gd").compressed_sidecar_path(item[0],item[1],item[2]).is_empty():continue
+		requested[preload("res://scripts/world3d/surface_materials.gd").texture_key(item[0],item[1],item[2])]=item
+	if requested.is_empty():return
 	_texture_thread=Thread.new()
 	if _texture_thread.start(_decode_textures.bind(requested))!=OK:_texture_thread=null
 
@@ -1146,7 +1148,7 @@ func _validate_record_batch(entries:Array)->Dictionary:
 				var path: String=definition.get(field, "")
 				if not path.is_empty():
 					var flip:bool=field=="normal_path" and definition.get("normal_format", "opengl")=="directx"
-					textures[path+("|flip_y" if flip else "")]=[path,flip]
+					textures[preload("res://scripts/world3d/surface_materials.gd").texture_key(path,flip,field=="normal_path")]=[path,flip,field=="normal_path"]
 				if not path.is_empty() and not checked_paths.has(path):
 					if not preload("res://scripts/world3d/map_paths.gd").allowed(path,_content_root) or not FileAccess.file_exists(path): return {"ok":false}
 					checked_paths[path]=true

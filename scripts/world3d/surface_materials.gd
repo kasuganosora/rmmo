@@ -21,11 +21,21 @@ static var _cache_serial:=0
 static var _cache_use:Dictionary={}
 static var cache_residency_profile:Dictionary={}
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
+static func texture_key(path:String,flip:bool=false,normal:bool=false)->String:
+	if path.is_empty():return ""
+	return path+("|normal" if normal or flip else "")+("|flip_y" if flip else "")
+static func texture_source_path(key:String)->String:
+	return key.trim_suffix("|flip_y").trim_suffix("|normal")
+static func definition_texture_key(definition:Dictionary,field:String)->String:
+	var path:String=definition.get(field,"")
+	if path.is_empty() and field=="texture_path":path=str(definition.get("pattern",""))
+	return texture_key(path,field=="normal_path" and definition.get("normal_format","opengl")=="directx",field=="normal_path")
 static func refresh_sources()->void:
 	# A source refresh starts a new identity generation. Live consumers keep
 	# their old resources; neither hot nor weak aliases may authorize new builds.
 	_materials.clear();_textures.clear();prepared_images.clear()
 	_material_refs.clear();_texture_refs.clear();_cache_use.clear()
+	_sidecar_cache.clear()
 
 static func _touch_cache(kind:String,key:String)->void:
 	_cache_serial+=1;_cache_use[kind+key]=_cache_serial
@@ -81,7 +91,7 @@ static func _material_current(material:StandardMaterial3D)->bool:
 	for i in MAP_FIELDS.size():
 		var path:String=definition.get(MAP_FIELDS[i],"")
 		if path.is_empty():continue
-		var key:=path+("|flip_y" if MAP_FIELDS[i]=="normal_path" and definition.get("normal_format","opengl")=="directx" else "")
+		var key:=definition_texture_key(definition,MAP_FIELDS[i])
 		var texture:Texture2D=material.get(TEXTURE_PROPERTIES[i])
 		var digest:String=texture.get_meta("runtime_source_sha256","") if texture!=null else ""
 		if prepared_images.has(key) and digest!=prepared_images[key].get_meta("runtime_source_sha256",""):return false
@@ -305,20 +315,27 @@ static func texture(material: Dictionary, field: String = "texture_path",path_ch
 		TextureCache._profile_elapsed("paint.texture",began,{"path":str(material.get(field,"")),"field":field,"ok":result!=null})
 	return result
 
-static func has_compressed_sidecar(path:String,flip:bool=false)->bool:
-	if not compressed_sidecars_enabled or path.is_empty():return false
-	if _sidecar_cache.has(path+"|"+str(flip)):
-		var cached:=str(_sidecar_cache[path+"|"+str(flip)])
-		return not cached.is_empty()
+static func compressed_sidecar_path(path:String,flip:bool=false,normal:bool=false)->String:
+	# Worker-safe filesystem selection. Never reads or writes the main-only cache.
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return ""
+	if not compressed_sidecars_enabled or path.is_empty():return ""
 	var suffixes:=([".flip.dxt5.dds",".flip.dxt1.dds"] if flip else [".dxt5.dds",".dxt1.dds"])
+	if normal or flip:suffixes.push_front(".flip.bc5.dds" if flip else ".bc5.dds")
 	for suffix:String in suffixes:
-		if FileAccess.file_exists(path+suffix):_sidecar_cache[path+"|"+str(flip)]=path+suffix;return true
-	_sidecar_cache[path+"|"+str(flip)]=""
-	return false
+		if FileAccess.file_exists(path+suffix):return path+suffix
+	return ""
 
-static func _load_compressed_sidecar(path:String,flip:bool)->Dictionary:
-	if not has_compressed_sidecar(path,flip):return {}
-	var sidecar:=str(_sidecar_cache[path+"|"+str(flip)])
+static func has_compressed_sidecar(path:String,flip:bool=false,normal:bool=false)->bool:
+	# Main-thread callers memoize the worker-safe selector for this generation.
+	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return false
+	if not compressed_sidecars_enabled or path.is_empty():return false
+	var key:=texture_key(path,flip,normal)
+	if not _sidecar_cache.has(key):_sidecar_cache[key]=compressed_sidecar_path(path,flip,normal)
+	return not str(_sidecar_cache[key]).is_empty()
+
+static func _load_compressed_sidecar(path:String,flip:bool,normal:bool)->Dictionary:
+	if not has_compressed_sidecar(path,flip,normal):return {}
+	var sidecar:=str(_sidecar_cache[texture_key(path,flip,normal)])
 	var bytes:=FileAccess.get_file_as_bytes(sidecar)
 	if bytes.is_empty():return {}
 	var image:=Image.new()
@@ -338,7 +355,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if path_checks!=null:path_checks[path]=true
 	var key := path if not path.is_empty() else (str(material.get("pattern", "")) if field == "texture_path" else "")
 	var flip_normal: bool = field == "normal_path" and material.get("normal_format", "opengl") == "directx"
-	var cache_key := key + ("|flip_y" if flip_normal else "")
+	var cache_key := texture_key(key,flip_normal,field=="normal_path")
 	if key.is_empty(): return null
 	var restored_weak:=false
 	if not _textures.has(cache_key) and residency_budget_enabled and _texture_refs.has(cache_key):
@@ -355,12 +372,13 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if restored_weak:trim_cached_resources()
 		return cached
 	if key!="checker" and not prepared_images.has(cache_key):
-		var side:=_load_compressed_sidecar(path,flip_normal)
+		var side:=_load_compressed_sidecar(path,flip_normal,field=="normal_path")
 		if not side.is_empty():
 			var side_started:=Time.get_ticks_usec() if texture_profile_enabled else 0
 			var side_texture:=ImageTexture.create_from_image(side.image)
 			side_texture.set_meta("surface_has_alpha",bool(side.alpha))
 			side_texture.set_meta("runtime_upload_bytes",side.image.get_data_size())
+			side_texture.set_meta("runtime_normal_xy",side.image.get_format()==Image.FORMAT_RGTC_RG)
 			side_texture.set_meta("runtime_source_sha256",path.sha256_text())
 			if _textures.size()>=64:
 				var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
@@ -369,6 +387,8 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 			if texture_profile_enabled:
 				TextureCache._profile_elapsed("paint.texture.sidecar_upload",side_started,{"path":path,"bytes":side.image.get_data_size(),"sidecar":side.path})
 				TextureCache._profile_count("paint.texture.sidecar_uploads")
+				TextureCache._profile_count("paint.texture.sidecar_upload_bytes",side.image.get_data_size())
+				TextureCache._profile_count("paint.texture.upload_bytes",side.image.get_data_size())
 			return side_texture
 	var image: Image
 	if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_miss")
@@ -415,7 +435,7 @@ static func texture_error(record: Dictionary, checks: Variant = null) -> String:
 		for field: String in MAP_FIELDS:
 			var path: String=definition.get(field,"")
 			if path.is_empty():continue
-			var key: Array=["decoded_texture",path,field=="normal_path" and definition.get("normal_format","opengl")=="directx"]
+			var key: Array=["decoded_texture",definition_texture_key(definition,field)]
 			var valid_image: bool
 			if checks!=null and checks.has(key):valid_image=checks[key]
 			else:

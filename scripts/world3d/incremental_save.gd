@@ -147,7 +147,10 @@ static func prepare_materials(records: Array) -> void:
 	for definition:Dictionary in definitions:
 		for field:String in materials.MAP_FIELDS:
 			var path:String=definition.get(field,"")
-			if not path.is_empty():texture_keys[path]=true;texture_keys[path+"|flip_y"]=true
+			if not path.is_empty():
+				texture_keys[path]=true
+				texture_keys[materials.texture_key(path,false,true)]=true
+				texture_keys[materials.texture_key(path,true,true)]=true
 	for key in materials._materials.keys():
 		var definition:Dictionary=materials._materials[key].get_meta("runtime_paint_definition",{})
 		var affected:bool=definition in definitions

@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+#include "res://scripts/world3d/normal_texture_decode.gdshaderinc"
 uniform float terrain_saturation = 1.;
 uniform float wet_height = .3;
 uniform float wet_darkening = 0.;
@@ -10,6 +11,7 @@ uniform float base_metallic = 0.;
 uniform float base_strength = 1.;
 uniform sampler2D base_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D base_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool base_normal_xy = false;
 uniform sampler2D base_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D base_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D base_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -20,6 +22,7 @@ uniform float sand_metallic = 0.;
 uniform float sand_strength = 1.;
 uniform sampler2D sand_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D sand_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool sand_normal_xy = false;
 uniform sampler2D sand_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D sand_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D sand_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -30,6 +33,7 @@ uniform float rock_metallic = 0.;
 uniform float rock_strength = 1.;
 uniform sampler2D rock_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool rock_normal_xy = false;
 uniform sampler2D rock_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -58,6 +62,7 @@ uniform float soil_metallic = 0.;
 uniform float soil_strength = 1.;
 uniform sampler2D soil_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D soil_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool soil_normal_xy = false;
 uniform sampler2D soil_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D soil_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D soil_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -74,6 +79,7 @@ uniform float region_a_metallic = 0.;
 uniform float region_a_strength = 1.;
 uniform sampler2D region_a_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_a_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool region_a_normal_xy = false;
 uniform sampler2D region_a_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_a_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_a_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -88,6 +94,7 @@ uniform float region_b_metallic = 0.;
 uniform float region_b_strength = 1.;
 uniform sampler2D region_b_albedo : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_b_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform bool region_b_normal_xy = false;
 uniform sampler2D region_b_rough : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_b_metal : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D region_b_ao : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -152,15 +159,15 @@ vec4 sample_surface(sampler2D tex, vec2 tile, vec3 geometric_normal) {
 	if (w.z>.00001) { result+=texture(tex,world_position.xy/tile)*w.z; }
 	return result;
 }
-vec3 bump(sampler2D tex, vec2 uv, float strength) {
-	vec3 n=texture(tex,uv).rgb*2.-1.;
+vec3 bump(sampler2D tex, vec2 uv, float strength, bool xy_only) {
+	vec3 n=decode_surface_normal(texture(tex,uv).rgb,xy_only);
 	return vec3(n.xy*strength/max(.1,n.z),0.);
 }
-vec3 surface_normal(sampler2D tex, vec2 tile, float strength, vec3 geometric_normal) {
+vec3 surface_normal(sampler2D tex, vec2 tile, float strength, vec3 geometric_normal, bool xy_only) {
 	vec3 n=geometric_normal; vec3 w=projection_weights(n); vec3 perturb=vec3(0.);
-	if (w.x>.00001) { vec3 b=bump(tex,world_position.zy/tile,strength); perturb+=vec3(0.,b.y,b.x)*w.x; }
-	if (w.y>.00001) { vec3 b=bump(tex,world_position.xz/tile,strength); perturb+=vec3(b.x,0.,b.y)*w.y; }
-	if (w.z>.00001) { vec3 b=bump(tex,world_position.xy/tile,strength); perturb+=vec3(b.x,b.y,0.)*w.z; }
+	if (w.x>.00001) { vec3 b=bump(tex,world_position.zy/tile,strength,xy_only); perturb+=vec3(0.,b.y,b.x)*w.x; }
+	if (w.y>.00001) { vec3 b=bump(tex,world_position.xz/tile,strength,xy_only); perturb+=vec3(b.x,0.,b.y)*w.y; }
+	if (w.z>.00001) { vec3 b=bump(tex,world_position.xy/tile,strength,xy_only); perturb+=vec3(b.x,b.y,0.)*w.z; }
 	return normalize(n+perturb-n*dot(perturb,n));
 }
 float terrain_height(vec2 p) {
@@ -282,10 +289,10 @@ void fragment() {
 		if (base_metallic>0.) { METALLIC+=(base_has_metal?sample_surface(base_metal,base_tile,projection_normal).r:1.)*base_metallic*weights.x; }
 		AO+=(base_has_ao?sample_surface(base_ao,base_tile,projection_normal).r:1.)*weights.x;
 		if (slope_aware) {
-			surface+=(base_strength>0.?surface_normal(base_normal,base_tile,base_strength,projection_normal):projection_normal)*weights.x;
+			surface+=(base_strength>0.?surface_normal(base_normal,base_tile,base_strength,projection_normal,base_normal_xy):projection_normal)*weights.x;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (base_strength>0.) { n=texture(base_normal,world_position.xz/base_tile).rgb*2.-1.; n=normalize(vec3(n.xy*base_strength,max(.01,n.z))); }
+			if (base_strength>0.) { n=decode_surface_normal(texture(base_normal,world_position.xz/base_tile).rgb,base_normal_xy); n=normalize(vec3(n.xy*base_strength,max(.01,n.z))); }
 			surface+=n*weights.x;
 		}
 	}
@@ -295,10 +302,10 @@ void fragment() {
 		if (region_a_metallic>0.) { METALLIC+=(region_a_has_metal?sample_surface(region_a_metal,region_a_tile,projection_normal).r:1.)*region_a_metallic*region_weights.x; }
 		AO+=(region_a_has_ao?sample_surface(region_a_ao,region_a_tile,projection_normal).r:1.)*region_weights.x;
 		if (slope_aware) {
-			surface+=(region_a_strength>0.?surface_normal(region_a_normal,region_a_tile,region_a_strength,projection_normal):projection_normal)*region_weights.x;
+			surface+=(region_a_strength>0.?surface_normal(region_a_normal,region_a_tile,region_a_strength,projection_normal,region_a_normal_xy):projection_normal)*region_weights.x;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (region_a_strength>0.) { n=texture(region_a_normal,world_position.xz/region_a_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_a_strength,max(.01,n.z))); }
+			if (region_a_strength>0.) { n=decode_surface_normal(texture(region_a_normal,world_position.xz/region_a_tile).rgb,region_a_normal_xy); n=normalize(vec3(n.xy*region_a_strength,max(.01,n.z))); }
 			surface+=n*region_weights.x;
 		}
 	}
@@ -308,10 +315,10 @@ void fragment() {
 		if (region_b_metallic>0.) { METALLIC+=(region_b_has_metal?sample_surface(region_b_metal,region_b_tile,projection_normal).r:1.)*region_b_metallic*region_weights.y; }
 		AO+=(region_b_has_ao?sample_surface(region_b_ao,region_b_tile,projection_normal).r:1.)*region_weights.y;
 		if (slope_aware) {
-			surface+=(region_b_strength>0.?surface_normal(region_b_normal,region_b_tile,region_b_strength,projection_normal):projection_normal)*region_weights.y;
+			surface+=(region_b_strength>0.?surface_normal(region_b_normal,region_b_tile,region_b_strength,projection_normal,region_b_normal_xy):projection_normal)*region_weights.y;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (region_b_strength>0.) { n=texture(region_b_normal,world_position.xz/region_b_tile).rgb*2.-1.; n=normalize(vec3(n.xy*region_b_strength,max(.01,n.z))); }
+			if (region_b_strength>0.) { n=decode_surface_normal(texture(region_b_normal,world_position.xz/region_b_tile).rgb,region_b_normal_xy); n=normalize(vec3(n.xy*region_b_strength,max(.01,n.z))); }
 			surface+=n*region_weights.y;
 		}
 	}
@@ -321,10 +328,10 @@ void fragment() {
 		if (sand_metallic>0.) { METALLIC+=(sand_has_metal?sample_surface(sand_metal,sand_tile,projection_normal).r:1.)*sand_metallic*weights.y; }
 		AO+=(sand_has_ao?sample_surface(sand_ao,sand_tile,projection_normal).r:1.)*weights.y;
 		if (slope_aware) {
-			surface+=(sand_strength>0.?surface_normal(sand_normal,sand_tile,sand_strength,projection_normal):projection_normal)*weights.y;
+			surface+=(sand_strength>0.?surface_normal(sand_normal,sand_tile,sand_strength,projection_normal,sand_normal_xy):projection_normal)*weights.y;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (sand_strength>0.) { n=texture(sand_normal,world_position.xz/sand_tile).rgb*2.-1.; n=normalize(vec3(n.xy*sand_strength,max(.01,n.z))); }
+			if (sand_strength>0.) { n=decode_surface_normal(texture(sand_normal,world_position.xz/sand_tile).rgb,sand_normal_xy); n=normalize(vec3(n.xy*sand_strength,max(.01,n.z))); }
 			surface+=n*weights.y;
 		}
 	}
@@ -334,10 +341,10 @@ void fragment() {
 		if (rock_metallic>0.) { METALLIC+=(rock_has_metal?sample_surface(rock_metal,rock_tile,projection_normal).r:1.)*rock_metallic*weights.z; }
 		AO+=(rock_has_ao?sample_surface(rock_ao,rock_tile,projection_normal).r:1.)*weights.z;
 		if (slope_aware) {
-			surface+=(rock_strength>0.?surface_normal(rock_normal,rock_tile,rock_strength,projection_normal):projection_normal)*weights.z;
+			surface+=(rock_strength>0.?surface_normal(rock_normal,rock_tile,rock_strength,projection_normal,rock_normal_xy):projection_normal)*weights.z;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (rock_strength>0.) { n=texture(rock_normal,world_position.xz/rock_tile).rgb*2.-1.; n=normalize(vec3(n.xy*rock_strength,max(.01,n.z))); }
+			if (rock_strength>0.) { n=decode_surface_normal(texture(rock_normal,world_position.xz/rock_tile).rgb,rock_normal_xy); n=normalize(vec3(n.xy*rock_strength,max(.01,n.z))); }
 			surface+=n*weights.z;
 		}
 	}
@@ -347,10 +354,10 @@ void fragment() {
 		if (soil_metallic>0.) { METALLIC+=(soil_has_metal?sample_surface(soil_metal,soil_tile,projection_normal).r:1.)*soil_metallic*weights.w; }
 		AO+=(soil_has_ao?sample_surface(soil_ao,soil_tile,projection_normal).r:1.)*weights.w;
 		if (slope_aware) {
-			surface+=(soil_strength>0.?surface_normal(soil_normal,soil_tile,soil_strength,projection_normal):projection_normal)*weights.w;
+			surface+=(soil_strength>0.?surface_normal(soil_normal,soil_tile,soil_strength,projection_normal,soil_normal_xy):projection_normal)*weights.w;
 		} else {
 			vec3 n=vec3(0.,0.,1.);
-			if (soil_strength>0.) { n=texture(soil_normal,world_position.xz/soil_tile).rgb*2.-1.; n=normalize(vec3(n.xy*soil_strength,max(.01,n.z))); }
+			if (soil_strength>0.) { n=decode_surface_normal(texture(soil_normal,world_position.xz/soil_tile).rgb,soil_normal_xy); n=normalize(vec3(n.xy*soil_strength,max(.01,n.z))); }
 			surface+=n*weights.w;
 		}
 	}

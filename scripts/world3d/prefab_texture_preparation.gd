@@ -16,6 +16,8 @@ static var mounted_source_reuse_enabled:=true
 
 static func sources(record:Dictionary)->Dictionary:
 	var result:Dictionary={}
+	# Persisted dependency metadata must not depend on the current render probe.
+	# White/discard suppresses actual work in estimate and the load consumers.
 	# All authored bindings share the same worker preparation, including terrain,
 	# roads and surface overrides on an otherwise frozen/native model.
 	for definition:Dictionary in preload("res://scripts/world3d/surface_materials.gd").definitions(record):
@@ -23,7 +25,7 @@ static func sources(record:Dictionary)->Dictionary:
 			var path:String=definition.get(field,"")
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			result[path+("|flip_y" if flip else "")]=[path,flip]
+			result[preload("res://scripts/world3d/surface_materials.gd").texture_key(path,flip,field=="normal_path")]=[path,flip,field=="normal_path"]
 			if result.size()>MAX_SOURCES:return {} # Optional prefetch, never a new authoring limit.
 	return result
 
@@ -31,8 +33,8 @@ static func valid_sources(value:Variant)->bool:
 	if not value is Dictionary or value.size()>MAX_SOURCES:return false
 	for key:Variant in value:
 		var source:Variant=value[key]
-		if not key is String or not source is Array or source.size()!=2 or not source[0] is String or not source[1] is bool:return false
-		if source[0].is_empty() or key!=source[0]+("|flip_y" if source[1] else ""):return false
+		if not key is String or not source is Array or source.size()!=3 or not source[0] is String or not source[1] is bool or not source[2] is bool:return false
+		if source[0].is_empty() or key!=preload("res://scripts/world3d/surface_materials.gd").texture_key(source[0],source[1],source[2]) or (source[1] and not source[2]):return false
 	return true
 
 static func _header(path:String,root:String)->Dictionary:
@@ -59,7 +61,7 @@ static func estimate(requested:Dictionary,root:String)->Dictionary:
 		if row.is_empty():continue
 		var pixels:int=Headers._mip_bytes(row.width,row.height,4)
 		if output+pixels>MAX_OUTPUT_BYTES:continue
-		row.path=source[0];row.flip=source[1];row.output_bytes=pixels
+		row.path=source[0];row.flip=source[1];row.normal=source[2];row.output_bytes=pixels
 		# Cache reads reject larger envelopes BEFORE reading/Variant decoding.
 		# Three envelopes cover bytes_to_var/copies; four pixel buffers cover
 		# decompression, Image allocation, normal flip and RGB upload conversion.
@@ -284,6 +286,11 @@ static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Di
 		if reuse_sources:
 			var digest:String=shared.pool.source_identity(shared.consumer,path)
 			if digest.is_empty() or digest!=packet.sources[path]:valid=false;break
+			packet.profile.final_source_identity_hits=int(packet.profile.get("final_source_identity_hits",0))+1
+		elif Pixels.Policy.trusted():
+			# Standalone preparation uses the same mounted-package path identity.
+			# Comparing it to a newly read content SHA cannot succeed.
+			if path.sha256_text()!=packet.sources[path]:valid=false;break
 			packet.profile.final_source_identity_hits=int(packet.profile.get("final_source_identity_hits",0))+1
 		else:
 			packet.profile.final_sha_reads=int(packet.profile.get("final_sha_reads",0))+1

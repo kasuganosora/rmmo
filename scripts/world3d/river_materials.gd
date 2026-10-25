@@ -38,7 +38,9 @@ static func bind(material: ShaderMaterial, prefix: String, definition: Dictionar
 	var tile: Array=definition.get("tile_size",[2,2])
 	material.set_shader_parameter(prefix+"_tile",Vector2(tile[0],tile[1]))
 	for pair in [["albedo","texture_path"],["normal","normal_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"],["height","height_path"]]:
-		material.set_shader_parameter(prefix+"_"+pair[0],Paint.texture(definition,pair[1],path_checks))
+		var texture:Texture2D=Paint.texture(definition,pair[1],path_checks)
+		material.set_shader_parameter(prefix+"_"+pair[0],texture)
+		if pair[0]=="normal":material.set_shader_parameter(prefix+"_normal_xy",texture!=null and texture.get_meta("runtime_normal_xy",false))
 	material.set_shader_parameter(prefix+"_has_height",not str(definition.get("height_path","")).is_empty())
 	for pair in [["albedo","texture_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"]]:
 		material.set_shader_parameter(prefix+"_has_"+pair[0],not str(definition.get(pair[1],"")).is_empty() or (pair[0]=="albedo" and definition.get("pattern","")=="checker"))
@@ -59,7 +61,7 @@ static func _terrain_textures_current(material:ShaderMaterial,record:Dictionary,
 		for pair:Array in [["albedo","texture_path"],["normal","normal_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"],["height","height_path"]]:
 			var path:String=definition.get(pair[1],"")
 			if path.is_empty():continue
-			var key:String=path+("|flip_y" if pair[1]=="normal_path" and definition.get("normal_format","opengl")=="directx" else "")
+			var key:String=Paint.definition_texture_key(definition,pair[1])
 			var owner:RefCounted=Paint.prepared_images.get(key)
 			if owner==null:owner=Paint.retained_texture(key)
 			if owner==null:continue
@@ -131,6 +133,7 @@ static func water(config: Dictionary, source: Material) -> ShaderMaterial:
 		var c: Array=config[key_]; result.set_shader_parameter(key_,Color(c[0],c[1],c[2]))
 	if source is StandardMaterial3D:
 		result.set_shader_parameter("normal_tex",source.normal_texture)
+		result.set_shader_parameter("normal_xy",source.normal_texture!=null and source.normal_texture.get_meta("runtime_normal_xy",false))
 		result.set_shader_parameter("normal_strength",source.normal_scale if source.normal_enabled else 0.0)
 		result.set_shader_parameter("roughness",source.roughness)
 	return remember(key,result)
