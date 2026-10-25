@@ -36,6 +36,7 @@ static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of
 static var sliced_retirement_schema_enabled:=true
 static var resident_retirement_catalog_enabled:=true # Runtime index owns membership; false retains the diagnostic full-directory proof.
 static var incremental_adoption_enabled:=true # A/B control for root-child adoption and empty-plan preservation.
+static var owned_removal_accounting_enabled:=true # Preserve the residency plan across a slow removal's early yield.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -1661,7 +1662,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 				var owned:Variant=by_id.get(str(member.name))
 				if owned is Dictionary and not owned.get("native_visual",false) and meshes.get(str(member.name))==member and not _draws(owned,draw):suspended[member.get_instance_id()]=true
 			batcher.retire_sources([inst],suspended)
-		_drop(meshes, uuid, inst)
+		_drop(meshes, uuid, inst, map_root)
 		changed=true
 	if collides:
 		if FortCollision.candidate(spec.get("ground_batch_record",{})):
@@ -1676,7 +1677,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 				body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
 				bodies[uuid] = body
 	elif body != null:
-		_drop(bodies, uuid, body)
+		_drop(bodies, uuid, body, map_root)
 	return changed
 
 
@@ -1685,9 +1686,17 @@ static func _ring_at(chunk: Vector2i, radius: int) -> Dictionary:
 	return {"low": chunk - Vector2i(radius, radius), "high": chunk + Vector2i(radius, radius)}
 
 
-static func _drop(bag: Dictionary, uuid: String, node: Node) -> void:
+static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node != null and is_instance_valid(node):
+		if owned_removal_accounting_enabled and map_root!=null and node.get_parent()==map_root:
+			var count:=map_root.get_child_count(true)
+			# Only this residency transaction owns the removal. A slow _apply can
+			# yield before _sync_work's final count update; do not mistake it for
+			# external damage and throw away the still-valid pending plan.
+			# Leave prior mismatches/-1 untouched. Account before free so exit
+			# callbacks can still invalidate the count or remove other owners.
+			if _child_count_is(map_root,count):map_root.set_meta("stream_children",count-1)
 		node.free()
 	bag.erase(uuid)
 

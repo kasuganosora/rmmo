@@ -133,6 +133,7 @@ func _initialize()->void:
 		if arg=="--sync-texture-headers":preload("res://scripts/world3d/deferred_asset_loader.gd").async_texture_headers_enabled=false
 		if arg=="--full-cache-trims":preload("res://scripts/world3d/surface_materials.gd").incremental_cache_budget_enabled=false
 		if arg=="--full-stream-adoption":preload("res://scripts/world3d/world_stream.gd").incremental_adoption_enabled=false
+		if arg=="--unaccounted-stream-removals":preload("res://scripts/world3d/world_stream.gd").owned_removal_accounting_enabled=false
 		if arg=="--without-completed-owner-drain":preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled=false
 		if arg=="--without-native-prefab-direct-specs":preload("res://scripts/world3d/deferred_asset_loader.gd").native_prefab_direct_specs_enabled=false
 		if arg=="--completed-job-audit":
