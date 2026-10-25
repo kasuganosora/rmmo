@@ -235,3 +235,26 @@ exe和调试符号匹配，但MI日志出现当前源码比二进制新的警告
   `test_deferred_index_preparation` 的 2 个失败在阈值 >256 时同样存在，是独立遗留。
 - 代码仍在工作区，未提交；证据在 `anchor32_3d_10_20261025/`、
   `incremental_cold_10_20261025/`、`budget48_cold_10_20261025/`。
+
+## 2026-10-25 收尾：return 剩余长帧与 AV 捕获
+
+commit `7a6a661c` 之后，cleanup 5 次样本仍有 return 68.9/75.3ms。用
+`profile_axel_waits.gd` 的 64B loopback heartbeat 抓了 3 次 native 路线（不写盘，
+只记录 stage 顺序）：所有 ≥50ms 的 return/reload 间距都是
+**post_draw -> 下一帧 geometry_begin**，且从 unarmed 进入 return：
+
+| 样本 | 间距 | 起点 stage | 终点 stage |
+|---|---:|---|---|
+| hb_00 | 70.4ms | post_draw | geometry_begin |
+| hb_01 | 63.5ms | post_draw | geometry_begin |
+| hb_02 | 94.9ms | post_draw | geometry_begin |
+
+这段没有任何 observe/geometry/Deferred 或 publication 工作，属于帧间
+OS/GPU/呈现等待，不是白模脚本尖峰；不把 heartbeat 诊断样本并入普通性能 N10。
+证据：`heartbeat_3d_20261025/hb_*.gaps.json`。
+
+0xC0000005 用已准备好的 ProcDump 12.02 对当前 native 3D 路线附加 5 次：
+ProcDump 实际等待/退出监视成功，目标均 exit 0，`access_violation_notification_count=0`，
+无 dump。历史 AV 样本绑定到已撤回 parallel-hints/metadata-mutex 实验或外部夹具；
+按“当前 native white 路径不可复现、实验路径已移除”关闭，不宣称引擎根因已修复。
+证据：`av_capture_3d_20261025/`、`remaining_white_20261025/diagnostics/captures/av3d_*`。
