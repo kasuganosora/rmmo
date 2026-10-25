@@ -32,11 +32,15 @@ const PrefabTextures=preload("res://scripts/world3d/prefab_texture_preparation.g
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
 const PrefabSpecs=preload("res://scripts/world3d/prefab_spec_preparation.gd")
 const SharedImages=preload("res://scripts/world3d/shared_prefab_images.gd")
+const ParallelChunkWorker=preload("res://scripts/world3d/parallel_chunk_worker.gd")
+const TexturePlanCatalog=preload("res://scripts/world3d/texture_plan_catalog.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const CompletedTrace=preload("res://scripts/world3d/completed_job_trace.gd")
 const CollisionGeometry=preload("res://scripts/world3d/model_collision_requirements.gd")
 static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
+static var parallel_texture_preparation_enabled:=true # Same byte lease and total worker cap; diagnostic serial control.
+static var texture_plan_reuse_enabled:=true
 static var prefab_texture_preparation_enabled:=true
 static var native_entry_prefetch_enabled:=false
 static var bridge_texture_preparation_enabled:=true # Demanded native bridges, after core publication only; full entry ABBA verified.
@@ -86,6 +90,8 @@ var _host:Node
 var _drainer:Node
 var _jobs:Dictionary={}
 var _admission=preload("res://scripts/world3d/resource_admission.gd").new()
+var _texture_plan_catalog:=TexturePlanCatalog.new()
+var _texture_attempt_generation:=-1
 var loading_worker_limit:=0 # 0 selects production CPU-based capacity; probes may override 2/4/6.
 var _saved_interactive_worker_limit:=-1
 var _demands:Dictionary={}
@@ -393,6 +399,7 @@ func configure_references(index:Dictionary,path:String,content_root:String,owner
 	# A new mounted operation must not inherit the previous source identities.
 	# In-flight consumers keep their original pool until their jobs retire.
 	if _jobs.is_empty():_shared_images=SharedImages.new()
+	_texture_plan_catalog.reset();_texture_attempt_generation=-1
 	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_runtime_building_records.clear()
@@ -638,13 +645,17 @@ func _configure_admission_budget()->void:
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.geometry_definition_reserved_bytes))
 	profile.reference_handoff_reserved_bytes=_reference_handoff.reserved_bytes if _reference_handoff!=null else 0
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.reference_handoff_reserved_bytes))
+	profile.texture_plan_reserved_bytes=TexturePlanCatalog.RESERVED_BYTES if texture_plan_reuse_enabled and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures else 0
+	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.texture_plan_reserved_bytes))
 
 func is_complete()->bool:return pending_count()==0 and _jobs.is_empty()
 
 func active_workers()->int:
 	var count:=0
-	for job:Dictionary in _jobs.values():
-		if job.has("worker"):count+=1
+	for path:String in _jobs:
+		if _jobs[path].has("worker"):
+			var lease:Dictionary=_admission._entries.get(path,{})
+			if lease.get("occupies_worker",true):count+=int(lease.get("worker_slots",1))
 	return count
 
 func quiesce()->void:
@@ -1769,6 +1780,9 @@ func _targeted_bridge_textures(item:Dictionary)->bool:
 
 func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	if (not prefab_texture_preparation_enabled and not _targeted_bridge_textures(item)) or _reference_root.is_empty():return {}
+	var generation:int=preload("res://scripts/world3d/surface_materials.gd").source_generation
+	if generation!=_texture_attempt_generation:
+		_prefab_texture_attempts.clear();_texture_attempt_generation=generation
 	if _prefab_texture_attempt_revision!=_demand_revision:
 		_prefab_texture_attempts.clear();_prefab_texture_attempt_revision=_demand_revision
 	var positions:Array=[]
@@ -1788,7 +1802,10 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	# Omitting DDS here made real record construction synchronously load every
 	# material layer, bypassing both the worker and the publication budget.
 	var texture_plan_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
-	var result:Dictionary=PrefabTextures.estimate(sources,_reference_root) if not sources.is_empty() else {}
+	var result:Dictionary={}
+	if not sources.is_empty():
+		result=_texture_plan_catalog.estimate(sources,_reference_root) if texture_plan_reuse_enabled else PrefabTextures.estimate(sources,_reference_root)
+		if texture_plan_reuse_enabled:profile.texture_plan_catalog=_texture_plan_catalog.snapshot()
 	_record_texture_dispatch("header_plan",texture_plan_started,str(item.get("path","")),sources.size())
 	if result.get("rows",{}).is_empty():result={}
 	if _prefab_texture_attempts.size()>=16:_prefab_texture_attempts.erase(_prefab_texture_attempts.keys()[0])
@@ -1858,7 +1875,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
-		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}))
+		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}),model_route.get("parallel_pixels",false))
 		if not prepared.error.is_empty():prepared.reference_failure=true;return prepared
 	var geometry:Dictionary={"mode":CollisionGeometry.ALL,"definitions":{}}
 	if model_route.get("filter_collision_geometry",false) and not native:
@@ -3269,7 +3286,7 @@ func _candidate_for_job(path:String,root:String,digest:String)->Dictionary:
 func _refresh_raw_memory(path:String)->Dictionary:
 	return MemoryEstimate.estimate(path)
 
-func _start_worker(worker:Thread,prepare:Callable)->int:
+func _start_worker(worker:RefCounted,prepare:Callable)->int:
 	return worker.start(prepare)
 
 static func _retry_decision(job:Dictionary,result:Dictionary)->String:
@@ -3331,6 +3348,10 @@ func _poll_jobs(required:Dictionary)->void:
 			if is_instance_valid(_drainer):_drainer.forget(job.worker)
 			job.erase("worker")
 			_record_pixel_packet(path,job,result)
+			if result.has("parallel_cpu"):
+				if not profile.has("parallel_cpu"):profile.parallel_cpu={"jobs":0,"geometry_us":0,"pixels_us":0,"overlap_us":0}
+				profile.parallel_cpu.jobs+=1
+				for field:String in ["geometry_us","pixels_us","overlap_us"]:profile.parallel_cpu[field]+=int(result.parallel_cpu[field])
 			if CompletedTrace.enabled:CompletedTrace.joined(path,job.token.get_instance_id(),result)
 			if job.get("pixel_continuation",false):
 				job.erase("pixel_continuation")
@@ -3541,7 +3562,13 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				_dispatch_fence=path;profile.admission_drain_path=path
 				break
 			continue
-		var worker:=Thread.new();var token:=Drainer.CancelToken.new()
+		var worker:RefCounted=Thread.new();var token:=Drainer.CancelToken.new()
+		# Only immutable native CPU transactions can split their final proof.
+		# All-resident/follower-only requests have no unique decode to overlap.
+		var parallel_pixels:bool=parallel_texture_preparation_enabled and native and not requests.is_empty() and not pixel_offer.get("leaders",{}).is_empty() and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/chunk_reference_preparation.gd").trusted_directory_snapshot_enabled
+		if parallel_pixels and _admission.add_worker_slot(path):
+			worker=ParallelChunkWorker.new();worker.admission=_admission;worker.path=path
+		else:parallel_pixels=false
 		# A model is immutable and shared by all its instances; include future
 		# collision consumers so reusing a decorative instance is still safe.
 		# Native references prepare their own exact CPU geometry. This flag is
@@ -3552,7 +3579,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
 		var publication_ids:Array=_job_publication_ids(path,requests)
-		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec()}
+		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec(),"parallel_pixels":parallel_pixels}
 		if CompletedTrace.enabled:CompletedTrace.record(path,token.get_instance_id(),"dispatch",{"publication_ids":publication_ids.duplicate(),"estimated_bytes":int(estimate.estimated_bytes),"exclusive":bool(estimate.get("exclusive",true)),"native":native})
 		if CollisionGeometry.enabled and not native:
 			_jobs[path].geometry_consumers=geometry_consumers;_jobs[path].geometry_mode=geometry_mode
@@ -3593,6 +3620,9 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			profile.reuse_reference_reservation_bytes=int(profile.get("reuse_reference_reservation_bytes",0))+int(estimate.estimated_bytes)
 		preload("res://scripts/world3d/load_trace.gd").instant("deferred.dispatch",{"path":path,"stage":stage,"need_model":need_model,"native":native,"reserved_bytes":estimate.estimated_bytes,"references":requests.size()})
 		var prepare:=_make_prepare_task(path,digest,token,next,needs_faces,content_root,requests,native,need_model)
+		if parallel_pixels:
+			worker.pixels=_make_pixel_prepare_task(estimate.prefab_texture_plan,content_root,token,_jobs[path].shared_pixels)
+			profile.parallel_pixel_jobs=int(profile.get("parallel_pixel_jobs",0))+1
 		if _start_worker(worker,prepare)!=OK:
 			_drainer.forget(worker);_jobs[path].erase("worker");_discard_job(path);_fail("无法启动附近素材后台准备："+path);return
 		if stage=="fixed_native":profile.fixed_native_jobs=int(profile.get("fixed_native_jobs",0))+1
@@ -3624,6 +3654,7 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 		route.filter_collision_geometry=true;route.geometry_consumers=job.geometry_consumers.duplicate(true)
 		route.geometry_known=_collision_definition_modes.get(path,{}).duplicate();route.geometry_mode=int(job.geometry_mode)
 	route.prefab_texture_plan=job.get("estimate",{}).get("prefab_texture_plan",{}).duplicate(true)
+	route.parallel_pixels=job.get("parallel_pixels",false)
 	route.collision_workspace_bytes=int(job.get("estimate",{}).get("collision_workspace_bytes",0))
 	route.reuse_face_snapshots=job.get("reuse_face_snapshots",[])
 	if int(job.get("estimate",{}).get("spec_workspace_bytes",0))>0:
@@ -3640,6 +3671,11 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 		profile.reference_handoff_transferred=_reference_handoff.transferred
 		profile.reference_handoff_remaining=_reference_handoff.records.size()
 	return _prepare_job.bind(path,digest,token,item.get("manifest",{}),needs_faces,content_root,_reference_index,_reference_map_path,requests,native,need_model,_reference_proof,route)
+
+func _make_pixel_prepare_task(plan:Dictionary,content_root:String,token:RefCounted,shared:Dictionary)->Callable:
+	var requested:Dictionary={}
+	for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip,plan.rows[key].normal]
+	return PrefabTextures.prepare.bind(requested,plan,content_root,token,true,shared,true)
 
 func _discard_job(path:String)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.deferred_asset_loader._discard_job") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null

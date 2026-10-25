@@ -21,7 +21,7 @@ class GateDeferred extends "res://scripts/world3d/deferred_asset_loader.gd":
 	static func _gated_prepare(prepare:Callable,semaphore:Semaphore)->Dictionary:
 		semaphore.wait()
 		return prepare.call()
-	func _start_worker(worker:Thread,prepare:Callable)->int:
+	func _start_worker(worker:RefCounted,prepare:Callable)->int:
 		if not hold_workers:return super._start_worker(worker,prepare)
 		var code:=worker.start(_gated_prepare.bind(prepare,gate))
 		if code==OK:gate_started+=1

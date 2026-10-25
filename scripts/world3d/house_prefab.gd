@@ -14,6 +14,7 @@ static var material_owner_reuse_enabled:=true
 static var split_retirement_owner_units_enabled:=true # Diagnostic old compound retirement unit.
 static var material_identity_reuses:=0
 static var material_identity_scans:=0
+static var texture_invalidation_material_scans:=0
 static var _decoded:Dictionary={}
 static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
@@ -166,21 +167,32 @@ static func invalidate_texture_materials(keys:Dictionary)->void:
 	# Drop only cache references. Existing instances keep their immutable materials
 	# and geometry until their owning view is replaced normally.
 	if keys.is_empty():return
+	# Many source/render aliases share the same material. Inspect each material
+	# once for THIS notification; keep no stale answers across editor changes.
+	var usage:Dictionary={}
 	for key in _meshes.keys():
 		var entry:Dictionary=_meshes[key]
-		if _uses_textures(entry.mesh,keys) or _uses_textures(entry.source,keys):_meshes.erase(key)
+		if _uses_textures(entry.mesh,keys,usage) or _uses_textures(entry.source,keys,usage):_meshes.erase(key)
 	for key in _render_meshes.keys():
-		if _uses_textures(_render_meshes[key],keys):_render_meshes.erase(key)
+		if _uses_textures(_render_meshes[key],keys,usage):_render_meshes.erase(key)
 
-static func _uses_textures(mesh:Mesh,keys:Dictionary)->bool:
+static func _uses_textures(mesh:Mesh,keys:Dictionary,usage:Dictionary={})->bool:
 	for material in mesh.materials:
-		if material==null or not material.has_meta("runtime_paint_definition"):continue
+		if material==null:continue
+		var id:int=material.get_instance_id()
+		if usage.has(id):
+			if usage[id]:return true
+			continue
+		usage[id]=false
+		texture_invalidation_material_scans+=1
+		if not material.has_meta("runtime_paint_definition"):continue
 		var definition:Dictionary=material.get_meta("runtime_paint_definition")
 		for field in Cook.Paint.MAP_FIELDS:
 			var path:=str(definition.get(field,""))
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			if keys.has(Cook.Paint.texture_key(path,flip,field=="normal_path")):return true
+			if keys.has(Cook.Paint.texture_key(path,flip,field=="normal_path")):
+				usage[id]=true;return true
 	return false
 
 static func vec(a:Array)->Vector3:return Vector3(a[0],a[1],a[2])

@@ -143,7 +143,7 @@ class Probe extends Deferred:
 		if not gates.has(key):
 			var gate:=Gate.new();gate.audit=audit;gate.mode=mode;gates[key]=gate
 		return gates[key].work.bind(path,dispatch_stage,candidate,token)
-	func _start_worker(worker:Thread,prepare:Callable)->int:
+	func _start_worker(worker:RefCounted,prepare:Callable)->int:
 		audit.starts.append({"path":dispatch_path,"stage":dispatch_stage,"bytes":_admission.reserved_bytes,"workers":_admission.active_workers(),"native_alive":audit.native_alive(),"publication_ids":_jobs[dispatch_path].publication_ids.duplicate()})
 		if dispatch_stage==fail_stage:return ERR_CANT_CREATE
 		return worker.start(prepare)

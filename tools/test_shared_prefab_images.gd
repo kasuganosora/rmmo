@@ -91,6 +91,9 @@ func pool_test(requested:Dictionary,plan:Dictionary,path:String)->void:
 	resumed.clear();waiting.clear();pool.release("b");ledger.release("b")
 	check(weak.get_ref()==null and ledger.reserved_bytes==0 and pool.snapshot().outputs==0,"last consumer clears image owners before releasing unique bytes")
 func make_queue(index:Dictionary,entries:Array,map_path:String)->Queue:
+	# This fixture deliberately parks a follower behind a held SERIAL producer.
+	# Parallel halves and their cancellation/drain are covered independently.
+	Deferred.parallel_texture_preparation_enabled=false
 	var queue:=Queue.new();queue.configure_references(index,map_path,fixture.files.content_root);queue.loading_worker_limit=2;queue.ready_job_limit=2
 	for entry:Dictionary in entries:
 		var key:String="reference:"+entry.group_id if not entry.group_id.is_empty() else "reference:"+str(entry.record_index)

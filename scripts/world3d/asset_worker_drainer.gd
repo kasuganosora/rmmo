@@ -27,18 +27,18 @@ static func for_tree(tree: SceneTree) -> Node:
 	tree.root.add_child(owner)
 	return owner
 
-func watch(worker: Thread, token: RefCounted) -> void:
+func watch(worker: RefCounted, token: RefCounted) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.watch") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	jobs.append({"worker":worker,"token":token,"abandoned":false})
 	set_process(true)
 
-func forget(worker: Thread) -> void:
+func forget(worker: RefCounted) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.forget") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for i in range(jobs.size()-1,-1,-1):
 		if jobs[i].worker == worker: jobs.remove_at(i)
 	if jobs.is_empty(): set_process(false)
 
-func abandon(worker: Thread) -> void:
+func abandon(worker: RefCounted) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.abandon") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for job: Dictionary in jobs:
 		if job.worker == worker:
@@ -58,7 +58,7 @@ func _process(_delta: float) -> void:
 		FrameBudget.charge("retire",began)
 	if jobs.is_empty(): set_process(false)
 
-static func _dispose_result(worker: Thread, token: RefCounted = null) -> void:
+static func _dispose_result(worker: RefCounted, token: RefCounted = null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_result") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not worker.is_started(): return
 	var result: Variant = worker.wait_to_finish()
@@ -169,7 +169,7 @@ static func _retain_visual_resources(node: Node, retained: Array[Resource]) -> v
 		if node.material_overlay != null: retained.append(node.material_overlay)
 	for child in node.get_children(): _retain_visual_resources(child,retained)
 
-static func drain_shutdown(worker: Thread, token: RefCounted = null) -> void:
+static func drain_shutdown(worker: RefCounted, token: RefCounted = null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.drain_shutdown") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if token != null: token.cancel()
 	# Engine shutdown has no future process frames. Godot's force_sync maps to

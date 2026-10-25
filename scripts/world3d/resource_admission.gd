@@ -84,7 +84,21 @@ func resume_worker(key:String)->bool:
 	if not _entries.has(key) or _entries[key].get("occupies_worker",true) or worker_limit<=0 or active_workers()>=worker_limit:return false
 	for other:String in _entries:
 		if other!=key and _entries[other].exclusive:return false
-	_entries[key].occupies_worker=true;_entries[key].stage="pixel_continuation";peak_workers=maxi(peak_workers,active_workers());return true
+	_entries[key].occupies_worker=true;_entries[key].worker_slots=1;_entries[key].stage="pixel_continuation";peak_workers=maxi(peak_workers,active_workers());return true
+
+func add_worker_slot(key:String)->bool:
+	# Split CPU execution only AFTER its combined geometry/pixel workspace was
+	# admitted. This does not allocate a second byte lease or enlarge the cap.
+	if not _entries.has(key) or not _entries[key].get("occupies_worker",true) or active_workers()>=worker_limit:return false
+	_entries[key].worker_slots=int(_entries[key].get("worker_slots",1))+1
+	peak_workers=maxi(peak_workers,active_workers());return true
+
+func finish_worker_slot(key:String)->void:
+	# Owner calls this after joining one CPU half, never from a worker thread.
+	assert(_entries.has(key) and _entries[key].get("occupies_worker",true))
+	var slots:=int(_entries[key].get("worker_slots",1))-1
+	assert(slots>=0)
+	_entries[key].worker_slots=slots;_entries[key].occupies_worker=slots>0
 
 func park(key:String)->bool:
 	# The scheduler calls this only after joining a worker. Retained output still

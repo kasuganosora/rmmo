@@ -108,7 +108,7 @@ func observe()->void:
 				row.deferred={"pending":queue.pending.size(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending.filter(func(item):return queue._demanded_by_id.has(item.record.uuid)).size(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
 				if map_texture_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
-					var job:Dictionary=queue._jobs[path];var worker:Thread=job.get("worker")
+					var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
 					row.deferred.jobs.append({"path":path,"stage":job.get("stage",""),"alive":worker!=null and worker.is_alive(),"age_ms":(now-int(job.get("dispatch_us",now)))/1000.,"ready":job.has("result")})
 			var batches:Node=map.get_node_or_null("GroundRenderBatches")
 			if batches!=null:

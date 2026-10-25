@@ -128,6 +128,8 @@ func sample_publication_blocks()->void:
 	report.job_lifecycle={"columns":["path#seen","seen_us","joined_us","accepted_us","last_us","items","phase"],"rows":lifecycles}
 func _initialize()->void:
 	for arg:String in OS.get_cmdline_user_args():
+		if arg=="--serial-chunk-textures":preload("res://scripts/world3d/deferred_asset_loader.gd").parallel_texture_preparation_enabled=false
+		if arg=="--without-texture-plan-reuse":preload("res://scripts/world3d/deferred_asset_loader.gd").texture_plan_reuse_enabled=false
 		if arg=="--without-completed-owner-drain":preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled=false
 		if arg=="--without-native-prefab-direct-specs":preload("res://scripts/world3d/deferred_asset_loader.gd").native_prefab_direct_specs_enabled=false
 		if arg=="--completed-job-audit":
@@ -218,6 +220,7 @@ func source_snapshot(folder:String="res://scripts")->Dictionary:
 	if folder=="res://scripts":result["res://tools/completed_job_audit_probe.gd"]=FileAccess.get_sha256("res://tools/completed_job_audit_probe.gd")
 	return result
 func save()->void:
+	report.texture_invalidation_material_scans=preload("res://scripts/world3d/house_prefab.gd").texture_invalidation_material_scans
 	if completed_job_audit_enabled:
 		var trace:Dictionary=preload("res://scripts/world3d/completed_job_trace.gd").snapshot(began)
 		report.publication_audit_v178={"samples":completed_job_audit_samples,"trace":trace,"trace_complete":report.get("retirement",{}).get("map_freed",false) and trace.dropped==0}

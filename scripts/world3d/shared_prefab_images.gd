@@ -44,7 +44,11 @@ func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictio
 	for key:String in result.rows:
 		if cached.has(key):continue
 		var row:Dictionary=result.rows[key]
-		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,revisions.get(row.path,"")]
+		# A trusted mounted source is immutable for this explicit refresh generation.
+		# A follower's observed digest must not create a second binding when the
+		# original producer is cancelled. Mutable diagnostic sources keep revisions.
+		var revision:String="" if Pixels.Policy.trusted() else str(revisions.get(row.path,""))
+		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,preload("res://scripts/world3d/surface_materials.gd").source_generation,revision]
 		var binding:String="prefab_pixels:"+var_to_bytes(identity).hex_encode().sha256_text()
 		result.bindings[key]=binding
 		candidates.append({"key":key,"binding":binding,"retained":int(row.output_bytes)*2,"scratch":Preparation.workspace_bytes(row)})
@@ -52,6 +56,11 @@ func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictio
 	for candidate:Dictionary in candidates:
 		if not _entries.has(candidate.binding):
 			result.leaders[candidate.key]=true;result.retained[candidate.binding]=candidate.retained
+			result.scratch_bytes=maxi(result.scratch_bytes,candidate.scratch)
+		elif _entries[candidate.binding].state=="failed":
+			# Its output charge is still held by existing consumers. Only a newly
+			# admitted decoder workspace is needed to take over pending production.
+			result.leaders[candidate.key]=true
 			result.scratch_bytes=maxi(result.scratch_bytes,candidate.scratch)
 	_mutex.unlock()
 	return result
@@ -66,6 +75,11 @@ func commit(consumer:String,offer_:Dictionary)->void:
 			var bytes:int=offer_.retained[binding]
 			_entries[binding]={"owner":consumer,"consumers":{},"state":"pending","digest":"","image":null,"bytes":bytes,"output_bytes":int(offer_.rows[key].output_bytes)}
 			profile.retained_bytes+=bytes
+		elif offer_.leaders.has(key) and _entries[binding].state=="failed":
+			# offer -> reserve_bundle -> commit is one scheduler transaction. The
+			# old cancelled worker retains its private workspace until joined; its
+			# late publish/release cannot mutate the new owner's shared output.
+			_entries[binding].owner=consumer;_entries[binding].state="pending"
 		_entries[binding].consumers[consumer]=true
 	profile.peak_outputs=maxi(int(profile.peak_outputs),_entries.size());profile.peak_retained_bytes=maxi(int(profile.peak_retained_bytes),int(profile.retained_bytes))
 	_mutex.unlock()

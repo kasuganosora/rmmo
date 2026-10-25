@@ -18,6 +18,7 @@ static var cache_byte_budget:=256*1024*1024
 static var _texture_refs:Dictionary={}
 static var _material_refs:Dictionary={}
 static var _cache_serial:=0
+static var source_generation:=0
 static var _cache_use:Dictionary={}
 static var cache_residency_profile:Dictionary={}
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
@@ -36,6 +37,7 @@ static func refresh_sources()->void:
 	_materials.clear();_textures.clear();prepared_images.clear()
 	_material_refs.clear();_texture_refs.clear();_cache_use.clear()
 	_sidecar_cache.clear()
+	source_generation+=1
 
 static func _touch_cache(kind:String,key:String)->void:
 	_cache_serial+=1;_cache_use[kind+key]=_cache_serial

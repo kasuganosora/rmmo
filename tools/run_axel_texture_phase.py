@@ -44,6 +44,8 @@ def main():
     parser.add_argument("--legacy-source-reads", action="store_true")
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
+    parser.add_argument("--serial-chunk-textures", action="store_true")
+    parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     args = parser.parse_args()
@@ -72,6 +74,10 @@ def main():
         cmd.append("--without-mounted-texture-source-reuse")
     if args.texture_profile:
         cmd.append("--texture-stage-profile")
+    if args.serial_chunk_textures:
+        cmd.append("--serial-chunk-textures")
+    if args.without_texture_plan_reuse:
+        cmd.append("--without-texture-plan-reuse")
     if args.screenshot:
         cmd.append("--stage-screenshot")
     before = sources()
@@ -81,6 +87,8 @@ def main():
               "stage": args.stage, "legacy_publication": args.legacy_publication,
               "legacy_source_reads": args.legacy_source_reads,
               "texture_profile": args.texture_profile,
+              "parallel_chunk_textures": not args.serial_chunk_textures,
+              "texture_plan_reuse": not args.without_texture_plan_reuse,
               "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",
               "cache_scope": {"derived_index": "invalidated" if args.cold_index else "retained",
                               "geometry_cache": "disabled", "texture_disk_cache": "retained",

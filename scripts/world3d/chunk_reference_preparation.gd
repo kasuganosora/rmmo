@@ -20,7 +20,7 @@ static func _fail(reason: String, cancelled: bool = false, failed_uuid: String =
 static func _cancelled(token: RefCounted) -> bool:
 	return token != null and token.is_cancelled()
 
-static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false,hydrated_records:Dictionary={}) -> Dictionary:
+static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false,hydrated_records:Dictionary={},parallel_pixels:bool=false) -> Dictionary:
 	var started := Time.get_ticks_usec()
 	var mounted_snapshot:=trusted_package and trusted_directory_snapshot_enabled
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
@@ -203,7 +203,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			if not surface_bounds.has(uuid):surface_bounds[uuid]=preload("res://scripts/world3d/procedural_surface_bounds.gd").bounds(surface_arrays[uuid])
 	var surface_bounds_us:=Time.get_ticks_usec()-bounds_started
 	var texture_packet:Dictionary={}
-	if not texture_plan.is_empty():
+	if not texture_plan.is_empty() and not parallel_pixels:
 		texture_packet=PrefabTextures.prepare(texture_sources,texture_plan,content_root,token,false,shared_pixels,mounted_snapshot)
 		if not texture_packet.error.is_empty():
 			var failure:=_fail(texture_packet.error,texture_packet.cancelled)

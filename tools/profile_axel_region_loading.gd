@@ -24,7 +24,7 @@ func _process(_delta:float)->bool:
 		row.actual_unpublished_demand=queue.pending.filter(func(item):return queue._demanded_by_id.has(item.record.uuid)).size()
 		row.jobs=[]
 		for path:String in queue._jobs:
-			var job:Dictionary=queue._jobs[path];var worker:Thread=job.get("worker")
+			var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
 			row.jobs.append({"path":path,"stage":job.get("stage",""),"alive":worker!=null and worker.is_alive(),"ready_result":job.has("result"),"age_ms":(Time.get_ticks_usec()-int(job.get("dispatch_us",Time.get_ticks_usec())))/1000.,"native":job.get("native",false)})
 		row.admission=queue._admission.snapshot();row.queue_profile=queue.profile.duplicate(true)
 	var preparer:Node=map.get_node_or_null("StreamCollisionPreparer")
